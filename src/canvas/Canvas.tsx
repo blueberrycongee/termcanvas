@@ -10,7 +10,7 @@ export function Canvas() {
 
   return (
     <div
-      className="fixed inset-0 overflow-hidden canvas-bg"
+      className="fixed inset-0 overflow-hidden canvas-bg cursor-grab active:cursor-grabbing"
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
     >
