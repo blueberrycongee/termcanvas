@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import type { ProjectData } from "../types";
 import { useProjectStore } from "../stores/projectStore";
 import { WorktreeContainer } from "./WorktreeContainer";
@@ -10,6 +10,7 @@ interface Props {
 }
 
 export function ProjectContainer({ project }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const {
     updateProjectPosition,
     updateProjectSize,
@@ -36,10 +37,12 @@ export function ProjectContainer({ project }: Props) {
     ),
     340,
     120,
+    containerRef,
   );
 
   return (
     <div
+      ref={containerRef}
       className="absolute panel"
       style={{
         left: project.position.x,

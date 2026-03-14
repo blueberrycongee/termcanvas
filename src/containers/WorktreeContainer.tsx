@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import type { WorktreeData } from "../types";
 import { useProjectStore, createTerminal } from "../stores/projectStore";
 import { TerminalTile } from "../terminal/TerminalTile";
@@ -10,6 +10,7 @@ interface Props {
 }
 
 export function WorktreeContainer({ projectId, worktree }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const { toggleWorktreeCollapse, addTerminal, updateWorktreeSize } =
     useProjectStore();
 
@@ -28,10 +29,12 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
     ),
     300,
     100,
+    containerRef,
   );
 
   return (
     <div
+      ref={containerRef}
       className="relative panel-inner"
       style={{
         width: worktree.size.w > 0 ? worktree.size.w : undefined,

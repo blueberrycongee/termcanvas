@@ -34,6 +34,7 @@ export function TerminalTile({
   worktreePath,
   terminal,
 }: Props) {
+  const tileRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -60,6 +61,7 @@ export function TerminalTile({
     ),
     260,
     80,
+    tileRef,
   );
 
   useEffect(() => {
@@ -202,6 +204,7 @@ export function TerminalTile({
 
   return (
     <div
+      ref={tileRef}
       className="relative terminal-tile rounded-md border border-[#333] bg-[#0a0a0a] overflow-hidden flex flex-col"
       style={{
         width: terminal.size.w,
