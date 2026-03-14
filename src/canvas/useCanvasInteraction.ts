@@ -43,8 +43,8 @@ export function useCanvasInteraction() {
   );
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // Middle mouse button for panning
-    if (e.button === 1) {
+    // Left or middle mouse button for panning
+    if (e.button === 0 || e.button === 1) {
       e.preventDefault();
       isPanning.current = true;
       lastPos.current = { x: e.clientX, y: e.clientY };
