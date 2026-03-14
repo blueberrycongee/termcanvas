@@ -9,7 +9,7 @@ function isElectron(): boolean {
 
 export function Toolbar() {
   const { viewport, setViewport, resetViewport } = useCanvasStore();
-  const { addProject } = useProjectStore();
+  const { projects, addProject } = useProjectStore();
   const { notify } = useNotificationStore();
 
   const handleAddProject = useCallback(async () => {
@@ -65,6 +65,32 @@ export function Toolbar() {
       `Added project "${info.name}" with ${info.worktrees.length} worktree(s).`,
     );
   }, [addProject, viewport, notify]);
+
+  const handleFitAll = useCallback(() => {
+    if (projects.length === 0) return;
+    const padding = 80;
+    const toolbarH = 44;
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    for (const p of projects) {
+      minX = Math.min(minX, p.position.x);
+      minY = Math.min(minY, p.position.y);
+      maxX = Math.max(maxX, p.position.x + (p.size.w || 620));
+      maxY = Math.max(maxY, p.position.y + (p.size.h || 400));
+    }
+    const contentW = maxX - minX;
+    const contentH = maxY - minY;
+    const viewW = window.innerWidth - padding * 2;
+    const viewH = window.innerHeight - toolbarH - padding * 2;
+    const scale = Math.min(1, viewW / contentW, viewH / contentH);
+    setViewport({
+      x: -minX * scale + padding,
+      y: -minY * scale + padding + toolbarH,
+      scale,
+    });
+  }, [projects, setViewport]);
 
   const zoomPercent = Math.round(viewport.scale * 100);
 
@@ -152,6 +178,13 @@ export function Toolbar() {
           onClick={resetViewport}
         >
           Reset
+        </button>
+        <div className="w-px h-5 bg-[#333]" />
+        <button
+          className="text-[#888] hover:text-[#ededed] hover:bg-[#1a1a1a] transition-colors px-2.5 py-1 text-[11px]"
+          onClick={handleFitAll}
+        >
+          Fit
         </button>
       </div>
     </div>
