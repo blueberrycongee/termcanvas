@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import type { TerminalData } from "../types";
 import { useProjectStore } from "../stores/projectStore";
 import { useNotificationStore } from "../stores/notificationStore";
+import { useDrag } from "../hooks/useDrag";
 import { useResize } from "../hooks/useResize";
 
 interface Props {
@@ -45,11 +46,22 @@ export function TerminalTile({
     toggleTerminalMinimize,
     updateTerminalPtyId,
     updateTerminalSize,
+    updateTerminalPosition,
     setFocusedTerminal,
   } = useProjectStore();
 
   const { notify } = useNotificationStore();
   const config = TYPE_CONFIG[terminal.type];
+
+  const handleDrag = useDrag(
+    terminal.position.x,
+    terminal.position.y,
+    useCallback(
+      (x: number, y: number) =>
+        updateTerminalPosition(projectId, worktreeId, terminal.id, x, y),
+      [projectId, worktreeId, terminal.id, updateTerminalPosition],
+    ),
+  );
 
   const handleResize = useResize(
     terminal.size.w,
@@ -205,15 +217,20 @@ export function TerminalTile({
   return (
     <div
       ref={tileRef}
-      className="relative terminal-tile rounded-md border border-[#333] bg-[#0a0a0a] overflow-hidden flex flex-col"
+      className="absolute terminal-tile rounded-md border border-[#333] bg-[#0a0a0a] overflow-hidden flex flex-col"
       style={{
+        left: terminal.position.x,
+        top: terminal.position.y,
         width: terminal.size.w,
         height: terminal.minimized ? "auto" : terminal.size.h,
       }}
       onClick={() => setFocusedTerminal(terminal.id)}
     >
       {/* Title bar */}
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-[#111] select-none shrink-0 border-b border-[#333]">
+      <div
+        className="flex items-center gap-2 px-3 py-1.5 bg-[#111] select-none shrink-0 border-b border-[#333] cursor-grab active:cursor-grabbing"
+        onMouseDown={handleDrag}
+      >
         <span className={`type-badge ${config.badge}`}>{config.label}</span>
         <span
           className="text-[11px] text-[#666] truncate flex-1"

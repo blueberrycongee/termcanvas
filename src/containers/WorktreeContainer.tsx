@@ -91,7 +91,7 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
 
       {/* Terminals */}
       {!worktree.collapsed && (
-        <div className="p-2.5 flex flex-col gap-2 overflow-auto">
+        <div className="p-2.5 relative overflow-auto" style={{ minHeight: 60 }}>
           {worktree.terminals.map((terminal) => (
             <TerminalTile
               key={terminal.id}
