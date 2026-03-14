@@ -68,9 +68,17 @@ export function Toolbar() {
   const zoomPercent = Math.round(viewport.scale * 100);
 
   return (
-    <div className="fixed top-0 left-0 right-0 h-11 toolbar flex items-center px-4 gap-4 z-50">
-      {/* App branding */}
-      <div className="flex items-center gap-2">
+    <div
+      className="fixed top-0 left-0 right-0 h-11 toolbar flex items-center pr-4 gap-4 z-50"
+      style={
+        { paddingLeft: 80, WebkitAppRegion: "drag" } as React.CSSProperties
+      }
+    >
+      {/* App branding - after macOS traffic lights */}
+      <div
+        className="flex items-center gap-2"
+        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+      >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
           <rect
             x="1"
@@ -97,7 +105,11 @@ export function Toolbar() {
       <div className="h-4 w-px bg-[#333]" />
 
       {/* Actions */}
-      <button className="btn-geist" onClick={handleAddProject}>
+      <button
+        className="btn-geist"
+        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+        onClick={handleAddProject}
+      >
         Add Project
       </button>
 
@@ -105,7 +117,10 @@ export function Toolbar() {
       <div className="flex-1" />
 
       {/* Zoom controls */}
-      <div className="flex items-center gap-0 border border-[#333] rounded-md overflow-hidden">
+      <div
+        className="flex items-center gap-0 border border-[#333] rounded-md overflow-hidden"
+        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+      >
         <button
           className="text-[#888] hover:text-[#ededed] hover:bg-[#1a1a1a] transition-colors px-2.5 py-1 text-xs"
           onClick={() =>
