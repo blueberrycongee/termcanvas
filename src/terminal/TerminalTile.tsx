@@ -114,13 +114,20 @@ export function TerminalTile({
         ptyId = id;
         updateTerminalPtyId(projectId, worktreeId, terminal.id, id);
 
+        // Sync xterm input to PTY
         xterm.onData((data) => {
           window.termcanvas.terminal.input(id, data);
         });
 
+        // Sync resize events to PTY
         xterm.onResize(({ cols, rows }) => {
           window.termcanvas.terminal.resize(id, cols, rows);
         });
+
+        // Fit now and sync the actual size to PTY immediately
+        fitAddon.fit();
+        const { cols, rows } = xterm;
+        window.termcanvas.terminal.resize(id, cols, rows);
       })
       .catch((err) => {
         notify("error", `Failed to create PTY for "${terminal.title}": ${err}`);
