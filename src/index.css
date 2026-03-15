@@ -21,26 +21,20 @@
   font-display: swap;
 }
 
-/* Base */
+/* ── Design tokens ── */
 :root {
-  --geist-background: #0a0a0a;
-  --geist-foreground: #ededed;
-  --geist-gray-100: #111111;
-  --geist-gray-200: #1a1a1a;
-  --geist-gray-300: #333333;
-  --geist-gray-400: #444444;
-  --geist-gray-500: #666666;
-  --geist-gray-600: #888888;
-  --geist-gray-700: #999999;
-  --geist-gray-800: #ededed;
-  --geist-gray-900: #fafafa;
-  --geist-blue: #0070f3;
-  --geist-red: #ee0000;
-  --geist-amber: #f5a623;
-  --geist-green: #0070f3;
-  --geist-radius-sm: 6px;
-  --geist-radius-md: 8px;
-  --geist-radius-lg: 12px;
+  --bg: #0a0a0a;
+  --surface: #111;
+  --border: #222;
+  --text-primary: #ededed;
+  --text-secondary: #888;
+  --text-muted: #444;
+  --accent: #0070f3;
+  --red: #ee0000;
+  --amber: #f5a623;
+  --cyan: #50e3c2;
+  --purple: #7928ca;
+  --radius: 8px;
 }
 
 body {
@@ -55,69 +49,31 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Canvas background */
+/* ── Canvas ── */
 .canvas-bg {
-  background-color: var(--geist-background);
+  background-color: var(--bg);
 }
 
-/* Panels */
+/* ── Panel ── */
 .panel {
-  background: var(--geist-gray-100);
-  border: 1px solid var(--geist-gray-300);
-  border-radius: var(--geist-radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
-.panel-inner {
-  background: var(--geist-gray-200);
-  border: 1px solid var(--geist-gray-300);
-  border-radius: var(--geist-radius-md);
-}
-
-/* Toolbar */
-.toolbar {
-  background: #000000;
-  border-bottom: 1px solid var(--geist-gray-300);
-}
-
-/* Buttons */
-.btn-geist {
-  background: var(--geist-background);
-  border: 1px solid var(--geist-gray-300);
-  border-radius: var(--geist-radius-sm);
-  padding: 4px 12px;
-  font-size: 13px;
-  color: var(--geist-gray-800);
-  transition: all 0.15s ease;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.btn-geist:hover {
-  background: var(--geist-gray-200);
-  border-color: var(--geist-gray-400);
-  color: var(--geist-gray-900);
-}
-
-.btn-geist:active {
-  background: var(--geist-gray-100);
-  transform: scale(0.98);
-}
-
-/* Terminal tile */
+/* ── Terminal tile ── */
 .terminal-tile {
-  transition:
-    box-shadow 0.15s ease,
-    border-color 0.15s ease;
+  transition: border-color 150ms ease;
 }
 
 .terminal-tile:hover {
-  border-color: var(--geist-gray-400);
+  border-color: #333;
 }
 
-/* Scrollbar */
+/* ── Scrollbar ── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -125,15 +81,15 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--geist-gray-300);
+  background: var(--border);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--geist-gray-400);
+  background: #333;
 }
 
-/* Status pulse animation */
+/* ── Animations ── */
 @keyframes pulse-dot {
   0%,
   100% {
@@ -146,14 +102,4 @@ body {
 
 .status-pulse {
   animation: pulse-dot 2s ease-in-out infinite;
-}
-
-/* Type badge */
-.type-badge {
-  font-family: "Geist Mono", monospace;
-  font-size: 11px;
-  font-weight: 500;
-  padding: 1px 6px;
-  border-radius: 4px;
-  letter-spacing: 0;
 }
