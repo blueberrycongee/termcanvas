@@ -1,4 +1,5 @@
 import { execSync } from "child_process";
+import { watch, type FSWatcher } from "fs";
 import path from "path";
 
 interface WorktreeInfo {
@@ -14,9 +15,10 @@ interface ProjectInfo {
 }
 
 export class ProjectScanner {
+  private watchers = new Map<string, FSWatcher>();
+
   scan(dirPath: string): ProjectInfo | null {
     try {
-      // Verify it's a git repo
       execSync("git rev-parse --git-dir", { cwd: dirPath, stdio: "pipe" });
     } catch {
       return null;
@@ -28,7 +30,7 @@ export class ProjectScanner {
     return { name, path: dirPath, worktrees };
   }
 
-  private listWorktrees(dirPath: string): WorktreeInfo[] {
+  listWorktrees(dirPath: string): WorktreeInfo[] {
     try {
       const output = execSync("git worktree list --porcelain", {
         cwd: dirPath,
@@ -60,7 +62,6 @@ export class ProjectScanner {
 
       return worktrees;
     } catch {
-      // If worktree list fails, return the directory itself
       return [
         {
           path: dirPath,
@@ -68,6 +69,75 @@ export class ProjectScanner {
           isMain: true,
         },
       ];
+    }
+  }
+
+  /**
+   * Watch a project's .git/worktrees directory for changes.
+   * Calls onChange when worktrees are added or removed.
+   */
+  startWatching(
+    dirPath: string,
+    onChange: (worktrees: WorktreeInfo[]) => void,
+  ) {
+    this.stopWatching(dirPath);
+
+    let gitDir: string;
+    try {
+      gitDir = execSync("git rev-parse --git-dir", {
+        cwd: dirPath,
+        encoding: "utf-8",
+      }).trim();
+    } catch {
+      return;
+    }
+
+    // Resolve to absolute path
+    const absGitDir = path.isAbsolute(gitDir)
+      ? gitDir
+      : path.resolve(dirPath, gitDir);
+    const worktreesDir = path.join(absGitDir, "worktrees");
+
+    // Debounce to avoid rapid-fire events
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    const debouncedScan = () => {
+      if (timeout) clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        const worktrees = this.listWorktrees(dirPath);
+        onChange(worktrees);
+      }, 500);
+    };
+
+    try {
+      const watcher = watch(worktreesDir, { recursive: true }, debouncedScan);
+      this.watchers.set(dirPath, watcher);
+    } catch {
+      // .git/worktrees may not exist yet (no worktrees created)
+      // Watch the .git dir itself for creation of worktrees/
+      try {
+        const watcher = watch(absGitDir, (_event, filename) => {
+          if (filename === "worktrees") {
+            debouncedScan();
+          }
+        });
+        this.watchers.set(dirPath, watcher);
+      } catch {
+        // Ignore - directory may not exist
+      }
+    }
+  }
+
+  stopWatching(dirPath: string) {
+    const watcher = this.watchers.get(dirPath);
+    if (watcher) {
+      watcher.close();
+      this.watchers.delete(dirPath);
+    }
+  }
+
+  stopAllWatching() {
+    for (const [dirPath] of this.watchers) {
+      this.stopWatching(dirPath);
     }
   }
 
