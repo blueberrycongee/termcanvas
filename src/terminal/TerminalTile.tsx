@@ -15,18 +15,9 @@ interface Props {
 }
 
 const TYPE_CONFIG = {
-  shell: {
-    badge: "bg-[#1a1a1a] text-[#888]",
-    label: "Shell",
-  },
-  claude: {
-    badge: "bg-[#1a1a1a] text-[#f5a623]",
-    label: "Claude",
-  },
-  codex: {
-    badge: "bg-[#1a1a1a] text-[#7928ca]",
-    label: "Codex",
-  },
+  shell: { color: "#888", label: "Shell" },
+  claude: { color: "#f5a623", label: "Claude" },
+  codex: { color: "#7928ca", label: "Codex" },
 };
 
 export function TerminalTile({
@@ -226,7 +217,7 @@ export function TerminalTile({
   return (
     <div
       ref={tileRef}
-      className="absolute terminal-tile rounded-md border border-[#333] bg-[#0a0a0a] overflow-hidden flex flex-col"
+      className="absolute terminal-tile rounded-md border border-[#222] bg-[#0a0a0a] overflow-hidden flex flex-col"
       style={{
         left: terminal.position.x,
         top: terminal.position.y,
@@ -237,19 +228,24 @@ export function TerminalTile({
     >
       {/* Title bar */}
       <div
-        className="flex items-center gap-2 px-3 py-1.5 bg-[#111] select-none shrink-0 border-b border-[#333] cursor-grab active:cursor-grabbing"
+        className="flex items-center gap-2 px-3 py-2 select-none shrink-0 cursor-grab active:cursor-grabbing"
         onMouseDown={handleDrag}
       >
-        <span className={`type-badge ${config.badge}`}>{config.label}</span>
         <span
-          className="text-[11px] text-[#666] truncate flex-1"
+          className="text-[11px] font-medium"
+          style={{ color: config.color, fontFamily: '"Geist Mono", monospace' }}
+        >
+          {config.label}
+        </span>
+        <span
+          className="text-[11px] text-[#444] truncate flex-1"
           style={{ fontFamily: '"Geist Mono", monospace' }}
         >
           {terminal.title}
         </span>
         <div className="flex items-center gap-0.5">
           <button
-            className="text-[#444] hover:text-[#ededed] transition-colors p-1 rounded hover:bg-[#1a1a1a]"
+            className="text-[#333] hover:text-[#ededed] transition-colors duration-150 p-1 rounded-md hover:bg-[#222]"
             onClick={(e) => {
               e.stopPropagation();
               toggleTerminalMinimize(projectId, worktreeId, terminal.id);
@@ -277,7 +273,7 @@ export function TerminalTile({
             </svg>
           </button>
           <button
-            className="text-[#444] hover:text-[#ee0000] transition-colors p-1 rounded hover:bg-[#1a1a1a]"
+            className="text-[#333] hover:text-[#ee0000] transition-colors duration-150 p-1 rounded-md hover:bg-[#222]"
             onClick={(e) => {
               e.stopPropagation();
               handleClose();

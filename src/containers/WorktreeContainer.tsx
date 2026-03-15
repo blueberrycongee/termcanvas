@@ -19,7 +19,6 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
     addTerminal(projectId, worktree.id, terminal);
   }, [projectId, worktree.id, addTerminal]);
 
-  // Calculate content area min height from terminal bounding box
   const contentMinH = useMemo(() => {
     if (worktree.terminals.length === 0) return 60;
     let maxBottom = 0;
@@ -33,27 +32,31 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
     return Math.max(60, maxBottom);
   }, [worktree.terminals]);
 
-  // padding=10 each side + titleBar~36 + border
   const childMinW = useMemo(() => {
     if (worktree.terminals.length === 0) return 300;
     let maxRight = 0;
     for (const t of worktree.terminals) {
       maxRight = Math.max(maxRight, t.position.x + t.size.w);
     }
-    return Math.max(300, maxRight + 20 + 2); // padding + border
+    return Math.max(300, maxRight + 20 + 2);
   }, [worktree.terminals]);
 
   const childMinH = useMemo(() => {
     if (worktree.terminals.length === 0) return 100;
-    return Math.max(100, contentMinH + 36 + 20 + 2); // content + title + padding + border
+    return Math.max(100, contentMinH + 36 + 16 + 2);
   }, [contentMinH]);
 
   const handleResize = useResize(
     worktree.size.w,
     worktree.size.h,
     useCallback(
-      (w: number, h: number) =>
-        updateWorktreeSize(projectId, worktree.id, w, h),
+      (w: number, h: number) => {
+        if (containerRef.current) {
+          w = Math.max(w, containerRef.current.scrollWidth);
+          h = Math.max(h, containerRef.current.scrollHeight);
+        }
+        updateWorktreeSize(projectId, worktree.id, w, h);
+      },
       [projectId, worktree.id, updateWorktreeSize],
     ),
     childMinW,
@@ -64,25 +67,25 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
   return (
     <div
       ref={containerRef}
-      className="relative panel-inner"
+      className="relative rounded-md"
       style={{
         width: worktree.size.w > 0 ? worktree.size.w : undefined,
         minWidth: 300,
         height: worktree.size.h > 0 ? worktree.size.h : undefined,
+        borderLeft: "2px solid #222",
       }}
     >
       {/* Title bar */}
-      <div className="flex items-center gap-2 px-3 py-2 select-none border-b border-[#333]">
-        <span className="type-badge bg-[#111] text-[#888]">WT</span>
+      <div className="flex items-center gap-2 px-3 py-2 select-none">
         <span
-          className="text-xs text-[#ededed] truncate font-medium"
+          className="text-[11px] text-[#888] truncate font-medium"
           style={{ fontFamily: '"Geist Mono", monospace' }}
         >
           {worktree.name}
         </span>
         <div className="ml-auto flex items-center gap-1">
           <button
-            className="text-[#666] hover:text-[#ededed] transition-colors p-1 rounded hover:bg-[#111]"
+            className="text-[#444] hover:text-[#ededed] transition-colors duration-150 p-1 rounded-md hover:bg-[#222]"
             onClick={() => toggleWorktreeCollapse(projectId, worktree.id)}
           >
             <svg
@@ -90,7 +93,7 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
               height="10"
               viewBox="0 0 12 12"
               fill="none"
-              className={`transition-transform ${worktree.collapsed ? "-rotate-90" : ""}`}
+              className={`transition-transform duration-150 ${worktree.collapsed ? "-rotate-90" : ""}`}
             >
               <path
                 d="M3 4.5L6 7.5L9 4.5"
@@ -102,7 +105,7 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
             </svg>
           </button>
           <button
-            className="text-[#666] hover:text-[#ededed] transition-colors p-1 rounded hover:bg-[#111]"
+            className="text-[#444] hover:text-[#ededed] transition-colors duration-150 p-1 rounded-md hover:bg-[#222]"
             onClick={handleNewTerminal}
             title="New terminal"
           >
@@ -121,7 +124,7 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
       {/* Terminals */}
       {!worktree.collapsed && (
         <div
-          className="p-2.5 relative overflow-hidden"
+          className="px-2 pb-2 relative overflow-hidden"
           style={{ minHeight: contentMinH }}
         >
           {worktree.terminals.map((terminal) => (
@@ -135,7 +138,7 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
           ))}
           {worktree.terminals.length === 0 && (
             <button
-              className="w-full py-8 rounded-md border border-dashed border-[#333] text-[#666] text-xs hover:border-[#444] hover:text-[#888] transition-all"
+              className="w-full py-6 rounded-md text-[#333] text-[11px] hover:text-[#888] hover:bg-[#111] transition-colors duration-150"
               onClick={handleNewTerminal}
             >
               + New Terminal
@@ -146,10 +149,10 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
 
       {/* Resize handle */}
       <div
-        className="absolute bottom-0 right-0 w-3 h-3 cursor-se-resize opacity-0 hover:opacity-100 transition-opacity"
+        className="absolute bottom-0 right-0 w-3 h-3 cursor-se-resize opacity-0 hover:opacity-100 transition-opacity duration-150"
         onMouseDown={handleResize}
       >
-        <svg width="12" height="12" viewBox="0 0 12 12" className="text-[#444]">
+        <svg width="12" height="12" viewBox="0 0 12 12" className="text-[#333]">
           <path
             d="M11 11L6 11M11 11L11 6"
             stroke="currentColor"
