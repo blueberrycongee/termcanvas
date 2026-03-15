@@ -68,11 +68,24 @@ export function Sidebar() {
       notify("warn", t.error_not_git(dirPath));
       return;
     }
+    // Place new project to the right of existing projects with a gap
+    let placeX = 0;
+    const gap = 80;
+    for (const p of projects) {
+      let maxW = 300;
+      for (const wt of p.worktrees) {
+        const wtSize = computeWorktreeSize(wt.terminals.length);
+        maxW = Math.max(maxW, wt.position.x + wtSize.w);
+      }
+      const projW = Math.max(340, maxW + PROJ_PAD * 2);
+      placeX = Math.max(placeX, p.position.x + projW + gap);
+    }
+
     addProject({
       id: generateId(),
       name: info.name,
       path: info.path,
-      position: { x: 100 - viewport.x, y: 100 - viewport.y },
+      position: { x: placeX, y: 0 },
       collapsed: false,
       zIndex: 0,
       worktrees: info.worktrees.map((wt, i) => ({
@@ -85,7 +98,7 @@ export function Sidebar() {
       })),
     });
     notify("info", t.info_added_project(info.name, info.worktrees.length));
-  }, [addProject, viewport, notify, t]);
+  }, [addProject, projects, notify, t]);
 
   const handleOpenWorkspace = useCallback(async () => {
     if (!window.termcanvas) return;
