@@ -8,7 +8,6 @@ import {
 } from "../stores/drawingStore";
 import { useCanvasStore } from "../stores/canvasStore";
 
-// Convert perfect-freehand points to SVG path
 function getSvgPathFromStroke(stroke: number[][]) {
   if (stroke.length === 0) return "";
   const d = stroke.reduce(
@@ -65,9 +64,7 @@ function renderElement(el: DrawingElement) {
         />
       );
     case "arrow": {
-      const dx = el.x2 - el.x1;
-      const dy = el.y2 - el.y1;
-      const angle = Math.atan2(dy, dx);
+      const angle = Math.atan2(el.y2 - el.y1, el.x2 - el.x1);
       const headLen = 12;
       return (
         <g key={el.id}>
@@ -105,7 +102,6 @@ export function DrawingLayer() {
   const pointsRef = useRef<StrokePoint[]>([]);
   const startRef = useRef<{ x: number; y: number } | null>(null);
 
-  // Convert screen coords to canvas coords
   const toCanvas = useCallback((e: React.MouseEvent) => {
     const { viewport } = useCanvasStore.getState();
     return {
@@ -191,12 +187,10 @@ export function DrawingLayer() {
           points: pointsRef.current,
         });
       } else if (activeElement.type === "rect" && startRef.current) {
-        const x = Math.min(startRef.current.x, pos.x);
-        const y = Math.min(startRef.current.y, pos.y);
         setActiveElement({
           ...activeElement,
-          x,
-          y,
+          x: Math.min(startRef.current.x, pos.x),
+          y: Math.min(startRef.current.y, pos.y),
           w: Math.abs(pos.x - startRef.current.x),
           h: Math.abs(pos.y - startRef.current.y),
         });
@@ -219,24 +213,29 @@ export function DrawingLayer() {
   }, [activeElement, addElement]);
 
   const isDrawing = tool !== "select";
+  const { viewport } = useCanvasStore();
 
   return (
     <svg
       ref={svgRef}
-      className="absolute inset-0 w-full h-full"
+      className="fixed inset-0 w-screen h-screen"
       style={{
         pointerEvents: isDrawing ? "auto" : "none",
         cursor: isDrawing ? "crosshair" : "default",
-        // Large viewBox to cover infinite canvas area
-        overflow: "visible",
+        zIndex: isDrawing ? 30 : 0,
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      {elements.map(renderElement)}
-      {activeElement && renderElement(activeElement)}
+      {/* Apply viewport transform so drawings follow pan/zoom */}
+      <g
+        transform={`translate(${viewport.x}, ${viewport.y}) scale(${viewport.scale})`}
+      >
+        {elements.map(renderElement)}
+        {activeElement && renderElement(activeElement)}
+      </g>
     </svg>
   );
 }

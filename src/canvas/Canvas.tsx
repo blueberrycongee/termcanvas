@@ -27,11 +27,13 @@ export function Canvas() {
           transition: "filter 0.15s ease",
         }}
       >
-        <DrawingLayer />
         {projects.map((project) => (
           <ProjectContainer key={project.id} project={project} />
         ))}
       </div>
+
+      {/* Drawing overlay - outside transform div, uses its own <g> transform */}
+      <DrawingLayer />
 
       {/* Empty state */}
       {projects.length === 0 && (
