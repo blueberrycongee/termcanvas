@@ -160,11 +160,16 @@ export function DiffCard({
 
   useEffect(() => {
     if (!window.termcanvas) return;
+    const fetchDiff = () => {
+      window.termcanvas.project.diff(worktreePath).then((result) => {
+        setFileDiffs(parseDiff(result.diff, result.files));
+        setLoading(false);
+      });
+    };
     setLoading(true);
-    window.termcanvas.project.diff(worktreePath).then((result) => {
-      setFileDiffs(parseDiff(result.diff, result.files));
-      setLoading(false);
-    });
+    fetchDiff();
+    const interval = setInterval(fetchDiff, 3000);
+    return () => clearInterval(interval);
   }, [worktreePath]);
 
   useEffect(() => {
