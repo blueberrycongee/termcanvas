@@ -10,6 +10,8 @@ export interface PtyCreateOptions {
 
 export class PtyManager {
   private instances = new Map<number, pty.IPty>();
+  private outputBuffers = new Map<number, string[]>();
+  private readonly MAX_OUTPUT_LINES = 1000;
   private nextId = 1;
 
   create(options: PtyCreateOptions): number {
@@ -60,8 +62,29 @@ export class PtyManager {
   onExit(id: number, callback: (exitCode: number) => void) {
     this.instances.get(id)?.onExit(({ exitCode }) => {
       this.instances.delete(id);
+      this.outputBuffers.delete(id);
       callback(exitCode);
     });
+  }
+
+  captureOutput(id: number, data: string) {
+    let buffer = this.outputBuffers.get(id);
+    if (!buffer) {
+      buffer = [];
+      this.outputBuffers.set(id, buffer);
+    }
+    const lines = data.split("\n");
+    for (const line of lines) {
+      buffer.push(line);
+    }
+    if (buffer.length > this.MAX_OUTPUT_LINES) {
+      buffer.splice(0, buffer.length - this.MAX_OUTPUT_LINES);
+    }
+  }
+
+  getOutput(id: number, lineCount: number = 50): string[] {
+    const buffer = this.outputBuffers.get(id) ?? [];
+    return buffer.slice(-lineCount);
   }
 
   destroy(id: number) {
@@ -70,6 +93,7 @@ export class PtyManager {
       instance.kill();
       this.instances.delete(id);
     }
+    this.outputBuffers.delete(id);
   }
 
   destroyAll() {

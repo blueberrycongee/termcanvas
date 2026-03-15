@@ -99,6 +99,7 @@ function setupIpc() {
     (_event, options: { cwd: string; shell?: string; args?: string[] }) => {
       const ptyId = ptyManager.create(options);
       ptyManager.onData(ptyId, (data: string) => {
+        ptyManager.captureOutput(ptyId, data);
         mainWindow?.webContents.send("terminal:output", ptyId, data);
       });
       ptyManager.onExit(ptyId, (exitCode: number) => {
