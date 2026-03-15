@@ -3,6 +3,7 @@ import { useCanvasStore } from "../stores/canvasStore";
 import { useProjectStore, generateId } from "../stores/projectStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { useDrawingStore, type DrawingTool } from "../stores/drawingStore";
+import { useThemeStore } from "../stores/themeStore";
 
 const noDrag = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
 
@@ -37,6 +38,7 @@ export function Toolbar() {
   const { notify } = useNotificationStore();
   const { tool, color, setTool, setColor, clearAll, elements } =
     useDrawingStore();
+  const { theme, toggleTheme } = useThemeStore();
 
   const handleAddProject = useCallback(async () => {
     if (!isElectron()) {
@@ -204,6 +206,16 @@ export function Toolbar() {
       </div>
 
       <div className="flex-1" />
+
+      {/* Theme toggle */}
+      <button
+        className={btn}
+        style={noDrag}
+        onClick={toggleTheme}
+        title={theme === "dark" ? "Switch to light" : "Switch to dark"}
+      >
+        {theme === "dark" ? "☀" : "☾"}
+      </button>
 
       {/* ── Zoom controls ── */}
       <div className="flex items-center gap-0.5" style={noDrag}>
