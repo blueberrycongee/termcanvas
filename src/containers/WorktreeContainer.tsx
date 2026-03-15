@@ -251,11 +251,9 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
       <div
         className="px-2 pb-2 relative overflow-hidden"
         style={{
-          minHeight: worktree.collapsed
-            ? 0
-            : computedSize.h - WT_TITLE_H - WT_PAD,
-          height: worktree.collapsed ? 0 : undefined,
+          height: worktree.collapsed ? 0 : computedSize.h - WT_TITLE_H,
           padding: worktree.collapsed ? 0 : undefined,
+          overflow: "hidden",
         }}
       >
         {worktree.terminals.map((terminal, index) => {

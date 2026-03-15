@@ -119,8 +119,7 @@ export function ProjectContainer({ project }: Props) {
       <div
         className="px-3 pb-3 relative"
         style={{
-          minHeight: project.collapsed ? 0 : 60,
-          height: project.collapsed ? 0 : undefined,
+          height: project.collapsed ? 0 : computedSize.h - PROJ_TITLE_H,
           padding: project.collapsed ? 0 : undefined,
           overflow: "hidden",
         }}
