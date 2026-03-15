@@ -1,13 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { useDrawingStore, type DrawingTool } from "../stores/drawingStore";
-
-const tools: { id: DrawingTool; label: string; icon: string }[] = [
-  { id: "select", label: "Select", icon: "↖" },
-  { id: "pen", label: "Pen", icon: "✎" },
-  { id: "text", label: "Text", icon: "T" },
-  { id: "rect", label: "Rect", icon: "□" },
-  { id: "arrow", label: "Arrow", icon: "→" },
-];
+import { useT } from "../i18n/useT";
 
 const colors = [
   "#ededed",
@@ -22,6 +15,14 @@ const btnBase =
   "px-2 py-1.5 rounded-md text-[13px] transition-colors duration-150 active:scale-[0.97]";
 
 export function DrawingPanel() {
+  const t = useT();
+  const tools: { id: DrawingTool; label: string; icon: string }[] = [
+    { id: "select", label: t.tool_select, icon: "↖" },
+    { id: "pen", label: t.tool_pen, icon: "✎" },
+    { id: "text", label: t.tool_text, icon: "T" },
+    { id: "rect", label: t.tool_rect, icon: "□" },
+    { id: "arrow", label: t.tool_arrow, icon: "→" },
+  ];
   const { tool, color, setTool, setColor, clearAll, elements } =
     useDrawingStore();
   const [vertical, setVertical] = useState(true);
@@ -82,7 +83,7 @@ export function DrawingPanel() {
             e.stopPropagation();
             setVertical(!vertical);
           }}
-          title={vertical ? "Horizontal layout" : "Vertical layout"}
+          title={vertical ? t.layout_horizontal : t.layout_vertical}
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
             {vertical ? (
@@ -155,18 +156,18 @@ export function DrawingPanel() {
         className={`flex ${vertical ? "flex-col" : "flex-row"} gap-0.5 px-1.5 pb-1.5`}
       >
         {/* Tool buttons */}
-        {tools.map((t) => (
+        {tools.map((toolItem) => (
           <button
-            key={t.id}
+            key={toolItem.id}
             className={`${btnBase} ${
-              tool === t.id
+              tool === toolItem.id
                 ? "bg-[var(--border)] text-[var(--text-primary)]"
                 : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"
             }`}
-            onClick={() => setTool(t.id)}
-            title={t.label}
+            onClick={() => setTool(toolItem.id)}
+            title={toolItem.label}
           >
-            {t.icon}
+            {toolItem.icon}
           </button>
         ))}
 
