@@ -34,17 +34,22 @@ function snapshotState(): string {
   );
 }
 
-function restoreFromData(raw: string) {
+function restoreFromData(data: Record<string, unknown>) {
   try {
-    const data = JSON.parse(raw);
     if (data.viewport) {
-      useCanvasStore.getState().setViewport(data.viewport);
+      useCanvasStore
+        .getState()
+        .setViewport(data.viewport as { x: number; y: number; scale: number });
     }
     if (data.projects && Array.isArray(data.projects)) {
       useProjectStore.getState().setProjects(data.projects);
     }
     if (data.drawings && Array.isArray(data.drawings)) {
-      useDrawingStore.setState({ elements: data.drawings });
+      useDrawingStore.setState({
+        elements: data.drawings as ReturnType<
+          typeof useDrawingStore.getState
+        >["elements"],
+      });
     }
   } catch {
     // Invalid data, ignore
@@ -81,7 +86,7 @@ function useStatePersistence() {
   useEffect(() => {
     if (!window.termcanvas) return;
     window.termcanvas.state.load().then((saved) => {
-      if (saved) restoreFromData(JSON.stringify(saved));
+      if (saved) restoreFromData(saved as unknown as Record<string, unknown>);
     });
   }, []);
 }
@@ -89,8 +94,12 @@ function useStatePersistence() {
 function useWorkspaceOpen() {
   useEffect(() => {
     const handler = (e: Event) => {
-      const data = (e as CustomEvent<string>).detail;
-      restoreFromData(data);
+      const raw = (e as CustomEvent<string>).detail;
+      try {
+        restoreFromData(JSON.parse(raw));
+      } catch {
+        // Invalid workspace file
+      }
     };
     window.addEventListener("termcanvas:open-workspace", handler);
     return () =>
