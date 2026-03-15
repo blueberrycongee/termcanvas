@@ -127,6 +127,50 @@ function mapTerminals(
 }
 
 const OVERLAP_GAP = 40;
+const WORKTREE_GAP = 8;
+
+function resolveWorktreeOverlaps(worktrees: WorktreeData[]): WorktreeData[] {
+  if (worktrees.length <= 1) return worktrees;
+
+  const positions = new Map(worktrees.map((w) => [w.id, { ...w.position }]));
+
+  // Sort by y so we sweep top-to-bottom
+  const sorted = [...worktrees].sort(
+    (a, b) => positions.get(a.id)!.y - positions.get(b.id)!.y,
+  );
+
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const curr = sorted[i];
+    const prevPos = positions.get(prev.id)!;
+    const currPos = positions.get(curr.id)!;
+
+    const prevSize = computeWorktreeSize(prev.terminals.length);
+    const currSize = computeWorktreeSize(curr.terminals.length);
+
+    if (
+      rectsOverlap(
+        { ...prevPos, w: prevSize.w, h: prevSize.h },
+        { ...currPos, w: currSize.w, h: currSize.h },
+        WORKTREE_GAP,
+      )
+    ) {
+      currPos.y = prevPos.y + prevSize.h + WORKTREE_GAP;
+    }
+  }
+
+  let changed = false;
+  for (const w of worktrees) {
+    const pos = positions.get(w.id)!;
+    if (pos.x !== w.position.x || pos.y !== w.position.y) {
+      changed = true;
+      break;
+    }
+  }
+  if (!changed) return worktrees;
+
+  return worktrees.map((w) => ({ ...w, position: positions.get(w.id)! }));
+}
 
 export function getProjectBounds(p: ProjectData) {
   if (p.worktrees.length === 0) {
@@ -168,11 +212,19 @@ function rectsOverlap(
 }
 
 function resolveOverlaps(projects: ProjectData[]): ProjectData[] {
-  // Build mutable position map, keyed by project id
-  const positions = new Map(projects.map((p) => [p.id, { ...p.position }]));
+  // First resolve worktree overlaps within each project
+  const withResolvedWorktrees = projects.map((p) => ({
+    ...p,
+    worktrees: resolveWorktreeOverlaps(p.worktrees),
+  }));
+
+  // Then resolve project overlaps
+  const positions = new Map(
+    withResolvedWorktrees.map((p) => [p.id, { ...p.position }]),
+  );
 
   // Sort by x so we sweep left-to-right
-  const sorted = [...projects].sort(
+  const sorted = [...withResolvedWorktrees].sort(
     (a, b) => positions.get(a.id)!.x - positions.get(b.id)!.x,
   );
 
@@ -191,7 +243,10 @@ function resolveOverlaps(projects: ProjectData[]): ProjectData[] {
     }
   }
 
-  return projects.map((p) => ({ ...p, position: positions.get(p.id)! }));
+  return withResolvedWorktrees.map((p) => ({
+    ...p,
+    position: positions.get(p.id)!,
+  }));
 }
 
 export const useProjectStore = create<ProjectStore>((set) => ({

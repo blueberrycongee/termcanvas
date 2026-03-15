@@ -268,20 +268,6 @@ function setupIpc() {
     return projectScanner.listWorktrees(dirPath);
   });
 
-  ipcMain.on("project:watch", (_event, dirPath: string) => {
-    projectScanner.startWatching(dirPath, (worktrees) => {
-      mainWindow?.webContents.send(
-        "project:worktrees-changed",
-        dirPath,
-        worktrees,
-      );
-    });
-  });
-
-  ipcMain.on("project:unwatch", (_event, dirPath: string) => {
-    projectScanner.stopWatching(dirPath);
-  });
-
   // State IPC
   ipcMain.handle("state:load", () => {
     return statePersistence.load();
@@ -316,7 +302,6 @@ function setupIpc() {
   // Close flow
   ipcMain.on("app:close-confirmed", () => {
     ptyManager.destroyAll();
-    projectScanner.stopAllWatching();
     forceClose = true;
     if (mainWindow) {
       mainWindow.close();

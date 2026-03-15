@@ -103,14 +103,6 @@ export interface TermCanvasAPI {
         imageNew: string | null;
       }[];
     }>;
-    watch: (dirPath: string) => void;
-    unwatch: (dirPath: string) => void;
-    onWorktreesChanged: (
-      callback: (
-        dirPath: string,
-        worktrees: { path: string; branch: string; isMain: boolean }[],
-      ) => void,
-    ) => () => void;
   };
   state: {
     load: () => Promise<CanvasState | null>;

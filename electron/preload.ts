@@ -47,8 +47,6 @@ contextBridge.exposeInMainWorld("termcanvas", {
     scan: (dirPath: string) => ipcRenderer.invoke("project:scan", dirPath),
     rescanWorktrees: (dirPath: string) =>
       ipcRenderer.invoke("project:rescan-worktrees", dirPath),
-    watch: (dirPath: string) => ipcRenderer.send("project:watch", dirPath),
-    unwatch: (dirPath: string) => ipcRenderer.send("project:unwatch", dirPath),
     diff: (worktreePath: string) =>
       ipcRenderer.invoke("project:diff", worktreePath) as Promise<{
         diff: string;
@@ -62,21 +60,6 @@ contextBridge.exposeInMainWorld("termcanvas", {
           imageNew: string | null;
         }[];
       }>,
-    onWorktreesChanged: (
-      callback: (
-        dirPath: string,
-        worktrees: { path: string; branch: string; isMain: boolean }[],
-      ) => void,
-    ) => {
-      const listener = (
-        _event: Electron.IpcRendererEvent,
-        dirPath: string,
-        worktrees: { path: string; branch: string; isMain: boolean }[],
-      ) => callback(dirPath, worktrees);
-      ipcRenderer.on("project:worktrees-changed", listener);
-      return () =>
-        ipcRenderer.removeListener("project:worktrees-changed", listener);
-    },
   },
   state: {
     load: () => ipcRenderer.invoke("state:load"),

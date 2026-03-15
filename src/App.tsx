@@ -94,7 +94,7 @@ function useWorktreeWatcher() {
   const { projects, syncWorktrees } = useProjectStore();
 
   useEffect(() => {
-    if (!window.termcanvas) return;
+    if (!window.termcanvas || projects.length === 0) return;
 
     const rescanAll = () => {
       for (const p of projects) {
@@ -104,27 +104,16 @@ function useWorktreeWatcher() {
       }
     };
 
-    for (const p of projects) {
-      window.termcanvas.project.watch(p.path);
-    }
-    // Initial sync to clean up stale worktrees from persisted state
+    // Initial sync
     rescanAll();
-
-    const unsubscribe = window.termcanvas.project.onWorktreesChanged(
-      (dirPath, worktrees) => {
-        syncWorktrees(dirPath, worktrees);
-      },
-    );
-
-    // Rescan on window focus as fallback for unreliable fs.watch
+    // Poll every 5s — simple, reliable, cross-platform
+    const interval = setInterval(rescanAll, 5000);
+    // Immediate rescan on window focus
     window.addEventListener("focus", rescanAll);
 
     return () => {
-      unsubscribe();
+      clearInterval(interval);
       window.removeEventListener("focus", rescanAll);
-      for (const p of projects) {
-        window.termcanvas.project.unwatch(p.path);
-      }
     };
   }, [projects.length]);
 }
