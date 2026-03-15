@@ -49,34 +49,33 @@ export function WorktreeContainer({ projectId, worktree, parentSize }: Props) {
     const wtW = worktree.size.w || 580;
     const contentW = wtW - pad * 2;
 
-    // Grid layout: fill right first, then wrap down
+    // Place next to last terminal horizontally, grow worktree to fit
     let bestX = 0;
     let bestY = 0;
 
     if (worktree.terminals.length > 0) {
+      let maxRight = 0;
       let maxBottom = 0;
       let lastRowY = 0;
       let lastRowRight = 0;
 
       for (const t of worktree.terminals) {
+        const tr = t.position.x + t.size.w;
         const tb = t.position.y + (t.minimized ? 30 : t.size.h);
+        maxRight = Math.max(maxRight, tr);
         maxBottom = Math.max(maxBottom, tb);
         if (t.position.y >= lastRowY) {
           if (t.position.y > lastRowY) {
             lastRowY = t.position.y;
             lastRowRight = 0;
           }
-          lastRowRight = Math.max(lastRowRight, t.position.x + t.size.w);
+          lastRowRight = Math.max(lastRowRight, tr);
         }
       }
 
-      if (lastRowRight + gap + tW <= contentW) {
-        bestX = lastRowRight + gap;
-        bestY = lastRowY;
-      } else {
-        bestX = 0;
-        bestY = maxBottom + gap;
-      }
+      // Always place horizontally next to last terminal
+      bestX = lastRowRight + gap;
+      bestY = lastRowY;
     }
 
     terminal.position = { x: bestX, y: bestY };
