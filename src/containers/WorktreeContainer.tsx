@@ -49,45 +49,31 @@ export function WorktreeContainer({ projectId, worktree, parentSize }: Props) {
     const wtW = worktree.size.w || 580;
     const contentW = wtW - pad * 2;
 
-    // Grid layout: max 2 terminals per row, then wrap
-    const maxPerRow = 2;
+    // Layout based on window aspect ratio
+    const winW = window.innerWidth;
+    const winH = window.innerHeight;
+    const isLandscape = winW >= winH;
+
     let bestX = 0;
     let bestY = 0;
 
     if (worktree.terminals.length > 0) {
-      // Group terminals by row (same y position)
-      const rows = new Map<
-        number,
-        { right: number; count: number; bottom: number }
-      >();
+      let maxRight = 0;
+      let maxBottom = 0;
       for (const t of worktree.terminals) {
-        const y = t.position.y;
-        const r = t.position.x + t.size.w;
-        const b = y + (t.minimized ? 30 : t.size.h);
-        const row = rows.get(y) ?? { right: 0, count: 0, bottom: 0 };
-        row.right = Math.max(row.right, r);
-        row.bottom = Math.max(row.bottom, b);
-        row.count++;
-        rows.set(y, row);
+        maxRight = Math.max(maxRight, t.position.x + t.size.w);
+        maxBottom = Math.max(
+          maxBottom,
+          t.position.y + (t.minimized ? 30 : t.size.h),
+        );
       }
 
-      // Find the last row
-      let lastRowY = 0;
-      for (const y of rows.keys()) {
-        if (y >= lastRowY) lastRowY = y;
-      }
-      const lastRow = rows.get(lastRowY)!;
-
-      if (lastRow.count < maxPerRow) {
-        // Room in current row
-        bestX = lastRow.right + gap;
-        bestY = lastRowY;
+      if (isLandscape) {
+        // Landscape: place to the right
+        bestX = maxRight + gap;
+        bestY = 0;
       } else {
-        // Wrap to new row
-        let maxBottom = 0;
-        for (const row of rows.values()) {
-          maxBottom = Math.max(maxBottom, row.bottom);
-        }
+        // Portrait: place below
         bestX = 0;
         bestY = maxBottom + gap;
       }
