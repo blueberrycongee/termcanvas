@@ -81,14 +81,14 @@ function ChangeBar({
       {Array.from({ length: addBlocks }, (_, i) => (
         <span
           key={`a${i}`}
-          className="w-1.5 h-1.5 rounded-sm"
+          className="w-1.5 h-1.5 rounded-full"
           style={{ backgroundColor: "var(--cyan)" }}
         />
       ))}
       {Array.from({ length: delBlocks }, (_, i) => (
         <span
           key={`d${i}`}
-          className="w-1.5 h-1.5 rounded-sm"
+          className="w-1.5 h-1.5 rounded-full"
           style={{ backgroundColor: "var(--red)" }}
         />
       ))}
@@ -296,7 +296,7 @@ export function DiffCard({
             <div key={fd.file.name}>
               {/* File header */}
               <button
-                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--bg)] transition-colors duration-150 text-left"
+                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--surface-hover)] transition-colors duration-150 text-left"
                 onClick={() =>
                   setExpandedFile(
                     expandedFile === fd.file.name ? null : fd.file.name,
@@ -322,7 +322,7 @@ export function DiffCard({
                   {fd.file.name}
                 </span>
                 {fd.file.binary ? (
-                  <span className="text-[var(--text-muted)] text-[10px] shrink-0">
+                  <span className="text-[var(--text-muted)] text-[11px] shrink-0">
                     binary
                   </span>
                 ) : (
@@ -348,7 +348,7 @@ export function DiffCard({
                     <div className="px-3 py-3 flex items-start gap-3">
                       {fd.file.imageOld && (
                         <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
-                          <span className="text-[10px] text-[var(--red)]">
+                          <span className="text-[11px] text-[var(--red)]">
                             Removed
                           </span>
                           <img
@@ -363,14 +363,14 @@ export function DiffCard({
                         </div>
                       )}
                       {fd.file.imageOld && fd.file.imageNew && (
-                        <span className="text-[var(--text-muted)] self-center text-lg">
+                        <span className="text-[13px] text-[var(--text-muted)] self-center">
                           →
                         </span>
                       )}
                       {fd.file.imageNew && (
                         <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
                           <span
-                            className="text-[10px]"
+                            className="text-[11px]"
                             style={{ color: "var(--cyan)" }}
                           >
                             {fd.file.imageOld ? "New" : "Added"}
