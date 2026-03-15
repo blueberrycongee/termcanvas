@@ -12,14 +12,23 @@ export function Sidebar() {
       const project = projects.find((p) => p.id === projectId);
       if (!project) return;
 
-      const centerX =
-        -(project.position.x + (project.size.w || 620) / 2) +
-        window.innerWidth / 2;
-      const centerY =
-        -(project.position.y + (project.size.h || 300) / 2) +
-        window.innerHeight / 2;
+      const padding = 80;
+      const toolbarH = 44;
+      const projW = project.size.w || 620;
+      const projH = project.size.h || 400;
+      const viewW = window.innerWidth - padding * 2;
+      const viewH = window.innerHeight - toolbarH - padding * 2;
 
-      animateTo(centerX, centerY, 1);
+      // Fit project into viewport, cap at 1x to avoid over-zooming
+      const scale = Math.min(1, viewW / projW, viewH / projH);
+
+      const centerX =
+        -(project.position.x + projW / 2) * scale + window.innerWidth / 2;
+      const centerY =
+        -(project.position.y + projH / 2) * scale +
+        (window.innerHeight + toolbarH) / 2;
+
+      animateTo(centerX, centerY, scale);
     },
     [projects, animateTo],
   );
