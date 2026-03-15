@@ -11,7 +11,7 @@ const btn =
   "px-2 py-1 rounded-md text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)] transition-colors duration-150 active:scale-[0.97]";
 
 export function Toolbar() {
-  const { viewport, setViewport, resetViewport } = useCanvasStore();
+  const { viewport, setViewport, resetViewport, animateTo } = useCanvasStore();
   const { projects } = useProjectStore();
   const t = useT();
   const [showSettings, setShowSettings] = useState(false);
@@ -47,12 +47,10 @@ export function Toolbar() {
     const viewW = window.innerWidth - padding * 2;
     const viewH = window.innerHeight - toolbarH - padding * 2;
     const scale = Math.min(1, viewW / contentW, viewH / contentH);
-    setViewport({
-      x: -minX * scale + padding,
-      y: -minY * scale + padding + toolbarH,
-      scale,
-    });
-  }, [projects, setViewport]);
+    const x = -minX * scale + padding;
+    const y = -minY * scale + padding + toolbarH;
+    animateTo(x, y, scale);
+  }, [projects, animateTo]);
 
   const zoomPercent = Math.round(viewport.scale * 100);
 
