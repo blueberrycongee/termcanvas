@@ -74,15 +74,15 @@ export function WorktreeContainer({ projectId, worktree, parentSize }: Props) {
     terminal.position = { x: newCol * (tW + gap), y: newRow * (tH + gap) };
 
     // Update all existing terminal positions
-    for (const t of allTerminals) {
+    for (const term of allTerminals) {
       useProjectStore
         .getState()
         .updateTerminalPosition(
           projectId,
           worktree.id,
-          t.id,
-          t.position.x,
-          t.position.y,
+          term.id,
+          term.position.x,
+          term.position.y,
         );
     }
 
@@ -129,11 +129,11 @@ export function WorktreeContainer({ projectId, worktree, parentSize }: Props) {
   const contentMinH = useMemo(() => {
     if (worktree.terminals.length === 0) return 60;
     let maxBottom = 0;
-    for (const t of worktree.terminals) {
-      if (t.minimized) {
-        maxBottom = Math.max(maxBottom, t.position.y + 30);
+    for (const term of worktree.terminals) {
+      if (term.minimized) {
+        maxBottom = Math.max(maxBottom, term.position.y + 30);
       } else {
-        maxBottom = Math.max(maxBottom, t.position.y + (t.size.h || 320));
+        maxBottom = Math.max(maxBottom, term.position.y + (term.size.h || 320));
       }
     }
     return Math.max(60, maxBottom);
@@ -142,8 +142,8 @@ export function WorktreeContainer({ projectId, worktree, parentSize }: Props) {
   const childMinW = useMemo(() => {
     if (worktree.terminals.length === 0) return 300;
     let maxRight = 0;
-    for (const t of worktree.terminals) {
-      maxRight = Math.max(maxRight, t.position.x + t.size.w);
+    for (const term of worktree.terminals) {
+      maxRight = Math.max(maxRight, term.position.x + term.size.w);
     }
     return Math.max(300, maxRight + 20 + 2);
   }, [worktree.terminals]);
