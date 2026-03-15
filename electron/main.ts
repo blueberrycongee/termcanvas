@@ -11,6 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 let mainWindow: BrowserWindow | null = null;
+let forceClose = false;
 const ptyManager = new PtyManager();
 const projectScanner = new ProjectScanner();
 const statePersistence = new StatePersistence();
@@ -36,7 +37,7 @@ function createWindow() {
 
   // Intercept close to ask user about saving
   mainWindow.on("close", (e) => {
-    if (!mainWindow) return;
+    if (forceClose || !mainWindow) return;
     e.preventDefault();
     mainWindow.webContents.send("app:before-close");
   });
@@ -198,8 +199,8 @@ function setupIpc() {
   ipcMain.on("app:close-confirmed", () => {
     ptyManager.destroyAll();
     projectScanner.stopAllWatching();
+    forceClose = true;
     if (mainWindow) {
-      mainWindow.removeAllListeners("close");
       mainWindow.close();
     }
   });
