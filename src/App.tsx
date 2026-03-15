@@ -9,6 +9,36 @@ import { useCanvasStore } from "./stores/canvasStore";
 import { useDrawingStore } from "./stores/drawingStore";
 import { serializeAllTerminals } from "./terminal/terminalRegistry";
 import { useT } from "./i18n/useT";
+import type { ProjectData } from "./types";
+
+function migrateProjects(projects: unknown[]): ProjectData[] {
+  return projects.map((p: any) => ({
+    id: p.id,
+    name: p.name,
+    path: p.path,
+    position: p.position ?? { x: 0, y: 0 },
+    collapsed: p.collapsed ?? false,
+    zIndex: p.zIndex ?? 0,
+    worktrees: (p.worktrees ?? []).map((wt: any) => ({
+      id: wt.id,
+      name: wt.name,
+      path: wt.path,
+      position: wt.position ?? { x: 0, y: 0 },
+      collapsed: wt.collapsed ?? false,
+      terminals: (wt.terminals ?? []).map((t: any) => ({
+        id: t.id,
+        title: t.title,
+        type: t.type,
+        minimized: t.minimized ?? false,
+        focused: t.focused ?? false,
+        ptyId: null,
+        status: t.status ?? "idle",
+        scrollback: t.scrollback,
+        sessionId: t.sessionId,
+      })),
+    })),
+  }));
+}
 
 function snapshotState(): string {
   const scrollbacks = serializeAllTerminals();
@@ -44,7 +74,7 @@ function restoreFromData(data: Record<string, unknown>) {
         .setViewport(data.viewport as { x: number; y: number; scale: number });
     }
     if (data.projects && Array.isArray(data.projects)) {
-      useProjectStore.getState().setProjects(data.projects);
+      useProjectStore.getState().setProjects(migrateProjects(data.projects));
     }
     if (data.drawings && Array.isArray(data.drawings)) {
       useDrawingStore.setState({
