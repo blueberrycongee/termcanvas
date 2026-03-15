@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import { useProjectStore, generateId } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useNotificationStore } from "../stores/notificationStore";
@@ -23,9 +23,13 @@ const TYPE_LABEL: Record<TerminalType, string> = {
 };
 
 export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
   const { projects, addProject } = useProjectStore();
-  const { viewport, animateTo } = useCanvasStore();
+  const {
+    viewport,
+    animateTo,
+    sidebarCollapsed: collapsed,
+    setSidebarCollapsed: setCollapsed,
+  } = useCanvasStore();
   const { notify } = useNotificationStore();
   const t = useT();
 

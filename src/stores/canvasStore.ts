@@ -4,8 +4,10 @@ import type { Viewport } from "../types";
 interface CanvasStore {
   viewport: Viewport;
   isAnimating: boolean;
+  sidebarCollapsed: boolean;
   setViewport: (viewport: Partial<Viewport>) => void;
   resetViewport: () => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
   animateTo: (x: number, y: number, scale?: number) => void;
 }
 
@@ -15,6 +17,9 @@ const ANIM_DURATION = 400;
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
   viewport: { ...DEFAULT_VIEWPORT },
   isAnimating: false,
+  sidebarCollapsed: false,
+
+  setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
 
   setViewport: (partial) =>
     set((state) => ({
@@ -31,7 +36,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const endScale = targetScale ?? startScale;
     const startTime = performance.now();
 
-    set({ isAnimating: true });
+    set({ isAnimating: true, sidebarCollapsed: true });
 
     const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 
