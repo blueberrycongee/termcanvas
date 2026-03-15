@@ -19,7 +19,10 @@
     "infinite-canvas",
     "developer-tools"
   ],
-  "author": "blueberrycongee",
+  "author": {
+    "name": "blueberrycongee",
+    "email": "blueberrycongee@users.noreply.github.com"
+  },
   "homepage": "https://github.com/blueberrycongee/termcanvas",
   "repository": {
     "type": "git",
