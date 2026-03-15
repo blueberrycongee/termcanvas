@@ -161,8 +161,8 @@ function resolveWorktreeOverlaps(worktrees: WorktreeData[]): WorktreeData[] {
     const prevPos = positions.get(prev.id)!;
     const currPos = positions.get(curr.id)!;
 
-    const prevSize = computeWorktreeSize(prev.terminals.length);
-    const currSize = computeWorktreeSize(curr.terminals.length);
+    const prevSize = computeWorktreeSize(prev.terminals.map((t) => t.span));
+    const currSize = computeWorktreeSize(curr.terminals.map((t) => t.span));
 
     if (
       rectsOverlap(
@@ -200,7 +200,7 @@ export function getProjectBounds(p: ProjectData) {
   let maxW = 300;
   let totalH = 0;
   for (const wt of p.worktrees) {
-    const wtSize = computeWorktreeSize(wt.terminals.length);
+    const wtSize = computeWorktreeSize(wt.terminals.map((t) => t.span));
     maxW = Math.max(maxW, wt.position.x + wtSize.w);
     totalH = Math.max(totalH, wt.position.y + wtSize.h);
   }

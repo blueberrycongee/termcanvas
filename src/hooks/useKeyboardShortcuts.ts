@@ -3,10 +3,7 @@ import { useProjectStore, createTerminal } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useShortcutStore, matchesShortcut } from "../stores/shortcutStore";
 import {
-  computeGridCols,
-  computeTerminalPosition,
-  TERMINAL_W,
-  TERMINAL_H,
+  packTerminals,
   WT_PAD,
   WT_TITLE_H,
   PROJ_PAD,
@@ -65,11 +62,12 @@ function zoomToTerminal(
   );
   if (terminalIndex === -1) return;
 
-  const cols = computeGridCols(worktree.terminals.length);
-  const { x: gridX, y: gridY } = computeTerminalPosition(terminalIndex, cols);
+  const packed = packTerminals(worktree.terminals.map((t) => t.span));
+  const item = packed[terminalIndex];
+  if (!item) return;
 
   const absX =
-    project.position.x + PROJ_PAD + worktree.position.x + WT_PAD + gridX;
+    project.position.x + PROJ_PAD + worktree.position.x + WT_PAD + item.x;
   const absY =
     project.position.y +
     PROJ_TITLE_H +
@@ -77,15 +75,15 @@ function zoomToTerminal(
     worktree.position.y +
     WT_TITLE_H +
     WT_PAD +
-    gridY;
+    item.y;
 
   const padding = 60;
   const viewW = window.innerWidth - padding * 2;
   const viewH = window.innerHeight - padding * 2;
-  const scale = Math.min(viewW / TERMINAL_W, viewH / TERMINAL_H) * 0.85;
+  const scale = Math.min(viewW / item.w, viewH / item.h) * 0.85;
 
-  const centerX = -(absX + TERMINAL_W / 2) * scale + window.innerWidth / 2;
-  const centerY = -(absY + TERMINAL_H / 2) * scale + window.innerHeight / 2;
+  const centerX = -(absX + item.w / 2) * scale + window.innerWidth / 2;
+  const centerY = -(absY + item.h / 2) * scale + window.innerHeight / 2;
 
   useCanvasStore.getState().animateTo(centerX, centerY, scale);
 }

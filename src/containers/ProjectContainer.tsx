@@ -34,7 +34,7 @@ export function ProjectContainer({ project }: Props) {
     let maxW = 300;
     let totalH = 0;
     for (const wt of project.worktrees) {
-      const wtSize = computeWorktreeSize(wt.terminals.length);
+      const wtSize = computeWorktreeSize(wt.terminals.map((t) => t.span));
       maxW = Math.max(maxW, wt.position.x + wtSize.w);
       totalH = Math.max(totalH, wt.position.y + wtSize.h);
     }

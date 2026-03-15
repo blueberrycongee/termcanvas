@@ -6,7 +6,6 @@ import type { TerminalData } from "../types";
 import { useProjectStore } from "../stores/projectStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { registerTerminal, unregisterTerminal } from "./terminalRegistry";
-import { TERMINAL_W, TERMINAL_H } from "../layout";
 import { useThemeStore, XTERM_THEMES } from "../stores/themeStore";
 import { useT } from "../i18n/useT";
 
@@ -17,6 +16,8 @@ interface Props {
   terminal: TerminalData;
   gridX: number;
   gridY: number;
+  width: number;
+  height: number;
   onDragStart?: (terminalId: string, e: React.MouseEvent) => void;
   isDragging?: boolean;
   dragOffsetX?: number;
@@ -40,6 +41,8 @@ export function TerminalTile({
   terminal,
   gridX,
   gridY,
+  width,
+  height,
   onDragStart,
   isDragging = false,
   dragOffsetX = 0,
@@ -346,8 +349,8 @@ export function TerminalTile({
       style={{
         left: gridX + (isDragging ? dragOffsetX : 0),
         top: gridY + (isDragging ? dragOffsetY : 0),
-        width: TERMINAL_W,
-        height: terminal.minimized ? "auto" : TERMINAL_H,
+        width: width,
+        height: terminal.minimized ? "auto" : height,
         zIndex: isDragging ? 50 : undefined,
         opacity: isDragging ? 0.9 : 1,
         transition: isDragging ? "none" : "left 0.2s ease, top 0.2s ease",

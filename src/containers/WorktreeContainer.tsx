@@ -12,14 +12,10 @@ import { DiffCard } from "../components/DiffCard";
 import { useT } from "../i18n/useT";
 import { useCanvasStore } from "../stores/canvasStore";
 import {
-  computeGridCols,
+  packTerminals,
   computeWorktreeSize,
-  computeTerminalPosition,
   WT_PAD,
   WT_TITLE_H,
-  TERMINAL_W,
-  TERMINAL_H,
-  GRID_GAP,
   PROJ_PAD,
   PROJ_TITLE_H,
 } from "../layout";
@@ -75,9 +71,9 @@ export function WorktreeContainer({
     targetIndex: number;
   } | null>(null);
 
-  const terminalCount = worktree.terminals.length;
-  const cols = computeGridCols(terminalCount);
-  const computedSize = computeWorktreeSize(terminalCount);
+  const spans = worktree.terminals.map((t) => t.span);
+  const packed = packTerminals(spans);
+  const computedSize = computeWorktreeSize(spans);
 
   const handleZoomToFit = useCallback(
     (index: number) => {
@@ -85,11 +81,14 @@ export function WorktreeContainer({
         .getState()
         .projects.find((p) => p.id === projectId);
       if (!project) return;
+      const wt = project.worktrees.find((w) => w.id === worktree.id);
+      if (!wt) return;
+      const currentPacked = packTerminals(wt.terminals.map((t) => t.span));
+      const item = currentPacked[index];
+      if (!item) return;
 
-      const { x: gridX, y: gridY } = computeTerminalPosition(index, cols);
-      // Absolute position on canvas: project pos + proj padding + worktree pos + wt title + wt pad + grid pos
       const absX =
-        project.position.x + PROJ_PAD + worktree.position.x + WT_PAD + gridX;
+        project.position.x + PROJ_PAD + worktree.position.x + WT_PAD + item.x;
       const absY =
         project.position.y +
         PROJ_TITLE_H +
@@ -97,19 +96,19 @@ export function WorktreeContainer({
         worktree.position.y +
         WT_TITLE_H +
         WT_PAD +
-        gridY;
+        item.y;
 
       const padding = 60;
       const viewW = window.innerWidth - padding * 2;
       const viewH = window.innerHeight - padding * 2;
-      const scale = Math.min(viewW / TERMINAL_W, viewH / TERMINAL_H) * 0.85;
+      const scale = Math.min(viewW / item.w, viewH / item.h) * 0.85;
 
-      const centerX = -(absX + TERMINAL_W / 2) * scale + window.innerWidth / 2;
-      const centerY = -(absY + TERMINAL_H / 2) * scale + window.innerHeight / 2;
+      const centerX = -(absX + item.w / 2) * scale + window.innerWidth / 2;
+      const centerY = -(absY + item.h / 2) * scale + window.innerHeight / 2;
 
       useCanvasStore.getState().animateTo(centerX, centerY, scale);
     },
-    [projectId, worktree.position, cols],
+    [projectId, worktree.id, worktree.position],
   );
 
   const handleTerminalDragStart = useCallback(
@@ -135,19 +134,27 @@ export function WorktreeContainer({
         const ox = (ev.clientX - startX) / scale;
         const oy = (ev.clientY - startY) / scale;
 
-        // Compute which grid cell the center of the dragged terminal is over
-        const origPos = computeTerminalPosition(origIndex, cols);
-        const cx = origPos.x + ox + TERMINAL_W / 2;
-        const cy = origPos.y + oy + TERMINAL_H / 2;
-        const col = Math.max(
-          0,
-          Math.min(cols - 1, Math.floor(cx / (TERMINAL_W + GRID_GAP))),
-        );
-        const row = Math.max(0, Math.floor(cy / (TERMINAL_H + GRID_GAP)));
-        const targetIndex = Math.min(
-          worktree.terminals.length - 1,
-          Math.max(0, row * cols + col),
-        );
+        // Use current packed layout for hit testing
+        const currentSpans = worktree.terminals.map((t) => t.span);
+        const currentPacked = packTerminals(currentSpans);
+        const origItem = currentPacked[origIndex];
+        if (!origItem) return;
+
+        const cx = origItem.x + ox + origItem.w / 2;
+        const cy = origItem.y + oy + origItem.h / 2;
+
+        // Find closest packed item by center distance
+        let targetIndex = origIndex;
+        let minDist = Infinity;
+        for (const p of currentPacked) {
+          const px = p.x + p.w / 2;
+          const py = p.y + p.h / 2;
+          const dist = (cx - px) ** 2 + (cy - py) ** 2;
+          if (dist < minDist) {
+            minDist = dist;
+            targetIndex = p.index;
+          }
+        }
 
         setDragState({
           terminalId,
@@ -176,7 +183,7 @@ export function WorktreeContainer({
       window.addEventListener("mousemove", handleMove);
       window.addEventListener("mouseup", handleUp);
     },
-    [projectId, worktree.id, worktree.terminals, cols, reorderTerminal],
+    [projectId, worktree.id, worktree.terminals, reorderTerminal],
   );
 
   return (
@@ -270,32 +277,8 @@ export function WorktreeContainer({
         }}
       >
         {worktree.terminals.map((terminal, index) => {
-          // During drag, compute visual index considering the reorder preview
-          let visualIndex = index;
-          if (dragState) {
-            const dragOrigIndex = worktree.terminals.findIndex(
-              (t) => t.id === dragState.terminalId,
-            );
-            if (terminal.id === dragState.terminalId) {
-              // Dragged terminal keeps its original grid position (offset applied via dragOffset props)
-              visualIndex = dragOrigIndex;
-            } else if (dragOrigIndex !== -1) {
-              // Shift other terminals to preview the reorder
-              if (dragOrigIndex < dragState.targetIndex) {
-                // Dragging forward: items between old and new shift back
-                if (index > dragOrigIndex && index <= dragState.targetIndex) {
-                  visualIndex = index - 1;
-                }
-              } else if (dragOrigIndex > dragState.targetIndex) {
-                // Dragging backward: items between new and old shift forward
-                if (index >= dragState.targetIndex && index < dragOrigIndex) {
-                  visualIndex = index + 1;
-                }
-              }
-            }
-          }
-
-          const { x, y } = computeTerminalPosition(visualIndex, cols);
+          const item = packed[index];
+          if (!item) return null;
           const isDragging = dragState?.terminalId === terminal.id;
 
           return (
@@ -305,8 +288,10 @@ export function WorktreeContainer({
               worktreeId={worktree.id}
               worktreePath={worktree.path}
               terminal={terminal}
-              gridX={x}
-              gridY={y}
+              gridX={item.x}
+              gridY={item.y}
+              width={item.w}
+              height={item.h}
               onDragStart={handleTerminalDragStart}
               isDragging={isDragging}
               dragOffsetX={isDragging ? dragState.offsetX : 0}
