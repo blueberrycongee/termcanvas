@@ -8,6 +8,7 @@ import { useProjectStore } from "./stores/projectStore";
 import { useCanvasStore } from "./stores/canvasStore";
 import { useDrawingStore } from "./stores/drawingStore";
 import { serializeAllTerminals } from "./terminal/terminalRegistry";
+import { useT } from "./i18n/useT";
 
 function snapshotState(): string {
   const scrollbacks = serializeAllTerminals();
@@ -159,34 +160,34 @@ function CloseDialog({
   onDiscard: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60">
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-6 max-w-sm w-full mx-4">
         <h2 className="text-[15px] font-medium text-[var(--text-primary)] mb-2">
-          Save workspace?
+          {t.save_workspace_title}
         </h2>
         <p className="text-[13px] text-[var(--text-secondary)] mb-6">
-          Save your projects, terminals, and drawings to a file so you can
-          restore them later.
+          {t.save_workspace_desc}
         </p>
         <div className="flex gap-2 justify-end">
           <button
             className="px-3 py-1.5 rounded-md text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border)] transition-colors duration-150"
             onClick={onCancel}
           >
-            Cancel
+            {t.cancel}
           </button>
           <button
             className="px-3 py-1.5 rounded-md text-[13px] text-[#ee0000] hover:bg-[#220000] transition-colors duration-150"
             onClick={onDiscard}
           >
-            Don't Save
+            {t.dont_save}
           </button>
           <button
             className="px-3 py-1.5 rounded-md text-[13px] text-[var(--text-primary)] bg-[#0070f3] hover:bg-[#005cc5] transition-colors duration-150"
             onClick={onSave}
           >
-            Save
+            {t.save}
           </button>
         </div>
       </div>
