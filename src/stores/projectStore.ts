@@ -29,6 +29,10 @@ interface ProjectStore {
     h: number,
   ) => void;
   toggleWorktreeCollapse: (projectId: string, worktreeId: string) => void;
+  syncWorktrees: (
+    projectPath: string,
+    worktrees: { path: string; branch: string; isMain: boolean }[],
+  ) => void;
 
   addTerminal: (
     projectId: string,
@@ -185,6 +189,33 @@ export const useProjectStore = create<ProjectStore>((set) => ({
               ),
             },
       ),
+    })),
+
+  syncWorktrees: (projectPath, worktrees) =>
+    set((state) => ({
+      projects: state.projects.map((p) => {
+        if (p.path !== projectPath) return p;
+        // Keep existing worktrees that still exist, add new ones
+        const existingByPath = new Map(p.worktrees.map((w) => [w.path, w]));
+        const synced = worktrees.map((wt) => {
+          const existing = existingByPath.get(wt.path);
+          if (existing) {
+            // Keep existing state (terminals, size, etc), update branch name
+            return { ...existing, name: wt.branch };
+          }
+          // New worktree
+          return {
+            id: generateId(),
+            name: wt.branch,
+            path: wt.path,
+            position: { x: 0, y: 0 },
+            size: { w: p.size.w > 0 ? p.size.w - 40 : 580, h: 0 },
+            collapsed: false,
+            terminals: [],
+          };
+        });
+        return { ...p, worktrees: synced };
+      }),
     })),
 
   toggleWorktreeCollapse: (projectId, worktreeId) =>
