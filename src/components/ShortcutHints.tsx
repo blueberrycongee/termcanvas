@@ -1,7 +1,7 @@
 import { useT } from "../i18n/useT";
 
-const isMac = navigator.platform.toUpperCase().includes("MAC");
-const mod = isMac ? "\u2318" : "Ctrl";
+const platform = window.termcanvas?.app.platform ?? "darwin";
+const mod = platform === "darwin" ? "\u2318" : "Ctrl";
 
 export function ShortcutHints() {
   const t = useT();
@@ -17,7 +17,7 @@ export function ShortcutHints() {
   return (
     <div
       className="fixed z-50 flex flex-col gap-1.5 pointer-events-none select-none"
-      style={{ top: 52, right: 16 }}
+      style={{ top: 52, right: platform === "win32" ? 148 : 16 }}
     >
       {hints.map((h) => (
         <div

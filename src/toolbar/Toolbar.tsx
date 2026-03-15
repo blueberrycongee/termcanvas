@@ -6,6 +6,7 @@ import { SettingsModal } from "../components/SettingsModal";
 import { useT } from "../i18n/useT";
 
 const noDrag = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
+const platform = window.termcanvas?.app.platform ?? "darwin";
 
 const btn =
   "px-2 py-1 rounded-md text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)] transition-colors duration-150 active:scale-[0.97]";
@@ -57,9 +58,15 @@ export function Toolbar() {
   return (
     <>
       <div
-        className="fixed top-0 left-0 right-0 h-11 flex items-center pr-4 gap-3 z-50 bg-[var(--bg)] border-b border-[var(--border)]"
+        className="fixed top-0 left-0 right-0 h-11 flex items-center gap-3 z-50 bg-[var(--bg)] border-b border-[var(--border)]"
         style={
-          { paddingLeft: 80, WebkitAppRegion: "drag" } as React.CSSProperties
+          {
+            // macOS: leave space for traffic lights on the left
+            // Windows: leave space for window controls overlay on the right
+            paddingLeft: platform === "darwin" ? 80 : 16,
+            paddingRight: platform === "win32" ? 140 : 16,
+            WebkitAppRegion: "drag",
+          } as React.CSSProperties
         }
       >
         {/* Branding */}

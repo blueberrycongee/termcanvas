@@ -17,6 +17,9 @@ const projectScanner = new ProjectScanner();
 const statePersistence = new StatePersistence();
 
 function createWindow() {
+  const isMac = process.platform === "darwin";
+  const isWin = process.platform === "win32";
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -26,8 +29,25 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
-    titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 12, y: 16 },
+    // macOS: hidden title bar with inset traffic lights
+    ...(isMac && {
+      titleBarStyle: "hiddenInset" as const,
+      trafficLightPosition: { x: 12, y: 16 },
+    }),
+    // Windows: hidden title bar with native window controls overlay
+    ...(isWin && {
+      titleBarStyle: "hidden" as const,
+      titleBarOverlay: {
+        color: "#00000000",
+        symbolColor: "#888888",
+        height: 44,
+      },
+    }),
+    // Linux: hidden title bar (no native overlay, app handles everything)
+    ...(!isMac &&
+      !isWin && {
+        titleBarStyle: "hidden" as const,
+      }),
   });
 
   mainWindow.once("ready-to-show", () => {

@@ -121,6 +121,7 @@ export interface TermCanvasAPI {
     open: () => Promise<string | null>;
   };
   app: {
+    platform: "darwin" | "win32" | "linux";
     onBeforeClose: (callback: () => void) => () => void;
     confirmClose: () => void;
   };

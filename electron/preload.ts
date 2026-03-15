@@ -88,6 +88,7 @@ contextBridge.exposeInMainWorld("termcanvas", {
     open: () => ipcRenderer.invoke("workspace:open") as Promise<string | null>,
   },
   app: {
+    platform: process.platform as "darwin" | "win32" | "linux",
     onBeforeClose: (callback: () => void) => {
       const listener = () => callback();
       ipcRenderer.on("app:before-close", listener);
