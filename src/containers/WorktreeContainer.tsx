@@ -248,67 +248,71 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
       </div>
 
       {/* Terminals */}
-      {!worktree.collapsed && (
-        <div
-          className="px-2 pb-2 relative overflow-hidden"
-          style={{ minHeight: computedSize.h - WT_TITLE_H - WT_PAD }}
-        >
-          {worktree.terminals.map((terminal, index) => {
-            // During drag, compute visual index considering the reorder preview
-            let visualIndex = index;
-            if (dragState) {
-              const dragOrigIndex = worktree.terminals.findIndex(
-                (t) => t.id === dragState.terminalId,
-              );
-              if (terminal.id === dragState.terminalId) {
-                // Dragged terminal keeps its original grid position (offset applied via dragOffset props)
-                visualIndex = dragOrigIndex;
-              } else if (dragOrigIndex !== -1) {
-                // Shift other terminals to preview the reorder
-                if (dragOrigIndex < dragState.targetIndex) {
-                  // Dragging forward: items between old and new shift back
-                  if (index > dragOrigIndex && index <= dragState.targetIndex) {
-                    visualIndex = index - 1;
-                  }
-                } else if (dragOrigIndex > dragState.targetIndex) {
-                  // Dragging backward: items between new and old shift forward
-                  if (index >= dragState.targetIndex && index < dragOrigIndex) {
-                    visualIndex = index + 1;
-                  }
+      <div
+        className="px-2 pb-2 relative overflow-hidden"
+        style={{
+          minHeight: worktree.collapsed
+            ? 0
+            : computedSize.h - WT_TITLE_H - WT_PAD,
+          height: worktree.collapsed ? 0 : undefined,
+          padding: worktree.collapsed ? 0 : undefined,
+        }}
+      >
+        {worktree.terminals.map((terminal, index) => {
+          // During drag, compute visual index considering the reorder preview
+          let visualIndex = index;
+          if (dragState) {
+            const dragOrigIndex = worktree.terminals.findIndex(
+              (t) => t.id === dragState.terminalId,
+            );
+            if (terminal.id === dragState.terminalId) {
+              // Dragged terminal keeps its original grid position (offset applied via dragOffset props)
+              visualIndex = dragOrigIndex;
+            } else if (dragOrigIndex !== -1) {
+              // Shift other terminals to preview the reorder
+              if (dragOrigIndex < dragState.targetIndex) {
+                // Dragging forward: items between old and new shift back
+                if (index > dragOrigIndex && index <= dragState.targetIndex) {
+                  visualIndex = index - 1;
+                }
+              } else if (dragOrigIndex > dragState.targetIndex) {
+                // Dragging backward: items between new and old shift forward
+                if (index >= dragState.targetIndex && index < dragOrigIndex) {
+                  visualIndex = index + 1;
                 }
               }
             }
+          }
 
-            const { x, y } = computeTerminalPosition(visualIndex, cols);
-            const isDragging = dragState?.terminalId === terminal.id;
+          const { x, y } = computeTerminalPosition(visualIndex, cols);
+          const isDragging = dragState?.terminalId === terminal.id;
 
-            return (
-              <TerminalTile
-                key={terminal.id}
-                projectId={projectId}
-                worktreeId={worktree.id}
-                worktreePath={worktree.path}
-                terminal={terminal}
-                gridX={x}
-                gridY={y}
-                onDragStart={handleTerminalDragStart}
-                isDragging={isDragging}
-                dragOffsetX={isDragging ? dragState.offsetX : 0}
-                dragOffsetY={isDragging ? dragState.offsetY : 0}
-                onDoubleClick={() => handleZoomToFit(index)}
-              />
-            );
-          })}
-          {worktree.terminals.length === 0 && (
-            <button
-              className="w-full py-6 rounded-md text-[var(--text-faint)] text-[11px] hover:text-[var(--text-secondary)] hover:bg-[var(--surface)] transition-colors duration-150"
-              onClick={handleNewTerminal}
-            >
-              {t.new_terminal_btn}
-            </button>
-          )}
-        </div>
-      )}
+          return (
+            <TerminalTile
+              key={terminal.id}
+              projectId={projectId}
+              worktreeId={worktree.id}
+              worktreePath={worktree.path}
+              terminal={terminal}
+              gridX={x}
+              gridY={y}
+              onDragStart={handleTerminalDragStart}
+              isDragging={isDragging}
+              dragOffsetX={isDragging ? dragState.offsetX : 0}
+              dragOffsetY={isDragging ? dragState.offsetY : 0}
+              onDoubleClick={() => handleZoomToFit(index)}
+            />
+          );
+        })}
+        {worktree.terminals.length === 0 && !worktree.collapsed && (
+          <button
+            className="w-full py-6 rounded-md text-[var(--text-faint)] text-[11px] hover:text-[var(--text-secondary)] hover:bg-[var(--surface)] transition-colors duration-150"
+            onClick={handleNewTerminal}
+          >
+            {t.new_terminal_btn}
+          </button>
+        )}
+      </div>
 
       {/* Diff card */}
       {showDiff && (

@@ -116,17 +116,23 @@ export function ProjectContainer({ project }: Props) {
       </div>
 
       {/* Worktrees */}
-      {!project.collapsed && (
-        <div className="px-3 pb-3 relative" style={{ minHeight: 60 }}>
-          {project.worktrees.map((worktree) => (
-            <WorktreeContainer
-              key={worktree.id}
-              projectId={project.id}
-              worktree={worktree}
-            />
-          ))}
-        </div>
-      )}
+      <div
+        className="px-3 pb-3 relative"
+        style={{
+          minHeight: project.collapsed ? 0 : 60,
+          height: project.collapsed ? 0 : undefined,
+          padding: project.collapsed ? 0 : undefined,
+          overflow: "hidden",
+        }}
+      >
+        {project.worktrees.map((worktree) => (
+          <WorktreeContainer
+            key={worktree.id}
+            projectId={project.id}
+            worktree={worktree}
+          />
+        ))}
+      </div>
     </div>
   );
 }
