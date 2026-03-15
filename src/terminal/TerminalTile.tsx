@@ -66,7 +66,7 @@ export function TerminalTile({
   const config = TYPE_CONFIG[terminal.type];
 
   useEffect(() => {
-    if (!containerRef.current || terminal.minimized) return;
+    if (!containerRef.current) return;
 
     if (!window.termcanvas) {
       notify("error", t.terminal_api_unavailable);
@@ -253,7 +253,6 @@ export function TerminalTile({
   }, [
     terminal.id,
     terminal.title,
-    terminal.minimized,
     projectId,
     worktreeId,
     worktreePath,
@@ -360,10 +359,16 @@ export function TerminalTile({
         </div>
       </div>
 
-      {/* Terminal content */}
-      {!terminal.minimized && (
-        <div ref={containerRef} className="flex-1 min-h-0 p-1" />
-      )}
+      {/* Terminal content — always mounted to preserve PTY session */}
+      <div
+        ref={containerRef}
+        className={terminal.minimized ? "" : "flex-1 min-h-0"}
+        style={{
+          height: terminal.minimized ? 0 : undefined,
+          padding: terminal.minimized ? 0 : 4,
+          overflow: "hidden",
+        }}
+      />
     </div>
   );
 }
