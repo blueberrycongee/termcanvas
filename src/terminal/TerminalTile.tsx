@@ -21,6 +21,7 @@ interface Props {
   isDragging?: boolean;
   dragOffsetX?: number;
   dragOffsetY?: number;
+  onDoubleClick?: () => void;
 }
 
 const TYPE_CONFIG: Record<string, { color: string; label: string }> = {
@@ -43,6 +44,7 @@ export function TerminalTile({
   isDragging = false,
   dragOffsetX = 0,
   dragOffsetY = 0,
+  onDoubleClick,
 }: Props) {
   const tileRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -296,6 +298,7 @@ export function TerminalTile({
       <div
         className="flex items-center gap-2 px-3 py-2 select-none shrink-0 cursor-grab active:cursor-grabbing"
         onMouseDown={(e) => onDragStart?.(terminal.id, e)}
+        onDoubleClick={onDoubleClick}
       >
         <span
           className="text-[11px] font-medium"

@@ -15,6 +15,8 @@ import {
   TERMINAL_W,
   TERMINAL_H,
   GRID_GAP,
+  PROJ_PAD,
+  PROJ_TITLE_H,
 } from "../layout";
 
 interface Props {
@@ -64,6 +66,39 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
   const terminalCount = worktree.terminals.length;
   const cols = computeGridCols(terminalCount);
   const computedSize = computeWorktreeSize(terminalCount);
+
+  const handleZoomToFit = useCallback(
+    (index: number) => {
+      const project = useProjectStore
+        .getState()
+        .projects.find((p) => p.id === projectId);
+      if (!project) return;
+
+      const { x: gridX, y: gridY } = computeTerminalPosition(index, cols);
+      // Absolute position on canvas: project pos + proj padding + worktree pos + wt title + wt pad + grid pos
+      const absX =
+        project.position.x + PROJ_PAD + worktree.position.x + WT_PAD + gridX;
+      const absY =
+        project.position.y +
+        PROJ_TITLE_H +
+        PROJ_PAD +
+        worktree.position.y +
+        WT_TITLE_H +
+        WT_PAD +
+        gridY;
+
+      const padding = 60;
+      const viewW = window.innerWidth - padding * 2;
+      const viewH = window.innerHeight - padding * 2;
+      const scale = Math.min(viewW / TERMINAL_W, viewH / TERMINAL_H) * 0.85;
+
+      const centerX = -(absX + TERMINAL_W / 2) * scale + window.innerWidth / 2;
+      const centerY = -(absY + TERMINAL_H / 2) * scale + window.innerHeight / 2;
+
+      useCanvasStore.getState().animateTo(centerX, centerY, scale);
+    },
+    [projectId, worktree.position, cols],
+  );
 
   const handleTerminalDragStart = useCallback(
     (terminalId: string, e: React.MouseEvent) => {
@@ -260,6 +295,7 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
                 isDragging={isDragging}
                 dragOffsetX={isDragging ? dragState.offsetX : 0}
                 dragOffsetY={isDragging ? dragState.offsetY : 0}
+                onDoubleClick={() => handleZoomToFit(index)}
               />
             );
           })}
