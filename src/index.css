@@ -21,20 +21,45 @@
   font-display: swap;
 }
 
-/* ── Design tokens ── */
-:root {
+/* ── Design tokens: Dark (default) ── */
+:root,
+[data-theme="dark"] {
   --bg: #0a0a0a;
   --surface: #111;
+  --surface-hover: #1a1a1a;
   --border: #222;
+  --border-hover: #333;
   --text-primary: #ededed;
   --text-secondary: #888;
   --text-muted: #444;
+  --text-faint: #333;
   --accent: #0070f3;
   --red: #ee0000;
   --amber: #f5a623;
   --cyan: #50e3c2;
   --purple: #7928ca;
   --radius: 8px;
+  color-scheme: dark;
+}
+
+/* ── Design tokens: Light ── */
+[data-theme="light"] {
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --surface-hover: #f0f0f0;
+  --border: #e0e0e0;
+  --border-hover: #ccc;
+  --text-primary: #111;
+  --text-secondary: #666;
+  --text-muted: #999;
+  --text-faint: #ddd;
+  --accent: #0070f3;
+  --red: #dc2626;
+  --amber: #d97706;
+  --cyan: #0d9488;
+  --purple: #7c3aed;
+  --radius: 8px;
+  color-scheme: light;
 }
 
 body {
@@ -47,6 +72,8 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: var(--bg);
+  color: var(--text-primary);
 }
 
 /* ── Canvas ── */
@@ -67,7 +94,7 @@ body {
 }
 
 .terminal-tile:hover {
-  border-color: #333;
+  border-color: var(--border-hover);
 }
 
 /* ── Scrollbar ── */
@@ -86,7 +113,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #333;
+  background: var(--border-hover);
 }
 
 /* ── Animations ── */
