@@ -212,16 +212,37 @@ export function TerminalTile({
     let waitingTimer: ReturnType<typeof setTimeout> | null = null;
     const WAITING_THRESHOLD = 15_000;
 
+    // Throttled worktree activity event for DiffCard refresh
+    let activityThrottled = false;
+    let activityPending = false;
+    const ACTIVITY_THROTTLE = 3000;
+    const dispatchActivity = () => {
+      window.dispatchEvent(
+        new CustomEvent("termcanvas:worktree-activity", {
+          detail: worktreePath,
+        }),
+      );
+    };
+
     const removeOutput = window.termcanvas.terminal.onOutput(
       (id: number, data: string) => {
         if (id === ptyId) {
           xterm.write(data);
 
-          window.dispatchEvent(
-            new CustomEvent("termcanvas:worktree-activity", {
-              detail: worktreePath,
-            }),
-          );
+          // Throttled activity notification (at most once per 3s)
+          if (!activityThrottled) {
+            activityThrottled = true;
+            dispatchActivity();
+            setTimeout(() => {
+              activityThrottled = false;
+              if (activityPending) {
+                activityPending = false;
+                dispatchActivity();
+              }
+            }, ACTIVITY_THROTTLE);
+          } else {
+            activityPending = true;
+          }
 
           // Track output activity for status detection
           if (currentStatus !== "active") {
@@ -238,6 +259,8 @@ export function TerminalTile({
                 terminal.id,
                 "waiting",
               );
+              // Final activity event when output stops
+              dispatchActivity();
             }
           }, WAITING_THRESHOLD);
         }

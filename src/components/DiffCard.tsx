@@ -169,20 +169,21 @@ export function DiffCard({
     setLoading(true);
     fetchDiff();
 
-    // Re-fetch when terminal activity occurs in this worktree (debounced)
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    // Re-fetch on terminal activity in this worktree (already throttled at source)
     const handleActivity = (e: Event) => {
-      if ((e as CustomEvent).detail !== worktreePath) return;
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(fetchDiff, 2000);
+      if ((e as CustomEvent).detail === worktreePath) fetchDiff();
     };
+    // Re-fetch on window focus (covers external tool changes)
+    const handleFocus = () => fetchDiff();
+
     window.addEventListener("termcanvas:worktree-activity", handleActivity);
+    window.addEventListener("focus", handleFocus);
     return () => {
       window.removeEventListener(
         "termcanvas:worktree-activity",
         handleActivity,
       );
-      if (debounceTimer) clearTimeout(debounceTimer);
+      window.removeEventListener("focus", handleFocus);
     };
   }, [worktreePath]);
 
