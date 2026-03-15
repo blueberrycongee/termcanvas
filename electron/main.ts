@@ -33,6 +33,13 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
   }
+
+  // Intercept close to ask user about saving
+  mainWindow.on("close", (e) => {
+    if (!mainWindow) return;
+    e.preventDefault();
+    mainWindow.webContents.send("app:before-close");
+  });
 }
 
 function setupIpc() {
@@ -144,6 +151,38 @@ function setupIpc() {
   ipcMain.handle("state:save", (_event, state: unknown) => {
     statePersistence.save(state);
   });
+
+  // Workspace file IPC
+  ipcMain.handle("workspace:save", async (_event, data: string) => {
+    const result = await dialog.showSaveDialog(mainWindow!, {
+      title: "Save Workspace",
+      defaultPath: "workspace.termcanvas",
+      filters: [{ name: "TermCanvas Workspace", extensions: ["termcanvas"] }],
+    });
+    if (result.canceled || !result.filePath) return false;
+    fs.writeFileSync(result.filePath, data, "utf-8");
+    return true;
+  });
+
+  ipcMain.handle("workspace:open", async () => {
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      title: "Open Workspace",
+      filters: [{ name: "TermCanvas Workspace", extensions: ["termcanvas"] }],
+      properties: ["openFile"],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return fs.readFileSync(result.filePaths[0], "utf-8");
+  });
+
+  // Close flow
+  ipcMain.on("app:close-confirmed", () => {
+    ptyManager.destroyAll();
+    projectScanner.stopAllWatching();
+    if (mainWindow) {
+      mainWindow.removeAllListeners("close");
+      mainWindow.close();
+    }
+  });
 }
 
 app.whenReady().then(() => {
@@ -156,7 +195,5 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
-  ptyManager.destroyAll();
-  projectScanner.stopAllWatching();
   if (process.platform !== "darwin") app.quit();
 });

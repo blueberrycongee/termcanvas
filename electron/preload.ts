@@ -65,4 +65,17 @@ contextBridge.exposeInMainWorld("termcanvas", {
     load: () => ipcRenderer.invoke("state:load"),
     save: (state: unknown) => ipcRenderer.invoke("state:save", state),
   },
+  workspace: {
+    save: (data: string) =>
+      ipcRenderer.invoke("workspace:save", data) as Promise<boolean>,
+    open: () => ipcRenderer.invoke("workspace:open") as Promise<string | null>,
+  },
+  app: {
+    onBeforeClose: (callback: () => void) => {
+      const listener = () => callback();
+      ipcRenderer.on("app:before-close", listener);
+      return () => ipcRenderer.removeListener("app:before-close", listener);
+    },
+    confirmClose: () => ipcRenderer.send("app:close-confirmed"),
+  },
 });

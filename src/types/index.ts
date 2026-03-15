@@ -100,6 +100,14 @@ export interface TermCanvasAPI {
     load: () => Promise<CanvasState | null>;
     save: (state: CanvasState) => Promise<void>;
   };
+  workspace: {
+    save: (data: string) => Promise<boolean>;
+    open: () => Promise<string | null>;
+  };
+  app: {
+    onBeforeClose: (callback: () => void) => () => void;
+    confirmClose: () => void;
+  };
 }
 
 declare global {
