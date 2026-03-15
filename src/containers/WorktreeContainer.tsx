@@ -1,8 +1,9 @@
-import { useCallback, useRef, useMemo } from "react";
+import { useCallback, useRef, useMemo, useState } from "react";
 import type { WorktreeData } from "../types";
 import { useProjectStore, createTerminal } from "../stores/projectStore";
 import { TerminalTile } from "../terminal/TerminalTile";
 import { useResize } from "../hooks/useResize";
+import { DiffCard } from "../components/DiffCard";
 
 interface Props {
   projectId: string;
@@ -11,6 +12,9 @@ interface Props {
 
 export function WorktreeContainer({ projectId, worktree }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [showDiff, setShowDiff] = useState(false);
+  const [diffPinned, setDiffPinned] = useState(false);
+  const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toggleWorktreeCollapse, addTerminal, updateWorktreeSize } =
     useProjectStore();
 
@@ -73,6 +77,14 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
         minWidth: 300,
         height: worktree.size.h > 0 ? worktree.size.h : undefined,
         borderLeft: "2px solid var(--border)",
+      }}
+      onMouseEnter={() => {
+        if (diffPinned) return;
+        hoverTimeout.current = setTimeout(() => setShowDiff(true), 400);
+      }}
+      onMouseLeave={() => {
+        if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
+        if (!diffPinned) setShowDiff(false);
       }}
     >
       {/* Title bar */}
@@ -166,6 +178,47 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
           />
         </svg>
       </div>
+
+      {/* Diff card */}
+      {showDiff && (
+        <DiffCard
+          worktreeId={worktree.id}
+          worktreePath={worktree.path}
+          anchorX={worktree.size.w > 0 ? worktree.size.w : 300}
+          anchorY={0}
+          pinned={diffPinned}
+          onPin={() => setDiffPinned(true)}
+          onClose={() => {
+            setDiffPinned(false);
+            setShowDiff(false);
+          }}
+        />
+      )}
+
+      {/* Connection line to diff card */}
+      {showDiff && (
+        <svg
+          className="absolute pointer-events-none"
+          style={{
+            left: 0,
+            top: 0,
+            width: "100%",
+            height: "100%",
+            overflow: "visible",
+          }}
+        >
+          <line
+            x1={worktree.size.w > 0 ? worktree.size.w : 300}
+            y1={20}
+            x2={(worktree.size.w > 0 ? worktree.size.w : 300) + 16}
+            y2={20}
+            stroke="var(--border)"
+            strokeWidth="1"
+            strokeDasharray={diffPinned ? "none" : "3 3"}
+            className="transition-all duration-150"
+          />
+        </svg>
+      )}
     </div>
   );
 }
