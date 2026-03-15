@@ -35,9 +35,13 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
   }
 
-  // Intercept close to ask user about saving
+  // Intercept close to ask user about saving (only after page loads)
+  let rendererReady = false;
+  mainWindow.webContents.on("did-finish-load", () => {
+    rendererReady = true;
+  });
   mainWindow.on("close", (e) => {
-    if (forceClose || !mainWindow) return;
+    if (forceClose || !mainWindow || !rendererReady) return;
     e.preventDefault();
     mainWindow.webContents.send("app:before-close");
   });
