@@ -326,6 +326,7 @@ export function TerminalTile({
         transform: isDragging ? "scale(1.02)" : undefined,
       }}
       onClick={() => setFocusedTerminal(terminal.id)}
+      onWheel={(e) => e.stopPropagation()}
     >
       {/* Title bar */}
       <div

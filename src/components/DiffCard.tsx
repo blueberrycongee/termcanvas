@@ -299,6 +299,7 @@ export function DiffCard({
           transform: justPinned ? "scale(1.02)" : "scale(1)",
         }}
         onMouseDown={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
       >
