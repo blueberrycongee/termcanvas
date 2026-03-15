@@ -18,7 +18,7 @@ export function NotificationToast() {
         return (
           <div
             key={n.id}
-            className="rounded-md border border-[#222] px-4 py-3 bg-[#111] flex items-start gap-3 animate-[slideIn_0.2s_ease-out]"
+            className="rounded-md border border-[var(--border)] px-4 py-3 bg-[var(--surface)] flex items-start gap-3 animate-[slideIn_0.2s_ease-out]"
           >
             <div
               className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0"
@@ -35,12 +35,12 @@ export function NotificationToast() {
               >
                 {config.label}
               </div>
-              <span className="text-[13px] break-words text-[#ededed]">
+              <span className="text-[13px] break-words text-[var(--text-primary)]">
                 {n.message}
               </span>
             </div>
             <button
-              className="shrink-0 text-[#333] hover:text-[#ededed] transition-colors duration-150 p-0.5"
+              className="shrink-0 text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-150 p-0.5"
               onClick={() => dismiss(n.id)}
             >
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">

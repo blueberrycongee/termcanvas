@@ -72,20 +72,20 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
         width: worktree.size.w > 0 ? worktree.size.w : undefined,
         minWidth: 300,
         height: worktree.size.h > 0 ? worktree.size.h : undefined,
-        borderLeft: "2px solid #222",
+        borderLeft: "2px solid var(--border)",
       }}
     >
       {/* Title bar */}
       <div className="flex items-center gap-2 px-3 py-2 select-none">
         <span
-          className="text-[11px] text-[#888] truncate font-medium"
+          className="text-[11px] text-[var(--text-secondary)] truncate font-medium"
           style={{ fontFamily: '"Geist Mono", monospace' }}
         >
           {worktree.name}
         </span>
         <div className="ml-auto flex items-center gap-1">
           <button
-            className="text-[#444] hover:text-[#ededed] transition-colors duration-150 p-1 rounded-md hover:bg-[#222]"
+            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
             onClick={() => toggleWorktreeCollapse(projectId, worktree.id)}
           >
             <svg
@@ -105,7 +105,7 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
             </svg>
           </button>
           <button
-            className="text-[#444] hover:text-[#ededed] transition-colors duration-150 p-1 rounded-md hover:bg-[#222]"
+            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
             onClick={handleNewTerminal}
             title="New terminal"
           >
@@ -138,7 +138,7 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
           ))}
           {worktree.terminals.length === 0 && (
             <button
-              className="w-full py-6 rounded-md text-[#333] text-[11px] hover:text-[#888] hover:bg-[#111] transition-colors duration-150"
+              className="w-full py-6 rounded-md text-[var(--text-faint)] text-[11px] hover:text-[var(--text-secondary)] hover:bg-[var(--surface)] transition-colors duration-150"
               onClick={handleNewTerminal}
             >
               + New Terminal
@@ -152,7 +152,12 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
         className="absolute bottom-0 right-0 w-3 h-3 cursor-se-resize opacity-0 hover:opacity-100 transition-opacity duration-150"
         onMouseDown={handleResize}
       >
-        <svg width="12" height="12" viewBox="0 0 12 12" className="text-[#333]">
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          className="text-[var(--text-faint)]"
+        >
           <path
             d="M11 11L6 11M11 11L11 6"
             stroke="currentColor"

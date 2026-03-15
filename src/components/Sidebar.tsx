@@ -58,7 +58,7 @@ export function Sidebar() {
   return (
     <div className="fixed left-0 z-40 flex" style={{ top: 44 }}>
       <div
-        className="flex flex-col bg-[#0a0a0a] transition-[width] duration-200 overflow-hidden"
+        className="flex flex-col bg-[var(--bg)] transition-[width] duration-200 overflow-hidden"
         style={{
           width: collapsed ? 0 : 200,
           height: "calc(100vh - 44px)",
@@ -66,7 +66,7 @@ export function Sidebar() {
       >
         <div className="px-4 py-3 shrink-0">
           <span
-            className="text-[11px] font-medium text-[#444] uppercase tracking-wider"
+            className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider"
             style={{ fontFamily: '"Geist Mono", monospace' }}
           >
             Projects
@@ -79,7 +79,7 @@ export function Sidebar() {
             return (
               <div key={project.id} className="mb-2">
                 <button
-                  className="group w-full text-left px-4 py-1.5 text-[13px] text-[#888] hover:text-[#ededed] transition-colors duration-150 truncate relative"
+                  className="group w-full text-left px-4 py-1.5 text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-150 truncate relative"
                   onClick={() => handleFocus(project.id)}
                 >
                   <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded-r bg-[#0070f3] opacity-0 group-hover:opacity-100 transition-opacity duration-150" />
@@ -94,12 +94,12 @@ export function Sidebar() {
                           style={{ backgroundColor: STATUS_COLOR[t.status] }}
                         />
                         <span
-                          className="text-[11px] text-[#444] truncate"
+                          className="text-[11px] text-[var(--text-muted)] truncate"
                           style={{ fontFamily: '"Geist Mono", monospace' }}
                         >
                           {TYPE_LABEL[t.type]}
                         </span>
-                        <span className="text-[11px] text-[#333] ml-auto shrink-0">
+                        <span className="text-[11px] text-[var(--text-faint)] ml-auto shrink-0">
                           {STATUS_LABEL[t.status]}
                         </span>
                       </div>
@@ -110,14 +110,14 @@ export function Sidebar() {
             );
           })}
           {projects.length === 0 && (
-            <div className="px-4 py-4 text-[11px] text-[#333]">No projects</div>
+            <div className="px-4 py-4 text-[11px] text-[var(--text-faint)]">No projects</div>
           )}
         </div>
       </div>
 
       {/* Toggle */}
       <button
-        className="self-start mt-2 ml-1 p-1.5 rounded-md text-[#444] hover:text-[#ededed] hover:bg-[#111] transition-colors duration-150"
+        className="self-start mt-2 ml-1 p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)] transition-colors duration-150"
         onClick={() => setCollapsed(!collapsed)}
       >
         <svg

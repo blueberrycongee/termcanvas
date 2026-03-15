@@ -302,7 +302,7 @@ export function TerminalTile({
   return (
     <div
       ref={tileRef}
-      className="absolute terminal-tile rounded-md border border-[#222] bg-[#0a0a0a] overflow-hidden flex flex-col"
+      className="absolute terminal-tile rounded-md border border-[var(--border)] bg-[var(--bg)] overflow-hidden flex flex-col"
       style={{
         left: terminal.position.x,
         top: terminal.position.y,
@@ -323,14 +323,14 @@ export function TerminalTile({
           {config.label}
         </span>
         <span
-          className="text-[11px] text-[#444] truncate flex-1"
+          className="text-[11px] text-[var(--text-muted)] truncate flex-1"
           style={{ fontFamily: '"Geist Mono", monospace' }}
         >
           {terminal.title}
         </span>
         <div className="flex items-center gap-0.5">
           <button
-            className="text-[#333] hover:text-[#ededed] transition-colors duration-150 p-1 rounded-md hover:bg-[#222]"
+            className="text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
             onClick={(e) => {
               e.stopPropagation();
               toggleTerminalMinimize(projectId, worktreeId, terminal.id);
@@ -358,7 +358,7 @@ export function TerminalTile({
             </svg>
           </button>
           <button
-            className="text-[#333] hover:text-[#ee0000] transition-colors duration-150 p-1 rounded-md hover:bg-[#222]"
+            className="text-[var(--text-faint)] hover:text-[var(--red)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
             onClick={(e) => {
               e.stopPropagation();
               handleClose();
@@ -391,7 +391,7 @@ export function TerminalTile({
             width="12"
             height="12"
             viewBox="0 0 12 12"
-            className="text-[#444]"
+            className="text-[var(--text-muted)]"
           >
             <path
               d="M11 11L6 11M11 11L11 6"

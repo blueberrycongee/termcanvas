@@ -29,7 +29,7 @@ function isElectron(): boolean {
 
 // Shared button style
 const btn =
-  "px-2 py-1 rounded-md text-[13px] text-[#888] hover:text-[#ededed] hover:bg-[#111] transition-colors duration-150 active:scale-[0.97]";
+  "px-2 py-1 rounded-md text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)] transition-colors duration-150 active:scale-[0.97]";
 
 export function Toolbar() {
   const { viewport, setViewport, resetViewport } = useCanvasStore();
@@ -122,14 +122,14 @@ export function Toolbar() {
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 h-11 flex items-center pr-4 gap-3 z-50 bg-[#0a0a0a] border-b border-[#222]"
+      className="fixed top-0 left-0 right-0 h-11 flex items-center pr-4 gap-3 z-50 bg-[var(--bg)] border-b border-[var(--border)]"
       style={
         { paddingLeft: 80, WebkitAppRegion: "drag" } as React.CSSProperties
       }
     >
       {/* Branding */}
       <span
-        className="text-[13px] font-medium text-[#ededed] tracking-tight"
+        className="text-[13px] font-medium text-[var(--text-primary)] tracking-tight"
         style={noDrag}
       >
         TermCanvas
@@ -137,7 +137,7 @@ export function Toolbar() {
 
       {/* Actions */}
       <button
-        className={`${btn} border border-[#222]`}
+        className={`${btn} border border-[var(--border)]`}
         style={noDrag}
         onClick={handleAddProject}
       >
@@ -167,8 +167,8 @@ export function Toolbar() {
             key={t.id}
             className={`px-2 py-1 rounded-md text-[13px] transition-colors duration-150 active:scale-[0.97] ${
               tool === t.id
-                ? "bg-[#222] text-[#ededed]"
-                : "text-[#444] hover:text-[#ededed] hover:bg-[#111]"
+                ? "bg-[var(--border)] text-[var(--text-primary)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"
             }`}
             onClick={() => setTool(t.id)}
             title={t.label}
@@ -195,7 +195,7 @@ export function Toolbar() {
         ))}
         {elements.length > 0 && (
           <button
-            className="ml-1 text-[11px] text-[#444] hover:text-[#ee0000] transition-colors duration-150"
+            className="ml-1 text-[11px] text-[var(--text-muted)] hover:text-[var(--red)] transition-colors duration-150"
             onClick={clearAll}
           >
             Clear
@@ -216,7 +216,7 @@ export function Toolbar() {
           −
         </button>
         <span
-          className="text-[11px] text-[#888] w-10 text-center tabular-nums"
+          className="text-[11px] text-[var(--text-secondary)] w-10 text-center tabular-nums"
           style={{ fontFamily: '"Geist Mono", monospace' }}
         >
           {zoomPercent}%

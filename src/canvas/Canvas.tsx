@@ -39,12 +39,13 @@ export function Canvas() {
       {projects.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center">
-            <div className="text-[#444] text-lg font-light mb-2">
+            <div className="text-[var(--text-muted)] text-lg font-light mb-2">
               No projects yet
             </div>
-            <div className="text-[#333] text-sm">
-              Click <span className="text-[#666]">Add Project</span> in the
-              toolbar to get started
+            <div className="text-[var(--text-faint)] text-sm">
+              Click{" "}
+              <span className="text-[var(--text-secondary)]">Add Project</span>{" "}
+              in the toolbar to get started
             </div>
           </div>
         </div>

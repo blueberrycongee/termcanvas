@@ -88,12 +88,12 @@ export function ProjectContainer({ project }: Props) {
         >
           Project
         </span>
-        <span className="text-[13px] font-medium text-[#ededed] truncate">
+        <span className="text-[13px] font-medium text-[var(--text-primary)] truncate">
           {project.name}
         </span>
         <div className="ml-auto flex items-center gap-1">
           <button
-            className="text-[#444] hover:text-[#ededed] transition-colors duration-150 p-1 rounded-md hover:bg-[#222]"
+            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
             onClick={(e) => {
               e.stopPropagation();
               toggleProjectCollapse(project.id);
@@ -116,7 +116,7 @@ export function ProjectContainer({ project }: Props) {
             </svg>
           </button>
           <button
-            className="text-[#333] hover:text-[#ee0000] transition-colors duration-150 p-1 rounded-md hover:bg-[#222]"
+            className="text-[var(--text-faint)] hover:text-[var(--red)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
             onClick={(e) => {
               e.stopPropagation();
               removeProject(project.id);
@@ -152,7 +152,7 @@ export function ProjectContainer({ project }: Props) {
         className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize opacity-0 hover:opacity-100 transition-opacity duration-150"
         onMouseDown={handleResize}
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" className="text-[#333]">
+        <svg width="16" height="16" viewBox="0 0 16 16" className="text-[var(--text-faint)]">
           <path
             d="M14 14L8 14M14 14L14 8"
             stroke="currentColor"

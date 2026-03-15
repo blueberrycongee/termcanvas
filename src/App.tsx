@@ -160,17 +160,17 @@ function CloseDialog({
 }) {
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60">
-      <div className="bg-[#111] border border-[#222] rounded-lg p-6 max-w-sm w-full mx-4">
-        <h2 className="text-[15px] font-medium text-[#ededed] mb-2">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-6 max-w-sm w-full mx-4">
+        <h2 className="text-[15px] font-medium text-[var(--text-primary)] mb-2">
           Save workspace?
         </h2>
-        <p className="text-[13px] text-[#888] mb-6">
+        <p className="text-[13px] text-[var(--text-secondary)] mb-6">
           Save your projects, terminals, and drawings to a file so you can
           restore them later.
         </p>
         <div className="flex gap-2 justify-end">
           <button
-            className="px-3 py-1.5 rounded-md text-[13px] text-[#888] hover:text-[#ededed] hover:bg-[#222] transition-colors duration-150"
+            className="px-3 py-1.5 rounded-md text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border)] transition-colors duration-150"
             onClick={onCancel}
           >
             Cancel
@@ -182,7 +182,7 @@ function CloseDialog({
             Don't Save
           </button>
           <button
-            className="px-3 py-1.5 rounded-md text-[13px] text-[#ededed] bg-[#0070f3] hover:bg-[#005cc5] transition-colors duration-150"
+            className="px-3 py-1.5 rounded-md text-[13px] text-[var(--text-primary)] bg-[#0070f3] hover:bg-[#005cc5] transition-colors duration-150"
             onClick={onSave}
           >
             Save
@@ -201,7 +201,7 @@ export function App() {
     useCloseHandler();
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-[#0a0a0a] text-[#ededed]">
+    <div className="h-screen w-screen overflow-hidden bg-[var(--bg)] text-[var(--text-primary)]">
       <Toolbar />
       <Sidebar />
       <Canvas />
