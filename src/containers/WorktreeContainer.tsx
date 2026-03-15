@@ -26,71 +26,91 @@ export function WorktreeContainer({ projectId, worktree, parentSize }: Props) {
     updateWorktreePosition,
   } = useProjectStore();
 
-  // Padding inside project content area
-  const parentPad = 12;
-  const parentTitleH = 40;
-  const availW = (parentSize.w || 620) - parentPad * 2;
-  const availH = (parentSize.h || 400) - parentTitleH - parentPad;
-  const wtW = worktree.size.w || 300;
-  const wtH = worktree.size.h || 140;
-
   const handleDrag = useDrag(
     worktree.position.x,
     worktree.position.y,
     useCallback(
       (x: number, y: number) => {
-        x = Math.max(0, Math.min(x, availW - wtW));
-        y = Math.max(0, Math.min(y, availH - wtH));
+        x = Math.max(0, x);
+        y = Math.max(0, y);
         updateWorktreePosition(projectId, worktree.id, x, y);
       },
-      [
-        projectId,
-        worktree.id,
-        updateWorktreePosition,
-        availW,
-        availH,
-        wtW,
-        wtH,
-      ],
+      [projectId, worktree.id, updateWorktreePosition],
     ),
   );
 
   const handleNewTerminal = useCallback(() => {
     const terminal = createTerminal("shell");
-
-    // Find non-overlapping position: stack below existing terminals
+    const tW = terminal.size.w;
+    const tH = terminal.size.h;
+    const gap = 8;
     const pad = 10;
     const titleH = 36;
-    let maxBottom = 0;
-    for (const t of worktree.terminals) {
-      maxBottom = Math.max(
-        maxBottom,
-        t.position.y + (t.minimized ? 30 : t.size.h),
-      );
-    }
-    const newY = worktree.terminals.length > 0 ? maxBottom + 8 : 0;
-    terminal.position = { x: 0, y: newY };
+    const wtW = worktree.size.w || 580;
+    const contentW = wtW - pad * 2;
 
-    // Check if worktree needs to grow
-    const neededH = titleH + pad + newY + terminal.size.h + pad;
-    if (neededH > (worktree.size.h || 340)) {
-      updateWorktreeSize(
-        projectId,
-        worktree.id,
-        worktree.size.w || 580,
-        neededH,
-      );
+    // Grid layout: fill right first, then wrap down
+    let bestX = 0;
+    let bestY = 0;
 
-      // Check if project needs to grow too
-      const wtBottom = worktree.position.y + neededH;
-      const projectTitleH = 40;
-      const projectPad = 12;
-      const neededProjectH = projectTitleH + projectPad + wtBottom + projectPad;
-      if (neededProjectH > (parentSize.h || 400)) {
-        useProjectStore
-          .getState()
-          .updateProjectSize(projectId, parentSize.w || 620, neededProjectH);
+    if (worktree.terminals.length > 0) {
+      let maxBottom = 0;
+      let lastRowY = 0;
+      let lastRowRight = 0;
+
+      for (const t of worktree.terminals) {
+        const tb = t.position.y + (t.minimized ? 30 : t.size.h);
+        maxBottom = Math.max(maxBottom, tb);
+        if (t.position.y >= lastRowY) {
+          if (t.position.y > lastRowY) {
+            lastRowY = t.position.y;
+            lastRowRight = 0;
+          }
+          lastRowRight = Math.max(lastRowRight, t.position.x + t.size.w);
+        }
       }
+
+      if (lastRowRight + gap + tW <= contentW) {
+        bestX = lastRowRight + gap;
+        bestY = lastRowY;
+      } else {
+        bestX = 0;
+        bestY = maxBottom + gap;
+      }
+    }
+
+    terminal.position = { x: bestX, y: bestY };
+
+    // Grow worktree if needed
+    const neededW = Math.max(wtW, bestX + tW + pad * 2);
+    const neededH = Math.max(
+      worktree.size.h || 340,
+      titleH + pad + bestY + tH + pad,
+    );
+    if (
+      neededW > (worktree.size.w || 580) ||
+      neededH > (worktree.size.h || 340)
+    ) {
+      updateWorktreeSize(projectId, worktree.id, neededW, neededH);
+    }
+
+    // Grow project if needed
+    const wtBottom = worktree.position.y + neededH;
+    const wtRight = worktree.position.x + neededW;
+    const projPad = 12;
+    const projTitleH = 40;
+    const neededProjW = Math.max(parentSize.w || 620, wtRight + projPad * 2);
+    const neededProjH = Math.max(
+      parentSize.h || 400,
+      projTitleH + projPad + wtBottom + projPad,
+    );
+    if (
+      neededProjW > (parentSize.w || 620) ||
+      neededProjH > (parentSize.h || 400)
+    ) {
+      useProjectStore
+        .getState()
+        .updateProjectSize(projectId, neededProjW, neededProjH);
     }
 
     addTerminal(projectId, worktree.id, terminal);
@@ -137,10 +157,6 @@ export function WorktreeContainer({ projectId, worktree, parentSize }: Props) {
     worktree.size.h,
     useCallback(
       (w: number, h: number) => {
-        const maxW = availW - worktree.position.x;
-        const maxH = availH - worktree.position.y;
-        w = Math.min(w, maxW);
-        h = Math.min(h, maxH);
         updateWorktreeSize(projectId, worktree.id, w, h);
       },
       [projectId, worktree.id, updateWorktreeSize],
