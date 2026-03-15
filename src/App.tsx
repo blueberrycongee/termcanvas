@@ -3,6 +3,7 @@ import { Canvas } from "./canvas/Canvas";
 import { Toolbar } from "./toolbar/Toolbar";
 import { Sidebar } from "./components/Sidebar";
 import { NotificationToast } from "./components/NotificationToast";
+import { DrawingToolbar } from "./toolbar/DrawingToolbar";
 import { useProjectStore } from "./stores/projectStore";
 
 function useWorktreeWatcher() {
@@ -40,6 +41,7 @@ export function App() {
       <Toolbar />
       <Sidebar />
       <Canvas />
+      <DrawingToolbar />
       <NotificationToast />
     </div>
   );

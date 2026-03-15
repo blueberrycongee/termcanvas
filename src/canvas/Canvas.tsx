@@ -1,16 +1,20 @@
 import { useCanvasStore } from "../stores/canvasStore";
 import { useProjectStore } from "../stores/projectStore";
+import { useDrawingStore } from "../stores/drawingStore";
 import { useCanvasInteraction } from "./useCanvasInteraction";
 import { ProjectContainer } from "../containers/ProjectContainer";
+import { DrawingLayer } from "./DrawingLayer";
 
 export function Canvas() {
   const { viewport, isAnimating } = useCanvasStore();
   const { projects } = useProjectStore();
+  const { tool } = useDrawingStore();
   const { handleWheel, handleMouseDown } = useCanvasInteraction();
+  const isDrawing = tool !== "select";
 
   return (
     <div
-      className="fixed inset-0 overflow-hidden canvas-bg cursor-grab active:cursor-grabbing"
+      className={`fixed inset-0 overflow-hidden canvas-bg ${isDrawing ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing"}`}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
     >
@@ -23,6 +27,7 @@ export function Canvas() {
           transition: "filter 0.15s ease",
         }}
       >
+        <DrawingLayer />
         {projects.map((project) => (
           <ProjectContainer key={project.id} project={project} />
         ))}

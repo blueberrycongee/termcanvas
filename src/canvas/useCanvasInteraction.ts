@@ -1,5 +1,6 @@
 import { useCallback, useRef } from "react";
 import { useCanvasStore } from "../stores/canvasStore";
+import { useDrawingStore } from "../stores/drawingStore";
 
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 2.0;
@@ -43,8 +44,9 @@ export function useCanvasInteraction() {
   );
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // Left or middle mouse button for panning
-    if (e.button === 0 || e.button === 1) {
+    const isDrawing = useDrawingStore.getState().tool !== "select";
+    // Left-click pan disabled in drawing mode; middle-click always works
+    if (e.button === 1 || (e.button === 0 && !isDrawing)) {
       e.preventDefault();
       isPanning.current = true;
       lastPos.current = { x: e.clientX, y: e.clientY };
