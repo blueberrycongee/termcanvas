@@ -136,7 +136,7 @@ export function ProjectContainer({ project }: Props) {
 
       {/* Worktrees */}
       {!project.collapsed && (
-        <div className="px-3 pb-3 relative" style={{ minHeight: 60 }}>
+        <div className="px-3 pb-3 flex flex-col gap-2">
           {project.worktrees.map((worktree) => (
             <WorktreeContainer
               key={worktree.id}
@@ -152,12 +152,7 @@ export function ProjectContainer({ project }: Props) {
         className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize opacity-0 hover:opacity-100 transition-opacity duration-150"
         onMouseDown={handleResize}
       >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          className="text-[var(--text-faint)]"
-        >
+        <svg width="16" height="16" viewBox="0 0 16 16" className="text-[var(--text-faint)]">
           <path
             d="M14 14L8 14M14 14L14 8"
             stroke="currentColor"
