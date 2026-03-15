@@ -1,7 +1,8 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useProjectStore } from "../stores/projectStore";
-import { useThemeStore } from "../stores/themeStore";
+import { SettingsModal } from "../components/SettingsModal";
+import { useT } from "../i18n/useT";
 
 const noDrag = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
 
@@ -11,7 +12,8 @@ const btn =
 export function Toolbar() {
   const { viewport, setViewport, resetViewport } = useCanvasStore();
   const { projects } = useProjectStore();
-  const { theme, toggleTheme } = useThemeStore();
+  const t = useT();
+  const [showSettings, setShowSettings] = useState(false);
 
   const handleFitAll = useCallback(() => {
     if (projects.length === 0) return;
@@ -42,63 +44,81 @@ export function Toolbar() {
   const zoomPercent = Math.round(viewport.scale * 100);
 
   return (
-    <div
-      className="fixed top-0 left-0 right-0 h-11 flex items-center pr-4 gap-3 z-50 bg-[var(--bg)] border-b border-[var(--border)]"
-      style={
-        { paddingLeft: 80, WebkitAppRegion: "drag" } as React.CSSProperties
-      }
-    >
-      {/* Branding */}
-      <span
-        className="text-[13px] font-medium text-[var(--text-primary)] tracking-tight"
-        style={noDrag}
+    <>
+      <div
+        className="fixed top-0 left-0 right-0 h-11 flex items-center pr-4 gap-3 z-50 bg-[var(--bg)] border-b border-[var(--border)]"
+        style={
+          { paddingLeft: 80, WebkitAppRegion: "drag" } as React.CSSProperties
+        }
       >
-        TermCanvas
-      </span>
-
-      <div className="flex-1" />
-
-      {/* Theme toggle */}
-      <button
-        className={btn}
-        style={noDrag}
-        onClick={toggleTheme}
-        title={theme === "dark" ? "Switch to light" : "Switch to dark"}
-      >
-        {theme === "dark" ? "☀" : "☾"}
-      </button>
-
-      {/* Zoom controls */}
-      <div className="flex items-center gap-0.5" style={noDrag}>
-        <button
-          className={btn}
-          onClick={() =>
-            setViewport({ scale: Math.max(0.1, viewport.scale * 0.9) })
-          }
-        >
-          −
-        </button>
+        {/* Branding */}
         <span
-          className="text-[11px] text-[var(--text-secondary)] w-10 text-center tabular-nums"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
+          className="text-[13px] font-medium text-[var(--text-primary)] tracking-tight"
+          style={noDrag}
         >
-          {zoomPercent}%
+          TermCanvas
         </span>
+
+        <div className="flex-1" />
+
+        {/* Settings button */}
         <button
           className={btn}
-          onClick={() =>
-            setViewport({ scale: Math.min(2, viewport.scale * 1.1) })
-          }
+          style={noDrag}
+          onClick={() => setShowSettings(true)}
+          title={t.settings}
         >
-          +
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle
+              cx="7"
+              cy="7"
+              r="2"
+              stroke="currentColor"
+              strokeWidth="1.4"
+            />
+            <path
+              d="M7 1v1.5M7 11.5V13M1 7h1.5M11.5 7H13M2.93 2.93l1.06 1.06M10.01 10.01l1.06 1.06M2.93 11.07l1.06-1.06M10.01 3.99l1.06-1.06"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+            />
+          </svg>
         </button>
-        <button className={btn} onClick={resetViewport}>
-          Reset
-        </button>
-        <button className={btn} onClick={handleFitAll}>
-          Fit
-        </button>
+
+        {/* Zoom controls */}
+        <div className="flex items-center gap-0.5" style={noDrag}>
+          <button
+            className={btn}
+            onClick={() =>
+              setViewport({ scale: Math.max(0.1, viewport.scale * 0.9) })
+            }
+          >
+            −
+          </button>
+          <span
+            className="text-[11px] text-[var(--text-secondary)] w-10 text-center tabular-nums"
+            style={{ fontFamily: '"Geist Mono", monospace' }}
+          >
+            {zoomPercent}%
+          </span>
+          <button
+            className={btn}
+            onClick={() =>
+              setViewport({ scale: Math.min(2, viewport.scale * 1.1) })
+            }
+          >
+            +
+          </button>
+          <button className={btn} onClick={resetViewport}>
+            {t.reset}
+          </button>
+          <button className={btn} onClick={handleFitAll}>
+            {t.fit}
+          </button>
+        </div>
       </div>
-    </div>
+
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+    </>
   );
 }
