@@ -17,6 +17,10 @@ interface Props {
   terminal: TerminalData;
   gridX: number;
   gridY: number;
+  onDragStart?: (terminalId: string, e: React.MouseEvent) => void;
+  isDragging?: boolean;
+  dragOffsetX?: number;
+  dragOffsetY?: number;
 }
 
 const TYPE_CONFIG: Record<string, { color: string; label: string }> = {
@@ -35,6 +39,10 @@ export function TerminalTile({
   terminal,
   gridX,
   gridY,
+  onDragStart,
+  isDragging = false,
+  dragOffsetX = 0,
+  dragOffsetY = 0,
 }: Props) {
   const tileRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -272,15 +280,23 @@ export function TerminalTile({
       ref={tileRef}
       className="absolute terminal-tile rounded-md border border-[var(--border)] bg-[var(--bg)] overflow-hidden flex flex-col"
       style={{
-        left: gridX,
-        top: gridY,
+        left: gridX + (isDragging ? dragOffsetX : 0),
+        top: gridY + (isDragging ? dragOffsetY : 0),
         width: TERMINAL_W,
         height: terminal.minimized ? "auto" : TERMINAL_H,
+        zIndex: isDragging ? 50 : undefined,
+        opacity: isDragging ? 0.9 : 1,
+        transition: isDragging ? "none" : "left 0.2s ease, top 0.2s ease",
+        boxShadow: isDragging ? "0 8px 32px rgba(0,0,0,0.3)" : undefined,
+        transform: isDragging ? "scale(1.02)" : undefined,
       }}
       onClick={() => setFocusedTerminal(terminal.id)}
     >
       {/* Title bar */}
-      <div className="flex items-center gap-2 px-3 py-2 select-none shrink-0">
+      <div
+        className="flex items-center gap-2 px-3 py-2 select-none shrink-0 cursor-grab active:cursor-grabbing"
+        onMouseDown={(e) => onDragStart?.(terminal.id, e)}
+      >
         <span
           className="text-[11px] font-medium"
           style={{ color: config.color, fontFamily: '"Geist Mono", monospace' }}

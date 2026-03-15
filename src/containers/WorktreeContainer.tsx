@@ -5,12 +5,16 @@ import { TerminalTile } from "../terminal/TerminalTile";
 import { useDrag } from "../hooks/useDrag";
 import { DiffCard } from "../components/DiffCard";
 import { useT } from "../i18n/useT";
+import { useCanvasStore } from "../stores/canvasStore";
 import {
   computeGridCols,
   computeWorktreeSize,
   computeTerminalPosition,
   WT_PAD,
   WT_TITLE_H,
+  TERMINAL_W,
+  TERMINAL_H,
+  GRID_GAP,
 } from "../layout";
 
 interface Props {
@@ -25,8 +29,12 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const leaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const diffCardHovered = useRef(false);
-  const { toggleWorktreeCollapse, addTerminal, updateWorktreePosition } =
-    useProjectStore();
+  const {
+    toggleWorktreeCollapse,
+    addTerminal,
+    updateWorktreePosition,
+    reorderTerminal,
+  } = useProjectStore();
 
   const handleDrag = useDrag(
     worktree.position.x,
@@ -46,9 +54,83 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
     addTerminal(projectId, worktree.id, terminal);
   }, [projectId, worktree.id, addTerminal]);
 
+  const [dragState, setDragState] = useState<{
+    terminalId: string;
+    offsetX: number;
+    offsetY: number;
+    targetIndex: number;
+  } | null>(null);
+
   const terminalCount = worktree.terminals.length;
   const cols = computeGridCols(terminalCount);
   const computedSize = computeWorktreeSize(terminalCount);
+
+  const handleTerminalDragStart = useCallback(
+    (terminalId: string, e: React.MouseEvent) => {
+      const origIndex = worktree.terminals.findIndex(
+        (t) => t.id === terminalId,
+      );
+      if (origIndex === -1) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const scale = useCanvasStore.getState().viewport.scale;
+      const startX = e.clientX;
+      const startY = e.clientY;
+
+      setDragState({
+        terminalId,
+        offsetX: 0,
+        offsetY: 0,
+        targetIndex: origIndex,
+      });
+
+      const handleMove = (ev: MouseEvent) => {
+        const ox = (ev.clientX - startX) / scale;
+        const oy = (ev.clientY - startY) / scale;
+
+        // Compute which grid cell the center of the dragged terminal is over
+        const origPos = computeTerminalPosition(origIndex, cols);
+        const cx = origPos.x + ox + TERMINAL_W / 2;
+        const cy = origPos.y + oy + TERMINAL_H / 2;
+        const col = Math.max(
+          0,
+          Math.min(cols - 1, Math.floor(cx / (TERMINAL_W + GRID_GAP))),
+        );
+        const row = Math.max(0, Math.floor(cy / (TERMINAL_H + GRID_GAP)));
+        const targetIndex = Math.min(
+          worktree.terminals.length - 1,
+          Math.max(0, row * cols + col),
+        );
+
+        setDragState({
+          terminalId,
+          offsetX: ox,
+          offsetY: oy,
+          targetIndex,
+        });
+      };
+
+      const handleUp = () => {
+        setDragState((prev) => {
+          if (prev && prev.targetIndex !== origIndex) {
+            reorderTerminal(
+              projectId,
+              worktree.id,
+              prev.terminalId,
+              prev.targetIndex,
+            );
+          }
+          return null;
+        });
+        window.removeEventListener("mousemove", handleMove);
+        window.removeEventListener("mouseup", handleUp);
+      };
+
+      window.addEventListener("mousemove", handleMove);
+      window.addEventListener("mouseup", handleUp);
+    },
+    [projectId, worktree.id, worktree.terminals, cols, reorderTerminal],
+  );
 
   return (
     <div
@@ -137,7 +219,34 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
           style={{ minHeight: computedSize.h - WT_TITLE_H - WT_PAD }}
         >
           {worktree.terminals.map((terminal, index) => {
-            const { x, y } = computeTerminalPosition(index, cols);
+            // During drag, compute visual index considering the reorder preview
+            let visualIndex = index;
+            if (dragState) {
+              const dragOrigIndex = worktree.terminals.findIndex(
+                (t) => t.id === dragState.terminalId,
+              );
+              if (terminal.id === dragState.terminalId) {
+                // Dragged terminal keeps its original grid position (offset applied via dragOffset props)
+                visualIndex = dragOrigIndex;
+              } else if (dragOrigIndex !== -1) {
+                // Shift other terminals to preview the reorder
+                if (dragOrigIndex < dragState.targetIndex) {
+                  // Dragging forward: items between old and new shift back
+                  if (index > dragOrigIndex && index <= dragState.targetIndex) {
+                    visualIndex = index - 1;
+                  }
+                } else if (dragOrigIndex > dragState.targetIndex) {
+                  // Dragging backward: items between new and old shift forward
+                  if (index >= dragState.targetIndex && index < dragOrigIndex) {
+                    visualIndex = index + 1;
+                  }
+                }
+              }
+            }
+
+            const { x, y } = computeTerminalPosition(visualIndex, cols);
+            const isDragging = dragState?.terminalId === terminal.id;
+
             return (
               <TerminalTile
                 key={terminal.id}
@@ -147,6 +256,10 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
                 terminal={terminal}
                 gridX={x}
                 gridY={y}
+                onDragStart={handleTerminalDragStart}
+                isDragging={isDragging}
+                dragOffsetX={isDragging ? dragState.offsetX : 0}
+                dragOffsetY={isDragging ? dragState.offsetY : 0}
               />
             );
           })}
