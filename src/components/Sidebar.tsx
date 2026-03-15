@@ -1,13 +1,22 @@
 import { useState, useCallback } from "react";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
-import type { TerminalStatus } from "../types";
+import type { TerminalStatus, TerminalType } from "../types";
 
-const STATUS_COLOR: Record<TerminalStatus, string> = {
-  running: "#50e3c2",
-  success: "#666",
-  error: "#ee0000",
-  idle: "#444",
+const STATUS_CONFIG: Record<
+  TerminalStatus,
+  { color: string; label: string; pulse: boolean }
+> = {
+  running: { color: "#50e3c2", label: "Running", pulse: true },
+  success: { color: "#50e3c2", label: "Done", pulse: false },
+  error: { color: "#ee0000", label: "Error", pulse: false },
+  idle: { color: "#666", label: "Starting", pulse: true },
+};
+
+const TYPE_LABEL: Record<TerminalType, string> = {
+  shell: "Shell",
+  claude: "Claude",
+  codex: "Codex",
 };
 
 export function Sidebar() {
@@ -27,7 +36,6 @@ export function Sidebar() {
       const viewW = window.innerWidth - padding * 2;
       const viewH = window.innerHeight - toolbarH - padding * 2;
 
-      // Fit project into viewport, cap at 1x to avoid over-zooming
       const scale = Math.min(1, viewW / projW, viewH / projH);
 
       const centerX =
@@ -64,7 +72,7 @@ export function Sidebar() {
           {projects.map((project) => {
             const terminals = project.worktrees.flatMap((wt) => wt.terminals);
             return (
-              <div key={project.id}>
+              <div key={project.id} className="mb-1">
                 <button
                   className="w-full text-left px-3 py-2 text-[13px] text-[#888] hover:text-[#ededed] hover:bg-[#111] transition-colors truncate"
                   onClick={() => handleFocus(project.id)}
@@ -72,21 +80,32 @@ export function Sidebar() {
                   {project.name}
                 </button>
                 {terminals.length > 0 && (
-                  <div className="flex items-center gap-1.5 px-3 pb-1.5">
-                    {terminals.map((t) => (
-                      <div
-                        key={t.id}
-                        className="w-2 h-2 rounded-full shrink-0"
-                        style={{
-                          backgroundColor: STATUS_COLOR[t.status],
-                          boxShadow:
-                            t.status === "running"
-                              ? `0 0 4px ${STATUS_COLOR.running}`
-                              : undefined,
-                        }}
-                        title={`${t.title} — ${t.status}`}
-                      />
-                    ))}
+                  <div className="px-3 pb-1 flex flex-col gap-0.5">
+                    {terminals.map((t) => {
+                      const status = STATUS_CONFIG[t.status];
+                      return (
+                        <div
+                          key={t.id}
+                          className="flex items-center gap-2 py-0.5"
+                        >
+                          <div
+                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${status.pulse ? "status-pulse" : ""}`}
+                            style={{ backgroundColor: status.color }}
+                          />
+                          <span
+                            className="text-[11px] text-[#555] truncate"
+                            style={{
+                              fontFamily: '"Geist Mono", monospace',
+                            }}
+                          >
+                            {TYPE_LABEL[t.type]}
+                          </span>
+                          <span className="text-[10px] text-[#444] ml-auto shrink-0">
+                            {status.label}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
