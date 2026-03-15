@@ -14,6 +14,10 @@ export function ShortcutHints() {
     { key: shortcuts.nextTerminal, desc: t.shortcut_next_terminal },
     { key: shortcuts.prevTerminal, desc: t.shortcut_prev_terminal },
     { key: shortcuts.clearFocus, desc: t.shortcut_clear_focus },
+    { key: shortcuts.spanDefault, desc: t.shortcut_span_default },
+    { key: shortcuts.spanWide, desc: t.shortcut_span_wide },
+    { key: shortcuts.spanTall, desc: t.shortcut_span_tall },
+    { key: shortcuts.spanLarge, desc: t.shortcut_span_large },
   ];
 
   return (

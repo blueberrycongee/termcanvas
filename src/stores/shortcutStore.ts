@@ -6,6 +6,10 @@ export interface ShortcutMap {
   nextTerminal: string;
   prevTerminal: string;
   clearFocus: string;
+  spanDefault: string;
+  spanWide: string;
+  spanTall: string;
+  spanLarge: string;
 }
 
 export const DEFAULT_SHORTCUTS: ShortcutMap = {
@@ -14,6 +18,10 @@ export const DEFAULT_SHORTCUTS: ShortcutMap = {
   nextTerminal: "mod+]",
   prevTerminal: "mod+[",
   clearFocus: "escape",
+  spanDefault: "mod+1",
+  spanWide: "mod+2",
+  spanTall: "mod+3",
+  spanLarge: "mod+4",
 };
 
 const STORAGE_KEY = "termcanvas-shortcuts";

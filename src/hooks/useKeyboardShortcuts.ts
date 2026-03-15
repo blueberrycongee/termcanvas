@@ -1,7 +1,11 @@
 import { useEffect } from "react";
 import { useProjectStore, createTerminal } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
-import { useShortcutStore, matchesShortcut } from "../stores/shortcutStore";
+import {
+  useShortcutStore,
+  matchesShortcut,
+  type ShortcutMap,
+} from "../stores/shortcutStore";
 import {
   packTerminals,
   WT_PAD,
@@ -140,6 +144,33 @@ export function useKeyboardShortcuts() {
         useProjectStore.getState().setFocusedTerminal(prev.terminalId);
         zoomToTerminal(prev.projectId, prev.worktreeId, prev.terminalId);
         return;
+      }
+
+      const SPAN_PRESETS: {
+        key: keyof ShortcutMap;
+        span: { cols: number; rows: number };
+      }[] = [
+        { key: "spanDefault", span: { cols: 1, rows: 1 } },
+        { key: "spanWide", span: { cols: 2, rows: 1 } },
+        { key: "spanTall", span: { cols: 1, rows: 2 } },
+        { key: "spanLarge", span: { cols: 2, rows: 2 } },
+      ];
+
+      for (const preset of SPAN_PRESETS) {
+        if (matchesShortcut(e, shortcuts[preset.key])) {
+          e.preventDefault();
+          const { projects, updateTerminalSpan } = useProjectStore.getState();
+          for (const p of projects) {
+            for (const w of p.worktrees) {
+              const focused = w.terminals.find((t) => t.focused);
+              if (focused) {
+                updateTerminalSpan(p.id, w.id, focused.id, preset.span);
+                return;
+              }
+            }
+          }
+          return;
+        }
       }
     };
 

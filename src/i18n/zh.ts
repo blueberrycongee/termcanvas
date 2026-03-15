@@ -77,6 +77,10 @@ export const zh = {
   shortcut_next_terminal: "下一终端",
   shortcut_prev_terminal: "上一终端",
   shortcut_clear_focus: "取消聚焦",
+  shortcut_span_default: "默认大小",
+  shortcut_span_wide: "宽",
+  shortcut_span_tall: "高",
+  shortcut_span_large: "大",
 
   // Settings page
   settings_general: "通用",

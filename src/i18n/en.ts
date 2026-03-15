@@ -79,6 +79,10 @@ export const en = {
   shortcut_next_terminal: "Next terminal",
   shortcut_prev_terminal: "Prev terminal",
   shortcut_clear_focus: "Clear focus",
+  shortcut_span_default: "Default size",
+  shortcut_span_wide: "Wide",
+  shortcut_span_tall: "Tall",
+  shortcut_span_large: "Large",
 
   // Settings page
   settings_general: "General",
