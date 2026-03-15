@@ -20,10 +20,10 @@ export const useThemeStore = create<ThemeStore>((set) => ({
 
 export const XTERM_THEMES: Record<Theme, ITheme> = {
   dark: {
-    background: "#0a0a0a",
-    foreground: "#ededed",
-    cursor: "#ededed",
-    cursorAccent: "#0a0a0a",
+    background: "#101010",
+    foreground: "#e8e8e8",
+    cursor: "#e8e8e8",
+    cursorAccent: "#101010",
     selectionBackground: "rgba(0, 112, 243, 0.3)",
     black: "#111111",
     red: "#ee0000",
@@ -43,10 +43,10 @@ export const XTERM_THEMES: Record<Theme, ITheme> = {
     brightWhite: "#fafafa",
   },
   light: {
-    background: "#fafafa",
-    foreground: "#111111",
-    cursor: "#111111",
-    cursorAccent: "#fafafa",
+    background: "#f5f5f5",
+    foreground: "#1a1a1a",
+    cursor: "#1a1a1a",
+    cursorAccent: "#f5f5f5",
     selectionBackground: "rgba(0, 112, 243, 0.2)",
     black: "#000000",
     red: "#dc2626",

@@ -92,12 +92,18 @@ export function TerminalTile({
     xterm.loadAddon(serializeAddon);
     xterm.open(containerRef.current);
 
+    // Re-apply theme after open() to ensure canvas paints correctly
+    xterm.options.theme = XTERM_THEMES[useThemeStore.getState().theme];
+
     // Restore scrollback from previous session
     if (terminal.scrollback) {
       xterm.write(terminal.scrollback);
     }
 
-    requestAnimationFrame(() => fitAddon.fit());
+    requestAnimationFrame(() => {
+      fitAddon.fit();
+      xterm.refresh(0, xterm.rows - 1);
+    });
 
     xtermRef.current = xterm;
     fitAddonRef.current = fitAddon;
@@ -288,8 +294,11 @@ export function TerminalTile({
   // Update xterm theme when app theme changes
   useEffect(() => {
     const unsubscribe = useThemeStore.subscribe((state) => {
-      if (xtermRef.current) {
-        xtermRef.current.options.theme = XTERM_THEMES[state.theme];
+      const xterm = xtermRef.current;
+      if (xterm) {
+        xterm.options.theme = XTERM_THEMES[state.theme];
+        // Force full canvas repaint so background color updates immediately
+        xterm.refresh(0, xterm.rows - 1);
       }
     });
     return unsubscribe;

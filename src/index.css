@@ -24,17 +24,17 @@
 /* ── Design tokens: Dark (default) ── */
 :root,
 [data-theme="dark"] {
-  --bg: #0a0a0a;
-  --surface: #111;
-  --surface-hover: #1a1a1a;
-  --border: #222;
-  --border-hover: #333;
-  --text-primary: #ededed;
-  --text-secondary: #888;
-  --text-muted: #444;
-  --text-faint: #333;
+  --bg: #101010;
+  --surface: #181818;
+  --surface-hover: #202020;
+  --border: #2a2a2a;
+  --border-hover: #3a3a3a;
+  --text-primary: #e8e8e8;
+  --text-secondary: #8a8a8a;
+  --text-muted: #505050;
+  --text-faint: #383838;
   --accent: #0070f3;
-  --red: #ee0000;
+  --red: #ef4444;
   --amber: #f5a623;
   --cyan: #50e3c2;
   --purple: #7928ca;
@@ -44,15 +44,15 @@
 
 /* ── Design tokens: Light ── */
 [data-theme="light"] {
-  --bg: #fafafa;
-  --surface: #ffffff;
-  --surface-hover: #f0f0f0;
-  --border: #e0e0e0;
-  --border-hover: #ccc;
-  --text-primary: #111;
-  --text-secondary: #666;
-  --text-muted: #999;
-  --text-faint: #ddd;
+  --bg: #f5f5f5;
+  --surface: #fefefe;
+  --surface-hover: #ebebeb;
+  --border: #d8d8d8;
+  --border-hover: #c0c0c0;
+  --text-primary: #1a1a1a;
+  --text-secondary: #606060;
+  --text-muted: #909090;
+  --text-faint: #d0d0d0;
   --accent: #0070f3;
   --red: #dc2626;
   --amber: #d97706;
@@ -91,7 +91,7 @@ body {
 }
 
 [data-theme="light"] .canvas-bg {
-  --dot-color: #e0e0e0;
+  --dot-color: #d0d0d0;
 }
 
 /* ── Panel ── */
