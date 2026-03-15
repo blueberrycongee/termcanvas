@@ -146,6 +146,23 @@ function setupIpc() {
     return projectScanner.scan(dirPath);
   });
 
+  ipcMain.handle("project:diff", (_event, worktreePath: string) => {
+    try {
+      const { execSync } = require("child_process");
+      const stat = execSync("git diff --stat", {
+        cwd: worktreePath,
+        encoding: "utf-8",
+      });
+      const diff = execSync("git diff", {
+        cwd: worktreePath,
+        encoding: "utf-8",
+      });
+      return { stat, diff };
+    } catch {
+      return { stat: "", diff: "" };
+    }
+  });
+
   ipcMain.handle("project:rescan-worktrees", (_event, dirPath: string) => {
     return projectScanner.listWorktrees(dirPath);
   });

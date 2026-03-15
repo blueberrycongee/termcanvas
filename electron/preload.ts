@@ -49,6 +49,11 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("project:rescan-worktrees", dirPath),
     watch: (dirPath: string) => ipcRenderer.send("project:watch", dirPath),
     unwatch: (dirPath: string) => ipcRenderer.send("project:unwatch", dirPath),
+    diff: (worktreePath: string) =>
+      ipcRenderer.invoke("project:diff", worktreePath) as Promise<{
+        stat: string;
+        diff: string;
+      }>,
     onWorktreesChanged: (
       callback: (
         dirPath: string,

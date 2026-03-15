@@ -94,6 +94,7 @@ export interface TermCanvasAPI {
     rescanWorktrees: (
       dirPath: string,
     ) => Promise<{ path: string; branch: string; isMain: boolean }[]>;
+    diff: (worktreePath: string) => Promise<{ stat: string; diff: string }>;
     watch: (dirPath: string) => void;
     unwatch: (dirPath: string) => void;
     onWorktreesChanged: (
