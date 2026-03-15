@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
-import type { WorktreeData } from "../types";
+import { createPortal } from "react-dom";
+import type { Position, WorktreeData } from "../types";
 import { useProjectStore, createTerminal } from "../stores/projectStore";
 import { TerminalTile } from "../terminal/TerminalTile";
 import { useDrag } from "../hooks/useDrag";
@@ -22,9 +23,14 @@ import {
 interface Props {
   projectId: string;
   worktree: WorktreeData;
+  projectPosition: Position;
 }
 
-export function WorktreeContainer({ projectId, worktree }: Props) {
+export function WorktreeContainer({
+  projectId,
+  worktree,
+  projectPosition,
+}: Props) {
   const t = useT();
   const [showDiff, setShowDiff] = useState(false);
   const [diffPinned, setDiffPinned] = useState(false);
@@ -312,59 +318,65 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
         )}
       </div>
 
-      {/* Diff card */}
-      {showDiff && (
-        <DiffCard
-          worktreeId={worktree.id}
-          worktreePath={worktree.path}
-          anchorX={computedSize.w}
-          anchorY={0}
-          pinned={diffPinned}
-          onPin={() => setDiffPinned(true)}
-          onClose={() => {
-            setDiffPinned(false);
-            setShowDiff(false);
-          }}
-          onMouseEnter={() => {
-            diffCardHovered.current = true;
-            if (leaveTimeout.current) {
-              clearTimeout(leaveTimeout.current);
-              leaveTimeout.current = null;
-            }
-          }}
-          onMouseLeave={() => {
-            diffCardHovered.current = false;
-            if (!diffPinned) {
-              leaveTimeout.current = setTimeout(() => setShowDiff(false), 300);
-            }
-          }}
-        />
-      )}
-
-      {/* Connection line to diff card */}
-      {showDiff && (
-        <svg
-          className="absolute pointer-events-none"
-          style={{
-            left: 0,
-            top: 0,
-            width: "100%",
-            height: "100%",
-            overflow: "visible",
-          }}
-        >
-          <line
-            x1={computedSize.w}
-            y1={20}
-            x2={computedSize.w + 16}
-            y2={20}
-            stroke="var(--border)"
-            strokeWidth="1"
-            strokeDasharray={diffPinned ? "none" : "3 3"}
-            className="transition-all duration-150"
-          />
-        </svg>
-      )}
+      {/* Diff card — portaled to canvas layer so it's never clipped by containers */}
+      {showDiff &&
+        (() => {
+          const portalTarget = document.getElementById("canvas-layer");
+          if (!portalTarget) return null;
+          const absX =
+            projectPosition.x + PROJ_PAD + worktree.position.x + computedSize.w;
+          const absY = projectPosition.y + PROJ_TITLE_H + worktree.position.y;
+          return createPortal(
+            <>
+              <svg
+                className="absolute pointer-events-none"
+                style={{ left: absX, top: absY, overflow: "visible" }}
+                width="16"
+                height="40"
+              >
+                <line
+                  x1={0}
+                  y1={20}
+                  x2={16}
+                  y2={20}
+                  stroke="var(--border)"
+                  strokeWidth="1"
+                  strokeDasharray={diffPinned ? "none" : "3 3"}
+                  className="transition-all duration-150"
+                />
+              </svg>
+              <DiffCard
+                worktreeId={worktree.id}
+                worktreePath={worktree.path}
+                anchorX={absX}
+                anchorY={absY}
+                pinned={diffPinned}
+                onPin={() => setDiffPinned(true)}
+                onClose={() => {
+                  setDiffPinned(false);
+                  setShowDiff(false);
+                }}
+                onMouseEnter={() => {
+                  diffCardHovered.current = true;
+                  if (leaveTimeout.current) {
+                    clearTimeout(leaveTimeout.current);
+                    leaveTimeout.current = null;
+                  }
+                }}
+                onMouseLeave={() => {
+                  diffCardHovered.current = false;
+                  if (!diffPinned) {
+                    leaveTimeout.current = setTimeout(
+                      () => setShowDiff(false),
+                      300,
+                    );
+                  }
+                }}
+              />
+            </>,
+            portalTarget,
+          );
+        })()}
     </div>
   );
 }

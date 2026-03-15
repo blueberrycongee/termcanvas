@@ -19,6 +19,7 @@ export function Canvas() {
       onMouseDown={handleMouseDown}
     >
       <div
+        id="canvas-layer"
         style={{
           transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`,
           transformOrigin: "0 0",

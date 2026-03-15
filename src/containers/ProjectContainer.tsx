@@ -129,6 +129,7 @@ export function ProjectContainer({ project }: Props) {
             key={worktree.id}
             projectId={project.id}
             worktree={worktree}
+            projectPosition={project.position}
           />
         ))}
       </div>
