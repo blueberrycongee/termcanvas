@@ -44,6 +44,7 @@ export function WorktreeContainer({
     reorderTerminal,
     setFocusedWorktree,
     focusedWorktreeId,
+    updateTerminalSpan,
   } = useProjectStore();
 
   const handleDrag = useDrag(
@@ -297,6 +298,9 @@ export function WorktreeContainer({
               dragOffsetX={isDragging ? dragState.offsetX : 0}
               dragOffsetY={isDragging ? dragState.offsetY : 0}
               onDoubleClick={() => handleZoomToFit(index)}
+              onSpanChange={(span) =>
+                updateTerminalSpan(projectId, worktree.id, terminal.id, span)
+              }
             />
           );
         })}

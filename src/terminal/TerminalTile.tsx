@@ -1,9 +1,11 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SerializeAddon } from "@xterm/addon-serialize";
+import { createPortal } from "react-dom";
 import type { TerminalData } from "../types";
 import { useProjectStore } from "../stores/projectStore";
+import { ContextMenu } from "../components/ContextMenu";
 import { useNotificationStore } from "../stores/notificationStore";
 import { registerTerminal, unregisterTerminal } from "./terminalRegistry";
 import { useThemeStore, XTERM_THEMES } from "../stores/themeStore";
@@ -23,6 +25,7 @@ interface Props {
   dragOffsetX?: number;
   dragOffsetY?: number;
   onDoubleClick?: () => void;
+  onSpanChange?: (span: { cols: number; rows: number }) => void;
 }
 
 const TYPE_CONFIG: Record<string, { color: string; label: string }> = {
@@ -48,7 +51,12 @@ export function TerminalTile({
   dragOffsetX = 0,
   dragOffsetY = 0,
   onDoubleClick,
+  onSpanChange,
 }: Props) {
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const tileRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
@@ -365,6 +373,11 @@ export function TerminalTile({
         className="flex items-center gap-2 px-3 py-2 select-none shrink-0 cursor-grab active:cursor-grabbing"
         onMouseDown={(e) => onDragStart?.(terminal.id, e)}
         onDoubleClick={onDoubleClick}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setContextMenu({ x: e.clientX, y: e.clientY });
+        }}
       >
         <span
           className="text-[11px] font-medium"
@@ -436,6 +449,38 @@ export function TerminalTile({
           overflow: "hidden",
         }}
       />
+
+      {contextMenu &&
+        createPortal(
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            items={[
+              {
+                label: "1\u00d71",
+                active: terminal.span.cols === 1 && terminal.span.rows === 1,
+                onClick: () => onSpanChange?.({ cols: 1, rows: 1 }),
+              },
+              {
+                label: "2\u00d71 Wide",
+                active: terminal.span.cols === 2 && terminal.span.rows === 1,
+                onClick: () => onSpanChange?.({ cols: 2, rows: 1 }),
+              },
+              {
+                label: "1\u00d72 Tall",
+                active: terminal.span.cols === 1 && terminal.span.rows === 2,
+                onClick: () => onSpanChange?.({ cols: 1, rows: 2 }),
+              },
+              {
+                label: "2\u00d72 Large",
+                active: terminal.span.cols === 2 && terminal.span.rows === 2,
+                onClick: () => onSpanChange?.({ cols: 2, rows: 2 }),
+              },
+            ]}
+            onClose={() => setContextMenu(null)}
+          />,
+          document.body,
+        )}
     </div>
   );
 }
