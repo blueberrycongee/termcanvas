@@ -13,7 +13,6 @@ interface ProjectStore {
   addProject: (project: ProjectData) => void;
   removeProject: (projectId: string) => void;
   updateProjectPosition: (projectId: string, x: number, y: number) => void;
-  updateProjectSize: (projectId: string, w: number, h: number) => void;
   toggleProjectCollapse: (projectId: string) => void;
   bringToFront: (projectId: string) => void;
 
@@ -22,12 +21,6 @@ interface ProjectStore {
     worktreeId: string,
     x: number,
     y: number,
-  ) => void;
-  updateWorktreeSize: (
-    projectId: string,
-    worktreeId: string,
-    w: number,
-    h: number,
   ) => void;
   toggleWorktreeCollapse: (projectId: string, worktreeId: string) => void;
   syncWorktrees: (
@@ -44,20 +37,6 @@ interface ProjectStore {
     projectId: string,
     worktreeId: string,
     terminalId: string,
-  ) => void;
-  updateTerminalPosition: (
-    projectId: string,
-    worktreeId: string,
-    terminalId: string,
-    x: number,
-    y: number,
-  ) => void;
-  updateTerminalSize: (
-    projectId: string,
-    worktreeId: string,
-    terminalId: string,
-    w: number,
-    h: number,
   ) => void;
   updateTerminalPtyId: (
     projectId: string,
@@ -153,13 +132,6 @@ export const useProjectStore = create<ProjectStore>((set) => ({
       ),
     })),
 
-  updateProjectSize: (projectId, w, h) =>
-    set((state) => ({
-      projects: state.projects.map((p) =>
-        p.id !== projectId ? p : { ...p, size: { w, h } },
-      ),
-    })),
-
   toggleProjectCollapse: (projectId) =>
     set((state) => ({
       projects: state.projects.map((p) =>
@@ -186,20 +158,6 @@ export const useProjectStore = create<ProjectStore>((set) => ({
               ...p,
               worktrees: p.worktrees.map((w) =>
                 w.id !== worktreeId ? w : { ...w, position: { x, y } },
-              ),
-            },
-      ),
-    })),
-
-  updateWorktreeSize: (projectId, worktreeId, w, h) =>
-    set((state) => ({
-      projects: state.projects.map((p) =>
-        p.id !== projectId
-          ? p
-          : {
-              ...p,
-              worktrees: p.worktrees.map((wt) =>
-                wt.id !== worktreeId ? wt : { ...wt, size: { w, h } },
               ),
             },
       ),
@@ -278,28 +236,6 @@ export const useProjectStore = create<ProjectStore>((set) => ({
                     },
               ),
             },
-      ),
-    })),
-
-  updateTerminalPosition: (projectId, worktreeId, terminalId, x, y) =>
-    set((state) => ({
-      projects: mapTerminals(
-        state.projects,
-        projectId,
-        worktreeId,
-        terminalId,
-        (t) => ({ ...t, position: { x, y } }),
-      ),
-    })),
-
-  updateTerminalSize: (projectId, worktreeId, terminalId, w, h) =>
-    set((state) => ({
-      projects: mapTerminals(
-        state.projects,
-        projectId,
-        worktreeId,
-        terminalId,
-        (t) => ({ ...t, size: { w, h } }),
       ),
     })),
 
