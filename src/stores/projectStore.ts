@@ -101,7 +101,7 @@ export function createTerminal(
     title: title ?? (type === "shell" ? "Terminal" : type),
     type,
     position: { x: 0, y: 0 },
-    size: { w: 500, h: 320 },
+    size: { w: 540, h: 260 },
     minimized: false,
     focused: false,
     ptyId: null,

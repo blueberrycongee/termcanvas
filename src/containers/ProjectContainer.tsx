@@ -136,6 +136,7 @@ export function ProjectContainer({ project }: Props) {
               key={worktree.id}
               projectId={project.id}
               worktree={worktree}
+              parentSize={project.size}
             />
           ))}
         </div>

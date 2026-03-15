@@ -9,9 +9,10 @@ import { DiffCard } from "../components/DiffCard";
 interface Props {
   projectId: string;
   worktree: WorktreeData;
+  parentSize: { w: number; h: number };
 }
 
-export function WorktreeContainer({ projectId, worktree }: Props) {
+export function WorktreeContainer({ projectId, worktree, parentSize }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showDiff, setShowDiff] = useState(false);
   const [diffPinned, setDiffPinned] = useState(false);
@@ -25,13 +26,32 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
     updateWorktreePosition,
   } = useProjectStore();
 
+  // Padding inside project content area
+  const parentPad = 12;
+  const parentTitleH = 40;
+  const availW = (parentSize.w || 620) - parentPad * 2;
+  const availH = (parentSize.h || 400) - parentTitleH - parentPad;
+  const wtW = worktree.size.w || 300;
+  const wtH = worktree.size.h || 140;
+
   const handleDrag = useDrag(
     worktree.position.x,
     worktree.position.y,
     useCallback(
-      (x: number, y: number) =>
-        updateWorktreePosition(projectId, worktree.id, x, y),
-      [projectId, worktree.id, updateWorktreePosition],
+      (x: number, y: number) => {
+        x = Math.max(0, Math.min(x, availW - wtW));
+        y = Math.max(0, Math.min(y, availH - wtH));
+        updateWorktreePosition(projectId, worktree.id, x, y);
+      },
+      [
+        projectId,
+        worktree.id,
+        updateWorktreePosition,
+        availW,
+        availH,
+        wtW,
+        wtH,
+      ],
     ),
   );
 
@@ -71,8 +91,13 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
     worktree.size.w,
     worktree.size.h,
     useCallback(
-      (w: number, h: number) =>
-        updateWorktreeSize(projectId, worktree.id, w, h),
+      (w: number, h: number) => {
+        const maxW = availW - worktree.position.x;
+        const maxH = availH - worktree.position.y;
+        w = Math.min(w, maxW);
+        h = Math.min(h, maxH);
+        updateWorktreeSize(projectId, worktree.id, w, h);
+      },
       [projectId, worktree.id, updateWorktreeSize],
     ),
     childMinW,
@@ -174,6 +199,7 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
               worktreeId={worktree.id}
               worktreePath={worktree.path}
               terminal={terminal}
+              worktreeSize={worktree.size}
             />
           ))}
           {worktree.terminals.length === 0 && (

@@ -15,6 +15,7 @@ interface Props {
   worktreeId: string;
   worktreePath: string;
   terminal: TerminalData;
+  worktreeSize: { w: number; h: number };
 }
 
 const TYPE_CONFIG: Record<string, { color: string; label: string }> = {
@@ -31,6 +32,7 @@ export function TerminalTile({
   worktreeId,
   worktreePath,
   terminal,
+  worktreeSize,
 }: Props) {
   const tileRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -52,13 +54,33 @@ export function TerminalTile({
   const { notify } = useNotificationStore();
   const config = TYPE_CONFIG[terminal.type];
 
+  // Clamp within worktree content area (padding=10, titleBar=36)
+  const wtPad = 10;
+  const wtTitleH = 36;
+  const wtAvailW = (worktreeSize.w || 580) - wtPad * 2;
+  const wtAvailH = (worktreeSize.h || 340) - wtTitleH - wtPad;
+  const tW = terminal.size.w;
+  const tH = terminal.size.h;
+
   const handleDrag = useDrag(
     terminal.position.x,
     terminal.position.y,
     useCallback(
-      (x: number, y: number) =>
-        updateTerminalPosition(projectId, worktreeId, terminal.id, x, y),
-      [projectId, worktreeId, terminal.id, updateTerminalPosition],
+      (x: number, y: number) => {
+        x = Math.max(0, Math.min(x, wtAvailW - tW));
+        y = Math.max(0, Math.min(y, wtAvailH - tH));
+        updateTerminalPosition(projectId, worktreeId, terminal.id, x, y);
+      },
+      [
+        projectId,
+        worktreeId,
+        terminal.id,
+        updateTerminalPosition,
+        wtAvailW,
+        wtAvailH,
+        tW,
+        tH,
+      ],
     ),
   );
 
@@ -66,9 +88,23 @@ export function TerminalTile({
     terminal.size.w,
     terminal.size.h,
     useCallback(
-      (w: number, h: number) =>
-        updateTerminalSize(projectId, worktreeId, terminal.id, w, h),
-      [projectId, worktreeId, terminal.id, updateTerminalSize],
+      (w: number, h: number) => {
+        const maxW = wtAvailW - terminal.position.x;
+        const maxH = wtAvailH - terminal.position.y;
+        w = Math.min(w, maxW);
+        h = Math.min(h, maxH);
+        updateTerminalSize(projectId, worktreeId, terminal.id, w, h);
+      },
+      [
+        projectId,
+        worktreeId,
+        terminal.id,
+        updateTerminalSize,
+        wtAvailW,
+        wtAvailH,
+        terminal.position.x,
+        terminal.position.y,
+      ],
     ),
     260,
     80,
