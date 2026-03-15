@@ -2,6 +2,7 @@ import { useCallback, useRef, useMemo, useState } from "react";
 import type { WorktreeData } from "../types";
 import { useProjectStore, createTerminal } from "../stores/projectStore";
 import { TerminalTile } from "../terminal/TerminalTile";
+import { useDrag } from "../hooks/useDrag";
 import { useResize } from "../hooks/useResize";
 import { DiffCard } from "../components/DiffCard";
 
@@ -17,8 +18,22 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const leaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const diffCardHovered = useRef(false);
-  const { toggleWorktreeCollapse, addTerminal, updateWorktreeSize } =
-    useProjectStore();
+  const {
+    toggleWorktreeCollapse,
+    addTerminal,
+    updateWorktreeSize,
+    updateWorktreePosition,
+  } = useProjectStore();
+
+  const handleDrag = useDrag(
+    worktree.position.x,
+    worktree.position.y,
+    useCallback(
+      (x: number, y: number) =>
+        updateWorktreePosition(projectId, worktree.id, x, y),
+      [projectId, worktree.id, updateWorktreePosition],
+    ),
+  );
 
   const handleNewTerminal = useCallback(() => {
     const terminal = createTerminal("shell");
@@ -73,8 +88,10 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
   return (
     <div
       ref={containerRef}
-      className="relative rounded-md"
+      className="absolute rounded-md"
       style={{
+        left: worktree.position.x,
+        top: worktree.position.y,
         width: worktree.size.w > 0 ? worktree.size.w : undefined,
         minWidth: 300,
         height: worktree.size.h > 0 ? worktree.size.h : undefined,
@@ -101,7 +118,10 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
       }}
     >
       {/* Title bar */}
-      <div className="flex items-center gap-2 px-3 py-2 select-none">
+      <div
+        className="flex items-center gap-2 px-3 py-2 select-none cursor-grab active:cursor-grabbing"
+        onMouseDown={handleDrag}
+      >
         <span
           className="text-[11px] text-[var(--text-secondary)] truncate font-medium"
           style={{ fontFamily: '"Geist Mono", monospace' }}
