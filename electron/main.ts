@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import { execSync } from "child_process";
 import path from "path";
 import fs from "fs";
 import os from "os";
@@ -177,7 +178,6 @@ function setupIpc() {
 
   ipcMain.handle("project:diff", (_event, worktreePath: string) => {
     try {
-      const { execSync } = require("child_process");
       // Use HEAD to show all changes (staged + unstaged) vs last commit
       const diff = execSync("git diff HEAD", {
         cwd: worktreePath,
