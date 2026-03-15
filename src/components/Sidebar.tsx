@@ -21,6 +21,9 @@ const TYPE_LABEL: Record<TerminalType, string> = {
   shell: "Shell",
   claude: "Claude",
   codex: "Codex",
+  kimi: "Kimi",
+  gemini: "Gemini",
+  opencode: "OpenCode",
 };
 
 export function Sidebar() {

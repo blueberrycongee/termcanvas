@@ -1,4 +1,10 @@
-export type TerminalType = "shell" | "claude" | "codex";
+export type TerminalType =
+  | "shell"
+  | "claude"
+  | "codex"
+  | "kimi"
+  | "gemini"
+  | "opencode";
 
 export interface Position {
   x: number;
