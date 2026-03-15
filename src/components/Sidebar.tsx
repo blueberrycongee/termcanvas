@@ -265,8 +265,12 @@ export function Sidebar() {
 
       {/* Resize handle */}
       <div
-        className="w-1 cursor-col-resize shrink-0 hover:bg-[var(--accent)] transition-colors duration-150"
-        style={{ height: "calc(100vh - 44px)" }}
+        className="cursor-col-resize shrink-0 hover:bg-[var(--accent)] transition-colors duration-150"
+        style={{
+          width: collapsed ? 6 : 4,
+          marginLeft: collapsed ? 4 : 0,
+          height: "calc(100vh - 44px)",
+        }}
         onMouseDown={handleResizeStart}
         onDoubleClick={handleResizeDoubleClick}
       />
