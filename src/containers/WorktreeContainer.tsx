@@ -5,6 +5,7 @@ import { TerminalTile } from "../terminal/TerminalTile";
 import { useDrag } from "../hooks/useDrag";
 import { useResize } from "../hooks/useResize";
 import { DiffCard } from "../components/DiffCard";
+import { useT } from "../i18n/useT";
 
 interface Props {
   projectId: string;
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function WorktreeContainer({ projectId, worktree, parentSize }: Props) {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const [showDiff, setShowDiff] = useState(false);
   const [diffPinned, setDiffPinned] = useState(false);
@@ -232,7 +234,7 @@ export function WorktreeContainer({ projectId, worktree, parentSize }: Props) {
           <button
             className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
             onClick={handleNewTerminal}
-            title="New terminal"
+            title={t.new_terminal}
           >
             <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
               <path
@@ -267,7 +269,7 @@ export function WorktreeContainer({ projectId, worktree, parentSize }: Props) {
               className="w-full py-6 rounded-md text-[var(--text-faint)] text-[11px] hover:text-[var(--text-secondary)] hover:bg-[var(--surface)] transition-colors duration-150"
               onClick={handleNewTerminal}
             >
-              + New Terminal
+              {t.new_terminal_btn}
             </button>
           )}
         </div>
