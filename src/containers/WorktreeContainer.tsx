@@ -71,13 +71,8 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
     worktree.size.w,
     worktree.size.h,
     useCallback(
-      (w: number, h: number) => {
-        if (containerRef.current) {
-          w = Math.max(w, containerRef.current.scrollWidth);
-          h = Math.max(h, containerRef.current.scrollHeight);
-        }
-        updateWorktreeSize(projectId, worktree.id, w, h);
-      },
+      (w: number, h: number) =>
+        updateWorktreeSize(projectId, worktree.id, w, h),
       [projectId, worktree.id, updateWorktreeSize],
     ),
     childMinW,
@@ -95,7 +90,7 @@ export function WorktreeContainer({ projectId, worktree }: Props) {
         width: worktree.size.w > 0 ? worktree.size.w : undefined,
         minWidth: 300,
         height: worktree.size.h > 0 ? worktree.size.h : undefined,
-        borderLeft: "2px solid var(--border)",
+        border: "1px solid var(--border)",
       }}
       onMouseEnter={() => {
         if (diffPinned) return;

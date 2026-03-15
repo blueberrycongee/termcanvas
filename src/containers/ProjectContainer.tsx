@@ -48,13 +48,7 @@ export function ProjectContainer({ project }: Props) {
     project.size.w,
     project.size.h,
     useCallback(
-      (w: number, h: number) => {
-        if (containerRef.current) {
-          w = Math.max(w, containerRef.current.scrollWidth);
-          h = Math.max(h, containerRef.current.scrollHeight);
-        }
-        updateProjectSize(project.id, w, h);
-      },
+      (w: number, h: number) => updateProjectSize(project.id, w, h),
       [project.id, updateProjectSize],
     ),
     childMinW,
