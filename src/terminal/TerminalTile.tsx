@@ -41,6 +41,7 @@ export function TerminalTile({
     updateTerminalSize,
     updateTerminalPosition,
     updateTerminalStatus,
+    updateTerminalSessionId,
     setFocusedTerminal,
   } = useProjectStore();
 
@@ -131,12 +132,49 @@ export function TerminalTile({
 
     let ptyId: number | null = null;
 
+    // Build PTY options based on terminal type and session state
+    const ptyOptions: { cwd: string; shell?: string; args?: string[] } = {
+      cwd: worktreePath,
+    };
+
+    if (terminal.type === "codex" && terminal.sessionId) {
+      ptyOptions.shell = "codex";
+      ptyOptions.args = ["resume", terminal.sessionId];
+    } else if (terminal.type === "codex") {
+      ptyOptions.shell = "codex";
+      ptyOptions.args = [];
+    } else if (terminal.type === "claude" && terminal.sessionId) {
+      ptyOptions.shell = "claude";
+      ptyOptions.args = ["--resume", terminal.sessionId];
+    } else if (terminal.type === "claude") {
+      ptyOptions.shell = "claude";
+      ptyOptions.args = [];
+    }
+
     window.termcanvas.terminal
-      .create({ cwd: worktreePath })
-      .then((id) => {
+      .create(ptyOptions)
+      .then(async (id) => {
         ptyId = id;
         updateTerminalPtyId(projectId, worktreeId, terminal.id, id);
         updateTerminalStatus(projectId, worktreeId, terminal.id, "running");
+
+        // Capture session ID for future resume
+        if (!terminal.sessionId && terminal.type !== "shell") {
+          setTimeout(async () => {
+            let sid: string | null = null;
+            if (terminal.type === "codex") {
+              sid = await window.termcanvas.session.getCodexLatest();
+            } else if (terminal.type === "claude") {
+              const pid = await window.termcanvas.terminal.getPid(id);
+              if (pid) {
+                sid = await window.termcanvas.session.getClaudeByPid(pid);
+              }
+            }
+            if (sid) {
+              updateTerminalSessionId(projectId, worktreeId, terminal.id, sid);
+            }
+          }, 3000);
+        }
 
         xterm.onData((data) => {
           window.termcanvas.terminal.input(id, data);

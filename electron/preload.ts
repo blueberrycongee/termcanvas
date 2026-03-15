@@ -30,6 +30,14 @@ contextBridge.exposeInMainWorld("termcanvas", {
       return () => ipcRenderer.removeListener("terminal:exit", listener);
     },
   },
+  session: {
+    getCodexLatest: () =>
+      ipcRenderer.invoke("session:get-codex-latest") as Promise<string | null>,
+    getClaudeByPid: (pid: number) =>
+      ipcRenderer.invoke("session:get-claude-by-pid", pid) as Promise<
+        string | null
+      >,
+  },
   project: {
     selectDirectory: () => ipcRenderer.invoke("project:select-directory"),
     scan: (dirPath: string) => ipcRenderer.invoke("project:scan", dirPath),

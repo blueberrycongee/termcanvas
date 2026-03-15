@@ -73,6 +73,10 @@ export interface TermCanvasAPI {
     onOutput: (callback: (ptyId: number, data: string) => void) => () => void;
     onExit: (callback: (ptyId: number, exitCode: number) => void) => () => void;
   };
+  session: {
+    getCodexLatest: () => Promise<string | null>;
+    getClaudeByPid: (pid: number) => Promise<string | null>;
+  };
   project: {
     selectDirectory: () => Promise<string | null>;
     scan: (dirPath: string) => Promise<{

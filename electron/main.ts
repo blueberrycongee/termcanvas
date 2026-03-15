@@ -1,5 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import path from "path";
+import fs from "fs";
+import os from "os";
 import { fileURLToPath } from "url";
 import { PtyManager } from "./pty-manager";
 import { ProjectScanner } from "./project-scanner";
@@ -66,6 +68,41 @@ function setupIpc() {
 
   ipcMain.handle("terminal:get-pid", (_event, ptyId: number) => {
     return ptyManager.getPid(ptyId) ?? null;
+  });
+
+  // Session ID discovery for codex/claude
+  ipcMain.handle("session:get-codex-latest", () => {
+    try {
+      const indexPath = path.join(
+        os.homedir(),
+        ".codex",
+        "session_index.jsonl",
+      );
+      if (!fs.existsSync(indexPath)) return null;
+      const lines = fs.readFileSync(indexPath, "utf-8").trim().split("\n");
+      const last = lines[lines.length - 1];
+      if (!last) return null;
+      const entry = JSON.parse(last);
+      return entry.id as string;
+    } catch {
+      return null;
+    }
+  });
+
+  ipcMain.handle("session:get-claude-by-pid", (_event, pid: number) => {
+    try {
+      const sessionFile = path.join(
+        os.homedir(),
+        ".claude",
+        "sessions",
+        `${pid}.json`,
+      );
+      if (!fs.existsSync(sessionFile)) return null;
+      const data = JSON.parse(fs.readFileSync(sessionFile, "utf-8"));
+      return data.sessionId as string;
+    } catch {
+      return null;
+    }
   });
 
   // Project IPC

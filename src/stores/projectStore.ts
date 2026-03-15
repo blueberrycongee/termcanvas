@@ -76,6 +76,12 @@ interface ProjectStore {
     terminalId: string,
     status: TerminalStatus,
   ) => void;
+  updateTerminalSessionId: (
+    projectId: string,
+    worktreeId: string,
+    terminalId: string,
+    sessionId: string,
+  ) => void;
   setFocusedTerminal: (terminalId: string | null) => void;
 
   setProjects: (projects: ProjectData[]) => void;
@@ -327,6 +333,17 @@ export const useProjectStore = create<ProjectStore>((set) => ({
         worktreeId,
         terminalId,
         (t) => ({ ...t, status }),
+      ),
+    })),
+
+  updateTerminalSessionId: (projectId, worktreeId, terminalId, sessionId) =>
+    set((state) => ({
+      projects: mapTerminals(
+        state.projects,
+        projectId,
+        worktreeId,
+        terminalId,
+        (t) => ({ ...t, sessionId }),
       ),
     })),
 
