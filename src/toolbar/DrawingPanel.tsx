@@ -26,7 +26,7 @@ export function DrawingPanel() {
   const { tool, color, setTool, setColor, clearAll, elements } =
     useDrawingStore();
   const [vertical, setVertical] = useState(true);
-  const [pos, setPos] = useState({ x: 16, y: 60 });
+  const [pos, setPos] = useState({ x: window.innerWidth - 60, y: 60 });
   const dragRef = useRef<{
     startX: number;
     startY: number;
