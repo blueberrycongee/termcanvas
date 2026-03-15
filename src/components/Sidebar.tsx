@@ -1,6 +1,14 @@
 import { useState, useCallback } from "react";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
+import type { TerminalStatus } from "../types";
+
+const STATUS_COLOR: Record<TerminalStatus, string> = {
+  running: "#50e3c2",
+  success: "#666",
+  error: "#ee0000",
+  idle: "#444",
+};
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
@@ -53,15 +61,37 @@ export function Sidebar() {
         </div>
 
         <div className="flex-1 overflow-y-auto py-1">
-          {projects.map((project) => (
-            <button
-              key={project.id}
-              className="w-full text-left px-3 py-2 text-[13px] text-[#888] hover:text-[#ededed] hover:bg-[#111] transition-colors truncate"
-              onClick={() => handleFocus(project.id)}
-            >
-              {project.name}
-            </button>
-          ))}
+          {projects.map((project) => {
+            const terminals = project.worktrees.flatMap((wt) => wt.terminals);
+            return (
+              <div key={project.id}>
+                <button
+                  className="w-full text-left px-3 py-2 text-[13px] text-[#888] hover:text-[#ededed] hover:bg-[#111] transition-colors truncate"
+                  onClick={() => handleFocus(project.id)}
+                >
+                  {project.name}
+                </button>
+                {terminals.length > 0 && (
+                  <div className="flex items-center gap-1.5 px-3 pb-1.5">
+                    {terminals.map((t) => (
+                      <div
+                        key={t.id}
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{
+                          backgroundColor: STATUS_COLOR[t.status],
+                          boxShadow:
+                            t.status === "running"
+                              ? `0 0 4px ${STATUS_COLOR.running}`
+                              : undefined,
+                        }}
+                        title={`${t.title} — ${t.status}`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
           {projects.length === 0 && (
             <div className="px-3 py-4 text-[12px] text-[#444]">No projects</div>
           )}
