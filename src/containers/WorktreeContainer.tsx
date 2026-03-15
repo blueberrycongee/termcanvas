@@ -46,57 +46,56 @@ export function WorktreeContainer({ projectId, worktree, parentSize }: Props) {
     const gap = 8;
     const pad = 10;
     const titleH = 36;
-    const wtW = worktree.size.w || 580;
-    const contentW = wtW - pad * 2;
 
-    // Layout based on window aspect ratio
-    const winW = window.innerWidth;
-    const winH = window.innerHeight;
-    const isLandscape = winW >= winH;
+    // Total terminal count after adding the new one
+    const totalCount = worktree.terminals.length + 1;
 
-    let bestX = 0;
-    let bestY = 0;
+    // Compute optimal cols/rows based on window aspect ratio
+    const aspect = window.innerWidth / window.innerHeight;
+    const cols = Math.round(Math.sqrt(totalCount * aspect));
+    const rows = Math.ceil(totalCount / Math.max(1, cols));
 
-    if (worktree.terminals.length > 0) {
-      let maxRight = 0;
-      let maxBottom = 0;
-      for (const t of worktree.terminals) {
-        maxRight = Math.max(maxRight, t.position.x + t.size.w);
-        maxBottom = Math.max(
-          maxBottom,
-          t.position.y + (t.minimized ? 30 : t.size.h),
+    // Reposition ALL terminals into the grid
+    const allTerminals = [...worktree.terminals];
+    for (let i = 0; i < allTerminals.length; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      allTerminals[i] = {
+        ...allTerminals[i],
+        position: { x: col * (tW + gap), y: row * (tH + gap) },
+      };
+    }
+
+    // Position the new terminal
+    const newCol = worktree.terminals.length % cols;
+    const newRow = Math.floor(worktree.terminals.length / cols);
+    terminal.position = { x: newCol * (tW + gap), y: newRow * (tH + gap) };
+
+    // Update all existing terminal positions
+    for (const t of allTerminals) {
+      useProjectStore
+        .getState()
+        .updateTerminalPosition(
+          projectId,
+          worktree.id,
+          t.id,
+          t.position.x,
+          t.position.y,
         );
-      }
-
-      if (isLandscape) {
-        // Landscape: place to the right
-        bestX = maxRight + gap;
-        bestY = 0;
-      } else {
-        // Portrait: place below
-        bestX = 0;
-        bestY = maxBottom + gap;
-      }
     }
 
-    terminal.position = { x: bestX, y: bestY };
+    // Compute needed container sizes
+    const neededW = cols * tW + (cols - 1) * gap + pad * 2;
+    const neededH = titleH + pad + rows * tH + (rows - 1) * gap + pad;
 
-    // Grow worktree if needed
-    const neededW = Math.max(wtW, bestX + tW + pad * 2);
-    const neededH = Math.max(
-      worktree.size.h || 340,
-      titleH + pad + bestY + tH + pad,
-    );
-    if (
-      neededW > (worktree.size.w || 580) ||
-      neededH > (worktree.size.h || 340)
-    ) {
-      updateWorktreeSize(projectId, worktree.id, neededW, neededH);
-    }
+    // Grow worktree
+    const wtW = Math.max(worktree.size.w || 580, neededW);
+    const wtH = Math.max(worktree.size.h || 340, neededH);
+    updateWorktreeSize(projectId, worktree.id, wtW, wtH);
 
-    // Grow project if needed
-    const wtBottom = worktree.position.y + neededH;
-    const wtRight = worktree.position.x + neededW;
+    // Grow project
+    const wtBottom = worktree.position.y + wtH;
+    const wtRight = worktree.position.x + wtW;
     const projPad = 12;
     const projTitleH = 40;
     const neededProjW = Math.max(parentSize.w || 620, wtRight + projPad * 2);
