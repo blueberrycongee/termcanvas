@@ -2,13 +2,13 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 
-const STATE_DIR = path.join(os.homedir(), ".termcanvas");
-const STATE_FILE = path.join(STATE_DIR, "state.json");
+export const TERMCANVAS_DIR = path.join(os.homedir(), ".termcanvas");
+const STATE_FILE = path.join(TERMCANVAS_DIR, "state.json");
 
 export class StatePersistence {
   constructor() {
-    if (!fs.existsSync(STATE_DIR)) {
-      fs.mkdirSync(STATE_DIR, { recursive: true });
+    if (!fs.existsSync(TERMCANVAS_DIR)) {
+      fs.mkdirSync(TERMCANVAS_DIR, { recursive: true });
     }
   }
 

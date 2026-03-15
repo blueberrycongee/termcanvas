@@ -6,11 +6,28 @@ import os from "os";
 import { fileURLToPath } from "url";
 import { PtyManager } from "./pty-manager";
 import { ProjectScanner } from "./project-scanner";
-import { StatePersistence } from "./state-persistence";
+import { StatePersistence, TERMCANVAS_DIR } from "./state-persistence";
 import { GitFileWatcher } from "./git-watcher";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+}
+
+const PORT_FILE = path.join(TERMCANVAS_DIR, "port");
+
+function writePortFile(port: number) {
+  fs.writeFileSync(PORT_FILE, String(port), "utf-8");
+}
+
+function cleanupPortFile() {
+  try {
+    fs.unlinkSync(PORT_FILE);
+  } catch {}
+}
 
 let mainWindow: BrowserWindow | null = null;
 let forceClose = false;
@@ -327,9 +344,20 @@ app.whenReady().then(() => {
   setupIpc();
   createWindow();
 
+  app.on("second-instance", () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+app.on("will-quit", () => {
+  cleanupPortFile();
 });
 
 app.on("window-all-closed", () => {
