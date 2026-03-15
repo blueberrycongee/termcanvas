@@ -140,8 +140,30 @@ All responses are JSON. Errors use standard HTTP status codes.
 2. Document how to configure OpenClaw to use TermCanvas as a tool
 3. Example workflows: multi-agent task dispatch, automated code review pipeline
 
-## Open Questions
+## Decisions
 
-- **Port selection**: Fixed port (e.g., 17422) or dynamic with port file (`~/.termcanvas/port`)?
-- **Output streaming**: Should `terminal/output` support SSE/WebSocket for real-time streaming, or is polling sufficient?
-- **Multi-window**: If multiple TermCanvas windows are open, how does the CLI target the right one?
+### Port selection: dynamic port + port file
+
+Server picks any available port on startup, writes it to `~/.termcanvas/port`. CLI reads this file before each request. Reasons:
+
+- Fixed ports risk conflicts with other tools
+- Port file is trivial to implement and read
+- App crash → next launch overwrites the file
+- OpenClaw skill uses CLI which abstracts port discovery; direct HTTP callers can read the port file
+
+### Output streaming: HTTP polling first, SSE later
+
+Phase 1: `GET /terminal/:id/output?lines=50` returns last N lines (polling). Phase 2: add `GET /terminal/:id/output/stream` for SSE. Reasons:
+
+- OpenClaw orchestration is naturally polling-based — agents take minutes, checking every few seconds is sufficient
+- In the IM-driven scenario (user on phone → OpenClaw → TermCanvas), there's no need for millisecond-level push
+- SSE is useful for CLI `--follow` mode but not MVP-critical
+- WebSocket is overkill — we only need server→client for output
+
+### Multi-window: single instance lock
+
+Use `app.requestSingleInstanceLock()` to enforce one TermCanvas instance. Reasons:
+
+- Current codebase is single-window (`mainWindow` variable, single `state.json`)
+- One instance = one port file = one API endpoint — no ambiguity for CLI or OpenClaw
+- Multiple canvases can be a future in-app feature (tabs), not multiple processes
