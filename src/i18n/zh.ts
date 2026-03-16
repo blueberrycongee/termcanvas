@@ -110,4 +110,5 @@ export const zh = {
   shortcuts_reset: "恢复默认",
   shortcuts_press_hint: "按下快捷键…",
   shortcuts_conflict: "与其他快捷键冲突",
+  add_browser: "打开浏览器",
 } as const;

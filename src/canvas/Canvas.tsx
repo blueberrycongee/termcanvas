@@ -3,9 +3,11 @@ import { usePreferencesStore } from "../stores/preferencesStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useDrawingStore } from "../stores/drawingStore";
 import { useSelectionStore } from "../stores/selectionStore";
+import { useBrowserCardStore } from "../stores/browserCardStore";
 import { useCanvasInteraction } from "./useCanvasInteraction";
 import { useBoxSelect } from "../hooks/useBoxSelect";
 import { ProjectContainer } from "../containers/ProjectContainer";
+import { BrowserCard } from "../components/BrowserCard";
 import { DrawingLayer } from "./DrawingLayer";
 import { BoxSelectOverlay } from "./BoxSelectOverlay";
 
@@ -14,6 +16,7 @@ export function Canvas() {
   const animationBlur = usePreferencesStore((s) => s.animationBlur);
   const { projects } = useProjectStore();
   const { tool } = useDrawingStore();
+  const browserCards = useBrowserCardStore((s) => s.cards);
   const { handleWheel, handleMouseDown: handlePanMouseDown } = useCanvasInteraction();
   const { handleMouseDown: handleBoxSelectMouseDown } = useBoxSelect();
   const isDrawing = tool !== "select";
@@ -51,6 +54,9 @@ export function Canvas() {
       >
         {projects.map((project) => (
           <ProjectContainer key={project.id} project={project} />
+        ))}
+        {Object.values(browserCards).map((card) => (
+          <BrowserCard key={card.id} card={card} />
         ))}
       </div>
 

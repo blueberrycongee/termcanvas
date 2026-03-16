@@ -58,6 +58,7 @@ function createWindow() {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
+      webviewTag: true,
     },
     // macOS: hidden title bar with inset traffic lights
     ...(isMac && {

@@ -112,6 +112,7 @@ export const en = {
   shortcuts_reset: "Reset to defaults",
   shortcuts_press_hint: "Press shortcut\u2026",
   shortcuts_conflict: "Conflicts with another shortcut",
+  add_browser: "Open browser",
 } as const;
 
 export type TranslationKey = keyof typeof en;

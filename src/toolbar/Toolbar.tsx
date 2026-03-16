@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useThemeStore } from "../stores/themeStore";
+import { useBrowserCardStore } from "../stores/browserCardStore";
 import { computeWorktreeSize, PROJ_PAD, PROJ_TITLE_H } from "../layout";
 import { SettingsModal } from "../components/SettingsModal";
 import { useT } from "../i18n/useT";
@@ -17,6 +18,7 @@ export function Toolbar() {
   const { projects } = useProjectStore();
   const { theme, toggleTheme } = useThemeStore();
   const t = useT();
+  const addBrowserCard = useBrowserCardStore((s) => s.addCard);
   const [showSettings, setShowSettings] = useState(false);
 
   const handleFitAll = useCallback(() => {
@@ -137,6 +139,24 @@ export function Toolbar() {
               stroke="currentColor"
               strokeWidth="1.2"
             />
+          </svg>
+        </button>
+
+        {/* Add browser */}
+        <button
+          className={btn}
+          style={noDrag}
+          onClick={() => {
+            const scale = viewport.scale;
+            const x = (-viewport.x + window.innerWidth / 2) / scale - 400;
+            const y = (-viewport.y + window.innerHeight / 2) / scale - 300;
+            addBrowserCard("https://google.com", { x, y });
+          }}
+          title={t.add_browser}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M1.5 7h11M7 1.5c-1.5 2-2 3.5-2 5.5s.5 3.5 2 5.5M7 1.5c1.5 2 2 3.5 2 5.5s-.5 3.5-2 5.5" stroke="currentColor" strokeWidth="1.2" />
           </svg>
         </button>
 
