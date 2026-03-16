@@ -84,6 +84,17 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("workspace:save", data) as Promise<boolean>,
     open: () => ipcRenderer.invoke("workspace:open") as Promise<string | null>,
   },
+  fs: {
+    listDir: (dirPath: string) =>
+      ipcRenderer.invoke("fs:list-dir", dirPath) as Promise<
+        { name: string; isDirectory: boolean }[]
+      >,
+    readFile: (filePath: string) =>
+      ipcRenderer.invoke("fs:read-file", filePath) as Promise<
+        | { type: string; content: string }
+        | { error: string; size?: string }
+      >,
+  },
   app: {
     platform: process.platform as "darwin" | "win32" | "linux",
     onBeforeClose: (callback: () => void) => {

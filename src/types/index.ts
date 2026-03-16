@@ -118,6 +118,13 @@ export interface TermCanvasAPI {
     save: (data: string) => Promise<boolean>;
     open: () => Promise<string | null>;
   };
+  fs: {
+    listDir: (dirPath: string) => Promise<{ name: string; isDirectory: boolean }[]>;
+    readFile: (filePath: string) => Promise<
+      | { type: string; content: string }
+      | { error: string; size?: string }
+    >;
+  };
   app: {
     platform: "darwin" | "win32" | "linux";
     onBeforeClose: (callback: () => void) => () => void;

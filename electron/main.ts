@@ -378,6 +378,63 @@ function setupIpc() {
     return fs.readFileSync(result.filePaths[0], "utf-8");
   });
 
+  // Filesystem IPC
+  const HIDDEN_DIRS = new Set(["node_modules", ".git", "dist", "build", "out"]);
+  const IMAGE_EXTS_FS = new Set([".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"]);
+  const MIME_MAP_FS: Record<string, string> = {
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".gif": "image/gif", ".svg": "image/svg+xml", ".webp": "image/webp",
+  };
+  const MAX_FILE_SIZE = 512 * 1024;
+
+  ipcMain.handle("fs:list-dir", (_event, dirPath: string) => {
+    try {
+      const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+      const filtered = entries
+        .filter((e) => !e.name.startsWith(".") && !HIDDEN_DIRS.has(e.name))
+        .map((e) => ({ name: e.name, isDirectory: e.isDirectory() }))
+        .sort((a, b) => {
+          if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
+      return filtered;
+    } catch {
+      return [];
+    }
+  });
+
+  ipcMain.handle("fs:read-file", (_event, filePath: string) => {
+    try {
+      const stat = fs.statSync(filePath);
+      if (stat.size > MAX_FILE_SIZE) {
+        const sizeMB = (stat.size / (1024 * 1024)).toFixed(1);
+        return { error: "too-large", size: `${sizeMB} MB` };
+      }
+
+      const ext = path.extname(filePath).toLowerCase();
+      if (IMAGE_EXTS_FS.has(ext)) {
+        const buf = fs.readFileSync(filePath);
+        const mime = MIME_MAP_FS[ext] ?? "image/png";
+        return { type: "image", content: `data:${mime};base64,${buf.toString("base64")}` };
+      }
+
+      // Binary detection: check first 8KB for null bytes
+      const fd = fs.openSync(filePath, "r");
+      const probe = Buffer.alloc(8192);
+      const bytesRead = fs.readSync(fd, probe, 0, 8192, 0);
+      fs.closeSync(fd);
+      if (probe.subarray(0, bytesRead).includes(0)) {
+        return { type: "binary" };
+      }
+
+      const content = fs.readFileSync(filePath, "utf-8");
+      const type = ext === ".md" ? "markdown" : "text";
+      return { type, content };
+    } catch {
+      return { error: "read-error" };
+    }
+  });
+
   // Close flow
   ipcMain.on("app:close-confirmed", () => {
     ptyManager.destroyAll();
