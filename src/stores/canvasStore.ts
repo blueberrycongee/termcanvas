@@ -16,6 +16,8 @@ interface CanvasStore {
 const DEFAULT_VIEWPORT: Viewport = { x: 0, y: 0, scale: 1 };
 const ANIM_DURATION = 400;
 
+let animationId = 0;
+
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
   viewport: { ...DEFAULT_VIEWPORT },
   isAnimating: false,
@@ -49,12 +51,15 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     }
 
     const startTime = performance.now();
+    const myId = ++animationId;
 
     set({ isAnimating: true, sidebarCollapsed: true });
 
     const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 
     const tick = (now: number) => {
+      if (myId !== animationId) return; // superseded by a newer animation
+
       const elapsed = now - startTime;
       const progress = Math.min(1, elapsed / ANIM_DURATION);
       const t = easeOutCubic(progress);
