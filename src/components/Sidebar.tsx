@@ -23,6 +23,7 @@ const TYPE_LABEL: Record<TerminalType, string> = {
   kimi: "Kimi",
   gemini: "Gemini",
   opencode: "OpenCode",
+  lazygit: "lazygit",
 };
 
 export function Sidebar() {

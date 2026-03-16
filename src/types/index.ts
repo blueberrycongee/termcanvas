@@ -4,7 +4,8 @@ export type TerminalType =
   | "codex"
   | "kimi"
   | "gemini"
-  | "opencode";
+  | "opencode"
+  | "lazygit";
 
 export interface Position {
   x: number;

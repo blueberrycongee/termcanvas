@@ -99,6 +99,7 @@ const DEFAULT_SPAN: Record<TerminalType, { cols: number; rows: number }> = {
   kimi: { cols: 2, rows: 1 },
   gemini: { cols: 2, rows: 1 },
   opencode: { cols: 2, rows: 1 },
+  lazygit: { cols: 2, rows: 1 },
 };
 
 export function createTerminal(

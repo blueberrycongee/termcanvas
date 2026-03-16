@@ -37,6 +37,7 @@ export const zh = {
 
   // WorktreeContainer
   new_terminal: "新建终端",
+  lazygit: "Git (lazygit)",
   new_terminal_btn: "+ 新建终端",
 
   // ProjectContainer

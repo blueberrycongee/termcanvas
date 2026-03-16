@@ -185,6 +185,11 @@ export function TerminalTile({
         resumeArgs: (id) => ["-s", id],
         newArgs: [],
       },
+      lazygit: {
+        shell: "lazygit",
+        resumeArgs: () => [],
+        newArgs: [],
+      },
     };
 
     const ptyOptions: { cwd: string; shell?: string; args?: string[] } = {

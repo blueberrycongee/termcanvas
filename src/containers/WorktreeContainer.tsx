@@ -325,6 +325,24 @@ export function WorktreeContainer({
               />
             </svg>
           </button>
+          <button
+            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
+            onClick={() => {
+              const term = createTerminal("lazygit", "lazygit");
+              addTerminal(projectId, worktree.id, term);
+            }}
+            title={t.lazygit}
+          >
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M9.5 3.5L8 2L6.5 3.5M8 2v8M4 7l-2 2 2 2M12 7l2 2-2 2M5 14h6"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
         </div>
       </div>
 

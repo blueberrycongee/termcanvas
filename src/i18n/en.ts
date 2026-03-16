@@ -38,6 +38,7 @@ export const en = {
 
   // WorktreeContainer
   new_terminal: "New terminal",
+  lazygit: "Git (lazygit)",
   new_terminal_btn: "+ New Terminal",
 
   // ProjectContainer
