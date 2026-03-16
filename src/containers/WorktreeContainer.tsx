@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Position, WorktreeData } from "../types";
 import {
@@ -7,6 +7,7 @@ import {
   getProjectBounds,
 } from "../stores/projectStore";
 import { useCardLayoutStore } from "../stores/cardLayoutStore";
+import { useSelectionStore } from "../stores/selectionStore";
 import { TerminalTile } from "../terminal/TerminalTile";
 import { useDrag } from "../hooks/useDrag";
 import { DiffCard } from "../components/DiffCard";
@@ -59,6 +60,37 @@ export function WorktreeContainer({
     updateTerminalSpan,
   } = useProjectStore();
   const allCards = useCardLayoutStore((s) => s.cards);
+
+  const isSelected = useSelectionStore((s) =>
+    s.selectedItems.some(
+      (item) =>
+        item.type === "worktree" &&
+        item.projectId === projectId &&
+        item.worktreeId === worktree.id,
+    ),
+  );
+
+  // Listen for close-card events (from batch delete)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { cardId } = (e as CustomEvent<{ cardId: string }>).detail;
+      // Check if this card belongs to this worktree
+      const diffId = `diff:${worktree.id}`;
+      const fileTreeId = `filetree:${worktree.id}`;
+      if (cardId === diffId) {
+        setDiffPinned(false);
+        setShowDiff(false);
+      } else if (cardId === fileTreeId) {
+        setFileTreePinned(false);
+        setShowFileTree(false);
+      } else if (cardId.startsWith(`${worktree.id}-`)) {
+        // FileCard id pattern: worktreeId-timestamp
+        setOpenFiles((prev) => prev.filter((f) => f.id !== cardId));
+      }
+    };
+    window.addEventListener("termcanvas:close-card", handler);
+    return () => window.removeEventListener("termcanvas:close-card", handler);
+  }, [worktree.id]);
 
   const handleDrag = useDrag(
     worktree.position.x,
@@ -210,6 +242,8 @@ export function WorktreeContainer({
         height: worktree.collapsed ? undefined : computedSize.h,
         minWidth: 300,
         borderLeft: `2px solid ${focusedWorktreeId === worktree.id ? "var(--accent)" : "var(--border)"}`,
+        outline: isSelected ? "2px solid #3b82f6" : undefined,
+        outlineOffset: isSelected ? -2 : undefined,
       }}
       onClick={() => setFocusedWorktree(projectId, worktree.id)}
       onMouseEnter={() => {

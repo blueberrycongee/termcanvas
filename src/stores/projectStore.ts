@@ -26,6 +26,7 @@ interface ProjectStore {
     y: number,
   ) => void;
   toggleWorktreeCollapse: (projectId: string, worktreeId: string) => void;
+  removeWorktree: (projectId: string, worktreeId: string) => void;
   syncWorktrees: (
     projectPath: string,
     worktrees: { path: string; branch: string; isMain: boolean }[],
@@ -318,6 +319,20 @@ export const useProjectStore = create<ProjectStore>((set) => ({
                 worktrees: p.worktrees.map((w) =>
                   w.id !== worktreeId ? w : { ...w, position: { x, y } },
                 ),
+              },
+        ),
+      ),
+    })),
+
+  removeWorktree: (projectId, worktreeId) =>
+    set((state) => ({
+      projects: resolveOverlaps(
+        state.projects.map((p) =>
+          p.id !== projectId
+            ? p
+            : {
+                ...p,
+                worktrees: p.worktrees.filter((w) => w.id !== worktreeId),
               },
         ),
       ),

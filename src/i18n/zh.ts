@@ -91,6 +91,14 @@ export const zh = {
   shortcut_span_tall: "高",
   shortcut_span_large: "大",
 
+  // Selection / batch delete
+  confirm_delete_projects: (n: number) =>
+    `删除 ${n} 个选中的项目？这将关闭其中所有终端。`,
+  confirm_delete_worktrees: (n: number) =>
+    `删除 ${n} 个选中的工作树？这将关闭其中所有终端。`,
+  confirm_delete_mixed: (projects: number, worktrees: number) =>
+    `删除 ${projects} 个项目和 ${worktrees} 个工作树？这将关闭其中所有终端。`,
+
   // Settings page
   settings_general: "通用",
   settings_shortcuts: "快捷键",

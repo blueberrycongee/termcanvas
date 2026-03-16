@@ -1,16 +1,25 @@
 import { useCanvasStore } from "../stores/canvasStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useDrawingStore } from "../stores/drawingStore";
+import { useSelectionStore } from "../stores/selectionStore";
 import { useCanvasInteraction } from "./useCanvasInteraction";
+import { useBoxSelect } from "../hooks/useBoxSelect";
 import { ProjectContainer } from "../containers/ProjectContainer";
 import { DrawingLayer } from "./DrawingLayer";
+import { BoxSelectOverlay } from "./BoxSelectOverlay";
 
 export function Canvas() {
   const { viewport, isAnimating } = useCanvasStore();
   const { projects } = useProjectStore();
   const { tool } = useDrawingStore();
-  const { handleWheel, handleMouseDown } = useCanvasInteraction();
+  const { handleWheel, handleMouseDown: handlePanMouseDown } = useCanvasInteraction();
+  const { handleMouseDown: handleBoxSelectMouseDown } = useBoxSelect();
   const isDrawing = tool !== "select";
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    handleBoxSelectMouseDown(e);
+    handlePanMouseDown(e);
+  };
 
   return (
     <div
@@ -24,6 +33,7 @@ export function Canvas() {
           target.id === "canvas-layer"
         ) {
           useProjectStore.getState().clearFocus();
+          useSelectionStore.getState().clearSelection();
         }
       }}
     >
@@ -41,6 +51,9 @@ export function Canvas() {
           <ProjectContainer key={project.id} project={project} />
         ))}
       </div>
+
+      {/* Box-select overlay */}
+      <BoxSelectOverlay />
 
       {/* Drawing overlay - outside transform div, uses its own <g> transform */}
       <DrawingLayer />

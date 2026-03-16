@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 import type { ProjectData } from "../types";
 import { useProjectStore } from "../stores/projectStore";
+import { useSelectionStore } from "../stores/selectionStore";
 import { WorktreeContainer } from "./WorktreeContainer";
 import { useDrag } from "../hooks/useDrag";
 import { computeWorktreeSize, PROJ_PAD, PROJ_TITLE_H } from "../layout";
@@ -18,6 +19,12 @@ export function ProjectContainer({ project }: Props) {
     removeProject,
     bringToFront,
   } = useProjectStore();
+
+  const isSelected = useSelectionStore((s) =>
+    s.selectedItems.some(
+      (item) => item.type === "project" && item.projectId === project.id,
+    ),
+  );
 
   const handleDrag = useDrag(
     project.position.x,
@@ -54,6 +61,8 @@ export function ProjectContainer({ project }: Props) {
         height: project.collapsed ? undefined : computedSize.h,
         minWidth: 340,
         zIndex: project.zIndex ?? 0,
+        outline: isSelected ? "2px solid #3b82f6" : undefined,
+        outlineOffset: isSelected ? -2 : undefined,
       }}
       onMouseDown={() => bringToFront(project.id)}
     >

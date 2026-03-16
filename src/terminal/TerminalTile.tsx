@@ -5,6 +5,7 @@ import { SerializeAddon } from "@xterm/addon-serialize";
 import { createPortal } from "react-dom";
 import type { TerminalData } from "../types";
 import { useProjectStore } from "../stores/projectStore";
+import { useSelectionStore } from "../stores/selectionStore";
 import { ContextMenu } from "../components/ContextMenu";
 import { useNotificationStore } from "../stores/notificationStore";
 import { registerTerminal, unregisterTerminal } from "./terminalRegistry";
@@ -77,6 +78,14 @@ export function TerminalTile({
   const { notify } = useNotificationStore();
   const t = useT();
   const config = TYPE_CONFIG[terminal.type];
+
+  const isSelected = useSelectionStore((s) =>
+    s.selectedItems.some(
+      (item) =>
+        item.type === "terminal" &&
+        item.terminalId === terminal.id,
+    ),
+  );
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -428,6 +437,7 @@ export function TerminalTile({
     <div
       ref={tileRef}
       className={`absolute terminal-tile rounded-md border bg-[var(--bg)] overflow-hidden flex flex-col ${terminal.focused ? "border-[var(--accent)]" : "border-[var(--border)]"}`}
+
       style={{
         left: gridX + (isDragging ? dragOffsetX : 0),
         top: gridY + (isDragging ? dragOffsetY : 0),
@@ -438,6 +448,8 @@ export function TerminalTile({
         transition: isDragging ? "none" : "left 0.2s ease, top 0.2s ease",
         boxShadow: isDragging ? "0 8px 32px rgba(0,0,0,0.3)" : undefined,
         transform: isDragging ? "scale(1.02)" : undefined,
+        outline: isSelected ? "2px solid #3b82f6" : undefined,
+        outlineOffset: isSelected ? -2 : undefined,
       }}
       onClick={(e) => {
         e.stopPropagation();
