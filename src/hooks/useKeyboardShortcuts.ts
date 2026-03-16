@@ -214,12 +214,7 @@ export function useKeyboardShortcuts() {
       }
 
       if (matchesShortcut(e, shortcuts.clearFocus)) {
-        // Don't steal Escape from terminal content (xterm textarea / canvas)
-        const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
-        const isInTerminal =
-          tag === "textarea" || tag === "canvas";
-        if (isInTerminal) return;
-
+        e.preventDefault();
         const list = getAllTerminals();
         const focusedIdx = getFocusedTerminalIndex(list);
 

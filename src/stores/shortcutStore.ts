@@ -19,7 +19,7 @@ export const DEFAULT_SHORTCUTS: ShortcutMap = {
   newTerminal: "mod+t",
   nextTerminal: "mod+]",
   prevTerminal: "mod+[",
-  clearFocus: "escape",
+  clearFocus: "mod+e",
   spanDefault: "mod+1",
   spanWide: "mod+2",
   spanTall: "mod+3",
