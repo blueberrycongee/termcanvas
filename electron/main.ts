@@ -9,6 +9,7 @@ import { ProjectScanner } from "./project-scanner";
 import { StatePersistence, TERMCANVAS_DIR } from "./state-persistence";
 import { GitFileWatcher } from "./git-watcher";
 import { ApiServer } from "./api-server";
+import { sendToWindow } from "./window-events";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -79,6 +80,10 @@ function createWindow() {
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
   });
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+    rendererReady = false;
+  });
 
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
@@ -86,8 +91,8 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
   }
 
-  // Intercept close to ask user about saving (only after page loads)
   let rendererReady = false;
+  // Intercept close to ask user about saving (only after page loads)
   mainWindow.webContents.on("did-finish-load", async () => {
     rendererReady = true;
     try {
@@ -101,7 +106,7 @@ function createWindow() {
   mainWindow.on("close", (e) => {
     if (forceClose || !mainWindow || !rendererReady) return;
     e.preventDefault();
-    mainWindow.webContents.send("app:before-close");
+    sendToWindow(mainWindow, "app:before-close");
   });
 }
 
@@ -113,10 +118,10 @@ function setupIpc() {
       const ptyId = await ptyManager.create(options);
       ptyManager.onData(ptyId, (data: string) => {
         ptyManager.captureOutput(ptyId, data);
-        mainWindow?.webContents.send("terminal:output", ptyId, data);
+        sendToWindow(mainWindow, "terminal:output", ptyId, data);
       });
       ptyManager.onExit(ptyId, (exitCode: number) => {
-        mainWindow?.webContents.send("terminal:exit", ptyId, exitCode);
+        sendToWindow(mainWindow, "terminal:exit", ptyId, exitCode);
       });
       return ptyId;
     },
@@ -304,7 +309,7 @@ function setupIpc() {
   // Git file watcher IPC (Layer 1 of DiffCard refresh)
   ipcMain.handle("git:watch", (_event, worktreePath: string) => {
     gitWatcher.watch(worktreePath, () => {
-      mainWindow?.webContents.send("git:changed", worktreePath);
+      sendToWindow(mainWindow, "git:changed", worktreePath);
     });
   });
 
