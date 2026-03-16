@@ -15,6 +15,7 @@ asarUnpack:
 
 mac:
   category: public.app-category.developer-tools
+  icon: build/icon.icns
   target:
     - target: dmg
       arch:
@@ -27,11 +28,13 @@ mac:
 
 linux:
   category: Development
+  icon: build/icon.png
   target:
     - AppImage
     - deb
 
 win:
+  icon: build/icon.ico
   target:
     - nsis
 
