@@ -63,6 +63,7 @@ export function TerminalTile({
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
+  const sessionCancelRef = useRef<(() => void) | null>(null);
 
   const {
     removeTerminal,
@@ -186,25 +187,39 @@ export function TerminalTile({
         updateTerminalPtyId(projectId, worktreeId, terminal.id, id);
         updateTerminalStatus(projectId, worktreeId, terminal.id, "running");
 
-        // Capture session ID for future resume
+        // Capture session ID for future resume.
+        // AI CLIs (claude, codex, etc.) may take a while to initialize and
+        // write their session file, so we poll instead of a single attempt.
         if (!terminal.sessionId && cliCfg) {
-          setTimeout(async () => {
-            let sid: string | null = null;
-            if (terminal.type === "codex") {
-              sid = await window.termcanvas.session.getCodexLatest();
-            } else if (terminal.type === "claude") {
-              const pid = await window.termcanvas.terminal.getPid(id);
-              if (pid) {
-                sid = await window.termcanvas.session.getClaudeByPid(pid);
+          let cancelled = false;
+          sessionCancelRef.current = () => { cancelled = true; };
+
+          (async () => {
+            const MAX_ATTEMPTS = 15;
+            const INTERVAL = 2000;
+
+            for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+              await new Promise((r) => setTimeout(r, INTERVAL));
+              if (cancelled) return;
+
+              let sid: string | null = null;
+              if (terminal.type === "codex") {
+                sid = await window.termcanvas.session.getCodexLatest();
+              } else if (terminal.type === "claude") {
+                const pid = await window.termcanvas.terminal.getPid(id);
+                if (pid) {
+                  sid = await window.termcanvas.session.getClaudeByPid(pid);
+                }
+              } else if (terminal.type === "kimi") {
+                sid = await window.termcanvas.session.getKimiLatest(worktreePath);
               }
-            } else if (terminal.type === "kimi") {
-              sid = await window.termcanvas.session.getKimiLatest(worktreePath);
+
+              if (sid) {
+                updateTerminalSessionId(projectId, worktreeId, terminal.id, sid);
+                return;
+              }
             }
-            // opencode/gemini: session ID captured when available
-            if (sid) {
-              updateTerminalSessionId(projectId, worktreeId, terminal.id, sid);
-            }
-          }, 3000);
+          })();
         }
 
         xterm.onData((data) => {
@@ -313,6 +328,7 @@ export function TerminalTile({
 
     cleanupRef.current = () => {
       if (waitingTimer) clearTimeout(waitingTimer);
+      sessionCancelRef.current?.();
       unregisterTerminal(terminal.id);
       resizeObserver.disconnect();
       removeOutput();
