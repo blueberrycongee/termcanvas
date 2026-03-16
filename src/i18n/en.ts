@@ -107,6 +107,7 @@ export const en = {
   settings_shortcuts: "Shortcuts",
   theme_dark: "Dark",
   theme_light: "Light",
+  animation_blur: "Focus animation blur",
   shortcuts_reset: "Reset to defaults",
   shortcuts_press_hint: "Press shortcut\u2026",
   shortcuts_conflict: "Conflicts with another shortcut",

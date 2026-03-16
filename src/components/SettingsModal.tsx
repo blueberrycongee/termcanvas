@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocaleStore } from "../stores/localeStore";
+import { usePreferencesStore } from "../stores/preferencesStore";
 import {
   useShortcutStore,
   formatShortcut,
@@ -73,6 +74,7 @@ function ShortcutRow({
 
 export function SettingsModal({ onClose }: Props) {
   const { locale, setLocale } = useLocaleStore();
+  const { animationBlur, setAnimationBlur } = usePreferencesStore();
   const { shortcuts, setShortcut, resetAll } = useShortcutStore();
   const t = useT();
   const [tab, setTab] = useState<Tab>("general");
@@ -199,6 +201,30 @@ export function SettingsModal({ onClose }: Props) {
                   >
                     English
                   </button>
+                </div>
+              </div>
+
+              {/* Animation blur */}
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] text-[var(--text-secondary)]">
+                  {t.animation_blur}
+                </span>
+                <div className="flex items-center gap-2.5">
+                  <input
+                    type="range"
+                    min="0"
+                    max="3"
+                    step="0.1"
+                    value={animationBlur}
+                    onChange={(e) => setAnimationBlur(Number(e.target.value))}
+                    className="w-24 accent-[var(--accent)]"
+                  />
+                  <span
+                    className="text-[12px] text-[var(--text-muted)] w-10 text-right tabular-nums"
+                    style={{ fontFamily: '"Geist Mono", monospace' }}
+                  >
+                    {animationBlur === 0 ? "Off" : `${animationBlur.toFixed(1)}`}
+                  </span>
                 </div>
               </div>
             </div>

@@ -105,6 +105,7 @@ export const zh = {
   settings_shortcuts: "快捷键",
   theme_dark: "深色",
   theme_light: "浅色",
+  animation_blur: "聚焦动画模糊",
   shortcuts_reset: "恢复默认",
   shortcuts_press_hint: "按下快捷键…",
   shortcuts_conflict: "与其他快捷键冲突",

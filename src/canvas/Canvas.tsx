@@ -1,4 +1,5 @@
 import { useCanvasStore } from "../stores/canvasStore";
+import { usePreferencesStore } from "../stores/preferencesStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useDrawingStore } from "../stores/drawingStore";
 import { useSelectionStore } from "../stores/selectionStore";
@@ -10,6 +11,7 @@ import { BoxSelectOverlay } from "./BoxSelectOverlay";
 
 export function Canvas() {
   const { viewport, isAnimating } = useCanvasStore();
+  const animationBlur = usePreferencesStore((s) => s.animationBlur);
   const { projects } = useProjectStore();
   const { tool } = useDrawingStore();
   const { handleWheel, handleMouseDown: handlePanMouseDown } = useCanvasInteraction();
@@ -43,8 +45,8 @@ export function Canvas() {
           transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`,
           transformOrigin: "0 0",
           willChange: "transform",
-          filter: isAnimating ? "blur(1.5px)" : "none",
-          transition: "filter 0.15s ease",
+          filter: animationBlur > 0 && isAnimating ? `blur(${animationBlur}px)` : "none",
+          transition: animationBlur > 0 ? "filter 0.15s ease" : "none",
         }}
       >
         {projects.map((project) => (
