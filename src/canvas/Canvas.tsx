@@ -18,7 +18,11 @@ export function Canvas() {
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onClick={(e) => {
-        if (e.target === e.currentTarget) {
+        const target = e.target as HTMLElement;
+        if (
+          target === e.currentTarget ||
+          target.id === "canvas-layer"
+        ) {
           useProjectStore.getState().clearFocus();
         }
       }}
