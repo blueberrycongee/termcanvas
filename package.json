@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "postinstall": "electron-builder install-app-deps",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/pty-launch.test.ts tests/window-events.test.ts"
+    "test": "node --experimental-strip-types --test tests/pty-launch.test.ts tests/window-events.test.ts tests/diff-card-expansion.test.ts"
   },
   "keywords": [
     "terminal",

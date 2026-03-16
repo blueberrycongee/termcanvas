@@ -6,6 +6,7 @@ import {
 } from "../stores/diffLayoutStore";
 import { useProjectStore, getProjectBounds } from "../stores/projectStore";
 import { useT } from "../i18n/useT";
+import { toggleExpandedFiles } from "./diffCardExpansion";
 
 interface FileInfo {
   name: string;
@@ -118,7 +119,7 @@ export function DiffCard({
   const t = useT();
   const [fileDiffs, setFileDiffs] = useState<FileDiff[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedFile, setExpandedFile] = useState<string | null>(null);
+  const [expandedFiles, setExpandedFiles] = useState<Set<string>>(() => new Set());
   const [pos, setPos] = useState({ x: anchorX + 16, y: anchorY });
   const [size, setSize] = useState({ w: 400, h: 340 });
   const [justPinned, setJustPinned] = useState(false);
@@ -391,8 +392,8 @@ export function DiffCard({
                 <button
                   className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--surface-hover)] transition-colors duration-150 text-left"
                   onClick={() =>
-                    setExpandedFile(
-                      expandedFile === fd.file.name ? null : fd.file.name,
+                    setExpandedFiles((current) =>
+                      toggleExpandedFiles(current, fd.file.name),
                     )
                   }
                 >
@@ -401,7 +402,7 @@ export function DiffCard({
                     height="8"
                     viewBox="0 0 8 8"
                     fill="none"
-                    className={`shrink-0 transition-transform duration-150 ${expandedFile === fd.file.name ? "rotate-90" : ""}`}
+                    className={`shrink-0 transition-transform duration-150 ${expandedFiles.has(fd.file.name) ? "rotate-90" : ""}`}
                   >
                     <path
                       d="M2 1L6 4L2 7"
@@ -441,7 +442,7 @@ export function DiffCard({
                 </button>
 
                 {/* Expanded diff */}
-                {expandedFile === fd.file.name && (
+                {expandedFiles.has(fd.file.name) && (
                   <div className="bg-[var(--bg)] border-y border-[var(--border)] overflow-x-auto">
                     {fd.file.isImage ? (
                       <div className="px-3 py-3 flex items-start gap-3">
