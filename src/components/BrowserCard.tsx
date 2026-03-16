@@ -1,0 +1,235 @@
+/// <reference types="electron" />
+
+import { useEffect, useRef, useCallback, useState } from "react";
+import {
+  useBrowserCardStore,
+  type BrowserCardData,
+} from "../stores/browserCardStore";
+import { useCardLayoutStore } from "../stores/cardLayoutStore";
+import { useCanvasStore } from "../stores/canvasStore";
+
+// Declare <webview> as a valid JSX intrinsic element
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace JSX {
+    interface IntrinsicElements {
+      webview: React.DetailedHTMLProps<
+        React.HTMLAttributes<HTMLElement> & {
+          src?: string;
+          partition?: string;
+          allowpopups?: boolean;
+          preload?: string;
+        },
+        HTMLElement
+      >;
+    }
+  }
+}
+
+interface Props {
+  card: BrowserCardData;
+}
+
+export function BrowserCard({ card }: Props) {
+  const { removeCard, updateCard } = useBrowserCardStore();
+  const { register, unregister } = useCardLayoutStore();
+  const [urlInput, setUrlInput] = useState(card.url);
+  const webviewRef = useRef<Electron.WebviewTag | null>(null);
+  const dragRef = useRef<{
+    startX: number;
+    startY: number;
+    origX: number;
+    origY: number;
+  } | null>(null);
+  const resizeRef = useRef<{
+    startX: number;
+    startY: number;
+    origW: number;
+    origH: number;
+  } | null>(null);
+
+  const cardId = `browser:${card.id}`;
+
+  // Register card dimensions for collision avoidance
+  useEffect(() => {
+    register(cardId, { x: card.x, y: card.y, w: card.w, h: card.h });
+    return () => unregister(cardId);
+  }, [cardId, card.x, card.y, card.w, card.h, register, unregister]);
+
+  // Sync webview title
+  useEffect(() => {
+    const wv = webviewRef.current;
+    if (!wv) return;
+    const handler = (e: Electron.PageTitleUpdatedEvent) => {
+      updateCard(card.id, { title: e.title });
+    };
+    wv.addEventListener("page-title-updated", handler);
+    return () => { wv.removeEventListener("page-title-updated", handler); };
+  }, [card.id, updateCard]);
+
+  // Drag handler
+  const handleDragStart = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const scale = useCanvasStore.getState().viewport.scale;
+      dragRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        origX: card.x,
+        origY: card.y,
+      };
+      const handleMove = (ev: MouseEvent) => {
+        if (!dragRef.current) return;
+        updateCard(card.id, {
+          x: dragRef.current.origX + (ev.clientX - dragRef.current.startX) / scale,
+          y: dragRef.current.origY + (ev.clientY - dragRef.current.startY) / scale,
+        });
+      };
+      const handleUp = () => {
+        dragRef.current = null;
+        window.removeEventListener("mousemove", handleMove);
+        window.removeEventListener("mouseup", handleUp);
+      };
+      window.addEventListener("mousemove", handleMove);
+      window.addEventListener("mouseup", handleUp);
+    },
+    [card.id, card.x, card.y, updateCard],
+  );
+
+  // Resize handler
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const scale = useCanvasStore.getState().viewport.scale;
+      resizeRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        origW: card.w,
+        origH: card.h,
+      };
+      const handleMove = (ev: MouseEvent) => {
+        if (!resizeRef.current) return;
+        updateCard(card.id, {
+          w: Math.max(400, resizeRef.current.origW + (ev.clientX - resizeRef.current.startX) / scale),
+          h: Math.max(200, resizeRef.current.origH + (ev.clientY - resizeRef.current.startY) / scale),
+        });
+      };
+      const handleUp = () => {
+        resizeRef.current = null;
+        window.removeEventListener("mousemove", handleMove);
+        window.removeEventListener("mouseup", handleUp);
+      };
+      window.addEventListener("mousemove", handleMove);
+      window.addEventListener("mouseup", handleUp);
+    },
+    [card.id, card.w, card.h, updateCard],
+  );
+
+  // Navigate on Enter
+  const handleUrlSubmit = () => {
+    let url = urlInput.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    updateCard(card.id, { url });
+    setUrlInput(url);
+  };
+
+  // Listen for batch delete
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.cardId === cardId) removeCard(card.id);
+    };
+    window.addEventListener("termcanvas:close-card", handler);
+    return () => window.removeEventListener("termcanvas:close-card", handler);
+  }, [cardId, card.id, removeCard]);
+
+  return (
+    <div
+      className="absolute rounded-lg border border-[var(--border)] bg-[var(--surface)] flex flex-col overflow-hidden shadow-lg"
+      style={{
+        left: card.x,
+        top: card.y,
+        width: card.w,
+        height: card.h,
+      }}
+    >
+      {/* Title bar — draggable */}
+      <div
+        className="flex-none flex items-center gap-1.5 px-2 py-1.5 bg-[var(--bg)] border-b border-[var(--border)] cursor-grab active:cursor-grabbing select-none"
+        onMouseDown={handleDragStart}
+      >
+        {/* Back / Forward / Refresh */}
+        <button
+          className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+          onClick={() => webviewRef.current?.goBack()}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M8 2L4 6L8 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <button
+          className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+          onClick={() => webviewRef.current?.goForward()}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M4 2L8 6L4 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <button
+          className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+          onClick={() => webviewRef.current?.reload()}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M1.5 6a4.5 4.5 0 1 1 1 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <path d="M1.5 10.5V6H5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+
+        {/* URL bar */}
+        <input
+          className="flex-1 min-w-0 px-2 py-0.5 text-[11px] rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] outline-none focus:border-[var(--text-secondary)]"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+          value={urlInput}
+          onChange={(e) => setUrlInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleUrlSubmit();
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+        />
+
+        {/* Close */}
+        <button
+          className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+          onClick={() => removeCard(card.id)}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M3 3L9 9M9 3L3 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Webview */}
+      <webview
+        ref={webviewRef as React.Ref<HTMLElement>}
+        src={card.url}
+        className="flex-1 min-h-0"
+        style={{ border: "none" }}
+      />
+
+      {/* Resize handle */}
+      <div
+        className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
+        onMouseDown={handleResizeStart}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" className="absolute bottom-0.5 right-0.5 text-[var(--text-faint)]">
+          <path d="M9 1L1 9M9 5L5 9M9 8L8 9" stroke="currentColor" strokeWidth="1" />
+        </svg>
+      </div>
+    </div>
+  );
+}
