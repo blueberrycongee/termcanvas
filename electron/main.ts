@@ -109,8 +109,8 @@ function setupIpc() {
   // Terminal IPC
   ipcMain.handle(
     "terminal:create",
-    (_event, options: { cwd: string; shell?: string; args?: string[] }) => {
-      const ptyId = ptyManager.create(options);
+    async (_event, options: { cwd: string; shell?: string; args?: string[] }) => {
+      const ptyId = await ptyManager.create(options);
       ptyManager.onData(ptyId, (data: string) => {
         ptyManager.captureOutput(ptyId, data);
         mainWindow?.webContents.send("terminal:output", ptyId, data);

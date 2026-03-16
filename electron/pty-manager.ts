@@ -1,12 +1,8 @@
 import * as pty from "node-pty";
 import fs from "fs";
-import os from "os";
+import { buildLaunchSpec, type PtyLaunchOptions } from "./pty-launch";
 
-export interface PtyCreateOptions {
-  cwd: string;
-  shell?: string;
-  args?: string[];
-}
+export type PtyCreateOptions = PtyLaunchOptions;
 
 export class PtyManager {
   private instances = new Map<number, pty.IPty>();
@@ -14,24 +10,27 @@ export class PtyManager {
   private readonly MAX_OUTPUT_LINES = 1000;
   private nextId = 1;
 
-  create(options: PtyCreateOptions): number {
+  async create(options: PtyCreateOptions): Promise<number> {
     if (!fs.existsSync(options.cwd)) {
       throw new Error(`Directory does not exist: ${options.cwd}`);
     }
 
-    const defaultShell =
-      options.shell ??
-      (os.platform() === "win32"
-        ? "powershell.exe"
-        : (process.env.SHELL ?? "/bin/zsh"));
+    const launch = await buildLaunchSpec(options);
 
-    const ptyProcess = pty.spawn(defaultShell, options.args ?? [], {
-      name: "xterm-256color",
-      cols: 80,
-      rows: 24,
-      cwd: options.cwd,
-      env: process.env as Record<string, string>,
-    });
+    let ptyProcess: pty.IPty;
+    try {
+      ptyProcess = pty.spawn(launch.file, launch.args, {
+        name: "xterm-256color",
+        cols: 80,
+        rows: 24,
+        cwd: launch.cwd,
+        env: launch.env,
+      });
+    } catch (error) {
+      throw new Error(
+        `Failed to spawn "${launch.file}" in "${launch.cwd}": ${String(error)}`,
+      );
+    }
 
     const id = this.nextId++;
     this.instances.set(id, ptyProcess);
