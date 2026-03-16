@@ -3,6 +3,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { WebglAddon } from "@xterm/addon-webgl";
+import { ImageAddon } from "@xterm/addon-image";
 import { createPortal } from "react-dom";
 import type { TerminalData } from "../types";
 import { useProjectStore } from "../stores/projectStore";
@@ -122,6 +123,14 @@ export function TerminalTile({
       xterm.loadAddon(webglAddon);
     } catch {
       // WebGL not available or context limit reached — Canvas2D fallback is fine
+    }
+
+    // Sixel image protocol support for inline images
+    try {
+      const imageAddon = new ImageAddon();
+      xterm.loadAddon(imageAddon);
+    } catch {
+      // Image protocol not available — not critical
     }
 
     // Let Cmd key combos propagate to the app shortcut handler
