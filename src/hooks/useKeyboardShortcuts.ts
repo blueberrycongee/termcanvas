@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   useProjectStore,
   createTerminal,
@@ -99,6 +99,43 @@ function zoomToTerminal(
   useCanvasStore.getState().animateTo(centerX, centerY, scale);
 }
 
+function zoomToFitAll() {
+  const { projects } = useProjectStore.getState();
+  if (projects.length === 0) return;
+  const padding = 80;
+  const toolbarH = 44;
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+  for (const p of projects) {
+    let maxW = 300;
+    let totalH = 0;
+    for (const wt of p.worktrees) {
+      const wtSize = computeWorktreeSize(wt.terminals.map((t) => t.span));
+      maxW = Math.max(maxW, wt.position.x + wtSize.w);
+      totalH = Math.max(totalH, wt.position.y + wtSize.h);
+    }
+    const projW = Math.max(340, maxW + PROJ_PAD * 2);
+    const projH = Math.max(
+      PROJ_TITLE_H + PROJ_PAD + 60 + PROJ_PAD,
+      PROJ_TITLE_H + PROJ_PAD + totalH + PROJ_PAD,
+    );
+    minX = Math.min(minX, p.position.x);
+    minY = Math.min(minY, p.position.y);
+    maxX = Math.max(maxX, p.position.x + projW);
+    maxY = Math.max(maxY, p.position.y + projH);
+  }
+  const contentW = maxX - minX;
+  const contentH = maxY - minY;
+  const viewW = window.innerWidth - padding * 2;
+  const viewH = window.innerHeight - toolbarH - padding * 2;
+  const scale = Math.min(1, viewW / contentW, viewH / contentH);
+  const x = -minX * scale + padding;
+  const y = -minY * scale + padding + toolbarH;
+  useCanvasStore.getState().animateTo(x, y, scale);
+}
+
 async function handleAddProject(t: ReturnType<typeof useT>) {
   if (!window.termcanvas) return;
   const { notify } = useNotificationStore.getState();
@@ -156,9 +193,16 @@ async function handleAddProject(t: ReturnType<typeof useT>) {
   notify("info", t.info_added_project(info.name, info.worktrees.length));
 }
 
+interface TerminalRef {
+  projectId: string;
+  worktreeId: string;
+  terminalId: string;
+}
+
 export function useKeyboardShortcuts() {
   const shortcuts = useShortcutStore((s) => s.shortcuts);
   const t = useT();
+  const lastFocusedRef = useRef<TerminalRef | null>(null);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -169,7 +213,36 @@ export function useKeyboardShortcuts() {
       }
 
       if (matchesShortcut(e, shortcuts.clearFocus)) {
-        useProjectStore.getState().clearFocus();
+        const list = getAllTerminals();
+        const focusedIdx = getFocusedTerminalIndex(list);
+
+        if (focusedIdx !== -1) {
+          // Currently focused → save it, clear focus, zoom out to fit all
+          const focused = list[focusedIdx];
+          lastFocusedRef.current = {
+            projectId: focused.projectId,
+            worktreeId: focused.worktreeId,
+            terminalId: focused.terminalId,
+          };
+          useProjectStore.getState().clearFocus();
+          zoomToFitAll();
+        } else if (lastFocusedRef.current) {
+          // Not focused, has history → restore last focused terminal
+          const { projectId, worktreeId, terminalId } =
+            lastFocusedRef.current;
+          useProjectStore.getState().setFocusedTerminal(terminalId);
+          zoomToTerminal(projectId, worktreeId, terminalId);
+        } else if (list.length > 0) {
+          // Never focused → focus the first terminal
+          const first = list[0];
+          lastFocusedRef.current = {
+            projectId: first.projectId,
+            worktreeId: first.worktreeId,
+            terminalId: first.terminalId,
+          };
+          useProjectStore.getState().setFocusedTerminal(first.terminalId);
+          zoomToTerminal(first.projectId, first.worktreeId, first.terminalId);
+        }
         return;
       }
 
