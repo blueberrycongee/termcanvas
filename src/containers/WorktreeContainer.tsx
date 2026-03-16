@@ -58,6 +58,7 @@ export function WorktreeContainer({
     focusedWorktreeId,
     updateTerminalSpan,
   } = useProjectStore();
+  const allCards = useCardLayoutStore((s) => s.cards);
 
   const handleDrag = useDrag(
     worktree.position.x,
@@ -428,8 +429,7 @@ export function WorktreeContainer({
             {openFiles.map((file) => {
               // Anchor to FileTreeCard resolved position right edge, fallback to worktree anchor
               const fileTreeCardId = `filetree:${worktree.id}`;
-              const cards = useCardLayoutStore.getState().cards;
-              const ftCard = cards[fileTreeCardId];
+              const ftCard = allCards[fileTreeCardId];
               const fileAnchorX = ftCard ? ftCard.x + ftCard.w : absX;
               const fileAnchorY = ftCard ? ftCard.y : absY;
               return (
