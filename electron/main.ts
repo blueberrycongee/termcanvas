@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, clipboard, nativeImage } from "electron";
 import { execSync } from "child_process";
 import path from "path";
 import fs from "fs";
@@ -19,6 +19,12 @@ import {
   installHydraSkillLinks,
   uninstallHydraSkillLinks,
 } from "./hydra-skill";
+import {
+  createDefaultComposerSubmitDeps,
+  submitComposerRequest,
+  type ClipboardSnapshot,
+} from "./composer-submit";
+import type { ComposerSubmitRequest } from "../src/types";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -480,6 +486,33 @@ function setupIpc() {
   ipcMain.handle("cli:register", () => registerCli());
   ipcMain.handle("cli:unregister", () => unregisterCli());
 
+  // Composer submission
+  ipcMain.handle("composer:submit", async (_event, request: ComposerSubmitRequest) => {
+    if (!ptyManager.getPid(request.ptyId)) {
+      return {
+        ok: false,
+        error: "Target terminal is not running.",
+      };
+    }
+
+    return submitComposerRequest(
+      request,
+      createDefaultComposerSubmitDeps(
+        process.platform as "darwin" | "win32" | "linux",
+        {
+          snapshot: snapshotClipboard,
+          restore: restoreClipboard,
+          writeText: (text: string) => clipboard.writeText(text),
+          writeImage: writeClipboardImage,
+          dataUrlToPngBuffer,
+        },
+        (ptyId: number, data: string) => {
+          ptyManager.write(ptyId, data);
+        },
+      ),
+    );
+  });
+
   // Close flow
   ipcMain.on("app:close-confirmed", () => {
     ptyManager.destroyAll();
@@ -497,6 +530,42 @@ function getCliDir(): string {
   if (fs.existsSync(prodDir)) return prodDir;
   // dev mode: dist-cli/ relative to dist-electron/
   return path.resolve(__dirname, "..", "dist-cli");
+}
+
+function snapshotClipboard(): ClipboardSnapshot {
+  const image = clipboard.readImage();
+  return {
+    text: clipboard.readText(),
+    imageDataUrl: image.isEmpty() ? null : image.toDataURL(),
+  };
+}
+
+function restoreClipboard(snapshot: ClipboardSnapshot) {
+  clipboard.clear();
+  if (!snapshot.text && !snapshot.imageDataUrl) return;
+
+  clipboard.write({
+    text: snapshot.text,
+    ...(snapshot.imageDataUrl
+      ? { image: nativeImage.createFromDataURL(snapshot.imageDataUrl) }
+      : {}),
+  });
+}
+
+function writeClipboardImage(dataUrl: string) {
+  const image = nativeImage.createFromDataURL(dataUrl);
+  if (image.isEmpty()) {
+    throw new Error("Clipboard image is empty.");
+  }
+  clipboard.writeImage(image);
+}
+
+function dataUrlToPngBuffer(dataUrl: string): Buffer {
+  const image = nativeImage.createFromDataURL(dataUrl);
+  if (image.isEmpty()) {
+    throw new Error("Invalid image data.");
+  }
+  return image.toPNG();
 }
 
 const CLI_NAMES = ["termcanvas", "hydra"];

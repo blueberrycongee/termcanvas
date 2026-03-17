@@ -3,6 +3,7 @@ import { Canvas } from "./canvas/Canvas";
 import { Toolbar } from "./toolbar/Toolbar";
 import { Sidebar } from "./components/Sidebar";
 import { NotificationToast } from "./components/NotificationToast";
+import { ComposerBar } from "./components/ComposerBar";
 import { DrawingPanel } from "./toolbar/DrawingPanel";
 import { ShortcutHints } from "./components/ShortcutHints";
 import { CompletionGlow } from "./components/CompletionGlow";
@@ -347,6 +348,7 @@ export function App() {
       <DrawingPanel />
       <CompletionGlow />
       <ShortcutHints />
+      <ComposerBar />
       <NotificationToast />
       {showCloseDialog && (
         <CloseDialog

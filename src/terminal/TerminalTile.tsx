@@ -14,6 +14,7 @@ import { registerTerminal, unregisterTerminal } from "./terminalRegistry";
 import { useThemeStore, XTERM_THEMES } from "../stores/themeStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useT } from "../i18n/useT";
+import { getTerminalLaunchOptions } from "./cliConfig";
 
 interface Props {
   projectId: string;
@@ -195,65 +196,21 @@ export function TerminalTile({
 
     let ptyId: number | null = null;
 
-    // CLI config: how to launch and resume each terminal type
-    const CLI_CONFIG: Record<
-      string,
-      | {
-          shell: string;
-          resumeArgs: (id: string) => string[];
-          newArgs: string[];
-        }
-      | undefined
-    > = {
-      claude: {
-        shell: "claude",
-        resumeArgs: (id) => ["--resume", id],
-        newArgs: [],
-      },
-      codex: {
-        shell: "codex",
-        resumeArgs: (id) => ["resume", id],
-        newArgs: [],
-      },
-      kimi: {
-        shell: "kimi",
-        resumeArgs: (id) => ["-S", id],
-        newArgs: [],
-      },
-      gemini: {
-        shell: "gemini",
-        resumeArgs: (id) => ["--resume", id],
-        newArgs: [],
-      },
-      opencode: {
-        shell: "opencode",
-        resumeArgs: (id) => ["-s", id],
-        newArgs: [],
-      },
-      lazygit: {
-        shell: "lazygit",
-        resumeArgs: () => [],
-        newArgs: [],
-      },
-      tmux: {
-        shell: "tmux",
-        resumeArgs: (name) => ["attach", "-t", name],
-        newArgs: [],
-      },
-    };
-
     const ptyOptions: { cwd: string; shell?: string; args?: string[] } = {
       cwd: worktreePath,
     };
 
-    const cliCfg = CLI_CONFIG[terminal.type];
-    if (cliCfg) {
-      ptyOptions.shell = cliCfg.shell;
+    const launchOptions = getTerminalLaunchOptions(
+      terminal.type,
+      terminal.sessionId,
+    );
+    if (launchOptions) {
+      ptyOptions.shell = launchOptions.shell;
       ptyOptions.args = terminal.sessionId
-        ? cliCfg.resumeArgs(terminal.sessionId)
+        ? launchOptions.args
         : terminal.initialPrompt
-          ? [...cliCfg.newArgs, terminal.initialPrompt]
-          : cliCfg.newArgs;
+        ? [...launchOptions.args, terminal.initialPrompt]
+        : launchOptions.args;
     }
 
     window.termcanvas.terminal
@@ -278,7 +235,7 @@ export function TerminalTile({
         // Capture session ID for future resume.
         // AI CLIs (claude, codex, etc.) may take a while to initialize and
         // write their session file, so we poll instead of a single attempt.
-        if (!terminal.sessionId && cliCfg) {
+        if (!terminal.sessionId && launchOptions) {
           let cancelled = false;
           sessionCancelRef.current = () => { cancelled = true; };
 

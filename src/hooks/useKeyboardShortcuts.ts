@@ -45,6 +45,18 @@ function getAllTerminals() {
   return list;
 }
 
+function isEditableTarget(target: EventTarget | null): boolean {
+  const element = target as HTMLElement | null;
+  if (!element) return false;
+  const tag = element.tagName?.toLowerCase();
+  return (
+    tag === "textarea" ||
+    tag === "input" ||
+    tag === "select" ||
+    element.isContentEditable
+  );
+}
+
 function getFocusedTerminalIndex(list: ReturnType<typeof getAllTerminals>) {
   const { projects } = useProjectStore.getState();
   for (const p of projects) {
@@ -207,6 +219,10 @@ export function useKeyboardShortcuts() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (isEditableTarget(e.target)) {
+        return;
+      }
+
       if (matchesShortcut(e, shortcuts.addProject)) {
         e.preventDefault();
         handleAddProject(t);
