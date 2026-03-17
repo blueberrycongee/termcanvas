@@ -1,20 +1,16 @@
-import { HYDRA_SYSTEM_PROMPT } from "../../hydra/src/prompt";
 import type { TerminalType } from "../types";
 
 interface TerminalLaunchConfig {
   shell: string;
   resumeArgs: (id: string) => string[];
-  newArgs: (hydraAvailable: boolean) => string[];
+  newArgs: () => string[];
 }
 
 const CLI_CONFIG: Partial<Record<TerminalType, TerminalLaunchConfig>> = {
   claude: {
     shell: "claude",
     resumeArgs: (id) => ["--resume", id],
-    newArgs: (hydraAvailable) =>
-      hydraAvailable
-        ? ["--append-system-prompt", HYDRA_SYSTEM_PROMPT]
-        : [],
+    newArgs: () => [],
   },
   codex: {
     shell: "codex",
@@ -51,7 +47,6 @@ const CLI_CONFIG: Partial<Record<TerminalType, TerminalLaunchConfig>> = {
 export function getTerminalLaunchOptions(
   type: TerminalType,
   sessionId: string | undefined,
-  hydraAvailable: boolean,
 ): { shell: string; args: string[] } | null {
   const config = CLI_CONFIG[type];
   if (!config) return null;
@@ -60,6 +55,6 @@ export function getTerminalLaunchOptions(
     shell: config.shell,
     args: sessionId
       ? config.resumeArgs(sessionId)
-      : config.newArgs(hydraAvailable),
+      : config.newArgs(),
   };
 }

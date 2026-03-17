@@ -15,6 +15,10 @@ extraResources:
     to: cli
     filter:
       - "**/*"
+  - from: hydra/skill
+    to: skill
+    filter:
+      - "**/*"
 
 asarUnpack:
   - node_modules/node-pty/**/*

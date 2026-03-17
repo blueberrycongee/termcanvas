@@ -84,9 +84,11 @@ export function SettingsModal({ onClose }: Props) {
   const [conflicts, setConflicts] = useState<Set<keyof ShortcutMap>>(new Set());
   const backdropRef = useRef<HTMLDivElement>(null);
   const [cliRegistered, setCliRegistered] = useState<boolean | null>(null);
+  const [skillInstalled, setSkillInstalled] = useState<boolean | null>(null);
 
   useEffect(() => {
     window.termcanvas?.cli.isRegistered().then(setCliRegistered);
+    window.termcanvas?.cli.isSkillInstalled().then(setSkillInstalled);
   }, []);
 
   // Close on Escape (when not recording)
@@ -254,6 +256,26 @@ export function SettingsModal({ onClose }: Props) {
                     }}
                   >
                     {cliRegistered ? t.cli_registered : t.cli_not_registered}
+                  </button>
+                </div>
+              )}
+
+              {/* Hydra Skill */}
+              {skillInstalled !== null && (
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px] text-[var(--text-secondary)]">
+                    {t.skill_label}
+                  </span>
+                  <button
+                    className={skillInstalled ? activeBtn : inactiveBtn}
+                    onClick={async () => {
+                      const ok = skillInstalled
+                        ? await window.termcanvas.cli.uninstallSkill()
+                        : await window.termcanvas.cli.installSkill();
+                      if (ok) setSkillInstalled(!skillInstalled);
+                    }}
+                  >
+                    {skillInstalled ? t.skill_installed : t.skill_not_installed}
                   </button>
                 </div>
               )}

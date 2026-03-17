@@ -468,6 +468,11 @@ function setupIpc() {
   ipcMain.handle("cli:register", () => registerCli());
   ipcMain.handle("cli:unregister", () => unregisterCli());
 
+  // Hydra skill install/uninstall
+  ipcMain.handle("skill:is-installed", () => isSkillInstalled());
+  ipcMain.handle("skill:install", () => installSkill());
+  ipcMain.handle("skill:uninstall", () => uninstallSkill());
+
   // Close flow
   ipcMain.on("app:close-confirmed", () => {
     ptyManager.destroyAll();
@@ -632,6 +637,46 @@ function unregisterCli(): boolean {
   }
 
   return false;
+}
+
+const SKILL_LINK = path.join(os.homedir(), ".claude", "skills", "hydra");
+
+function getSkillSourceDir(): string {
+  const prodDir = path.join(process.resourcesPath, "skill");
+  if (fs.existsSync(prodDir)) return prodDir;
+  // dev mode: hydra/skill relative to project root
+  return path.resolve(__dirname, "..", "hydra", "skill");
+}
+
+function isSkillInstalled(): boolean {
+  try {
+    fs.lstatSync(SKILL_LINK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function installSkill(): boolean {
+  try {
+    const target = getSkillSourceDir();
+    fs.mkdirSync(path.dirname(SKILL_LINK), { recursive: true });
+    // Remove stale link if exists
+    try { fs.unlinkSync(SKILL_LINK); } catch { /* doesn't exist */ }
+    fs.symlinkSync(target, SKILL_LINK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function uninstallSkill(): boolean {
+  try {
+    fs.unlinkSync(SKILL_LINK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 app.whenReady().then(() => {
