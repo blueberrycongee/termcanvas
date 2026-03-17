@@ -90,6 +90,10 @@ async function main() {
       } else if (command === "remove" && rest[0]) {
         await request("DELETE", `/project/${rest[0]}`);
         console.log("Removed.");
+      } else if (command === "rescan" && rest[0]) {
+        const result = await request("POST", `/project/${rest[0]}/rescan`);
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log(`Rescanned. ${result.worktrees} worktree(s) found.`);
       } else {
         console.log("Usage: termcanvas project <add|list|remove> [args]");
       }
@@ -197,6 +201,9 @@ async function main() {
       );
       console.log(
         "  project remove <id>                         Remove a project",
+      );
+      console.log(
+        "  project rescan <id>                         Rescan worktrees",
       );
       console.log(
         "  terminal create --worktree <p> --type <t>   Create terminal",

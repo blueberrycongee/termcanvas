@@ -80,6 +80,10 @@ export class ApiServer {
       const id = pathname.split("/")[2];
       return this.projectRemove(id);
     }
+    if (method === "POST" && pathname.match(/^\/project\/[^/]+\/rescan$/)) {
+      const id = pathname.split("/")[2];
+      return this.projectRescan(id);
+    }
 
     // Terminal endpoints
     if (method === "POST" && pathname === "/terminal/create") {
@@ -189,6 +193,19 @@ export class ApiServer {
       `window.__tcApi.removeProject(${JSON.stringify(id)})`,
     );
     return { ok: true };
+  }
+
+  private async projectRescan(projectId: string) {
+    const projects = await this.execRenderer(`window.__tcApi.getProjects()`);
+    const project = projects.find((p: any) => p.id === projectId);
+    if (!project)
+      throw Object.assign(new Error("Project not found"), { status: 404 });
+
+    const worktrees = this.deps.projectScanner.listWorktrees(project.path);
+    await this.execRenderer(
+      `window.__tcApi.syncWorktrees(${JSON.stringify(project.path)}, ${JSON.stringify(worktrees)})`,
+    );
+    return { ok: true, worktrees: worktrees.length };
   }
 
   private async terminalCreate(body: any) {

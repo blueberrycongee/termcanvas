@@ -303,6 +303,11 @@ export function App() {
         return true;
       },
 
+      syncWorktrees: (projectPath: string, worktrees: any[]) => {
+        useProjectStore.getState().syncWorktrees(projectPath, worktrees);
+        return true;
+      },
+
       getTerminal: (terminalId: string) => {
         const { projects } = useProjectStore.getState();
         for (const p of projects) {
