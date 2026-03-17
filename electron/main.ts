@@ -491,26 +491,69 @@ function setupIpc() {
     if (!ptyManager.getPid(request.ptyId)) {
       return {
         ok: false,
+        code: "target-not-running",
+        stage: "target",
         error: "Target terminal is not running.",
       };
     }
 
-    return submitComposerRequest(
-      request,
-      createDefaultComposerSubmitDeps(
-        process.platform as "darwin" | "win32" | "linux",
-        {
-          snapshot: snapshotClipboard,
-          restore: restoreClipboard,
-          writeText: (text: string) => clipboard.writeText(text),
-          writeImage: writeClipboardImage,
-          dataUrlToPngBuffer,
-        },
-        (ptyId: number, data: string) => {
-          ptyManager.write(ptyId, data);
-        },
-      ),
-    );
+    try {
+      const result = await submitComposerRequest(
+        request,
+        createDefaultComposerSubmitDeps(
+          process.platform as "darwin" | "win32" | "linux",
+          {
+            snapshot: snapshotClipboard,
+            restore: restoreClipboard,
+            writeText: (text: string) => clipboard.writeText(text),
+            writeImage: writeClipboardImage,
+            dataUrlToPngBuffer,
+          },
+          (ptyId: number, data: string) => {
+            ptyManager.write(ptyId, data);
+          },
+        ),
+      );
+
+      if (!result.ok) {
+        console.error("[Composer] Submit failed:", {
+          terminalId: request.terminalId,
+          ptyId: request.ptyId,
+          terminalType: request.terminalType,
+          stage: result.stage,
+          code: result.code,
+          detail: result.detail ?? result.error,
+          requestId: result.requestId,
+        });
+      } else if (result.warning) {
+        console.warn("[Composer] Submit warning:", {
+          terminalId: request.terminalId,
+          ptyId: request.ptyId,
+          terminalType: request.terminalType,
+          stage: result.warningStage,
+          code: result.warningCode,
+          detail: result.warningDetail ?? result.warning,
+          requestId: result.requestId,
+        });
+      }
+
+      return result;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error("[Composer] Submit crashed:", {
+        terminalId: request.terminalId,
+        ptyId: request.ptyId,
+        terminalType: request.terminalType,
+        detail,
+      });
+      return {
+        ok: false,
+        code: "internal-error",
+        stage: "submit",
+        error: detail,
+        detail,
+      };
+    }
   });
 
   // Close flow

@@ -45,11 +45,44 @@ export interface ComposerSubmitRequest {
   images: ComposerImageAttachment[];
 }
 
+export type ComposerSubmitIssueStage =
+  | "target"
+  | "validate"
+  | "read-images"
+  | "prepare-images"
+  | "capture-clipboard"
+  | "paste-image"
+  | "paste-text"
+  | "submit"
+  | "restore-clipboard";
+
+export type ComposerSubmitIssueCode =
+  | "target-not-running"
+  | "unsupported-terminal"
+  | "empty-submit"
+  | "images-unsupported"
+  | "image-read-failed"
+  | "image-stage-failed"
+  | "clipboard-capture-failed"
+  | "clipboard-image-failed"
+  | "clipboard-text-failed"
+  | "pty-write-failed"
+  | "submit-key-failed"
+  | "clipboard-restore-failed"
+  | "internal-error";
+
 export interface ComposerSubmitResult {
   ok: boolean;
   requestId?: string;
   stagedImagePaths?: string[];
   error?: string;
+  detail?: string;
+  code?: ComposerSubmitIssueCode;
+  stage?: ComposerSubmitIssueStage;
+  warning?: string;
+  warningDetail?: string;
+  warningCode?: ComposerSubmitIssueCode;
+  warningStage?: ComposerSubmitIssueStage;
 }
 
 export interface TerminalData {

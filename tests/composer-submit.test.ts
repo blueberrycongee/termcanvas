@@ -136,6 +136,9 @@ test("codex returns an error when clipboard image write fails", async () => {
   const result = await submitComposerRequest(request, deps);
 
   assert.equal(result.ok, false);
+  assert.equal(result.code, "clipboard-image-failed");
+  assert.equal(result.stage, "paste-image");
+  assert.equal(result.detail, "clipboard unavailable");
   assert.match(result.error ?? "", /clipboard unavailable/);
   assert.deepEqual(ptyWrites, []);
   assert.equal(restoredSnapshots.length, 1);
@@ -196,6 +199,45 @@ test("shell rejects image submission", async () => {
   const result = await submitComposerRequest(request, deps);
 
   assert.equal(result.ok, false);
+  assert.equal(result.code, "images-unsupported");
+  assert.equal(result.stage, "validate");
   assert.match(result.error ?? "", /Image paste is unavailable for shell/);
   assert.deepEqual(ptyWrites, []);
+});
+
+test("shell reports PTY write failures with stage details", async () => {
+  const request = createRequest({
+    terminalType: "shell",
+    text: "git status",
+    images: [],
+  });
+  const { deps } = createDeps({
+    writeToPty: () => {
+      throw new Error("pty closed");
+    },
+  });
+
+  const result = await submitComposerRequest(request, deps);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "pty-write-failed");
+  assert.equal(result.stage, "paste-text");
+  assert.equal(result.detail, "pty closed");
+});
+
+test("composer warns when clipboard restore fails after a successful submit", async () => {
+  const request = createRequest();
+  const { deps, restoredSnapshots } = createDeps({
+    restoreClipboard: () => {
+      throw new Error("restore blocked");
+    },
+  });
+
+  const result = await submitComposerRequest(request, deps);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.warningCode, "clipboard-restore-failed");
+  assert.equal(result.warningStage, "restore-clipboard");
+  assert.equal(result.warningDetail, "restore blocked");
+  assert.equal(restoredSnapshots.length, 0);
 });

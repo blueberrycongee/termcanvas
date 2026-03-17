@@ -6,7 +6,9 @@ import { getComposerAdapter } from "../terminal/cliConfig";
 import { useT } from "../i18n/useT";
 import type {
   ComposerImageAttachment,
+  ComposerSubmitIssueStage,
   ComposerSubmitRequest,
+  ComposerSubmitResult,
   TerminalStatus,
   TerminalType,
 } from "../types";
@@ -60,6 +62,62 @@ function getSupportedTerminals(): SupportedTerminalOption[] {
   }
 
   return options;
+}
+
+function getComposerStageLabel(
+  t: ReturnType<typeof useT>,
+  stage: ComposerSubmitIssueStage,
+) {
+  switch (stage) {
+    case "target":
+      return t.composer_stage_target;
+    case "validate":
+      return t.composer_stage_validate;
+    case "read-images":
+      return t.composer_stage_read_images;
+    case "prepare-images":
+      return t.composer_stage_prepare_images;
+    case "capture-clipboard":
+      return t.composer_stage_capture_clipboard;
+    case "paste-image":
+      return t.composer_stage_paste_image;
+    case "paste-text":
+      return t.composer_stage_paste_text;
+    case "submit":
+      return t.composer_stage_submit;
+    case "restore-clipboard":
+      return t.composer_stage_restore_clipboard;
+  }
+}
+
+function formatComposerFailure(
+  t: ReturnType<typeof useT>,
+  targetTitle: string,
+  result: ComposerSubmitResult,
+) {
+  const stage = result.stage
+    ? getComposerStageLabel(t, result.stage)
+    : t.composer_stage_submit;
+  const baseDetail = result.detail ?? result.error ?? "Unknown error";
+  const detail = result.code
+    ? `${baseDetail} [${result.code}]`
+    : baseDetail;
+  return t.composer_submit_failed_with_context(targetTitle, stage, detail);
+}
+
+function formatComposerWarning(
+  t: ReturnType<typeof useT>,
+  targetTitle: string,
+  result: ComposerSubmitResult,
+) {
+  const stage = result.warningStage
+    ? getComposerStageLabel(t, result.warningStage)
+    : t.composer_stage_restore_clipboard;
+  const baseDetail = result.warningDetail ?? result.warning ?? "Unknown warning";
+  const detail = result.warningCode
+    ? `${baseDetail} [${result.warningCode}]`
+    : baseDetail;
+  return t.composer_submit_warning_with_context(targetTitle, stage, detail);
 }
 
 export function ComposerBar() {
@@ -129,10 +187,12 @@ export function ComposerBar() {
         );
         addImages(pastedImages);
       } catch (pasteError) {
-        const message =
-          pasteError instanceof Error
-            ? pasteError.message
-            : t.composer_submit_failed(String(pasteError));
+        const detail =
+          pasteError instanceof Error ? pasteError.message : String(pasteError);
+        const message = t.composer_image_read_failed(
+          targetTerminal.title,
+          `${detail} [image-read-failed]`,
+        );
         setError(message);
         notify("error", message);
       }
@@ -191,10 +251,14 @@ export function ComposerBar() {
     try {
       const result = await window.termcanvas.composer.submit(request);
       if (!result.ok) {
-        const message = result.error ?? t.composer_submit_failed("Unknown error");
+        const message = formatComposerFailure(t, targetTerminal.title, result);
         setError(message);
-        notify("error", t.composer_submit_failed(message));
+        notify("error", message);
         return;
+      }
+
+      if (result.warning) {
+        notify("warn", formatComposerWarning(t, targetTerminal.title, result));
       }
 
       clear();

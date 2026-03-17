@@ -140,6 +140,27 @@ export const en = {
     `"${title}" does not support image submission.`,
   composer_blocked_status: (title: string, status: string) =>
     `"${title}" is busy (${status}). Wait until the agent is ready.`,
+  composer_stage_target: "target resolution",
+  composer_stage_validate: "request validation",
+  composer_stage_read_images: "image read",
+  composer_stage_prepare_images: "image staging",
+  composer_stage_capture_clipboard: "clipboard capture",
+  composer_stage_paste_image: "image paste",
+  composer_stage_paste_text: "text paste",
+  composer_stage_submit: "command submit",
+  composer_stage_restore_clipboard: "clipboard restore",
+  composer_image_read_failed: (title: string, detail: string) =>
+    `Failed to read pasted images for "${title}" during image read: ${detail}`,
+  composer_submit_failed_with_context: (
+    title: string,
+    stage: string,
+    detail: string,
+  ) => `Failed to send to "${title}" during ${stage}: ${detail}`,
+  composer_submit_warning_with_context: (
+    title: string,
+    stage: string,
+    detail: string,
+  ) => `Sent to "${title}", but ${stage} failed: ${detail}`,
   composer_submit_failed: (err: string) => `Composer submit failed: ${err}`,
 } as const;
 
