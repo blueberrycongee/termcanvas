@@ -472,9 +472,37 @@ function setupIpc() {
   });
 }
 
+function installCli() {
+  if (process.platform !== "darwin" && process.platform !== "linux") return;
+
+  const targetDir = "/usr/local/bin";
+  const cliDir = path.join(process.resourcesPath, "cli");
+  const clis = ["termcanvas", "hydra"];
+
+  for (const name of clis) {
+    const target = path.join(targetDir, name);
+    const source = path.join(cliDir, `${name}.js`);
+    const wrapper = `#!/bin/sh\nexec node "${source}" "$@"\n`;
+
+    try {
+      let existing = "";
+      try {
+        existing = fs.readFileSync(target, "utf-8");
+      } catch {
+        // file doesn't exist yet
+      }
+      if (existing === wrapper) continue;
+      fs.writeFileSync(target, wrapper, { mode: 0o755 });
+    } catch {
+      // permission denied — silently skip
+    }
+  }
+}
+
 app.whenReady().then(() => {
   setupIpc();
   createWindow();
+  installCli();
 
   app.on("second-instance", () => {
     if (mainWindow) {

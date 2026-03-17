@@ -10,6 +10,12 @@ files:
   - dist/**/*
   - dist-electron/**/*
 
+extraResources:
+  - from: dist-cli
+    to: cli
+    filter:
+      - "**/*"
+
 asarUnpack:
   - node_modules/node-pty/**/*
 
