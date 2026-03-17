@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const MARKER = "## Hydra Sub-Agent Tool";
+const INSTRUCTION_FILES = ["CLAUDE.md", "AGENTS.md"] as const;
 
 const HYDRA_SECTION = `
 ## Hydra Sub-Agent Tool
@@ -12,8 +13,8 @@ decomposable subtasks), investigate first, then use hydra to spawn sub-agents.
 Workflow:
 1. Investigate the problem yourself first, form a clear task description
 2. Pick the right mode:
-   - Read-only: \`hydra spawn --task "<specific task>" --type claude --repo . --worktree .\`
-   - Code changes: \`hydra spawn --task "<specific task>" --type claude --repo .\`
+   - Read-only: \`hydra spawn --task "<specific task>" --type <agent-type> --repo . --worktree .\`
+   - Code changes: \`hydra spawn --task "<specific task>" --type <agent-type> --repo .\`
 3. Poll progress: \`termcanvas terminal status <terminalId>\`
 4. Read the result file returned by spawn: \`cat <resultFile>\`
 5. For code-change tasks: \`termcanvas diff <worktreePath> --summary\` then \`git merge <branch>\`
@@ -23,17 +24,21 @@ When NOT to use: simple fixes, high-certainty tasks, faster to do yourself.
 `;
 
 export async function init(): Promise<void> {
-  const claudeMdPath = path.join(process.cwd(), "CLAUDE.md");
+  for (const fileName of INSTRUCTION_FILES) {
+    upsertHydraInstructions(path.join(process.cwd(), fileName), fileName);
+  }
+}
 
+function upsertHydraInstructions(filePath: string, fileName: string): void {
   let existing = "";
   try {
-    existing = fs.readFileSync(claudeMdPath, "utf-8");
+    existing = fs.readFileSync(filePath, "utf-8");
   } catch {
     // file doesn't exist — will create
   }
 
   if (existing.includes(MARKER)) {
-    console.log("CLAUDE.md already contains hydra instructions — skipping.");
+    console.log(`${fileName} already contains hydra instructions — skipping.`);
     return;
   }
 
@@ -41,10 +46,10 @@ export async function init(): Promise<void> {
     ? existing.trimEnd() + "\n" + HYDRA_SECTION
     : HYDRA_SECTION.trimStart();
 
-  fs.writeFileSync(claudeMdPath, content);
+  fs.writeFileSync(filePath, content);
   console.log(
     existing
-      ? "Appended hydra instructions to CLAUDE.md"
-      : "Created CLAUDE.md with hydra instructions",
+      ? `Appended hydra instructions to ${fileName}`
+      : `Created ${fileName} with hydra instructions`,
   );
 }

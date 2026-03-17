@@ -8,7 +8,7 @@ function printUsage() {
   console.log("  spawn    Spawn a sub-agent in a new TermCanvas terminal");
   console.log("  list     List all spawned agents");
   console.log("  cleanup  Clean up agent worktrees and terminals");
-  console.log("  init     Add hydra instructions to project CLAUDE.md");
+  console.log("  init     Add hydra instructions to project CLAUDE.md and AGENTS.md");
 }
 
 async function main() {

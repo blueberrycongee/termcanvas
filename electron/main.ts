@@ -13,6 +13,11 @@ import { ApiServer } from "./api-server";
 import { sendToWindow } from "./window-events";
 import { detectCli } from "./process-detector";
 import { ensureCliLauncher } from "./cli-launchers";
+import {
+  getHydraSkillSourceDir,
+  installHydraSkillLinks,
+  uninstallHydraSkillLinks,
+} from "./hydra-skill";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -641,44 +646,16 @@ function unregisterCli(): boolean {
   return false;
 }
 
-const SKILL_LINK = path.join(os.homedir(), ".claude", "skills", "hydra");
-
 function getSkillSourceDir(): string {
-  const prodDir = path.join(process.resourcesPath, "skill");
-  if (fs.existsSync(prodDir)) return prodDir;
-  // dev mode: hydra/skill relative to project root
-  return path.resolve(__dirname, "..", "hydra", "skill");
-}
-
-function isSkillInstalled(): boolean {
-  try {
-    fs.lstatSync(SKILL_LINK);
-    return true;
-  } catch {
-    return false;
-  }
+  return getHydraSkillSourceDir(process.resourcesPath, __dirname);
 }
 
 function installSkill(): boolean {
-  try {
-    const target = getSkillSourceDir();
-    fs.mkdirSync(path.dirname(SKILL_LINK), { recursive: true });
-    // Remove stale link if exists
-    try { fs.unlinkSync(SKILL_LINK); } catch { /* doesn't exist */ }
-    fs.symlinkSync(target, SKILL_LINK);
-    return true;
-  } catch {
-    return false;
-  }
+  return installHydraSkillLinks({ sourceDir: getSkillSourceDir() });
 }
 
 function uninstallSkill(): boolean {
-  try {
-    fs.unlinkSync(SKILL_LINK);
-    return true;
-  } catch {
-    return false;
-  }
+  return uninstallHydraSkillLinks();
 }
 
 app.whenReady().then(() => {

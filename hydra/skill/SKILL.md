@@ -12,11 +12,11 @@ decomposable subtasks), investigate first, then use hydra to spawn sub-agents.
 ## Choosing the right mode
 
 - **Read-only tasks** (audit, review, analysis, investigation):
-  `hydra spawn --task "..." --type claude --repo . --worktree <path>`
+  `hydra spawn --task "..." --type <agent-type> --repo . --worktree <path>`
   Runs in an existing worktree. No branch created, no merge needed.
 
 - **Code-change tasks** (implement, fix, refactor, test):
-  `hydra spawn --task "..." --type claude --repo .`
+  `hydra spawn --task "..." --type <agent-type> --repo .`
   Creates a new worktree and branch. Merge the branch when done.
 
 ## Workflow
