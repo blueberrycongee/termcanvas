@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { loadAgent, listAgents, deleteAgent } from "./store.ts";
 import { isTermCanvasRunning, terminalDestroy, terminalStatus } from "./termcanvas.ts";
 
@@ -20,6 +20,23 @@ export function parseCleanupArgs(args: string[]): CleanupArgs {
   return { agentId, all, force };
 }
 
+export function buildGitWorktreeRemoveArgs(worktreePath: string): string[] {
+  return ["worktree", "remove", worktreePath, "--force"];
+}
+
+export function buildGitBranchDeleteArgs(branch: string): string[] {
+  return ["branch", "-D", branch];
+}
+
+export function isLiveTerminalStatus(status: string): boolean {
+  return (
+    status === "running" ||
+    status === "active" ||
+    status === "waiting" ||
+    status === "completed"
+  );
+}
+
 function cleanupOne(agentId: string, force: boolean): void {
   const record = loadAgent(agentId);
   if (!record) {
@@ -30,8 +47,7 @@ function cleanupOne(agentId: string, force: boolean): void {
   if (isTermCanvasRunning()) {
     try {
       const { status } = terminalStatus(record.terminalId);
-      const running = status === "running" || status === "active";
-      if (running && !force) {
+      if (isLiveTerminalStatus(status) && !force) {
         console.error(
           `Agent ${agentId} is still running (status: ${status}). Use --force to clean up anyway.`,
         );
@@ -50,7 +66,7 @@ function cleanupOne(agentId: string, force: boolean): void {
 
   if (record.ownWorktree) {
     try {
-      execSync(`git worktree remove "${record.worktreePath}" --force`, {
+      execFileSync("git", buildGitWorktreeRemoveArgs(record.worktreePath), {
         cwd: record.repo,
         stdio: "pipe",
       });
@@ -60,7 +76,7 @@ function cleanupOne(agentId: string, force: boolean): void {
 
     if (record.branch) {
       try {
-        execSync(`git branch -D "${record.branch}"`, {
+        execFileSync("git", buildGitBranchDeleteArgs(record.branch), {
           cwd: record.repo,
           stdio: "pipe",
         });
