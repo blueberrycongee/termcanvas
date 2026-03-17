@@ -117,12 +117,6 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("cli:register") as Promise<boolean>,
     unregister: () =>
       ipcRenderer.invoke("cli:unregister") as Promise<boolean>,
-    isSkillInstalled: () =>
-      ipcRenderer.invoke("skill:is-installed") as Promise<boolean>,
-    installSkill: () =>
-      ipcRenderer.invoke("skill:install") as Promise<boolean>,
-    uninstallSkill: () =>
-      ipcRenderer.invoke("skill:uninstall") as Promise<boolean>,
   },
   app: {
     platform: process.platform as "darwin" | "win32" | "linux",

@@ -468,11 +468,6 @@ function setupIpc() {
   ipcMain.handle("cli:register", () => registerCli());
   ipcMain.handle("cli:unregister", () => unregisterCli());
 
-  // Hydra skill install/uninstall
-  ipcMain.handle("skill:is-installed", () => isSkillInstalled());
-  ipcMain.handle("skill:install", () => installSkill());
-  ipcMain.handle("skill:uninstall", () => uninstallSkill());
-
   // Close flow
   ipcMain.on("app:close-confirmed", () => {
     ptyManager.destroyAll();
@@ -559,6 +554,8 @@ function registerCli(): boolean {
     }
   }
 
+  let ok = false;
+
   if (process.platform === "darwin") {
     const line = getPathExportLine();
     try {
@@ -568,12 +565,15 @@ function registerCli(): boolean {
       } catch {
         // file doesn't exist yet
       }
-      if (content.includes(line)) return true;
-      const newContent = content.endsWith("\n") || content === ""
-        ? content + line + "\n"
-        : content + "\n" + line + "\n";
-      fs.writeFileSync(ZPROFILE_PATH, newContent);
-      return true;
+      if (content.includes(line)) {
+        ok = true;
+      } else {
+        const newContent = content.endsWith("\n") || content === ""
+          ? content + line + "\n"
+          : content + "\n" + line + "\n";
+        fs.writeFileSync(ZPROFILE_PATH, newContent);
+        ok = true;
+      }
     } catch {
       return false;
     }
@@ -599,16 +599,22 @@ function registerCli(): boolean {
         try { fs.unlinkSync(target); } catch { /* doesn't exist */ }
         fs.symlinkSync(source, target);
       }
-      return true;
+      ok = true;
     } catch {
       return false;
     }
   }
 
-  return false;
+  // Auto-install hydra skill alongside CLI
+  if (ok) installSkill();
+
+  return ok;
 }
 
 function unregisterCli(): boolean {
+  // Auto-uninstall hydra skill alongside CLI
+  uninstallSkill();
+
   if (process.platform === "darwin") {
     const line = getPathExportLine();
     try {

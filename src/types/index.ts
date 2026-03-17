@@ -136,9 +136,6 @@ export interface TermCanvasAPI {
     isRegistered: () => Promise<boolean>;
     register: () => Promise<boolean>;
     unregister: () => Promise<boolean>;
-    isSkillInstalled: () => Promise<boolean>;
-    installSkill: () => Promise<boolean>;
-    uninstallSkill: () => Promise<boolean>;
   };
   app: {
     platform: "darwin" | "win32" | "linux";

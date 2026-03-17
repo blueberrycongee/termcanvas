@@ -84,11 +84,10 @@ export function SettingsModal({ onClose }: Props) {
   const [conflicts, setConflicts] = useState<Set<keyof ShortcutMap>>(new Set());
   const backdropRef = useRef<HTMLDivElement>(null);
   const [cliRegistered, setCliRegistered] = useState<boolean | null>(null);
-  const [skillInstalled, setSkillInstalled] = useState<boolean | null>(null);
+  const [cliLoading, setCliLoading] = useState(false);
 
   useEffect(() => {
     window.termcanvas?.cli.isRegistered().then(setCliRegistered);
-    window.termcanvas?.cli.isSkillInstalled().then(setSkillInstalled);
   }, []);
 
   // Close on Escape (when not recording)
@@ -246,37 +245,24 @@ export function SettingsModal({ onClose }: Props) {
                       termcanvas, hydra
                     </span>
                   </div>
-                  <button
-                    className={cliRegistered ? activeBtn : inactiveBtn}
-                    onClick={async () => {
-                      const ok = cliRegistered
-                        ? await window.termcanvas.cli.unregister()
-                        : await window.termcanvas.cli.register();
-                      if (ok) setCliRegistered(!cliRegistered);
-                    }}
-                  >
-                    {cliRegistered ? t.cli_registered : t.cli_not_registered}
-                  </button>
-                </div>
-              )}
-
-              {/* Hydra Skill */}
-              {skillInstalled !== null && (
-                <div className="flex items-center justify-between">
-                  <span className="text-[13px] text-[var(--text-secondary)]">
-                    {t.skill_label}
-                  </span>
-                  <button
-                    className={skillInstalled ? activeBtn : inactiveBtn}
-                    onClick={async () => {
-                      const ok = skillInstalled
-                        ? await window.termcanvas.cli.uninstallSkill()
-                        : await window.termcanvas.cli.installSkill();
-                      if (ok) setSkillInstalled(!skillInstalled);
-                    }}
-                  >
-                    {skillInstalled ? t.skill_installed : t.skill_not_installed}
-                  </button>
+                  {cliRegistered ? (
+                    <span className={`${toggleBtn} bg-[var(--border)] text-[var(--text-muted)] cursor-default`}>
+                      {t.cli_registered}
+                    </span>
+                  ) : (
+                    <button
+                      className={inactiveBtn}
+                      disabled={cliLoading}
+                      onClick={async () => {
+                        setCliLoading(true);
+                        const ok = await window.termcanvas.cli.register();
+                        if (ok) setCliRegistered(true);
+                        setCliLoading(false);
+                      }}
+                    >
+                      {cliLoading ? t.cli_registering : t.cli_not_registered}
+                    </button>
+                  )}
                 </div>
               )}
             </div>

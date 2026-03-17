@@ -116,9 +116,5 @@ export const zh = {
   cli_label: "命令行工具",
   cli_registered: "已注册",
   cli_not_registered: "未注册",
-
-  // Hydra Skill
-  skill_label: "Hydra skill（Claude Code）",
-  skill_installed: "已安装",
-  skill_not_installed: "未安装",
+  cli_registering: "注册中…",
 } as const;

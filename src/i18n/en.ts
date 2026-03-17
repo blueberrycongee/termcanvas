@@ -118,11 +118,7 @@ export const en = {
   cli_label: "Command line interface",
   cli_registered: "Registered",
   cli_not_registered: "Not registered",
-
-  // Hydra Skill
-  skill_label: "Hydra skill for Claude Code",
-  skill_installed: "Installed",
-  skill_not_installed: "Not installed",
+  cli_registering: "Registering\u2026",
 } as const;
 
 export type TranslationKey = keyof typeof en;
