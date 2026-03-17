@@ -12,6 +12,7 @@ import { SessionWatcher, type SessionType } from "./session-watcher";
 import { ApiServer } from "./api-server";
 import { sendToWindow } from "./window-events";
 import { detectCli } from "./process-detector";
+import { isCommandAvailable } from "./pty-launch";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -158,6 +159,12 @@ function setupIpc() {
     const shellPid = ptyManager.getPid(ptyId);
     if (!shellPid) return null;
     return detectCli(shellPid);
+  });
+
+  ipcMain.handle("terminal:is-command-available", async (_event, command: string) => {
+    return isCommandAvailable(command, {
+      extraPathEntries: [getCliDir()],
+    });
   });
 
   // Session ID discovery for codex/claude

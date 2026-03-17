@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   buildLaunchSpec,
+  isCommandAvailable,
   sanitizeEnv,
   type LaunchResolverDeps,
 } from "../electron/pty-launch.ts";
@@ -132,4 +133,32 @@ test("buildLaunchSpec throws a clear error when a CLI executable cannot be resol
       ),
     /Executable not found: codex/,
   );
+});
+
+test("isCommandAvailable resolves commands from extra PATH entries", async () => {
+  const available = await isCommandAvailable(
+    "hydra",
+    { extraPathEntries: ["/app/cli"] },
+    createDeps({
+      existsSync: (file) =>
+        ["/app/cli/hydra", "/opt/homebrew/bin/codex", "/bin/zsh"].includes(file),
+      isExecutable: (file) =>
+        ["/app/cli/hydra", "/opt/homebrew/bin/codex", "/bin/zsh"].includes(file),
+    }),
+  );
+
+  assert.equal(available, true);
+});
+
+test("isCommandAvailable returns false when the command cannot be resolved", async () => {
+  const available = await isCommandAvailable(
+    "hydra",
+    undefined,
+    createDeps({
+      existsSync: (file) => ["/opt/homebrew/bin/codex", "/bin/zsh"].includes(file),
+      isExecutable: (file) => ["/opt/homebrew/bin/codex", "/bin/zsh"].includes(file),
+    }),
+  );
+
+  assert.equal(available, false);
 });

@@ -31,6 +31,8 @@ contextBridge.exposeInMainWorld("termcanvas", {
     },
     detectCli: (ptyId: number) =>
       ipcRenderer.invoke("terminal:detect-cli", ptyId),
+    isCommandAvailable: (command: string) =>
+      ipcRenderer.invoke("terminal:is-command-available", command) as Promise<boolean>,
   },
   session: {
     getCodexLatest: () =>
