@@ -51,7 +51,7 @@ npm install
 npm run dev
 ```
 
-**Install CLI tools** — after launching the app, go to Settings → General → Command line interface and click Register. This adds `termcanvas` and `hydra` to your PATH.
+**Install CLI tools** — after launching the app, go to Settings → General → Command line interface and click Register. This adds `termcanvas` and `hydra` to your PATH, and installs the Hydra skill into both Claude Code and Codex skill directories.
 
 ## CLI
 
@@ -69,14 +69,41 @@ termcanvas diff ~/my-repo --summary  # view worktree diff
 
 ### hydra
 
-Hydra spawns AI coding agents in isolated git worktrees, managed through TermCanvas.
+Hydra lets you break a big task into smaller pieces and hand each piece to an AI agent — Claude, Codex, Kimi, Gemini, or OpenCode. Every agent gets its own git worktree and its own terminal on the canvas, so you can watch them all work in parallel and step in whenever you need to.
+
+**Spawn an agent:**
 
 ```bash
 hydra spawn --task "fix the login bug" --type claude --repo .
-hydra list                           # list running agents
-hydra cleanup <agent-id>             # remove worktree and terminal
-hydra init                           # add hydra instructions to project CLAUDE.md
+# → returns JSON: { agentId, terminalId, worktreePath, branch, resultFile }
 ```
+
+This creates a new worktree + branch, opens a terminal on the canvas, and sends the task to the agent. The agent works in full isolation — it can only touch files inside its own worktree.
+
+**For read-only tasks** (code review, analysis), point to an existing worktree instead of creating one:
+
+```bash
+hydra spawn --task "audit auth for vulnerabilities" --type claude --repo . --worktree ./my-worktree
+```
+
+**Monitor, review, and merge:**
+
+```bash
+hydra list                              # see all agents and their status
+termcanvas terminal status <id>         # check if an agent is done
+termcanvas diff <worktree> --summary    # review what the agent changed
+cat <resultFile>                        # read the agent's summary
+git merge <branch>                      # adopt the changes
+hydra cleanup <agent-id>                # remove the worktree and terminal
+```
+
+**Setup:**
+
+```bash
+hydra init    # add Hydra usage instructions to your project's CLAUDE.md and AGENTS.md
+```
+
+This teaches your main AI agent when and how to spawn sub-agents automatically.
 
 ## Keyboard Shortcuts
 
@@ -87,7 +114,7 @@ hydra init                           # add hydra instructions to project CLAUDE.
 | `⌘ T` | New terminal |
 | `⌘ ]` | Next terminal |
 | `⌘ [` | Previous terminal |
-| `Esc` | Unfocus / refocus last terminal |
+| `⌘ E` | Unfocus / refocus last terminal |
 | `⌘ 1` | Terminal size: default |
 | `⌘ 2` | Terminal size: wide |
 | `⌘ 3` | Terminal size: tall |

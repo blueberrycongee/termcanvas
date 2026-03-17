@@ -51,7 +51,7 @@ npm install
 npm run dev
 ```
 
-**安装命令行工具** —— 启动应用后，进入 设置 → 通用 → 命令行工具，点击注册。这会将 `termcanvas` 和 `hydra` 添加到你的 PATH。
+**安装命令行工具** —— 启动应用后，进入 设置 → 通用 → 命令行工具，点击注册。这会将 `termcanvas` 和 `hydra` 添加到你的 PATH，并把 Hydra skill 安装到 Claude Code 与 Codex 的 skill 目录。
 
 ## 命令行工具
 
@@ -69,14 +69,41 @@ termcanvas diff ~/my-repo --summary  # 查看 worktree diff
 
 ### hydra
 
-Hydra 在隔离的 git worktree 中派生 AI 编程 agent，通过 TermCanvas 管理。
+Hydra 让你把大任务拆成小块，分派给不同的 AI agent——Claude、Codex、Kimi、Gemini 或 OpenCode。每个 agent 拥有独立的 git worktree 和画布上的独立终端，你可以同时观察它们并行工作，随时介入。
+
+**派生 agent：**
 
 ```bash
 hydra spawn --task "fix the login bug" --type claude --repo .
-hydra list                           # 列出运行中的 agent
-hydra cleanup <agent-id>             # 清理 worktree 和终端
-hydra init                           # 将 hydra 说明添加到项目 CLAUDE.md
+# → 返回 JSON: { agentId, terminalId, worktreePath, branch, resultFile }
 ```
+
+这会创建一个新的 worktree + 分支，在画布上打开终端，并将任务发送给 agent。agent 在完全隔离的环境中工作——只能修改自己 worktree 内的文件。
+
+**只读任务**（代码审查、分析）可以指向已有的 worktree，不创建新分支：
+
+```bash
+hydra spawn --task "审查 auth 模块的安全漏洞" --type claude --repo . --worktree ./my-worktree
+```
+
+**监控、审查与合并：**
+
+```bash
+hydra list                              # 查看所有 agent 及其状态
+termcanvas terminal status <id>         # 检查 agent 是否完成
+termcanvas diff <worktree> --summary    # 审查 agent 的变更
+cat <resultFile>                        # 读取 agent 的总结报告
+git merge <branch>                      # 采纳变更
+hydra cleanup <agent-id>                # 清理 worktree 和终端
+```
+
+**初始化：**
+
+```bash
+hydra init    # 将 Hydra 使用说明添加到项目的 CLAUDE.md 和 AGENTS.md
+```
+
+这会教会你的主 AI agent 在合适的时机自动派生子 agent。
 
 ## 快捷键
 
@@ -87,7 +114,7 @@ hydra init                           # 将 hydra 说明添加到项目 CLAUDE.md
 | `⌘ T` | 新建终端 |
 | `⌘ ]` | 下一个终端 |
 | `⌘ [` | 上一个终端 |
-| `Esc` | 取消聚焦 / 恢复上次聚焦 |
+| `⌘ E` | 取消聚焦 / 恢复上次聚焦 |
 | `⌘ 1` | 终端尺寸：默认 |
 | `⌘ 2` | 终端尺寸：宽 |
 | `⌘ 3` | 终端尺寸：高 |
