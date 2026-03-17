@@ -28,6 +28,33 @@ export type TerminalStatus =
   | "error"
   | "idle";
 
+export type ComposerSupportedTerminalType = Extract<
+  TerminalType,
+  "claude" | "codex"
+>;
+
+export interface ComposerImageAttachment {
+  id: string;
+  name: string;
+  dataUrl: string;
+}
+
+export interface ComposerSubmitRequest {
+  terminalId: string;
+  ptyId: number;
+  terminalType: ComposerSupportedTerminalType;
+  worktreePath: string;
+  text: string;
+  images: ComposerImageAttachment[];
+}
+
+export interface ComposerSubmitResult {
+  ok: boolean;
+  requestId?: string;
+  stagedImagePaths?: string[];
+  error?: string;
+}
+
 export interface TerminalData {
   id: string;
   title: string;
@@ -137,6 +164,9 @@ export interface TermCanvasAPI {
     isRegistered: () => Promise<boolean>;
     register: () => Promise<boolean>;
     unregister: () => Promise<boolean>;
+  };
+  composer: {
+    submit: (request: ComposerSubmitRequest) => Promise<ComposerSubmitResult>;
   };
   app: {
     platform: "darwin" | "win32" | "linux";

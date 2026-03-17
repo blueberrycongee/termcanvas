@@ -119,6 +119,22 @@ export const en = {
   cli_registered: "Registered",
   cli_not_registered: "Not registered",
   cli_registering: "Registering\u2026",
+
+  // Composer
+  composer_label: "Composer",
+  composer_target_label: "Target",
+  composer_submit: "Send",
+  composer_submitting: "Sending\u2026",
+  composer_empty_state: "No Claude/Codex terminals available",
+  composer_placeholder:
+    "Draft a prompt here and paste screenshots directly into the composer.",
+  composer_note:
+    "Claude/Codex only. In v1, don't mix direct terminal typing with composer submission.",
+  composer_missing_target: "Select a Claude/Codex terminal first.",
+  composer_empty_submit: "Enter text or paste an image before sending.",
+  composer_blocked_status: (title: string, status: string) =>
+    `"${title}" is busy (${status}). Wait until the agent is ready.`,
+  composer_submit_failed: (err: string) => `Composer submit failed: ${err}`,
 } as const;
 
 export type TranslationKey = keyof typeof en;

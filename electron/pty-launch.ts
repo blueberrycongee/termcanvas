@@ -25,13 +25,53 @@ export interface LaunchResolverDeps {
   getShellEnv: () => Promise<Record<string, string | undefined>>;
 }
 
-function defaultPathForPlatform(platform: NodeJS.Platform): string {
+function getEnvVarCaseInsensitive(
+  env: Record<string, string | undefined>,
+  key: string,
+): string | undefined {
+  if (typeof env[key] === "string") return env[key];
+
+  const found = Object.entries(env).find(([entryKey, entryValue]) =>
+    entryKey.toLowerCase() === key.toLowerCase() &&
+    typeof entryValue === "string"
+  );
+  return found?.[1];
+}
+
+function defaultPathEntriesForPlatform(
+  platform: NodeJS.Platform,
+  env: Record<string, string | undefined>,
+): string[] {
   if (platform === "win32") {
     return [
       "C:\\Windows\\System32",
       "C:\\Windows",
       "C:\\Windows\\System32\\WindowsPowerShell\\v1.0",
-    ].join(";");
+      getEnvVarCaseInsensitive(env, "LOCALAPPDATA")
+        ? path.join(
+            getEnvVarCaseInsensitive(env, "LOCALAPPDATA")!,
+            "Microsoft",
+            "WindowsApps",
+          )
+        : "",
+      getEnvVarCaseInsensitive(env, "LOCALAPPDATA")
+        ? path.join(
+            getEnvVarCaseInsensitive(env, "LOCALAPPDATA")!,
+            "OpenAI",
+            "Codex",
+            "bin",
+          )
+        : "",
+      getEnvVarCaseInsensitive(env, "APPDATA")
+        ? path.join(getEnvVarCaseInsensitive(env, "APPDATA")!, "npm")
+        : "",
+      getEnvVarCaseInsensitive(env, "USERPROFILE")
+        ? path.join(getEnvVarCaseInsensitive(env, "USERPROFILE")!, ".local", "bin")
+        : "",
+      getEnvVarCaseInsensitive(env, "USERPROFILE")
+        ? path.join(getEnvVarCaseInsensitive(env, "USERPROFILE")!, "bin")
+        : "",
+    ].filter(Boolean);
   }
   return [
     "/opt/homebrew/bin",
@@ -40,29 +80,37 @@ function defaultPathForPlatform(platform: NodeJS.Platform): string {
     "/bin",
     "/usr/sbin",
     "/sbin",
-  ].join(":");
+  ];
 }
 
 function mergePathValue(
   pathValue: string | undefined,
   platform: NodeJS.Platform,
   delimiter: string,
+  env: Record<string, string | undefined>,
 ): string {
   const seen = new Set<string>();
   const merged: string[] = [];
 
+  const addEntry = (value: string) => {
+    const trimmed = value.trim();
+    const key = platform === "win32" ? trimmed.toLowerCase() : trimmed;
+    if (!trimmed || seen.has(key)) return;
+    seen.add(key);
+    merged.push(trimmed);
+  };
+
   const addEntries = (value: string | undefined) => {
     if (!value) return;
     for (const entry of value.split(delimiter)) {
-      const trimmed = entry.trim();
-      if (!trimmed || seen.has(trimmed)) continue;
-      seen.add(trimmed);
-      merged.push(trimmed);
+      addEntry(entry);
     }
   };
 
   addEntries(pathValue);
-  addEntries(defaultPathForPlatform(platform));
+  for (const entry of defaultPathEntriesForPlatform(platform, env)) {
+    addEntry(entry);
+  }
 
   return merged.join(delimiter);
 }
@@ -79,7 +127,12 @@ export function sanitizeEnv(
     }
   }
 
-  cleaned.PATH = mergePathValue(cleaned.PATH, deps.platform, deps.pathDelimiter);
+  cleaned.PATH = mergePathValue(
+    getEnvVarCaseInsensitive(env, "PATH"),
+    deps.platform,
+    deps.pathDelimiter,
+    env,
+  );
   return cleaned;
 }
 
@@ -87,12 +140,33 @@ function hasPathSeparator(command: string): boolean {
   return command.includes("/") || command.includes("\\");
 }
 
+function pathEntryExists(
+  entries: string[],
+  target: string,
+  platform: NodeJS.Platform,
+): boolean {
+  const normalizedTarget = platform === "win32"
+    ? target.toLowerCase()
+    : target;
+  return entries.some((entry) =>
+    (platform === "win32" ? entry.toLowerCase() : entry) === normalizedTarget
+  );
+}
+
 function getWindowsCommandCandidates(command: string): string[] {
   const lower = command.toLowerCase();
   if (lower.endsWith(".exe") || lower.endsWith(".cmd") || lower.endsWith(".bat")) {
     return [command];
   }
-  return [command, `${command}.exe`, `${command}.cmd`, `${command}.bat`];
+  return [`${command}.exe`, `${command}.cmd`, `${command}.bat`, command];
+}
+
+function getWindowsPathCandidates(target: string): string[] {
+  const lower = target.toLowerCase();
+  if (lower.endsWith(".exe") || lower.endsWith(".cmd") || lower.endsWith(".bat")) {
+    return [target];
+  }
+  return [`${target}.exe`, `${target}.cmd`, `${target}.bat`, target];
 }
 
 function resolveExactExecutable(
@@ -115,7 +189,15 @@ export function resolveExecutable(
   if (!command) return null;
 
   if (path.isAbsolute(command) || hasPathSeparator(command)) {
-    return resolveExactExecutable(command, deps);
+    const candidates =
+      deps.platform === "win32" ? getWindowsPathCandidates(command) : [command];
+
+    for (const candidate of candidates) {
+      const resolved = resolveExactExecutable(candidate, deps);
+      if (resolved) return resolved;
+    }
+
+    return null;
   }
 
   const pathEntries = (env.PATH ?? "")
@@ -134,6 +216,12 @@ export function resolveExecutable(
   }
 
   return null;
+}
+
+function isWindowsBatchScript(file: string, platform: NodeJS.Platform): boolean {
+  if (platform !== "win32") return false;
+  const lower = file.toLowerCase();
+  return lower.endsWith(".cmd") || lower.endsWith(".bat");
 }
 
 export function resolveUserShell(
@@ -270,7 +358,7 @@ export async function buildLaunchSpec(
   if (options.extraPathEntries?.length) {
     const entries = shellEnv.PATH.split(deps.pathDelimiter);
     for (const dir of options.extraPathEntries) {
-      if (!entries.includes(dir)) entries.unshift(dir);
+      if (!pathEntryExists(entries, dir, deps.platform)) entries.unshift(dir);
     }
     shellEnv.PATH = entries.join(deps.pathDelimiter);
   }
@@ -282,6 +370,25 @@ export async function buildLaunchSpec(
         `Executable not found: ${options.shell} (PATH=${shellEnv.PATH ?? ""})`,
       );
     }
+
+    if (isWindowsBatchScript(executable, deps.platform)) {
+      const commandShell = resolveExecutable(
+        shellEnv.ComSpec ?? "cmd.exe",
+        shellEnv,
+        deps,
+      );
+      if (!commandShell) {
+        throw new Error("Could not resolve cmd.exe for Windows batch launch");
+      }
+
+      return {
+        cwd: options.cwd,
+        file: commandShell,
+        args: ["/d", "/s", "/c", executable, ...(options.args ?? [])],
+        env: shellEnv,
+      };
+    }
+
     return {
       cwd: options.cwd,
       file: executable,

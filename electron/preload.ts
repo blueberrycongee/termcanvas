@@ -118,6 +118,10 @@ contextBridge.exposeInMainWorld("termcanvas", {
     unregister: () =>
       ipcRenderer.invoke("cli:unregister") as Promise<boolean>,
   },
+  composer: {
+    submit: (request: unknown) =>
+      ipcRenderer.invoke("composer:submit", request),
+  },
   app: {
     platform: process.platform as "darwin" | "win32" | "linux",
     onBeforeClose: (callback: () => void) => {

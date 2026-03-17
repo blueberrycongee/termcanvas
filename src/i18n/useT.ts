@@ -6,5 +6,5 @@ const dictionaries = { en, zh } as const;
 
 export function useT() {
   const locale = useLocaleStore((s) => s.locale);
-  return dictionaries[locale];
+  return { ...en, ...dictionaries[locale] };
 }
