@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -30,13 +30,24 @@ export function buildTermcanvasArgs(
   return [group, command, ...args, "--json"];
 }
 
-function tc(group: string, command: string, args: string[] = []): any {
-  const fullArgs = buildTermcanvasArgs(group, command, args);
-  const stdout = execSync(`termcanvas ${fullArgs.join(" ")}`, {
+export function buildTerminalCreateArgs(worktreePath: string, type: string): string[] {
+  return buildTermcanvasArgs("terminal", "create", ["--worktree", worktreePath, "--type", type]);
+}
+
+export function buildTerminalInputArgs(terminalId: string, text: string): string[] {
+  return buildTermcanvasArgs("terminal", "input", [terminalId, text]);
+}
+
+function runTermcanvasJson(args: string[], timeout: number): any {
+  const stdout = execFileSync("termcanvas", args, {
     encoding: "utf-8",
-    timeout: 10_000,
+    timeout,
   });
   return parseJsonOrDie(stdout);
+}
+
+function tc(group: string, command: string, args: string[] = []): any {
+  return runTermcanvasJson(buildTermcanvasArgs(group, command, args), 10_000);
 }
 
 export function projectList(): any[] {
@@ -48,7 +59,7 @@ export function projectRescan(projectId: string): void {
 }
 
 export function terminalCreate(worktreePath: string, type: string): { id: string; type: string; title: string } {
-  return tc("terminal", "create", ["--worktree", worktreePath, "--type", type]);
+  return runTermcanvasJson(buildTerminalCreateArgs(worktreePath, type), 10_000);
 }
 
 export function terminalStatus(terminalId: string): { id: string; status: string; ptyId: number | null } {
@@ -56,11 +67,7 @@ export function terminalStatus(terminalId: string): { id: string; status: string
 }
 
 export function terminalInput(terminalId: string, text: string): void {
-  const stdout = execSync(
-    `termcanvas terminal input ${terminalId} ${JSON.stringify(text)} --json`,
-    { encoding: "utf-8", timeout: 5_000 },
-  );
-  parseJsonOrDie(stdout);
+  runTermcanvasJson(buildTerminalInputArgs(terminalId, text), 5_000);
 }
 
 export function terminalDestroy(terminalId: string): void {

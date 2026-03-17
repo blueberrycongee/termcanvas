@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseSpawnArgs, generateAgentId } from "../src/spawn.ts";
+import {
+  parseSpawnArgs,
+  generateAgentId,
+  buildGitWorktreeAddArgs,
+} from "../src/spawn.ts";
 
 test("parseSpawnArgs extracts all flags correctly", () => {
   const args = parseSpawnArgs([
@@ -52,4 +56,20 @@ test("generateAgentId returns hydra-prefixed ID", () => {
 test("generateAgentId returns unique IDs", () => {
   const ids = new Set(Array.from({ length: 100 }, () => generateAgentId()));
   assert.equal(ids.size, 100);
+});
+
+test("buildGitWorktreeAddArgs preserves spaces and shell metacharacters", () => {
+  const args = buildGitWorktreeAddArgs(
+    "hydra/agent-1",
+    "/tmp/dir with space",
+    'feature/$(touch /tmp/pwned)`whoami`',
+  );
+  assert.deepStrictEqual(args, [
+    "worktree",
+    "add",
+    "-b",
+    "hydra/agent-1",
+    "/tmp/dir with space",
+    'feature/$(touch /tmp/pwned)`whoami`',
+  ]);
 });

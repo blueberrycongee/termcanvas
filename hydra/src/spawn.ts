@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import crypto from "node:crypto";
 import {
@@ -54,7 +54,7 @@ function sleep(ms: number): Promise<void> {
 
 function getCurrentBranch(repoPath: string): string {
   try {
-    return execSync("git rev-parse --abbrev-ref HEAD", {
+    return execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
       cwd: repoPath,
       encoding: "utf-8",
     }).trim();
@@ -64,6 +64,14 @@ function getCurrentBranch(repoPath: string): string {
 }
 
 const READY_STATUSES = new Set(["waiting", "completed", "success", "error"]);
+
+export function buildGitWorktreeAddArgs(
+  branch: string,
+  worktreePath: string,
+  baseBranch: string,
+): string[] {
+  return ["worktree", "add", "-b", branch, worktreePath, baseBranch];
+}
 
 export async function spawn(args: string[]): Promise<void> {
   const parsed = parseSpawnArgs(args);
@@ -96,7 +104,7 @@ export async function spawn(args: string[]): Promise<void> {
     // Create new worktree
     branch = `hydra/${agentId}`;
     worktreePath = path.join(repo, ".worktrees", agentId);
-    execSync(`git worktree add -b "${branch}" "${worktreePath}" "${baseBranch}"`, {
+    execFileSync("git", buildGitWorktreeAddArgs(branch, worktreePath, baseBranch), {
       cwd: repo,
       encoding: "utf-8",
     });
