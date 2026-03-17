@@ -4,7 +4,8 @@ import tailwindcss from "@tailwindcss/vite";
 import electron from "vite-plugin-electron";
 import renderer from "vite-plugin-electron-renderer";
 import path from "path";
-import { build as esbuild, context as esbuildCtx } from "esbuild";
+import fs from "fs";
+import { build as esbuild, context as esbuildCtx, type Plugin as EsbuildPlugin } from "esbuild";
 
 function buildPreload(): Plugin {
   const opts = {
@@ -28,14 +29,33 @@ function buildPreload(): Plugin {
   };
 }
 
+/** esbuild plugin: after write, create extensionless symlink + chmod 755 */
+function cliSymlinkPlugin(outfile: string): EsbuildPlugin {
+  const jsPath = path.resolve(outfile);
+  const linkPath = jsPath.replace(/\.js$/, "");
+  return {
+    name: "cli-symlink",
+    setup(build) {
+      build.onEnd(() => {
+        try { fs.chmodSync(jsPath, 0o755); } catch {}
+        try { fs.lstatSync(linkPath); } catch {
+          try { fs.symlinkSync(path.basename(jsPath), linkPath); } catch {}
+        }
+      });
+    },
+  };
+}
+
 function buildCli(): Plugin {
+  const outfile = "dist-cli/termcanvas.js";
   const opts = {
     entryPoints: ["cli/termcanvas.ts"],
-    outfile: "dist-cli/termcanvas.js",
+    outfile,
     format: "esm" as const,
     platform: "node" as const,
     bundle: true,
     banner: { js: "#!/usr/bin/env node" },
+    plugins: [cliSymlinkPlugin(outfile)],
   };
   return {
     name: "build-cli",
@@ -51,13 +71,15 @@ function buildCli(): Plugin {
 }
 
 function buildHydra(): Plugin {
+  const outfile = "dist-cli/hydra.js";
   const opts = {
     entryPoints: ["hydra/src/cli.ts"],
-    outfile: "dist-cli/hydra.js",
+    outfile,
     format: "esm" as const,
     platform: "node" as const,
     bundle: true,
     banner: { js: "#!/usr/bin/env node" },
+    plugins: [cliSymlinkPlugin(outfile)],
   };
   return {
     name: "build-hydra",

@@ -120,7 +120,10 @@ function setupIpc() {
   ipcMain.handle(
     "terminal:create",
     async (_event, options: { cwd: string; shell?: string; args?: string[] }) => {
-      const ptyId = await ptyManager.create(options);
+      const ptyId = await ptyManager.create({
+        ...options,
+        extraPathEntries: [getCliDir()],
+      });
       ptyManager.onData(ptyId, (data: string) => {
         ptyManager.captureOutput(ptyId, data);
         sendToWindow(mainWindow, "terminal:output", ptyId, data);
@@ -478,7 +481,37 @@ function setupIpc() {
 }
 
 function getCliDir(): string {
-  return path.join(process.resourcesPath, "cli");
+  const prodDir = path.join(process.resourcesPath, "cli");
+  if (fs.existsSync(prodDir)) return prodDir;
+  // dev mode: dist-cli/ relative to dist-electron/
+  return path.resolve(__dirname, "..", "dist-cli");
+}
+
+const CLI_NAMES = ["termcanvas", "hydra"];
+
+/** Ensure CLI .js files are executable and have extensionless symlinks. */
+function ensureCliLinks(): void {
+  const cliDir = getCliDir();
+  if (!fs.existsSync(cliDir)) return;
+
+  for (const name of CLI_NAMES) {
+    const jsFile = path.join(cliDir, `${name}.js`);
+    const link = path.join(cliDir, name);
+
+    // Make .js file executable
+    try {
+      fs.chmodSync(jsFile, 0o755);
+    } catch { /* may not exist yet */ }
+
+    // Create extensionless symlink if missing
+    try {
+      fs.lstatSync(link);
+    } catch {
+      try {
+        fs.symlinkSync(`${name}.js`, link);
+      } catch { /* read-only fs in prod asar */ }
+    }
+  }
 }
 
 const ZPROFILE_PATH = path.join(os.homedir(), ".zprofile");
@@ -602,6 +635,7 @@ function unregisterCli(): boolean {
 }
 
 app.whenReady().then(() => {
+  ensureCliLinks();
   setupIpc();
   createWindow();
 
