@@ -28,6 +28,37 @@ export const DEFAULT_SHORTCUTS: ShortcutMap = {
 
 const STORAGE_KEY = "termcanvas-shortcuts";
 
+export type ShortcutPlatform = "darwin" | "win32" | "linux";
+
+function getShortcutPlatform(): ShortcutPlatform {
+  if (typeof window !== "undefined" && window.termcanvas?.app.platform) {
+    return window.termcanvas.app.platform;
+  }
+  if (typeof process !== "undefined") {
+    const platform = process.platform;
+    if (platform === "darwin" || platform === "win32" || platform === "linux") {
+      return platform;
+    }
+  }
+  return "darwin";
+}
+
+function hasPrimaryModifier(
+  e: Pick<KeyboardEvent, "metaKey" | "ctrlKey">,
+  platform: ShortcutPlatform,
+): boolean {
+  return platform === "darwin" ? e.metaKey : e.ctrlKey;
+}
+
+function hasUnsupportedPlatformModifier(
+  e: Pick<KeyboardEvent, "metaKey" | "ctrlKey">,
+  platform: ShortcutPlatform,
+): boolean {
+  return platform === "darwin"
+    ? e.ctrlKey && !e.metaKey
+    : e.metaKey && !e.ctrlKey;
+}
+
 function loadShortcuts(): ShortcutMap {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -67,8 +98,10 @@ export const useShortcutStore = create<ShortcutStore>((set) => ({
  * Convert a KeyboardEvent into a shortcut string like "mod+b", "mod+]", "escape".
  */
 export function eventToShortcut(e: KeyboardEvent): string {
+  const platform = getShortcutPlatform();
+  if (hasUnsupportedPlatformModifier(e, platform)) return "";
   const parts: string[] = [];
-  if (e.metaKey || e.ctrlKey) parts.push("mod");
+  if (hasPrimaryModifier(e, platform)) parts.push("mod");
   if (e.shiftKey) parts.push("shift");
   if (e.altKey) parts.push("alt");
 
@@ -83,6 +116,8 @@ export function eventToShortcut(e: KeyboardEvent): string {
  * Check if a KeyboardEvent matches a shortcut string.
  */
 export function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
+  const platform = getShortcutPlatform();
+  if (hasUnsupportedPlatformModifier(e, platform)) return false;
   const parts = shortcut.split("+");
   const needsMod = parts.includes("mod");
   const needsShift = parts.includes("shift");
@@ -91,8 +126,10 @@ export function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
     (p) => p !== "mod" && p !== "shift" && p !== "alt",
   )[0];
 
-  if (needsMod && !(e.metaKey || e.ctrlKey)) return false;
-  if (!needsMod && (e.metaKey || e.ctrlKey)) return false;
+  const hasMod = hasPrimaryModifier(e, platform);
+
+  if (needsMod && !hasMod) return false;
+  if (!needsMod && hasMod) return false;
   if (needsShift !== e.shiftKey) return false;
   if (needsAlt !== e.altKey) return false;
   return e.key.toLowerCase() === key;
