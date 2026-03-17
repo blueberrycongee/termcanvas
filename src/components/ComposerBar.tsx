@@ -3,6 +3,7 @@ import { useProjectStore } from "../stores/projectStore";
 import { useComposerStore } from "../stores/composerStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { getComposerAdapter } from "../terminal/cliConfig";
+import { shouldSubmitComposerFromKeyEvent } from "./composerInputBehavior";
 import { useT } from "../i18n/useT";
 import type {
   ComposerImageAttachment,
@@ -346,7 +347,7 @@ export function ComposerBar() {
             onChange={(event) => setDraft(event.target.value)}
             onPaste={handleImagePaste}
             onKeyDown={(event) => {
-              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+              if (shouldSubmitComposerFromKeyEvent(event)) {
                 event.preventDefault();
                 void handleSubmit();
               }

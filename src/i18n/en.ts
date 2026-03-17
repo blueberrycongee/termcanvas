@@ -131,9 +131,9 @@ export const en = {
   composer_placeholder_text_only:
     "Send text directly to the focused terminal.",
   composer_note:
-    "Targets the focused terminal by default. Agent terminals can also receive pasted images.",
+    "Targets the focused terminal by default. Enter sends, Shift+Enter adds a new line. Agent terminals can also receive pasted images.",
   composer_note_text_only:
-    "Targets the focused terminal directly. Image paste is unavailable for this terminal type.",
+    "Targets the focused terminal directly. Enter sends, Shift+Enter adds a new line. Image paste is unavailable for this terminal type.",
   composer_missing_target: "Select or focus a terminal first.",
   composer_empty_submit: "Enter text or paste an image before sending.",
   composer_images_unsupported: (title: string) =>
