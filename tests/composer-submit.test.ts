@@ -186,8 +186,36 @@ test("codex sends image paths via bracketed paste without clipboard", async () =
   assert.equal(restoredSnapshots.length, 0);
 });
 
-test("claude falls back to staged image paths when clipboard image write fails", async () => {
+test("claude sends text and image paths via bracketed paste without clipboard", async () => {
   const request = createRequest();
+  const {
+    deps,
+    ptyWrites,
+    fileWrites,
+    clipboardTextWrites,
+    clipboardImageWrites,
+    restoredSnapshots,
+  } = createDeps();
+
+  const result = await submitComposerRequest(request, deps);
+
+  assert.equal(result.ok, true);
+  assert.equal(fileWrites.length, 1);
+  assert.equal(
+    fileWrites[0].filePath.endsWith(path.join("req-123", "image-1.png")),
+    true,
+  );
+  assert.equal(ptyWrites.length, 3);
+  assert.match(ptyWrites[0], /^\x1b\[200~.*image-1\.png\x1b\[201~$/);
+  assert.equal(ptyWrites[1], "\x1b[200~Inspect this screenshot\x1b[201~");
+  assert.equal(ptyWrites[2], "\r");
+  assert.deepEqual(clipboardTextWrites, []);
+  assert.deepEqual(clipboardImageWrites, []);
+  assert.equal(restoredSnapshots.length, 0);
+});
+
+test("paste-mode terminal falls back to staged image paths when clipboard image write fails", async () => {
+  const request = createRequest({ terminalType: "kimi" });
   const {
     deps,
     clipboardTextWrites,
@@ -268,7 +296,7 @@ test("shell reports PTY write failures with stage details", async () => {
 });
 
 test("composer warns when clipboard restore fails after a successful submit", async () => {
-  const request = createRequest();
+  const request = createRequest({ terminalType: "kimi" });
   const { deps, restoredSnapshots } = createDeps({
     restoreClipboard: () => {
       throw new Error("restore blocked");

@@ -82,11 +82,10 @@ export const TERMINAL_CONFIG: Record<TerminalType, TerminalAdapterConfig> = {
     composer: {
       supportsComposer: true,
       allowedStatuses: INTERACTIVE_STATUSES,
-      inputMode: "paste",
+      inputMode: "bracketed-paste",
       supportsImages: true,
-      pasteKeySequence: (platform) =>
-        platform === "darwin" ? "\u001bv" : "\u0016",
-      imageFallback: "image-path",
+      pasteKeySequence: () => "",
+      imageFallback: "error",
       pasteDelayMs: 120,
     },
   },
