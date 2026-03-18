@@ -221,6 +221,7 @@ export class ApiServer {
     const type = body?.type ?? "shell";
     const prompt = body?.prompt as string | undefined;
     const autoApprove = body?.autoApprove as boolean | undefined;
+    const parentTerminalId = body?.parentTerminalId as string | undefined;
     if (!worktree)
       throw Object.assign(new Error("worktree path is required"), {
         status: 400,
@@ -248,7 +249,7 @@ export class ApiServer {
     }
 
     const terminal = await this.execRenderer(
-      `window.__tcApi.addTerminal(${JSON.stringify(projectId)}, ${JSON.stringify(worktreeId)}, ${JSON.stringify(type)}, ${JSON.stringify(prompt)}, ${JSON.stringify(!!autoApprove)})`,
+      `window.__tcApi.addTerminal(${JSON.stringify(projectId)}, ${JSON.stringify(worktreeId)}, ${JSON.stringify(type)}, ${JSON.stringify(prompt)}, ${JSON.stringify(!!autoApprove)}, ${JSON.stringify(parentTerminalId ?? null)})`,
     );
     return { id: terminal.id, type: terminal.type, title: terminal.title };
   }

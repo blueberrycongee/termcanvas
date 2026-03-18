@@ -87,6 +87,7 @@ export interface TerminalData {
   status: TerminalStatus;
   span: { cols: number; rows: number };
   origin?: TerminalOrigin;
+  parentTerminalId?: string;
   scrollback?: string;
   sessionId?: string;
   initialPrompt?: string;
@@ -164,6 +165,7 @@ export interface TermCanvasAPI {
       cwd: string;
       shell?: string;
       args?: string[];
+      terminalId?: string;
     }) => Promise<number>;
     destroy: (ptyId: number) => Promise<void>;
     getPid: (ptyId: number) => Promise<number | null>;

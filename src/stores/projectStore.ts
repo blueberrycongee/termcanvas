@@ -107,6 +107,7 @@ export function createTerminal(
   initialPrompt?: string,
   autoApprove?: boolean,
   origin: TerminalOrigin = "user",
+  parentTerminalId?: string,
 ): TerminalData {
   return {
     id: generateId(),
@@ -120,6 +121,7 @@ export function createTerminal(
     origin,
     ...(initialPrompt ? { initialPrompt } : {}),
     ...(autoApprove ? { autoApprove } : {}),
+    ...(parentTerminalId ? { parentTerminalId } : {}),
   };
 }
 
@@ -623,3 +625,41 @@ export const useProjectStore = create<ProjectStore>((set) => ({
 
   setProjects: (projects) => set(() => normalizeProjectsFocus(projects)),
 }));
+
+// --- Hierarchy helpers (pure functions, not store actions) ---
+
+export interface TerminalLocation {
+  terminal: TerminalData;
+  projectId: string;
+  worktreeId: string;
+}
+
+export function findTerminalById(
+  projects: ProjectData[],
+  terminalId: string,
+): TerminalLocation | null {
+  for (const p of projects) {
+    for (const w of p.worktrees) {
+      const t = w.terminals.find((t) => t.id === terminalId);
+      if (t) return { terminal: t, projectId: p.id, worktreeId: w.id };
+    }
+  }
+  return null;
+}
+
+export function getChildTerminals(
+  projects: ProjectData[],
+  terminalId: string,
+): TerminalLocation[] {
+  const children: TerminalLocation[] = [];
+  for (const p of projects) {
+    for (const w of p.worktrees) {
+      for (const t of w.terminals) {
+        if (t.parentTerminalId === terminalId) {
+          children.push({ terminal: t, projectId: p.id, worktreeId: w.id });
+        }
+      }
+    }
+  }
+  return children;
+}

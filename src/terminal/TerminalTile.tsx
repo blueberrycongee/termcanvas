@@ -247,8 +247,9 @@ export function TerminalTile({
 
     let ptyId: number | null = null;
 
-    const ptyOptions: { cwd: string; shell?: string; args?: string[] } = {
+    const ptyOptions: { cwd: string; shell?: string; args?: string[]; terminalId?: string } = {
       cwd: worktreePath,
+      terminalId: terminal.id,
     };
 
     const launchOptions = getTerminalLaunchOptions(
