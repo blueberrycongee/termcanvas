@@ -139,3 +139,64 @@ body {
 .status-pulse {
   animation: pulse-dot 2s ease-in-out infinite;
 }
+
+/* ── Usage panel animations ── */
+@keyframes usage-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes usage-bar-grow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes usage-bar-fill {
+  from {
+    width: 0%;
+  }
+}
+
+@keyframes usage-tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes usage-calendar-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.usage-section-enter {
+  animation: usage-fade-in-up 0.3s ease-out both;
+}
+
+.usage-tooltip-enter {
+  animation: usage-tooltip-in 0.15s ease-out both;
+}
+
+.usage-calendar-enter {
+  animation: usage-calendar-in 0.2s ease-out both;
+}

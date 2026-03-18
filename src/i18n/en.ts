@@ -178,6 +178,18 @@ export const en = {
   usage_cache_create: "Cache W",
   usage_tokens: "Tokens",
   usage_no_data: "No usage data",
+  usage_today: "Today",
+  usage_calls: "calls",
+  usage_tokens_label: "tokens",
+  usage_cal_weekdays: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] as readonly string[],
+  usage_cal_months: [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ] as readonly string[],
+  usage_cal_months_short: [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  ] as readonly string[],
 } as const;
 
 export type TranslationKey = keyof typeof en;
