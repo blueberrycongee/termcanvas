@@ -82,6 +82,13 @@ function formatComposerWarning(
   return t.composer_submit_warning_with_context(targetTitle, stage, detail);
 }
 
+const ARROW_SEQUENCES: Record<string, string> = {
+  ArrowUp: "\x1b[A",
+  ArrowDown: "\x1b[B",
+  ArrowRight: "\x1b[C",
+  ArrowLeft: "\x1b[D",
+};
+
 /**
  * Map keyboard events to terminal escape sequences for keys that should be
  * forwarded to the PTY rather than handled by the Composer textarea.
@@ -89,6 +96,7 @@ function formatComposerWarning(
  */
 function getPassthroughSequence(
   event: React.KeyboardEvent<HTMLTextAreaElement>,
+  draft: string,
 ): string | null {
   // Shift+Tab → mode cycling (e.g. Claude Code permission modes)
   if (event.key === "Tab" && event.shiftKey) return "\x1b[Z";
@@ -100,6 +108,12 @@ function getPassthroughSequence(
     if (el.selectionStart === el.selectionEnd) {
       return "\x03";
     }
+  }
+  // Arrow keys → forward to terminal when Composer is empty
+  // (no draft text means arrows have no cursor-movement purpose)
+  const arrowSeq = ARROW_SEQUENCES[event.key];
+  if (arrowSeq && draft.length === 0) {
+    return arrowSeq;
   }
   return null;
 }
@@ -370,7 +384,7 @@ export function ComposerBar() {
               // Forward terminal control keys to the PTY so CLI shortcuts
               // (e.g. Claude Code mode cycling) work from the Composer.
               if (targetTerminal) {
-                const seq = getPassthroughSequence(event);
+                const seq = getPassthroughSequence(event, draft);
                 if (seq !== null) {
                   event.preventDefault();
                   window.termcanvas.terminal.input(targetTerminal.ptyId, seq);
