@@ -457,6 +457,13 @@ export function TerminalTile({
     notify,
   ]);
 
+  // Sync DOM focus with logical focus state
+  useEffect(() => {
+    if (terminal.focused && xtermRef.current) {
+      xtermRef.current.focus();
+    }
+  }, [terminal.focused]);
+
   // Update xterm theme when app theme changes
   useEffect(() => {
     const unsubscribe = useThemeStore.subscribe((state) => {
