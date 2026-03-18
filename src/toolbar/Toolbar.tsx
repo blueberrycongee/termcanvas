@@ -83,6 +83,23 @@ export function Toolbar() {
 
         <div className="flex-1" />
 
+        {/* Usage panel toggle */}
+        <button
+          className={btn}
+          style={noDrag}
+          onClick={() => {
+            const { rightPanelCollapsed, setRightPanelCollapsed } = useCanvasStore.getState();
+            setRightPanelCollapsed(!rightPanelCollapsed);
+          }}
+          title={t.usage_title}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="1.5" y="3" width="3" height="8" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+            <rect x="5.5" y="5" width="3" height="6" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+            <rect x="9.5" y="1" width="3" height="10" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+          </svg>
+        </button>
+
         {/* Theme toggle */}
         <button
           className={btn}
