@@ -75,6 +75,8 @@ export interface ComposerSubmitResult {
   stage?: ComposerSubmitIssueStage;
 }
 
+export type TerminalOrigin = "user" | "agent";
+
 export interface TerminalData {
   id: string;
   title: string;
@@ -84,6 +86,7 @@ export interface TerminalData {
   ptyId: number | null;
   status: TerminalStatus;
   span: { cols: number; rows: number };
+  origin?: TerminalOrigin;
   scrollback?: string;
   sessionId?: string;
   initialPrompt?: string;

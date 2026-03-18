@@ -5,6 +5,7 @@ import type {
   TerminalData,
   TerminalType,
   TerminalStatus,
+  TerminalOrigin,
 } from "../types";
 import { computeWorktreeSize, PROJ_PAD, PROJ_TITLE_H } from "../layout";
 import { DEFAULT_SPAN, withUpdatedTerminalType } from "./terminalState";
@@ -105,6 +106,7 @@ export function createTerminal(
   title?: string,
   initialPrompt?: string,
   autoApprove?: boolean,
+  origin: TerminalOrigin = "user",
 ): TerminalData {
   return {
     id: generateId(),
@@ -115,6 +117,7 @@ export function createTerminal(
     ptyId: null,
     status: "idle",
     span: DEFAULT_SPAN[type],
+    origin,
     ...(initialPrompt ? { initialPrompt } : {}),
     ...(autoApprove ? { autoApprove } : {}),
   };

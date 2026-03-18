@@ -543,7 +543,7 @@ export function TerminalTile({
   return (
     <div
       ref={tileRef}
-      className={`absolute terminal-tile rounded-md border bg-[var(--bg)] overflow-hidden flex flex-col ${terminal.focused ? "border-[var(--accent)]" : "border-[var(--border)]"}`}
+      className={`absolute terminal-tile rounded-md bg-[var(--bg)] overflow-hidden flex flex-col ${terminal.focused ? "border-[1.5px] border-[var(--accent)]" : terminal.origin !== "agent" ? "border-[1.5px] border-amber-500/40" : "border border-[var(--border)]"}`}
 
       style={{
         left: gridX + (isDragging ? dragOffsetX : 0),

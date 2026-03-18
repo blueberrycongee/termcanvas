@@ -289,7 +289,7 @@ export function App() {
       },
 
       addTerminal: (projectId: string, worktreeId: string, type: string, prompt?: string, autoApprove?: boolean) => {
-        const terminal = createTerminal(type as any, undefined, prompt, autoApprove);
+        const terminal = createTerminal(type as any, undefined, prompt, autoApprove, "agent");
         useProjectStore.getState().addTerminal(projectId, worktreeId, terminal);
         return JSON.parse(JSON.stringify(terminal));
       },
