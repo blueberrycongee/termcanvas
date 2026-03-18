@@ -6,13 +6,39 @@ const RAMP = " .:-=+*#%@$";
  * Sample an OffscreenCanvas and return an array of strings (one per row).
  * Each character maps to the brightness of the corresponding cell.
  */
-// Wave distortion parameters
-const WAVE_AMP_X = 1.8;     // horizontal wave amplitude (in cells)
-const WAVE_AMP_Y = 0.8;     // vertical wave amplitude (in cells)
-const WAVE_FREQ_X = 0.15;   // horizontal wave frequency (per row)
-const WAVE_FREQ_Y = 0.12;   // vertical wave frequency (per col)
-const WAVE_SPEED_X = 0.0015; // horizontal wave speed
-const WAVE_SPEED_Y = 0.001;  // vertical wave speed
+// Easing: attempt to transform uniform sine into bezier-like motion
+// Maps [-1,1] → [-1,1] with ease-in-out feel (slow at extremes, fast in middle)
+function easeWave(x) {
+  const abs = Math.abs(x);
+  const eased = abs * abs * (3 - 2 * abs); // smoothstep shape
+  return Math.sign(x) * eased;
+}
+
+// Layered wave: sum of multiple frequencies for organic feel
+function organicWave(t, phase, freqs) {
+  let v = 0;
+  for (let i = 0; i < freqs.length; i++) {
+    const { speed, freq, amp } = freqs[i];
+    v += Math.sin(t * speed + phase * freq) * amp;
+  }
+  return easeWave(v);
+}
+
+// Horizontal wave layers (different speeds & frequencies for non-uniform motion)
+const H_WAVES = [
+  { speed: 0.0012, freq: 0.13, amp: 0.55 },  // slow primary
+  { speed: 0.0027, freq: 0.31, amp: 0.30 },  // faster secondary
+  { speed: 0.0048, freq: 0.07, amp: 0.15 },  // subtle long-wavelength drift
+];
+// Vertical wave layers
+const V_WAVES = [
+  { speed: 0.0009, freq: 0.10, amp: 0.50 },
+  { speed: 0.0021, freq: 0.24, amp: 0.30 },
+  { speed: 0.0039, freq: 0.05, amp: 0.20 },
+];
+
+const MAX_AMP_X = 2.2;  // max horizontal displacement (in cells)
+const MAX_AMP_Y = 1.0;  // max vertical displacement (in cells)
 
 function canvasToAscii(ctx, canvasWidth, canvasHeight, cols, rows, time) {
   const imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
@@ -21,19 +47,27 @@ function canvasToAscii(ctx, canvasWidth, canvasHeight, cols, rows, time) {
   const cellH = canvasHeight / rows;
   const lines = [];
 
+  const halfRows = rows / 2;
+  const halfCols = cols / 2;
+
   for (let row = 0; row < rows; row++) {
     let line = "";
-    // Horizontal wave: each row shifts left/right with a sine wave
-    const waveX = Math.sin(time * WAVE_SPEED_X + row * WAVE_FREQ_X) * WAVE_AMP_X * cellW;
+    // Distance from center row, normalized to [0, 1]
+    const rowEdge = Math.abs(row - halfRows) / halfRows;
+
+    // Horizontal wave — amplitude scales with distance from center
+    const waveX = organicWave(time, row, H_WAVES) * MAX_AMP_X * rowEdge * cellW;
 
     for (let col = 0; col < cols; col++) {
-      // Vertical wave: each column shifts up/down
-      const waveY = Math.sin(time * WAVE_SPEED_Y + col * WAVE_FREQ_Y) * WAVE_AMP_Y * cellH;
+      // Distance from center col, normalized to [0, 1]
+      const colEdge = Math.abs(col - halfCols) / halfCols;
+
+      // Vertical wave — amplitude scales with distance from center
+      const waveY = organicWave(time, col, V_WAVES) * MAX_AMP_Y * colEdge * cellH;
 
       const px = Math.floor(col * cellW + cellW / 2 + waveX);
       const py = Math.floor(row * cellH + cellH / 2 + waveY);
 
-      // Clamp to canvas bounds
       if (px < 0 || px >= canvasWidth || py < 0 || py >= canvasHeight) {
         line += " ";
         continue;
