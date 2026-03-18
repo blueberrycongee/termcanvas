@@ -318,16 +318,17 @@ export function ComposerBar() {
   return (
     <div className="fixed inset-x-0 bottom-4 z-[90] pointer-events-none flex justify-center px-4">
       <div className="pointer-events-auto w-full max-w-4xl rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[0_18px_48px_rgba(0,0,0,0.24)]">
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)]">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--border)]">
           <span
-            className="text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--accent)]"
+            className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--accent)]"
             style={{ fontFamily: '"Geist Mono", monospace' }}
           >
             {t.composer_label}
           </span>
           <div className="flex-1" />
           <div
-            className="max-w-[420px] truncate rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1.5 text-[12px] text-[var(--text-secondary)]"
+            className="max-w-[420px] truncate rounded border border-[var(--border)] bg-[var(--bg)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)]"
             style={{ fontFamily: '"Geist Mono", monospace' }}
             title={targetLabel}
           >
@@ -335,12 +336,13 @@ export function ComposerBar() {
           </div>
         </div>
 
+        {/* Image attachments */}
         {images.length > 0 && (
-          <div className="flex flex-wrap gap-2 px-4 pt-3">
+          <div className="flex flex-wrap gap-1.5 px-3 pt-2">
             {images.map((image: ComposerImageAttachment) => (
               <div
                 key={image.id}
-                className="relative h-14 w-14 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg)]"
+                className="relative h-10 w-10 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--bg)]"
               >
                 <img
                   src={image.dataUrl}
@@ -348,15 +350,15 @@ export function ComposerBar() {
                   className="h-full w-full object-cover"
                 />
                 <button
-                  className="absolute right-1 top-1 rounded-full bg-black/60 p-0.5 text-white transition-colors duration-150 hover:bg-black/80"
+                  className="absolute right-0.5 top-0.5 rounded-full bg-black/60 p-0.5 text-white transition-colors duration-150 hover:bg-black/80"
                   onClick={() => removeImage(image.id)}
                   disabled={isSubmitting}
                 >
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
                     <path
                       d="M2.5 2.5L7.5 7.5M7.5 2.5L2.5 7.5"
                       stroke="currentColor"
-                      strokeWidth="1.2"
+                      strokeWidth="1.4"
                       strokeLinecap="round"
                     />
                   </svg>
@@ -366,17 +368,14 @@ export function ComposerBar() {
           </div>
         )}
 
-        <div className="px-4 py-3">
+        {/* Input area */}
+        <div className="relative px-3 py-2">
           <textarea
             ref={textareaRef}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onPaste={handleImagePaste}
             onKeyDown={(event) => {
-              // Forward terminal control keys to the PTY so CLI shortcuts
-              // (e.g. Claude Code permission prompts, mode cycling) work
-              // from the Composer. Checked before submit so that an empty
-              // Enter is passed through to the CLI rather than rejected.
               if (targetTerminal) {
                 const seq = getPassthroughSequence(event, draft, images.length > 0);
                 if (seq !== null) {
@@ -391,27 +390,21 @@ export function ComposerBar() {
                 return;
               }
             }}
-            rows={4}
-            placeholder={placeholder}
+            rows={2}
+            placeholder={note}
             disabled={!isTargetReady || isSubmitting}
-            className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none transition-colors duration-150 placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]"
+            className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg)] pl-3 pr-14 py-2 text-[13px] text-[var(--text-primary)] outline-none transition-colors duration-150 placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]"
           />
-
-          <div className="mt-3 flex items-start gap-3">
-            <div className="flex-1">
-              <div className="text-[12px] text-[var(--text-secondary)]">{note}</div>
-              {error && (
-                <div className="mt-1 text-[12px] text-[var(--red)]">{error}</div>
-              )}
-            </div>
-            <button
-              className="rounded-lg bg-[var(--accent)] px-3 py-2 text-[12px] font-medium text-white transition-colors duration-150 hover:bg-[#005cc5] disabled:cursor-not-allowed disabled:opacity-50"
-              onClick={() => void handleSubmit()}
-              disabled={!isTargetReady || isSubmitting}
-            >
-              {isSubmitting ? t.composer_submitting : t.composer_submit}
-            </button>
-          </div>
+          <button
+            className="absolute right-5 bottom-4 rounded-md bg-[var(--accent)] px-2.5 py-1 text-[11px] font-medium text-white transition-colors duration-150 hover:bg-[#005cc5] disabled:cursor-not-allowed disabled:opacity-40"
+            onClick={() => void handleSubmit()}
+            disabled={!isTargetReady || isSubmitting}
+          >
+            {isSubmitting ? t.composer_submitting : t.composer_submit}
+          </button>
+          {error && (
+            <div className="mt-1 text-[11px] text-[var(--red)] px-1">{error}</div>
+          )}
         </div>
       </div>
     </div>
