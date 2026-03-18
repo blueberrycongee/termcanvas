@@ -104,6 +104,7 @@ export function createTerminal(
   type: TerminalType = "shell",
   title?: string,
   initialPrompt?: string,
+  autoApprove?: boolean,
 ): TerminalData {
   return {
     id: generateId(),
@@ -115,6 +116,7 @@ export function createTerminal(
     status: "idle",
     span: DEFAULT_SPAN[type],
     ...(initialPrompt ? { initialPrompt } : {}),
+    ...(autoApprove ? { autoApprove } : {}),
   };
 }
 

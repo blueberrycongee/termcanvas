@@ -203,6 +203,7 @@ export function TerminalTile({
     const launchOptions = getTerminalLaunchOptions(
       terminal.type,
       terminal.sessionId,
+      terminal.autoApprove,
     );
     if (launchOptions) {
       ptyOptions.shell = launchOptions.shell;

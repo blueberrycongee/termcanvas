@@ -287,8 +287,8 @@ export function App() {
         return true;
       },
 
-      addTerminal: (projectId: string, worktreeId: string, type: string, prompt?: string) => {
-        const terminal = createTerminal(type as any, undefined, prompt);
+      addTerminal: (projectId: string, worktreeId: string, type: string, prompt?: string, autoApprove?: boolean) => {
+        const terminal = createTerminal(type as any, undefined, prompt, autoApprove);
         useProjectStore.getState().addTerminal(projectId, worktreeId, terminal);
         return JSON.parse(JSON.stringify(terminal));
       },

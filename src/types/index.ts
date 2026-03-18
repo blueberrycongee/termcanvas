@@ -97,6 +97,7 @@ export interface TerminalData {
   scrollback?: string;
   sessionId?: string;
   initialPrompt?: string;
+  autoApprove?: boolean;
 }
 
 export interface WorktreeData {

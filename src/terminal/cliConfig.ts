@@ -11,6 +11,7 @@ interface TerminalLaunchConfig {
   shell: string;
   resumeArgs: (id: string) => string[];
   newArgs: () => string[];
+  autoApproveArgs?: () => string[];
 }
 
 export interface ComposerAdapterConfig {
@@ -76,6 +77,7 @@ export const TERMINAL_CONFIG: Record<TerminalType, TerminalAdapterConfig> = {
       shell: "claude",
       resumeArgs: (id) => ["--resume", id],
       newArgs: () => [],
+      autoApproveArgs: () => ["--dangerously-skip-permissions"],
     },
     composer: {
       supportsComposer: true,
@@ -94,6 +96,7 @@ export const TERMINAL_CONFIG: Record<TerminalType, TerminalAdapterConfig> = {
       shell: "codex",
       resumeArgs: (id) => ["resume", id],
       newArgs: () => [],
+      autoApproveArgs: () => ["--full-auto"],
     },
     composer: {
       supportsComposer: true,
@@ -195,13 +198,20 @@ export const TERMINAL_CONFIG: Record<TerminalType, TerminalAdapterConfig> = {
 export function getTerminalLaunchOptions(
   type: TerminalType,
   sessionId: string | undefined,
+  autoApprove?: boolean,
 ): { shell: string; args: string[] } | null {
   const config = TERMINAL_CONFIG[type].launch;
   if (!config) return null;
 
+  const base = sessionId ? config.resumeArgs(sessionId) : config.newArgs();
+  const extra =
+    autoApprove && !sessionId && config.autoApproveArgs
+      ? config.autoApproveArgs()
+      : [];
+
   return {
     shell: config.shell,
-    args: sessionId ? config.resumeArgs(sessionId) : config.newArgs(),
+    args: [...extra, ...base],
   };
 }
 
