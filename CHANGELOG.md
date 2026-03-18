@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.7.21] - 2026-03-18
+
+### Changed
+- Composer bar: halved vertical footprint, send button moved inside input, notes replaced with placeholder text
+
 ## [0.7.20] - 2026-03-18
 
 ### Added
