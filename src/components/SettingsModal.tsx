@@ -219,7 +219,7 @@ export function SettingsModal({ onClose }: Props) {
                 <div className="flex items-center gap-2.5">
                   <input
                     type="range"
-                    min="9"
+                    min="6"
                     max="24"
                     step="1"
                     value={fontSizeDraft}

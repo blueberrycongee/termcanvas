@@ -7,7 +7,7 @@ const LEGACY_ENABLED_BLUR = 1.5;
 interface PreferencesStore {
   /** Blur intensity in px (0 = off, max 3) */
   animationBlur: number;
-  /** Terminal (xterm) font size in px (9–24) */
+  /** Terminal (xterm) font size in px (6–24) */
   terminalFontSize: number;
   setAnimationBlur: (value: number) => void;
   setTerminalFontSize: (value: number) => void;
@@ -28,7 +28,7 @@ function loadPreferences(): { animationBlur: number; terminalFontSize: number } 
 
       let fontSize = DEFAULT_FONT_SIZE;
       const f = parsed.terminalFontSize;
-      if (typeof f === "number" && f >= 9 && f <= 24) fontSize = f;
+      if (typeof f === "number" && f >= 6 && f <= 24) fontSize = f;
 
       return { animationBlur: blur, terminalFontSize: fontSize };
     }
@@ -53,7 +53,7 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
     savePreferences({ ...get(), animationBlur: clamped });
   },
   setTerminalFontSize: (value) => {
-    const clamped = Math.max(9, Math.min(24, Math.round(value)));
+    const clamped = Math.max(6, Math.min(24, Math.round(value)));
     set({ terminalFontSize: clamped });
     savePreferences({ ...get(), terminalFontSize: clamped });
   },
