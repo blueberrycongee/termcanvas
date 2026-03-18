@@ -7,6 +7,7 @@ import { ComposerBar } from "./components/ComposerBar";
 import { DrawingPanel } from "./toolbar/DrawingPanel";
 import { ShortcutHints } from "./components/ShortcutHints";
 import { CompletionGlow } from "./components/CompletionGlow";
+import { UsagePanel } from "./components/UsagePanel";
 import { useProjectStore, createTerminal } from "./stores/projectStore";
 import { useCanvasStore } from "./stores/canvasStore";
 import { useDrawingStore } from "./stores/drawingStore";
@@ -348,6 +349,7 @@ export function App() {
       <DrawingPanel />
       <CompletionGlow />
       <ShortcutHints />
+      <UsagePanel />
       <ComposerBar />
       <NotificationToast />
       {showCloseDialog && (

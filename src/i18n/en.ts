@@ -167,6 +167,18 @@ export const en = {
     detail: string,
   ) => `Sent to "${title}", but ${stage} failed: ${detail}`,
   composer_submit_failed: (err: string) => `Composer submit failed: ${err}`,
+
+  // Usage panel
+  usage_title: "Usage",
+  usage_sessions: "Sessions",
+  usage_output: "Output",
+  usage_timeline: "Timeline",
+  usage_projects: "Projects",
+  usage_models: "Models",
+  usage_input: "Input",
+  usage_cache_read: "Cache R",
+  usage_cache_create: "Cache W",
+  usage_no_data: "No usage data",
 } as const;
 
 export type TranslationKey = keyof typeof en;

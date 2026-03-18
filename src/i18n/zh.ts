@@ -165,4 +165,16 @@ export const zh = {
     detail: string,
   ) => `已发送到终端 "${title}"，但${stage}阶段失败：${detail}`,
   composer_submit_failed: (err: string) => `发送失败：${err}`,
+
+  // Usage panel
+  usage_title: "用量",
+  usage_sessions: "会话",
+  usage_output: "输出",
+  usage_timeline: "时段",
+  usage_projects: "项目",
+  usage_models: "模型",
+  usage_input: "输入",
+  usage_cache_read: "缓存读",
+  usage_cache_create: "缓存写",
+  usage_no_data: "暂无用量数据",
 } as const;

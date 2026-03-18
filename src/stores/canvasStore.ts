@@ -6,10 +6,14 @@ interface CanvasStore {
   isAnimating: boolean;
   sidebarCollapsed: boolean;
   sidebarWidth: number;
+  rightPanelCollapsed: boolean;
+  rightPanelWidth: number;
   setViewport: (viewport: Partial<Viewport>) => void;
   resetViewport: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   setSidebarWidth: (width: number) => void;
+  setRightPanelCollapsed: (collapsed: boolean) => void;
+  setRightPanelWidth: (width: number) => void;
   animateTo: (x: number, y: number, scale?: number) => void;
 }
 
@@ -23,9 +27,13 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   isAnimating: false,
   sidebarCollapsed: false,
   sidebarWidth: 200,
+  rightPanelCollapsed: true,
+  rightPanelWidth: 240,
 
   setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
   setSidebarWidth: (width) => set({ sidebarWidth: width }),
+  setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
+  setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
 
   setViewport: (partial) =>
     set((state) => ({
