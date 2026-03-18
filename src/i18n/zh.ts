@@ -176,4 +176,16 @@ export const zh = {
   usage_cache_create: "缓存写",
   usage_tokens: "Tokens",
   usage_no_data: "暂无用量数据",
+  usage_today: "今天",
+  usage_calls: "次调用",
+  usage_tokens_label: "tokens",
+  usage_cal_weekdays: ["日", "一", "二", "三", "四", "五", "六"] as readonly string[],
+  usage_cal_months: [
+    "一月", "二月", "三月", "四月", "五月", "六月",
+    "七月", "八月", "九月", "十月", "十一月", "十二月",
+  ] as readonly string[],
+  usage_cal_months_short: [
+    "1月", "2月", "3月", "4月", "5月", "6月",
+    "7月", "8月", "9月", "10月", "11月", "12月",
+  ] as readonly string[],
 } as const;

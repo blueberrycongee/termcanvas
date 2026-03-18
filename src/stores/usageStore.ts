@@ -5,6 +5,8 @@ interface UsageStore {
   summary: UsageSummary | null;
   loading: boolean;
   date: string; // YYYY-MM-DD
+  /** Tracks which dates are known to have usage data (scheme B: only after visit) */
+  cachedDates: Record<string, boolean>;
   fetch: (dateStr?: string) => Promise<void>;
 }
 
@@ -20,6 +22,7 @@ export const useUsageStore = create<UsageStore>((set, get) => ({
   summary: null,
   loading: false,
   date: todayStr(),
+  cachedDates: {},
 
   fetch: async (dateStr?: string) => {
     // Guard against overlapping requests
@@ -37,7 +40,12 @@ export const useUsageStore = create<UsageStore>((set, get) => ({
       const summary = await window.termcanvas.usage.query(target);
       // Only update if the date hasn't changed during the async call
       if (get().date === target) {
-        set({ summary, loading: false });
+        const hasData = summary.sessions > 0 || summary.totalCost > 0;
+        set((state) => ({
+          summary,
+          loading: false,
+          cachedDates: { ...state.cachedDates, [target]: hasData },
+        }));
       } else {
         set({ loading: false });
       }
