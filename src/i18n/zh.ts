@@ -176,5 +176,6 @@ export const zh = {
   usage_input: "输入",
   usage_cache_read: "缓存读",
   usage_cache_create: "缓存写",
+  usage_tokens: "Tokens",
   usage_no_data: "暂无用量数据",
 } as const;

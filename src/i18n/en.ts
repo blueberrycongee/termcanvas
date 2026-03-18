@@ -178,6 +178,7 @@ export const en = {
   usage_input: "Input",
   usage_cache_read: "Cache R",
   usage_cache_create: "Cache W",
+  usage_tokens: "Tokens",
   usage_no_data: "No usage data",
 } as const;
 

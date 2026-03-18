@@ -186,7 +186,7 @@ function TokenBreakdown({ t, summary }: { t: ReturnType<typeof useT>; summary: U
   return (
     <div className="px-3 py-2">
       <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
-        Tokens
+        {t.usage_tokens}
       </span>
       <div className="mt-1.5 flex flex-col gap-1">
         {items.map((item) => (

@@ -8,6 +8,7 @@ const PRICING: Record<string, { input: number; output: number; cache_read: numbe
   "claude-opus-4-6":   { input: 5.00, output: 25.00, cache_read: 0.50, cache_create: 6.25 },
   "claude-sonnet-4-6": { input: 3.00, output: 15.00, cache_read: 0.30, cache_create: 3.75 },
   "claude-haiku-4-5":  { input: 0.80, output:  4.00, cache_read: 0.08, cache_create: 1.00 },
+  codex:               { input: 1.50, output:  6.00, cache_read: 0.375, cache_create: 1.50 },
   default:             { input: 5.00, output: 25.00, cache_read: 0.50, cache_create: 6.25 },
 };
 
@@ -15,6 +16,7 @@ const PRICING: Record<string, { input: number; output: number; cache_read: numbe
 
 export interface UsageRecord {
   ts: string;         // UTC ISO string (no Z)
+  msgId: string;      // unique key for deduplication
   model: string;
   input: number;
   output: number;
@@ -76,6 +78,12 @@ function computeCost(model: string, input: number, output: number, cacheRead: nu
        + (output / 1e6) * p.output
        + (cacheRead / 1e6) * p.cache_read
        + (cacheCreate / 1e6) * p.cache_create;
+}
+
+/** Get the local timezone offset in hours from UTC. */
+function getLocalTzOffsetHours(): number {
+  // getTimezoneOffset returns minutes, negative for east of UTC
+  return -(new Date().getTimezoneOffset() / 60);
 }
 
 /** Convert a target date (YYYY-MM-DD, local) to UTC start/end strings for filtering. */
@@ -175,14 +183,13 @@ function parseClaudeSession(
   utcStart: string,
   utcEnd: string,
 ): { records: UsageRecord[]; projectPath: string } {
-  const records: UsageRecord[] = [];
   let projectPath = "";
 
   let content: string;
   try {
     content = fs.readFileSync(filePath, "utf-8");
   } catch {
-    return { records, projectPath };
+    return { records: [], projectPath };
   }
 
   // Try to extract project path from the directory name
@@ -191,6 +198,9 @@ function parseClaudeSession(
   if (dirName.startsWith("-")) {
     projectPath = dirName.replace(/-/g, "/");
   }
+
+  // Deduplicate by message ID — keep only the last entry per message
+  const byMsgId = new Map<string, UsageRecord>();
 
   for (const line of content.split("\n")) {
     if (!line) continue;
@@ -212,9 +222,12 @@ function parseClaudeSession(
 
     const u = usage as Record<string, number>;
     const model = ((msg as Record<string, unknown>).model as string) ?? "unknown";
+    const msgId = ((msg as Record<string, unknown>).id as string) ?? tsClean;
 
-    records.push({
+    // Overwrite: later entries for same message ID have final usage
+    byMsgId.set(msgId, {
       ts: tsClean,
+      msgId,
       model,
       input: u.input_tokens ?? 0,
       output: u.output_tokens ?? 0,
@@ -224,7 +237,7 @@ function parseClaudeSession(
     });
   }
 
-  return { records, projectPath };
+  return { records: [...byMsgId.values()], projectPath };
 }
 
 // ── Codex JSONL parsing ────────────────────────────────────────────────
@@ -234,15 +247,18 @@ function parseCodexSession(
   utcStart: string,
   utcEnd: string,
 ): { records: UsageRecord[]; projectPath: string } {
-  const records: UsageRecord[] = [];
   let projectPath = "";
 
   let content: string;
   try {
     content = fs.readFileSync(filePath, "utf-8");
   } catch {
-    return { records, projectPath };
+    return { records: [], projectPath };
   }
+
+  // For Codex, use total_token_usage from the LAST token_count entry per session.
+  // This avoids double-counting incremental entries.
+  let lastRecord: UsageRecord | null = null;
 
   for (const line of content.split("\n")) {
     if (!line) continue;
@@ -271,160 +287,164 @@ function parseCodexSession(
     const info = payload.info as Record<string, unknown> | null;
     if (!info) continue;
 
-    // Use last_token_usage for per-call incremental data
-    const lastUsage = info.last_token_usage as Record<string, number> | undefined;
-    if (!lastUsage) continue;
+    const totalUsage = info.total_token_usage as Record<string, number> | undefined;
+    if (!totalUsage) continue;
 
-    records.push({
+    // Keep overwriting — the last one in the file is the final cumulative total
+    lastRecord = {
       ts: tsClean,
-      model: "codex",  // Codex sessions don't expose model in each entry
-      input: lastUsage.input_tokens ?? 0,
-      output: lastUsage.output_tokens ?? 0,
-      cacheRead: lastUsage.cached_input_tokens ?? 0,
-      cacheCreate: 0,  // Codex doesn't track cache creation separately
+      msgId: path.basename(filePath) + ":total",
+      model: "codex",
+      input: totalUsage.input_tokens ?? 0,
+      output: totalUsage.output_tokens ?? 0,
+      cacheRead: totalUsage.cached_input_tokens ?? 0,
+      cacheCreate: 0,
       projectPath,
-    });
+    };
   }
 
-  return { records, projectPath };
+  return { records: lastRecord ? [lastRecord] : [], projectPath };
 }
 
 // ── Main API ───────────────────────────────────────────────────────────
 
 /**
  * Collect usage data for a given date (local timezone).
+ * Uses the machine's local timezone by default.
  * @param dateStr YYYY-MM-DD in local timezone
- * @param tzOffsetHours Timezone offset from UTC (e.g. 8 for BJT)
  * @param intervalHours Bucket interval in hours (default 2)
  */
-export function collectUsage(
+export async function collectUsage(
   dateStr: string,
-  tzOffsetHours = 8,
   intervalHours = 2,
-): UsageSummary {
+): Promise<UsageSummary> {
+  const tzOffsetHours = getLocalTzOffsetHours();
   const { utcStart, utcEnd } = dateToUtcRange(dateStr, tzOffsetHours);
 
-  // Collect all records
-  const allRecords: UsageRecord[] = [];
-  const sessionPaths = new Set<string>();
+  // Run file I/O in a microtask to avoid blocking the main thread too long
+  const result = await new Promise<UsageSummary>((resolve) => {
+    setImmediate(() => {
+      const allRecords: UsageRecord[] = [];
+      const sessionPaths = new Set<string>();
 
-  // Claude sessions
-  const claudeFiles = findClaudeJsonlFiles();
-  for (const f of claudeFiles) {
-    // Quick filter: skip files not modified around the target date
-    try {
-      const mtime = fs.statSync(f).mtimeMs;
-      const mtimeDate = new Date(mtime).toISOString().split("T")[0];
-      if (mtimeDate < dateStr) continue;
-    } catch { continue; }
+      // Claude sessions
+      const claudeFiles = findClaudeJsonlFiles();
+      for (const f of claudeFiles) {
+        try {
+          const mtime = fs.statSync(f).mtimeMs;
+          // Compare mtime in local timezone
+          const mtimeLocal = new Date(mtime + tzOffsetHours * 3600_000);
+          const mtimeDate = mtimeLocal.toISOString().split("T")[0];
+          if (mtimeDate < dateStr) continue;
+        } catch { continue; }
 
-    const { records, projectPath } = parseClaudeSession(f, utcStart, utcEnd);
-    if (records.length > 0) {
-      allRecords.push(...records);
-      sessionPaths.add(f);
-    }
-  }
+        const { records } = parseClaudeSession(f, utcStart, utcEnd);
+        if (records.length > 0) {
+          allRecords.push(...records);
+          sessionPaths.add(f);
+        }
+      }
 
-  // Codex sessions
-  const codexFiles = findCodexJsonlFiles();
-  for (const f of codexFiles) {
-    try {
-      const mtime = fs.statSync(f).mtimeMs;
-      const mtimeDate = new Date(mtime).toISOString().split("T")[0];
-      if (mtimeDate < dateStr) continue;
-    } catch { continue; }
+      // Codex sessions
+      const codexFiles = findCodexJsonlFiles();
+      for (const f of codexFiles) {
+        try {
+          const mtime = fs.statSync(f).mtimeMs;
+          const mtimeLocal = new Date(mtime + tzOffsetHours * 3600_000);
+          const mtimeDate = mtimeLocal.toISOString().split("T")[0];
+          if (mtimeDate < dateStr) continue;
+        } catch { continue; }
 
-    const { records } = parseCodexSession(f, utcStart, utcEnd);
-    if (records.length > 0) {
-      allRecords.push(...records);
-      sessionPaths.add(f);
-    }
-  }
+        const { records } = parseCodexSession(f, utcStart, utcEnd);
+        if (records.length > 0) {
+          allRecords.push(...records);
+          sessionPaths.add(f);
+        }
+      }
 
-  // ── Aggregate ──
+      // ── Aggregate ──
 
-  // Totals
-  let totalInput = 0, totalOutput = 0, totalCacheRead = 0, totalCacheCreate = 0, totalCost = 0;
+      let totalInput = 0, totalOutput = 0, totalCacheRead = 0, totalCacheCreate = 0, totalCost = 0;
 
-  // Time buckets
-  const bucketCount = 24 / intervalHours;
-  const buckets: UsageBucket[] = Array.from({ length: bucketCount }, (_, i) => {
-    const h = i * intervalHours;
-    return {
-      label: `${String(h).padStart(2, "0")}:00-${String(h + intervalHours).padStart(2, "0")}:00`,
-      hourStart: h,
-      input: 0, output: 0, cacheRead: 0, cacheCreate: 0, cost: 0, calls: 0,
-    };
+      const bucketCount = 24 / intervalHours;
+      const buckets: UsageBucket[] = Array.from({ length: bucketCount }, (_, i) => {
+        const h = i * intervalHours;
+        return {
+          label: `${String(h).padStart(2, "0")}:00-${String(h + intervalHours).padStart(2, "0")}:00`,
+          hourStart: h,
+          input: 0, output: 0, cacheRead: 0, cacheCreate: 0, cost: 0, calls: 0,
+        };
+      });
+
+      const projectMap = new Map<string, ProjectUsage>();
+      const modelMap = new Map<string, ModelUsage>();
+
+      for (const r of allRecords) {
+        const cost = computeCost(r.model, r.input, r.output, r.cacheRead, r.cacheCreate);
+
+        totalInput += r.input;
+        totalOutput += r.output;
+        totalCacheRead += r.cacheRead;
+        totalCacheCreate += r.cacheCreate;
+        totalCost += cost;
+
+        // Bucket
+        const localHour = utcToLocalHour(r.ts, tzOffsetHours);
+        const bucketIdx = Math.floor(localHour / intervalHours);
+        if (bucketIdx >= 0 && bucketIdx < bucketCount) {
+          const b = buckets[bucketIdx];
+          b.input += r.input;
+          b.output += r.output;
+          b.cacheRead += r.cacheRead;
+          b.cacheCreate += r.cacheCreate;
+          b.cost += cost;
+          b.calls++;
+        }
+
+        // Project
+        const pKey = r.projectPath || "unknown";
+        if (!projectMap.has(pKey)) {
+          const name = pKey === "unknown" ? "Other" : path.basename(pKey);
+          projectMap.set(pKey, { path: pKey, name, input: 0, output: 0, cacheRead: 0, cacheCreate: 0, cost: 0, calls: 0 });
+        }
+        const proj = projectMap.get(pKey)!;
+        proj.input += r.input;
+        proj.output += r.output;
+        proj.cacheRead += r.cacheRead;
+        proj.cacheCreate += r.cacheCreate;
+        proj.cost += cost;
+        proj.calls++;
+
+        // Model
+        if (!modelMap.has(r.model)) {
+          modelMap.set(r.model, { model: r.model, input: 0, output: 0, cacheRead: 0, cacheCreate: 0, cost: 0, calls: 0 });
+        }
+        const mod = modelMap.get(r.model)!;
+        mod.input += r.input;
+        mod.output += r.output;
+        mod.cacheRead += r.cacheRead;
+        mod.cacheCreate += r.cacheCreate;
+        mod.cost += cost;
+        mod.calls++;
+      }
+
+      const projects = [...projectMap.values()].sort((a, b) => b.cost - a.cost);
+      const models = [...modelMap.values()].sort((a, b) => b.cost - a.cost);
+
+      resolve({
+        date: dateStr,
+        sessions: sessionPaths.size,
+        totalInput,
+        totalOutput,
+        totalCacheRead,
+        totalCacheCreate,
+        totalCost,
+        buckets,
+        projects,
+        models,
+      });
+    });
   });
 
-  // Per-project
-  const projectMap = new Map<string, ProjectUsage>();
-  // Per-model
-  const modelMap = new Map<string, ModelUsage>();
-
-  for (const r of allRecords) {
-    const cost = computeCost(r.model, r.input, r.output, r.cacheRead, r.cacheCreate);
-
-    totalInput += r.input;
-    totalOutput += r.output;
-    totalCacheRead += r.cacheRead;
-    totalCacheCreate += r.cacheCreate;
-    totalCost += cost;
-
-    // Bucket
-    const localHour = utcToLocalHour(r.ts, tzOffsetHours);
-    const bucketIdx = Math.floor(localHour / intervalHours);
-    if (bucketIdx >= 0 && bucketIdx < bucketCount) {
-      const b = buckets[bucketIdx];
-      b.input += r.input;
-      b.output += r.output;
-      b.cacheRead += r.cacheRead;
-      b.cacheCreate += r.cacheCreate;
-      b.cost += cost;
-      b.calls++;
-    }
-
-    // Project
-    const pKey = r.projectPath || "unknown";
-    if (!projectMap.has(pKey)) {
-      const name = pKey === "unknown" ? "Other" : path.basename(pKey);
-      projectMap.set(pKey, { path: pKey, name, input: 0, output: 0, cacheRead: 0, cacheCreate: 0, cost: 0, calls: 0 });
-    }
-    const proj = projectMap.get(pKey)!;
-    proj.input += r.input;
-    proj.output += r.output;
-    proj.cacheRead += r.cacheRead;
-    proj.cacheCreate += r.cacheCreate;
-    proj.cost += cost;
-    proj.calls++;
-
-    // Model
-    if (!modelMap.has(r.model)) {
-      modelMap.set(r.model, { model: r.model, input: 0, output: 0, cacheRead: 0, cacheCreate: 0, cost: 0, calls: 0 });
-    }
-    const mod = modelMap.get(r.model)!;
-    mod.input += r.input;
-    mod.output += r.output;
-    mod.cacheRead += r.cacheRead;
-    mod.cacheCreate += r.cacheCreate;
-    mod.cost += cost;
-    mod.calls++;
-  }
-
-  // Sort projects by cost desc
-  const projects = [...projectMap.values()].sort((a, b) => b.cost - a.cost);
-  const models = [...modelMap.values()].sort((a, b) => b.cost - a.cost);
-
-  return {
-    date: dateStr,
-    sessions: sessionPaths.size,
-    totalInput,
-    totalOutput,
-    totalCacheRead,
-    totalCacheCreate,
-    totalCost,
-    buckets,
-    projects,
-    models,
-  };
+  return result;
 }

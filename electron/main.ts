@@ -558,8 +558,8 @@ function setupIpc() {
   });
 
   // Usage statistics
-  ipcMain.handle("usage:query", (_event, dateStr: string) => {
-    return collectUsage(dateStr);
+  ipcMain.handle("usage:query", async (_event, dateStr: string) => {
+    return await collectUsage(dateStr);
   });
 
   // Close flow
