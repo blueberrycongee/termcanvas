@@ -107,6 +107,7 @@ async function pollSessionId(
   }
 
   console.warn(`[SessionCapture] timeout ptyId=${ptyId} type=${cliType} after ${MAX_ATTEMPTS} attempts`);
+  return "timeout";
 }
 
 export function TerminalTile({
@@ -195,13 +196,14 @@ export function TerminalTile({
     let followBottom = true;
     xterm.element?.addEventListener("wheel", (e: WheelEvent) => {
       if (e.deltaY < 0) {
-        // User scrolled up — verify viewport actually left the bottom
-        // (guards against no-scrollback or touchpad noise where deltaY < 0
-        // but the viewport didn't move)
-        requestAnimationFrame(() => {
-          const buf = xterm.buffer.active;
-          if (buf.viewportY < buf.baseY) followBottom = false;
-        });
+        // User scrolled up — disable follow-bottom immediately.
+        // Must be synchronous: if deferred via rAF, the next output write
+        // still sees followBottom=true and calls scrollToBottom(), snapping
+        // the viewport back before the rAF ever fires. This caused
+        // flickering during AI CLI streaming.
+        // Guard: only disable if there is scrollback to read (baseY > 0).
+        const buf = xterm.buffer.active;
+        if (buf.baseY > 0) followBottom = false;
       }
     }, { passive: true });
     // Re-enable: covers keyboard PageDown, scrollbar drag, etc.
@@ -290,7 +292,14 @@ export function TerminalTile({
             terminal.type,
             terminal.sessionId,
             worktreePath,
-          );
+          ).then((res: { ok: boolean; reason?: string }) => {
+            if (!res?.ok) {
+              console.warn(`[SessionCapture] watch failed (resume) reason=${res?.reason}`);
+              notify("warn", `Session watch failed: ${res?.reason ?? "unknown"}`);
+            }
+          }).catch((err: unknown) => {
+            console.error("[SessionCapture] watch IPC error (resume):", err);
+          });
         }
 
         // Capture session ID for future resume.
@@ -306,11 +315,23 @@ export function TerminalTile({
               updateTerminalSessionId(projectId, worktreeId, terminal.id, sid);
               if (terminal.type === "claude" || terminal.type === "codex") {
                 console.log(`[SessionCapture] watch (new) type=${terminal.type} sid=${sid} cwd=${worktreePath}`);
-                window.termcanvas.session.watch(terminal.type, sid, worktreePath);
+                window.termcanvas.session.watch(terminal.type, sid, worktreePath)
+                  .then((res: { ok: boolean; reason?: string }) => {
+                    if (!res?.ok) {
+                      console.warn(`[SessionCapture] watch failed (new) reason=${res?.reason}`);
+                      notify("warn", `Session watch failed: ${res?.reason ?? "unknown"}`);
+                    }
+                  }).catch((err: unknown) => {
+                    console.error("[SessionCapture] watch IPC error (new):", err);
+                  });
               }
             },
             () => cancelled,
-          );
+          ).then((result) => {
+            if (result === "timeout") {
+              notify("warn", `Session capture timeout for ${terminal.title}`);
+            }
+          });
         }
 
         xterm.onData((data) => {
@@ -370,12 +391,24 @@ export function TerminalTile({
             updateTerminalSessionId(projectId, worktreeId, terminal.id, sid);
             if (newType === "claude" || newType === "codex") {
               console.log(`[SessionCapture] watch (detected) type=${newType} sid=${sid} cwd=${worktreePath}`);
-              window.termcanvas.session.watch(newType, sid, worktreePath);
+              window.termcanvas.session.watch(newType, sid, worktreePath)
+                .then((res: { ok: boolean; reason?: string }) => {
+                  if (!res?.ok) {
+                    console.warn(`[SessionCapture] watch failed (detected) reason=${res?.reason}`);
+                    notify("warn", `Session watch failed: ${res?.reason ?? "unknown"}`);
+                  }
+                }).catch((err: unknown) => {
+                  console.error("[SessionCapture] watch IPC error (detected):", err);
+                });
             }
           },
           () => cancelled,
           result?.pid,
-        );
+        ).then((r) => {
+          if (r === "timeout") {
+            notify("warn", `Session capture timeout for ${terminal.title}`);
+          }
+        });
       }, 3000);
     };
 
