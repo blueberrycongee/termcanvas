@@ -242,15 +242,41 @@ async function submitBracketedPaste(
   }
 
   const requestId = deps.generateRequestId();
+  let stagedImagePaths: string[] = [];
+
+  if (request.images.length > 0) {
+    try {
+      stagedImagePaths = stageComposerImages(
+        request.worktreePath,
+        requestId,
+        request.images,
+        deps,
+      );
+    } catch (error) {
+      return createFailure(
+        {
+          code: "image-stage-failed",
+          stage: "prepare-images",
+          detail: getErrorDetail(error),
+        },
+        { requestId },
+      );
+    }
+  }
 
   try {
+    for (const imagePath of stagedImagePaths) {
+      writeBracketedPaste(request.ptyId, imagePath, deps, "paste-image");
+      await deps.delayMs(adapter.pasteDelayMs);
+    }
+
     if (request.text.trim().length > 0) {
       writeBracketedPaste(request.ptyId, request.text, deps, "paste-text");
     }
 
     writePtyData(request.ptyId, "\r", deps, "submit", "submit-key-failed");
 
-    return { ok: true, requestId, stagedImagePaths: [] };
+    return { ok: true, requestId, stagedImagePaths };
   } catch (error) {
     const issue =
       typeof error === "object" &&
@@ -265,7 +291,7 @@ async function submitBracketedPaste(
             detail: getErrorDetail(error),
           } satisfies ComposerSubmitIssue);
 
-    return createFailure(issue, { requestId });
+    return createFailure(issue, { requestId, stagedImagePaths });
   }
 }
 

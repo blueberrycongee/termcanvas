@@ -148,16 +148,42 @@ test("codex sends text via bracketed paste without clipboard", async () => {
   assert.equal(restoredSnapshots.length, 0);
 });
 
-test("codex rejects image submission when supportsImages is false", async () => {
-  const request = createRequest({ terminalType: "codex" });
-  const { deps, ptyWrites } = createDeps();
+test("codex sends image paths via bracketed paste without clipboard", async () => {
+  const request = createRequest({
+    terminalType: "codex",
+    text: "check this",
+    images: [
+      {
+        id: "img-1",
+        name: "screenshot.png",
+        dataUrl: "data:image/png;base64,ZmFrZQ==",
+      },
+    ],
+  });
+  const {
+    deps,
+    ptyWrites,
+    fileWrites,
+    clipboardTextWrites,
+    clipboardImageWrites,
+    restoredSnapshots,
+  } = createDeps();
 
   const result = await submitComposerRequest(request, deps);
 
-  assert.equal(result.ok, false);
-  assert.equal(result.code, "images-unsupported");
-  assert.equal(result.stage, "validate");
-  assert.deepEqual(ptyWrites, []);
+  assert.equal(result.ok, true);
+  assert.equal(fileWrites.length, 1);
+  assert.equal(
+    fileWrites[0].filePath.endsWith(path.join("req-123", "image-1.png")),
+    true,
+  );
+  assert.equal(ptyWrites.length, 3);
+  assert.match(ptyWrites[0], /^\x1b\[200~.*image-1\.png\x1b\[201~$/);
+  assert.equal(ptyWrites[1], "\x1b[200~check this\x1b[201~");
+  assert.equal(ptyWrites[2], "\r");
+  assert.deepEqual(clipboardTextWrites, []);
+  assert.deepEqual(clipboardImageWrites, []);
+  assert.equal(restoredSnapshots.length, 0);
 });
 
 test("claude falls back to staged image paths when clipboard image write fails", async () => {

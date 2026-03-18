@@ -102,7 +102,7 @@ export const TERMINAL_CONFIG: Record<TerminalType, TerminalAdapterConfig> = {
       supportsComposer: true,
       allowedStatuses: INTERACTIVE_STATUSES,
       inputMode: "bracketed-paste",
-      supportsImages: false,
+      supportsImages: true,
       pasteKeySequence: () => "",
       imageFallback: "error",
       pasteDelayMs: 120,
