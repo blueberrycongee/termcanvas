@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useProjectStore } from "../stores/projectStore";
 import { useComposerStore } from "../stores/composerStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { getComposerAdapter } from "../terminal/cliConfig";
+import { filterSlashCommands } from "../terminal/slashCommands";
 import { shouldSubmitComposerFromKeyEvent } from "./composerInputBehavior";
 import {
   getComposerTargetState,
   getSupportedTerminals,
   resolveComposerTarget,
 } from "./composerTarget";
+import { SlashCommandMenu } from "./SlashCommandMenu";
 import { useT } from "../i18n/useT";
 import type {
   ComposerImageAttachment,
@@ -143,6 +145,42 @@ export function ComposerBar() {
     ? getComposerAdapter(targetTerminal.type)
     : null;
   const isTargetReady = targetState === "ready";
+
+  // Slash command autocomplete state
+  const [slashMenuOpen, setSlashMenuOpen] = useState(false);
+  const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+
+  const slashCommands = useMemo(() => {
+    if (!slashMenuOpen || !targetTerminal) return [];
+    // Extract the query after "/"
+    const query = draft.startsWith("/") ? draft.slice(1) : "";
+    return filterSlashCommands(targetTerminal.type, query);
+  }, [slashMenuOpen, targetTerminal, draft]);
+
+  // Open/close menu based on draft content
+  useEffect(() => {
+    if (draft.startsWith("/") && targetTerminal) {
+      const commands = filterSlashCommands(
+        targetTerminal.type,
+        draft.slice(1),
+      );
+      if (commands.length > 0) {
+        setSlashMenuOpen(true);
+        setSlashSelectedIndex(0);
+        return;
+      }
+    }
+    setSlashMenuOpen(false);
+  }, [draft, targetTerminal]);
+
+  const handleSlashSelect = useCallback(
+    (command: string) => {
+      setDraft(command);
+      setSlashMenuOpen(false);
+      textareaRef.current?.focus();
+    },
+    [setDraft],
+  );
 
   // Auto-focus Composer when target terminal changes so the user can
   // start typing immediately without an extra click.
@@ -377,12 +415,48 @@ export function ComposerBar() {
         {/* Input area */}
         <div className="px-3 py-2">
           <div className="relative">
+            {slashMenuOpen && slashCommands.length > 0 && (
+              <SlashCommandMenu
+                commands={slashCommands}
+                selectedIndex={slashSelectedIndex}
+                onSelect={handleSlashSelect}
+                onClose={() => setSlashMenuOpen(false)}
+              />
+            )}
             <textarea
               ref={textareaRef}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               onPaste={handleImagePaste}
               onKeyDown={(event) => {
+                // Slash command menu keyboard navigation
+                if (slashMenuOpen && slashCommands.length > 0) {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setSlashSelectedIndex((i) =>
+                      i < slashCommands.length - 1 ? i + 1 : 0,
+                    );
+                    return;
+                  }
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setSlashSelectedIndex((i) =>
+                      i > 0 ? i - 1 : slashCommands.length - 1,
+                    );
+                    return;
+                  }
+                  if (event.key === "Enter" || event.key === "Tab") {
+                    event.preventDefault();
+                    handleSlashSelect(slashCommands[slashSelectedIndex].command);
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setSlashMenuOpen(false);
+                    return;
+                  }
+                }
+
                 if (targetTerminal) {
                   const seq = getPassthroughSequence(event, draft, images.length > 0);
                   if (seq !== null) {
