@@ -6,7 +6,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { ImageAddon } from "@xterm/addon-image";
 import { createPortal } from "react-dom";
 import type { TerminalData, TerminalType } from "../types";
-import { useProjectStore } from "../stores/projectStore";
+import { useProjectStore, findTerminalById, getChildTerminals } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { ContextMenu } from "../components/ContextMenu";
 import { useNotificationStore } from "../stores/notificationStore";
@@ -16,6 +16,7 @@ import { usePreferencesStore } from "../stores/preferencesStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useT } from "../i18n/useT";
 import { getTerminalLaunchOptions, getComposerAdapter } from "./cliConfig";
+import { panToTerminal } from "../utils/panToTerminal";
 
 interface Props {
   projectId: string;
@@ -108,6 +109,56 @@ async function pollSessionId(
 
   console.warn(`[SessionCapture] timeout ptyId=${ptyId} type=${cliType} after ${MAX_ATTEMPTS} attempts`);
   return "timeout";
+}
+
+function HierarchyBadges({ terminal }: { terminal: TerminalData }) {
+  const projects = useProjectStore((s) => s.projects);
+
+  const parentInfo = terminal.parentTerminalId
+    ? findTerminalById(projects, terminal.parentTerminalId)
+    : null;
+  const children = getChildTerminals(projects, terminal.id);
+
+  if (!parentInfo && children.length === 0) return null;
+
+  return (
+    <>
+      {parentInfo && (
+        <button
+          className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] text-[var(--text-faint)] hover:text-[var(--text-secondary)] hover:bg-[var(--border)] transition-colors duration-150 shrink-0"
+          title={`Parent: ${parentInfo.terminal.title} (${parentInfo.terminal.type})`}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            panToTerminal(parentInfo.terminal.id);
+          }}
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          <svg width="8" height="8" viewBox="0 0 12 12" fill="none">
+            <path d="M6 9V3M3 5l3-3 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {parentInfo.terminal.type}
+        </button>
+      )}
+      {children.length > 0 && (
+        <button
+          className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] text-[var(--text-faint)] hover:text-[var(--text-secondary)] hover:bg-[var(--border)] transition-colors duration-150 shrink-0"
+          title={`${children.length} agent${children.length > 1 ? "s" : ""}`}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            panToTerminal(children[0].terminal.id);
+          }}
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          <svg width="8" height="8" viewBox="0 0 12 12" fill="none">
+            <path d="M6 2v4M3 4v4M9 4v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          {children.length}
+        </button>
+      )}
+    </>
+  );
 }
 
 export function TerminalTile({
@@ -714,6 +765,7 @@ export function TerminalTile({
         >
           {config.label}
         </span>
+        <HierarchyBadges terminal={terminal} />
         <span
           className="text-[11px] text-[var(--text-muted)] truncate flex-1"
           style={{ fontFamily: '"Geist Mono", monospace' }}
