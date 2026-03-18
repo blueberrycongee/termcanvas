@@ -166,6 +166,11 @@ export const en = {
   ) => `Failed to send to "${title}" during ${stage}: ${detail}`,
   composer_submit_failed: (err: string) => `Composer submit failed: ${err}`,
 
+  // Hierarchy
+  hierarchy_agent_tree: "Agent Tree",
+  hierarchy_parent: (type: string) => `Parent: ${type}`,
+  hierarchy_agents: (n: number) => `${n} agent${n !== 1 ? "s" : ""}`,
+
   // Usage panel
   usage_title: "Usage",
   usage_sessions: "Sessions",

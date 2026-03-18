@@ -164,6 +164,11 @@ export const zh = {
   ) => `发送到终端 "${title}" 时在${stage}阶段失败：${detail}`,
   composer_submit_failed: (err: string) => `发送失败：${err}`,
 
+  // Hierarchy
+  hierarchy_agent_tree: "代理树",
+  hierarchy_parent: (type: string) => `父级：${type}`,
+  hierarchy_agents: (n: number) => `${n} 个代理`,
+
   // Usage panel
   usage_title: "用量",
   usage_sessions: "会话",

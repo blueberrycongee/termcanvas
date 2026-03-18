@@ -10,6 +10,7 @@ import { ProjectContainer } from "../containers/ProjectContainer";
 import { BrowserCard } from "../components/BrowserCard";
 import { DrawingLayer } from "./DrawingLayer";
 import { ConnectionOverlay } from "./ConnectionOverlay";
+import { FamilyTreeOverlay } from "../components/FamilyTreeOverlay";
 import { BoxSelectOverlay } from "./BoxSelectOverlay";
 
 export function Canvas() {
@@ -60,6 +61,7 @@ export function Canvas() {
         {Object.values(browserCards).map((card) => (
           <BrowserCard key={card.id} card={card} />
         ))}
+        <FamilyTreeOverlay />
       </div>
 
       {/* Box-select overlay */}
