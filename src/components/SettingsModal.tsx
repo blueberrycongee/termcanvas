@@ -74,7 +74,8 @@ function ShortcutRow({
 
 export function SettingsModal({ onClose }: Props) {
   const { locale, setLocale } = useLocaleStore();
-  const { animationBlur, setAnimationBlur } = usePreferencesStore();
+  const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize } = usePreferencesStore();
+  const [fontSizeDraft, setFontSizeDraft] = useState(terminalFontSize);
   const { shortcuts, setShortcut, resetAll } = useShortcutStore();
   const t = useT();
   const [tab, setTab] = useState<Tab>("general");
@@ -207,6 +208,32 @@ export function SettingsModal({ onClose }: Props) {
                   >
                     English
                   </button>
+                </div>
+              </div>
+
+              {/* Terminal font size */}
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] text-[var(--text-secondary)]">
+                  {t.terminal_font_size}
+                </span>
+                <div className="flex items-center gap-2.5">
+                  <input
+                    type="range"
+                    min="9"
+                    max="24"
+                    step="1"
+                    value={fontSizeDraft}
+                    onChange={(e) => setFontSizeDraft(Number(e.target.value))}
+                    onMouseUp={() => setTerminalFontSize(fontSizeDraft)}
+                    onTouchEnd={() => setTerminalFontSize(fontSizeDraft)}
+                    className="w-24 accent-[var(--accent)]"
+                  />
+                  <span
+                    className="text-[12px] text-[var(--text-muted)] w-10 text-right tabular-nums"
+                    style={{ fontFamily: '"Geist Mono", monospace' }}
+                  >
+                    {fontSizeDraft}px
+                  </span>
                 </div>
               </div>
 

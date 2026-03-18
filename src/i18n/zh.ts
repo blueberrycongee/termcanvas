@@ -106,6 +106,7 @@ export const zh = {
   settings_shortcuts: "快捷键",
   theme_dark: "深色",
   theme_light: "浅色",
+  terminal_font_size: "终端字体大小",
   animation_blur: "聚焦动画模糊",
   shortcuts_reset: "恢复默认",
   shortcuts_press_hint: "按下快捷键…",

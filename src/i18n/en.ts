@@ -108,6 +108,7 @@ export const en = {
   settings_shortcuts: "Shortcuts",
   theme_dark: "Dark",
   theme_light: "Light",
+  terminal_font_size: "Terminal font size",
   animation_blur: "Focus animation blur",
   shortcuts_reset: "Reset to defaults",
   shortcuts_press_hint: "Press shortcut\u2026",

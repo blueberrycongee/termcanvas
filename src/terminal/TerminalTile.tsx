@@ -12,6 +12,7 @@ import { ContextMenu } from "../components/ContextMenu";
 import { useNotificationStore } from "../stores/notificationStore";
 import { registerTerminal, unregisterTerminal } from "./terminalRegistry";
 import { useThemeStore, XTERM_THEMES } from "../stores/themeStore";
+import { usePreferencesStore } from "../stores/preferencesStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useT } from "../i18n/useT";
 import { getTerminalLaunchOptions, getComposerAdapter } from "./cliConfig";
@@ -154,7 +155,7 @@ export function TerminalTile({
     const xterm = new Terminal({
       theme: XTERM_THEMES[currentTheme],
       fontFamily: '"Geist Mono", "SF Mono", "JetBrains Mono", Menlo, monospace',
-      fontSize: 13,
+      fontSize: usePreferencesStore.getState().terminalFontSize,
       lineHeight: 1.4,
       cursorBlink: true,
       cursorStyle: "bar",
@@ -509,6 +510,18 @@ export function TerminalTile({
         xterm.options.theme = XTERM_THEMES[state.theme];
         // Force full canvas repaint so background color updates immediately
         xterm.refresh(0, xterm.rows - 1);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  // Update xterm font size when preference changes
+  useEffect(() => {
+    const unsubscribe = usePreferencesStore.subscribe((state) => {
+      const xterm = xtermRef.current;
+      if (xterm && xterm.options.fontSize !== state.terminalFontSize) {
+        xterm.options.fontSize = state.terminalFontSize;
+        fitAddonRef.current?.fit();
       }
     });
     return unsubscribe;
