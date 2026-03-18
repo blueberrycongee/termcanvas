@@ -26,13 +26,29 @@ It organizes everything in a **Project → Worktree → Terminal** hierarchy tha
 - Infinite canvas — pan, zoom, and arrange terminals freely
 - Three-layer hierarchy — projects contain worktrees, worktrees contain terminals
 - Live worktree detection — new worktrees appear automatically
+- Double-click a terminal title bar to zoom-to-fit
+- Drag-to-reorder terminals within a worktree
 - Drawing tools — pen, text, rectangles, arrows for annotations
 - Workspace save/load — persist your entire layout to a file
 
 **AI coding agents**
 - First-class support for Claude Code, Codex, Kimi, Gemini, and OpenCode
+- Composer — a unified input bar that sends prompts to the focused agent, with image paste support
 - Live session status — see at a glance whether an agent is working, waiting, or done
+- Session resume — close and reopen an agent terminal without losing context
 - Inline diff cards — review an agent's changes without leaving the canvas
+
+**General terminals**
+- Shell, lazygit, and tmux terminals live alongside AI agents on the same canvas
+
+**Usage tracking**
+- Token usage and cost dashboard — total spend, per-project breakdown, per-model breakdown
+- 24-hour cost sparkline and cache hit/miss stats
+
+**Settings & i18n**
+- English and Chinese (auto-detected from system locale)
+- Adjustable terminal font size (6–24 px)
+- Auto-update with in-app changelog
 
 **CLI**
 - `termcanvas` — control the canvas from your terminal: add projects, create terminals, read output, view diffs
@@ -79,6 +95,8 @@ hydra spawn --task "fix the login bug" --type claude --repo .
 ```
 
 This creates a new worktree + branch, opens a terminal on the canvas, and sends the task to the agent. The agent works in full isolation — it can only touch files inside its own worktree.
+
+Pass `--auto-approve` to inherit the parent agent's permission level (maps to `--dangerously-skip-permissions` for Claude, `--dangerously-bypass-approvals-and-sandbox` for Codex).
 
 **For read-only tasks** (code review, analysis), point to an existing worktree instead of creating one:
 

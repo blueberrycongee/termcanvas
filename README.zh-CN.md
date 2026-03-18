@@ -26,13 +26,29 @@ TermCanvas 把你所有的终端铺在一张无限空间画布上——不再有
 - 无限画布——自由平移、缩放、排列终端
 - 三层层级——项目包含 worktree，worktree 包含终端
 - 实时 worktree 检测——新建 worktree 自动出现
+- 双击终端标题栏缩放至适合视口
+- 拖拽排序 worktree 内的终端
 - 绘图工具——画笔、文字、矩形、箭头标注
 - 工作区存档——将完整布局保存为文件
 
 **AI 编程 Agent**
 - 原生支持 Claude Code、Codex、Kimi、Gemini、OpenCode
+- Composer——统一输入栏，向聚焦的 agent 发送提示，支持粘贴图片
 - 实时会话状态——一眼看到 agent 正在工作、等待还是已完成
+- 会话恢复——关闭并重新打开 agent 终端，不丢失上下文
 - 内联 diff 卡片——不离开画布就能审查 agent 的代码变更
+
+**通用终端**
+- Shell、lazygit、tmux 与 AI agent 共存于同一画布
+
+**用量追踪**
+- Token 用量与成本看板——总花费、按项目分布、按模型分布
+- 24 小时成本趋势图与缓存命中率统计
+
+**设置与国际化**
+- 支持中文和英文（自动检测系统语言）
+- 可调终端字号（6–24 px）
+- 应用内自动更新并显示更新日志
 
 **命令行工具**
 - `termcanvas` —— 从终端控制画布：添加项目、创建终端、读取输出、查看 diff
@@ -79,6 +95,8 @@ hydra spawn --task "fix the login bug" --type claude --repo .
 ```
 
 这会创建一个新的 worktree + 分支，在画布上打开终端，并将任务发送给 agent。agent 在完全隔离的环境中工作——只能修改自己 worktree 内的文件。
+
+传入 `--auto-approve` 可继承父 agent 的权限级别（Claude 映射为 `--dangerously-skip-permissions`，Codex 映射为 `--dangerously-bypass-approvals-and-sandbox`）。
 
 **只读任务**（代码审查、分析）可以指向已有的 worktree，不创建新分支：
 
