@@ -122,6 +122,7 @@ interface WatchEntry {
   filePath: string;
   lastNotifiedMtime: number;
   debounceTimer: NodeJS.Timeout | null;
+  pollTimer: NodeJS.Timeout | null;
 }
 
 /**
@@ -140,7 +141,12 @@ export class SessionWatcher {
     if (this.entries.has(sessionId)) return;
 
     const filePath = resolveSessionFile(sessionId, type, cwd);
-    if (!filePath) return;
+    if (!filePath) {
+      console.log(`[SessionWatcher] resolveSessionFile returned null for session=${sessionId} type=${type} cwd=${cwd}`);
+      return;
+    }
+
+    console.log(`[SessionWatcher] watch session=${sessionId} type=${type} file=${filePath}`);
 
     const dir = path.dirname(filePath);
     const basename = path.basename(filePath);
@@ -162,9 +168,40 @@ export class SessionWatcher {
     }
 
     let debounceTimer: NodeJS.Timeout | null = null;
+    let completed = false;
 
-    const watcher = fs.watch(dir, (_event, changedFile) => {
+    const onCompleted = () => {
+      if (completed) return;
+      completed = true;
+      console.log(`[SessionWatcher] completed session=${sessionId}`);
+      callback();
+    };
+
+    const tryCheck = (source: string): boolean => {
+      let currentMtime = 0;
+      try {
+        currentMtime = fs.statSync(filePath).mtimeMs;
+      } catch {
+        return false;
+      }
+
+      const entry = this.entries.get(sessionId);
+      if (!entry || currentMtime === entry.lastNotifiedMtime) return false;
+
+      const result = checkTurnComplete(filePath, type);
+      console.log(`[SessionWatcher] checkTurnComplete source=${source} session=${sessionId} completed=${result.completed}`);
+      if (result.completed) {
+        entry.lastNotifiedMtime = currentMtime;
+        onCompleted();
+        return true;
+      }
+      return false;
+    };
+
+    const watcher = fs.watch(dir, (event, changedFile) => {
       if (changedFile && changedFile !== basename) return;
+
+      console.log(`[SessionWatcher] fs.watch event=${event} file=${changedFile} session=${sessionId}`);
 
       let newMtime = 0;
       try {
@@ -181,36 +218,48 @@ export class SessionWatcher {
       if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
       entry.debounceTimer = setTimeout(() => {
         entry.debounceTimer = null;
-        // Re-check mtime
-        let currentMtime = 0;
-        try {
-          currentMtime = fs.statSync(filePath).mtimeMs;
-        } catch {
-          return;
-        }
-        if (currentMtime === entry.lastNotifiedMtime) return;
-
-        const result = checkTurnComplete(filePath, type);
-        if (result.completed) {
-          entry.lastNotifiedMtime = currentMtime;
-          callback();
-        }
+        tryCheck("fs.watch");
       }, 300);
     });
+
+    // Fallback polling: fs.watch on macOS can miss events (rename from atomic writes).
+    // After 30s, poll every 10s as a safety net.
+    const POLL_DELAY = 30_000;
+    const POLL_INTERVAL = 10_000;
+    const pollTimer = setTimeout(() => {
+      const entry = this.entries.get(sessionId);
+      if (!entry || completed) return;
+
+      console.log(`[SessionWatcher] starting fallback polling for session=${sessionId}`);
+      entry.pollTimer = setInterval(() => {
+        if (completed) {
+          const e = this.entries.get(sessionId);
+          if (e?.pollTimer) clearInterval(e.pollTimer);
+          return;
+        }
+        tryCheck("poll");
+      }, POLL_INTERVAL);
+    }, POLL_DELAY);
 
     this.entries.set(sessionId, {
       watcher,
       filePath,
       lastNotifiedMtime,
       debounceTimer,
+      pollTimer,
     });
   }
 
   unwatch(sessionId: string): void {
     const entry = this.entries.get(sessionId);
     if (!entry) return;
+    console.log(`[SessionWatcher] unwatch session=${sessionId}`);
     entry.watcher.close();
     if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
+    if (entry.pollTimer) {
+      clearTimeout(entry.pollTimer);
+      clearInterval(entry.pollTimer);
+    }
     this.entries.delete(sessionId);
   }
 
