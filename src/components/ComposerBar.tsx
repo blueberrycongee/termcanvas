@@ -273,7 +273,10 @@ export function ComposerBar() {
       }
 
       clear();
-      textareaRef.current?.focus();
+      // The textarea was `disabled` during submission and lost DOM focus.
+      // React may not have flushed the re-render (clearing `disabled`) yet,
+      // so defer the focus to the next frame.
+      requestAnimationFrame(() => textareaRef.current?.focus());
     } catch (submitError) {
       const message =
         submitError instanceof Error ? submitError.message : String(submitError);
