@@ -136,7 +136,8 @@ export function spawn(args: string[]): void {
 
   // Create terminal with initial prompt as CLI argument (no PTY injection needed)
   const prompt = buildSpawnInput(parsed.task, taskFile);
-  const terminal = terminalCreate(worktreePath, parsed.type, prompt, parsed.autoApprove);
+  const parentTerminalId = process.env.TERMCANVAS_TERMINAL_ID;
+  const terminal = terminalCreate(worktreePath, parsed.type, prompt, parsed.autoApprove, parentTerminalId);
 
   // Save agent record
   saveAgent({

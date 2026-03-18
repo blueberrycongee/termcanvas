@@ -43,6 +43,7 @@ function migrateProjects(projects: unknown[]): ProjectData[] {
         span: t.span ?? { cols: 1, rows: 1 },
         scrollback: t.scrollback,
         sessionId: t.sessionId,
+        parentTerminalId: t.parentTerminalId,
       })),
     })),
   }));
@@ -285,6 +286,7 @@ export function App() {
                   status: t.status,
                   ptyId: t.ptyId,
                   span: t.span,
+                  parentTerminalId: t.parentTerminalId,
                 })),
               })),
             })),
@@ -302,8 +304,8 @@ export function App() {
         return true;
       },
 
-      addTerminal: (projectId: string, worktreeId: string, type: string, prompt?: string, autoApprove?: boolean) => {
-        const terminal = createTerminal(type as any, undefined, prompt, autoApprove, "agent");
+      addTerminal: (projectId: string, worktreeId: string, type: string, prompt?: string, autoApprove?: boolean, parentTerminalId?: string | null) => {
+        const terminal = createTerminal(type as any, undefined, prompt, autoApprove, "agent", parentTerminalId ?? undefined);
         useProjectStore.getState().addTerminal(projectId, worktreeId, terminal);
         return JSON.parse(JSON.stringify(terminal));
       },
@@ -338,6 +340,7 @@ export function App() {
                   status: t.status,
                   ptyId: t.ptyId,
                   span: t.span,
+                  parentTerminalId: t.parentTerminalId,
                   projectId: p.id,
                   worktreeId: w.id,
                   worktreePath: w.path,

@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("termcanvas", {
   terminal: {
-    create: (options: { cwd: string; shell?: string; args?: string[] }) =>
+    create: (options: { cwd: string; shell?: string; args?: string[]; terminalId?: string }) =>
       ipcRenderer.invoke("terminal:create", options),
     destroy: (ptyId: number) => ipcRenderer.invoke("terminal:destroy", ptyId),
     getPid: (ptyId: number) =>

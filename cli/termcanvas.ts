@@ -103,10 +103,12 @@ async function main() {
         const wtIdx = rest.indexOf("--worktree");
         const typeIdx = rest.indexOf("--type");
         const promptIdx = rest.indexOf("--prompt");
+        const parentIdx = rest.indexOf("--parent-terminal");
         const autoApprove = rest.includes("--auto-approve");
         const worktree = wtIdx >= 0 ? rest[wtIdx + 1] : undefined;
         const type = typeIdx >= 0 ? rest[typeIdx + 1] : "shell";
         const prompt = promptIdx >= 0 ? rest[promptIdx + 1] : undefined;
+        const parentTerminalId = parentIdx >= 0 ? rest[parentIdx + 1] : undefined;
         if (!worktree) {
           console.error("--worktree is required");
           process.exit(1);
@@ -116,6 +118,7 @@ async function main() {
           type,
           ...(prompt ? { prompt } : {}),
           ...(autoApprove ? { autoApprove: true } : {}),
+          ...(parentTerminalId ? { parentTerminalId } : {}),
         });
         if (jsonFlag) console.log(JSON.stringify(result, null, 2));
         else
