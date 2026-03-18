@@ -458,9 +458,18 @@ export function TerminalTile({
     notify,
   ]);
 
-  // Give xterm DOM focus only when user clicks into the terminal content area.
-  // Logical focus (terminal.focused) is handled by the Composer — it auto-focuses
-  // its textarea so the user can type and submit without extra clicks.
+  // Give xterm DOM focus when this terminal becomes the focused terminal
+  // and its input mode is "type" (shell, lazygit, tmux). This ensures
+  // keyboard shortcut-based terminal switching also moves DOM focus.
+  // "paste"-mode terminals rely on the Composer textarea for input.
+  useEffect(() => {
+    if (terminal.focused) {
+      const adapter = getComposerAdapter(terminal.type);
+      if (!adapter || adapter.inputMode === "type") {
+        xtermRef.current?.focus();
+      }
+    }
+  }, [terminal.focused, terminal.type]);
 
   // Update xterm theme when app theme changes
   useEffect(() => {
