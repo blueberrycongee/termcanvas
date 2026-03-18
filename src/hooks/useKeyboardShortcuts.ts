@@ -25,25 +25,68 @@ import { shouldIgnoreShortcutTarget } from "./shortcutTarget";
 
 function getAllTerminals() {
   const { projects } = useProjectStore.getState();
-  const list: {
+
+  // Step 1: Build flat pool preserving natural order (project → worktree → array index)
+  type Entry = {
     projectId: string;
     worktreeId: string;
     terminalId: string;
-    index: number;
-  }[] = [];
+    parentTerminalId?: string;
+    flatIndex: number;
+  };
+
+  const pool: Entry[] = [];
   for (const p of projects) {
     for (const w of p.worktrees) {
-      for (let i = 0; i < w.terminals.length; i++) {
-        list.push({
+      for (const t of w.terminals) {
+        pool.push({
           projectId: p.id,
           worktreeId: w.id,
-          terminalId: w.terminals[i].id,
-          index: list.length,
+          terminalId: t.id,
+          parentTerminalId: t.parentTerminalId,
+          flatIndex: pool.length,
         });
       }
     }
   }
-  return list;
+
+  // Step 2: Build children map and identify roots
+  const poolById = new Map(pool.map((e) => [e.terminalId, e]));
+  const childrenOf = new Map<string, Entry[]>();
+  const roots: Entry[] = [];
+
+  for (const entry of pool) {
+    if (entry.parentTerminalId && poolById.has(entry.parentTerminalId)) {
+      const siblings = childrenOf.get(entry.parentTerminalId) ?? [];
+      siblings.push(entry);
+      childrenOf.set(entry.parentTerminalId, siblings);
+    } else {
+      roots.push(entry);
+    }
+  }
+
+  // Sort children by creation order (flat index)
+  for (const children of childrenOf.values()) {
+    children.sort((a, b) => a.flatIndex - b.flatIndex);
+  }
+
+  // Step 3: DFS pre-order traversal
+  const result: Entry[] = [];
+  function visit(entry: Entry) {
+    result.push(entry);
+    const children = childrenOf.get(entry.terminalId);
+    if (children) {
+      for (const child of children) visit(child);
+    }
+  }
+  for (const root of roots) visit(root);
+
+  return result.map((e, i) => ({
+    projectId: e.projectId,
+    worktreeId: e.worktreeId,
+    terminalId: e.terminalId,
+    index: i,
+  }));
 }
 
 function getFocusedTerminalIndex(list: ReturnType<typeof getAllTerminals>) {
