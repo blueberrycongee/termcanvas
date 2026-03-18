@@ -168,14 +168,10 @@ export class SessionWatcher {
     }
 
     let debounceTimer: NodeJS.Timeout | null = null;
-    let completed = false;
-
-    const onCompleted = () => {
-      if (completed) return;
-      completed = true;
-      console.log(`[SessionWatcher] completed session=${sessionId}`);
-      callback();
-    };
+    // Track whether we already notified for the current turn's completion.
+    // Reset when we observe a non-completed state (i.e. a new turn has started
+    // and pushed the old turn_duration out of the JSONL tail).
+    let awaitingNewTurn = false;
 
     const tryCheck = (source: string): boolean => {
       let currentMtime = 0;
@@ -188,12 +184,21 @@ export class SessionWatcher {
       const entry = this.entries.get(sessionId);
       if (!entry || currentMtime === entry.lastNotifiedMtime) return false;
 
+      // Always update mtime to avoid re-checking the same file state
+      entry.lastNotifiedMtime = currentMtime;
+
       const result = checkTurnComplete(filePath, type);
-      console.log(`[SessionWatcher] checkTurnComplete source=${source} session=${sessionId} completed=${result.completed}`);
+      console.log(`[SessionWatcher] checkTurnComplete source=${source} session=${sessionId} completed=${result.completed} awaitingNewTurn=${awaitingNewTurn}`);
       if (result.completed) {
-        entry.lastNotifiedMtime = currentMtime;
-        onCompleted();
-        return true;
+        if (!awaitingNewTurn) {
+          awaitingNewTurn = true;
+          console.log(`[SessionWatcher] completed session=${sessionId}`);
+          callback();
+          return true;
+        }
+      } else {
+        // New turn started — the old completion is no longer in the tail
+        awaitingNewTurn = false;
       }
       return false;
     };
@@ -228,11 +233,11 @@ export class SessionWatcher {
     const POLL_INTERVAL = 10_000;
     const pollTimer = setTimeout(() => {
       const entry = this.entries.get(sessionId);
-      if (!entry || completed) return;
+      if (!entry) return;
 
       console.log(`[SessionWatcher] starting fallback polling for session=${sessionId}`);
       entry.pollTimer = setInterval(() => {
-        if (completed) {
+        if (!this.entries.has(sessionId)) {
           const e = this.entries.get(sessionId);
           if (e?.pollTimer) clearInterval(e.pollTimer);
           return;
@@ -249,12 +254,15 @@ export class SessionWatcher {
       pollTimer,
     });
 
-    // Initial check: the turn may have completed before the watcher was set up
+    // Initial check: the turn may have completed before the watcher was set up.
+    // Mark awaitingNewTurn so we don't re-fire for the same completion, but
+    // still fire the callback so the renderer knows the current state.
     if (lastNotifiedMtime > 0) {
       const result = checkTurnComplete(filePath, type);
       if (result.completed) {
         console.log(`[SessionWatcher] initial check: already completed session=${sessionId}`);
-        onCompleted();
+        awaitingNewTurn = true;
+        callback();
       }
     }
   }
