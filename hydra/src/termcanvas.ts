@@ -41,10 +41,18 @@ export function buildTerminalInputArgs(terminalId: string, text: string): string
 }
 
 function runTermcanvasJson(args: string[], timeout: number): any {
-  const stdout = execFileSync("termcanvas", args, {
-    encoding: "utf-8",
-    timeout,
-  });
+  let stdout: string;
+  try {
+    stdout = execFileSync("termcanvas", args, {
+      encoding: "utf-8",
+      timeout,
+    });
+  } catch (err: any) {
+    // execFileSync puts stderr in err.stderr — surface it instead of the
+    // generic "Command failed: ..." wrapper from Node.
+    const detail = (err.stderr as string)?.trim() || err.message;
+    throw new Error(`termcanvas ${args.slice(0, 2).join(" ")} failed: ${detail}`);
+  }
   return parseJsonOrDie(stdout);
 }
 

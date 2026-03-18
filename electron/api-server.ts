@@ -130,7 +130,15 @@ export class ApiServer {
     const win = this.deps.getWindow();
     if (!win)
       throw Object.assign(new Error("No active window"), { status: 503 });
-    return win.webContents.executeJavaScript(code);
+
+    // Wrap in renderer-side try-catch so the actual error message survives
+    // instead of Electron's generic "Script failed to execute" wrapper.
+    const wrapped = `(async()=>{try{return await(${code})}catch(e){return{__tcErr:true,message:e.message,stack:e.stack}}})()`;
+    const result = await win.webContents.executeJavaScript(wrapped);
+    if (result && result.__tcErr) {
+      throw Object.assign(new Error(result.message), { status: 500 });
+    }
+    return result;
   }
 
   private readBody(req: http.IncomingMessage): Promise<any> {
