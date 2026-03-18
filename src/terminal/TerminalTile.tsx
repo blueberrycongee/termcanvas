@@ -414,11 +414,6 @@ export function TerminalTile({
       },
     );
 
-    const resizeObserver = new ResizeObserver(() => {
-      fitAddon.fit();
-    });
-    resizeObserver.observe(containerRef.current);
-
     cleanupRef.current = () => {
       if (waitingTimer) clearTimeout(waitingTimer);
       if (detectTimer) clearTimeout(detectTimer);
@@ -433,7 +428,6 @@ export function TerminalTile({
         window.termcanvas.session.unwatch(term.sessionId);
       }
       unregisterTerminal(terminal.id);
-      resizeObserver.disconnect();
       removeOutput();
       removeExit();
       xterm.dispose();
@@ -457,6 +451,21 @@ export function TerminalTile({
     updateTerminalPtyId,
     notify,
   ]);
+
+  useEffect(() => {
+    if (terminal.minimized) return;
+    if (!xtermRef.current || !fitAddonRef.current) return;
+
+    // Only fit when the tile's geometry changes from React state. Letting a
+    // ResizeObserver react to xterm's own DOM churn can trigger background
+    // resizes while output streams, which nudges scrollback when the user is
+    // reading older output.
+    const frame = requestAnimationFrame(() => {
+      fitAddonRef.current?.fit();
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [width, height, terminal.minimized]);
 
   // Give xterm DOM focus when this terminal becomes the focused terminal
   // and its input mode is "type" (shell, lazygit, tmux). This ensures
