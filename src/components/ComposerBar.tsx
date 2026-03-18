@@ -39,16 +39,12 @@ function getComposerStageLabel(
       return t.composer_stage_read_images;
     case "prepare-images":
       return t.composer_stage_prepare_images;
-    case "capture-clipboard":
-      return t.composer_stage_capture_clipboard;
     case "paste-image":
       return t.composer_stage_paste_image;
     case "paste-text":
       return t.composer_stage_paste_text;
     case "submit":
       return t.composer_stage_submit;
-    case "restore-clipboard":
-      return t.composer_stage_restore_clipboard;
   }
 }
 
@@ -65,21 +61,6 @@ function formatComposerFailure(
     ? `${baseDetail} [${result.code}]`
     : baseDetail;
   return t.composer_submit_failed_with_context(targetTitle, stage, detail);
-}
-
-function formatComposerWarning(
-  t: ReturnType<typeof useT>,
-  targetTitle: string,
-  result: ComposerSubmitResult,
-) {
-  const stage = result.warningStage
-    ? getComposerStageLabel(t, result.warningStage)
-    : t.composer_stage_restore_clipboard;
-  const baseDetail = result.warningDetail ?? result.warning ?? "Unknown warning";
-  const detail = result.warningCode
-    ? `${baseDetail} [${result.warningCode}]`
-    : baseDetail;
-  return t.composer_submit_warning_with_context(targetTitle, stage, detail);
 }
 
 const ARROW_SEQUENCES: Record<string, string> = {
@@ -268,10 +249,6 @@ export function ComposerBar() {
         setError(message);
         notify("error", message);
         return;
-      }
-
-      if (result.warning) {
-        notify("warn", formatComposerWarning(t, targetTerminal.title, result));
       }
 
       clear();

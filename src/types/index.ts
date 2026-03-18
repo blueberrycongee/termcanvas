@@ -50,11 +50,9 @@ export type ComposerSubmitIssueStage =
   | "validate"
   | "read-images"
   | "prepare-images"
-  | "capture-clipboard"
   | "paste-image"
   | "paste-text"
-  | "submit"
-  | "restore-clipboard";
+  | "submit";
 
 export type ComposerSubmitIssueCode =
   | "target-not-running"
@@ -63,12 +61,8 @@ export type ComposerSubmitIssueCode =
   | "images-unsupported"
   | "image-read-failed"
   | "image-stage-failed"
-  | "clipboard-capture-failed"
-  | "clipboard-image-failed"
-  | "clipboard-text-failed"
   | "pty-write-failed"
   | "submit-key-failed"
-  | "clipboard-restore-failed"
   | "internal-error";
 
 export interface ComposerSubmitResult {
@@ -79,10 +73,6 @@ export interface ComposerSubmitResult {
   detail?: string;
   code?: ComposerSubmitIssueCode;
   stage?: ComposerSubmitIssueStage;
-  warning?: string;
-  warningDetail?: string;
-  warningCode?: ComposerSubmitIssueCode;
-  warningStage?: ComposerSubmitIssueStage;
 }
 
 export interface TerminalData {

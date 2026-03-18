@@ -6,7 +6,6 @@ import {
   buildComposerImagePath,
   stageComposerImages,
   submitComposerRequest,
-  type ClipboardSnapshot,
   type ComposerSubmitDeps,
 } from "../electron/composer-submit.ts";
 import type { ComposerSubmitRequest } from "../src/types/index.ts";
@@ -36,15 +35,9 @@ function createDeps(
 ): {
   deps: ComposerSubmitDeps;
   ptyWrites: string[];
-  clipboardTextWrites: string[];
-  clipboardImageWrites: string[];
-  restoredSnapshots: ClipboardSnapshot[];
   fileWrites: { filePath: string; content: string }[];
 } {
   const ptyWrites: string[] = [];
-  const clipboardTextWrites: string[] = [];
-  const clipboardImageWrites: string[] = [];
-  const restoredSnapshots: ClipboardSnapshot[] = [];
   const fileWrites: { filePath: string; content: string }[] = [];
 
   return {
@@ -55,19 +48,6 @@ function createDeps(
         fileWrites.push({ filePath, content: buffer.toString("utf-8") });
       },
       dataUrlToPngBuffer: () => Buffer.from("png-data"),
-      snapshotClipboard: () => ({
-        text: "before",
-        imageDataUrl: "data:image/png;base64,b2xk",
-      }),
-      restoreClipboard: (snapshot) => {
-        restoredSnapshots.push(snapshot);
-      },
-      writeClipboardText: (text) => {
-        clipboardTextWrites.push(text);
-      },
-      writeClipboardImage: (dataUrl) => {
-        clipboardImageWrites.push(dataUrl);
-      },
       writeToPty: (_ptyId, data) => {
         ptyWrites.push(data);
       },
@@ -76,9 +56,6 @@ function createDeps(
       ...overrides,
     },
     ptyWrites,
-    clipboardTextWrites,
-    clipboardImageWrites,
-    restoredSnapshots,
     fileWrites,
   };
 }
@@ -131,21 +108,12 @@ test("codex sends text via bracketed paste without clipboard", async () => {
     text: "fix the bug",
     images: [],
   });
-  const {
-    deps,
-    ptyWrites,
-    clipboardTextWrites,
-    clipboardImageWrites,
-    restoredSnapshots,
-  } = createDeps();
+  const { deps, ptyWrites } = createDeps();
 
   const result = await submitComposerRequest(request, deps);
 
   assert.equal(result.ok, true);
   assert.deepEqual(ptyWrites, ["\x1b[200~fix the bug\x1b[201~", "\r"]);
-  assert.deepEqual(clipboardTextWrites, []);
-  assert.deepEqual(clipboardImageWrites, []);
-  assert.equal(restoredSnapshots.length, 0);
 });
 
 test("codex sends image paths via bracketed paste without clipboard", async () => {
@@ -160,14 +128,7 @@ test("codex sends image paths via bracketed paste without clipboard", async () =
       },
     ],
   });
-  const {
-    deps,
-    ptyWrites,
-    fileWrites,
-    clipboardTextWrites,
-    clipboardImageWrites,
-    restoredSnapshots,
-  } = createDeps();
+  const { deps, ptyWrites, fileWrites } = createDeps();
 
   const result = await submitComposerRequest(request, deps);
 
@@ -181,21 +142,35 @@ test("codex sends image paths via bracketed paste without clipboard", async () =
   assert.match(ptyWrites[0], /^\x1b\[200~.*image-1\.png\x1b\[201~$/);
   assert.equal(ptyWrites[1], "\x1b[200~check this\x1b[201~");
   assert.equal(ptyWrites[2], "\r");
-  assert.deepEqual(clipboardTextWrites, []);
-  assert.deepEqual(clipboardImageWrites, []);
-  assert.equal(restoredSnapshots.length, 0);
 });
 
-test("claude sends text and image paths via bracketed paste without clipboard", async () => {
-  const request = createRequest();
-  const {
-    deps,
-    ptyWrites,
-    fileWrites,
-    clipboardTextWrites,
-    clipboardImageWrites,
-    restoredSnapshots,
-  } = createDeps();
+test("claude sends text via bracketed paste without clipboard", async () => {
+  const request = createRequest({
+    terminalType: "claude",
+    text: "fix the bug",
+    images: [],
+  });
+  const { deps, ptyWrites } = createDeps();
+
+  const result = await submitComposerRequest(request, deps);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(ptyWrites, ["\x1b[200~fix the bug\x1b[201~", "\r"]);
+});
+
+test("claude sends image paths via bracketed paste", async () => {
+  const request = createRequest({
+    terminalType: "claude",
+    text: "Inspect this screenshot",
+    images: [
+      {
+        id: "img-1",
+        name: "pasted.png",
+        dataUrl: "data:image/png;base64,ZmFrZQ==",
+      },
+    ],
+  });
+  const { deps, ptyWrites, fileWrites } = createDeps();
 
   const result = await submitComposerRequest(request, deps);
 
@@ -209,31 +184,6 @@ test("claude sends text and image paths via bracketed paste without clipboard", 
   assert.match(ptyWrites[0], /^\x1b\[200~.*image-1\.png\x1b\[201~$/);
   assert.equal(ptyWrites[1], "\x1b[200~Inspect this screenshot\x1b[201~");
   assert.equal(ptyWrites[2], "\r");
-  assert.deepEqual(clipboardTextWrites, []);
-  assert.deepEqual(clipboardImageWrites, []);
-  assert.equal(restoredSnapshots.length, 0);
-});
-
-test("paste-mode terminal falls back to staged image paths when clipboard image write fails", async () => {
-  const request = createRequest({ terminalType: "kimi" });
-  const {
-    deps,
-    clipboardTextWrites,
-    ptyWrites,
-    restoredSnapshots,
-  } = createDeps({
-    writeClipboardImage: () => {
-      throw new Error("clipboard unavailable");
-    },
-  });
-
-  const result = await submitComposerRequest(request, deps);
-
-  assert.equal(result.ok, true);
-  assert.equal(clipboardTextWrites[0].endsWith(path.join("req-123", "image-1.png")), true);
-  assert.equal(clipboardTextWrites[1], "Inspect this screenshot");
-  assert.deepEqual(ptyWrites, ["\u0016", "\u0016", "\r"]);
-  assert.equal(restoredSnapshots.length, 1);
 });
 
 test("shell writes text directly to the PTY", async () => {
@@ -242,21 +192,12 @@ test("shell writes text directly to the PTY", async () => {
     text: "git status",
     images: [],
   });
-  const {
-    deps,
-    ptyWrites,
-    restoredSnapshots,
-    clipboardTextWrites,
-    clipboardImageWrites,
-  } = createDeps();
+  const { deps, ptyWrites } = createDeps();
 
   const result = await submitComposerRequest(request, deps);
 
   assert.equal(result.ok, true);
   assert.deepEqual(ptyWrites, ["git status", "\r"]);
-  assert.deepEqual(clipboardTextWrites, []);
-  assert.deepEqual(clipboardImageWrites, []);
-  assert.equal(restoredSnapshots.length, 0);
 });
 
 test("shell rejects image submission", async () => {
@@ -295,19 +236,3 @@ test("shell reports PTY write failures with stage details", async () => {
   assert.equal(result.detail, "pty closed");
 });
 
-test("composer warns when clipboard restore fails after a successful submit", async () => {
-  const request = createRequest({ terminalType: "kimi" });
-  const { deps, restoredSnapshots } = createDeps({
-    restoreClipboard: () => {
-      throw new Error("restore blocked");
-    },
-  });
-
-  const result = await submitComposerRequest(request, deps);
-
-  assert.equal(result.ok, true);
-  assert.equal(result.warningCode, "clipboard-restore-failed");
-  assert.equal(result.warningStage, "restore-clipboard");
-  assert.equal(result.warningDetail, "restore blocked");
-  assert.equal(restoredSnapshots.length, 0);
-});

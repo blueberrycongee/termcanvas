@@ -147,11 +147,9 @@ export const zh = {
   composer_stage_validate: "请求校验",
   composer_stage_read_images: "图片读取",
   composer_stage_prepare_images: "图片暂存",
-  composer_stage_capture_clipboard: "剪贴板读取",
   composer_stage_paste_image: "图片粘贴",
   composer_stage_paste_text: "文本粘贴",
   composer_stage_submit: "提交回车",
-  composer_stage_restore_clipboard: "剪贴板恢复",
   composer_image_read_failed: (title: string, detail: string) =>
     `终端 "${title}" 在图片读取阶段失败：${detail}`,
   composer_submit_failed_with_context: (
@@ -159,11 +157,6 @@ export const zh = {
     stage: string,
     detail: string,
   ) => `发送到终端 "${title}" 时在${stage}阶段失败：${detail}`,
-  composer_submit_warning_with_context: (
-    title: string,
-    stage: string,
-    detail: string,
-  ) => `已发送到终端 "${title}"，但${stage}阶段失败：${detail}`,
   composer_submit_failed: (err: string) => `发送失败：${err}`,
 
   // Usage panel

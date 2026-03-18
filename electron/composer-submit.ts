@@ -3,7 +3,6 @@ import path from "path";
 import {
   getComposerAdapter,
   type ComposerAdapterConfig,
-  type ComposerImageFallbackMode,
 } from "../src/terminal/cliConfig.ts";
 import type {
   ComposerImageAttachment,
@@ -13,20 +12,11 @@ import type {
   ComposerSubmitResult,
 } from "../src/types";
 
-export interface ClipboardSnapshot {
-  text: string;
-  imageDataUrl: string | null;
-}
-
 export interface ComposerSubmitDeps {
   platform: "darwin" | "win32" | "linux";
   mkdirSync: (dirPath: string) => void;
   writeFileSync: (filePath: string, buffer: Buffer) => void;
   dataUrlToPngBuffer: (dataUrl: string) => Buffer;
-  snapshotClipboard: () => ClipboardSnapshot;
-  restoreClipboard: (snapshot: ClipboardSnapshot) => void;
-  writeClipboardText: (text: string) => void;
-  writeClipboardImage: (dataUrl: string) => void;
   writeToPty: (ptyId: number, data: string) => void;
   generateRequestId: () => string;
   delayMs: (ms: number) => Promise<void>;
@@ -40,24 +30,14 @@ interface ComposerSubmitIssue {
 
 export function createDefaultComposerSubmitDeps(
   platform: "darwin" | "win32" | "linux",
-  clipboard: {
-    snapshot: () => ClipboardSnapshot;
-    restore: (snapshot: ClipboardSnapshot) => void;
-    writeText: (text: string) => void;
-    writeImage: (dataUrl: string) => void;
-    dataUrlToPngBuffer: (dataUrl: string) => Buffer;
-  },
+  dataUrlToPngBuffer: (dataUrl: string) => Buffer,
   writeToPty: (ptyId: number, data: string) => void,
 ): ComposerSubmitDeps {
   return {
     platform,
     mkdirSync: (dirPath) => fs.mkdirSync(dirPath, { recursive: true }),
     writeFileSync: (filePath, buffer) => fs.writeFileSync(filePath, buffer),
-    dataUrlToPngBuffer: clipboard.dataUrlToPngBuffer,
-    snapshotClipboard: clipboard.snapshot,
-    restoreClipboard: clipboard.restore,
-    writeClipboardText: clipboard.writeText,
-    writeClipboardImage: clipboard.writeImage,
+    dataUrlToPngBuffer,
     writeToPty,
     generateRequestId: () =>
       `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
@@ -121,18 +101,6 @@ function createFailure(
   };
 }
 
-function createWarning(issue: ComposerSubmitIssue): Pick<
-  ComposerSubmitResult,
-  "warning" | "warningDetail" | "warningCode" | "warningStage"
-> {
-  return {
-    warning: issue.detail,
-    warningDetail: issue.detail,
-    warningCode: issue.code,
-    warningStage: issue.stage,
-  };
-}
-
 function writePtyData(
   ptyId: number,
   data: string,
@@ -148,65 +116,6 @@ function writePtyData(
       stage,
       detail: getErrorDetail(error),
     } satisfies ComposerSubmitIssue;
-  }
-}
-
-function snapshotClipboardSafely(
-  deps: ComposerSubmitDeps,
-): ClipboardSnapshot | ComposerSubmitIssue {
-  try {
-    return deps.snapshotClipboard();
-  } catch (error) {
-    return {
-      code: "clipboard-capture-failed",
-      stage: "capture-clipboard",
-      detail: getErrorDetail(error),
-    };
-  }
-}
-
-async function submitImages(
-  request: ComposerSubmitRequest,
-  stagedImagePaths: string[],
-  deps: ComposerSubmitDeps,
-  imageFallback: ComposerImageFallbackMode,
-  pasteSequence: string,
-  pasteDelayMs: number,
-) {
-  for (let index = 0; index < request.images.length; index++) {
-    const image = request.images[index];
-    const stagedPath = stagedImagePaths[index];
-
-    try {
-      deps.writeClipboardImage(image.dataUrl);
-    } catch (error) {
-      if (imageFallback !== "image-path") {
-        throw {
-          code: "clipboard-image-failed",
-          stage: "paste-image",
-          detail: getErrorDetail(error),
-        } satisfies ComposerSubmitIssue;
-      }
-
-      try {
-        deps.writeClipboardText(stagedPath);
-      } catch (fallbackError) {
-        throw {
-          code: "clipboard-text-failed",
-          stage: "paste-image",
-          detail: getErrorDetail(fallbackError),
-        } satisfies ComposerSubmitIssue;
-      }
-    }
-
-    writePtyData(
-      request.ptyId,
-      pasteSequence,
-      deps,
-      "paste-image",
-      "pty-write-failed",
-    );
-    await deps.delayMs(pasteDelayMs);
   }
 }
 
@@ -354,121 +263,5 @@ export async function submitComposerRequest(
     return submitDirectText(request, deps);
   }
 
-  if (adapter.inputMode === "bracketed-paste") {
-    return submitBracketedPaste(request, deps, adapter);
-  }
-
-  if (request.images.length > 0 && !adapter.supportsImages) {
-    return createFailure({
-      code: "images-unsupported",
-      stage: "validate",
-      detail: `Image paste is unavailable for ${request.terminalType}.`,
-    });
-  }
-
-  const requestId = deps.generateRequestId();
-  let stagedImagePaths: string[] = [];
-  try {
-    stagedImagePaths = stageComposerImages(
-      request.worktreePath,
-      requestId,
-      request.images,
-      deps,
-    );
-  } catch (error) {
-    return createFailure(
-      {
-        code: "image-stage-failed",
-        stage: "prepare-images",
-        detail: getErrorDetail(error),
-      },
-      { requestId },
-    );
-  }
-
-  const snapshotResult = snapshotClipboardSafely(deps);
-  if ("code" in snapshotResult) {
-    return createFailure(snapshotResult, { requestId, stagedImagePaths });
-  }
-
-  const snapshot = snapshotResult;
-  const pasteSequence = adapter.pasteKeySequence(deps.platform);
-  let submitResult: ComposerSubmitResult;
-
-  try {
-    await submitImages(
-      request,
-      stagedImagePaths,
-      deps,
-      adapter.imageFallback,
-      pasteSequence,
-      adapter.pasteDelayMs,
-    );
-
-    if (request.text.trim().length > 0) {
-      try {
-        deps.writeClipboardText(request.text);
-      } catch (error) {
-        return createFailure(
-          {
-            code: "clipboard-text-failed",
-            stage: "paste-text",
-            detail: getErrorDetail(error),
-          },
-          { requestId, stagedImagePaths },
-        );
-      }
-
-      writePtyData(
-        request.ptyId,
-        pasteSequence,
-        deps,
-        "paste-text",
-        "pty-write-failed",
-      );
-      await deps.delayMs(adapter.pasteDelayMs);
-    }
-
-    writePtyData(request.ptyId, "\r", deps, "submit", "submit-key-failed");
-
-    submitResult = {
-      ok: true,
-      requestId,
-      stagedImagePaths,
-    };
-  } catch (error) {
-    const issue =
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      "stage" in error &&
-      "detail" in error
-        ? (error as ComposerSubmitIssue)
-        : ({
-            code: "internal-error",
-            stage: "submit",
-            detail: getErrorDetail(error),
-          } satisfies ComposerSubmitIssue);
-
-    submitResult = createFailure(issue, {
-      requestId,
-      stagedImagePaths,
-    });
-  } finally {
-    try {
-      deps.restoreClipboard(snapshot);
-    } catch (error) {
-      const warning = createWarning({
-        code: "clipboard-restore-failed",
-        stage: "restore-clipboard",
-        detail: getErrorDetail(error),
-      });
-      submitResult = {
-        ...submitResult,
-        ...warning,
-      };
-    }
-  }
-
-  return submitResult;
+  return submitBracketedPaste(request, deps, adapter);
 }

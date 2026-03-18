@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, clipboard, nativeImage } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, nativeImage } from "electron";
 import { execSync } from "child_process";
 import path from "path";
 import fs from "fs";
@@ -22,7 +22,6 @@ import {
 import {
   createDefaultComposerSubmitDeps,
   submitComposerRequest,
-  type ClipboardSnapshot,
 } from "./composer-submit";
 import { collectUsage } from "./usage-collector";
 import type { ComposerSubmitRequest } from "../src/types";
@@ -503,13 +502,7 @@ function setupIpc() {
         request,
         createDefaultComposerSubmitDeps(
           process.platform as "darwin" | "win32" | "linux",
-          {
-            snapshot: snapshotClipboard,
-            restore: restoreClipboard,
-            writeText: (text: string) => clipboard.writeText(text),
-            writeImage: writeClipboardImage,
-            dataUrlToPngBuffer,
-          },
+          dataUrlToPngBuffer,
           (ptyId: number, data: string) => {
             ptyManager.write(ptyId, data);
           },
@@ -524,16 +517,6 @@ function setupIpc() {
           stage: result.stage,
           code: result.code,
           detail: result.detail ?? result.error,
-          requestId: result.requestId,
-        });
-      } else if (result.warning) {
-        console.warn("[Composer] Submit warning:", {
-          terminalId: request.terminalId,
-          ptyId: request.ptyId,
-          terminalType: request.terminalType,
-          stage: result.warningStage,
-          code: result.warningCode,
-          detail: result.warningDetail ?? result.warning,
           requestId: result.requestId,
         });
       }
@@ -579,34 +562,6 @@ function getCliDir(): string {
   if (fs.existsSync(prodDir)) return prodDir;
   // dev mode: dist-cli/ relative to dist-electron/
   return path.resolve(__dirname, "..", "dist-cli");
-}
-
-function snapshotClipboard(): ClipboardSnapshot {
-  const image = clipboard.readImage();
-  return {
-    text: clipboard.readText(),
-    imageDataUrl: image.isEmpty() ? null : image.toDataURL(),
-  };
-}
-
-function restoreClipboard(snapshot: ClipboardSnapshot) {
-  clipboard.clear();
-  if (!snapshot.text && !snapshot.imageDataUrl) return;
-
-  clipboard.write({
-    text: snapshot.text,
-    ...(snapshot.imageDataUrl
-      ? { image: nativeImage.createFromDataURL(snapshot.imageDataUrl) }
-      : {}),
-  });
-}
-
-function writeClipboardImage(dataUrl: string) {
-  const image = nativeImage.createFromDataURL(dataUrl);
-  if (image.isEmpty()) {
-    throw new Error("Clipboard image is empty.");
-  }
-  clipboard.writeImage(image);
 }
 
 function dataUrlToPngBuffer(dataUrl: string): Buffer {

@@ -7,20 +7,23 @@ import {
   isComposerSupportedTerminal,
 } from "../src/terminal/cliConfig.ts";
 
-test("claude adapter uses bracketed paste with image support", () => {
+test("claude adapter uses bracketed paste with image-path fallback", () => {
   const adapter = getComposerAdapter("claude");
   assert.ok(adapter);
   assert.equal(adapter.inputMode, "bracketed-paste");
   assert.equal(adapter.supportsImages, true);
-  assert.equal(adapter.imageFallback, "error");
+  assert.equal(adapter.pasteKeySequence("darwin"), "");
+  assert.equal(adapter.imageFallback, "image-path");
   assert.ok(adapter.allowedStatuses.includes("waiting"));
 });
 
-test("codex adapter uses bracketed paste with image support", () => {
+test("codex adapter uses bracketed paste with error fallback", () => {
   const adapter = getComposerAdapter("codex");
   assert.ok(adapter);
   assert.equal(adapter.inputMode, "bracketed-paste");
   assert.equal(adapter.supportsImages, true);
+  assert.equal(adapter.pasteKeySequence("darwin"), "");
+  assert.equal(adapter.pasteKeySequence("win32"), "");
   assert.equal(adapter.imageFallback, "error");
 });
 
