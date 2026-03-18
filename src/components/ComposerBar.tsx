@@ -90,6 +90,11 @@ function getPassthroughSequence(
       return "\x03";
     }
   }
+  // Enter → forward to terminal when Composer is empty
+  // (e.g. confirm permission prompts, accept defaults)
+  if (event.key === "Enter" && !event.shiftKey && draft.trim().length === 0) {
+    return "\r";
+  }
   // Cmd+Arrow → always forward to terminal (history / cursor control)
   // Plain Arrow → forward only when Composer is empty
   const arrowSeq = ARROW_SEQUENCES[event.key];
@@ -374,19 +379,22 @@ export function ComposerBar() {
             onChange={(event) => setDraft(event.target.value)}
             onPaste={handleImagePaste}
             onKeyDown={(event) => {
-              if (shouldSubmitComposerFromKeyEvent(event)) {
-                event.preventDefault();
-                void handleSubmit();
-                return;
-              }
               // Forward terminal control keys to the PTY so CLI shortcuts
-              // (e.g. Claude Code mode cycling) work from the Composer.
+              // (e.g. Claude Code permission prompts, mode cycling) work
+              // from the Composer. Checked before submit so that an empty
+              // Enter is passed through to the CLI rather than rejected.
               if (targetTerminal) {
                 const seq = getPassthroughSequence(event, draft);
                 if (seq !== null) {
                   event.preventDefault();
                   window.termcanvas.terminal.input(targetTerminal.ptyId, seq);
+                  return;
                 }
+              }
+              if (shouldSubmitComposerFromKeyEvent(event)) {
+                event.preventDefault();
+                void handleSubmit();
+                return;
               }
             }}
             rows={4}
