@@ -686,6 +686,12 @@ export function TerminalTile({
         e.stopPropagation();
         setFocusedTerminal(terminal.id);
       }}
+      onMouseEnter={() => {
+        window.dispatchEvent(new CustomEvent("termcanvas:terminal-hover", { detail: terminal.id }));
+      }}
+      onMouseLeave={() => {
+        window.dispatchEvent(new CustomEvent("termcanvas:terminal-hover", { detail: null }));
+      }}
       onWheel={(e) => e.stopPropagation()}
     >
       {/* Title bar */}
