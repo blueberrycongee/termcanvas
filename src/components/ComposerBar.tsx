@@ -369,39 +369,41 @@ export function ComposerBar() {
         )}
 
         {/* Input area */}
-        <div className="relative px-3 py-2">
-          <textarea
-            ref={textareaRef}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onPaste={handleImagePaste}
-            onKeyDown={(event) => {
-              if (targetTerminal) {
-                const seq = getPassthroughSequence(event, draft, images.length > 0);
-                if (seq !== null) {
+        <div className="px-3 py-2">
+          <div className="relative">
+            <textarea
+              ref={textareaRef}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onPaste={handleImagePaste}
+              onKeyDown={(event) => {
+                if (targetTerminal) {
+                  const seq = getPassthroughSequence(event, draft, images.length > 0);
+                  if (seq !== null) {
+                    event.preventDefault();
+                    window.termcanvas.terminal.input(targetTerminal.ptyId, seq);
+                    return;
+                  }
+                }
+                if (shouldSubmitComposerFromKeyEvent(event)) {
                   event.preventDefault();
-                  window.termcanvas.terminal.input(targetTerminal.ptyId, seq);
+                  void handleSubmit();
                   return;
                 }
-              }
-              if (shouldSubmitComposerFromKeyEvent(event)) {
-                event.preventDefault();
-                void handleSubmit();
-                return;
-              }
-            }}
-            rows={2}
-            placeholder={note}
-            disabled={!isTargetReady || isSubmitting}
-            className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg)] pl-3 pr-14 py-2 text-[13px] text-[var(--text-primary)] outline-none transition-colors duration-150 placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]"
-          />
-          <button
-            className="absolute right-5 bottom-4 rounded-md bg-[var(--accent)] px-2.5 py-1 text-[11px] font-medium text-white transition-colors duration-150 hover:bg-[#005cc5] disabled:cursor-not-allowed disabled:opacity-40"
-            onClick={() => void handleSubmit()}
-            disabled={!isTargetReady || isSubmitting}
-          >
-            {isSubmitting ? t.composer_submitting : t.composer_submit}
-          </button>
+              }}
+              rows={2}
+              placeholder={note}
+              disabled={!isTargetReady || isSubmitting}
+              className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg)] pl-3 pr-14 py-2 text-[13px] text-[var(--text-primary)] outline-none transition-colors duration-150 placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]"
+            />
+            <button
+              className="absolute right-2 bottom-2 rounded-md bg-[var(--accent)] px-2.5 py-1 text-[11px] font-medium text-white transition-colors duration-150 hover:bg-[#005cc5] disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => void handleSubmit()}
+              disabled={!isTargetReady || isSubmitting}
+            >
+              {isSubmitting ? t.composer_submitting : t.composer_submit}
+            </button>
+          </div>
           {error && (
             <div className="mt-1 text-[11px] text-[var(--red)] px-1">{error}</div>
           )}
