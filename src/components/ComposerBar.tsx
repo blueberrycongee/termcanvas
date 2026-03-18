@@ -78,6 +78,7 @@ const ARROW_SEQUENCES: Record<string, string> = {
 function getPassthroughSequence(
   event: React.KeyboardEvent<HTMLTextAreaElement>,
   draft: string,
+  hasImages: boolean,
 ): string | null {
   // Shift+Tab → mode cycling (e.g. Claude Code permission modes)
   if (event.key === "Tab" && event.shiftKey) return "\x1b[Z";
@@ -90,9 +91,9 @@ function getPassthroughSequence(
       return "\x03";
     }
   }
-  // Enter → forward to terminal when Composer is empty
+  // Enter → forward to terminal when Composer has no content
   // (e.g. confirm permission prompts, accept defaults)
-  if (event.key === "Enter" && !event.shiftKey && draft.trim().length === 0) {
+  if (event.key === "Enter" && !event.shiftKey && draft.trim().length === 0 && !hasImages) {
     return "\r";
   }
   // Cmd+Arrow → always forward to terminal (history / cursor control)
@@ -384,7 +385,7 @@ export function ComposerBar() {
               // from the Composer. Checked before submit so that an empty
               // Enter is passed through to the CLI rather than rejected.
               if (targetTerminal) {
-                const seq = getPassthroughSequence(event, draft);
+                const seq = getPassthroughSequence(event, draft, images.length > 0);
                 if (seq !== null) {
                   event.preventDefault();
                   window.termcanvas.terminal.input(targetTerminal.ptyId, seq);
