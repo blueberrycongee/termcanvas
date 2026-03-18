@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { hasPrimaryModifier } from "../hooks/shortcutTarget";
+import { hasPrimaryModifier } from "../hooks/shortcutTarget.ts";
 
 export interface ShortcutMap {
   addProject: string;
