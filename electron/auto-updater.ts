@@ -43,7 +43,7 @@ export function setupAutoUpdater(window: BrowserWindow): void {
   });
 
   ipcMain.on("updater:install", () => {
-    autoUpdater.quitAndInstall();
+    autoUpdater.quitAndInstall(false, true);
   });
 
   ipcMain.handle("updater:check", () => {

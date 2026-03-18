@@ -114,6 +114,10 @@ export const en = {
   shortcuts_press_hint: "Press shortcut\u2026",
   shortcuts_conflict: "Conflicts with another shortcut",
   add_browser: "Open browser",
+  update_checking: "Checking for updates",
+  update_downloading: "Downloading update",
+  update_ready: "Update ready, click to view",
+  update_error: "Update error",
 
   // CLI
   cli_label: "Command line interface",

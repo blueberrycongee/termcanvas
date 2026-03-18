@@ -3,7 +3,7 @@ import { Canvas } from "./canvas/Canvas";
 import { Toolbar } from "./toolbar/Toolbar";
 import { Sidebar } from "./components/Sidebar";
 import { NotificationToast } from "./components/NotificationToast";
-import { UpdateModal } from "./components/UpdateModal";
+import { initUpdaterListeners } from "./stores/updaterStore";
 import { ComposerBar } from "./components/ComposerBar";
 import { DrawingPanel } from "./toolbar/DrawingPanel";
 import { ShortcutHints } from "./components/ShortcutHints";
@@ -250,6 +250,9 @@ export function App() {
   const { showCloseDialog, handleSave, handleDiscard, handleCancel } =
     useCloseHandler();
 
+  // Wire IPC updater events into the zustand store (once)
+  useEffect(() => initUpdaterListeners(), []);
+
   useEffect(() => {
     const api = {
       getProjects: () => {
@@ -353,7 +356,6 @@ export function App() {
       <UsagePanel />
       <ComposerBar />
       <NotificationToast />
-      <UpdateModal />
       {showCloseDialog && (
         <CloseDialog
           onSave={handleSave}

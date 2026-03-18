@@ -112,6 +112,10 @@ export const zh = {
   shortcuts_press_hint: "按下快捷键…",
   shortcuts_conflict: "与其他快捷键冲突",
   add_browser: "打开浏览器",
+  update_checking: "正在检查更新",
+  update_downloading: "正在下载更新",
+  update_ready: "更新已就绪，点击查看",
+  update_error: "更新出错",
 
   // CLI
   cli_label: "命令行工具",

@@ -3,8 +3,10 @@ import { useCanvasStore } from "../stores/canvasStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useThemeStore } from "../stores/themeStore";
 import { useBrowserCardStore } from "../stores/browserCardStore";
+import { useUpdaterStore } from "../stores/updaterStore";
 import { computeWorktreeSize, PROJ_PAD, PROJ_TITLE_H } from "../layout";
 import { SettingsModal } from "../components/SettingsModal";
+import { UpdateModal } from "../components/UpdateModal";
 import { useT } from "../i18n/useT";
 
 const noDrag = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
@@ -19,7 +21,9 @@ export function Toolbar() {
   const { theme, toggleTheme } = useThemeStore();
   const t = useT();
   const addBrowserCard = useBrowserCardStore((s) => s.addCard);
+  const updateStatus = useUpdaterStore((s) => s.status);
   const [showSettings, setShowSettings] = useState(false);
+  const [showUpdate, setShowUpdate] = useState(false);
 
   const handleFitAll = useCallback(() => {
     if (projects.length === 0) return;
@@ -135,6 +139,50 @@ export function Toolbar() {
           )}
         </button>
 
+        {/* Update indicator */}
+        {updateStatus !== "idle" && (
+          <button
+            className={`${btn} relative`}
+            style={noDrag}
+            onClick={() => setShowUpdate(true)}
+            title={
+              updateStatus === "downloading" ? t.update_downloading
+              : updateStatus === "ready" ? t.update_ready
+              : updateStatus === "error" ? t.update_error
+              : t.update_checking
+            }
+          >
+            {updateStatus === "downloading" ? (
+              // Downloading: animated arrow-down
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="animate-bounce">
+                <path d="M7 2v8M4 7.5L7 10.5 10 7.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M3 12h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              </svg>
+            ) : updateStatus === "ready" ? (
+              // Ready: arrow-up with green dot
+              <>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M7 12V4M4 6.5L7 3.5 10 6.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M3 2h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                </svg>
+                <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-green-500" />
+              </>
+            ) : updateStatus === "error" ? (
+              // Error: warning triangle
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M7 2L1.5 12h11L7 2Z" stroke="var(--amber)" strokeWidth="1.2" strokeLinejoin="round" />
+                <path d="M7 6v3" stroke="var(--amber)" strokeWidth="1.3" strokeLinecap="round" />
+                <circle cx="7" cy="10.5" r="0.6" fill="var(--amber)" />
+              </svg>
+            ) : (
+              // Checking: spinner-like
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="animate-spin">
+                <path d="M7 1.5A5.5 5.5 0 1 1 1.5 7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              </svg>
+            )}
+          </button>
+        )}
+
         {/* Settings button */}
         <button
           className={btn}
@@ -211,6 +259,7 @@ export function Toolbar() {
       </div>
 
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showUpdate && <UpdateModal onClose={() => setShowUpdate(false)} />}
     </>
   );
 }
