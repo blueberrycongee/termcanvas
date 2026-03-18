@@ -14,7 +14,7 @@ import { registerTerminal, unregisterTerminal } from "./terminalRegistry";
 import { useThemeStore, XTERM_THEMES } from "../stores/themeStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useT } from "../i18n/useT";
-import { getTerminalLaunchOptions } from "./cliConfig";
+import { getTerminalLaunchOptions, getComposerAdapter } from "./cliConfig";
 
 interface Props {
   projectId: string;
@@ -628,7 +628,9 @@ export function TerminalTile({
       </div>
 
       {/* Terminal content — always mounted to preserve PTY session */}
-      {/* Clicking here gives xterm direct DOM focus for interactive use */}
+      {/* Only give xterm direct DOM focus for "type"-mode terminals (shell,
+          lazygit, tmux) that need real-time keystroke interaction.
+          "paste"-mode terminals (AI CLIs) keep Composer focused. */}
       <div
         ref={containerRef}
         className={terminal.minimized ? "" : "flex-1 min-h-0"}
@@ -637,7 +639,12 @@ export function TerminalTile({
           padding: terminal.minimized ? 0 : 4,
           overflow: "hidden",
         }}
-        onClick={() => xtermRef.current?.focus()}
+        onClick={() => {
+          const adapter = getComposerAdapter(terminal.type);
+          if (!adapter || adapter.inputMode === "type") {
+            xtermRef.current?.focus();
+          }
+        }}
       />
 
       {contextMenu &&
