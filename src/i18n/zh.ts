@@ -124,10 +124,15 @@ export const zh = {
   composer_submit: "发送",
   composer_submitting: "发送中…",
   composer_empty_state: "当前没有可用终端",
+  composer_no_target_state: "当前未选中终端",
+  composer_no_target_placeholder:
+    "请先选择或聚焦一个终端，然后再通过 composer 发送。",
   composer_placeholder:
     "发送到当前聚焦终端。对于 agent 终端，也可以直接粘贴截图。",
   composer_placeholder_text_only:
     "直接发送文本到当前聚焦终端。",
+  composer_no_target_note:
+    "Composer 只会发送到当前聚焦终端。请先选择一个终端以启用发送。",
   composer_note:
     "默认发送到当前聚焦终端。Enter 发送，Shift+Enter 换行。Agent 终端也支持图片输入。",
   composer_note_text_only:

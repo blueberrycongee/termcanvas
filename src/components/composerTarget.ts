@@ -15,6 +15,8 @@ export interface SupportedTerminalOption {
   focused: boolean;
 }
 
+export type ComposerTargetState = "empty" | "no-target" | "ready";
+
 export function getSupportedTerminals(
   projects: ProjectData[],
   supportsComposer: (terminalType: TerminalType) => boolean,
@@ -49,4 +51,19 @@ export function resolveComposerTarget(
   supportedTerminals: SupportedTerminalOption[],
 ): SupportedTerminalOption | null {
   return supportedTerminals.find((terminal) => terminal.focused) ?? null;
+}
+
+export function getComposerTargetState(
+  supportedTerminals: SupportedTerminalOption[],
+  targetTerminal: SupportedTerminalOption | null,
+): ComposerTargetState {
+  if (supportedTerminals.length === 0) {
+    return "empty";
+  }
+
+  if (!targetTerminal) {
+    return "no-target";
+  }
+
+  return "ready";
 }

@@ -5,6 +5,7 @@ import { useNotificationStore } from "../stores/notificationStore";
 import { getComposerAdapter } from "../terminal/cliConfig";
 import { shouldSubmitComposerFromKeyEvent } from "./composerInputBehavior";
 import {
+  getComposerTargetState,
   getSupportedTerminals,
   resolveComposerTarget,
 } from "./composerTarget";
@@ -108,9 +109,14 @@ export function ComposerBar() {
     [projects],
   );
   const targetTerminal = resolveComposerTarget(supportedTerminals);
+  const targetState = getComposerTargetState(
+    supportedTerminals,
+    targetTerminal,
+  );
   const targetAdapter = targetTerminal
     ? getComposerAdapter(targetTerminal.type)
     : null;
+  const isTargetReady = targetState === "ready";
 
   const handleImagePaste = useCallback(
     async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -242,11 +248,30 @@ export function ComposerBar() {
     t,
   ]);
 
-  const placeholder = supportedTerminals.length
-    ? targetAdapter?.supportsImages
+  let placeholder: string = t.composer_empty_state;
+  if (targetState === "no-target") {
+    placeholder = t.composer_no_target_placeholder;
+  } else if (targetState === "ready") {
+    placeholder = targetAdapter?.supportsImages
       ? t.composer_placeholder
-      : t.composer_placeholder_text_only
-    : t.composer_empty_state;
+      : t.composer_placeholder_text_only;
+  }
+
+  let targetLabel: string = t.composer_empty_state;
+  if (targetState === "no-target") {
+    targetLabel = t.composer_no_target_state;
+  } else if (targetTerminal) {
+    targetLabel = targetTerminal.label;
+  }
+
+  let note: string = t.composer_no_target_note;
+  if (targetState === "empty") {
+    note = t.composer_empty_state;
+  } else if (targetState === "ready") {
+    note = targetAdapter?.supportsImages
+      ? t.composer_note
+      : t.composer_note_text_only;
+  }
 
   return (
     <div className="fixed inset-x-0 bottom-4 z-[90] pointer-events-none flex justify-center px-4">
@@ -262,9 +287,9 @@ export function ComposerBar() {
           <div
             className="max-w-[420px] truncate rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1.5 text-[12px] text-[var(--text-secondary)]"
             style={{ fontFamily: '"Geist Mono", monospace' }}
-            title={targetTerminal?.label ?? t.composer_empty_state}
+            title={targetLabel}
           >
-            {targetTerminal?.label ?? t.composer_empty_state}
+            {targetLabel}
           </div>
         </div>
 
@@ -313,17 +338,13 @@ export function ComposerBar() {
             }}
             rows={4}
             placeholder={placeholder}
-            disabled={supportedTerminals.length === 0 || isSubmitting}
+            disabled={!isTargetReady || isSubmitting}
             className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none transition-colors duration-150 placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]"
           />
 
           <div className="mt-3 flex items-start gap-3">
             <div className="flex-1">
-              <div className="text-[12px] text-[var(--text-secondary)]">
-                {targetAdapter?.supportsImages
-                  ? t.composer_note
-                  : t.composer_note_text_only}
-              </div>
+              <div className="text-[12px] text-[var(--text-secondary)]">{note}</div>
               {error && (
                 <div className="mt-1 text-[12px] text-[var(--red)]">{error}</div>
               )}
@@ -331,7 +352,7 @@ export function ComposerBar() {
             <button
               className="rounded-lg bg-[var(--accent)] px-3 py-2 text-[12px] font-medium text-white transition-colors duration-150 hover:bg-[#005cc5] disabled:cursor-not-allowed disabled:opacity-50"
               onClick={() => void handleSubmit()}
-              disabled={supportedTerminals.length === 0 || isSubmitting}
+              disabled={!isTargetReady || isSubmitting}
             >
               {isSubmitting ? t.composer_submitting : t.composer_submit}
             </button>

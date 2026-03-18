@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  getComposerTargetState,
   getSupportedTerminals,
   resolveComposerTarget,
 } from "../src/components/composerTarget.ts";
@@ -67,4 +68,29 @@ test("composer uses the focused terminal as target", () => {
   const target = resolveComposerTarget(supportedTerminals);
 
   assert.equal(target?.terminalId, "terminal-2");
+});
+
+test("composer enters no-target state when terminals exist but none is focused", () => {
+  const supportedTerminals = getSupportedTerminals(createProjects(), () => true);
+
+  const targetState = getComposerTargetState(supportedTerminals, null);
+
+  assert.equal(targetState, "no-target");
+});
+
+test("composer enters empty state when there are no supported terminals", () => {
+  const targetState = getComposerTargetState([], null);
+
+  assert.equal(targetState, "empty");
+});
+
+test("composer enters ready state when a focused terminal exists", () => {
+  const projects = createProjects();
+  projects[0].worktrees[0].terminals[0].focused = true;
+  const supportedTerminals = getSupportedTerminals(projects, () => true);
+  const target = resolveComposerTarget(supportedTerminals);
+
+  const targetState = getComposerTargetState(supportedTerminals, target);
+
+  assert.equal(targetState, "ready");
 });

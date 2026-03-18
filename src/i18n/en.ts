@@ -126,10 +126,15 @@ export const en = {
   composer_submit: "Send",
   composer_submitting: "Sending\u2026",
   composer_empty_state: "No terminals available",
+  composer_no_target_state: "No terminal selected",
+  composer_no_target_placeholder:
+    "Select or focus a terminal to enable composer sending.",
   composer_placeholder:
     "Send text to the focused terminal. Paste screenshots here for agent terminals.",
   composer_placeholder_text_only:
     "Send text directly to the focused terminal.",
+  composer_no_target_note:
+    "Composer only sends to the focused terminal. Select a terminal to enable sending.",
   composer_note:
     "Targets the focused terminal by default. Enter sends, Shift+Enter adds a new line. Agent terminals can also receive pasted images.",
   composer_note_text_only:
