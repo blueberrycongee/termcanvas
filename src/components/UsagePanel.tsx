@@ -179,7 +179,8 @@ function TokenBreakdown({ t, summary }: { t: ReturnType<typeof useT>; summary: U
     { label: t.usage_input, value: summary.totalInput, color: "#06b6d4" },
     { label: t.usage_output, value: summary.totalOutput, color: "#22c55e" },
     { label: t.usage_cache_read, value: summary.totalCacheRead, color: "#eab308" },
-    { label: t.usage_cache_create, value: summary.totalCacheCreate, color: "#d946ef" },
+    { label: `${t.usage_cache_create} 5m`, value: summary.totalCacheCreate5m, color: "#d946ef" },
+    { label: `${t.usage_cache_create} 1h`, value: summary.totalCacheCreate1h, color: "#ef4444" },
   ];
   const max = Math.max(...items.map((i) => i.value), 1);
 

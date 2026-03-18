@@ -4,12 +4,12 @@ import os from "os";
 
 // ── Pricing (per million tokens) ───────────────────────────────────────
 
-const PRICING: Record<string, { input: number; output: number; cache_read: number; cache_create: number }> = {
-  "claude-opus-4-6":   { input: 5.00, output: 25.00, cache_read: 0.50, cache_create: 6.25 },
-  "claude-sonnet-4-6": { input: 3.00, output: 15.00, cache_read: 0.30, cache_create: 3.75 },
-  "claude-haiku-4-5":  { input: 0.80, output:  4.00, cache_read: 0.08, cache_create: 1.00 },
-  codex:               { input: 1.50, output:  6.00, cache_read: 0.375, cache_create: 1.50 },
-  default:             { input: 5.00, output: 25.00, cache_read: 0.50, cache_create: 6.25 },
+const PRICING: Record<string, { input: number; output: number; cache_read: number; cache_create_5m: number; cache_create_1h: number }> = {
+  "claude-opus-4-6":   { input: 5.00, output: 25.00, cache_read: 0.50, cache_create_5m: 6.25,  cache_create_1h: 10.00 },
+  "claude-sonnet-4-6": { input: 3.00, output: 15.00, cache_read: 0.30, cache_create_5m: 3.75,  cache_create_1h: 6.00 },
+  "claude-haiku-4-5":  { input: 1.00, output:  5.00, cache_read: 0.10, cache_create_5m: 1.25,  cache_create_1h: 2.00 },
+  codex:               { input: 1.50, output:  6.00, cache_read: 0.375, cache_create_5m: 1.50,  cache_create_1h: 1.50 },
+  default:             { input: 5.00, output: 25.00, cache_read: 0.50, cache_create_5m: 6.25,  cache_create_1h: 10.00 },
 };
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -21,7 +21,8 @@ export interface UsageRecord {
   input: number;
   output: number;
   cacheRead: number;
-  cacheCreate: number;
+  cacheCreate5m: number;
+  cacheCreate1h: number;
   projectPath: string; // cwd of the session, for project matching
 }
 
@@ -31,7 +32,8 @@ export interface UsageBucket {
   input: number;
   output: number;
   cacheRead: number;
-  cacheCreate: number;
+  cacheCreate5m: number;
+  cacheCreate1h: number;
   cost: number;
   calls: number;
 }
@@ -42,7 +44,8 @@ export interface ProjectUsage {
   input: number;
   output: number;
   cacheRead: number;
-  cacheCreate: number;
+  cacheCreate5m: number;
+  cacheCreate1h: number;
   cost: number;
   calls: number;
 }
@@ -52,7 +55,8 @@ export interface ModelUsage {
   input: number;
   output: number;
   cacheRead: number;
-  cacheCreate: number;
+  cacheCreate5m: number;
+  cacheCreate1h: number;
   cost: number;
   calls: number;
 }
@@ -63,7 +67,8 @@ export interface UsageSummary {
   totalInput: number;
   totalOutput: number;
   totalCacheRead: number;
-  totalCacheCreate: number;
+  totalCacheCreate5m: number;
+  totalCacheCreate1h: number;
   totalCost: number;
   buckets: UsageBucket[];     // 2-hour buckets
   projects: ProjectUsage[];
@@ -81,12 +86,13 @@ function matchPricing(model: string) {
   return PRICING.default;
 }
 
-function computeCost(model: string, input: number, output: number, cacheRead: number, cacheCreate: number): number {
+function computeCost(model: string, input: number, output: number, cacheRead: number, cacheCreate5m: number, cacheCreate1h: number): number {
   const p = matchPricing(model);
   return (input / 1e6) * p.input
        + (output / 1e6) * p.output
        + (cacheRead / 1e6) * p.cache_read
-       + (cacheCreate / 1e6) * p.cache_create;
+       + (cacheCreate5m / 1e6) * p.cache_create_5m
+       + (cacheCreate1h / 1e6) * p.cache_create_1h;
 }
 
 /** Get the local timezone offset in hours from UTC. */
@@ -230,19 +236,27 @@ function parseClaudeSession(
     const tsClean = ts.replace("Z", "").split("+")[0];
     if (tsClean < utcStart || tsClean >= utcEnd) continue;
 
-    const u = usage as Record<string, number>;
+    const u = usage as Record<string, unknown>;
     const model = ((msg as Record<string, unknown>).model as string) ?? "unknown";
     const msgId = ((msg as Record<string, unknown>).id as string) ?? tsClean;
+
+    const ccTotal = (u.cache_creation_input_tokens as number) ?? 0;
+    const cacheDetail = u.cache_creation as Record<string, number> | undefined;
+    const cc1h = cacheDetail?.ephemeral_1h_input_tokens ?? 0;
+    // Put remainder into 5m if breakdown doesn't sum to total
+    const cc5m = cacheDetail?.ephemeral_5m_input_tokens ?? Math.max(0, ccTotal - cc1h);
+    const cc5mFinal = (cc5m + cc1h < ccTotal) ? ccTotal - cc1h : cc5m;
 
     // Overwrite: later entries for same message ID have final usage
     byMsgId.set(msgId, {
       ts: tsClean,
       msgId,
       model,
-      input: u.input_tokens ?? 0,
-      output: u.output_tokens ?? 0,
-      cacheRead: u.cache_read_input_tokens ?? 0,
-      cacheCreate: u.cache_creation_input_tokens ?? 0,
+      input: (u.input_tokens as number) ?? 0,
+      output: (u.output_tokens as number) ?? 0,
+      cacheRead: (u.cache_read_input_tokens as number) ?? 0,
+      cacheCreate5m: cc5mFinal,
+      cacheCreate1h: cc1h,
       projectPath,
     });
   }
@@ -308,7 +322,8 @@ function parseCodexSession(
       input: totalUsage.input_tokens ?? 0,
       output: totalUsage.output_tokens ?? 0,
       cacheRead: totalUsage.cached_input_tokens ?? 0,
-      cacheCreate: 0,
+      cacheCreate5m: 0,
+      cacheCreate1h: 0,
       projectPath,
     };
   }
@@ -374,7 +389,7 @@ export async function collectUsage(
 
       // ── Aggregate ──
 
-      let totalInput = 0, totalOutput = 0, totalCacheRead = 0, totalCacheCreate = 0, totalCost = 0;
+      let totalInput = 0, totalOutput = 0, totalCacheRead = 0, totalCacheCreate5m = 0, totalCacheCreate1h = 0, totalCost = 0;
 
       const bucketCount = 24 / intervalHours;
       const buckets: UsageBucket[] = Array.from({ length: bucketCount }, (_, i) => {
@@ -382,7 +397,7 @@ export async function collectUsage(
         return {
           label: `${String(h).padStart(2, "0")}:00-${String(h + intervalHours).padStart(2, "0")}:00`,
           hourStart: h,
-          input: 0, output: 0, cacheRead: 0, cacheCreate: 0, cost: 0, calls: 0,
+          input: 0, output: 0, cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0, cost: 0, calls: 0,
         };
       });
 
@@ -390,12 +405,13 @@ export async function collectUsage(
       const modelMap = new Map<string, ModelUsage>();
 
       for (const r of allRecords) {
-        const cost = computeCost(r.model, r.input, r.output, r.cacheRead, r.cacheCreate);
+        const cost = computeCost(r.model, r.input, r.output, r.cacheRead, r.cacheCreate5m, r.cacheCreate1h);
 
         totalInput += r.input;
         totalOutput += r.output;
         totalCacheRead += r.cacheRead;
-        totalCacheCreate += r.cacheCreate;
+        totalCacheCreate5m += r.cacheCreate5m;
+        totalCacheCreate1h += r.cacheCreate1h;
         totalCost += cost;
 
         // Bucket
@@ -406,7 +422,8 @@ export async function collectUsage(
           b.input += r.input;
           b.output += r.output;
           b.cacheRead += r.cacheRead;
-          b.cacheCreate += r.cacheCreate;
+          b.cacheCreate5m += r.cacheCreate5m;
+          b.cacheCreate1h += r.cacheCreate1h;
           b.cost += cost;
           b.calls++;
         }
@@ -415,25 +432,27 @@ export async function collectUsage(
         const pKey = r.projectPath || "unknown";
         if (!projectMap.has(pKey)) {
           const name = pKey === "unknown" ? "Other" : path.basename(pKey);
-          projectMap.set(pKey, { path: pKey, name, input: 0, output: 0, cacheRead: 0, cacheCreate: 0, cost: 0, calls: 0 });
+          projectMap.set(pKey, { path: pKey, name, input: 0, output: 0, cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0, cost: 0, calls: 0 });
         }
         const proj = projectMap.get(pKey)!;
         proj.input += r.input;
         proj.output += r.output;
         proj.cacheRead += r.cacheRead;
-        proj.cacheCreate += r.cacheCreate;
+        proj.cacheCreate5m += r.cacheCreate5m;
+        proj.cacheCreate1h += r.cacheCreate1h;
         proj.cost += cost;
         proj.calls++;
 
         // Model
         if (!modelMap.has(r.model)) {
-          modelMap.set(r.model, { model: r.model, input: 0, output: 0, cacheRead: 0, cacheCreate: 0, cost: 0, calls: 0 });
+          modelMap.set(r.model, { model: r.model, input: 0, output: 0, cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0, cost: 0, calls: 0 });
         }
         const mod = modelMap.get(r.model)!;
         mod.input += r.input;
         mod.output += r.output;
         mod.cacheRead += r.cacheRead;
-        mod.cacheCreate += r.cacheCreate;
+        mod.cacheCreate5m += r.cacheCreate5m;
+        mod.cacheCreate1h += r.cacheCreate1h;
         mod.cost += cost;
         mod.calls++;
       }
@@ -447,7 +466,8 @@ export async function collectUsage(
         totalInput,
         totalOutput,
         totalCacheRead,
-        totalCacheCreate,
+        totalCacheCreate5m,
+        totalCacheCreate1h,
         totalCost,
         buckets,
         projects,

@@ -124,7 +124,8 @@ export interface UsageBucket {
   input: number;
   output: number;
   cacheRead: number;
-  cacheCreate: number;
+  cacheCreate5m: number;
+  cacheCreate1h: number;
   cost: number;
   calls: number;
 }
@@ -148,7 +149,8 @@ export interface UsageSummary {
   totalInput: number;
   totalOutput: number;
   totalCacheRead: number;
-  totalCacheCreate: number;
+  totalCacheCreate5m: number;
+  totalCacheCreate1h: number;
   totalCost: number;
   buckets: UsageBucket[];
   projects: ProjectUsage[];
