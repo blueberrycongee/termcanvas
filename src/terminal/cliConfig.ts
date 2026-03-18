@@ -95,7 +95,7 @@ export const TERMINAL_CONFIG: Record<TerminalType, TerminalAdapterConfig> = {
       shell: "codex",
       resumeArgs: (id) => ["resume", id],
       newArgs: () => [],
-      autoApproveArgs: () => ["--full-auto"],
+      autoApproveArgs: () => ["--dangerously-bypass-approvals-and-sandbox"],
     },
     composer: {
       supportsComposer: true,
