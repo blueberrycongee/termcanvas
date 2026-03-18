@@ -4,26 +4,17 @@ import { useComposerStore } from "../stores/composerStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { getComposerAdapter } from "../terminal/cliConfig";
 import { shouldSubmitComposerFromKeyEvent } from "./composerInputBehavior";
+import {
+  getSupportedTerminals,
+  resolveComposerTarget,
+} from "./composerTarget";
 import { useT } from "../i18n/useT";
 import type {
   ComposerImageAttachment,
   ComposerSubmitIssueStage,
   ComposerSubmitRequest,
   ComposerSubmitResult,
-  TerminalStatus,
-  TerminalType,
 } from "../types";
-
-interface SupportedTerminalOption {
-  terminalId: string;
-  ptyId: number;
-  title: string;
-  type: TerminalType;
-  status: TerminalStatus;
-  worktreePath: string;
-  label: string;
-  focused: boolean;
-}
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -32,37 +23,6 @@ function fileToDataUrl(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error ?? new Error("Failed to read image."));
     reader.readAsDataURL(file);
   });
-}
-
-function getSupportedTerminals(): SupportedTerminalOption[] {
-  const { projects } = useProjectStore.getState();
-  const options: SupportedTerminalOption[] = [];
-
-  for (const project of projects) {
-    for (const worktree of project.worktrees) {
-      for (const terminal of worktree.terminals) {
-        if (
-          terminal.ptyId === null ||
-          !getComposerAdapter(terminal.type)
-        ) {
-          continue;
-        }
-
-        options.push({
-          terminalId: terminal.id,
-          ptyId: terminal.ptyId,
-          title: terminal.title,
-          type: terminal.type,
-          status: terminal.status,
-          worktreePath: worktree.path,
-          label: `${project.name} / ${worktree.name} / ${terminal.title}`,
-          focused: terminal.focused,
-        });
-      }
-    }
-  }
-
-  return options;
 }
 
 function getComposerStageLabel(
@@ -140,15 +100,14 @@ export function ComposerBar() {
   const projects = useProjectStore((s) => s.projects);
 
   const supportedTerminals = useMemo(
-    () => getSupportedTerminals(),
+    () =>
+      getSupportedTerminals(
+        projects,
+        (terminalType) => getComposerAdapter(terminalType) !== null,
+      ),
     [projects],
   );
-  const focusedTerminal = supportedTerminals.find((terminal) => terminal.focused);
-  const fallbackTerminal = supportedTerminals[0] ?? null;
-  const targetTerminal =
-    focusedTerminal ??
-    fallbackTerminal ??
-    null;
+  const targetTerminal = resolveComposerTarget(supportedTerminals);
   const targetAdapter = targetTerminal
     ? getComposerAdapter(targetTerminal.type)
     : null;
