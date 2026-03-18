@@ -16,3 +16,7 @@ Thumbs.db
 
 .worktrees/
 thirdparty/
+
+# Local workspace state
+.termcanvas/
+*.termcanvas
