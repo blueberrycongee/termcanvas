@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useProjectStore } from "../stores/projectStore";
 import { useComposerStore } from "../stores/composerStore";
 import { useNotificationStore } from "../stores/notificationStore";
@@ -117,6 +117,15 @@ export function ComposerBar() {
     ? getComposerAdapter(targetTerminal.type)
     : null;
   const isTargetReady = targetState === "ready";
+
+  // Auto-focus Composer when target terminal changes so the user can
+  // start typing immediately without an extra click.
+  const targetTerminalId = targetTerminal?.terminalId ?? null;
+  useEffect(() => {
+    if (targetTerminalId && isTargetReady) {
+      textareaRef.current?.focus();
+    }
+  }, [targetTerminalId, isTargetReady]);
 
   const handleImagePaste = useCallback(
     async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {

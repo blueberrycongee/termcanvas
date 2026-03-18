@@ -457,12 +457,9 @@ export function TerminalTile({
     notify,
   ]);
 
-  // Sync DOM focus with logical focus state
-  useEffect(() => {
-    if (terminal.focused && xtermRef.current) {
-      xtermRef.current.focus();
-    }
-  }, [terminal.focused]);
+  // Give xterm DOM focus only when user clicks into the terminal content area.
+  // Logical focus (terminal.focused) is handled by the Composer — it auto-focuses
+  // its textarea so the user can type and submit without extra clicks.
 
   // Update xterm theme when app theme changes
   useEffect(() => {
@@ -631,6 +628,7 @@ export function TerminalTile({
       </div>
 
       {/* Terminal content — always mounted to preserve PTY session */}
+      {/* Clicking here gives xterm direct DOM focus for interactive use */}
       <div
         ref={containerRef}
         className={terminal.minimized ? "" : "flex-1 min-h-0"}
@@ -639,6 +637,7 @@ export function TerminalTile({
           padding: terminal.minimized ? 0 : 4,
           overflow: "hidden",
         }}
+        onClick={() => xtermRef.current?.focus()}
       />
 
       {contextMenu &&
