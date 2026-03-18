@@ -2,6 +2,22 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.7.20] - 2026-03-18
+
+### Added
+- Terminal font size setting in Settings (9–24px slider)
+- Non-intrusive update indicator in toolbar with status icons (checking, downloading, ready, error)
+- Keyboard shortcuts (Cmd+[/]) now auto-focus the Composer
+
+### Fixed
+- Usage pricing: Haiku 4.5 updated from stale 3.5 prices, cache writes split into 5m/1h tiers
+- Usage stats: recursive JSONL scan captures subagent sessions, correct project path extraction
+- Update modal: fixed transparent background and restart not working on macOS
+- Terminal origin indicator moved from border to title bar dot, no longer conflicts with hover/focus
+
+### Changed
+- Update flow: silent background download, toolbar indicator replaces intrusive popup modal
+
 ## [0.7.19] - 2026-03-18
 
 ### Fixed
