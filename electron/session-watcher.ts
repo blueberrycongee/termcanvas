@@ -108,8 +108,8 @@ function resolveSessionFile(
         const match = files.find((f) => f.includes(sessionId));
         if (match) return path.join(dayDir, match);
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      console.warn(`[SessionWatcher] codex resolveSessionFile error for session=${sessionId}:`, err);
     }
     return null;
   }
@@ -137,13 +137,13 @@ export class SessionWatcher {
     type: SessionType,
     cwd: string,
     callback: () => void,
-  ): void {
-    if (this.entries.has(sessionId)) return;
+  ): { ok: boolean; reason?: string } {
+    if (this.entries.has(sessionId)) return { ok: true };
 
     const filePath = resolveSessionFile(sessionId, type, cwd);
     if (!filePath) {
-      console.log(`[SessionWatcher] resolveSessionFile returned null for session=${sessionId} type=${type} cwd=${cwd}`);
-      return;
+      console.warn(`[SessionWatcher] resolveSessionFile returned null for session=${sessionId} type=${type} cwd=${cwd}`);
+      return { ok: false, reason: "session-file-not-found" };
     }
 
     console.log(`[SessionWatcher] watch session=${sessionId} type=${type} file=${filePath}`);
@@ -155,8 +155,9 @@ export class SessionWatcher {
     if (!fs.existsSync(dir)) {
       try {
         fs.mkdirSync(dir, { recursive: true });
-      } catch {
-        return;
+      } catch (err) {
+        console.error(`[SessionWatcher] failed to create directory ${dir}:`, err);
+        return { ok: false, reason: "dir-create-failed" };
       }
     }
 
@@ -265,6 +266,8 @@ export class SessionWatcher {
         callback();
       }
     }
+
+    return { ok: true };
   }
 
   unwatch(sessionId: string): void {

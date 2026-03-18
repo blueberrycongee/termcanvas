@@ -44,7 +44,9 @@ contextBridge.exposeInMainWorld("termcanvas", {
         string | null
       >,
     watch: (type: string, sessionId: string, cwd: string) =>
-      ipcRenderer.invoke("session:watch", type, sessionId, cwd),
+      ipcRenderer.invoke("session:watch", type, sessionId, cwd) as Promise<
+        { ok: boolean; reason?: string }
+      >,
     unwatch: (sessionId: string) =>
       ipcRenderer.invoke("session:unwatch", sessionId),
     onTurnComplete: (callback: (sessionId: string) => void) => {

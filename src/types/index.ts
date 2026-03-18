@@ -177,7 +177,7 @@ export interface TermCanvasAPI {
     getCodexLatest: () => Promise<string | null>;
     getClaudeByPid: (pid: number) => Promise<string | null>;
     getKimiLatest: (cwd: string) => Promise<string | null>;
-    watch: (type: string, sessionId: string, cwd: string) => Promise<void>;
+    watch: (type: string, sessionId: string, cwd: string) => Promise<{ ok: boolean; reason?: string }>;
     unwatch: (sessionId: string) => Promise<void>;
     onTurnComplete: (callback: (sessionId: string) => void) => () => void;
   };

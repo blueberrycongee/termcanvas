@@ -207,7 +207,8 @@ function setupIpc() {
       if (!last) return null;
       const entry = JSON.parse(last);
       return entry.id as string;
-    } catch {
+    } catch (err) {
+      console.warn("[session:get-codex-latest] failed to read session index:", err);
       return null;
     }
   });
@@ -410,7 +411,7 @@ function setupIpc() {
   ipcMain.handle(
     "session:watch",
     (_event, type: SessionType, sessionId: string, cwd: string) => {
-      sessionWatcher.watch(sessionId, type, cwd, () => {
+      return sessionWatcher.watch(sessionId, type, cwd, () => {
         sendToWindow(mainWindow, "session:turn-complete", sessionId);
       });
     },
