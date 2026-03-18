@@ -81,7 +81,7 @@ export const TERMINAL_CONFIG: Record<TerminalType, TerminalAdapterConfig> = {
     },
     composer: {
       supportsComposer: true,
-      allowedStatuses: READY_STATUSES,
+      allowedStatuses: INTERACTIVE_STATUSES,
       inputMode: "bracketed-paste",
       supportsImages: true,
       pasteKeySequence: () => "",
@@ -99,7 +99,7 @@ export const TERMINAL_CONFIG: Record<TerminalType, TerminalAdapterConfig> = {
     },
     composer: {
       supportsComposer: true,
-      allowedStatuses: READY_STATUSES,
+      allowedStatuses: INTERACTIVE_STATUSES,
       inputMode: "bracketed-paste",
       supportsImages: true,
       pasteKeySequence: () => "",
