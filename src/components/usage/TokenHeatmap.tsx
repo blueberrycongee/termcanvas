@@ -38,7 +38,16 @@ interface CellData {
   index: number;
 }
 
-function buildGrid(data: Record<string, HeatmapEntry>): { cells: (CellData | null)[][]; weeks: number } {
+interface MonthLabel {
+  month: number;
+  column: number;
+}
+
+function buildGrid(data: Record<string, HeatmapEntry>): {
+  cells: (CellData | null)[][];
+  weeks: number;
+  monthLabels: MonthLabel[];
+} {
   const today = new Date();
   const startDate = new Date(today);
   startDate.setDate(startDate.getDate() - (HEATMAP_DAYS - 1));
@@ -93,7 +102,31 @@ function buildGrid(data: Record<string, HeatmapEntry>): { cells: (CellData | nul
     }
   }
 
-  return { cells: grid, weeks };
+  // Compute month labels (like GitHub contribution graph)
+  const rawLabels: MonthLabel[] = [];
+  let lastMonth = -1;
+  for (let week = 0; week < weeks; week++) {
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + week * 7);
+    const month = d.getMonth();
+    if (month !== lastMonth) {
+      rawLabels.push({ month, column: week });
+      lastMonth = month;
+    }
+  }
+  // Filter: only show labels with enough room (≥2 columns before next label)
+  const monthLabels = rawLabels.filter((label, i) => {
+    const next = rawLabels[i + 1];
+    if (!next) return true;
+    return next.column - label.column >= 2;
+  });
+
+  return { cells: grid, weeks, monthLabels };
+}
+
+function formatHeatmapDate(dateStr: string, monthsShort: readonly string[]): string {
+  const [, m, d] = dateStr.split("-");
+  return `${monthsShort[parseInt(m, 10) - 1]} ${parseInt(d, 10)}`;
 }
 
 // ── Tooltip ──────────────────────────────────────────────────────────
@@ -121,6 +154,8 @@ function HeatmapTooltip({ cell, triggerRect }: TooltipProps) {
     }
   });
 
+  const dateLabel = formatHeatmapDate(cell.dateStr, t.usage_cal_months_short);
+
   return createPortal(
     <div
       ref={tooltipRef}
@@ -136,7 +171,7 @@ function HeatmapTooltip({ cell, triggerRect }: TooltipProps) {
         className="rounded-md px-2 py-1.5 border border-[var(--border)] bg-[var(--surface)] shadow-lg whitespace-nowrap"
         style={{ fontFamily: '"Geist Mono", monospace' }}
       >
-        <div className="text-[10px] text-[var(--text-secondary)] font-medium">{cell.dateStr}</div>
+        <div className="text-[10px] text-[var(--text-secondary)] font-medium">{dateLabel}</div>
         <div className="flex items-center gap-2 mt-0.5 text-[10px]">
           <span className="text-[var(--text-primary)]">{fmtTokens(cell.entry?.tokens ?? 0)} {t.usage_tokens_label}</span>
           <span className="text-[var(--text-faint)]">·</span>
@@ -165,7 +200,7 @@ export function TokenHeatmap({ animate }: TokenHeatmapProps): React.ReactElement
     fetchHeatmap();
   }, [fetchHeatmap]);
 
-  const { cells, weeks } = useMemo(() => buildGrid(heatmapData), [heatmapData]);
+  const { cells, weeks, monthLabels } = useMemo(() => buildGrid(heatmapData), [heatmapData]);
 
   const handleCellClick = (cell: CellData) => {
     fetchDay(cell.dateStr);
@@ -213,8 +248,10 @@ export function TokenHeatmap({ animate }: TokenHeatmapProps): React.ReactElement
       </span>
 
       <div className="mt-2 flex gap-[3px]">
-        {/* Weekday labels */}
+        {/* Weekday labels column */}
         <div className="flex flex-col gap-[3px] shrink-0 mr-0.5">
+          {/* Spacer for month labels row */}
+          <div style={{ height: 12 }} />
           {Array.from({ length: 7 }, (_, row) => (
             <div
               key={row}
@@ -230,42 +267,68 @@ export function TokenHeatmap({ animate }: TokenHeatmapProps): React.ReactElement
           ))}
         </div>
 
-        {/* Grid */}
-        <div
-          className="flex-1 min-w-0 grid gap-[3px]"
-          style={{
-            gridTemplateColumns: `repeat(${weeks}, 1fr)`,
-            gridTemplateRows: "repeat(7, 10px)",
-          }}
-        >
-          {/* Render column by column (week by week) */}
-          {Array.from({ length: weeks }, (_, week) =>
-            Array.from({ length: 7 }, (_, day) => {
-              const cell = cells[day][week];
-              if (!cell) {
-                return <div key={`${week}-${day}`} />;
-              }
+        {/* Grid column */}
+        <div className="flex-1 min-w-0 flex flex-col gap-[3px]">
+          {/* Month labels row */}
+          <div
+            className="grid"
+            style={{
+              gridTemplateColumns: `repeat(${weeks}, 1fr)`,
+              height: 12,
+              gap: 3,
+            }}
+          >
+            {monthLabels.map((m) => (
+              <span
+                key={`month-${m.column}`}
+                className="text-[8px] text-[var(--text-faint)] leading-[12px]"
+                style={{
+                  gridColumn: m.column + 1,
+                  gridRow: 1,
+                  fontFamily: '"Geist Mono", monospace',
+                }}
+              >
+                {t.usage_cal_months_short[m.month]}
+              </span>
+            ))}
+          </div>
 
-              return (
-                <button
-                  key={cell.dateStr}
-                  ref={(el) => {
-                    if (el) cellRefs.current.set(cell.dateStr, el);
-                  }}
-                  className={`rounded-[2px] transition-[filter] duration-100 ${animate ? "heatmap-cell-enter" : ""}`}
-                  style={{
-                    backgroundColor: COLOR_LEVELS[cell.level],
-                    animationDelay: animate ? `${cell.index * 8}ms` : undefined,
-                    gridColumn: week + 1,
-                    gridRow: day + 1,
-                  }}
-                  onClick={() => handleCellClick(cell)}
-                  onMouseEnter={() => handleCellHover(cell, cell.dateStr)}
-                  onMouseLeave={() => handleCellHover(null)}
-                />
-              );
-            }),
-          )}
+          {/* Cell grid */}
+          <div
+            className="grid gap-[3px]"
+            style={{
+              gridTemplateColumns: `repeat(${weeks}, 1fr)`,
+              gridTemplateRows: "repeat(7, 10px)",
+            }}
+          >
+            {Array.from({ length: weeks }, (_, week) =>
+              Array.from({ length: 7 }, (_, day) => {
+                const cell = cells[day][week];
+                if (!cell) {
+                  return <div key={`${week}-${day}`} />;
+                }
+
+                return (
+                  <button
+                    key={cell.dateStr}
+                    ref={(el) => {
+                      if (el) cellRefs.current.set(cell.dateStr, el);
+                    }}
+                    className={`rounded-[2px] transition-[filter] duration-100 ${animate ? "heatmap-cell-enter" : ""}`}
+                    style={{
+                      backgroundColor: COLOR_LEVELS[cell.level],
+                      animationDelay: animate ? `${cell.index * 8}ms` : undefined,
+                      gridColumn: week + 1,
+                      gridRow: day + 1,
+                    }}
+                    onClick={() => handleCellClick(cell)}
+                    onMouseEnter={() => handleCellHover(cell, cell.dateStr)}
+                    onMouseLeave={() => handleCellHover(null)}
+                  />
+                );
+              }),
+            )}
+          </div>
         </div>
       </div>
 
