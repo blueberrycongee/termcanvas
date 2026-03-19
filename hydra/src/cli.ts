@@ -33,9 +33,15 @@ async function main() {
       await init();
       break;
     }
-    default:
+    case "--help":
+    case "-h":
+    case undefined:
       printUsage();
-      process.exit(command ? 1 : 0);
+      process.exit(0);
+    default:
+      console.error(`Unknown command: ${command}\n`);
+      printUsage();
+      process.exit(1);
   }
 }
 
