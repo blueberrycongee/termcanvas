@@ -1,0 +1,182 @@
+/* ── Reset ──────────────────────────────────────────────────── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: #0a0a0a;
+  color: #fafafa;
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Hero ───────────────────────────────────────────────────── */
+#hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 2rem;
+}
+#ascii-logo { display: flex; align-items: center; justify-content: center; }
+#hero h1 {
+  font-family: 'Geist Mono', monospace;
+  font-size: 2rem;
+  letter-spacing: 0.15em;
+  margin-top: 1.5rem;
+  font-weight: 600;
+}
+.tagline {
+  color: #71717a;
+  font-size: 1.1rem;
+  margin-top: 0.5rem;
+}
+.hero-buttons {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+/* ── Buttons ────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 2rem;
+  border-radius: 8px;
+  font-family: 'Geist', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.btn-primary {
+  background: #e8b840;
+  color: #0a0a0a;
+  box-shadow: 0 0 20px rgba(232, 184, 64, 0.25);
+}
+.btn-primary:hover {
+  background: #f0c850;
+  box-shadow: 0 0 30px rgba(232, 184, 64, 0.4);
+}
+.btn-secondary {
+  background: transparent;
+  color: #fafafa;
+  border: 1px solid #333;
+}
+.btn-secondary:hover {
+  border-color: #555;
+  background: rgba(255,255,255,0.05);
+}
+
+/* ── Scroll Indicator ───────────────────────────────────────── */
+.scroll-indicator {
+  position: absolute;
+  bottom: 2rem;
+  color: #71717a;
+  font-size: 1.5rem;
+  animation: bounce 2s ease infinite;
+}
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(8px); }
+}
+
+/* ── Screenshot ─────────────────────────────────────────────── */
+#screenshot {
+  padding: 4rem 2rem;
+  display: flex;
+  justify-content: center;
+}
+#screenshot img {
+  max-width: 1100px;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid #222;
+  box-shadow: 0 0 60px rgba(232, 184, 64, 0.08), 0 0 120px rgba(64, 144, 224, 0.05);
+}
+
+/* ── Features ───────────────────────────────────────────────── */
+#features {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 4rem 2rem;
+}
+#features h2 {
+  text-align: center;
+  font-family: 'Geist Mono', monospace;
+  font-size: 1.5rem;
+  letter-spacing: 0.1em;
+  margin-bottom: 3rem;
+  color: #fafafa;
+}
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2rem;
+}
+.feature-card {
+  padding: 1.5rem;
+  border-radius: 12px;
+  background: #111;
+  border: 1px solid #1a1a1a;
+  transition: border-color 0.2s;
+}
+.feature-card:hover {
+  border-color: #333;
+}
+.feature-icon {
+  font-size: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+.feature-card h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.feature-card p {
+  color: #71717a;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* ── Bottom CTA ─────────────────────────────────────────────── */
+#cta {
+  text-align: center;
+  padding: 4rem 2rem;
+}
+#cta .hero-buttons { justify-content: center; }
+.cta-sub {
+  color: #71717a;
+  font-size: 0.85rem;
+  margin-top: 1rem;
+}
+
+/* ── Footer ─────────────────────────────────────────────────── */
+footer {
+  text-align: center;
+  padding: 2rem;
+  color: #3f3f46;
+  font-size: 0.8rem;
+  border-top: 1px solid #1a1a1a;
+}
+footer a { color: #71717a; text-decoration: none; }
+footer a:hover { color: #fafafa; }
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  #hero h1 { font-size: 1.5rem; }
+  .tagline { font-size: 0.95rem; }
+  .features-grid { grid-template-columns: 1fr; }
+  .hero-buttons { flex-direction: column; align-items: center; }
+}
+
+/* ── Reduced Motion ─────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .scroll-indicator { animation: none; }
+  .btn { transition: none; }
+  .feature-card { transition: none; }
+}
