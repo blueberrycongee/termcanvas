@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.2] - 2026-03-19
+
+### Fixed
+- Usage panel: batch heatmap data collection into single file scan (91 IPC calls → 1), fixing app freeze when opening usage panel
+
 ## [0.8.1] - 2026-03-19
 
 ### Fixed
