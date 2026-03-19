@@ -7,11 +7,16 @@ interface Props {
 }
 
 export function UpdateModal({ onClose }: Props) {
-  const { status, info, downloadPercent } = useUpdaterStore();
+  const { status, info, downloadPercent, errorMessage } = useUpdaterStore();
   const backdropRef = useRef<HTMLDivElement>(null);
 
   const handleInstall = useCallback(() => {
     window.termcanvas.updater.install();
+  }, []);
+
+  const handleRetry = useCallback(() => {
+    useUpdaterStore.setState({ status: "checking", errorMessage: null });
+    window.termcanvas.updater.check();
   }, []);
 
   const handleBackdropClick = useCallback(
@@ -80,6 +85,15 @@ export function UpdateModal({ onClose }: Props) {
           </div>
         )}
 
+        {/* Error message */}
+        {status === "error" && (
+          <div className="px-5 py-3">
+            <p className="text-[12px] text-red-400">
+              {errorMessage || "Download failed"}
+            </p>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-[var(--border)]">
           <button
@@ -88,6 +102,14 @@ export function UpdateModal({ onClose }: Props) {
           >
             Later
           </button>
+          {status === "error" && (
+            <button
+              onClick={handleRetry}
+              className="px-4 py-1.5 text-[12px] font-medium text-white bg-[var(--accent)] rounded-lg hover:bg-[#005cc5] transition-colors"
+            >
+              Retry
+            </button>
+          )}
           {status === "ready" && (
             <button
               onClick={handleInstall}
