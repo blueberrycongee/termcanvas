@@ -34,7 +34,7 @@ const CODEX_COMMANDS: readonly SlashCommand[] = [
   { command: "/history", description: "Show conversation history" },
   { command: "/compact", description: "Compact conversation" },
   { command: "/clear", description: "Clear conversation" },
-  { command: "/skills", description: "List available skills" },
+  { command: "/skills", description: "Use skills to improve how Codex performs specific tasks" },
 ] as const;
 
 const NO_COMMANDS: readonly SlashCommand[] = [];
