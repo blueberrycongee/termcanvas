@@ -102,6 +102,12 @@ function createWindow() {
       }),
   });
 
+  // Open external links in system browser
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: "deny" };
+  });
+
   // Secure webview attachment: enforce isolation, strip preload
   mainWindow.webContents.on("will-attach-webview", (_event, webPreferences) => {
     webPreferences.nodeIntegration = false;

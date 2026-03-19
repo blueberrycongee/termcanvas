@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { useT } from "../i18n/useT";
+import { en } from "../i18n/en";
+import { zh } from "../i18n/zh";
 import { useShortcutStore, formatShortcut } from "../stores/shortcutStore";
 
 const isMac = (window.termcanvas?.app.platform ?? "darwin") === "darwin";
@@ -8,8 +9,17 @@ interface Props {
   onClose: () => void;
 }
 
+function Bi({ en: enText, zh: zhText }: { en: string; zh: string }) {
+  return (
+    <>
+      <span style={{ color: "var(--cyan)" }}>{enText}</span>
+      <span className="text-[var(--text-faint)] mx-1">·</span>
+      <span style={{ color: "var(--amber)" }}>{zhText}</span>
+    </>
+  );
+}
+
 export function WelcomePopup({ onClose }: Props) {
-  const t = useT();
   const shortcuts = useShortcutStore((s) => s.shortcuts);
   const backdropRef = useRef<HTMLDivElement>(null);
 
@@ -24,10 +34,16 @@ export function WelcomePopup({ onClose }: Props) {
   }, [onClose]);
 
   const shortcutItems = [
-    { key: shortcuts.addProject, desc: t.shortcut_add_project },
-    { key: shortcuts.newTerminal, desc: t.shortcut_new_terminal },
-    { key: shortcuts.toggleSidebar, desc: t.shortcut_toggle_sidebar },
-    { key: shortcuts.clearFocus, desc: t.shortcut_clear_focus },
+    { key: shortcuts.addProject, en: en.shortcut_add_project, zh: zh.shortcut_add_project },
+    { key: shortcuts.newTerminal, en: en.shortcut_new_terminal, zh: zh.shortcut_new_terminal },
+    { key: shortcuts.toggleSidebar, en: en.shortcut_toggle_sidebar, zh: zh.shortcut_toggle_sidebar },
+    { key: shortcuts.clearFocus, en: en.shortcut_clear_focus, zh: zh.shortcut_clear_focus },
+  ];
+
+  const steps = [
+    { en: en.welcome_step_1, zh: zh.welcome_step_1 },
+    { en: en.welcome_step_2, zh: zh.welcome_step_2 },
+    { en: en.welcome_step_3, zh: zh.welcome_step_3 },
   ];
 
   return (
@@ -39,10 +55,10 @@ export function WelcomePopup({ onClose }: Props) {
       }}
     >
       <div
-        className="rounded-md bg-[var(--bg)] overflow-hidden flex flex-col border border-[var(--border)] w-[480px] mx-4 shadow-2xl"
+        className="rounded-md bg-[var(--bg)] overflow-hidden flex flex-col border border-[var(--border)] max-w-[560px] w-full mx-4 shadow-2xl max-h-[calc(100dvh-2rem)]"
         style={{ fontFamily: '"Geist Mono", monospace' }}
       >
-        {/* Title bar — matches TerminalTile chrome */}
+        {/* Title bar */}
         <div className="flex items-center gap-2 px-3 py-2 select-none shrink-0">
           <div className="w-[3px] h-3 rounded-full bg-amber-500/60 shrink-0" />
           <span
@@ -52,7 +68,7 @@ export function WelcomePopup({ onClose }: Props) {
             welcome
           </span>
           <span className="text-[11px] text-[var(--text-muted)] truncate flex-1">
-            {t.welcome_title}
+            termcanvas
           </span>
           <button
             className="text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
@@ -69,58 +85,73 @@ export function WelcomePopup({ onClose }: Props) {
           </button>
         </div>
 
-        {/* Terminal-style content */}
-        <div className="px-4 pb-5 pt-1 text-[13px] text-[var(--text-primary)] leading-relaxed">
+        {/* Content */}
+        <div className="px-4 pb-5 pt-1 text-[13px] leading-relaxed overflow-y-auto min-h-0">
           <div className="text-[var(--text-muted)] mb-3">
             $ cat welcome.txt
           </div>
 
-          {/* Product intro */}
+          {/* Heading */}
           <div className="mb-4">
-            <div className="font-medium">{t.welcome_heading}</div>
-            <div className="text-[var(--text-secondary)]">
-              {t.welcome_desc}
+            <div className="font-medium text-[14px]">
+              <Bi en={en.welcome_heading} zh={zh.welcome_heading} />
+            </div>
+            <div className="text-[13px]">
+              <Bi en={en.welcome_desc} zh={zh.welcome_desc} />
             </div>
           </div>
 
           {/* Quick start */}
           <div className="mb-4">
-            <div className="text-[var(--cyan)] mb-1">{t.welcome_quick_start}</div>
-            <div className="text-[var(--text-secondary)] space-y-0.5 pl-2">
-              <div>1. {t.welcome_step_1}</div>
-              <div>2. {t.welcome_step_2}</div>
-              <div>3. {t.welcome_step_3}</div>
+            <div className="mb-1 font-medium">
+              <Bi en={en.welcome_quick_start} zh={zh.welcome_quick_start} />
+            </div>
+            <div className="space-y-0.5 pl-2">
+              {steps.map((step, i) => (
+                <div key={i}>
+                  <span className="text-[var(--text-muted)]">{i + 1}.</span>{" "}
+                  <Bi en={step.en} zh={step.zh} />
+                </div>
+              ))}
             </div>
           </div>
 
           {/* Shortcuts */}
           <div className="mb-4">
-            <div className="text-[var(--cyan)] mb-1">{t.welcome_shortcuts}</div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 pl-2">
+            <div className="mb-1 font-medium">
+              <Bi en={en.welcome_shortcuts} zh={zh.welcome_shortcuts} />
+            </div>
+            <div className="space-y-0.5 pl-2">
               {shortcutItems.map((item) => (
                 <div key={item.key} className="flex gap-2">
                   <span className="text-[var(--accent)] shrink-0">
                     {formatShortcut(item.key, isMac)}
                   </span>
-                  <span className="text-[var(--text-secondary)]">
-                    {item.desc}
+                  <span>
+                    <Bi en={item.en} zh={item.zh} />
                   </span>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* GitHub link */}
+          {/* GitHub */}
           <div className="mb-4 text-[var(--text-secondary)]">
-            {t.welcome_github}{" "}
-            <span className="text-[var(--accent)]">
+            GitHub:{" "}
+            <a
+              href="https://github.com/blueberrycongee/termcanvas"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--accent)] hover:underline cursor-pointer"
+              onClick={(e) => e.stopPropagation()}
+            >
               github.com/blueberrycongee/termcanvas
-            </span>
+            </a>
           </div>
 
-          {/* Dismiss hint */}
-          <div className="text-[var(--text-muted)] text-[12px]">
-            {t.welcome_dismiss}
+          {/* Dismiss */}
+          <div className="text-[12px]">
+            <Bi en={en.welcome_dismiss} zh={zh.welcome_dismiss} />
           </div>
         </div>
       </div>
