@@ -12,13 +12,15 @@ decomposable subtasks), investigate first, then use hydra to spawn sub-agents.
 
 Workflow:
 1. Investigate the problem yourself first, form a clear task description
-2. Pick the right mode:
+2. Check your permission level before spawning:
+   - Read \`~/.claude/settings.local.json\`. If \`Bash(*)\` is in \`permissions.allow\`, you are in broad-permission mode.
+   - Or: if your Bash/Write/Edit calls have been executing without user approval, you are in auto-approve mode.
+   - If either is true, add \`--auto-approve\` when spawning Claude or Codex sub-agents.
+     Without it, sub-agents will stall on approval prompts with no way to intervene.
+   - If you are in restricted mode (tool calls require user approval), do NOT pass \`--auto-approve\`.
+3. Pick the right mode:
    - Read-only: \`hydra spawn --task "<specific task>" --type <agent-type> --repo . --worktree .\`
    - Code changes: \`hydra spawn --task "<specific task>" --type <agent-type> --repo .\`
-3. If you are in a permissionless / auto-approve mode (e.g. Claude Code with
-   \`--dangerously-skip-permissions\`, Codex with \`--full-auto\`) and spawning
-   a Claude or Codex sub-agent, add \`--auto-approve\` so the sub-agent inherits
-   the same autonomy level. Without this, sub-agents may stall on approval prompts.
 4. Poll progress: \`termcanvas terminal status <terminalId>\`
 5. Read the result file returned by spawn: \`cat <resultFile>\`
 6. For code-change tasks: \`termcanvas diff <worktreePath> --summary\` then \`git merge <branch>\`
