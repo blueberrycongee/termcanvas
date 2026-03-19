@@ -2,6 +2,13 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.8] - 2026-03-19
+
+### Fixed
+- Keyboard: auto-focus first worktree after adding a new project via Cmd+O
+- Keyboard: auto-focus and zoom to new terminal after Cmd+T
+- Keyboard: preserve worktree focus after closing the last terminal with Cmd+D
+
 ## [0.8.7] - 2026-03-19
 
 ### Fixed
