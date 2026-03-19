@@ -143,6 +143,7 @@ export const zh = {
     "默认发送到当前聚焦终端。Enter 发送，Shift+Enter 换行。Agent 终端也支持图片输入。",
   composer_note_text_only:
     "默认发送到当前聚焦终端。Enter 发送，Shift+Enter 换行。当前终端类型不支持图片输入。",
+  composer_drop_hint: "拖放文件到此处",
   composer_missing_target: "请先选择或聚焦一个终端。",
   composer_empty_submit: "发送前请输入文本或粘贴图片。",
   composer_images_unsupported: (title: string) =>
