@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.9] - 2026-03-19
+
+### Fixed
+- Composer: replace fixed paste delay with output-gated submit to prevent Enter from being swallowed
+
 ## [0.8.8] - 2026-03-19
 
 ### Fixed
