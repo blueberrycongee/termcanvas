@@ -1,5 +1,8 @@
+import { useState, useEffect } from "react";
 import { useT } from "../i18n/useT";
 import { useShortcutStore, formatShortcut } from "../stores/shortcutStore";
+import { useCanvasStore, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
+import { shouldIgnoreShortcutTarget } from "../hooks/shortcutTarget";
 
 const platform = window.termcanvas?.app.platform ?? "darwin";
 const isMac = platform === "darwin";
@@ -7,6 +10,31 @@ const isMac = platform === "darwin";
 export function ShortcutHints() {
   const t = useT();
   const shortcuts = useShortcutStore((s) => s.shortcuts);
+  const rightPanelCollapsed = useCanvasStore((s) => s.rightPanelCollapsed);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "?" && !e.repeat && !shouldIgnoreShortcutTarget(e)) {
+        setVisible(true);
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "?") {
+        setVisible(false);
+      }
+    };
+    const onBlur = () => setVisible(false);
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, []);
 
   const hints = [
     { key: shortcuts.addProject, desc: t.shortcut_add_project },
@@ -21,10 +49,16 @@ export function ShortcutHints() {
     { key: shortcuts.spanLarge, desc: t.shortcut_span_large },
   ];
 
+  const rightOffset = (rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH) + 16;
+
   return (
     <div
-      className="fixed z-50 flex flex-col gap-1.5 pointer-events-none select-none"
-      style={{ top: 52, right: platform === "win32" ? 148 : 16 }}
+      className="fixed z-50 flex flex-col gap-1.5 pointer-events-none select-none transition-opacity duration-150"
+      style={{
+        top: 52,
+        right: platform === "win32" ? rightOffset + 132 : rightOffset,
+        opacity: visible ? 1 : 0,
+      }}
     >
       {hints.map((h) => (
         <div
