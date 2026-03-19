@@ -165,8 +165,18 @@ export function ComposerBar() {
         draft.slice(1),
       );
       if (commands.length > 0) {
-        setSlashMenuOpen(true);
-        setSlashSelectedIndex(0);
+        setSlashMenuOpen((wasOpen) => {
+          if (!wasOpen) {
+            // Menu is opening for the first time — reset to top
+            setSlashSelectedIndex(0);
+          } else {
+            // Menu was already open — clamp index to new list bounds
+            setSlashSelectedIndex((prev) =>
+              Math.min(prev, commands.length - 1),
+            );
+          }
+          return true;
+        });
         return;
       }
     }
