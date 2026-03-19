@@ -249,6 +249,7 @@ function parseClaudeSession(
 
     const u = usage as Record<string, unknown>;
     const model = ((msg as Record<string, unknown>).model as string) ?? "unknown";
+    if (model.startsWith("<") || model === "unknown") continue;
     const msgId = ((msg as Record<string, unknown>).id as string) ?? tsClean;
 
     const ccTotal = (u.cache_creation_input_tokens as number) ?? 0;
