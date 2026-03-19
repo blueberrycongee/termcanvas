@@ -260,9 +260,14 @@ export function TerminalTile({
     let programmaticScrollCount = 0;
     const viewportEl = xterm.element?.querySelector(".xterm-viewport");
     const handleViewportScroll = () => {
-      if (programmaticScrollCount > 0) return;
       const buf = xterm.buffer.active;
-      followBottom = buf.viewportY >= buf.baseY;
+      const atBottom = buf.viewportY >= buf.baseY;
+      // Only skip when at bottom during a programmatic scroll — if the user
+      // has scrolled away from the bottom we must honour it even when
+      // programmatic scrolls are in flight, otherwise followBottom never
+      // becomes false during streaming output.
+      if (atBottom && programmaticScrollCount > 0) return;
+      followBottom = atBottom;
     };
     viewportEl?.addEventListener("scroll", handleViewportScroll, { passive: true });
 
