@@ -33,7 +33,6 @@ const COLOR_LEVELS = [
 
 interface CellData {
   dateStr: string;
-  dayOfMonth: number;
   entry: HeatmapEntry | undefined;
   level: number;
   index: number;
@@ -87,7 +86,6 @@ function buildGrid(data: Record<string, HeatmapEntry>): { cells: (CellData | nul
 
       grid[day][week] = {
         dateStr,
-        dayOfMonth: d.getDate(),
         entry,
         level,
         index: cellIndex++,
@@ -106,6 +104,7 @@ interface TooltipProps {
 }
 
 function HeatmapTooltip({ cell, triggerRect }: TooltipProps) {
+  const t = useT();
   const spaceBelow = window.innerHeight - triggerRect.bottom;
   const flipUp = spaceBelow < 60;
 
@@ -125,7 +124,7 @@ function HeatmapTooltip({ cell, triggerRect }: TooltipProps) {
       >
         <div className="text-[10px] text-[var(--text-secondary)] font-medium">{cell.dateStr}</div>
         <div className="flex items-center gap-2 mt-0.5 text-[10px]">
-          <span className="text-[var(--text-primary)]">{fmtTokens(cell.entry?.tokens ?? 0)} tokens</span>
+          <span className="text-[var(--text-primary)]">{fmtTokens(cell.entry?.tokens ?? 0)} {t.usage_tokens_label}</span>
           <span className="text-[var(--text-faint)]">·</span>
           <span className="text-[var(--text-muted)]">{fmtCost(cell.entry?.cost ?? 0)}</span>
         </div>

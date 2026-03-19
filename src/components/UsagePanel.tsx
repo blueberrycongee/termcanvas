@@ -96,7 +96,6 @@ function Bar({
 function HoverDetail({ children, tooltip }: { children: React.ReactNode; tooltip: React.ReactNode }) {
   const [show, setShow] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
-  const tooltipRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number; flipUp: boolean } | null>(null);
 
   useEffect(() => {
@@ -106,7 +105,7 @@ function HoverDetail({ children, tooltip }: { children: React.ReactNode; tooltip
     const flipUp = spaceBelow < 60;
     setPos({
       top: flipUp ? rect.top : rect.bottom + 2,
-      left: rect.left,
+      left: rect.left + rect.width / 2,
       flipUp,
     });
   }, [show]);
@@ -120,12 +119,12 @@ function HoverDetail({ children, tooltip }: { children: React.ReactNode; tooltip
       {children}
       {show && pos && createPortal(
         <div
-          ref={tooltipRef}
           className="fixed z-[9999] pointer-events-none usage-tooltip-enter"
           style={{
             top: pos.flipUp ? undefined : pos.top,
             bottom: pos.flipUp ? window.innerHeight - pos.top + 2 : undefined,
             left: pos.left,
+            transform: "translateX(-50%)",
           }}
         >
           <div className="rounded-md px-2 py-1 border border-[var(--border)] bg-[var(--surface)] shadow-lg">
