@@ -9,6 +9,15 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-sans/style.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-mono/style.min.css" />
   <link rel="stylesheet" href="/src/style.css" />
+  <meta name="description" content="TermCanvas spreads all your terminals across an infinite spatial canvas. First-class support for AI coding agents." />
+  <meta property="og:title" content="TermCanvas" />
+  <meta property="og:description" content="Your terminals, on an infinite canvas." />
+  <meta property="og:image" content="/screenshot.png" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="TermCanvas" />
+  <meta name="twitter:description" content="Your terminals, on an infinite canvas." />
+  <meta name="twitter:image" content="/screenshot.png" />
 </head>
 <body>
   <section id="hero">
@@ -21,6 +30,53 @@
     </div>
     <div class="scroll-indicator">&#8595;</div>
   </section>
+
+  <section id="screenshot">
+    <img src="/screenshot.png" alt="TermCanvas workspace with multiple AI agents" />
+  </section>
+
+  <section id="features">
+    <h2>Features</h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">&#9633;</div>
+        <h3>Infinite Canvas</h3>
+        <p>Pan, zoom, and arrange your terminals freely on a spatial canvas. No more tabs or split panes.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#9678;</div>
+        <h3>AI Agents</h3>
+        <p>Run Claude Code, Codex, Gemini, Kimi, and OpenCode side by side. See their status at a glance.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#9654;</div>
+        <h3>Composer</h3>
+        <p>A unified input bar that sends prompts to the focused agent, with image paste support.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#9636;</div>
+        <h3>Usage Tracking</h3>
+        <p>Token cost dashboard with per-project and per-model breakdown. Know what you're spending.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="cta">
+    <div class="hero-buttons">
+      <a href="https://github.com/blueberrycongee/termcanvas/releases" class="btn btn-primary">Download</a>
+      <a href="https://github.com/blueberrycongee/termcanvas" class="btn btn-secondary">GitHub</a>
+    </div>
+    <p class="cta-sub">MIT Licensed &middot; Open Source</p>
+  </section>
+
+  <footer>
+    <a href="https://github.com/blueberrycongee/termcanvas">GitHub</a>
+    &nbsp;&middot;&nbsp;
+    <span>MIT License</span>
+    &nbsp;&middot;&nbsp;
+    <span>TermCanvas</span>
+  </footer>
+
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
