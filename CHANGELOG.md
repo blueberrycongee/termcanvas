@@ -2,6 +2,12 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.6] - 2026-03-19
+
+### Fixed
+- Composer: restore delay between bracketed paste and Enter key
+- Usage panel: include cache creation tokens in cache hit rate denominator
+
 ## [0.8.5] - 2026-03-19
 
 ### Added
