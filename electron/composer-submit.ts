@@ -163,9 +163,11 @@ async function submitBracketedPaste(
   }
 
   // Build an ordered list of paste payloads. The \r is appended to the final
-  // write() so it lands in the same PTY kernel buffer as the paste-end marker.
-  // The CLI's stdin.read() returns both in one chunk, guaranteeing the submit
-  // is processed in the same event-loop tick — no race, no hardcoded delay.
+  // write() to eliminate the inter-write scheduling gap that caused the old
+  // race condition. CLI parsers (Ink, Crossterm, etc.) are stream-aware and
+  // preserve event boundaries across read() chunks, so correctness does not
+  // depend on a single read() — but removing the gap avoids the window where
+  // the TUI could re-render between the paste-end marker and the submit key.
   const pastes: { data: string; stage: ComposerSubmitIssueStage }[] = [];
   for (const imagePath of stagedImagePaths) {
     pastes.push({ data: imagePath, stage: "paste-image" });
