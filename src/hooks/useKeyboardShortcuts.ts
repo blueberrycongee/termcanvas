@@ -243,6 +243,14 @@ async function handleAddProject(t: ReturnType<typeof useT>) {
   const newProject = useProjectStore.getState().projects.find(
     (p) => p.path === info.path,
   );
+
+  // Auto-focus the first worktree so cmd+t works immediately
+  if (newProject && newProject.worktrees.length > 0) {
+    useProjectStore
+      .getState()
+      .setFocusedWorktree(newProject.id, newProject.worktrees[0].id);
+  }
+
   let projH: number;
   if (!newProject || newProject.worktrees.length === 0) {
     projH = PROJ_TITLE_H + PROJ_PAD + 60 + PROJ_PAD;
