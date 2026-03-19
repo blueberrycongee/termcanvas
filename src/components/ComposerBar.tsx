@@ -154,6 +154,9 @@ export function ComposerBar() {
   const slashDismissedRef = useRef(false);
   const prevSlashDraftRef = useRef(draft);
 
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounterRef = useRef(0);
+
   const slashCommands = useMemo(() => {
     if (!slashMenuOpen || !targetTerminal) return [];
     // Extract the query after "/"
@@ -278,6 +281,88 @@ export function ComposerBar() {
     [addImages, notify, setError, t, targetAdapter, targetTerminal],
   );
 
+  const handleDrop = useCallback(
+    async (event: React.DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      dragCounterRef.current = 0;
+      setIsDragOver(false);
+
+      const files = Array.from(event.dataTransfer.files);
+      if (files.length === 0) return;
+
+      const imageFiles: File[] = [];
+      const nonImagePaths: string[] = [];
+
+      for (const file of files) {
+        if (file.type.startsWith("image/")) {
+          imageFiles.push(file);
+        } else {
+          // Electron enriches dropped File objects with an absolute `path` property
+          const filePath = (file as File & { path?: string }).path;
+          if (filePath) {
+            nonImagePaths.push(filePath);
+          }
+        }
+      }
+
+      // Handle images — reuse the same validation as clipboard paste
+      if (imageFiles.length > 0) {
+        if (!targetTerminal || !targetAdapter) {
+          const message = t.composer_missing_target;
+          setError(message);
+          notify("warn", message);
+          return;
+        }
+        if (!targetAdapter.supportsImages) {
+          const message = t.composer_images_unsupported(targetTerminal.title);
+          setError(message);
+          notify("warn", message);
+          return;
+        }
+        try {
+          const droppedImages = await Promise.all(
+            imageFiles.map(async (file, index) => ({
+              id: `img-${Date.now()}-${index}`,
+              name: file.name || `dropped-image-${index + 1}.png`,
+              dataUrl: await fileToDataUrl(file),
+            })),
+          );
+          addImages(droppedImages);
+        } catch (dropError) {
+          const detail =
+            dropError instanceof Error ? dropError.message : String(dropError);
+          const message = t.composer_image_read_failed(
+            targetTerminal.title,
+            `${detail} [image-read-failed]`,
+          );
+          setError(message);
+          notify("error", message);
+          return;
+        }
+      }
+
+      // Handle non-image files — insert paths into draft
+      if (nonImagePaths.length > 0) {
+        const pathText = nonImagePaths.join(" ");
+        const textarea = textareaRef.current;
+        if (textarea) {
+          const { selectionStart, selectionEnd } = textarea;
+          const currentDraft = useComposerStore.getState().draft;
+          const before = currentDraft.slice(0, selectionStart);
+          const after = currentDraft.slice(selectionEnd);
+          const needsLeadingSpace = before.length > 0 && !before.endsWith(" ") && !before.endsWith("\n");
+          const insertion = (needsLeadingSpace ? " " : "") + pathText;
+          setDraft(before + insertion + after);
+        } else {
+          const currentDraft = useComposerStore.getState().draft;
+          const needsSpace = currentDraft.length > 0 && !currentDraft.endsWith(" ") && !currentDraft.endsWith("\n");
+          setDraft(currentDraft + (needsSpace ? " " : "") + pathText);
+        }
+      }
+    },
+    [addImages, notify, setDraft, setError, t, targetAdapter, targetTerminal],
+  );
+
   const handleSubmit = useCallback(async () => {
     if (useComposerStore.getState().isSubmitting) return;
 
@@ -391,7 +476,28 @@ export function ComposerBar() {
       className="fixed bottom-4 z-[90] pointer-events-none flex justify-center px-4"
       style={{ left: composerLeft, right: composerRight }}
     >
-      <div className="pointer-events-auto w-full max-w-4xl rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[0_18px_48px_rgba(0,0,0,0.24)]">
+      <div
+        className={`pointer-events-auto w-full max-w-4xl rounded-xl border bg-[var(--surface)] shadow-[0_18px_48px_rgba(0,0,0,0.24)] transition-colors duration-150 ${
+          isDragOver
+            ? "border-[var(--accent)] bg-[var(--accent)]/5"
+            : "border-[var(--border)]"
+        }`}
+        onDragEnter={(e) => {
+          e.preventDefault();
+          dragCounterRef.current += 1;
+          if (dragCounterRef.current === 1) setIsDragOver(true);
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          dragCounterRef.current -= 1;
+          if (dragCounterRef.current === 0) setIsDragOver(false);
+        }}
+        onDrop={handleDrop}
+      >
         {/* Header */}
         <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--border)]">
           <span
@@ -409,6 +515,12 @@ export function ComposerBar() {
             {targetLabel}
           </div>
         </div>
+
+        {isDragOver && (
+          <div className="flex items-center justify-center py-3 text-[12px] font-medium text-[var(--accent)]">
+            {t.composer_drop_hint}
+          </div>
+        )}
 
         {/* Image attachments */}
         {images.length > 0 && (
