@@ -46,24 +46,31 @@ export class PtyManager {
   }
 
   /**
-   * Resolves when the PTY produces any output, or after {@link timeoutMs}.
-   * Used to gate the submit key (\r) until the CLI has processed a paste.
+   * Resolves when PTY output settles (no new output for {@link settleMs}),
+   * or after {@link timeoutMs} at most.
+   * Used to gate the submit key (\r) until the CLI has finished processing
+   * and rendering a paste.
    */
-  waitForOutput(id: number, timeoutMs: number): Promise<void> {
+  waitForOutput(id: number, timeoutMs: number, settleMs = 50): Promise<void> {
     return new Promise((resolve) => {
       const instance = this.instances.get(id);
       if (!instance) {
         resolve();
         return;
       }
-      const timer = setTimeout(() => {
+      let settleTimer: ReturnType<typeof setTimeout> | null = null;
+      const maxTimer = setTimeout(() => {
+        if (settleTimer) clearTimeout(settleTimer);
         disposable.dispose();
         resolve();
       }, timeoutMs);
       const disposable = instance.onData(() => {
-        clearTimeout(timer);
-        disposable.dispose();
-        resolve();
+        if (settleTimer) clearTimeout(settleTimer);
+        settleTimer = setTimeout(() => {
+          clearTimeout(maxTimer);
+          disposable.dispose();
+          resolve();
+        }, settleMs);
       });
     });
   }
