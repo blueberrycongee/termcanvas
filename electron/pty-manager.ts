@@ -45,6 +45,29 @@ export class PtyManager {
     this.instances.get(id)?.write(data);
   }
 
+  /**
+   * Resolves when the PTY produces any output, or after {@link timeoutMs}.
+   * Used to gate the submit key (\r) until the CLI has processed a paste.
+   */
+  waitForOutput(id: number, timeoutMs: number): Promise<void> {
+    return new Promise((resolve) => {
+      const instance = this.instances.get(id);
+      if (!instance) {
+        resolve();
+        return;
+      }
+      const timer = setTimeout(() => {
+        disposable.dispose();
+        resolve();
+      }, timeoutMs);
+      const disposable = instance.onData(() => {
+        clearTimeout(timer);
+        disposable.dispose();
+        resolve();
+      });
+    });
+  }
+
   resize(id: number, cols: number, rows: number) {
     try {
       this.instances.get(id)?.resize(cols, rows);
