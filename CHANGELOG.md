@@ -2,6 +2,20 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.5] - 2026-03-19
+
+### Added
+- Composer: drag-and-drop support for files and images
+- Usage panel: cache rate section in right panel
+- Shortcuts: Cmd+D to close focused terminal
+- Updater: error state UI with retry button in update modal
+
+### Fixed
+- Composer: add delay before submit when images are attached
+- Composer: clean up staged image temp files on each new submit
+- Composer: correct paste+submit write coalescing
+- Hydra: auto-unblock stalled sub-agents during poll cycles
+
 ## [0.8.4] - 2026-03-19
 
 ### Fixed
