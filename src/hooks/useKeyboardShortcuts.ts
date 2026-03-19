@@ -348,6 +348,23 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      if (matchesShortcut(e, shortcuts.closeFocused)) {
+        e.preventDefault();
+        const list = getAllTerminals();
+        const focusedIdx = getFocusedTerminalIndex(list);
+        if (focusedIdx !== -1) {
+          const focused = list[focusedIdx];
+          useProjectStore
+            .getState()
+            .removeTerminal(
+              focused.projectId,
+              focused.worktreeId,
+              focused.terminalId,
+            );
+        }
+        return;
+      }
+
       if (matchesShortcut(e, shortcuts.nextTerminal)) {
         e.preventDefault();
         const list = getAllTerminals();

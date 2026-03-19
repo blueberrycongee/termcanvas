@@ -85,6 +85,7 @@ export const zh = {
   shortcut_add_project: "添加项目",
   shortcut_toggle_sidebar: "切换侧栏",
   shortcut_new_terminal: "新建终端",
+  shortcut_close_focused: "关闭当前",
   shortcut_next_terminal: "下一终端",
   shortcut_prev_terminal: "上一终端",
   shortcut_clear_focus: "切换聚焦",

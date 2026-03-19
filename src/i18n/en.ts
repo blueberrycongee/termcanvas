@@ -87,6 +87,7 @@ export const en = {
   shortcut_add_project: "Add project",
   shortcut_toggle_sidebar: "Toggle sidebar",
   shortcut_new_terminal: "New terminal",
+  shortcut_close_focused: "Close focused",
   shortcut_next_terminal: "Next terminal",
   shortcut_prev_terminal: "Prev terminal",
   shortcut_clear_focus: "Toggle focus",

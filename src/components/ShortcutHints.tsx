@@ -40,6 +40,7 @@ export function ShortcutHints() {
     { key: shortcuts.addProject, desc: t.shortcut_add_project },
     { key: shortcuts.toggleSidebar, desc: t.shortcut_toggle_sidebar },
     { key: shortcuts.newTerminal, desc: t.shortcut_new_terminal },
+    { key: shortcuts.closeFocused, desc: t.shortcut_close_focused },
     { key: shortcuts.nextTerminal, desc: t.shortcut_next_terminal },
     { key: shortcuts.prevTerminal, desc: t.shortcut_prev_terminal },
     { key: shortcuts.clearFocus, desc: t.shortcut_clear_focus },
