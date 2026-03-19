@@ -237,6 +237,19 @@ async function handleAddProject(t: ReturnType<typeof useT>) {
       terminals: [],
     })),
   });
+
+  // Center viewport on the newly created project
+  const { viewport, rightPanelCollapsed, rightPanelWidth } =
+    useCanvasStore.getState();
+  const rightOffset = rightPanelCollapsed ? 0 : rightPanelWidth;
+  const screenCenterX = (window.innerWidth - rightOffset) / 2;
+  const screenCenterY = window.innerHeight / 2;
+  const projW = 340;
+  const projH = 400;
+  const targetX = -(placeX + projW / 2) * viewport.scale + screenCenterX;
+  const targetY = -(0 + projH / 2) * viewport.scale + screenCenterY;
+  useCanvasStore.getState().animateTo(targetX, targetY, viewport.scale);
+
   notify("info", t.info_added_project(info.name, info.worktrees.length));
 }
 
