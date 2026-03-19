@@ -195,6 +195,11 @@ export const en = {
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
   ] as readonly string[],
+  usage_heatmap: "Activity",
+  usage_heatmap_less: "Less",
+  usage_heatmap_more: "More",
+  usage_heatmap_loading: "Loading heatmap…",
+  usage_heatmap_error: "Failed to load heatmap",
 } as const;
 
 export type TranslationKey = keyof typeof en;

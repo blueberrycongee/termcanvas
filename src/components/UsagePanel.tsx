@@ -1,9 +1,11 @@
 import { useEffect, useCallback, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useUsageStore } from "../stores/usageStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useT } from "../i18n/useT";
 import { DateNavigator } from "./usage/DateNavigator";
 import { SparklineChart } from "./usage/SparklineChart";
+import { TokenHeatmap } from "./usage/TokenHeatmap";
 import type { UsageSummary, ProjectUsage, ModelUsage } from "../types";
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -93,19 +95,44 @@ function Bar({
 
 function HoverDetail({ children, tooltip }: { children: React.ReactNode; tooltip: React.ReactNode }) {
   const [show, setShow] = useState(false);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; flipUp: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!show || !triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const flipUp = spaceBelow < 60;
+    setPos({
+      top: flipUp ? rect.top : rect.bottom + 2,
+      left: rect.left,
+      flipUp,
+    });
+  }, [show]);
+
   return (
     <div
-      className="relative"
+      ref={triggerRef}
       onMouseEnter={() => setShow(true)}
       onMouseLeave={() => setShow(false)}
     >
       {children}
-      {show && (
-        <div className="absolute left-0 right-0 top-full z-10 usage-tooltip-enter pointer-events-none">
-          <div className="mt-0.5 rounded-md px-2 py-1 border border-[var(--border)] bg-[var(--surface)] shadow-lg">
+      {show && pos && createPortal(
+        <div
+          ref={tooltipRef}
+          className="fixed z-[9999] pointer-events-none usage-tooltip-enter"
+          style={{
+            top: pos.flipUp ? undefined : pos.top,
+            bottom: pos.flipUp ? window.innerHeight - pos.top + 2 : undefined,
+            left: pos.left,
+          }}
+        >
+          <div className="rounded-md px-2 py-1 border border-[var(--border)] bg-[var(--surface)] shadow-lg">
             {tooltip}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
@@ -474,6 +501,10 @@ export function UsagePanel() {
               {summary.models.length > 0 && <div className="mx-3 h-px bg-[var(--border)]" />}
               <div className="usage-section-enter" style={{ animationDelay: "200ms" }}>
                 <ModelsSection t={t} models={summary.models} animate={true} />
+              </div>
+              <div className="mx-3 h-px bg-[var(--border)]" />
+              <div className="usage-section-enter" style={{ animationDelay: "250ms" }}>
+                <TokenHeatmap animate={true} />
               </div>
             </div>
           ) : (

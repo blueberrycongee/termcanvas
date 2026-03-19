@@ -193,4 +193,9 @@ export const zh = {
     "1月", "2月", "3月", "4月", "5月", "6月",
     "7月", "8月", "9月", "10月", "11月", "12月",
   ] as readonly string[],
+  usage_heatmap: "活跃度",
+  usage_heatmap_less: "少",
+  usage_heatmap_more: "多",
+  usage_heatmap_loading: "加载热力图…",
+  usage_heatmap_error: "热力图加载失败",
 } as const;

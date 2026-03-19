@@ -201,6 +201,22 @@ body {
   animation: usage-calendar-in 0.2s ease-out both;
 }
 
+/* ── Heatmap animations ── */
+@keyframes heatmap-cell-in {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.heatmap-cell-enter {
+  animation: heatmap-cell-in 0.3s ease-out both;
+}
+
 /* ── Hierarchy animations ── */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-4px); }
