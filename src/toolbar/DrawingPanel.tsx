@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useDrawingStore, type DrawingTool } from "../stores/drawingStore";
 import { useT } from "../i18n/useT";
 
@@ -27,12 +27,32 @@ export function DrawingPanel() {
     useDrawingStore();
   const [vertical, setVertical] = useState(true);
   const [pos, setPos] = useState({ x: window.innerWidth - 60, y: 60 });
+  const panelRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
     startX: number;
     startY: number;
     origX: number;
     origY: number;
   } | null>(null);
+
+  const clampPos = useCallback(
+    (x: number, y: number) => {
+      const el = panelRef.current;
+      const w = el?.offsetWidth ?? 0;
+      const h = el?.offsetHeight ?? 0;
+      return {
+        x: Math.max(0, Math.min(x, window.innerWidth - w)),
+        y: Math.max(0, Math.min(y, window.innerHeight - h)),
+      };
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const onResize = () => setPos((p) => clampPos(p.x, p.y));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [clampPos]);
 
   const handleDragStart = useCallback(
     (e: React.MouseEvent) => {
@@ -47,10 +67,9 @@ export function DrawingPanel() {
 
       const handleMove = (ev: MouseEvent) => {
         if (!dragRef.current) return;
-        setPos({
-          x: dragRef.current.origX + ev.clientX - dragRef.current.startX,
-          y: dragRef.current.origY + ev.clientY - dragRef.current.startY,
-        });
+        const newX = dragRef.current.origX + ev.clientX - dragRef.current.startX;
+        const newY = dragRef.current.origY + ev.clientY - dragRef.current.startY;
+        setPos(clampPos(newX, newY));
       };
 
       const handleUp = () => {
@@ -62,11 +81,12 @@ export function DrawingPanel() {
       window.addEventListener("mousemove", handleMove);
       window.addEventListener("mouseup", handleUp);
     },
-    [pos],
+    [pos, clampPos],
   );
 
   return (
     <div
+      ref={panelRef}
       className="fixed z-50 bg-[var(--bg)] border border-[var(--border)] rounded-lg shadow-lg"
       style={{ left: pos.x, top: pos.y }}
     >
