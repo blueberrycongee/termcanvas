@@ -9,6 +9,7 @@ import { DrawingPanel } from "./toolbar/DrawingPanel";
 import { ShortcutHints } from "./components/ShortcutHints";
 import { CompletionGlow } from "./components/CompletionGlow";
 import { UsagePanel } from "./components/UsagePanel";
+import { WelcomePopup } from "./components/WelcomePopup";
 import { useProjectStore, createTerminal } from "./stores/projectStore";
 import { useCanvasStore } from "./stores/canvasStore";
 import { useDrawingStore } from "./stores/drawingStore";
@@ -261,6 +262,10 @@ export function App() {
   const { showCloseDialog, handleSave, handleDiscard, handleCancel } =
     useCloseHandler();
 
+  const [showWelcome, setShowWelcome] = useState(() => {
+    return !localStorage.getItem("termcanvas-welcome-seen");
+  });
+
   // Wire IPC updater events into the zustand store (once)
   useEffect(() => initUpdaterListeners(), []);
 
@@ -374,6 +379,14 @@ export function App() {
           onSave={handleSave}
           onDiscard={handleDiscard}
           onCancel={handleCancel}
+        />
+      )}
+      {showWelcome && (
+        <WelcomePopup
+          onClose={() => {
+            localStorage.setItem("termcanvas-welcome-seen", "1");
+            setShowWelcome(false);
+          }}
         />
       )}
     </div>
