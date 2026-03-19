@@ -56,15 +56,34 @@ export function BrowserCard({ card }: Props) {
     return () => unregister(cardId);
   }, [cardId, card.x, card.y, card.w, card.h, register, unregister]);
 
-  // Sync webview title
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Sync webview title, URL bar, and handle load errors
   useEffect(() => {
     const wv = webviewRef.current;
     if (!wv) return;
-    const handler = (e: Electron.PageTitleUpdatedEvent) => {
+    const onTitle = (e: Electron.PageTitleUpdatedEvent) => {
       updateCard(card.id, { title: e.title });
     };
-    wv.addEventListener("page-title-updated", handler);
-    return () => { wv.removeEventListener("page-title-updated", handler); };
+    const onNavigate = ((e: Event & { url: string }) => {
+      setUrlInput(e.url);
+      setLoadError(null);
+    }) as EventListener;
+    const onFailLoad = ((e: Event & { errorCode: number; errorDescription: string; isMainFrame: boolean }) => {
+      // -3 = ERR_ABORTED (normal during navigation), ignore
+      if (!e.isMainFrame || e.errorCode === -3) return;
+      setLoadError(e.errorDescription);
+    }) as EventListener;
+    wv.addEventListener("page-title-updated", onTitle);
+    wv.addEventListener("did-navigate", onNavigate);
+    wv.addEventListener("did-navigate-in-page", onNavigate);
+    wv.addEventListener("did-fail-load", onFailLoad);
+    return () => {
+      wv.removeEventListener("page-title-updated", onTitle);
+      wv.removeEventListener("did-navigate", onNavigate);
+      wv.removeEventListener("did-navigate-in-page", onNavigate);
+      wv.removeEventListener("did-fail-load", onFailLoad);
+    };
   }, [card.id, updateCard]);
 
   // Drag handler
@@ -214,12 +233,28 @@ export function BrowserCard({ card }: Props) {
       </div>
 
       {/* Webview */}
-      <webview
-        ref={webviewRef as React.Ref<HTMLElement>}
-        src={card.url}
-        className="flex-1 min-h-0"
-        style={{ border: "none" }}
-      />
+      <div className="flex-1 min-h-0 relative">
+        <webview
+          ref={webviewRef as React.Ref<HTMLElement>}
+          src={card.url}
+          partition="persist:browser"
+          allowpopups
+          className="w-full h-full"
+          style={{ border: "none" }}
+        />
+        {loadError && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[var(--surface)] text-[var(--text-muted)]">
+            <p className="text-sm mb-2">Failed to load page</p>
+            <p className="text-xs opacity-60 mb-3 max-w-[300px] text-center">{loadError}</p>
+            <button
+              className="text-xs px-3 py-1 rounded border border-[var(--border)] hover:bg-[var(--bg)] transition-colors"
+              onClick={() => { setLoadError(null); webviewRef.current?.reload(); }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Resize handle */}
       <div

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, nativeImage } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, nativeImage, shell } from "electron";
 import { execSync } from "child_process";
 import path from "path";
 import fs from "fs";
@@ -100,6 +100,13 @@ function createWindow() {
       !isWin && {
         titleBarStyle: "hidden" as const,
       }),
+  });
+
+  // Secure webview attachment: enforce isolation, strip preload
+  mainWindow.webContents.on("will-attach-webview", (_event, webPreferences) => {
+    webPreferences.nodeIntegration = false;
+    webPreferences.contextIsolation = true;
+    delete webPreferences.preload;
   });
 
   mainWindow.once("ready-to-show", () => {
@@ -770,6 +777,21 @@ function uninstallSkill(): boolean {
 }
 
 app.whenReady().then(() => {
+  // Handle webview webContents: open new windows in system browser, sanitize UA
+  app.on("web-contents-created", (_event, contents) => {
+    if (contents.getType() === "webview") {
+      contents.setWindowOpenHandler(({ url }) => {
+        shell.openExternal(url);
+        return { action: "deny" };
+      });
+      // Strip Electron/app identifiers from UA to avoid being blocked by sites
+      const ua = contents.getUserAgent()
+        .replace(/\s*Electron\/\S+/, "")
+        .replace(/\s*termcanvas\/\S+/i, "");
+      contents.setUserAgent(ua);
+    }
+  });
+
   ensureCliLinks();
   if (isCliRegistered()) ensureSkillInstalled();
   setupIpc();
