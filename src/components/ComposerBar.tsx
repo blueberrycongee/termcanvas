@@ -99,6 +99,10 @@ function getPassthroughSequence(
   if (event.key === "Enter" && !event.shiftKey && draft.trim().length === 0 && !hasImages) {
     return "\r";
   }
+  // Backspace → forward to terminal when Composer is empty
+  if (event.key === "Backspace" && draft.length === 0 && !hasImages) {
+    return "\x7f";
+  }
   // Cmd+Arrow → always forward to terminal (history / cursor control)
   // Plain Arrow → forward only when Composer is empty
   const arrowSeq = ARROW_SEQUENCES[event.key];
