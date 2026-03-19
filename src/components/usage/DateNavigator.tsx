@@ -182,9 +182,10 @@ interface DateNavigatorProps {
   date: string;
   cachedDates: Record<string, boolean>;
   onDateChange: (dateStr: string) => void;
+  onCollapse?: () => void;
 }
 
-export function DateNavigator({ date, cachedDates, onDateChange }: DateNavigatorProps) {
+export function DateNavigator({ date, cachedDates, onDateChange, onCollapse }: DateNavigatorProps) {
   const t = useT();
   const [calendarOpen, setCalendarOpen] = useState(false);
   const today = todayStr();
@@ -195,9 +196,14 @@ export function DateNavigator({ date, cachedDates, onDateChange }: DateNavigator
   const displayDate = `${t.usage_cal_months_short[parsed.getMonth()]} ${parsed.getDate()}`;
 
   return (
-    <div className="relative px-3 py-2 shrink-0">
+    <div className="relative px-3 py-2 shrink-0 border-b border-[var(--border)]">
       <div className="flex items-center gap-1">
         {/* Panel title */}
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" className="text-[var(--text-muted)] shrink-0">
+          <rect x="1.5" y="3" width="3" height="8" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+          <rect x="5.5" y="5" width="3" height="6" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+          <rect x="9.5" y="1" width="3" height="10" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+        </svg>
         <span
           className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mr-auto"
           style={{ fontFamily: '"Geist Mono", monospace' }}
@@ -246,6 +252,18 @@ export function DateNavigator({ date, cachedDates, onDateChange }: DateNavigator
             className="text-[10px] text-[var(--accent)] hover:text-[var(--text-primary)] transition-colors ml-0.5 px-1 py-0.5 rounded hover:bg-[var(--surface-hover)]"
           >
             {t.usage_today}
+          </button>
+        )}
+
+        {/* Collapse button */}
+        {onCollapse && (
+          <button
+            onClick={onCollapse}
+            className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors shrink-0"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M3.5 2L6.5 5L3.5 8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
         )}
       </div>

@@ -14,7 +14,7 @@ import { DiffCard } from "../components/DiffCard";
 import { FileTreeCard } from "../components/FileTreeCard";
 import { FileCard } from "../components/FileCard";
 import { useT } from "../i18n/useT";
-import { useCanvasStore } from "../stores/canvasStore";
+import { useCanvasStore, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import {
   packTerminals,
   computeWorktreeSize,
@@ -144,8 +144,8 @@ export function WorktreeContainer({
         WT_PAD +
         item.y;
 
-      const { rightPanelCollapsed, rightPanelWidth } = useCanvasStore.getState();
-      const rightOffset = rightPanelCollapsed ? 0 : rightPanelWidth;
+      const { rightPanelCollapsed } = useCanvasStore.getState();
+      const rightOffset = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH;
       const padding = 60;
       const viewW = window.innerWidth - rightOffset - padding * 2;
       const viewH = window.innerHeight - padding * 2;

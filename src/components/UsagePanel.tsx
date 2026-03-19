@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useRef, useState, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { useUsageStore } from "../stores/usageStore";
-import { useCanvasStore } from "../stores/canvasStore";
+import { useCanvasStore, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { useT } from "../i18n/useT";
 import { DateNavigator } from "./usage/DateNavigator";
 import { SparklineChart } from "./usage/SparklineChart";
@@ -379,11 +379,8 @@ export function UsagePanel() {
   const {
     rightPanelCollapsed: collapsed,
     setRightPanelCollapsed: setCollapsed,
-    rightPanelWidth: panelWidth,
-    setRightPanelWidth: setPanelWidth,
   } = useCanvasStore();
   const t = useT();
-  const prevWidthRef = useRef(panelWidth);
 
   // Track data version to trigger entry animations
   const [animKey, setAnimKey] = useState(0);
@@ -411,74 +408,36 @@ export function UsagePanel() {
     [fetchUsage],
   );
 
-  const COLLAPSE_THRESHOLD = 80;
-  const MIN_WIDTH = 180;
-  const MAX_WIDTH = 360;
-
-  const handleResizeStart = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.button !== 0) return;
-      e.preventDefault();
-
-      const handleMove = (ev: MouseEvent) => {
-        const newWidth = window.innerWidth - ev.clientX;
-        if (newWidth < COLLAPSE_THRESHOLD) {
-          if (!useCanvasStore.getState().rightPanelCollapsed) {
-            prevWidthRef.current = useCanvasStore.getState().rightPanelWidth || 240;
-            setCollapsed(true);
-          }
-        } else {
-          const clamped = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, newWidth));
-          setCollapsed(false);
-          setPanelWidth(clamped);
-        }
-      };
-
-      const handleUp = () => {
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-        window.removeEventListener("mousemove", handleMove);
-        window.removeEventListener("mouseup", handleUp);
-      };
-
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
-      window.addEventListener("mousemove", handleMove);
-      window.addEventListener("mouseup", handleUp);
-    },
-    [setCollapsed, setPanelWidth],
-  );
-
-  const handleResizeDoubleClick = useCallback(() => {
-    if (collapsed) {
-      setCollapsed(false);
-      setPanelWidth(prevWidthRef.current || 240);
-    } else {
-      prevWidthRef.current = panelWidth;
-      setCollapsed(true);
-    }
-  }, [collapsed, panelWidth, setCollapsed, setPanelWidth]);
-
   return (
-    <div className="fixed right-0 z-40 flex" style={{ top: 44 }}>
-      {/* Resize handle */}
-      <div
-        className="cursor-col-resize shrink-0 hover:bg-[var(--accent)] transition-colors duration-150"
+    <div className="fixed right-0 z-40 flex" style={{ top: 44, height: "calc(100vh - 44px)" }}>
+      {/* Collapsed tab */}
+      <button
+        className="shrink-0 flex flex-col items-center pt-3 gap-2 bg-[var(--bg)] overflow-hidden border-l border-[var(--border)] hover:bg-[var(--surface)] cursor-pointer"
         style={{
-          width: collapsed ? 6 : 4,
-          marginRight: collapsed ? 4 : 0,
-          height: "calc(100vh - 44px)",
+          width: collapsed ? COLLAPSED_TAB_WIDTH : 0,
+          transition: "width 0.2s ease, background-color 0.15s",
         }}
-        onMouseDown={handleResizeStart}
-        onDoubleClick={handleResizeDoubleClick}
-      />
+        onClick={() => setCollapsed(false)}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-[var(--text-muted)] shrink-0">
+          <rect x="1.5" y="3" width="3" height="8" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+          <rect x="5.5" y="5" width="3" height="6" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+          <rect x="9.5" y="1" width="3" height="10" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+        </svg>
+        <span
+          className="text-[9px] text-[var(--text-muted)] uppercase tracking-widest whitespace-nowrap"
+          style={{ writingMode: "vertical-lr", fontFamily: '"Geist Mono", monospace' }}
+        >
+          {t.usage_title}
+        </span>
+      </button>
 
+      {/* Expanded panel */}
       <div
-        className="flex flex-col bg-[var(--bg)] overflow-hidden border-l border-[var(--border)]"
+        className="shrink-0 flex flex-col bg-[var(--bg)] overflow-hidden border-l border-[var(--border)]"
         style={{
-          width: collapsed ? 0 : panelWidth,
-          height: "calc(100vh - 44px)",
-          transition: collapsed ? "width 0.2s ease" : undefined,
+          width: collapsed ? 0 : RIGHT_PANEL_WIDTH,
+          transition: "width 0.2s ease",
         }}
       >
         {/* Header with date navigation */}
@@ -486,6 +445,7 @@ export function UsagePanel() {
           date={date}
           cachedDates={cachedDates}
           onDateChange={handleDateChange}
+          onCollapse={() => setCollapsed(true)}
         />
 
         {/* Content */}

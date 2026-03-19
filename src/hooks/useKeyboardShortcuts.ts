@@ -4,7 +4,7 @@ import {
   createTerminal,
   generateId,
 } from "../stores/projectStore";
-import { useCanvasStore } from "../stores/canvasStore";
+import { useCanvasStore, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { useSelectionStore, type SelectedItem } from "../stores/selectionStore";
 import {
@@ -133,8 +133,8 @@ function zoomToTerminal(
     WT_PAD +
     item.y;
 
-  const { rightPanelCollapsed, rightPanelWidth } = useCanvasStore.getState();
-  const rightOffset = rightPanelCollapsed ? 0 : rightPanelWidth;
+  const { rightPanelCollapsed } = useCanvasStore.getState();
+  const rightOffset = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH;
   const padding = 60;
   const viewW = window.innerWidth - rightOffset - padding * 2;
   const viewH = window.innerHeight - padding * 2;
@@ -258,9 +258,9 @@ async function handleAddProject(t: ReturnType<typeof useT>) {
   // empty worktrees, so computed width never exceeds minWidth).
   const projW = 340;
 
-  const { viewport: { scale }, rightPanelCollapsed, rightPanelWidth } =
+  const { viewport: { scale }, rightPanelCollapsed } =
     useCanvasStore.getState();
-  const rightOffset = rightPanelCollapsed ? 0 : rightPanelWidth;
+  const rightOffset = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH;
   const screenCenterX = (window.innerWidth - rightOffset) / 2;
   const screenCenterY = window.innerHeight / 2;
   const targetX = -(placeX + projW / 2) * scale + screenCenterX;

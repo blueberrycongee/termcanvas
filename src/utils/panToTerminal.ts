@@ -1,5 +1,5 @@
 import { useProjectStore } from "../stores/projectStore";
-import { useCanvasStore } from "../stores/canvasStore";
+import { useCanvasStore, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import {
   packTerminals,
   PROJ_PAD,
@@ -26,8 +26,8 @@ export function panToTerminal(terminalId: string): void {
       const absX = p.position.x + PROJ_PAD + w.position.x + WT_PAD + item.x;
       const absY = p.position.y + PROJ_TITLE_H + PROJ_PAD + w.position.y + WT_TITLE_H + WT_PAD + item.y;
 
-      const { rightPanelCollapsed, rightPanelWidth } = useCanvasStore.getState();
-      const rightOffset = rightPanelCollapsed ? 0 : rightPanelWidth;
+      const { rightPanelCollapsed } = useCanvasStore.getState();
+      const rightOffset = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH;
       const padding = 60;
       const viewW = window.innerWidth - rightOffset - padding * 2;
       const viewH = window.innerHeight - padding * 2;

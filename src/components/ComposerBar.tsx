@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useProjectStore } from "../stores/projectStore";
 import { useComposerStore } from "../stores/composerStore";
 import { useNotificationStore } from "../stores/notificationStore";
-import { useCanvasStore } from "../stores/canvasStore";
+import { useCanvasStore, SIDEBAR_WIDTH, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { getComposerAdapter } from "../terminal/cliConfig";
 import { filterSlashCommands } from "../terminal/slashCommands";
 import { shouldSubmitComposerFromKeyEvent } from "./composerInputBehavior";
@@ -125,8 +125,8 @@ export function ComposerBar() {
     setError,
   } = useComposerStore();
   const projects = useProjectStore((s) => s.projects);
-  const composerLeft = useCanvasStore((s) => s.sidebarCollapsed ? 0 : s.sidebarWidth);
-  const composerRight = useCanvasStore((s) => s.rightPanelCollapsed ? 0 : s.rightPanelWidth);
+  const composerLeft = useCanvasStore((s) => s.sidebarCollapsed ? COLLAPSED_TAB_WIDTH : SIDEBAR_WIDTH);
+  const composerRight = useCanvasStore((s) => s.rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH);
 
   const supportedTerminals = useMemo(
     () =>

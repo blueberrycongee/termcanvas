@@ -1,6 +1,6 @@
-import { useCallback, useRef } from "react";
+import { useCallback } from "react";
 import { useProjectStore, generateId } from "../stores/projectStore";
-import { useCanvasStore } from "../stores/canvasStore";
+import { useCanvasStore, SIDEBAR_WIDTH, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { useT } from "../i18n/useT";
 import { computeWorktreeSize, PROJ_PAD, PROJ_TITLE_H } from "../layout";
@@ -27,17 +27,16 @@ const TYPE_LABEL: Record<TerminalType, string> = {
   tmux: "Tmux",
 };
 
+const iconBtnClass =
+  "w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors shrink-0";
+
 export function Sidebar() {
   const { projects, addProject } = useProjectStore();
   const {
-    viewport,
     animateTo,
     sidebarCollapsed: collapsed,
     setSidebarCollapsed: setCollapsed,
-    sidebarWidth,
-    setSidebarWidth,
   } = useCanvasStore();
-  const prevWidthRef = useRef(sidebarWidth);
   const { notify } = useNotificationStore();
   const t = useT();
 
@@ -114,55 +113,6 @@ export function Sidebar() {
     }
   }, []);
 
-  const COLLAPSE_THRESHOLD = 80;
-  const MIN_WIDTH = 140;
-  const MAX_WIDTH = 400;
-
-  const handleResizeStart = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.button !== 0) return;
-      e.preventDefault();
-
-      const handleMove = (ev: MouseEvent) => {
-        const newWidth = ev.clientX;
-        if (newWidth < COLLAPSE_THRESHOLD) {
-          if (!useCanvasStore.getState().sidebarCollapsed) {
-            prevWidthRef.current =
-              useCanvasStore.getState().sidebarWidth || 200;
-            setCollapsed(true);
-          }
-        } else {
-          const clamped = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, newWidth));
-          setCollapsed(false);
-          setSidebarWidth(clamped);
-        }
-      };
-
-      const handleUp = () => {
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-        window.removeEventListener("mousemove", handleMove);
-        window.removeEventListener("mouseup", handleUp);
-      };
-
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
-      window.addEventListener("mousemove", handleMove);
-      window.addEventListener("mouseup", handleUp);
-    },
-    [setCollapsed, setSidebarWidth],
-  );
-
-  const handleResizeDoubleClick = useCallback(() => {
-    if (collapsed) {
-      setCollapsed(false);
-      setSidebarWidth(prevWidthRef.current || 200);
-    } else {
-      prevWidthRef.current = sidebarWidth;
-      setCollapsed(true);
-    }
-  }, [collapsed, sidebarWidth, setCollapsed, setSidebarWidth]);
-
   const handleFocus = useCallback(
     (projectId: string) => {
       const project = projects.find((p) => p.id === projectId);
@@ -181,8 +131,8 @@ export function Sidebar() {
         PROJ_TITLE_H + PROJ_PAD + totalH + PROJ_PAD,
       );
 
-      const { rightPanelCollapsed, rightPanelWidth } = useCanvasStore.getState();
-      const rightOffset = rightPanelCollapsed ? 0 : rightPanelWidth;
+      const { rightPanelCollapsed } = useCanvasStore.getState();
+      const rightOffset = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH;
       const padding = 80;
       const toolbarH = 44;
       const viewW = window.innerWidth - rightOffset - padding * 2;
@@ -201,39 +151,56 @@ export function Sidebar() {
   );
 
   return (
-    <div className="fixed left-0 z-40 flex" style={{ top: 44 }}>
+    <div className="fixed left-0 z-40 flex" style={{ top: 44, height: "calc(100vh - 44px)" }}>
+      {/* Expanded panel */}
       <div
-        className="flex flex-col bg-[var(--bg)] overflow-hidden"
+        className="shrink-0 flex flex-col bg-[var(--bg)] overflow-hidden border-r border-[var(--border)]"
         style={{
-          width: collapsed ? 0 : sidebarWidth,
-          height: "calc(100vh - 44px)",
-          transition: collapsed ? "width 0.2s ease" : undefined,
+          width: collapsed ? 0 : SIDEBAR_WIDTH,
+          transition: "width 0.2s ease",
         }}
       >
-        <div className="px-3 py-2 shrink-0 flex flex-col gap-1.5">
+        {/* Header */}
+        <div className="shrink-0 flex items-center gap-1.5 px-3 py-2 border-b border-[var(--border)]">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" className="text-[var(--text-muted)] shrink-0">
+            <path
+              d="M2 4C2 3.17 2.67 2.5 3.5 2.5H5.5L7 4H10.5C11.33 4 12 4.67 12 5.5V10C12 10.83 11.33 11.5 10.5 11.5H3.5C2.67 11.5 2 10.83 2 10V4Z"
+              stroke="currentColor"
+              strokeWidth="1.1"
+              strokeLinejoin="round"
+            />
+          </svg>
           <span
-            className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider px-1"
+            className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider"
             style={{ fontFamily: '"Geist Mono", monospace' }}
           >
             {t.projects}
           </span>
-          <div className="flex gap-1">
-            <button
-              className="flex-1 px-2 py-1 rounded-md text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)] transition-colors duration-150 border border-[var(--border)]"
-              onClick={handleAddProject}
-            >
-              {t.add}
-            </button>
-            <button
-              className="flex-1 px-2 py-1 rounded-md text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)] transition-colors duration-150 border border-[var(--border)]"
-              onClick={handleOpenWorkspace}
-            >
-              {t.open}
-            </button>
-          </div>
+          <div className="flex-1" />
+          <button className={iconBtnClass} onClick={handleAddProject} title={t.add}>
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M5 2V8M2 5H8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+          </button>
+          <button className={iconBtnClass} onClick={handleOpenWorkspace} title={t.open}>
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <path
+                d="M2 4.5V9.5C2 10.05 2.45 10.5 3 10.5H9C9.55 10.5 10 10.05 10 9.5V5.5C10 4.95 9.55 4.5 9 4.5H6L5 3H3C2.45 3 2 3.45 2 4V4.5Z"
+                stroke="currentColor"
+                strokeWidth="1.1"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+          <button className={iconBtnClass} onClick={() => setCollapsed(true)}>
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M6.5 2L3.5 5L6.5 8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        {/* Content */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
           {projects.map((project) => {
             const terminals = project.worktrees.flatMap((wt) => wt.terminals);
             return (
@@ -282,17 +249,30 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Resize handle */}
-      <div
-        className="cursor-col-resize shrink-0 hover:bg-[var(--accent)] transition-colors duration-150"
+      {/* Collapsed tab */}
+      <button
+        className="shrink-0 flex flex-col items-center pt-3 gap-2 bg-[var(--bg)] overflow-hidden border-r border-[var(--border)] hover:bg-[var(--surface)] transition-[background-color] duration-150 cursor-pointer"
         style={{
-          width: collapsed ? 6 : 4,
-          marginLeft: collapsed ? 4 : 0,
-          height: "calc(100vh - 44px)",
+          width: collapsed ? COLLAPSED_TAB_WIDTH : 0,
+          transition: "width 0.2s ease, background-color 0.15s",
         }}
-        onMouseDown={handleResizeStart}
-        onDoubleClick={handleResizeDoubleClick}
-      />
+        onClick={() => setCollapsed(false)}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-[var(--text-muted)] shrink-0">
+          <path
+            d="M2 4C2 3.17 2.67 2.5 3.5 2.5H5.5L7 4H10.5C11.33 4 12 4.67 12 5.5V10C12 10.83 11.33 11.5 10.5 11.5H3.5C2.67 11.5 2 10.83 2 10V4Z"
+            stroke="currentColor"
+            strokeWidth="1.1"
+            strokeLinejoin="round"
+          />
+        </svg>
+        <span
+          className="text-[9px] text-[var(--text-muted)] uppercase tracking-widest whitespace-nowrap"
+          style={{ writingMode: "vertical-lr", fontFamily: '"Geist Mono", monospace' }}
+        >
+          {t.projects}
+        </span>
+      </button>
     </div>
   );
 }
