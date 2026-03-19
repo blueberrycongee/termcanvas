@@ -23,7 +23,7 @@ import {
   createDefaultComposerSubmitDeps,
   submitComposerRequest,
 } from "./composer-submit";
-import { collectUsage } from "./usage-collector";
+import { collectUsage, collectHeatmapData } from "./usage-collector";
 import { setupAutoUpdater, stopAutoUpdater } from "./auto-updater";
 import type { ComposerSubmitRequest } from "../src/types";
 
@@ -571,6 +571,10 @@ function setupIpc() {
   // Usage statistics
   ipcMain.handle("usage:query", async (_event, dateStr: string) => {
     return await collectUsage(dateStr);
+  });
+
+  ipcMain.handle("usage:heatmap", async () => {
+    return await collectHeatmapData();
   });
 
   // Close flow

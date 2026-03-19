@@ -236,6 +236,7 @@ export interface TermCanvasAPI {
   };
   usage: {
     query: (dateStr: string) => Promise<UsageSummary>;
+    heatmap: () => Promise<Record<string, { tokens: number; cost: number }>>;
   };
   app: {
     platform: "darwin" | "win32" | "linux";

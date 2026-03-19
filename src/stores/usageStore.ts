@@ -28,16 +28,6 @@ function todayStr(): string {
   return `${y}-${m}-${d}`;
 }
 
-function toDateStr(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-const HEATMAP_DAYS = 91;
-const HEATMAP_CONCURRENCY = 10;
-
 export const useUsageStore = create<UsageStore>((set, get) => ({
   summary: null,
   loading: false,
@@ -80,51 +70,20 @@ export const useUsageStore = create<UsageStore>((set, get) => ({
 
   fetchHeatmap: async () => {
     if (get().heatmapLoading) return;
-    // Skip if we already have data
     if (Object.keys(get().heatmapData).length > 0) return;
 
-    if (!window.termcanvas?.usage) {
+    if (!window.termcanvas?.usage?.heatmap) {
       set({ heatmapError: true });
       return;
     }
 
     set({ heatmapLoading: true, heatmapError: false });
 
-    const today = new Date();
-    const dates: string[] = [];
-    for (let i = 0; i < HEATMAP_DAYS; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      dates.push(toDateStr(d));
-    }
-
-    const result: Record<string, HeatmapEntry> = {};
-    let failed = 0;
-
-    // Process in batches for throttling
-    for (let i = 0; i < dates.length; i += HEATMAP_CONCURRENCY) {
-      const batch = dates.slice(i, i + HEATMAP_CONCURRENCY);
-      const results = await Promise.allSettled(
-        batch.map((dateStr) => window.termcanvas!.usage.query(dateStr)),
-      );
-
-      for (let j = 0; j < results.length; j++) {
-        const r = results[j];
-        const dateStr = batch[j];
-        if (r.status === "fulfilled") {
-          const s = r.value;
-          const tokens = s.totalInput + s.totalOutput + s.totalCacheRead + s.totalCacheCreate5m + s.totalCacheCreate1h;
-          result[dateStr] = { tokens, cost: s.totalCost };
-        } else {
-          failed++;
-        }
-      }
-    }
-
-    if (failed === dates.length) {
+    try {
+      const data = await window.termcanvas.usage.heatmap();
+      set({ heatmapData: data, heatmapLoading: false });
+    } catch {
       set({ heatmapLoading: false, heatmapError: true });
-    } else {
-      set({ heatmapData: result, heatmapLoading: false });
     }
   },
 }));

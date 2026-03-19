@@ -342,6 +342,87 @@ function parseCodexSession(
   return { records: lastRecord ? [lastRecord] : [], projectPath };
 }
 
+// ── Heatmap API ─────────────────────────────────────────────────────────
+
+/**
+ * Collect heatmap data for the last 91 days in a single pass.
+ * Scans files once, reads each file once, buckets records by local date.
+ * Uses setImmediate chunking to avoid blocking the main thread.
+ */
+export async function collectHeatmapData(): Promise<Record<string, { tokens: number; cost: number }>> {
+  const HEATMAP_DAYS = 91;
+  const BATCH_SIZE = 20;
+  const tzOffsetHours = getLocalTzOffsetHours();
+
+  // Compute UTC range covering the full 91-day window in local time
+  const today = new Date();
+  const startLocal = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (HEATMAP_DAYS - 1));
+  const endLocal = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1); // tomorrow midnight
+  const fmt = (ms: number) => new Date(ms).toISOString().replace("Z", "").split(".")[0];
+  const utcStart = fmt(startLocal.getTime());
+  const utcEnd = fmt(endLocal.getTime());
+  const startDateStr = `${startLocal.getFullYear()}-${String(startLocal.getMonth() + 1).padStart(2, "0")}-${String(startLocal.getDate()).padStart(2, "0")}`;
+
+  // Discover all files once
+  const claudeFiles = findClaudeJsonlFiles();
+  const codexFiles = findCodexJsonlFiles();
+
+  const result: Record<string, { tokens: number; cost: number }> = {};
+
+  const bucketRecord = (r: UsageRecord) => {
+    // Convert UTC timestamp to local date string
+    const utcMs = new Date(r.ts + "Z").getTime();
+    const localMs = utcMs + tzOffsetHours * 3600_000;
+    const localDate = new Date(localMs);
+    const dateStr = `${localDate.getUTCFullYear()}-${String(localDate.getUTCMonth() + 1).padStart(2, "0")}-${String(localDate.getUTCDate()).padStart(2, "0")}`;
+
+    const tokens = r.input + r.output + r.cacheRead + r.cacheCreate5m + r.cacheCreate1h;
+    const cost = computeCost(r.model, r.input, r.output, r.cacheRead, r.cacheCreate5m, r.cacheCreate1h);
+
+    if (!result[dateStr]) {
+      result[dateStr] = { tokens: 0, cost: 0 };
+    }
+    result[dateStr].tokens += tokens;
+    result[dateStr].cost += cost;
+  };
+
+  // Process Claude files in batches, yielding between batches
+  for (let i = 0; i < claudeFiles.length; i += BATCH_SIZE) {
+    if (i > 0) await new Promise<void>((r) => setImmediate(r));
+    const batch = claudeFiles.slice(i, i + BATCH_SIZE);
+    for (const f of batch) {
+      try {
+        const mtime = fs.statSync(f).mtimeMs;
+        const mtimeLocal = new Date(mtime + tzOffsetHours * 3600_000);
+        const mtimeDate = mtimeLocal.toISOString().split("T")[0];
+        if (mtimeDate < startDateStr) continue;
+      } catch { continue; }
+
+      const { records } = parseClaudeSession(f, utcStart, utcEnd);
+      for (const r of records) bucketRecord(r);
+    }
+  }
+
+  // Process Codex files in batches
+  for (let i = 0; i < codexFiles.length; i += BATCH_SIZE) {
+    if (i > 0) await new Promise<void>((r) => setImmediate(r));
+    const batch = codexFiles.slice(i, i + BATCH_SIZE);
+    for (const f of batch) {
+      try {
+        const mtime = fs.statSync(f).mtimeMs;
+        const mtimeLocal = new Date(mtime + tzOffsetHours * 3600_000);
+        const mtimeDate = mtimeLocal.toISOString().split("T")[0];
+        if (mtimeDate < startDateStr) continue;
+      } catch { continue; }
+
+      const { records } = parseCodexSession(f, utcStart, utcEnd);
+      for (const r of records) bucketRecord(r);
+    }
+  }
+
+  return result;
+}
+
 // ── Main API ───────────────────────────────────────────────────────────
 
 /**

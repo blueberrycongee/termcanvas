@@ -127,6 +127,8 @@ contextBridge.exposeInMainWorld("termcanvas", {
   usage: {
     query: (dateStr: string) =>
       ipcRenderer.invoke("usage:query", dateStr),
+    heatmap: () =>
+      ipcRenderer.invoke("usage:heatmap"),
   },
   app: {
     platform: process.platform as "darwin" | "win32" | "linux",
