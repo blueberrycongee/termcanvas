@@ -262,42 +262,50 @@ function CacheRateSection({
   animate: boolean;
 }) {
   // Group models into clients
-  const clients: { label: string; input: number; cacheRead: number }[] = [];
-  let claudeInput = 0, claudeCacheRead = 0;
-  let codexInput = 0, codexCacheRead = 0;
+  const clients: { label: string; input: number; cacheRead: number; cacheCreate: number }[] = [];
+  let claudeInput = 0, claudeCacheRead = 0, claudeCacheCreate = 0;
+  let codexInput = 0, codexCacheRead = 0, codexCacheCreate = 0;
 
   for (const m of summary.models) {
+    const cc = m.cacheCreate5m + m.cacheCreate1h;
     if (m.model === "codex") {
       codexInput += m.input;
       codexCacheRead += m.cacheRead;
+      codexCacheCreate += cc;
     } else {
       claudeInput += m.input;
       claudeCacheRead += m.cacheRead;
+      claudeCacheCreate += cc;
     }
   }
 
-  if (claudeInput + claudeCacheRead > 0) {
-    clients.push({ label: "Claude", input: claudeInput, cacheRead: claudeCacheRead });
+  if (claudeInput + claudeCacheRead + claudeCacheCreate > 0) {
+    clients.push({ label: "Claude", input: claudeInput, cacheRead: claudeCacheRead, cacheCreate: claudeCacheCreate });
   }
-  if (codexInput + codexCacheRead > 0) {
-    clients.push({ label: "Codex", input: codexInput, cacheRead: codexCacheRead });
+  if (codexInput + codexCacheRead + codexCacheCreate > 0) {
+    clients.push({ label: "Codex", input: codexInput, cacheRead: codexCacheRead, cacheCreate: codexCacheCreate });
   }
 
+  // Cache hit rate = cacheRead / totalInputTokens (input + cacheRead + cacheCreate)
   const overallInput = summary.totalInput;
   const overallCacheRead = summary.totalCacheRead;
-  const overallTotal = overallInput + overallCacheRead;
+  const overallCacheCreate = summary.totalCacheCreate5m + summary.totalCacheCreate1h;
+  const overallTotal = overallInput + overallCacheRead + overallCacheCreate;
   if (overallTotal === 0) return null;
 
   const overallRate = overallCacheRead / overallTotal;
 
   const rows = [
-    { label: t.usage_cache_rate_overall, rate: overallRate, input: overallInput, cacheRead: overallCacheRead },
-    ...clients.map((c) => ({
-      label: c.label,
-      rate: c.input + c.cacheRead > 0 ? c.cacheRead / (c.input + c.cacheRead) : 0,
-      input: c.input,
-      cacheRead: c.cacheRead,
-    })),
+    { label: t.usage_cache_rate_overall, rate: overallRate, totalInput: overallTotal, cacheRead: overallCacheRead },
+    ...clients.map((c) => {
+      const total = c.input + c.cacheRead + c.cacheCreate;
+      return {
+        label: c.label,
+        rate: total > 0 ? c.cacheRead / total : 0,
+        totalInput: total,
+        cacheRead: c.cacheRead,
+      };
+    }),
   ];
 
   // Skip if only one client (overall == that client, redundant)
@@ -314,7 +322,7 @@ function CacheRateSection({
             key={row.label}
             tooltip={
               <div className="text-[10px] text-[var(--text-secondary)] tabular-nums" style={{ fontFamily: '"Geist Mono", monospace' }}>
-                Cache Read: {fmtTokens(row.cacheRead)} / Input: {fmtTokens(row.input + row.cacheRead)}
+                Cache Read: {fmtTokens(row.cacheRead)} / Total: {fmtTokens(row.totalInput)}
               </div>
             }
           >
