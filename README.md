@@ -12,6 +12,10 @@
 
 </div>
 
+<div align="center">
+<img src="docs/image.png" alt="TermCanvas demo — multiple AI agents on an infinite canvas" />
+</div>
+
 [中文文档](./README.zh-CN.md)
 
 ## What is TermCanvas
