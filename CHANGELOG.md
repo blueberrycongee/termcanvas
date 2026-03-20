@@ -2,6 +2,13 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.14] - 2026-03-20
+
+### Fixed
+- Composer: send each bracketed paste as a separate pty write so image paths and text are recognised as distinct inputs
+- Composer: route all terminal types through Composer for input focus
+- Terminal: use xterm v6 onScroll API for scroll-pinning instead of viewport DOM events
+
 ## [0.8.13] - 2026-03-20
 
 ### Fixed
