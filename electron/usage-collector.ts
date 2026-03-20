@@ -137,7 +137,7 @@ function collectJsonlRecursive(dir: string, files: string[], depth = 0): void {
   } catch { /* skip */ }
 }
 
-function findClaudeJsonlFiles(): string[] {
+export function findClaudeJsonlFiles(): string[] {
   const claudeDir = path.join(os.homedir(), ".claude");
   const projectsDir = path.join(claudeDir, "projects");
   const files: string[] = [];
@@ -155,7 +155,7 @@ function findClaudeJsonlFiles(): string[] {
   return files;
 }
 
-function findCodexJsonlFiles(): string[] {
+export function findCodexJsonlFiles(): string[] {
   const codexDir = path.join(os.homedir(), ".codex");
   const files: string[] = [];
 
