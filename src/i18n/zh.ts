@@ -71,6 +71,7 @@ export const zh = {
     `\r\n\x1b[33m[进程已退出，退出码 ${code}]\x1b[0m\r\n`,
   terminal_exited: (title: string, code: number) =>
     `终端 "${title}" 已退出，退出码 ${code}。`,
+  terminal_copied: "已复制",
 
   // DrawingPanel
   tool_select: "选择",

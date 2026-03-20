@@ -181,6 +181,8 @@ export function TerminalTile({
     x: number;
     y: number;
   } | null>(null);
+  const [showCopiedToast, setShowCopiedToast] = useState(false);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tileRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
@@ -302,7 +304,12 @@ export function TerminalTile({
     // xterm's built-in copy — this bridges the gap.
     const selectionDisposable = xterm.onSelectionChange(() => {
       const text = xterm.getSelection();
-      if (text) navigator.clipboard.writeText(text);
+      if (text) {
+        navigator.clipboard.writeText(text);
+        if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+        setShowCopiedToast(true);
+        copiedTimerRef.current = setTimeout(() => setShowCopiedToast(false), 1500);
+      }
     });
 
     // Re-apply theme after open() to ensure canvas paints correctly
@@ -864,6 +871,13 @@ export function TerminalTile({
           }
         }}
       />
+
+      {/* Copied toast */}
+      {showCopiedToast && (
+        <div className="absolute left-1/2 bottom-3 -translate-x-1/2 px-3 py-1 rounded-md bg-[var(--bg-secondary)] text-[var(--text-primary)] text-xs font-medium shadow-lg border border-[var(--border)] pointer-events-none z-10 animate-[fadeIn_0.15s_ease-out]">
+          {t.terminal_copied}
+        </div>
+      )}
 
       {contextMenu &&
         createPortal(

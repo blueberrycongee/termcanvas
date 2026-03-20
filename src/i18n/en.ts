@@ -73,6 +73,7 @@ export const en = {
     `\r\n\x1b[33m[Process exited with code ${code}]\x1b[0m\r\n`,
   terminal_exited: (title: string, code: number) =>
     `Terminal "${title}" exited with code ${code}.`,
+  terminal_copied: "Copied",
 
   // DrawingPanel
   tool_select: "Select",
