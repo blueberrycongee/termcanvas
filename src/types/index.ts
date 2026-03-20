@@ -231,6 +231,16 @@ export interface TermCanvasAPI {
       | { error: string; size?: string }
     >;
   };
+  fonts: {
+    getPath: () => Promise<string>;
+    listDownloaded: () => Promise<string[]>;
+    check: (fileName: string) => Promise<boolean>;
+    download: (url: string, fileName: string) => Promise<{
+      ok: boolean;
+      path?: string;
+      error?: string;
+    }>;
+  };
   cli: {
     isRegistered: () => Promise<boolean>;
     register: () => Promise<boolean>;
