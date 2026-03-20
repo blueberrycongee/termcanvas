@@ -44,8 +44,6 @@
   --text-muted: #505050;
   --text-faint: #383838;
   --accent: #0070f3;
-  --completion-glow: color-mix(in srgb, var(--accent) 20%, transparent);
-  --completion-glow-edge: color-mix(in srgb, var(--accent) 35%, transparent);
   --red: #ef4444;
   --amber: #f5a623;
   --cyan: #50e3c2;
@@ -66,8 +64,6 @@
   --text-muted: #8c877f;
   --text-faint: #c4c0ba;
   --accent: #2563eb;
-  --completion-glow: color-mix(in srgb, var(--accent) 9%, transparent);
-  --completion-glow-edge: color-mix(in srgb, var(--accent) 15%, transparent);
   --red: #dc2626;
   --amber: #d97706;
   --cyan: #0d9488;

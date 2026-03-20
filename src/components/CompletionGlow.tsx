@@ -1,6 +1,5 @@
 import { useRef, useState, useEffect } from "react";
 import { useProjectStore } from "../stores/projectStore";
-import { getCompletionGlowStyle } from "./completionGlowStyles";
 
 export function CompletionGlow() {
   const projects = useProjectStore((s) => s.projects);
@@ -67,7 +66,8 @@ export function CompletionGlow() {
           top: 44,
           width: 60,
           height: "calc(100vh - 44px)",
-          ...getCompletionGlowStyle("left"),
+          background:
+            "linear-gradient(to right, rgba(59,130,246,0.12), transparent)",
           opacity: showLeft ? 1 : 0,
         }}
       />
@@ -77,7 +77,8 @@ export function CompletionGlow() {
           top: 44,
           width: 60,
           height: "calc(100vh - 44px)",
-          ...getCompletionGlowStyle("right"),
+          background:
+            "linear-gradient(to left, rgba(59,130,246,0.12), transparent)",
           opacity: showRight ? 1 : 0,
         }}
       />
