@@ -21,6 +21,15 @@ test("parseSpawnArgs extracts all flags correctly", () => {
   assert.equal(args.worktree, undefined);
 });
 
+test("parseSpawnArgs keeps kimi as the requested agent type", () => {
+  const args = parseSpawnArgs([
+    "--task", "explore the repo",
+    "--type", "kimi",
+    "--repo", "/tmp/repo",
+  ]);
+  assert.equal(args.type, "kimi");
+});
+
 test("parseSpawnArgs defaults type to claude", () => {
   const args = parseSpawnArgs(["--task", "do stuff", "--repo", "/tmp/repo"]);
   assert.equal(args.type, "claude");

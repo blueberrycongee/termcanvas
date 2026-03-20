@@ -14,6 +14,7 @@ interface TerminalLaunchConfig {
   resumeArgs: (id: string) => string[];
   newArgs: () => string[];
   autoApproveArgs?: () => string[];
+  promptArgs?: (prompt: string) => string[];
 }
 
 export interface ComposerAdapterConfig {
@@ -120,6 +121,7 @@ export const TERMINAL_CONFIG: Record<TerminalType, TerminalAdapterConfig> = {
       shell: "kimi",
       resumeArgs: (id) => ["-S", id],
       newArgs: () => [],
+      promptArgs: (prompt) => ["--prompt", prompt],
     },
     composer: {
       supportsComposer: true,
@@ -227,6 +229,15 @@ export function getTerminalLaunchOptions(
     shell,
     args: [...extraArgs, ...extra, ...base],
   };
+}
+
+export function getTerminalPromptArgs(
+  type: TerminalType,
+  prompt: string,
+): string[] {
+  const config = TERMINAL_CONFIG[type].launch;
+  if (!config) return [prompt];
+  return config.promptArgs ? config.promptArgs(prompt) : [prompt];
 }
 
 export function getComposerAdapter(

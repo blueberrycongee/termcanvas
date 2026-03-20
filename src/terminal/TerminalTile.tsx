@@ -15,7 +15,11 @@ import { useThemeStore, XTERM_THEMES } from "../stores/themeStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useT } from "../i18n/useT";
-import { getTerminalLaunchOptions, getComposerAdapter } from "./cliConfig";
+import {
+  getTerminalLaunchOptions,
+  getTerminalPromptArgs,
+  getComposerAdapter,
+} from "./cliConfig";
 import { buildFontFamily } from "./fontRegistry";
 import { panToTerminal } from "../utils/panToTerminal";
 import { getTerminalDisplayTitle } from "../stores/terminalState";
@@ -338,12 +342,12 @@ export function TerminalTile({
         cliOverride,
       );
       if (launch) {
+        const promptArgs =
+          !resumeSessionId && terminal.initialPrompt
+            ? getTerminalPromptArgs(terminal.type, terminal.initialPrompt)
+            : [];
         opts.shell = launch.shell;
-        opts.args = resumeSessionId
-          ? launch.args
-          : terminal.initialPrompt
-          ? [...launch.args, terminal.initialPrompt]
-          : launch.args;
+        opts.args = [...launch.args, ...promptArgs];
       }
 
       window.termcanvas.terminal

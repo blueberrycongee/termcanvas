@@ -25,7 +25,7 @@ function printSpawnUsage(): never {
   console.log("");
   console.log("Options:");
   console.log("  --task <desc>       Task description for the sub-agent (required)");
-  console.log("  --type <type>       Agent type: claude, codex (default: claude)");
+  console.log("  --type <type>       Agent type: claude, codex, kimi (default: claude)");
   console.log("  --repo <path>       Path to the git repository (required)");
   console.log("  --worktree <path>   Use an existing worktree (read-only mode)");
   console.log("  --base-branch <br>  Base branch for the new worktree (default: current)");

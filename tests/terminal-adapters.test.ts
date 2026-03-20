@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   getComposerAdapter,
   getTerminalLaunchOptions,
+  getTerminalPromptArgs,
   isComposerSupportedTerminal,
 } from "../src/terminal/cliConfig.ts";
 
@@ -70,4 +71,17 @@ test("getTerminalLaunchOptions prepends cliOverride args", () => {
   assert.ok(result);
   assert.equal(result.shell, "claude");
   assert.deepEqual(result.args, ["--extra", "--resume", "session-1"]);
+});
+
+test("getTerminalPromptArgs defaults to a positional prompt", () => {
+  assert.deepEqual(getTerminalPromptArgs("claude", "Explore the repo"), [
+    "Explore the repo",
+  ]);
+});
+
+test("getTerminalPromptArgs uses kimi's explicit prompt flag", () => {
+  assert.deepEqual(getTerminalPromptArgs("kimi", "Explore the repo"), [
+    "--prompt",
+    "Explore the repo",
+  ]);
 });
