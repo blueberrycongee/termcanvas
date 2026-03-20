@@ -153,6 +153,11 @@ export function ComposerBar() {
   // Slash command autocomplete state
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+  // Track whether the user has explicitly navigated the slash menu with
+  // arrow keys.  When true, Enter selects the highlighted command; when
+  // false, Enter falls through to normal submit so typing "/he⏎" sends
+  // the text instead of accidentally picking "/help".
+  const slashNavigatedRef = useRef(false);
   // Track explicit dismissals (Escape / click-outside) so the useEffect
   // doesn't re-open the menu when an unrelated dep like targetTerminal changes.
   const slashDismissedRef = useRef(false);
@@ -191,6 +196,7 @@ export function ComposerBar() {
           if (!wasOpen) {
             // Menu is opening for the first time — reset to top
             setSlashSelectedIndex(0);
+            slashNavigatedRef.current = false;
           } else {
             // Menu was already open — clamp index to new list bounds
             setSlashSelectedIndex((prev) =>
@@ -579,6 +585,7 @@ export function ComposerBar() {
                 if (slashMenuOpen && slashCommands.length > 0) {
                   if (event.key === "ArrowDown") {
                     event.preventDefault();
+                    slashNavigatedRef.current = true;
                     setSlashSelectedIndex((i) =>
                       i < slashCommands.length - 1 ? i + 1 : 0,
                     );
@@ -586,12 +593,20 @@ export function ComposerBar() {
                   }
                   if (event.key === "ArrowUp") {
                     event.preventDefault();
+                    slashNavigatedRef.current = true;
                     setSlashSelectedIndex((i) =>
                       i > 0 ? i - 1 : slashCommands.length - 1,
                     );
                     return;
                   }
-                  if (event.key === "Enter" || event.key === "Tab") {
+                  // Tab always selects; Enter only selects after explicit
+                  // arrow-key navigation — otherwise it falls through to
+                  // normal submit so the user can send partial input like
+                  // "/he" without accidentally picking "/help".
+                  if (
+                    event.key === "Tab" ||
+                    (event.key === "Enter" && slashNavigatedRef.current)
+                  ) {
                     event.preventDefault();
                     handleSlashSelect(slashCommands[slashSelectedIndex].command);
                     return;
