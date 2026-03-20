@@ -162,38 +162,27 @@ async function submitBracketedPaste(
     }
   }
 
-  // Build an ordered list of paste payloads. The \r (Enter) is sent as a
-  // SEPARATE write after a delay. Ink's paste handler updates React state
-  // asynchronously; if \r arrives in the same write or too soon after the
-  // paste-end marker, the TUI processes Enter before the input state is
-  // updated and the submit is silently dropped.
-  const pastes: { data: string; stage: ComposerSubmitIssueStage }[] = [];
+  // All bracketed pastes are sent in a SINGLE write so the CLI's stdin
+  // tokenizer (confirmed by reverse-engineering Claude Code's Ink-based
+  // parser) processes them in one feed() call — no race between pastes.
+  //
+  // The submit key (\r) MUST be a separate write after a delay: React 18
+  // batches state updates, so if \r arrives in the same feed() call as
+  // the paste events, the submit handler reads stale state and silently
+  // drops the submission.
+  const parts: string[] = [];
   for (const imagePath of stagedImagePaths) {
-    pastes.push({ data: imagePath, stage: "paste-image" });
+    parts.push(buildBracketedPaste(imagePath));
   }
   if (request.text.trim().length > 0) {
-    pastes.push({ data: request.text, stage: "paste-text" });
+    parts.push(buildBracketedPaste(request.text));
   }
 
   try {
-    for (let i = 0; i < pastes.length; i++) {
-      const { data, stage } = pastes[i];
-      const payload = buildBracketedPaste(data);
-
-      writePtyData(request.ptyId, payload, deps, stage, "pty-write-failed");
-
-      if (i < pastes.length - 1) {
-        await deps.delayMs(adapter.pasteDelayMs);
-      }
-    }
-
-    // Delay before Enter so the CLI's paste handler can finish updating
-    // its input state. Without this, the \r arrives too early and is
-    // swallowed (text appears in input but never submits).
-    if (pastes.length > 0) {
+    if (parts.length > 0) {
+      writePtyData(request.ptyId, parts.join(""), deps, "paste-text", "pty-write-failed");
       await deps.delayMs(adapter.pasteDelayMs);
     }
-
     writePtyData(request.ptyId, "\r", deps, "submit", "submit-key-failed");
 
     return { ok: true, requestId, stagedImagePaths };
