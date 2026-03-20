@@ -8,6 +8,7 @@ import {
   DEFAULT_SHORTCUTS,
   type ShortcutMap,
 } from "../stores/shortcutStore";
+import { useSettingsModalStore, type SettingsTab } from "../stores/settingsModalStore";
 import { useT } from "../i18n/useT";
 import { FONT_REGISTRY } from "../terminal/fontRegistry";
 import { loadFont } from "../terminal/fontLoader";
@@ -20,7 +21,7 @@ interface Props {
   onClose: () => void;
 }
 
-type Tab = "general" | "shortcuts";
+type Tab = SettingsTab;
 
 const SHORTCUT_KEYS: { key: keyof ShortcutMap; labelKey: string }[] = [
   { key: "addProject", labelKey: "shortcut_add_project" },
@@ -84,7 +85,8 @@ export function SettingsModal({ onClose }: Props) {
   const [downloadedFonts, setDownloadedFonts] = useState<Set<string>>(new Set());
   const [downloadingFont, setDownloadingFont] = useState<string | null>(null);
   const t = useT();
-  const [tab, setTab] = useState<Tab>("general");
+  const initialTab = useSettingsModalStore((s) => s.initialTab);
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [recordingKey, setRecordingKey] = useState<keyof ShortcutMap | null>(
     null,
   );

@@ -4,6 +4,7 @@ import { useProjectStore } from "../stores/projectStore";
 import { useThemeStore } from "../stores/themeStore";
 import { useBrowserCardStore } from "../stores/browserCardStore";
 import { useUpdaterStore } from "../stores/updaterStore";
+import { useSettingsModalStore } from "../stores/settingsModalStore";
 import { computeWorktreeSize, PROJ_PAD, PROJ_TITLE_H } from "../layout";
 import { SettingsModal } from "../components/SettingsModal";
 import { UpdateModal } from "../components/UpdateModal";
@@ -22,7 +23,9 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
   const t = useT();
   const addBrowserCard = useBrowserCardStore((s) => s.addCard);
   const updateStatus = useUpdaterStore((s) => s.status);
-  const [showSettings, setShowSettings] = useState(false);
+  const showSettings = useSettingsModalStore((s) => s.open);
+  const openSettings = useSettingsModalStore((s) => s.openSettings);
+  const closeSettings = useSettingsModalStore((s) => s.closeSettings);
   const [showUpdate, setShowUpdate] = useState(false);
 
   const handleFitAll = useCallback(() => {
@@ -201,7 +204,7 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
         <button
           className={btn}
           style={noDrag}
-          onClick={() => setShowSettings(true)}
+          onClick={() => openSettings()}
           title={t.settings}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -272,7 +275,7 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
         </div>
       </div>
 
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showSettings && <SettingsModal onClose={closeSettings} />}
       {showUpdate && <UpdateModal onClose={() => setShowUpdate(false)} />}
     </>
   );
