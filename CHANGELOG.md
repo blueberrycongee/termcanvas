@@ -5,20 +5,20 @@ All notable changes to TermCanvas will be documented in this file.
 ## [0.8.20] - 2026-03-20
 
 ### Added
-- Onboarding: interactive mini canvas tutorial with pan, zoom, focus, and terminal steps
+- Onboarding: interactive mini canvas tutorial with double-click focus, Cmd+E toggle (focus/fit-all), Cmd+]/[ terminal switching, and scroll zoom/drag pan steps
+- Onboarding: all navigation shortcuts work across all tutorial steps, matching real app behavior
+- Toolbar: tutorial button to reopen onboarding anytime
 - Save: auto-save with dirty tracking, workspace file persistence, and dirty-aware title bar
 - Save: Cmd+S / Cmd+Shift+S shortcuts for save and save-as
-- Toolbar: tutorial button to reopen onboarding
 
 ### Changed
 - PTY: graceful shutdown with SIGTERM → 5s timeout → SIGKILL
 - State: atomic state.json writes via tmp+rename
-- Chore: archive hydra review files into docs/reviews and gitignore temp files
+- Theme: revert completion glow theme changes
 
 ### Fixed
 - Theme: disable allowTransparency to fix text fringing
 - Theme: darken bright ANSI colors and terminal text for light mode readability
-- Terminal: auto-respawn fresh session when resume fails
 - Electron: isolate dev instance data directory and skip single-instance lock in dev mode
 - Composer: rename terminal markers from composer
 
