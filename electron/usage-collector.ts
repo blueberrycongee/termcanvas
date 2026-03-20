@@ -86,7 +86,7 @@ function matchPricing(model: string) {
   return PRICING.default;
 }
 
-function computeCost(model: string, input: number, output: number, cacheRead: number, cacheCreate5m: number, cacheCreate1h: number): number {
+export function computeCost(model: string, input: number, output: number, cacheRead: number, cacheCreate5m: number, cacheCreate1h: number): number {
   const p = matchPricing(model);
   return (input / 1e6) * p.input
        + (output / 1e6) * p.output
@@ -96,7 +96,7 @@ function computeCost(model: string, input: number, output: number, cacheRead: nu
 }
 
 /** Get the local timezone offset in hours from UTC. */
-function getLocalTzOffsetHours(): number {
+export function getLocalTzOffsetHours(): number {
   // getTimezoneOffset returns minutes, negative for east of UTC
   return -(new Date().getTimezoneOffset() / 60);
 }
@@ -104,7 +104,7 @@ function getLocalTzOffsetHours(): number {
 /** Convert a target date (YYYY-MM-DD, local) to UTC start/end strings for filtering.
  *  new Date("YYYY-MM-DDT00:00:00") already parses as local midnight,
  *  so getTime() returns the correct UTC epoch — no manual tz adjustment needed. */
-function dateToUtcRange(dateStr: string): { utcStart: string; utcEnd: string } {
+export function dateToUtcRange(dateStr: string): { utcStart: string; utcEnd: string } {
   const startMs = new Date(`${dateStr}T00:00:00`).getTime();
   const endMs = startMs + 86400_000;
   const fmt = (ms: number) => new Date(ms).toISOString().replace("Z", "").split(".")[0];
@@ -200,7 +200,7 @@ export function findCodexJsonlFiles(): string[] {
 
 // ── Claude JSONL parsing ───────────────────────────────────────────────
 
-function parseClaudeSession(
+export function parseClaudeSession(
   filePath: string,
   utcStart: string,
   utcEnd: string,
@@ -278,7 +278,7 @@ function parseClaudeSession(
 
 // ── Codex JSONL parsing ────────────────────────────────────────────────
 
-function parseCodexSession(
+export function parseCodexSession(
   filePath: string,
   utcStart: string,
   utcEnd: string,
