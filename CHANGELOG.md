@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.17] - 2026-03-20
+
+### Fixed
+- Composer: prevent Enter from selecting slash command without explicit arrow-key navigation, fixing accidental command selection when submitting partial input
+
 ## [0.8.16] - 2026-03-20
 
 ### Fixed
