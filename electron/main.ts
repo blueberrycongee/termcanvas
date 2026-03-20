@@ -590,6 +590,106 @@ function setupIpc() {
     return await collectHeatmapData();
   });
 
+  // Font management
+  const fontsDir = path.join(app.getPath("userData"), "fonts");
+
+  ipcMain.handle("font:get-path", () => fontsDir);
+
+  ipcMain.handle("font:list-downloaded", () => {
+    try {
+      if (!fs.existsSync(fontsDir)) return [];
+      return fs.readdirSync(fontsDir);
+    } catch {
+      return [];
+    }
+  });
+
+  ipcMain.handle("font:check", (_event, fileName: string) => {
+    return fs.existsSync(path.join(fontsDir, fileName));
+  });
+
+  ipcMain.handle(
+    "font:download",
+    async (_event, url: string, fileName: string) => {
+      if (!fs.existsSync(fontsDir)) {
+        fs.mkdirSync(fontsDir, { recursive: true });
+      }
+      const destPath = path.join(fontsDir, fileName);
+      if (fs.existsSync(destPath)) {
+        return { ok: true, path: destPath };
+      }
+
+      try {
+        const { net } = await import("electron");
+        const tmpZip = path.join(fontsDir, `_download_${Date.now()}.zip`);
+
+        await new Promise<void>((resolve, reject) => {
+          const request = net.request(url);
+          const chunks: Buffer[] = [];
+          request.on("response", (response) => {
+            if (
+              (response.statusCode === 301 || response.statusCode === 302) &&
+              response.headers.location
+            ) {
+              const redirectUrl = Array.isArray(response.headers.location)
+                ? response.headers.location[0]
+                : response.headers.location;
+              const redirectReq = net.request(redirectUrl);
+              const rChunks: Buffer[] = [];
+              redirectReq.on("response", (rRes) => {
+                rRes.on("data", (chunk) => rChunks.push(chunk));
+                rRes.on("end", () => {
+                  fs.writeFileSync(tmpZip, Buffer.concat(rChunks));
+                  resolve();
+                });
+                rRes.on("error", reject);
+              });
+              redirectReq.on("error", reject);
+              redirectReq.end();
+              return;
+            }
+            response.on("data", (chunk) => chunks.push(chunk));
+            response.on("end", () => {
+              fs.writeFileSync(tmpZip, Buffer.concat(chunks));
+              resolve();
+            });
+            response.on("error", reject);
+          });
+          request.on("error", reject);
+          request.end();
+        });
+
+        // Extract target font file from zip
+        const zipList = execSync(`unzip -l "${tmpZip}"`, {
+          encoding: "utf-8",
+        });
+        const lines = zipList.split("\n");
+        const matchLine = lines.find((l) => l.trim().endsWith(fileName));
+        if (!matchLine) {
+          fs.unlinkSync(tmpZip);
+          return {
+            ok: false,
+            error: `Font file "${fileName}" not found in archive`,
+          };
+        }
+        const innerPath = matchLine.trim().split(/\s+/).pop()!;
+
+        execSync(
+          `unzip -jo "${tmpZip}" "${innerPath}" -d "${fontsDir}"`,
+          { encoding: "utf-8" },
+        );
+        fs.unlinkSync(tmpZip);
+
+        return { ok: true, path: destPath };
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  );
+
   // Close flow
   ipcMain.on("app:close-confirmed", () => {
     ptyManager.destroyAll();
