@@ -120,7 +120,7 @@ function useStatePersistence() {
       .load()
       .then((saved) => {
         if (!saved) return;
-        const data = saved as Record<string, unknown>;
+        const data = saved as unknown as Record<string, unknown>;
         if (data.skipRestore) {
           window.termcanvas.state.save({ skipRestore: false });
           return;
