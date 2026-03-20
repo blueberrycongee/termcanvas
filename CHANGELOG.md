@@ -2,6 +2,15 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.22] - 2026-03-21
+
+### Changed
+- Fonts: downloadable font sources now use pinned GitHub release archives instead of the old Google Fonts ZIP endpoints
+- Fonts: temporarily limit bundled download choices to verified archives (JetBrains Mono, Fira Code, IBM Plex Mono, Hack) until the removed sources are fixed
+
+### Fixed
+- Fonts: follow HTTP redirects and download archives through Node `https`, fixing font installs that were failing in both dev mode and packaged builds
+
 ## [0.8.21] - 2026-03-21
 
 ### Added
