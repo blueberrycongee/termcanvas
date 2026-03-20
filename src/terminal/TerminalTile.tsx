@@ -291,7 +291,13 @@ export function TerminalTile({
     // Let Cmd key combos propagate to the app shortcut handler
     // (Ctrl must still reach xterm for terminal signals like Ctrl+C)
     xterm.attachCustomKeyEventHandler((e) => {
-      if (e.type === "keydown" && e.metaKey) return false;
+      if (e.type === "keydown" && e.metaKey) {
+        // Cmd+Backspace → Ctrl+U (kill line: delete from cursor to line start)
+        if (e.key === "Backspace") {
+          window.termcanvas.terminal.input(id, "\x15");
+        }
+        return false;
+      }
       return true;
     });
 
