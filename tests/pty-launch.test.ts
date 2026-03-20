@@ -4,6 +4,7 @@ import path from "node:path";
 
 import {
   buildLaunchSpec,
+  PtyLaunchError,
   sanitizeEnv,
   type LaunchResolverDeps,
 } from "../electron/pty-launch.ts";
@@ -171,20 +172,24 @@ test("buildLaunchSpec does not duplicate extraPathEntries already in PATH", asyn
   assert.equal(count, 1);
 });
 
-test("buildLaunchSpec throws a clear error when a CLI executable cannot be resolved", async () => {
-  await assert.rejects(
-    () =>
-      buildLaunchSpec(
-        {
-          cwd: "/repo",
-          shell: "codex",
-        },
-        createDeps({
-          existsSync: (file) => file === "/repo" || file === "/bin/zsh",
-        }),
-      ),
-    /Executable not found: codex/,
-  );
+test("buildLaunchSpec throws PtyLaunchError when a CLI executable cannot be resolved", async () => {
+  try {
+    await buildLaunchSpec(
+      {
+        cwd: "/repo",
+        shell: "codex",
+      },
+      createDeps({
+        existsSync: (file) => file === "/repo" || file === "/bin/zsh",
+      }),
+    );
+    assert.fail("Expected PtyLaunchError");
+  } catch (err) {
+    assert.ok(err instanceof PtyLaunchError);
+    assert.equal(err.code, "executable-not-found");
+    assert.equal(err.command, "codex");
+    assert.match(err.message, /codex/);
+  }
 });
 
 test("buildLaunchSpec resolves Windows app aliases from fallback user paths", async () => {

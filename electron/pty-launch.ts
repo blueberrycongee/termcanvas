@@ -265,6 +265,7 @@ function parseNullDelimitedEnv(output: Buffer): Record<string, string> {
     const separatorIndex = entry.indexOf("=");
     if (separatorIndex === -1) continue;
     const key = entry.slice(0, separatorIndex);
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) continue;
     const value = entry.slice(separatorIndex + 1);
     parsed[key] = value;
   }
@@ -278,11 +279,12 @@ async function captureLoginShellEnv(
   return new Promise((resolve, reject) => {
     execFile(
       shell,
-      ["-lc", "/usr/bin/env -0"],
+      ["-lic", "/usr/bin/env -0"],
       {
         env: baseEnv,
         encoding: "buffer",
         maxBuffer: 1024 * 1024 * 4,
+        timeout: 10_000,
       },
       (error, stdout) => {
         if (error) {
@@ -357,6 +359,18 @@ const defaultDeps: LaunchResolverDeps = {
   },
 };
 
+export class PtyLaunchError extends Error {
+  readonly code: string;
+  readonly command: string;
+
+  constructor(code: string, message: string, command: string) {
+    super(message);
+    this.name = "PtyLaunchError";
+    this.code = code;
+    this.command = command;
+  }
+}
+
 export async function buildLaunchSpec(
   options: PtyLaunchOptions,
   deps: LaunchResolverDeps = defaultDeps,
@@ -384,8 +398,10 @@ export async function buildLaunchSpec(
   if (options.shell) {
     const executable = resolveExecutable(options.shell, shellEnv, deps);
     if (!executable) {
-      throw new Error(
-        `Executable not found: ${options.shell} (PATH=${shellEnv.PATH ?? ""})`,
+      throw new PtyLaunchError(
+        "executable-not-found",
+        `Executable not found: ${options.shell}`,
+        options.shell,
       );
     }
 
