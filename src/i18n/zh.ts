@@ -72,7 +72,7 @@ export const zh = {
   terminal_exited: (title: string, code: number) =>
     `终端 "${title}" 已退出，退出码 ${code}。`,
   terminal_copied: "已复制",
-  terminal_custom_title_placeholder: "添加标记",
+  terminal_custom_title_placeholder: "未命名标题",
 
   // DrawingPanel
   tool_select: "选择",
