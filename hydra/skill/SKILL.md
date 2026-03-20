@@ -11,6 +11,8 @@ decomposable subtasks), investigate first, then use hydra to spawn sub-agents.
 
 ## Choosing the right mode
 
+Supported agent types currently include `claude`, `codex`, and `kimi`.
+
 - **Read-only tasks** (audit, review, analysis, investigation):
   `hydra spawn --task "..." --type <agent-type> --repo . --worktree <path>`
   Runs in an existing worktree. No branch created, no merge needed.
@@ -35,6 +37,9 @@ only. For other agent types it is silently ignored.
 hydra spawn --task "..." --type codex --repo . --auto-approve
 ```
 
+For `kimi`, do not rely on `--auto-approve`; the flag is ignored and Hydra
+will launch the agent without extra approval arguments.
+
 How to tell if you are in auto-approve mode:
 - **Claude Code**: you were launched with `--dangerously-skip-permissions`,
   or your permission mode is `bypassPermissions`.
@@ -56,6 +61,7 @@ keeps the results out of your own context window.
    ```
    hydra spawn --task "Find all callers of X and trace the data flow" --type <agent-type> --repo . --worktree .
    hydra spawn --task "List existing test patterns for module Y" --type <agent-type> --repo . --worktree .
+   hydra spawn --task "Explore the repository structure and key entry points" --type kimi --repo . --worktree .
    ```
 2. Poll and collect their results (same polling rules as below)
 3. Use the exploration results to write precise task descriptions for
