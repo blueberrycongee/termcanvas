@@ -116,18 +116,42 @@ export class PtyManager {
     return buffer.slice(-lineCount);
   }
 
-  destroy(id: number) {
+  async destroy(id: number): Promise<void> {
     const instance = this.instances.get(id);
-    if (instance) {
-      instance.kill();
-      this.instances.delete(id);
+    if (!instance) {
+      this.outputBuffers.delete(id);
+      return;
     }
+
+    const pid = instance.pid;
+    this.instances.delete(id);
     this.outputBuffers.delete(id);
+
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch {
+      return;
+    }
+
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      try {
+        process.kill(pid, 0);
+      } catch {
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // Process exited while the timeout elapsed.
+    }
   }
 
-  destroyAll() {
-    for (const [id] of this.instances) {
-      this.destroy(id);
-    }
+  async destroyAll(): Promise<void> {
+    const ids = [...this.instances.keys()];
+    await Promise.all(ids.map((id) => this.destroy(id)));
   }
 }

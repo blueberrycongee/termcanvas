@@ -191,8 +191,8 @@ function setupIpc() {
     },
   );
 
-  ipcMain.handle("terminal:destroy", (_event, ptyId: number) => {
-    ptyManager.destroy(ptyId);
+  ipcMain.handle("terminal:destroy", async (_event, ptyId: number) => {
+    await ptyManager.destroy(ptyId);
   });
 
   ipcMain.handle("terminal:get-pid", (_event, ptyId: number) => {
@@ -692,8 +692,8 @@ function setupIpc() {
   );
 
   // Close flow
-  ipcMain.on("app:close-confirmed", () => {
-    ptyManager.destroyAll();
+  ipcMain.on("app:close-confirmed", async () => {
+    await ptyManager.destroyAll();
     gitWatcher.unwatchAll();
     sessionWatcher.unwatchAll();
     forceClose = true;
