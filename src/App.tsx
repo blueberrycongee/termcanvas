@@ -374,7 +374,7 @@ export function App() {
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-[var(--bg)] text-[var(--text-primary)]">
-      <Toolbar />
+      <Toolbar onShowTutorial={() => setShowWelcome(true)} />
       <Sidebar />
       <Canvas />
       <DrawingPanel />

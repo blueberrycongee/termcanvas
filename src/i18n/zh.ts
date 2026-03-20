@@ -83,6 +83,9 @@ export const zh = {
   layout_horizontal: "横向布局",
   layout_vertical: "纵向布局",
 
+  // Toolbar
+  tutorial: "教程",
+
   // ShortcutHints
   shortcut_add_project: "添加项目",
   shortcut_toggle_sidebar: "切换侧栏",

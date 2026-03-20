@@ -85,6 +85,9 @@ export const en = {
   layout_horizontal: "Horizontal layout",
   layout_vertical: "Vertical layout",
 
+  // Toolbar
+  tutorial: "Tutorial",
+
   // ShortcutHints
   shortcut_add_project: "Add project",
   shortcut_toggle_sidebar: "Toggle sidebar",

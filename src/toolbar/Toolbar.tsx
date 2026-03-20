@@ -15,7 +15,7 @@ const platform = window.termcanvas?.app.platform ?? "darwin";
 const btn =
   "px-2 py-1 rounded-md text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)] transition-colors duration-150 active:scale-[0.97]";
 
-export function Toolbar() {
+export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
   const { viewport, setViewport, resetViewport, animateTo } = useCanvasStore();
   const { projects } = useProjectStore();
   const { theme, toggleTheme } = useThemeStore();
@@ -86,6 +86,20 @@ export function Toolbar() {
         </span>
 
         <div className="flex-1" />
+
+        {/* Tutorial */}
+        <button
+          className={btn}
+          style={noDrag}
+          onClick={onShowTutorial}
+          title={t.tutorial}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M5 5.5a2 2 0 0 1 3.9.5c0 1-1.4 1.2-1.4 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx="7" cy="10" r="0.6" fill="currentColor" />
+          </svg>
+        </button>
 
         {/* Usage panel toggle */}
         <button
