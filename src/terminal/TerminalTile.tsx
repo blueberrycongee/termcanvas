@@ -18,6 +18,7 @@ import { useT } from "../i18n/useT";
 import { getTerminalLaunchOptions, getComposerAdapter } from "./cliConfig";
 import { buildFontFamily } from "./fontRegistry";
 import { panToTerminal } from "../utils/panToTerminal";
+import { getTerminalDisplayTitle } from "../stores/terminalState";
 
 interface Props {
   projectId: string;
@@ -183,7 +184,11 @@ export function TerminalTile({
     y: number;
   } | null>(null);
   const [showCopiedToast, setShowCopiedToast] = useState(false);
+  const [customTitleDraft, setCustomTitleDraft] = useState(
+    terminal.customTitle ?? "",
+  );
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const displayTitleRef = useRef(getTerminalDisplayTitle(terminal));
   const tileRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
@@ -198,12 +203,21 @@ export function TerminalTile({
     updateTerminalStatus,
     updateTerminalSessionId,
     updateTerminalType,
+    updateTerminalCustomTitle,
     setFocusedTerminal,
   } = useProjectStore();
 
   const { notify } = useNotificationStore();
   const t = useT();
   const config = TYPE_CONFIG[terminal.type] ?? { color: "#888", label: terminal.type };
+
+  useEffect(() => {
+    setCustomTitleDraft(terminal.customTitle ?? "");
+  }, [terminal.customTitle]);
+
+  useEffect(() => {
+    displayTitleRef.current = getTerminalDisplayTitle(terminal);
+  }, [terminal.title, terminal.customTitle]);
 
   const isSelected = useSelectionStore((s) =>
     s.selectedItems.some(
@@ -231,7 +245,7 @@ export function TerminalTile({
       cursorStyle: "bar",
       cursorWidth: 2,
       scrollback: 5000,
-      allowTransparency: true,
+      allowTransparency: false,
     });
 
     const fitAddon = new FitAddon();
@@ -392,7 +406,7 @@ export function TerminalTile({
               () => cancelled,
             ).then((result) => {
               if (result === "timeout") {
-                notify("warn", `Session capture timeout for ${terminal.title}`);
+                notify("warn", `Session capture timeout for ${displayTitleRef.current}`);
               }
             });
           }
@@ -411,7 +425,7 @@ export function TerminalTile({
           window.termcanvas.terminal.resize(id, cols, rows);
         })
         .catch((err) => {
-          notify("error", t.failed_create_pty(terminal.title, err));
+          notify("error", t.failed_create_pty(displayTitleRef.current, err));
           updateTerminalStatus(projectId, worktreeId, terminal.id, "error");
           xterm.write(
             `\r\n\x1b[31m[Error] Failed to create terminal: ${err}\x1b[0m\r\n`,
@@ -473,7 +487,7 @@ export function TerminalTile({
           result?.pid,
         ).then((r) => {
           if (r === "timeout") {
-            notify("warn", `Session capture timeout for ${terminal.title}`);
+            notify("warn", `Session capture timeout for ${displayTitleRef.current}`);
           }
         });
       }, 3000);
@@ -561,7 +575,7 @@ export function TerminalTile({
           );
           notify(
             exitCode === 0 ? "info" : "warn",
-            t.terminal_exited(terminal.title, exitCode),
+            t.terminal_exited(displayTitleRef.current, exitCode),
           );
         }
       },
@@ -754,6 +768,13 @@ export function TerminalTile({
     removeTerminal(projectId, worktreeId, terminal.id);
   }, [projectId, worktreeId, terminal.id, removeTerminal]);
 
+  const commitCustomTitle = useCallback(
+    (nextValue: string) => {
+      updateTerminalCustomTitle(projectId, worktreeId, terminal.id, nextValue);
+    },
+    [projectId, worktreeId, terminal.id, updateTerminalCustomTitle],
+  );
+
   return (
     <div
       ref={tileRef}
@@ -810,11 +831,38 @@ export function TerminalTile({
         </span>
         <HierarchyBadges terminal={terminal} />
         <span
-          className="text-[11px] text-[var(--text-muted)] truncate flex-1"
+          className="text-[11px] text-[var(--text-muted)] truncate shrink-0"
           style={{ fontFamily: '"Geist Mono", monospace' }}
         >
           {terminal.title}
         </span>
+        <input
+          className="h-6 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] focus:outline-none"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+          value={customTitleDraft}
+          placeholder={t.terminal_custom_title_placeholder}
+          onMouseDown={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          onFocus={() => setFocusedTerminal(terminal.id)}
+          onChange={(e) => setCustomTitleDraft(e.target.value)}
+          onBlur={() => commitCustomTitle(customTitleDraft)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commitCustomTitle(customTitleDraft);
+              e.currentTarget.blur();
+              return;
+            }
+
+            if (e.key === "Escape") {
+              e.preventDefault();
+              const resetValue = terminal.customTitle ?? "";
+              setCustomTitleDraft(resetValue);
+              e.currentTarget.blur();
+            }
+          }}
+        />
         <div className="flex items-center gap-0.5">
           <button
             className="text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
