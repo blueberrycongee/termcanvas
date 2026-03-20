@@ -7,6 +7,8 @@ import {
   eventToShortcut,
   matchesShortcut,
 } from "../src/stores/shortcutStore.ts";
+import { getTerminalFocusOrder } from "../src/stores/projectFocus.ts";
+import type { ProjectData } from "../src/types/index.ts";
 
 function withPlatform(
   platform: "darwin" | "win32" | "linux",
@@ -123,4 +125,84 @@ test("editable targets allow command shortcuts to reach the app on macOS", () =>
 
 test("rename title shortcut defaults to mod+semicolon", () => {
   assert.equal(DEFAULT_SHORTCUTS.renameTerminalTitle, "mod+;");
+});
+
+test("terminal focus order follows natural project/worktree/array order", () => {
+  const projects: ProjectData[] = [
+    {
+      id: "project-1",
+      name: "Project One",
+      path: "/tmp/project-1",
+      position: { x: 0, y: 0 },
+      collapsed: false,
+      zIndex: 1,
+      worktrees: [
+        {
+          id: "worktree-1",
+          name: "main",
+          path: "/tmp/project-1",
+          position: { x: 0, y: 0 },
+          collapsed: false,
+          terminals: [
+            {
+              id: "terminal-1",
+              title: "Terminal 1",
+              type: "shell",
+              minimized: false,
+              focused: false,
+              ptyId: 101,
+              status: "idle",
+              span: { cols: 1, rows: 1 },
+            },
+            {
+              id: "terminal-2",
+              title: "Terminal 2",
+              type: "codex",
+              minimized: false,
+              focused: false,
+              ptyId: 102,
+              status: "idle",
+              span: { cols: 1, rows: 1 },
+              parentTerminalId: "terminal-1",
+            },
+            {
+              id: "terminal-3",
+              title: "Terminal 3",
+              type: "claude",
+              minimized: false,
+              focused: false,
+              ptyId: 103,
+              status: "idle",
+              span: { cols: 1, rows: 1 },
+            },
+          ],
+        },
+        {
+          id: "worktree-2",
+          name: "feature",
+          path: "/tmp/project-1-feature",
+          position: { x: 0, y: 200 },
+          collapsed: false,
+          terminals: [
+            {
+              id: "terminal-4",
+              title: "Terminal 4",
+              type: "shell",
+              minimized: false,
+              focused: false,
+              ptyId: 104,
+              status: "idle",
+              span: { cols: 1, rows: 1 },
+              parentTerminalId: "terminal-2",
+            },
+          ],
+        },
+      ],
+    },
+  ];
+
+  assert.deepEqual(
+    getTerminalFocusOrder(projects).map((terminal) => terminal.terminalId),
+    ["terminal-1", "terminal-2", "terminal-3", "terminal-4"],
+  );
 });

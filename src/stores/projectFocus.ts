@@ -6,6 +6,33 @@ export interface NormalizedProjectFocus {
   focusedWorktreeId: string | null;
 }
 
+export interface TerminalFocusOrderItem {
+  projectId: string;
+  worktreeId: string;
+  terminalId: string;
+  index: number;
+}
+
+export function getTerminalFocusOrder(
+  projects: ProjectData[],
+): TerminalFocusOrderItem[] {
+  const terminals: Omit<TerminalFocusOrderItem, "index">[] = [];
+
+  for (const project of projects) {
+    for (const worktree of project.worktrees) {
+      for (const terminal of worktree.terminals) {
+        terminals.push({
+          projectId: project.id,
+          worktreeId: worktree.id,
+          terminalId: terminal.id,
+        });
+      }
+    }
+  }
+
+  return terminals.map((terminal, index) => ({ ...terminal, index }));
+}
+
 export function normalizeProjectsFocus(
   projects: ProjectData[],
 ): NormalizedProjectFocus {
