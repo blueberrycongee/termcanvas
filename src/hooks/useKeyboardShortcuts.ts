@@ -14,6 +14,7 @@ import {
 } from "../stores/shortcutStore";
 import { useT } from "../i18n/useT";
 import { useComposerStore } from "../stores/composerStore";
+import { useWorkspaceStore } from "../stores/workspaceStore";
 import {
   packTerminals,
   computeWorktreeSize,
@@ -23,6 +24,8 @@ import {
   PROJ_TITLE_H,
 } from "../layout";
 import { shouldIgnoreShortcutTarget } from "./shortcutTarget";
+import { snapshotState } from "../snapshotState";
+import { updateWindowTitle } from "../titleHelper";
 
 function getAllTerminals() {
   const { projects } = useProjectStore.getState();
@@ -354,6 +357,67 @@ export function useKeyboardShortcuts() {
           setFocusedTerminal(terminal.id);
           zoomToTerminal(focusedProjectId, focusedWorktreeId, terminal.id);
         }
+        return;
+      }
+
+      if (matchesShortcut(e, shortcuts.saveWorkspace)) {
+        e.preventDefault();
+        const snap = snapshotState();
+        const { workspacePath } = useWorkspaceStore.getState();
+
+        if (workspacePath) {
+          window.termcanvas.workspace
+            .saveToPath(workspacePath, snap)
+            .then(async () => {
+              await window.termcanvas.state.save(JSON.parse(snap));
+              useWorkspaceStore.getState().markClean();
+              updateWindowTitle();
+            })
+            .catch((err) => {
+              useNotificationStore
+                .getState()
+                .notify("error", t.save_error(String(err)));
+            });
+        } else {
+          window.termcanvas.workspace
+            .save(snap)
+            .then(async (savedPath) => {
+              if (!savedPath) {
+                return;
+              }
+              useWorkspaceStore.getState().setWorkspacePath(savedPath);
+              await window.termcanvas.state.save(JSON.parse(snap));
+              useWorkspaceStore.getState().markClean();
+              updateWindowTitle();
+            })
+            .catch((err) => {
+              useNotificationStore
+                .getState()
+                .notify("error", t.save_error(String(err)));
+            });
+        }
+        return;
+      }
+
+      if (matchesShortcut(e, shortcuts.saveWorkspaceAs)) {
+        e.preventDefault();
+        const snap = snapshotState();
+        window.termcanvas.workspace
+          .save(snap)
+          .then(async (savedPath) => {
+            if (!savedPath) {
+              return;
+            }
+            useWorkspaceStore.getState().setWorkspacePath(savedPath);
+            await window.termcanvas.state.save(JSON.parse(snap));
+            useWorkspaceStore.getState().markClean();
+            updateWindowTitle();
+          })
+          .catch((err) => {
+            useNotificationStore
+              .getState()
+              .notify("error", t.save_error(String(err)));
+          });
         return;
       }
 

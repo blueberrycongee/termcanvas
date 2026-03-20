@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useWorkspaceStore } from "./workspaceStore";
 
 export type DrawingTool = "select" | "pen" | "text" | "rect" | "arrow";
 
@@ -74,6 +75,10 @@ export function drawingId(): string {
   return `d-${Date.now()}-${++idCounter}`;
 }
 
+function markDirty() {
+  useWorkspaceStore.getState().markDirty();
+}
+
 export const useDrawingStore = create<DrawingStore>((set) => ({
   tool: "select",
   color: "#ededed",
@@ -83,24 +88,33 @@ export const useDrawingStore = create<DrawingStore>((set) => ({
   setTool: (tool) => set({ tool }),
   setColor: (color) => set({ color }),
 
-  addElement: (element) =>
+  addElement: (element) => {
     set((state) => ({
       elements: [...state.elements, element],
       activeElement: null,
-    })),
+    }));
+    markDirty();
+  },
 
-  updateElement: (id, partial) =>
+  updateElement: (id, partial) => {
     set((state) => ({
       elements: state.elements.map((el) =>
         el.id !== id ? el : ({ ...el, ...partial } as DrawingElement),
       ),
-    })),
+    }));
+    markDirty();
+  },
 
-  removeElement: (id) =>
+  removeElement: (id) => {
     set((state) => ({
       elements: state.elements.filter((el) => el.id !== id),
-    })),
+    }));
+    markDirty();
+  },
 
   setActiveElement: (element) => set({ activeElement: element }),
-  clearAll: () => set({ elements: [], activeElement: null }),
+  clearAll: () => {
+    set({ elements: [], activeElement: null });
+    markDirty();
+  },
 }));

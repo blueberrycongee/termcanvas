@@ -98,7 +98,7 @@ contextBridge.exposeInMainWorld("termcanvas", {
   },
   workspace: {
     save: (data: string) =>
-      ipcRenderer.invoke("workspace:save", data) as Promise<boolean>,
+      ipcRenderer.invoke("workspace:save", data) as Promise<string | null>,
     open: () => ipcRenderer.invoke("workspace:open") as Promise<string | null>,
     saveToPath: (filePath: string, data: string) =>
       ipcRenderer.invoke("workspace:save-to-path", filePath, data) as Promise<void>,

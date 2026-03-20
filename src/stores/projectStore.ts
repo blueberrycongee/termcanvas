@@ -14,6 +14,7 @@ import {
   withUpdatedTerminalType,
 } from "./terminalState";
 import { normalizeProjectsFocus } from "./projectFocus";
+import { useWorkspaceStore } from "./workspaceStore";
 
 interface ProjectStore {
   projects: ProjectData[];
@@ -167,6 +168,10 @@ function mapTerminals(
 const OVERLAP_GAP = 40;
 const WORKTREE_GAP = 8;
 
+function markDirty() {
+  useWorkspaceStore.getState().markDirty();
+}
+
 function resolveWorktreeOverlaps(worktrees: WorktreeData[]): WorktreeData[] {
   if (worktrees.length <= 1) return worktrees;
 
@@ -292,32 +297,40 @@ export const useProjectStore = create<ProjectStore>((set) => ({
   focusedProjectId: null,
   focusedWorktreeId: null,
 
-  addProject: (project) =>
+  addProject: (project) => {
     set((state) => ({
       projects: resolveOverlaps([...state.projects, project]),
-    })),
+    }));
+    markDirty();
+  },
 
-  removeProject: (projectId) =>
+  removeProject: (projectId) => {
     set((state) => ({
       projects: state.projects.filter((p) => p.id !== projectId),
-    })),
+    }));
+    markDirty();
+  },
 
-  updateProjectPosition: (projectId, x, y) =>
+  updateProjectPosition: (projectId, x, y) => {
     set((state) => {
       const updated = state.projects.map((p) =>
         p.id !== projectId ? p : { ...p, position: { x, y } },
       );
       return { projects: resolveOverlaps(updated) };
-    }),
+    });
+    markDirty();
+  },
 
-  toggleProjectCollapse: (projectId) =>
+  toggleProjectCollapse: (projectId) => {
     set((state) => ({
       projects: resolveOverlaps(
         state.projects.map((p) =>
           p.id !== projectId ? p : { ...p, collapsed: !p.collapsed },
         ),
       ),
-    })),
+    }));
+    markDirty();
+  },
 
   bringToFront: (projectId) =>
     set((state) => {
@@ -329,7 +342,7 @@ export const useProjectStore = create<ProjectStore>((set) => ({
       };
     }),
 
-  updateWorktreePosition: (projectId, worktreeId, x, y) =>
+  updateWorktreePosition: (projectId, worktreeId, x, y) => {
     set((state) => ({
       projects: resolveOverlaps(
         state.projects.map((p) =>
@@ -343,9 +356,11 @@ export const useProjectStore = create<ProjectStore>((set) => ({
               },
         ),
       ),
-    })),
+    }));
+    markDirty();
+  },
 
-  removeWorktree: (projectId, worktreeId) =>
+  removeWorktree: (projectId, worktreeId) => {
     set((state) => ({
       projects: resolveOverlaps(
         state.projects.map((p) =>
@@ -357,7 +372,9 @@ export const useProjectStore = create<ProjectStore>((set) => ({
               },
         ),
       ),
-    })),
+    }));
+    markDirty();
+  },
 
   syncWorktrees: (projectPath, worktrees) =>
     set((state) => ({
@@ -384,7 +401,7 @@ export const useProjectStore = create<ProjectStore>((set) => ({
       ),
     })),
 
-  toggleWorktreeCollapse: (projectId, worktreeId) =>
+  toggleWorktreeCollapse: (projectId, worktreeId) => {
     set((state) => ({
       projects: resolveOverlaps(
         state.projects.map((p) =>
@@ -398,9 +415,11 @@ export const useProjectStore = create<ProjectStore>((set) => ({
               },
         ),
       ),
-    })),
+    }));
+    markDirty();
+  },
 
-  addTerminal: (projectId, worktreeId, terminal) =>
+  addTerminal: (projectId, worktreeId, terminal) => {
     set((state) => ({
       projects: resolveOverlaps(
         state.projects.map((p) =>
@@ -416,9 +435,11 @@ export const useProjectStore = create<ProjectStore>((set) => ({
               },
         ),
       ),
-    })),
+    }));
+    markDirty();
+  },
 
-  removeTerminal: (projectId, worktreeId, terminalId) =>
+  removeTerminal: (projectId, worktreeId, terminalId) => {
     set((state) => {
       // Check if the terminal being removed is focused
       let wasFocused = false;
@@ -484,7 +505,9 @@ export const useProjectStore = create<ProjectStore>((set) => ({
       return {
         projects: updatedProjects,
       };
-    }),
+    });
+    markDirty();
+  },
 
   updateTerminalPtyId: (projectId, worktreeId, terminalId, ptyId) =>
     set((state) => ({
@@ -497,7 +520,7 @@ export const useProjectStore = create<ProjectStore>((set) => ({
       ),
     })),
 
-  toggleTerminalMinimize: (projectId, worktreeId, terminalId) =>
+  toggleTerminalMinimize: (projectId, worktreeId, terminalId) => {
     set((state) => ({
       projects: mapTerminals(
         state.projects,
@@ -506,7 +529,9 @@ export const useProjectStore = create<ProjectStore>((set) => ({
         terminalId,
         (t) => ({ ...t, minimized: !t.minimized }),
       ),
-    })),
+    }));
+    markDirty();
+  },
 
   updateTerminalStatus: (projectId, worktreeId, terminalId, status) =>
     set((state) => ({
@@ -554,7 +579,7 @@ export const useProjectStore = create<ProjectStore>((set) => ({
       ),
     })),
 
-  updateTerminalSpan: (projectId, worktreeId, terminalId, span) =>
+  updateTerminalSpan: (projectId, worktreeId, terminalId, span) => {
     set((state) => ({
       projects: resolveOverlaps(
         mapTerminals(
@@ -565,9 +590,11 @@ export const useProjectStore = create<ProjectStore>((set) => ({
           (t) => ({ ...t, span }),
         ),
       ),
-    })),
+    }));
+    markDirty();
+  },
 
-  reorderTerminal: (projectId, worktreeId, terminalId, newIndex) =>
+  reorderTerminal: (projectId, worktreeId, terminalId, newIndex) => {
     set((state) => ({
       projects: state.projects.map((p) =>
         p.id !== projectId
@@ -577,9 +604,7 @@ export const useProjectStore = create<ProjectStore>((set) => ({
               worktrees: p.worktrees.map((w) => {
                 if (w.id !== worktreeId) return w;
                 const terminals = [...w.terminals];
-                const oldIndex = terminals.findIndex(
-                  (t) => t.id === terminalId,
-                );
+                const oldIndex = terminals.findIndex((t) => t.id === terminalId);
                 if (oldIndex === -1 || oldIndex === newIndex) return w;
                 const [moved] = terminals.splice(oldIndex, 1);
                 terminals.splice(newIndex, 0, moved);
@@ -587,7 +612,9 @@ export const useProjectStore = create<ProjectStore>((set) => ({
               }),
             },
       ),
-    })),
+    }));
+    markDirty();
+  },
 
   setFocusedTerminal: (terminalId, options) => {
     set((state) => {
@@ -649,7 +676,10 @@ export const useProjectStore = create<ProjectStore>((set) => ({
       })),
     })),
 
-  setProjects: (projects) => set(() => normalizeProjectsFocus(projects)),
+  setProjects: (projects) => {
+    set(() => normalizeProjectsFocus(projects));
+    markDirty();
+  },
 }));
 
 // --- Hierarchy helpers (pure functions, not store actions) ---

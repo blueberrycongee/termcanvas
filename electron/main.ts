@@ -451,9 +451,9 @@ function setupIpc() {
       defaultPath: "workspace.termcanvas",
       filters: [{ name: "TermCanvas Workspace", extensions: ["termcanvas"] }],
     });
-    if (result.canceled || !result.filePath) return false;
+    if (result.canceled || !result.filePath) return null;
     fs.writeFileSync(result.filePath, data, "utf-8");
-    return true;
+    return result.filePath;
   });
 
   ipcMain.handle(

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Viewport } from "../types";
+import { useWorkspaceStore } from "./workspaceStore";
 
 // Fixed panel dimensions (no user-resizable widths)
 export const SIDEBAR_WIDTH = 200;
@@ -23,6 +24,10 @@ const ANIM_DURATION = 400;
 
 let animationId = 0;
 
+function markDirty() {
+  useWorkspaceStore.getState().markDirty();
+}
+
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
   viewport: { ...DEFAULT_VIEWPORT },
   isAnimating: false,
@@ -32,10 +37,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
   setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
 
-  setViewport: (partial) =>
+  setViewport: (partial) => {
     set((state) => ({
       viewport: { ...state.viewport, ...partial },
-    })),
+    }));
+    markDirty();
+  },
 
   resetViewport: () => set({ viewport: { ...DEFAULT_VIEWPORT } }),
 

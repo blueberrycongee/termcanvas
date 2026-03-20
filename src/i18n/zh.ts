@@ -99,6 +99,10 @@ export const zh = {
   shortcut_span_wide: "宽",
   shortcut_span_tall: "高",
   shortcut_span_large: "大",
+  shortcut_save_workspace: "保存",
+  shortcut_save_workspace_as: "另存为",
+  save_as: "另存为",
+  save_error: (err: string) => `保存失败：${err}`,
 
   // Selection / batch delete
   confirm_delete_projects: (n: number) =>

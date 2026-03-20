@@ -5,6 +5,8 @@ export interface ShortcutMap {
   addProject: string;
   toggleSidebar: string;
   newTerminal: string;
+  saveWorkspace: string;
+  saveWorkspaceAs: string;
   renameTerminalTitle: string;
   nextTerminal: string;
   prevTerminal: string;
@@ -20,6 +22,8 @@ export const DEFAULT_SHORTCUTS: ShortcutMap = {
   addProject: "mod+o",
   toggleSidebar: "mod+b",
   newTerminal: "mod+t",
+  saveWorkspace: "mod+s",
+  saveWorkspaceAs: "mod+shift+s",
   renameTerminalTitle: "mod+;",
   nextTerminal: "mod+]",
   prevTerminal: "mod+[",

@@ -101,6 +101,10 @@ export const en = {
   shortcut_span_wide: "Wide",
   shortcut_span_tall: "Tall",
   shortcut_span_large: "Large",
+  shortcut_save_workspace: "Save",
+  shortcut_save_workspace_as: "Save As",
+  save_as: "Save As",
+  save_error: (err: string) => `Save failed: ${err}`,
 
   // Selection / batch delete
   confirm_delete_projects: (n: number) =>
