@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { UsageSummary } from "../types";
+import type { UsageSummary, CloudUsageSummary } from "../types";
 
 export interface HeatmapEntry {
   tokens: number;
@@ -22,6 +22,11 @@ interface UsageStore {
   heatmapLoading: boolean;
   heatmapError: boolean;
   fetchHeatmap: () => Promise<void>;
+
+  cloudSummary: CloudUsageSummary | null;
+  cloudHeatmapData: Record<string, { tokens: number; cost: number }> | null;
+  fetchCloud: (dateStr?: string) => Promise<void>;
+  fetchCloudHeatmap: () => Promise<void>;
 }
 
 function todayStr(): string {
@@ -105,6 +110,40 @@ export const useUsageStore = create<UsageStore>((set, get) => ({
       set({ heatmapData: data, heatmapLoading: false });
     } catch {
       set({ heatmapLoading: false, heatmapError: true });
+    }
+  },
+
+  cloudSummary: null,
+  cloudHeatmapData: null,
+
+  fetchCloud: async (dateStr?: string) => {
+    const target = dateStr ?? get().date;
+    // @ts-expect-error -- queryCloud will be added by the preload agent
+    if (!window.termcanvas?.usage?.queryCloud) {
+      set({ cloudSummary: null });
+      return;
+    }
+    try {
+      // @ts-expect-error -- queryCloud will be added by the preload agent
+      const data = await window.termcanvas.usage.queryCloud(target);
+      set({ cloudSummary: data ?? null });
+    } catch {
+      set({ cloudSummary: null });
+    }
+  },
+
+  fetchCloudHeatmap: async () => {
+    // @ts-expect-error -- heatmapCloud will be added by the preload agent
+    if (!window.termcanvas?.usage?.heatmapCloud) {
+      set({ cloudHeatmapData: null });
+      return;
+    }
+    try {
+      // @ts-expect-error -- heatmapCloud will be added by the preload agent
+      const data = await window.termcanvas.usage.heatmapCloud();
+      set({ cloudHeatmapData: data ?? null });
+    } catch {
+      set({ cloudHeatmapData: null });
     }
   },
 }));

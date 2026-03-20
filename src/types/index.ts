@@ -165,6 +165,17 @@ export interface UsageSummary {
   models: ModelUsage[];
 }
 
+export interface DeviceUsage {
+  deviceId: string;
+  tokens: number;
+  cost: number;
+  calls: number;
+}
+
+export interface CloudUsageSummary extends UsageSummary {
+  devices: DeviceUsage[];
+}
+
 // Preload API types
 export interface TermCanvasAPI {
   terminal: {

@@ -248,6 +248,14 @@ export const zh = {
   usage_heatmap_loading: "加载热力图…",
   usage_heatmap_error: "热力图加载失败",
 
+  // Auth
+  auth_login_github: "使用 GitHub 登录",
+  auth_logout: "退出登录",
+  auth_logging_in: "登录中...",
+  auth_this_device: "(本机)",
+  auth_devices: "设备",
+  auth_cloud_error: "云端数据不可用",
+
   // Insights
   insights_generate: "生成洞察报告",
   insights_select_cli: "使用",

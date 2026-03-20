@@ -2,11 +2,14 @@ import { useEffect, useCallback, useRef, useState, useLayoutEffect } from "react
 import { createPortal } from "react-dom";
 import { useUsageStore } from "../stores/usageStore";
 import { useCanvasStore, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
+import { useAuthStore } from "../stores/authStore";
 import { useT } from "../i18n/useT";
 import { DateNavigator } from "./usage/DateNavigator";
 import { SparklineChart } from "./usage/SparklineChart";
 import { TokenHeatmap } from "./usage/TokenHeatmap";
 import { InsightsButton } from "./usage/InsightsButton";
+import { LoginButton } from "./LoginButton";
+import { DeviceBreakdown } from "./usage/DeviceBreakdown";
 import type { UsageSummary, ProjectUsage, ModelUsage } from "../types";
 import type { HeatmapEntry } from "../stores/usageStore";
 
@@ -507,12 +510,15 @@ function ModelsSection({
 // ── Main panel ─────────────────────────────────────────────────────────
 
 export function UsagePanel() {
-  const { summary, loading, date, cachedDates, fetch: fetchUsage, heatmapData, fetchHeatmap } = useUsageStore();
+  const { summary, loading, date, cachedDates, fetch: fetchUsage, heatmapData, fetchHeatmap, cloudSummary, cloudHeatmapData, fetchCloud, fetchCloudHeatmap } = useUsageStore();
   const {
     rightPanelCollapsed: collapsed,
     setRightPanelCollapsed: setCollapsed,
   } = useCanvasStore();
+  const { user, deviceId } = useAuthStore();
   const t = useT();
+
+  const isLoggedIn = user !== null;
 
   // Track data version to trigger entry animations
   const [animKey, setAnimKey] = useState(0);
@@ -525,22 +531,39 @@ export function UsagePanel() {
     }
   }, [date]);
 
+  // Init auth store once on mount
+  useEffect(() => {
+    useAuthStore.getState().init();
+  }, []);
+
   // Fetch on mount / un-collapse, and poll every 60s.
   // Date changes are handled by handleDateChange / cell click directly — no need to re-fetch here.
   useEffect(() => {
     if (collapsed) return;
     fetchUsage();
     fetchHeatmap();
-    const interval = setInterval(() => fetchUsage(), 60_000);
+    if (isLoggedIn) {
+      fetchCloud();
+      fetchCloudHeatmap();
+    }
+    const interval = setInterval(() => {
+      fetchUsage();
+      if (isLoggedIn) fetchCloud();
+    }, 60_000);
     return () => clearInterval(interval);
-  }, [collapsed]);
+  }, [collapsed, isLoggedIn]);
 
   const handleDateChange = useCallback(
     (dateStr: string) => {
       fetchUsage(dateStr);
+      if (isLoggedIn) fetchCloud(dateStr);
     },
-    [fetchUsage],
+    [fetchUsage, fetchCloud, isLoggedIn],
   );
+
+  // Choose data source based on login state
+  const activeSummary = isLoggedIn && cloudSummary ? cloudSummary : summary;
+  const activeHeatmap = isLoggedIn && cloudHeatmapData ? cloudHeatmapData : heatmapData;
 
   return (
     <div className="fixed right-0 z-40 flex" style={{ top: 44, height: "calc(100vh - 44px)" }}>
@@ -582,45 +605,64 @@ export function UsagePanel() {
           onCollapse={() => setCollapsed(true)}
         />
 
+        {/* Auth login/user button */}
+        <div className="px-3 py-1.5 shrink-0 border-b border-[var(--border)] flex items-center justify-end">
+          <LoginButton />
+        </div>
+
         {/* Content */}
         <div className="flex-1 min-h-0 overflow-y-auto">
-          {loading && !summary ? (
+          {loading && !activeSummary ? (
             <div className="px-3 py-4 text-[11px] text-[var(--text-faint)]">
               {t.loading}
             </div>
-          ) : summary ? (
+          ) : activeSummary ? (
             <div key={animKey} className="flex flex-col pb-3">
               <div className="usage-section-enter" style={{ animationDelay: "0ms" }}>
-                <SummarySection t={t} summary={summary} />
+                <SummarySection t={t} summary={activeSummary} />
               </div>
-              {Object.keys(heatmapData).length > 0 && (
+              {Object.keys(activeHeatmap).length > 0 && (
                 <>
                   <div className="mx-3 h-px bg-[var(--border)]" />
                   <div className="usage-section-enter" style={{ animationDelay: "30ms" }}>
-                    <MonthlySummary t={t} date={date} heatmapData={heatmapData} />
+                    <MonthlySummary t={t} date={date} heatmapData={activeHeatmap} />
                   </div>
                 </>
               )}
               <div className="mx-3 h-px bg-[var(--border)]" />
               <div className="usage-section-enter" style={{ animationDelay: "60ms" }}>
-                <TimelineSection t={t} summary={summary} animate={true} />
+                <TimelineSection t={t} summary={activeSummary} animate={true} />
               </div>
               <div className="mx-3 h-px bg-[var(--border)]" />
               <div className="usage-section-enter" style={{ animationDelay: "110ms" }}>
-                <TokenBreakdown t={t} summary={summary} animate={true} />
+                <TokenBreakdown t={t} summary={activeSummary} animate={true} />
               </div>
               <div className="mx-3 h-px bg-[var(--border)]" />
               <div className="usage-section-enter" style={{ animationDelay: "140ms" }}>
-                <CacheRateSection t={t} summary={summary} animate={true} />
+                <CacheRateSection t={t} summary={activeSummary} animate={true} />
               </div>
-              {summary.projects.length > 0 && <div className="mx-3 h-px bg-[var(--border)]" />}
+              {activeSummary.projects.length > 0 && <div className="mx-3 h-px bg-[var(--border)]" />}
               <div className="usage-section-enter" style={{ animationDelay: "170ms" }}>
-                <ProjectsSection t={t} projects={summary.projects} totalCost={summary.totalCost} animate={true} />
+                <ProjectsSection t={t} projects={activeSummary.projects} totalCost={activeSummary.totalCost} animate={true} />
               </div>
-              {summary.models.length > 0 && <div className="mx-3 h-px bg-[var(--border)]" />}
+              {activeSummary.models.length > 0 && <div className="mx-3 h-px bg-[var(--border)]" />}
               <div className="usage-section-enter" style={{ animationDelay: "210ms" }}>
-                <ModelsSection t={t} models={summary.models} animate={true} />
+                <ModelsSection t={t} models={activeSummary.models} animate={true} />
               </div>
+              {isLoggedIn && cloudSummary && cloudSummary.devices.length > 0 && (
+                <>
+                  <div className="mx-3 h-px bg-[var(--border)]" />
+                  <div className="usage-section-enter" style={{ animationDelay: "240ms" }}>
+                    <DeviceBreakdown devices={cloudSummary.devices} localDeviceId={deviceId} />
+                  </div>
+                </>
+              )}
+              {isLoggedIn && !cloudSummary && (
+                <>
+                  <div className="mx-3 h-px bg-[var(--border)]" />
+                  <div className="px-3 py-2 text-[10px] text-[var(--text-faint)]">{t.auth_cloud_error}</div>
+                </>
+              )}
               <div className="mx-3 h-px bg-[var(--border)]" />
               <div className="usage-section-enter" style={{ animationDelay: "260ms" }}>
                 <TokenHeatmap animate={true} />

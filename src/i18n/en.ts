@@ -250,6 +250,14 @@ export const en = {
   usage_heatmap_loading: "Loading heatmap…",
   usage_heatmap_error: "Failed to load heatmap",
 
+  // Auth
+  auth_login_github: "Login with GitHub",
+  auth_logout: "Logout",
+  auth_logging_in: "Logging in...",
+  auth_this_device: "(this device)",
+  auth_devices: "Devices",
+  auth_cloud_error: "Cloud data unavailable",
+
   // Insights
   insights_generate: "Generate Insights",
   insights_select_cli: "Analyze with",
