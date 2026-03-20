@@ -308,104 +308,118 @@ export function TerminalTile({
     registerTerminal(terminal.id, xterm, serializeAddon);
 
     let ptyId: number | null = null;
+    const wasResumeAttempt = !!terminal.sessionId && !!getTerminalLaunchOptions(terminal.type, terminal.sessionId, terminal.autoApprove);
+    let hasRespawned = false;
+    let inputDisposable: { dispose(): void } | null = null;
+    let resizeDisposable: { dispose(): void } | null = null;
 
-    const ptyOptions: { cwd: string; shell?: string; args?: string[]; terminalId?: string } = {
-      cwd: worktreePath,
-      terminalId: terminal.id,
+    /**
+     * Create a PTY and wire up input/resize handlers.
+     * When `resumeSessionId` is provided the CLI is launched with --resume;
+     * otherwise a fresh session is started.
+     */
+    const spawnPty = (resumeSessionId: string | undefined) => {
+      const opts: { cwd: string; shell?: string; args?: string[]; terminalId?: string } = {
+        cwd: worktreePath,
+        terminalId: terminal.id,
+      };
+
+      const launch = getTerminalLaunchOptions(
+        terminal.type,
+        resumeSessionId,
+        terminal.autoApprove,
+      );
+      if (launch) {
+        opts.shell = launch.shell;
+        opts.args = resumeSessionId
+          ? launch.args
+          : terminal.initialPrompt
+          ? [...launch.args, terminal.initialPrompt]
+          : launch.args;
+      }
+
+      window.termcanvas.terminal
+        .create(opts)
+        .then(async (id) => {
+          ptyId = id;
+          updateTerminalPtyId(projectId, worktreeId, terminal.id, id);
+          updateTerminalStatus(projectId, worktreeId, terminal.id, "running");
+
+          // Resume scenario: session ID already known, start watcher immediately
+          if (
+            resumeSessionId &&
+            (terminal.type === "claude" || terminal.type === "codex")
+          ) {
+            console.log(`[SessionCapture] watch (resume) type=${terminal.type} sid=${resumeSessionId} cwd=${worktreePath}`);
+            window.termcanvas.session.watch(
+              terminal.type,
+              resumeSessionId,
+              worktreePath,
+            ).then((res: { ok: boolean; reason?: string }) => {
+              if (!res?.ok) {
+                console.warn(`[SessionCapture] watch failed (resume) reason=${res?.reason}`);
+                notify("warn", `Session watch failed: ${res?.reason ?? "unknown"}`);
+              }
+            }).catch((err: unknown) => {
+              console.error("[SessionCapture] watch IPC error (resume):", err);
+            });
+          }
+
+          // Capture session ID for future resume.
+          // AI CLIs (claude, codex, etc.) may take a while to initialize and
+          // write their session file, so we poll instead of a single attempt.
+          if (!resumeSessionId && launch) {
+            let cancelled = false;
+            sessionCancelRef.current = () => { cancelled = true; };
+
+            pollSessionId(
+              id, terminal.type, worktreePath,
+              (sid) => {
+                updateTerminalSessionId(projectId, worktreeId, terminal.id, sid);
+                if (terminal.type === "claude" || terminal.type === "codex") {
+                  console.log(`[SessionCapture] watch (new) type=${terminal.type} sid=${sid} cwd=${worktreePath}`);
+                  window.termcanvas.session.watch(terminal.type, sid, worktreePath)
+                    .then((res: { ok: boolean; reason?: string }) => {
+                      if (!res?.ok) {
+                        console.warn(`[SessionCapture] watch failed (new) reason=${res?.reason}`);
+                        notify("warn", `Session watch failed: ${res?.reason ?? "unknown"}`);
+                      }
+                    }).catch((err: unknown) => {
+                      console.error("[SessionCapture] watch IPC error (new):", err);
+                    });
+                }
+              },
+              () => cancelled,
+            ).then((result) => {
+              if (result === "timeout") {
+                notify("warn", `Session capture timeout for ${terminal.title}`);
+              }
+            });
+          }
+
+          inputDisposable?.dispose();
+          resizeDisposable?.dispose();
+          inputDisposable = xterm.onData((data) => {
+            if (ptyId !== null) window.termcanvas.terminal.input(ptyId, data);
+          });
+          resizeDisposable = xterm.onResize(({ cols, rows }) => {
+            if (ptyId !== null) window.termcanvas.terminal.resize(ptyId, cols, rows);
+          });
+
+          fitAddon.fit();
+          const { cols, rows } = xterm;
+          window.termcanvas.terminal.resize(id, cols, rows);
+        })
+        .catch((err) => {
+          notify("error", t.failed_create_pty(terminal.title, err));
+          updateTerminalStatus(projectId, worktreeId, terminal.id, "error");
+          xterm.write(
+            `\r\n\x1b[31m[Error] Failed to create terminal: ${err}\x1b[0m\r\n`,
+          );
+        });
     };
 
-    const launchOptions = getTerminalLaunchOptions(
-      terminal.type,
-      terminal.sessionId,
-      terminal.autoApprove,
-    );
-    if (launchOptions) {
-      ptyOptions.shell = launchOptions.shell;
-      ptyOptions.args = terminal.sessionId
-        ? launchOptions.args
-        : terminal.initialPrompt
-        ? [...launchOptions.args, terminal.initialPrompt]
-        : launchOptions.args;
-    }
-
-    window.termcanvas.terminal
-      .create(ptyOptions)
-      .then(async (id) => {
-        ptyId = id;
-        updateTerminalPtyId(projectId, worktreeId, terminal.id, id);
-        updateTerminalStatus(projectId, worktreeId, terminal.id, "running");
-
-        // Resume scenario: session ID already known, start watcher immediately
-        if (
-          terminal.sessionId &&
-          (terminal.type === "claude" || terminal.type === "codex")
-        ) {
-          console.log(`[SessionCapture] watch (resume) type=${terminal.type} sid=${terminal.sessionId} cwd=${worktreePath}`);
-          window.termcanvas.session.watch(
-            terminal.type,
-            terminal.sessionId,
-            worktreePath,
-          ).then((res: { ok: boolean; reason?: string }) => {
-            if (!res?.ok) {
-              console.warn(`[SessionCapture] watch failed (resume) reason=${res?.reason}`);
-              notify("warn", `Session watch failed: ${res?.reason ?? "unknown"}`);
-            }
-          }).catch((err: unknown) => {
-            console.error("[SessionCapture] watch IPC error (resume):", err);
-          });
-        }
-
-        // Capture session ID for future resume.
-        // AI CLIs (claude, codex, etc.) may take a while to initialize and
-        // write their session file, so we poll instead of a single attempt.
-        if (!terminal.sessionId && launchOptions) {
-          let cancelled = false;
-          sessionCancelRef.current = () => { cancelled = true; };
-
-          pollSessionId(
-            id, terminal.type, worktreePath,
-            (sid) => {
-              updateTerminalSessionId(projectId, worktreeId, terminal.id, sid);
-              if (terminal.type === "claude" || terminal.type === "codex") {
-                console.log(`[SessionCapture] watch (new) type=${terminal.type} sid=${sid} cwd=${worktreePath}`);
-                window.termcanvas.session.watch(terminal.type, sid, worktreePath)
-                  .then((res: { ok: boolean; reason?: string }) => {
-                    if (!res?.ok) {
-                      console.warn(`[SessionCapture] watch failed (new) reason=${res?.reason}`);
-                      notify("warn", `Session watch failed: ${res?.reason ?? "unknown"}`);
-                    }
-                  }).catch((err: unknown) => {
-                    console.error("[SessionCapture] watch IPC error (new):", err);
-                  });
-              }
-            },
-            () => cancelled,
-          ).then((result) => {
-            if (result === "timeout") {
-              notify("warn", `Session capture timeout for ${terminal.title}`);
-            }
-          });
-        }
-
-        xterm.onData((data) => {
-          window.termcanvas.terminal.input(id, data);
-        });
-
-        xterm.onResize(({ cols, rows }) => {
-          window.termcanvas.terminal.resize(id, cols, rows);
-        });
-
-        fitAddon.fit();
-        const { cols, rows } = xterm;
-        window.termcanvas.terminal.resize(id, cols, rows);
-      })
-      .catch((err) => {
-        notify("error", t.failed_create_pty(terminal.title, err));
-        updateTerminalStatus(projectId, worktreeId, terminal.id, "error");
-        xterm.write(
-          `\r\n\x1b[31m[Error] Failed to create terminal: ${err}\x1b[0m\r\n`,
-        );
-      });
+    spawnPty(terminal.sessionId);
 
     let currentStatus: string = "running";
     let waitingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -525,6 +539,18 @@ export function TerminalTile({
       (id: number, exitCode: number) => {
         if (id === ptyId) {
           if (waitingTimer) clearTimeout(waitingTimer);
+
+          // Failed resume: session file was likely cleaned up by the CLI.
+          // Clear the stale sessionId and respawn a fresh session.
+          if (exitCode !== 0 && wasResumeAttempt && !hasRespawned) {
+            hasRespawned = true;
+            console.log(`[TermCanvas] Resume failed for session=${terminal.sessionId}, respawning fresh`);
+            updateTerminalSessionId(projectId, worktreeId, terminal.id, undefined);
+            xterm.write("\r\n\x1b[33m[Session expired, starting fresh…]\x1b[0m\r\n");
+            spawnPty(undefined);
+            return;
+          }
+
           currentStatus = exitCode === 0 ? "success" : "error";
           xterm.write(t.process_exited(exitCode));
           updateTerminalStatus(

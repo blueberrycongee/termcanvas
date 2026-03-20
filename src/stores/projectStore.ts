@@ -66,7 +66,7 @@ interface ProjectStore {
     projectId: string,
     worktreeId: string,
     terminalId: string,
-    sessionId: string,
+    sessionId: string | undefined,
   ) => void;
   updateTerminalType: (
     projectId: string,
