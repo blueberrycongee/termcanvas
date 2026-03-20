@@ -67,6 +67,16 @@ const TERMINALS = [
 
 type TutorialStep = 0 | 1 | 2 | 3 | 4;
 
+// Terminal cell center offsets from grid center.
+// Grid: 2 cols × 2 rows, cell 120×80, gap 8px → total 248×168.
+const CELL_OFFSETS = [
+  { x: -64, y: -44 }, // top-left  (node)
+  { x: 64, y: -44 },  // top-right (build)
+  { x: -64, y: 44 },  // bottom-left (git)
+  { x: 64, y: 44 },   // bottom-right (test)
+];
+const FOCUS_SCALE = 1.4;
+
 function replaceToken(template: string, token: string, value: string): string {
   return template.replace(token, value);
 }
@@ -83,6 +93,17 @@ function MiniCanvas({
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0, tx: 0, ty: 0 });
+
+  // Auto-zoom to focused terminal in steps 1-2, reset for step 3
+  useEffect(() => {
+    if ((step === 1 || step === 2) && focusedIndex >= 0) {
+      const offset = CELL_OFFSETS[focusedIndex];
+      setTransform({ x: -offset.x, y: -offset.y, scale: FOCUS_SCALE });
+    }
+    if (step === 3) {
+      setTransform({ x: 0, y: 0, scale: 1 });
+    }
+  }, [step, focusedIndex]);
 
   const handleWheel = useCallback(
     (e: ReactWheelEvent<HTMLDivElement>) => {
@@ -156,7 +177,7 @@ function MiniCanvas({
         className="absolute inset-0 flex items-center justify-center"
         style={{
           transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
-          transition: isDragging ? "none" : "transform 150ms ease-out",
+          transition: isDragging ? "none" : "transform 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
         }}
       >
         <div className="grid grid-cols-2 gap-2">
