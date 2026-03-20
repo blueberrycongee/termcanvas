@@ -224,6 +224,8 @@ export interface TermCanvasAPI {
   workspace: {
     save: (data: string) => Promise<boolean>;
     open: () => Promise<string | null>;
+    saveToPath: (filePath: string, data: string) => Promise<void>;
+    setTitle: (title: string) => Promise<void>;
   };
   fs: {
     listDir: (dirPath: string) => Promise<{ name: string; isDirectory: boolean }[]>;

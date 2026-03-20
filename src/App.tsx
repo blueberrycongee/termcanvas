@@ -12,13 +12,17 @@ import { UsagePanel } from "./components/UsagePanel";
 import { WelcomePopup } from "./components/WelcomePopup";
 import { useProjectStore, createTerminal } from "./stores/projectStore";
 import { useCanvasStore } from "./stores/canvasStore";
-import { useDrawingStore } from "./stores/drawingStore";
-import { useBrowserCardStore } from "./stores/browserCardStore";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
-import { serializeAllTerminals } from "./terminal/terminalRegistry";
 import { useT } from "./i18n/useT";
 import { loadAllDownloadedFonts } from "./terminal/fontLoader";
 import type { ProjectData } from "./types";
+import { normalizeProjectsFocus } from "./stores/projectFocus";
+import { useDrawingStore } from "./stores/drawingStore";
+import { useBrowserCardStore } from "./stores/browserCardStore";
+import { useWorkspaceStore } from "./stores/workspaceStore";
+import { snapshotState } from "./snapshotState";
+import { updateWindowTitle } from "./titleHelper";
+import { useNotificationStore } from "./stores/notificationStore";
 
 function migrateProjects(projects: unknown[]): ProjectData[] {
   return projects.map((p: any) => ({
@@ -52,45 +56,17 @@ function migrateProjects(projects: unknown[]): ProjectData[] {
   }));
 }
 
-function snapshotState(): string {
-  const scrollbacks = serializeAllTerminals();
-  const projects = useProjectStore.getState().projects.map((p) => ({
-    ...p,
-    worktrees: p.worktrees.map((wt) => ({
-      ...wt,
-      terminals: wt.terminals.map((t) => {
-        console.log(`[snapshot] terminal=${t.id} type=${t.type} sessionId=${t.sessionId ?? "NONE"} ptyId=${t.ptyId}`);
-        return {
-          ...t,
-          scrollback: scrollbacks[t.id] ?? t.scrollback ?? undefined,
-          ptyId: null,
-        };
-      }),
-    })),
-  }));
-
-  return JSON.stringify(
-    {
-      version: 1,
-      viewport: useCanvasStore.getState().viewport,
-      projects,
-      drawings: useDrawingStore.getState().elements,
-      browserCards: useBrowserCardStore.getState().cards,
-    },
-    null,
-    2,
-  );
-}
-
 function restoreFromData(data: Record<string, unknown>) {
   try {
     if (data.viewport) {
-      useCanvasStore
-        .getState()
-        .setViewport(data.viewport as { x: number; y: number; scale: number });
+      useCanvasStore.setState({
+        viewport: data.viewport as { x: number; y: number; scale: number },
+      });
     }
     if (data.projects && Array.isArray(data.projects)) {
-      useProjectStore.getState().setProjects(migrateProjects(data.projects));
+      useProjectStore.setState(
+        normalizeProjectsFocus(migrateProjects(data.projects)),
+      );
     }
     if (data.drawings && Array.isArray(data.drawings)) {
       useDrawingStore.setState({
@@ -138,23 +114,94 @@ function useWorktreeWatcher() {
 }
 
 function useStatePersistence() {
-  // Load saved state on mount
   useEffect(() => {
     if (!window.termcanvas) return;
-    window.termcanvas.state.load().then((saved) => {
-      if (saved) restoreFromData(saved as unknown as Record<string, unknown>);
-    }).catch((err) => {
-      console.error("[useStatePersistence] failed to load state:", err);
+    window.termcanvas.state
+      .load()
+      .then((saved) => {
+        if (!saved) return;
+        const data = saved as Record<string, unknown>;
+        if (data.skipRestore) {
+          window.termcanvas.state.save({ skipRestore: false });
+          return;
+        }
+        restoreFromData(data);
+        useWorkspaceStore.getState().setWorkspacePath(null);
+        useWorkspaceStore.getState().markClean();
+      })
+      .catch((err) => {
+        console.error("[useStatePersistence] failed to load state:", err);
+      });
+  }, []);
+}
+
+function useAutoSave() {
+  useEffect(() => {
+    if (!window.termcanvas) return;
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const saveSnapshot = async () => {
+      try {
+        const snap = snapshotState();
+        await window.termcanvas.state.save(JSON.parse(snap));
+        useWorkspaceStore.setState((state) => ({
+          ...state,
+          lastSavedAt: Date.now(),
+        }));
+      } catch (err) {
+        console.error("[useAutoSave] failed to save recovery snapshot:", err);
+      }
+    };
+
+    const unsubscribe = useWorkspaceStore.subscribe((state, prev) => {
+      if (state.dirty && !prev.dirty) {
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+        }
+        debounceTimer = setTimeout(() => {
+          void saveSnapshot();
+        }, 5000);
+      }
+
+      if (!state.dirty && prev.dirty && debounceTimer) {
+        clearTimeout(debounceTimer);
+        debounceTimer = null;
+      }
     });
+
+    const backstopTimer = setInterval(() => {
+      const { dirty, lastSavedAt } = useWorkspaceStore.getState();
+      if (dirty && (!lastSavedAt || Date.now() - lastSavedAt > 60_000)) {
+        void saveSnapshot();
+      }
+    }, 60_000);
+
+    return () => {
+      unsubscribe();
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+      clearInterval(backstopTimer);
+    };
   }, []);
 }
 
 function useWorkspaceOpen() {
   useEffect(() => {
     const handler = (e: Event) => {
+      const { dirty } = useWorkspaceStore.getState();
+      if (
+        dirty &&
+        !window.confirm("Unsaved changes will be lost. Continue?")
+      ) {
+        return;
+      }
+
       const raw = (e as CustomEvent<string>).detail;
       try {
         restoreFromData(JSON.parse(raw));
+        useWorkspaceStore.getState().setWorkspacePath(null);
+        useWorkspaceStore.getState().markClean();
       } catch (err) {
         console.error("[useWorkspaceOpen] failed to parse workspace file:", err);
       }
@@ -167,11 +214,27 @@ function useWorkspaceOpen() {
 
 function useCloseHandler() {
   const [showCloseDialog, setShowCloseDialog] = useState(false);
+  const t = useT();
 
   useEffect(() => {
     if (!window.termcanvas) return;
 
     const unsubscribe = window.termcanvas.app.onBeforeClose(() => {
+      const { dirty } = useWorkspaceStore.getState();
+      if (!dirty) {
+        void (async () => {
+          try {
+            const snap = snapshotState();
+            await window.termcanvas.state.save(JSON.parse(snap));
+          } catch (err) {
+            console.error("[CloseHandler] failed to save recovery snapshot:", err);
+          } finally {
+            window.termcanvas.app.confirmClose();
+          }
+        })();
+        return;
+      }
+
       setShowCloseDialog(true);
     });
 
@@ -180,28 +243,30 @@ function useCloseHandler() {
 
   const handleSave = useCallback(async () => {
     try {
-      const data = snapshotState();
-      const saved = await window.termcanvas.workspace.save(data);
-      if (saved) {
-        // Also save to auto-restore location
-        window.termcanvas.state.save(JSON.parse(data));
-        window.termcanvas.app.confirmClose();
-      } else {
-        // User cancelled the save dialog, stay open
-        setShowCloseDialog(false);
-      }
-    } catch (err) {
-      console.error("[CloseHandler] save failed, forcing close:", err);
-      window.termcanvas.app.confirmClose();
-    }
-  }, []);
+      const snap = snapshotState();
+      const { workspacePath } = useWorkspaceStore.getState();
 
-  const handleDiscard = useCallback(() => {
-    // Clear the auto-restore state
-    window.termcanvas.state.save({
-      viewport: { x: 0, y: 0, scale: 1 },
-      projects: [],
-    });
+      if (workspacePath) {
+        await window.termcanvas.workspace.saveToPath(workspacePath, snap);
+      } else {
+        const saved = await window.termcanvas.workspace.save(snap);
+        if (!saved) {
+          return;
+        }
+      }
+      await window.termcanvas.state.save(JSON.parse(snap));
+      useWorkspaceStore.getState().markClean();
+      window.termcanvas.app.confirmClose();
+    } catch (err) {
+      console.error("[CloseHandler] save failed:", err);
+      useNotificationStore
+        .getState()
+        .notify("error", t.save_error(String(err)));
+    }
+  }, [t]);
+
+  const handleDiscard = useCallback(async () => {
+    await window.termcanvas.state.save({ skipRestore: true });
     window.termcanvas.app.confirmClose();
   }, []);
 
@@ -259,6 +324,7 @@ function CloseDialog({
 export function App() {
   useWorktreeWatcher();
   useStatePersistence();
+  useAutoSave();
   useWorkspaceOpen();
   useKeyboardShortcuts();
   const { showCloseDialog, handleSave, handleDiscard, handleCancel } =
@@ -274,6 +340,12 @@ export function App() {
   // Load downloaded fonts on startup
   useEffect(() => {
     loadAllDownloadedFonts();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = useWorkspaceStore.subscribe(() => updateWindowTitle());
+    updateWindowTitle();
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
