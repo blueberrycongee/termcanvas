@@ -2,6 +2,15 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.19] - 2026-03-20
+
+### Fixed
+- Theme: soften light mode terminal foreground for reverse video readability
+- Fonts: show error notification when font download fails
+
+### Changed
+- Theme: redesign light mode with warm stone-toned palette and reduced brightness
+
 ## [0.8.18] - 2026-03-20
 
 ### Added
