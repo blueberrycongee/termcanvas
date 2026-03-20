@@ -638,6 +638,20 @@ function setupIpc() {
     return await collectHeatmapData();
   });
 
+  // Insights
+  ipcMain.handle("insights:generate", async (_event, cliTool: "claude" | "codex") => {
+    const { generateInsights } = await import("./insights-engine");
+    return generateInsights(cliTool, (progress) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("insights:progress", progress);
+      }
+    });
+  });
+
+  ipcMain.handle("insights:open-report", async (_event, filePath: string) => {
+    await shell.openExternal(`file://${filePath}`);
+  });
+
   // Font management
   const fontsDir = path.join(app.getPath("userData"), "fonts");
 

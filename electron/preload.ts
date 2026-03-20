@@ -153,6 +153,20 @@ contextBridge.exposeInMainWorld("termcanvas", {
     heatmap: () =>
       ipcRenderer.invoke("usage:heatmap"),
   },
+  insights: {
+    generate: (cliTool: "claude" | "codex") =>
+      ipcRenderer.invoke("insights:generate", cliTool) as Promise<
+        { ok: true; reportPath: string } | { ok: false; error: { code: string; message: string; detail?: string } }
+      >,
+    onProgress: (callback: (progress: { stage: string; current: number; total: number; message: string }) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: { stage: string; current: number; total: number; message: string }) =>
+        callback(progress);
+      ipcRenderer.on("insights:progress", listener);
+      return () => ipcRenderer.removeListener("insights:progress", listener);
+    },
+    openReport: (filePath: string) =>
+      ipcRenderer.invoke("insights:open-report", filePath),
+  },
   app: {
     platform: process.platform as "darwin" | "win32" | "linux",
     onBeforeClose: (callback: () => void) => {

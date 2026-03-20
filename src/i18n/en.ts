@@ -248,6 +248,19 @@ export const en = {
   usage_heatmap_loading: "Loading heatmap…",
   usage_heatmap_error: "Failed to load heatmap",
 
+  // Insights
+  insights_generate: "Generate Insights",
+  insights_select_cli: "Analyze with",
+  insights_validating: "Validating CLI...",
+  insights_scanning: "Scanning sessions...",
+  insights_extracting: "Analyzing sessions",
+  insights_aggregating: "Aggregating data...",
+  insights_analyzing: "Running AI analysis",
+  insights_generating: "Generating report...",
+  insights_done: "Report generated!",
+  insights_open: "Open Report",
+  insights_error: "Insights Error",
+
   // Welcome popup
   welcome_title: "termcanvas",
   welcome_heading: "Welcome to TermCanvas!",

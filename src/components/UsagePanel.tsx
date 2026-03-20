@@ -6,6 +6,7 @@ import { useT } from "../i18n/useT";
 import { DateNavigator } from "./usage/DateNavigator";
 import { SparklineChart } from "./usage/SparklineChart";
 import { TokenHeatmap } from "./usage/TokenHeatmap";
+import { InsightsButton } from "./usage/InsightsButton";
 import type { UsageSummary, ProjectUsage, ModelUsage } from "../types";
 import type { HeatmapEntry } from "../stores/usageStore";
 
@@ -622,6 +623,10 @@ export function UsagePanel() {
               <div className="mx-3 h-px bg-[var(--border)]" />
               <div className="usage-section-enter" style={{ animationDelay: "260ms" }}>
                 <TokenHeatmap animate={true} />
+              </div>
+              <div className="mx-3 h-px bg-[var(--border)]" />
+              <div className="usage-section-enter" style={{ animationDelay: "300ms" }}>
+                <InsightsButton />
               </div>
             </div>
           ) : (

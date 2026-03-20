@@ -246,6 +246,19 @@ export const zh = {
   usage_heatmap_loading: "加载热力图…",
   usage_heatmap_error: "热力图加载失败",
 
+  // Insights
+  insights_generate: "生成洞察报告",
+  insights_select_cli: "使用",
+  insights_validating: "验证 CLI...",
+  insights_scanning: "扫描会话...",
+  insights_extracting: "分析会话",
+  insights_aggregating: "汇总数据...",
+  insights_analyzing: "AI 分析中",
+  insights_generating: "生成报告...",
+  insights_done: "报告已生成！",
+  insights_open: "打开报告",
+  insights_error: "洞察报告错误",
+
   // Welcome popup
   welcome_title: "termcanvas",
   welcome_heading: "欢迎使用 TermCanvas！",
