@@ -47,3 +47,29 @@ test("preferences migrate legacy enabled blur booleans to the legacy intensity",
 
   assert.equal(usePreferencesStore.getState().animationBlur, 1.5);
 });
+
+test("preferences stores and retrieves cliCommands", async () => {
+  installLocalStorage();
+
+  const { usePreferencesStore } = await loadPreferencesStoreModule("cli-commands");
+  const store = usePreferencesStore.getState();
+
+  // Defaults to empty
+  assert.deepEqual(store.cliCommands, {});
+
+  // Set a CLI command
+  store.setCli("claude", { command: "/usr/local/bin/claude", args: [] });
+  assert.deepEqual(usePreferencesStore.getState().cliCommands, {
+    claude: { command: "/usr/local/bin/claude", args: [] },
+  });
+
+  // Persists to localStorage
+  const raw = JSON.parse(localStorage.getItem("termcanvas-preferences")!);
+  assert.deepEqual(raw.cliCommands, {
+    claude: { command: "/usr/local/bin/claude", args: [] },
+  });
+
+  // Clear by passing null
+  store.setCli("claude", null);
+  assert.deepEqual(usePreferencesStore.getState().cliCommands, {});
+});

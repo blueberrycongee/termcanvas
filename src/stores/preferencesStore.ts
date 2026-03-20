@@ -1,8 +1,14 @@
 import { create } from "zustand";
+import type { TerminalType } from "../types";
 
 const DEFAULT_BLUR = 0;
 const DEFAULT_FONT_SIZE = 13;
 const LEGACY_ENABLED_BLUR = 1.5;
+
+export interface CliCommandConfig {
+  command: string;
+  args: string[];
+}
 
 interface PreferencesStore {
   /** Blur intensity in px (0 = off, max 3) */
@@ -13,15 +19,21 @@ interface PreferencesStore {
   terminalFontFamily: string;
   /** When false, composer bar is hidden and xterm gets direct focus */
   composerEnabled: boolean;
+  /** When false, drawing panel and drawing layer are hidden */
+  drawingEnabled: boolean;
+  /** Per-terminal-type CLI command overrides */
+  cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
   setAnimationBlur: (value: number) => void;
   setTerminalFontSize: (value: number) => void;
   setTerminalFontFamily: (fontId: string) => void;
   setComposerEnabled: (value: boolean) => void;
+  setDrawingEnabled: (value: boolean) => void;
+  setCli: (type: TerminalType, config: CliCommandConfig | null) => void;
 }
 
 const STORAGE_KEY = "termcanvas-preferences";
 
-function loadPreferences(): { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean } {
+function loadPreferences(): { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> } {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -43,15 +55,27 @@ function loadPreferences(): { animationBlur: number; terminalFontSize: number; t
       let composerEnabled = false;
       if (parsed.composerEnabled === true) composerEnabled = true;
 
-      return { animationBlur: blur, terminalFontSize: fontSize, terminalFontFamily: fontFamily, composerEnabled };
+      let drawingEnabled = false;
+      if (parsed.drawingEnabled === true) drawingEnabled = true;
+
+      const cliCommands: Partial<Record<TerminalType, CliCommandConfig>> = {};
+      if (parsed.cliCommands && typeof parsed.cliCommands === "object") {
+        for (const [key, val] of Object.entries(parsed.cliCommands)) {
+          if (val && typeof val === "object" && typeof (val as CliCommandConfig).command === "string") {
+            cliCommands[key as TerminalType] = val as CliCommandConfig;
+          }
+        }
+      }
+
+      return { animationBlur: blur, terminalFontSize: fontSize, terminalFontFamily: fontFamily, composerEnabled, drawingEnabled, cliCommands };
     }
   } catch {
     // ignore
   }
-  return { animationBlur: DEFAULT_BLUR, terminalFontSize: DEFAULT_FONT_SIZE, terminalFontFamily: "geist-mono", composerEnabled: false };
+  return { animationBlur: DEFAULT_BLUR, terminalFontSize: DEFAULT_FONT_SIZE, terminalFontFamily: "geist-mono", composerEnabled: false, drawingEnabled: false, cliCommands: {} };
 }
 
-function savePreferences(state: { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean }) {
+function savePreferences(state: { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> }) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
@@ -62,6 +86,8 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   terminalFontSize: initialPrefs.terminalFontSize,
   terminalFontFamily: initialPrefs.terminalFontFamily,
   composerEnabled: initialPrefs.composerEnabled,
+  drawingEnabled: initialPrefs.drawingEnabled,
+  cliCommands: initialPrefs.cliCommands,
   setAnimationBlur: (value) => {
     const clamped = Math.round(Math.max(0, Math.min(3, value)) * 10) / 10;
     set({ animationBlur: clamped });
@@ -79,5 +105,19 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   setComposerEnabled: (value) => {
     set({ composerEnabled: value });
     savePreferences({ ...get(), composerEnabled: value });
+  },
+  setDrawingEnabled: (value) => {
+    set({ drawingEnabled: value });
+    savePreferences({ ...get(), drawingEnabled: value });
+  },
+  setCli: (type, config) => {
+    const current = { ...get().cliCommands };
+    if (config) {
+      current[type] = config;
+    } else {
+      delete current[type];
+    }
+    set({ cliCommands: current });
+    savePreferences({ ...get(), cliCommands: current });
   },
 }));
