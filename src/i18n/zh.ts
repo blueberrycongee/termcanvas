@@ -126,7 +126,7 @@ export const zh = {
   font_download_failed: "下载失败",
   animation_blur: "聚焦动画模糊",
   composer_toggle: "Composer 输入栏",
-  composer_toggle_desc: "关闭后聚焦终端时光标直接进入终端",
+  composer_toggle_desc: "实验性功能。开启后通过底部输入栏发送内容到终端，支持图片粘贴",
   shortcuts_reset: "恢复默认",
   shortcuts_press_hint: "按下快捷键…",
   shortcuts_conflict: "与其他快捷键冲突",

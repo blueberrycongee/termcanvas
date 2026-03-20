@@ -40,15 +40,15 @@ function loadPreferences(): { animationBlur: number; terminalFontSize: number; t
       const ff = parsed.terminalFontFamily;
       if (typeof ff === "string" && ff.length > 0) fontFamily = ff;
 
-      let composerEnabled = true;
-      if (parsed.composerEnabled === false) composerEnabled = false;
+      let composerEnabled = false;
+      if (parsed.composerEnabled === true) composerEnabled = true;
 
       return { animationBlur: blur, terminalFontSize: fontSize, terminalFontFamily: fontFamily, composerEnabled };
     }
   } catch {
     // ignore
   }
-  return { animationBlur: DEFAULT_BLUR, terminalFontSize: DEFAULT_FONT_SIZE, terminalFontFamily: "geist-mono", composerEnabled: true };
+  return { animationBlur: DEFAULT_BLUR, terminalFontSize: DEFAULT_FONT_SIZE, terminalFontFamily: "geist-mono", composerEnabled: false };
 }
 
 function savePreferences(state: { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean }) {
