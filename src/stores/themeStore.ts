@@ -48,7 +48,7 @@ export const XTERM_THEMES: Record<Theme, ITheme> = {
     cursor: "#1c1917",
     cursorAccent: "#eae8e4",
     selectionBackground: "rgba(37, 99, 235, 0.18)",
-    black: "#d6d3d1",
+    black: "#44403c",
     red: "#dc2626",
     green: "#16a34a",
     yellow: "#d97706",
