@@ -648,6 +648,11 @@ function setupIpc() {
     return await queryCloudHeatmap();
   });
 
+  ipcMain.handle("quota:fetch", async () => {
+    const { fetchQuota } = await import("./quota-fetcher");
+    return fetchQuota();
+  });
+
   // Insights
   ipcMain.handle("insights:generate", async (_event, cliTool: "claude" | "codex") => {
     const { generateInsights } = await import("./insights-engine");
