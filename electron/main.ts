@@ -31,7 +31,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
-const skipLock = !!process.env.TERMCANVAS_SKIP_LOCK;
+const skipLock = isDev || !!process.env.TERMCANVAS_SKIP_LOCK;
 const gotLock = skipLock || app.requestSingleInstanceLock();
 if (!gotLock) {
   console.error(
