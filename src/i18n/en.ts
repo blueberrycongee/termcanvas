@@ -199,6 +199,7 @@ export const en = {
 
   // Usage panel
   usage_title: "Usage",
+  usage_monthly: "This month",
   usage_sessions: "Sessions",
   usage_output: "Output",
   usage_timeline: "Timeline",

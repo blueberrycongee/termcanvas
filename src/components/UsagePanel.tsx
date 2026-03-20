@@ -7,6 +7,7 @@ import { DateNavigator } from "./usage/DateNavigator";
 import { SparklineChart } from "./usage/SparklineChart";
 import { TokenHeatmap } from "./usage/TokenHeatmap";
 import type { UsageSummary, ProjectUsage, ModelUsage } from "../types";
+import type { HeatmapEntry } from "../stores/usageStore";
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -176,6 +177,45 @@ function SummarySection({ t, summary }: { t: ReturnType<typeof useT>; summary: U
         <span>{t.usage_sessions}: {summary.sessions}</span>
         <span className="text-[var(--text-faint)]">·</span>
         <span>{t.usage_output}: {fmtTokens(summary.totalOutput)}</span>
+      </div>
+    </div>
+  );
+}
+
+function MonthlySummary({
+  t,
+  date,
+  heatmapData,
+}: {
+  t: ReturnType<typeof useT>;
+  date: string;
+  heatmapData: Record<string, HeatmapEntry>;
+}) {
+  const monthPrefix = date.slice(0, 7); // "YYYY-MM"
+  let monthlyCost = 0;
+  let monthlyTokens = 0;
+  for (const [d, entry] of Object.entries(heatmapData)) {
+    if (d.startsWith(monthPrefix)) {
+      monthlyCost += entry.cost;
+      monthlyTokens += entry.tokens;
+    }
+  }
+
+  if (monthlyCost === 0 && monthlyTokens === 0) return null;
+
+  return (
+    <div className="px-3 py-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
+          {t.usage_monthly}
+        </span>
+        <div
+          className="flex items-baseline gap-2 text-[11px] tabular-nums"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          <span className="text-[var(--text-primary)] font-medium">{fmtCost(monthlyCost)}</span>
+          <span className="text-[var(--text-faint)]">≈ ¥{Math.round(monthlyCost * 7.28)}</span>
+        </div>
       </div>
     </div>
   );
@@ -466,7 +506,7 @@ function ModelsSection({
 // ── Main panel ─────────────────────────────────────────────────────────
 
 export function UsagePanel() {
-  const { summary, loading, date, cachedDates, fetch: fetchUsage } = useUsageStore();
+  const { summary, loading, date, cachedDates, fetch: fetchUsage, heatmapData, fetchHeatmap } = useUsageStore();
   const {
     rightPanelCollapsed: collapsed,
     setRightPanelCollapsed: setCollapsed,
@@ -488,6 +528,7 @@ export function UsagePanel() {
   useEffect(() => {
     if (collapsed) return;
     fetchUsage();
+    fetchHeatmap();
     const interval = setInterval(() => fetchUsage(), 60_000);
     return () => clearInterval(interval);
   }, [collapsed, date]);
@@ -550,28 +591,36 @@ export function UsagePanel() {
               <div className="usage-section-enter" style={{ animationDelay: "0ms" }}>
                 <SummarySection t={t} summary={summary} />
               </div>
+              {Object.keys(heatmapData).length > 0 && (
+                <>
+                  <div className="mx-3 h-px bg-[var(--border)]" />
+                  <div className="usage-section-enter" style={{ animationDelay: "30ms" }}>
+                    <MonthlySummary t={t} date={date} heatmapData={heatmapData} />
+                  </div>
+                </>
+              )}
               <div className="mx-3 h-px bg-[var(--border)]" />
-              <div className="usage-section-enter" style={{ animationDelay: "50ms" }}>
+              <div className="usage-section-enter" style={{ animationDelay: "60ms" }}>
                 <TimelineSection t={t} summary={summary} animate={true} />
               </div>
               <div className="mx-3 h-px bg-[var(--border)]" />
-              <div className="usage-section-enter" style={{ animationDelay: "100ms" }}>
+              <div className="usage-section-enter" style={{ animationDelay: "110ms" }}>
                 <TokenBreakdown t={t} summary={summary} animate={true} />
               </div>
               <div className="mx-3 h-px bg-[var(--border)]" />
-              <div className="usage-section-enter" style={{ animationDelay: "130ms" }}>
+              <div className="usage-section-enter" style={{ animationDelay: "140ms" }}>
                 <CacheRateSection t={t} summary={summary} animate={true} />
               </div>
               {summary.projects.length > 0 && <div className="mx-3 h-px bg-[var(--border)]" />}
-              <div className="usage-section-enter" style={{ animationDelay: "160ms" }}>
+              <div className="usage-section-enter" style={{ animationDelay: "170ms" }}>
                 <ProjectsSection t={t} projects={summary.projects} totalCost={summary.totalCost} animate={true} />
               </div>
               {summary.models.length > 0 && <div className="mx-3 h-px bg-[var(--border)]" />}
-              <div className="usage-section-enter" style={{ animationDelay: "200ms" }}>
+              <div className="usage-section-enter" style={{ animationDelay: "210ms" }}>
                 <ModelsSection t={t} models={summary.models} animate={true} />
               </div>
               <div className="mx-3 h-px bg-[var(--border)]" />
-              <div className="usage-section-enter" style={{ animationDelay: "250ms" }}>
+              <div className="usage-section-enter" style={{ animationDelay: "260ms" }}>
                 <TokenHeatmap animate={true} />
               </div>
             </div>
