@@ -2,6 +2,13 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.18] - 2026-03-20
+
+### Added
+- Settings: terminal font selection with 10 curated monospace fonts (Geist Mono, Geist Pixel Square, JetBrains Mono, Fira Code, Source Code Pro, IBM Plex Mono, Inconsolata, Cascadia Code, Hack, Victor Mono)
+- One-click font download for non-bundled fonts, stored in app data directory
+- Real-time font switching across all terminal instances
+
 ## [0.8.17] - 2026-03-20
 
 ### Fixed
