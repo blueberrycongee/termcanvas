@@ -167,6 +167,25 @@ contextBridge.exposeInMainWorld("termcanvas", {
     openReport: (filePath: string) =>
       ipcRenderer.invoke("insights:open-report", filePath),
   },
+  auth: {
+    login: () => ipcRenderer.invoke("auth:login"),
+    logout: () => ipcRenderer.invoke("auth:logout"),
+    getUser: () =>
+      ipcRenderer.invoke("auth:get-user") as Promise<{
+        id: string;
+        username: string;
+        avatarUrl: string;
+        email: string;
+      } | null>,
+    getDeviceId: () =>
+      ipcRenderer.invoke("auth:get-device-id") as Promise<string>,
+    onAuthStateChange: (callback: (user: { id: string; username: string; avatarUrl: string; email: string } | null) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, user: { id: string; username: string; avatarUrl: string; email: string } | null) =>
+        callback(user);
+      ipcRenderer.on("auth:state-changed", listener);
+      return () => ipcRenderer.removeListener("auth:state-changed", listener);
+    },
+  },
   app: {
     platform: process.platform as "darwin" | "win32" | "linux",
     onBeforeClose: (callback: () => void) => {

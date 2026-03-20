@@ -41,6 +41,7 @@
   "license": "MIT",
   "type": "module",
   "dependencies": {
+    "@supabase/supabase-js": "^2.99.3",
     "@xterm/addon-image": "^0.9.0",
     "@xterm/addon-serialize": "^0.14.0",
     "electron-updater": "^6.8.3",

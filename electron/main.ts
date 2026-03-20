@@ -27,6 +27,7 @@ import {
 } from "./composer-submit";
 import { collectUsage, collectHeatmapData } from "./usage-collector";
 import { setupAutoUpdater, stopAutoUpdater } from "./auto-updater";
+import { initAuth, login, logout, getAuthUser, getDeviceId, handleAuthCallback, onAuthStateChange } from "./auth";
 import type { ComposerSubmitRequest } from "../src/types";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -740,6 +741,23 @@ function setupIpc() {
     },
   );
 
+  // Auth IPC
+  ipcMain.handle("auth:login", async () => {
+    await login();
+  });
+
+  ipcMain.handle("auth:logout", async () => {
+    await logout();
+  });
+
+  ipcMain.handle("auth:get-user", () => {
+    return getAuthUser();
+  });
+
+  ipcMain.handle("auth:get-device-id", () => {
+    return getDeviceId();
+  });
+
   // Close flow
   ipcMain.on("app:close-confirmed", async () => {
     await ptyManager.destroyAll();
@@ -932,7 +950,16 @@ function uninstallSkill(): boolean {
   return uninstallHydraSkillLinks();
 }
 
-app.whenReady().then(() => {
+// Register termcanvas:// protocol for OAuth callback
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient("termcanvas", process.execPath, [path.resolve(process.argv[1])]);
+  }
+} else {
+  app.setAsDefaultProtocolClient("termcanvas");
+}
+
+app.whenReady().then(async () => {
   // Handle webview webContents: open new windows in system browser, sanitize UA
   app.on("web-contents-created", (_event, contents) => {
     if (contents.getType() === "webview") {
@@ -951,13 +978,33 @@ app.whenReady().then(() => {
   ensureCliLinks();
   if (isCliRegistered()) ensureSkillInstalled();
   setupIpc();
+  await initAuth();
   createWindow();
   if (mainWindow) setupAutoUpdater(mainWindow);
 
-  app.on("second-instance", () => {
+  // Forward auth state changes to renderer
+  onAuthStateChange((user) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("auth:state-changed", user);
+    }
+  });
+
+  // Handle termcanvas:// protocol on macOS
+  app.on("open-url", async (_event, url) => {
+    if (url.startsWith("termcanvas://auth/callback")) {
+      await handleAuthCallback(url);
+    }
+  });
+
+  app.on("second-instance", (_event, argv) => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
+    }
+    // Handle auth callback from argv (Windows/Linux)
+    const authUrl = argv.find(arg => arg.startsWith("termcanvas://auth/callback"));
+    if (authUrl) {
+      handleAuthCallback(authUrl);
     }
   });
 
