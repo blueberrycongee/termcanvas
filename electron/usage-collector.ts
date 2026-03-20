@@ -429,6 +429,7 @@ export async function collectHeatmapData(): Promise<Record<string, { tokens: num
 /**
  * Collect usage data for a given date (local timezone).
  * Uses the machine's local timezone by default.
+ * Uses setImmediate chunking to avoid blocking the main thread.
  * @param dateStr YYYY-MM-DD in local timezone
  * @param intervalHours Bucket interval in hours (default 2)
  */
@@ -436,138 +437,139 @@ export async function collectUsage(
   dateStr: string,
   intervalHours = 2,
 ): Promise<UsageSummary> {
+  const BATCH_SIZE = 20;
   const tzOffsetHours = getLocalTzOffsetHours();
   const { utcStart, utcEnd } = dateToUtcRange(dateStr);
 
-  // Run file I/O in a microtask to avoid blocking the main thread too long
-  const result = await new Promise<UsageSummary>((resolve) => {
-    setImmediate(() => {
-      const allRecords: UsageRecord[] = [];
-      const sessionPaths = new Set<string>();
+  const allRecords: UsageRecord[] = [];
+  const sessionPaths = new Set<string>();
 
-      // Claude sessions
-      const claudeFiles = findClaudeJsonlFiles();
-      for (const f of claudeFiles) {
-        try {
-          const mtime = fs.statSync(f).mtimeMs;
-          // Compare mtime in local timezone
-          const mtimeLocal = new Date(mtime + tzOffsetHours * 3600_000);
-          const mtimeDate = mtimeLocal.toISOString().split("T")[0];
-          if (mtimeDate < dateStr) continue;
-        } catch { continue; }
+  // Claude sessions — batched to yield between batches
+  const claudeFiles = findClaudeJsonlFiles();
+  for (let i = 0; i < claudeFiles.length; i += BATCH_SIZE) {
+    if (i > 0) await new Promise<void>((r) => setImmediate(r));
+    const batch = claudeFiles.slice(i, i + BATCH_SIZE);
+    for (const f of batch) {
+      try {
+        const mtime = fs.statSync(f).mtimeMs;
+        const mtimeLocal = new Date(mtime + tzOffsetHours * 3600_000);
+        const mtimeDate = mtimeLocal.toISOString().split("T")[0];
+        if (mtimeDate < dateStr) continue;
+      } catch { continue; }
 
-        const { records } = parseClaudeSession(f, utcStart, utcEnd);
-        if (records.length > 0) {
-          allRecords.push(...records);
-          sessionPaths.add(f);
-        }
+      const { records } = parseClaudeSession(f, utcStart, utcEnd);
+      if (records.length > 0) {
+        allRecords.push(...records);
+        sessionPaths.add(f);
       }
+    }
+  }
 
-      // Codex sessions
-      const codexFiles = findCodexJsonlFiles();
-      for (const f of codexFiles) {
-        try {
-          const mtime = fs.statSync(f).mtimeMs;
-          const mtimeLocal = new Date(mtime + tzOffsetHours * 3600_000);
-          const mtimeDate = mtimeLocal.toISOString().split("T")[0];
-          if (mtimeDate < dateStr) continue;
-        } catch { continue; }
+  // Codex sessions — batched
+  const codexFiles = findCodexJsonlFiles();
+  for (let i = 0; i < codexFiles.length; i += BATCH_SIZE) {
+    if (i > 0) await new Promise<void>((r) => setImmediate(r));
+    const batch = codexFiles.slice(i, i + BATCH_SIZE);
+    for (const f of batch) {
+      try {
+        const mtime = fs.statSync(f).mtimeMs;
+        const mtimeLocal = new Date(mtime + tzOffsetHours * 3600_000);
+        const mtimeDate = mtimeLocal.toISOString().split("T")[0];
+        if (mtimeDate < dateStr) continue;
+      } catch { continue; }
 
-        const { records } = parseCodexSession(f, utcStart, utcEnd);
-        if (records.length > 0) {
-          allRecords.push(...records);
-          sessionPaths.add(f);
-        }
+      const { records } = parseCodexSession(f, utcStart, utcEnd);
+      if (records.length > 0) {
+        allRecords.push(...records);
+        sessionPaths.add(f);
       }
+    }
+  }
 
-      // ── Aggregate ──
+  // ── Aggregate ──
 
-      let totalInput = 0, totalOutput = 0, totalCacheRead = 0, totalCacheCreate5m = 0, totalCacheCreate1h = 0, totalCost = 0;
+  let totalInput = 0, totalOutput = 0, totalCacheRead = 0, totalCacheCreate5m = 0, totalCacheCreate1h = 0, totalCost = 0;
 
-      const bucketCount = 24 / intervalHours;
-      const buckets: UsageBucket[] = Array.from({ length: bucketCount }, (_, i) => {
-        const h = i * intervalHours;
-        return {
-          label: `${String(h).padStart(2, "0")}:00-${String(h + intervalHours).padStart(2, "0")}:00`,
-          hourStart: h,
-          input: 0, output: 0, cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0, cost: 0, calls: 0,
-        };
-      });
-
-      const projectMap = new Map<string, ProjectUsage>();
-      const modelMap = new Map<string, ModelUsage>();
-
-      for (const r of allRecords) {
-        const cost = computeCost(r.model, r.input, r.output, r.cacheRead, r.cacheCreate5m, r.cacheCreate1h);
-
-        totalInput += r.input;
-        totalOutput += r.output;
-        totalCacheRead += r.cacheRead;
-        totalCacheCreate5m += r.cacheCreate5m;
-        totalCacheCreate1h += r.cacheCreate1h;
-        totalCost += cost;
-
-        // Bucket
-        const localHour = utcToLocalHour(r.ts, tzOffsetHours);
-        const bucketIdx = Math.floor(localHour / intervalHours);
-        if (bucketIdx >= 0 && bucketIdx < bucketCount) {
-          const b = buckets[bucketIdx];
-          b.input += r.input;
-          b.output += r.output;
-          b.cacheRead += r.cacheRead;
-          b.cacheCreate5m += r.cacheCreate5m;
-          b.cacheCreate1h += r.cacheCreate1h;
-          b.cost += cost;
-          b.calls++;
-        }
-
-        // Project
-        const pKey = r.projectPath || "unknown";
-        if (!projectMap.has(pKey)) {
-          const name = pKey === "unknown" ? "Other" : path.basename(pKey);
-          projectMap.set(pKey, { path: pKey, name, input: 0, output: 0, cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0, cost: 0, calls: 0 });
-        }
-        const proj = projectMap.get(pKey)!;
-        proj.input += r.input;
-        proj.output += r.output;
-        proj.cacheRead += r.cacheRead;
-        proj.cacheCreate5m += r.cacheCreate5m;
-        proj.cacheCreate1h += r.cacheCreate1h;
-        proj.cost += cost;
-        proj.calls++;
-
-        // Model
-        if (!modelMap.has(r.model)) {
-          modelMap.set(r.model, { model: r.model, input: 0, output: 0, cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0, cost: 0, calls: 0 });
-        }
-        const mod = modelMap.get(r.model)!;
-        mod.input += r.input;
-        mod.output += r.output;
-        mod.cacheRead += r.cacheRead;
-        mod.cacheCreate5m += r.cacheCreate5m;
-        mod.cacheCreate1h += r.cacheCreate1h;
-        mod.cost += cost;
-        mod.calls++;
-      }
-
-      const projects = [...projectMap.values()].sort((a, b) => b.cost - a.cost);
-      const models = [...modelMap.values()].sort((a, b) => b.cost - a.cost);
-
-      resolve({
-        date: dateStr,
-        sessions: sessionPaths.size,
-        totalInput,
-        totalOutput,
-        totalCacheRead,
-        totalCacheCreate5m,
-        totalCacheCreate1h,
-        totalCost,
-        buckets,
-        projects,
-        models,
-      });
-    });
+  const bucketCount = 24 / intervalHours;
+  const buckets: UsageBucket[] = Array.from({ length: bucketCount }, (_, i) => {
+    const h = i * intervalHours;
+    return {
+      label: `${String(h).padStart(2, "0")}:00-${String(h + intervalHours).padStart(2, "0")}:00`,
+      hourStart: h,
+      input: 0, output: 0, cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0, cost: 0, calls: 0,
+    };
   });
 
-  return result;
+  const projectMap = new Map<string, ProjectUsage>();
+  const modelMap = new Map<string, ModelUsage>();
+
+  for (const r of allRecords) {
+    const cost = computeCost(r.model, r.input, r.output, r.cacheRead, r.cacheCreate5m, r.cacheCreate1h);
+
+    totalInput += r.input;
+    totalOutput += r.output;
+    totalCacheRead += r.cacheRead;
+    totalCacheCreate5m += r.cacheCreate5m;
+    totalCacheCreate1h += r.cacheCreate1h;
+    totalCost += cost;
+
+    // Bucket
+    const localHour = utcToLocalHour(r.ts, tzOffsetHours);
+    const bucketIdx = Math.floor(localHour / intervalHours);
+    if (bucketIdx >= 0 && bucketIdx < bucketCount) {
+      const b = buckets[bucketIdx];
+      b.input += r.input;
+      b.output += r.output;
+      b.cacheRead += r.cacheRead;
+      b.cacheCreate5m += r.cacheCreate5m;
+      b.cacheCreate1h += r.cacheCreate1h;
+      b.cost += cost;
+      b.calls++;
+    }
+
+    // Project
+    const pKey = r.projectPath || "unknown";
+    if (!projectMap.has(pKey)) {
+      const name = pKey === "unknown" ? "Other" : path.basename(pKey);
+      projectMap.set(pKey, { path: pKey, name, input: 0, output: 0, cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0, cost: 0, calls: 0 });
+    }
+    const proj = projectMap.get(pKey)!;
+    proj.input += r.input;
+    proj.output += r.output;
+    proj.cacheRead += r.cacheRead;
+    proj.cacheCreate5m += r.cacheCreate5m;
+    proj.cacheCreate1h += r.cacheCreate1h;
+    proj.cost += cost;
+    proj.calls++;
+
+    // Model
+    if (!modelMap.has(r.model)) {
+      modelMap.set(r.model, { model: r.model, input: 0, output: 0, cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0, cost: 0, calls: 0 });
+    }
+    const mod = modelMap.get(r.model)!;
+    mod.input += r.input;
+    mod.output += r.output;
+    mod.cacheRead += r.cacheRead;
+    mod.cacheCreate5m += r.cacheCreate5m;
+    mod.cacheCreate1h += r.cacheCreate1h;
+    mod.cost += cost;
+    mod.calls++;
+  }
+
+  const projects = [...projectMap.values()].sort((a, b) => b.cost - a.cost);
+  const models = [...modelMap.values()].sort((a, b) => b.cost - a.cost);
+
+  return {
+    date: dateStr,
+    sessions: sessionPaths.size,
+    totalInput,
+    totalOutput,
+    totalCacheRead,
+    totalCacheCreate5m,
+    totalCacheCreate1h,
+    totalCost,
+    buckets,
+    projects,
+    models,
+  };
 }

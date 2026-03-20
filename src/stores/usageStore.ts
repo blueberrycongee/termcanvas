@@ -12,6 +12,10 @@ interface UsageStore {
   date: string; // YYYY-MM-DD
   /** Tracks which dates are known to have usage data (scheme B: only after visit) */
   cachedDates: Record<string, boolean>;
+  /** In-memory cache of fetched summaries by date */
+  summaryCache: Record<string, UsageSummary>;
+  /** When a fetch is in-flight, stores the latest requested date so it's fetched next */
+  pendingDate: string | null;
   fetch: (dateStr?: string) => Promise<void>;
 
   heatmapData: Record<string, HeatmapEntry>;
@@ -33,13 +37,27 @@ export const useUsageStore = create<UsageStore>((set, get) => ({
   loading: false,
   date: todayStr(),
   cachedDates: {},
+  summaryCache: {},
+  pendingDate: null,
 
   fetch: async (dateStr?: string) => {
-    // Guard against overlapping requests
-    if (get().loading) return;
-
     const target = dateStr ?? get().date;
-    set({ loading: true, date: target });
+
+    // Serve from cache for non-today dates (historical data doesn't change)
+    const isToday = target === todayStr();
+    const cached = get().summaryCache[target];
+    if (cached && !isToday) {
+      set({ date: target, summary: cached });
+      return;
+    }
+
+    // If already loading, queue the latest request instead of dropping it
+    if (get().loading) {
+      set({ pendingDate: target });
+      return;
+    }
+
+    set({ loading: true, date: target, pendingDate: null });
 
     if (!window.termcanvas?.usage) {
       set({ loading: false });
@@ -48,19 +66,22 @@ export const useUsageStore = create<UsageStore>((set, get) => ({
 
     try {
       const summary = await window.termcanvas.usage.query(target);
-      // Only update if the date hasn't changed during the async call
-      if (get().date === target) {
-        const hasData = summary.sessions > 0 || summary.totalCost > 0;
-        set((state) => ({
-          summary,
-          loading: false,
-          cachedDates: { ...state.cachedDates, [target]: hasData },
-        }));
-      } else {
-        set({ loading: false });
-      }
+      const hasData = summary.sessions > 0 || summary.totalCost > 0;
+      set((state) => ({
+        summary: state.date === target ? summary : state.summary,
+        loading: false,
+        cachedDates: { ...state.cachedDates, [target]: hasData },
+        summaryCache: { ...state.summaryCache, [target]: summary },
+      }));
     } catch {
       set({ loading: false });
+    }
+
+    // Process the latest pending request
+    const pending = get().pendingDate;
+    if (pending) {
+      set({ pendingDate: null });
+      get().fetch(pending);
     }
   },
 

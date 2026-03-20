@@ -524,14 +524,15 @@ export function UsagePanel() {
     }
   }, [date]);
 
-  // Fetch on mount and poll every 60s
+  // Fetch on mount / un-collapse, and poll every 60s.
+  // Date changes are handled by handleDateChange / cell click directly — no need to re-fetch here.
   useEffect(() => {
     if (collapsed) return;
     fetchUsage();
     fetchHeatmap();
     const interval = setInterval(() => fetchUsage(), 60_000);
     return () => clearInterval(interval);
-  }, [collapsed, date]);
+  }, [collapsed]);
 
   const handleDateChange = useCallback(
     (dateStr: string) => {
