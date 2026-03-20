@@ -162,27 +162,31 @@ async function submitBracketedPaste(
     }
   }
 
-  // "aggregate" strategy (Claude Code): combine all image paths and text
-  // into a single bracketed paste separated by newlines. Claude's paste
-  // handler has a 100ms debounce that joins separate paste events into one
-  // string — sending them separately causes concatenation without
-  // delimiters. A single paste with \n separators lets Claude's own
-  // splitting logic (.split("\n")) correctly identify image paths vs text.
+  // "aggregate" strategy (Claude Code): image paths are sent as a single
+  // bracketed paste (so the CLI's paste handler recognises them as file
+  // paths and attaches them as images). Text is then written as raw
+  // characters — NOT bracketed paste — to avoid two problems:
+  //   1. Combining images + text in one paste (with \n) triggers Claude's
+  //      multi-line input mode where \r adds a newline instead of submitting.
+  //   2. Sending text as a separate bracketed paste races with Ink's React
+  //      state updates from the image paste, causing drops or concatenation.
+  // Raw character input goes through Ink's useInput path (not the paste
+  // handler), updating input text state independently of image attachment
+  // state — no race, no multi-line mode.
   //
   // "separate" strategy (Codex, etc.): send each image path as its own
-  // bracketed paste, then text as another. These CLIs parse each paste
-  // event independently without aggregation.
-  //
-  // The submit key (\r) is always a separate write after a delay so the
-  // CLI's paste handler can finish updating state before submission.
+  // bracketed paste, then text as another. These CLIs (crossterm) parse
+  // each paste synchronously from the byte stream without debouncing.
   try {
     if (adapter.pasteStrategy === "aggregate") {
-      const lines = [...stagedImagePaths];
-      if (request.text.trim().length > 0) {
-        lines.push(request.text);
-      }
-      if (lines.length > 0) {
-        writePtyData(request.ptyId, buildBracketedPaste(lines.join("\n")), deps, "paste-text", "pty-write-failed");
+      if (stagedImagePaths.length > 0) {
+        writePtyData(request.ptyId, buildBracketedPaste(stagedImagePaths.join("\n")), deps, "paste-image", "pty-write-failed");
+        // Text as raw characters to bypass paste handler entirely
+        if (request.text.trim().length > 0) {
+          writePtyData(request.ptyId, request.text, deps, "paste-text", "pty-write-failed");
+        }
+      } else if (request.text.trim().length > 0) {
+        writePtyData(request.ptyId, buildBracketedPaste(request.text), deps, "paste-text", "pty-write-failed");
       }
     } else {
       for (const imagePath of stagedImagePaths) {
