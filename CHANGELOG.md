@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.15] - 2026-03-20
+
+### Fixed
+- Composer: per-terminal paste strategy so image+text submissions work correctly for both Claude Code and Codex
+
 ## [0.8.14] - 2026-03-20
 
 ### Fixed
