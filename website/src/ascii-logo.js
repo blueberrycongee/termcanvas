@@ -331,11 +331,17 @@ function init(container) {
     dispCtx.font = fontStr;
     dispCtx.textBaseline = "top";
 
+    // Slow-moving specular highlight position
+    const specTime = time * 0.0003;
+    const specX = Math.cos(specTime) * 0.3;
+    const specY = Math.sin(specTime * 0.7) * 0.2 - 0.15;
+
     let lastColor = "";
 
     for (let row = 0; row < ROWS; row++) {
       const rowEdge = Math.abs(row - halfRows) / halfRows;
       const waveX = organicWave(time, row, H_WAVES) * MAX_AMP_X * rowEdge * cellW;
+      const ny = (row - halfRows) / halfRows; // -1 to 1
 
       for (let col = 0; col < COLS; col++) {
         const colEdge = Math.abs(col - halfCols) / halfCols;
@@ -347,16 +353,37 @@ function init(container) {
         if (px < 0 || px >= canvasW || py < 0 || py >= canvasH) continue;
 
         const i = (py * canvasW + px) << 2;
-        const r = data[i], g = data[i + 1], b = data[i + 2];
-        const brightness = (r + g + b) / 765; // (r+g+b) / 3 / 255
+        let r = data[i], g = data[i + 1], b = data[i + 2];
 
+        // Skip near-black early
+        if (r + g + b < 30) continue;
+
+        const nx = (col - halfCols) / halfCols; // -1 to 1
+
+        // Directional light: top-left brighter, bottom-right darker (~8%)
+        const directional = 1.0 - 0.08 * (nx * 0.4 + ny * 0.6);
+
+        // Specular highlight: wide soft gaussian bright spot
+        const sdx = nx - specX, sdy = ny - specY;
+        const specular = Math.exp(-(sdx * sdx + sdy * sdy) * 4) * 0.14;
+
+        // Vignette: very subtle edge darkening (capped at unit circle)
+        const vDist = Math.min(1.0, nx * nx + ny * ny);
+        const vignette = 1.0 - 0.08 * vDist;
+
+        const lightMul = directional * vignette + specular;
+
+        r = Math.min(255, r * lightMul);
+        g = Math.min(255, g * lightMul);
+        b = Math.min(255, b * lightMul);
+
+        const brightness = (r + g + b) / 765;
         const ch = RAMP[Math.floor(brightness * rampLen)];
         if (ch === " ") continue;
 
         const color = getDisplayColor(r, g, b);
         if (!color) continue;
 
-        // Minimize fillStyle changes by batching same colors
         if (color !== lastColor) {
           dispCtx.fillStyle = color;
           lastColor = color;
