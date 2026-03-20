@@ -11,6 +11,8 @@
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)]()
 [![Website](https://img.shields.io/badge/website-termcanvas-e8b840)](https://website-ten-mu-37.vercel.app)
 
+[**termcanvas.dev →**](https://website-ten-mu-37.vercel.app)
+
 </div>
 
 <div align="center">
@@ -60,6 +62,8 @@ It organizes everything in a **Project → Worktree → Terminal** hierarchy tha
 - `hydra` — spawn AI sub-agents in isolated git worktrees, then review and merge their work
 
 ## Quick Start
+
+**Website** — see features and screenshots at [termcanvas.dev](https://website-ten-mu-37.vercel.app).
 
 **Download** — grab the latest build from [GitHub Releases](https://github.com/blueberrycongee/termcanvas/releases).
 
