@@ -93,6 +93,7 @@ export const en = {
   // ShortcutHints
   shortcut_add_project: "Add project",
   shortcut_toggle_sidebar: "Toggle sidebar",
+  shortcut_toggle_right_panel: "Toggle right panel",
   shortcut_new_terminal: "New terminal",
   shortcut_rename_terminal_title: "Rename terminal",
   shortcut_close_focused: "Close focused",

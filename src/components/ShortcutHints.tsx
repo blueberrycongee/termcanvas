@@ -39,6 +39,7 @@ export function ShortcutHints() {
   const hints = [
     { key: shortcuts.addProject, desc: t.shortcut_add_project },
     { key: shortcuts.toggleSidebar, desc: t.shortcut_toggle_sidebar },
+    { key: shortcuts.toggleRightPanel, desc: t.shortcut_toggle_right_panel },
     { key: shortcuts.newTerminal, desc: t.shortcut_new_terminal },
     { key: shortcuts.renameTerminalTitle, desc: t.shortcut_rename_terminal_title },
     { key: shortcuts.closeFocused, desc: t.shortcut_close_focused },

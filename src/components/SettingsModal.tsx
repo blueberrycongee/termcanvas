@@ -27,6 +27,7 @@ type Tab = SettingsTab;
 const SHORTCUT_KEYS: { key: keyof ShortcutMap; labelKey: string }[] = [
   { key: "addProject", labelKey: "shortcut_add_project" },
   { key: "toggleSidebar", labelKey: "shortcut_toggle_sidebar" },
+  { key: "toggleRightPanel", labelKey: "shortcut_toggle_right_panel" },
   { key: "newTerminal", labelKey: "shortcut_new_terminal" },
   { key: "renameTerminalTitle", labelKey: "shortcut_rename_terminal_title" },
   { key: "nextTerminal", labelKey: "shortcut_next_terminal" },

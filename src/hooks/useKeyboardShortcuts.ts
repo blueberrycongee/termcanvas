@@ -288,6 +288,13 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      if (matchesShortcut(e, shortcuts.toggleRightPanel)) {
+        e.preventDefault();
+        const store = useCanvasStore.getState();
+        store.setRightPanelCollapsed(!store.rightPanelCollapsed);
+        return;
+      }
+
       if (matchesShortcut(e, shortcuts.newTerminal)) {
         e.preventDefault();
         const { focusedProjectId, focusedWorktreeId, addTerminal, setFocusedTerminal } =
