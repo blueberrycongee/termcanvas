@@ -2,6 +2,18 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.29] - 2026-03-21
+
+### Changed
+- macOS auto-update no longer requires Apple Developer code signing certificate
+- Custom updater downloads ZIP from GitHub Releases, verifies SHA-512, and replaces the .app bundle
+- Downloaded updates persist across app restarts; auto-install on quit
+- Download retry with exponential backoff (up to 3 retries)
+- Install script backs up old .app and restores on failure
+
+### Fixed
+- macOS auto-update failing with "Code signature did not pass validation"
+
 ## [0.8.28] - 2026-03-21
 
 ### Changed
