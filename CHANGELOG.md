@@ -2,6 +2,27 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.31] - 2026-03-22
+
+### Added
+- Insights V2: unified cross-CLI report analyzing both Claude Code and Codex sessions together
+- Insights V2: time-decay tiers for session analysis (full/50%/25%/metrics-only by age)
+- Insights V2: "Your Coding Story" section with achievement wall and AI-generated memorable moments
+- Insights V2: time trends chart showing 14-day daily activity breakdown
+- Insights V2: tool comparison cards (Claude Code vs Codex side-by-side)
+- Insights V2: automatic report language detection matching user's conversation language
+
+### Changed
+- Insights: removed hard caps on facet extraction and session loading for full coverage
+- Insights: each analysis round now receives section-specific data slices instead of identical context
+- Insights: satisfaction inference prompt now includes a concrete rubric instead of bare field name
+
+### Fixed
+- Insights: time-of-day heatmap now aggregates from all eligible sessions, not just facet-backed ones
+- Insights: report header now shows three-stage counts (scanned/eligible/facet-backed) instead of misleading ratio
+- Insights: compact mode button no longer locks into "open report" after generation, allowing re-generation
+- Insights: success banner in full mode can now be dismissed
+
 ## [0.8.30] - 2026-03-21
 
 ### Changed
