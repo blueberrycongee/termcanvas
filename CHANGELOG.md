@@ -2,6 +2,18 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.25] - 2026-03-21
+
+### Added
+- Shortcuts: `Cmd+/` to toggle right panel, `Cmd+F` to star/unstar focused terminal, `Cmd+J`/`Cmd+K` to cycle starred terminals
+- Settings: all shortcuts now configurable in settings panel (added save, save-as, close, star, starred nav)
+- Settings: continuous minimum contrast ratio slider (1–7) for terminal text readability
+
+### Fixed
+- Light mode: ANSI black text nearly invisible against light background
+- Light mode: cyan and blue ANSI colors too faint for readability
+- Light mode: truecolor text (e.g. Claude Code links/hashes) enforced via xterm.js minimumContrastRatio
+
 ## [0.8.24] - 2026-03-21
 
 ### Added
