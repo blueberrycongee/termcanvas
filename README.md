@@ -35,30 +35,46 @@ It organizes everything in a **Project → Worktree → Terminal** hierarchy tha
 - Live worktree detection — new worktrees appear automatically
 - Double-click a terminal title bar to zoom-to-fit
 - Drag-to-reorder terminals within a worktree
-- Drawing tools — pen, text, rectangles, arrows for annotations
-- Workspace save/load — persist your entire layout to a file
+- Box-select — drag to select multiple terminals at once
+- Drawing tools — pen, text, rectangles, arrows for annotations (toggleable)
+- Workspace save / save-as — persist your entire layout to a `.termcanvas` file, with dirty-state tracking
 
 **AI coding agents**
 - First-class support for Claude Code, Codex, Kimi, Gemini, and OpenCode
 - Composer — a unified input bar that sends prompts to the focused agent, with image paste support
 - Live session status — see at a glance whether an agent is working, waiting, or done
+- Completion glow — visual pulse when an agent finishes its turn
 - Session resume — close and reopen an agent terminal without losing context
+- CLI auto-detection — TermCanvas finds installed agent CLIs automatically; override per-agent in settings
 - Inline diff cards — review an agent's changes without leaving the canvas
+- File and directory tree cards — browse files on the canvas alongside terminals
 
 **General terminals**
 - Shell, lazygit, and tmux terminals live alongside AI agents on the same canvas
+- Star terminals — mark important terminals and cycle through them with `⌘ J` / `⌘ K`
+- Rename terminal titles with `⌘ ;`
+- Resize terminals: default, wide, tall, and large presets
 
 **Usage tracking**
 - Token usage and cost dashboard — total spend, per-project breakdown, per-model breakdown
-- 24-hour cost sparkline and cache hit/miss stats
+- Hourly token heatmap and 24-hour cost sparkline
+- Cache hit/miss stats
+- Quota monitor — 5-hour and 7-day rate-limit utilization with adaptive polling
+- Cloud sync — sign in to aggregate usage across devices via Supabase
 
-**Settings & i18n**
-- English and Chinese (auto-detected from system locale)
-- Adjustable terminal font size (6–24 px)
-- Auto-update with in-app changelog
+**Settings**
+- **Display** — choose from 6 monospace fonts (Geist Mono, Geist Pixel Square, JetBrains Mono, Fira Code, IBM Plex Mono, Hack) with one-click download; font size 6–24 px
+- **Theme** — dark and light mode, with warm stone color palette and accessible ANSI colors
+- **Agents** — auto-detect or manually override CLI path for each agent type
+- **Shortcuts** — every keyboard shortcut is customizable and persisted
+- **Composer** — toggle the experimental composer input bar
+- **Drawing** — toggle the drawing toolbar
+- **Advanced** — minimum contrast ratio slider (1–7) for terminal text accessibility
+- **i18n** — English and Chinese (auto-detected from system locale)
+- **Auto-update** — in-app update notifications with changelog
 
 **CLI**
-- `termcanvas` — control the canvas from your terminal: add projects, create terminals, read output, view diffs
+- `termcanvas` — control the canvas from your terminal: manage projects, create/destroy terminals, send input, read output, view diffs
 - `hydra` — spawn AI sub-agents in isolated git worktrees, then review and merge their work
 
 ## Quick Start
@@ -84,12 +100,30 @@ Both CLIs are bundled with the app. Register them from Settings to use in any te
 
 ### termcanvas
 
-```bash
-termcanvas project add ~/my-repo     # add a project to the canvas
-termcanvas project list              # list projects
-termcanvas terminal create --worktree ~/my-repo --type claude
-termcanvas terminal status <id>      # check terminal status
-termcanvas diff ~/my-repo --summary  # view worktree diff
+```
+Usage: termcanvas <project|terminal|diff|state> <command> [args]
+
+Project commands:
+  project add <path>                          Add a project to the canvas
+  project list                                List all projects
+  project remove <id>                         Remove a project
+  project rescan <id>                         Rescan worktrees for a project
+
+Terminal commands:
+  terminal create --worktree <path> --type <type>   Create a terminal
+          [--prompt <text>] [--parent-terminal <id>] [--auto-approve]
+  terminal list [--worktree <path>]            List terminals
+  terminal status <id>                         Get terminal status
+  terminal input <id> <text>                   Send text input to a terminal
+  terminal output <id> [--lines N]             Read terminal output (default 50 lines)
+  terminal destroy <id>                        Destroy a terminal
+
+Other commands:
+  diff <worktree-path> [--summary]             View git diff for a worktree
+  state                                        Dump full canvas state as JSON
+
+Flags:
+  --json    Output in JSON format
 ```
 
 <div align="center">
@@ -140,14 +174,24 @@ This teaches your main AI agent when and how to spawn sub-agents automatically.
 
 ## Keyboard Shortcuts
 
+All shortcuts are customizable in Settings → Shortcuts.
+
 | Shortcut | Action |
 |----------|--------|
 | `⌘ O` | Add project |
 | `⌘ B` | Toggle sidebar |
+| `⌘ /` | Toggle right panel (usage) |
 | `⌘ T` | New terminal |
+| `⌘ D` | Close focused terminal |
+| `⌘ ;` | Rename terminal title |
 | `⌘ ]` | Next terminal |
 | `⌘ [` | Previous terminal |
 | `⌘ E` | Unfocus / refocus last terminal |
+| `⌘ F` | Star / unstar focused terminal |
+| `⌘ J` | Next starred terminal |
+| `⌘ K` | Previous starred terminal |
+| `⌘ S` | Save workspace |
+| `⌘ ⇧ S` | Save workspace as |
 | `⌘ 1` | Terminal size: default |
 | `⌘ 2` | Terminal size: wide |
 | `⌘ 3` | Terminal size: tall |
@@ -161,11 +205,12 @@ This teaches your main AI agent when and how to spawn sub-agents automatically.
 |-------|-----------|
 | Desktop | Electron |
 | Frontend | React, TypeScript |
-| Terminal | xterm.js, node-pty |
+| Terminal | xterm.js (WebGL), node-pty |
 | State | Zustand |
 | Styling | Tailwind CSS, Geist font |
 | Drawing | perfect-freehand |
-| Build | Vite |
+| Auth & sync | Supabase |
+| Build | Vite, esbuild |
 
 ## Acknowledgements
 
