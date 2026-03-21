@@ -26,8 +26,9 @@ function getOAuthToken(): string | null {
       { encoding: "utf-8", timeout: KEYCHAIN_TIMEOUT_MS, stdio: ["pipe", "pipe", "pipe"] },
     ).trim();
     const parsed = JSON.parse(raw);
-    // Token may be nested: { default: { ... accessToken } } or flat { accessToken }
-    const creds = parsed.default ?? parsed;
+    // Token may be nested under various keys: { claudeAiOauth: { accessToken } },
+    // { default: { accessToken } }, or flat { accessToken }
+    const creds = parsed.claudeAiOauth ?? parsed.default ?? parsed;
     return creds.accessToken ?? creds.access_token ?? null;
   } catch {
     return null;
