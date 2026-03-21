@@ -37,6 +37,7 @@ export function stopAutoUpdater(): void {
 
 function setupMacUpdater(window: BrowserWindow): () => void {
   macUpdater = new MacCustomUpdater(window);
+  macUpdater.registerAutoInstallOnQuit();
 
   ipcMain.on("updater:install", () => {
     macUpdater?.quitAndInstall();

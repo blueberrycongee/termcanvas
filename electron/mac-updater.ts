@@ -7,8 +7,11 @@ import {
   existsSync,
   createReadStream,
   writeFileSync,
+  readFileSync,
+  accessSync,
+  constants,
 } from "fs";
-import { join, resolve } from "path";
+import { join, resolve, dirname } from "path";
 import { createHash } from "crypto";
 import { spawn, execFile } from "child_process";
 import type { BrowserWindow } from "electron";
@@ -16,6 +19,9 @@ import { sendToWindow } from "./window-events";
 
 const GITHUB_OWNER = "blueberrycongee";
 const GITHUB_REPO = "termcanvas";
+const MAX_DOWNLOAD_RETRIES = 3;
+const INITIAL_RETRY_DELAY_MS = 2000;
+const INSTALL_WAIT_TIMEOUT_S = 30;
 
 interface ReleaseFile {
   url: string;
@@ -35,6 +41,15 @@ interface PendingUpdate {
   releaseNotes: string;
   releaseDate: string;
 }
+
+/** Serialized to disk so pending updates survive app restarts. */
+interface UpdateState extends PendingUpdate {
+  downloadedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 /**
  * Parse the latest-mac.yml produced by electron-builder.
@@ -65,7 +80,7 @@ function parseLatestYml(content: string): ReleaseInfo {
   return { version, files, releaseDate };
 }
 
-/** Returns true if version `a` is newer than `b` (simple semver comparison). */
+/** Returns true if version `a` is strictly newer than `b`. */
 function isNewerVersion(a: string, b: string): boolean {
   const pa = a.split(".").map(Number);
   const pb = b.split(".").map(Number);
@@ -144,6 +159,29 @@ function downloadFile(
   });
 }
 
+/** Download with automatic retry and exponential backoff. */
+async function downloadWithRetry(
+  url: string,
+  destPath: string,
+  expectedSize: number,
+  onProgress: (percent: number) => void,
+): Promise<void> {
+  let lastError: Error | undefined;
+  for (let attempt = 0; attempt <= MAX_DOWNLOAD_RETRIES; attempt++) {
+    try {
+      await downloadFile(url, destPath, expectedSize, onProgress);
+      return;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (attempt < MAX_DOWNLOAD_RETRIES) {
+        const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt);
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
+  }
+  throw lastError;
+}
+
 /** Compute SHA-512 hash of a file, returned as base64 (streaming). */
 function computeSha512(filePath: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -170,28 +208,81 @@ function getStagingDir(): string {
   return join(app.getPath("userData"), "pending-update");
 }
 
+function getStatePath(): string {
+  return join(getStagingDir(), "state.json");
+}
+
 function getAppBundlePath(): string {
   // app.getAppPath() → /path/to/App.app/Contents/Resources/app.asar
   return resolve(app.getAppPath(), "../../..");
 }
 
+/** Check if the .app bundle location is writable (fails for DMG mounts). */
+function isAppLocationWritable(): boolean {
+  try {
+    accessSync(dirname(getAppBundlePath()), constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// MacCustomUpdater
+// ---------------------------------------------------------------------------
+
 /**
  * Custom macOS updater that bypasses Squirrel.Mac's code signature
  * verification. Downloads the ZIP from GitHub releases, verifies SHA-512,
  * extracts, and replaces the .app bundle via a detached shell script.
+ *
+ * Features beyond the basic electron-updater flow:
+ * - Persists pending update state so downloads survive app restarts
+ * - Auto-installs on quit (like electron-updater's autoInstallOnAppQuit)
+ * - Retries failed downloads with exponential backoff
+ * - Backs up old .app before replacing (recoverable on failure)
+ * - Skips updates when running from a read-only location (e.g. DMG)
  */
 export class MacCustomUpdater {
   private window: BrowserWindow;
   private pendingUpdate: PendingUpdate | null = null;
   private downloading = false;
+  private installing = false;
 
   constructor(window: BrowserWindow) {
     this.window = window;
-    this.cleanStagingDir();
+    this.restorePendingUpdate();
+  }
+
+  /**
+   * Register a before-quit handler that silently replaces the .app
+   * when the user quits normally and an update is pending.
+   * Unlike explicit quitAndInstall, this does NOT relaunch the app.
+   */
+  registerAutoInstallOnQuit(): void {
+    app.on("before-quit", () => {
+      if (this.pendingUpdate && !this.installing) {
+        this.installing = true;
+        this.runInstallScript(false);
+      }
+    });
   }
 
   async checkForUpdates(): Promise<void> {
-    if (this.downloading || this.pendingUpdate) return;
+    if (this.downloading) return;
+
+    // If a pending update was restored from disk, notify the frontend
+    if (this.pendingUpdate) {
+      sendToWindow(this.window, "updater:update-downloaded", {
+        version: this.pendingUpdate.version,
+        releaseNotes: this.pendingUpdate.releaseNotes,
+        releaseDate: this.pendingUpdate.releaseDate,
+      });
+      return;
+    }
+
+    // Skip updates when the .app is on a read-only volume (e.g. mounted DMG)
+    if (!isAppLocationWritable()) return;
 
     try {
       const ymlUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest/download/latest-mac.yml`;
@@ -227,34 +318,11 @@ export class MacCustomUpdater {
     }
   }
 
+  /** Explicitly install the pending update and relaunch. */
   quitAndInstall(): void {
     if (!this.pendingUpdate) return;
-
-    const currentAppPath = getAppBundlePath();
-    const { appPath: newAppPath } = this.pendingUpdate;
-    const stagingDir = getStagingDir();
-    const pid = process.pid;
-
-    // Detached shell script: wait for app exit → replace → relaunch
-    const script = [
-      "#!/bin/bash",
-      `while kill -0 ${pid} 2>/dev/null; do sleep 0.5; done`,
-      `rm -rf "${currentAppPath}"`,
-      `mv "${newAppPath}" "${currentAppPath}"`,
-      `xattr -cr "${currentAppPath}"`,
-      `rm -rf "${stagingDir}"`,
-      `open "${currentAppPath}"`,
-    ].join("\n");
-
-    const scriptPath = join(stagingDir, "install.sh");
-    writeFileSync(scriptPath, script, { mode: 0o755 });
-
-    const child = spawn("bash", [scriptPath], {
-      detached: true,
-      stdio: "ignore",
-    });
-    child.unref();
-
+    this.installing = true;
+    this.runInstallScript(true);
     app.quit();
   }
 
@@ -286,10 +354,15 @@ export class MacCustomUpdater {
       }
       mkdirSync(stagingDir, { recursive: true });
 
-      // Download
-      await downloadFile(downloadUrl, zipPath, zipFile.size, (percent) => {
-        sendToWindow(this.window, "updater:download-progress", { percent });
-      });
+      // Download with retry
+      await downloadWithRetry(
+        downloadUrl,
+        zipPath,
+        zipFile.size,
+        (percent) => {
+          sendToWindow(this.window, "updater:download-progress", { percent });
+        },
+      );
 
       // Verify SHA-512
       const hash = await computeSha512(zipPath);
@@ -318,6 +391,8 @@ export class MacCustomUpdater {
         releaseDate: release.releaseDate,
       };
 
+      this.savePendingState();
+
       sendToWindow(this.window, "updater:update-downloaded", {
         version: release.version,
         releaseNotes,
@@ -332,7 +407,111 @@ export class MacCustomUpdater {
     }
   }
 
-  /** Remove leftover staging directory from a previous failed update. */
+  /**
+   * Spawn a detached shell script that waits for the app to exit,
+   * then replaces the .app bundle.
+   *
+   * @param relaunch Whether to reopen the app after replacement.
+   *   true  → explicit "Restart & Update" flow
+   *   false → silent auto-install on quit (don't relaunch)
+   */
+  private runInstallScript(relaunch: boolean): void {
+    if (!this.pendingUpdate) return;
+
+    const currentAppPath = getAppBundlePath();
+    const { appPath: newAppPath } = this.pendingUpdate;
+    const stagingDir = getStagingDir();
+    const pid = process.pid;
+
+    const lines = [
+      "#!/bin/bash",
+      "",
+      "# Wait for the app to exit (with timeout)",
+      `ELAPSED=0`,
+      `while kill -0 ${pid} 2>/dev/null; do`,
+      `  sleep 0.5`,
+      `  ELAPSED=$((ELAPSED + 1))`,
+      `  if [ $ELAPSED -ge ${INSTALL_WAIT_TIMEOUT_S * 2} ]; then exit 1; fi`,
+      `done`,
+      "",
+      "# Backup old app so we can recover on failure",
+      `mv "${currentAppPath}" "${currentAppPath}.backup" || exit 1`,
+      "",
+      "# Install new app",
+      `if mv "${newAppPath}" "${currentAppPath}"; then`,
+      `  xattr -cr "${currentAppPath}" 2>/dev/null`,
+      `  rm -rf "${currentAppPath}.backup"`,
+      `  rm -rf "${stagingDir}"`,
+    ];
+
+    if (relaunch) {
+      lines.push(`  open "${currentAppPath}"`);
+    }
+
+    lines.push(
+      `else`,
+      `  # Restore backup on failure`,
+      `  mv "${currentAppPath}.backup" "${currentAppPath}" 2>/dev/null`,
+      `  exit 1`,
+      `fi`,
+    );
+
+    const script = lines.join("\n");
+    const scriptPath = join(stagingDir, "install.sh");
+    writeFileSync(scriptPath, script, { mode: 0o755 });
+
+    const child = spawn("bash", [scriptPath], {
+      detached: true,
+      stdio: "ignore",
+    });
+    child.unref();
+  }
+
+  /** Persist pending update state so downloads survive app restarts. */
+  private savePendingState(): void {
+    if (!this.pendingUpdate) return;
+    const state: UpdateState = {
+      ...this.pendingUpdate,
+      downloadedAt: new Date().toISOString(),
+    };
+    writeFileSync(getStatePath(), JSON.stringify(state));
+  }
+
+  /**
+   * Restore a pending update from a previous session.
+   * Validates that the extracted .app still exists and the version is
+   * still newer than current before accepting.
+   */
+  private restorePendingUpdate(): void {
+    const statePath = getStatePath();
+    if (!existsSync(statePath)) return;
+
+    try {
+      const raw = readFileSync(statePath, "utf-8");
+      const state = JSON.parse(raw) as UpdateState;
+
+      if (!existsSync(state.appPath)) {
+        this.cleanStagingDir();
+        return;
+      }
+
+      if (!isNewerVersion(state.version, app.getVersion())) {
+        this.cleanStagingDir();
+        return;
+      }
+
+      this.pendingUpdate = {
+        version: state.version,
+        appPath: state.appPath,
+        releaseNotes: state.releaseNotes,
+        releaseDate: state.releaseDate,
+      };
+    } catch {
+      this.cleanStagingDir();
+    }
+  }
+
+  /** Remove leftover staging directory. */
   private cleanStagingDir(): void {
     const dir = getStagingDir();
     if (existsSync(dir)) {
