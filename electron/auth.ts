@@ -16,6 +16,7 @@ interface AuthUser {
 }
 
 type AuthStateCallback = (user: AuthUser | null) => void;
+type LoginResult = { ok: boolean; url?: string; error?: string };
 
 // ── Constants ──
 
@@ -143,10 +144,10 @@ export function isLoggedIn(): boolean {
   return currentUser !== null;
 }
 
-export async function login(): Promise<void> {
+export async function login(): Promise<LoginResult> {
   if (!supabase) {
     console.warn("[Auth] Supabase not configured, cannot login");
-    return;
+    return { ok: false, error: "Auth not configured" };
   }
 
   try {
@@ -160,14 +161,25 @@ export async function login(): Promise<void> {
 
     if (error) {
       console.error("[Auth] OAuth error:", error.message);
-      return;
+      return { ok: false, error: error.message };
     }
 
     if (data.url) {
-      await shell.openExternal(data.url);
+      return shell.openExternal(data.url)
+        .then(() => ({ ok: true }))
+        .catch((err) => {
+          console.error("[Auth] Login failed:", err);
+          return { ok: false, url: data.url, error: "Failed to open browser" };
+        });
     }
+
+    return { ok: false, error: "Failed to open browser" };
   } catch (err) {
     console.error("[Auth] Login failed:", err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 

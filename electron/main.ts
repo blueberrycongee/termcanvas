@@ -782,7 +782,7 @@ function setupIpc() {
 
   // Auth IPC
   ipcMain.handle("auth:login", async () => {
-    await login();
+    return login();
   });
 
   ipcMain.handle("auth:logout", async () => {

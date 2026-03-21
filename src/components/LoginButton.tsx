@@ -3,7 +3,16 @@ import { useAuthStore } from "../stores/authStore";
 import { useT } from "../i18n/useT";
 
 export function LoginButton() {
-  const { user, loading, login, logout } = useAuthStore();
+  const {
+    user,
+    loading,
+    loginPending,
+    loginError,
+    loginFallbackUrl,
+    login,
+    logout,
+    clearLoginError,
+  } = useAuthStore();
   const t = useT();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -31,14 +40,46 @@ export function LoginButton() {
   }
 
   if (!user) {
+    if (loginPending) {
+      return (
+        <span
+          className="text-[10px] text-[var(--text-faint)]"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          {t.auth_logging_in}
+        </span>
+      );
+    }
+
     return (
-      <button
-        onClick={login}
-        className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors px-1.5 py-0.5 rounded hover:bg-[var(--surface-hover)]"
-        style={{ fontFamily: '"Geist Mono", monospace' }}
-      >
-        {t.auth_login_github}
-      </button>
+      <div className="flex flex-col items-start gap-1">
+        <button
+          onClick={() => {
+            clearLoginError();
+            void login();
+          }}
+          className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors px-1.5 py-0.5 rounded hover:bg-[var(--surface-hover)]"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          {t.auth_login_github}
+        </button>
+        {loginError && (
+          <div
+            className="flex items-center gap-1 text-[10px] text-red-500"
+            style={{ fontFamily: '"Geist Mono", monospace' }}
+          >
+            <span>{t.auth_login_failed}: {loginError}</span>
+            {loginFallbackUrl && (
+              <button
+                onClick={() => void navigator.clipboard.writeText(loginFallbackUrl)}
+                className="underline underline-offset-2"
+              >
+                {t.auth_copy_link}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     );
   }
 
