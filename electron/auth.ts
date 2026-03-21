@@ -107,9 +107,18 @@ function extractUser(session: Session): AuthUser | null {
   if (!user) return null;
 
   const meta = user.user_metadata ?? {};
+  const username = (
+    meta.user_name ??
+    meta.preferred_username ??
+    meta.login ??
+    meta.name ??
+    meta.full_name ??
+    user.email?.split("@")[0] ??
+    ""
+  ) as string;
   return {
     id: user.id,
-    username: (meta.user_name ?? meta.preferred_username ?? "") as string,
+    username,
     avatarUrl: (meta.avatar_url ?? "") as string,
     email: user.email ?? "",
   };
@@ -291,7 +300,9 @@ export async function handleAuthCallback(url: string): Promise<void> {
     }
 
     if (data.session) {
-      console.log("[Auth] Login successful");
+      saveSession(data.session);
+      setUser(extractUser(data.session));
+      console.log("[Auth] Login successful, user:", extractUser(data.session)?.username);
     }
   } catch (err) {
     console.error("[Auth] Callback handling error:", err);
