@@ -2,6 +2,17 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.30] - 2026-03-21
+
+### Changed
+- Insights: extract richer per-session metrics from Claude and Codex logs, including tool usage, token usage, response timing, language signals, git activity, line deltas, and workflow feature flags
+- Insights: upgrade report synthesis from freeform markdown blocks to structured analysis sections with actionable cards, copyable prompts, and partial-section resilience
+- Insights: redesign the generated HTML report with a richer dashboard, time-of-day heatmap, stronger breakdowns, and explicit coverage/error visibility
+
+### Fixed
+- Insights: long sessions no longer collapse into a head-only transcript snippet, improving facet quality for multi-step runs
+- Insights: analysis failures in one section no longer abort the whole report generation pipeline
+
 ## [0.8.29] - 2026-03-21
 
 ### Changed
