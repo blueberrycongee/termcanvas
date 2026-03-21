@@ -19,9 +19,9 @@ type AuthStateCallback = (user: AuthUser | null) => void;
 
 // ── Constants ──
 
-// TODO: Replace with actual Supabase credentials
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? "YOUR_SUPABASE_URL";
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? "YOUR_SUPABASE_ANON_KEY";
+// Injected at build time via vite.config.ts define (replaces process.env.VITE_*)
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? "";
+const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? "";
 
 const AUTH_FILE = path.join(TERMCANVAS_DIR, "auth.json");
 // Device ID is always in ~/.termcanvas/ (not ~/.termcanvas-dev/) so that
@@ -40,7 +40,7 @@ const listeners: Set<AuthStateCallback> = new Set();
 // ── Helpers ──
 
 function isConfigured(): boolean {
-  return SUPABASE_URL !== "YOUR_SUPABASE_URL" && SUPABASE_ANON_KEY !== "YOUR_SUPABASE_ANON_KEY";
+  return SUPABASE_URL.length > 0 && SUPABASE_ANON_KEY.length > 0;
 }
 
 function ensureDir(): void {
