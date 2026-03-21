@@ -2,6 +2,20 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.27] - 2026-03-21
+
+### Added
+- Supabase backend: GitHub OAuth login and cross-device usage sync
+- Incremental usage sync every 5 minutes when logged in
+- One-time history backfill on first login
+
+### Security
+- Disable email signup, GitHub OAuth only
+- Row-level security on usage_records table
+
+### Fixed
+- Dev and production instances on the same machine no longer double-count usage
+
 ## [0.8.26] - 2026-03-21
 
 ### Changed
