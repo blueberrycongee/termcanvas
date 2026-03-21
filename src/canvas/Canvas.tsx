@@ -6,6 +6,7 @@ import { useSelectionStore } from "../stores/selectionStore";
 import { useBrowserCardStore } from "../stores/browserCardStore";
 import { useCanvasInteraction } from "./useCanvasInteraction";
 import { useBoxSelect } from "../hooks/useBoxSelect";
+import { useViewportCulling } from "../hooks/useViewportCulling";
 import { ProjectContainer } from "../containers/ProjectContainer";
 import { BrowserCard } from "../components/BrowserCard";
 import { DrawingLayer } from "./DrawingLayer";
@@ -21,6 +22,7 @@ export function Canvas() {
   const browserCards = useBrowserCardStore((s) => s.cards);
   const { handleWheel, handleMouseDown: handlePanMouseDown } = useCanvasInteraction();
   const { handleMouseDown: handleBoxSelectMouseDown } = useBoxSelect();
+  const visibleProjectIds = useViewportCulling(projects);
   const isDrawing = tool !== "select";
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -56,7 +58,14 @@ export function Canvas() {
       >
         <ConnectionOverlay />
         {projects.map((project) => (
-          <ProjectContainer key={project.id} project={project} />
+          <div
+            key={project.id}
+            style={{
+              contentVisibility: visibleProjectIds.has(project.id) ? "visible" : "hidden",
+            }}
+          >
+            <ProjectContainer project={project} />
+          </div>
         ))}
         {Object.values(browserCards).map((card) => (
           <BrowserCard key={card.id} card={card} />
