@@ -133,6 +133,7 @@ export const en = {
   font_downloading: "Downloading\u2026",
   font_download_failed: "Download failed",
   animation_blur: "Focus animation blur",
+  minimum_contrast: "Minimum contrast ratio",
   composer_toggle: "Composer input bar",
   composer_toggle_desc: "Experimental. Routes input through a bottom bar with image paste support",
   drawing_toggle: "Drawing tools",

@@ -194,7 +194,7 @@ function AgentsTabContent() {
 
 export function SettingsModal({ onClose }: Props) {
   const { locale, setLocale } = useLocaleStore();
-  const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize, terminalFontFamily, setTerminalFontFamily, composerEnabled, setComposerEnabled, drawingEnabled, setDrawingEnabled } = usePreferencesStore();
+  const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize, terminalFontFamily, setTerminalFontFamily, composerEnabled, setComposerEnabled, drawingEnabled, setDrawingEnabled, minimumContrastRatio, setMinimumContrastRatio } = usePreferencesStore();
   const [fontSizeDraft, setFontSizeDraft] = useState(terminalFontSize);
   const { shortcuts, setShortcut, resetAll } = useShortcutStore();
   const [downloadedFonts, setDownloadedFonts] = useState<Set<string>>(new Set());
@@ -490,6 +490,30 @@ export function SettingsModal({ onClose }: Props) {
                     style={{ fontFamily: '"Geist Mono", monospace' }}
                   >
                     {animationBlur === 0 ? "Off" : `${animationBlur.toFixed(1)}`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Minimum contrast ratio */}
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] text-[var(--text-secondary)]">
+                  {t.minimum_contrast}
+                </span>
+                <div className="flex items-center gap-2.5">
+                  <input
+                    type="range"
+                    min="1"
+                    max="7"
+                    step="0.1"
+                    value={minimumContrastRatio}
+                    onChange={(e) => setMinimumContrastRatio(Number(e.target.value))}
+                    className="w-24 accent-[var(--accent)]"
+                  />
+                  <span
+                    className="text-[12px] text-[var(--text-muted)] w-10 text-right tabular-nums"
+                    style={{ fontFamily: '"Geist Mono", monospace' }}
+                  >
+                    {minimumContrastRatio <= 1 ? "Off" : `${minimumContrastRatio.toFixed(1)}`}
                   </span>
                 </div>
               </div>

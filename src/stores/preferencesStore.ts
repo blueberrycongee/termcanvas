@@ -3,6 +3,7 @@ import type { TerminalType } from "../types";
 
 const DEFAULT_BLUR = 0;
 const DEFAULT_FONT_SIZE = 13;
+const DEFAULT_MIN_CONTRAST = 1;
 const LEGACY_ENABLED_BLUR = 1.5;
 
 export interface CliCommandConfig {
@@ -21,9 +22,12 @@ interface PreferencesStore {
   composerEnabled: boolean;
   /** When false, drawing panel and drawing layer are hidden */
   drawingEnabled: boolean;
+  /** xterm minimum contrast ratio (1 = off, max 7) */
+  minimumContrastRatio: number;
   /** Per-terminal-type CLI command overrides */
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
   setAnimationBlur: (value: number) => void;
+  setMinimumContrastRatio: (value: number) => void;
   setTerminalFontSize: (value: number) => void;
   setTerminalFontFamily: (fontId: string) => void;
   setComposerEnabled: (value: boolean) => void;
@@ -33,7 +37,7 @@ interface PreferencesStore {
 
 const STORAGE_KEY = "termcanvas-preferences";
 
-function loadPreferences(): { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> } {
+function loadPreferences(): { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> } {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -58,6 +62,10 @@ function loadPreferences(): { animationBlur: number; terminalFontSize: number; t
       let drawingEnabled = false;
       if (parsed.drawingEnabled === true) drawingEnabled = true;
 
+      let minimumContrastRatio = DEFAULT_MIN_CONTRAST;
+      const mcr = parsed.minimumContrastRatio;
+      if (typeof mcr === "number" && mcr >= 1 && mcr <= 7) minimumContrastRatio = mcr;
+
       const cliCommands: Partial<Record<TerminalType, CliCommandConfig>> = {};
       if (parsed.cliCommands && typeof parsed.cliCommands === "object") {
         for (const [key, val] of Object.entries(parsed.cliCommands)) {
@@ -67,15 +75,15 @@ function loadPreferences(): { animationBlur: number; terminalFontSize: number; t
         }
       }
 
-      return { animationBlur: blur, terminalFontSize: fontSize, terminalFontFamily: fontFamily, composerEnabled, drawingEnabled, cliCommands };
+      return { animationBlur: blur, terminalFontSize: fontSize, terminalFontFamily: fontFamily, composerEnabled, drawingEnabled, minimumContrastRatio, cliCommands };
     }
   } catch {
     // ignore
   }
-  return { animationBlur: DEFAULT_BLUR, terminalFontSize: DEFAULT_FONT_SIZE, terminalFontFamily: "geist-mono", composerEnabled: false, drawingEnabled: false, cliCommands: {} };
+  return { animationBlur: DEFAULT_BLUR, terminalFontSize: DEFAULT_FONT_SIZE, terminalFontFamily: "geist-mono", composerEnabled: false, drawingEnabled: false, minimumContrastRatio: DEFAULT_MIN_CONTRAST, cliCommands: {} };
 }
 
-function savePreferences(state: { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> }) {
+function savePreferences(state: { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> }) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
@@ -87,11 +95,17 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   terminalFontFamily: initialPrefs.terminalFontFamily,
   composerEnabled: initialPrefs.composerEnabled,
   drawingEnabled: initialPrefs.drawingEnabled,
+  minimumContrastRatio: initialPrefs.minimumContrastRatio,
   cliCommands: initialPrefs.cliCommands,
   setAnimationBlur: (value) => {
     const clamped = Math.round(Math.max(0, Math.min(3, value)) * 10) / 10;
     set({ animationBlur: clamped });
     savePreferences({ ...get(), animationBlur: clamped });
+  },
+  setMinimumContrastRatio: (value) => {
+    const clamped = Math.round(Math.max(1, Math.min(7, value)) * 10) / 10;
+    set({ minimumContrastRatio: clamped });
+    savePreferences({ ...get(), minimumContrastRatio: clamped });
   },
   setTerminalFontSize: (value) => {
     const clamped = Math.max(6, Math.min(24, Math.round(value)));

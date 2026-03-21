@@ -286,7 +286,7 @@ export function TerminalTile({
       cursorStyle: "bar",
       cursorWidth: 2,
       scrollback: 5000,
-      minimumContrastRatio: currentTheme === "light" ? 4.5 : 1,
+      minimumContrastRatio: usePreferencesStore.getState().minimumContrastRatio,
       allowTransparency: false,
     });
 
@@ -758,7 +758,6 @@ export function TerminalTile({
       const xterm = xtermRef.current;
       if (xterm) {
         xterm.options.theme = XTERM_THEMES[state.theme];
-        xterm.options.minimumContrastRatio = state.theme === "light" ? 4.5 : 1;
         // Force full canvas repaint so background color updates immediately
         xterm.refresh(0, xterm.rows - 1);
       }
@@ -788,6 +787,18 @@ export function TerminalTile({
           xterm.options.fontFamily = family;
           fitAddonRef.current?.fit();
         }
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  // Update xterm minimum contrast ratio when preference changes
+  useEffect(() => {
+    const unsubscribe = usePreferencesStore.subscribe((state) => {
+      const xterm = xtermRef.current;
+      if (xterm && xterm.options.minimumContrastRatio !== state.minimumContrastRatio) {
+        xterm.options.minimumContrastRatio = state.minimumContrastRatio;
+        xterm.refresh(0, xterm.rows - 1);
       }
     });
     return unsubscribe;

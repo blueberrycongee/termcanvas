@@ -131,6 +131,7 @@ export const zh = {
   font_downloading: "下载中…",
   font_download_failed: "下载失败",
   animation_blur: "聚焦动画模糊",
+  minimum_contrast: "最低对比度",
   composer_toggle: "Composer 输入栏",
   composer_toggle_desc: "实验性功能。开启后通过底部输入栏发送内容到终端，支持图片粘贴",
   drawing_toggle: "画板工具",
