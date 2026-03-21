@@ -1,6 +1,6 @@
 {
   "name": "termcanvas",
-  "version": "0.8.25",
+  "version": "0.8.26",
   "description": "An infinite canvas desktop app for visually managing terminals",
   "main": "dist-electron/main.js",
   "bin": {

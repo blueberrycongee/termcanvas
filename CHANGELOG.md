@@ -2,6 +2,13 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.26] - 2026-03-21
+
+### Changed
+- Performance: batch PTY output into 8ms frames to reduce IPC flooding with many terminals
+- Performance: cull off-screen projects via content-visibility to skip rendering work
+- Performance: pool WebGL contexts (max 8) with LRU eviction to stay under browser limits
+
 ## [0.8.25] - 2026-03-21
 
 ### Added
