@@ -28,7 +28,7 @@ import {
 import { collectUsage, collectHeatmapData } from "./usage-collector";
 import { setupAutoUpdater, stopAutoUpdater } from "./auto-updater";
 import { initAuth, login, logout, getAuthUser, getDeviceId, handleAuthCallback, onAuthStateChange, isLoggedIn } from "./auth";
-import { queryCloudUsage, queryCloudHeatmap, backfillHistory, flushSyncQueue } from "./usage-sync";
+import { queryCloudUsage, queryCloudHeatmap, backfillHistory, flushSyncQueue, syncRecentRecords } from "./usage-sync";
 import type { ComposerSubmitRequest } from "../src/types";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1011,10 +1011,11 @@ app.whenReady().then(async () => {
     }
   });
 
-  // Periodically flush the sync queue (every 5 minutes)
+  // Periodically flush the sync queue and sync recent records (every 5 minutes)
   setInterval(() => {
     if (isLoggedIn()) {
       flushSyncQueue().catch((err) => console.error("[UsageSync] Periodic flush error:", err));
+      syncRecentRecords().catch((err) => console.error("[UsageSync] Periodic sync error:", err));
     }
   }, 5 * 60_000);
 

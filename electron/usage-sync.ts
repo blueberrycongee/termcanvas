@@ -222,7 +222,10 @@ export async function backfillHistory(): Promise<void> {
 
     const batch = rows.slice(i, i + BATCH_SIZE);
     try {
-      const { error } = await supabase.from("usage_records").insert(batch);
+      const { error } = await supabase.from("usage_records").upsert(batch, {
+            onConflict: "user_id,device_id,recorded_at",
+            ignoreDuplicates: true,
+          });
       if (error) {
         console.error(PREFIX, `Backfill batch ${i}-${i + batch.length} failed:`, error.message);
       }
@@ -237,6 +240,74 @@ export async function backfillHistory(): Promise<void> {
     console.log(PREFIX, `Backfill complete: ${allRecords.length} records`);
   } catch (err) {
     console.error(PREFIX, "Failed to write backfill flag:", err);
+  }
+}
+
+/**
+ * Incremental sync: upload recent usage records (last 2 days) to Supabase.
+ * The unique constraint (user_id, device_id, recorded_at) handles deduplication.
+ */
+export async function syncRecentRecords(): Promise<void> {
+  if (!isLoggedIn()) return;
+
+  const supabase = getSupabase();
+  const user = getAuthUser();
+  if (!supabase || !user) return;
+
+  const deviceId = getDeviceId();
+
+  // Cover last 2 days to catch any timezone edge cases
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const fmt = (ms: number) => new Date(ms).toISOString().replace("Z", "").split(".")[0];
+  const utcStart = fmt(start.getTime());
+  const utcEnd = fmt(end.getTime());
+
+  const allRecords: UsageRecord[] = [];
+
+  for (const f of findClaudeJsonlFiles()) {
+    try {
+      const { records } = parseClaudeSession(f, utcStart, utcEnd);
+      allRecords.push(...records);
+    } catch { /* skip */ }
+  }
+
+  for (const f of findCodexJsonlFiles()) {
+    try {
+      const { records } = parseCodexSession(f, utcStart, utcEnd);
+      allRecords.push(...records);
+    } catch { /* skip */ }
+  }
+
+  if (allRecords.length === 0) return;
+
+  const rows = allRecords.map((r) => ({
+    user_id: user.id,
+    device_id: deviceId,
+    model: r.model,
+    project: r.projectPath || null,
+    input_tokens: r.input,
+    output_tokens: r.output,
+    cost_usd: computeCost(r.model, r.input, r.output, r.cacheRead, r.cacheCreate5m, r.cacheCreate1h),
+    recorded_at: r.ts + "Z",
+  }));
+
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    if (i > 0) await new Promise<void>((r) => setImmediate(r));
+
+    const batch = rows.slice(i, i + BATCH_SIZE);
+    try {
+      const { error } = await supabase.from("usage_records").upsert(batch, {
+        onConflict: "user_id,device_id,recorded_at",
+        ignoreDuplicates: true,
+      });
+      if (error) {
+        console.error(PREFIX, `Incremental sync batch ${i}-${i + batch.length} failed:`, error.message);
+      }
+    } catch (err) {
+      console.error(PREFIX, `Incremental sync batch ${i}-${i + batch.length} error:`, err);
+    }
   }
 }
 
