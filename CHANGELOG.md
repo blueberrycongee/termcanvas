@@ -2,6 +2,17 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.28] - 2026-03-21
+
+### Changed
+- Insights: generate reports per selected CLI instead of mixing Claude and Codex sessions in one run
+- Insights: freeze each run's session set, add bounded uncached processing, and surface analyzed/scanned/cache coverage in the HTML report
+
+### Fixed
+- Insights: avoid cross-run progress event bleed by isolating jobs with a per-run job id and single-job guard
+- Insights: reuse session metadata and facet caches with source fingerprints so stale or mismatched cache entries are not silently reused
+- Insights: package report generation code into the desktop build so packaged releases can finish generating insights reports
+
 ## [0.8.27] - 2026-03-21
 
 ### Added
