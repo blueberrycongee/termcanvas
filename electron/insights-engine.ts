@@ -1,25 +1,30 @@
+import crypto from "crypto";
+import { execFile } from "child_process";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import crypto from "crypto";
-import { execFile } from "child_process";
-import { findClaudeJsonlFiles, findCodexJsonlFiles } from "./usage-collector";
-import { TERMCANVAS_DIR } from "./state-persistence";
-import { buildLaunchSpec, PtyResolvedLaunchSpec } from "./pty-launch";
 import { buildCliInvocationArgs } from "./insights-cli";
 import { generateReport } from "./insights-report";
 import {
   aggregateFacets,
+  buildDeterministicAtAGlance,
   buildSessionFingerprint,
+  buildTranscriptWindow,
+  createEmptySessionMetrics,
   InsightsCliTool,
   InsightsError,
   InsightsGenerateResult,
   InsightsProgress,
   InsightsResult,
+  InsightsSectionKey,
   isSelfInsightSession,
+  parseStructuredSection,
   SessionFacet,
   SessionInfo,
 } from "./insights-shared";
+import { PtyResolvedLaunchSpec, buildLaunchSpec } from "./pty-launch";
+import { TERMCANVAS_DIR } from "./state-persistence";
+import { findClaudeJsonlFiles, findCodexJsonlFiles } from "./usage-collector";
 
 interface SessionFileInfo {
   id: string;
@@ -47,7 +52,7 @@ interface ScanResult {
   totalScannedSessions: number;
 }
 
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const SESSION_META_CACHE_DIR = path.join(
   TERMCANVAS_DIR,
   "insights-cache",
@@ -59,7 +64,39 @@ const SESSION_LOAD_BATCH = 10;
 const MAX_UNCACHED_SESSION_LOADS = 200;
 const MAX_FACET_EXTRACTIONS = 50;
 const FACET_EXTRACTION_BATCH = 10;
-const ANALYSIS_SAMPLE_LIMIT = 50;
+const ANALYSIS_SAMPLE_LIMIT = 36;
+
+const PATH_LANGUAGE_MAP: Record<string, string> = {
+  ".c": "c",
+  ".cc": "cpp",
+  ".cpp": "cpp",
+  ".cs": "csharp",
+  ".css": "css",
+  ".go": "go",
+  ".h": "c",
+  ".hpp": "cpp",
+  ".html": "html",
+  ".java": "java",
+  ".js": "javascript",
+  ".json": "json",
+  ".jsx": "javascript",
+  ".kt": "kotlin",
+  ".md": "markdown",
+  ".mjs": "javascript",
+  ".py": "python",
+  ".rb": "ruby",
+  ".rs": "rust",
+  ".scss": "scss",
+  ".sh": "shell",
+  ".sql": "sql",
+  ".swift": "swift",
+  ".toml": "toml",
+  ".ts": "typescript",
+  ".tsx": "typescript",
+  ".txt": "text",
+  ".yaml": "yaml",
+  ".yml": "yaml",
+};
 
 function cacheFileName(prefix: string, key: string): string {
   const digest = crypto.createHash("sha1").update(key).digest("hex");
@@ -83,25 +120,164 @@ function facetCachePath(
   );
 }
 
-function extractTextFromContent(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content
-      .filter(
-        (block) =>
-          block &&
-          typeof block === "object" &&
-          (block as Record<string, unknown>).type === "text",
-      )
-      .map((block) => (block as Record<string, unknown>).text as string)
-      .filter(Boolean)
-      .join("\n");
-  }
-  return "";
-}
-
 function yieldToEventLoop(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
+}
+
+function extractTextFromContent(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((block) => {
+      if (!block || typeof block !== "object") return "";
+      const entry = block as Record<string, unknown>;
+      if (typeof entry.text === "string") return entry.text;
+      if (typeof entry.thinking === "string") return entry.thinking;
+      if (typeof entry.content === "string") return entry.content;
+      return "";
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function truncateText(text: string, maxChars = 280): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxChars) return normalized;
+  return `${normalized.slice(0, maxChars - 1)}…`;
+}
+
+function parseTimestamp(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : null;
+}
+
+function recordHour(metrics: SessionInfo["metrics"], timestampMs: number): void {
+  const hour = String(new Date(timestampMs).getHours()).padStart(2, "0");
+  metrics.messageHours[hour] = (metrics.messageHours[hour] ?? 0) + 1;
+}
+
+function trackModel(metrics: SessionInfo["metrics"], model: unknown): void {
+  if (typeof model !== "string" || !model) return;
+  metrics.modelCounts[model] = (metrics.modelCounts[model] ?? 0) + 1;
+}
+
+function trackLanguageFromPath(
+  metrics: SessionInfo["metrics"],
+  filePath: unknown,
+): void {
+  if (typeof filePath !== "string" || !filePath) return;
+  const ext = path.extname(filePath).toLowerCase();
+  const language = PATH_LANGUAGE_MAP[ext];
+  if (!language) return;
+  metrics.languages[language] = (metrics.languages[language] ?? 0) + 1;
+}
+
+function trackPathsFromText(metrics: SessionInfo["metrics"], text: string): void {
+  const matches = text.match(/[\w./~-]+\.[a-z0-9]+/gi) ?? [];
+  for (const match of matches) {
+    trackLanguageFromPath(metrics, match);
+  }
+}
+
+function trackPatchStats(metrics: SessionInfo["metrics"], patchText: string): void {
+  const fileMatches =
+    patchText.match(/^\*\*\* (?:Add|Update|Delete) File:/gm) ??
+    patchText.match(/^diff --git /gm) ??
+    [];
+  metrics.filesModified += fileMatches.length;
+
+  for (const line of patchText.split("\n")) {
+    if (line.startsWith("+++ ") || line.startsWith("--- ") || line.startsWith("*** ")) {
+      continue;
+    }
+    if (line.startsWith("+")) metrics.linesAdded += 1;
+    if (line.startsWith("-")) metrics.linesRemoved += 1;
+  }
+}
+
+function trackEditInput(
+  metrics: SessionInfo["metrics"],
+  input: Record<string, unknown>,
+): void {
+  trackLanguageFromPath(metrics, input.file_path);
+  metrics.filesModified += 1;
+  const oldString = typeof input.old_string === "string" ? input.old_string : "";
+  const newString = typeof input.new_string === "string" ? input.new_string : "";
+  const oldLines = oldString ? oldString.split("\n").length : 0;
+  const newLines = newString ? newString.split("\n").length : 0;
+  if (newLines > oldLines) metrics.linesAdded += newLines - oldLines;
+  if (oldLines > newLines) metrics.linesRemoved += oldLines - newLines;
+}
+
+function trackWriteInput(
+  metrics: SessionInfo["metrics"],
+  input: Record<string, unknown>,
+): void {
+  trackLanguageFromPath(metrics, input.file_path);
+  metrics.filesModified += 1;
+  if (typeof input.content === "string" && input.content.length > 0) {
+    metrics.linesAdded += input.content.split("\n").length;
+  }
+}
+
+function trackCommandMetrics(
+  metrics: SessionInfo["metrics"],
+  command: string,
+): void {
+  const normalized = command.toLowerCase();
+  if (/\bgit\s+commit\b/.test(normalized)) metrics.gitCommits += 1;
+  if (/\bgit\s+push\b/.test(normalized)) metrics.gitPushes += 1;
+  trackPathsFromText(metrics, command);
+}
+
+function categorizeError(text: string): string {
+  const normalized = text.toLowerCase();
+  if (
+    normalized.includes("401") ||
+    normalized.includes("403") ||
+    normalized.includes("auth") ||
+    normalized.includes("api key")
+  ) {
+    return "auth";
+  }
+  if (
+    normalized.includes("permission") ||
+    normalized.includes("denied") ||
+    normalized.includes("forbidden")
+  ) {
+    return "permission";
+  }
+  if (
+    normalized.includes("timeout") ||
+    normalized.includes("timed out") ||
+    normalized.includes("enotfound") ||
+    normalized.includes("network") ||
+    normalized.includes("econn")
+  ) {
+    return "network";
+  }
+  if (
+    normalized.includes("not found") ||
+    normalized.includes("enoent") ||
+    normalized.includes("missing")
+  ) {
+    return "missing_file";
+  }
+  if (
+    normalized.includes("exit code") ||
+    normalized.includes("command not found") ||
+    normalized.includes("process exited with code")
+  ) {
+    return "shell";
+  }
+  return "other";
+}
+
+function addTranscriptLine(parts: string[], prefix: string, text: string): void {
+  const line = truncateText(text, 360);
+  if (!line) return;
+  parts.push(`${prefix}: ${line}`);
 }
 
 function discoverSessionFiles(cliTool: InsightsCliTool): SessionFileInfo[] {
@@ -125,7 +301,6 @@ function discoverSessionFiles(cliTool: InsightsCliTool): SessionFileInfo[] {
   }
 
   indexed.sort((a, b) => b.mtimeMs - a.mtimeMs);
-
   const deduped = new Map<string, SessionFileInfo>();
   for (const file of indexed) {
     const existing = deduped.get(file.id);
@@ -133,7 +308,6 @@ function discoverSessionFiles(cliTool: InsightsCliTool): SessionFileInfo[] {
       deduped.set(file.id, file);
     }
   }
-
   return [...deduped.values()];
 }
 
@@ -154,45 +328,194 @@ function extractClaudeSession(file: SessionFileInfo): SessionInfo | null {
     projectPath = cleaned.replace(/-/g, "/");
   }
 
+  const metrics = createEmptySessionMetrics();
+  const toolNamesById = new Map<string, string>();
+  const transcriptParts: string[] = [];
   const timestamps: number[] = [];
   let messageCount = 0;
-  const parts: string[] = [];
+  let lastUserTs: number | null = null;
+  let lastAssistantTs: number | null = null;
+  let lastRole: "user" | "assistant" | null = null;
 
   for (const line of raw.split("\n")) {
     if (!line) continue;
     let obj: Record<string, unknown>;
     try {
-      obj = JSON.parse(line);
+      obj = JSON.parse(line) as Record<string, unknown>;
     } catch {
       continue;
     }
 
-    const ts = obj.timestamp;
-    if (typeof ts === "string") {
-      const ms = new Date(ts).getTime();
-      if (!Number.isNaN(ms)) timestamps.push(ms);
+    if (!projectPath && typeof obj.cwd === "string") {
+      projectPath = obj.cwd;
     }
 
-    const msg = obj.message;
-    if (!msg || typeof msg !== "object") continue;
-    const record = msg as Record<string, unknown>;
-    const role = record.role as string | undefined;
+    const ts = parseTimestamp(obj.timestamp);
+    if (ts !== null) timestamps.push(ts);
+
+    if (obj.type !== "user" && obj.type !== "assistant") continue;
+    const msg = getObject(obj.message);
+    if (!msg) continue;
+    const role = msg.role;
     if (role !== "user" && role !== "assistant") continue;
 
-    messageCount++;
-    const text = extractTextFromContent(record.content);
-    if (text) parts.push(`${role}: ${text}`);
+    messageCount += 1;
+    if (ts !== null) recordHour(metrics, ts);
+
+    if (role === "user") {
+      const text = extractTextFromContent(msg.content);
+      if (text) {
+        addTranscriptLine(transcriptParts, "user", text);
+        if (lastAssistantTs !== null && ts !== null) {
+          metrics.userReplySeconds.push(Math.max(0, Math.round((ts - lastAssistantTs) / 1000)));
+        }
+        if (lastRole === "user") {
+          metrics.userInterruptions += 1;
+        }
+      }
+
+      if (Array.isArray(msg.content)) {
+        for (const block of msg.content) {
+          if (!block || typeof block !== "object") continue;
+          const entry = block as Record<string, unknown>;
+          if (entry.type !== "tool_result") continue;
+          const toolName =
+            typeof entry.tool_use_id === "string"
+              ? toolNamesById.get(entry.tool_use_id) ?? "tool"
+              : "tool";
+          const contentText =
+            typeof entry.content === "string"
+              ? entry.content
+              : extractTextFromContent(entry.content);
+          const toolUseResult = getObject(obj.toolUseResult);
+          const statusCode =
+            typeof toolUseResult?.code === "number" ? toolUseResult.code : null;
+          const isError =
+            entry.is_error === true ||
+            (statusCode !== null && statusCode >= 400) ||
+            /\b(error|failed|exception)\b/i.test(contentText);
+          if (isError) {
+            const category = categorizeError(contentText);
+            metrics.toolErrorCategories[category] =
+              (metrics.toolErrorCategories[category] ?? 0) + 1;
+          }
+          if (contentText) {
+            addTranscriptLine(transcriptParts, `${toolName} result`, contentText);
+          }
+        }
+      }
+
+      if (ts !== null) lastUserTs = ts;
+      lastRole = "user";
+      continue;
+    }
+
+    if (ts !== null && lastUserTs !== null && lastRole === "user") {
+      metrics.assistantResponseSeconds.push(
+        Math.max(0, Math.round((ts - lastUserTs) / 1000)),
+      );
+    }
+
+    trackModel(metrics, msg.model);
+    const usage = getObject(msg.usage);
+    metrics.inputTokens += typeof usage?.input_tokens === "number" ? usage.input_tokens : 0;
+    metrics.outputTokens +=
+      typeof usage?.output_tokens === "number" ? usage.output_tokens : 0;
+    metrics.cachedInputTokens +=
+      typeof usage?.cache_read_input_tokens === "number"
+        ? usage.cache_read_input_tokens
+        : 0;
+
+    if (Array.isArray(msg.content)) {
+      for (const block of msg.content) {
+        if (!block || typeof block !== "object") continue;
+        const entry = block as Record<string, unknown>;
+        if (entry.type === "tool_use") {
+          const toolName =
+            typeof entry.name === "string" && entry.name ? entry.name : "tool";
+          const input = getObject(entry.input) ?? {};
+          if (typeof entry.id === "string") toolNamesById.set(entry.id, toolName);
+          metrics.toolCounts[toolName] = (metrics.toolCounts[toolName] ?? 0) + 1;
+
+          if (toolName === "WebSearch") metrics.featureUsage.web_search = 1;
+          if (toolName === "WebFetch") metrics.featureUsage.web_fetch = 1;
+          if (toolName === "Task") metrics.featureUsage.task_agent = 1;
+          if (toolName.startsWith("mcp__")) metrics.featureUsage.mcp = 1;
+
+          if (toolName === "Bash" && typeof input.command === "string") {
+            metrics.featureUsage.shell = 1;
+            trackCommandMetrics(metrics, input.command);
+            addTranscriptLine(transcriptParts, "assistant tool", `${toolName} ${input.command}`);
+          } else if (toolName === "Edit") {
+            trackEditInput(metrics, input);
+            addTranscriptLine(
+              transcriptParts,
+              "assistant tool",
+              `${toolName} ${String(input.file_path ?? "")}`,
+            );
+          } else if (toolName === "MultiEdit") {
+            trackLanguageFromPath(metrics, input.file_path);
+            const edits = Array.isArray(input.edits) ? input.edits : [];
+            metrics.filesModified += edits.length > 0 ? 1 : 0;
+            for (const edit of edits) {
+              if (!edit || typeof edit !== "object") continue;
+              trackEditInput(metrics, {
+                file_path: input.file_path,
+                ...(edit as Record<string, unknown>),
+              });
+            }
+            addTranscriptLine(
+              transcriptParts,
+              "assistant tool",
+              `${toolName} ${String(input.file_path ?? "")}`,
+            );
+          } else if (toolName === "Write") {
+            trackWriteInput(metrics, input);
+            addTranscriptLine(
+              transcriptParts,
+              "assistant tool",
+              `${toolName} ${String(input.file_path ?? "")}`,
+            );
+          } else {
+            trackLanguageFromPath(metrics, input.file_path);
+            trackLanguageFromPath(metrics, input.path);
+            const summary =
+              typeof input.query === "string"
+                ? `${toolName} ${input.query}`
+                : typeof input.url === "string"
+                  ? `${toolName} ${input.url}`
+                  : `${toolName} ${String(input.file_path ?? input.path ?? "")}`;
+            addTranscriptLine(transcriptParts, "assistant tool", summary);
+          }
+          continue;
+        }
+
+        const text =
+          typeof entry.text === "string"
+            ? entry.text
+            : typeof entry.thinking === "string"
+              ? entry.thinking
+              : "";
+        if (text) addTranscriptLine(transcriptParts, "assistant", text);
+      }
+    } else {
+      const text = extractTextFromContent(msg.content);
+      if (text) addTranscriptLine(transcriptParts, "assistant", text);
+    }
+
+    if (ts !== null) lastAssistantTs = ts;
+    lastRole = "assistant";
   }
 
   if (messageCount < 2) return null;
-  const durationMinutes =
-    timestamps.length >= 2
-      ? (Math.max(...timestamps) - Math.min(...timestamps)) / 60_000
-      : 0;
+  const startTimeMs = timestamps.length > 0 ? Math.min(...timestamps) : file.mtimeMs;
+  const endTimeMs = timestamps.length > 0 ? Math.max(...timestamps) : file.mtimeMs;
+  const durationMinutes = Math.round(Math.max(0, endTimeMs - startTimeMs) / 60_000);
   if (durationMinutes < 1) return null;
 
-  const contentSummary = parts.join("\n").slice(0, 4000);
-  if (isSelfInsightSession(contentSummary) || isSelfInsightSession(raw.slice(0, 8000))) {
+  const contentSummary = buildTranscriptWindow(transcriptParts, 4_000);
+  const analysisText = buildTranscriptWindow(transcriptParts, 12_000);
+  if (isSelfInsightSession(contentSummary) || isSelfInsightSession(raw.slice(0, 8_000))) {
     return null;
   }
 
@@ -201,12 +524,30 @@ function extractClaudeSession(file: SessionFileInfo): SessionInfo | null {
     filePath: file.filePath,
     cliTool: "claude",
     projectPath,
+    startTimeMs,
+    endTimeMs,
     messageCount,
-    durationMinutes: Math.round(durationMinutes),
+    durationMinutes,
     contentSummary,
+    analysisText,
     mtimeMs: file.mtimeMs,
     fileSize: file.fileSize,
+    metrics,
   };
+}
+
+function parseFunctionCallArguments(
+  value: unknown,
+): Record<string, unknown> | null {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  if (typeof value !== "string") return null;
+  try {
+    return JSON.parse(value) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
 }
 
 function extractCodexSession(file: SessionFileInfo): SessionInfo | null {
@@ -218,62 +559,202 @@ function extractCodexSession(file: SessionFileInfo): SessionInfo | null {
   }
 
   let projectPath = "";
+  const metrics = createEmptySessionMetrics();
+  const transcriptParts: string[] = [];
   const timestamps: number[] = [];
+  let sessionStartTs: number | null = null;
   let messageCount = 0;
-  const parts: string[] = [];
+  let lastUserTs: number | null = null;
+  let lastAssistantTs: number | null = null;
+  let lastRole: "user" | "assistant" | null = null;
+  let latestUsage:
+    | {
+        input: number;
+        output: number;
+        cached: number;
+        reasoning: number;
+      }
+    | null = null;
 
   for (const line of raw.split("\n")) {
     if (!line) continue;
     let obj: Record<string, unknown>;
     try {
-      obj = JSON.parse(line);
+      obj = JSON.parse(line) as Record<string, unknown>;
     } catch {
       continue;
     }
 
-    const ts = obj.timestamp;
-    if (typeof ts === "string") {
-      const ms = new Date(ts).getTime();
-      if (!Number.isNaN(ms)) timestamps.push(ms);
-    }
+    const ts = parseTimestamp(obj.timestamp);
+    if (ts !== null) timestamps.push(ts);
 
     if (obj.type === "session_meta") {
-      const payload = obj.payload as Record<string, unknown> | undefined;
-      if (payload?.cwd) projectPath = payload.cwd as string;
+      const payload = getObject(obj.payload);
+      if (typeof payload?.cwd === "string") projectPath = payload.cwd;
+      const metaTs = parseTimestamp(payload?.timestamp);
+      if (metaTs !== null) sessionStartTs = metaTs;
+      if (typeof payload?.model_provider === "string") {
+        metrics.modelCounts[payload.model_provider] =
+          (metrics.modelCounts[payload.model_provider] ?? 0) + 1;
+      }
       continue;
     }
 
-    if (obj.type !== "event_msg") continue;
-    const payload = obj.payload as Record<string, unknown> | undefined;
+    if (obj.type === "event_msg") {
+      const payload = getObject(obj.payload);
+      if (!payload) continue;
+
+      if (payload.type === "user_message" && typeof payload.message === "string") {
+        messageCount += 1;
+        if (ts !== null) recordHour(metrics, ts);
+        addTranscriptLine(transcriptParts, "user", payload.message);
+        if (lastAssistantTs !== null && ts !== null) {
+          metrics.userReplySeconds.push(Math.max(0, Math.round((ts - lastAssistantTs) / 1000)));
+        }
+        if (lastRole === "user") metrics.userInterruptions += 1;
+        if (ts !== null) lastUserTs = ts;
+        lastRole = "user";
+        continue;
+      }
+
+      if (payload.type === "agent_message" && typeof payload.message === "string") {
+        messageCount += 1;
+        if (ts !== null) recordHour(metrics, ts);
+        addTranscriptLine(transcriptParts, "assistant", payload.message);
+        if (ts !== null && lastUserTs !== null && lastRole === "user") {
+          metrics.assistantResponseSeconds.push(
+            Math.max(0, Math.round((ts - lastUserTs) / 1000)),
+          );
+        }
+        if (ts !== null) lastAssistantTs = ts;
+        lastRole = "assistant";
+        continue;
+      }
+
+      if (payload.type === "token_count") {
+        const info = getObject(payload.info);
+        const totalUsage = getObject(info?.total_token_usage);
+        if (totalUsage) {
+          latestUsage = {
+            input:
+              typeof totalUsage.input_tokens === "number"
+                ? totalUsage.input_tokens
+                : 0,
+            output:
+              typeof totalUsage.output_tokens === "number"
+                ? totalUsage.output_tokens
+                : 0,
+            cached:
+              typeof totalUsage.cached_input_tokens === "number"
+                ? totalUsage.cached_input_tokens
+                : 0,
+            reasoning:
+              typeof totalUsage.reasoning_output_tokens === "number"
+                ? totalUsage.reasoning_output_tokens
+                : 0,
+          };
+        }
+      }
+      continue;
+    }
+
+    if (obj.type !== "response_item") continue;
+    const payload = getObject(obj.payload);
     if (!payload) continue;
 
-    const payloadType = payload.type as string | undefined;
-    let role: "user" | "assistant" | null = null;
-    if (payloadType === "user_message" || payloadType === "input_text") {
-      role = "user";
-    } else if (
-      payloadType === "assistant_message" ||
-      payloadType === "message"
-    ) {
-      role = "assistant";
-    }
-    if (!role) continue;
+    if (payload.type === "function_call") {
+      const name = typeof payload.name === "string" ? payload.name : "tool";
+      metrics.toolCounts[name] = (metrics.toolCounts[name] ?? 0) + 1;
+      const args = parseFunctionCallArguments(payload.arguments) ?? {};
+      const command = typeof args.cmd === "string" ? args.cmd : "";
 
-    messageCount++;
-    const text =
-      (payload.text as string) ?? (payload.content as string) ?? "";
-    if (text) parts.push(`${role}: ${text}`);
+      if (name === "exec_command") {
+        metrics.featureUsage.shell = 1;
+        if (command) {
+          trackCommandMetrics(metrics, command);
+          addTranscriptLine(transcriptParts, "assistant tool", `${name} ${command}`);
+        }
+      } else if (name === "write_stdin") {
+        metrics.featureUsage.pty = 1;
+      } else if (name === "update_plan") {
+        metrics.featureUsage.plan_updates = 1;
+      } else if (name === "spawn_agent") {
+        metrics.featureUsage.task_agent = 1;
+      } else if (name.startsWith("mcp__")) {
+        metrics.featureUsage.mcp = 1;
+      }
+
+      if (name.includes("apply_patch")) {
+        metrics.featureUsage.apply_patch = 1;
+      }
+      if (name.includes("browser_")) {
+        metrics.featureUsage.browser = 1;
+      }
+      trackPathsFromText(metrics, command);
+      continue;
+    }
+
+    if (payload.type === "custom_tool_call") {
+      const name = typeof payload.name === "string" ? payload.name : "tool";
+      metrics.toolCounts[name] = (metrics.toolCounts[name] ?? 0) + 1;
+      if (name === "apply_patch" && typeof payload.input === "string") {
+        metrics.featureUsage.apply_patch = 1;
+        trackPatchStats(metrics, payload.input);
+        addTranscriptLine(transcriptParts, "assistant tool", `${name} patch update`);
+      }
+      continue;
+    }
+
+    if (payload.type === "function_call_output" && typeof payload.output === "string") {
+      if (
+        payload.output.includes("Process exited with code") &&
+        !payload.output.includes("Process exited with code 0")
+      ) {
+        const category = categorizeError(payload.output);
+        metrics.toolErrorCategories[category] =
+          (metrics.toolErrorCategories[category] ?? 0) + 1;
+      }
+      continue;
+    }
+
+    if (payload.type === "message" && payload.role === "user") {
+      const text = extractTextFromContent(payload.content);
+      if (text) {
+        messageCount += 1;
+        if (ts !== null) recordHour(metrics, ts);
+        addTranscriptLine(transcriptParts, "user", text);
+      }
+      continue;
+    }
+
+    if (payload.type === "message" && payload.role === "assistant") {
+      const text = extractTextFromContent(payload.content);
+      if (text) {
+        messageCount += 1;
+        if (ts !== null) recordHour(metrics, ts);
+        addTranscriptLine(transcriptParts, "assistant", text);
+      }
+    }
+  }
+
+  if (latestUsage) {
+    metrics.inputTokens = latestUsage.input;
+    metrics.outputTokens = latestUsage.output;
+    metrics.cachedInputTokens = latestUsage.cached;
+    metrics.reasoningTokens = latestUsage.reasoning;
   }
 
   if (messageCount < 2) return null;
-  const durationMinutes =
-    timestamps.length >= 2
-      ? (Math.max(...timestamps) - Math.min(...timestamps)) / 60_000
-      : 0;
+  const startTimeMs =
+    sessionStartTs ??
+    (timestamps.length > 0 ? Math.min(...timestamps) : file.mtimeMs);
+  const endTimeMs = timestamps.length > 0 ? Math.max(...timestamps) : file.mtimeMs;
+  const durationMinutes = Math.round(Math.max(0, endTimeMs - startTimeMs) / 60_000);
   if (durationMinutes < 1) return null;
 
-  const contentSummary = parts.join("\n").slice(0, 4000);
-  if (isSelfInsightSession(contentSummary) || isSelfInsightSession(raw.slice(0, 8000))) {
+  const contentSummary = buildTranscriptWindow(transcriptParts, 4_000);
+  const analysisText = buildTranscriptWindow(transcriptParts, 12_000);
+  if (isSelfInsightSession(contentSummary) || isSelfInsightSession(raw.slice(0, 8_000))) {
     return null;
   }
 
@@ -282,12 +763,22 @@ function extractCodexSession(file: SessionFileInfo): SessionInfo | null {
     filePath: file.filePath,
     cliTool: "codex",
     projectPath,
+    startTimeMs,
+    endTimeMs,
     messageCount,
-    durationMinutes: Math.round(durationMinutes),
+    durationMinutes,
     contentSummary,
+    analysisText,
     mtimeMs: file.mtimeMs,
     fileSize: file.fileSize,
+    metrics,
   };
+}
+
+function getObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
 function extractSession(file: SessionFileInfo): SessionInfo | null {
@@ -430,8 +921,7 @@ async function scanSessions(
     if (
       !existing ||
       session.messageCount > existing.messageCount ||
-      (session.messageCount === existing.messageCount &&
-        session.durationMinutes > existing.durationMinutes) ||
+      session.durationMinutes > existing.durationMinutes ||
       session.mtimeMs > existing.mtimeMs
     ) {
       deduped.set(session.id, session);
@@ -527,10 +1017,8 @@ export async function validateCli(
   }
 }
 
-function parseJsonFromResponse(
-  response: string,
-): Record<string, unknown> | null {
-  const cleaned = response.replace(/```(?:json)?\s*/g, "");
+function parseJsonFromResponse(response: string): Record<string, unknown> | null {
+  const cleaned = response.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "");
   const match = cleaned.match(/\{[\s\S]*\}/);
   if (!match) return null;
   try {
@@ -538,6 +1026,22 @@ function parseJsonFromResponse(
   } catch {
     return null;
   }
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item) => typeof item === "string" && item.trim().length > 0);
+}
+
+function normalizeNumericRecord(value: unknown): Record<string, number> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const result: Record<string, number> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    const numeric = typeof raw === "number" ? raw : Number(raw);
+    if (!Number.isFinite(numeric)) continue;
+    result[key] = numeric;
+  }
+  return result;
 }
 
 const FACET_REQUIRED_FIELDS = [
@@ -549,6 +1053,8 @@ const FACET_REQUIRED_FIELDS = [
   "session_type",
   "user_satisfaction",
   "project_path",
+  "project_area",
+  "recommended_next_step",
 ] as const;
 
 export async function extractFacet(
@@ -563,19 +1069,42 @@ export async function extractFacet(
     "Analyze this AI coding session and return a JSON object with exactly these fields:",
     `- session_id: "${session.id}"`,
     `- cli_tool: "${session.cliTool}"`,
-    "- underlying_goal: string describing what the user was trying to achieve",
-    "- brief_summary: 1-2 sentence summary",
-    '- goal_categories: object mapping category names (e.g. "bug_fix","feature","refactor","test","docs","config") to confidence 0-1',
+    "- underlying_goal: one sentence describing the user's real goal",
+    "- brief_summary: 2-3 sentence recap grounded in the session evidence",
+    '- goal_categories: object with weights for categories like "bug_fix","feature","refactor","release","research","docs","ops"',
     '- outcome: one of "fully_achieved","mostly_achieved","partially_achieved","not_achieved","unclear"',
     '- session_type: one of "single_task","multi_task","iterative","exploratory","quick_question"',
-    '- friction_counts: object mapping friction types (e.g. "misunderstanding","error","retry","confusion") to counts',
+    '- friction_counts: object with counts for friction types like "retry","spec_gap","tool_failure","context_loss","review_loop"',
     '- user_satisfaction: one of "high","medium","low","unclear"',
     `- project_path: "${session.projectPath}"`,
+    '- project_area: short label like "product_surface","release_ops","editor_infra","docs_workflow","research"',
+    "- notable_tools: array of the most important tool names used in the session",
+    "- dominant_languages: array of dominant languages or file types",
+    "- wins: array of concise wins",
+    "- frictions: array of concise friction observations",
+    "- recommended_next_step: one practical next step for future runs",
     "",
-    "Session transcript (truncated):",
-    session.contentSummary,
+    "CRITICAL RULES:",
+    "- Use the metrics as primary evidence and the transcript excerpt as context.",
+    "- Do not invent tools, files, or outcomes that are not present.",
+    "- Keep project_area to a single snake_case label.",
+    "- Return ONLY valid JSON. No markdown fences. No prose.",
     "",
-    "Return ONLY a valid JSON object. No markdown fences, no explanation.",
+    "Session metrics:",
+    JSON.stringify(
+      {
+        durationMinutes: session.durationMinutes,
+        messageCount: session.messageCount,
+        startTimeMs: session.startTimeMs,
+        endTimeMs: session.endTimeMs,
+        metrics: session.metrics,
+      },
+      null,
+      2,
+    ),
+    "",
+    "Transcript excerpt:",
+    session.analysisText,
   ].join("\n");
 
   let response: string;
@@ -607,22 +1136,145 @@ export async function extractFacet(
     }
   }
 
-  if (!parsed.goal_categories || typeof parsed.goal_categories !== "object") {
-    parsed.goal_categories = {};
-  }
-  if (!parsed.friction_counts || typeof parsed.friction_counts !== "object") {
-    parsed.friction_counts = {};
-  }
+  const facet: SessionFacet = {
+    session_id: String(parsed.session_id),
+    cli_tool: parsed.cli_tool === "claude" ? "claude" : "codex",
+    underlying_goal: String(parsed.underlying_goal),
+    brief_summary: String(parsed.brief_summary),
+    goal_categories: normalizeNumericRecord(parsed.goal_categories),
+    outcome: String(parsed.outcome) as SessionFacet["outcome"],
+    session_type: String(parsed.session_type) as SessionFacet["session_type"],
+    friction_counts: normalizeNumericRecord(parsed.friction_counts),
+    user_satisfaction: String(parsed.user_satisfaction) as SessionFacet["user_satisfaction"],
+    project_path: String(parsed.project_path),
+    project_area: String(parsed.project_area),
+    notable_tools: normalizeStringArray(parsed.notable_tools),
+    dominant_languages: normalizeStringArray(parsed.dominant_languages),
+    wins: normalizeStringArray(parsed.wins),
+    frictions: normalizeStringArray(parsed.frictions),
+    recommended_next_step: String(parsed.recommended_next_step),
+  };
 
-  const facet = parsed as SessionFacet;
   writeCachedFacet(session, analyzerCli, facet);
   return facet;
 }
 
-function isInsightsError(
-  value: InsightsResult | InsightsError,
-): value is InsightsError {
-  return "code" in value;
+function buildAnalysisDataContext(stats: InsightsResult["stats"], facets: SessionFacet[]): string {
+  const sampleFacets = facets.slice(0, ANALYSIS_SAMPLE_LIMIT).map((facet) => ({
+    session_id: facet.session_id,
+    underlying_goal: facet.underlying_goal,
+    brief_summary: facet.brief_summary,
+    project_area: facet.project_area,
+    outcome: facet.outcome,
+    session_type: facet.session_type,
+    notable_tools: facet.notable_tools,
+    dominant_languages: facet.dominant_languages,
+    wins: facet.wins,
+    frictions: facet.frictions,
+    recommended_next_step: facet.recommended_next_step,
+  }));
+
+  return JSON.stringify(
+    {
+      stats,
+      sampleFacets,
+    },
+    null,
+    2,
+  );
+}
+
+function buildAnalysisPrompt(key: Exclude<InsightsSectionKey, "atAGlance">, dataCtx: string): string {
+  const common = [
+    "You are generating an executive-quality AI coding insights report.",
+    "Use ONLY the provided data. Be specific. Ground claims in the metrics and sampled session facets.",
+    "Keep strings concise and useful. No markdown. Return ONLY a valid JSON object.",
+    "",
+    "Data:",
+    dataCtx,
+    "",
+  ].join("\n");
+
+  switch (key) {
+    case "projectAreas":
+      return `${common}Return JSON with this exact shape:
+{
+  "summary": "short paragraph",
+  "areas": [
+    { "name": "string", "share": "string", "evidence": "string", "opportunities": "string" }
+  ]
+}
+Rules:
+- Provide 3 to 5 areas.
+- share should describe relative weight, e.g. "Primary lane", "Secondary lane".
+- opportunities should explain where deeper AI leverage is possible.`;
+    case "interactionStyle":
+      return `${common}Return JSON with this exact shape:
+{
+  "summary": "short paragraph",
+  "patterns": [
+    { "title": "string", "signal": "string", "impact": "string", "coaching": "string" }
+  ]
+}
+Rules:
+- Provide 3 to 5 patterns.
+- Focus on how the user collaborates with the model, not generic advice.`;
+    case "whatWorks":
+      return `${common}Return JSON with this exact shape:
+{
+  "summary": "short paragraph",
+  "wins": [
+    { "title": "string", "evidence": "string", "whyItWorks": "string", "doMoreOf": "string" }
+  ]
+}
+Rules:
+- Provide 3 to 5 wins.
+- Each win must tie back to a recurring success pattern.`;
+    case "frictionAnalysis":
+      return `${common}Return JSON with this exact shape:
+{
+  "summary": "short paragraph",
+  "issues": [
+    { "title": "string", "severity": "high|medium|low", "evidence": "string", "likelyCause": "string", "mitigation": "string" }
+  ]
+}
+Rules:
+- Provide 3 to 5 issues.
+- severity must reflect real impact, not drama.`;
+    case "suggestions":
+      return `${common}Return JSON with this exact shape:
+{
+  "summary": "short paragraph",
+  "actions": [
+    { "title": "string", "priority": "now|next|later", "rationale": "string", "playbook": "string", "copyablePrompt": "string" }
+  ]
+}
+Rules:
+- Provide 4 to 6 actions.
+- copyablePrompt should be ready to paste into Claude or Codex.
+- Prefer operational suggestions over vague coaching.`;
+    case "onTheHorizon":
+      return `${common}Return JSON with this exact shape:
+{
+  "summary": "short paragraph",
+  "bets": [
+    { "title": "string", "whyNow": "string", "experiment": "string", "copyablePrompt": "string" }
+  ]
+}
+Rules:
+- Provide 2 to 4 forward-looking experiments.
+- Experiments should be slightly more ambitious than the current baseline.`;
+    case "funEnding":
+      return `${common}Return JSON with this exact shape:
+{
+  "title": "string",
+  "moment": "string",
+  "whyItMatters": "string"
+}
+Rules:
+- Pick one vivid, funny, or memorable session moment.
+- The moment must still reveal something real about the workflow.`;
+  }
 }
 
 async function runInsightRounds(
@@ -631,42 +1283,16 @@ async function runInsightRounds(
   stats: InsightsResult["stats"],
   facets: SessionFacet[],
   onProgress: (p: Omit<InsightsProgress, "jobId">) => void,
-): Promise<InsightsResult | InsightsError> {
-  const sampleFacets = facets.slice(0, ANALYSIS_SAMPLE_LIMIT);
-  const dataCtx = [
-    "Statistics:",
-    JSON.stringify(stats, null, 2),
-    "",
-    `Recent analyzed session facets (${sampleFacets.length} of ${facets.length}):`,
-    JSON.stringify(sampleFacets, null, 2),
-  ].join("\n");
-
-  const rounds: { key: keyof Omit<InsightsResult, "stats" | "atAGlance">; instruction: string }[] = [
-    {
-      key: "projectAreas",
-      instruction:
-        "Analyze the PROJECT AREAS the user works on. Identify key projects, their relative importance, and how they relate.",
-    },
-    {
-      key: "interactionStyle",
-      instruction:
-        "Analyze the user's INTERACTION STYLE with AI coding assistants. How they phrase requests, iterate vs complete specs, hands-on vs delegating.",
-    },
-    {
-      key: "whatWorks",
-      instruction:
-        "Analyze WHAT WORKS WELL. Which task types succeed most? What patterns lead to high satisfaction and good outcomes?",
-    },
-    {
-      key: "frictionAnalysis",
-      instruction:
-        "Analyze FRICTION POINTS. What causes sessions to fail or underperform? Where does AI-human collaboration break down?",
-    },
-    {
-      key: "suggestions",
-      instruction:
-        "Provide ACTIONABLE SUGGESTIONS to improve the AI coding workflow. Be specific, practical, and grounded in the data.",
-    },
+): Promise<InsightsResult> {
+  const dataCtx = buildAnalysisDataContext(stats, facets);
+  const rounds: Exclude<InsightsSectionKey, "atAGlance">[] = [
+    "projectAreas",
+    "interactionStyle",
+    "whatWorks",
+    "frictionAnalysis",
+    "suggestions",
+    "onTheHorizon",
+    "funEnding",
   ];
 
   let completed = 0;
@@ -674,46 +1300,81 @@ async function runInsightRounds(
     stage: "analyzing",
     current: 0,
     total: rounds.length + 1,
-    message: "Running analysis tasks...",
+    message: "Running structured analysis tasks...",
   });
 
-  const taskResults = await Promise.all(
-    rounds.map(async (round) => {
+  const sectionErrors: Partial<Record<InsightsSectionKey, string>> = {};
+  const results: InsightsResult = {
+    stats,
+    projectAreas: null,
+    interactionStyle: null,
+    whatWorks: null,
+    frictionAnalysis: null,
+    suggestions: null,
+    onTheHorizon: null,
+    funEnding: null,
+    atAGlance: buildDeterministicAtAGlance(stats),
+    sectionErrors,
+  };
+
+  const tasks = await Promise.all(
+    rounds.map(async (key) => {
       try {
         const response = await invokeCli(
           cliSpec,
           analyzerCli,
-          `${round.instruction}\n\n${dataCtx}`,
+          buildAnalysisPrompt(key, dataCtx),
         );
+        const parsed = parseStructuredSection(key, response);
         completed += 1;
         onProgress({
           stage: "analyzing",
           current: completed,
           total: rounds.length + 1,
-          message: `Analyzing: ${round.key}`,
+          message: `Analyzing: ${key}`,
         });
-        return { key: round.key, text: response.trim() } as const;
+        return { key, parsed } as const;
       } catch (err) {
+        completed += 1;
+        onProgress({
+          stage: "analyzing",
+          current: completed,
+          total: rounds.length + 1,
+          message: `Analyzing: ${key}`,
+        });
         return {
-          key: round.key,
-          error: {
-            code: "cli_error",
-            message: `Insight round "${round.key}" failed`,
-            detail: err instanceof Error ? err.message : String(err),
-          } satisfies InsightsError,
+          key,
+          parsed: {
+            ok: false as const,
+            error: err instanceof Error ? err.message : String(err),
+          },
         } as const;
       }
     }),
   );
 
-  for (const result of taskResults) {
-    if ("error" in result) return result.error;
+  for (const task of tasks) {
+    if (task.parsed.ok) {
+      (results as Record<string, unknown>)[task.key] = task.parsed.value;
+    } else {
+      sectionErrors[task.key] = task.parsed.error;
+    }
   }
 
-  const texts: Record<string, string> = {};
-  for (const result of taskResults) {
-    texts[result.key] = result.text;
-  }
+  const sectionContext = JSON.stringify(
+    {
+      stats,
+      projectAreas: results.projectAreas,
+      interactionStyle: results.interactionStyle,
+      whatWorks: results.whatWorks,
+      frictionAnalysis: results.frictionAnalysis,
+      suggestions: results.suggestions,
+      onTheHorizon: results.onTheHorizon,
+      funEnding: results.funEnding,
+    },
+    null,
+    2,
+  );
 
   onProgress({
     stage: "analyzing",
@@ -722,38 +1383,37 @@ async function runInsightRounds(
     message: "Generating at-a-glance summary",
   });
 
-  const summaryCtx = Object.entries(texts)
-    .map(([key, value]) => `${key}:\n${value}`)
-    .join("\n\n");
-
   try {
     const response = await invokeCli(
       cliSpec,
       analyzerCli,
-      `Write a concise AT-A-GLANCE summary (3-5 bullet points) of the user's AI coding usage patterns, strengths, and areas for improvement.\n\n${summaryCtx}`,
+      [
+        "Write the final executive summary for an AI coding insights report.",
+        "Return ONLY valid JSON with this exact shape:",
+        '{ "headline": "string", "bullets": ["string"] }',
+        "Provide 4 to 5 bullets. Ground them in the data. No markdown.",
+        "",
+        sectionContext,
+      ].join("\n"),
     );
-    onProgress({
-      stage: "analyzing",
-      current: rounds.length + 1,
-      total: rounds.length + 1,
-      message: "At-a-glance ready",
-    });
-    return {
-      stats,
-      projectAreas: texts.projectAreas ?? "",
-      interactionStyle: texts.interactionStyle ?? "",
-      whatWorks: texts.whatWorks ?? "",
-      frictionAnalysis: texts.frictionAnalysis ?? "",
-      suggestions: texts.suggestions ?? "",
-      atAGlance: response.trim(),
-    };
+    const parsed = parseStructuredSection("atAGlance", response);
+    if (parsed.ok) {
+      results.atAGlance = parsed.value;
+    } else {
+      sectionErrors.atAGlance = parsed.error;
+    }
   } catch (err) {
-    return {
-      code: "cli_error",
-      message: "At-a-glance round failed",
-      detail: err instanceof Error ? err.message : String(err),
-    };
+    sectionErrors.atAGlance = err instanceof Error ? err.message : String(err);
   }
+
+  onProgress({
+    stage: "analyzing",
+    current: rounds.length + 1,
+    total: rounds.length + 1,
+    message: "At-a-glance ready",
+  });
+
+  return results;
 }
 
 export async function generateInsights(
@@ -816,13 +1476,13 @@ export async function generateInsights(
     const cached = readCachedFacet(session, cliTool);
     if (cached) {
       facets.push(cached);
-      cachedFacetSessions++;
+      cachedFacetSessions += 1;
       continue;
     }
     if (uncachedSessions.length < MAX_FACET_EXTRACTIONS) {
       uncachedSessions.push(session);
     } else {
-      deferredFacetSessions++;
+      deferredFacetSessions += 1;
     }
   }
 
@@ -832,7 +1492,7 @@ export async function generateInsights(
     total: uncachedSessions.length,
     message:
       uncachedSessions.length > 0
-        ? `Extracting new facets for ${cliTool} sessions...`
+        ? `Extracting rich facets for ${cliTool} sessions...`
         : "Using cached facets...",
   });
 
@@ -845,7 +1505,7 @@ export async function generateInsights(
       if ("session_id" in result) {
         facets.push(result);
       } else {
-        failedFacetSessions++;
+        failedFacetSessions += 1;
       }
     }
     emit({
@@ -891,9 +1551,6 @@ export async function generateInsights(
     facets,
     emit,
   );
-  if (isInsightsError(insightsResult)) {
-    return { ok: false, jobId, error: insightsResult };
-  }
 
   emit({
     stage: "generating_report",
