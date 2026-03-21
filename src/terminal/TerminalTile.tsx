@@ -301,17 +301,17 @@ export function TerminalTile({
     // ybase during writes.  We must NOT call scrollToBottom() in the
     // write callback because that would override xterm's protection.
 
-    // Scroll-pinning fix: xterm v6's isUserScrolling flag gets permanently
-    // stuck when the viewport reaches ydisp=0 during buffer trimming. Once
-    // stuck, the viewport stays at the very top while new content grows at
-    // the bottom. Only triggers when buffer is at full capacity (trimming).
+    // Scroll-pinning fix: xterm v6's isUserScrolling flag gets stuck when
+    // the viewport is pushed to the very top (ydisp=0) during buffer trimming.
+    // Once stuck, ybase keeps growing while the viewport stays at 0 — the user
+    // sees stale/evicted content at the top and can't get back to live output.
+    // Fix: detect this state and snap back to the bottom.
     const _bufSvc = (xterm as any)._core?._bufferService;
-    const _scrollback = xterm.options.scrollback ?? 5000;
     xterm.onScroll(() => {
       if (
         _bufSvc?.isUserScrolling &&
         xterm.buffer.active.viewportY === 0 &&
-        xterm.buffer.active.baseY >= _scrollback
+        xterm.buffer.active.baseY > xterm.rows
       ) {
         _bufSvc.isUserScrolling = false;
         xterm.scrollToBottom();
