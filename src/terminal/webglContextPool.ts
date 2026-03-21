@@ -8,7 +8,7 @@ interface PoolEntry {
   lastUsed: number;
 }
 
-const MAX_CONTEXTS = 8;
+const MAX_CONTEXTS = 16;
 const entries = new Map<string, PoolEntry>();
 let focusedId: string | null = null;
 
