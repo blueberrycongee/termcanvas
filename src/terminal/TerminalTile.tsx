@@ -301,22 +301,64 @@ export function TerminalTile({
     // ybase during writes.  We must NOT call scrollToBottom() in the
     // write callback because that would override xterm's protection.
 
-    // Scroll-pinning fix: xterm v6's isUserScrolling flag gets stuck when
-    // the viewport is pushed to the very top (ydisp=0) during buffer trimming.
-    // Once stuck, ybase keeps growing while the viewport stays at 0 — the user
-    // sees stale/evicted content at the top and can't get back to live output.
-    // Fix: detect this state and snap back to the bottom.
+    // Scroll-pinning fix: During buffer trimming (scrollback full), xterm's
+    // BufferService.scroll() decrements ydisp by 1 for each trimmed line
+    // while isUserScrolling is true.  This causes the viewport to drift
+    // toward the top — the user sees their content scroll away and
+    // eventually the viewport reaches ydisp=0 (stuck at top).
+    //
+    // Fix: monkey-patch BufferService.scroll() to lock ydisp at its
+    // pre-trim value when isUserScrolling is true.  We temporarily replace
+    // buffer.ydisp with a frozen property descriptor so that the decrement
+    // inside scroll() is silently ignored.  The onScroll event then fires
+    // with the stable (un-decremented) ydisp, so the Viewport never drifts.
+    //
+    // scrollLines() is NOT affected — it is a separate method that handles
+    // user-initiated scrolling and correctly sets isUserScrolling.
+    //
+    // Why this is safe:
+    // - ydisp stays <= ybase (ybase is unchanged during trim)
+    // - scrollLines() bypasses the lock (only scroll() is patched)
+    // - isUserScrolling resets to false when the user scrolls to bottom
+    // - onScroll events fire with the correct (stable) ydisp value
     const _bufSvc = (xterm as any)._core?._bufferService;
-    xterm.onScroll(() => {
-      if (
-        _bufSvc?.isUserScrolling &&
-        xterm.buffer.active.viewportY === 0 &&
-        xterm.buffer.active.baseY > xterm.rows
-      ) {
-        _bufSvc.isUserScrolling = false;
-        xterm.scrollToBottom();
-      }
-    });
+    if (_bufSvc) {
+      const _origScroll = _bufSvc.scroll.bind(_bufSvc);
+      _bufSvc.scroll = function (this: any, eraseAttr: any, isWrapped?: boolean) {
+        // When the user is NOT scrolling, let xterm handle everything normally
+        if (!this.isUserScrolling) {
+          return _origScroll(eraseAttr, isWrapped);
+        }
+
+        const buf = this.buffer;
+
+        // Only intervene when the buffer is full (trim will happen).
+        // Before the buffer is full, ydisp is not decremented.
+        if (!buf.lines.isFull) {
+          return _origScroll(eraseAttr, isWrapped);
+        }
+
+        // Freeze buffer.ydisp during scroll() so the trim decrement
+        // (buffer.ydisp = Math.max(ydisp - 1, 0)) is silently ignored.
+        // The onScroll event fires inside scroll() and reads ydisp via
+        // this getter, so all downstream handlers (Viewport, etc.) see
+        // the stable value — no drift.
+        const frozenYdisp = buf.ydisp;
+        Object.defineProperty(buf, 'ydisp', {
+          get: () => frozenYdisp,
+          set: () => {},  // swallow writes
+          configurable: true,
+        });
+
+        try {
+          _origScroll(eraseAttr, isWrapped);
+        } finally {
+          // Restore plain data property with the frozen (unchanged) value
+          delete buf.ydisp;
+          buf.ydisp = frozenYdisp;
+        }
+      };
+    }
 
     // GPU-accelerated rendering via context pool (max 8 active contexts)
     acquireWebGL(terminal.id, xterm);
