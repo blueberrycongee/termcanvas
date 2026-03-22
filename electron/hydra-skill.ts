@@ -33,7 +33,7 @@ export function installHydraSkillLinks({
       } catch {
         // ignore missing stale links
       }
-      fs.symlinkSync(sourceDir, link);
+      fs.symlinkSync(sourceDir, link, process.platform === 'win32' ? 'junction' : undefined);
     }
     return true;
   } catch {
@@ -65,7 +65,7 @@ export function ensureHydraSkillLinks({
       } catch {
         // ignore missing stale links
       }
-      fs.symlinkSync(sourceDir, link);
+      fs.symlinkSync(sourceDir, link, process.platform === 'win32' ? 'junction' : undefined);
     }
     return true;
   } catch {
