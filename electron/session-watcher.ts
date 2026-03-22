@@ -88,7 +88,7 @@ function resolveSessionFile(
   const home = os.homedir();
 
   if (type === "claude") {
-    const projectKey = cwd.replaceAll(/[/.]/g, "-");
+    const projectKey = cwd.replaceAll(/[/\\.:-]/g, "-");
     return path.join(home, ".claude", "projects", projectKey, sessionId + ".jsonl");
   }
 
