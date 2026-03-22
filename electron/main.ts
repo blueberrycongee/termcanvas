@@ -28,6 +28,7 @@ import {
 import { collectUsage, collectHeatmapData } from "./usage-collector";
 import { setupAutoUpdater, stopAutoUpdater } from "./auto-updater";
 import { initAuth, login, logout, getAuthUser, getDeviceId, handleAuthCallback, onAuthStateChange, isLoggedIn } from "./auth";
+import { toFileUrl } from "./file-url";
 import { queryCloudUsage, queryCloudHeatmap, backfillHistory, flushSyncQueue, syncRecentRecords } from "./usage-sync";
 import type { ComposerSubmitRequest } from "../src/types";
 
@@ -689,7 +690,7 @@ function setupIpc() {
   );
 
   ipcMain.handle("insights:open-report", async (_event, filePath: string) => {
-    await shell.openExternal(`file://${filePath}`);
+    await shell.openExternal(toFileUrl(filePath));
   });
 
   // Font management
