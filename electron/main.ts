@@ -15,6 +15,11 @@ import { sendToWindow } from "./window-events";
 import { detectCli } from "./process-detector";
 import { ensureCliLauncher } from "./cli-launchers";
 import {
+  isCliRegistered,
+  registerCli,
+  unregisterCli,
+} from "./cli-registration";
+import {
   ensureHydraSkillLinks,
   getHydraSkillSourceDir,
   installHydraSkillLinks,
@@ -544,9 +549,17 @@ function setupIpc() {
   });
 
   // CLI registration
-  ipcMain.handle("cli:is-registered", () => isCliRegistered());
-  ipcMain.handle("cli:register", () => registerCli());
-  ipcMain.handle("cli:unregister", () => unregisterCli());
+  ipcMain.handle("cli:is-registered", () => isCliRegistered(getCliDir()));
+  ipcMain.handle("cli:register", () => {
+    const ok = registerCli(getCliDir());
+    if (ok) installSkill();
+    return ok;
+  });
+  ipcMain.handle("cli:unregister", () => {
+    const ok = unregisterCli(getCliDir());
+    if (ok) uninstallSkill();
+    return ok;
+  });
 
   ipcMain.handle(
     "cli:validate-command",
@@ -846,137 +859,6 @@ function ensureCliLinks(): void {
   }
 }
 
-const ZPROFILE_PATH = path.join(os.homedir(), ".zprofile");
-
-function getPathExportLine(): string {
-  return `export PATH="$PATH:${getCliDir()}"`;
-}
-
-function isCliRegistered(): boolean {
-  if (process.platform === "darwin") {
-    try {
-      const content = fs.readFileSync(ZPROFILE_PATH, "utf-8");
-      return content.includes(getPathExportLine());
-    } catch {
-      return false;
-    }
-  }
-  if (process.platform === "linux") {
-    const target = path.join(os.homedir(), ".local", "bin", "termcanvas");
-    try {
-      fs.lstatSync(target);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-  return false;
-}
-
-function registerCli(): boolean {
-  const cliDir = getCliDir();
-  const cliFiles = ["termcanvas.js", "hydra.js"];
-
-  // Ensure CLI files are executable
-  for (const file of cliFiles) {
-    try {
-      fs.chmodSync(path.join(cliDir, file), 0o755);
-    } catch {
-      // may fail in asar, non-critical
-    }
-  }
-
-  let ok = false;
-
-  if (process.platform === "darwin") {
-    const line = getPathExportLine();
-    try {
-      let content = "";
-      try {
-        content = fs.readFileSync(ZPROFILE_PATH, "utf-8");
-      } catch {
-        // file doesn't exist yet
-      }
-      if (content.includes(line)) {
-        ok = true;
-      } else {
-        const newContent = content.endsWith("\n") || content === ""
-          ? content + line + "\n"
-          : content + "\n" + line + "\n";
-        fs.writeFileSync(ZPROFILE_PATH, newContent);
-        ok = true;
-      }
-    } catch {
-      return false;
-    }
-  }
-
-  if (process.platform === "linux") {
-    const binDir = "/usr/local/bin";
-    const fallbackDir = path.join(os.homedir(), ".local", "bin");
-    const clis = ["termcanvas", "hydra"];
-
-    let targetDir = binDir;
-    try {
-      fs.accessSync(binDir, fs.constants.W_OK);
-    } catch {
-      targetDir = fallbackDir;
-      fs.mkdirSync(targetDir, { recursive: true });
-    }
-
-    try {
-      for (const name of clis) {
-        const target = path.join(targetDir, name);
-        const source = path.join(cliDir, `${name}.js`);
-        try { fs.unlinkSync(target); } catch { /* doesn't exist */ }
-        fs.symlinkSync(source, target);
-      }
-      ok = true;
-    } catch {
-      return false;
-    }
-  }
-
-  // Auto-install hydra skill alongside CLI
-  if (ok) installSkill();
-
-  return ok;
-}
-
-function unregisterCli(): boolean {
-  // Auto-uninstall hydra skill alongside CLI
-  uninstallSkill();
-
-  if (process.platform === "darwin") {
-    const line = getPathExportLine();
-    try {
-      const content = fs.readFileSync(ZPROFILE_PATH, "utf-8");
-      if (!content.includes(line)) return true;
-      const newContent = content
-        .split("\n")
-        .filter((l) => l !== line)
-        .join("\n");
-      fs.writeFileSync(ZPROFILE_PATH, newContent);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  if (process.platform === "linux") {
-    const clis = ["termcanvas", "hydra"];
-    const dirs = ["/usr/local/bin", path.join(os.homedir(), ".local", "bin")];
-    for (const dir of dirs) {
-      for (const name of clis) {
-        try { fs.unlinkSync(path.join(dir, name)); } catch { /* ok */ }
-      }
-    }
-    return true;
-  }
-
-  return false;
-}
-
 function getSkillSourceDir(): string {
   return getHydraSkillSourceDir(process.resourcesPath, __dirname);
 }
@@ -1019,7 +901,7 @@ app.whenReady().then(async () => {
   });
 
   ensureCliLinks();
-  if (isCliRegistered()) ensureSkillInstalled();
+  if (isCliRegistered(getCliDir())) ensureSkillInstalled();
   setupIpc();
   await initAuth();
   createWindow();
