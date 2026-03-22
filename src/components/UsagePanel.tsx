@@ -669,7 +669,7 @@ export function UsagePanel() {
               )}
               <div className="mx-3 h-px bg-[var(--border)]" />
               <div className="usage-section-enter" style={{ animationDelay: "240ms" }}>
-                <TokenHeatmap animate={true} />
+                <TokenHeatmap animate={true} data={activeHeatmap ?? undefined} />
               </div>
             </div>
           ) : (

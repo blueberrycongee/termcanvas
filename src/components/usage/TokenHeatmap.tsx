@@ -187,11 +187,13 @@ function HeatmapTooltip({ cell, triggerRect }: TooltipProps) {
 
 interface TokenHeatmapProps {
   animate: boolean;
+  data?: Record<string, HeatmapEntry>;
 }
 
-export function TokenHeatmap({ animate }: TokenHeatmapProps): React.ReactElement {
+export function TokenHeatmap({ animate, data }: TokenHeatmapProps): React.ReactElement {
   const t = useT();
   const { heatmapData, heatmapLoading, heatmapError, fetchHeatmap, fetch: fetchDay } = useUsageStore();
+  const effectiveData = data ?? heatmapData;
   const [hoveredCell, setHoveredCell] = useState<CellData | null>(null);
   const [hoveredRect, setHoveredRect] = useState<DOMRect | null>(null);
   const cellRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
@@ -200,7 +202,7 @@ export function TokenHeatmap({ animate }: TokenHeatmapProps): React.ReactElement
     fetchHeatmap();
   }, [fetchHeatmap]);
 
-  const { cells, weeks, monthLabels } = useMemo(() => buildGrid(heatmapData), [heatmapData]);
+  const { cells, weeks, monthLabels } = useMemo(() => buildGrid(effectiveData), [effectiveData]);
 
   const handleCellClick = (cell: CellData) => {
     fetchDay(cell.dateStr);
