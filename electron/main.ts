@@ -689,7 +689,7 @@ function setupIpc() {
   );
 
   ipcMain.handle("insights:open-report", async (_event, filePath: string) => {
-    await shell.openExternal(`file://${filePath}`);
+    await shell.openPath(filePath);
   });
 
   // Font management
