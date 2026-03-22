@@ -44,8 +44,41 @@ export function withToggledTerminalStarred(
   };
 }
 
-export function getTerminalDisplayTitle(terminal: TerminalData): string {
-  return terminal.customTitle
-    ? `${terminal.customTitle} · ${terminal.title}`
-    : terminal.title;
+/** Human-readable labels for CLI-backed terminal types. */
+const CLI_TYPE_LABELS: Partial<Record<TerminalType, string>> = {
+  claude: "Claude",
+  codex: "Codex",
+  kimi: "Kimi",
+  gemini: "Gemini",
+  opencode: "OpenCode",
+  lazygit: "Lazygit",
+  tmux: "Tmux",
+};
+
+/**
+ * Auto-generate a display title from session context.
+ * Priority: CLI tool label > working directory basename > "Terminal".
+ */
+function autoTitle(terminal: TerminalData, worktreePath?: string): string {
+  // Non-shell CLI types get their human-readable label
+  const label = CLI_TYPE_LABELS[terminal.type];
+  if (label) return label;
+
+  // Shell: use working directory basename when available
+  if (worktreePath) {
+    const base = worktreePath.split("/").filter(Boolean).pop();
+    if (base) return base;
+  }
+
+  return "Terminal";
+}
+
+export function getTerminalDisplayTitle(
+  terminal: TerminalData,
+  worktreePath?: string,
+): string {
+  if (terminal.customTitle) {
+    return terminal.customTitle;
+  }
+  return autoTitle(terminal, worktreePath);
 }

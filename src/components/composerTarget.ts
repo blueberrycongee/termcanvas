@@ -34,11 +34,11 @@ export function getSupportedTerminals(
         options.push({
           terminalId: terminal.id,
           ptyId: terminal.ptyId,
-          title: getTerminalDisplayTitle(terminal),
+          title: getTerminalDisplayTitle(terminal, worktree.path),
           type: terminal.type,
           status: terminal.status,
           worktreePath: worktree.path,
-          label: `${project.name} / ${worktree.name} / ${getTerminalDisplayTitle(terminal)}`,
+          label: `${project.name} / ${worktree.name} / ${getTerminalDisplayTitle(terminal, worktree.path)}`,
           focused: terminal.focused,
         });
       }
