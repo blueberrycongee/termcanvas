@@ -241,10 +241,12 @@ function TimelineSection({
   t,
   summary,
   animate,
+  date,
 }: {
   t: ReturnType<typeof useT>;
   summary: UsageSummary;
   animate: boolean;
+  date: string;
 }) {
   return (
     <div className="px-3 py-2.5">
@@ -252,7 +254,7 @@ function TimelineSection({
         {t.usage_timeline}
       </span>
       <div className="mt-2">
-        <SparklineChart buckets={summary.buckets} animate={animate} />
+        <SparklineChart buckets={summary.buckets} animate={animate} date={date} />
       </div>
     </div>
   );
@@ -664,7 +666,7 @@ export function UsagePanel() {
               </div>
               <div className="mx-3 h-px bg-[var(--border)]" />
               <div className="usage-section-enter" style={{ animationDelay: "40ms" }}>
-                <TimelineSection t={t} summary={activeSummary} animate={true} />
+                <TimelineSection t={t} summary={activeSummary} animate={true} date={date} />
               </div>
               <div className="mx-3 h-px bg-[var(--border)]" />
               <div className="usage-section-enter" style={{ animationDelay: "80ms" }}>
