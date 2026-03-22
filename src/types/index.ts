@@ -5,6 +5,9 @@ export type TerminalType =
   | "kimi"
   | "gemini"
   | "opencode"
+  | "aider"
+  | "amp"
+  | "goose"
   | "lazygit"
   | "tmux";
 

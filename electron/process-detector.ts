@@ -13,12 +13,15 @@ const CLI_PATTERNS: [RegExp, string][] = [
   [/\bkimi\b/, "kimi"],
   [/\bgemini\b/, "gemini"],
   [/\bopencode\b/, "opencode"],
+  [/\baider\b/, "aider"],
+  [/\bamp\b/, "amp"],
+  [/\bgoose\b/, "goose"],
   [/\blazygit\b/, "lazygit"],
   [/\btmux\b/, "tmux"],
 ];
 
 // Wrappers that delegate to another binary — check subsequent args for the real CLI
-const WRAPPER_NAMES = new Set(["node", "bun", "npx", "bunx"]);
+const WRAPPER_NAMES = new Set(["node", "bun", "npx", "bunx", "python", "python3"]);
 
 function matchCli(args: string): string | null {
   // Extract the process name (first token)

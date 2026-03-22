@@ -23,6 +23,9 @@ const TYPE_LABEL: Record<TerminalType, string> = {
   kimi: "Kimi",
   gemini: "Gemini",
   opencode: "OpenCode",
+  aider: "Aider",
+  amp: "Amp",
+  goose: "Goose",
   lazygit: "lazygit",
   tmux: "Tmux",
 };

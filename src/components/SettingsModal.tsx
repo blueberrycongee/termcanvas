@@ -85,7 +85,7 @@ function ShortcutRow({
   );
 }
 
-const AGENT_TYPES = ["claude", "codex", "kimi", "gemini", "opencode"] as const;
+const AGENT_TYPES = ["claude", "codex", "kimi", "gemini", "opencode", "aider", "amp", "goose"] as const;
 
 type ValidateResult =
   | { ok: true; resolvedPath: string; version: string | null }
