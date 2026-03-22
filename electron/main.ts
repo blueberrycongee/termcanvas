@@ -3,6 +3,7 @@ import { execSync } from "child_process";
 import https from "https";
 import path from "path";
 import fs from "fs";
+import AdmZip from "adm-zip";
 import os from "os";
 import { fileURLToPath } from "url";
 import { PtyManager, OutputBatcher } from "./pty-manager";
@@ -781,25 +782,20 @@ function setupIpc() {
         }
         fs.writeFileSync(tmpZip, buf);
 
-        // Extract target font file from zip
-        const zipList = execSync(`unzip -l "${tmpZip}"`, {
-          encoding: "utf-8",
-        });
-        const lines = zipList.split("\n");
-        const matchLine = lines.find((l) => l.trim().endsWith(fileName));
-        if (!matchLine) {
+        // Extract target font file from zip (cross-platform, no shell unzip)
+        const zip = new AdmZip(tmpZip);
+        const zipEntries = zip.getEntries();
+        const matchEntry = zipEntries.find((e) =>
+          e.entryName.endsWith(fileName),
+        );
+        if (!matchEntry) {
           fs.unlinkSync(tmpZip);
           return {
             ok: false,
             error: `Font file "${fileName}" not found in archive`,
           };
         }
-        const innerPath = matchLine.trim().split(/\s+/).pop()!;
-
-        execSync(
-          `unzip -jo "${tmpZip}" "${innerPath}" -d "${fontsDir}"`,
-          { encoding: "utf-8" },
-        );
+        fs.writeFileSync(destPath, matchEntry.getData());
         fs.unlinkSync(tmpZip);
 
         return { ok: true, path: destPath };
