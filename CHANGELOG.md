@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.35] - 2026-03-22
+
+### Fixed
+- GitHub login: use local HTTP server for OAuth callback instead of unreliable custom protocol handler
+
 ## [0.8.34] - 2026-03-22
 
 ### Fixed
