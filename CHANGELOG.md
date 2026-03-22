@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.36] - 2026-03-22
+
+### Fixed
+- GitHub login: handle Supabase PKCE flow (code exchange) in OAuth callback
+
 ## [0.8.35] - 2026-03-22
 
 ### Fixed
