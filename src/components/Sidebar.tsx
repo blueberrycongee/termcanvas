@@ -16,16 +16,11 @@ const STATUS_COLOR: Record<TerminalStatus, string> = {
   idle: "var(--text-muted)",
 };
 
-const TYPE_LABEL: Record<TerminalType, string> = {
-  shell: "Shell",
-  claude: "Claude",
-  codex: "Codex",
-  kimi: "Kimi",
-  gemini: "Gemini",
-  opencode: "OpenCode",
-  lazygit: "lazygit",
-  tmux: "Tmux",
-};
+import { ALL_TERMINAL_TYPE_IDS, getAgentLabel } from "../terminal/agentRegistry";
+
+const TYPE_LABEL: Record<TerminalType, string> = Object.fromEntries(
+  ALL_TERMINAL_TYPE_IDS.map((id) => [id, getAgentLabel(id)]),
+) as Record<TerminalType, string>;
 
 const iconBtnClass =
   "w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--sidebar-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors shrink-0";

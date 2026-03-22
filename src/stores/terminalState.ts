@@ -7,6 +7,9 @@ export const DEFAULT_SPAN: Record<TerminalType, { cols: number; rows: number }> 
   kimi: { cols: 1, rows: 1 },
   gemini: { cols: 1, rows: 1 },
   opencode: { cols: 1, rows: 1 },
+  aider: { cols: 1, rows: 1 },
+  amp: { cols: 1, rows: 1 },
+  roocode: { cols: 1, rows: 1 },
   lazygit: { cols: 1, rows: 1 },
   tmux: { cols: 1, rows: 1 },
 };

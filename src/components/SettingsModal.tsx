@@ -85,7 +85,9 @@ function ShortcutRow({
   );
 }
 
-const AGENT_TYPES = ["claude", "codex", "kimi", "gemini", "opencode"] as const;
+import { AI_AGENTS } from "../terminal/agentRegistry";
+
+const AGENT_TYPES = AI_AGENTS.map((a) => a.id) as unknown as readonly TerminalType[];
 
 type ValidateResult =
   | { ok: true; resolvedPath: string; version: string | null }

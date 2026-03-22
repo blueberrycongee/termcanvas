@@ -13,6 +13,9 @@ const CLI_PATTERNS: [RegExp, string][] = [
   [/\bkimi\b/, "kimi"],
   [/\bgemini\b/, "gemini"],
   [/\bopencode\b/, "opencode"],
+  [/\baider\b/, "aider"],
+  [/\bamp\b/, "amp"],
+  [/\broo\b/, "roocode"],
   [/\blazygit\b/, "lazygit"],
   [/\btmux\b/, "tmux"],
 ];
