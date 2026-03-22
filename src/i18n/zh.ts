@@ -145,6 +145,15 @@ export const zh = {
   update_ready: "更新已就绪，点击查看",
   update_error: "更新出错",
 
+  // UpdateModal
+  update_modal_title_ready: "更新就绪",
+  update_modal_title: "更新",
+  update_modal_downloading: (percent: number) => `下载中... ${Math.round(percent)}%`,
+  update_modal_download_failed: "下载失败",
+  update_modal_later: "稍后",
+  update_modal_retry: "重试",
+  update_modal_restart: "重启并更新",
+
   // CLI
   cli_label: "命令行工具",
   cli_registered: "已注册",

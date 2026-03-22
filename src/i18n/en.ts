@@ -147,6 +147,15 @@ export const en = {
   update_ready: "Update ready, click to view",
   update_error: "Update error",
 
+  // UpdateModal
+  update_modal_title_ready: "Update Ready",
+  update_modal_title: "Update",
+  update_modal_downloading: (percent: number) => `Downloading... ${Math.round(percent)}%`,
+  update_modal_download_failed: "Download failed",
+  update_modal_later: "Later",
+  update_modal_retry: "Retry",
+  update_modal_restart: "Restart & Update",
+
   // CLI
   cli_label: "Command line interface",
   cli_registered: "Registered",
