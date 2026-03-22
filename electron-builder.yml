@@ -28,6 +28,11 @@ extraResources:
 asarUnpack:
   - node_modules/node-pty/**/*
 
+protocols:
+  - name: TermCanvas
+    schemes:
+      - termcanvas
+
 mac:
   identity: null
   category: public.app-category.developer-tools
