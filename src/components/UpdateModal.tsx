@@ -13,8 +13,9 @@ export function UpdateModal({ onClose }: Props) {
   const backdropRef = useRef<HTMLDivElement>(null);
 
   const handleInstall = useCallback(() => {
+    onClose();
     window.termcanvas.updater.install();
-  }, []);
+  }, [onClose]);
 
   const handleRetry = useCallback(() => {
     useUpdaterStore.setState({ status: "checking", errorMessage: null });

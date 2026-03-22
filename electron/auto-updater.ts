@@ -11,6 +11,18 @@ const IS_MAC = process.platform === "darwin";
 let checkTimer: ReturnType<typeof setInterval> | null = null;
 let macUpdater: MacCustomUpdater | null = null;
 
+/**
+ * When true, the app is quitting because the user clicked "Restart" in the
+ * update panel. The before-quit handler uses this to decide whether to
+ * relaunch after installing the update.
+ */
+let updateRestartRequested = false;
+
+/** Returns true if the current quit was initiated by an update restart. */
+export function isUpdateRestart(): boolean {
+  return updateRestartRequested;
+}
+
 export function setupAutoUpdater(window: BrowserWindow): void {
   const checkFn = IS_MAC
     ? setupMacUpdater(window)
@@ -37,10 +49,16 @@ export function stopAutoUpdater(): void {
 
 function setupMacUpdater(window: BrowserWindow): () => void {
   macUpdater = new MacCustomUpdater(window);
-  macUpdater.registerAutoInstallOnQuit();
+  macUpdater.registerAutoInstallOnQuit(() => updateRestartRequested);
 
   ipcMain.on("updater:install", () => {
-    macUpdater?.quitAndInstall();
+    // Instead of calling quitAndInstall() directly (which would fire
+    // app.quit() before the save-canvas dialog has a chance to run),
+    // set a flag and trigger the normal close flow.  The before-quit
+    // handler in registerAutoInstallOnQuit will pick up the flag and
+    // run the install script with relaunch=true.
+    updateRestartRequested = true;
+    window.close(); // goes through the save-canvas dialog first
   });
 
   ipcMain.handle("updater:check", () =>
@@ -91,7 +109,16 @@ function setupElectronUpdater(window: BrowserWindow): () => void {
   });
 
   ipcMain.on("updater:install", () => {
-    autoUpdater.quitAndInstall(false, true);
+    // Same pattern as the mac updater: go through the save-canvas flow
+    // first, then install on before-quit.
+    updateRestartRequested = true;
+    window.close();
+  });
+
+  app.on("before-quit", () => {
+    if (updateRestartRequested) {
+      autoUpdater.quitAndInstall(false, true);
+    }
   });
 
   ipcMain.handle("updater:check", () =>
