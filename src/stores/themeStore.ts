@@ -8,12 +8,32 @@ interface ThemeStore {
   toggleTheme: () => void;
 }
 
+function loadTheme(): Theme {
+  try {
+    const saved = localStorage.getItem("termcanvas-theme");
+    if (saved === "dark" || saved === "light") return saved;
+  } catch {
+    // localStorage unavailable — fall back to default
+  }
+  return "dark";
+}
+
+const initialTheme = loadTheme();
+if (initialTheme === "light") {
+  document.documentElement.setAttribute("data-theme", "light");
+}
+
 export const useThemeStore = create<ThemeStore>((set) => ({
-  theme: "dark",
+  theme: initialTheme,
   toggleTheme: () =>
     set((state) => {
       const next = state.theme === "dark" ? "light" : "dark";
       document.documentElement.setAttribute("data-theme", next);
+      try {
+        localStorage.setItem("termcanvas-theme", next);
+      } catch {
+        // localStorage unavailable — theme still works for this session
+      }
       return { theme: next };
     }),
 }));
