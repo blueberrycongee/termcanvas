@@ -1,12 +1,14 @@
 import { useCallback, useRef } from "react";
 import { marked } from "marked";
 import { useUpdaterStore } from "../stores/updaterStore";
+import { useT } from "../i18n/useT";
 
 interface Props {
   onClose: () => void;
 }
 
 export function UpdateModal({ onClose }: Props) {
+  const t = useT();
   const { status, info, downloadPercent, errorMessage } = useUpdaterStore();
   const backdropRef = useRef<HTMLDivElement>(null);
 
@@ -42,7 +44,7 @@ export function UpdateModal({ onClose }: Props) {
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
           <div>
             <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
-              {status === "ready" ? "Update Ready" : "Update"}
+              {status === "ready" ? t.update_modal_title_ready : t.update_modal_title}
             </h2>
             {info && (
               <p className="mt-0.5 text-[12px] text-[var(--text-secondary)]">
@@ -80,7 +82,7 @@ export function UpdateModal({ onClose }: Props) {
               />
             </div>
             <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-              Downloading... {Math.round(downloadPercent)}%
+              {t.update_modal_downloading(downloadPercent)}
             </p>
           </div>
         )}
@@ -89,7 +91,7 @@ export function UpdateModal({ onClose }: Props) {
         {status === "error" && (
           <div className="px-5 py-3">
             <p className="text-[12px] text-red-400">
-              {errorMessage || "Download failed"}
+              {errorMessage || t.update_modal_download_failed}
             </p>
           </div>
         )}
@@ -100,14 +102,14 @@ export function UpdateModal({ onClose }: Props) {
             onClick={onClose}
             className="px-3 py-1.5 text-[12px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
           >
-            Later
+            {t.update_modal_later}
           </button>
           {status === "error" && (
             <button
               onClick={handleRetry}
               className="px-4 py-1.5 text-[12px] font-medium text-white bg-[var(--accent)] rounded-lg hover:brightness-110 transition-all"
             >
-              Retry
+              {t.update_modal_retry}
             </button>
           )}
           {status === "ready" && (
@@ -115,7 +117,7 @@ export function UpdateModal({ onClose }: Props) {
               onClick={handleInstall}
               className="px-4 py-1.5 text-[12px] font-medium text-white bg-[var(--accent)] rounded-lg hover:brightness-110 transition-all"
             >
-              Restart & Update
+              {t.update_modal_restart}
             </button>
           )}
         </div>
