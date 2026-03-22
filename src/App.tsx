@@ -5,7 +5,7 @@ import { Sidebar } from "./components/Sidebar";
 import { NotificationToast } from "./components/NotificationToast";
 import { initUpdaterListeners } from "./stores/updaterStore";
 import { ComposerBar } from "./components/ComposerBar";
-import { usePreferencesStore } from "./stores/preferencesStore";
+import { usePreferencesStore, hydratePreferences } from "./stores/preferencesStore";
 import { DrawingPanel } from "./toolbar/DrawingPanel";
 import { ShortcutHints } from "./components/ShortcutHints";
 import { CompletionGlow } from "./components/CompletionGlow";
@@ -327,6 +327,7 @@ function CloseDialog({
 export function App() {
   useWorktreeWatcher();
   useStatePersistence();
+  useEffect(() => { hydratePreferences(); }, []);
   useAutoSave();
   useWorkspaceOpen();
   useKeyboardShortcuts();
