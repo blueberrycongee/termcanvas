@@ -255,15 +255,19 @@ export class MacCustomUpdater {
   }
 
   /**
-   * Register a before-quit handler that silently replaces the .app
-   * when the user quits normally and an update is pending.
-   * Unlike explicit quitAndInstall, this does NOT relaunch the app.
+   * Register a before-quit handler that replaces the .app when
+   * the app quits and an update is pending.
+   *
+   * @param shouldRelaunch - callback that returns true when the user
+   *   explicitly requested "Restart to update" (so the app relaunches
+   *   after installing), false for a normal quit (silent install, no
+   *   relaunch).
    */
-  registerAutoInstallOnQuit(): void {
+  registerAutoInstallOnQuit(shouldRelaunch: () => boolean): void {
     app.on("before-quit", () => {
       if (this.pendingUpdate && !this.installing) {
         this.installing = true;
-        this.runInstallScript(false);
+        this.runInstallScript(shouldRelaunch());
       }
     });
   }
