@@ -174,6 +174,8 @@ contextBridge.exposeInMainWorld("termcanvas", {
     },
     openReport: (filePath: string) =>
       ipcRenderer.invoke("insights:open-report", filePath),
+    getLastReport: () =>
+      ipcRenderer.invoke("insights:get-last-report") as Promise<string | null>,
   },
   auth: {
     login: () => ipcRenderer.invoke("auth:login"),

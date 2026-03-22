@@ -314,6 +314,7 @@ export interface TermCanvasAPI {
     ) => Promise<InsightsGenerateResult>;
     onProgress: (callback: (progress: InsightsProgressEvent) => void) => () => void;
     openReport: (filePath: string) => Promise<void>;
+    getLastReport: () => Promise<string | null>;
   };
   app: {
     platform: "darwin" | "win32" | "linux";

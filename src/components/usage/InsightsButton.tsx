@@ -15,6 +15,9 @@ export function InsightsButton({ compact = false }: { compact?: boolean } = {}) 
   const currentJobIdRef = useRef<string | null>(null);
 
   useEffect(() => {
+    window.termcanvas.insights.getLastReport().then((p) => {
+      if (p) setReportPath(p);
+    });
     return () => {
       cleanupRef.current?.();
     };

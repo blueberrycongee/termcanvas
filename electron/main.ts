@@ -695,6 +695,22 @@ function setupIpc() {
     }
   });
 
+  ipcMain.handle("insights:get-last-report", async () => {
+    const reportsDir = path.join(TERMCANVAS_DIR, "insights-reports");
+    try {
+      if (!fs.existsSync(reportsDir)) return null;
+      const files = fs.readdirSync(reportsDir)
+        .filter((f) => f.startsWith("insights-") && f.endsWith(".html"));
+      if (files.length === 0) return null;
+      files.sort().reverse();
+      const filePath = path.join(reportsDir, files[0]);
+      if (!fs.existsSync(filePath)) return null;
+      return filePath;
+    } catch {
+      return null;
+    }
+  });
+
   // Font management
   const fontsDir = path.join(app.getPath("userData"), "fonts");
 
