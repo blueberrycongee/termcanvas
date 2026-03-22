@@ -43,7 +43,12 @@ export function CompletionGlow() {
     if (changed) forceUpdate((n) => n + 1);
   });
 
-  // Compute which sides to show
+  // Compute which sides to show.
+  // Navigation is circular (nextTerminal wraps around), so the glow
+  // direction must account for wrap-around.  "Left" means prevTerminal
+  // would reach an unseen completed terminal; "right" means nextTerminal
+  // would.  We pick the shorter circular direction for each unseen
+  // terminal to decide which side to illuminate.
   const unseen = (t: { id: string; status: string }) =>
     t.status === "completed" && !seenRef.current.has(t.id);
 
@@ -51,34 +56,48 @@ export function CompletionGlow() {
   let showRight = false;
 
   if (focusedIdx === -1) {
-    // No focus: any unseen completed → right glow
-    showRight = terminals.some(unseen);
+    // No focus: any unseen completed → show both sides
+    const hasUnseen = terminals.some(unseen);
+    showLeft = hasUnseen;
+    showRight = hasUnseen;
   } else {
-    showLeft = terminals.slice(0, focusedIdx).some(unseen);
-    showRight = terminals.slice(focusedIdx + 1).some(unseen);
+    const n = terminals.length;
+    for (let i = 0; i < n; i++) {
+      if (i === focusedIdx || !unseen(terminals[i])) continue;
+      // Distance going forward (nextTerminal direction → right glow)
+      const fwd = (i - focusedIdx + n) % n;
+      // Distance going backward (prevTerminal direction → left glow)
+      const bwd = (focusedIdx - i + n) % n;
+      if (fwd <= bwd) {
+        showRight = true;
+      } else {
+        showLeft = true;
+      }
+      if (showLeft && showRight) break;
+    }
   }
 
   return (
     <>
       <div
-        className="fixed left-0 pointer-events-none z-40 transition-opacity duration-300 ease-out"
+        className="fixed left-0 pointer-events-none z-40 transition-opacity duration-500 ease-out"
         style={{
           top: 44,
-          width: 60,
+          width: 90,
           height: "calc(100vh - 44px)",
           background:
-            "linear-gradient(to right, rgba(59,130,246,0.12), transparent)",
+            "linear-gradient(to right, rgba(59,130,246,0.28), transparent)",
           opacity: showLeft ? 1 : 0,
         }}
       />
       <div
-        className="fixed right-0 pointer-events-none z-40 transition-opacity duration-300 ease-out"
+        className="fixed right-0 pointer-events-none z-40 transition-opacity duration-500 ease-out"
         style={{
           top: 44,
-          width: 60,
+          width: 90,
           height: "calc(100vh - 44px)",
           background:
-            "linear-gradient(to left, rgba(59,130,246,0.12), transparent)",
+            "linear-gradient(to left, rgba(59,130,246,0.28), transparent)",
           opacity: showRight ? 1 : 0,
         }}
       />
