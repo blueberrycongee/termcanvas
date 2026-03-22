@@ -8,7 +8,10 @@ import { useNotificationStore } from "../stores/notificationStore";
 import { useCanvasStore, SIDEBAR_WIDTH, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { getComposerAdapter } from "../terminal/cliConfig";
 import { filterSlashCommands } from "../terminal/slashCommands";
-import { shouldSubmitComposerFromKeyEvent } from "./composerInputBehavior";
+import {
+  getComposerPassthroughSequence,
+  shouldSubmitComposerFromKeyEvent,
+} from "./composerInputBehavior";
 import {
   getComposerTargetState,
   getSupportedTerminals,
@@ -67,52 +70,6 @@ function formatComposerFailure(
     ? `${baseDetail} [${result.code}]`
     : baseDetail;
   return t.composer_submit_failed_with_context(targetTitle, stage, detail);
-}
-
-const ARROW_SEQUENCES: Record<string, string> = {
-  ArrowUp: "\x1b[A",
-  ArrowDown: "\x1b[B",
-  ArrowRight: "\x1b[C",
-  ArrowLeft: "\x1b[D",
-};
-
-/**
- * Map keyboard events to terminal escape sequences for keys that should be
- * forwarded to the PTY rather than handled by the Composer textarea.
- * Returns null if the key should stay in the textarea.
- */
-function getPassthroughSequence(
-  event: React.KeyboardEvent<HTMLTextAreaElement>,
-  draft: string,
-  hasImages: boolean,
-): string | null {
-  // Shift+Tab → mode cycling (e.g. Claude Code permission modes)
-  if (event.key === "Tab" && event.shiftKey) return "\x1b[Z";
-  // Escape → cancel / go back
-  if (event.key === "Escape") return "\x1b";
-  // Ctrl+C → interrupt (only when no text is selected, so copy still works)
-  if (event.key === "c" && event.ctrlKey && !event.metaKey) {
-    const el = event.target as HTMLTextAreaElement;
-    if (el.selectionStart === el.selectionEnd) {
-      return "\x03";
-    }
-  }
-  // Enter → forward to terminal when Composer has no content
-  // (e.g. confirm permission prompts, accept defaults)
-  if (event.key === "Enter" && !event.shiftKey && draft.trim().length === 0 && !hasImages) {
-    return "\r";
-  }
-  // Backspace → forward to terminal when Composer is empty
-  if (event.key === "Backspace" && draft.length === 0 && !hasImages) {
-    return "\x7f";
-  }
-  // Cmd+Arrow → always forward to terminal (history / cursor control)
-  // Plain Arrow → forward only when Composer is empty
-  const arrowSeq = ARROW_SEQUENCES[event.key];
-  if (arrowSeq && (event.metaKey || draft.trim().length === 0)) {
-    return arrowSeq;
-  }
-  return null;
 }
 
 export function ComposerBar() {
@@ -696,7 +653,12 @@ export function ComposerBar() {
                 }
 
                 if (targetTerminal) {
-                  const seq = getPassthroughSequence(event, draft, images.length > 0);
+                  const seq = getComposerPassthroughSequence(
+                    event,
+                    draft,
+                    images.length > 0,
+                    window.termcanvas?.app.platform ?? "darwin",
+                  );
                   if (seq !== null) {
                     event.preventDefault();
                     window.termcanvas.terminal.input(targetTerminal.ptyId, seq);

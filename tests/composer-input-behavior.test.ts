@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { shouldSubmitComposerFromKeyEvent } from "../src/components/composerInputBehavior.ts";
+import {
+  getComposerPassthroughSequence,
+  shouldSubmitComposerFromKeyEvent,
+} from "../src/components/composerInputBehavior.ts";
 
 test("Enter submits the composer", () => {
   assert.equal(
@@ -33,5 +36,39 @@ test("Composing text with an IME does not submit on Enter", () => {
       },
     }),
     false,
+  );
+});
+
+test("Windows Ctrl+Arrow forwards to terminal even with draft text", () => {
+  assert.equal(
+    getComposerPassthroughSequence(
+      {
+        key: "ArrowUp",
+        shiftKey: false,
+        ctrlKey: true,
+        metaKey: false,
+      },
+      "hello",
+      false,
+      "win32",
+    ),
+    "\x1b[A",
+  );
+});
+
+test("Windows plain Arrow stays in composer when draft has text", () => {
+  assert.equal(
+    getComposerPassthroughSequence(
+      {
+        key: "ArrowUp",
+        shiftKey: false,
+        ctrlKey: false,
+        metaKey: false,
+      },
+      "hello",
+      false,
+      "win32",
+    ),
+    null,
   );
 });
