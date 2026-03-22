@@ -22,6 +22,13 @@ import {
 } from "./hydra-skill";
 import { buildLaunchSpec } from "./pty-launch.js";
 import {
+  addWindowsPathEntry,
+  hasWindowsPathEntry,
+  readWindowsUserPath,
+  removeWindowsPathEntry,
+  writeWindowsUserPath,
+} from "./windows-cli-path";
+import {
   createDefaultComposerSubmitDeps,
   submitComposerRequest,
 } from "./composer-submit";
@@ -850,6 +857,14 @@ function getPathExportLine(): string {
 }
 
 function isCliRegistered(): boolean {
+  if (process.platform === "win32") {
+    try {
+      return hasWindowsPathEntry(readWindowsUserPath(), getCliDir());
+    } catch {
+      return false;
+    }
+  }
+
   if (process.platform === "darwin") {
     try {
       const content = fs.readFileSync(ZPROFILE_PATH, "utf-8");
@@ -884,6 +899,16 @@ function registerCli(): boolean {
   }
 
   let ok = false;
+
+  if (process.platform === "win32") {
+    try {
+      const nextPath = addWindowsPathEntry(readWindowsUserPath(), cliDir);
+      writeWindowsUserPath(nextPath);
+      ok = true;
+    } catch {
+      return false;
+    }
+  }
 
   if (process.platform === "darwin") {
     const line = getPathExportLine();
@@ -943,6 +968,16 @@ function registerCli(): boolean {
 function unregisterCli(): boolean {
   // Auto-uninstall hydra skill alongside CLI
   uninstallSkill();
+
+  if (process.platform === "win32") {
+    try {
+      const nextPath = removeWindowsPathEntry(readWindowsUserPath(), getCliDir());
+      writeWindowsUserPath(nextPath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   if (process.platform === "darwin") {
     const line = getPathExportLine();
