@@ -170,6 +170,60 @@ export const TERMINAL_CONFIG: Record<TerminalType, TerminalAdapterConfig> = {
       pasteStrategy: "separate",
     },
   },
+  aider: {
+    type: "aider",
+    launch: {
+      shell: "aider",
+      resumeArgs: () => [],
+      newArgs: () => [],
+    },
+    composer: {
+      supportsComposer: true,
+      allowedStatuses: INTERACTIVE_STATUSES,
+      inputMode: "bracketed-paste",
+      supportsImages: false,
+      pasteKeySequence: () => "",
+      imageFallback: "error",
+      pasteDelayMs: 120,
+      pasteStrategy: "separate",
+    },
+  },
+  amp: {
+    type: "amp",
+    launch: {
+      shell: "amp",
+      resumeArgs: () => [],
+      newArgs: () => [],
+    },
+    composer: {
+      supportsComposer: true,
+      allowedStatuses: INTERACTIVE_STATUSES,
+      inputMode: "bracketed-paste",
+      supportsImages: false,
+      pasteKeySequence: () => "",
+      imageFallback: "error",
+      pasteDelayMs: 120,
+      pasteStrategy: "separate",
+    },
+  },
+  roocode: {
+    type: "roocode",
+    launch: {
+      shell: "roo",
+      resumeArgs: () => [],
+      newArgs: () => [],
+    },
+    composer: {
+      supportsComposer: true,
+      allowedStatuses: INTERACTIVE_STATUSES,
+      inputMode: "bracketed-paste",
+      supportsImages: false,
+      pasteKeySequence: () => "",
+      imageFallback: "error",
+      pasteDelayMs: 120,
+      pasteStrategy: "separate",
+    },
+  },
   lazygit: {
     type: "lazygit",
     launch: {
