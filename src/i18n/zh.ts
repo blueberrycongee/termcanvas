@@ -314,4 +314,18 @@ export const zh = {
   onboarding_complete: "教程完成！关闭此窗口后，按 {shortcut} 添加你的第一个项目。",
   onboarding_complete_dismiss: "按 Enter 或 Escape 关闭。",
   onboarding_skip: "Escape 跳过",
+
+  // Onboarding tutorial (stepped walkthrough)
+  onboarding_canvas_title: "无限画布",
+  onboarding_canvas_desc: "拖拽背景平移画布，滚轮缩放视图，点击工具栏「适合」按钮复位。",
+  onboarding_terminals_title: "终端磁贴",
+  onboarding_terminals_desc: "添加项目后在工作树中创建终端。双击标题栏聚焦，用快捷键调整大小。",
+  onboarding_composer_title: "Composer 输入栏",
+  onboarding_composer_desc: "通过底部输入栏向聚焦终端发送命令。Agent 终端支持粘贴截图和拖放文件。",
+  onboarding_shortcuts_title: "常用快捷键",
+  onboarding_shortcuts_desc: "以下快捷键帮助你快速上手：",
+  onboarding_btn_skip: "跳过",
+  onboarding_btn_back: "上一步",
+  onboarding_btn_next: "下一步",
+  onboarding_btn_done: "开始使用",
 } as const;

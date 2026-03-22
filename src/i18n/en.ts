@@ -316,6 +316,20 @@ export const en = {
   onboarding_complete: "Tutorial complete! Close this window, then press {shortcut} to add your first project.",
   onboarding_complete_dismiss: "Press Enter or Escape to close.",
   onboarding_skip: "Escape to skip",
+
+  // Onboarding tutorial (stepped walkthrough)
+  onboarding_canvas_title: "Infinite Canvas",
+  onboarding_canvas_desc: "Drag the background to pan. Scroll to zoom in and out. Click \"Fit\" in the toolbar to reset the view.",
+  onboarding_terminals_title: "Terminal Tiles",
+  onboarding_terminals_desc: "Add a project to create terminal tiles in your worktrees. Double-click a title bar to focus. Use shortcuts to resize.",
+  onboarding_composer_title: "Composer",
+  onboarding_composer_desc: "Send commands to the focused terminal via the bottom bar. Agent terminals also accept pasted screenshots and dropped files.",
+  onboarding_shortcuts_title: "Key Shortcuts",
+  onboarding_shortcuts_desc: "A few shortcuts to get you started:",
+  onboarding_btn_skip: "Skip",
+  onboarding_btn_back: "Back",
+  onboarding_btn_next: "Next",
+  onboarding_btn_done: "Get Started",
 } as const;
 
 export type TranslationKey = keyof typeof en;
