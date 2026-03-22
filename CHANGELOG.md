@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.38] - 2026-03-22
+
+### Fixed
+- GitHub login: use PKCE flow explicitly — code arrives via query param, no hash fragment relay needed
+
 ## [0.8.37] - 2026-03-22
 
 ### Fixed

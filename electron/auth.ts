@@ -277,6 +277,7 @@ export async function initAuth(): Promise<void> {
     auth: {
       autoRefreshToken: true,
       persistSession: false, // We handle persistence ourselves
+      flowType: "pkce",
     },
   });
 

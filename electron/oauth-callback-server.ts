@@ -27,7 +27,7 @@ const RELAY_HTML = `<!DOCTYPE html>
     refresh_token: params.get('refresh_token')
   };
   if (!data.access_token || !data.refresh_token) {
-    document.body.textContent = 'Debug: hash=' + h + ' | href=' + location.href;
+    document.body.textContent = 'Login failed. Please try again.';
     return;
   }
   fetch('/auth/receive', {
