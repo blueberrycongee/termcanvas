@@ -8,28 +8,52 @@ export const TERMCANVAS_DIR = path.join(
   isDev ? ".termcanvas-dev" : ".termcanvas",
 );
 const STATE_FILE = path.join(TERMCANVAS_DIR, "state.json");
+const PREFERENCES_FILE = path.join(TERMCANVAS_DIR, "preferences.json");
+
+function ensureDir(): void {
+  if (!fs.existsSync(TERMCANVAS_DIR)) {
+    fs.mkdirSync(TERMCANVAS_DIR, { recursive: true });
+  }
+}
+
+function loadJsonFile(filePath: string): unknown | null {
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    const data = fs.readFileSync(filePath, "utf-8");
+    return JSON.parse(data);
+  } catch (err) {
+    console.error(`[Persistence] failed to load ${filePath}:`, err);
+    return null;
+  }
+}
+
+function saveJsonFile(filePath: string, data: unknown): void {
+  ensureDir();
+  const tmp = filePath + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
+  fs.renameSync(tmp, filePath);
+}
 
 export class StatePersistence {
   constructor() {
-    if (!fs.existsSync(TERMCANVAS_DIR)) {
-      fs.mkdirSync(TERMCANVAS_DIR, { recursive: true });
-    }
+    ensureDir();
   }
 
   load(): unknown | null {
-    try {
-      if (!fs.existsSync(STATE_FILE)) return null;
-      const data = fs.readFileSync(STATE_FILE, "utf-8");
-      return JSON.parse(data);
-    } catch (err) {
-      console.error("[StatePersistence] failed to load state:", err);
-      return null;
-    }
+    return loadJsonFile(STATE_FILE);
   }
 
-  save(state: unknown) {
-    const tmp = STATE_FILE + ".tmp";
-    fs.writeFileSync(tmp, JSON.stringify(state, null, 2), "utf-8");
-    fs.renameSync(tmp, STATE_FILE);
+  save(state: unknown): void {
+    saveJsonFile(STATE_FILE, state);
+  }
+}
+
+export class PreferencesPersistence {
+  load(): unknown | null {
+    return loadJsonFile(PREFERENCES_FILE);
+  }
+
+  save(prefs: unknown): void {
+    saveJsonFile(PREFERENCES_FILE, prefs);
   }
 }

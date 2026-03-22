@@ -265,6 +265,10 @@ export interface TermCanvasAPI {
     load: () => Promise<CanvasState | null>;
     save: (state: unknown) => Promise<void>;
   };
+  preferences: {
+    load: () => Promise<unknown | null>;
+    save: (prefs: unknown) => Promise<void>;
+  };
   workspace: {
     save: (data: string) => Promise<string | null>;
     open: () => Promise<string | null>;

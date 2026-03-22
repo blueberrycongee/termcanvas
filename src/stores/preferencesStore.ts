@@ -11,7 +11,17 @@ export interface CliCommandConfig {
   args: string[];
 }
 
-interface PreferencesStore {
+interface PreferencesData {
+  animationBlur: number;
+  terminalFontSize: number;
+  terminalFontFamily: string;
+  composerEnabled: boolean;
+  drawingEnabled: boolean;
+  minimumContrastRatio: number;
+  cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
+}
+
+interface PreferencesStore extends PreferencesData {
   /** Blur intensity in px (0 = off, max 3) */
   animationBlur: number;
   /** Terminal (xterm) font size in px (6–24) */
@@ -35,68 +45,67 @@ interface PreferencesStore {
   setCli: (type: TerminalType, config: CliCommandConfig | null) => void;
 }
 
-const STORAGE_KEY = "termcanvas-preferences";
+const DEFAULTS: PreferencesData = {
+  animationBlur: DEFAULT_BLUR,
+  terminalFontSize: DEFAULT_FONT_SIZE,
+  terminalFontFamily: "geist-mono",
+  composerEnabled: false,
+  drawingEnabled: false,
+  minimumContrastRatio: DEFAULT_MIN_CONTRAST,
+  cliCommands: {},
+};
 
-function loadPreferences(): { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> } {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      let blur = DEFAULT_BLUR;
-      const v = parsed.animationBlur;
-      if (v === true) blur = LEGACY_ENABLED_BLUR;
-      else if (v === false) blur = 0;
-      else if (typeof v === "number" && v >= 0 && v <= 3) blur = v;
+function parsePreferences(parsed: Record<string, unknown>): PreferencesData {
+  let blur = DEFAULT_BLUR;
+  const v = parsed.animationBlur;
+  if (v === true) blur = LEGACY_ENABLED_BLUR;
+  else if (v === false) blur = 0;
+  else if (typeof v === "number" && v >= 0 && v <= 3) blur = v;
 
-      let fontSize = DEFAULT_FONT_SIZE;
-      const f = parsed.terminalFontSize;
-      if (typeof f === "number" && f >= 6 && f <= 24) fontSize = f;
+  let fontSize = DEFAULT_FONT_SIZE;
+  const f = parsed.terminalFontSize;
+  if (typeof f === "number" && f >= 6 && f <= 24) fontSize = f;
 
-      let fontFamily = "geist-mono";
-      const ff = parsed.terminalFontFamily;
-      if (typeof ff === "string" && ff.length > 0) fontFamily = ff;
+  let fontFamily = "geist-mono";
+  const ff = parsed.terminalFontFamily;
+  if (typeof ff === "string" && ff.length > 0) fontFamily = ff;
 
-      let composerEnabled = false;
-      if (parsed.composerEnabled === true) composerEnabled = true;
+  let composerEnabled = false;
+  if (parsed.composerEnabled === true) composerEnabled = true;
 
-      let drawingEnabled = false;
-      if (parsed.drawingEnabled === true) drawingEnabled = true;
+  let drawingEnabled = false;
+  if (parsed.drawingEnabled === true) drawingEnabled = true;
 
-      let minimumContrastRatio = DEFAULT_MIN_CONTRAST;
-      const mcr = parsed.minimumContrastRatio;
-      if (typeof mcr === "number" && mcr >= 1 && mcr <= 7) minimumContrastRatio = mcr;
+  let minimumContrastRatio = DEFAULT_MIN_CONTRAST;
+  const mcr = parsed.minimumContrastRatio;
+  if (typeof mcr === "number" && mcr >= 1 && mcr <= 7) minimumContrastRatio = mcr;
 
-      const cliCommands: Partial<Record<TerminalType, CliCommandConfig>> = {};
-      if (parsed.cliCommands && typeof parsed.cliCommands === "object") {
-        for (const [key, val] of Object.entries(parsed.cliCommands)) {
-          if (val && typeof val === "object" && typeof (val as CliCommandConfig).command === "string") {
-            cliCommands[key as TerminalType] = val as CliCommandConfig;
-          }
-        }
+  const cliCommands: Partial<Record<TerminalType, CliCommandConfig>> = {};
+  if (parsed.cliCommands && typeof parsed.cliCommands === "object") {
+    for (const [key, val] of Object.entries(parsed.cliCommands as Record<string, unknown>)) {
+      if (val && typeof val === "object" && typeof (val as CliCommandConfig).command === "string") {
+        cliCommands[key as TerminalType] = val as CliCommandConfig;
       }
-
-      return { animationBlur: blur, terminalFontSize: fontSize, terminalFontFamily: fontFamily, composerEnabled, drawingEnabled, minimumContrastRatio, cliCommands };
     }
-  } catch {
-    // ignore
   }
-  return { animationBlur: DEFAULT_BLUR, terminalFontSize: DEFAULT_FONT_SIZE, terminalFontFamily: "geist-mono", composerEnabled: false, drawingEnabled: false, minimumContrastRatio: DEFAULT_MIN_CONTRAST, cliCommands: {} };
+
+  return { animationBlur: blur, terminalFontSize: fontSize, terminalFontFamily: fontFamily, composerEnabled, drawingEnabled, minimumContrastRatio, cliCommands };
 }
 
-function savePreferences(state: { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> }) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+function getPrefsData(state: PreferencesStore): PreferencesData {
+  const { animationBlur, terminalFontSize, terminalFontFamily, composerEnabled, drawingEnabled, minimumContrastRatio, cliCommands } = state;
+  return { animationBlur, terminalFontSize, terminalFontFamily, composerEnabled, drawingEnabled, minimumContrastRatio, cliCommands };
 }
 
-const initialPrefs = loadPreferences();
+function savePreferences(state: PreferencesStore): void {
+  const data = getPrefsData(state);
+  if (window.termcanvas?.preferences) {
+    window.termcanvas.preferences.save(data);
+  }
+}
 
 export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
-  animationBlur: initialPrefs.animationBlur,
-  terminalFontSize: initialPrefs.terminalFontSize,
-  terminalFontFamily: initialPrefs.terminalFontFamily,
-  composerEnabled: initialPrefs.composerEnabled,
-  drawingEnabled: initialPrefs.drawingEnabled,
-  minimumContrastRatio: initialPrefs.minimumContrastRatio,
-  cliCommands: initialPrefs.cliCommands,
+  ...DEFAULTS,
   setAnimationBlur: (value) => {
     const clamped = Math.round(Math.max(0, Math.min(3, value)) * 10) / 10;
     set({ animationBlur: clamped });
@@ -135,3 +144,17 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
     savePreferences({ ...get(), cliCommands: current });
   },
 }));
+
+/** Load preferences from disk via IPC and hydrate the store. Call once on app startup. */
+export async function hydratePreferences(): Promise<void> {
+  if (!window.termcanvas?.preferences) return;
+  try {
+    const saved = await window.termcanvas.preferences.load();
+    if (saved && typeof saved === "object") {
+      const prefs = parsePreferences(saved as Record<string, unknown>);
+      usePreferencesStore.setState(prefs);
+    }
+  } catch (err) {
+    console.error("[PreferencesStore] failed to hydrate from disk:", err);
+  }
+}

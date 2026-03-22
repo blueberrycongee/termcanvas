@@ -7,7 +7,7 @@ import os from "os";
 import { fileURLToPath } from "url";
 import { PtyManager, OutputBatcher } from "./pty-manager";
 import { ProjectScanner } from "./project-scanner";
-import { StatePersistence, TERMCANVAS_DIR } from "./state-persistence";
+import { StatePersistence, PreferencesPersistence, TERMCANVAS_DIR } from "./state-persistence";
 import { GitFileWatcher } from "./git-watcher";
 import { SessionWatcher, type SessionType } from "./session-watcher";
 import { ApiServer } from "./api-server";
@@ -70,6 +70,7 @@ const outputBatcher = new OutputBatcher((ptyId, data) => {
 });
 const projectScanner = new ProjectScanner();
 const statePersistence = new StatePersistence();
+const prefsPersistence = new PreferencesPersistence();
 const gitWatcher = new GitFileWatcher();
 const sessionWatcher = new SessionWatcher();
 const apiServer = new ApiServer({
@@ -454,6 +455,15 @@ function setupIpc() {
 
   ipcMain.handle("state:save", (_event, state: unknown) => {
     statePersistence.save(state);
+  });
+
+  // Preferences IPC
+  ipcMain.handle("preferences:load", () => {
+    return prefsPersistence.load();
+  });
+
+  ipcMain.handle("preferences:save", (_event, prefs: unknown) => {
+    prefsPersistence.save(prefs);
   });
 
   // Workspace file IPC
