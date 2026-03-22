@@ -5,7 +5,7 @@ import path from "path";
 import crypto from "crypto";
 import os from "os";
 import { TERMCANVAS_DIR } from "./state-persistence";
-import { startCallbackServer } from "./oauth-callback-server";
+import { startCallbackServer, type CallbackResult } from "./oauth-callback-server";
 
 // ── Types ──
 
@@ -154,6 +154,41 @@ export function isLoggedIn(): boolean {
   return currentUser !== null;
 }
 
+async function processCallbackResult(client: SupabaseClient, result: CallbackResult): Promise<void> {
+  try {
+    if (result.type === "code") {
+      // PKCE flow: exchange authorization code for session
+      const { data, error } = await client.auth.exchangeCodeForSession(result.code);
+      if (error) {
+        console.error("[Auth] Code exchange failed:", error.message);
+        return;
+      }
+      if (data.session) {
+        saveSession(data.session);
+        setUser(extractUser(data.session));
+        console.log("[Auth] Login successful (PKCE)");
+      }
+    } else {
+      // Implicit flow: set session directly from tokens
+      const { data, error } = await client.auth.setSession({
+        access_token: result.access_token,
+        refresh_token: result.refresh_token,
+      });
+      if (error) {
+        console.error("[Auth] Set session failed:", error.message);
+        return;
+      }
+      if (data.session) {
+        saveSession(data.session);
+        setUser(extractUser(data.session));
+        console.log("[Auth] Login successful (implicit)");
+      }
+    }
+  } catch (err) {
+    console.error("[Auth] processCallbackResult error:", err);
+  }
+}
+
 export async function login(): Promise<LoginResult> {
   if (!supabase) {
     console.warn("[Auth] Supabase not configured, cannot login");
@@ -161,8 +196,8 @@ export async function login(): Promise<LoginResult> {
   }
 
   try {
-    // Start local HTTP server to receive OAuth callback tokens
-    const { port, tokenPromise, close } = await startCallbackServer();
+    // Start local HTTP server to receive OAuth callback
+    const { port, resultPromise, close } = await startCallbackServer();
     const redirectTo = `http://127.0.0.1:${port}/auth/callback`;
 
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -192,15 +227,14 @@ export async function login(): Promise<LoginResult> {
       return { ok: false, url: data.url, error: "Failed to open browser" };
     }
 
-    // Wait for tokens in background, process when received
-    tokenPromise.then(async (tokens) => {
+    // Wait for callback result in background
+    resultPromise.then(async (result) => {
       close();
-      if (!tokens) {
+      if (!result) {
         console.warn("[Auth] OAuth callback timed out");
         return;
       }
-      const fakeUrl = `http://localhost/auth/callback#access_token=${encodeURIComponent(tokens.access_token)}&refresh_token=${encodeURIComponent(tokens.refresh_token)}`;
-      await handleAuthCallback(fakeUrl);
+      await processCallbackResult(supabase!, result);
     }).catch((err) => {
       close();
       console.error("[Auth] Callback error:", err);

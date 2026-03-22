@@ -3,12 +3,18 @@ import http from "http";
 const OAUTH_CALLBACK_PORT = 17249;
 const OAUTH_CALLBACK_TIMEOUT = 30_000;
 
-export interface CallbackTokens {
-  access_token: string;
-  refresh_token: string;
-}
+/** Result from the OAuth callback — either a PKCE code or raw tokens (implicit flow). */
+export type CallbackResult =
+  | { type: "code"; code: string }
+  | { type: "tokens"; access_token: string; refresh_token: string };
 
-const CALLBACK_HTML = `<!DOCTYPE html>
+const SUCCESS_HTML = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head><body>
+<p>Login successful! You can close this tab.</p>
+</body></html>`;
+
+/** HTML page that relays hash-fragment tokens back via POST (implicit flow fallback). */
+const RELAY_HTML = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head><body>
 <p>Completing login...</p>
 <script>
@@ -39,16 +45,35 @@ const CALLBACK_HTML = `<!DOCTYPE html>
 
 export function startCallbackServer(
   timeoutMs: number = OAUTH_CALLBACK_TIMEOUT,
-): Promise<{ port: number; tokenPromise: Promise<CallbackTokens | null>; close: () => void }> {
+): Promise<{ port: number; resultPromise: Promise<CallbackResult | null>; close: () => void }> {
   return new Promise((resolveSetup) => {
     let settled = false;
-    let resolveTokens: (v: CallbackTokens | null) => void;
-    const tokenPromise = new Promise<CallbackTokens | null>((r) => { resolveTokens = r; });
+    let resolveResult: (v: CallbackResult | null) => void;
+    const resultPromise = new Promise<CallbackResult | null>((r) => { resolveResult = r; });
+
+    function settle(result: CallbackResult) {
+      if (!settled) {
+        settled = true;
+        resolveResult(result);
+      }
+    }
 
     const server = http.createServer((req, res) => {
       if (req.method === "GET" && req.url?.startsWith("/auth/callback")) {
+        const url = new URL(req.url, `http://127.0.0.1`);
+        const code = url.searchParams.get("code");
+
+        if (code) {
+          // PKCE flow: code arrives as query param — handle server-side
+          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+          res.end(SUCCESS_HTML);
+          settle({ type: "code", code });
+          return;
+        }
+
+        // Implicit flow fallback: tokens are in hash fragment (browser-only)
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(CALLBACK_HTML);
+        res.end(RELAY_HTML);
         return;
       }
 
@@ -59,10 +84,9 @@ export function startCallbackServer(
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end('{"ok":true}');
           try {
-            const tokens = JSON.parse(body) as CallbackTokens;
-            if (!settled) {
-              settled = true;
-              resolveTokens(tokens);
+            const data = JSON.parse(body);
+            if (data.access_token && data.refresh_token) {
+              settle({ type: "tokens", access_token: data.access_token, refresh_token: data.refresh_token });
             }
           } catch { /* ignore parse errors */ }
         });
@@ -76,7 +100,7 @@ export function startCallbackServer(
     const timeout = setTimeout(() => {
       if (!settled) {
         settled = true;
-        resolveTokens(null);
+        resolveResult(null);
       }
     }, timeoutMs);
 
@@ -88,7 +112,7 @@ export function startCallbackServer(
     server.listen(OAUTH_CALLBACK_PORT, "127.0.0.1", () => {
       const addr = server.address();
       const port = typeof addr === "object" && addr ? addr.port : OAUTH_CALLBACK_PORT;
-      resolveSetup({ port, tokenPromise, close });
+      resolveSetup({ port, resultPromise, close });
     });
   });
 }

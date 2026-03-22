@@ -3,8 +3,23 @@ import assert from "node:assert/strict";
 
 import { startCallbackServer } from "../electron/oauth-callback-server.ts";
 
-test("callback server returns HTML page on GET /auth/callback", async () => {
-  const { port, tokenPromise, close } = await startCallbackServer();
+test("callback server resolves PKCE code from query param", async () => {
+  const { port, resultPromise, close } = await startCallbackServer();
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/auth/callback?code=test-code-123`);
+    assert.equal(res.status, 200);
+    const html = await res.text();
+    assert.ok(html.includes("Login successful"), "should show success page");
+
+    const result = await resultPromise;
+    assert.deepEqual(result, { type: "code", code: "test-code-123" });
+  } finally {
+    close();
+  }
+});
+
+test("callback server returns relay HTML when no code param (implicit flow)", async () => {
+  const { port, resultPromise, close } = await startCallbackServer();
   try {
     const res = await fetch(`http://127.0.0.1:${port}/auth/callback`);
     assert.equal(res.status, 200);
@@ -17,7 +32,7 @@ test("callback server returns HTML page on GET /auth/callback", async () => {
 });
 
 test("callback server resolves tokens on POST /auth/receive", async () => {
-  const { port, tokenPromise, close } = await startCallbackServer();
+  const { port, resultPromise, close } = await startCallbackServer();
   try {
     const res = await fetch(`http://127.0.0.1:${port}/auth/receive`, {
       method: "POST",
@@ -29,19 +44,18 @@ test("callback server resolves tokens on POST /auth/receive", async () => {
     });
     assert.equal(res.status, 200);
 
-    const tokens = await tokenPromise;
-    assert.equal(tokens!.access_token, "test-access");
-    assert.equal(tokens!.refresh_token, "test-refresh");
+    const result = await resultPromise;
+    assert.deepEqual(result, { type: "tokens", access_token: "test-access", refresh_token: "test-refresh" });
   } finally {
     close();
   }
 });
 
 test("callback server times out after deadline", async () => {
-  const { tokenPromise, close } = await startCallbackServer(500);
+  const { resultPromise, close } = await startCallbackServer(500);
   try {
-    const tokens = await tokenPromise;
-    assert.equal(tokens, null, "should resolve null on timeout");
+    const result = await resultPromise;
+    assert.equal(result, null, "should resolve null on timeout");
   } finally {
     close();
   }
