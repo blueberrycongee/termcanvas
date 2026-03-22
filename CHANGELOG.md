@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.37] - 2026-03-22
+
+### Fixed
+- GitHub login: add diagnostic output for OAuth callback debugging
+
 ## [0.8.36] - 2026-03-22
 
 ### Fixed
