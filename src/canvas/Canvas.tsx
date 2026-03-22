@@ -58,7 +58,6 @@ export function Canvas() {
           transition: animationBlur > 0 ? "filter 0.15s ease" : "none",
         }}
       >
-        <ConnectionOverlay />
         {projects.map((project) => (
           <div
             key={project.id}
@@ -69,6 +68,7 @@ export function Canvas() {
             <ProjectContainer project={project} />
           </div>
         ))}
+        <ConnectionOverlay />
         {Object.values(browserCards).map((card) => (
           <BrowserCard key={card.id} card={card} />
         ))}

@@ -131,7 +131,7 @@ export function ConnectionOverlay() {
   return (
     <svg
       className="absolute pointer-events-none"
-      style={{ overflow: "visible", zIndex: -1, top: 0, left: 0, width: 1, height: 1 }}
+      style={{ overflow: "visible", zIndex: Math.max(0, ...projects.map((p) => p.zIndex ?? 0)) + 1, top: 0, left: 0, width: 1, height: 1 }}
     >
       <defs>
         <filter id="tc-conn-glow">
