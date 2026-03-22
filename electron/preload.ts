@@ -96,6 +96,10 @@ contextBridge.exposeInMainWorld("termcanvas", {
     load: () => ipcRenderer.invoke("state:load"),
     save: (state: unknown) => ipcRenderer.invoke("state:save", state),
   },
+  preferences: {
+    load: () => ipcRenderer.invoke("preferences:load"),
+    save: (prefs: unknown) => ipcRenderer.invoke("preferences:save", prefs),
+  },
   workspace: {
     save: (data: string) =>
       ipcRenderer.invoke("workspace:save", data) as Promise<string | null>,
