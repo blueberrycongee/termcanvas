@@ -367,13 +367,17 @@ export function parseCodexSession(
     if (!totalUsage) continue;
 
     // Keep overwriting — the last one in the file is the final cumulative total
+    // OpenAI's input_tokens INCLUDES cached_input_tokens (unlike Claude's API),
+    // so subtract to get non-cached input for correct cost calculation.
+    const inputTotal = totalUsage.input_tokens ?? 0;
+    const cachedInput = totalUsage.cached_input_tokens ?? 0;
     lastRecord = {
       ts: tsClean,
       msgId: path.basename(filePath) + ":total",
       model: "codex",
-      input: totalUsage.input_tokens ?? 0,
+      input: inputTotal - cachedInput,
       output: totalUsage.output_tokens ?? 0,
-      cacheRead: totalUsage.cached_input_tokens ?? 0,
+      cacheRead: cachedInput,
       cacheCreate5m: 0,
       cacheCreate1h: 0,
       projectPath,
