@@ -17,22 +17,27 @@ interface SparklineChartProps {
   buckets: UsageBucket[];
   /** When true, bars animate in with stagger */
   animate: boolean;
+  /** YYYY-MM-DD date string for the displayed data */
+  date?: string;
 }
 
-export function SparklineChart({ buckets, animate }: SparklineChartProps) {
+export function SparklineChart({ buckets, animate, date }: SparklineChartProps) {
   const t = useT();
   const [hovered, setHovered] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const max = Math.max(...buckets.map((b) => b.cost), 0.001);
   const now = new Date();
   const currentHour = now.getHours();
+  // Past dates have no future buckets — the full 24h has elapsed
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const isToday = !date || date === todayStr;
 
   return (
     <div ref={containerRef} className="relative">
       <div className="flex items-end gap-px h-10">
         {buckets.map((b, i) => {
           const h = max > 0 ? Math.max(0, (b.cost / max) * 100) : 0;
-          const isFuture = b.hourStart > currentHour;
+          const isFuture = isToday && b.hourStart > currentHour;
           const isActive = b.calls > 0;
           const barH = isFuture ? 4 : Math.max(isActive ? 12 : 4, h);
           const isHovered = hovered === i;

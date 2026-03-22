@@ -252,7 +252,7 @@ function TimelineSection({
         {t.usage_timeline}
       </span>
       <div className="mt-2">
-        <SparklineChart buckets={summary.buckets} animate={animate} />
+        <SparklineChart buckets={summary.buckets} animate={animate} date={summary.date} />
       </div>
     </div>
   );
