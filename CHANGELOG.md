@@ -2,6 +2,21 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.39] - 2026-03-22
+
+### Fixed
+- Auth: rewrite OAuth callback server with proper error handling, PKCE support, and 120s timeout
+- Auth: surface Supabase error details instead of generic "Login failed" message
+- Auth: handle EADDRINUSE when callback port is occupied
+- Settings: prevent keyboard shortcuts list from overflowing the modal
+- Theme: persist dark/light mode choice to localStorage across sessions
+- Workspace: mark project dirty when renaming a terminal tab
+- Drag & drop: quote file paths containing spaces or special characters
+
+### Internationalization
+- Canvas: internationalize empty state onboarding text (en/zh)
+- Update modal: internationalize all UI strings (en/zh)
+
 ## [0.8.33] - 2026-03-22
 
 ### Fixed
