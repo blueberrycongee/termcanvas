@@ -2,6 +2,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+export function getHydraSkillLinkType(platform = process.platform): "junction" | "dir" {
+  return platform === "win32" ? "junction" : "dir";
+}
+
 export function getHydraSkillLinks(home = os.homedir()): string[] {
   return [
     path.join(home, ".claude", "skills", "hydra"),
@@ -26,6 +30,7 @@ export function installHydraSkillLinks({
   sourceDir: string;
 }): boolean {
   try {
+    const linkType = getHydraSkillLinkType();
     for (const link of getHydraSkillLinks(home)) {
       fs.mkdirSync(path.dirname(link), { recursive: true });
       try {
@@ -33,7 +38,7 @@ export function installHydraSkillLinks({
       } catch {
         // ignore missing stale links
       }
-      fs.symlinkSync(sourceDir, link);
+      fs.symlinkSync(sourceDir, link, linkType);
     }
     return true;
   } catch {
@@ -49,6 +54,7 @@ export function ensureHydraSkillLinks({
   sourceDir: string;
 }): boolean {
   try {
+    const linkType = getHydraSkillLinkType();
     for (const link of getHydraSkillLinks(home)) {
       fs.mkdirSync(path.dirname(link), { recursive: true });
 
@@ -65,7 +71,7 @@ export function ensureHydraSkillLinks({
       } catch {
         // ignore missing stale links
       }
-      fs.symlinkSync(sourceDir, link);
+      fs.symlinkSync(sourceDir, link, linkType);
     }
     return true;
   } catch {

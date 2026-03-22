@@ -7,14 +7,15 @@ import path from "node:path";
 import {
   ensureHydraSkillLinks,
   getHydraSkillLinks,
+  getHydraSkillLinkType,
   installHydraSkillLinks,
   uninstallHydraSkillLinks,
 } from "../electron/hydra-skill.ts";
 
 test("getHydraSkillLinks includes both Claude and Codex skill directories", () => {
   assert.deepEqual(getHydraSkillLinks("/tmp/home"), [
-    "/tmp/home/.claude/skills/hydra",
-    "/tmp/home/.codex/skills/hydra",
+    path.join("/tmp/home", ".claude", "skills", "hydra"),
+    path.join("/tmp/home", ".codex", "skills", "hydra"),
   ]);
 });
 
@@ -55,7 +56,11 @@ test("ensureHydraSkillLinks creates missing links and updates stale targets", ()
   fs.mkdirSync(staleSourceDir, { recursive: true });
   fs.mkdirSync(currentSourceDir, { recursive: true });
   fs.mkdirSync(path.join(home, ".claude", "skills"), { recursive: true });
-  fs.symlinkSync(staleSourceDir, path.join(home, ".claude", "skills", "hydra"));
+  fs.symlinkSync(
+    staleSourceDir,
+    path.join(home, ".claude", "skills", "hydra"),
+    getHydraSkillLinkType(),
+  );
 
   assert.equal(ensureHydraSkillLinks({ home, sourceDir: currentSourceDir }), true);
 
