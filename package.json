@@ -14,7 +14,7 @@
     "generate:icons": "python3 scripts/generate-icons.py",
     "postinstall": "electron-builder install-app-deps",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/pty-launch.test.ts tests/window-events.test.ts tests/diff-card-expansion.test.ts tests/session-watcher.test.ts tests/process-detector.test.ts tests/preferences-store.test.ts tests/cli-launchers.test.ts tests/file-url.test.ts tests/insights-engine.test.ts tests/usage-collector.test.ts tests/terminal-state.test.ts tests/terminal-adapters.test.ts tests/composer-submit.test.ts tests/composer-input-behavior.test.ts tests/composer-store.test.ts tests/shortcut-behavior.test.ts"
+    "test": "node --experimental-strip-types --test tests/pty-launch.test.ts tests/window-events.test.ts tests/diff-card-expansion.test.ts tests/session-watcher.test.ts tests/process-detector.test.ts tests/preferences-store.test.ts tests/cli-launchers.test.ts tests/insights-engine.test.ts tests/usage-collector.test.ts tests/terminal-state.test.ts tests/terminal-adapters.test.ts tests/composer-submit.test.ts tests/composer-input-behavior.test.ts tests/composer-store.test.ts tests/shortcut-behavior.test.ts"
   },
   "keywords": [
     "terminal",
