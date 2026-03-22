@@ -54,11 +54,20 @@ export const zh = {
   image_changed: "图片文件已修改",
   binary_changed: "二进制文件已修改",
   file_count: (n: number) => `${n} 个文件`,
+  diff_prev_hunk: "上一个变更块",
+  diff_next_hunk: "下一个变更块",
+  diff_copy: "复制差异",
 
   // FileTreeCard / FileCard
   files: "文件",
   file_viewer: "文件",
   file_empty_dir: "空目录",
+  filetree_summary: (files: number, dirs: number) => {
+    const parts: string[] = [];
+    if (files > 0) parts.push(`${files} 个文件`);
+    if (dirs > 0) parts.push(`${dirs} 个目录`);
+    return parts.join("，");
+  },
   file_too_large: (size: string) => `文件过大 (${size})`,
   file_binary: "二进制文件",
   file_read_error: "读取文件失败",

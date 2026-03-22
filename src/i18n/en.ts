@@ -55,11 +55,20 @@ export const en = {
   image_changed: "Image file changed",
   binary_changed: "Binary file changed",
   file_count: (n: number) => `${n} file${n !== 1 ? "s" : ""}`,
+  diff_prev_hunk: "Previous hunk",
+  diff_next_hunk: "Next hunk",
+  diff_copy: "Copy diff",
 
   // FileTreeCard / FileCard
   files: "Files",
   file_viewer: "File",
   file_empty_dir: "Empty directory",
+  filetree_summary: (files: number, dirs: number) => {
+    const parts: string[] = [];
+    if (files > 0) parts.push(`${files} file${files !== 1 ? "s" : ""}`);
+    if (dirs > 0) parts.push(`${dirs} dir${dirs !== 1 ? "s" : ""}`);
+    return parts.join(", ");
+  },
   file_too_large: (size: string) => `File too large (${size})`,
   file_binary: "Binary file",
   file_read_error: "Failed to read file",

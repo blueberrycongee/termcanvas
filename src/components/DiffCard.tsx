@@ -18,9 +18,15 @@ interface FileInfo {
   imageNew: string | null;
 }
 
+interface Hunk {
+  header: string; // The @@ line
+  lines: string[];
+}
+
 interface FileDiff {
   file: FileInfo;
-  hunks: string[];
+  hunks: Hunk[];
+  rawContent: string; // Full diff content for copy
 }
 
 interface Props {
@@ -34,6 +40,24 @@ interface Props {
   onClose: () => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
+}
+
+function parseHunks(content: string): Hunk[] {
+  const hunks: Hunk[] = [];
+  const lines = content.split("\n");
+  let currentHunk: Hunk | null = null;
+
+  for (const line of lines) {
+    if (line.startsWith("@@")) {
+      if (currentHunk) hunks.push(currentHunk);
+      currentHunk = { header: line, lines: [] };
+    } else if (currentHunk) {
+      currentHunk.lines.push(line);
+    }
+    // Lines before first @@ (index, ---, +++) are skipped from hunks
+  }
+  if (currentHunk) hunks.push(currentHunk);
+  return hunks;
 }
 
 function parseDiff(raw: string, files: FileInfo[]): FileDiff[] {
@@ -59,13 +83,14 @@ function parseDiff(raw: string, files: FileInfo[]): FileDiff[] {
     };
     // Everything after the header is the diff content
     const content = lines.slice(1).join("\n");
-    result.push({ file, hunks: [content] });
+    const hunks = parseHunks(content);
+    result.push({ file, hunks, rawContent: content });
   }
 
   // Add files from numstat that have no diff section (binary only)
   for (const f of files) {
     if (f.binary && !result.find((r) => r.file.name === f.name)) {
-      result.push({ file: f, hunks: [] });
+      result.push({ file: f, hunks: [], rawContent: "" });
     }
   }
 
@@ -120,9 +145,12 @@ export function DiffCard({
   const [fileDiffs, setFileDiffs] = useState<FileDiff[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(() => new Set());
+  const [collapsedHunks, setCollapsedHunks] = useState<Set<string>>(() => new Set());
+  const [copyFeedback, setCopyFeedback] = useState(false);
   const [pos, setPos] = useState({ x: anchorX + 16, y: anchorY });
   const [size, setSize] = useState({ w: 400, h: 340 });
   const [justPinned, setJustPinned] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
     startX: number;
     startY: number;
@@ -281,6 +309,101 @@ export function DiffCard({
   const totalAdd = fileDiffs.reduce((s, f) => s + f.file.additions, 0);
   const totalDel = fileDiffs.reduce((s, f) => s + f.file.deletions, 0);
 
+  // Build flat list of all hunk anchors for navigation
+  const allHunkIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const fd of fileDiffs) {
+      for (let i = 0; i < fd.hunks.length; i++) {
+        ids.push(`${fd.file.name}:${i}`);
+      }
+    }
+    return ids;
+  }, [fileDiffs]);
+
+  const toggleHunkCollapse = useCallback((hunkId: string) => {
+    setCollapsedHunks((prev) => {
+      const next = new Set(prev);
+      if (next.has(hunkId)) next.delete(hunkId);
+      else next.add(hunkId);
+      return next;
+    });
+  }, []);
+
+  const scrollToHunk = useCallback((hunkId: string) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const el = container.querySelector(`[data-hunk-id="${hunkId}"]`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  const navigateHunk = useCallback(
+    (direction: "prev" | "next") => {
+      if (allHunkIds.length === 0) return;
+      const container = scrollContainerRef.current;
+      if (!container) return;
+
+      // Find which hunk is currently most visible
+      let currentIdx = -1;
+      const containerRect = container.getBoundingClientRect();
+      for (let i = 0; i < allHunkIds.length; i++) {
+        const el = container.querySelector(
+          `[data-hunk-id="${allHunkIds[i]}"]`,
+        );
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          if (rect.top <= containerRect.top + containerRect.height / 3) {
+            currentIdx = i;
+          }
+        }
+      }
+
+      const targetIdx =
+        direction === "next"
+          ? Math.min(currentIdx + 1, allHunkIds.length - 1)
+          : Math.max(currentIdx - 1, 0);
+
+      // Ensure the file containing this hunk is expanded
+      const targetHunkId = allHunkIds[targetIdx];
+      if (!targetHunkId) return;
+      const fileName = targetHunkId.substring(
+        0,
+        targetHunkId.lastIndexOf(":"),
+      );
+      setExpandedFiles((prev) => {
+        if (prev.has(fileName)) return prev;
+        const next = new Set(prev);
+        next.add(fileName);
+        return next;
+      });
+      // Also uncollapse the target hunk if it's collapsed
+      setCollapsedHunks((prev) => {
+        if (!prev.has(targetHunkId)) return prev;
+        const next = new Set(prev);
+        next.delete(targetHunkId);
+        return next;
+      });
+
+      // Scroll after a tick so the DOM can update
+      requestAnimationFrame(() => scrollToHunk(targetHunkId));
+    },
+    [allHunkIds, scrollToHunk],
+  );
+
+  const handleCopyDiff = useCallback(() => {
+    const fullText = fileDiffs
+      .map((fd) => {
+        const hunkText = fd.hunks
+          .map((h) => h.header + "\n" + h.lines.join("\n"))
+          .join("\n");
+        return `diff --git a/${fd.file.name} b/${fd.file.name}\n${hunkText}`;
+      })
+      .join("\n");
+    navigator.clipboard.writeText(fullText).then(() => {
+      setCopyFeedback(true);
+      setTimeout(() => setCopyFeedback(false), 1500);
+    });
+  }, [fileDiffs]);
+
   // Connection line endpoints: worktree right edge → DiffCard left edge
   const lineX1 = anchorX;
   const lineY1 = anchorY + 20;
@@ -355,6 +478,84 @@ export function DiffCard({
             </span>
           )}
           <div className="flex-1" />
+          {/* Hunk navigation */}
+          {!loading && allHunkIds.length > 0 && (
+            <div className="flex items-center gap-0.5">
+              <button
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-0.5"
+                onClick={() => navigateHunk("prev")}
+                title={t.diff_prev_hunk}
+              >
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path
+                    d="M7 8L3 5L7 2"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+              <button
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-0.5"
+                onClick={() => navigateHunk("next")}
+                title={t.diff_next_hunk}
+              >
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path
+                    d="M3 2L7 5L3 8"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            </div>
+          )}
+          {/* Copy button */}
+          {!loading && fileDiffs.length > 0 && (
+            <button
+              className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-0.5"
+              onClick={handleCopyDiff}
+              title={t.diff_copy}
+            >
+              {copyFeedback ? (
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path
+                    d="M2 5.5L4 7.5L8 3"
+                    stroke="var(--cyan)"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              ) : (
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <rect
+                    x="3"
+                    y="1"
+                    width="6"
+                    height="6"
+                    rx="1"
+                    stroke="currentColor"
+                    strokeWidth="1"
+                    fill="none"
+                  />
+                  <rect
+                    x="1"
+                    y="3"
+                    width="6"
+                    height="6"
+                    rx="1"
+                    stroke="currentColor"
+                    strokeWidth="1"
+                    fill="none"
+                  />
+                </svg>
+              )}
+            </button>
+          )}
           {pinned && (
             <button
               className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-0.5"
@@ -374,6 +575,7 @@ export function DiffCard({
 
         {/* File list + inline diffs */}
         <div
+          ref={scrollContainerRef}
           className="flex-1 overflow-auto min-h-0"
           style={{ fontFamily: '"Geist Mono", monospace', fontSize: 11 }}
         >
@@ -387,7 +589,7 @@ export function DiffCard({
             </div>
           ) : (
             fileDiffs.map((fd) => (
-              <div key={fd.file.name}>
+              <div key={fd.file.name} data-diff-file={fd.file.name}>
                 {/* File header */}
                 <button
                   className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--surface-hover)] transition-colors duration-150 text-left"
@@ -497,44 +699,123 @@ export function DiffCard({
                         {t.binary_changed}
                       </div>
                     ) : (
-                      <pre className="px-3 py-1 leading-relaxed">
-                        {fd.hunks
-                          .join("\n")
-                          .split("\n")
-                          .map((line, i) => {
-                            let color = "var(--text-secondary)";
-                            let bg = "transparent";
-                            if (
-                              line.startsWith("+") &&
-                              !line.startsWith("+++")
-                            ) {
-                              color = "var(--cyan)";
-                              bg = "rgba(80, 227, 194, 0.06)";
-                            } else if (
-                              line.startsWith("-") &&
-                              !line.startsWith("---")
-                            ) {
-                              color = "var(--red)";
-                              bg = "rgba(238, 0, 0, 0.06)";
-                            } else if (line.startsWith("@@")) {
-                              color = "var(--accent)";
-                            } else if (
-                              line.startsWith("index ") ||
-                              line.startsWith("---") ||
-                              line.startsWith("+++")
-                            ) {
-                              color = "var(--text-muted)";
-                            }
-                            return (
-                              <div
-                                key={i}
-                                style={{ color, backgroundColor: bg }}
+                      <div>
+                        {fd.hunks.map((hunk, hunkIdx) => {
+                          const hunkId = `${fd.file.name}:${hunkIdx}`;
+                          const isCollapsed = collapsedHunks.has(hunkId);
+                          // Parse line numbers from hunk header: @@ -old,count +new,count @@
+                          const lineMatch = hunk.header.match(
+                            /@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/,
+                          );
+                          let oldLine = lineMatch ? parseInt(lineMatch[1], 10) : 0;
+                          let newLine = lineMatch ? parseInt(lineMatch[2], 10) : 0;
+                          return (
+                            <div key={hunkId} data-hunk-id={hunkId}>
+                              {/* Hunk header — clickable to collapse */}
+                              <button
+                                className="w-full flex items-center gap-1 px-2 py-0.5 hover:bg-[var(--surface-hover)] transition-colors duration-150 text-left"
+                                onClick={() => toggleHunkCollapse(hunkId)}
                               >
-                                {line || " "}
-                              </div>
-                            );
-                          })}
-                      </pre>
+                                <svg
+                                  width="6"
+                                  height="6"
+                                  viewBox="0 0 6 6"
+                                  fill="none"
+                                  className={`shrink-0 transition-transform duration-150 ${isCollapsed ? "" : "rotate-90"}`}
+                                >
+                                  <path
+                                    d="M1.5 0.5L4.5 3L1.5 5.5"
+                                    stroke="var(--text-muted)"
+                                    strokeWidth="1"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                                <span
+                                  className="truncate flex-1 text-[10px]"
+                                  style={{ color: "var(--accent)" }}
+                                >
+                                  {hunk.header}
+                                </span>
+                              </button>
+                              {/* Hunk body */}
+                              {!isCollapsed && (
+                                <pre className="leading-relaxed">
+                                  {hunk.lines.map((line, i) => {
+                                    let color = "var(--text-secondary)";
+                                    let bg = "transparent";
+                                    let lineNumOld = "";
+                                    let lineNumNew = "";
+                                    if (
+                                      line.startsWith("+") &&
+                                      !line.startsWith("+++")
+                                    ) {
+                                      color = "var(--cyan)";
+                                      bg = "rgba(80, 227, 194, 0.06)";
+                                      lineNumNew = String(newLine);
+                                      newLine++;
+                                    } else if (
+                                      line.startsWith("-") &&
+                                      !line.startsWith("---")
+                                    ) {
+                                      color = "var(--red)";
+                                      bg = "rgba(238, 0, 0, 0.06)";
+                                      lineNumOld = String(oldLine);
+                                      oldLine++;
+                                    } else if (
+                                      line.startsWith("index ") ||
+                                      line.startsWith("---") ||
+                                      line.startsWith("+++")
+                                    ) {
+                                      color = "var(--text-muted)";
+                                    } else {
+                                      // Context line
+                                      lineNumOld = String(oldLine);
+                                      lineNumNew = String(newLine);
+                                      oldLine++;
+                                      newLine++;
+                                    }
+                                    return (
+                                      <div
+                                        key={i}
+                                        className="flex"
+                                        style={{
+                                          color,
+                                          backgroundColor: bg,
+                                        }}
+                                      >
+                                        <span
+                                          className="inline-block text-right shrink-0 select-none"
+                                          style={{
+                                            width: 28,
+                                            color: "var(--text-faint)",
+                                            paddingRight: 4,
+                                          }}
+                                        >
+                                          {lineNumOld}
+                                        </span>
+                                        <span
+                                          className="inline-block text-right shrink-0 select-none"
+                                          style={{
+                                            width: 28,
+                                            color: "var(--text-faint)",
+                                            paddingRight: 6,
+                                          }}
+                                        >
+                                          {lineNumNew}
+                                        </span>
+                                        <span className="flex-1">
+                                          {line || " "}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </pre>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 )}
