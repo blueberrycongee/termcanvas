@@ -2,6 +2,12 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.34] - 2026-03-22
+
+### Fixed
+- GitHub login: register termcanvas:// URL scheme in packaged app so macOS routes OAuth callbacks correctly
+- Usage heatmap: show cross-device aggregated data when logged in instead of local-only data
+
 ## [0.8.33] - 2026-03-22
 
 ### Fixed
