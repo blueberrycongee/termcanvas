@@ -33,6 +33,7 @@ import {
 import { collectUsage, collectHeatmapData } from "./usage-collector";
 import { setupAutoUpdater, stopAutoUpdater } from "./auto-updater";
 import { initAuth, login, logout, getAuthUser, getDeviceId, handleAuthCallback, onAuthStateChange, isLoggedIn } from "./auth";
+import { extractFileFromZip } from "./font-archive";
 import { queryCloudUsage, queryCloudHeatmap, backfillHistory, flushSyncQueue, syncRecentRecords } from "./usage-sync";
 import type { ComposerSubmitRequest } from "../src/types";
 
@@ -781,25 +782,7 @@ function setupIpc() {
         }
         fs.writeFileSync(tmpZip, buf);
 
-        // Extract target font file from zip
-        const zipList = execSync(`unzip -l "${tmpZip}"`, {
-          encoding: "utf-8",
-        });
-        const lines = zipList.split("\n");
-        const matchLine = lines.find((l) => l.trim().endsWith(fileName));
-        if (!matchLine) {
-          fs.unlinkSync(tmpZip);
-          return {
-            ok: false,
-            error: `Font file "${fileName}" not found in archive`,
-          };
-        }
-        const innerPath = matchLine.trim().split(/\s+/).pop()!;
-
-        execSync(
-          `unzip -jo "${tmpZip}" "${innerPath}" -d "${fontsDir}"`,
-          { encoding: "utf-8" },
-        );
+        extractFileFromZip(tmpZip, fileName, fontsDir);
         fs.unlinkSync(tmpZip);
 
         return { ok: true, path: destPath };
