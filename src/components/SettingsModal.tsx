@@ -322,7 +322,7 @@ export function SettingsModal({ onClose }: Props) {
         </div>
 
         {/* Content */}
-        <div className="px-6 py-5 min-h-[280px]">
+        <div className="px-6 py-5 min-h-[280px] max-h-[60vh] overflow-y-auto">
           {tab === "general" && (
             <div className="flex flex-col gap-5">
               {/* Language */}
