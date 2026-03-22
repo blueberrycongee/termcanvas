@@ -575,7 +575,7 @@ export const useProjectStore = create<ProjectStore>((set) => ({
       ),
     })),
 
-  updateTerminalCustomTitle: (projectId, worktreeId, terminalId, customTitle) =>
+  updateTerminalCustomTitle: (projectId, worktreeId, terminalId, customTitle) => {
     set((state) => ({
       projects: mapTerminals(
         state.projects,
@@ -584,7 +584,9 @@ export const useProjectStore = create<ProjectStore>((set) => ({
         terminalId,
         (t) => withUpdatedTerminalCustomTitle(t, customTitle),
       ),
-    })),
+    }));
+    markDirty();
+  },
 
   toggleTerminalStarred: (projectId, worktreeId, terminalId) => {
     set((state) => ({
