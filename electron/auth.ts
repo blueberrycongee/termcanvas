@@ -5,6 +5,7 @@ import path from "path";
 import crypto from "crypto";
 import os from "os";
 import { TERMCANVAS_DIR } from "./state-persistence";
+import { startCallbackServer } from "./oauth-callback-server";
 
 // ── Types ──
 
@@ -160,29 +161,52 @@ export async function login(): Promise<LoginResult> {
   }
 
   try {
+    // Start local HTTP server to receive OAuth callback tokens
+    const { port, tokenPromise, close } = await startCallbackServer();
+    const redirectTo = `http://127.0.0.1:${port}/auth/callback`;
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "github",
       options: {
-        redirectTo: "termcanvas://auth/callback",
+        redirectTo,
         skipBrowserRedirect: true,
       },
     });
 
     if (error) {
+      close();
       console.error("[Auth] OAuth error:", error.message);
       return { ok: false, error: error.message };
     }
 
-    if (data.url) {
-      return shell.openExternal(data.url)
-        .then(() => ({ ok: true }))
-        .catch((err) => {
-          console.error("[Auth] Login failed:", err);
-          return { ok: false, url: data.url, error: "Failed to open browser" };
-        });
+    if (!data.url) {
+      close();
+      return { ok: false, error: "Failed to get OAuth URL" };
     }
 
-    return { ok: false, error: "Failed to open browser" };
+    try {
+      await shell.openExternal(data.url);
+    } catch (err) {
+      close();
+      console.error("[Auth] Failed to open browser:", err);
+      return { ok: false, url: data.url, error: "Failed to open browser" };
+    }
+
+    // Wait for tokens in background, process when received
+    tokenPromise.then(async (tokens) => {
+      close();
+      if (!tokens) {
+        console.warn("[Auth] OAuth callback timed out");
+        return;
+      }
+      const fakeUrl = `http://localhost/auth/callback#access_token=${encodeURIComponent(tokens.access_token)}&refresh_token=${encodeURIComponent(tokens.refresh_token)}`;
+      await handleAuthCallback(fakeUrl);
+    }).catch((err) => {
+      close();
+      console.error("[Auth] Callback error:", err);
+    });
+
+    return { ok: true };
   } catch (err) {
     console.error("[Auth] Login failed:", err);
     return {
