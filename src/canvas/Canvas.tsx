@@ -72,8 +72,9 @@ export function Canvas() {
         {Object.values(browserCards).map((card) => (
           <BrowserCard key={card.id} card={card} />
         ))}
-        <FamilyTreeOverlay />
       </div>
+
+      <FamilyTreeOverlay />
 
       {/* Box-select overlay */}
       <BoxSelectOverlay />

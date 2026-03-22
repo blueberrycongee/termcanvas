@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from "react";
-import { createPortal } from "react-dom";
 import type { ProjectData, TerminalData } from "../types";
 import { useProjectStore, findTerminalById, getChildTerminals } from "../stores/projectStore";
+import { useCanvasStore } from "../stores/canvasStore";
 import {
   packTerminals,
   PROJ_PAD,
@@ -155,22 +155,21 @@ export function FamilyTreeOverlay() {
     return getTerminalAbsolutePosition(projects, visibleId);
   }, [visibleId, projects]);
 
+  const viewport = useCanvasStore((s) => s.viewport);
+
   if (!visibleId || tree.length <= 1 || !anchorPos) return null;
 
-  const portalTarget = document.getElementById("canvas-layer");
-  if (!portalTarget) return null;
+  // Convert canvas coordinates to screen coordinates
+  const screenX = (anchorPos.x + anchorPos.w + 12) * viewport.scale + viewport.x;
+  const screenY = anchorPos.y * viewport.scale + viewport.y;
 
-  // Position: to the right of the hovered terminal
-  const overlayX = anchorPos.x + anchorPos.w + 12;
-  const overlayY = anchorPos.y;
-
-  return createPortal(
+  return (
     <div
-      className="absolute panel rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg"
+      className="fixed panel rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg"
       style={{
-        left: overlayX,
-        top: overlayY,
-        zIndex: 100,
+        left: screenX,
+        top: screenY,
+        zIndex: 50,
         minWidth: 180,
         maxWidth: 260,
         animation: "fadeIn 0.15s ease",
@@ -233,7 +232,6 @@ export function FamilyTreeOverlay() {
           );
         })}
       </div>
-    </div>,
-    portalTarget,
+    </div>
   );
 }
