@@ -13,9 +13,46 @@ body {
 #topnav {
   position: fixed;
   top: 0;
+  left: 0;
   right: 0;
-  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.5rem;
   z-index: 100;
+  background: rgba(10, 10, 10, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid #1a1a1a;
+}
+.nav-links {
+  display: flex;
+  gap: 1.5rem;
+}
+.nav-links a {
+  color: #71717a;
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+.nav-links a:hover {
+  color: #fafafa;
+}
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.nav-github {
+  color: #71717a;
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+.nav-github:hover {
+  color: #fafafa;
 }
 #lang-toggle {
   background: transparent;
@@ -166,6 +203,274 @@ body {
   line-height: 1.5;
 }
 
+/* ── Screenshots Gallery ────────────────────────────────────── */
+#screenshots {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 4rem 2rem;
+}
+#screenshots h2 {
+  text-align: center;
+  font-family: 'Geist Mono', monospace;
+  font-size: 1.5rem;
+  letter-spacing: 0.1em;
+  margin-bottom: 3rem;
+  color: #fafafa;
+}
+.screenshots-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+.screenshot-card {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #1a1a1a;
+  transition: border-color 0.2s;
+}
+.screenshot-card:hover {
+  border-color: #333;
+}
+.screenshot-placeholder {
+  aspect-ratio: 16 / 10;
+  background: #111;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1.5rem;
+}
+.placeholder-icon {
+  font-size: 2rem;
+  color: #333;
+}
+.placeholder-text {
+  color: #52525b;
+  font-size: 0.8rem;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* ── Demo Video ─────────────────────────────────────────────── */
+#demo {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 4rem 2rem;
+}
+#demo h2 {
+  text-align: center;
+  font-family: 'Geist Mono', monospace;
+  font-size: 1.5rem;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.75rem;
+  color: #fafafa;
+}
+.demo-subtitle {
+  text-align: center;
+  color: #71717a;
+  font-size: 0.95rem;
+  margin-bottom: 2.5rem;
+}
+.demo-video-container {
+  width: 100%;
+}
+.demo-video-placeholder {
+  aspect-ratio: 16 / 9;
+  background: #111;
+  border: 1px solid #1a1a1a;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  transition: border-color 0.2s;
+}
+.demo-video-placeholder:hover {
+  border-color: #333;
+}
+.play-icon {
+  font-size: 3rem;
+  color: #333;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 2px solid #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 6px;
+}
+.demo-video-placeholder p {
+  color: #52525b;
+  font-size: 0.9rem;
+}
+
+/* ── Documentation ──────────────────────────────────────────── */
+#docs {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 4rem 2rem;
+}
+#docs h2 {
+  text-align: center;
+  font-family: 'Geist Mono', monospace;
+  font-size: 1.5rem;
+  letter-spacing: 0.1em;
+  margin-bottom: 2rem;
+  color: #fafafa;
+}
+.docs-nav {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 3rem;
+  flex-wrap: wrap;
+}
+.docs-nav-link {
+  color: #71717a;
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid #1a1a1a;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+.docs-nav-link:hover {
+  color: #fafafa;
+  border-color: #333;
+  background: rgba(255,255,255,0.03);
+}
+.docs-section {
+  margin-bottom: 3rem;
+  padding-top: 1rem;
+}
+.docs-section h3 {
+  font-family: 'Geist Mono', monospace;
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #1a1a1a;
+  color: #e8b840;
+}
+.docs-block {
+  margin-bottom: 1.5rem;
+}
+.docs-block h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #fafafa;
+}
+.docs-block p {
+  color: #a1a1aa;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+.docs-block p code {
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.85em;
+  background: #1a1a1a;
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  color: #e8b840;
+}
+.docs-code {
+  background: #111;
+  border: 1px solid #1a1a1a;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-top: 0.75rem;
+  overflow-x: auto;
+}
+.docs-code code {
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.85rem;
+  color: #a1a1aa;
+  line-height: 1.7;
+}
+.docs-steps {
+  list-style: none;
+  counter-reset: step;
+  margin-top: 0.5rem;
+}
+.docs-steps li {
+  counter-increment: step;
+  color: #a1a1aa;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  padding: 0.4rem 0;
+  padding-left: 2rem;
+  position: relative;
+}
+.docs-steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  background: #1a1a1a;
+  color: #71717a;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  top: 0.5rem;
+}
+.docs-steps li kbd {
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.8em;
+  background: #1a1a1a;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  border: 1px solid #333;
+  color: #fafafa;
+}
+.docs-shortcuts-note {
+  color: #71717a;
+  font-size: 0.85rem;
+  margin-bottom: 1.5rem;
+}
+
+/* ── Shortcuts Table ────────────────────────────────────────── */
+.shortcuts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.shortcuts-table thead th {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #71717a;
+  border-bottom: 1px solid #1a1a1a;
+}
+.shortcuts-table tbody td {
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid #111;
+  color: #a1a1aa;
+}
+.shortcuts-table tbody tr:hover {
+  background: rgba(255,255,255,0.02);
+}
+.shortcuts-table kbd {
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.8em;
+  background: #1a1a1a;
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  border: 1px solid #333;
+  color: #fafafa;
+}
+
 /* ── Bottom CTA ─────────────────────────────────────────────── */
 #cta {
   text-align: center;
@@ -190,11 +495,19 @@ footer a { color: #71717a; text-decoration: none; }
 footer a:hover { color: #fafafa; }
 
 /* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .screenshots-grid { grid-template-columns: repeat(2, 1fr); }
+  .nav-links { gap: 1rem; }
+  .nav-links a { font-size: 0.8rem; }
+}
 @media (max-width: 640px) {
   #hero h1 { font-size: 1.5rem; }
   .tagline { font-size: 0.95rem; }
   .features-grid { grid-template-columns: 1fr; }
+  .screenshots-grid { grid-template-columns: 1fr; }
   .hero-buttons { flex-direction: column; align-items: center; }
+  .nav-links { display: none; }
+  .docs-nav { flex-direction: column; align-items: center; }
 }
 
 /* ── Reduced Motion ─────────────────────────────────────────── */
@@ -203,4 +516,7 @@ footer a:hover { color: #fafafa; }
   .scroll-indicator { animation: none; }
   .btn { transition: none; }
   .feature-card { transition: none; }
+  .screenshot-card { transition: none; }
+  .demo-video-placeholder { transition: none; }
+  .docs-nav-link { transition: none; }
 }
