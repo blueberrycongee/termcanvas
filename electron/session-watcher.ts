@@ -77,6 +77,10 @@ export function checkTurnComplete(
   return { completed: false };
 }
 
+export function toClaudeProjectKey(cwd: string): string {
+  return cwd.replaceAll(/[/\\.:]/g, "-");
+}
+
 /**
  * Resolve the JSONL file path for a session.
  */
@@ -88,7 +92,7 @@ function resolveSessionFile(
   const home = os.homedir();
 
   if (type === "claude") {
-    const projectKey = cwd.replaceAll(/[/.]/g, "-");
+    const projectKey = toClaudeProjectKey(cwd);
     return path.join(home, ".claude", "projects", projectKey, sessionId + ".jsonl");
   }
 
