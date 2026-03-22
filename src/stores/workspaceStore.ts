@@ -14,6 +14,6 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
   dirty: false,
   lastSavedAt: null,
   setWorkspacePath: (path) => set({ workspacePath: path }),
-  markDirty: () => set((state) => (state.dirty ? state : { dirty: true })),
+  markDirty: () => set({ dirty: true }),
   markClean: () => set({ dirty: false, lastSavedAt: Date.now() }),
 }));
