@@ -156,7 +156,7 @@ function useAutoSave() {
     };
 
     const unsubscribe = useWorkspaceStore.subscribe((state, prev) => {
-      if (state.dirty && !prev.dirty) {
+      if (state.dirty) {
         if (debounceTimer) {
           clearTimeout(debounceTimer);
         }
