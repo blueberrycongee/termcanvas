@@ -15,6 +15,7 @@ import {
   resolveComposerTarget,
 } from "./composerTarget";
 import { SlashCommandMenu } from "./SlashCommandMenu";
+import { hasPrimaryModifier } from "../hooks/shortcutTarget";
 import { useT } from "../i18n/useT";
 import type {
   ComposerImageAttachment,
@@ -109,7 +110,7 @@ function getPassthroughSequence(
   // Cmd+Arrow → always forward to terminal (history / cursor control)
   // Plain Arrow → forward only when Composer is empty
   const arrowSeq = ARROW_SEQUENCES[event.key];
-  if (arrowSeq && (event.metaKey || draft.trim().length === 0)) {
+  if (arrowSeq && (hasPrimaryModifier(event) || draft.trim().length === 0)) {
     return arrowSeq;
   }
   return null;
