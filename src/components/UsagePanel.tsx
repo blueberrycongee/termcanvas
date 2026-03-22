@@ -570,13 +570,31 @@ export function UsagePanel() {
       }
       mergedBuckets.sort((a, b) => a.hourStart - b.hourStart);
 
+      // Merge models: cloud has multi-device costs, local has cache fields
+      // (cloud DB doesn't store cache columns, so cloud cache fields are always 0)
+      const localModelMap = new Map(summary.models.map((m) => [m.model, m]));
+      const mergedModels: ModelUsage[] = cloudSummary.models.map((cm) => {
+        const lm = localModelMap.get(cm.model);
+        if (!lm) return cm;
+        return { ...cm, cacheRead: lm.cacheRead, cacheCreate5m: lm.cacheCreate5m, cacheCreate1h: lm.cacheCreate1h };
+      });
+      for (const lm of summary.models) {
+        if (!mergedModels.some((m) => m.model === lm.model)) {
+          mergedModels.push(lm);
+        }
+      }
+
       return {
         ...cloudSummary,
         sessions: Math.max(cloudSummary.sessions, summary.sessions),
         totalInput: Math.max(cloudSummary.totalInput, summary.totalInput),
         totalOutput: Math.max(cloudSummary.totalOutput, summary.totalOutput),
+        totalCacheRead: summary.totalCacheRead,
+        totalCacheCreate5m: summary.totalCacheCreate5m,
+        totalCacheCreate1h: summary.totalCacheCreate1h,
         totalCost: Math.max(cloudSummary.totalCost, summary.totalCost),
         buckets: mergedBuckets,
+        models: mergedModels,
       };
     }
     return isLoggedIn && cloudSummary ? cloudSummary : summary;
