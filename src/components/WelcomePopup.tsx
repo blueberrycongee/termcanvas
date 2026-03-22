@@ -65,7 +65,10 @@ const TERMINALS = [
   },
 ] as const;
 
-type TutorialStep = 0 | 1 | 2 | 3 | 4 | 5;
+type TutorialStep = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+
+// Total interactive + info steps (excluding step 0 welcome page)
+const TOTAL_STEPS = 7;
 
 // Terminal cell center offsets from grid center.
 // Grid: 2 cols × 2 rows, cell 120×80, gap 8px → total 248×168.
@@ -79,6 +82,29 @@ const FOCUS_SCALE = 1.4;
 
 function replaceToken(template: string, token: string, value: string): string {
   return template.replace(token, value);
+}
+
+function StepDots({ current, total }: { current: number; total: number }) {
+  return (
+    <div className="flex items-center justify-center gap-1.5 mt-3">
+      {Array.from({ length: total }, (_, i) => (
+        <div
+          key={i}
+          className="rounded-full transition-all duration-300"
+          style={{
+            width: i + 1 === current ? 16 : 6,
+            height: 6,
+            background:
+              i + 1 === current
+                ? "var(--accent)"
+                : i + 1 < current
+                  ? "var(--text-muted)"
+                  : "var(--border)",
+          }}
+        />
+      ))}
+    </div>
+  );
 }
 
 function MiniCanvas({
@@ -236,6 +262,22 @@ function MiniCanvas({
   );
 }
 
+/** Kbd-style shortcut badge */
+function Kbd({ children }: { children: string }) {
+  return (
+    <span
+      className="inline-block px-1.5 py-0.5 rounded text-[11px] font-medium"
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        color: "var(--accent)",
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
 export function WelcomePopup({ onClose }: Props) {
   const shortcuts = useShortcutStore((s) => s.shortcuts);
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -260,6 +302,17 @@ export function WelcomePopup({ onClose }: Props) {
     },
     [step],
   );
+
+  const goBack = useCallback(() => {
+    // Only allow going back on non-interactive info steps (5, 6, 7)
+    if (step === 5) {
+      setStep(4);
+    } else if (step === 6) {
+      setStep(5);
+    } else if (step === 7) {
+      setStep(6);
+    }
+  }, [step]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -338,14 +391,43 @@ export function WelcomePopup({ onClose }: Props) {
         return;
       }
 
-      if (step === 5 && e.key === "Enter") {
-        onClose();
+      // Info steps: Enter advances, Backspace goes back
+      if (step === 5) {
+        if (e.key === "Backspace") {
+          goBack();
+          return;
+        }
+        if (e.key === "Enter") {
+          setStep(6);
+          return;
+        }
+      }
+
+      if (step === 6) {
+        if (e.key === "Backspace") {
+          goBack();
+          return;
+        }
+        if (e.key === "Enter") {
+          setStep(7);
+          return;
+        }
+      }
+
+      if (step === 7) {
+        if (e.key === "Backspace") {
+          goBack();
+          return;
+        }
+        if (e.key === "Enter") {
+          onClose();
+        }
       }
     };
 
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
-  }, [step, hasDoubleClicked, focusToggleCount, switchCount, hasInteractedZoom, shortcuts, onClose]);
+  }, [step, hasDoubleClicked, focusToggleCount, switchCount, hasInteractedZoom, shortcuts, onClose, goBack]);
 
   const shortcutItems = [
     { key: shortcuts.addProject, en: en.shortcut_add_project, zh: zh.shortcut_add_project },
@@ -355,7 +437,7 @@ export function WelcomePopup({ onClose }: Props) {
     { key: shortcuts.clearFocus, en: en.shortcut_clear_focus, zh: zh.shortcut_clear_focus },
   ];
 
-  const steps = [
+  const welcomeSteps = [
     { en: en.welcome_step_1, zh: zh.welcome_step_1 },
     { en: en.welcome_step_2, zh: zh.welcome_step_2 },
     { en: en.welcome_step_3, zh: zh.welcome_step_3 },
@@ -365,6 +447,11 @@ export function WelcomePopup({ onClose }: Props) {
   const fmtNext = formatShortcut(shortcuts.nextTerminal, isMac);
   const fmtPrev = formatShortcut(shortcuts.prevTerminal, isMac);
   const fmtAddProject = formatShortcut(shortcuts.addProject, isMac);
+  const fmtNewTerminal = formatShortcut(shortcuts.newTerminal, isMac);
+  const fmtToggleSidebar = formatShortcut(shortcuts.toggleSidebar, isMac);
+  const fmtSave = formatShortcut(shortcuts.saveWorkspace, isMac);
+  const fmtCloseFocused = formatShortcut(shortcuts.closeFocused, isMac);
+  const fmtToggleStar = formatShortcut(shortcuts.toggleStarFocused, isMac);
 
   function getPrompt(): { en: string; zh: string } | null {
     switch (step) {
@@ -408,17 +495,17 @@ export function WelcomePopup({ onClose }: Props) {
           return { en: en.onboarding_zoom_continue, zh: zh.onboarding_zoom_continue };
         }
         return { en: en.onboarding_zoom_prompt, zh: zh.onboarding_zoom_prompt };
-      case 5:
-        return {
-          en: replaceToken(en.onboarding_complete, "{shortcut}", fmtAddProject),
-          zh: replaceToken(zh.onboarding_complete, "{shortcut}", fmtAddProject),
-        };
       default:
         return null;
     }
   }
 
   const prompt = getPrompt();
+
+  // Whether the current step shows the mini-canvas (interactive steps 1–4)
+  const isInteractiveStep = step >= 1 && step <= 4;
+  // Whether the current step is an info page (steps 5–7)
+  const isInfoStep = step >= 5 && step <= 7;
 
   return (
     <div
@@ -481,7 +568,7 @@ export function WelcomePopup({ onClose }: Props) {
                   <Bi en={en.welcome_quick_start} zh={zh.welcome_quick_start} />
                 </div>
                 <div className="space-y-0.5 pl-2">
-                  {steps.map((stepItem, index) => (
+                  {welcomeSteps.map((stepItem, index) => (
                     <div key={index}>
                       <span className="text-[var(--text-muted)]">{index + 1}.</span>{" "}
                       <Bi en={stepItem.en} zh={stepItem.zh} />
@@ -525,7 +612,7 @@ export function WelcomePopup({ onClose }: Props) {
                 <Bi en={en.welcome_dismiss} zh={zh.welcome_dismiss} />
               </div>
             </>
-          ) : (
+          ) : isInteractiveStep ? (
             <>
               <MiniCanvas
                 focusedIndex={focusedIndex}
@@ -540,22 +627,241 @@ export function WelcomePopup({ onClose }: Props) {
                     <Bi en={prompt.en} zh={prompt.zh} />
                   </div>
                 )}
-                {step === 5 && (
-                  <div className="text-[11px] mt-1 text-[var(--text-faint)]">
+                <div className="text-[11px] mt-1 text-[var(--text-faint)]">
+                  <Bi en={en.onboarding_skip} zh={zh.onboarding_skip} />
+                </div>
+              </div>
+
+              <StepDots current={step} total={TOTAL_STEPS} />
+            </>
+          ) : isInfoStep && step === 5 ? (
+            <>
+              {/* Step 5: Composer & Tools */}
+              <div className="mb-3">
+                <div className="font-medium text-[14px] mb-2">
+                  <Bi
+                    en={en.onboarding_composer_title}
+                    zh={zh.onboarding_composer_title}
+                  />
+                </div>
+                <div className="text-[13px] mb-3 text-[var(--text-secondary)]">
+                  <Bi
+                    en={en.onboarding_composer_desc}
+                    zh={zh.onboarding_composer_desc}
+                  />
+                </div>
+
+                {/* Mini composer illustration */}
+                <div
+                  className="rounded border border-[var(--border)] overflow-hidden mb-3"
+                  style={{ background: "var(--surface)" }}
+                >
+                  <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--border)]">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full" style={{ background: "var(--cyan)" }} />
+                      <span className="text-[10px] text-[var(--text-secondary)]">node</span>
+                    </div>
+                    <div className="flex-1 rounded px-2 py-1 text-[11px] text-[var(--text-muted)]" style={{ background: "var(--bg)" }}>
+                      fix the CORS error in server.js
+                    </div>
+                    <div className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--accent)", color: "white" }}>
+                      Send
+                    </div>
+                  </div>
+                  <div className="px-3 py-1.5 text-[10px] text-[var(--text-faint)]">
+                    Enter sends · Shift+Enter newline · paste images for agents
+                  </div>
+                </div>
+
+                <div className="space-y-1 text-[12px]">
+                  <div>
                     <Bi
-                      en={en.onboarding_complete_dismiss}
-                      zh={zh.onboarding_complete_dismiss}
+                      en={en.onboarding_composer_tip_1}
+                      zh={zh.onboarding_composer_tip_1}
                     />
                   </div>
-                )}
-                {step >= 1 && step <= 4 && (
-                  <div className="text-[11px] mt-1 text-[var(--text-faint)]">
-                    <Bi en={en.onboarding_skip} zh={zh.onboarding_skip} />
+                  <div>
+                    <Bi
+                      en={en.onboarding_composer_tip_2}
+                      zh={zh.onboarding_composer_tip_2}
+                    />
                   </div>
-                )}
+                  <div>
+                    <Bi
+                      en={en.onboarding_composer_tip_3}
+                      zh={zh.onboarding_composer_tip_3}
+                    />
+                  </div>
+                </div>
               </div>
+
+              {/* Navigation buttons */}
+              <div className="flex items-center justify-between mt-3">
+                <button
+                  className="text-[12px] px-2.5 py-1 rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)] transition-colors duration-150"
+                  onClick={goBack}
+                >
+                  <Bi en={en.onboarding_back} zh={zh.onboarding_back} />
+                </button>
+                <div className="text-[11px] text-[var(--text-faint)]">
+                  <Bi en={en.onboarding_skip} zh={zh.onboarding_skip} />
+                </div>
+                <button
+                  className="text-[12px] px-2.5 py-1 rounded text-[var(--accent)] hover:bg-[var(--surface)] transition-colors duration-150"
+                  onClick={() => setStep(6)}
+                >
+                  <Bi en={en.onboarding_next} zh={zh.onboarding_next} />
+                </button>
+              </div>
+
+              <StepDots current={step} total={TOTAL_STEPS} />
             </>
-          )}
+          ) : isInfoStep && step === 6 ? (
+            <>
+              {/* Step 6: Keyboard shortcuts reference */}
+              <div className="mb-3">
+                <div className="font-medium text-[14px] mb-2">
+                  <Bi
+                    en={en.onboarding_shortcuts_title}
+                    zh={zh.onboarding_shortcuts_title}
+                  />
+                </div>
+                <div className="text-[13px] mb-3 text-[var(--text-secondary)]">
+                  <Bi
+                    en={en.onboarding_shortcuts_desc}
+                    zh={zh.onboarding_shortcuts_desc}
+                  />
+                </div>
+
+                <div className="space-y-1.5 text-[12px]">
+                  {[
+                    { kbd: fmtAddProject, en: en.shortcut_add_project, zh: zh.shortcut_add_project },
+                    { kbd: fmtNewTerminal, en: en.shortcut_new_terminal, zh: zh.shortcut_new_terminal },
+                    { kbd: fmtClearFocus, en: en.shortcut_clear_focus, zh: zh.shortcut_clear_focus },
+                    { kbd: fmtNext, en: en.shortcut_next_terminal, zh: zh.shortcut_next_terminal },
+                    { kbd: fmtPrev, en: en.shortcut_prev_terminal, zh: zh.shortcut_prev_terminal },
+                    { kbd: fmtToggleSidebar, en: en.shortcut_toggle_sidebar, zh: zh.shortcut_toggle_sidebar },
+                    { kbd: fmtCloseFocused, en: en.shortcut_close_focused, zh: zh.shortcut_close_focused },
+                    { kbd: fmtToggleStar, en: en.shortcut_toggle_star_focused, zh: zh.shortcut_toggle_star_focused },
+                    { kbd: fmtSave, en: en.shortcut_save_workspace, zh: zh.shortcut_save_workspace },
+                  ].map((item) => (
+                    <div key={item.kbd} className="flex items-center gap-2">
+                      <Kbd>{item.kbd}</Kbd>
+                      <span>
+                        <Bi en={item.en} zh={item.zh} />
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Navigation buttons */}
+              <div className="flex items-center justify-between mt-3">
+                <button
+                  className="text-[12px] px-2.5 py-1 rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)] transition-colors duration-150"
+                  onClick={goBack}
+                >
+                  <Bi en={en.onboarding_back} zh={zh.onboarding_back} />
+                </button>
+                <div className="text-[11px] text-[var(--text-faint)]">
+                  <Bi en={en.onboarding_skip} zh={zh.onboarding_skip} />
+                </div>
+                <button
+                  className="text-[12px] px-2.5 py-1 rounded text-[var(--accent)] hover:bg-[var(--surface)] transition-colors duration-150"
+                  onClick={() => setStep(7)}
+                >
+                  <Bi en={en.onboarding_next} zh={zh.onboarding_next} />
+                </button>
+              </div>
+
+              <StepDots current={step} total={TOTAL_STEPS} />
+            </>
+          ) : step === 7 ? (
+            <>
+              {/* Step 7: What makes TermCanvas different + completion */}
+              <div className="mb-3">
+                <div className="font-medium text-[14px] mb-2">
+                  <Bi
+                    en={en.onboarding_unique_title}
+                    zh={zh.onboarding_unique_title}
+                  />
+                </div>
+
+                <div className="space-y-2 text-[12px]">
+                  <div className="flex gap-2">
+                    <span className="text-[var(--cyan)] shrink-0 mt-0.5">&#9656;</span>
+                    <span>
+                      <Bi
+                        en={en.onboarding_unique_1}
+                        zh={zh.onboarding_unique_1}
+                      />
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="text-[var(--amber)] shrink-0 mt-0.5">&#9656;</span>
+                    <span>
+                      <Bi
+                        en={en.onboarding_unique_2}
+                        zh={zh.onboarding_unique_2}
+                      />
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="text-[var(--purple)] shrink-0 mt-0.5">&#9656;</span>
+                    <span>
+                      <Bi
+                        en={en.onboarding_unique_3}
+                        zh={zh.onboarding_unique_3}
+                      />
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="text-[var(--green)] shrink-0 mt-0.5">&#9656;</span>
+                    <span>
+                      <Bi
+                        en={en.onboarding_unique_4}
+                        zh={zh.onboarding_unique_4}
+                      />
+                    </span>
+                  </div>
+                </div>
+
+                <div
+                  className="mt-4 rounded border border-[var(--border)] px-3 py-2.5 text-[13px] text-center"
+                  style={{ background: "var(--surface)" }}
+                >
+                  <Bi
+                    en={replaceToken(en.onboarding_complete, "{shortcut}", fmtAddProject)}
+                    zh={replaceToken(zh.onboarding_complete, "{shortcut}", fmtAddProject)}
+                  />
+                </div>
+              </div>
+
+              {/* Navigation buttons */}
+              <div className="flex items-center justify-between mt-3">
+                <button
+                  className="text-[12px] px-2.5 py-1 rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)] transition-colors duration-150"
+                  onClick={goBack}
+                >
+                  <Bi en={en.onboarding_back} zh={zh.onboarding_back} />
+                </button>
+                <div className="text-[11px] text-[var(--text-faint)]">
+                  <Bi
+                    en={en.onboarding_complete_dismiss}
+                    zh={zh.onboarding_complete_dismiss}
+                  />
+                </div>
+                <button
+                  className="text-[12px] px-2.5 py-1 rounded text-[var(--accent)] hover:bg-[var(--surface)] transition-colors duration-150"
+                  onClick={onClose}
+                >
+                  <Bi en={en.onboarding_done} zh={zh.onboarding_done} />
+                </button>
+              </div>
+
+              <StepDots current={step} total={TOTAL_STEPS} />
+            </>
+          ) : null}
         </div>
       </div>
     </div>

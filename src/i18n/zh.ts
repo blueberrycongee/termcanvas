@@ -311,7 +311,28 @@ export const zh = {
   onboarding_switch_continue: "按 Enter 继续",
   onboarding_zoom_prompt: "滚轮缩放，拖拽平移",
   onboarding_zoom_continue: "按 Enter 继续",
-  onboarding_complete: "教程完成！关闭此窗口后，按 {shortcut} 添加你的第一个项目。",
+  onboarding_complete: "准备就绪！按 {shortcut} 添加你的第一个项目。",
   onboarding_complete_dismiss: "按 Enter 或 Escape 关闭。",
   onboarding_skip: "Escape 跳过",
+  onboarding_back: "上一步",
+  onboarding_next: "下一步",
+  onboarding_done: "开始使用",
+
+  // Onboarding step 5: Composer
+  onboarding_composer_title: "Composer 输入栏",
+  onboarding_composer_desc: "无需切换窗口，直接向聚焦的终端发送文本和图片。",
+  onboarding_composer_tip_1: "聚焦终端后，在 Composer 中输入即可发送命令",
+  onboarding_composer_tip_2: "直接粘贴截图 — Agent 终端支持图片输入",
+  onboarding_composer_tip_3: "拖拽文件到 Composer 即可附加文件",
+
+  // Onboarding step 6: Shortcuts
+  onboarding_shortcuts_title: "键盘快捷键",
+  onboarding_shortcuts_desc: "一切皆可键盘操作，以下是最常用的快捷键：",
+
+  // Onboarding step 7: What makes TermCanvas different
+  onboarding_unique_title: "为什么选择 TermCanvas？",
+  onboarding_unique_1: "无限画布 — 空间化排列终端，告别标签页切换",
+  onboarding_unique_2: "AI Agent 作为一等公民，与终端并肩工作",
+  onboarding_unique_3: "Git 工作树感知 — 每个分支拥有独立工作区",
+  onboarding_unique_4: "保存和恢复完整工作区，包括终端状态",
 } as const;

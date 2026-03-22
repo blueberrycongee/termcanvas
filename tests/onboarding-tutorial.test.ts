@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-type TutorialStep = 0 | 1 | 2 | 3 | 4;
+type TutorialStep = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 interface TutorialState {
   step: TutorialStep;
@@ -34,10 +34,31 @@ function handleEnter(state: TutorialState): TutorialState {
     return { ...state, step: 4 };
   }
 
+  // Info steps: Enter advances linearly
   if (state.step === 4) {
+    return { ...state, step: 5 };
+  }
+
+  if (state.step === 5) {
+    return { ...state, step: 6 };
+  }
+
+  if (state.step === 6) {
+    return { ...state, step: 7 };
+  }
+
+  // Step 7 = final, Enter closes (modeled as staying at 7)
+  if (state.step === 7) {
     return state;
   }
 
+  return state;
+}
+
+function handleBack(state: TutorialState): TutorialState {
+  if (state.step === 5) return { ...state, step: 4 };
+  if (state.step === 6) return { ...state, step: 5 };
+  if (state.step === 7) return { ...state, step: 6 };
   return state;
 }
 
@@ -152,10 +173,58 @@ test("step 3 -> zoom interaction enables Enter to advance to step 4", () => {
   assert.equal(completed.step, 4);
 });
 
+test("steps 4 -> 5 -> 6 -> 7 advance linearly with Enter", () => {
+  let state: TutorialState = {
+    step: 4,
+    focusedIndex: 1,
+    switchCount: 3,
+    hasInteractedZoom: true,
+  };
+
+  state = handleEnter(state);
+  assert.equal(state.step, 5);
+
+  state = handleEnter(state);
+  assert.equal(state.step, 6);
+
+  state = handleEnter(state);
+  assert.equal(state.step, 7);
+
+  // Step 7 is final — Enter stays
+  state = handleEnter(state);
+  assert.equal(state.step, 7);
+});
+
+test("back navigation works on info steps 5, 6, 7", () => {
+  const step5: TutorialState = {
+    step: 5,
+    focusedIndex: 1,
+    switchCount: 3,
+    hasInteractedZoom: true,
+  };
+
+  assert.equal(handleBack(step5).step, 4);
+  assert.equal(handleBack({ ...step5, step: 6 }).step, 5);
+  assert.equal(handleBack({ ...step5, step: 7 }).step, 6);
+});
+
+test("back navigation is ignored on non-info steps", () => {
+  const step0 = initialState();
+  const step2: TutorialState = {
+    step: 2,
+    focusedIndex: 1,
+    switchCount: 0,
+    hasInteractedZoom: false,
+  };
+
+  assert.deepEqual(handleBack(step0), step0);
+  assert.deepEqual(handleBack(step2), step2);
+});
+
 test("focus/switch/zoom actions are ignored on wrong steps", () => {
   const step0 = initialState();
-  const step4: TutorialState = {
-    step: 4,
+  const step7: TutorialState = {
+    step: 7,
     focusedIndex: 1,
     switchCount: 3,
     hasInteractedZoom: true,
@@ -166,8 +235,8 @@ test("focus/switch/zoom actions are ignored on wrong steps", () => {
   assert.deepEqual(handlePrevTerminal(step0), step0);
   assert.deepEqual(handleZoomOrPan(step0), step0);
 
-  assert.deepEqual(handleFocus(step4), step4);
-  assert.deepEqual(handleNextTerminal(step4), step4);
-  assert.deepEqual(handlePrevTerminal(step4), step4);
-  assert.deepEqual(handleZoomOrPan(step4), step4);
+  assert.deepEqual(handleFocus(step7), step7);
+  assert.deepEqual(handleNextTerminal(step7), step7);
+  assert.deepEqual(handlePrevTerminal(step7), step7);
+  assert.deepEqual(handleZoomOrPan(step7), step7);
 });
