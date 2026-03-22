@@ -13,8 +13,10 @@ import { DrawingLayer } from "./DrawingLayer";
 import { ConnectionOverlay } from "./ConnectionOverlay";
 import { FamilyTreeOverlay } from "../components/FamilyTreeOverlay";
 import { BoxSelectOverlay } from "./BoxSelectOverlay";
+import { useT } from "../i18n/useT";
 
 export function Canvas() {
+  const t = useT();
   const { viewport, isAnimating } = useCanvasStore();
   const animationBlur = usePreferencesStore((s) => s.animationBlur);
   const { projects } = useProjectStore();
@@ -84,12 +86,12 @@ export function Canvas() {
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center">
             <div className="text-[var(--text-muted)] text-lg font-light mb-2">
-              No projects yet
+              {t.canvas_empty_title}
             </div>
             <div className="text-[var(--text-faint)] text-sm">
-              Click{" "}
-              <span className="text-[var(--text-secondary)]">Add Project</span>{" "}
-              in the toolbar to get started
+              {t.canvas_empty_click}{" "}
+              <span className="text-[var(--text-secondary)]">{t.canvas_empty_action}</span>{" "}
+              {t.canvas_empty_suffix}
             </div>
           </div>
         </div>

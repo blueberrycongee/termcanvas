@@ -288,6 +288,12 @@ export const zh = {
   welcome_github: "GitHub:",
   welcome_dismiss: "按 Enter 进入交互教程，按 Escape 跳过。",
 
+  // Canvas empty state
+  canvas_empty_title: "还没有项目",
+  canvas_empty_click: "点击工具栏的",
+  canvas_empty_action: "添加项目",
+  canvas_empty_suffix: "来开始使用",
+
   // Onboarding tutorial
   onboarding_dblclick_prompt: "双击终端标题栏聚焦",
   onboarding_focus_prompt: "按 {shortcut} 聚焦终端",

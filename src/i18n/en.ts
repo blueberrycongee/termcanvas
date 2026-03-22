@@ -290,6 +290,12 @@ export const en = {
   welcome_github: "GitHub:",
   welcome_dismiss: "Press Enter to start the interactive tutorial, or Escape to skip.",
 
+  // Canvas empty state
+  canvas_empty_title: "No projects yet",
+  canvas_empty_click: "Click",
+  canvas_empty_action: "Add Project",
+  canvas_empty_suffix: "in the toolbar to get started",
+
   // Onboarding tutorial
   onboarding_dblclick_prompt: "Double-click a terminal title bar to focus it",
   onboarding_focus_prompt: "Press {shortcut} to focus a terminal",
