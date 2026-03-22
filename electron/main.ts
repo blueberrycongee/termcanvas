@@ -1042,7 +1042,8 @@ app.whenReady().then(async () => {
   }, 5 * 60_000);
 
   // Handle termcanvas:// protocol on macOS
-  app.on("open-url", async (_event, url) => {
+  app.on("open-url", async (event, url) => {
+    event.preventDefault();
     if (url.startsWith("termcanvas://auth/callback")) {
       await handleAuthCallback(url);
     }
