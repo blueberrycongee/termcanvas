@@ -689,7 +689,10 @@ function setupIpc() {
   );
 
   ipcMain.handle("insights:open-report", async (_event, filePath: string) => {
-    await shell.openExternal(`file://${filePath}`);
+    const error = await shell.openPath(filePath);
+    if (error) {
+      console.error(`[insights] Failed to open report: ${error}`);
+    }
   });
 
   // Font management
