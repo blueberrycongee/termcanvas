@@ -11,6 +11,7 @@ import { InsightsButton } from "./usage/InsightsButton";
 import { LoginButton } from "./LoginButton";
 import { DeviceBreakdown } from "./usage/DeviceBreakdown";
 import { QuotaSection } from "./usage/QuotaSection";
+import { mergeUsageHeatmaps } from "./usage/heatmap-utils";
 import { useQuotaStore } from "../stores/quotaStore";
 import type { UsageSummary, ProjectUsage, ModelUsage } from "../types";
 
@@ -580,7 +581,7 @@ export function UsagePanel() {
   // Merge cloud + local heatmap: cloud wins per-day (multi-device), local fills gaps (pre-login)
   const activeHeatmap = (() => {
     if (isLoggedIn && cloudHeatmapData && heatmapData) {
-      return { ...heatmapData, ...cloudHeatmapData };
+      return mergeUsageHeatmaps(heatmapData, cloudHeatmapData);
     }
     return isLoggedIn && cloudHeatmapData ? cloudHeatmapData : heatmapData;
   })();
@@ -599,7 +600,7 @@ export function UsagePanel() {
     <div className="fixed right-0 z-40 flex" style={{ top: 44, height: "calc(100vh - 44px)" }}>
       {/* Collapsed tab */}
       <button
-        className="shrink-0 flex flex-col items-center pt-3 gap-2 bg-[var(--bg)] overflow-hidden border-l border-[var(--border)] hover:bg-[var(--surface)] cursor-pointer"
+        className="shrink-0 flex flex-col items-center pt-3 gap-2 bg-[var(--sidebar)] overflow-hidden border-l border-[var(--border)] hover:bg-[var(--sidebar-hover)] cursor-pointer"
         style={{
           width: collapsed ? COLLAPSED_TAB_WIDTH : 0,
           transition: "width 0.2s ease, background-color 0.15s",
@@ -621,7 +622,7 @@ export function UsagePanel() {
 
       {/* Expanded panel */}
       <div
-        className="shrink-0 flex flex-col bg-[var(--bg)] overflow-hidden border-l border-[var(--border)]"
+        className="shrink-0 flex flex-col bg-[var(--sidebar)] overflow-hidden border-l border-[var(--border)]"
         style={{
           width: collapsed ? 0 : RIGHT_PANEL_WIDTH,
           transition: "width 0.2s ease",

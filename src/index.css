@@ -35,6 +35,8 @@
 :root,
 [data-theme="dark"] {
   --bg: #1a1918;
+  --sidebar: #141312;
+  --sidebar-hover: #1c1b1a;
   --surface: #222120;
   --surface-hover: #2a2928;
   --border: #333231;
@@ -55,6 +57,8 @@
 /* ── Design tokens: Light ── */
 [data-theme="light"] {
   --bg: #eae8e4;
+  --sidebar: #e2e0dc;
+  --sidebar-hover: #dbd9d5;
   --surface: #f3f2ef;
   --surface-hover: #e5e3df;
   --border: #dbd8d3;

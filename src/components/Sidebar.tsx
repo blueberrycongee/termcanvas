@@ -28,7 +28,7 @@ const TYPE_LABEL: Record<TerminalType, string> = {
 };
 
 const iconBtnClass =
-  "w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors shrink-0";
+  "w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--sidebar-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors shrink-0";
 
 export function Sidebar() {
   const { projects, addProject } = useProjectStore();
@@ -154,7 +154,7 @@ export function Sidebar() {
     <div className="fixed left-0 z-40 flex" style={{ top: 44, height: "calc(100vh - 44px)" }}>
       {/* Expanded panel */}
       <div
-        className="shrink-0 flex flex-col bg-[var(--bg)] overflow-hidden border-r border-[var(--border)]"
+        className="shrink-0 flex flex-col bg-[var(--sidebar)] overflow-hidden border-r border-[var(--border)]"
         style={{
           width: collapsed ? 0 : SIDEBAR_WIDTH,
           transition: "width 0.2s ease",
@@ -251,7 +251,7 @@ export function Sidebar() {
 
       {/* Collapsed tab */}
       <button
-        className="shrink-0 flex flex-col items-center pt-3 gap-2 bg-[var(--bg)] overflow-hidden border-r border-[var(--border)] hover:bg-[var(--surface)] transition-[background-color] duration-150 cursor-pointer"
+        className="shrink-0 flex flex-col items-center pt-3 gap-2 bg-[var(--sidebar)] overflow-hidden border-r border-[var(--border)] hover:bg-[var(--sidebar-hover)] transition-[background-color] duration-150 cursor-pointer"
         style={{
           width: collapsed ? COLLAPSED_TAB_WIDTH : 0,
           transition: "width 0.2s ease, background-color 0.15s",
