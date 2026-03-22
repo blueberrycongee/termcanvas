@@ -191,7 +191,7 @@ export function TerminalTile({
   const [isEditingCustomTitle, setIsEditingCustomTitle] = useState(false);
   const [customTitleDraft, setCustomTitleDraft] = useState(terminal.customTitle ?? "");
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const displayTitleRef = useRef(getTerminalDisplayTitle(terminal));
+  const displayTitleRef = useRef(getTerminalDisplayTitle(terminal, worktreePath));
   const tileRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const customTitleInputRef = useRef<HTMLInputElement>(null);
@@ -217,8 +217,8 @@ export function TerminalTile({
   const config = TYPE_CONFIG[terminal.type] ?? { color: "#888", label: terminal.type };
 
   useEffect(() => {
-    displayTitleRef.current = getTerminalDisplayTitle(terminal);
-  }, [terminal.title, terminal.customTitle]);
+    displayTitleRef.current = getTerminalDisplayTitle(terminal, worktreePath);
+  }, [terminal.title, terminal.customTitle, terminal.type, worktreePath]);
 
   useEffect(() => {
     if (!isEditingCustomTitle) {
