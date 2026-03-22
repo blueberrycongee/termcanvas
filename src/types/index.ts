@@ -231,6 +231,7 @@ export interface TermCanvasAPI {
     getKimiLatest: (cwd: string) => Promise<string | null>;
     watch: (type: string, sessionId: string, cwd: string) => Promise<{ ok: boolean; reason?: string }>;
     unwatch: (sessionId: string) => Promise<void>;
+    validate: (type: string, sessionId: string, cwd: string) => Promise<boolean>;
     onTurnComplete: (callback: (sessionId: string) => void) => () => void;
   };
   project: {

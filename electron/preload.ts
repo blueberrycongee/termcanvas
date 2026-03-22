@@ -49,6 +49,8 @@ contextBridge.exposeInMainWorld("termcanvas", {
       >,
     unwatch: (sessionId: string) =>
       ipcRenderer.invoke("session:unwatch", sessionId),
+    validate: (type: string, sessionId: string, cwd: string) =>
+      ipcRenderer.invoke("session:validate", type, sessionId, cwd) as Promise<boolean>,
     onTurnComplete: (callback: (sessionId: string) => void) => {
       const listener = (
         _event: Electron.IpcRendererEvent,

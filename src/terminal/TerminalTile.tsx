@@ -376,7 +376,8 @@ export function TerminalTile({
 
     let ptyId: number | null = null;
     const cliOverride = usePreferencesStore.getState().cliCommands[terminal.type] ?? undefined;
-    const wasResumeAttempt = !!terminal.sessionId && !!getTerminalLaunchOptions(terminal.type, terminal.sessionId, terminal.autoApprove);
+    let validatedSessionId: string | undefined = terminal.sessionId;
+    let wasResumeAttempt = !!terminal.sessionId && !!getTerminalLaunchOptions(terminal.type, terminal.sessionId, terminal.autoApprove);
     let hasRespawned = false;
     let inputDisposable: { dispose(): void } | null = null;
     let resizeDisposable: { dispose(): void } | null = null;
@@ -502,7 +503,31 @@ export function TerminalTile({
         });
     };
 
-    spawnPty(terminal.sessionId);
+    // Validate session before attempting resume: if the CLI's session file
+    // was cleaned up (e.g. after force-kill during app update), start fresh
+    // immediately instead of launching with a stale --resume that will fail.
+    if (terminal.sessionId && (terminal.type === "claude" || terminal.type === "codex")) {
+      window.termcanvas.session
+        .validate(terminal.type, terminal.sessionId, worktreePath)
+        .then((valid) => {
+          if (valid) {
+            spawnPty(terminal.sessionId);
+          } else {
+            console.log(`[TermCanvas] Session ${terminal.sessionId} no longer valid, starting fresh`);
+            validatedSessionId = undefined;
+            wasResumeAttempt = false;
+            updateTerminalSessionId(projectId, worktreeId, terminal.id, undefined);
+            xterm.write("\x1b[33m[Previous session no longer available, starting fresh…]\x1b[0m\r\n");
+            spawnPty(undefined);
+          }
+        })
+        .catch(() => {
+          // Validation failed (IPC error), attempt resume anyway
+          spawnPty(terminal.sessionId);
+        });
+    } else {
+      spawnPty(terminal.sessionId);
+    }
 
     let currentStatus: string = "running";
     let waitingTimer: ReturnType<typeof setTimeout> | null = null;
