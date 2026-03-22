@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, nativeImage, shell } from "electron";
 import { execSync } from "child_process";
 import https from "https";
+import AdmZip from "adm-zip";
 import path from "path";
 import fs from "fs";
 import os from "os";
@@ -782,24 +783,16 @@ function setupIpc() {
         fs.writeFileSync(tmpZip, buf);
 
         // Extract target font file from zip
-        const zipList = execSync(`unzip -l "${tmpZip}"`, {
-          encoding: "utf-8",
-        });
-        const lines = zipList.split("\n");
-        const matchLine = lines.find((l) => l.trim().endsWith(fileName));
-        if (!matchLine) {
+        const zip = new AdmZip(tmpZip);
+        const entry = zip.getEntries().find((e) => e.entryName.endsWith(fileName));
+        if (!entry) {
           fs.unlinkSync(tmpZip);
           return {
             ok: false,
             error: `Font file "${fileName}" not found in archive`,
           };
         }
-        const innerPath = matchLine.trim().split(/\s+/).pop()!;
-
-        execSync(
-          `unzip -jo "${tmpZip}" "${innerPath}" -d "${fontsDir}"`,
-          { encoding: "utf-8" },
-        );
+        zip.extractEntryTo(entry, fontsDir, false, true);
         fs.unlinkSync(tmpZip);
 
         return { ok: true, path: destPath };
