@@ -5,6 +5,7 @@ import path from "path";
 import crypto from "crypto";
 import os from "os";
 import { TERMCANVAS_DIR } from "./state-persistence";
+import { startOAuthCallbackServer, type CallbackResult } from "./oauth-callback-server";
 
 // ── Types ──
 
@@ -135,6 +136,57 @@ function setUser(user: AuthUser | null): void {
   }
 }
 
+/**
+ * Process the result from the OAuth callback server.
+ * Exchanges the authorization code for a session, or surfaces errors.
+ */
+async function processCallbackResult(result: CallbackResult): Promise<LoginResult> {
+  if (!supabase) {
+    return { ok: false, error: "Auth not configured" };
+  }
+
+  switch (result.type) {
+    case "error": {
+      const msg = `OAuth error: ${result.error} — ${result.description}`;
+      console.error(`[Auth] ${msg}`);
+      return { ok: false, error: result.description };
+    }
+
+    case "timeout": {
+      const msg = "Login timed out. The browser authorization took too long — please try again.";
+      console.error(`[Auth] ${msg}`);
+      return { ok: false, error: msg };
+    }
+
+    case "success": {
+      try {
+        console.log("[Auth] Exchanging authorization code for session...");
+        const { data, error } = await supabase.auth.exchangeCodeForSession(result.code);
+
+        if (error) {
+          console.error("[Auth] Code exchange failed:", error.message);
+          return { ok: false, error: `Login failed: ${error.message}` };
+        }
+
+        if (data.session) {
+          saveSession(data.session);
+          const user = extractUser(data.session);
+          setUser(user);
+          console.log("[Auth] Login successful, user:", user?.username);
+          return { ok: true };
+        }
+
+        console.error("[Auth] Code exchange returned no session");
+        return { ok: false, error: "Login failed: no session returned" };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("[Auth] Code exchange error:", msg);
+        return { ok: false, error: `Login failed: ${msg}` };
+      }
+    }
+  }
+}
+
 // ── Public API ──
 
 export function getSupabase(): SupabaseClient | null {
@@ -160,29 +212,47 @@ export async function login(): Promise<LoginResult> {
   }
 
   try {
+    // Start the local callback server before generating the OAuth URL,
+    // so the redirect URL is ready when the browser redirects back.
+    const { port, resultPromise, shutdown } = startOAuthCallbackServer();
+    const redirectUrl = `http://127.0.0.1:${port}/callback`;
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "github",
       options: {
-        redirectTo: "termcanvas://auth/callback",
+        redirectTo: redirectUrl,
         skipBrowserRedirect: true,
       },
     });
 
     if (error) {
       console.error("[Auth] OAuth error:", error.message);
+      shutdown();
       return { ok: false, error: error.message };
     }
 
-    if (data.url) {
-      return shell.openExternal(data.url)
-        .then(() => ({ ok: true }))
-        .catch((err) => {
-          console.error("[Auth] Login failed:", err);
-          return { ok: false, url: data.url, error: "Failed to open browser" };
-        });
+    if (!data.url) {
+      shutdown();
+      return { ok: false, error: "Failed to generate OAuth URL" };
     }
 
-    return { ok: false, error: "Failed to open browser" };
+    // Log the OAuth URL for debugging PKCE issues
+    const oauthUrl = new URL(data.url);
+    console.log(
+      `[Auth] OAuth URL generated (code_challenge present: ${oauthUrl.searchParams.has("code_challenge")})`,
+    );
+
+    try {
+      await shell.openExternal(data.url);
+    } catch (err) {
+      console.error("[Auth] Failed to open browser:", err);
+      shutdown();
+      return { ok: false, url: data.url, error: "Failed to open browser" };
+    }
+
+    // Wait for the callback result and process it
+    const result = await resultPromise;
+    return await processCallbackResult(result);
   } catch (err) {
     console.error("[Auth] Login failed:", err);
     return {
@@ -219,6 +289,7 @@ export async function initAuth(): Promise<void> {
     auth: {
       autoRefreshToken: true,
       persistSession: false, // We handle persistence ourselves
+      flowType: "pkce",
     },
   });
 
@@ -269,8 +340,9 @@ export async function handleAuthCallback(url: string): Promise<void> {
   }
 
   try {
-    // Parse the callback URL to extract tokens
+    // Parse the callback URL to extract tokens or error info
     // Supabase redirects with fragment: termcanvas://auth/callback#access_token=...&refresh_token=...
+    // Or with error: termcanvas://auth/callback#error=xxx&error_description=yyy
     // URL constructor may not parse custom protocols well, so handle manually
     const hashIndex = url.indexOf("#");
     const queryIndex = url.indexOf("?");
@@ -281,21 +353,32 @@ export async function handleAuthCallback(url: string): Promise<void> {
         : "";
 
     const params = new URLSearchParams(paramsString);
+
+    // Check for error params first
+    const error = params.get("error");
+    const errorDescription = params.get("error_description");
+    if (error) {
+      console.error(
+        `[Auth] OAuth callback error: ${error} — ${errorDescription ?? "no description"}`,
+      );
+      return;
+    }
+
     const accessToken = params.get("access_token");
     const refreshToken = params.get("refresh_token");
 
     if (!accessToken || !refreshToken) {
-      console.error("[Auth] Callback missing tokens");
+      console.error("[Auth] Callback missing tokens. Params:", paramsString);
       return;
     }
 
-    const { data, error } = await supabase.auth.setSession({
+    const { data, error: setError } = await supabase.auth.setSession({
       access_token: accessToken,
       refresh_token: refreshToken,
     });
 
-    if (error) {
-      console.error("[Auth] Failed to set session from callback:", error.message);
+    if (setError) {
+      console.error("[Auth] Failed to set session from callback:", setError.message);
       return;
     }
 
