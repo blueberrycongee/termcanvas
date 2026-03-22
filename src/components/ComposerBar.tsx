@@ -379,7 +379,9 @@ export function ComposerBar() {
 
       // Handle non-image files — insert paths into draft
       if (nonImagePaths.length > 0) {
-        const pathText = nonImagePaths.join(" ");
+        const pathText = nonImagePaths
+          .map((p) => (/[\s"'\\$`!#&|;()<>]/.test(p) ? `"${p.replace(/"/g, '\\"')}"` : p))
+          .join(" ");
         const textarea = textareaRef.current;
         if (textarea) {
           const { selectionStart, selectionEnd } = textarea;
