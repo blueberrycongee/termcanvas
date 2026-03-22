@@ -141,6 +141,43 @@ test("parseCodexSession uses last token_count event (cumulative)", () => {
   fs.rmSync(path.dirname(filePath), { recursive: true });
 });
 
+test("parseCodexSession clamps input to zero when cached exceeds total", () => {
+  const filePath = writeCodexJsonl([
+    {
+      timestamp: "2026-03-20T10:00:00Z",
+      type: "session_meta",
+      payload: { cwd: "/tmp/test-project" },
+    },
+    {
+      timestamp: "2026-03-20T10:01:00Z",
+      type: "event_msg",
+      payload: {
+        type: "token_count",
+        info: {
+          total_token_usage: {
+            input_tokens: 100,
+            cached_input_tokens: 200,  // malformed: cached > total
+            output_tokens: 50,
+            total_tokens: 150,
+          },
+        },
+      },
+    },
+  ]);
+
+  const { records } = parseCodexSession(
+    filePath,
+    "2026-03-20T00:00:00",
+    "2026-03-21T00:00:00",
+  );
+
+  assert.equal(records.length, 1);
+  assert.equal(records[0].input, 0);  // clamped, not negative
+  assert.equal(records[0].cacheRead, 200);
+
+  fs.rmSync(path.dirname(filePath), { recursive: true });
+});
+
 test("computeCost applies codex pricing correctly", () => {
   // 20k non-cached input, 80k cached, 5k output
   const cost = computeCost("codex", 20_000, 5_000, 80_000, 0, 0);

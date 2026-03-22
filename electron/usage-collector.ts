@@ -375,7 +375,7 @@ export function parseCodexSession(
       ts: tsClean,
       msgId: path.basename(filePath) + ":total",
       model: "codex",
-      input: inputTotal - cachedInput,
+      input: Math.max(0, inputTotal - cachedInput),
       output: totalUsage.output_tokens ?? 0,
       cacheRead: cachedInput,
       cacheCreate5m: 0,
