@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.42] - 2026-03-23
+
+### Fixed
+- Usage panel: cloud heatmap was not aggregating across devices due to missing polling retry and TokenHeatmap reading local-only data
+
 ## [0.8.41] - 2026-03-22
 
 ### Fixed
