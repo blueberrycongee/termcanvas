@@ -166,9 +166,16 @@ async function main() {
         const result = await request("DELETE", `/terminal/${rest[0]}`);
         if (jsonFlag) console.log(JSON.stringify(result, null, 2));
         else console.log("Destroyed.");
+      } else if (command === "set-title" && rest[0] && rest[1]) {
+        const title = rest.slice(1).join(" ");
+        const result = await request("PUT", `/terminal/${rest[0]}/custom-title`, {
+          customTitle: title,
+        });
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log("Title updated.");
       } else {
         console.log(
-          "Usage: termcanvas terminal <create|list|input|status|output|destroy> [args]",
+          "Usage: termcanvas terminal <create|list|input|status|output|destroy|set-title> [args]",
         );
       }
     } else if (group === "diff" && command) {
@@ -227,6 +234,9 @@ async function main() {
       console.log("  terminal output <id> [--lines N]            Read output");
       console.log(
         "  terminal destroy <id>                       Destroy terminal",
+      );
+      console.log(
+        "  terminal set-title <id> <title>             Set custom title",
       );
       console.log("  diff <worktree-path> [--summary]            Get git diff");
       console.log(
