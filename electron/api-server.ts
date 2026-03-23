@@ -1,10 +1,8 @@
 import http from "http";
-import fs from "fs";
-import { execSync } from "child_process";
-import path from "path";
 import type { BrowserWindow } from "electron";
 import type { PtyManager } from "./pty-manager";
 import type { ProjectScanner } from "./project-scanner";
+import { getApiDiff } from "./git-diff";
 
 interface ApiServerDeps {
   getWindow: () => BrowserWindow | null;
@@ -346,73 +344,9 @@ export class ApiServer {
     return { ok: true };
   }
 
-  private getDiff(worktreePath: string, summary: boolean) {
+  private async getDiff(worktreePath: string, summary: boolean) {
     try {
-      // Untracked file list (shared by both modes)
-      const untrackedRaw = execSync(
-        "git ls-files --others --exclude-standard",
-        { cwd: worktreePath, encoding: "utf-8" },
-      );
-      const untrackedNames = untrackedRaw.trim().split("\n").filter(Boolean);
-
-      if (summary) {
-        const numstat = execSync("git diff HEAD --numstat", {
-          cwd: worktreePath,
-          encoding: "utf-8",
-        });
-        const files = numstat
-          .trim()
-          .split("\n")
-          .filter(Boolean)
-          .map((line: string) => {
-            const [add, del, name] = line.split("\t");
-            const binary = add === "-";
-            return {
-              name,
-              additions: binary ? 0 : parseInt(add, 10),
-              deletions: binary ? 0 : parseInt(del, 10),
-              binary,
-            };
-          });
-
-        for (const name of untrackedNames) {
-          const filePath = path.join(worktreePath, name);
-          try {
-            const content = fs.readFileSync(filePath, "utf-8");
-            const lineCount = content.split("\n").filter((_, i, a) =>
-              i < a.length - 1 || a[i] !== "",
-            ).length;
-            files.push({ name, additions: lineCount, deletions: 0, binary: false });
-          } catch {
-            files.push({ name, additions: 0, deletions: 0, binary: true });
-          }
-        }
-
-        return { worktree: worktreePath, files };
-      }
-
-      const diff = execSync("git diff HEAD", {
-        cwd: worktreePath,
-        encoding: "utf-8",
-        maxBuffer: 10 * 1024 * 1024,
-      });
-
-      let untrackedDiff = "";
-      for (const name of untrackedNames) {
-        try {
-          const content = fs.readFileSync(
-            path.join(worktreePath, name), "utf-8",
-          );
-          const lines = content.split("\n");
-          if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
-          const addLines = lines.map((l) => `+${l}`).join("\n");
-          untrackedDiff += `diff --git a/${name} b/${name}\nnew file mode 100644\n--- /dev/null\n+++ b/${name}\n@@ -0,0 +1,${lines.length} @@\n${addLines}\n`;
-        } catch {
-          untrackedDiff += `diff --git a/${name} b/${name}\nnew file\nBinary file\n`;
-        }
-      }
-
-      return { worktree: worktreePath, diff: diff + untrackedDiff };
+      return await getApiDiff(worktreePath, summary);
     } catch (err: any) {
       throw Object.assign(new Error(`Failed to get diff: ${err.message}`), {
         status: 400,

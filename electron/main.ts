@@ -1,5 +1,4 @@
 import { app, BrowserWindow, ipcMain, dialog, nativeImage, shell } from "electron";
-import { execSync } from "child_process";
 import https from "https";
 import path from "path";
 import fs from "fs";
@@ -37,6 +36,7 @@ import { initAuth, login, logout, getAuthUser, getDeviceId, handleAuthCallback, 
 import { toFileUrl } from "./file-url";
 import { queryCloudUsage, queryCloudHeatmap, backfillHistory, flushSyncQueue, syncRecentRecords } from "./usage-sync";
 import type { ComposerSubmitRequest } from "../src/types";
+import { getProjectDiff } from "./git-diff";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -302,119 +302,9 @@ function setupIpc() {
     return projectScanner.scan(dirPath);
   });
 
-  ipcMain.handle("project:diff", (_event, worktreePath: string) => {
+  ipcMain.handle("project:diff", async (_event, worktreePath: string) => {
     try {
-      const imageExts = new Set([
-        ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".bmp", ".ico",
-      ]);
-      const mimeMap: Record<string, string> = {
-        ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-        ".gif": "image/gif", ".svg": "image/svg+xml", ".webp": "image/webp",
-        ".bmp": "image/bmp", ".ico": "image/x-icon",
-      };
-
-      const buildFileInfo = (
-        name: string, add: string, del: string,
-      ): { name: string; additions: number; deletions: number; binary: boolean; isImage: boolean; imageOld: string | null; imageNew: string | null } => {
-        const binary = add === "-";
-        const ext = path.extname(name).toLowerCase();
-        const isImage = binary && imageExts.has(ext);
-        let imageOld: string | null = null;
-        let imageNew: string | null = null;
-
-        if (isImage) {
-          const mime = mimeMap[ext] ?? "image/png";
-          try {
-            const oldBuf = execSync(`git show HEAD:${name}`, {
-              cwd: worktreePath, encoding: "buffer", maxBuffer: 5 * 1024 * 1024,
-            }) as unknown as Buffer;
-            imageOld = `data:${mime};base64,${oldBuf.toString("base64")}`;
-          } catch { /* new file */ }
-          try {
-            const filePath = path.join(worktreePath, name);
-            if (fs.existsSync(filePath)) {
-              const newBuf = fs.readFileSync(filePath);
-              imageNew = `data:${mime};base64,${newBuf.toString("base64")}`;
-            }
-          } catch { /* deleted */ }
-        }
-
-        return {
-          name,
-          additions: binary ? 0 : parseInt(add, 10),
-          deletions: binary ? 0 : parseInt(del, 10),
-          binary, isImage, imageOld, imageNew,
-        };
-      };
-
-      // Tracked changes (staged + unstaged) vs last commit
-      const diff = execSync("git diff HEAD", {
-        cwd: worktreePath, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024,
-      });
-      const numstat = execSync("git diff HEAD --numstat", {
-        cwd: worktreePath, encoding: "utf-8",
-      });
-      const files = numstat.trim().split("\n").filter(Boolean)
-        .map((line: string) => {
-          const [add, del, name] = line.split("\t");
-          return buildFileInfo(name, add, del);
-        });
-
-      // Untracked files
-      const untrackedRaw = execSync(
-        "git ls-files --others --exclude-standard", {
-          cwd: worktreePath, encoding: "utf-8",
-        },
-      );
-      const untrackedNames = untrackedRaw.trim().split("\n").filter(Boolean);
-
-      let untrackedDiff = "";
-      for (const name of untrackedNames) {
-        const filePath = path.join(worktreePath, name);
-        const ext = path.extname(name).toLowerCase();
-        const isImage = imageExts.has(ext);
-        let isBinary = isImage;
-
-        if (!isBinary) {
-          // Quick binary check: look for null bytes in first 8KB
-          try {
-            const fd = fs.openSync(filePath, "r");
-            const buf = Buffer.alloc(8192);
-            const bytesRead = fs.readSync(fd, buf, 0, 8192, 0);
-            fs.closeSync(fd);
-            isBinary = buf.subarray(0, bytesRead).includes(0);
-          } catch { isBinary = false; }
-        }
-
-        if (isBinary) {
-          const mime = mimeMap[ext] ?? "application/octet-stream";
-          let imageNew: string | null = null;
-          if (isImage) {
-            try {
-              const newBuf = fs.readFileSync(filePath);
-              imageNew = `data:${mime};base64,${newBuf.toString("base64")}`;
-            } catch { /* skip */ }
-          }
-          files.push({
-            name, additions: 0, deletions: 0,
-            binary: true, isImage, imageOld: null, imageNew,
-          });
-          untrackedDiff += `diff --git a/${name} b/${name}\nnew file\nBinary file\n`;
-        } else {
-          try {
-            const content = fs.readFileSync(filePath, "utf-8");
-            const lines = content.split("\n");
-            // Remove trailing empty line from final newline
-            if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
-            const lineCount = lines.length;
-            const addLines = lines.map((l) => `+${l}`).join("\n");
-            files.push(buildFileInfo(name, String(lineCount), "0"));
-            untrackedDiff += `diff --git a/${name} b/${name}\nnew file mode 100644\n--- /dev/null\n+++ b/${name}\n@@ -0,0 +1,${lineCount} @@\n${addLines}\n`;
-          } catch { /* skip unreadable */ }
-        }
-      }
-
-      return { diff: diff + untrackedDiff, files };
+      return await getProjectDiff(worktreePath);
     } catch {
       return { diff: "", files: [] };
     }
