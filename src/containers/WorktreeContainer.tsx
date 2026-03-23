@@ -15,6 +15,7 @@ import { FileTreeCard } from "../components/FileTreeCard";
 import { FileCard } from "../components/FileCard";
 import {
   clearHoverCardHideTimeout,
+  createHoverCardVisibilityState,
   scheduleHoverCardHide,
 } from "../components/hoverCardVisibility";
 import { useT } from "../i18n/useT";
@@ -244,15 +245,21 @@ export function WorktreeContainer({
 
   diffPinnedRef.current = diffPinned;
   fileTreePinnedRef.current = fileTreePinned;
+  const anyHoverCardDragging = useCallback(
+    () => diffCardDragging.current || fileTreeCardDragging.current,
+    [],
+  );
 
   const scheduleDiffHide = useCallback(() => {
     scheduleHoverCardHide(
       diffLeaveTimeout,
-      () => ({
-        pinned: diffPinnedRef.current,
-        hovered: diffCardHovered.current,
-        dragging: diffCardDragging.current,
-      }),
+      () =>
+        createHoverCardVisibilityState({
+          pinned: diffPinnedRef.current,
+          hovered: diffCardHovered.current,
+          draggingSelf: diffCardDragging.current,
+          draggingRelated: fileTreeCardDragging.current,
+        }),
       () => setShowDiff(false),
     );
   }, []);
@@ -260,11 +267,13 @@ export function WorktreeContainer({
   const scheduleFileTreeHide = useCallback(() => {
     scheduleHoverCardHide(
       fileTreeLeaveTimeout,
-      () => ({
-        pinned: fileTreePinnedRef.current,
-        hovered: fileTreeCardHovered.current,
-        dragging: fileTreeCardDragging.current,
-      }),
+      () =>
+        createHoverCardVisibilityState({
+          pinned: fileTreePinnedRef.current,
+          hovered: fileTreeCardHovered.current,
+          draggingSelf: fileTreeCardDragging.current,
+          draggingRelated: diffCardDragging.current,
+        }),
       () => setShowFileTree(false),
     );
   }, []);
@@ -459,6 +468,22 @@ export function WorktreeContainer({
                 }}
                 onDragStateChange={(dragging) => {
                   diffCardDragging.current = dragging;
+                  if (dragging) {
+                    clearHoverCardHideTimeout(diffLeaveTimeout);
+                    clearHoverCardHideTimeout(fileTreeLeaveTimeout);
+                    return;
+                  }
+                  if (!anyHoverCardDragging()) {
+                    if (!diffPinnedRef.current && !diffCardHovered.current) {
+                      scheduleDiffHide();
+                    }
+                    if (
+                      !fileTreePinnedRef.current &&
+                      !fileTreeCardHovered.current
+                    ) {
+                      scheduleFileTreeHide();
+                    }
+                  }
                 }}
               />
             )}
@@ -487,6 +512,22 @@ export function WorktreeContainer({
                 }}
                 onDragStateChange={(dragging) => {
                   fileTreeCardDragging.current = dragging;
+                  if (dragging) {
+                    clearHoverCardHideTimeout(diffLeaveTimeout);
+                    clearHoverCardHideTimeout(fileTreeLeaveTimeout);
+                    return;
+                  }
+                  if (!anyHoverCardDragging()) {
+                    if (!diffPinnedRef.current && !diffCardHovered.current) {
+                      scheduleDiffHide();
+                    }
+                    if (
+                      !fileTreePinnedRef.current &&
+                      !fileTreeCardHovered.current
+                    ) {
+                      scheduleFileTreeHide();
+                    }
+                  }
                 }}
                 onOpenFile={(filePath, fileName) => {
                   setOpenFiles((prev) => {

@@ -4,6 +4,24 @@ export interface HoverCardVisibilityState {
   dragging: boolean;
 }
 
+export function createHoverCardVisibilityState({
+  pinned,
+  hovered,
+  draggingSelf,
+  draggingRelated = false,
+}: {
+  pinned: boolean;
+  hovered: boolean;
+  draggingSelf: boolean;
+  draggingRelated?: boolean;
+}): HoverCardVisibilityState {
+  return {
+    pinned,
+    hovered,
+    dragging: draggingSelf || draggingRelated,
+  };
+}
+
 export function shouldKeepHoverCardVisible(
   state: HoverCardVisibilityState,
 ): boolean {

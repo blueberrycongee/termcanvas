@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  createHoverCardVisibilityState,
   scheduleHoverCardHide,
   shouldKeepHoverCardVisible,
 } from "../src/components/hoverCardVisibility.ts";
@@ -18,6 +19,22 @@ test("shouldKeepHoverCardVisible keeps cards visible while dragging", () => {
       dragging: true,
     }),
     true,
+  );
+});
+
+test("createHoverCardVisibilityState treats related card dragging as visible interaction", () => {
+  assert.deepEqual(
+    createHoverCardVisibilityState({
+      pinned: false,
+      hovered: false,
+      draggingSelf: false,
+      draggingRelated: true,
+    }),
+    {
+      pinned: false,
+      hovered: false,
+      dragging: true,
+    },
   );
 });
 
