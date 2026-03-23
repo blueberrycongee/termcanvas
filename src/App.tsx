@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Canvas } from "./canvas/Canvas";
 import { Toolbar } from "./toolbar/Toolbar";
 import { NotificationToast } from "./components/NotificationToast";
+import { Hub } from "./components/Hub";
 import { initUpdaterListeners } from "./stores/updaterStore";
 import { ComposerBar } from "./components/ComposerBar";
 import { usePreferencesStore } from "./stores/preferencesStore";
@@ -453,6 +454,7 @@ export function App() {
   return (
     <div className="h-screen w-screen overflow-hidden bg-[var(--bg)] text-[var(--text-primary)]">
       <Toolbar onShowTutorial={() => setShowWelcome(true)} />
+      <Hub />
       <Canvas />
       {drawingEnabled && <DrawingPanel />}
       <CompletionGlow />

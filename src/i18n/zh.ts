@@ -22,6 +22,11 @@ export const zh = {
   add: "+ 添加",
   open: "打开",
   no_projects: "暂无项目",
+  "hub.none": "无焦点",
+  "hub.empty": "无目标",
+  "hub.level.terminal": "终端",
+  "hub.level.starred": "收藏",
+  "hub.level.worktree": "工作树",
   status_running: "运行中",
   status_active: "工作中",
   status_waiting: "待关注",
@@ -90,6 +95,7 @@ export const zh = {
 
   // ShortcutHints
   shortcut_add_project: "添加项目",
+  shortcut_cycle_focus_level: "切换聚焦层级",
   shortcut_toggle_sidebar: "切换侧栏",
   shortcut_toggle_right_panel: "切换右侧面板",
   shortcut_new_terminal: "新建终端",

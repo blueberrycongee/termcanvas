@@ -23,6 +23,11 @@ export const en = {
   add: "+ Add",
   open: "Open",
   no_projects: "No projects",
+  "hub.none": "No focus",
+  "hub.empty": "No targets",
+  "hub.level.terminal": "Terminal",
+  "hub.level.starred": "Starred",
+  "hub.level.worktree": "Worktree",
   status_running: "Running",
   status_active: "Active",
   status_waiting: "Waiting",
@@ -92,6 +97,7 @@ export const en = {
 
   // ShortcutHints
   shortcut_add_project: "Add project",
+  shortcut_cycle_focus_level: "Cycle focus level",
   shortcut_toggle_sidebar: "Toggle sidebar",
   shortcut_toggle_right_panel: "Toggle right panel",
   shortcut_new_terminal: "New terminal",
