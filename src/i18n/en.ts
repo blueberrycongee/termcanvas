@@ -94,6 +94,7 @@ export const en = {
 
   // Toolbar
   tutorial: "Tutorial",
+  toolbar_untitled_workspace: "Untitled Workspace",
 
   // ShortcutHints
   shortcut_add_project: "Add project",

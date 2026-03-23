@@ -99,7 +99,7 @@ function createWindow() {
     // macOS: hidden title bar with inset traffic lights
     ...(isMac && {
       titleBarStyle: "hiddenInset" as const,
-      trafficLightPosition: { x: 12, y: 16 },
+      trafficLightPosition: { x: 14, y: 14 },
     }),
     // Windows: hidden title bar with native window controls overlay
     ...(isWin && {

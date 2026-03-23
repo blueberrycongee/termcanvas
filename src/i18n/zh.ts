@@ -92,6 +92,7 @@ export const zh = {
 
   // Toolbar
   tutorial: "教程",
+  toolbar_untitled_workspace: "未命名工作区",
 
   // ShortcutHints
   shortcut_add_project: "添加项目",
