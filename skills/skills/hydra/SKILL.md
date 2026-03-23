@@ -76,8 +76,14 @@ When to skip: you already know the codebase, the task is well-scoped.
    above for broader tasks), then form a clear task description
 2. Spawn agents (pick the right mode above)
 3. **You MUST poll all agents until every one reaches "completed" or "error".**
-   Poll each agent every 2 minutes: `termcanvas terminal status <terminalId>`
    Do NOT ask the user whether to poll. Do NOT stop working while agents run.
+
+   **Adaptive polling interval** — scale with expected task duration:
+   - Short tasks (tests, linting, simple fixes): every 2 minutes
+   - Medium tasks (feature implementation, refactors): every 5 minutes
+   - Long tasks (full-plan execution, large migrations): every 10–15 minutes
+
+   Use `sleep <seconds>` then check: `termcanvas terminal status <terminalId>`
 
    **Result file as primary completion signal**: The terminal status system
    can sometimes fail to transition to "completed" (especially on macOS).
