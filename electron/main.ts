@@ -21,11 +21,11 @@ import {
   unregisterCli,
 } from "./cli-registration";
 import {
-  ensureHydraSkillLinks,
-  getHydraSkillSourceDir,
-  installHydraSkillLinks,
-  uninstallHydraSkillLinks,
-} from "./hydra-skill";
+  ensureSkillLinks,
+  getSkillsSourceDir,
+  installSkillLinks,
+  uninstallSkillLinks,
+} from "./skill-manager";
 import { buildLaunchSpec } from "./pty-launch.js";
 import {
   createDefaultComposerSubmitDeps,
@@ -870,19 +870,25 @@ function ensureCliLinks(): void {
 }
 
 function getSkillSourceDir(): string {
-  return getHydraSkillSourceDir(process.resourcesPath, __dirname);
+  return getSkillsSourceDir(process.resourcesPath, __dirname);
 }
 
 function installSkill(): boolean {
-  return installHydraSkillLinks({ sourceDir: getSkillSourceDir() });
+  return installSkillLinks({
+    sourceDir: getSkillSourceDir(),
+    appVersion: app.getVersion(),
+  });
 }
 
 function ensureSkillInstalled(): boolean {
-  return ensureHydraSkillLinks({ sourceDir: getSkillSourceDir() });
+  return ensureSkillLinks({
+    sourceDir: getSkillSourceDir(),
+    appVersion: app.getVersion(),
+  });
 }
 
 function uninstallSkill(): boolean {
-  return uninstallHydraSkillLinks();
+  return uninstallSkillLinks({ sourceDir: getSkillSourceDir() });
 }
 
 // Register termcanvas:// protocol for OAuth callback

@@ -20,8 +20,8 @@ extraResources:
     to: cli
     filter:
       - "**/*"
-  - from: hydra/skill
-    to: skill
+  - from: skills
+    to: skills
     filter:
       - "**/*"
 
