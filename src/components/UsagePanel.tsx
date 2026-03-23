@@ -668,7 +668,7 @@ export function UsagePanel() {
               </div>
               <div className="mx-3 h-px bg-[var(--border)]" />
               <div className="usage-section-enter" style={{ animationDelay: "80ms" }}>
-                <CacheRateSection t={t} summary={activeSummary} animate={true} />
+                {summary && <CacheRateSection t={t} summary={summary} animate={true} />}
               </div>
               {activeSummary.projects.length > 0 && (
                 <>
