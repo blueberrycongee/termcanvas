@@ -443,6 +443,25 @@ export function App() {
         }
         return null;
       },
+
+      setCustomTitle: (terminalId: string, customTitle: string) => {
+        const { projects } = useProjectStore.getState();
+        for (const p of projects) {
+          for (const w of p.worktrees) {
+            const t = w.terminals.find((t) => t.id === terminalId);
+            if (t) {
+              useProjectStore.getState().updateTerminalCustomTitle(
+                p.id,
+                w.id,
+                terminalId,
+                customTitle,
+              );
+              return true;
+            }
+          }
+        }
+        throw new Error("Terminal not found");
+      },
     };
 
     (window as any).__tcApi = api;
