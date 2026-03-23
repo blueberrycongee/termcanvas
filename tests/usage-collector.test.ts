@@ -6,6 +6,7 @@ import os from "node:os";
 
 import {
   computeCost,
+  parseClaudeSession,
   parseCodexSession,
   shouldReuseTimedCache,
   shouldReuseUsageSummary,
@@ -187,4 +188,95 @@ test("computeCost applies codex pricing correctly", () => {
                  + (5_000 / 1e6) * 6.00
                  + (80_000 / 1e6) * 0.375;
   assert.equal(Math.abs(cost - expected) < 1e-10, true);
+});
+
+// ── Hydra worktree attribution tests ────────────────────────────────────
+
+function writeClaudeJsonl(dirName: string, lines: object[]): { filePath: string; dir: string } {
+  const projectsDir = path.join(os.homedir(), ".claude", "projects");
+  const dir = path.join(projectsDir, dirName);
+  fs.mkdirSync(dir, { recursive: true });
+  const filePath = path.join(dir, "test-session.jsonl");
+  fs.writeFileSync(filePath, lines.map((l) => JSON.stringify(l)).join("\n"));
+  return { filePath, dir };
+}
+
+const sampleClaudeMessage = [
+  {
+    timestamp: "2026-03-20T10:00:00Z",
+    message: {
+      id: "msg_001",
+      model: "claude-sonnet-4-6",
+      usage: {
+        input_tokens: 1000,
+        output_tokens: 500,
+        cache_read_input_tokens: 200,
+        cache_creation_input_tokens: 0,
+      },
+    },
+  },
+];
+
+test("parseClaudeSession maps Hydra .worktrees path to parent project", () => {
+  // Hydra creates worktrees at repo/.worktrees/hydra-id
+  // Claude may encode .worktrees as -.worktrees- (keeping the dot)
+  const { filePath, dir } = writeClaudeJsonl(
+    "-tmp-test-proj-.worktrees-hydra-abc123",
+    sampleClaudeMessage,
+  );
+
+  try {
+    const { records, projectPath } = parseClaudeSession(
+      filePath,
+      "2026-03-20T00:00:00",
+      "2026-03-21T00:00:00",
+    );
+
+    assert.equal(projectPath, "/tmp/test/proj");
+    assert.equal(records.length, 1);
+    assert.equal(records[0].projectPath, "/tmp/test/proj");
+  } finally {
+    fs.rmSync(dir, { recursive: true });
+  }
+});
+
+test("parseClaudeSession maps --worktrees path to parent project", () => {
+  // Claude may also encode .worktrees as --worktrees- (stripping the dot)
+  const { filePath, dir } = writeClaudeJsonl(
+    "-tmp-test-proj--worktrees-feature-branch",
+    sampleClaudeMessage,
+  );
+
+  try {
+    const { records, projectPath } = parseClaudeSession(
+      filePath,
+      "2026-03-20T00:00:00",
+      "2026-03-21T00:00:00",
+    );
+
+    assert.equal(projectPath, "/tmp/test/proj");
+    assert.equal(records.length, 1);
+    assert.equal(records[0].projectPath, "/tmp/test/proj");
+  } finally {
+    fs.rmSync(dir, { recursive: true });
+  }
+});
+
+test("parseClaudeSession preserves normal project path (no worktree)", () => {
+  const { filePath, dir } = writeClaudeJsonl(
+    "-tmp-test-proj",
+    sampleClaudeMessage,
+  );
+
+  try {
+    const { projectPath } = parseClaudeSession(
+      filePath,
+      "2026-03-20T00:00:00",
+      "2026-03-21T00:00:00",
+    );
+
+    assert.equal(projectPath, "/tmp/test/proj");
+  } finally {
+    fs.rmSync(dir, { recursive: true });
+  }
 });

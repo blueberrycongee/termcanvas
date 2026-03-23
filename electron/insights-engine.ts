@@ -349,7 +349,7 @@ function extractClaudeSession(file: SessionFileInfo): SessionInfo | null {
   const rel = path.relative(projectsDir, file.filePath);
   const topDir = rel.split(path.sep)[0];
   if (topDir && topDir.startsWith("-")) {
-    const cleaned = topDir.replace(/--worktrees-.*$/, "");
+    const cleaned = topDir.replace(/(--worktrees-|-.worktrees-).*$/, "");
     projectPath = cleaned.replace(/-/g, "/");
   }
 
