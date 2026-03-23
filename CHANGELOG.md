@@ -2,6 +2,23 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.46] - 2026-03-23
+
+### Added
+- Terminal rename skill (`/termcanvas:rename`): AI generates a concise tab title from conversation context
+- CLI `terminal set-title` command and `PUT /terminal/{id}/custom-title` API route
+- Hub component for layered focus navigation across projects and worktrees
+- Auto-collapse worktrees when their last terminal is removed
+
+### Changed
+- Skill distribution migrated from per-skill symlinks to Claude Code plugin system
+- Removed Sidebar component in favor of Hub navigation
+- Removed Hydra connection line overlay (parent-child navigation via HierarchyBadges)
+
+### Fixed
+- Improved text-muted contrast for better readability
+- Windows: correct path joining for CLI artifacts
+
 ## [0.8.45] - 2026-03-23
 
 ### Fixed
