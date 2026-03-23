@@ -13,6 +13,29 @@ export interface TerminalFocusOrderItem {
   index: number;
 }
 
+export interface WorktreeFocusOrderItem {
+  projectId: string;
+  worktreeId: string;
+  index: number;
+}
+
+export function getWorktreeFocusOrder(
+  projects: ProjectData[],
+): WorktreeFocusOrderItem[] {
+  const worktrees: Omit<WorktreeFocusOrderItem, "index">[] = [];
+
+  for (const project of projects) {
+    for (const worktree of project.worktrees) {
+      worktrees.push({
+        projectId: project.id,
+        worktreeId: worktree.id,
+      });
+    }
+  }
+
+  return worktrees.map((w, index) => ({ ...w, index }));
+}
+
 export function getTerminalFocusOrder(
   projects: ProjectData[],
 ): TerminalFocusOrderItem[] {
