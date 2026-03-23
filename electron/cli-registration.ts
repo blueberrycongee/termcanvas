@@ -227,7 +227,9 @@ function ensureCliArtifacts(
   deps: CliRegistrationDeps,
 ): void {
   for (const name of CLI_NAMES) {
-    const jsFile = path.join(cliDir, `${name}.js`);
+    const jsFile = deps.platform === "win32"
+      ? path.win32.join(cliDir, `${name}.js`)
+      : path.join(cliDir, `${name}.js`);
     try {
       deps.chmodSync(jsFile, 0o755);
     } catch {
