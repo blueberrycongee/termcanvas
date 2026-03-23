@@ -570,55 +570,16 @@ export function UsagePanel() {
       }
       mergedBuckets.sort((a, b) => a.hourStart - b.hourStart);
 
-      // Cloud RPC doesn't return cache token data, so use local summary's cache fields.
-      // Merge model-level cache data from local into cloud models.
-      const localModelMap = new Map(summary.models.map((m) => [m.model, m]));
-      const mergedModels = cloudSummary.models.map((cm) => {
-        const lm = localModelMap.get(cm.model);
-        if (!lm) return cm;
-        return { ...cm, cacheRead: lm.cacheRead, cacheCreate5m: lm.cacheCreate5m, cacheCreate1h: lm.cacheCreate1h };
-      });
-      // Add local-only models missing from cloud (they have cache data)
-      for (const lm of summary.models) {
-        if (!mergedModels.some((m) => m.model === lm.model)) {
-          mergedModels.push(lm);
-        }
-      }
-
       return {
         ...cloudSummary,
         sessions: Math.max(cloudSummary.sessions, summary.sessions),
         totalInput: Math.max(cloudSummary.totalInput, summary.totalInput),
         totalOutput: Math.max(cloudSummary.totalOutput, summary.totalOutput),
         totalCost: Math.max(cloudSummary.totalCost, summary.totalCost),
-        // Cache fields from local (cloud doesn't track these)
-        totalCacheRead: summary.totalCacheRead,
-        totalCacheCreate5m: summary.totalCacheCreate5m,
-        totalCacheCreate1h: summary.totalCacheCreate1h,
         buckets: mergedBuckets,
-        models: mergedModels,
       };
     }
-    // When only cloud data is available but local also exists, overlay cache fields
-    if (isLoggedIn && cloudSummary) {
-      if (summary) {
-        const localModelMap = new Map(summary.models.map((m) => [m.model, m]));
-        const mergedModels = cloudSummary.models.map((cm) => {
-          const lm = localModelMap.get(cm.model);
-          if (!lm) return cm;
-          return { ...cm, cacheRead: lm.cacheRead, cacheCreate5m: lm.cacheCreate5m, cacheCreate1h: lm.cacheCreate1h };
-        });
-        return {
-          ...cloudSummary,
-          totalCacheRead: summary.totalCacheRead,
-          totalCacheCreate5m: summary.totalCacheCreate5m,
-          totalCacheCreate1h: summary.totalCacheCreate1h,
-          models: mergedModels,
-        };
-      }
-      return cloudSummary;
-    }
-    return summary;
+    return isLoggedIn && cloudSummary ? cloudSummary : summary;
   })();
   // Merge cloud + local heatmap: cloud wins per-day (multi-device), local fills gaps (pre-login)
   const activeHeatmap = (() => {
@@ -707,7 +668,7 @@ export function UsagePanel() {
               </div>
               <div className="mx-3 h-px bg-[var(--border)]" />
               <div className="usage-section-enter" style={{ animationDelay: "80ms" }}>
-                <CacheRateSection t={t} summary={activeSummary} animate={true} />
+                {summary && <CacheRateSection t={t} summary={summary} animate={true} />}
               </div>
               {activeSummary.projects.length > 0 && (
                 <>
