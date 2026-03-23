@@ -26,7 +26,7 @@ type Tab = SettingsTab;
 
 const SHORTCUT_KEYS: { key: keyof ShortcutMap; labelKey: string }[] = [
   { key: "addProject", labelKey: "shortcut_add_project" },
-  { key: "toggleSidebar", labelKey: "shortcut_toggle_sidebar" },
+  { key: "cycleFocusLevel", labelKey: "shortcut_cycle_focus_level" },
   { key: "toggleRightPanel", labelKey: "shortcut_toggle_right_panel" },
   { key: "newTerminal", labelKey: "shortcut_new_terminal" },
   { key: "saveWorkspace", labelKey: "shortcut_save_workspace" },
@@ -34,8 +34,6 @@ const SHORTCUT_KEYS: { key: keyof ShortcutMap; labelKey: string }[] = [
   { key: "renameTerminalTitle", labelKey: "shortcut_rename_terminal_title" },
   { key: "closeFocused", labelKey: "shortcut_close_focused" },
   { key: "toggleStarFocused", labelKey: "shortcut_toggle_star_focused" },
-  { key: "nextStarred", labelKey: "shortcut_next_starred" },
-  { key: "prevStarred", labelKey: "shortcut_prev_starred" },
   { key: "nextTerminal", labelKey: "shortcut_next_terminal" },
   { key: "prevTerminal", labelKey: "shortcut_prev_terminal" },
   { key: "clearFocus", labelKey: "shortcut_clear_focus" },

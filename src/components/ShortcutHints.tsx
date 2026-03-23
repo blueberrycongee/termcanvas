@@ -38,14 +38,12 @@ export function ShortcutHints() {
 
   const hints = [
     { key: shortcuts.addProject, desc: t.shortcut_add_project },
-    { key: shortcuts.toggleSidebar, desc: t.shortcut_toggle_sidebar },
+    { key: shortcuts.cycleFocusLevel, desc: t.shortcut_cycle_focus_level },
     { key: shortcuts.toggleRightPanel, desc: t.shortcut_toggle_right_panel },
     { key: shortcuts.newTerminal, desc: t.shortcut_new_terminal },
     { key: shortcuts.renameTerminalTitle, desc: t.shortcut_rename_terminal_title },
     { key: shortcuts.closeFocused, desc: t.shortcut_close_focused },
     { key: shortcuts.toggleStarFocused, desc: t.shortcut_toggle_star_focused },
-    { key: shortcuts.nextStarred, desc: t.shortcut_next_starred },
-    { key: shortcuts.prevStarred, desc: t.shortcut_prev_starred },
     { key: shortcuts.nextTerminal, desc: t.shortcut_next_terminal },
     { key: shortcuts.prevTerminal, desc: t.shortcut_prev_terminal },
     { key: shortcuts.clearFocus, desc: t.shortcut_clear_focus },

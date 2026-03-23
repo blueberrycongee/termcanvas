@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Canvas } from "./canvas/Canvas";
 import { Toolbar } from "./toolbar/Toolbar";
-import { Sidebar } from "./components/Sidebar";
 import { NotificationToast } from "./components/NotificationToast";
 import { initUpdaterListeners } from "./stores/updaterStore";
 import { ComposerBar } from "./components/ComposerBar";
@@ -454,7 +453,6 @@ export function App() {
   return (
     <div className="h-screen w-screen overflow-hidden bg-[var(--bg)] text-[var(--text-primary)]">
       <Toolbar onShowTutorial={() => setShowWelcome(true)} />
-      <Sidebar />
       <Canvas />
       {drawingEnabled && <DrawingPanel />}
       <CompletionGlow />

@@ -350,7 +350,7 @@ export function WelcomePopup({ onClose }: Props) {
   const shortcutItems = [
     { key: shortcuts.addProject, en: en.shortcut_add_project, zh: zh.shortcut_add_project },
     { key: shortcuts.newTerminal, en: en.shortcut_new_terminal, zh: zh.shortcut_new_terminal },
-    { key: shortcuts.toggleSidebar, en: en.shortcut_toggle_sidebar, zh: zh.shortcut_toggle_sidebar },
+    { key: shortcuts.cycleFocusLevel, en: en.shortcut_cycle_focus_level, zh: zh.shortcut_cycle_focus_level },
     { key: shortcuts.toggleRightPanel, en: en.shortcut_toggle_right_panel, zh: zh.shortcut_toggle_right_panel },
     { key: shortcuts.clearFocus, en: en.shortcut_clear_focus, zh: zh.shortcut_clear_focus },
   ];

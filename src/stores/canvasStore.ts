@@ -5,7 +5,6 @@ import { useWorkspaceStore } from "./workspaceStore";
 export type FocusLevel = "terminal" | "starred" | "worktree";
 
 // Fixed panel dimensions (no user-resizable widths)
-export const SIDEBAR_WIDTH = 200;
 export const RIGHT_PANEL_WIDTH = 240;
 export const COLLAPSED_TAB_WIDTH = 32;
 
