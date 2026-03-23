@@ -2,6 +2,8 @@ import { create } from "zustand";
 import type { Viewport } from "../types";
 import { useWorkspaceStore } from "./workspaceStore";
 
+export type FocusLevel = "terminal" | "starred" | "worktree";
+
 // Fixed panel dimensions (no user-resizable widths)
 export const SIDEBAR_WIDTH = 200;
 export const RIGHT_PANEL_WIDTH = 240;
@@ -10,11 +12,12 @@ export const COLLAPSED_TAB_WIDTH = 32;
 interface CanvasStore {
   viewport: Viewport;
   isAnimating: boolean;
-  sidebarCollapsed: boolean;
+  focusLevel: FocusLevel;
   rightPanelCollapsed: boolean;
   setViewport: (viewport: Partial<Viewport>) => void;
   resetViewport: () => void;
-  setSidebarCollapsed: (collapsed: boolean) => void;
+  setFocusLevel: (level: FocusLevel) => void;
+  cycleFocusLevel: () => void;
   setRightPanelCollapsed: (collapsed: boolean) => void;
   animateTo: (x: number, y: number, scale?: number) => void;
 }
@@ -31,10 +34,16 @@ function markDirty() {
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
   viewport: { ...DEFAULT_VIEWPORT },
   isAnimating: false,
-  sidebarCollapsed: false,
+  focusLevel: "terminal" as FocusLevel,
   rightPanelCollapsed: true,
 
-  setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+  setFocusLevel: (level) => set({ focusLevel: level }),
+  cycleFocusLevel: () => {
+    const order: FocusLevel[] = ["terminal", "starred", "worktree"];
+    const current = get().focusLevel;
+    const next = order[(order.indexOf(current) + 1) % order.length];
+    set({ focusLevel: next });
+  },
   setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
 
   setViewport: (partial) => {
@@ -65,7 +74,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const startTime = performance.now();
     const myId = ++animationId;
 
-    set({ isAnimating: true, sidebarCollapsed: true });
+    set({ isAnimating: true });
 
     const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 
