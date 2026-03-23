@@ -298,8 +298,8 @@ function setupIpc() {
     return result.filePaths[0];
   });
 
-  ipcMain.handle("project:scan", (_event, dirPath: string) => {
-    return projectScanner.scan(dirPath);
+  ipcMain.handle("project:scan", async (_event, dirPath: string) => {
+    return await projectScanner.scanAsync(dirPath);
   });
 
   ipcMain.handle("project:diff", async (_event, worktreePath: string) => {
@@ -310,8 +310,8 @@ function setupIpc() {
     }
   });
 
-  ipcMain.handle("project:rescan-worktrees", (_event, dirPath: string) => {
-    return projectScanner.listWorktrees(dirPath);
+  ipcMain.handle("project:rescan-worktrees", async (_event, dirPath: string) => {
+    return await projectScanner.listWorktreesAsync(dirPath);
   });
 
   // Git file watcher IPC (Layer 1 of DiffCard refresh)

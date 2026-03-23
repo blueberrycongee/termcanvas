@@ -88,16 +88,53 @@ function restoreFromData(data: Record<string, unknown>) {
 }
 
 function useWorktreeWatcher() {
-  const { projects, syncWorktrees } = useProjectStore();
+  const projectCount = useProjectStore((s) => s.projects.length);
 
   useEffect(() => {
-    if (!window.termcanvas || projects.length === 0) return;
+    if (!window.termcanvas || projectCount === 0) return;
+
+    const inFlight = new Set<string>();
+    const pending = new Set<string>();
+    const latestSeqByPath = new Map<string, number>();
+    let disposed = false;
+
+    const scheduleRescan = (projectPath: string) => {
+      if (inFlight.has(projectPath)) {
+        pending.add(projectPath);
+        return;
+      }
+
+      inFlight.add(projectPath);
+      const seq = (latestSeqByPath.get(projectPath) ?? 0) + 1;
+      latestSeqByPath.set(projectPath, seq);
+
+      void window.termcanvas.project
+        .rescanWorktrees(projectPath)
+        .then((worktrees) => {
+          if (disposed) return;
+          if (latestSeqByPath.get(projectPath) !== seq) return;
+          useProjectStore.getState().syncWorktrees(projectPath, worktrees);
+        })
+        .catch((err) => {
+          if (!disposed) {
+            console.error(
+              `[useWorktreeWatcher] failed to rescan ${projectPath}:`,
+              err,
+            );
+          }
+        })
+        .finally(() => {
+          inFlight.delete(projectPath);
+          if (!disposed && pending.delete(projectPath)) {
+            scheduleRescan(projectPath);
+          }
+        });
+    };
 
     const rescanAll = () => {
+      const { projects } = useProjectStore.getState();
       for (const p of projects) {
-        window.termcanvas.project
-          .rescanWorktrees(p.path)
-          .then((worktrees) => syncWorktrees(p.path, worktrees));
+        scheduleRescan(p.path);
       }
     };
 
@@ -109,10 +146,11 @@ function useWorktreeWatcher() {
     window.addEventListener("focus", rescanAll);
 
     return () => {
+      disposed = true;
       clearInterval(interval);
       window.removeEventListener("focus", rescanAll);
     };
-  }, [projects.length]);
+  }, [projectCount]);
 }
 
 function useStatePersistence() {

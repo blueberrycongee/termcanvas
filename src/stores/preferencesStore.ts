@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { TerminalType } from "../types";
+import type { TerminalType } from "../types/index.ts";
 
 const DEFAULT_BLUR = 0;
 const DEFAULT_FONT_SIZE = 13;

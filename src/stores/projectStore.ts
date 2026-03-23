@@ -6,17 +6,17 @@ import type {
   TerminalType,
   TerminalStatus,
   TerminalOrigin,
-} from "../types";
-import { computeWorktreeSize, PROJ_PAD, PROJ_TITLE_H } from "../layout";
+} from "../types/index.ts";
+import { computeWorktreeSize, PROJ_PAD, PROJ_TITLE_H } from "../layout.ts";
 import {
   DEFAULT_SPAN,
   withToggledTerminalStarred,
   withUpdatedTerminalCustomTitle,
   withUpdatedTerminalType,
-} from "./terminalState";
-import { normalizeProjectsFocus } from "./projectFocus";
-import { useWorkspaceStore } from "./workspaceStore";
-import { usePreferencesStore } from "./preferencesStore";
+} from "./terminalState.ts";
+import { normalizeProjectsFocus } from "./projectFocus.ts";
+import { useWorkspaceStore } from "./workspaceStore.ts";
+import { usePreferencesStore } from "./preferencesStore.ts";
 
 interface ProjectStore {
   projects: ProjectData[];
@@ -115,6 +115,12 @@ interface ProjectStore {
   clearFocus: () => void;
 
   setProjects: (projects: ProjectData[]) => void;
+}
+
+interface ScannedWorktree {
+  path: string;
+  branch: string;
+  isMain: boolean;
 }
 
 let idCounter = 0;
@@ -299,6 +305,39 @@ function resolveOverlaps(projects: ProjectData[]): ProjectData[] {
   }));
 }
 
+function syncProjectWorktrees(
+  project: ProjectData,
+  worktrees: ScannedWorktree[],
+): ProjectData {
+  const existingByPath = new Map(project.worktrees.map((w) => [w.path, w]));
+  const synced = worktrees.map((wt) => {
+    const existing = existingByPath.get(wt.path);
+    if (!existing) {
+      return {
+        id: generateId(),
+        name: wt.branch,
+        path: wt.path,
+        position: { x: 0, y: 0 },
+        collapsed: true,
+        terminals: [],
+      };
+    }
+    if (existing.name === wt.branch) {
+      return existing;
+    }
+    return { ...existing, name: wt.branch };
+  });
+
+  if (
+    synced.length === project.worktrees.length &&
+    synced.every((worktree, index) => worktree === project.worktrees[index])
+  ) {
+    return project;
+  }
+
+  return { ...project, worktrees: synced };
+}
+
 export const useProjectStore = create<ProjectStore>((set) => ({
   projects: [],
   focusedProjectId: null,
@@ -384,29 +423,21 @@ export const useProjectStore = create<ProjectStore>((set) => ({
   },
 
   syncWorktrees: (projectPath, worktrees) =>
-    set((state) => ({
-      projects: resolveOverlaps(
-        state.projects.map((p) => {
-          if (p.path !== projectPath) return p;
-          const existingByPath = new Map(p.worktrees.map((w) => [w.path, w]));
-          const synced = worktrees.map((wt) => {
-            const existing = existingByPath.get(wt.path);
-            if (existing) {
-              return { ...existing, name: wt.branch };
-            }
-            return {
-              id: generateId(),
-              name: wt.branch,
-              path: wt.path,
-              position: { x: 0, y: 0 },
-              collapsed: true,
-              terminals: [],
-            };
-          });
-          return { ...p, worktrees: synced };
-        }),
-      ),
-    })),
+    set((state) => {
+      let changed = false;
+      const updatedProjects = state.projects.map((project) => {
+        if (project.path !== projectPath) return project;
+        const syncedProject = syncProjectWorktrees(project, worktrees);
+        if (syncedProject !== project) changed = true;
+        return syncedProject;
+      });
+
+      if (!changed) {
+        return state;
+      }
+
+      return { projects: resolveOverlaps(updatedProjects) };
+    }),
 
   toggleWorktreeCollapse: (projectId, worktreeId) => {
     set((state) => ({

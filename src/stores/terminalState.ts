@@ -1,4 +1,4 @@
-import type { TerminalData, TerminalType } from "../types";
+import type { TerminalData, TerminalType } from "../types/index.ts";
 
 export const DEFAULT_SPAN: Record<TerminalType, { cols: number; rows: number }> = {
   shell: { cols: 1, rows: 1 },
