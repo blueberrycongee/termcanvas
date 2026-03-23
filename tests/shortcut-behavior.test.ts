@@ -127,6 +127,17 @@ test("rename title shortcut defaults to mod+semicolon", () => {
   assert.equal(DEFAULT_SHORTCUTS.renameTerminalTitle, "mod+;");
 });
 
+test("cycle focus level shortcut defaults to mod+g and matches correctly", () => {
+  assert.equal(DEFAULT_SHORTCUTS.cycleFocusLevel, "mod+g");
+
+  withPlatform("darwin", () => {
+    assert.equal(
+      matchesShortcut(createKeyboardEvent({ key: "g", metaKey: true }), "mod+g"),
+      true,
+    );
+  });
+});
+
 test("terminal focus order follows natural project/worktree/array order", () => {
   const projects: ProjectData[] = [
     {
