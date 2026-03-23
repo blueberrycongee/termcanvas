@@ -30,6 +30,7 @@ export function Hub() {
   const [expanded, setExpanded] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const targets: FocusTarget[] = (() => {
     if (focusLevel === "worktree") {
@@ -128,6 +129,23 @@ export function Hub() {
     setSelectedIndex(0);
   }, [expanded, focusLevel]);
 
+  useEffect(() => {
+    if (!expanded) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setExpanded(false);
+      }
+    };
+    window.addEventListener("mousedown", handler);
+    return () => window.removeEventListener("mousedown", handler);
+  }, [expanded]);
+
+  useEffect(() => {
+    itemRefs.current[selectedIndex]?.scrollIntoView({
+      block: "nearest",
+    });
+  }, [selectedIndex]);
+
   const isMac =
     typeof navigator !== "undefined" &&
     navigator.platform?.startsWith("Mac");
@@ -170,6 +188,9 @@ export function Hub() {
             targets.map((target, i) => (
               <button
                 key={target.id}
+                ref={(el) => {
+                  itemRefs.current[i] = el;
+                }}
                 onClick={() => selectTarget(target)}
                 className={`w-full text-left px-3 py-1.5 text-xs cursor-pointer
                   hover:bg-bg-tertiary transition-colors truncate
