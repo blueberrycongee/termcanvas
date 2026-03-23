@@ -192,7 +192,7 @@ function AgentsTabContent() {
 
 export function SettingsModal({ onClose }: Props) {
   const { locale, setLocale } = useLocaleStore();
-  const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize, terminalFontFamily, setTerminalFontFamily, composerEnabled, setComposerEnabled, drawingEnabled, setDrawingEnabled, minimumContrastRatio, setMinimumContrastRatio } = usePreferencesStore();
+  const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize, terminalFontFamily, setTerminalFontFamily, composerEnabled, setComposerEnabled, drawingEnabled, setDrawingEnabled, browserEnabled, setBrowserEnabled, minimumContrastRatio, setMinimumContrastRatio } = usePreferencesStore();
   const [fontSizeDraft, setFontSizeDraft] = useState(terminalFontSize);
   const { shortcuts, setShortcut, resetAll } = useShortcutStore();
   const [downloadedFonts, setDownloadedFonts] = useState<Set<string>>(new Set());
@@ -569,6 +569,32 @@ export function SettingsModal({ onClose }: Props) {
                   <button
                     className={!drawingEnabled ? activeBtn : inactiveBtn}
                     onClick={() => setDrawingEnabled(false)}
+                  >
+                    Off
+                  </button>
+                </div>
+              </div>
+
+              {/* Browser toggle */}
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[13px] text-[var(--text-secondary)]">
+                    {t.browser_toggle}
+                  </span>
+                  <span className="text-[11px] text-[var(--text-muted)]">
+                    {t.browser_toggle_desc}
+                  </span>
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    className={browserEnabled ? activeBtn : inactiveBtn}
+                    onClick={() => setBrowserEnabled(true)}
+                  >
+                    On
+                  </button>
+                  <button
+                    className={!browserEnabled ? activeBtn : inactiveBtn}
+                    onClick={() => setBrowserEnabled(false)}
                   >
                     Off
                   </button>

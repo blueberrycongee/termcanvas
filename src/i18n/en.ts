@@ -146,6 +146,8 @@ export const en = {
   composer_toggle_desc: "Experimental. Routes input through a bottom bar with image paste support",
   drawing_toggle: "Drawing tools",
   drawing_toggle_desc: "Experimental. Freehand drawing and annotation on the canvas",
+  browser_toggle: "Built-in browser shortcut",
+  browser_toggle_desc: "Experimental. Shows the open-browser button in the top toolbar when enabled",
   shortcuts_reset: "Reset to defaults",
   shortcuts_press_hint: "Press shortcut\u2026",
   shortcuts_conflict: "Conflicts with another shortcut",

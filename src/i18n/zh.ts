@@ -144,6 +144,8 @@ export const zh = {
   composer_toggle_desc: "实验性功能。开启后通过底部输入栏发送内容到终端，支持图片粘贴",
   drawing_toggle: "画板工具",
   drawing_toggle_desc: "实验性功能。在画布上进行自由绘图和标注",
+  browser_toggle: "内置浏览器入口",
+  browser_toggle_desc: "实验性功能。开启后会在顶部工具栏显示打开浏览器按钮",
   shortcuts_reset: "恢复默认",
   shortcuts_press_hint: "按下快捷键…",
   shortcuts_conflict: "与其他快捷键冲突",

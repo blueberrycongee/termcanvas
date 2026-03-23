@@ -4,6 +4,7 @@ import { useProjectStore } from "../stores/projectStore";
 import { useThemeStore } from "../stores/themeStore";
 import { useBrowserCardStore } from "../stores/browserCardStore";
 import { useUpdaterStore } from "../stores/updaterStore";
+import { usePreferencesStore } from "../stores/preferencesStore";
 import { useSettingsModalStore } from "../stores/settingsModalStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { computeWorktreeSize, PROJ_PAD, PROJ_TITLE_H } from "../layout";
@@ -26,6 +27,7 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
   const { viewport, setViewport, resetViewport, animateTo } = useCanvasStore();
   const { projects } = useProjectStore();
   const { theme, toggleTheme } = useThemeStore();
+  const browserEnabled = usePreferencesStore((s) => s.browserEnabled);
   const t = useT();
   const workspacePath = useWorkspaceStore((s) => s.workspacePath);
   const dirty = useWorkspaceStore((s) => s.dirty);
@@ -238,21 +240,23 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
             </svg>
           </button>
 
-          <button
-            className={btn}
-            onClick={() => {
-              const scale = viewport.scale;
-              const x = (-viewport.x + window.innerWidth / 2) / scale - 400;
-              const y = (-viewport.y + window.innerHeight / 2) / scale - 300;
-              addBrowserCard("https://google.com", { x, y });
-            }}
-            title={t.add_browser}
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2" />
-              <path d="M1.5 7h11M7 1.5c-1.5 2-2 3.5-2 5.5s.5 3.5 2 5.5M7 1.5c1.5 2 2 3.5 2 5.5s-.5 3.5-2 5.5" stroke="currentColor" strokeWidth="1.2" />
-            </svg>
-          </button>
+          {browserEnabled && (
+            <button
+              className={btn}
+              onClick={() => {
+                const scale = viewport.scale;
+                const x = (-viewport.x + window.innerWidth / 2) / scale - 400;
+                const y = (-viewport.y + window.innerHeight / 2) / scale - 300;
+                addBrowserCard("https://google.com", { x, y });
+              }}
+              title={t.add_browser}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2" />
+                <path d="M1.5 7h11M7 1.5c-1.5 2-2 3.5-2 5.5s.5 3.5 2 5.5M7 1.5c1.5 2 2 3.5 2 5.5s-.5 3.5-2 5.5" stroke="currentColor" strokeWidth="1.2" />
+              </svg>
+            </button>
+          )}
         </div>
 
         <div className={controlGroup} style={noDrag}>
