@@ -34,6 +34,7 @@ import {
 import { collectUsage, collectHeatmapData } from "./usage-collector";
 import { setupAutoUpdater, stopAutoUpdater } from "./auto-updater";
 import { initAuth, login, logout, getAuthUser, getDeviceId, handleAuthCallback, onAuthStateChange, isLoggedIn } from "./auth";
+import { toFileUrl } from "./file-url";
 import { queryCloudUsage, queryCloudHeatmap, backfillHistory, flushSyncQueue, syncRecentRecords } from "./usage-sync";
 import type { ComposerSubmitRequest } from "../src/types";
 
@@ -703,10 +704,7 @@ function setupIpc() {
   );
 
   ipcMain.handle("insights:open-report", async (_event, filePath: string) => {
-    const error = await shell.openPath(filePath);
-    if (error) {
-      console.error(`[insights] Failed to open report: ${error}`);
-    }
+    await shell.openExternal(toFileUrl(filePath));
   });
 
   ipcMain.handle("insights:get-last-report", async () => {
