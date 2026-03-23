@@ -2,11 +2,16 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Let Claude Code / Codex users rename their TermCanvas terminal tab via a `/rename` skill that generates a title from conversation context.
+**Goal:** Let Claude Code / Codex users rename their TermCanvas terminal tab via a `/termcanvas:rename` skill that generates a title from conversation context.
 
 **Architecture:** Three layers — (1) migrate skill distribution from per-skill symlinks to a Claude Code plugin, (2) add CLI `set-title` command backed by HTTP API + renderer bridge, (3) add rename SKILL.md to the plugin.
 
 **Tech Stack:** TypeScript (Electron main + renderer + CLI), SKILL.md (Markdown with YAML frontmatter)
+
+**Review notes:** Codex reviewed the original plan and raised three high-priority issues. All three are addressed in this revision:
+1. `installed_plugins.json` safety — parse failure now skips mutation; atomic write via temp file + rename
+2. Skill naming — plugin skills are namespaced as `/termcanvas:rename`, not `/rename`
+3. Idempotency — `ensureSkillLinks` now has a fast path that skips work when state is current
 
 ---
 
@@ -236,7 +241,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-export function getSkillLinkType(platform = process.platform): "junction" | "dir" {
+function getSkillLinkType(platform = process.platform): "junction" | "dir" {
   return platform === "win32" ? "junction" : "dir";
 }
 
@@ -250,11 +255,7 @@ export function getSkillsSourceDir(
   return path.resolve(currentDir, "..", "skills");
 }
 
-/**
- * Target paths for skill installation.
- * Claude Code: register as plugin via installed_plugins.json
- * Codex: symlink individual skills to ~/.codex/skills/<name>
- */
+// ── Path helpers ──────────────────────────────────────────────────────
 
 function getCodexSkillsDir(home: string): string {
   return path.join(home, ".codex", "skills");
@@ -264,106 +265,279 @@ function getClaudePluginsFile(home: string): string {
   return path.join(home, ".claude", "plugins", "installed_plugins.json");
 }
 
-/** Read installed_plugins.json, returning the parsed object. */
-function readInstalledPlugins(filePath: string): any {
-  try {
-    return JSON.parse(fs.readFileSync(filePath, "utf-8"));
-  } catch {
-    return { version: 2, plugins: {} };
-  }
-}
-
-/** Write installed_plugins.json. */
-function writeInstalledPlugins(filePath: string, data: any): void {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
-}
+// ── installed_plugins.json helpers (safe read / atomic write) ─────────
 
 const PLUGIN_KEY = "termcanvas@termcanvas";
 
-/** Install skills: register Claude Code plugin + symlink Codex skills. */
-export function installSkillLinks({
-  home = os.homedir(),
-  sourceDir,
-}: {
-  home?: string;
-  sourceDir: string;
-}): boolean {
+interface PluginEntry {
+  scope: string;
+  installPath: string;
+  version: string;
+  installedAt: string;
+  lastUpdated: string;
+}
+
+interface InstalledPlugins {
+  version: number;
+  plugins: Record<string, PluginEntry[]>;
+}
+
+/**
+ * Read installed_plugins.json safely.
+ * Returns null on any failure — caller must decide whether to proceed.
+ */
+function readInstalledPlugins(filePath: string): InstalledPlugins | null {
   try {
-    // Claude Code: register plugin in installed_plugins.json
-    const pluginsFile = getClaudePluginsFile(home);
-    const data = readInstalledPlugins(pluginsFile);
-    data.plugins[PLUGIN_KEY] = [
-      {
-        scope: "user",
-        installPath: sourceDir,
-        version: "1.0.0",
-        installedAt: new Date().toISOString(),
-        lastUpdated: new Date().toISOString(),
-      },
-    ];
-    writeInstalledPlugins(pluginsFile, data);
-
-    // Codex: symlink individual skills
-    const linkType = getSkillLinkType();
-    const codexDir = getCodexSkillsDir(home);
-    const skillsRoot = path.join(sourceDir, "skills");
-    if (fs.existsSync(skillsRoot)) {
-      for (const name of fs.readdirSync(skillsRoot)) {
-        const skillDir = path.join(skillsRoot, name);
-        if (!fs.statSync(skillDir).isDirectory()) continue;
-        const link = path.join(codexDir, name);
-        fs.mkdirSync(codexDir, { recursive: true });
-        try { fs.unlinkSync(link); } catch { /* ignore */ }
-        fs.symlinkSync(skillDir, link, linkType);
-      }
+    const raw = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    if (typeof raw !== "object" || !raw || typeof raw.plugins !== "object") {
+      return null;
     }
+    return raw as InstalledPlugins;
+  } catch {
+    return null;
+  }
+}
 
-    // Clean up old hydra-only symlinks
-    const oldClaudeHydra = path.join(home, ".claude", "skills", "hydra");
+/** Atomic write: write to temp file then rename. */
+function writeInstalledPlugins(filePath: string, data: InstalledPlugins): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const tmp = filePath + ".tmp." + process.pid;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
+  fs.renameSync(tmp, filePath);
+}
+
+// ── Claude Code plugin registration ───────────────────────────────────
+
+/** Check if the Claude plugin entry already points to sourceDir. */
+function isClaudePluginCurrent(filePath: string, sourceDir: string): boolean {
+  const data = readInstalledPlugins(filePath);
+  if (!data) return false;
+  const entries = data.plugins[PLUGIN_KEY];
+  if (!Array.isArray(entries) || entries.length === 0) return false;
+  return entries.some((e) => e.scope === "user" && e.installPath === sourceDir);
+}
+
+/**
+ * Register the termcanvas plugin in installed_plugins.json.
+ * Preserves all other plugin entries. Only mutates the termcanvas entry.
+ */
+function registerClaudePlugin(filePath: string, sourceDir: string, appVersion: string): boolean {
+  let data = readInstalledPlugins(filePath);
+  if (!data) {
+    // File missing or empty — create fresh; file corrupt — skip and warn
     try {
-      const target = fs.readlinkSync(oldClaudeHydra);
-      if (target.includes("Resources/skill")) fs.unlinkSync(oldClaudeHydra);
-    } catch { /* ignore */ }
+      fs.accessSync(filePath);
+      // File exists but corrupt — do not overwrite
+      console.warn("[SkillManager] installed_plugins.json is corrupt, skipping Claude plugin registration");
+      return false;
+    } catch {
+      // File does not exist — safe to create
+      data = { version: 2, plugins: {} };
+    }
+  }
 
-    return true;
+  // Merge: only touch our entry, preserve everything else
+  const existing = data.plugins[PLUGIN_KEY];
+  const userEntries = Array.isArray(existing)
+    ? existing.filter((e) => e.scope !== "user")
+    : [];
+
+  userEntries.push({
+    scope: "user",
+    installPath: sourceDir,
+    version: appVersion,
+    installedAt: new Date().toISOString(),
+    lastUpdated: new Date().toISOString(),
+  });
+
+  data.plugins[PLUGIN_KEY] = userEntries;
+  writeInstalledPlugins(filePath, data);
+  return true;
+}
+
+/** Remove the termcanvas plugin entry (user scope only). */
+function unregisterClaudePlugin(filePath: string): boolean {
+  const data = readInstalledPlugins(filePath);
+  if (!data) return true; // nothing to remove
+
+  const existing = data.plugins[PLUGIN_KEY];
+  if (!existing) return true;
+
+  const remaining = Array.isArray(existing)
+    ? existing.filter((e) => e.scope !== "user")
+    : [];
+
+  if (remaining.length > 0) {
+    data.plugins[PLUGIN_KEY] = remaining;
+  } else {
+    delete data.plugins[PLUGIN_KEY];
+  }
+
+  writeInstalledPlugins(filePath, data);
+  return true;
+}
+
+// ── Codex symlinks ────────────────────────────────────────────────────
+
+/** Check if a symlink already points to the expected target. */
+function isSymlinkCurrent(linkPath: string, expectedTarget: string): boolean {
+  try {
+    return fs.readlinkSync(linkPath) === expectedTarget;
   } catch {
     return false;
   }
 }
 
-/** Ensure skill links are current (idempotent, called on startup). */
+/** Install Codex skill symlinks by scanning the skills/ subdirectory. */
+function installCodexSkillLinks(sourceDir: string, home: string): void {
+  const linkType = getSkillLinkType();
+  const codexDir = getCodexSkillsDir(home);
+  const skillsRoot = path.join(sourceDir, "skills");
+  if (!fs.existsSync(skillsRoot)) return;
+
+  fs.mkdirSync(codexDir, { recursive: true });
+
+  for (const name of fs.readdirSync(skillsRoot)) {
+    const skillDir = path.join(skillsRoot, name);
+    try {
+      if (!fs.statSync(skillDir).isDirectory()) continue;
+    } catch { continue; }
+
+    const link = path.join(codexDir, name);
+
+    // Skip if already correct
+    if (isSymlinkCurrent(link, skillDir)) continue;
+
+    // Only replace symlinks owned by us, not user-created directories
+    try {
+      const stat = fs.lstatSync(link);
+      if (stat.isSymbolicLink()) {
+        fs.unlinkSync(link);
+      } else {
+        // User-created file/dir — do not replace
+        console.warn(`[SkillManager] skipping ${link}: not a symlink, may be user-managed`);
+        continue;
+      }
+    } catch {
+      // Does not exist — proceed to create
+    }
+
+    fs.symlinkSync(skillDir, link, linkType);
+  }
+}
+
+/** Remove Codex skill symlinks by scanning the skills/ subdirectory. */
+function removeCodexSkillLinks(sourceDir: string, home: string): void {
+  const codexDir = getCodexSkillsDir(home);
+  const skillsRoot = path.join(sourceDir, "skills");
+  if (!fs.existsSync(skillsRoot)) return;
+
+  for (const name of fs.readdirSync(skillsRoot)) {
+    const link = path.join(codexDir, name);
+    try {
+      if (fs.lstatSync(link).isSymbolicLink()) fs.unlinkSync(link);
+    } catch { /* ignore */ }
+  }
+}
+
+// ── Old hydra symlink cleanup ─────────────────────────────────────────
+
+function cleanupOldHydraSymlinks(home: string): void {
+  const oldPaths = [
+    path.join(home, ".claude", "skills", "hydra"),
+    path.join(home, ".codex", "skills", "hydra"),
+  ];
+  for (const p of oldPaths) {
+    try {
+      const stat = fs.lstatSync(p);
+      if (!stat.isSymbolicLink()) continue; // user-managed — leave it
+      const target = fs.readlinkSync(p);
+      // Only remove links that TermCanvas created (point to app Resources)
+      if (target.includes("Resources/skill") || target.includes("Resources\\skill")) {
+        fs.unlinkSync(p);
+      }
+    } catch { /* ignore */ }
+  }
+}
+
+// ── Public API ────────────────────────────────────────────────────────
+
+/**
+ * Full install: register Claude plugin + create Codex symlinks + clean old links.
+ * Called when user registers the CLI.
+ */
+export function installSkillLinks({
+  home = os.homedir(),
+  sourceDir,
+  appVersion = "1.0.0",
+}: {
+  home?: string;
+  sourceDir: string;
+  appVersion?: string;
+}): boolean {
+  try {
+    registerClaudePlugin(getClaudePluginsFile(home), sourceDir, appVersion);
+    installCodexSkillLinks(sourceDir, home);
+    cleanupOldHydraSymlinks(home);
+    return true;
+  } catch (err) {
+    console.error("[SkillManager] install failed:", err);
+    return false;
+  }
+}
+
+/**
+ * Ensure skills are current. Called on every app startup.
+ * Has fast paths — skips work when state is already correct.
+ */
 export function ensureSkillLinks({
+  home = os.homedir(),
+  sourceDir,
+  appVersion = "1.0.0",
+}: {
+  home?: string;
+  sourceDir: string;
+  appVersion?: string;
+}): boolean {
+  try {
+    const pluginsFile = getClaudePluginsFile(home);
+
+    // Claude: only re-register if entry is stale or missing
+    if (!isClaudePluginCurrent(pluginsFile, sourceDir)) {
+      registerClaudePlugin(pluginsFile, sourceDir, appVersion);
+    }
+
+    // Codex: installCodexSkillLinks already has per-link fast path
+    installCodexSkillLinks(sourceDir, home);
+
+    // Clean up old hydra links (idempotent — no-op once cleaned)
+    cleanupOldHydraSymlinks(home);
+
+    return true;
+  } catch (err) {
+    console.error("[SkillManager] ensure failed:", err);
+    return false;
+  }
+}
+
+/**
+ * Uninstall: remove Claude plugin entry + Codex symlinks + old hydra links.
+ * Called when user unregisters the CLI.
+ */
+export function uninstallSkillLinks({
   home = os.homedir(),
   sourceDir,
 }: {
   home?: string;
   sourceDir: string;
 }): boolean {
-  // Just re-run install — it's idempotent
-  return installSkillLinks({ home, sourceDir });
-}
-
-/** Uninstall skills: remove plugin registration + Codex symlinks. */
-export function uninstallSkillLinks(home = os.homedir()): boolean {
   try {
-    // Remove Claude Code plugin entry
-    const pluginsFile = getClaudePluginsFile(home);
-    const data = readInstalledPlugins(pluginsFile);
-    delete data.plugins[PLUGIN_KEY];
-    writeInstalledPlugins(pluginsFile, data);
-
-    // Remove Codex skill symlinks
-    const codexDir = getCodexSkillsDir(home);
-    for (const name of ["hydra", "rename"]) {
-      try { fs.unlinkSync(path.join(codexDir, name)); } catch { /* ignore */ }
-    }
-
-    // Clean up old hydra symlink
-    try { fs.unlinkSync(path.join(home, ".claude", "skills", "hydra")); } catch { /* ignore */ }
-
+    unregisterClaudePlugin(getClaudePluginsFile(home));
+    removeCodexSkillLinks(sourceDir, home);
+    cleanupOldHydraSymlinks(home);
     return true;
-  } catch {
+  } catch (err) {
+    console.error("[SkillManager] uninstall failed:", err);
     return false;
   }
 }
@@ -391,7 +565,7 @@ import {
 } from "./skill-manager";
 ```
 
-Update the three functions in main.ts:
+Update the helper functions in main.ts:
 
 ```typescript
 function getSkillSourceDir(): string {
@@ -399,15 +573,21 @@ function getSkillSourceDir(): string {
 }
 
 function installSkill(): boolean {
-  return installSkillLinks({ sourceDir: getSkillSourceDir() });
+  return installSkillLinks({
+    sourceDir: getSkillSourceDir(),
+    appVersion: app.getVersion(),
+  });
 }
 
 function ensureSkillInstalled(): boolean {
-  return ensureSkillLinks({ sourceDir: getSkillSourceDir() });
+  return ensureSkillLinks({
+    sourceDir: getSkillSourceDir(),
+    appVersion: app.getVersion(),
+  });
 }
 
 function uninstallSkill(): boolean {
-  return uninstallSkillLinks();
+  return uninstallSkillLinks({ sourceDir: getSkillSourceDir() });
 }
 ```
 
@@ -461,10 +641,10 @@ git commit -m "refactor: migrate skill distribution to Claude Code plugin system
 
 Create `skills/skills/rename/SKILL.md`:
 
-```markdown
+````markdown
 ---
 name: rename
-description: This skill should be used when the user asks to "rename this terminal", "set terminal title", "give this tab a name", or invokes "/rename". Generates a concise title from recent conversation context and sets it on the TermCanvas terminal tab via the termcanvas CLI.
+description: This skill should be used when the user asks to "rename this terminal", "set terminal title", "give this tab a name", or invokes "/termcanvas:rename". Generates a concise title from recent conversation context and sets it on the TermCanvas terminal tab via the termcanvas CLI.
 ---
 
 # Rename Terminal Tab
@@ -493,7 +673,7 @@ termcanvas terminal set-title "$TERMCANVAS_TERMINAL_ID" "<generated title>"
   (e.g. "fix auth token refresh" not "coding session").
 - Do NOT ask the user what title they want — generate it yourself from context.
 - Keep it concise: 3-8 words max.
-```
+````
 
 **Step 2: Commit**
 
