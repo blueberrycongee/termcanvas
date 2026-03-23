@@ -16,7 +16,7 @@ import { useT } from "../i18n/useT";
 import { useComposerStore } from "../stores/composerStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
-import { getTerminalFocusOrder } from "../stores/projectFocus";
+import { getTerminalFocusOrder, getWorktreeFocusOrder } from "../stores/projectFocus";
 import {
   packTerminals,
   computeWorktreeSize,
@@ -28,6 +28,7 @@ import {
 import { shouldIgnoreShortcutTarget } from "./shortcutTarget";
 import { snapshotState } from "../snapshotState";
 import { updateWindowTitle } from "../titleHelper";
+import { panToWorktree } from "../utils/panToWorktree";
 
 function getAllTerminals() {
   const { projects } = useProjectStore.getState();
@@ -45,6 +46,11 @@ function getStarredTerminals() {
   });
 }
 
+function getAllWorktrees() {
+  const { projects } = useProjectStore.getState();
+  return getWorktreeFocusOrder(projects);
+}
+
 function getFocusedTerminalIndex(list: ReturnType<typeof getAllTerminals>) {
   const { projects } = useProjectStore.getState();
   for (const p of projects) {
@@ -57,6 +63,14 @@ function getFocusedTerminalIndex(list: ReturnType<typeof getAllTerminals>) {
     }
   }
   return -1;
+}
+
+function getFocusedWorktreeIndex(
+  list: { projectId: string; worktreeId: string }[],
+) {
+  const { focusedWorktreeId } = useProjectStore.getState();
+  if (!focusedWorktreeId) return -1;
+  return list.findIndex((item) => item.worktreeId === focusedWorktreeId);
 }
 
 function zoomToTerminal(
@@ -292,13 +306,6 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      if (matchesShortcut(e, shortcuts.toggleSidebar)) {
-        e.preventDefault();
-        const store = useCanvasStore.getState();
-        store.setSidebarCollapsed(!store.sidebarCollapsed);
-        return;
-      }
-
       if (matchesShortcut(e, shortcuts.toggleRightPanel)) {
         e.preventDefault();
         const store = useCanvasStore.getState();
@@ -457,14 +464,36 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      if (matchesShortcut(e, shortcuts.cycleFocusLevel)) {
+        e.preventDefault();
+        useCanvasStore.getState().cycleFocusLevel();
+        return;
+      }
+
       if (matchesShortcut(e, shortcuts.nextTerminal)) {
         e.preventDefault();
-        const list = getAllTerminals();
-        if (list.length === 0) return;
-        const currentIndex = getFocusedTerminalIndex(list);
+        const level = useCanvasStore.getState().focusLevel;
+
+        if (level === "worktree") {
+          const list = getAllWorktrees();
+          if (list.length === 0) return;
+          const currentIndex = getFocusedWorktreeIndex(list);
+          const nextIndex =
+            currentIndex === -1 ? 0 : (currentIndex + 1) % list.length;
+          const next = list[nextIndex];
+          useProjectStore.getState().setFocusedWorktree(next.projectId, next.worktreeId);
+          panToWorktree(next.projectId, next.worktreeId);
+          return;
+        }
+
+        const terminalList =
+          level === "starred" ? getStarredTerminals() : getAllTerminals();
+
+        if (terminalList.length === 0) return;
+        const currentIndex = getFocusedTerminalIndex(terminalList);
         const nextIndex =
-          currentIndex === -1 ? 0 : (currentIndex + 1) % list.length;
-        const next = list[nextIndex];
+          currentIndex === -1 ? 0 : (currentIndex + 1) % terminalList.length;
+        const next = terminalList[nextIndex];
         useProjectStore.getState().setFocusedTerminal(next.terminalId);
         zoomToTerminal(next.projectId, next.worktreeId, next.terminalId);
         return;
@@ -472,38 +501,28 @@ export function useKeyboardShortcuts() {
 
       if (matchesShortcut(e, shortcuts.prevTerminal)) {
         e.preventDefault();
-        const list = getAllTerminals();
-        if (list.length === 0) return;
-        const currentIndex = getFocusedTerminalIndex(list);
-        const prevIndex =
-          currentIndex <= 0 ? list.length - 1 : currentIndex - 1;
-        const prev = list[prevIndex];
-        useProjectStore.getState().setFocusedTerminal(prev.terminalId);
-        zoomToTerminal(prev.projectId, prev.worktreeId, prev.terminalId);
-        return;
-      }
+        const level = useCanvasStore.getState().focusLevel;
 
-      if (matchesShortcut(e, shortcuts.nextStarred)) {
-        e.preventDefault();
-        const starred = getStarredTerminals();
-        if (starred.length === 0) return;
-        const currentIndex = getFocusedTerminalIndex(starred);
-        const nextIndex =
-          currentIndex === -1 ? 0 : (currentIndex + 1) % starred.length;
-        const next = starred[nextIndex];
-        useProjectStore.getState().setFocusedTerminal(next.terminalId);
-        zoomToTerminal(next.projectId, next.worktreeId, next.terminalId);
-        return;
-      }
+        if (level === "worktree") {
+          const list = getAllWorktrees();
+          if (list.length === 0) return;
+          const currentIndex = getFocusedWorktreeIndex(list);
+          const prevIndex =
+            currentIndex <= 0 ? list.length - 1 : currentIndex - 1;
+          const prev = list[prevIndex];
+          useProjectStore.getState().setFocusedWorktree(prev.projectId, prev.worktreeId);
+          panToWorktree(prev.projectId, prev.worktreeId);
+          return;
+        }
 
-      if (matchesShortcut(e, shortcuts.prevStarred)) {
-        e.preventDefault();
-        const starred = getStarredTerminals();
-        if (starred.length === 0) return;
-        const currentIndex = getFocusedTerminalIndex(starred);
+        const terminalList =
+          level === "starred" ? getStarredTerminals() : getAllTerminals();
+
+        if (terminalList.length === 0) return;
+        const currentIndex = getFocusedTerminalIndex(terminalList);
         const prevIndex =
-          currentIndex <= 0 ? starred.length - 1 : currentIndex - 1;
-        const prev = starred[prevIndex];
+          currentIndex <= 0 ? terminalList.length - 1 : currentIndex - 1;
+        const prev = terminalList[prevIndex];
         useProjectStore.getState().setFocusedTerminal(prev.terminalId);
         zoomToTerminal(prev.projectId, prev.worktreeId, prev.terminalId);
         return;

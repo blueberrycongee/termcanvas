@@ -3,7 +3,7 @@ import { hasPrimaryModifier } from "../hooks/shortcutTarget.ts";
 
 export interface ShortcutMap {
   addProject: string;
-  toggleSidebar: string;
+  cycleFocusLevel: string;
   newTerminal: string;
   saveWorkspace: string;
   saveWorkspaceAs: string;
@@ -14,8 +14,6 @@ export interface ShortcutMap {
   closeFocused: string;
   toggleRightPanel: string;
   toggleStarFocused: string;
-  nextStarred: string;
-  prevStarred: string;
   spanDefault: string;
   spanWide: string;
   spanTall: string;
@@ -24,7 +22,7 @@ export interface ShortcutMap {
 
 export const DEFAULT_SHORTCUTS: ShortcutMap = {
   addProject: "mod+o",
-  toggleSidebar: "mod+b",
+  cycleFocusLevel: "mod+g",
   newTerminal: "mod+t",
   saveWorkspace: "mod+s",
   saveWorkspaceAs: "mod+shift+s",
@@ -35,8 +33,6 @@ export const DEFAULT_SHORTCUTS: ShortcutMap = {
   closeFocused: "mod+d",
   toggleRightPanel: "mod+/",
   toggleStarFocused: "mod+f",
-  nextStarred: "mod+j",
-  prevStarred: "mod+k",
   spanDefault: "mod+1",
   spanWide: "mod+2",
   spanTall: "mod+3",
