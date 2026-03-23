@@ -216,11 +216,13 @@ export interface TermCanvasAPI {
       shell?: string;
       args?: string[];
       terminalId?: string;
+      theme?: "dark" | "light";
     }) => Promise<number>;
     destroy: (ptyId: number) => Promise<void>;
     getPid: (ptyId: number) => Promise<number | null>;
     input: (ptyId: number, data: string) => void;
     resize: (ptyId: number, cols: number, rows: number) => void;
+    notifyThemeChanged: (ptyId: number) => void;
     onOutput: (callback: (ptyId: number, data: string) => void) => () => void;
     onExit: (callback: (ptyId: number, exitCode: number) => void) => () => void;
     detectCli: (ptyId: number) => Promise<{ cliType: TerminalType; pid?: number; sessionName?: string } | null>;

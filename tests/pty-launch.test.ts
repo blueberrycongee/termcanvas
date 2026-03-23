@@ -155,6 +155,38 @@ test("buildLaunchSpec prepends extraPathEntries to PATH", async () => {
   assert.equal(entries[0], "/app/cli");
 });
 
+test("buildLaunchSpec injects dark theme hints into the PTY environment", async () => {
+  const launch = await buildLaunchSpec(
+    {
+      cwd: "/repo",
+      theme: "dark",
+    },
+    createDeps({
+      existsSync: (file) => ["/bin/zsh", "/repo"].includes(file),
+      isExecutable: (file) => ["/bin/zsh"].includes(file),
+    }),
+  );
+
+  assert.equal(launch.env.TERMCANVAS_THEME, "dark");
+  assert.equal(launch.env.COLORFGBG, "15;0");
+});
+
+test("buildLaunchSpec injects light theme hints into the PTY environment", async () => {
+  const launch = await buildLaunchSpec(
+    {
+      cwd: "/repo",
+      theme: "light",
+    },
+    createDeps({
+      existsSync: (file) => ["/bin/zsh", "/repo"].includes(file),
+      isExecutable: (file) => ["/bin/zsh"].includes(file),
+    }),
+  );
+
+  assert.equal(launch.env.TERMCANVAS_THEME, "light");
+  assert.equal(launch.env.COLORFGBG, "0;15");
+});
+
 test("buildLaunchSpec does not duplicate extraPathEntries already in PATH", async () => {
   const launch = await buildLaunchSpec(
     {

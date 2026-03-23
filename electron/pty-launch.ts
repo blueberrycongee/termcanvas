@@ -8,6 +8,7 @@ export interface PtyLaunchOptions {
   args?: string[];
   extraPathEntries?: string[];
   terminalId?: string;
+  theme?: "dark" | "light";
 }
 
 export interface PtyResolvedLaunchSpec {
@@ -15,6 +16,16 @@ export interface PtyResolvedLaunchSpec {
   file: string;
   args: string[];
   env: Record<string, string>;
+}
+
+function applyThemeHints(
+  env: Record<string, string>,
+  theme: "dark" | "light" | undefined,
+): void {
+  if (!theme) return;
+
+  env.TERMCANVAS_THEME = theme;
+  env.COLORFGBG = theme === "dark" ? "15;0" : "0;15";
 }
 
 export interface LaunchResolverDeps {
@@ -385,6 +396,7 @@ export async function buildLaunchSpec(
   if (options.terminalId) {
     shellEnv.TERMCANVAS_TERMINAL_ID = options.terminalId;
   }
+  applyThemeHints(shellEnv, options.theme);
 
   // Inject extra PATH entries (e.g. CLI dir) at the front
   if (options.extraPathEntries?.length) {

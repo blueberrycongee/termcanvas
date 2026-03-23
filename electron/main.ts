@@ -174,7 +174,7 @@ function setupIpc() {
   // Terminal IPC
   ipcMain.handle(
     "terminal:create",
-    async (_event, options: { cwd: string; shell?: string; args?: string[]; terminalId?: string }) => {
+    async (_event, options: { cwd: string; shell?: string; args?: string[]; terminalId?: string; theme?: "dark" | "light" }) => {
       dbg(`terminal:create shell=${options.shell ?? "(default)"} args=${JSON.stringify(options.args)} cwd=${options.cwd}`);
       const ptyId = await ptyManager.create({
         ...options,
@@ -204,6 +204,10 @@ function setupIpc() {
       ptyManager.resize(ptyId, cols, rows);
     },
   );
+
+  ipcMain.on("terminal:theme-changed", (_event, ptyId: number) => {
+    ptyManager.notifyThemeChanged(ptyId);
+  });
 
   ipcMain.handle("terminal:destroy", async (_event, ptyId: number) => {
     await ptyManager.destroy(ptyId);

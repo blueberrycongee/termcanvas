@@ -197,6 +197,7 @@ export function TerminalTile({
   const customTitleInputRef = useRef<HTMLInputElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const ptyIdRef = useRef<number | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   const sessionCancelRef = useRef<(() => void) | null>(null);
 
@@ -387,10 +388,11 @@ export function TerminalTile({
      * otherwise a fresh session is started.
      */
     const spawnPty = (resumeSessionId: string | undefined) => {
-      const opts: { cwd: string; shell?: string; args?: string[]; terminalId?: string } = {
+      const opts: { cwd: string; shell?: string; args?: string[]; terminalId?: string; theme?: "dark" | "light" } = {
         cwd: worktreePath,
         terminalId: terminal.id,
       };
+      opts.theme = useThemeStore.getState().theme;
 
       const launch = getTerminalLaunchOptions(
         terminal.type,
@@ -411,6 +413,7 @@ export function TerminalTile({
         .create(opts)
         .then(async (id) => {
           ptyId = id;
+          ptyIdRef.current = id;
           updateTerminalPtyId(projectId, worktreeId, terminal.id, id);
           updateTerminalStatus(projectId, worktreeId, terminal.id, "running");
 
@@ -694,6 +697,7 @@ export function TerminalTile({
       removeExit();
       xterm.dispose();
       if (ptyId !== null) {
+        ptyIdRef.current = null;
         window.termcanvas.terminal.destroy(ptyId).catch((err) => {
           console.error(`[TermCanvas] Failed to destroy PTY ${ptyId}:`, err);
         });
@@ -773,6 +777,9 @@ export function TerminalTile({
         xterm.options.theme = XTERM_THEMES[state.theme];
         // Force full canvas repaint so background color updates immediately
         xterm.refresh(0, xterm.rows - 1);
+      }
+      if (ptyIdRef.current !== null) {
+        window.termcanvas.terminal.notifyThemeChanged(ptyIdRef.current);
       }
     });
     return unsubscribe;

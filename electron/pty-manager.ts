@@ -1,6 +1,6 @@
 import * as pty from "node-pty";
 import fs from "fs";
-import { buildLaunchSpec, type PtyLaunchOptions } from "./pty-launch";
+import { buildLaunchSpec, type PtyLaunchOptions } from "./pty-launch.ts";
 
 export type PtyCreateOptions = PtyLaunchOptions;
 
@@ -81,6 +81,21 @@ export class PtyManager {
     } catch {
       // PTY fd may already be invalid after process exit
       this.instances.delete(id);
+    }
+  }
+
+  notifyThemeChanged(id: number) {
+    const pid = this.instances.get(id)?.pid;
+    if (!pid) return;
+
+    if (process.platform === "win32") {
+      return;
+    }
+
+    try {
+      process.kill(pid, "SIGWINCH");
+    } catch {
+      // Process may already be gone or not accept the signal
     }
   }
 

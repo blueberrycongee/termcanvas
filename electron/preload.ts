@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("termcanvas", {
   terminal: {
-    create: (options: { cwd: string; shell?: string; args?: string[]; terminalId?: string }) =>
+    create: (options: { cwd: string; shell?: string; args?: string[]; terminalId?: string; theme?: "dark" | "light" }) =>
       ipcRenderer.invoke("terminal:create", options),
     destroy: (ptyId: number) => ipcRenderer.invoke("terminal:destroy", ptyId),
     getPid: (ptyId: number) =>
@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.send("terminal:input", ptyId, data),
     resize: (ptyId: number, cols: number, rows: number) =>
       ipcRenderer.send("terminal:resize", ptyId, cols, rows),
+    notifyThemeChanged: (ptyId: number) =>
+      ipcRenderer.send("terminal:theme-changed", ptyId),
     onOutput: (callback: (ptyId: number, data: string) => void) => {
       const listener = (
         _event: Electron.IpcRendererEvent,
