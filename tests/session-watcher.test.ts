@@ -4,7 +4,10 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
-import { checkTurnComplete } from "../electron/session-watcher.ts";
+import {
+  checkTurnComplete,
+  toClaudeProjectKey,
+} from "../electron/session-watcher.ts";
 
 function withTempFile(content: string, fn: (filePath: string) => void) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "session-watcher-"));
@@ -135,4 +138,18 @@ test("claude: detects completion with mixed valid/invalid lines at tail", () => 
     const result = checkTurnComplete(filePath, "claude");
     assert.equal(result.completed, true);
   });
+});
+
+test("claude project key normalizes POSIX paths", () => {
+  assert.equal(
+    toClaudeProjectKey("/Users/foo/my.app"),
+    "-Users-foo-my-app",
+  );
+});
+
+test("claude project key normalizes Windows paths", () => {
+  assert.equal(
+    toClaudeProjectKey("C:\\Users\\foo\\project"),
+    "C--Users-foo-project",
+  );
 });
