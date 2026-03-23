@@ -2,6 +2,17 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.51] - 2026-03-24
+
+### Performance
+- Reduce main-process stalls during usage session scans
+- Defer usage heatmap loading until the heatmap section is visible, so opening the right panel no longer triggers a multi-second heatmap scan
+- Avoid idle background stalls from hidden usage prefetch and repeated autosave backstop snapshots
+
+### Fixed
+- Improve hover card drag stability
+- Keep related hover cards visible during drag
+
 ## [0.8.50] - 2026-03-24
 
 ### Changed
