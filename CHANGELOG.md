@@ -2,6 +2,20 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.47] - 2026-03-23
+
+### Changed
+- Hydra polling interval now adapts based on task duration (short tasks poll faster)
+- Reduced default Hydra polling frequency from 30s to 2 minutes
+
+### Performance
+- Convert quota-fetcher from execSync to async execFile/fetch
+- Convert project:diff from execSync to async execFile
+
+### Fixed
+- Hydra skill set to alwaysApply so polling instructions are always loaded
+- Hub spring animations, glass material, and position refinements
+
 ## [0.8.46] - 2026-03-23
 
 ### Added
