@@ -1,10 +1,10 @@
 interface FocusTarget {
-  focus: () => void;
+  focus: (options?: { preventScroll?: boolean }) => void;
   isConnected?: boolean;
 }
 
 interface FocusableTerminal {
-  focus: () => void;
+  focus: (options?: { preventScroll?: boolean }) => void;
   textarea?: FocusTarget | null;
 }
 
@@ -25,7 +25,7 @@ export function focusTerminalInputElement(
 
   const textarea = terminal.textarea;
   if (textarea && textarea.isConnected !== false) {
-    textarea.focus();
+    textarea.focus({ preventScroll: true });
     const activeAfterTextareaFocus = getActiveElement();
     if (
       activeAfterTextareaFocus === (textarea as unknown as Element) ||
@@ -35,6 +35,6 @@ export function focusTerminalInputElement(
     }
   }
 
-  terminal.focus();
+  terminal.focus({ preventScroll: true });
   return tile.contains(getActiveElement());
 }
