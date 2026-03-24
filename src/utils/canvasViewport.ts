@@ -14,11 +14,6 @@ interface FitScaleOptions extends ViewportFrameOptions {
   clampToOne?: boolean;
 }
 
-interface FocusScaleOptions extends FitScaleOptions {
-  preserveCurrentScale?: boolean;
-  currentScale?: number;
-}
-
 interface CenterTargetOptions extends ViewportFrameOptions {
   scale: number;
 }
@@ -54,18 +49,6 @@ export function getViewportFitScale(
   );
 
   return options.clampToOne ? Math.min(1, scale) : scale;
-}
-
-export function getTerminalViewportScale(
-  contentWidth: number,
-  contentHeight: number,
-  options: FocusScaleOptions,
-) {
-  if (options.preserveCurrentScale) {
-    return options.currentScale ?? 1;
-  }
-
-  return getViewportFitScale(contentWidth, contentHeight, options) * 0.85;
 }
 
 export function getCenteredViewportTarget(
