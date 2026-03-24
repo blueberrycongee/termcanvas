@@ -4,6 +4,10 @@ import fs from "fs";
 import path from "path";
 import { sendToWindow } from "./window-events";
 import { MacCustomUpdater } from "./mac-updater";
+import {
+  createSafeUpdaterLogger,
+  shouldScheduleAutoUpdateChecks,
+} from "./updater-helpers";
 
 const CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 const IS_MAC = process.platform === "darwin";
@@ -18,6 +22,10 @@ export function setupAutoUpdater(window: BrowserWindow): void {
 
   // Shared IPC: version query
   ipcMain.handle("updater:get-version", () => app.getVersion());
+
+  if (!shouldScheduleAutoUpdateChecks(app.isPackaged)) {
+    return;
+  }
 
   // Initial check after short delay, then periodic
   setTimeout(() => checkFn(), 5000);
@@ -57,6 +65,7 @@ function setupMacUpdater(window: BrowserWindow): () => void {
 // ---------------------------------------------------------------------------
 
 function setupElectronUpdater(window: BrowserWindow): () => void {
+  autoUpdater.logger = createSafeUpdaterLogger(console);
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
