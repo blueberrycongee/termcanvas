@@ -31,6 +31,24 @@ TermCanvas 把你所有的终端铺在一张无限空间画布上——不再有
 
 **下载** —— 从 [GitHub Releases](https://github.com/blueberrycongee/termcanvas/releases) 获取最新构建。
 
+<table>
+<tr>
+<td bgcolor="#fff3bf">
+
+**macOS 未签名应用提示**
+
+如果 macOS 提示 TermCanvas“已损坏”，或因为应用未签名而阻止启动，先清除 quarantine 属性再重试：
+
+```bash
+xattr -cr /Applications/TermCanvas.app
+```
+
+如果你把应用装在别的位置，把上面的路径改成实际的 `.app` 路径即可。
+
+</td>
+</tr>
+</table>
+
 **从源码构建：**
 
 ```bash
