@@ -172,11 +172,31 @@ export function DiffCard({
 
   useEffect(() => {
     if (!window.termcanvas) return;
+    let disposed = false;
+    let inFlight = false;
+    let pending = false;
+
     const fetchDiff = () => {
-      window.termcanvas.project.diff(worktreePath).then((result) => {
-        setFileDiffs(parseDiff(result.diff, result.files));
-        setLoading(false);
-      });
+      if (inFlight) {
+        pending = true;
+        return;
+      }
+
+      inFlight = true;
+
+      window.termcanvas.project.diff(worktreePath)
+        .then((result) => {
+          if (disposed) return;
+          setFileDiffs(parseDiff(result.diff, result.files));
+          setLoading(false);
+        })
+        .finally(() => {
+          inFlight = false;
+          if (!disposed && pending) {
+            pending = false;
+            fetchDiff();
+          }
+        });
     };
     setLoading(true);
     fetchDiff();
@@ -197,6 +217,7 @@ export function DiffCard({
     window.addEventListener("termcanvas:worktree-activity", handleActivity);
     window.addEventListener("focus", handleFocus);
     return () => {
+      disposed = true;
       window.termcanvas.git.unwatch(worktreePath);
       removeGitChanged();
       window.removeEventListener(
