@@ -679,10 +679,10 @@ export function TerminalTile({
     return () => cancelAnimationFrame(frame);
   }, [width, height, terminal.minimized]);
 
-  // Give xterm DOM focus when composer is disabled or terminal type
+  // Give terminal DOM focus when composer is disabled or terminal type
   // doesn't support the Composer.
   const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
-  const focusXterm = useCallback(() => {
+  const focusTerminalInput = useCallback(() => {
     const tile = tileRef.current;
     const terminalView = terminalRef.current;
     if (!tile || !terminalView || tile.getClientRects().length === 0) {
@@ -692,9 +692,9 @@ export function TerminalTile({
     terminalView.focus();
     return tile.contains(document.activeElement);
   }, []);
-  const scheduleXtermFocus = useCallback(() => {
-    scheduleTerminalFocus(focusXterm, pendingFocusFrameRef);
-  }, [focusXterm]);
+  const scheduleTerminalInputFocus = useCallback(() => {
+    scheduleTerminalFocus(focusTerminalInput, pendingFocusFrameRef);
+  }, [focusTerminalInput]);
 
   useEffect(() => {
     const adapter = getComposerAdapter(terminal.type);
@@ -705,7 +705,7 @@ export function TerminalTile({
     }
 
     if (shouldFocusXterm) {
-      scheduleXtermFocus();
+      scheduleTerminalInputFocus();
     } else {
       cancelScheduledTerminalFocus(pendingFocusFrameRef);
     }
@@ -714,20 +714,20 @@ export function TerminalTile({
     terminal.id,
     terminal.type,
     composerEnabled,
-    scheduleXtermFocus,
+    scheduleTerminalInputFocus,
   ]);
 
-  // Listen for explicit xterm focus requests (when composer is disabled)
+  // Listen for explicit terminal input focus requests (when composer is disabled)
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail === terminal.id) {
-        scheduleXtermFocus();
+        scheduleTerminalInputFocus();
       }
     };
-    window.addEventListener("termcanvas:focus-xterm", handler);
-    return () => window.removeEventListener("termcanvas:focus-xterm", handler);
-  }, [scheduleXtermFocus, terminal.id]);
+    window.addEventListener("termcanvas:focus-terminal-input", handler);
+    return () => window.removeEventListener("termcanvas:focus-terminal-input", handler);
+  }, [scheduleTerminalInputFocus, terminal.id]);
 
   useEffect(
     () => () => {
@@ -747,7 +747,7 @@ export function TerminalTile({
     return () => window.removeEventListener("termcanvas:focus-custom-title", handler);
   }, [startCustomTitleEdit, terminal.id]);
 
-  // Update xterm theme when app theme changes
+  // Update terminal theme when app theme changes
   useEffect(() => {
     const unsubscribe = useThemeStore.subscribe((state) => {
       engineSessionRef.current?.applyTheme(TERMINAL_THEMES[state.theme]);
@@ -758,7 +758,7 @@ export function TerminalTile({
     return unsubscribe;
   }, []);
 
-  // Update xterm font size when preference changes
+  // Update terminal font size when preference changes
   useEffect(() => {
     const unsubscribe = usePreferencesStore.subscribe((state) => {
       engineSessionRef.current?.applyFontSize(state.terminalFontSize);
@@ -766,7 +766,7 @@ export function TerminalTile({
     return unsubscribe;
   }, []);
 
-  // Update xterm font family when preference changes
+  // Update terminal font family when preference changes
   useEffect(() => {
     const unsubscribe = usePreferencesStore.subscribe((state) => {
       engineSessionRef.current?.applyFontFamily(
@@ -776,7 +776,7 @@ export function TerminalTile({
     return unsubscribe;
   }, []);
 
-  // Update xterm minimum contrast ratio when preference changes
+  // Update terminal minimum contrast ratio when preference changes
   useEffect(() => {
     const unsubscribe = usePreferencesStore.subscribe((state) => {
       engineSessionRef.current?.applyMinimumContrastRatio(
@@ -787,7 +787,7 @@ export function TerminalTile({
   }, []);
 
   // Fix mouse selection offset when canvas viewport is scaled.
-  // xterm.js uses getBoundingClientRect() (visual/scaled) to compute mouse
+  // Terminal mouse hit-testing uses getBoundingClientRect() (visual/scaled) to compute mouse
   // offsets but divides by unscaled cell dimensions, causing a mismatch.
   // We intercept mouse events in the capture phase and re-dispatch them
   // with clientX/clientY corrected from visual-space to canvas-space.
@@ -1018,7 +1018,7 @@ export function TerminalTile({
       </div>
 
       {/* Terminal content — always mounted to preserve PTY session */}
-      {/* Only give xterm direct DOM focus for "type"-mode terminals (shell,
+      {/* Only give terminal direct DOM focus for "type"-mode terminals (shell,
           lazygit, tmux) that need real-time keystroke interaction.
           "paste"-mode terminals (AI CLIs) keep Composer focused. */}
       <div
@@ -1032,7 +1032,7 @@ export function TerminalTile({
         onClick={() => {
           const adapter = getComposerAdapter(terminal.type);
           if (!adapter || adapter.inputMode === "type" || !composerEnabled) {
-            scheduleXtermFocus();
+            scheduleTerminalInputFocus();
           }
         }}
       />

@@ -6,7 +6,7 @@ export interface FontEntry {
   url: string;
   /** Filename stored in userData/fonts/ (ignored for builtin) */
   fileName: string;
-  /** CSS font-family value to pass to xterm */
+  /** CSS font-family value to pass to the terminal renderer */
   cssFamily: string;
 }
 
@@ -61,7 +61,7 @@ export const FONT_REGISTRY: FontEntry[] = [
   },
 ];
 
-/** Build xterm fontFamily string: selected font + fallback chain */
+/** Build terminal fontFamily string: selected font + fallback chain */
 export function buildFontFamily(fontId: string): string {
   const entry = FONT_REGISTRY.find((f) => f.id === fontId);
   const primary = entry?.cssFamily ?? '"Geist Mono"';

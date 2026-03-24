@@ -127,22 +127,22 @@ function attachTerminalFocusHarness(
   };
 
   const unsubscribe = useProjectStore.subscribe(syncFromStore);
-  const onFocusXterm = (event: Event) => {
+  const onFocusTerminalInput = (event: Event) => {
     if ((event as CustomEvent).detail === terminalId) {
       scheduleTerminalFocus(focus, pending, requestFrame, cancelFrame);
     }
   };
 
-  window.addEventListener("termcanvas:focus-xterm", onFocusXterm);
+  window.addEventListener("termcanvas:focus-terminal-input", onFocusTerminalInput);
 
   return () => {
     unsubscribe();
-    window.removeEventListener("termcanvas:focus-xterm", onFocusXterm);
+    window.removeEventListener("termcanvas:focus-terminal-input", onFocusTerminalInput);
     cancelScheduledTerminalFocus(pending, cancelFrame);
   };
 }
 
-test("queued xterm focus is cancelled when worktree focus replaces a newly focused terminal before the next frame", () => {
+test("queued terminal input focus is cancelled when worktree focus replaces a newly focused terminal before the next frame", () => {
   const restoreWindow = installWindowMock();
   const previousProjectState = useProjectStore.getState();
   const previousPreferences = usePreferencesStore.getState();

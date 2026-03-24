@@ -63,7 +63,7 @@ test("scheduleTerminalFocus cancels the previous frame so only the latest focus 
   assert.equal(pending.current, null);
 });
 
-test("scheduleTerminalFocus lets xterm focus win after a same-turn competing focus update", () => {
+test("scheduleTerminalFocus lets terminal input focus win after a same-turn competing focus update", () => {
   const queued = new Map<number, FrameRequestCallback>();
   let nextId = 1;
   let activeTarget = "none";
@@ -76,7 +76,7 @@ test("scheduleTerminalFocus lets xterm focus win after a same-turn competing foc
   };
 
   const syncFocus = () => {
-    activeTarget = "xterm";
+    activeTarget = "terminal";
   };
 
   syncFocus();
@@ -85,7 +85,7 @@ test("scheduleTerminalFocus lets xterm focus win after a same-turn competing foc
 
   scheduleTerminalFocus(
     () => {
-      activeTarget = "xterm";
+      activeTarget = "terminal";
     },
     pending,
     requestFrame,
@@ -96,7 +96,7 @@ test("scheduleTerminalFocus lets xterm focus win after a same-turn competing foc
   assert.equal(activeTarget, "other");
 
   queued.get(1)?.(16);
-  assert.equal(activeTarget, "xterm");
+  assert.equal(activeTarget, "terminal");
   assert.equal(pending.current, null);
 });
 

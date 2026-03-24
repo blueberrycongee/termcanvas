@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ITheme } from "@xterm/xterm";
+import type { TerminalTheme } from "../terminal/theme";
 
 export type Theme = "dark" | "light";
 
@@ -38,7 +38,7 @@ export const useThemeStore = create<ThemeStore>((set) => ({
     }),
 }));
 
-export const TERMINAL_THEMES: Record<Theme, ITheme> = {
+export const TERMINAL_THEMES: Record<Theme, TerminalTheme> = {
   dark: {
     background: "#1a1918",
     foreground: "#e4e2df",
@@ -86,5 +86,3 @@ export const TERMINAL_THEMES: Record<Theme, ITheme> = {
     brightWhite: "#b2aba3",
   },
 };
-
-export const XTERM_THEMES = TERMINAL_THEMES;

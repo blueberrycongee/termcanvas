@@ -45,9 +45,9 @@ function readSourceFile(relativePath: string): string {
   return readFileSync(resolve(testDir, "..", relativePath), "utf8");
 }
 
-test("light xterm grayscale palette preserves visible hierarchy for CLI roles", async () => {
-  const { XTERM_THEMES } = await loadThemeModule();
-  const light = XTERM_THEMES.light;
+test("light terminal grayscale palette preserves visible hierarchy for CLI roles", async () => {
+  const { TERMINAL_THEMES } = await loadThemeModule();
+  const light = TERMINAL_THEMES.light;
 
   assert.ok(
     contrastRatio(light.foreground!, light.white!) >= 3,

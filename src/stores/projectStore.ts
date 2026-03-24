@@ -795,7 +795,7 @@ export const useProjectStore = create<ProjectStore>((set) => ({
       if (composerEnabled) {
         window.dispatchEvent(new CustomEvent("termcanvas:focus-composer"));
       } else {
-        window.dispatchEvent(new CustomEvent("termcanvas:focus-xterm", { detail: terminalId }));
+        window.dispatchEvent(new CustomEvent("termcanvas:focus-terminal-input", { detail: terminalId }));
       }
     }
     logSlowRendererPath("projectStore.setFocusedTerminal", startedAt, {

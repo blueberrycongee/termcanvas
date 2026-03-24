@@ -1,9 +1,10 @@
-import type { ITheme, Terminal as XtermTerminal } from "@xterm/xterm";
+import type { Terminal as XtermTerminal } from "@xterm/xterm";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon as XtermFitAddon } from "@xterm/addon-fit";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { ImageAddon } from "@xterm/addon-image";
 import { acquireWebGL, releaseWebGL, touch as touchWebGL } from "./webglContextPool";
+import type { TerminalTheme } from "./theme";
 
 import type { TerminalRenderer } from "../stores/preferencesStore";
 
@@ -17,7 +18,7 @@ export interface TerminalEngineSession {
   terminal: CompatibleTerminal;
   fit: () => void;
   serialize: () => string | null;
-  applyTheme: (theme: ITheme) => void;
+  applyTheme: (theme: TerminalTheme) => void;
   applyFontSize: (size: number) => void;
   applyFontFamily: (family: string) => void;
   applyMinimumContrastRatio: (ratio: number) => void;
@@ -29,7 +30,7 @@ interface CreateTerminalEngineSessionOptions {
   renderer: TerminalRenderer;
   terminalId: string;
   container: HTMLElement;
-  theme: ITheme;
+  theme: TerminalTheme;
   fontFamily: string;
   fontSize: number;
   minimumContrastRatio: number;
