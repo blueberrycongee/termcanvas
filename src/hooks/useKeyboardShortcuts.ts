@@ -633,7 +633,10 @@ export function useKeyboardShortcuts() {
       }
     };
 
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    // Ghostty consumes many terminal keydown events during the bubble phase.
+    // Listen in capture so app-level shortcuts still fire before terminal input
+    // handlers stop propagation.
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
   }, [shortcuts, t]);
 }
