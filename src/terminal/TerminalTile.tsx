@@ -741,26 +741,32 @@ export function TerminalTile({
   // Give xterm DOM focus when composer is disabled or terminal type
   // doesn't support the Composer.
   const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
-  const scheduleXtermFocus = useCallback(() => {
-    scheduleTerminalFocus(() => {
-      const tile = tileRef.current;
-      const xterm = xtermRef.current;
-      if (!tile || !xterm || tile.getClientRects().length === 0) {
-        return false;
-      }
+  const focusXterm = useCallback(() => {
+    const tile = tileRef.current;
+    const xterm = xtermRef.current;
+    if (!tile || !xterm || tile.getClientRects().length === 0) {
+      return false;
+    }
 
-      xterm.focus();
-      return tile.contains(document.activeElement);
-    }, pendingFocusFrameRef);
+    xterm.focus();
+    return tile.contains(document.activeElement);
   }, []);
+  const scheduleXtermFocus = useCallback(() => {
+    scheduleTerminalFocus(focusXterm, pendingFocusFrameRef);
+  }, [focusXterm]);
 
   useEffect(() => {
+    const adapter = getComposerAdapter(terminal.type);
+    const shouldFocusXterm = terminal.focused && (!adapter || !composerEnabled);
+
     if (terminal.focused) {
       touchWebGL(terminal.id);
-      const adapter = getComposerAdapter(terminal.type);
-      if (!adapter || !composerEnabled) {
-        scheduleXtermFocus();
-      }
+    }
+
+    if (shouldFocusXterm) {
+      scheduleXtermFocus();
+    } else {
+      cancelScheduledTerminalFocus(pendingFocusFrameRef);
     }
   }, [
     terminal.focused,

@@ -134,7 +134,6 @@ test("scheduleTerminalFocus retries on later frames until focus actually sticks"
   assert.equal(attempts, 2);
   assert.equal(pending.current, null);
 });
-
 test("cancelScheduledTerminalFocus clears any queued focus frame", () => {
   const cancelled: number[] = [];
   const pending = { current: 7 as number | null };

@@ -87,7 +87,7 @@ test("parseCodexSession subtracts cached_input_tokens from input_tokens", () => 
   fs.rmSync(path.dirname(filePath), { recursive: true });
 });
 
-test("parseCodexSession uses last token_count event (cumulative)", () => {
+test("parseCodexSession derives per-event deltas from cumulative token_count events", () => {
   const filePath = writeCodexJsonl([
     {
       timestamp: "2026-03-20T10:00:00Z",
@@ -132,12 +132,17 @@ test("parseCodexSession uses last token_count event (cumulative)", () => {
     "2026-03-21T00:00:00",
   );
 
-  assert.equal(records.length, 1);
-  const r = records[0];
-  // Should use the last event, not the first
-  assert.equal(r.input, 10_000);  // 50_000 - 40_000
-  assert.equal(r.cacheRead, 40_000);
-  assert.equal(r.output, 3_000);
+  assert.equal(records.length, 2);
+
+  const first = records[0];
+  assert.equal(first.input, 5_000);
+  assert.equal(first.cacheRead, 5_000);
+  assert.equal(first.output, 1_000);
+
+  const second = records[1];
+  assert.equal(second.input, 5_000);
+  assert.equal(second.cacheRead, 35_000);
+  assert.equal(second.output, 2_000);
 
   fs.rmSync(path.dirname(filePath), { recursive: true });
 });

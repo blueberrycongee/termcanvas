@@ -2,6 +2,16 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.52] - 2026-03-24
+
+### Performance
+- Reduce renderer focus and snapshot churn during canvas interactions
+- Cache usage heatmap results per session file to avoid repeated recomputation
+
+### Fixed
+- Defer and cancel queued xterm focus when switching terminals across projects so CLI focus no longer lags behind visual focus
+- Keep empty worktrees expanded after removing their last terminal
+
 ## [0.8.51] - 2026-03-24
 
 ### Performance
