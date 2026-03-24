@@ -1,350 +1,446 @@
-# Agent Runtime MVP Implementation Plan
+# Agent Runtime MVP Plan
 
-> **Execution note:** Use `executing-plans` to implement this plan task-by-task, or another equivalent execution workflow supported by the current agent runtime.
+## Goal
 
-**Goal:** Add a small self-hosted agent runtime so TermCanvas can submit remote agent tasks to a server that creates isolated Docker workspaces, executes tasks, streams status/logs, and returns delivery artifacts.
+Build a small self-hosted agent runtime that TermCanvas can talk to over HTTP so remote agent tasks can run on a dedicated Linux server.
 
-**Architecture:** Keep TermCanvas as the local control plane and add a new Go service as the runtime. The runtime owns task persistence, task state transitions, Docker execution, artifact metadata, and delivery hooks. The first version is single-server and single-runtime, with optional polling first and SSE as the preferred status stream.
+This MVP is explicitly:
 
-**Tech Stack:** Go, MySQL, Redis, Docker, GitHub API, HTTP + SSE, existing Electron/TypeScript TermCanvas frontend
+- single-tenant
+- owner-operated
+- self-hosted
+- runtime service owned by us, not by Supabase
 
----
+At the same time, it should **reuse the existing Supabase auth system** so we do not build a second login stack.
 
-### Task 1: Define runtime boundaries and repo layout
+## Core Decision
 
-**Files:**
-- Create: `server/go.mod`
-- Create: `server/cmd/runtime/main.go`
-- Create: `server/internal/config/config.go`
-- Create: `server/internal/http/router.go`
-- Create: `server/internal/domain/task.go`
-- Create: `server/README.md`
-- Modify: `README.md`
+Use this split:
 
-**Step 1: Write the failing smoke test for server bootstrap**
+- **Supabase handles identity**
+  - GitHub OAuth
+  - user session
+  - JWT issuance
+- **Our runtime handles execution**
+  - task persistence
+  - task state transitions
+  - remote execution
+  - artifact capture
+  - optional GitHub delivery
 
-- Add a small HTTP server bootstrap test under `server/internal/http/router_test.go`.
-- Assert that `GET /healthz` returns `200` and JSON body `{ "ok": true }`.
+In short:
 
-**Step 2: Run test to verify it fails**
+- Supabase answers: "who is this user?"
+- The runtime answers: "what remote task should run, where, and with what result?"
 
-Run: `cd server && go test ./...`
-Expected: FAIL because runtime files and routes do not exist yet.
+## Why This Version
 
-**Step 3: Write minimal runtime bootstrap**
+The previous version of this document was too heavy for a first release. It front-loaded:
 
-- Create `main.go` with config loading and server startup.
-- Create router with:
-  - `GET /healthz`
-  - `GET /readyz`
-- Define the initial domain types:
-  - `TaskStatus`: `queued`, `preparing`, `running`, `succeeded`, `failed`, `canceled`
-  - `DeliveryStatus`: `pending`, `branch_pushed`, `pr_opened`, `skipped`, `failed`
+- MySQL
+- Redis
+- multi-stage queueing
+- GitHub delivery
+- broader platform concerns
 
-**Step 4: Run tests to verify bootstrap passes**
+That is too much for a first usable version.
 
-Run: `cd server && go test ./...`
-Expected: PASS for bootstrap tests.
+The first version should optimize for one thing:
 
-**Step 5: Commit**
+**reliably submit and execute remote agent tasks on one server for one owner user**
 
-```bash
-git add server/go.mod server/cmd/runtime/main.go server/internal/config/config.go server/internal/http/router.go server/internal/domain/task.go server/README.md README.md
-git commit -m "feat: add agent runtime bootstrap"
+If that loop is not solid, the rest is noise.
+
+## Product Boundary
+
+### What MVP Is
+
+- One runtime server on a long-lived Linux host
+- One owner user
+- One TermCanvas client talking to it
+- One remote worker process in the runtime
+- Docker-based workspace isolation
+- Simple task API
+- Logs and result artifacts
+
+### What MVP Is Not
+
+- multi-tenant SaaS
+- team-wide permission system
+- billing or quotas
+- complex orchestration engine
+- autoscaling worker fleet
+- Redis-backed distributed queue
+- MySQL-backed operational platform
+
+## Authentication Model
+
+The runtime should **not** implement a separate login flow.
+
+### Request Authentication
+
+TermCanvas sends:
+
+```http
+Authorization: Bearer <supabase-access-token>
 ```
 
-### Task 2: Add persistent task model and state machine
+The runtime verifies the Supabase JWT using Supabase signing keys or JWKS.
 
-**Files:**
-- Create: `server/internal/store/mysql/task_store.go`
-- Create: `server/internal/store/mysql/migrations/0001_tasks.sql`
-- Create: `server/internal/service/task_service.go`
-- Create: `server/internal/service/task_service_test.go`
-- Create: `server/internal/domain/task_state_machine.go`
-- Create: `server/internal/domain/task_state_machine_test.go`
+### Authorization
 
-**Step 1: Write failing tests for task creation and legal state transitions**
+MVP authorization is intentionally simple:
 
-- Assert valid transitions:
-  - `queued -> preparing -> running -> succeeded`
-  - `queued -> preparing -> failed`
-  - `running -> canceled`
-- Assert invalid transitions are rejected:
-  - `succeeded -> running`
-  - `failed -> preparing`
+- allow exactly one configured owner user ID
+- reject all other valid users
+- only accept tasks for repositories that this authenticated owner user already has permission to access
 
-**Step 2: Run test to verify it fails**
+Config example:
 
-Run: `cd server && go test ./internal/domain ./internal/service`
-Expected: FAIL because state machine and store do not exist.
-
-**Step 3: Write minimal implementation**
-
-- Add MySQL `tasks` table with:
-  - `id`
-  - `repo_url`
-  - `repo_ref`
-  - `task_prompt`
-  - `status`
-  - `delivery_status`
-  - `worker_id`
-  - `workspace_path`
-  - `result_summary`
-  - `created_at`, `updated_at`, `started_at`, `finished_at`
-- Add service methods:
-  - `CreateTask`
-  - `GetTask`
-  - `ListTasks`
-  - `TransitionTask`
-
-**Step 4: Run tests**
-
-Run: `cd server && go test ./...`
-Expected: PASS for domain and service tests.
-
-**Step 5: Commit**
-
-```bash
-git add server/internal/store/mysql server/internal/service server/internal/domain
-git commit -m "feat: add runtime task model and state machine"
+```env
+SUPABASE_URL=...
+SUPABASE_JWKS_URL=...
+RUNTIME_OWNER_USER_ID=...
 ```
 
-### Task 3: Add queueing and single-node worker execution
+This keeps auth reusable without pretending the service is already team-ready.
 
-**Files:**
-- Create: `server/internal/queue/redis_queue.go`
-- Create: `server/internal/worker/runner.go`
-- Create: `server/internal/worker/runner_test.go`
-- Create: `server/internal/executor/docker_executor.go`
-- Create: `server/internal/executor/docker_executor_test.go`
-- Create: `server/internal/executor/templates/entrypoint.sh`
+### Repository Access Boundary
 
-**Step 1: Write failing tests for enqueue/dequeue and worker lifecycle**
+The runtime does **not** manage repository permissions.
 
-- Assert task creation enqueues a task ID.
-- Assert worker picks one queued task and marks it `preparing`, then `running`.
-- Assert worker writes back terminal logs and final status.
+For MVP:
 
-**Step 2: Run test to verify it fails**
+- the authenticated owner user may submit tasks only for repos they already have access to
+- public repos are fine
+- private repos are fine only if the owner's existing GitHub credentials already allow clone/fetch
+- the runtime does not implement org/repo RBAC
+- the runtime does not broker or discover repository permissions on behalf of the user
 
-Run: `cd server && go test ./internal/queue ./internal/worker ./internal/executor`
-Expected: FAIL because queue and executor do not exist.
+In short:
 
-**Step 3: Write minimal implementation**
+- we are not building private-repo management
+- we are only executing against repos the logged-in owner account can already access
 
-- Use Redis list or stream for the first task queue.
-- Add one process-local worker loop.
-- Docker executor responsibilities:
-  - create workspace directory
-  - clone repository or fetch into cache and checkout ref
-  - start container with mounted workspace
-  - inject prompt/task metadata
-  - capture stdout/stderr
-- First version can store logs in files plus DB metadata instead of full log indexing.
+## Runtime Architecture
 
-**Step 4: Run tests**
+### Recommended Stack
 
-Run: `cd server && go test ./...`
-Expected: PASS for queue and worker unit tests.
+- Go runtime service
+- SQLite for task metadata
+- local filesystem for artifacts and logs
+- in-process worker loop
+- Docker executor
+- HTTP + SSE
 
-**Step 5: Commit**
+### Why Not MySQL and Redis First
 
-```bash
-git add server/internal/queue server/internal/worker server/internal/executor
-git commit -m "feat: add single-node task queue and docker worker"
+For a single-server owner-operated service:
+
+- SQLite is enough
+- one in-process queue is enough
+- fewer moving parts means faster iteration and fewer failure modes
+
+We should only add MySQL or Redis after a real operational reason appears.
+
+## Repo Layout
+
+```text
+server/
+  cmd/runtime/
+  internal/config/
+  internal/http/
+  internal/domain/
+  internal/store/sqlite/
+  internal/worker/
+  internal/executor/docker/
+  internal/artifact/
+  README.md
 ```
 
-### Task 4: Expose task APIs for TermCanvas integration
+Renderer-side integration should stay light:
 
-**Files:**
-- Create: `server/internal/http/task_handler.go`
-- Create: `server/internal/http/task_handler_test.go`
-- Modify: `server/internal/http/router.go`
-- Create: `src/runtime/api.ts`
-- Create: `src/stores/runtimeTaskStore.ts`
-- Modify: `electron/preload.ts`
-- Modify: `src/types/index.ts`
+```text
+src/runtime/api.ts
+src/stores/runtimeTaskStore.ts
+```
 
-**Step 1: Write failing tests for task APIs**
+## Task Model
 
+### Task Status
+
+- `queued`
+- `preparing`
+- `running`
+- `succeeded`
+- `failed`
+- `canceled`
+
+### Task Fields
+
+MVP task record:
+
+- `id`
+- `created_by_user_id`
+- `repo_url`
+- `repo_ref`
+- `prompt`
+- `status`
+- `workspace_path`
+- `result_summary`
+- `artifact_manifest_path`
+- `created_at`
+- `updated_at`
+- `started_at`
+- `finished_at`
+
+Repository eligibility rule:
+
+- only accept repositories the authenticated owner user already has permission to access
+
+No team model yet.
+No org model yet.
+No per-user quotas yet.
+
+## Execution Model
+
+### Worker
+
+The runtime runs a single in-process worker loop:
+
+- read next queued task from SQLite
+- mark `preparing`
+- prepare workspace
+- run Docker executor
+- stream logs
+- write result
+- mark terminal state
+
+For MVP, serial execution is acceptable.
+
+If needed later:
+
+- add configurable concurrency
+- then add a real queue
+
+### Docker Executor
+
+Responsibilities:
+
+- create isolated workspace directory
+- clone repo or fetch cached repo using the owner's existing repository credentials
+- checkout target ref
+- mount workspace into container
+- inject task metadata
+- run agent entrypoint
+- capture stdout/stderr
+- write artifacts
+
+This is the right place for isolation.
+Do not start with host-process execution.
+Do not add repo-permission management here.
+
+## API Surface
+
+### Required Endpoints
+
+- `GET /healthz`
+- `GET /readyz`
 - `POST /api/tasks`
-- `GET /api/tasks/:id`
 - `GET /api/tasks`
+- `GET /api/tasks/:id`
 - `POST /api/tasks/:id/cancel`
-- `GET /api/tasks/:id/events` via SSE
+- `GET /api/tasks/:id/events`
 
-**Step 2: Run tests to verify they fail**
+### Transport
 
-Run: `cd server && go test ./internal/http`
-Expected: FAIL because handlers do not exist.
+- regular HTTP for create/list/detail/cancel
+- SSE for status and log stream
 
-**Step 3: Write minimal implementation**
+Polling is acceptable as a temporary fallback, but SSE should be the intended model.
 
-- Add server DTOs:
-  - create task request
-  - task detail response
-  - task event payload
-- Add renderer-side API wrapper in `src/runtime/api.ts`.
-- Add Zustand store for runtime tasks.
-- Add preload bridge entries for runtime host config if TermCanvas should proxy requests through Electron.
+## Artifact Model
 
-**Step 4: Add UI integration placeholder**
+Store artifacts on local disk first.
 
-- Add a minimal non-invasive surface:
-  - one "Remote task" entry in the composer or context menu
-  - one task list panel or card group showing status, last update, and artifact links
-- Do not redesign the whole canvas in MVP.
+Per-task artifact set:
 
-**Step 5: Run tests**
+- raw log
+- result summary
+- patch or diff if produced
+- metadata manifest
 
-Run: `cd server && go test ./...`
-Expected: PASS for API tests.
+Manifest example:
 
-**Step 6: Commit**
-
-```bash
-git add server/internal/http src/runtime src/stores/runtimeTaskStore.ts electron/preload.ts src/types/index.ts
-git commit -m "feat: expose runtime task APIs to TermCanvas"
+```json
+{
+  "task_id": "task_123",
+  "summary_path": "...",
+  "log_path": "...",
+  "patch_path": "...",
+  "created_at": "..."
+}
 ```
 
-### Task 5: Add artifact capture and delivery to GitHub
+Do not start with object storage unless it becomes necessary.
 
-**Files:**
-- Create: `server/internal/artifact/store.go`
-- Create: `server/internal/artifact/store_test.go`
-- Create: `server/internal/delivery/github_client.go`
-- Create: `server/internal/delivery/github_client_test.go`
-- Create: `server/internal/service/delivery_service.go`
-- Modify: `server/internal/executor/docker_executor.go`
+## GitHub Delivery
 
-**Step 1: Write failing tests for result artifact creation**
+This should be **phase 2**, not required for the first runnable MVP.
 
-- Assert task completion writes:
-  - result summary
-  - diff or patch path
-  - log file path
-  - branch name
-- Assert GitHub delivery can:
-  - push branch
-  - optionally create PR
+Phase 1:
 
-**Step 2: Run tests to verify failure**
+- complete task
+- persist artifacts
+- let user inspect outputs manually
 
-Run: `cd server && go test ./internal/artifact ./internal/delivery ./internal/service`
-Expected: FAIL because artifact and delivery services do not exist.
+Phase 2:
 
-**Step 3: Write minimal implementation**
+- push result branch
+- optionally create PR
 
-- Persist artifact metadata in DB or JSON manifest.
-- Delivery flow:
-  - create branch name from task ID
-  - push branch with token/App credentials
-  - create draft PR if requested
-- First version can support GitHub only.
+Reason: task execution is the real system risk. Delivery can come later.
 
-**Step 4: Run tests**
+## TermCanvas Integration
 
-Run: `cd server && go test ./...`
-Expected: PASS for artifact and delivery tests.
+Keep the UI integration intentionally small.
 
-**Step 5: Commit**
+### MVP Renderer Changes
 
-```bash
-git add server/internal/artifact server/internal/delivery server/internal/service
-git commit -m "feat: add task artifact capture and github delivery"
+- runtime host config
+- runtime auth/token usage via existing Supabase session
+- one entry to submit a remote task
+- one task list/status panel
+
+Do not redesign the whole canvas around runtime tasks in version 1.
+
+TermCanvas remains the local control plane, not the worker platform itself.
+
+## Failure Handling
+
+MVP should explicitly handle:
+
+- invalid Supabase token
+- authenticated but unauthorized user
+- repo fetch failure
+- Docker launch failure
+- container exit non-zero
+- runtime restart while tasks are mid-flight
+
+Basic rule:
+
+- tasks must never silently disappear
+- after restart, tasks in `preparing` or `running` should become `failed` or `queued` via an explicit recovery rule
+
+Keep recovery simple and deterministic.
+
+## Operations
+
+### Runtime Config
+
+Example:
+
+```env
+RUNTIME_PORT=8080
+SUPABASE_URL=...
+SUPABASE_JWKS_URL=...
+RUNTIME_OWNER_USER_ID=...
+SQLITE_PATH=/var/lib/termcanvas-runtime/runtime.db
+ARTIFACT_ROOT=/var/lib/termcanvas-runtime/artifacts
+WORKSPACE_ROOT=/var/lib/termcanvas-runtime/workspaces
+DOCKER_IMAGE=...
+GITHUB_TOKEN=...
 ```
 
-### Task 6: Stabilize operations, observability, and local development flow
+### Local Deployment Shape
 
-**Files:**
-- Create: `server/docker-compose.yml`
-- Create: `server/.env.example`
-- Create: `server/internal/telemetry/logger.go`
-- Create: `server/internal/telemetry/metrics.go`
-- Create: `server/internal/http/middleware.go`
-- Create: `server/scripts/dev-up.sh`
-- Create: `server/scripts/dev-down.sh`
-- Modify: `server/README.md`
-- Modify: `README.md`
+For MVP:
 
-**Step 1: Write failing tests for middleware and failure handling**
+- one systemd service or one Docker Compose deployment
+- persistent disk for DB and artifacts
+- reverse proxy optional
 
-- Assert request IDs are attached.
-- Assert structured errors are returned consistently.
-- Assert worker heartbeat timeout flips stale tasks to `failed` or `queued_for_retry`.
+Do not build a "platform ops" layer yet.
 
-**Step 2: Run tests to verify failure**
+## Implementation Phases
 
-Run: `cd server && go test ./internal/http ./internal/worker`
-Expected: FAIL because middleware and heartbeat handling do not exist.
+### Phase 1: Runtime Bootstrap
 
-**Step 3: Write minimal implementation**
+- Go service
+- config loading
+- `healthz` and `readyz`
+- Supabase JWT verification middleware
+- owner-only authorization
 
-- Add request ID middleware and structured logs.
-- Add metrics:
-  - task counts by status
-  - task duration histogram
-  - queue depth gauge
-  - worker heartbeat age
-- Add local dev stack:
-  - MySQL
-  - Redis
-  - runtime
-- Document required secrets:
-  - GitHub token/App
-  - runtime auth token
-  - Docker socket access
+### Phase 2: Task Persistence
 
-**Step 4: Run verification**
+- SQLite schema
+- task state model
+- create/list/get/cancel APIs
 
-Run:
-- `cd server && go test ./...`
-- `cd server && docker compose up -d`
-- `curl http://localhost:<runtime-port>/healthz`
+### Phase 3: Worker and Docker Execution
 
-Expected:
-- tests PASS
-- services boot successfully
-- `healthz` returns `200`
+- in-process worker loop
+- Docker executor
+- status transitions
+- log capture
 
-**Step 5: Commit**
+### Phase 4: SSE and Artifacts
 
-```bash
-git add server/docker-compose.yml server/.env.example server/internal/telemetry server/internal/http/middleware.go server/scripts server/README.md README.md
-git commit -m "chore: add runtime operations and local dev flow"
-```
+- task event stream
+- artifact manifest
+- result summary and patch persistence
 
-### Phase priorities
+### Phase 5: TermCanvas Integration
 
-**Phase 1: Must ship for MVP**
-- Task 1
-- Task 2
-- Task 3
-- Task 4
+- runtime API client
+- task list store
+- minimal UI entry point
 
-**Phase 2: Makes it genuinely useful**
-- Task 5
+### Phase 6: Optional GitHub Delivery
 
-**Phase 3: Makes it interview-grade**
-- Task 6
+- push branch
+- optional PR creation
 
-### Explicitly out of scope for MVP
+## Explicit Non-Goals For MVP
 
-- Multi-node scheduling
-- Kubernetes
-- Multi-tenant authz
-- Full sandbox hardening beyond Docker isolation
-- Rich UI redesign
-- Multi-provider delivery beyond GitHub
-- Auto-scaling workers
+- multi-user runtime access
+- tenant isolation
+- private repository permission management
+- workspace pooling
+- distributed workers
+- Redis queue
+- MySQL
+- billing
+- quota enforcement
+- org/repo RBAC
+- generalized plugin architecture
 
-### Notes for later refinement
+## Upgrade Path
 
-- If you want maximum JD alignment, prefer Go as the runtime language.
-- If you want fastest delivery, you can replace Redis with in-process queue for the very first spike, but keep the queue interface so Redis can be swapped in immediately after.
-- If you want strongest demo value, prioritize one end-to-end flow:
-  - submit task from TermCanvas
-  - run task in Docker
-  - stream logs/status
-  - push branch
-  - create PR
+This design intentionally leaves room to evolve:
+
+- SQLite -> MySQL/Postgres
+- in-process queue -> Redis / durable queue
+- owner-only -> small internal team allowlist
+- single worker -> multi-worker
+- manual artifact review -> automated GitHub delivery
+
+That path is possible without changing the core auth split:
+
+- Supabase remains the identity provider
+- runtime remains the execution service
+
+## Recommendation
+
+Build the runtime as:
+
+- self-hosted
+- single-tenant
+- Supabase-authenticated
+- owner-authorized
+- SQLite-backed
+- Docker-executed
+- SSE-streamed
+
+That is the smallest version that is both technically honest and strategically aligned with a later internal-service direction.
