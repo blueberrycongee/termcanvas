@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 type ThemeModule = typeof import("../src/stores/themeStore.ts");
 
@@ -37,6 +40,11 @@ async function loadThemeModule(): Promise<ThemeModule> {
   return import("../src/stores/themeStore.ts");
 }
 
+function readSourceFile(relativePath: string): string {
+  const testDir = dirname(fileURLToPath(import.meta.url));
+  return readFileSync(resolve(testDir, "..", relativePath), "utf8");
+}
+
 test("light xterm grayscale palette preserves visible hierarchy for CLI roles", async () => {
   const { XTERM_THEMES } = await loadThemeModule();
   const light = XTERM_THEMES.light;
@@ -53,4 +61,12 @@ test("light xterm grayscale palette preserves visible hierarchy for CLI roles", 
     contrastRatio(light.brightBlack!, light.brightWhite!) >= 2,
     `brightBlack ${light.brightBlack} and brightWhite ${light.brightWhite} should preserve a secondary hierarchy`,
   );
+});
+
+test("surface overlays do not rely on the removed bg-secondary token", () => {
+  const copiedToastSource = readSourceFile("src/terminal/TerminalTile.tsx");
+  const welcomePopupSource = readSourceFile("src/components/WelcomePopup.tsx");
+
+  assert.doesNotMatch(copiedToastSource, /bg-\[var\(--bg-secondary\)\]/);
+  assert.doesNotMatch(welcomePopupSource, /bg-\[var\(--bg-secondary\)\]/);
 });
