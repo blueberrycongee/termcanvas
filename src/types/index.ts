@@ -309,6 +309,9 @@ export interface TermCanvasAPI {
   quota: {
     fetch: () => Promise<QuotaFetchResult>;
   };
+  codexQuota: {
+    fetch: () => Promise<QuotaFetchResult>;
+  };
   insights: {
     generate: (
       cliTool: "claude" | "codex",

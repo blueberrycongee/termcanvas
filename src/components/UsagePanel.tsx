@@ -13,6 +13,7 @@ import { DeviceBreakdown } from "./usage/DeviceBreakdown";
 import { QuotaSection } from "./usage/QuotaSection";
 import { mergeUsageHeatmaps } from "./usage/heatmap-utils";
 import { useQuotaStore } from "../stores/quotaStore";
+import { useCodexQuotaStore } from "../stores/codexQuotaStore";
 import type { UsageSummary, ProjectUsage, ModelUsage } from "../types";
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -471,6 +472,8 @@ export function UsagePanel() {
   const t = useT();
   const quotaFetch = useQuotaStore((s) => s.fetch);
   const quotaOnCostChanged = useQuotaStore((s) => s.onCostChanged);
+  const codexQuotaFetch = useCodexQuotaStore((s) => s.fetch);
+  const codexQuotaOnCostChanged = useCodexQuotaStore((s) => s.onCostChanged);
 
   const isLoggedIn = user !== null;
 
@@ -496,25 +499,28 @@ export function UsagePanel() {
     if (collapsed) return;
     void fetchUsage();
     void quotaFetch();
+    void codexQuotaFetch();
     if (isLoggedIn) {
       void fetchCloud();
     }
     const interval = setInterval(() => {
       void fetchUsage();
+      void codexQuotaFetch();
       if (isLoggedIn) {
         void fetchCloud();
         void fetchCloudHeatmap();
       }
     }, 60_000);
     return () => clearInterval(interval);
-  }, [collapsed, isLoggedIn, fetchUsage, quotaFetch, fetchCloud]);
+  }, [collapsed, isLoggedIn, fetchUsage, quotaFetch, codexQuotaFetch, fetchCloud, fetchCloudHeatmap]);
 
   // Bridge cost changes to quota store for adaptive polling
   useEffect(() => {
     if (summary) {
       quotaOnCostChanged(summary.totalCost);
+      codexQuotaOnCostChanged(summary.totalCost);
     }
-  }, [summary?.totalCost]);
+  }, [summary?.totalCost, quotaOnCostChanged, codexQuotaOnCostChanged]);
 
   const handleDateChange = useCallback(
     (dateStr: string) => {

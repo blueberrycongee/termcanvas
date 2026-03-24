@@ -11,6 +11,7 @@ import {
   shouldReuseTimedCache,
   shouldReuseUsageSummary,
 } from "../electron/usage-collector.ts";
+import { parseCodexQuotaFromContent } from "../electron/codex-quota-fetcher.ts";
 
 test("shouldReuseUsageSummary keeps historical dates hot indefinitely in-process", () => {
   const now = new Date("2026-03-21T12:00:00Z").getTime();
@@ -193,6 +194,36 @@ test("computeCost applies codex pricing correctly", () => {
                  + (5_000 / 1e6) * 6.00
                  + (80_000 / 1e6) * 0.375;
   assert.equal(Math.abs(cost - expected) < 1e-10, true);
+});
+
+test("parseCodexQuotaFromContent reads primary and secondary rate limits", () => {
+  const quota = parseCodexQuotaFromContent([
+    JSON.stringify({
+      timestamp: "2026-03-20T10:01:00Z",
+      type: "event_msg",
+      payload: {
+        type: "token_count",
+        rate_limits: {
+          primary: {
+            used_percent: 12,
+            window_minutes: 300,
+            resets_at: 1_774_390_447,
+          },
+          secondary: {
+            used_percent: 61,
+            window_minutes: 10_080,
+            resets_at: 1_774_881_282,
+          },
+        },
+      },
+    }),
+  ].join("\n"));
+
+  assert.ok(quota);
+  assert.equal(quota.fiveHour.utilization, 0.12);
+  assert.equal(quota.sevenDay.utilization, 0.61);
+  assert.equal(quota.fiveHour.resetsAt, "2026-03-24T22:14:07.000Z");
+  assert.equal(quota.sevenDay.resetsAt, "2026-03-30T14:34:42.000Z");
 });
 
 // ── Hydra worktree attribution tests ────────────────────────────────────

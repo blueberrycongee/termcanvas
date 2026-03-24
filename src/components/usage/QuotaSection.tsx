@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuotaStore } from "../../stores/quotaStore";
+import { useCodexQuotaStore } from "../../stores/codexQuotaStore";
 import { useT } from "../../i18n/useT";
+import type { QuotaData } from "../../types";
 
 function formatCountdown(resetsAt: string): string {
   const diff = new Date(resetsAt).getTime() - Date.now();
@@ -37,28 +39,26 @@ function QuotaBar({ utilization }: { utilization: number }) {
   );
 }
 
-export function QuotaSection(): React.ReactElement | null {
-  const { quota, loading, error } = useQuotaStore();
+function ProviderQuotaSection({
+  title,
+  quota,
+  loading,
+  error,
+}: {
+  title: string;
+  quota: QuotaData | null;
+  loading: boolean;
+  error: "rate_limited" | "unavailable" | null;
+}) {
   const t = useT();
-  const [, setTick] = useState(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
-
-  // Update countdown every 30 seconds
-  useEffect(() => {
-    if (!quota) return;
-    intervalRef.current = setInterval(() => setTick((n) => n + 1), 30_000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [quota]);
 
   if (!quota && !loading) return null;
 
   return (
-    <div className="px-3 py-2.5">
+    <div>
       <div className="flex items-center gap-1.5">
         <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
-          {t.usage_quota}
+          {title}
         </span>
         {error === "rate_limited" && (
           <span className="text-[10px] text-[var(--text-faint)]" title="Rate limited, showing cached data">
@@ -71,7 +71,6 @@ export function QuotaSection(): React.ReactElement | null {
         <div className="mt-2 text-[10px] text-[var(--text-faint)]">{t.loading}</div>
       ) : quota ? (
         <div className="mt-2 flex flex-col gap-2">
-          {/* 5-hour */}
           <div>
             <div className="flex items-center gap-2">
               <span
@@ -96,7 +95,6 @@ export function QuotaSection(): React.ReactElement | null {
             </div>
           </div>
 
-          {/* 7-day */}
           <div>
             <div className="flex items-center gap-2">
               <span
@@ -122,6 +120,47 @@ export function QuotaSection(): React.ReactElement | null {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+export function QuotaSection(): React.ReactElement | null {
+  const claudeQuota = useQuotaStore((s) => s.quota);
+  const claudeLoading = useQuotaStore((s) => s.loading);
+  const claudeError = useQuotaStore((s) => s.error);
+  const codexQuota = useCodexQuotaStore((s) => s.quota);
+  const codexLoading = useCodexQuotaStore((s) => s.loading);
+  const codexError = useCodexQuotaStore((s) => s.error);
+  const [, setTick] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
+  const t = useT();
+  const hasAnyQuota = claudeQuota || codexQuota;
+  const isLoading = claudeLoading || codexLoading;
+
+  useEffect(() => {
+    if (!hasAnyQuota) return;
+    intervalRef.current = setInterval(() => setTick((n) => n + 1), 30_000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [hasAnyQuota]);
+
+  if (!hasAnyQuota && !isLoading) return null;
+
+  return (
+    <div className="px-3 py-2.5 flex flex-col gap-3">
+      <ProviderQuotaSection
+        title={t.usage_quota}
+        quota={claudeQuota}
+        loading={claudeLoading}
+        error={claudeError}
+      />
+      <ProviderQuotaSection
+        title={t.usage_quota_codex}
+        quota={codexQuota}
+        loading={codexLoading}
+        error={codexError}
+      />
     </div>
   );
 }
