@@ -28,6 +28,7 @@ import {
   scheduleTerminalFocus,
 } from "./focusScheduler";
 import { handleTerminalCustomKeyEvent } from "./keyHandling";
+import { focusTerminalInputElement } from "./inputFocus";
 
 interface Props {
   projectId: string;
@@ -685,12 +686,7 @@ function TerminalTileImpl({
   const focusTerminalInput = useCallback(() => {
     const tile = tileRef.current;
     const terminalView = terminalRef.current;
-    if (!tile || !terminalView || tile.getClientRects().length === 0) {
-      return false;
-    }
-
-    terminalView.focus();
-    return tile.contains(document.activeElement);
+    return focusTerminalInputElement(terminalView, tile);
   }, []);
   const scheduleTerminalInputFocus = useCallback(() => {
     scheduleTerminalFocus(focusTerminalInput, pendingFocusFrameRef);
