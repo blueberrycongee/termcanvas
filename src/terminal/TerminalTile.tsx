@@ -803,11 +803,11 @@ function TerminalTileImpl({
       const { scale } = useCanvasStore.getState().viewport;
       if (scale === 1) return;
 
-      const target =
-        e.target instanceof Element && "getBoundingClientRect" in e.target
-          ? e.target
-          : container;
-      const rect = target.getBoundingClientRect();
+      const canvas = container.querySelector("canvas");
+      if (!(canvas instanceof HTMLCanvasElement) || e.target !== canvas) {
+        return;
+      }
+      const rect = canvas.getBoundingClientRect();
       const correctedPosition = getCorrectedTerminalMousePosition(
         { clientX: e.clientX, clientY: e.clientY },
         rect,
@@ -847,12 +847,19 @@ function TerminalTileImpl({
         },
       });
 
-      if (shouldDebugTerminalMouseCorrection()) {
-        console.debug("[TerminalMouseCorrection]", {
+      if (
+        shouldDebugTerminalMouseCorrection() &&
+        (e.type === "mousedown" || e.type === "mousemove" || e.type === "dblclick")
+      ) {
+        console.log("[TerminalMouseCorrection]", {
           type: e.type,
           scale,
-          target:
-            e.target instanceof Element ? e.target.tagName.toLowerCase() : "unknown",
+          rect: {
+            left: rect.left,
+            top: rect.top,
+            width: rect.width,
+            height: rect.height,
+          },
           raw: {
             clientX: e.clientX,
             clientY: e.clientY,
@@ -866,7 +873,7 @@ function TerminalTileImpl({
       corrected.add(adjusted);
       e.stopPropagation();
       e.preventDefault();
-      target.dispatchEvent(adjusted);
+      canvas.dispatchEvent(adjusted);
     };
 
     const types = ["mousedown", "mousemove", "mouseup", "dblclick"];
