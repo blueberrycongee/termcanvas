@@ -742,7 +742,14 @@ export function TerminalTile({
   // doesn't support the Composer.
   const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
   const focusXterm = useCallback(() => {
-    xtermRef.current?.focus();
+    const tile = tileRef.current;
+    const xterm = xtermRef.current;
+    if (!tile || !xterm || tile.getClientRects().length === 0) {
+      return false;
+    }
+
+    xterm.focus();
+    return tile.contains(document.activeElement);
   }, []);
   const scheduleXtermFocus = useCallback(() => {
     scheduleTerminalFocus(focusXterm, pendingFocusFrameRef);
@@ -757,7 +764,7 @@ export function TerminalTile({
     }
 
     if (shouldFocusXterm) {
-      scheduleTerminalFocus(focusXterm, pendingFocusFrameRef);
+      scheduleXtermFocus();
     } else {
       cancelScheduledTerminalFocus(pendingFocusFrameRef);
     }
@@ -766,7 +773,6 @@ export function TerminalTile({
     terminal.id,
     terminal.type,
     composerEnabled,
-    focusXterm,
     scheduleXtermFocus,
   ]);
 

@@ -3,19 +3,31 @@ export interface PendingFocusFrame {
 }
 
 export function scheduleTerminalFocus(
-  focus: () => void,
+  focus: () => boolean | void,
   pending: PendingFocusFrame,
   requestFrame: typeof requestAnimationFrame = requestAnimationFrame,
   cancelFrame: typeof cancelAnimationFrame = cancelAnimationFrame,
+  maxAttempts = 24,
 ) {
   if (pending.current !== null) {
     cancelFrame(pending.current);
   }
 
-  pending.current = requestFrame(() => {
+  const run = () => {
     pending.current = null;
-    focus();
-  });
+    const focused = focus();
+    if (focused === false && maxAttempts > 1) {
+      scheduleTerminalFocus(
+        focus,
+        pending,
+        requestFrame,
+        cancelFrame,
+        maxAttempts - 1,
+      );
+    }
+  };
+
+  pending.current = requestFrame(run);
 }
 
 export function cancelScheduledTerminalFocus(

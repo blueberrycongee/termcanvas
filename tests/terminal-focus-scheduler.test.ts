@@ -100,6 +100,40 @@ test("scheduleTerminalFocus lets xterm focus win after a same-turn competing foc
   assert.equal(pending.current, null);
 });
 
+test("scheduleTerminalFocus retries on later frames until focus actually sticks", () => {
+  const queued = new Map<number, FrameRequestCallback>();
+  let nextId = 1;
+  let attempts = 0;
+
+  const pending = { current: null as number | null };
+  const requestFrame = (callback: FrameRequestCallback) => {
+    const id = nextId++;
+    queued.set(id, callback);
+    return id;
+  };
+
+  scheduleTerminalFocus(
+    () => {
+      attempts += 1;
+      return attempts >= 2;
+    },
+    pending,
+    requestFrame,
+    () => {},
+  );
+
+  assert.equal(pending.current, 1);
+  queued.get(1)?.(16);
+
+  assert.equal(attempts, 1);
+  assert.equal(pending.current, 2);
+  assert.equal(queued.has(2), true);
+
+  queued.get(2)?.(32);
+
+  assert.equal(attempts, 2);
+  assert.equal(pending.current, null);
+});
 test("cancelScheduledTerminalFocus clears any queued focus frame", () => {
   const cancelled: number[] = [];
   const pending = { current: 7 as number | null };
