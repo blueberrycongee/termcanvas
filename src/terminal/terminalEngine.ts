@@ -2,6 +2,7 @@ import type { TerminalTheme } from "./theme";
 import { serializeBufferToText } from "./scrollbackSnapshot";
 import { getSerializableBuffer } from "./scrollbackBuffer";
 import { createTerminalThemeState } from "./themeState";
+import { syncTerminalCursorBlink } from "./cursorBlink";
 
 type GhosttyModule = typeof import("ghostty-web");
 type GhosttyTerminal = import("ghostty-web").Terminal;
@@ -16,6 +17,7 @@ export interface TerminalEngineSession {
   applyFontSize: (size: number) => void;
   applyFontFamily: (family: string) => void;
   applyMinimumContrastRatio: (ratio: number) => void;
+  setCursorBlink: (enabled: boolean) => void;
   touch: () => void;
   dispose: () => void;
 }
@@ -26,6 +28,7 @@ interface CreateTerminalEngineSessionOptions {
   fontFamily: string;
   fontSize: number;
   minimumContrastRatio: number;
+  cursorBlink: boolean;
   scrollback?: string;
 }
 
@@ -66,7 +69,7 @@ async function createGhosttySession(
     theme: currentTheme,
     fontFamily: options.fontFamily,
     fontSize: options.fontSize,
-    cursorBlink: true,
+    cursorBlink: options.cursorBlink,
     cursorStyle: "bar",
     scrollback: 5000,
     allowTransparency: false,
@@ -109,6 +112,9 @@ async function createGhosttySession(
       currentTheme = themeState.setMinimumContrastRatio(ratio);
       terminal.renderer?.setTheme(currentTheme);
       rerenderTerminal(terminal);
+    },
+    setCursorBlink: (enabled) => {
+      syncTerminalCursorBlink(terminal, enabled);
     },
     touch: () => {
       // Ghostty manages its own renderer path.

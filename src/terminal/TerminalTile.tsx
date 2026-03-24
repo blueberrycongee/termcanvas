@@ -306,6 +306,7 @@ function TerminalTileImpl({
           fontFamily: buildFontFamily(prefs.terminalFontFamily),
           fontSize: prefs.terminalFontSize,
           minimumContrastRatio: prefs.minimumContrastRatio,
+          cursorBlink: terminal.focused,
           scrollback: terminal.scrollback,
         });
 
@@ -700,6 +701,7 @@ function TerminalTileImpl({
   useEffect(() => {
     const adapter = getComposerAdapter(terminal.type);
     const shouldFocusTerminalInput = terminal.focused && (!adapter || !composerEnabled);
+    engineSessionRef.current?.setCursorBlink(terminal.focused);
 
     if (terminal.focused) {
       engineSessionRef.current?.touch();
