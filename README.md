@@ -195,7 +195,7 @@ All shortcuts are customizable in Settings → Shortcuts. On Windows/Linux, repl
 <table>
 <tr><td><b>Desktop</b></td><td>Electron</td></tr>
 <tr><td><b>Frontend</b></td><td>React · TypeScript</td></tr>
-<tr><td><b>Terminal</b></td><td>xterm.js (WebGL) · node-pty</td></tr>
+<tr><td><b>Terminal</b></td><td>ghostty-web · node-pty</td></tr>
 <tr><td><b>State</b></td><td>Zustand</td></tr>
 <tr><td><b>Styling</b></td><td>Tailwind CSS · Geist</td></tr>
 <tr><td><b>Drawing</b></td><td>perfect-freehand</td></tr>

@@ -74,33 +74,10 @@ test("preferences stores and retrieves cliCommands", async () => {
   assert.deepEqual(usePreferencesStore.getState().cliCommands, {});
 });
 
-test("preferences stores and retrieves terminalRenderer", async () => {
-  installLocalStorage();
-
-  const { usePreferencesStore } = await loadPreferencesStoreModule("terminal-renderer");
-  const store = usePreferencesStore.getState();
-
-  assert.equal(store.terminalRenderer, "ghostty");
-
-  store.setTerminalRenderer("ghostty");
-  assert.equal(usePreferencesStore.getState().terminalRenderer, "ghostty");
-
-  const raw = JSON.parse(localStorage.getItem("termcanvas-preferences")!);
-  assert.equal(raw.terminalRenderer, "ghostty");
-});
-
-test("preferences restore a saved ghostty renderer", async () => {
-  installLocalStorage(JSON.stringify({ terminalRenderer: "ghostty" }));
-
-  const { usePreferencesStore } = await loadPreferencesStoreModule("terminal-renderer-restore");
-
-  assert.equal(usePreferencesStore.getState().terminalRenderer, "ghostty");
-});
-
-test("preferences restore a saved xterm renderer", async () => {
+test("preferences ignore the removed terminalRenderer field", async () => {
   installLocalStorage(JSON.stringify({ terminalRenderer: "xterm" }));
 
-  const { usePreferencesStore } = await loadPreferencesStoreModule("terminal-renderer-xterm");
+  const { usePreferencesStore } = await loadPreferencesStoreModule("terminal-renderer-removed");
 
-  assert.equal(usePreferencesStore.getState().terminalRenderer, "xterm");
+  assert.equal(usePreferencesStore.getState().terminalFontFamily, "geist-mono");
 });

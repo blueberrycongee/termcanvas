@@ -117,9 +117,9 @@ function attachTerminalFocusHarness(
     const terminal = location?.terminal;
     const adapter = terminal ? getComposerAdapter(terminal.type) : null;
     const composerEnabled = usePreferencesStore.getState().composerEnabled;
-    const shouldFocusXterm = !!terminal && terminal.focused && (!adapter || !composerEnabled);
+    const shouldFocusTerminalInput = !!terminal && terminal.focused && (!adapter || !composerEnabled);
 
-    if (shouldFocusXterm) {
+    if (shouldFocusTerminalInput) {
       scheduleTerminalFocus(focus, pending, requestFrame, cancelFrame);
     } else {
       cancelScheduledTerminalFocus(pending, cancelFrame);

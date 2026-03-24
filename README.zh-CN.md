@@ -193,7 +193,7 @@ hydra cleanup <agent-id>
 <table>
 <tr><td><b>桌面框架</b></td><td>Electron</td></tr>
 <tr><td><b>前端</b></td><td>React · TypeScript</td></tr>
-<tr><td><b>终端</b></td><td>xterm.js (WebGL) · node-pty</td></tr>
+<tr><td><b>终端</b></td><td>ghostty-web · node-pty</td></tr>
 <tr><td><b>状态管理</b></td><td>Zustand</td></tr>
 <tr><td><b>样式</b></td><td>Tailwind CSS · Geist</td></tr>
 <tr><td><b>绘图</b></td><td>perfect-freehand</td></tr>

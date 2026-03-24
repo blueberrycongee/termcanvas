@@ -195,8 +195,6 @@ export function SettingsModal({ onClose }: Props) {
   const {
     animationBlur,
     setAnimationBlur,
-    terminalRenderer,
-    setTerminalRenderer,
     terminalFontSize,
     setTerminalFontSize,
     terminalFontFamily,
@@ -364,32 +362,6 @@ export function SettingsModal({ onClose }: Props) {
                     onClick={() => setLocale("en")}
                   >
                     English
-                  </button>
-                </div>
-              </div>
-
-              {/* Terminal font size */}
-              <div className="flex items-center justify-between">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[13px] text-[var(--text-secondary)]">
-                    {t.terminal_renderer}
-                  </span>
-                  <span className="max-w-[280px] text-[11px] text-[var(--text-muted)]">
-                    {t.terminal_renderer_desc}
-                  </span>
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    className={terminalRenderer === "ghostty" ? activeBtn : inactiveBtn}
-                    onClick={() => setTerminalRenderer("ghostty")}
-                  >
-                    {t.terminal_renderer_ghostty}
-                  </button>
-                  <button
-                    className={terminalRenderer === "xterm" ? activeBtn : inactiveBtn}
-                    onClick={() => setTerminalRenderer("xterm")}
-                  >
-                    {t.terminal_renderer_xterm}
                   </button>
                 </div>
               </div>

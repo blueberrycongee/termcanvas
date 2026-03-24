@@ -289,8 +289,6 @@ export function TerminalTile({
         const currentTheme = useThemeStore.getState().theme;
         const prefs = usePreferencesStore.getState();
         const session = await createTerminalEngineSession({
-          renderer: prefs.terminalRenderer,
-          terminalId: terminal.id,
           container: containerRef.current!,
           theme: TERMINAL_THEMES[currentTheme],
           fontFamily: buildFontFamily(prefs.terminalFontFamily),
@@ -698,13 +696,13 @@ export function TerminalTile({
 
   useEffect(() => {
     const adapter = getComposerAdapter(terminal.type);
-    const shouldFocusXterm = terminal.focused && (!adapter || !composerEnabled);
+    const shouldFocusTerminalInput = terminal.focused && (!adapter || !composerEnabled);
 
     if (terminal.focused) {
       engineSessionRef.current?.touch();
     }
 
-    if (shouldFocusXterm) {
+    if (shouldFocusTerminalInput) {
       scheduleTerminalInputFocus();
     } else {
       cancelScheduledTerminalFocus(pendingFocusFrameRef);
