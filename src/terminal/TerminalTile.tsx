@@ -29,6 +29,11 @@ import {
 } from "./focusScheduler";
 import { handleTerminalCustomKeyEvent } from "./keyHandling";
 import { focusTerminalInputElement } from "./inputFocus";
+import {
+  getCorrectedTerminalMousePosition,
+  shouldDebugTerminalMouseCorrection,
+} from "./mousePosition";
+import { shouldSkipTerminalTileFocus } from "./tileFocusGuard";
 
 interface Props {
   projectId: string;
@@ -798,12 +803,21 @@ function TerminalTileImpl({
       const { scale } = useCanvasStore.getState().viewport;
       if (scale === 1) return;
 
-      const rect = container.getBoundingClientRect();
+      const target =
+        e.target instanceof Element && "getBoundingClientRect" in e.target
+          ? e.target
+          : container;
+      const rect = target.getBoundingClientRect();
+      const correctedPosition = getCorrectedTerminalMousePosition(
+        { clientX: e.clientX, clientY: e.clientY },
+        rect,
+        scale,
+      );
       const adjusted = new MouseEvent(e.type, {
         bubbles: e.bubbles,
         cancelable: e.cancelable,
-        clientX: rect.left + (e.clientX - rect.left) / scale,
-        clientY: rect.top + (e.clientY - rect.top) / scale,
+        clientX: correctedPosition.clientX,
+        clientY: correctedPosition.clientY,
         screenX: e.screenX,
         screenY: e.screenY,
         button: e.button,
@@ -814,11 +828,45 @@ function TerminalTileImpl({
         metaKey: e.metaKey,
         detail: e.detail,
       });
+      Object.defineProperties(adjusted, {
+        offsetX: {
+          configurable: true,
+          value: correctedPosition.offsetX,
+        },
+        offsetY: {
+          configurable: true,
+          value: correctedPosition.offsetY,
+        },
+        layerX: {
+          configurable: true,
+          value: correctedPosition.offsetX,
+        },
+        layerY: {
+          configurable: true,
+          value: correctedPosition.offsetY,
+        },
+      });
+
+      if (shouldDebugTerminalMouseCorrection()) {
+        console.debug("[TerminalMouseCorrection]", {
+          type: e.type,
+          scale,
+          target:
+            e.target instanceof Element ? e.target.tagName.toLowerCase() : "unknown",
+          raw: {
+            clientX: e.clientX,
+            clientY: e.clientY,
+            offsetX: e.offsetX,
+            offsetY: e.offsetY,
+          },
+          corrected: correctedPosition,
+        });
+      }
 
       corrected.add(adjusted);
       e.stopPropagation();
       e.preventDefault();
-      e.target!.dispatchEvent(adjusted);
+      target.dispatchEvent(adjusted);
     };
 
     const types = ["mousedown", "mousemove", "mouseup", "dblclick"];
@@ -862,6 +910,9 @@ function TerminalTileImpl({
       }}
       onClick={(e) => {
         e.stopPropagation();
+        if (shouldSkipTerminalTileFocus(e.target)) {
+          return;
+        }
         setFocusedTerminal(terminal.id);
       }}
       onMouseEnter={() => {
@@ -900,6 +951,7 @@ function TerminalTileImpl({
           {terminal.title}
         </span>
         <div
+          data-terminal-custom-title-interaction
           className={`h-6 min-w-0 flex-1 rounded-md border px-1.5 text-[11px] ${
             terminal.customTitle
               ? "border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]"
