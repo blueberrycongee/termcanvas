@@ -38,7 +38,7 @@ export const useThemeStore = create<ThemeStore>((set) => ({
     }),
 }));
 
-export const XTERM_THEMES: Record<Theme, ITheme> = {
+export const TERMINAL_THEMES: Record<Theme, ITheme> = {
   dark: {
     background: "#1a1918",
     foreground: "#e4e2df",
@@ -86,3 +86,5 @@ export const XTERM_THEMES: Record<Theme, ITheme> = {
     brightWhite: "#b2aba3",
   },
 };
+
+export const XTERM_THEMES = TERMINAL_THEMES;

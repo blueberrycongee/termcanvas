@@ -23,7 +23,9 @@ export function buildSnapshotState(): WorkspaceSnapshot {
       terminals: worktree.terminals.map((terminal) => ({
         ...terminal,
         scrollback:
-          scrollbacks[terminal.id] ?? terminal.scrollback ?? undefined,
+          Object.prototype.hasOwnProperty.call(scrollbacks, terminal.id)
+            ? scrollbacks[terminal.id] ?? undefined
+            : terminal.scrollback ?? undefined,
         ptyId: null,
       })),
     })),

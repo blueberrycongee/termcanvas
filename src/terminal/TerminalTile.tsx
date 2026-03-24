@@ -1,9 +1,4 @@
 import { useEffect, useRef, useCallback, useState } from "react";
-import { Terminal } from "@xterm/xterm";
-import { FitAddon } from "@xterm/addon-fit";
-import { SerializeAddon } from "@xterm/addon-serialize";
-import { acquireWebGL, releaseWebGL, touch as touchWebGL } from "./webglContextPool";
-import { ImageAddon } from "@xterm/addon-image";
 import { createPortal } from "react-dom";
 import type { TerminalData, TerminalType } from "../types";
 import { useProjectStore, findTerminalById, getChildTerminals } from "../stores/projectStore";
@@ -11,7 +6,7 @@ import { useSelectionStore } from "../stores/selectionStore";
 import { ContextMenu } from "../components/ContextMenu";
 import { useNotificationStore } from "../stores/notificationStore";
 import { registerTerminal, unregisterTerminal } from "./terminalRegistry";
-import { useThemeStore, XTERM_THEMES } from "../stores/themeStore";
+import { useThemeStore, TERMINAL_THEMES } from "../stores/themeStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useT } from "../i18n/useT";
@@ -21,6 +16,11 @@ import {
   getComposerAdapter,
 } from "./cliConfig";
 import { buildFontFamily } from "./fontRegistry";
+import {
+  createTerminalEngineSession,
+  type CompatibleTerminal,
+  type TerminalEngineSession,
+} from "./terminalEngine";
 import { panToTerminal } from "../utils/panToTerminal";
 import { getTerminalDisplayTitle } from "../stores/terminalState";
 import {
@@ -200,8 +200,8 @@ export function TerminalTile({
   const containerRef = useRef<HTMLDivElement>(null);
   const pendingFocusFrameRef = useRef<number | null>(null);
   const customTitleInputRef = useRef<HTMLInputElement>(null);
-  const xtermRef = useRef<Terminal | null>(null);
-  const fitAddonRef = useRef<FitAddon | null>(null);
+  const terminalRef = useRef<CompatibleTerminal | null>(null);
+  const engineSessionRef = useRef<TerminalEngineSession | null>(null);
   const ptyIdRef = useRef<number | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   const sessionCancelRef = useRef<(() => void) | null>(null);
@@ -282,434 +282,378 @@ export function TerminalTile({
       return;
     }
 
-    const currentTheme = useThemeStore.getState().theme;
-    const xterm = new Terminal({
-      theme: XTERM_THEMES[currentTheme],
-      fontFamily: buildFontFamily(usePreferencesStore.getState().terminalFontFamily),
-      fontSize: usePreferencesStore.getState().terminalFontSize,
-      lineHeight: 1.4,
-      cursorBlink: true,
-      cursorStyle: "bar",
-      cursorWidth: 2,
-      scrollback: 5000,
-      minimumContrastRatio: usePreferencesStore.getState().minimumContrastRatio,
-      allowTransparency: false,
-    });
+    let cancelled = false;
 
-    const fitAddon = new FitAddon();
-    const serializeAddon = new SerializeAddon();
-    xterm.loadAddon(fitAddon);
-    xterm.loadAddon(serializeAddon);
-    xterm.open(containerRef.current);
-
-    // Scroll-pinning: xterm v6 has built-in isUserScrolling in
-    // BufferService — when the user scrolls up, ydisp stops following
-    // ybase during writes.  We must NOT call scrollToBottom() in the
-    // write callback because that would override xterm's protection.
-
-    // Scroll-pinning fix: xterm v6's isUserScrolling flag gets stuck when
-    // the viewport is pushed to the very top (ydisp=0) during buffer trimming.
-    // Once stuck, ybase keeps growing while the viewport stays at 0 — the user
-    // sees stale/evicted content at the top and can't get back to live output.
-    // Fix: detect this state and snap back to the bottom.
-    const _bufSvc = (xterm as any)._core?._bufferService;
-    xterm.onScroll(() => {
-      if (
-        _bufSvc?.isUserScrolling &&
-        xterm.buffer.active.viewportY === 0 &&
-        xterm.buffer.active.baseY > xterm.rows
-      ) {
-        _bufSvc.isUserScrolling = false;
-        xterm.scrollToBottom();
-      }
-    });
-
-    // GPU-accelerated rendering via context pool (max 8 active contexts)
-    acquireWebGL(terminal.id, xterm);
-
-    // Sixel image protocol support for inline images
-    try {
-      const imageAddon = new ImageAddon();
-      xterm.loadAddon(imageAddon);
-    } catch {
-      // Image protocol not available — not critical
-    }
-
-    // Let Cmd key combos propagate to the app shortcut handler
-    // (Ctrl must still reach xterm for terminal signals like Ctrl+C)
-    xterm.attachCustomKeyEventHandler((e) => {
-      if (e.type === "keydown") {
-        if (e.metaKey) {
-          // Cmd+Backspace → Ctrl+U (kill line: delete from cursor to line start)
-          if (e.key === "Backspace") {
-            if (ptyId !== null) window.termcanvas.terminal.input(ptyId, "\x15");
-          }
-          return false;
-        }
-      }
-      return true;
-    });
-
-    // Auto-copy: write selected text to clipboard on selection change.
-    // Since DOM focus stays on the composer textarea, Cmd+C won't reach
-    // xterm's built-in copy — this bridges the gap.
-    const selectionDisposable = xterm.onSelectionChange(() => {
-      const text = xterm.getSelection();
-      if (text) {
-        navigator.clipboard.writeText(text);
-        if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
-        setShowCopiedToast(true);
-        copiedTimerRef.current = setTimeout(() => setShowCopiedToast(false), 1500);
-      }
-    });
-
-    // Re-apply theme after open() to ensure canvas paints correctly
-    xterm.options.theme = XTERM_THEMES[useThemeStore.getState().theme];
-
-    // Restore scrollback from previous session
-    if (terminal.scrollback) {
-      xterm.write(terminal.scrollback, () => xterm.scrollToBottom());
-    }
-
-    requestAnimationFrame(() => {
-      fitAddon.fit();
-      xterm.refresh(0, xterm.rows - 1);
-    });
-
-    xtermRef.current = xterm;
-    fitAddonRef.current = fitAddon;
-    registerTerminal(terminal.id, xterm, serializeAddon);
-
-    let ptyId: number | null = null;
-    const cliOverride = usePreferencesStore.getState().cliCommands[terminal.type] ?? undefined;
-    const wasResumeAttempt = !!terminal.sessionId && !!getTerminalLaunchOptions(terminal.type, terminal.sessionId, terminal.autoApprove);
-    let hasRespawned = false;
-    let inputDisposable: { dispose(): void } | null = null;
-    let resizeDisposable: { dispose(): void } | null = null;
-
-    /**
-     * Create a PTY and wire up input/resize handlers.
-     * When `resumeSessionId` is provided the CLI is launched with --resume;
-     * otherwise a fresh session is started.
-     */
-    const spawnPty = (resumeSessionId: string | undefined) => {
-      const opts: { cwd: string; shell?: string; args?: string[]; terminalId?: string; theme?: "dark" | "light" } = {
-        cwd: worktreePath,
-        terminalId: terminal.id,
-      };
-      opts.theme = useThemeStore.getState().theme;
-
-      const launch = getTerminalLaunchOptions(
-        terminal.type,
-        resumeSessionId,
-        terminal.autoApprove,
-        cliOverride,
-      );
-      if (launch) {
-        const promptArgs =
-          !resumeSessionId && terminal.initialPrompt
-            ? getTerminalPromptArgs(terminal.type, terminal.initialPrompt)
-            : [];
-        opts.shell = launch.shell;
-        opts.args = [...launch.args, ...promptArgs];
-      }
-
-      window.termcanvas.terminal
-        .create(opts)
-        .then(async (id) => {
-          ptyId = id;
-          ptyIdRef.current = id;
-          updateTerminalPtyId(projectId, worktreeId, terminal.id, id);
-          updateTerminalStatus(projectId, worktreeId, terminal.id, "running");
-
-          // Resume scenario: session ID already known, start watcher immediately
-          if (
-            resumeSessionId &&
-            (terminal.type === "claude" || terminal.type === "codex")
-          ) {
-            console.log(`[SessionCapture] watch (resume) type=${terminal.type} sid=${resumeSessionId} cwd=${worktreePath}`);
-            window.termcanvas.session.watch(
-              terminal.type,
-              resumeSessionId,
-              worktreePath,
-            ).then((res: { ok: boolean; reason?: string }) => {
-              if (!res?.ok) {
-                console.warn(`[SessionCapture] watch failed (resume) reason=${res?.reason}`);
-                notify("warn", `Session watch failed: ${res?.reason ?? "unknown"}`);
-              }
-            }).catch((err: unknown) => {
-              console.error("[SessionCapture] watch IPC error (resume):", err);
-            });
-          }
-
-          // Capture session ID for future resume.
-          // AI CLIs (claude, codex, etc.) may take a while to initialize and
-          // write their session file, so we poll instead of a single attempt.
-          if (!resumeSessionId && launch) {
-            let cancelled = false;
-            sessionCancelRef.current = () => { cancelled = true; };
-
-            pollSessionId(
-              id, terminal.type, worktreePath,
-              (sid) => {
-                updateTerminalSessionId(projectId, worktreeId, terminal.id, sid);
-                if (terminal.type === "claude" || terminal.type === "codex") {
-                  console.log(`[SessionCapture] watch (new) type=${terminal.type} sid=${sid} cwd=${worktreePath}`);
-                  window.termcanvas.session.watch(terminal.type, sid, worktreePath)
-                    .then((res: { ok: boolean; reason?: string }) => {
-                      if (!res?.ok) {
-                        console.warn(`[SessionCapture] watch failed (new) reason=${res?.reason}`);
-                        notify("warn", `Session watch failed: ${res?.reason ?? "unknown"}`);
-                      }
-                    }).catch((err: unknown) => {
-                      console.error("[SessionCapture] watch IPC error (new):", err);
-                    });
-                }
-              },
-              () => cancelled,
-            ).then((result) => {
-              if (result === "timeout") {
-                notify("warn", `Session capture timeout for ${displayTitleRef.current}`);
-              }
-            });
-          }
-
-          inputDisposable?.dispose();
-          resizeDisposable?.dispose();
-          inputDisposable = xterm.onData((data) => {
-            if (ptyId !== null) window.termcanvas.terminal.input(ptyId, data);
-          });
-          resizeDisposable = xterm.onResize(({ cols, rows }) => {
-            if (ptyId !== null) window.termcanvas.terminal.resize(ptyId, cols, rows);
-          });
-
-          fitAddon.fit();
-          const { cols, rows } = xterm;
-          window.termcanvas.terminal.resize(id, cols, rows);
-        })
-        .catch((err) => {
-          const errStr = err instanceof Error ? err.message : String(err);
-          const isNotFound =
-            errStr.includes("Executable not found") ||
-            errStr.includes("executable-not-found");
-
-          notify("error", t.failed_create_pty(displayTitleRef.current, errStr));
-          updateTerminalStatus(projectId, worktreeId, terminal.id, "error");
-
-          if (isNotFound) {
-            const command = launch?.shell ?? terminal.type;
-            xterm.write(
-              `\r\n\x1b[31m${t.cli_launch_error_title(command)}\x1b[0m\r\n` +
-              `\r\n\x1b[33m${t.cli_launch_error_action}: Settings > Agents\x1b[0m\r\n`,
-            );
-          } else {
-            xterm.write(
-              `\r\n\x1b[31m[Error] Failed to create terminal: ${errStr}\x1b[0m\r\n`,
-            );
-          }
+    void (async () => {
+      try {
+        const currentTheme = useThemeStore.getState().theme;
+        const prefs = usePreferencesStore.getState();
+        const session = await createTerminalEngineSession({
+          renderer: prefs.terminalRenderer,
+          terminalId: terminal.id,
+          container: containerRef.current!,
+          theme: TERMINAL_THEMES[currentTheme],
+          fontFamily: buildFontFamily(prefs.terminalFontFamily),
+          fontSize: prefs.terminalFontSize,
+          minimumContrastRatio: prefs.minimumContrastRatio,
+          scrollback: terminal.scrollback,
         });
-    };
 
-    spawnPty(terminal.sessionId);
-
-    let currentStatus: string = "running";
-    let waitingTimer: ReturnType<typeof setTimeout> | null = null;
-    const WAITING_THRESHOLD = 15_000;
-
-    // CLI auto-detection for shell terminals
-    let lastDetectedType: string | null = terminal.type !== "shell" ? terminal.type : null;
-    let detectTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const triggerDetection = () => {
-      if (terminal.type !== "shell" || ptyId === null) return;
-      if (detectTimer) clearTimeout(detectTimer);
-      detectTimer = setTimeout(async () => {
-        if (ptyId === null) return;
-        const result = await window.termcanvas.terminal.detectCli(ptyId);
-        const newType = (result?.cliType ?? null) as TerminalType | null;
-        if (!newType || newType === lastDetectedType) return;
-        lastDetectedType = newType;
-
-        // Upgrade terminal type in store (does NOT change title)
-        updateTerminalType(projectId, worktreeId, terminal.id, newType);
-
-        // tmux: session name IS the sessionId
-        if (newType === "tmux" && result!.sessionName) {
-          updateTerminalSessionId(projectId, worktreeId, terminal.id, result!.sessionName);
+        if (cancelled) {
+          session.dispose();
           return;
         }
 
-        // AI CLIs: start sessionId capture polling
-        sessionCancelRef.current?.();
-        let cancelled = false;
-        sessionCancelRef.current = () => { cancelled = true; };
-        pollSessionId(
-          ptyId, newType, worktreePath,
-          (sid) => {
-            updateTerminalSessionId(projectId, worktreeId, terminal.id, sid);
-            if (newType === "claude" || newType === "codex") {
-              console.log(`[SessionCapture] watch (detected) type=${newType} sid=${sid} cwd=${worktreePath}`);
-              window.termcanvas.session.watch(newType, sid, worktreePath)
-                .then((res: { ok: boolean; reason?: string }) => {
+        const terminalView = session.terminal;
+        terminalRef.current = terminalView;
+        engineSessionRef.current = session;
+        registerTerminal(terminal.id, session.serialize);
+
+        let ptyId: number | null = null;
+        const cliOverride = prefs.cliCommands[terminal.type] ?? undefined;
+        const wasResumeAttempt = !!terminal.sessionId && !!getTerminalLaunchOptions(terminal.type, terminal.sessionId, terminal.autoApprove);
+        let hasRespawned = false;
+        let inputDisposable: { dispose(): void } | null = null;
+        let resizeDisposable: { dispose(): void } | null = null;
+
+        terminalView.attachCustomKeyEventHandler((e) => {
+          if (e.type === "keydown") {
+            if (e.metaKey) {
+              if (e.key === "Backspace") {
+                if (ptyId !== null) window.termcanvas.terminal.input(ptyId, "\x15");
+              }
+              return false;
+            }
+          }
+          return true;
+        });
+
+        const selectionDisposable = terminalView.onSelectionChange(() => {
+          const text = terminalView.getSelection();
+          if (text) {
+            navigator.clipboard.writeText(text);
+            if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+            setShowCopiedToast(true);
+            copiedTimerRef.current = setTimeout(() => setShowCopiedToast(false), 1500);
+          }
+        });
+
+        /**
+         * Create a PTY and wire up input/resize handlers.
+         * When `resumeSessionId` is provided the CLI is launched with --resume;
+         * otherwise a fresh session is started.
+         */
+        const spawnPty = (resumeSessionId: string | undefined) => {
+          const opts: { cwd: string; shell?: string; args?: string[]; terminalId?: string; theme?: "dark" | "light" } = {
+            cwd: worktreePath,
+            terminalId: terminal.id,
+          };
+          opts.theme = useThemeStore.getState().theme;
+
+          const launch = getTerminalLaunchOptions(
+            terminal.type,
+            resumeSessionId,
+            terminal.autoApprove,
+            cliOverride,
+          );
+          if (launch) {
+            const promptArgs =
+              !resumeSessionId && terminal.initialPrompt
+                ? getTerminalPromptArgs(terminal.type, terminal.initialPrompt)
+                : [];
+            opts.shell = launch.shell;
+            opts.args = [...launch.args, ...promptArgs];
+          }
+
+          window.termcanvas.terminal
+            .create(opts)
+            .then(async (id) => {
+              ptyId = id;
+              ptyIdRef.current = id;
+              updateTerminalPtyId(projectId, worktreeId, terminal.id, id);
+              updateTerminalStatus(projectId, worktreeId, terminal.id, "running");
+
+              if (
+                resumeSessionId &&
+                (terminal.type === "claude" || terminal.type === "codex")
+              ) {
+                console.log(`[SessionCapture] watch (resume) type=${terminal.type} sid=${resumeSessionId} cwd=${worktreePath}`);
+                window.termcanvas.session.watch(
+                  terminal.type,
+                  resumeSessionId,
+                  worktreePath,
+                ).then((res: { ok: boolean; reason?: string }) => {
                   if (!res?.ok) {
-                    console.warn(`[SessionCapture] watch failed (detected) reason=${res?.reason}`);
+                    console.warn(`[SessionCapture] watch failed (resume) reason=${res?.reason}`);
                     notify("warn", `Session watch failed: ${res?.reason ?? "unknown"}`);
                   }
                 }).catch((err: unknown) => {
-                  console.error("[SessionCapture] watch IPC error (detected):", err);
+                  console.error("[SessionCapture] watch IPC error (resume):", err);
                 });
+              }
+
+              if (!resumeSessionId && launch) {
+                let pollCancelled = false;
+                sessionCancelRef.current = () => { pollCancelled = true; };
+
+                pollSessionId(
+                  id, terminal.type, worktreePath,
+                  (sid) => {
+                    updateTerminalSessionId(projectId, worktreeId, terminal.id, sid);
+                    if (terminal.type === "claude" || terminal.type === "codex") {
+                      console.log(`[SessionCapture] watch (new) type=${terminal.type} sid=${sid} cwd=${worktreePath}`);
+                      window.termcanvas.session.watch(terminal.type, sid, worktreePath)
+                        .then((res: { ok: boolean; reason?: string }) => {
+                          if (!res?.ok) {
+                            console.warn(`[SessionCapture] watch failed (new) reason=${res?.reason}`);
+                            notify("warn", `Session watch failed: ${res?.reason ?? "unknown"}`);
+                          }
+                        }).catch((err: unknown) => {
+                          console.error("[SessionCapture] watch IPC error (new):", err);
+                        });
+                    }
+                  },
+                  () => pollCancelled,
+                ).then((result) => {
+                  if (result === "timeout") {
+                    notify("warn", `Session capture timeout for ${displayTitleRef.current}`);
+                  }
+                });
+              }
+
+              inputDisposable?.dispose();
+              resizeDisposable?.dispose();
+              inputDisposable = terminalView.onData((data) => {
+                if (ptyId !== null) window.termcanvas.terminal.input(ptyId, data);
+              });
+              resizeDisposable = terminalView.onResize(({ cols, rows }) => {
+                if (ptyId !== null) window.termcanvas.terminal.resize(ptyId, cols, rows);
+              });
+
+              session.fit();
+              const { cols, rows } = terminalView;
+              window.termcanvas.terminal.resize(id, cols, rows);
+            })
+            .catch((err) => {
+              const errStr = err instanceof Error ? err.message : String(err);
+              const isNotFound =
+                errStr.includes("Executable not found") ||
+                errStr.includes("executable-not-found");
+
+              notify("error", t.failed_create_pty(displayTitleRef.current, errStr));
+              updateTerminalStatus(projectId, worktreeId, terminal.id, "error");
+
+              if (isNotFound) {
+                const command = launch?.shell ?? terminal.type;
+                terminalView.write(
+                  `\r\n\x1b[31m${t.cli_launch_error_title(command)}\x1b[0m\r\n` +
+                  `\r\n\x1b[33m${t.cli_launch_error_action}: Settings > Agents\x1b[0m\r\n`,
+                );
+              } else {
+                terminalView.write(
+                  `\r\n\x1b[31m[Error] Failed to create terminal: ${errStr}\x1b[0m\r\n`,
+                );
+              }
+            });
+        };
+
+        spawnPty(terminal.sessionId);
+
+        let currentStatus: string = "running";
+        let waitingTimer: ReturnType<typeof setTimeout> | null = null;
+        const WAITING_THRESHOLD = 15_000;
+
+        let lastDetectedType: string | null = terminal.type !== "shell" ? terminal.type : null;
+        let detectTimer: ReturnType<typeof setTimeout> | null = null;
+
+        const triggerDetection = () => {
+          if (terminal.type !== "shell" || ptyId === null) return;
+          if (detectTimer) clearTimeout(detectTimer);
+          detectTimer = setTimeout(async () => {
+            if (ptyId === null) return;
+            const result = await window.termcanvas.terminal.detectCli(ptyId);
+            const newType = (result?.cliType ?? null) as TerminalType | null;
+            if (!newType || newType === lastDetectedType) return;
+            lastDetectedType = newType;
+
+            updateTerminalType(projectId, worktreeId, terminal.id, newType);
+
+            if (newType === "tmux" && result!.sessionName) {
+              updateTerminalSessionId(projectId, worktreeId, terminal.id, result!.sessionName);
+              return;
+            }
+
+            sessionCancelRef.current?.();
+            let pollCancelled = false;
+            sessionCancelRef.current = () => { pollCancelled = true; };
+            pollSessionId(
+              ptyId, newType, worktreePath,
+              (sid) => {
+                updateTerminalSessionId(projectId, worktreeId, terminal.id, sid);
+                if (newType === "claude" || newType === "codex") {
+                  console.log(`[SessionCapture] watch (detected) type=${newType} sid=${sid} cwd=${worktreePath}`);
+                  window.termcanvas.session.watch(newType, sid, worktreePath)
+                    .then((res: { ok: boolean; reason?: string }) => {
+                      if (!res?.ok) {
+                        console.warn(`[SessionCapture] watch failed (detected) reason=${res?.reason}`);
+                        notify("warn", `Session watch failed: ${res?.reason ?? "unknown"}`);
+                      }
+                    }).catch((err: unknown) => {
+                      console.error("[SessionCapture] watch IPC error (detected):", err);
+                    });
+                }
+              },
+              () => pollCancelled,
+              result?.pid,
+            ).then((r) => {
+              if (r === "timeout") {
+                notify("warn", `Session capture timeout for ${displayTitleRef.current}`);
+              }
+            });
+          }, 3000);
+        };
+
+        let activityThrottled = false;
+        let activityPending = false;
+        const ACTIVITY_THROTTLE = 3000;
+        const dispatchActivity = () => {
+          window.dispatchEvent(
+            new CustomEvent("termcanvas:worktree-activity", {
+              detail: worktreePath,
+            }),
+          );
+        };
+
+        const removeOutput = window.termcanvas.terminal.onOutput(
+          (id: number, data: string) => {
+            if (id === ptyId) {
+              terminalView.write(data);
+              triggerDetection();
+
+              if (!activityThrottled) {
+                activityThrottled = true;
+                dispatchActivity();
+                setTimeout(() => {
+                  activityThrottled = false;
+                  if (activityPending) {
+                    activityPending = false;
+                    dispatchActivity();
+                  }
+                }, ACTIVITY_THROTTLE);
+              } else {
+                activityPending = true;
+              }
+
+              if (currentStatus !== "active") {
+                currentStatus = "active";
+                updateTerminalStatus(projectId, worktreeId, terminal.id, "active");
+              }
+              if (waitingTimer) clearTimeout(waitingTimer);
+              waitingTimer = setTimeout(() => {
+                if (currentStatus === "active") {
+                  currentStatus = "waiting";
+                  updateTerminalStatus(
+                    projectId,
+                    worktreeId,
+                    terminal.id,
+                    "waiting",
+                  );
+                  dispatchActivity();
+                }
+              }, WAITING_THRESHOLD);
             }
           },
-          () => cancelled,
-          result?.pid,
-        ).then((r) => {
-          if (r === "timeout") {
-            notify("warn", `Session capture timeout for ${displayTitleRef.current}`);
-          }
-        });
-      }, 3000);
-    };
+        );
 
-    // Throttled worktree activity event for DiffCard refresh
-    let activityThrottled = false;
-    let activityPending = false;
-    const ACTIVITY_THROTTLE = 3000;
-    const dispatchActivity = () => {
-      window.dispatchEvent(
-        new CustomEvent("termcanvas:worktree-activity", {
-          detail: worktreePath,
-        }),
-      );
-    };
+        const removeExit = window.termcanvas.terminal.onExit(
+          (id: number, exitCode: number) => {
+            if (id === ptyId) {
+              if (waitingTimer) clearTimeout(waitingTimer);
 
-    const removeOutput = window.termcanvas.terminal.onOutput(
-      (id: number, data: string) => {
-        if (id === ptyId) {
-          xterm.write(data);
-          triggerDetection();
-
-          // Throttled activity notification (at most once per 3s)
-          if (!activityThrottled) {
-            activityThrottled = true;
-            dispatchActivity();
-            setTimeout(() => {
-              activityThrottled = false;
-              if (activityPending) {
-                activityPending = false;
-                dispatchActivity();
+              if (exitCode !== 0 && wasResumeAttempt && !hasRespawned) {
+                hasRespawned = true;
+                console.log(`[TermCanvas] Resume failed for session=${terminal.sessionId}, respawning fresh`);
+                updateTerminalSessionId(projectId, worktreeId, terminal.id, undefined);
+                terminalView.write("\r\n\x1b[33m[Session expired, starting fresh…]\x1b[0m\r\n");
+                spawnPty(undefined);
+                return;
               }
-            }, ACTIVITY_THROTTLE);
-          } else {
-            activityPending = true;
-          }
 
-          // Track output activity for status detection
-          if (currentStatus !== "active") {
-            currentStatus = "active";
-            updateTerminalStatus(projectId, worktreeId, terminal.id, "active");
-          }
-          if (waitingTimer) clearTimeout(waitingTimer);
-          waitingTimer = setTimeout(() => {
-            if (currentStatus === "active") {
-              currentStatus = "waiting";
+              currentStatus = exitCode === 0 ? "success" : "error";
+              terminalView.write(t.process_exited(exitCode));
               updateTerminalStatus(
                 projectId,
                 worktreeId,
                 terminal.id,
-                "waiting",
+                exitCode === 0 ? "success" : "error",
               );
-              // Final activity event when output stops
-              dispatchActivity();
+              notify(
+                exitCode === 0 ? "info" : "warn",
+                t.terminal_exited(displayTitleRef.current, exitCode),
+              );
             }
-          }, WAITING_THRESHOLD);
-        }
-      },
-    );
+          },
+        );
 
-    const removeExit = window.termcanvas.terminal.onExit(
-      (id: number, exitCode: number) => {
-        if (id === ptyId) {
+        const removeTurnComplete = window.termcanvas.session.onTurnComplete(
+          (sessionId: string) => {
+            const state = useProjectStore.getState();
+            const proj = state.projects.find((p) => p.id === projectId);
+            const wt = proj?.worktrees.find((w) => w.id === worktreeId);
+            const term = wt?.terminals.find((t) => t.id === terminal.id);
+            console.log(`[SessionCapture] onTurnComplete sid=${sessionId} termSid=${term?.sessionId ?? "null"} status=${currentStatus}`);
+            if (term?.sessionId === sessionId) {
+              if (currentStatus === "active" || currentStatus === "waiting") {
+                currentStatus = "completed";
+                updateTerminalStatus(
+                  projectId,
+                  worktreeId,
+                  terminal.id,
+                  "completed",
+                );
+                console.log(`[SessionCapture] status -> completed for terminal=${terminal.id}`);
+              }
+            }
+          },
+        );
+
+        cleanupRef.current = () => {
           if (waitingTimer) clearTimeout(waitingTimer);
-
-          // Failed resume: session file was likely cleaned up by the CLI.
-          // Clear the stale sessionId and respawn a fresh session.
-          if (exitCode !== 0 && wasResumeAttempt && !hasRespawned) {
-            hasRespawned = true;
-            console.log(`[TermCanvas] Resume failed for session=${terminal.sessionId}, respawning fresh`);
-            updateTerminalSessionId(projectId, worktreeId, terminal.id, undefined);
-            xterm.write("\r\n\x1b[33m[Session expired, starting fresh…]\x1b[0m\r\n");
-            spawnPty(undefined);
-            return;
+          if (detectTimer) clearTimeout(detectTimer);
+          sessionCancelRef.current?.();
+          removeTurnComplete();
+          selectionDisposable.dispose();
+          inputDisposable?.dispose();
+          resizeDisposable?.dispose();
+          const state = useProjectStore.getState();
+          const proj = state.projects.find((p) => p.id === projectId);
+          const wt = proj?.worktrees.find((w) => w.id === worktreeId);
+          const term = wt?.terminals.find((t) => t.id === terminal.id);
+          if (term?.sessionId) {
+            window.termcanvas.session.unwatch(term.sessionId);
           }
-
-          currentStatus = exitCode === 0 ? "success" : "error";
-          xterm.write(t.process_exited(exitCode));
-          updateTerminalStatus(
-            projectId,
-            worktreeId,
-            terminal.id,
-            exitCode === 0 ? "success" : "error",
-          );
-          notify(
-            exitCode === 0 ? "info" : "warn",
-            t.terminal_exited(displayTitleRef.current, exitCode),
-          );
-        }
-      },
-    );
-
-    // Listen for turn-completion events from session watcher
-    const removeTurnComplete = window.termcanvas.session.onTurnComplete(
-      (sessionId: string) => {
-        // Match by checking current terminal's sessionId from the store
-        const state = useProjectStore.getState();
-        const proj = state.projects.find((p) => p.id === projectId);
-        const wt = proj?.worktrees.find((w) => w.id === worktreeId);
-        const term = wt?.terminals.find((t) => t.id === terminal.id);
-        console.log(`[SessionCapture] onTurnComplete sid=${sessionId} termSid=${term?.sessionId ?? "null"} status=${currentStatus}`);
-        if (term?.sessionId === sessionId) {
-          if (currentStatus === "active" || currentStatus === "waiting") {
-            currentStatus = "completed";
-            updateTerminalStatus(
-              projectId,
-              worktreeId,
-              terminal.id,
-              "completed",
-            );
-            console.log(`[SessionCapture] status -> completed for terminal=${terminal.id}`);
+          unregisterTerminal(terminal.id);
+          removeOutput();
+          removeExit();
+          terminalRef.current = null;
+          engineSessionRef.current = null;
+          session.dispose();
+          if (ptyId !== null) {
+            ptyIdRef.current = null;
+            window.termcanvas.terminal.destroy(ptyId).catch((err) => {
+              console.error(`[TermCanvas] Failed to destroy PTY ${ptyId}:`, err);
+            });
           }
-        }
-      },
-    );
-
-    cleanupRef.current = () => {
-      if (waitingTimer) clearTimeout(waitingTimer);
-      if (detectTimer) clearTimeout(detectTimer);
-      sessionCancelRef.current?.();
-      removeTurnComplete();
-      selectionDisposable.dispose();
-      // Unwatch session watcher
-      const state = useProjectStore.getState();
-      const proj = state.projects.find((p) => p.id === projectId);
-      const wt = proj?.worktrees.find((w) => w.id === worktreeId);
-      const term = wt?.terminals.find((t) => t.id === terminal.id);
-      if (term?.sessionId) {
-        window.termcanvas.session.unwatch(term.sessionId);
+        };
+      } catch (err) {
+        const errStr = err instanceof Error ? err.message : String(err);
+        updateTerminalStatus(projectId, worktreeId, terminal.id, "error");
+        notify("error", `[Terminal] Failed to initialize renderer: ${errStr}`);
       }
-      unregisterTerminal(terminal.id);
-      releaseWebGL(terminal.id);
-      removeOutput();
-      removeExit();
-      xterm.dispose();
-      if (ptyId !== null) {
-        ptyIdRef.current = null;
-        window.termcanvas.terminal.destroy(ptyId).catch((err) => {
-          console.error(`[TermCanvas] Failed to destroy PTY ${ptyId}:`, err);
-        });
-      }
-    };
+    })();
 
     return () => {
+      cancelled = true;
       cleanupRef.current?.();
       cleanupRef.current = null;
     };
@@ -725,14 +669,11 @@ export function TerminalTile({
 
   useEffect(() => {
     if (terminal.minimized) return;
-    if (!xtermRef.current || !fitAddonRef.current) return;
+    if (!engineSessionRef.current) return;
 
-    // Only fit when the tile's geometry changes from React state. Letting a
-    // ResizeObserver react to xterm's own DOM churn can trigger background
-    // resizes while output streams, which nudges scrollback when the user is
-    // reading older output.
+    // Only fit when the tile's geometry changes from React state.
     const frame = requestAnimationFrame(() => {
-      fitAddonRef.current?.fit();
+      engineSessionRef.current?.fit();
     });
 
     return () => cancelAnimationFrame(frame);
@@ -743,12 +684,12 @@ export function TerminalTile({
   const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
   const focusXterm = useCallback(() => {
     const tile = tileRef.current;
-    const xterm = xtermRef.current;
-    if (!tile || !xterm || tile.getClientRects().length === 0) {
+    const terminalView = terminalRef.current;
+    if (!tile || !terminalView || tile.getClientRects().length === 0) {
       return false;
     }
 
-    xterm.focus();
+    terminalView.focus();
     return tile.contains(document.activeElement);
   }, []);
   const scheduleXtermFocus = useCallback(() => {
@@ -760,7 +701,7 @@ export function TerminalTile({
     const shouldFocusXterm = terminal.focused && (!adapter || !composerEnabled);
 
     if (terminal.focused) {
-      touchWebGL(terminal.id);
+      engineSessionRef.current?.touch();
     }
 
     if (shouldFocusXterm) {
@@ -809,12 +750,7 @@ export function TerminalTile({
   // Update xterm theme when app theme changes
   useEffect(() => {
     const unsubscribe = useThemeStore.subscribe((state) => {
-      const xterm = xtermRef.current;
-      if (xterm) {
-        xterm.options.theme = XTERM_THEMES[state.theme];
-        // Force full canvas repaint so background color updates immediately
-        xterm.refresh(0, xterm.rows - 1);
-      }
+      engineSessionRef.current?.applyTheme(TERMINAL_THEMES[state.theme]);
       if (ptyIdRef.current !== null) {
         window.termcanvas.terminal.notifyThemeChanged(ptyIdRef.current);
       }
@@ -825,11 +761,7 @@ export function TerminalTile({
   // Update xterm font size when preference changes
   useEffect(() => {
     const unsubscribe = usePreferencesStore.subscribe((state) => {
-      const xterm = xtermRef.current;
-      if (xterm && xterm.options.fontSize !== state.terminalFontSize) {
-        xterm.options.fontSize = state.terminalFontSize;
-        fitAddonRef.current?.fit();
-      }
+      engineSessionRef.current?.applyFontSize(state.terminalFontSize);
     });
     return unsubscribe;
   }, []);
@@ -837,14 +769,9 @@ export function TerminalTile({
   // Update xterm font family when preference changes
   useEffect(() => {
     const unsubscribe = usePreferencesStore.subscribe((state) => {
-      const xterm = xtermRef.current;
-      if (xterm) {
-        const family = buildFontFamily(state.terminalFontFamily);
-        if (xterm.options.fontFamily !== family) {
-          xterm.options.fontFamily = family;
-          fitAddonRef.current?.fit();
-        }
-      }
+      engineSessionRef.current?.applyFontFamily(
+        buildFontFamily(state.terminalFontFamily),
+      );
     });
     return unsubscribe;
   }, []);
@@ -852,11 +779,9 @@ export function TerminalTile({
   // Update xterm minimum contrast ratio when preference changes
   useEffect(() => {
     const unsubscribe = usePreferencesStore.subscribe((state) => {
-      const xterm = xtermRef.current;
-      if (xterm && xterm.options.minimumContrastRatio !== state.minimumContrastRatio) {
-        xterm.options.minimumContrastRatio = state.minimumContrastRatio;
-        xterm.refresh(0, xterm.rows - 1);
-      }
+      engineSessionRef.current?.applyMinimumContrastRatio(
+        state.minimumContrastRatio,
+      );
     });
     return unsubscribe;
   }, []);

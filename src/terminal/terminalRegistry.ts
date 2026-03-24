@@ -1,17 +1,7 @@
-import type { Terminal } from "@xterm/xterm";
-import { SerializeAddon } from "@xterm/addon-serialize";
+const registry = new Map<string, () => string | null>();
 
-const registry = new Map<
-  string,
-  { xterm: Terminal; serialize: SerializeAddon }
->();
-
-export function registerTerminal(
-  id: string,
-  xterm: Terminal,
-  serialize: SerializeAddon,
-) {
-  registry.set(id, { xterm, serialize });
+export function registerTerminal(id: string, serialize: () => string | null) {
+  registry.set(id, serialize);
 }
 
 export function unregisterTerminal(id: string) {
@@ -19,16 +9,20 @@ export function unregisterTerminal(id: string) {
 }
 
 export function serializeTerminal(id: string): string | null {
-  const entry = registry.get(id);
-  if (!entry) return null;
-  return entry.serialize.serialize();
+  const serialize = registry.get(id);
+  if (!serialize) return null;
+  try {
+    return serialize();
+  } catch {
+    return null;
+  }
 }
 
-export function serializeAllTerminals(): Record<string, string> {
-  const result: Record<string, string> = {};
-  for (const [id, entry] of registry) {
+export function serializeAllTerminals(): Record<string, string | null> {
+  const result: Record<string, string | null> = {};
+  for (const [id, serialize] of registry) {
     try {
-      result[id] = entry.serialize.serialize();
+      result[id] = serialize();
     } catch {
       // Terminal may be disposed
     }
