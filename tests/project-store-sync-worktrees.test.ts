@@ -110,3 +110,26 @@ test("syncWorktrees still adds and removes worktrees", () => {
   assert.equal(state.projects[0].worktrees[0].path, "/tmp/project-1-feature");
   assert.equal(state.projects[0].worktrees[0].name, "feature");
 });
+
+test("removeTerminal keeps an empty focused worktree expanded after deleting its last terminal", () => {
+  const project = createProject();
+  project.worktrees[0].terminals[0].focused = true;
+
+  useProjectStore.setState({
+    projects: [project],
+    focusedProjectId: project.id,
+    focusedWorktreeId: project.worktrees[0].id,
+  });
+
+  useProjectStore
+    .getState()
+    .removeTerminal(project.id, project.worktrees[0].id, "terminal-1");
+
+  const state = useProjectStore.getState();
+  const worktree = state.projects[0].worktrees[0];
+
+  assert.equal(worktree.terminals.length, 0);
+  assert.equal(worktree.collapsed, false);
+  assert.equal(state.focusedProjectId, project.id);
+  assert.equal(state.focusedWorktreeId, project.worktrees[0].id);
+});
