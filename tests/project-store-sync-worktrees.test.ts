@@ -111,6 +111,114 @@ test("syncWorktrees still adds and removes worktrees", () => {
   assert.equal(state.projects[0].worktrees[0].name, "feature");
 });
 
+test("syncWorktrees resolves cascaded overlaps when many worktrees are added at once", () => {
+  const project = createProject();
+  project.worktrees = [
+    {
+      ...project.worktrees[0],
+      position: { x: 0, y: 20 },
+    },
+    {
+      id: "worktree-side",
+      name: "side",
+      path: "/tmp/project-1-side",
+      position: { x: 2200, y: 500 },
+      collapsed: true,
+      terminals: [],
+    },
+    {
+      id: "worktree-tail",
+      name: "tail",
+      path: "/tmp/project-1-tail",
+      position: { x: 0, y: 560 },
+      collapsed: true,
+      terminals: [],
+    },
+  ];
+
+  resetStore([project]);
+
+  useProjectStore.getState().syncWorktrees("/tmp/project-1", [
+    { path: "/tmp/project-1", branch: "main", isMain: true },
+    { path: "/tmp/project-1-feature-a", branch: "feature-a", isMain: false },
+    { path: "/tmp/project-1-feature-b", branch: "feature-b", isMain: false },
+    { path: "/tmp/project-1-side", branch: "side", isMain: false },
+    { path: "/tmp/project-1-tail", branch: "tail", isMain: false },
+  ]);
+
+  const worktrees = useProjectStore.getState().projects[0].worktrees;
+  const featureB = worktrees.find((worktree) => worktree.name === "feature-b");
+  const tail = worktrees.find((worktree) => worktree.id === "worktree-tail");
+
+  assert.ok(featureB);
+  assert.ok(tail);
+  assert.equal(featureB!.position.y, 124);
+  assert.equal(tail!.position.y, 792);
+});
+
+test("addTerminal reflows every later worktree after the active worktree grows", () => {
+  const project = createProject();
+  project.worktrees = [
+    {
+      ...project.worktrees[0],
+      position: { x: 0, y: 0 },
+      terminals: [
+        project.worktrees[0].terminals[0],
+        {
+          ...project.worktrees[0].terminals[0],
+          id: "terminal-2",
+          title: "Terminal 2",
+        },
+        {
+          ...project.worktrees[0].terminals[0],
+          id: "terminal-3",
+          title: "Terminal 3",
+        },
+      ],
+    },
+    {
+      id: "worktree-side",
+      name: "side",
+      path: "/tmp/project-1-side",
+      position: { x: 2200, y: 600 },
+      collapsed: true,
+      terminals: [],
+    },
+    {
+      id: "worktree-tail",
+      name: "tail",
+      path: "/tmp/project-1-tail",
+      position: { x: 0, y: 700 },
+      collapsed: true,
+      terminals: [],
+    },
+  ];
+
+  useProjectStore.setState({
+    projects: [project],
+    focusedProjectId: project.id,
+    focusedWorktreeId: project.worktrees[0].id,
+  });
+
+  useProjectStore.getState().addTerminal(project.id, project.worktrees[0].id, {
+    id: "terminal-4",
+    title: "Terminal 4",
+    type: "shell",
+    minimized: false,
+    focused: false,
+    ptyId: null,
+    status: "idle",
+    span: { cols: 1, rows: 1 },
+  });
+
+  const tail = useProjectStore
+    .getState()
+    .projects[0].worktrees.find((worktree) => worktree.id === "worktree-tail");
+
+  assert.ok(tail);
+  assert.equal(tail!.position.y, 1032);
+});
+
 test("removeTerminal keeps an empty focused worktree expanded after deleting its last terminal", () => {
   const project = createProject();
   project.worktrees[0].terminals[0].focused = true;

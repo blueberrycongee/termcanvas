@@ -196,29 +196,29 @@ function resolveWorktreeOverlaps(worktrees: WorktreeData[]): WorktreeData[] {
   if (worktrees.length <= 1) return worktrees;
 
   const positions = new Map(worktrees.map((w) => [w.id, { ...w.position }]));
-
-  // Sort by y so we sweep top-to-bottom
   const sorted = [...worktrees].sort(
     (a, b) => positions.get(a.id)!.y - positions.get(b.id)!.y,
   );
 
   for (let i = 1; i < sorted.length; i++) {
-    const prev = sorted[i - 1];
     const curr = sorted[i];
-    const prevPos = positions.get(prev.id)!;
     const currPos = positions.get(curr.id)!;
-
-    const prevSize = computeWorktreeSize(prev.terminals.map((t) => t.span));
     const currSize = computeWorktreeSize(curr.terminals.map((t) => t.span));
 
-    if (
-      rectsOverlap(
-        { ...prevPos, w: prevSize.w, h: prevSize.h },
-        { ...currPos, w: currSize.w, h: currSize.h },
-        WORKTREE_GAP,
-      )
-    ) {
-      currPos.y = prevPos.y + prevSize.h + WORKTREE_GAP;
+    for (let j = 0; j < i; j++) {
+      const prev = sorted[j];
+      const prevPos = positions.get(prev.id)!;
+      const prevSize = computeWorktreeSize(prev.terminals.map((t) => t.span));
+
+      if (
+        rectsOverlap(
+          { ...prevPos, w: prevSize.w, h: prevSize.h },
+          { ...currPos, w: currSize.w, h: currSize.h },
+          WORKTREE_GAP,
+        )
+      ) {
+        currPos.y = prevPos.y + prevSize.h + WORKTREE_GAP;
+      }
     }
   }
 
