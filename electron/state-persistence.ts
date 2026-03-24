@@ -28,8 +28,10 @@ export class StatePersistence {
   }
 
   save(state: unknown) {
+    const serialized =
+      typeof state === "string" ? state : JSON.stringify(state, null, 2);
     const tmp = STATE_FILE + ".tmp";
-    fs.writeFileSync(tmp, JSON.stringify(state, null, 2), "utf-8");
+    fs.writeFileSync(tmp, serialized, "utf-8");
     fs.renameSync(tmp, STATE_FILE);
   }
 }

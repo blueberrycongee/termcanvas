@@ -17,6 +17,7 @@ import {
 import { normalizeProjectsFocus } from "./projectFocus.ts";
 import { useWorkspaceStore } from "./workspaceStore.ts";
 import { usePreferencesStore } from "./preferencesStore.ts";
+import { logSlowRendererPath, measureRendererSync } from "../utils/devPerf.ts";
 
 interface ProjectStore {
   projects: ProjectData[];
@@ -121,6 +122,12 @@ interface ScannedWorktree {
   path: string;
   branch: string;
   isMain: boolean;
+}
+
+interface FocusLookup {
+  currentFocusedTerminalId: string | null;
+  nextProjectId: string | null;
+  nextWorktreeId: string | null;
 }
 
 let idCounter = 0;
@@ -268,41 +275,50 @@ function rectsOverlap(
 }
 
 function resolveOverlaps(projects: ProjectData[]): ProjectData[] {
-  // First resolve worktree overlaps within each project
-  const withResolvedWorktrees = projects.map((p) => ({
-    ...p,
-    worktrees: resolveWorktreeOverlaps(p.worktrees),
-  }));
+  return measureRendererSync(
+    "projectStore.resolveOverlaps",
+    () => {
+      // First resolve worktree overlaps within each project
+      const withResolvedWorktrees = projects.map((p) => ({
+        ...p,
+        worktrees: resolveWorktreeOverlaps(p.worktrees),
+      }));
 
-  // Then resolve project overlaps
-  const positions = new Map(
-    withResolvedWorktrees.map((p) => [p.id, { ...p.position }]),
+      // Then resolve project overlaps
+      const positions = new Map(
+        withResolvedWorktrees.map((p) => [p.id, { ...p.position }]),
+      );
+
+      // Sort by x so we sweep left-to-right
+      const sorted = [...withResolvedWorktrees].sort(
+        (a, b) => positions.get(a.id)!.x - positions.get(b.id)!.x,
+      );
+
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = sorted[i - 1];
+        const curr = sorted[i];
+        const prevPos = positions.get(prev.id)!;
+        const currPos = positions.get(curr.id)!;
+
+        const prevBounds = getProjectBounds({ ...prev, position: prevPos });
+        const currBounds = getProjectBounds({ ...curr, position: currPos });
+
+        if (rectsOverlap(prevBounds, currBounds, OVERLAP_GAP)) {
+          // Push current project to the right edge of previous + gap
+          currPos.x = prevBounds.x + prevBounds.w + OVERLAP_GAP;
+        }
+      }
+
+      return withResolvedWorktrees.map((p) => ({
+        ...p,
+        position: positions.get(p.id)!,
+      }));
+    },
+    {
+      thresholdMs: 12,
+      details: { projects: projects.length },
+    },
   );
-
-  // Sort by x so we sweep left-to-right
-  const sorted = [...withResolvedWorktrees].sort(
-    (a, b) => positions.get(a.id)!.x - positions.get(b.id)!.x,
-  );
-
-  for (let i = 1; i < sorted.length; i++) {
-    const prev = sorted[i - 1];
-    const curr = sorted[i];
-    const prevPos = positions.get(prev.id)!;
-    const currPos = positions.get(curr.id)!;
-
-    const prevBounds = getProjectBounds({ ...prev, position: prevPos });
-    const currBounds = getProjectBounds({ ...curr, position: currPos });
-
-    if (rectsOverlap(prevBounds, currBounds, OVERLAP_GAP)) {
-      // Push current project to the right edge of previous + gap
-      currPos.x = prevBounds.x + prevBounds.w + OVERLAP_GAP;
-    }
-  }
-
-  return withResolvedWorktrees.map((p) => ({
-    ...p,
-    position: positions.get(p.id)!,
-  }));
 }
 
 function syncProjectWorktrees(
@@ -336,6 +352,87 @@ function syncProjectWorktrees(
   }
 
   return { ...project, worktrees: synced };
+}
+
+function inspectFocus(
+  projects: ProjectData[],
+  nextTerminalId: string | null,
+): FocusLookup {
+  let currentFocusedTerminalId: string | null = null;
+  let nextProjectId: string | null = null;
+  let nextWorktreeId: string | null = null;
+
+  outer: for (const project of projects) {
+    for (const worktree of project.worktrees) {
+      for (const terminal of worktree.terminals) {
+        if (terminal.focused && currentFocusedTerminalId === null) {
+          currentFocusedTerminalId = terminal.id;
+        }
+        if (nextTerminalId !== null && terminal.id === nextTerminalId) {
+          nextProjectId = project.id;
+          nextWorktreeId = worktree.id;
+        }
+        if (
+          currentFocusedTerminalId !== null &&
+          (nextTerminalId === null || nextProjectId !== null)
+        ) {
+          break outer;
+        }
+      }
+    }
+  }
+
+  return { currentFocusedTerminalId, nextProjectId, nextWorktreeId };
+}
+
+function updateFocusedTerminalFlags(
+  projects: ProjectData[],
+  previousFocusedTerminalId: string | null,
+  nextFocusedTerminalId: string | null,
+): ProjectData[] {
+  if (previousFocusedTerminalId === nextFocusedTerminalId) {
+    return projects;
+  }
+
+  let changed = false;
+  const updatedProjects = projects.map((project) => {
+    let projectChanged = false;
+    const updatedWorktrees = project.worktrees.map((worktree) => {
+      let worktreeChanged = false;
+      const updatedTerminals = worktree.terminals.map((terminal) => {
+        const touched =
+          terminal.id === previousFocusedTerminalId ||
+          terminal.id === nextFocusedTerminalId;
+        if (!touched) {
+          return terminal;
+        }
+
+        const focused = terminal.id === nextFocusedTerminalId;
+        if (terminal.focused === focused) {
+          return terminal;
+        }
+
+        worktreeChanged = true;
+        return { ...terminal, focused };
+      });
+
+      if (!worktreeChanged) {
+        return worktree;
+      }
+
+      projectChanged = true;
+      return { ...worktree, terminals: updatedTerminals };
+    });
+
+    if (!projectChanged) {
+      return project;
+    }
+
+    changed = true;
+    return { ...project, worktrees: updatedWorktrees };
+  });
+
+  return changed ? updatedProjects : projects;
 }
 
 export const useProjectStore = create<ProjectStore>((set) => ({
@@ -478,6 +575,7 @@ export const useProjectStore = create<ProjectStore>((set) => ({
   },
 
   removeTerminal: (projectId, worktreeId, terminalId) => {
+    const startedAt = performance.now();
     set((state) => {
       // Check if the terminal being removed is focused
       let wasFocused = false;
@@ -523,19 +621,13 @@ export const useProjectStore = create<ProjectStore>((set) => ({
         return { projects: updatedProjects };
       }
 
-      // Transfer focus to adjacent terminal in the same worktree
       if (adjacentTerminalId) {
         return {
-          projects: updatedProjects.map((p) => ({
-            ...p,
-            worktrees: p.worktrees.map((w) => ({
-              ...w,
-              terminals: w.terminals.map((t) => ({
-                ...t,
-                focused: t.id === adjacentTerminalId,
-              })),
-            })),
-          })),
+          projects: updateFocusedTerminalFlags(
+            updatedProjects,
+            null,
+            adjacentTerminalId,
+          ),
         };
       }
 
@@ -543,6 +635,10 @@ export const useProjectStore = create<ProjectStore>((set) => ({
       return {
         projects: updatedProjects,
       };
+    });
+    logSlowRendererPath("projectStore.removeTerminal", startedAt, {
+      thresholdMs: 8,
+      details: { terminalId },
     });
     markDirty();
   },
@@ -670,32 +766,28 @@ export const useProjectStore = create<ProjectStore>((set) => ({
   },
 
   setFocusedTerminal: (terminalId, options) => {
+    const startedAt = performance.now();
     set((state) => {
-      let projectId: string | null = null;
-      let worktreeId: string | null = null;
-      if (terminalId) {
-        for (const p of state.projects) {
-          for (const w of p.worktrees) {
-            if (w.terminals.some((t) => t.id === terminalId)) {
-              projectId = p.id;
-              worktreeId = w.id;
-            }
-          }
-        }
+      const { currentFocusedTerminalId, nextProjectId, nextWorktreeId } =
+        inspectFocus(state.projects, terminalId);
+      const projects = updateFocusedTerminalFlags(
+        state.projects,
+        currentFocusedTerminalId,
+        terminalId,
+      );
+
+      if (
+        projects === state.projects &&
+        nextProjectId === state.focusedProjectId &&
+        nextWorktreeId === state.focusedWorktreeId
+      ) {
+        return state;
       }
+
       return {
-        focusedProjectId: projectId,
-        focusedWorktreeId: worktreeId,
-        projects: state.projects.map((p) => ({
-          ...p,
-          worktrees: p.worktrees.map((w) => ({
-            ...w,
-            terminals: w.terminals.map((t) => ({
-              ...t,
-              focused: t.id === terminalId,
-            })),
-          })),
-        })),
+        focusedProjectId: nextProjectId,
+        focusedWorktreeId: nextWorktreeId,
+        projects,
       };
     });
     if (terminalId && options?.focusComposer !== false) {
@@ -706,33 +798,59 @@ export const useProjectStore = create<ProjectStore>((set) => ({
         window.dispatchEvent(new CustomEvent("termcanvas:focus-xterm", { detail: terminalId }));
       }
     }
+    logSlowRendererPath("projectStore.setFocusedTerminal", startedAt, {
+      thresholdMs: 6,
+      details: { terminalId },
+    });
   },
 
   setFocusedWorktree: (projectId, worktreeId) =>
-    set((state) => ({
-      focusedProjectId: projectId,
-      focusedWorktreeId: worktreeId,
-      projects: state.projects.map((p) => ({
-        ...p,
-        worktrees: p.worktrees.map((w) => ({
-          ...w,
-          terminals: w.terminals.map((t) => ({ ...t, focused: false })),
-        })),
-      })),
-    })),
+    set((state) => {
+      const { currentFocusedTerminalId } = inspectFocus(state.projects, null);
+      const projects = updateFocusedTerminalFlags(
+        state.projects,
+        currentFocusedTerminalId,
+        null,
+      );
+
+      if (
+        projects === state.projects &&
+        projectId === state.focusedProjectId &&
+        worktreeId === state.focusedWorktreeId
+      ) {
+        return state;
+      }
+
+      return {
+        focusedProjectId: projectId,
+        focusedWorktreeId: worktreeId,
+        projects,
+      };
+    }),
 
   clearFocus: () =>
-    set((state) => ({
-      focusedProjectId: null,
-      focusedWorktreeId: null,
-      projects: state.projects.map((p) => ({
-        ...p,
-        worktrees: p.worktrees.map((w) => ({
-          ...w,
-          terminals: w.terminals.map((t) => ({ ...t, focused: false })),
-        })),
-      })),
-    })),
+    set((state) => {
+      const { currentFocusedTerminalId } = inspectFocus(state.projects, null);
+      const projects = updateFocusedTerminalFlags(
+        state.projects,
+        currentFocusedTerminalId,
+        null,
+      );
+
+      if (
+        projects === state.projects &&
+        state.focusedProjectId === null &&
+        state.focusedWorktreeId === null
+      ) {
+        return state;
+      }
+
+      return {
+        focusedProjectId: null,
+        focusedWorktreeId: null,
+        projects,
+      };
+    }),
 
   setProjects: (projects) => {
     set(() => normalizeProjectsFocus(projects));
