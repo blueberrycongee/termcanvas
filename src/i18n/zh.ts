@@ -134,7 +134,7 @@ export const zh = {
   theme_dark: "深色",
   theme_light: "浅色",
   terminal_renderer: "终端渲染器",
-  terminal_renderer_desc: "Ghostty 仍是实验路径，只对新开的终端生效。它会提升解析和渲染一致性，但当前不支持 scrollback 恢复、WebGL 池、内联图片和最低对比度调节。",
+  terminal_renderer_desc: "Ghostty 仍是实验路径，只对新开的终端生效。它现在已经支持 scrollback 恢复和最低对比度调节，但内联图片输出仍没有等价实现。",
   terminal_renderer_xterm: "xterm",
   terminal_renderer_ghostty: "Ghostty",
   terminal_font_size: "终端字体大小",

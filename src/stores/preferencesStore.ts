@@ -18,17 +18,17 @@ interface PreferencesStore {
   animationBlur: number;
   /** Terminal renderer implementation */
   terminalRenderer: TerminalRenderer;
-  /** Terminal (xterm) font size in px (6–24) */
+  /** Terminal font size in px (6–24) */
   terminalFontSize: number;
   /** Terminal font ID from fontRegistry */
   terminalFontFamily: string;
-  /** When false, composer bar is hidden and xterm gets direct focus */
+  /** When false, composer bar is hidden and terminal input gets direct focus */
   composerEnabled: boolean;
   /** When false, drawing panel and drawing layer are hidden */
   drawingEnabled: boolean;
   /** When false, the toolbar browser shortcut stays hidden */
   browserEnabled: boolean;
-  /** xterm minimum contrast ratio (1 = off, max 7) */
+  /** Terminal minimum contrast ratio (1 = off, max 7) */
   minimumContrastRatio: number;
   /** Per-terminal-type CLI command overrides */
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;

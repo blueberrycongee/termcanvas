@@ -136,7 +136,7 @@ export const en = {
   theme_dark: "Dark",
   theme_light: "Light",
   terminal_renderer: "Terminal renderer",
-  terminal_renderer_desc: "Ghostty is experimental and applies to newly opened terminals. It improves parser/rendering fidelity, but currently skips scrollback restore, WebGL pooling, inline images, and minimum contrast tuning.",
+  terminal_renderer_desc: "Ghostty is experimental and applies to newly opened terminals. It now restores scrollback and respects contrast tuning, but inline image output still has no equivalent.",
   terminal_renderer_xterm: "xterm",
   terminal_renderer_ghostty: "Ghostty",
   terminal_font_size: "Terminal font size",
