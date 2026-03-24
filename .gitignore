@@ -25,3 +25,6 @@ thirdparty/
 # Local workspace state
 .termcanvas/
 *.termcanvas
+
+# Local-only archives
+.local-archive/
