@@ -56,7 +56,8 @@ function loadPreferences(): { animationBlur: number; terminalRenderer: TerminalR
       else if (v === false) blur = 0;
       else if (typeof v === "number" && v >= 0 && v <= 3) blur = v;
 
-      let terminalRenderer: TerminalRenderer = "xterm";
+      let terminalRenderer: TerminalRenderer = "ghostty";
+      if (parsed.terminalRenderer === "xterm") terminalRenderer = "xterm";
       if (parsed.terminalRenderer === "ghostty") terminalRenderer = "ghostty";
 
       let fontSize = DEFAULT_FONT_SIZE;
@@ -94,7 +95,7 @@ function loadPreferences(): { animationBlur: number; terminalRenderer: TerminalR
   } catch {
     // ignore
   }
-  return { animationBlur: DEFAULT_BLUR, terminalRenderer: "xterm", terminalFontSize: DEFAULT_FONT_SIZE, terminalFontFamily: "geist-mono", composerEnabled: false, drawingEnabled: false, browserEnabled: false, minimumContrastRatio: DEFAULT_MIN_CONTRAST, cliCommands: {} };
+  return { animationBlur: DEFAULT_BLUR, terminalRenderer: "ghostty", terminalFontSize: DEFAULT_FONT_SIZE, terminalFontFamily: "geist-mono", composerEnabled: false, drawingEnabled: false, browserEnabled: false, minimumContrastRatio: DEFAULT_MIN_CONTRAST, cliCommands: {} };
 }
 
 function savePreferences(state: { animationBlur: number; terminalRenderer: TerminalRenderer; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; browserEnabled: boolean; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> }) {

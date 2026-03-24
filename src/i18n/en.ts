@@ -136,7 +136,7 @@ export const en = {
   theme_dark: "Dark",
   theme_light: "Light",
   terminal_renderer: "Terminal renderer",
-  terminal_renderer_desc: "Ghostty is experimental and applies to newly opened terminals. It now restores scrollback and respects contrast tuning, but inline image output still has no equivalent.",
+  terminal_renderer_desc: "Ghostty is now the default path for newly opened terminals. It restores scrollback and respects contrast tuning, while xterm remains available as a fallback during migration.",
   terminal_renderer_xterm: "xterm",
   terminal_renderer_ghostty: "Ghostty",
   terminal_font_size: "Terminal font size",

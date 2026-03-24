@@ -380,16 +380,16 @@ export function SettingsModal({ onClose }: Props) {
                 </div>
                 <div className="flex gap-1">
                   <button
-                    className={terminalRenderer === "xterm" ? activeBtn : inactiveBtn}
-                    onClick={() => setTerminalRenderer("xterm")}
-                  >
-                    {t.terminal_renderer_xterm}
-                  </button>
-                  <button
                     className={terminalRenderer === "ghostty" ? activeBtn : inactiveBtn}
                     onClick={() => setTerminalRenderer("ghostty")}
                   >
                     {t.terminal_renderer_ghostty}
+                  </button>
+                  <button
+                    className={terminalRenderer === "xterm" ? activeBtn : inactiveBtn}
+                    onClick={() => setTerminalRenderer("xterm")}
+                  >
+                    {t.terminal_renderer_xterm}
                   </button>
                 </div>
               </div>

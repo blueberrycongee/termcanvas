@@ -80,7 +80,7 @@ test("preferences stores and retrieves terminalRenderer", async () => {
   const { usePreferencesStore } = await loadPreferencesStoreModule("terminal-renderer");
   const store = usePreferencesStore.getState();
 
-  assert.equal(store.terminalRenderer, "xterm");
+  assert.equal(store.terminalRenderer, "ghostty");
 
   store.setTerminalRenderer("ghostty");
   assert.equal(usePreferencesStore.getState().terminalRenderer, "ghostty");
@@ -95,4 +95,12 @@ test("preferences restore a saved ghostty renderer", async () => {
   const { usePreferencesStore } = await loadPreferencesStoreModule("terminal-renderer-restore");
 
   assert.equal(usePreferencesStore.getState().terminalRenderer, "ghostty");
+});
+
+test("preferences restore a saved xterm renderer", async () => {
+  installLocalStorage(JSON.stringify({ terminalRenderer: "xterm" }));
+
+  const { usePreferencesStore } = await loadPreferencesStoreModule("terminal-renderer-xterm");
+
+  assert.equal(usePreferencesStore.getState().terminalRenderer, "xterm");
 });
