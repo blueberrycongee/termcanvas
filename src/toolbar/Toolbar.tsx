@@ -1,13 +1,12 @@
 import { useCallback, useState } from "react";
 import { useCanvasStore } from "../stores/canvasStore";
-import { useProjectStore } from "../stores/projectStore";
+import { getProjectBounds, useProjectStore } from "../stores/projectStore";
 import { useThemeStore } from "../stores/themeStore";
 import { useBrowserCardStore } from "../stores/browserCardStore";
 import { useUpdaterStore } from "../stores/updaterStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useSettingsModalStore } from "../stores/settingsModalStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
-import { computeWorktreeSize, PROJ_PAD, PROJ_TITLE_H } from "../layout";
 import { SettingsModal } from "../components/SettingsModal";
 import { UpdateModal } from "../components/UpdateModal";
 import { useT } from "../i18n/useT";
@@ -53,22 +52,11 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
       maxX = -Infinity,
       maxY = -Infinity;
     for (const p of projects) {
-      let maxW = 300;
-      let totalH = 0;
-      for (const wt of p.worktrees) {
-        const wtSize = computeWorktreeSize(wt.terminals.map((t) => t.span));
-        maxW = Math.max(maxW, wt.position.x + wtSize.w);
-        totalH = Math.max(totalH, wt.position.y + wtSize.h);
-      }
-      const projW = Math.max(340, maxW + PROJ_PAD * 2);
-      const projH = Math.max(
-        PROJ_TITLE_H + PROJ_PAD + 60 + PROJ_PAD,
-        PROJ_TITLE_H + PROJ_PAD + totalH + PROJ_PAD,
-      );
-      minX = Math.min(minX, p.position.x);
-      minY = Math.min(minY, p.position.y);
-      maxX = Math.max(maxX, p.position.x + projW);
-      maxY = Math.max(maxY, p.position.y + projH);
+      const bounds = getProjectBounds(p);
+      minX = Math.min(minX, bounds.x);
+      minY = Math.min(minY, bounds.y);
+      maxX = Math.max(maxX, bounds.x + bounds.w);
+      maxY = Math.max(maxY, bounds.y + bounds.h);
     }
     const contentW = maxX - minX;
     const contentH = maxY - minY;

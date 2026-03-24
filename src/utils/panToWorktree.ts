@@ -1,7 +1,7 @@
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import {
-  computeWorktreeSize,
+  getWorktreeSize,
   PROJ_PAD,
   PROJ_TITLE_H,
 } from "../layout";
@@ -16,7 +16,10 @@ export function panToWorktree(projectId: string, worktreeId: string): void {
   const worktree = project.worktrees.find((w) => w.id === worktreeId);
   if (!worktree) return;
 
-  const size = computeWorktreeSize(worktree.terminals.map((t) => t.span));
+  const size = getWorktreeSize(
+    worktree.terminals.map((t) => t.span),
+    worktree.collapsed,
+  );
 
   const absX = project.position.x + PROJ_PAD + worktree.position.x;
   const absY = project.position.y + PROJ_TITLE_H + PROJ_PAD + worktree.position.y;

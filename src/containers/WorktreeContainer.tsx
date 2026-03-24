@@ -22,7 +22,7 @@ import { useT } from "../i18n/useT";
 import { useCanvasStore, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import {
   packTerminals,
-  computeWorktreeSize,
+  getWorktreeSize,
   WT_PAD,
   WT_TITLE_H,
   PROJ_PAD,
@@ -128,7 +128,7 @@ export function WorktreeContainer({
 
   const spans = worktree.terminals.map((t) => t.span);
   const packed = packTerminals(spans);
-  const computedSize = computeWorktreeSize(spans);
+  const computedSize = getWorktreeSize(spans, worktree.collapsed);
 
   const handleZoomToFit = useCallback(
     (index: number) => {
@@ -285,7 +285,7 @@ export function WorktreeContainer({
         left: worktree.position.x,
         top: worktree.position.y,
         width: computedSize.w,
-        height: worktree.collapsed ? undefined : computedSize.h,
+        height: computedSize.h,
         minWidth: 300,
         borderLeft: `2px solid ${focusedWorktreeId === worktree.id ? "var(--accent)" : "var(--border)"}`,
         outline: isSelected ? "2px solid #3b82f6" : undefined,

@@ -47,6 +47,7 @@ export const zh = {
 
   // ProjectContainer
   project_label: "项目",
+  project_compact: "紧凑排列",
 
   // DiffCard
   diff: "变更",

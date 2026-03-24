@@ -48,6 +48,7 @@ export const en = {
 
   // ProjectContainer
   project_label: "Project",
+  project_compact: "Compact layout",
 
   // DiffCard
   diff: "Diff",

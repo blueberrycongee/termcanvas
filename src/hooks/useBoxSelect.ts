@@ -9,7 +9,7 @@ import {
 } from "../stores/selectionStore";
 import {
   packTerminals,
-  computeWorktreeSize,
+  getWorktreeSize,
   WT_PAD,
   WT_TITLE_H,
   PROJ_PAD,
@@ -58,7 +58,10 @@ function getItemsInRect(rect: { x: number; y: number; w: number; h: number }): S
   for (const p of projects) {
     if (selectedProjectIds.has(p.id)) continue;
     for (const wt of p.worktrees) {
-      const wtSize = computeWorktreeSize(wt.terminals.map((t) => t.span));
+      const wtSize = getWorktreeSize(
+        wt.terminals.map((terminal) => terminal.span),
+        wt.collapsed,
+      );
       const wtAbsX = p.position.x + PROJ_PAD + wt.position.x;
       const wtAbsY = p.position.y + PROJ_TITLE_H + PROJ_PAD + wt.position.y;
       if (rectsIntersect(nr, { x: wtAbsX, y: wtAbsY, w: wtSize.w, h: wtSize.h })) {
@@ -73,6 +76,7 @@ function getItemsInRect(rect: { x: number; y: number; w: number; h: number }): S
     if (selectedProjectIds.has(p.id)) continue;
     for (const wt of p.worktrees) {
       if (selectedWorktreeKeys.has(`${p.id}:${wt.id}`)) continue;
+      if (wt.collapsed) continue;
       const packed = packTerminals(wt.terminals.map((t) => t.span));
       const wtAbsX = p.position.x + PROJ_PAD + wt.position.x + WT_PAD;
       const wtAbsY = p.position.y + PROJ_TITLE_H + PROJ_PAD + wt.position.y + WT_TITLE_H + WT_PAD;
