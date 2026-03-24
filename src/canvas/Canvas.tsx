@@ -1,3 +1,4 @@
+import { Profiler } from "react";
 import { useCanvasStore } from "../stores/canvasStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useProjectStore } from "../stores/projectStore";
@@ -14,6 +15,7 @@ import { DrawingLayer } from "./DrawingLayer";
 import { FamilyTreeOverlay } from "../components/FamilyTreeOverlay";
 import { BoxSelectOverlay } from "./BoxSelectOverlay";
 import { useT } from "../i18n/useT";
+import { logFocusProfiler } from "../utils/focusPerf";
 
 export function Canvas() {
   const t = useT();
@@ -58,20 +60,33 @@ export function Canvas() {
           transition: animationBlur > 0 ? "filter 0.15s ease" : "none",
         }}
       >
-        {projects.map((project) => (
-          <div
-            key={project.id}
-            style={{
-              contentVisibility: visibleProjectIds.has(project.id) ? "visible" : "hidden",
-            }}
-          >
-            <ProjectContainer project={project} />
-          </div>
-        ))}
-        {Object.values(browserCards).map((card) => (
-          <BrowserCard key={card.id} card={card} />
-        ))}
-        <FamilyTreeOverlay />
+        <Profiler
+          id="Canvas"
+          onRender={(_id, phase, actualDuration) => {
+            logFocusProfiler("Canvas", phase, actualDuration, {
+              thresholdMs: 6,
+              details: {
+                projects: projects.length,
+                visibleProjects: visibleProjectIds.size,
+              },
+            });
+          }}
+        >
+          {projects.map((project) => (
+            <div
+              key={project.id}
+              style={{
+                contentVisibility: visibleProjectIds.has(project.id) ? "visible" : "hidden",
+              }}
+            >
+              <ProjectContainer project={project} />
+            </div>
+          ))}
+          {Object.values(browserCards).map((card) => (
+            <BrowserCard key={card.id} card={card} />
+          ))}
+          <FamilyTreeOverlay />
+        </Profiler>
       </div>
 
       {/* Box-select overlay */}

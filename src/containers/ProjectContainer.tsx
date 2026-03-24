@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { Profiler, useCallback, useMemo } from "react";
 import type { ProjectData } from "../types";
 import { useProjectStore } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
@@ -6,6 +6,7 @@ import { WorktreeContainer } from "./WorktreeContainer";
 import { useDrag } from "../hooks/useDrag";
 import { computeWorktreeSize, PROJ_PAD, PROJ_TITLE_H } from "../layout";
 import { useT } from "../i18n/useT";
+import { logFocusProfiler } from "../utils/focusPerf";
 
 interface Props {
   project: ProjectData;
@@ -125,23 +126,36 @@ export function ProjectContainer({ project }: Props) {
       </div>
 
       {/* Worktrees */}
-      <div
-        className="px-3 pb-3 relative"
-        style={{
-          height: project.collapsed ? 0 : computedSize.h - PROJ_TITLE_H,
-          padding: project.collapsed ? 0 : undefined,
-          overflow: "hidden",
+      <Profiler
+        id={`ProjectContainer:${project.id}`}
+        onRender={(_id, phase, actualDuration) => {
+          logFocusProfiler("ProjectContainer", phase, actualDuration, {
+            thresholdMs: 4,
+            details: {
+              projectId: project.id,
+              worktrees: project.worktrees.length,
+            },
+          });
         }}
       >
-        {project.worktrees.map((worktree) => (
-          <WorktreeContainer
-            key={worktree.id}
-            projectId={project.id}
-            worktree={worktree}
-            projectPosition={project.position}
-          />
-        ))}
-      </div>
+        <div
+          className="px-3 pb-3 relative"
+          style={{
+            height: project.collapsed ? 0 : computedSize.h - PROJ_TITLE_H,
+            padding: project.collapsed ? 0 : undefined,
+            overflow: "hidden",
+          }}
+        >
+          {project.worktrees.map((worktree) => (
+            <WorktreeContainer
+              key={worktree.id}
+              projectId={project.id}
+              worktree={worktree}
+              projectPosition={project.position}
+            />
+          ))}
+        </div>
+      </Profiler>
     </div>
   );
 }

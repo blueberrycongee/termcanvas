@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Profiler, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Position, WorktreeData } from "../types";
 import {
@@ -28,6 +28,7 @@ import {
   PROJ_PAD,
   PROJ_TITLE_H,
 } from "../layout";
+import { logFocusProfiler } from "../utils/focusPerf";
 
 interface Props {
   projectId: string;
@@ -383,50 +384,64 @@ export function WorktreeContainer({
       </div>
 
       {/* Terminals */}
-      <div
-        className="px-2 pb-2 relative overflow-hidden"
-        style={{
-          height: worktree.collapsed ? 0 : computedSize.h - WT_TITLE_H,
-          padding: worktree.collapsed ? 0 : undefined,
-          overflow: "hidden",
+      <Profiler
+        id={`WorktreeContainer:${worktree.id}`}
+        onRender={(_id, phase, actualDuration) => {
+          logFocusProfiler("WorktreeContainer", phase, actualDuration, {
+            thresholdMs: 3,
+            details: {
+              projectId,
+              worktreeId: worktree.id,
+              terminals: worktree.terminals.length,
+            },
+          });
         }}
       >
-        {worktree.terminals.map((terminal, index) => {
-          const item = packed[index];
-          if (!item) return null;
-          const isDragging = dragState?.terminalId === terminal.id;
+        <div
+          className="px-2 pb-2 relative overflow-hidden"
+          style={{
+            height: worktree.collapsed ? 0 : computedSize.h - WT_TITLE_H,
+            padding: worktree.collapsed ? 0 : undefined,
+            overflow: "hidden",
+          }}
+        >
+          {worktree.terminals.map((terminal, index) => {
+            const item = packed[index];
+            if (!item) return null;
+            const isDragging = dragState?.terminalId === terminal.id;
 
-          return (
-            <TerminalTile
-              key={terminal.id}
-              projectId={projectId}
-              worktreeId={worktree.id}
-              worktreePath={worktree.path}
-              terminal={terminal}
-              gridX={item.x}
-              gridY={item.y}
-              width={item.w}
-              height={item.h}
-              onDragStart={handleTerminalDragStart}
-              isDragging={isDragging}
-              dragOffsetX={isDragging ? dragState.offsetX : 0}
-              dragOffsetY={isDragging ? dragState.offsetY : 0}
-              onDoubleClick={() => handleZoomToFit(index)}
-              onSpanChange={(span) =>
-                updateTerminalSpan(projectId, worktree.id, terminal.id, span)
-              }
-            />
-          );
-        })}
-        {worktree.terminals.length === 0 && !worktree.collapsed && (
-          <button
-            className="w-full py-6 rounded-md text-[var(--text-faint)] text-[11px] hover:text-[var(--text-secondary)] hover:bg-[var(--surface)] transition-colors duration-150"
-            onClick={handleNewTerminal}
-          >
-            {t.new_terminal_btn}
-          </button>
-        )}
-      </div>
+            return (
+              <TerminalTile
+                key={terminal.id}
+                projectId={projectId}
+                worktreeId={worktree.id}
+                worktreePath={worktree.path}
+                terminal={terminal}
+                gridX={item.x}
+                gridY={item.y}
+                width={item.w}
+                height={item.h}
+                onDragStart={handleTerminalDragStart}
+                isDragging={isDragging}
+                dragOffsetX={isDragging ? dragState.offsetX : 0}
+                dragOffsetY={isDragging ? dragState.offsetY : 0}
+                onDoubleClick={() => handleZoomToFit(index)}
+                onSpanChange={(span) =>
+                  updateTerminalSpan(projectId, worktree.id, terminal.id, span)
+                }
+              />
+            );
+          })}
+          {worktree.terminals.length === 0 && !worktree.collapsed && (
+            <button
+              className="w-full py-6 rounded-md text-[var(--text-faint)] text-[11px] hover:text-[var(--text-secondary)] hover:bg-[var(--surface)] transition-colors duration-150"
+              onClick={handleNewTerminal}
+            >
+              {t.new_terminal_btn}
+            </button>
+          )}
+        </div>
+      </Profiler>
 
       {/* Cards — portaled to canvas layer so they're never clipped by containers */}
       {(() => {

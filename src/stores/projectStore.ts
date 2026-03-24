@@ -18,6 +18,7 @@ import { normalizeProjectsFocus } from "./projectFocus.ts";
 import { useWorkspaceStore } from "./workspaceStore.ts";
 import { usePreferencesStore } from "./preferencesStore.ts";
 import { logSlowRendererPath, measureRendererSync } from "../utils/devPerf.ts";
+import { markFocusTransition } from "../utils/focusPerf.ts";
 
 interface ProjectStore {
   projects: ProjectData[];
@@ -767,6 +768,7 @@ export const useProjectStore = create<ProjectStore>((set) => ({
 
   setFocusedTerminal: (terminalId, options) => {
     const startedAt = performance.now();
+    markFocusTransition("terminal", terminalId);
     set((state) => {
       const { currentFocusedTerminalId, nextProjectId, nextWorktreeId } =
         inspectFocus(state.projects, terminalId);
@@ -806,6 +808,7 @@ export const useProjectStore = create<ProjectStore>((set) => ({
 
   setFocusedWorktree: (projectId, worktreeId) =>
     set((state) => {
+      markFocusTransition("worktree", worktreeId);
       const { currentFocusedTerminalId } = inspectFocus(state.projects, null);
       const projects = updateFocusedTerminalFlags(
         state.projects,
@@ -830,6 +833,7 @@ export const useProjectStore = create<ProjectStore>((set) => ({
 
   clearFocus: () =>
     set((state) => {
+      markFocusTransition("clear", null);
       const { currentFocusedTerminalId } = inspectFocus(state.projects, null);
       const projects = updateFocusedTerminalFlags(
         state.projects,
