@@ -1,4 +1,4 @@
-import { Profiler, useCallback, useEffect, useRef, useState } from "react";
+import { memo, Profiler, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Position, WorktreeData } from "../types";
 import {
@@ -36,7 +36,7 @@ interface Props {
   projectPosition: Position;
 }
 
-export function WorktreeContainer({
+function WorktreeContainerImpl({
   projectId,
   worktree,
   projectPosition,
@@ -60,15 +60,13 @@ export function WorktreeContainer({
   const [openFiles, setOpenFiles] = useState<
     { id: string; filePath: string; fileName: string }[]
   >([]);
-  const {
-    toggleWorktreeCollapse,
-    addTerminal,
-    updateWorktreePosition,
-    reorderTerminal,
-    setFocusedWorktree,
-    focusedWorktreeId,
-    updateTerminalSpan,
-  } = useProjectStore();
+  const toggleWorktreeCollapse = useProjectStore((s) => s.toggleWorktreeCollapse);
+  const addTerminal = useProjectStore((s) => s.addTerminal);
+  const updateWorktreePosition = useProjectStore((s) => s.updateWorktreePosition);
+  const reorderTerminal = useProjectStore((s) => s.reorderTerminal);
+  const setFocusedWorktree = useProjectStore((s) => s.setFocusedWorktree);
+  const focusedWorktreeId = useProjectStore((s) => s.focusedWorktreeId);
+  const updateTerminalSpan = useProjectStore((s) => s.updateTerminalSpan);
   const allCards = useCardLayoutStore((s) => s.cards);
 
   const isSelected = useSelectionStore((s) =>
@@ -584,3 +582,5 @@ export function WorktreeContainer({
     </div>
   );
 }
+
+export const WorktreeContainer = memo(WorktreeContainerImpl);

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import { memo, useEffect, useRef, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import type { TerminalData, TerminalType } from "../types";
 import { useProjectStore, findTerminalById, getChildTerminals } from "../stores/projectStore";
@@ -123,56 +123,63 @@ async function pollSessionId(
 }
 
 function HierarchyBadges({ terminal }: { terminal: TerminalData }) {
-  const projects = useProjectStore((s) => s.projects);
+  const parentId = terminal.parentTerminalId ?? null;
+  const parentTitle = useProjectStore((s) =>
+    parentId ? findTerminalById(s.projects, parentId)?.terminal.title ?? null : null,
+  );
+  const parentType = useProjectStore((s) =>
+    parentId ? findTerminalById(s.projects, parentId)?.terminal.type ?? null : null,
+  );
+  const childCount = useProjectStore(
+    (s) => getChildTerminals(s.projects, terminal.id).length,
+  );
+  const firstChildId = useProjectStore(
+    (s) => getChildTerminals(s.projects, terminal.id)[0]?.terminal.id ?? null,
+  );
 
-  const parentInfo = terminal.parentTerminalId
-    ? findTerminalById(projects, terminal.parentTerminalId)
-    : null;
-  const children = getChildTerminals(projects, terminal.id);
-
-  if (!parentInfo && children.length === 0) return null;
+  if (!parentId && childCount === 0) return null;
 
   return (
     <>
-      {parentInfo && (
+      {parentId && parentTitle && parentType && (
         <button
           className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] text-[var(--text-faint)] hover:text-[var(--text-secondary)] hover:bg-[var(--border)] transition-colors duration-150 shrink-0"
-          title={`Parent: ${parentInfo.terminal.title} (${parentInfo.terminal.type})`}
+          title={`Parent: ${parentTitle} (${parentType})`}
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
-            panToTerminal(parentInfo.terminal.id);
+            panToTerminal(parentId);
           }}
           style={{ fontFamily: '"Geist Mono", monospace' }}
         >
           <svg width="8" height="8" viewBox="0 0 12 12" fill="none">
             <path d="M6 9V3M3 5l3-3 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          {parentInfo.terminal.type}
+          {parentType}
         </button>
       )}
-      {children.length > 0 && (
+      {childCount > 0 && firstChildId && (
         <button
           className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] text-[var(--text-faint)] hover:text-[var(--text-secondary)] hover:bg-[var(--border)] transition-colors duration-150 shrink-0"
-          title={`${children.length} agent${children.length > 1 ? "s" : ""}`}
+          title={`${childCount} agent${childCount > 1 ? "s" : ""}`}
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
-            panToTerminal(children[0].terminal.id);
+            panToTerminal(firstChildId);
           }}
           style={{ fontFamily: '"Geist Mono", monospace' }}
         >
           <svg width="8" height="8" viewBox="0 0 12 12" fill="none">
             <path d="M6 2v4M3 4v4M9 4v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
-          {children.length}
+          {childCount}
         </button>
       )}
     </>
   );
 }
 
-export function TerminalTile({
+function TerminalTileImpl({
   projectId,
   worktreeId,
   worktreePath,
@@ -207,17 +214,15 @@ export function TerminalTile({
   const cleanupRef = useRef<(() => void) | null>(null);
   const sessionCancelRef = useRef<(() => void) | null>(null);
 
-  const {
-    removeTerminal,
-    toggleTerminalMinimize,
-    toggleTerminalStarred,
-    updateTerminalCustomTitle,
-    updateTerminalPtyId,
-    updateTerminalStatus,
-    updateTerminalSessionId,
-    updateTerminalType,
-    setFocusedTerminal,
-  } = useProjectStore();
+  const removeTerminal = useProjectStore((s) => s.removeTerminal);
+  const toggleTerminalMinimize = useProjectStore((s) => s.toggleTerminalMinimize);
+  const toggleTerminalStarred = useProjectStore((s) => s.toggleTerminalStarred);
+  const updateTerminalCustomTitle = useProjectStore((s) => s.updateTerminalCustomTitle);
+  const updateTerminalPtyId = useProjectStore((s) => s.updateTerminalPtyId);
+  const updateTerminalStatus = useProjectStore((s) => s.updateTerminalStatus);
+  const updateTerminalSessionId = useProjectStore((s) => s.updateTerminalSessionId);
+  const updateTerminalType = useProjectStore((s) => s.updateTerminalType);
+  const setFocusedTerminal = useProjectStore((s) => s.setFocusedTerminal);
 
   const { notify } = useNotificationStore();
   const t = useT();
@@ -1073,3 +1078,5 @@ export function TerminalTile({
     </div>
   );
 }
+
+export const TerminalTile = memo(TerminalTileImpl);

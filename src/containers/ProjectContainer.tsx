@@ -1,4 +1,4 @@
-import { Profiler, useCallback, useMemo } from "react";
+import { memo, Profiler, useCallback, useMemo } from "react";
 import type { ProjectData } from "../types";
 import { useProjectStore } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
@@ -12,14 +12,12 @@ interface Props {
   project: ProjectData;
 }
 
-export function ProjectContainer({ project }: Props) {
+function ProjectContainerImpl({ project }: Props) {
   const t = useT();
-  const {
-    updateProjectPosition,
-    toggleProjectCollapse,
-    removeProject,
-    bringToFront,
-  } = useProjectStore();
+  const updateProjectPosition = useProjectStore((s) => s.updateProjectPosition);
+  const toggleProjectCollapse = useProjectStore((s) => s.toggleProjectCollapse);
+  const removeProject = useProjectStore((s) => s.removeProject);
+  const bringToFront = useProjectStore((s) => s.bringToFront);
 
   const isSelected = useSelectionStore((s) =>
     s.selectedItems.some(
@@ -159,3 +157,5 @@ export function ProjectContainer({ project }: Props) {
     </div>
   );
 }
+
+export const ProjectContainer = memo(ProjectContainerImpl);
