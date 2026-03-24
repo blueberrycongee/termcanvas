@@ -1,6 +1,6 @@
 import type { TerminalTheme } from "./theme";
-import { applyMinimumContrastToTheme } from "./themeContrast";
 import { serializeBufferToText } from "./scrollbackSnapshot";
+import { createTerminalThemeState } from "./themeState";
 
 type GhosttyModule = typeof import("ghostty-web");
 type GhosttyTerminal = import("ghostty-web").Terminal;
@@ -28,6 +28,17 @@ interface CreateTerminalEngineSessionOptions {
   scrollback?: string;
 }
 
+function rerenderTerminal(terminal: GhosttyTerminal) {
+  if (terminal.renderer && terminal.wasmTerm) {
+    terminal.renderer.render(
+      terminal.wasmTerm,
+      true,
+      terminal.getViewportY(),
+      terminal,
+    );
+  }
+}
+
 let ghosttyModulePromise: Promise<GhosttyModule> | null = null;
 
 async function loadGhosttyModule(): Promise<GhosttyModule> {
@@ -45,11 +56,11 @@ async function createGhosttySession(
   options: CreateTerminalEngineSessionOptions,
 ): Promise<TerminalEngineSession> {
   const ghostty = await loadGhosttyModule();
-  let baseTheme = options.theme;
-  let currentTheme = applyMinimumContrastToTheme(
-    baseTheme,
+  const themeState = createTerminalThemeState(
+    options.theme,
     options.minimumContrastRatio,
   );
+  let currentTheme = themeState.getCurrentTheme();
   const terminal = new ghostty.Terminal({
     theme: currentTheme,
     fontFamily: options.fontFamily,
@@ -77,15 +88,9 @@ async function createGhosttySession(
     fit: () => fitAddon.fit(),
     serialize: () => serializeBufferToText(terminal.buffer.active),
     applyTheme: (theme) => {
-      baseTheme = theme;
-      currentTheme = applyMinimumContrastToTheme(
-        baseTheme,
-        options.minimumContrastRatio,
-      );
+      currentTheme = themeState.setBaseTheme(theme);
       terminal.renderer?.setTheme(currentTheme);
-      if (terminal.renderer && terminal.wasmTerm) {
-        terminal.renderer.render(terminal.wasmTerm, true, terminal.viewportY, terminal);
-      }
+      rerenderTerminal(terminal);
     },
     applyFontSize: (size) => {
       if (terminal.options.fontSize !== size) {
@@ -100,11 +105,9 @@ async function createGhosttySession(
       }
     },
     applyMinimumContrastRatio: (ratio) => {
-      currentTheme = applyMinimumContrastToTheme(baseTheme, ratio);
+      currentTheme = themeState.setMinimumContrastRatio(ratio);
       terminal.renderer?.setTheme(currentTheme);
-      if (terminal.renderer && terminal.wasmTerm) {
-        terminal.renderer.render(terminal.wasmTerm, true, terminal.viewportY, terminal);
-      }
+      rerenderTerminal(terminal);
     },
     touch: () => {
       // Ghostty manages its own renderer path.

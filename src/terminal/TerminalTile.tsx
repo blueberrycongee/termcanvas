@@ -27,6 +27,7 @@ import {
   cancelScheduledTerminalFocus,
   scheduleTerminalFocus,
 } from "./focusScheduler";
+import { handleTerminalCustomKeyEvent } from "./keyHandling";
 
 interface Props {
   projectId: string;
@@ -314,17 +315,13 @@ export function TerminalTile({
         let inputDisposable: { dispose(): void } | null = null;
         let resizeDisposable: { dispose(): void } | null = null;
 
-        terminalView.attachCustomKeyEventHandler((e) => {
-          if (e.type === "keydown") {
-            if (e.metaKey) {
-              if (e.key === "Backspace") {
-                if (ptyId !== null) window.termcanvas.terminal.input(ptyId, "\x15");
-              }
-              return false;
+        terminalView.attachCustomKeyEventHandler((e) =>
+          handleTerminalCustomKeyEvent(e, (data) => {
+            if (ptyId !== null) {
+              window.termcanvas.terminal.input(ptyId, data);
             }
-          }
-          return true;
-        });
+          }),
+        );
 
         const selectionDisposable = terminalView.onSelectionChange(() => {
           const text = terminalView.getSelection();
