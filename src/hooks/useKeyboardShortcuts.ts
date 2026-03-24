@@ -35,6 +35,7 @@ import { panToWorktree } from "../utils/panToWorktree";
 import {
   CANVAS_TOP_INSET,
   getCenteredViewportTarget,
+  getTerminalViewportScale,
   getViewportFitScale,
 } from "../utils/canvasViewport";
 
@@ -85,6 +86,7 @@ function zoomToTerminal(
   projectId: string,
   worktreeId: string,
   terminalId: string,
+  options?: { preserveScale?: boolean },
 ) {
   const { projects } = useProjectStore.getState();
   const project = projects.find((p) => p.id === projectId);
@@ -111,12 +113,16 @@ function zoomToTerminal(
     WT_PAD +
     item.y;
 
-  const { rightPanelCollapsed } = useCanvasStore.getState();
-  const scale =
-    getViewportFitScale(item.w, item.h, {
-      rightPanelCollapsed,
-      padding: 60,
-    }) * 0.85;
+  const {
+    rightPanelCollapsed,
+    viewport: { scale: currentScale },
+  } = useCanvasStore.getState();
+  const scale = getTerminalViewportScale(item.w, item.h, {
+    rightPanelCollapsed,
+    padding: 60,
+    preserveCurrentScale: options?.preserveScale,
+    currentScale,
+  });
   const target = getCenteredViewportTarget(absX, absY, item.w, item.h, {
     rightPanelCollapsed,
     scale,
@@ -504,7 +510,9 @@ export function useKeyboardShortcuts() {
           currentIndex === -1 ? 0 : (currentIndex + 1) % terminalList.length;
         const next = terminalList[nextIndex];
         useProjectStore.getState().setFocusedTerminal(next.terminalId);
-        zoomToTerminal(next.projectId, next.worktreeId, next.terminalId);
+        zoomToTerminal(next.projectId, next.worktreeId, next.terminalId, {
+          preserveScale: true,
+        });
         return;
       }
 
@@ -533,7 +541,9 @@ export function useKeyboardShortcuts() {
           currentIndex <= 0 ? terminalList.length - 1 : currentIndex - 1;
         const prev = terminalList[prevIndex];
         useProjectStore.getState().setFocusedTerminal(prev.terminalId);
-        zoomToTerminal(prev.projectId, prev.worktreeId, prev.terminalId);
+        zoomToTerminal(prev.projectId, prev.worktreeId, prev.terminalId, {
+          preserveScale: true,
+        });
         return;
       }
 

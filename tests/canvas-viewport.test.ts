@@ -5,6 +5,7 @@ import {
   CANVAS_TOP_INSET,
   getCanvasViewportFrame,
   getCenteredViewportTarget,
+  getTerminalViewportScale,
   getViewportFitScale,
 } from "../src/utils/canvasViewport.ts";
 
@@ -65,5 +66,18 @@ test("fit scale uses the toolbar-adjusted viewport height", () => {
       scale,
       Math.min((1440 - 32 - 120) / 640, (900 - CANVAS_TOP_INSET - 120) / 480),
     );
+  });
+});
+
+test("terminal focus navigation can preserve the current viewport scale", () => {
+  withWindowSize(1440, 900, () => {
+    const scale = getTerminalViewportScale(640, 480, {
+      rightPanelCollapsed: true,
+      padding: 60,
+      preserveCurrentScale: true,
+      currentScale: 0.72,
+    });
+
+    assert.equal(scale, 0.72);
   });
 });
