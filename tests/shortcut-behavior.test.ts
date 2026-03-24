@@ -163,7 +163,7 @@ test("cycle focus level shortcut defaults to mod+g and matches correctly", () =>
   });
 });
 
-test("terminal focus order follows visual row-major order within a worktree", () => {
+test("terminal focus order follows natural project/worktree/array order", () => {
   const projects: ProjectData[] = [
     {
       id: "project-1",
@@ -188,7 +188,7 @@ test("terminal focus order follows visual row-major order within a worktree", ()
               focused: false,
               ptyId: 101,
               status: "idle",
-              span: { cols: 2, rows: 1 },
+              span: { cols: 1, rows: 1 },
             },
             {
               id: "terminal-2",
@@ -198,7 +198,7 @@ test("terminal focus order follows visual row-major order within a worktree", ()
               focused: false,
               ptyId: 102,
               status: "idle",
-              span: { cols: 2, rows: 1 },
+              span: { cols: 1, rows: 1 },
               parentTerminalId: "terminal-1",
             },
             {
@@ -239,6 +239,6 @@ test("terminal focus order follows visual row-major order within a worktree", ()
 
   assert.deepEqual(
     getTerminalFocusOrder(projects).map((terminal) => terminal.terminalId),
-    ["terminal-1", "terminal-3", "terminal-2", "terminal-4"],
+    ["terminal-1", "terminal-2", "terminal-3", "terminal-4"],
   );
 });

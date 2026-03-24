@@ -1,5 +1,4 @@
 import type { ProjectData } from "../types/index.ts";
-import { packTerminals } from "../layout.ts";
 
 export interface NormalizedProjectFocus {
   projects: ProjectData[];
@@ -44,16 +43,7 @@ export function getTerminalFocusOrder(
 
   for (const project of projects) {
     for (const worktree of project.worktrees) {
-      const packed = packTerminals(worktree.terminals.map((terminal) => terminal.span));
-      const ordered = packed
-        .slice()
-        .sort((a, b) => a.row - b.row || a.col - b.col || a.index - b.index);
-
-      for (const item of ordered) {
-        const terminal = worktree.terminals[item.index];
-        if (!terminal) {
-          continue;
-        }
+      for (const terminal of worktree.terminals) {
         terminals.push({
           projectId: project.id,
           worktreeId: worktree.id,
