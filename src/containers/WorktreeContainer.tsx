@@ -19,7 +19,7 @@ import {
   scheduleHoverCardHide,
 } from "../components/hoverCardVisibility";
 import { useT } from "../i18n/useT";
-import { useCanvasStore, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
+import { useCanvasStore } from "../stores/canvasStore";
 import {
   packTerminals,
   computeWorktreeSize,
@@ -29,6 +29,10 @@ import {
   PROJ_TITLE_H,
 } from "../layout";
 import { logFocusProfiler } from "../utils/focusPerf";
+import {
+  getCenteredViewportTarget,
+  getViewportFitScale,
+} from "../utils/canvasViewport";
 
 interface Props {
   projectId: string;
@@ -153,16 +157,17 @@ function WorktreeContainerImpl({
         item.y;
 
       const { rightPanelCollapsed } = useCanvasStore.getState();
-      const rightOffset = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH;
-      const padding = 60;
-      const viewW = window.innerWidth - rightOffset - padding * 2;
-      const viewH = window.innerHeight - padding * 2;
-      const scale = Math.min(viewW / item.w, viewH / item.h) * 0.85;
+      const scale =
+        getViewportFitScale(item.w, item.h, {
+          rightPanelCollapsed,
+          padding: 60,
+        }) * 0.85;
+      const target = getCenteredViewportTarget(absX, absY, item.w, item.h, {
+        rightPanelCollapsed,
+        scale,
+      });
 
-      const centerX = -(absX + item.w / 2) * scale + (window.innerWidth - rightOffset) / 2;
-      const centerY = -(absY + item.h / 2) * scale + window.innerHeight / 2;
-
-      useCanvasStore.getState().animateTo(centerX, centerY, scale);
+      useCanvasStore.getState().animateTo(target.x, target.y, scale);
     },
     [projectId, worktree.id, worktree.position],
   );

@@ -4,7 +4,7 @@ import {
   createTerminal,
   generateId,
 } from "../stores/projectStore";
-import { useCanvasStore, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
+import { useCanvasStore } from "../stores/canvasStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { useSelectionStore, type SelectedItem } from "../stores/selectionStore";
 import {
@@ -32,6 +32,11 @@ import {
 import { snapshotState } from "../snapshotState";
 import { updateWindowTitle } from "../titleHelper";
 import { panToWorktree } from "../utils/panToWorktree";
+import {
+  CANVAS_TOP_INSET,
+  getCenteredViewportTarget,
+  getViewportFitScale,
+} from "../utils/canvasViewport";
 
 function getAllTerminals() {
   const { projects } = useProjectStore.getState();
@@ -107,23 +112,23 @@ function zoomToTerminal(
     item.y;
 
   const { rightPanelCollapsed } = useCanvasStore.getState();
-  const rightOffset = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH;
-  const padding = 60;
-  const viewW = window.innerWidth - rightOffset - padding * 2;
-  const viewH = window.innerHeight - padding * 2;
-  const scale = Math.min(viewW / item.w, viewH / item.h) * 0.85;
+  const scale =
+    getViewportFitScale(item.w, item.h, {
+      rightPanelCollapsed,
+      padding: 60,
+    }) * 0.85;
+  const target = getCenteredViewportTarget(absX, absY, item.w, item.h, {
+    rightPanelCollapsed,
+    scale,
+  });
 
-  const centerX = -(absX + item.w / 2) * scale + (window.innerWidth - rightOffset) / 2;
-  const centerY = -(absY + item.h / 2) * scale + window.innerHeight / 2;
-
-  useCanvasStore.getState().animateTo(centerX, centerY, scale);
+  useCanvasStore.getState().animateTo(target.x, target.y, scale);
 }
 
 function zoomToFitAll() {
   const { projects } = useProjectStore.getState();
   if (projects.length === 0) return;
   const padding = 80;
-  const toolbarH = 44;
   let minX = Infinity,
     minY = Infinity,
     maxX = -Infinity,
@@ -149,10 +154,10 @@ function zoomToFitAll() {
   const contentW = maxX - minX;
   const contentH = maxY - minY;
   const viewW = window.innerWidth - padding * 2;
-  const viewH = window.innerHeight - toolbarH - padding * 2;
+  const viewH = window.innerHeight - CANVAS_TOP_INSET - padding * 2;
   const scale = Math.min(1, viewW / contentW, viewH / contentH);
   const x = -minX * scale + padding;
-  const y = -minY * scale + padding + toolbarH;
+  const y = -minY * scale + padding + CANVAS_TOP_INSET;
   useCanvasStore.getState().animateTo(x, y, scale);
 }
 
@@ -239,14 +244,15 @@ async function handleAddProject(t: ReturnType<typeof useT>) {
   // empty worktrees, so computed width never exceeds minWidth).
   const projW = 340;
 
-  const { viewport: { scale }, rightPanelCollapsed } =
-    useCanvasStore.getState();
-  const rightOffset = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH;
-  const screenCenterX = (window.innerWidth - rightOffset) / 2;
-  const screenCenterY = window.innerHeight / 2;
-  const targetX = -(placeX + projW / 2) * scale + screenCenterX;
-  const targetY = -(0 + projH / 2) * scale + screenCenterY;
-  useCanvasStore.getState().animateTo(targetX, targetY, scale);
+  const {
+    viewport: { scale },
+    rightPanelCollapsed,
+  } = useCanvasStore.getState();
+  const target = getCenteredViewportTarget(placeX, 0, projW, projH, {
+    rightPanelCollapsed,
+    scale,
+  });
+  useCanvasStore.getState().animateTo(target.x, target.y, scale);
 
   notify("info", t.info_added_project(info.name, info.worktrees.length));
 }

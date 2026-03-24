@@ -1,10 +1,14 @@
 import { useProjectStore } from "../stores/projectStore";
-import { useCanvasStore, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
+import { useCanvasStore } from "../stores/canvasStore";
 import {
   computeWorktreeSize,
   PROJ_PAD,
   PROJ_TITLE_H,
 } from "../layout";
+import {
+  getCenteredViewportTarget,
+  getViewportFitScale,
+} from "./canvasViewport";
 
 /**
  * Animate the canvas viewport to center on the given worktree.
@@ -22,14 +26,15 @@ export function panToWorktree(projectId: string, worktreeId: string): void {
   const absY = project.position.y + PROJ_TITLE_H + PROJ_PAD + worktree.position.y;
 
   const { rightPanelCollapsed } = useCanvasStore.getState();
-  const rightOffset = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH;
-  const padding = 60;
-  const viewW = window.innerWidth - rightOffset - padding * 2;
-  const viewH = window.innerHeight - padding * 2;
-  const scale = Math.min(viewW / size.w, viewH / size.h) * 0.85;
+  const scale =
+    getViewportFitScale(size.w, size.h, {
+      rightPanelCollapsed,
+      padding: 60,
+    }) * 0.85;
+  const target = getCenteredViewportTarget(absX, absY, size.w, size.h, {
+    rightPanelCollapsed,
+    scale,
+  });
 
-  const centerX = -(absX + size.w / 2) * scale + (window.innerWidth - rightOffset) / 2;
-  const centerY = -(absY + size.h / 2) * scale + window.innerHeight / 2;
-
-  useCanvasStore.getState().animateTo(centerX, centerY, scale);
+  useCanvasStore.getState().animateTo(target.x, target.y, scale);
 }

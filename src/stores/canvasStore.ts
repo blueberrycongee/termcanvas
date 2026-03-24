@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { Viewport } from "../types";
-import { useWorkspaceStore } from "./workspaceStore";
+import { useWorkspaceStore } from "./workspaceStore.ts";
 
 export type FocusLevel = "terminal" | "starred" | "worktree";
 
