@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { TERMCANVAS_DIR } from "./state-persistence.ts";
 
 // ── Pricing (per million tokens) ───────────────────────────────────────
 
@@ -80,16 +81,43 @@ interface CachedUsageSummary {
   cachedAt: number;
 }
 
+interface HeatmapDailyTotal {
+  tokens: number;
+  cost: number;
+}
+
+interface HeatmapFileCacheEntry {
+  mtimeMs: number;
+  size: number;
+  days: Record<string, HeatmapDailyTotal>;
+}
+
+interface HeatmapDiskCache {
+  version: number;
+  files: Record<string, HeatmapFileCacheEntry>;
+}
+
 const TODAY_USAGE_CACHE_TTL_MS = 30_000;
 const HEATMAP_CACHE_TTL_MS = 5 * 60_000;
+const HEATMAP_DISK_CACHE_VERSION = 1;
+const HEATMAP_DISK_CACHE_FILE = path.join(
+  TERMCANVAS_DIR,
+  "usage-heatmap-cache.json",
+);
 
 const usageSummaryCache = new Map<string, CachedUsageSummary>();
 let heatmapCache:
   | { data: Record<string, { tokens: number; cost: number }>; cachedAt: number }
   | null = null;
+let heatmapDiskCache: HeatmapDiskCache | null = null;
 
 function yieldToEventLoop(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
+}
+
+function perfLog(label: string, details: Record<string, unknown>) {
+  if (!process.env.VITE_DEV_SERVER_URL) return;
+  console.log(`[Perf] ${label}`, details);
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -160,6 +188,104 @@ function utcToLocalHour(tsClean: string, tzOffsetHours: number): number {
   const utcMs = new Date(tsClean + "Z").getTime();
   const localMs = utcMs + tzOffsetHours * 3600_000;
   return new Date(localMs).getUTCHours();
+}
+
+function loadHeatmapDiskCache(): HeatmapDiskCache {
+  if (heatmapDiskCache) {
+    return heatmapDiskCache;
+  }
+
+  try {
+    const raw = fs.readFileSync(HEATMAP_DISK_CACHE_FILE, "utf-8");
+    const parsed = JSON.parse(raw) as HeatmapDiskCache;
+    if (parsed.version === HEATMAP_DISK_CACHE_VERSION && parsed.files) {
+      heatmapDiskCache = parsed;
+      return parsed;
+    }
+  } catch {
+    // fall through
+  }
+
+  heatmapDiskCache = {
+    version: HEATMAP_DISK_CACHE_VERSION,
+    files: {},
+  };
+  return heatmapDiskCache;
+}
+
+function saveHeatmapDiskCache(cache: HeatmapDiskCache): void {
+  const tmp = `${HEATMAP_DISK_CACHE_FILE}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(cache), "utf-8");
+  fs.renameSync(tmp, HEATMAP_DISK_CACHE_FILE);
+}
+
+function bucketHeatmapRecord(
+  target: Record<string, HeatmapDailyTotal>,
+  record: UsageRecord,
+  tzOffsetHours: number,
+): void {
+  const utcMs = new Date(record.ts + "Z").getTime();
+  const localMs = utcMs + tzOffsetHours * 3600_000;
+  const localDate = new Date(localMs);
+  const dateStr = `${localDate.getUTCFullYear()}-${String(localDate.getUTCMonth() + 1).padStart(2, "0")}-${String(localDate.getUTCDate()).padStart(2, "0")}`;
+
+  const tokens =
+    record.input +
+    record.output +
+    record.cacheRead +
+    record.cacheCreate5m +
+    record.cacheCreate1h;
+  const cost = computeCost(
+    record.model,
+    record.input,
+    record.output,
+    record.cacheRead,
+    record.cacheCreate5m,
+    record.cacheCreate1h,
+  );
+
+  if (!target[dateStr]) {
+    target[dateStr] = { tokens: 0, cost: 0 };
+  }
+  target[dateStr].tokens += tokens;
+  target[dateStr].cost += cost;
+}
+
+function mergeHeatmapDays(
+  target: Record<string, HeatmapDailyTotal>,
+  days: Record<string, HeatmapDailyTotal>,
+): void {
+  for (const [dateStr, entry] of Object.entries(days)) {
+    if (!target[dateStr]) {
+      target[dateStr] = { tokens: 0, cost: 0 };
+    }
+    target[dateStr].tokens += entry.tokens;
+    target[dateStr].cost += entry.cost;
+  }
+}
+
+function buildHeatmapEntry(
+  filePath: string,
+  parser: (
+    filePath: string,
+    utcStart: string,
+    utcEnd: string,
+  ) => { records: UsageRecord[] },
+  utcStart: string,
+  utcEnd: string,
+  tzOffsetHours: number,
+  stat: fs.Stats,
+): HeatmapFileCacheEntry {
+  const days: Record<string, HeatmapDailyTotal> = {};
+  const { records } = parser(filePath, utcStart, utcEnd);
+  for (const record of records) {
+    bucketHeatmapRecord(days, record, tzOffsetHours);
+  }
+  return {
+    mtimeMs: stat.mtimeMs,
+    size: stat.size,
+    days,
+  };
 }
 
 // ── JSONL file discovery ───────────────────────────────────────────────
@@ -338,9 +464,16 @@ export function parseCodexSession(
     return { records: [], projectPath };
   }
 
-  // For Codex, use total_token_usage from the LAST token_count entry per session.
-  // This avoids double-counting incremental entries.
-  let lastRecord: UsageRecord | null = null;
+  const records: UsageRecord[] = [];
+  let currentModel = "codex";
+  let previousTotals:
+    | {
+        input: number;
+        cached: number;
+        output: number;
+      }
+    | null = null;
+  let tokenEventIndex = 0;
 
   for (const line of content.split("\n")) {
     if (!line) continue;
@@ -353,6 +486,17 @@ export function parseCodexSession(
     if (obj.type === "session_meta") {
       const payload = obj.payload as Record<string, unknown> | undefined;
       if (payload?.cwd) projectPath = payload.cwd as string;
+      if (typeof payload?.model_provider === "string" && payload.model_provider) {
+        currentModel = payload.model_provider;
+      }
+      continue;
+    }
+
+    if (obj.type === "turn_context") {
+      const payload = obj.payload as Record<string, unknown> | undefined;
+      if (typeof payload?.model === "string" && payload.model) {
+        currentModel = payload.model;
+      }
       continue;
     }
 
@@ -369,28 +513,60 @@ export function parseCodexSession(
     const info = payload.info as Record<string, unknown> | null;
     if (!info) continue;
 
+    const lastUsage = info.last_token_usage as Record<string, number> | undefined;
     const totalUsage = info.total_token_usage as Record<string, number> | undefined;
-    if (!totalUsage) continue;
+    if (!lastUsage && !totalUsage) continue;
 
-    // Keep overwriting — the last one in the file is the final cumulative total
-    // OpenAI's input_tokens INCLUDES cached_input_tokens (unlike Claude's API),
-    // so subtract to get non-cached input for correct cost calculation.
-    const inputTotal = totalUsage.input_tokens ?? 0;
-    const cachedInput = totalUsage.cached_input_tokens ?? 0;
-    lastRecord = {
+    let inputTotal = 0;
+    let cachedInput = 0;
+    let outputTokens = 0;
+
+    if (lastUsage) {
+      inputTotal = lastUsage.input_tokens ?? 0;
+      cachedInput = lastUsage.cached_input_tokens ?? 0;
+      outputTokens = lastUsage.output_tokens ?? 0;
+    } else if (totalUsage) {
+      const nextTotals = {
+        input: totalUsage.input_tokens ?? 0,
+        cached: totalUsage.cached_input_tokens ?? 0,
+        output: totalUsage.output_tokens ?? 0,
+      };
+      if (previousTotals) {
+        inputTotal = Math.max(0, nextTotals.input - previousTotals.input);
+        cachedInput = Math.max(0, nextTotals.cached - previousTotals.cached);
+        outputTokens = Math.max(0, nextTotals.output - previousTotals.output);
+      } else {
+        inputTotal = nextTotals.input;
+        cachedInput = nextTotals.cached;
+        outputTokens = nextTotals.output;
+      }
+    }
+
+    if (totalUsage) {
+      previousTotals = {
+        input: totalUsage.input_tokens ?? 0,
+        cached: totalUsage.cached_input_tokens ?? 0,
+        output: totalUsage.output_tokens ?? 0,
+      };
+    }
+
+    if (tsClean < utcStart || tsClean >= utcEnd) continue;
+
+    records.push({
       ts: tsClean,
-      msgId: path.basename(filePath) + ":total",
-      model: "codex",
+      msgId: `${path.basename(filePath)}:token:${tokenEventIndex}`,
+      model: currentModel,
       input: Math.max(0, inputTotal - cachedInput),
-      output: totalUsage.output_tokens ?? 0,
+      output: outputTokens,
       cacheRead: cachedInput,
       cacheCreate5m: 0,
       cacheCreate1h: 0,
       projectPath,
-    };
+    });
+    tokenEventIndex += 1;
   }
 
-  return { records: lastRecord ? [lastRecord] : [], projectPath };
+  return { records, projectPath };
 }
 
 // ── Heatmap API ─────────────────────────────────────────────────────────
@@ -423,57 +599,102 @@ export async function collectHeatmapData(): Promise<Record<string, { tokens: num
   // Discover all files once
   const claudeFiles = findClaudeJsonlFiles();
   const codexFiles = findCodexJsonlFiles();
+  const diskCache = loadHeatmapDiskCache();
+  let cacheDirty = false;
+  const livePaths = new Set<string>();
+  let reusedFiles = 0;
+  let parsedFiles = 0;
 
   const result: Record<string, { tokens: number; cost: number }> = {};
-
-  const bucketRecord = (r: UsageRecord) => {
-    // Convert UTC timestamp to local date string
-    const utcMs = new Date(r.ts + "Z").getTime();
-    const localMs = utcMs + tzOffsetHours * 3600_000;
-    const localDate = new Date(localMs);
-    const dateStr = `${localDate.getUTCFullYear()}-${String(localDate.getUTCMonth() + 1).padStart(2, "0")}-${String(localDate.getUTCDate()).padStart(2, "0")}`;
-
-    const tokens = r.input + r.output + r.cacheRead + r.cacheCreate5m + r.cacheCreate1h;
-    const cost = computeCost(r.model, r.input, r.output, r.cacheRead, r.cacheCreate5m, r.cacheCreate1h);
-
-    if (!result[dateStr]) {
-      result[dateStr] = { tokens: 0, cost: 0 };
-    }
-    result[dateStr].tokens += tokens;
-    result[dateStr].cost += cost;
-  };
+  const startedAt = Date.now();
 
   // Yield between files so large session scans don't monopolize the main
   // process long enough to trigger macOS beachballing while the panel refreshes.
   for (let i = 0; i < claudeFiles.length; i++) {
     if (i > 0) await yieldToEventLoop();
     const f = claudeFiles[i];
+    let stat: fs.Stats;
     try {
-      const mtime = fs.statSync(f).mtimeMs;
-      const mtimeLocal = new Date(mtime + tzOffsetHours * 3600_000);
+      stat = fs.statSync(f);
+      livePaths.add(f);
+      const mtimeLocal = new Date(stat.mtimeMs + tzOffsetHours * 3600_000);
       const mtimeDate = mtimeLocal.toISOString().split("T")[0];
       if (mtimeDate < startDateStr) continue;
     } catch { continue; }
 
-    const { records } = parseClaudeSession(f, utcStart, utcEnd);
-    for (const r of records) bucketRecord(r);
+    const cached = diskCache.files[f];
+    if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+      mergeHeatmapDays(result, cached.days);
+      reusedFiles += 1;
+      continue;
+    }
+
+    const entry = buildHeatmapEntry(
+      f,
+      parseClaudeSession,
+      utcStart,
+      utcEnd,
+      tzOffsetHours,
+      stat,
+    );
+    diskCache.files[f] = entry;
+    mergeHeatmapDays(result, entry.days);
+    parsedFiles += 1;
+    cacheDirty = true;
   }
 
   for (let i = 0; i < codexFiles.length; i++) {
     if (i > 0) await yieldToEventLoop();
     const f = codexFiles[i];
+    let stat: fs.Stats;
     try {
-      const mtime = fs.statSync(f).mtimeMs;
-      const mtimeLocal = new Date(mtime + tzOffsetHours * 3600_000);
+      stat = fs.statSync(f);
+      livePaths.add(f);
+      const mtimeLocal = new Date(stat.mtimeMs + tzOffsetHours * 3600_000);
       const mtimeDate = mtimeLocal.toISOString().split("T")[0];
       if (mtimeDate < startDateStr) continue;
     } catch { continue; }
 
-    const { records } = parseCodexSession(f, utcStart, utcEnd);
-    for (const r of records) bucketRecord(r);
+    const cached = diskCache.files[f];
+    if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+      mergeHeatmapDays(result, cached.days);
+      reusedFiles += 1;
+      continue;
+    }
+
+    const entry = buildHeatmapEntry(
+      f,
+      parseCodexSession,
+      utcStart,
+      utcEnd,
+      tzOffsetHours,
+      stat,
+    );
+    diskCache.files[f] = entry;
+    mergeHeatmapDays(result, entry.days);
+    parsedFiles += 1;
+    cacheDirty = true;
+  }
+
+  for (const filePath of Object.keys(diskCache.files)) {
+    if (!livePaths.has(filePath)) {
+      delete diskCache.files[filePath];
+      cacheDirty = true;
+    }
+  }
+
+  if (cacheDirty) {
+    saveHeatmapDiskCache(diskCache);
   }
 
   heatmapCache = { data: result, cachedAt: Date.now() };
+  perfLog("usage:heatmap:file-cache", {
+    ms: Date.now() - startedAt,
+    claudeFiles: claudeFiles.length,
+    codexFiles: codexFiles.length,
+    reusedFiles,
+    parsedFiles,
+  });
   return result;
 }
 

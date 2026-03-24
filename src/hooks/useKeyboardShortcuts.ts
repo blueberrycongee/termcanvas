@@ -352,7 +352,7 @@ export function useKeyboardShortcuts() {
           window.termcanvas.workspace
             .saveToPath(workspacePath, snap)
             .then(async () => {
-              await window.termcanvas.state.save(JSON.parse(snap));
+              await window.termcanvas.state.save(snap);
               useWorkspaceStore.getState().markClean();
               updateWindowTitle();
             })
@@ -369,7 +369,7 @@ export function useKeyboardShortcuts() {
                 return;
               }
               useWorkspaceStore.getState().setWorkspacePath(savedPath);
-              await window.termcanvas.state.save(JSON.parse(snap));
+              await window.termcanvas.state.save(snap);
               useWorkspaceStore.getState().markClean();
               updateWindowTitle();
             })
@@ -392,7 +392,7 @@ export function useKeyboardShortcuts() {
               return;
             }
             useWorkspaceStore.getState().setWorkspacePath(savedPath);
-            await window.termcanvas.state.save(JSON.parse(snap));
+            await window.termcanvas.state.save(snap);
             useWorkspaceStore.getState().markClean();
             updateWindowTitle();
           })

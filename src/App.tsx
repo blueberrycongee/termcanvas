@@ -24,6 +24,7 @@ import { shouldRunAutoSaveBackstop, useWorkspaceStore } from "./stores/workspace
 import { snapshotState } from "./snapshotState";
 import { updateWindowTitle } from "./titleHelper";
 import { useNotificationStore } from "./stores/notificationStore";
+import { logSlowRendererPath } from "./utils/devPerf";
 
 function migrateProjects(projects: unknown[]): ProjectData[] {
   return projects.map((p: any) => ({
@@ -181,15 +182,19 @@ function useAutoSave() {
 
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const saveSnapshot = async () => {
+      const startedAt = performance.now();
       try {
-        const snap = snapshotState();
-        await window.termcanvas.state.save(JSON.parse(snap));
+        await window.termcanvas.state.save(snapshotState());
         useWorkspaceStore.setState((state) => ({
           ...state,
           lastSavedAt: Date.now(),
         }));
       } catch (err) {
         console.error("[useAutoSave] failed to save recovery snapshot:", err);
+      } finally {
+        logSlowRendererPath("App.autoSaveSnapshot", startedAt, {
+          thresholdMs: 20,
+        });
       }
     };
 
@@ -263,12 +268,15 @@ function useCloseHandler() {
       const { dirty } = useWorkspaceStore.getState();
       if (!dirty) {
         void (async () => {
+          const startedAt = performance.now();
           try {
-            const snap = snapshotState();
-            await window.termcanvas.state.save(JSON.parse(snap));
+            await window.termcanvas.state.save(snapshotState());
           } catch (err) {
             console.error("[CloseHandler] failed to save recovery snapshot:", err);
           } finally {
+            logSlowRendererPath("App.closeRecoverySnapshot", startedAt, {
+              thresholdMs: 20,
+            });
             window.termcanvas.app.confirmClose();
           }
         })();
@@ -295,7 +303,7 @@ function useCloseHandler() {
         }
         useWorkspaceStore.getState().setWorkspacePath(savedPath);
       }
-      await window.termcanvas.state.save(JSON.parse(snap));
+      await window.termcanvas.state.save(snap);
       useWorkspaceStore.getState().markClean();
       window.termcanvas.app.confirmClose();
     } catch (err) {
