@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.53] - 2026-03-24
+
+### Fixed
+- Restore CLI message color hierarchy in light mode so user prompts and AI responses remain visually distinct after a theme-triggered redraw
+
 ## [0.8.52] - 2026-03-24
 
 ### Performance
