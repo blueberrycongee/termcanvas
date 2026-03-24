@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   getProcessListCommand,
   parsePsOutput,
+  splitCommandLine,
   parseWindowsProcessListOutput,
 } from "../electron/process-detector.ts";
 
@@ -199,6 +200,16 @@ test("getProcessListCommand uses PowerShell on Windows", () => {
       "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CommandLine | ConvertTo-Json -Compress",
     ],
   });
+});
+
+test("splitCommandLine keeps quoted wrapper command aligned with remaining args", () => {
+  assert.deepEqual(
+    splitCommandLine("\"C:\\Program Files\\nodejs\\node.exe\" C:\\Users\\foo\\AppData\\Roaming\\npm\\claude"),
+    {
+      command: "C:\\Program Files\\nodejs\\node.exe",
+      rest: "C:\\Users\\foo\\AppData\\Roaming\\npm\\claude",
+    },
+  );
 });
 
 test("parseWindowsProcessListOutput detects node.exe wrapper paths", () => {

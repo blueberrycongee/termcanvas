@@ -26,21 +26,22 @@ function normalizeProcessName(token: string): string {
   return baseName.replace(/\.(exe|cmd|bat)$/i, "").toLowerCase();
 }
 
-function extractFirstToken(args: string): string {
-  const match = args.match(/^"([^"]+)"|^(\S+)/);
-  return match?.[1] ?? match?.[2] ?? "";
+export function splitCommandLine(args: string): { command: string; rest: string } {
+  const match = args.match(/^\s*(?:"([^"]+)"|(\S+))(.*)$/);
+  return {
+    command: match?.[1] ?? match?.[2] ?? "",
+    rest: match?.[3]?.trimStart() ?? "",
+  };
 }
 
 function matchCli(args: string): string | null {
   // Extract the process name (first token)
-  const firstToken = extractFirstToken(args);
-  const baseName = normalizeProcessName(firstToken);
+  const { command, rest } = splitCommandLine(args);
+  const baseName = normalizeProcessName(command);
 
   // If the process is a wrapper (node, bun, npx, bunx), match against the full args string
   // to catch patterns like `node /usr/local/bin/claude` or `npx codex`
   if (WRAPPER_NAMES.has(baseName)) {
-    // Skip the wrapper name and match the rest
-    const rest = args.slice(firstToken.length);
     for (const [pattern, cliType] of CLI_PATTERNS) {
       if (pattern.test(rest)) return cliType;
     }
