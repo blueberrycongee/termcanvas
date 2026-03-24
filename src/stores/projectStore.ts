@@ -7,7 +7,12 @@ import type {
   TerminalStatus,
   TerminalOrigin,
 } from "../types/index.ts";
-import { computeWorktreeSize, PROJ_PAD, PROJ_TITLE_H } from "../layout.ts";
+import {
+  getStandardWorktreeWidth,
+  getWorktreeSize,
+  PROJ_PAD,
+  PROJ_TITLE_H,
+} from "../layout.ts";
 import {
   DEFAULT_SPAN,
   withToggledTerminalStarred,
@@ -28,6 +33,7 @@ interface ProjectStore {
   removeProject: (projectId: string) => void;
   updateProjectPosition: (projectId: string, x: number, y: number) => void;
   toggleProjectCollapse: (projectId: string) => void;
+  compactProjectWorktrees: (projectId: string) => void;
   bringToFront: (projectId: string) => void;
 
   updateWorktreePosition: (
@@ -187,9 +193,17 @@ function mapTerminals(
 
 const OVERLAP_GAP = 40;
 const WORKTREE_GAP = 8;
+const COMPACT_ROW_WIDTH = getStandardWorktreeWidth();
 
 function markDirty() {
   useWorkspaceStore.getState().markDirty();
+}
+
+function getVisibleWorktreeSize(worktree: WorktreeData) {
+  return getWorktreeSize(
+    worktree.terminals.map((terminal) => terminal.span),
+    worktree.collapsed,
+  );
 }
 
 function resolveWorktreeOverlaps(worktrees: WorktreeData[]): WorktreeData[] {
@@ -203,12 +217,12 @@ function resolveWorktreeOverlaps(worktrees: WorktreeData[]): WorktreeData[] {
   for (let i = 1; i < sorted.length; i++) {
     const curr = sorted[i];
     const currPos = positions.get(curr.id)!;
-    const currSize = computeWorktreeSize(curr.terminals.map((t) => t.span));
+    const currSize = getVisibleWorktreeSize(curr);
 
     for (let j = 0; j < i; j++) {
       const prev = sorted[j];
       const prevPos = positions.get(prev.id)!;
-      const prevSize = computeWorktreeSize(prev.terminals.map((t) => t.span));
+      const prevSize = getVisibleWorktreeSize(prev);
 
       if (
         rectsOverlap(
@@ -235,6 +249,59 @@ function resolveWorktreeOverlaps(worktrees: WorktreeData[]): WorktreeData[] {
   return worktrees.map((w) => ({ ...w, position: positions.get(w.id)! }));
 }
 
+function compactWorktreeLayout(worktrees: WorktreeData[]): WorktreeData[] {
+  if (worktrees.length <= 1) return worktrees;
+
+  const ordered = worktrees
+    .map((worktree, index) => ({
+      worktree,
+      index,
+      size: getVisibleWorktreeSize(worktree),
+    }))
+    .sort(
+      (a, b) =>
+        a.worktree.position.y - b.worktree.position.y ||
+        a.worktree.position.x - b.worktree.position.x ||
+        a.index - b.index,
+    );
+
+  const positions = new Map<string, { x: number; y: number }>();
+  let rowX = 0;
+  let rowY = 0;
+  let rowHeight = 0;
+
+  for (const item of ordered) {
+    if (rowX > 0 && rowX + item.size.w > COMPACT_ROW_WIDTH) {
+      rowX = 0;
+      rowY += rowHeight + WORKTREE_GAP;
+      rowHeight = 0;
+    }
+
+    positions.set(item.worktree.id, { x: rowX, y: rowY });
+    rowX += item.size.w + WORKTREE_GAP;
+    rowHeight = Math.max(rowHeight, item.size.h);
+  }
+
+  let changed = false;
+  for (const worktree of worktrees) {
+    const nextPosition = positions.get(worktree.id)!;
+    if (
+      nextPosition.x !== worktree.position.x ||
+      nextPosition.y !== worktree.position.y
+    ) {
+      changed = true;
+      break;
+    }
+  }
+
+  if (!changed) return worktrees;
+
+  return worktrees.map((worktree) => ({
+    ...worktree,
+    position: positions.get(worktree.id)!,
+  }));
+}
+
 export function getProjectBounds(p: ProjectData) {
   if (p.worktrees.length === 0) {
     return {
@@ -247,7 +314,7 @@ export function getProjectBounds(p: ProjectData) {
   let maxW = 300;
   let totalH = 0;
   for (const wt of p.worktrees) {
-    const wtSize = computeWorktreeSize(wt.terminals.map((t) => t.span));
+    const wtSize = getVisibleWorktreeSize(wt);
     maxW = Math.max(maxW, wt.position.x + wtSize.w);
     totalH = Math.max(totalH, wt.position.y + wtSize.h);
   }
@@ -473,6 +540,34 @@ export const useProjectStore = create<ProjectStore>((set) => ({
       ),
     }));
     markDirty();
+  },
+
+  compactProjectWorktrees: (projectId) => {
+    let changed = false;
+
+    set((state) => {
+      const updatedProjects = state.projects.map((project) => {
+        if (project.id !== projectId) return project;
+
+        const compactedWorktrees = compactWorktreeLayout(project.worktrees);
+        if (compactedWorktrees === project.worktrees) {
+          return project;
+        }
+
+        changed = true;
+        return { ...project, worktrees: compactedWorktrees };
+      });
+
+      if (!changed) {
+        return state;
+      }
+
+      return { projects: resolveOverlaps(updatedProjects) };
+    });
+
+    if (changed) {
+      markDirty();
+    }
   },
 
   bringToFront: (projectId) =>

@@ -4,6 +4,8 @@ export const GRID_GAP = 8;
 
 export const WT_PAD = 10;
 export const WT_TITLE_H = 36;
+export const WT_MIN_W = 300;
+export const WT_EMPTY_BODY_H = 60;
 
 export const PROJ_PAD = 12;
 export const PROJ_TITLE_H = 40;
@@ -111,7 +113,7 @@ export function computeWorktreeSize(
   h: number;
 } {
   if (spans.length === 0)
-    return { w: 300, h: WT_TITLE_H + WT_PAD + 60 + WT_PAD };
+    return { w: WT_MIN_W, h: WT_TITLE_H + WT_PAD + WT_EMPTY_BODY_H + WT_PAD };
 
   const packed = packTerminals(spans, gridCols);
   let maxCol = 0;
@@ -129,4 +131,24 @@ export function computeWorktreeSize(
     (maxRow - 1) * GRID_GAP +
     WT_PAD;
   return { w, h };
+}
+
+export function getWorktreeSize(
+  spans: TerminalSpan[],
+  collapsed: boolean,
+  gridCols?: number,
+): {
+  w: number;
+  h: number;
+} {
+  if (collapsed) {
+    return { w: WT_MIN_W, h: WT_TITLE_H };
+  }
+  return computeWorktreeSize(spans, gridCols);
+}
+
+export function getStandardWorktreeWidth(
+  gridCols: number = DEFAULT_GRID_COLS,
+): number {
+  return gridCols * TERMINAL_W + Math.max(0, gridCols - 1) * GRID_GAP + WT_PAD * 2;
 }
