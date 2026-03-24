@@ -1,5 +1,6 @@
 import type { TerminalTheme } from "./theme";
 import { serializeBufferToText } from "./scrollbackSnapshot";
+import { getSerializableBuffer } from "./scrollbackBuffer";
 import { createTerminalThemeState } from "./themeState";
 
 type GhosttyModule = typeof import("ghostty-web");
@@ -86,7 +87,7 @@ async function createGhosttySession(
   return {
     terminal,
     fit: () => fitAddon.fit(),
-    serialize: () => serializeBufferToText(terminal.buffer.active),
+    serialize: () => serializeBufferToText(getSerializableBuffer(terminal.buffer)),
     applyTheme: (theme) => {
       currentTheme = themeState.setBaseTheme(theme);
       terminal.renderer?.setTheme(currentTheme);
