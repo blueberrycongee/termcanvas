@@ -26,7 +26,6 @@ import { getTerminalDisplayTitle } from "../stores/terminalState";
 import {
   cancelScheduledTerminalFocus,
   scheduleTerminalFocus,
-  syncTerminalFocusFrame,
 } from "./focusScheduler";
 
 interface Props {
@@ -757,11 +756,11 @@ export function TerminalTile({
       touchWebGL(terminal.id);
     }
 
-    syncTerminalFocusFrame(
-      shouldFocusXterm,
-      focusXterm,
-      pendingFocusFrameRef,
-    );
+    if (shouldFocusXterm) {
+      scheduleTerminalFocus(focusXterm, pendingFocusFrameRef);
+    } else {
+      cancelScheduledTerminalFocus(pendingFocusFrameRef);
+    }
   }, [
     terminal.focused,
     terminal.id,

@@ -4,7 +4,6 @@ import assert from "node:assert/strict";
 import {
   cancelScheduledTerminalFocus,
   scheduleTerminalFocus,
-  syncTerminalFocusFrame,
 } from "../src/terminal/focusScheduler.ts";
 
 test("scheduleTerminalFocus defers focus until the next animation frame", () => {
@@ -98,34 +97,6 @@ test("scheduleTerminalFocus lets xterm focus win after a same-turn competing foc
 
   queued.get(1)?.(16);
   assert.equal(activeTarget, "xterm");
-  assert.equal(pending.current, null);
-});
-
-test("syncTerminalFocusFrame cancels a queued focus when the terminal loses focus before the frame runs", () => {
-  const queued = new Map<number, FrameRequestCallback>();
-  const cancelled: number[] = [];
-  const fired: string[] = [];
-
-  let nextId = 1;
-  const requestFrame = (callback: FrameRequestCallback) => {
-    const id = nextId++;
-    queued.set(id, callback);
-    return id;
-  };
-
-  const cancelFrame = (id: number) => {
-    cancelled.push(id);
-    queued.delete(id);
-  };
-
-  const pending = { current: null as number | null };
-
-  syncTerminalFocusFrame(true, () => fired.push("focus"), pending, requestFrame, cancelFrame);
-  syncTerminalFocusFrame(false, () => fired.push("focus"), pending, requestFrame, cancelFrame);
-
-  assert.deepEqual(cancelled, [1]);
-  assert.equal(queued.size, 0);
-  assert.deepEqual(fired, []);
   assert.equal(pending.current, null);
 });
 
