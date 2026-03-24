@@ -26,6 +26,7 @@ import { getTerminalDisplayTitle } from "../stores/terminalState";
 import {
   cancelScheduledTerminalFocus,
   scheduleTerminalFocus,
+  syncTerminalFocusFrame,
 } from "./focusScheduler";
 
 interface Props {
@@ -741,25 +742,32 @@ export function TerminalTile({
   // Give xterm DOM focus when composer is disabled or terminal type
   // doesn't support the Composer.
   const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
-  const scheduleXtermFocus = useCallback(() => {
-    scheduleTerminalFocus(() => {
-      xtermRef.current?.focus();
-    }, pendingFocusFrameRef);
+  const focusXterm = useCallback(() => {
+    xtermRef.current?.focus();
   }, []);
+  const scheduleXtermFocus = useCallback(() => {
+    scheduleTerminalFocus(focusXterm, pendingFocusFrameRef);
+  }, [focusXterm]);
 
   useEffect(() => {
+    const adapter = getComposerAdapter(terminal.type);
+    const shouldFocusXterm = terminal.focused && (!adapter || !composerEnabled);
+
     if (terminal.focused) {
       touchWebGL(terminal.id);
-      const adapter = getComposerAdapter(terminal.type);
-      if (!adapter || !composerEnabled) {
-        scheduleXtermFocus();
-      }
     }
+
+    syncTerminalFocusFrame(
+      shouldFocusXterm,
+      focusXterm,
+      pendingFocusFrameRef,
+    );
   }, [
     terminal.focused,
     terminal.id,
     terminal.type,
     composerEnabled,
+    focusXterm,
     scheduleXtermFocus,
   ]);
 
