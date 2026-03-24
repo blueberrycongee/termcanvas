@@ -493,7 +493,7 @@ export function UsagePanel() {
     useAuthStore.getState().init();
   }, []);
 
-  // Fetch on mount / un-collapse, and poll every 60s.
+  // Fetch on mount / un-collapse, and poll every 5 minutes.
   // Date changes are handled by handleDateChange / cell click directly — no need to re-fetch here.
   useEffect(() => {
     if (collapsed) return;
@@ -510,7 +510,7 @@ export function UsagePanel() {
         void fetchCloud();
         void fetchCloudHeatmap();
       }
-    }, 60_000);
+    }, 5 * 60_000);
     return () => clearInterval(interval);
   }, [collapsed, isLoggedIn, fetchUsage, quotaFetch, codexQuotaFetch, fetchCloud, fetchCloudHeatmap]);
 
