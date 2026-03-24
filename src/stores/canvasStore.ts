@@ -1,10 +1,6 @@
 import { create } from "zustand";
 import type { Viewport } from "../types";
 import { useWorkspaceStore } from "./workspaceStore.ts";
-import {
-  easeInOutCubic,
-  getViewportAnimationDuration,
-} from "../utils/canvasAnimation.ts";
 
 export type FocusLevel = "terminal" | "starred" | "worktree";
 
@@ -26,6 +22,7 @@ interface CanvasStore {
 }
 
 const DEFAULT_VIEWPORT: Viewport = { x: 0, y: 0, scale: 1 };
+const ANIM_DURATION = 400;
 let animationId = 0;
 
 function markDirty() {
@@ -72,25 +69,19 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       return;
     }
 
-    const duration = getViewportAnimationDuration({
-      startX,
-      startY,
-      startScale,
-      targetX,
-      targetY,
-      targetScale: endScale,
-    });
     const startTime = performance.now();
     const myId = ++animationId;
 
     set({ isAnimating: true });
 
+    const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+
     const tick = (now: number) => {
       if (myId !== animationId) return; // superseded by a newer animation
 
       const elapsed = now - startTime;
-      const progress = Math.min(1, elapsed / duration);
-      const t = easeInOutCubic(progress);
+      const progress = Math.min(1, elapsed / ANIM_DURATION);
+      const t = easeOutCubic(progress);
 
       set({
         viewport: {
