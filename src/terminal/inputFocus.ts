@@ -6,6 +6,8 @@ interface FocusTarget {
 
 interface FocusCanvas {
   getBoundingClientRect: () => DOMRect | Pick<DOMRect, "left" | "top" | "width" | "height">;
+  clientWidth?: number;
+  clientHeight?: number;
 }
 
 interface FocusRenderer {
@@ -49,18 +51,20 @@ function syncTextareaToCursor(terminal: FocusableTerminal, textarea: FocusTarget
   }
 
   const rect = canvas.getBoundingClientRect();
-  if (rect.width <= 0 || rect.height <= 0) {
+  const localWidth = canvas.clientWidth ?? rect.width;
+  const localHeight = canvas.clientHeight ?? rect.height;
+  if (localWidth <= 0 || localHeight <= 0) {
     return;
   }
 
-  const cellWidth = rect.width / cols;
-  const cellHeight = rect.height / rows;
+  const cellWidth = localWidth / cols;
+  const cellHeight = localHeight / rows;
   const cursorX = Math.max(0, Math.min(cols - 1, cursor.x));
   const cursorY = Math.max(0, Math.min(rows - 1, cursor.y));
 
-  textarea.style.position = "fixed";
-  textarea.style.left = `${rect.left + cursorX * cellWidth}px`;
-  textarea.style.top = `${rect.top + cursorY * cellHeight}px`;
+  textarea.style.position = "absolute";
+  textarea.style.left = `${cursorX * cellWidth}px`;
+  textarea.style.top = `${cursorY * cellHeight}px`;
   textarea.style.width = "1px";
   textarea.style.height = "1px";
 }

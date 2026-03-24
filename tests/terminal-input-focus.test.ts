@@ -26,6 +26,8 @@ test("terminal focus prefers ghostty textarea so IME can attach", () => {
     rows: 24,
     renderer: {
       getCanvas: () => ({
+        clientWidth: 800,
+        clientHeight: 480,
         getBoundingClientRect: () => ({
           left: 100,
           top: 200,
@@ -58,9 +60,9 @@ test("terminal focus prefers ghostty textarea so IME can attach", () => {
   assert.equal(textareaFocused, 1);
   assert.equal(terminalFocused, 0);
   assert.deepEqual(textareaFocusOptions, { preventScroll: true });
-  assert.equal(textareaStyle.position, "fixed");
-  assert.equal(textareaStyle.left, "200px");
-  assert.equal(textareaStyle.top, "300px");
+  assert.equal(textareaStyle.position, "absolute");
+  assert.equal(textareaStyle.left, "100px");
+  assert.equal(textareaStyle.top, "100px");
 });
 
 test("terminal focus falls back to terminal.focus when textarea is unavailable", () => {
