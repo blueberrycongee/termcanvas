@@ -23,6 +23,10 @@ import {
 import { buildFontFamily } from "./fontRegistry";
 import { panToTerminal } from "../utils/panToTerminal";
 import { getTerminalDisplayTitle } from "../stores/terminalState";
+import {
+  cancelScheduledTerminalFocus,
+  scheduleTerminalFocus,
+} from "./focusScheduler";
 
 interface Props {
   projectId: string;
@@ -194,6 +198,7 @@ export function TerminalTile({
   const displayTitleRef = useRef(getTerminalDisplayTitle(terminal));
   const tileRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const pendingFocusFrameRef = useRef<number | null>(null);
   const customTitleInputRef = useRef<HTMLInputElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -736,27 +741,53 @@ export function TerminalTile({
   // Give xterm DOM focus when composer is disabled or terminal type
   // doesn't support the Composer.
   const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
+  const focusXterm = useCallback(() => {
+    xtermRef.current?.focus();
+  }, []);
+  const scheduleXtermFocus = useCallback(() => {
+    scheduleTerminalFocus(focusXterm, pendingFocusFrameRef);
+  }, [focusXterm]);
+
   useEffect(() => {
+    const adapter = getComposerAdapter(terminal.type);
+    const shouldFocusXterm = terminal.focused && (!adapter || !composerEnabled);
+
     if (terminal.focused) {
       touchWebGL(terminal.id);
-      const adapter = getComposerAdapter(terminal.type);
-      if (!adapter || !composerEnabled) {
-        xtermRef.current?.focus();
-      }
     }
-  }, [terminal.focused, terminal.id, terminal.type, composerEnabled]);
+
+    if (shouldFocusXterm) {
+      scheduleTerminalFocus(focusXterm, pendingFocusFrameRef);
+    } else {
+      cancelScheduledTerminalFocus(pendingFocusFrameRef);
+    }
+  }, [
+    terminal.focused,
+    terminal.id,
+    terminal.type,
+    composerEnabled,
+    focusXterm,
+    scheduleXtermFocus,
+  ]);
 
   // Listen for explicit xterm focus requests (when composer is disabled)
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail === terminal.id) {
-        xtermRef.current?.focus();
+        scheduleXtermFocus();
       }
     };
     window.addEventListener("termcanvas:focus-xterm", handler);
     return () => window.removeEventListener("termcanvas:focus-xterm", handler);
-  }, [terminal.id]);
+  }, [scheduleXtermFocus, terminal.id]);
+
+  useEffect(
+    () => () => {
+      cancelScheduledTerminalFocus(pendingFocusFrameRef);
+    },
+    [],
+  );
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -1070,7 +1101,7 @@ export function TerminalTile({
         onClick={() => {
           const adapter = getComposerAdapter(terminal.type);
           if (!adapter || adapter.inputMode === "type" || !composerEnabled) {
-            xtermRef.current?.focus();
+            scheduleXtermFocus();
           }
         }}
       />
