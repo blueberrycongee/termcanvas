@@ -3,6 +3,11 @@ import { createPortal } from "react-dom";
 import type { ProjectData, TerminalData } from "../types";
 import { useProjectStore, findTerminalById, getChildTerminals } from "../stores/projectStore";
 import {
+  useCanvasStore,
+  RIGHT_PANEL_WIDTH,
+  COLLAPSED_TAB_WIDTH,
+} from "../stores/canvasStore";
+import {
   packTerminals,
   PROJ_PAD,
   PROJ_TITLE_H,
@@ -37,6 +42,12 @@ interface TreeNode {
   terminal: TerminalData;
   isRoot: boolean;
 }
+
+const OVERLAY_GAP = 12;
+const OVERLAY_MARGIN = 8;
+const OVERLAY_MAX_WIDTH = 260;
+const OVERLAY_FALLBACK_HEIGHT = 240;
+const TOOLBAR_HEIGHT = 44;
 
 function buildFamilyTree(projects: ProjectData[], terminalId: string): TreeNode[] {
   const nodes: TreeNode[] = [];
@@ -99,10 +110,14 @@ function getTerminalAbsolutePosition(
 export function FamilyTreeOverlay() {
   const t = useT();
   const projects = useProjectStore((s) => s.projects);
+  const viewport = useCanvasStore((s) => s.viewport);
+  const rightPanelCollapsed = useCanvasStore((s) => s.rightPanelCollapsed);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [visibleId, setVisibleId] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const overlayHovered = useRef(false);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+  const [, setWindowTick] = useState(0);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -155,24 +170,59 @@ export function FamilyTreeOverlay() {
     return getTerminalAbsolutePosition(projects, visibleId);
   }, [visibleId, projects]);
 
+  useEffect(() => {
+    const onResize = () => setWindowTick((v) => v + 1);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   if (!visibleId || tree.length <= 1 || !anchorPos) return null;
 
-  const portalTarget = document.getElementById("canvas-layer");
+  const portalTarget = document.body;
   if (!portalTarget) return null;
 
-  // Position: to the right of the hovered terminal
-  const overlayX = anchorPos.x + anchorPos.w + 12;
-  const overlayY = anchorPos.y;
+  const panelWidth = rightPanelCollapsed
+    ? COLLAPSED_TAB_WIDTH
+    : RIGHT_PANEL_WIDTH;
+  const safeLeft = OVERLAY_MARGIN;
+  const safeTop = TOOLBAR_HEIGHT + OVERLAY_MARGIN;
+  const safeRight = Math.max(
+    safeLeft + 1,
+    window.innerWidth - panelWidth - OVERLAY_MARGIN,
+  );
+  const safeBottom = Math.max(safeTop + 1, window.innerHeight - OVERLAY_MARGIN);
+
+  const anchorLeft = anchorPos.x * viewport.scale + viewport.x;
+  const anchorTop = anchorPos.y * viewport.scale + viewport.y;
+  const anchorRight = anchorLeft + anchorPos.w * viewport.scale;
+  const preferredY = anchorTop;
+
+  const measured = overlayRef.current?.getBoundingClientRect();
+  const overlayW = Math.min(OVERLAY_MAX_WIDTH, measured?.width ?? OVERLAY_MAX_WIDTH);
+  const overlayH = measured?.height ?? OVERLAY_FALLBACK_HEIGHT;
+
+  const fitsRight = anchorRight + OVERLAY_GAP + overlayW <= safeRight;
+  const preferRightX = anchorRight + OVERLAY_GAP;
+  const preferLeftX = anchorLeft - OVERLAY_GAP - overlayW;
+  const rawX = fitsRight ? preferRightX : preferLeftX;
+  const maxX = Math.max(safeLeft, safeRight - overlayW);
+  const clampedX = Math.min(Math.max(rawX, safeLeft), maxX);
+
+  const maxY = Math.max(safeTop, safeBottom - overlayH);
+  const clampedY = Math.min(Math.max(preferredY, safeTop), maxY);
 
   return createPortal(
     <div
-      className="absolute panel rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg"
+      ref={overlayRef}
+      className="fixed panel rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg"
       style={{
-        left: overlayX,
-        top: overlayY,
-        zIndex: 100,
+        left: clampedX,
+        top: clampedY,
+        zIndex: 120,
         minWidth: 180,
         maxWidth: 260,
+        maxHeight: `calc(100vh - ${TOOLBAR_HEIGHT + OVERLAY_MARGIN * 2}px)`,
+        overflowY: "auto",
         animation: "fadeIn 0.15s ease",
       }}
       onMouseEnter={() => { overlayHovered.current = true; }}
