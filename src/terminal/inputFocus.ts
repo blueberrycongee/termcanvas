@@ -1,16 +1,68 @@
 interface FocusTarget {
   focus: (options?: { preventScroll?: boolean }) => void;
   isConnected?: boolean;
+  style?: Partial<CSSStyleDeclaration>;
+}
+
+interface FocusCanvas {
+  getBoundingClientRect: () => DOMRect | Pick<DOMRect, "left" | "top" | "width" | "height">;
+}
+
+interface FocusRenderer {
+  getCanvas?: () => FocusCanvas;
+}
+
+interface FocusCursor {
+  x: number;
+  y: number;
+}
+
+interface FocusWasmTerminal {
+  getCursor?: () => FocusCursor;
 }
 
 interface FocusableTerminal {
   focus: (options?: { preventScroll?: boolean }) => void;
   textarea?: FocusTarget | null;
+  renderer?: FocusRenderer | null;
+  wasmTerm?: FocusWasmTerminal | null;
+  cols?: number;
+  rows?: number;
 }
 
 interface FocusContainer {
   getClientRects: () => ArrayLike<unknown>;
   contains: (node: Node | null) => boolean;
+}
+
+function syncTextareaToCursor(terminal: FocusableTerminal, textarea: FocusTarget) {
+  if (!textarea.style) {
+    return;
+  }
+
+  const canvas = terminal.renderer?.getCanvas?.();
+  const cursor = terminal.wasmTerm?.getCursor?.();
+  const cols = terminal.cols ?? 0;
+  const rows = terminal.rows ?? 0;
+  if (!canvas || !cursor || cols <= 0 || rows <= 0) {
+    return;
+  }
+
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) {
+    return;
+  }
+
+  const cellWidth = rect.width / cols;
+  const cellHeight = rect.height / rows;
+  const cursorX = Math.max(0, Math.min(cols - 1, cursor.x));
+  const cursorY = Math.max(0, Math.min(rows - 1, cursor.y));
+
+  textarea.style.position = "fixed";
+  textarea.style.left = `${rect.left + cursorX * cellWidth}px`;
+  textarea.style.top = `${rect.top + cursorY * cellHeight}px`;
+  textarea.style.width = "1px";
+  textarea.style.height = "1px";
 }
 
 export function focusTerminalInputElement(
@@ -25,6 +77,7 @@ export function focusTerminalInputElement(
 
   const textarea = terminal.textarea;
   if (textarea && textarea.isConnected !== false) {
+    syncTextareaToCursor(terminal, textarea);
     textarea.focus({ preventScroll: true });
     const activeAfterTextareaFocus = getActiveElement();
     if (
