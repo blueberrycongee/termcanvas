@@ -95,6 +95,8 @@ export const en = {
   // Toolbar
   tutorial: "Tutorial",
   toolbar_untitled_workspace: "Untitled Workspace",
+  zoom_out: "Zoom out",
+  zoom_in: "Zoom in",
 
   // ShortcutHints
   shortcut_add_project: "Add project",
