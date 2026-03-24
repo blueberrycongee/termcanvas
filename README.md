@@ -33,23 +33,15 @@ It organizes everything in a **Project → Worktree → Terminal** hierarchy tha
 
 **Download** — grab the latest build from [GitHub Releases](https://github.com/blueberrycongee/termcanvas/releases).
 
-<table>
-<tr>
-<td bgcolor="#fff3bf">
-
-**macOS note for unsigned builds**
-
-If macOS says TermCanvas is damaged or blocks launch because the app is unsigned, clear the quarantine attribute and try again:
-
-```bash
-xattr -cr /Applications/TermCanvas.app
-```
-
-If you installed the app somewhere else, replace the path with the actual app location.
-
-</td>
-</tr>
-</table>
+> [!WARNING]
+> **macOS note for unsigned builds**
+> If macOS says TermCanvas is damaged or blocks launch because the app is unsigned, clear the quarantine attribute and try again:
+>
+> ```bash
+> xattr -cr /Applications/TermCanvas.app
+> ```
+>
+> If you installed the app somewhere else, replace the path with the actual app location.
 
 **Build from source:**
 
