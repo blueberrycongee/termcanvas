@@ -23,16 +23,12 @@ import { useCanvasStore } from "../stores/canvasStore";
 import {
   packTerminals,
   computeWorktreeSize,
-  WT_PAD,
   WT_TITLE_H,
   PROJ_PAD,
   PROJ_TITLE_H,
 } from "../layout";
 import { logFocusProfiler } from "../utils/focusPerf";
-import {
-  getCenteredViewportTarget,
-  getViewportFitScale,
-} from "../utils/canvasViewport";
+import { zoomToTerminal } from "../utils/zoomToTerminal";
 
 interface Props {
   projectId: string;
@@ -134,42 +130,10 @@ function WorktreeContainerImpl({
   const computedSize = computeWorktreeSize(spans);
 
   const handleZoomToFit = useCallback(
-    (index: number) => {
-      const project = useProjectStore
-        .getState()
-        .projects.find((p) => p.id === projectId);
-      if (!project) return;
-      const wt = project.worktrees.find((w) => w.id === worktree.id);
-      if (!wt) return;
-      const currentPacked = packTerminals(wt.terminals.map((t) => t.span));
-      const item = currentPacked[index];
-      if (!item) return;
-
-      const absX =
-        project.position.x + PROJ_PAD + worktree.position.x + WT_PAD + item.x;
-      const absY =
-        project.position.y +
-        PROJ_TITLE_H +
-        PROJ_PAD +
-        worktree.position.y +
-        WT_TITLE_H +
-        WT_PAD +
-        item.y;
-
-      const { rightPanelCollapsed } = useCanvasStore.getState();
-      const scale =
-        getViewportFitScale(item.w, item.h, {
-          rightPanelCollapsed,
-          padding: 60,
-        }) * 0.85;
-      const target = getCenteredViewportTarget(absX, absY, item.w, item.h, {
-        rightPanelCollapsed,
-        scale,
-      });
-
-      useCanvasStore.getState().animateTo(target.x, target.y, scale);
+    (terminalId: string) => {
+      zoomToTerminal(projectId, worktree.id, terminalId, { focus: true });
     },
-    [projectId, worktree.id, worktree.position],
+    [projectId, worktree.id],
   );
 
   const handleTerminalDragStart = useCallback(
@@ -428,7 +392,7 @@ function WorktreeContainerImpl({
                 isDragging={isDragging}
                 dragOffsetX={isDragging ? dragState.offsetX : 0}
                 dragOffsetY={isDragging ? dragState.offsetY : 0}
-                onDoubleClick={() => handleZoomToFit(index)}
+                onDoubleClick={() => handleZoomToFit(terminal.id)}
                 onSpanChange={(span) =>
                   updateTerminalSpan(projectId, worktree.id, terminal.id, span)
                 }

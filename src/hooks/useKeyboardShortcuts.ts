@@ -18,10 +18,7 @@ import { usePreferencesStore } from "../stores/preferencesStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { getTerminalFocusOrder, getWorktreeFocusOrder } from "../stores/projectFocus";
 import {
-  packTerminals,
   computeWorktreeSize,
-  WT_PAD,
-  WT_TITLE_H,
   PROJ_PAD,
   PROJ_TITLE_H,
 } from "../layout";
@@ -32,10 +29,10 @@ import {
 import { snapshotState } from "../snapshotState";
 import { updateWindowTitle } from "../titleHelper";
 import { panToWorktree } from "../utils/panToWorktree";
+import { zoomToTerminal } from "../utils/zoomToTerminal";
 import {
   CANVAS_TOP_INSET,
   getCenteredViewportTarget,
-  getViewportFitScale,
 } from "../utils/canvasViewport";
 
 function getAllTerminals() {
@@ -79,50 +76,6 @@ function getFocusedWorktreeIndex(
   const { focusedWorktreeId } = useProjectStore.getState();
   if (!focusedWorktreeId) return -1;
   return list.findIndex((item) => item.worktreeId === focusedWorktreeId);
-}
-
-function zoomToTerminal(
-  projectId: string,
-  worktreeId: string,
-  terminalId: string,
-) {
-  const { projects } = useProjectStore.getState();
-  const project = projects.find((p) => p.id === projectId);
-  if (!project) return;
-  const worktree = project.worktrees.find((w) => w.id === worktreeId);
-  if (!worktree) return;
-  const terminalIndex = worktree.terminals.findIndex(
-    (t) => t.id === terminalId,
-  );
-  if (terminalIndex === -1) return;
-
-  const packed = packTerminals(worktree.terminals.map((t) => t.span));
-  const item = packed[terminalIndex];
-  if (!item) return;
-
-  const absX =
-    project.position.x + PROJ_PAD + worktree.position.x + WT_PAD + item.x;
-  const absY =
-    project.position.y +
-    PROJ_TITLE_H +
-    PROJ_PAD +
-    worktree.position.y +
-    WT_TITLE_H +
-    WT_PAD +
-    item.y;
-
-  const { rightPanelCollapsed } = useCanvasStore.getState();
-  const scale =
-    getViewportFitScale(item.w, item.h, {
-      rightPanelCollapsed,
-      padding: 60,
-    }) * 0.85;
-  const target = getCenteredViewportTarget(absX, absY, item.w, item.h, {
-    rightPanelCollapsed,
-    scale,
-  });
-
-  useCanvasStore.getState().animateTo(target.x, target.y, scale);
 }
 
 function zoomToFitAll() {
