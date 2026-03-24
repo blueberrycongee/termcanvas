@@ -25,7 +25,10 @@ import {
   PROJ_PAD,
   PROJ_TITLE_H,
 } from "../layout";
-import { shouldIgnoreShortcutTarget } from "./shortcutTarget";
+import {
+  consumeShortcutEvent,
+  shouldIgnoreShortcutTarget,
+} from "./shortcutTarget";
 import { snapshotState } from "../snapshotState";
 import { updateWindowTitle } from "../titleHelper";
 import { panToWorktree } from "../utils/panToWorktree";
@@ -266,13 +269,13 @@ export function useKeyboardShortcuts() {
       }
 
       if (matchesShortcut(e, shortcuts.addProject)) {
-        e.preventDefault();
+        consumeShortcutEvent(e);
         handleAddProject(t);
         return;
       }
 
       if (matchesShortcut(e, shortcuts.clearFocus)) {
-        e.preventDefault();
+        consumeShortcutEvent(e);
         const list = getAllTerminals();
         const focusedIdx = getFocusedTerminalIndex(list);
 
@@ -307,14 +310,14 @@ export function useKeyboardShortcuts() {
       }
 
       if (matchesShortcut(e, shortcuts.toggleRightPanel)) {
-        e.preventDefault();
+        consumeShortcutEvent(e);
         const store = useCanvasStore.getState();
         store.setRightPanelCollapsed(!store.rightPanelCollapsed);
         return;
       }
 
       if (matchesShortcut(e, shortcuts.toggleStarFocused)) {
-        e.preventDefault();
+        consumeShortcutEvent(e);
         const list = getAllTerminals();
         const focusedIdx = getFocusedTerminalIndex(list);
         if (focusedIdx !== -1) {
@@ -331,7 +334,7 @@ export function useKeyboardShortcuts() {
       }
 
       if (matchesShortcut(e, shortcuts.newTerminal)) {
-        e.preventDefault();
+        consumeShortcutEvent(e);
         const { focusedProjectId, focusedWorktreeId, addTerminal, setFocusedTerminal } =
           useProjectStore.getState();
         if (focusedProjectId && focusedWorktreeId) {
@@ -344,7 +347,7 @@ export function useKeyboardShortcuts() {
       }
 
       if (matchesShortcut(e, shortcuts.saveWorkspace)) {
-        e.preventDefault();
+        consumeShortcutEvent(e);
         const snap = snapshotState();
         const { workspacePath } = useWorkspaceStore.getState();
 
@@ -383,7 +386,7 @@ export function useKeyboardShortcuts() {
       }
 
       if (matchesShortcut(e, shortcuts.saveWorkspaceAs)) {
-        e.preventDefault();
+        consumeShortcutEvent(e);
         const snap = snapshotState();
         window.termcanvas.workspace
           .save(snap)
@@ -405,7 +408,7 @@ export function useKeyboardShortcuts() {
       }
 
       if (matchesShortcut(e, shortcuts.renameTerminalTitle)) {
-        e.preventDefault();
+        consumeShortcutEvent(e);
         const list = getAllTerminals();
         const focusedIdx = getFocusedTerminalIndex(list);
         if (focusedIdx === -1) {
@@ -448,7 +451,7 @@ export function useKeyboardShortcuts() {
       }
 
       if (matchesShortcut(e, shortcuts.closeFocused)) {
-        e.preventDefault();
+        consumeShortcutEvent(e);
         const list = getAllTerminals();
         const focusedIdx = getFocusedTerminalIndex(list);
         if (focusedIdx !== -1) {
@@ -465,13 +468,13 @@ export function useKeyboardShortcuts() {
       }
 
       if (matchesShortcut(e, shortcuts.cycleFocusLevel)) {
-        e.preventDefault();
+        consumeShortcutEvent(e);
         useCanvasStore.getState().cycleFocusLevel();
         return;
       }
 
       if (matchesShortcut(e, shortcuts.nextTerminal)) {
-        e.preventDefault();
+        consumeShortcutEvent(e);
         const level = useCanvasStore.getState().focusLevel;
 
         if (level === "worktree") {
@@ -500,7 +503,7 @@ export function useKeyboardShortcuts() {
       }
 
       if (matchesShortcut(e, shortcuts.prevTerminal)) {
-        e.preventDefault();
+        consumeShortcutEvent(e);
         const level = useCanvasStore.getState().focusLevel;
 
         if (level === "worktree") {
@@ -540,7 +543,7 @@ export function useKeyboardShortcuts() {
 
       for (const preset of SPAN_PRESETS) {
         if (matchesShortcut(e, shortcuts[preset.key])) {
-          e.preventDefault();
+          consumeShortcutEvent(e);
           const { projects, updateTerminalSpan } = useProjectStore.getState();
           for (const p of projects) {
             for (const w of p.worktrees) {
@@ -564,7 +567,7 @@ export function useKeyboardShortcuts() {
           useSelectionStore.getState();
         if (selectedItems.length === 0) return;
 
-        e.preventDefault();
+        consumeShortcutEvent(e);
 
         const projectItems = selectedItems.filter(
           (i): i is Extract<SelectedItem, { type: "project" }> =>

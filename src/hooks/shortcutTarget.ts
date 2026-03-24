@@ -22,3 +22,13 @@ export function shouldIgnoreShortcutTarget(
 ): boolean {
   return isEditableTarget(e.target) && !hasPrimaryModifier(e);
 }
+
+export function consumeShortcutEvent(
+  e: Pick<KeyboardEvent, "preventDefault" | "stopPropagation"> & {
+    stopImmediatePropagation?: () => void;
+  },
+) {
+  e.preventDefault();
+  e.stopPropagation();
+  e.stopImmediatePropagation?.();
+}

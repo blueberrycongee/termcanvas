@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { shouldIgnoreShortcutTarget } from "../src/hooks/shortcutTarget.ts";
+import {
+  consumeShortcutEvent,
+  shouldIgnoreShortcutTarget,
+} from "../src/hooks/shortcutTarget.ts";
 import {
   DEFAULT_SHORTCUTS,
   eventToShortcut,
@@ -121,6 +124,28 @@ test("editable targets allow command shortcuts to reach the app on macOS", () =>
       true,
     );
   });
+});
+
+test("consumed app shortcuts stop propagation before terminal handlers run", () => {
+  let prevented = 0;
+  let stopped = 0;
+  let stoppedImmediately = 0;
+
+  consumeShortcutEvent({
+    preventDefault: () => {
+      prevented += 1;
+    },
+    stopPropagation: () => {
+      stopped += 1;
+    },
+    stopImmediatePropagation: () => {
+      stoppedImmediately += 1;
+    },
+  });
+
+  assert.equal(prevented, 1);
+  assert.equal(stopped, 1);
+  assert.equal(stoppedImmediately, 1);
 });
 
 test("rename title shortcut defaults to mod+semicolon", () => {
