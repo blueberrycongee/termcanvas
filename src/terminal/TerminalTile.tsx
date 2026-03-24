@@ -1077,6 +1077,9 @@ function TerminalTileImpl({
           padding: terminal.minimized ? 0 : 4,
           overflow: "hidden",
         }}
+        onMouseDown={(e) => {
+          e.stopPropagation();
+        }}
         onClick={() => {
           const adapter = getComposerAdapter(terminal.type);
           if (!adapter || adapter.inputMode === "type" || !composerEnabled) {
