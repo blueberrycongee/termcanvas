@@ -171,7 +171,7 @@ function MiniCanvas({
 
   return (
     <div
-      className="relative rounded bg-[var(--bg-secondary)] overflow-hidden select-none"
+      className="relative rounded bg-[var(--surface)] overflow-hidden select-none"
       style={{
         height: 220,
         cursor: step === 4 ? (isDragging ? "grabbing" : "grab") : "default",
