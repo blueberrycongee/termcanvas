@@ -12,6 +12,17 @@ const IS_DEV = !!process.env.VITE_DEV_SERVER_URL;
 let checkTimer: ReturnType<typeof setInterval> | null = null;
 let macUpdater: MacCustomUpdater | null = null;
 
+export function installDownloadedUpdate(): void {
+  if (IS_DEV) return;
+
+  if (IS_MAC) {
+    macUpdater?.quitAndInstall();
+    return;
+  }
+
+  autoUpdater.quitAndInstall(false, true);
+}
+
 export function setupAutoUpdater(window: BrowserWindow): void {
   // Keep updater IPC available in dev, but never let the dev instance
   // touch shared updater state or trigger downloads/install flows.
@@ -47,7 +58,7 @@ function setupMacUpdater(window: BrowserWindow): () => void {
   macUpdater.registerAutoInstallOnQuit();
 
   ipcMain.on("updater:install", () => {
-    macUpdater?.quitAndInstall();
+    installDownloadedUpdate();
   });
 
   ipcMain.handle("updater:check", () =>
@@ -98,7 +109,7 @@ function setupElectronUpdater(window: BrowserWindow): () => void {
   });
 
   ipcMain.on("updater:install", () => {
-    autoUpdater.quitAndInstall(false, true);
+    installDownloadedUpdate();
   });
 
   ipcMain.handle("updater:check", () =>

@@ -31,7 +31,7 @@ import {
   submitComposerRequest,
 } from "./composer-submit";
 import { collectUsage, collectHeatmapData } from "./usage-collector";
-import { setupAutoUpdater, stopAutoUpdater } from "./auto-updater";
+import { installDownloadedUpdate, setupAutoUpdater, stopAutoUpdater } from "./auto-updater";
 import { initAuth, login, logout, getAuthUser, getDeviceId, handleAuthCallback, onAuthStateChange, isLoggedIn } from "./auth";
 import { toFileUrl } from "./file-url";
 import { queryCloudUsage, queryCloudHeatmap, backfillHistory, flushSyncQueue, syncRecentRecords } from "./usage-sync";
@@ -759,7 +759,13 @@ function setupIpc() {
   });
 
   // Close flow
-  ipcMain.on("app:close-confirmed", async () => {
+  ipcMain.on("app:request-close", () => {
+    if (mainWindow) {
+      mainWindow.close();
+    }
+  });
+
+  ipcMain.on("app:close-confirmed", async (_event, options?: { installUpdate?: boolean }) => {
     outputBatcher.dispose();
     await ptyManager.destroyAll();
     gitWatcher.unwatchAll();
@@ -767,6 +773,10 @@ function setupIpc() {
     forceClose = true;
     if (mainWindow) {
       mainWindow.close();
+    }
+    if (options?.installUpdate) {
+      installDownloadedUpdate();
+      return;
     }
     app.quit();
   });

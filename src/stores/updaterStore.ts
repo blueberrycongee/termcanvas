@@ -8,13 +8,27 @@ interface UpdaterStore {
   info: UpdateEventInfo | null;
   downloadPercent: number;
   errorMessage: string | null;
+  installOnCloseRequested: boolean;
+  requestRestartOnClose: () => void;
+  cancelRestartOnClose: () => void;
+  consumeRestartOnClose: () => boolean;
 }
 
-export const useUpdaterStore = create<UpdaterStore>(() => ({
+export const useUpdaterStore = create<UpdaterStore>((set, get) => ({
   status: "idle",
   info: null,
   downloadPercent: 0,
   errorMessage: null,
+  installOnCloseRequested: false,
+  requestRestartOnClose: () => set({ installOnCloseRequested: true }),
+  cancelRestartOnClose: () => set({ installOnCloseRequested: false }),
+  consumeRestartOnClose: () => {
+    const requested = get().installOnCloseRequested;
+    if (requested) {
+      set({ installOnCloseRequested: false });
+    }
+    return requested;
+  },
 }));
 
 /** Call once at app startup to wire IPC events into the store. */

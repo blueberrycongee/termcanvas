@@ -3,7 +3,7 @@ import { Canvas } from "./canvas/Canvas";
 import { Toolbar } from "./toolbar/Toolbar";
 import { NotificationToast } from "./components/NotificationToast";
 import { Hub } from "./components/Hub";
-import { initUpdaterListeners } from "./stores/updaterStore";
+import { initUpdaterListeners, useUpdaterStore } from "./stores/updaterStore";
 import { ComposerBar } from "./components/ComposerBar";
 import { usePreferencesStore } from "./stores/preferencesStore";
 import { DrawingPanel } from "./toolbar/DrawingPanel";
@@ -25,6 +25,7 @@ import { snapshotState } from "./snapshotState";
 import { updateWindowTitle } from "./titleHelper";
 import { useNotificationStore } from "./stores/notificationStore";
 import { logSlowRendererPath } from "./utils/devPerf";
+import { getCloseAction } from "./closeFlow";
 
 function migrateProjects(projects: unknown[]): ProjectData[] {
   return projects.map((p: any) => ({
@@ -260,13 +261,27 @@ function useWorkspaceOpen() {
 function useCloseHandler() {
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const t = useT();
+  const consumeRestartOnClose = useCallback(
+    () => useUpdaterStore.getState().consumeRestartOnClose(),
+    [],
+  );
+  const cancelRestartOnClose = useCallback(
+    () => useUpdaterStore.getState().cancelRestartOnClose(),
+    [],
+  );
 
   useEffect(() => {
     if (!window.termcanvas) return;
 
     const unsubscribe = window.termcanvas.app.onBeforeClose(() => {
       const { dirty } = useWorkspaceStore.getState();
-      if (!dirty) {
+      const action = getCloseAction({
+        dirty,
+        installUpdateRequested:
+          useUpdaterStore.getState().installOnCloseRequested,
+      });
+
+      if (action === "silent-close") {
         void (async () => {
           const startedAt = performance.now();
           try {
@@ -277,7 +292,9 @@ function useCloseHandler() {
             logSlowRendererPath("App.closeRecoverySnapshot", startedAt, {
               thresholdMs: 20,
             });
-            window.termcanvas.app.confirmClose();
+            window.termcanvas.app.confirmClose({
+              installUpdate: consumeRestartOnClose(),
+            });
           }
         })();
         return;
@@ -287,7 +304,7 @@ function useCloseHandler() {
     });
 
     return unsubscribe;
-  }, []);
+  }, [consumeRestartOnClose]);
 
   const handleSave = useCallback(async () => {
     try {
@@ -305,23 +322,28 @@ function useCloseHandler() {
       }
       await window.termcanvas.state.save(snap);
       useWorkspaceStore.getState().markClean();
-      window.termcanvas.app.confirmClose();
+      window.termcanvas.app.confirmClose({
+        installUpdate: consumeRestartOnClose(),
+      });
     } catch (err) {
       console.error("[CloseHandler] save failed:", err);
       useNotificationStore
         .getState()
         .notify("error", t.save_error(String(err)));
     }
-  }, [t]);
+  }, [consumeRestartOnClose, t]);
 
   const handleDiscard = useCallback(async () => {
     await window.termcanvas.state.save({ skipRestore: true });
-    window.termcanvas.app.confirmClose();
-  }, []);
+    window.termcanvas.app.confirmClose({
+      installUpdate: consumeRestartOnClose(),
+    });
+  }, [consumeRestartOnClose]);
 
   const handleCancel = useCallback(() => {
+    cancelRestartOnClose();
     setShowCloseDialog(false);
-  }, []);
+  }, [cancelRestartOnClose]);
 
   return { showCloseDialog, handleSave, handleDiscard, handleCancel };
 }

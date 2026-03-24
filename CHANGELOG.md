@@ -2,6 +2,12 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.54] - 2026-03-24
+
+### Fixed
+- Installing a downloaded update now goes through the normal shutdown path so app cleanup runs before handing off to the updater
+- Restart-to-install no longer gets stuck behind the unsaved-changes dialog, and canceling that dialog clears the pending restart intent safely
+
 ## [0.8.53] - 2026-03-24
 
 ### Fixed

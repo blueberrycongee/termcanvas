@@ -321,7 +321,8 @@ export interface TermCanvasAPI {
   app: {
     platform: "darwin" | "win32" | "linux";
     onBeforeClose: (callback: () => void) => () => void;
-    confirmClose: () => void;
+    requestClose: () => void;
+    confirmClose: (options?: { installUpdate?: boolean }) => void;
   };
   updater: {
     check: () => Promise<unknown>;
