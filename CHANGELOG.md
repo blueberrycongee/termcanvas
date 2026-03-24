@@ -2,6 +2,13 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.55] - 2026-03-24
+
+### Fixed
+- Restore the copied toast to a solid surface so it stays legible above the canvas
+- Fix cascading worktree overlap reflow so neighboring worktrees keep a stable layout
+- Align quoted wrapper command parsing so CLI launches resolve correctly
+
 ## [0.8.54] - 2026-03-24
 
 ### Fixed
