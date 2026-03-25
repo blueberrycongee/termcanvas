@@ -109,6 +109,7 @@ export const en = {
   // ShortcutHints
   shortcut_add_project: "Add project",
   shortcut_cycle_focus_level: "Cycle focus level",
+  shortcut_compact_focused_project: "Compact focused project",
   shortcut_toggle_sidebar: "Toggle sidebar",
   shortcut_toggle_right_panel: "Toggle right panel",
   shortcut_new_terminal: "New terminal",
@@ -128,6 +129,7 @@ export const en = {
   shortcut_save_workspace_as: "Save As",
   save_as: "Save As",
   save_error: (err: string) => `Save failed: ${err}`,
+  project_compact_focus_required: "Focus a project, worktree, or terminal first",
 
   // Selection / batch delete
   confirm_delete_projects: (n: number) =>

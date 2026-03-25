@@ -450,6 +450,26 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      if (matchesShortcut(e, shortcuts.compactFocusedProject)) {
+        e.preventDefault();
+        const { focusedProjectId, projects, compactProjectWorktrees } =
+          useProjectStore.getState();
+
+        // Focus navigation (terminal/starred/worktree) keeps focusedProjectId in sync.
+        // Use it as the primary semantic target for "compact".
+        const targetProjectId =
+          focusedProjectId ?? (projects.length === 1 ? projects[0].id : null);
+        if (!targetProjectId) {
+          useNotificationStore
+            .getState()
+            .notify("warn", t.project_compact_focus_required);
+          return;
+        }
+
+        compactProjectWorktrees(targetProjectId);
+        return;
+      }
+
       if (matchesShortcut(e, shortcuts.nextTerminal)) {
         e.preventDefault();
         const level = useCanvasStore.getState().focusLevel;

@@ -107,6 +107,7 @@ export const zh = {
   // ShortcutHints
   shortcut_add_project: "添加项目",
   shortcut_cycle_focus_level: "切换聚焦层级",
+  shortcut_compact_focused_project: "整理当前项目",
   shortcut_toggle_sidebar: "切换侧栏",
   shortcut_toggle_right_panel: "切换右侧面板",
   shortcut_new_terminal: "新建终端",
@@ -126,6 +127,7 @@ export const zh = {
   shortcut_save_workspace_as: "另存为",
   save_as: "另存为",
   save_error: (err: string) => `保存失败：${err}`,
+  project_compact_focus_required: "请先聚焦一个项目、工作树或终端",
 
   // Selection / batch delete
   confirm_delete_projects: (n: number) =>

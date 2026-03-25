@@ -138,6 +138,10 @@ test("cycle focus level shortcut defaults to mod+g and matches correctly", () =>
   });
 });
 
+test("compact focused project shortcut defaults to mod+shift+g", () => {
+  assert.equal(DEFAULT_SHORTCUTS.compactFocusedProject, "mod+shift+g");
+});
+
 test("terminal focus order follows natural project/worktree/array order", () => {
   const projects: ProjectData[] = [
     {
