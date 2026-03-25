@@ -373,7 +373,7 @@ export function App() {
       try {
         const info = await window.termcanvas.project.scan(dirPath);
         if (!info) {
-          notify("error", t.error_scan("Failed to scan directory"));
+          notify("error", "Failed to scan directory");
           return;
         }
         const { projects, addProject } = useProjectStore.getState();
@@ -400,10 +400,11 @@ export function App() {
           })),
         });
       } catch (err) {
-        notify("error", t.error_scan(String(err)));
+        notify("error", String(err));
       }
     });
-  }, [t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Load downloaded fonts on startup
   useEffect(() => {
