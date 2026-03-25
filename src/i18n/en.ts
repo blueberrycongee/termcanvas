@@ -315,9 +315,7 @@ export const en = {
 
   // Canvas empty state
   canvas_empty_title: "No projects yet",
-  canvas_empty_click: "Click",
   canvas_empty_action: "Add Project",
-  canvas_empty_suffix: "in the toolbar to get started",
 
   // Onboarding tutorial
   onboarding_dblclick_prompt: "Double-click a terminal title bar to focus it",
