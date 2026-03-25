@@ -1,4 +1,4 @@
-import { readFile, writeFile, appendFile, unlink, access } from "fs/promises";
+import { readFile, writeFile, appendFile, unlink, access, stat } from "fs/promises";
 import path from "path";
 import { TERMCANVAS_DIR } from "./state-persistence";
 import { getSupabase, getAuthUser, getDeviceId, isLoggedIn } from "./auth";
@@ -20,6 +20,9 @@ const PREFIX = "[UsageSync]";
 const SYNC_QUEUE_FILE = path.join(TERMCANVAS_DIR, "sync-queue.jsonl");
 const BACKFILL_FLAG = path.join(TERMCANVAS_DIR, "sync-backfilled");
 const BATCH_SIZE = 500;
+const RECENT_SYNC_YIELD_EVERY = 32;
+
+let recentSyncInFlight: Promise<void> | null = null;
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -73,6 +76,30 @@ interface RpcSummary {
 
 function getLocalTzOffsetMinutes(): number {
   return -new Date().getTimezoneOffset();
+}
+
+function toLocalDateString(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+async function shouldScanByMtime(
+  filePath: string,
+  localStartDate: string,
+): Promise<boolean> {
+  try {
+    const fileStat = await stat(filePath);
+    const mtimeLocalDate = toLocalDateString(fileStat.mtime);
+    return mtimeLocalDate >= localStartDate;
+  } catch {
+    return false;
+  }
 }
 
 function normalizeSyncRecord(record: SyncRecord): SyncRecord & { record_hash: string } {
@@ -326,57 +353,96 @@ export async function backfillHistory(): Promise<void> {
  * The unique constraint (user_id, device_id, record_hash) handles deduplication.
  */
 export async function syncRecentRecords(): Promise<void> {
-  if (!isLoggedIn()) return;
+  if (recentSyncInFlight) return recentSyncInFlight;
 
-  const supabase = getSupabase();
-  const user = getAuthUser();
-  if (!supabase || !user) return;
+  recentSyncInFlight = (async () => {
+    if (!isLoggedIn()) return;
 
-  const deviceId = getDeviceId();
+    const supabase = getSupabase();
+    const user = getAuthUser();
+    if (!supabase || !user) return;
 
-  // Cover last 2 days to catch any timezone edge cases
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  const fmt = (ms: number) => new Date(ms).toISOString().replace("Z", "").split(".")[0];
-  const utcStart = fmt(start.getTime());
-  const utcEnd = fmt(end.getTime());
+    const deviceId = getDeviceId();
 
-  const allRecords: UsageRecord[] = [];
+    // Cover last 2 days to catch timezone edges.
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    // Scan filter: only files modified since the local window start.
+    // This avoids parsing years of immutable history every 5 minutes.
+    const scanStartLocalDate = toLocalDateString(start);
+    const fmt = (ms: number) => new Date(ms).toISOString().replace("Z", "").split(".")[0];
+    const utcStart = fmt(start.getTime());
+    const utcEnd = fmt(end.getTime());
 
-  for (const f of findClaudeJsonlFiles()) {
-    try {
-      const { records } = parseClaudeSession(f, utcStart, utcEnd);
-      allRecords.push(...records);
-    } catch { /* skip */ }
-  }
+    const allRecords: UsageRecord[] = [];
 
-  for (const f of findCodexJsonlFiles()) {
-    try {
-      const { records } = parseCodexSession(f, utcStart, utcEnd);
-      allRecords.push(...records);
-    } catch { /* skip */ }
-  }
-
-  if (allRecords.length === 0) return;
-
-  const rows = allRecords.map((record) => mapUsageRecordToRow(user.id, deviceId, record));
-
-  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-    if (i > 0) await new Promise<void>((r) => setImmediate(r));
-
-    const batch = rows.slice(i, i + BATCH_SIZE);
-    try {
-      const { error } = await supabase.from("usage_records").upsert(batch, {
-        onConflict: "user_id,device_id,record_hash",
-        ignoreDuplicates: true,
-      });
-      if (error) {
-        console.error(PREFIX, `Incremental sync batch ${i}-${i + batch.length} failed:`, error.message);
+    const claudeFiles = findClaudeJsonlFiles();
+    for (let i = 0; i < claudeFiles.length; i++) {
+      if (i > 0 && i % RECENT_SYNC_YIELD_EVERY === 0) {
+        await yieldToEventLoop();
       }
-    } catch (err) {
-      console.error(PREFIX, `Incremental sync batch ${i}-${i + batch.length} error:`, err);
+      const filePath = claudeFiles[i];
+      if (!(await shouldScanByMtime(filePath, scanStartLocalDate))) continue;
+      try {
+        const { records } = parseClaudeSession(filePath, utcStart, utcEnd);
+        allRecords.push(...records);
+      } catch {
+        // skip unreadable files
+      }
     }
+
+    const codexFiles = findCodexJsonlFiles();
+    for (let i = 0; i < codexFiles.length; i++) {
+      if (i > 0 && i % RECENT_SYNC_YIELD_EVERY === 0) {
+        await yieldToEventLoop();
+      }
+      const filePath = codexFiles[i];
+      if (!(await shouldScanByMtime(filePath, scanStartLocalDate))) continue;
+      try {
+        const { records } = parseCodexSession(filePath, utcStart, utcEnd);
+        allRecords.push(...records);
+      } catch {
+        // skip unreadable files
+      }
+    }
+
+    if (allRecords.length === 0) return;
+
+    const rows = allRecords.map((record) =>
+      mapUsageRecordToRow(user.id, deviceId, record),
+    );
+
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      if (i > 0) await yieldToEventLoop();
+
+      const batch = rows.slice(i, i + BATCH_SIZE);
+      try {
+        const { error } = await supabase.from("usage_records").upsert(batch, {
+          onConflict: "user_id,device_id,record_hash",
+          ignoreDuplicates: true,
+        });
+        if (error) {
+          console.error(
+            PREFIX,
+            `Incremental sync batch ${i}-${i + batch.length} failed:`,
+            error.message,
+          );
+        }
+      } catch (err) {
+        console.error(
+          PREFIX,
+          `Incremental sync batch ${i}-${i + batch.length} error:`,
+          err,
+        );
+      }
+    }
+  })();
+
+  try {
+    await recentSyncInFlight;
+  } finally {
+    recentSyncInFlight = null;
   }
 }
 
