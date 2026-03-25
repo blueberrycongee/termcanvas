@@ -9,6 +9,7 @@
   "scripts": {
     "build": "node --experimental-strip-types build.ts",
     "test": "node --experimental-strip-types --test tests/**/*.test.ts",
+    "test:anti-optimistic": "node --experimental-strip-types --test tests/anti-optimistic.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
