@@ -1,3 +1,7 @@
+import type { SceneDocument } from "./scene";
+
+export * from "./scene";
+
 export type TerminalType =
   | "shell"
   | "claude"
@@ -116,9 +120,22 @@ export interface ProjectData {
 }
 
 export interface CanvasState {
+  version?: 1;
   viewport: Viewport;
   projects: ProjectData[];
+  drawings?: unknown[];
+  browserCards?: Record<string, unknown>;
 }
+
+export interface SceneCanvasState {
+  version: 2;
+  scene: SceneDocument;
+}
+
+export type PersistedCanvasState =
+  | CanvasState
+  | SceneCanvasState
+  | { skipRestore: true };
 
 // Usage statistics types
 export interface UsageBucket {
@@ -264,7 +281,7 @@ export interface TermCanvasAPI {
     onChanged: (callback: (worktreePath: string) => void) => () => void;
   };
   state: {
-    load: () => Promise<CanvasState | null>;
+    load: () => Promise<PersistedCanvasState | null>;
     save: (state: unknown) => Promise<void>;
   };
   workspace: {
@@ -326,6 +343,9 @@ export interface TermCanvasAPI {
     onBeforeClose: (callback: () => void) => () => void;
     requestClose: () => void;
     confirmClose: (options?: { installUpdate?: boolean }) => void;
+  };
+  menu: {
+    onOpenFolder: (callback: (dirPath: string) => void) => () => void;
   };
   updater: {
     check: () => Promise<unknown>;

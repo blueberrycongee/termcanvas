@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 
 import { PtyManager } from "../electron/pty-manager.ts";
 
-test("notifyThemeChanged sends SIGWINCH to the PTY child on unix platforms", () => {
+test(
+  "notifyThemeChanged sends SIGWINCH to the PTY child on unix platforms",
+  { skip: process.platform === "win32" },
+  () => {
   const manager = new PtyManager() as PtyManager & {
     instances: Map<number, { pid?: number }>;
   };
@@ -25,7 +28,8 @@ test("notifyThemeChanged sends SIGWINCH to the PTY child on unix platforms", () 
   }
 
   assert.deepEqual(calls, [{ pid: 4321, signal: "SIGWINCH" }]);
-});
+  },
+);
 
 test("notifyThemeChanged ignores unknown PTYs", () => {
   const manager = new PtyManager();

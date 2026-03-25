@@ -22,6 +22,10 @@ export async function loadFont(
 
 /** Load all downloaded fonts on app startup */
 export async function loadAllDownloadedFonts(): Promise<void> {
+  if (!window.termcanvas?.fonts) {
+    return;
+  }
+
   const fontsDir = await window.termcanvas.fonts.getPath();
   const downloaded = await window.termcanvas.fonts.listDownloaded();
   const downloadedSet = new Set(downloaded);

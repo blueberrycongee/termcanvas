@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { useWorkspaceStore } from "./workspaceStore";
+import type { AnnotationAnchor } from "../types/scene";
 
 export type DrawingTool = "select" | "pen" | "text" | "rect" | "arrow";
 
@@ -15,6 +16,7 @@ export interface DrawingStroke {
   points: StrokePoint[];
   color: string;
   size: number;
+  anchor?: AnnotationAnchor;
 }
 
 export interface DrawingText {
@@ -25,6 +27,7 @@ export interface DrawingText {
   content: string;
   color: string;
   fontSize: number;
+  anchor?: AnnotationAnchor;
 }
 
 export interface DrawingRect {
@@ -36,6 +39,7 @@ export interface DrawingRect {
   h: number;
   color: string;
   strokeWidth: number;
+  anchor?: AnnotationAnchor;
 }
 
 export interface DrawingArrow {
@@ -47,6 +51,7 @@ export interface DrawingArrow {
   y2: number;
   color: string;
   strokeWidth: number;
+  anchor?: AnnotationAnchor;
 }
 
 export type DrawingElement =

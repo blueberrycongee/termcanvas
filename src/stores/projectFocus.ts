@@ -25,6 +25,10 @@ export function getWorktreeFocusOrder(
   const worktrees: Omit<WorktreeFocusOrderItem, "index">[] = [];
 
   for (const project of projects) {
+    if (project.collapsed) {
+      continue;
+    }
+
     for (const worktree of project.worktrees) {
       worktrees.push({
         projectId: project.id,
@@ -64,7 +68,15 @@ export function normalizeProjectsFocus(
   let focusedTerminalId: string | null = null;
 
   for (const project of projects) {
+    if (project.collapsed) {
+      continue;
+    }
+
     for (const worktree of project.worktrees) {
+      if (worktree.collapsed) {
+        continue;
+      }
+
       const focusedTerminal = worktree.terminals.find((terminal) => terminal.focused);
       if (focusedTerminal) {
         focusedProjectId = project.id;

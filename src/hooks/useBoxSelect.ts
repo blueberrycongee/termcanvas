@@ -152,6 +152,18 @@ export function useBoxSelect() {
 
       const items = getItemsInRect(rect);
       setSelectedItems(items);
+      if (items.length === 1) {
+        const [item] = items;
+        if (item.type === "terminal") {
+          useProjectStore
+            .getState()
+            .setFocusedTerminal(item.terminalId, { focusComposer: false });
+        } else if (item.type === "worktree") {
+          useProjectStore
+            .getState()
+            .setFocusedWorktree(item.projectId, item.worktreeId);
+        }
+      }
       setSelectionRect(null);
 
       window.removeEventListener("mousemove", handleMove);

@@ -56,3 +56,49 @@ test("getWorktreeFocusOrder returns all worktrees in project/worktree order", ()
     ["wt-1", "wt-2", "wt-3"],
   );
 });
+
+test("getWorktreeFocusOrder skips worktrees hidden by collapsed projects", () => {
+  const projects: ProjectData[] = [
+    {
+      id: "project-1",
+      name: "Project 1",
+      path: "/tmp/project-1",
+      position: { x: 0, y: 0 },
+      collapsed: true,
+      zIndex: 1,
+      worktrees: [
+        {
+          id: "wt-hidden",
+          name: "hidden",
+          path: "/tmp/project-1-hidden",
+          position: { x: 0, y: 0 },
+          collapsed: false,
+          terminals: [],
+        },
+      ],
+    },
+    {
+      id: "project-2",
+      name: "Project 2",
+      path: "/tmp/project-2",
+      position: { x: 500, y: 0 },
+      collapsed: false,
+      zIndex: 2,
+      worktrees: [
+        {
+          id: "wt-visible",
+          name: "main",
+          path: "/tmp/project-2",
+          position: { x: 0, y: 0 },
+          collapsed: false,
+          terminals: [],
+        },
+      ],
+    },
+  ];
+
+  assert.deepEqual(
+    getWorktreeFocusOrder(projects).map((w) => w.worktreeId),
+    ["wt-visible"],
+  );
+});

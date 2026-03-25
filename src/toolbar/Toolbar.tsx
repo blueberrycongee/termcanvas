@@ -11,6 +11,7 @@ import { SettingsModal } from "../components/SettingsModal";
 import { UpdateModal } from "../components/UpdateModal";
 import { useT } from "../i18n/useT";
 import { getWorkspaceBaseName } from "../titleHelper";
+import { getCanvasRightInset } from "../canvas/viewportBounds";
 
 const noDrag = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
 const platform = window.termcanvas?.app.platform ?? "darwin";
@@ -45,6 +46,7 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
 
   const handleFitAll = useCallback(() => {
     if (projects.length === 0) return;
+    const { rightPanelCollapsed } = useCanvasStore.getState();
     const padding = 80;
     const toolbarH = 44;
     let minX = Infinity,
@@ -60,7 +62,8 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
     }
     const contentW = maxX - minX;
     const contentH = maxY - minY;
-    const viewW = window.innerWidth - padding * 2;
+    const rightOffset = getCanvasRightInset(rightPanelCollapsed);
+    const viewW = window.innerWidth - rightOffset - padding * 2;
     const viewH = window.innerHeight - toolbarH - padding * 2;
     const scale = Math.min(1, viewW / contentW, viewH / contentH);
     const x = -minX * scale + padding;

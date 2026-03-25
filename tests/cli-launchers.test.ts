@@ -31,7 +31,10 @@ test("getWindowsCliLauncherContent targets the bundled js file", () => {
   );
 });
 
-test("ensureCliLauncher creates a symlink on unix", () => {
+test(
+  "ensureCliLauncher creates a symlink on unix",
+  { skip: process.platform === "win32" },
+  () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cli-launcher-unix-"));
   const jsPath = path.join(dir, "hydra.js");
   fs.writeFileSync(jsPath, "#!/usr/bin/env node\n");
@@ -44,7 +47,8 @@ test("ensureCliLauncher creates a symlink on unix", () => {
   assert.equal(fs.readlinkSync(linkPath), "hydra.js");
 
   fs.rmSync(dir, { recursive: true, force: true });
-});
+  },
+);
 
 test("ensureCliLauncher creates a cmd shim and removes stale unix launcher on windows", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cli-launcher-win-"));

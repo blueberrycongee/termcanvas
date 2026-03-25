@@ -151,3 +151,174 @@ test("clearFocus is a no-op when nothing is focused", () => {
   assert.equal(state.focusedProjectId, null);
   assert.equal(state.focusedWorktreeId, null);
 });
+
+test("setFocusedTerminal expands a collapsed target worktree before focusing", () => {
+  const projects = createProjects();
+  projects[1].worktrees[0].collapsed = true;
+
+  useProjectStore.setState({
+    projects,
+    focusedProjectId: "project-1",
+    focusedWorktreeId: "worktree-1",
+  });
+
+  useProjectStore.getState().setFocusedTerminal("terminal-4", {
+    focusComposer: false,
+  });
+
+  const state = useProjectStore.getState();
+  const expandedWorktree = state.projects[1].worktrees[0];
+
+  assert.equal(expandedWorktree.collapsed, false);
+  assert.equal(expandedWorktree.terminals[0].focused, true);
+  assert.equal(state.focusedProjectId, "project-2");
+  assert.equal(state.focusedWorktreeId, "worktree-2");
+});
+
+test("setFocusedTerminal expands a collapsed target project before focusing", () => {
+  const projects = createProjects();
+  projects[1].collapsed = true;
+
+  useProjectStore.setState({
+    projects,
+    focusedProjectId: "project-1",
+    focusedWorktreeId: "worktree-1",
+  });
+
+  useProjectStore.getState().setFocusedTerminal("terminal-4", {
+    focusComposer: false,
+  });
+
+  const state = useProjectStore.getState();
+  const expandedProject = state.projects[1];
+
+  assert.equal(expandedProject.collapsed, false);
+  assert.equal(expandedProject.worktrees[0].terminals[0].focused, true);
+  assert.equal(state.focusedProjectId, "project-2");
+  assert.equal(state.focusedWorktreeId, "worktree-2");
+});
+
+test("setFocusedWorktree expands a collapsed target worktree", () => {
+  const projects = createProjects();
+  projects[1].worktrees[0].collapsed = true;
+
+  useProjectStore.setState({
+    projects,
+    focusedProjectId: "project-1",
+    focusedWorktreeId: "worktree-1",
+  });
+
+  useProjectStore.getState().setFocusedWorktree("project-2", "worktree-2");
+
+  const state = useProjectStore.getState();
+  assert.equal(state.projects[1].worktrees[0].collapsed, false);
+  assert.equal(state.projects[0].worktrees[0].terminals[0].focused, false);
+  assert.equal(state.focusedProjectId, "project-2");
+  assert.equal(state.focusedWorktreeId, "worktree-2");
+});
+
+test("setFocusedWorktree expands a collapsed target project", () => {
+  const projects = createProjects();
+  projects[1].collapsed = true;
+
+  useProjectStore.setState({
+    projects,
+    focusedProjectId: "project-1",
+    focusedWorktreeId: "worktree-1",
+  });
+
+  useProjectStore.getState().setFocusedWorktree("project-2", "worktree-2");
+
+  const state = useProjectStore.getState();
+  assert.equal(state.projects[1].collapsed, false);
+  assert.equal(state.projects[0].worktrees[0].terminals[0].focused, false);
+  assert.equal(state.focusedProjectId, "project-2");
+  assert.equal(state.focusedWorktreeId, "worktree-2");
+});
+
+test("setFocusedTerminal ignores unknown terminal ids", () => {
+  resetStore();
+
+  const before = useProjectStore.getState();
+
+  useProjectStore.getState().setFocusedTerminal("missing-terminal", {
+    focusComposer: false,
+  });
+
+  const state = useProjectStore.getState();
+  assert.strictEqual(state.projects, before.projects);
+  assert.equal(state.focusedProjectId, before.focusedProjectId);
+  assert.equal(state.focusedWorktreeId, before.focusedWorktreeId);
+  assert.equal(state.projects[0].worktrees[0].terminals[0].focused, true);
+});
+
+test("setFocusedWorktree ignores unknown worktree ids", () => {
+  resetStore();
+
+  const before = useProjectStore.getState();
+
+  useProjectStore.getState().setFocusedWorktree("project-1", "missing-worktree");
+
+  const state = useProjectStore.getState();
+  assert.strictEqual(state.projects, before.projects);
+  assert.equal(state.focusedProjectId, before.focusedProjectId);
+  assert.equal(state.focusedWorktreeId, before.focusedWorktreeId);
+  assert.equal(state.projects[0].worktrees[0].terminals[0].focused, true);
+});
+
+test("clearFocus clears focused terminal flags", () => {
+  resetStore();
+
+  useProjectStore.getState().clearFocus();
+
+  const state = useProjectStore.getState();
+  assert.equal(state.focusedProjectId, null);
+  assert.equal(state.focusedWorktreeId, null);
+  assert.equal(state.projects[0].worktrees[0].terminals[0].focused, false);
+});
+
+test("removeProject clears focus when the focused project is deleted", () => {
+  resetStore();
+
+  useProjectStore.getState().removeProject("project-1");
+
+  const state = useProjectStore.getState();
+  assert.equal(state.focusedProjectId, null);
+  assert.equal(state.focusedWorktreeId, null);
+  assert.equal(state.projects.some((project) => project.id === "project-1"), false);
+});
+
+test("removeWorktree clears only the deleted worktree focus", () => {
+  resetStore();
+
+  useProjectStore.getState().removeWorktree("project-1", "worktree-1");
+
+  const state = useProjectStore.getState();
+  assert.equal(state.focusedProjectId, "project-1");
+  assert.equal(state.focusedWorktreeId, null);
+  assert.equal(state.projects[0].worktrees.length, 0);
+});
+
+test("toggleProjectCollapse clears hidden terminal focus while keeping project focus", () => {
+  resetStore();
+
+  useProjectStore.getState().toggleProjectCollapse("project-1");
+
+  const state = useProjectStore.getState();
+  assert.equal(state.projects[0].collapsed, true);
+  assert.equal(state.projects[0].worktrees[0].terminals[0].focused, false);
+  assert.equal(state.focusedProjectId, "project-1");
+  assert.equal(state.focusedWorktreeId, null);
+});
+
+test("toggleWorktreeCollapse clears hidden terminal focus while keeping project focus", () => {
+  resetStore();
+
+  useProjectStore.getState().toggleWorktreeCollapse("project-1", "worktree-1");
+
+  const state = useProjectStore.getState();
+  assert.equal(state.projects[0].worktrees[0].collapsed, true);
+  assert.equal(state.projects[0].worktrees[0].terminals[0].focused, false);
+  assert.equal(state.focusedProjectId, "project-1");
+  assert.equal(state.focusedWorktreeId, null);
+});

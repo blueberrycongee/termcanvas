@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
 @import "@xterm/xterm/css/xterm.css";
 
 /* Geist Sans - Variable */
@@ -127,6 +128,25 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+}
+
+.tc-xyflow .react-flow__node {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.tc-xyflow .react-flow__viewport {
+  will-change: transform;
+}
+
+.tc-xyflow .react-flow__attribution {
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  padding: 2px 8px;
 }
 
 /* ── Terminal tile ── */
