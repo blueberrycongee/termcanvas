@@ -16,6 +16,11 @@ import { validateHandoffContract, type ResultContract } from "./protocol.ts";
 import { registerDispatchAttempt, retryTimedOutHandoff } from "./retry.ts";
 import { buildTaskPackageContext, writeTaskPackage } from "./task-package.ts";
 import {
+  buildWorkflowTemplatePlan,
+  resolveTemplateAdvance,
+  type WorkflowTemplateName,
+} from "./workflow-template.ts";
+import {
   deleteWorkflow,
   loadWorkflow,
   saveWorkflow,
@@ -29,7 +34,9 @@ export interface RunWorkflowOptions {
   task: string;
   repoPath: string;
   worktreePath?: string;
+  template?: WorkflowTemplateName;
   agentType: AgentType;
+  evaluatorType?: AgentType;
   timeoutMinutes: number;
   maxRetries: number;
   autoApprove: boolean;
@@ -212,6 +219,43 @@ function mapResultContract(result: ResultContract): NonNullable<Handoff["result"
   };
 }
 
+function resetHandoffToPending(
+  manager: HandoffManager,
+  handoffId: string,
+  now: string,
+): void {
+  const handoff = manager.load(handoffId);
+  if (!handoff) {
+    throw new HydraError(`Handoff not found: ${handoffId}`, {
+      errorCode: "WORKFLOW_HANDOFF_NOT_FOUND",
+      stage: "workflow.requeue",
+      ids: { handoff_id: handoffId },
+    });
+  }
+
+  const previousStatus = handoff.status;
+  handoff.status = "pending";
+  handoff.status_updated_at = now;
+  handoff.claim = undefined;
+  handoff.last_error = undefined;
+  handoff.result = undefined;
+  handoff.to = {
+    ...handoff.to,
+    agent_id: null,
+  };
+  if (handoff.dispatch) {
+    handoff.dispatch.active_terminal_id = null;
+  }
+  handoff.transitions = handoff.transitions ?? [];
+  handoff.transitions.push({
+    event: "requeue_handoff",
+    from: previousStatus,
+    to: "pending",
+    at: now,
+  });
+  manager.save(handoff);
+}
+
 function buildStatusView(workflow: WorkflowRecord): WorkflowStatusView {
   const manager = new HandoffManager(workflow.repo_path);
   const handoffs = workflow.handoff_ids
@@ -260,6 +304,7 @@ function resetFailedOrTimedOutHandoff(
     });
   }
 
+  const previousStatus = handoff.status;
   handoff.status = "pending";
   handoff.status_updated_at = now;
   handoff.claim = undefined;
@@ -268,7 +313,7 @@ function resetFailedOrTimedOutHandoff(
   handoff.transitions = handoff.transitions ?? [];
   handoff.transitions.push({
     event: "manual_retry",
-    from: handoff.status,
+    from: previousStatus,
     to: "pending",
     at: now,
   });
@@ -308,66 +353,61 @@ export async function runWorkflow(
   const now = nowFn(dependencies);
   const repoPath = path.resolve(options.repoPath);
   const workflowId = generateWorkflowId();
-  const handoffId = generateHandoffId();
+  const template = options.template ?? "single-step";
+  const plannedHandoffIds = template === "single-step"
+    ? [generateHandoffId()]
+    : [generateHandoffId(), generateHandoffId(), generateHandoffId()];
   const workspace = prepareWorkflowWorkspace(repoPath, workflowId, options.worktreePath);
   const manager = new HandoffManager(repoPath);
-
-  const from = {
-    role: "planner" as const,
-    agent_type: "claude" as const,
-    agent_id: "hydra-run",
-  };
-  const to = {
-    role: "implementer" as const,
-    agent_type: options.agentType,
-    agent_id: null,
-  };
-
-  const taskPackage = buildTaskPackageContext({
-    workspaceRoot: repoPath,
+  const plan = buildWorkflowTemplatePlan({
+    template,
     workflowId,
-    handoffId,
-    createdAt: now(),
-    from,
-    to,
-    task: {
-      type: workspace.ownWorktree ? "code-change-task" : "read-only-task",
-      title: options.task.slice(0, 80),
-      description: options.task,
-      acceptance_criteria: [
-        "Write result.json and done",
-        "Provide evidence for the outcome",
-      ],
-    },
-    context: {
-      files: [],
-      previous_handoffs: [],
-      shared_state: {
-        worktree_path: workspace.worktreePath,
-        branch: workspace.branch,
-        base_branch: workspace.baseBranch,
-      },
-    },
+    task: options.task,
+    implementerAgentType: options.agentType,
+    evaluatorAgentType: options.evaluatorType ?? "claude",
+    repoPath,
+    handoffIds: plannedHandoffIds,
   });
-  writeTaskPackage(taskPackage.contract);
 
-  const createdHandoff = manager.create({
-    id: handoffId,
-    workflow_id: workflowId,
-    workspace_root: repoPath,
-    worktree_path: workspace.worktreePath,
-    from,
-    to,
-    task: taskPackage.contract.task,
-    context: taskPackage.contract.context,
-    artifacts: taskPackage.contract.artifacts,
-    timeout_minutes: options.timeoutMinutes,
-    max_retries: options.maxRetries,
+  const createdHandoffs = plan.handoffs.map((handoffPlan) => {
+    const taskPackage = buildTaskPackageContext({
+      workspaceRoot: repoPath,
+      workflowId,
+      handoffId: handoffPlan.id,
+      createdAt: now(),
+      from: handoffPlan.from,
+      to: handoffPlan.to,
+      task: handoffPlan.task,
+      context: {
+        ...handoffPlan.context,
+        shared_state: {
+          ...handoffPlan.context.shared_state,
+          worktree_path: workspace.worktreePath,
+          branch: workspace.branch,
+          base_branch: workspace.baseBranch,
+        },
+      },
+    });
+    writeTaskPackage(taskPackage.contract);
+
+    return manager.create({
+      id: handoffPlan.id,
+      workflow_id: workflowId,
+      workspace_root: repoPath,
+      worktree_path: workspace.worktreePath,
+      from: handoffPlan.from,
+      to: handoffPlan.to,
+      task: taskPackage.contract.task,
+      context: taskPackage.contract.context,
+      artifacts: taskPackage.contract.artifacts,
+      timeout_minutes: options.timeoutMinutes,
+      max_retries: options.maxRetries,
+    });
   });
 
   const workflow: WorkflowRecord = {
     id: workflowId,
-    template: "single-step",
+    template,
     task: options.task,
     repo_path: repoPath,
     worktree_path: workspace.worktreePath,
@@ -378,8 +418,8 @@ export async function runWorkflow(
     created_at: now(),
     updated_at: now(),
     status: "pending",
-    current_handoff_id: createdHandoff.id,
-    handoff_ids: [createdHandoff.id],
+    current_handoff_id: plan.startHandoffId,
+    handoff_ids: createdHandoffs.map((handoff) => handoff.id),
     timeout_minutes: options.timeoutMinutes,
     max_retries: options.maxRetries,
     auto_approve: options.autoApprove,
@@ -421,19 +461,55 @@ export async function tickWorkflow(
     if (collected.status === "completed") {
       await stateMachine.markCompleted(handoff.id, mapResultContract(collected.result));
       workflow.updated_at = now();
-      workflow.result = collected.result;
-      if (collected.result.success) {
+      const decision = resolveTemplateAdvance(
+        workflow.template as WorkflowTemplateName,
+        workflow.handoff_ids,
+        handoff.id,
+        collected.result,
+      );
+      if (decision.outcome === "complete") {
+        workflow.result = collected.result;
         workflow.status = "completed";
         workflow.failure = undefined;
-      } else {
-        workflow.status = "failed";
-        workflow.failure = {
-          code: "WORKFLOW_RESULT_UNSUCCESSFUL",
-          message: collected.result.summary,
-          stage: "workflow.collect",
-        };
+        saveWorkflow(workflow);
+        return buildStatusView(workflow);
       }
-      saveWorkflow(workflow);
+      if (decision.outcome === "advance" && decision.nextHandoffId) {
+        workflow.current_handoff_id = decision.nextHandoffId;
+        workflow.status = "running";
+        workflow.failure = undefined;
+        saveWorkflow(workflow);
+        const nextHandoff = loadHandoffOrThrow(manager, workflow);
+        await dispatchPendingHandoff(workflow, nextHandoff, dependencies);
+        workflow.updated_at = now();
+        saveWorkflow(workflow);
+        return buildStatusView(workflow);
+      }
+      if (decision.outcome === "loop" && decision.nextHandoffId && decision.requeueHandoffIds) {
+        for (const requeueHandoffId of decision.requeueHandoffIds) {
+          resetHandoffToPending(manager, requeueHandoffId, now());
+        }
+        workflow.current_handoff_id = decision.nextHandoffId;
+        workflow.status = "running";
+        workflow.failure = undefined;
+        workflow.result = undefined;
+        saveWorkflow(workflow);
+        const nextHandoff = loadHandoffOrThrow(manager, workflow);
+        await dispatchPendingHandoff(workflow, nextHandoff, dependencies);
+        workflow.updated_at = now();
+        saveWorkflow(workflow);
+        return buildStatusView(workflow);
+      }
+
+      saveWorkflowFailure(
+        workflow,
+        decision.failure ?? {
+          code: "WORKFLOW_TEMPLATE_FAILED",
+          message: collected.result.summary,
+          stage: "workflow.template",
+        },
+        now(),
+      );
       return buildStatusView(workflow);
     }
 

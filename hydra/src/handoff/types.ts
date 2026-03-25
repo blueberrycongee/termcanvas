@@ -36,6 +36,7 @@ export interface TaskDefinition {
   description: string;
   acceptance_criteria: string[];
   constraints?: Record<string, any>;
+  skills?: string[];
 }
 
 export interface HandoffContext {
@@ -59,7 +60,8 @@ export interface HandoffTransition {
     | "mark_timed_out"
     | "schedule_retry"
     | "retry_exhausted"
-    | "manual_retry";
+    | "manual_retry"
+    | "requeue_handoff";
   from: HandoffStatus;
   to: HandoffStatus;
   at: string;

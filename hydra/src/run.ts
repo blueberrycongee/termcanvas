@@ -5,7 +5,9 @@ export interface RunArgs {
   task: string;
   repo: string;
   worktree?: string;
+  template: "single-step" | "planner-implementer-evaluator";
   type: "claude" | "codex" | "kimi" | "gemini";
+  evaluatorType: "claude" | "codex" | "kimi" | "gemini";
   timeoutMinutes: number;
   maxRetries: number;
   autoApprove: boolean;
@@ -18,7 +20,9 @@ function printRunUsage(): never {
   console.log("  --task <desc>            Task description (required)");
   console.log("  --repo <path>            Path to the git repository (required)");
   console.log("  --worktree <path>        Use an existing worktree");
+  console.log("  --template <name>       Workflow template: single-step | planner-implementer-evaluator");
   console.log("  --type <type>            Agent type: claude, codex, kimi, gemini (default: codex)");
+  console.log("  --evaluator-type <type>  Evaluator agent type (default: claude)");
   console.log("  --timeout-minutes <num>  Per-handoff timeout in minutes (default: 30)");
   console.log("  --max-retries <num>      Automatic retry limit (default: 1)");
   console.log("  --auto-approve           Run sub-agent in auto-approve mode");
@@ -31,7 +35,9 @@ export function parseRunArgs(args: string[]): RunArgs {
   }
 
   const result: Partial<RunArgs> = {
+    template: "single-step",
     type: "codex",
+    evaluatorType: "claude",
     timeoutMinutes: 30,
     maxRetries: 1,
     autoApprove: false,
@@ -45,8 +51,12 @@ export function parseRunArgs(args: string[]): RunArgs {
       result.repo = args[++i];
     } else if (arg === "--worktree" && i + 1 < args.length) {
       result.worktree = args[++i];
+    } else if (arg === "--template" && i + 1 < args.length) {
+      result.template = args[++i] as RunArgs["template"];
     } else if (arg === "--type" && i + 1 < args.length) {
       result.type = args[++i] as RunArgs["type"];
+    } else if (arg === "--evaluator-type" && i + 1 < args.length) {
+      result.evaluatorType = args[++i] as RunArgs["evaluatorType"];
     } else if (arg === "--timeout-minutes" && i + 1 < args.length) {
       result.timeoutMinutes = Number.parseInt(args[++i], 10);
     } else if (arg === "--max-retries" && i + 1 < args.length) {
@@ -74,7 +84,9 @@ export async function run(args: string[]): Promise<void> {
     task: parsed.task,
     repoPath: path.resolve(parsed.repo),
     worktreePath: parsed.worktree ? path.resolve(parsed.worktree) : undefined,
+    template: parsed.template,
     agentType: parsed.type,
+    evaluatorType: parsed.evaluatorType,
     timeoutMinutes: parsed.timeoutMinutes,
     maxRetries: parsed.maxRetries,
     autoApprove: parsed.autoApprove,
