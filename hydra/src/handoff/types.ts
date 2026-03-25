@@ -72,6 +72,23 @@ export interface HandoffError {
   at: string;
 }
 
+export interface HandoffDispatchAttempt {
+  attempt: number;
+  terminal_id: string;
+  agent_type: AgentType;
+  prompt: string;
+  started_at: string;
+  retry_of?: string;
+  timed_out_at?: string;
+  completed_at?: string;
+  failed_at?: string;
+}
+
+export interface HandoffDispatchState {
+  active_terminal_id: string | null;
+  attempts: HandoffDispatchAttempt[];
+}
+
 export interface Handoff {
   // 元信息
   id: string;
@@ -97,6 +114,7 @@ export interface Handoff {
   claim?: HandoffClaim;
   transitions?: HandoffTransition[];
   last_error?: HandoffError;
+  dispatch?: HandoffDispatchState;
 
   // 结果（完成后填充）
   result?: {
