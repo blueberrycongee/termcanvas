@@ -237,4 +237,11 @@ contextBridge.exposeInMainWorld("termcanvas", {
       return () => ipcRenderer.removeListener("updater:error", listener);
     },
   },
+  menu: {
+    onOpenFolder: (callback: (dirPath: string) => void) => {
+      const listener = (_e: Electron.IpcRendererEvent, dirPath: string) => callback(dirPath);
+      ipcRenderer.on("menu:open-folder", listener);
+      return () => ipcRenderer.removeListener("menu:open-folder", listener);
+    },
+  },
 });

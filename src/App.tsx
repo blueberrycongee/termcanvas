@@ -3,6 +3,7 @@ import { Canvas } from "./canvas/Canvas";
 import { Toolbar } from "./toolbar/Toolbar";
 import { NotificationToast } from "./components/NotificationToast";
 import { Hub } from "./components/Hub";
+import { LeftPanel } from "./components/LeftPanel";
 import { initUpdaterListeners, useUpdaterStore } from "./stores/updaterStore";
 import { ComposerBar } from "./components/ComposerBar";
 import { usePreferencesStore } from "./stores/preferencesStore";
@@ -410,6 +411,47 @@ export function App() {
   // Wire IPC updater events into the zustand store (once)
   useEffect(() => initUpdaterListeners(), []);
 
+  // Listen for menu events
+  useEffect(() => {
+    if (!window.termcanvas?.menu) return;
+    return window.termcanvas.menu.onOpenFolder(async (dirPath) => {
+      const { notify } = useNotificationStore.getState();
+      try {
+        const info = await window.termcanvas.project.scan(dirPath);
+        if (!info) {
+          notify("error", t.error_scan("Failed to scan directory"));
+          return;
+        }
+        const { projects, addProject } = useProjectStore.getState();
+        const { getProjectBounds, generateId } = await import("./stores/projectStore");
+        let placeX = 0;
+        const gap = 80;
+        for (const p of projects) {
+          const bounds = getProjectBounds(p);
+          placeX = Math.max(placeX, bounds.x + bounds.w + gap);
+        }
+        addProject({
+          id: generateId(),
+          name: info.name,
+          path: info.path,
+          position: { x: placeX, y: 0 },
+          collapsed: false,
+          zIndex: 0,
+          worktrees: info.worktrees.map((wt, i) => ({
+            id: generateId(),
+            name: wt.branch,
+            path: wt.path,
+            position: { x: 0, y: i * 360 },
+            collapsed: false,
+            terminals: [],
+          })),
+        });
+      } catch (err) {
+        notify("error", t.error_scan(err));
+      }
+    });
+  }, [t]);
+
   // Load downloaded fonts on startup
   useEffect(() => {
     loadAllDownloadedFonts();
@@ -542,6 +584,7 @@ export function App() {
     <div className="h-screen w-screen overflow-hidden bg-[var(--bg)] text-[var(--text-primary)]">
       <Toolbar onShowTutorial={() => setShowWelcome(true)} />
       <Hub />
+      <LeftPanel />
       <Canvas />
       {drawingEnabled && <DrawingPanel />}
       <CompletionGlow />

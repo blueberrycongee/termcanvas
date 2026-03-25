@@ -37,6 +37,7 @@ import { toFileUrl } from "./file-url";
 import { queryCloudUsage, queryCloudHeatmap, backfillHistory, flushSyncQueue, syncRecentRecords } from "./usage-sync";
 import type { ComposerSubmitRequest } from "../src/types";
 import { getProjectDiff } from "./git-diff";
+import { createMenu } from "./menu";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -145,6 +146,9 @@ function createWindow() {
     mainWindow = null;
     rendererReady = false;
   });
+
+  // Create application menu
+  createMenu(mainWindow);
 
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
