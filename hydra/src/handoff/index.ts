@@ -3,6 +3,7 @@
  */
 
 export { HandoffManager } from "./manager.ts";
+export { HandoffStateMachine } from "./state-machine.ts";
 export type {
   Handoff,
   HandoffStatus,
@@ -11,4 +12,7 @@ export type {
   AgentInfo,
   TaskDefinition,
   HandoffContext,
+  HandoffClaim,
+  HandoffTransition,
+  HandoffError,
 } from "./types.ts";

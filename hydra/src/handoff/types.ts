@@ -16,8 +16,10 @@ export type AgentType = "claude" | "codex" | "kimi" | "gemini";
 
 export type HandoffStatus =
   | "pending"    // 等待处理
+  | "claimed"    // 已被某个 tick 占位，避免重复派发
   | "in_progress" // 正在处理
   | "completed"  // 已完成
+  | "timed_out"  // 超时，可重试
   | "failed";    // 失败
 
 export interface AgentInfo {
@@ -41,6 +43,35 @@ export interface HandoffContext {
   shared_state?: Record<string, any>;
 }
 
+export interface HandoffClaim {
+  tick_id: string;
+  claimed_at: string;
+}
+
+export interface HandoffTransition {
+  event:
+    | "claim_pending"
+    | "mark_in_progress"
+    | "mark_completed"
+    | "mark_failed"
+    | "mark_timed_out"
+    | "schedule_retry"
+    | "retry_exhausted";
+  from: HandoffStatus;
+  to: HandoffStatus;
+  at: string;
+  tick_id?: string;
+  agent_id?: string;
+}
+
+export interface HandoffError {
+  code: string;
+  message: string;
+  stage: string;
+  retryable: boolean;
+  at: string;
+}
+
 export interface Handoff {
   // 元信息
   id: string;
@@ -59,9 +90,13 @@ export interface Handoff {
 
   // 控制
   status: HandoffStatus;
+  status_updated_at?: string;
   timeout_minutes?: number;
   retry_count: number;
   max_retries: number;
+  claim?: HandoffClaim;
+  transitions?: HandoffTransition[];
+  last_error?: HandoffError;
 
   // 结果（完成后填充）
   result?: {
