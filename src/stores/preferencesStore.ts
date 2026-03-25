@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import type { TerminalType } from "../types/index.ts";
+import type { TerminalBackend, TerminalType } from "../types/index.ts";
+import { resolveTerminalBackendPreference } from "../terminal/backend.ts";
 
 const DEFAULT_BLUR = 0;
 const DEFAULT_FONT_SIZE = 13;
@@ -14,6 +15,8 @@ export interface CliCommandConfig {
 interface PreferencesStore {
   /** Blur intensity in px (0 = off, max 3) */
   animationBlur: number;
+  /** Terminal renderer backend. Ghostty is the default; xterm is compatibility mode. */
+  terminalBackend: TerminalBackend;
   /** Terminal font size in px (6–24) */
   terminalFontSize: number;
   /** Terminal font ID from fontRegistry */
@@ -29,6 +32,7 @@ interface PreferencesStore {
   /** Per-terminal-type CLI command overrides */
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
   setAnimationBlur: (value: number) => void;
+  setTerminalBackend: (value: TerminalBackend) => void;
   setMinimumContrastRatio: (value: number) => void;
   setTerminalFontSize: (value: number) => void;
   setTerminalFontFamily: (fontId: string) => void;
@@ -40,7 +44,7 @@ interface PreferencesStore {
 
 const STORAGE_KEY = "termcanvas-preferences";
 
-function loadPreferences(): { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; browserEnabled: boolean; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> } {
+function loadPreferences(): { animationBlur: number; terminalBackend: TerminalBackend; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; browserEnabled: boolean; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> } {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -50,6 +54,8 @@ function loadPreferences(): { animationBlur: number; terminalFontSize: number; t
       if (v === true) blur = LEGACY_ENABLED_BLUR;
       else if (v === false) blur = 0;
       else if (typeof v === "number" && v >= 0 && v <= 3) blur = v;
+
+      const terminalBackend = resolveTerminalBackendPreference(parsed);
 
       let fontSize = DEFAULT_FONT_SIZE;
       const f = parsed.terminalFontSize;
@@ -81,15 +87,15 @@ function loadPreferences(): { animationBlur: number; terminalFontSize: number; t
         }
       }
 
-      return { animationBlur: blur, terminalFontSize: fontSize, terminalFontFamily: fontFamily, composerEnabled, drawingEnabled, browserEnabled, minimumContrastRatio, cliCommands };
+      return { animationBlur: blur, terminalBackend, terminalFontSize: fontSize, terminalFontFamily: fontFamily, composerEnabled, drawingEnabled, browserEnabled, minimumContrastRatio, cliCommands };
     }
   } catch {
     // ignore
   }
-  return { animationBlur: DEFAULT_BLUR, terminalFontSize: DEFAULT_FONT_SIZE, terminalFontFamily: "geist-mono", composerEnabled: false, drawingEnabled: false, browserEnabled: false, minimumContrastRatio: DEFAULT_MIN_CONTRAST, cliCommands: {} };
+  return { animationBlur: DEFAULT_BLUR, terminalBackend: "ghostty", terminalFontSize: DEFAULT_FONT_SIZE, terminalFontFamily: "geist-mono", composerEnabled: false, drawingEnabled: false, browserEnabled: false, minimumContrastRatio: DEFAULT_MIN_CONTRAST, cliCommands: {} };
 }
 
-function savePreferences(state: { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; browserEnabled: boolean; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> }) {
+function savePreferences(state: { animationBlur: number; terminalBackend: TerminalBackend; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; browserEnabled: boolean; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> }) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
@@ -97,6 +103,7 @@ const initialPrefs = loadPreferences();
 
 export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   animationBlur: initialPrefs.animationBlur,
+  terminalBackend: initialPrefs.terminalBackend,
   terminalFontSize: initialPrefs.terminalFontSize,
   terminalFontFamily: initialPrefs.terminalFontFamily,
   composerEnabled: initialPrefs.composerEnabled,
@@ -108,6 +115,10 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
     const clamped = Math.round(Math.max(0, Math.min(3, value)) * 10) / 10;
     set({ animationBlur: clamped });
     savePreferences({ ...get(), animationBlur: clamped });
+  },
+  setTerminalBackend: (value) => {
+    set({ terminalBackend: value });
+    savePreferences({ ...get(), terminalBackend: value });
   },
   setMinimumContrastRatio: (value) => {
     const clamped = Math.round(Math.max(1, Math.min(7, value)) * 10) / 10;

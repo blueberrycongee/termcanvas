@@ -8,6 +8,8 @@ export type TerminalType =
   | "lazygit"
   | "tmux";
 
+export type TerminalBackend = "ghostty" | "xterm";
+
 export interface Position {
   x: number;
   y: number;

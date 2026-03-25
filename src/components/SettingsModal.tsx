@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocaleStore } from "../stores/localeStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
-import type { TerminalType } from "../types";
+import type { TerminalBackend, TerminalType } from "../types";
 import {
   useShortcutStore,
   formatShortcut,
@@ -195,6 +195,8 @@ export function SettingsModal({ onClose }: Props) {
   const {
     animationBlur,
     setAnimationBlur,
+    terminalBackend,
+    setTerminalBackend,
     terminalFontSize,
     setTerminalFontSize,
     terminalFontFamily,
@@ -292,6 +294,23 @@ export function SettingsModal({ onClose }: Props) {
         : "text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]"
     }`;
 
+  const backendOptions: Array<{
+    value: TerminalBackend;
+    label: string;
+    description: string;
+  }> = [
+    {
+      value: "ghostty",
+      label: t.terminal_backend_ghostty,
+      description: t.terminal_backend_ghostty_desc,
+    },
+    {
+      value: "xterm",
+      label: t.terminal_backend_xterm,
+      description: t.terminal_backend_xterm_desc,
+    },
+  ];
+
   return (
     <div
       ref={backdropRef}
@@ -363,6 +382,49 @@ export function SettingsModal({ onClose }: Props) {
                   >
                     English
                   </button>
+                </div>
+              </div>
+
+              {/* Terminal backend */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[13px] text-[var(--text-secondary)]">
+                    {t.terminal_backend}
+                  </span>
+                  <span className="text-[11px] text-[var(--text-muted)]">
+                    {t.terminal_backend_desc}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1 rounded-md border border-[var(--border)] p-1">
+                  {backendOptions.map((option) => {
+                    const isSelected = terminalBackend === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        className={`flex items-start justify-between gap-3 rounded-md px-3 py-2 text-left transition-colors duration-100 ${
+                          isSelected
+                            ? "bg-[var(--accent)]/15 text-[var(--text-primary)]"
+                            : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
+                        }`}
+                        onClick={() => setTerminalBackend(option.value)}
+                      >
+                        <div className="min-w-0">
+                          <div className="text-[13px]">{option.label}</div>
+                          <div className="text-[11px] text-[var(--text-muted)]">
+                            {option.description}
+                          </div>
+                        </div>
+                        <span
+                          className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border ${
+                            isSelected
+                              ? "border-[var(--accent)] bg-[var(--accent)]"
+                              : "border-[var(--border)]"
+                          }`}
+                          aria-hidden="true"
+                        />
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

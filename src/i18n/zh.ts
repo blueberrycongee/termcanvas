@@ -133,6 +133,13 @@ export const zh = {
   settings_version: "版本",
   theme_dark: "深色",
   theme_light: "浅色",
+  terminal_backend: "终端后端",
+  terminal_backend_desc:
+    "Ghostty Web 是默认渲染器；如果遇到聚焦、输入或渲染问题，可切换到兼容模式 xterm。",
+  terminal_backend_ghostty: "Ghostty Web（推荐）",
+  terminal_backend_ghostty_desc: "默认终端渲染器，使用新的 Ghostty Web 终端栈。",
+  terminal_backend_xterm: "旧版 xterm（兼容模式）",
+  terminal_backend_xterm_desc: "来自 main 的回退渲染器，用于兼容性和稳定性排查。",
   terminal_font_size: "终端字体大小",
   terminal_font: "终端字体",
   font_builtin: "内置",

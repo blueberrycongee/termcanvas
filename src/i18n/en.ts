@@ -135,6 +135,15 @@ export const en = {
   settings_version: "Version",
   theme_dark: "Dark",
   theme_light: "Light",
+  terminal_backend: "Terminal backend",
+  terminal_backend_desc:
+    "Ghostty Web is the default renderer. Switch to Legacy xterm if you hit focus, input, or rendering issues.",
+  terminal_backend_ghostty: "Ghostty Web (Recommended)",
+  terminal_backend_ghostty_desc:
+    "Default renderer with the new Ghostty Web terminal stack.",
+  terminal_backend_xterm: "Legacy xterm (Compatibility)",
+  terminal_backend_xterm_desc:
+    "Fallback renderer from main for compatibility and stability debugging.",
   terminal_font_size: "Terminal font size",
   terminal_font: "Terminal font",
   font_builtin: "Built-in",

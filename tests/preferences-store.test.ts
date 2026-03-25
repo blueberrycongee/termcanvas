@@ -74,10 +74,31 @@ test("preferences stores and retrieves cliCommands", async () => {
   assert.deepEqual(usePreferencesStore.getState().cliCommands, {});
 });
 
-test("preferences ignore the removed terminalRenderer field", async () => {
+test("preferences migrate the legacy terminalRenderer field", async () => {
   installLocalStorage(JSON.stringify({ terminalRenderer: "xterm" }));
 
   const { usePreferencesStore } = await loadPreferencesStoreModule("terminal-renderer-removed");
 
-  assert.equal(usePreferencesStore.getState().terminalFontFamily, "geist-mono");
+  assert.equal(usePreferencesStore.getState().terminalBackend, "xterm");
+});
+
+test("preferences default terminal backend is ghostty", async () => {
+  installLocalStorage();
+
+  const { usePreferencesStore } = await loadPreferencesStoreModule("terminal-backend-default");
+
+  assert.equal(usePreferencesStore.getState().terminalBackend, "ghostty");
+});
+
+test("preferences stores and retrieves the terminal backend", async () => {
+  installLocalStorage();
+
+  const { usePreferencesStore } = await loadPreferencesStoreModule("terminal-backend-store");
+  const store = usePreferencesStore.getState();
+
+  store.setTerminalBackend("xterm");
+  assert.equal(usePreferencesStore.getState().terminalBackend, "xterm");
+
+  const raw = JSON.parse(localStorage.getItem("termcanvas-preferences")!);
+  assert.equal(raw.terminalBackend, "xterm");
 });
