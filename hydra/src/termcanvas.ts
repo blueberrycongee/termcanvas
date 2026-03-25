@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { HydraError } from "./errors.ts";
 
 const PORT_FILE = path.join(os.homedir(), ".termcanvas", "port");
 
@@ -18,7 +19,14 @@ export function parseJsonOrDie(stdout: string): any {
   try {
     return JSON.parse(stdout);
   } catch {
-    throw new Error(`Failed to parse TermCanvas response: ${stdout.slice(0, 200)}`);
+    throw new HydraError(
+      `Failed to parse TermCanvas response: ${stdout.slice(0, 200)}`,
+      {
+        errorCode: "TERMCANVAS_INVALID_JSON",
+        stage: "termcanvas.parse_json",
+        ids: {},
+      },
+    );
   }
 }
 
@@ -53,7 +61,13 @@ function runTermcanvasJson(args: string[], timeout: number): any {
     // execFileSync puts stderr in err.stderr — surface it instead of the
     // generic "Command failed: ..." wrapper from Node.
     const detail = (err.stderr as string)?.trim() || err.message;
-    throw new Error(`termcanvas ${args.slice(0, 2).join(" ")} failed: ${detail}`);
+    throw new HydraError(`termcanvas ${args.slice(0, 2).join(" ")} failed: ${detail}`, {
+      errorCode: "TERMCANVAS_COMMAND_FAILED",
+      stage: "termcanvas.exec",
+      ids: {
+        command: args.slice(0, 2).join("."),
+      },
+    });
   }
   return parseJsonOrDie(stdout);
 }

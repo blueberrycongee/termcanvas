@@ -1,3 +1,5 @@
+import { HydraError, writeFailureLog } from "./errors.ts";
+
 const args = process.argv.slice(2);
 const [command, ...rest] = args;
 
@@ -39,13 +41,30 @@ async function main() {
       printUsage();
       process.exit(0);
     default:
-      console.error(`Unknown command: ${command}\n`);
+      writeFailureLog(
+        new HydraError(`Unknown command: ${command}`, {
+          errorCode: "CLI_UNKNOWN_COMMAND",
+          stage: "cli.dispatch",
+          ids: { command },
+        }),
+        {
+          errorCode: "CLI_UNKNOWN_COMMAND",
+          stage: "cli.dispatch",
+          ids: { command },
+        },
+      );
       printUsage();
       process.exit(1);
   }
 }
 
 main().catch((err) => {
-  console.error(err.message ?? err);
+  writeFailureLog(err, {
+    errorCode: "CLI_COMMAND_FAILED",
+    stage: command ? `cli.${command}` : "cli.entrypoint",
+    ids: {
+      command,
+    },
+  });
   process.exit(1);
 });

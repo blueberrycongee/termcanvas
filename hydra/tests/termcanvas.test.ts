@@ -13,7 +13,17 @@ test("parseJsonOrDie parses valid JSON", () => {
 });
 
 test("parseJsonOrDie throws on invalid JSON", () => {
-  assert.throws(() => parseJsonOrDie("not json"), /Failed to parse/);
+  assert.throws(
+    () => parseJsonOrDie("not json"),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /Failed to parse/);
+      assert.equal((error as Error & { errorCode?: string }).errorCode, "TERMCANVAS_INVALID_JSON");
+      assert.equal((error as Error & { stage?: string }).stage, "termcanvas.parse_json");
+      assert.deepStrictEqual((error as Error & { ids?: Record<string, string> }).ids, {});
+      return true;
+    },
+  );
 });
 
 test("buildTermcanvasArgs builds correct args", () => {
