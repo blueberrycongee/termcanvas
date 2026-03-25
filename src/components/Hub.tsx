@@ -2,6 +2,7 @@ import { useCanvasStore, type FocusLevel, COLLAPSED_TAB_WIDTH } from "../stores/
 import { useProjectStore } from "../stores/projectStore";
 import { useShortcutStore, formatShortcut } from "../stores/shortcutStore";
 import { getWorktreeFocusOrder, getTerminalFocusOrder } from "../stores/projectFocus";
+import { panToTerminal } from "../utils/panToTerminal";
 import { panToWorktree } from "../utils/panToWorktree";
 import { useT } from "../i18n/useT";
 import { useState, useCallback, useEffect, useRef } from "react";
@@ -28,7 +29,7 @@ interface FocusTarget {
 
 export function Hub() {
   const { focusLevel, leftPanelCollapsed, leftPanelWidth } = useCanvasStore();
-  const { projects, focusedWorktreeId, setFocusedTerminal, setFocusedWorktree } =
+  const { projects, focusedWorktreeId, setFocusedWorktree } =
     useProjectStore();
   const { shortcuts } = useShortcutStore();
   const t = useT();
@@ -100,13 +101,13 @@ export function Hub() {
     (target: FocusTarget) => {
       setExpanded(false);
       if (target.terminalId) {
-        setFocusedTerminal(target.terminalId);
+        panToTerminal(target.terminalId);
       } else {
         setFocusedWorktree(target.projectId, target.worktreeId);
         panToWorktree(target.projectId, target.worktreeId);
       }
     },
-    [setFocusedTerminal, setFocusedWorktree],
+    [setFocusedWorktree],
   );
 
   // Keyboard nav when expanded

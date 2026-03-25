@@ -89,3 +89,25 @@ test("normalizeProjectsFocus reduces multiple focused terminals to one canonical
     [[true], [false]],
   );
 });
+
+test("normalizeProjectsFocus ignores focused terminals hidden by a collapsed worktree", () => {
+  const projects = createProjects();
+  projects[0].worktrees[1].collapsed = true;
+
+  const normalized = normalizeProjectsFocus(projects);
+
+  assert.equal(normalized.focusedProjectId, null);
+  assert.equal(normalized.focusedWorktreeId, null);
+  assert.equal(normalized.projects[0].worktrees[1].terminals[0].focused, false);
+});
+
+test("normalizeProjectsFocus ignores focused terminals hidden by a collapsed project", () => {
+  const projects = createProjects();
+  projects[0].collapsed = true;
+
+  const normalized = normalizeProjectsFocus(projects);
+
+  assert.equal(normalized.focusedProjectId, null);
+  assert.equal(normalized.focusedWorktreeId, null);
+  assert.equal(normalized.projects[0].worktrees[1].terminals[0].focused, false);
+});

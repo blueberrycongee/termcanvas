@@ -5,7 +5,7 @@ import {
   generateId,
   getProjectBounds,
 } from "../stores/projectStore";
-import { useCanvasStore, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
+import { useCanvasStore } from "../stores/canvasStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { useSelectionStore, type SelectedItem } from "../stores/selectionStore";
 import {
@@ -28,7 +28,9 @@ import {
 import { shouldIgnoreShortcutTarget } from "./shortcutTarget";
 import { snapshotState } from "../snapshotState";
 import { updateWindowTitle } from "../titleHelper";
+import { panToTerminal } from "../utils/panToTerminal";
 import { panToWorktree } from "../utils/panToWorktree";
+import { getCanvasRightInset } from "../canvas/viewportBounds";
 
 function getAllTerminals() {
   const { projects } = useProjectStore.getState();
@@ -73,51 +75,13 @@ function getFocusedWorktreeIndex(
   return list.findIndex((item) => item.worktreeId === focusedWorktreeId);
 }
 
-function zoomToTerminal(
-  projectId: string,
-  worktreeId: string,
-  terminalId: string,
-) {
-  const { projects } = useProjectStore.getState();
-  const project = projects.find((p) => p.id === projectId);
-  if (!project) return;
-  const worktree = project.worktrees.find((w) => w.id === worktreeId);
-  if (!worktree) return;
-  const terminalIndex = worktree.terminals.findIndex(
-    (t) => t.id === terminalId,
-  );
-  if (terminalIndex === -1) return;
-
-  const packed = packTerminals(worktree.terminals.map((t) => t.span));
-  const item = packed[terminalIndex];
-  if (!item) return;
-
-  const absX =
-    project.position.x + PROJ_PAD + worktree.position.x + WT_PAD + item.x;
-  const absY =
-    project.position.y +
-    PROJ_TITLE_H +
-    PROJ_PAD +
-    worktree.position.y +
-    WT_TITLE_H +
-    WT_PAD +
-    item.y;
-
-  const { rightPanelCollapsed } = useCanvasStore.getState();
-  const rightOffset = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH;
-  const padding = 60;
-  const viewW = window.innerWidth - rightOffset - padding * 2;
-  const viewH = window.innerHeight - padding * 2;
-  const scale = Math.min(viewW / item.w, viewH / item.h) * 0.85;
-
-  const centerX = -(absX + item.w / 2) * scale + (window.innerWidth - rightOffset) / 2;
-  const centerY = -(absY + item.h / 2) * scale + window.innerHeight / 2;
-
-  useCanvasStore.getState().animateTo(centerX, centerY, scale);
+function zoomToTerminal(terminalId: string) {
+  panToTerminal(terminalId);
 }
 
 function zoomToFitAll() {
   const { projects } = useProjectStore.getState();
+  const { rightPanelCollapsed } = useCanvasStore.getState();
   if (projects.length === 0) return;
   const padding = 80;
   const toolbarH = 44;
@@ -134,7 +98,8 @@ function zoomToFitAll() {
   }
   const contentW = maxX - minX;
   const contentH = maxY - minY;
-  const viewW = window.innerWidth - padding * 2;
+  const rightOffset = getCanvasRightInset(rightPanelCollapsed);
+  const viewW = window.innerWidth - rightOffset - padding * 2;
   const viewH = window.innerHeight - toolbarH - padding * 2;
   const scale = Math.min(1, viewW / contentW, viewH / contentH);
   const x = -minX * scale + padding;
@@ -216,7 +181,7 @@ async function handleAddProject(t: ReturnType<typeof useT>) {
 
   const { viewport: { scale }, rightPanelCollapsed } =
     useCanvasStore.getState();
-  const rightOffset = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH;
+  const rightOffset = getCanvasRightInset(rightPanelCollapsed);
   const screenCenterX = (window.innerWidth - rightOffset) / 2;
   const screenCenterY = window.innerHeight / 2;
   const targetX =
@@ -265,13 +230,14 @@ export function useKeyboardShortcuts() {
             terminalId: focused.terminalId,
           };
           useProjectStore.getState().clearFocus();
+          useSelectionStore.getState().clearSelection();
           zoomToFitAll();
         } else if (lastFocusedRef.current) {
           // Not focused, has history → restore last focused terminal
           const { projectId, worktreeId, terminalId } =
             lastFocusedRef.current;
           useProjectStore.getState().setFocusedTerminal(terminalId);
-          zoomToTerminal(projectId, worktreeId, terminalId);
+          zoomToTerminal(terminalId);
         } else if (list.length > 0) {
           // Never focused → focus the first terminal
           const first = list[0];
@@ -281,7 +247,7 @@ export function useKeyboardShortcuts() {
             terminalId: first.terminalId,
           };
           useProjectStore.getState().setFocusedTerminal(first.terminalId);
-          zoomToTerminal(first.projectId, first.worktreeId, first.terminalId);
+          zoomToTerminal(first.terminalId);
         }
         return;
       }
@@ -318,7 +284,7 @@ export function useKeyboardShortcuts() {
           const terminal = createTerminal("shell");
           addTerminal(focusedProjectId, focusedWorktreeId, terminal);
           setFocusedTerminal(terminal.id);
-          zoomToTerminal(focusedProjectId, focusedWorktreeId, terminal.id);
+          zoomToTerminal(terminal.id);
         }
         return;
       }
@@ -495,7 +461,7 @@ export function useKeyboardShortcuts() {
           currentIndex === -1 ? 0 : (currentIndex + 1) % terminalList.length;
         const next = terminalList[nextIndex];
         useProjectStore.getState().setFocusedTerminal(next.terminalId);
-        zoomToTerminal(next.projectId, next.worktreeId, next.terminalId);
+        zoomToTerminal(next.terminalId);
         return;
       }
 
@@ -524,7 +490,7 @@ export function useKeyboardShortcuts() {
           currentIndex <= 0 ? terminalList.length - 1 : currentIndex - 1;
         const prev = terminalList[prevIndex];
         useProjectStore.getState().setFocusedTerminal(prev.terminalId);
-        zoomToTerminal(prev.projectId, prev.worktreeId, prev.terminalId);
+        zoomToTerminal(prev.terminalId);
         return;
       }
 
