@@ -17,6 +17,10 @@
 
 <img src="docs/image.png" alt="TermCanvas demo — multiple AI agents on an infinite canvas" />
 
+<br>
+
+[![Star History Chart](https://api.star-history.com/svg?repos=blueberrycongee/termcanvas&type=Date)](https://star-history.com/#blueberrycongee/termcanvas&Date)
+
 </div>
 
 <br>
