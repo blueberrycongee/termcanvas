@@ -2,6 +2,14 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.57] - 2026-03-25
+
+### Changed
+- Simplified canvas interaction by removing DiffCard and FileTreeCard components
+
+### Fixed
+- Menu handler no longer depends on terminal state variable
+
 ## [0.8.56] - 2026-03-25
 
 ### Added
