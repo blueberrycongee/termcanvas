@@ -6,12 +6,18 @@ export interface AgentRecord {
   id: string;
   task: string;
   type: string;
+  workflowId?: string;
+  handoffId?: string;
   repo: string;
   terminalId: string;
   worktreePath: string;
   branch: string | null;
   baseBranch: string;
   ownWorktree: boolean;
+  taskFile?: string;
+  handoffFile?: string;
+  resultFile?: string;
+  doneFile?: string;
   createdAt: string;
 }
 

@@ -1,15 +1,13 @@
 import { execFileSync } from "node:child_process";
-import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import {
-  isTermCanvasRunning,
   findProjectByPath,
   projectRescan,
-  terminalCreate,
 } from "./termcanvas.ts";
 import { saveAgent } from "./store.ts";
-import { buildTaskFileContent, buildSpawnInput } from "./prompt.ts";
+import { buildTaskPackageContext, writeTaskPackage } from "./task-package.ts";
+import { dispatchCreateOnly } from "./dispatcher.ts";
 
 export interface SpawnArgs {
   task: string;
@@ -101,14 +99,9 @@ export function validateWorktreePath(repoPath: string, worktreePath: string): st
   return resolvedWorktree;
 }
 
-export function spawn(args: string[]): void {
+export async function spawn(args: string[]): Promise<void> {
   const parsed = parseSpawnArgs(args);
   const repo = path.resolve(parsed.repo);
-
-  // Validate TermCanvas is running
-  if (!isTermCanvasRunning()) {
-    throw new Error("TermCanvas is not running");
-  }
 
   // Validate repo is on canvas
   const project = findProjectByPath(repo);
@@ -117,6 +110,8 @@ export function spawn(args: string[]): void {
   }
 
   const agentId = generateAgentId();
+  const workflowId = `workflow-${agentId}`;
+  const handoffId = `handoff-${agentId}`;
   const baseBranch = parsed.baseBranch ?? getCurrentBranch(repo);
 
   let worktreePath: string;
@@ -142,41 +137,87 @@ export function spawn(args: string[]): void {
     projectRescan(project.id);
   }
 
-  // Write task file to worktree (agent ID in filename avoids collisions when
-  // multiple agents share the same worktree for read-only tasks)
-  const taskFile = `.hydra-task-${agentId}.md`;
-  const resultFile = `.hydra-result-${agentId}.md`;
-  fs.writeFileSync(
-    path.join(worktreePath, taskFile),
-    buildTaskFileContent({ task: parsed.task, worktreePath, branch, baseBranch, resultFile }),
-  );
+  const taskPackage = buildTaskPackageContext({
+    workspaceRoot: worktreePath,
+    workflowId,
+    handoffId,
+    from: {
+      role: "planner",
+      agent_type: "claude",
+      agent_id: process.env.TERMCANVAS_TERMINAL_ID ?? "hydra-spawn",
+    },
+    to: {
+      role: "implementer",
+      agent_type: parsed.type as "claude" | "codex" | "kimi" | "gemini",
+      agent_id: null,
+    },
+    task: {
+      type: parsed.worktree ? "read-only-task" : "code-change-task",
+      title: parsed.task.slice(0, 80),
+      description: parsed.task,
+      acceptance_criteria: [
+        "Complete the requested task",
+        "Write a valid result.json file",
+        "Write the done marker after result.json is complete",
+      ],
+    },
+    context: {
+      files: [],
+      previous_handoffs: [],
+      shared_state: {
+        worktree_path: worktreePath,
+        branch,
+        base_branch: baseBranch,
+      },
+    },
+  });
+  const artifacts = writeTaskPackage(taskPackage.contract);
 
-  // Create terminal with initial prompt as CLI argument (no PTY injection needed)
-  const prompt = buildSpawnInput(parsed.task, taskFile);
   const parentTerminalId = process.env.TERMCANVAS_TERMINAL_ID;
-  const terminal = terminalCreate(worktreePath, parsed.type, prompt, parsed.autoApprove, parentTerminalId);
+  const dispatch = await dispatchCreateOnly({
+    workflowId,
+    handoffId,
+    repoPath: repo,
+    worktreePath,
+    agentType: parsed.type,
+    taskFile: artifacts.task_file,
+    resultFile: artifacts.result_file,
+    autoApprove: parsed.autoApprove,
+    parentTerminalId,
+  });
 
   // Save agent record
   saveAgent({
     id: agentId,
     task: parsed.task,
     type: parsed.type,
+    workflowId,
+    handoffId,
     repo,
-    terminalId: terminal.id,
+    terminalId: dispatch.terminalId,
     worktreePath,
     branch,
     baseBranch,
     ownWorktree,
+    taskFile: artifacts.task_file,
+    handoffFile: artifacts.handoff_file,
+    resultFile: artifacts.result_file,
+    doneFile: artifacts.done_file,
     createdAt: new Date().toISOString(),
   });
 
   // Output result (resultFile tells the parent where to read the outcome)
   const result = {
     agentId,
-    terminalId: terminal.id,
+    workflowId,
+    handoffId,
+    terminalId: dispatch.terminalId,
     worktreePath,
     branch,
-    resultFile: `${worktreePath}/${resultFile}`,
+    handoffFile: artifacts.handoff_file,
+    taskFile: artifacts.task_file,
+    resultFile: artifacts.result_file,
+    doneFile: artifacts.done_file,
   };
   console.log(JSON.stringify(result, null, 2));
 }
