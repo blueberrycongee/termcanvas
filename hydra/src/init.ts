@@ -7,26 +7,32 @@ const INSTRUCTION_FILES = ["CLAUDE.md", "AGENTS.md"] as const;
 const HYDRA_SECTION = `
 ## Hydra Sub-Agent Tool
 
-When task uncertainty is high (unclear root cause, multiple valid approaches,
-decomposable subtasks), investigate first, then use hydra to spawn sub-agents.
+Use Hydra when the task benefits from file-driven multi-agent orchestration.
+Hydra now treats \`result.json\` + \`done\` as the only completion evidence.
+Terminal conversation is not a source of truth.
+
+Core rules:
+- Root cause first. Fix the implementation problem before changing tests.
+- Do not hack tests, fixtures, or mocks to force a green result.
+- Do not add silent fallbacks or swallowed errors.
+- A handoff is only complete when both \`result.json\` and \`done\` exist and pass schema validation.
 
 Workflow:
-1. Investigate the problem yourself first, form a clear task description
-2. Check your permission level before spawning:
-   - Read \`~/.claude/settings.local.json\`. If \`Bash(*)\` is in \`permissions.allow\`, you are in broad-permission mode.
-   - Or: if your Bash/Write/Edit calls have been executing without user approval, you are in auto-approve mode.
-   - If either is true, add \`--auto-approve\` when spawning Claude or Codex sub-agents.
-     Without it, sub-agents will stall on approval prompts with no way to intervene.
-   - If you are in restricted mode (tool calls require user approval), do NOT pass \`--auto-approve\`.
-3. Pick the right mode:
-   - Read-only: \`hydra spawn --task "<specific task>" --type <agent-type> --repo . --worktree .\`
-   - Code changes: \`hydra spawn --task "<specific task>" --type <agent-type> --repo .\`
-4. Poll progress: \`termcanvas terminal status <terminalId>\`
-5. Read the result file returned by spawn: \`cat <resultFile>\`
-6. For code-change tasks: \`termcanvas diff <worktreePath> --summary\` then \`git merge <branch>\`
-7. Clean up: \`hydra cleanup <agentId>\`
+1. Start a workflow: \`hydra run --task "<specific task>" --repo . [--worktree .] [--template planner-implementer-evaluator]\`
+2. Inspect one-shot progress: \`hydra tick --repo . --workflow <workflowId>\`
+3. Watch until terminal state: \`hydra watch --repo . --workflow <workflowId>\`
+4. Inspect structured state and failures: \`hydra status --repo . --workflow <workflowId>\`
+5. Retry a failed/timed-out workflow when allowed: \`hydra retry --repo . --workflow <workflowId>\`
+6. Clean up runtime state or worktrees: \`hydra cleanup --workflow <workflowId> --repo .\`
 
-When NOT to use: simple fixes, high-certainty tasks, faster to do yourself.
+\`result.json\` must contain:
+- \`success\`
+- \`summary\`
+- \`outputs[]\`
+- \`evidence[]\`
+- \`next_action\`
+
+When NOT to use: simple fixes, high-certainty tasks, or work that is faster to do directly.
 `;
 
 export async function init(): Promise<void> {
