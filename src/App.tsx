@@ -416,10 +416,11 @@ export function App() {
     if (!window.termcanvas?.menu) return;
     return window.termcanvas.menu.onOpenFolder(async (dirPath) => {
       const { notify } = useNotificationStore.getState();
+      const t = useT.getState();
       try {
         const info = await window.termcanvas.project.scan(dirPath);
         if (!info) {
-          notify("error", t.error_scan("Failed to scan directory"));
+          notify("error", "Failed to scan directory");
           return;
         }
         const { projects, addProject } = useProjectStore.getState();
@@ -446,10 +447,10 @@ export function App() {
           })),
         });
       } catch (err) {
-        notify("error", t.error_scan(err));
+        notify("error", String(err));
       }
     });
-  }, [t]);
+  }, []);
 
   // Load downloaded fonts on startup
   useEffect(() => {
