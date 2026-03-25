@@ -33,6 +33,64 @@ export function Canvas() {
     handlePanMouseDown(e);
   };
 
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    // Only process the first dropped item
+    const file = files[0];
+    // @ts-ignore - path property exists on File in Electron
+    const dirPath = file.path;
+    if (!dirPath) return;
+
+    const { notify } = useNotificationStore.getState();
+
+    let info: Awaited<ReturnType<typeof window.termcanvas.project.scan>>;
+    try {
+      info = await window.termcanvas.project.scan(dirPath);
+    } catch (err) {
+      notify("error", t.error_scan(err));
+      return;
+    }
+    if (!info) {
+      notify("error", t.error_scan("Failed to scan directory"));
+      return;
+    }
+
+    const { projects, addProject } = useProjectStore.getState();
+    let placeX = 0;
+    const gap = 80;
+    for (const p of projects) {
+      const bounds = getProjectBounds(p);
+      placeX = Math.max(placeX, bounds.x + bounds.w + gap);
+    }
+
+    addProject({
+      id: generateId(),
+      name: info.name,
+      path: info.path,
+      position: { x: placeX, y: 0 },
+      collapsed: false,
+      zIndex: 0,
+      worktrees: info.worktrees.map((wt, i) => ({
+        id: generateId(),
+        name: wt.branch,
+        path: wt.path,
+        position: { x: 0, y: i * 360 },
+        collapsed: false,
+        terminals: [],
+      })),
+    });
+  };
+
   const handleAddProject = async () => {
     if (!window.termcanvas) return;
     const { notify } = useNotificationStore.getState();
@@ -89,6 +147,8 @@ export function Canvas() {
       className={`fixed inset-0 overflow-hidden canvas-bg ${isDrawing ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing"}`}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
       onClick={(e) => {
         const target = e.target as HTMLElement;
         if (
