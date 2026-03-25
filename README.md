@@ -15,7 +15,7 @@
 
 <br>
 
-<img src="docs/image.png" alt="TermCanvas demo — multiple AI agents on an infinite canvas" />
+<img src="docs/image.png?v=2" alt="TermCanvas demo — multiple AI agents on an infinite canvas" />
 
 <br>
 
