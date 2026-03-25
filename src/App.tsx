@@ -352,6 +352,7 @@ export function App() {
   useAutoSave();
   useWorkspaceOpen();
   useKeyboardShortcuts();
+  const t = useT();
   const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
   const drawingEnabled = usePreferencesStore((s) => s.drawingEnabled);
   const { showCloseDialog, handleSave, handleDiscard, handleCancel } =
@@ -367,13 +368,12 @@ export function App() {
   // Listen for menu events
   useEffect(() => {
     if (!window.termcanvas?.menu) return;
-    return window.termcanvas.menu.onOpenFolder(async (dirPath) => {
+    return window.termcanvas.menu.onOpenFolder(async (dirPath: string) => {
       const { notify } = useNotificationStore.getState();
-      const t = useT.getState();
       try {
         const info = await window.termcanvas.project.scan(dirPath);
         if (!info) {
-          notify("error", "Failed to scan directory");
+          notify("error", t.error_scan("Failed to scan directory"));
           return;
         }
         const { projects, addProject } = useProjectStore.getState();
@@ -400,10 +400,10 @@ export function App() {
           })),
         });
       } catch (err) {
-        notify("error", String(err));
+        notify("error", t.error_scan(String(err)));
       }
     });
-  }, []);
+  }, [t]);
 
   // Load downloaded fonts on startup
   useEffect(() => {

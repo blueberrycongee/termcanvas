@@ -457,11 +457,7 @@ function XyFlowCanvasInner() {
               {t.canvas_empty_title}
             </div>
             <div className="text-[var(--text-faint)] text-sm">
-              {t.canvas_empty_click}{" "}
-              <span className="text-[var(--text-secondary)]">
-                {t.canvas_empty_action}
-              </span>{" "}
-              {t.canvas_empty_suffix}
+              {t.canvas_empty_action}
             </div>
           </div>
         </div>

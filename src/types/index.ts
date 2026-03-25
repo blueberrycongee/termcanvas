@@ -344,6 +344,9 @@ export interface TermCanvasAPI {
     requestClose: () => void;
     confirmClose: (options?: { installUpdate?: boolean }) => void;
   };
+  menu: {
+    onOpenFolder: (callback: (dirPath: string) => void) => () => void;
+  };
   updater: {
     check: () => Promise<unknown>;
     install: () => void;
