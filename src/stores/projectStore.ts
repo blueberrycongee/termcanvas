@@ -63,7 +63,7 @@ interface ProjectStore {
     projectId: string,
     worktreeId: string,
     terminalId: string,
-    ptyId: number,
+    ptyId: number | null,
   ) => void;
   toggleTerminalMinimize: (
     projectId: string,

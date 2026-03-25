@@ -26,6 +26,7 @@ export function ProjectContainer({ project }: Props) {
       (item) => item.type === "project" && item.projectId === project.id,
     ),
   );
+  const selectProject = useSelectionStore((s) => s.selectProject);
 
   const handleDrag = useDrag(
     project.position.x,
@@ -69,6 +70,10 @@ export function ProjectContainer({ project }: Props) {
         outlineOffset: isSelected ? -2 : undefined,
       }}
       onMouseDown={() => bringToFront(project.id)}
+      onClick={(e) => {
+        e.stopPropagation();
+        selectProject(project.id);
+      }}
     >
       {/* Title bar */}
       <div
@@ -188,6 +193,7 @@ export function ProjectContainer({ project }: Props) {
           <WorktreeContainer
             key={worktree.id}
             projectId={project.id}
+            projectCollapsed={project.collapsed}
             worktree={worktree}
             projectPosition={project.position}
           />

@@ -2,20 +2,58 @@ import { useProjectStore } from "./stores/projectStore";
 import { useCanvasStore } from "./stores/canvasStore";
 import { useDrawingStore } from "./stores/drawingStore";
 import { useBrowserCardStore } from "./stores/browserCardStore";
-import { serializeAllTerminals } from "./terminal/terminalRegistry";
+import { useSelectionStore } from "./stores/selectionStore";
+import {
+  destroyAllTerminalRuntimes,
+  serializeAllTerminalRuntimeBuffers,
+} from "./terminal/terminalRuntimeStore";
+import { clearTerminalGeometryRegistry } from "./terminal/terminalGeometryRegistry";
 import { logSlowRendererPath } from "./utils/devPerf";
+import { normalizeProjectsFocus } from "./stores/projectFocus";
+import {
+  type LegacyWorkspaceSnapshot,
+  readWorkspaceSnapshot,
+  type RestoredWorkspaceSnapshot,
+  type SkipRestoreSnapshot,
+  type SceneWorkspaceSnapshot,
+  type WorkspaceSnapshot,
+} from "./snapshotBridge";
+import {
+  buildSceneDocumentFromLegacyState,
+  sceneDocumentToLegacyState,
+} from "./canvas/sceneProjection";
 
-export interface WorkspaceSnapshot {
-  version: number;
-  viewport: ReturnType<typeof useCanvasStore.getState>["viewport"];
-  projects: ReturnType<typeof useProjectStore.getState>["projects"];
-  drawings: ReturnType<typeof useDrawingStore.getState>["elements"];
-  browserCards: ReturnType<typeof useBrowserCardStore.getState>["cards"];
+export function restoreWorkspaceSnapshot(
+  snapshot: RestoredWorkspaceSnapshot,
+) {
+  const restoredState = sceneDocumentToLegacyState(snapshot.scene);
+  destroyAllTerminalRuntimes();
+  clearTerminalGeometryRegistry();
+  useSelectionStore.getState().clearSelection();
+  useCanvasStore.getState().restoreViewport(restoredState.viewport);
+  useProjectStore.setState(
+    normalizeProjectsFocus(restoredState.projects),
+  );
+  useDrawingStore.setState({
+    elements: restoredState.drawings,
+  });
+  useBrowserCardStore.setState({
+    cards: restoredState.browserCards,
+  });
 }
 
-export function buildSnapshotState(): WorkspaceSnapshot {
+export {
+  type LegacyWorkspaceSnapshot,
+  readWorkspaceSnapshot,
+  type RestoredWorkspaceSnapshot,
+  type SkipRestoreSnapshot,
+  type SceneWorkspaceSnapshot,
+  type WorkspaceSnapshot,
+} from "./snapshotBridge";
+
+function buildLegacyWorkspaceSnapshot(): LegacyWorkspaceSnapshot {
   const startedAt = performance.now();
-  const scrollbacks = serializeAllTerminals();
+  const scrollbacks = serializeAllTerminalRuntimeBuffers();
   const projects = useProjectStore.getState().projects.map((project) => ({
     ...project,
     worktrees: project.worktrees.map((worktree) => ({
@@ -30,7 +68,7 @@ export function buildSnapshotState(): WorkspaceSnapshot {
   }));
 
   const snapshot = {
-    version: 1,
+    version: 1 as const,
     viewport: useCanvasStore.getState().viewport,
     projects,
     drawings: useDrawingStore.getState().elements,
@@ -45,7 +83,8 @@ export function buildSnapshotState(): WorkspaceSnapshot {
         (count, project) =>
           count +
           project.worktrees.reduce(
-            (worktreeCount, worktree) => worktreeCount + worktree.terminals.length,
+            (worktreeCount, worktree) =>
+              worktreeCount + worktree.terminals.length,
             0,
           ),
         0,
@@ -54,6 +93,14 @@ export function buildSnapshotState(): WorkspaceSnapshot {
   });
 
   return snapshot;
+}
+
+export function buildSnapshotState(): SceneWorkspaceSnapshot {
+  const legacySnapshot = buildLegacyWorkspaceSnapshot();
+  return {
+    version: 2,
+    scene: buildSceneDocumentFromLegacyState(legacySnapshot),
+  };
 }
 
 export function snapshotState(): string {

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Canvas } from "./canvas/Canvas";
+import { CanvasRoot } from "./canvas/CanvasRoot";
 import { Toolbar } from "./toolbar/Toolbar";
 import { NotificationToast } from "./components/NotificationToast";
 import { Hub } from "./components/Hub";
@@ -12,82 +12,31 @@ import { ShortcutHints } from "./components/ShortcutHints";
 import { CompletionGlow } from "./components/CompletionGlow";
 import { UsagePanel } from "./components/UsagePanel";
 import { WelcomePopup } from "./components/WelcomePopup";
-import { useProjectStore, createTerminal, getProjectBounds, generateId } from "./stores/projectStore";
-import { useCanvasStore } from "./stores/canvasStore";
+import {
+  useProjectStore,
+  createTerminal,
+  getProjectBounds,
+  generateId,
+} from "./stores/projectStore";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useT } from "./i18n/useT";
 import { loadAllDownloadedFonts } from "./terminal/fontLoader";
-import type { ProjectData } from "./types";
-import { normalizeProjectsFocus } from "./stores/projectFocus";
-import { useDrawingStore } from "./stores/drawingStore";
-import { useBrowserCardStore } from "./stores/browserCardStore";
 import { shouldRunAutoSaveBackstop, useWorkspaceStore } from "./stores/workspaceStore";
-import { snapshotState } from "./snapshotState";
+import {
+  readWorkspaceSnapshot,
+  restoreWorkspaceSnapshot,
+  snapshotState,
+  type SkipRestoreSnapshot,
+} from "./snapshotState";
 import { updateWindowTitle } from "./titleHelper";
 import { useNotificationStore } from "./stores/notificationStore";
 import { logSlowRendererPath } from "./utils/devPerf";
 import { getCloseAction } from "./closeFlow";
 
-function migrateProjects(projects: unknown[]): ProjectData[] {
-  return projects.map((p: any) => ({
-    id: p.id,
-    name: p.name,
-    path: p.path,
-    position: p.position ?? { x: 0, y: 0 },
-    collapsed: p.collapsed ?? false,
-    zIndex: p.zIndex ?? 0,
-    worktrees: (p.worktrees ?? []).map((wt: any) => ({
-      id: wt.id,
-      name: wt.name,
-      path: wt.path,
-      position: wt.position ?? { x: 0, y: 0 },
-      collapsed: wt.collapsed ?? false,
-      terminals: (wt.terminals ?? []).map((t: any) => ({
-        id: t.id,
-        title: t.title,
-        customTitle: t.customTitle,
-        starred: t.starred ?? false,
-        type: t.type,
-        minimized: t.minimized ?? false,
-        focused: t.focused ?? false,
-        ptyId: null,
-        status: "idle",
-        span: t.span ?? { cols: 1, rows: 1 },
-        scrollback: t.scrollback,
-        sessionId: t.sessionId,
-        parentTerminalId: t.parentTerminalId,
-      })),
-    })),
-  }));
-}
-
-function restoreFromData(data: Record<string, unknown>) {
-  try {
-    if (data.viewport) {
-      useCanvasStore.setState({
-        viewport: data.viewport as { x: number; y: number; scale: number },
-      });
-    }
-    if (data.projects && Array.isArray(data.projects)) {
-      useProjectStore.setState(
-        normalizeProjectsFocus(migrateProjects(data.projects)),
-      );
-    }
-    if (data.drawings && Array.isArray(data.drawings)) {
-      useDrawingStore.setState({
-        elements: data.drawings as ReturnType<
-          typeof useDrawingStore.getState
-        >["elements"],
-      });
-    }
-    if (data.browserCards && typeof data.browserCards === "object") {
-      useBrowserCardStore.setState({
-        cards: data.browserCards as Record<string, import("./stores/browserCardStore").BrowserCardData>,
-      });
-    }
-  } catch (err) {
-    console.error("[restoreFromData] failed to restore state:", err);
-  }
+function isSkipRestoreSnapshot(
+  snapshot: ReturnType<typeof readWorkspaceSnapshot>,
+): snapshot is SkipRestoreSnapshot {
+  return !!snapshot && "skipRestore" in snapshot;
 }
 
 function useWorktreeWatcher() {
@@ -162,13 +111,13 @@ function useStatePersistence() {
     window.termcanvas.state
       .load()
       .then((saved) => {
-        if (!saved) return;
-        const data = saved as unknown as Record<string, unknown>;
-        if (data.skipRestore) {
+        const restored = readWorkspaceSnapshot(saved);
+        if (!restored) return;
+        if (isSkipRestoreSnapshot(restored)) {
           window.termcanvas.state.save({ skipRestore: false });
           return;
         }
-        restoreFromData(data);
+        restoreWorkspaceSnapshot(restored);
         useWorkspaceStore.getState().setWorkspacePath(null);
         useWorkspaceStore.getState().markClean();
       })
@@ -246,7 +195,11 @@ function useWorkspaceOpen() {
 
       const raw = (e as CustomEvent<string>).detail;
       try {
-        restoreFromData(JSON.parse(raw));
+        const restored = readWorkspaceSnapshot(raw);
+        if (!restored || isSkipRestoreSnapshot(restored)) {
+          return;
+        }
+        restoreWorkspaceSnapshot(restored);
         useWorkspaceStore.getState().setWorkspacePath(null);
         useWorkspaceStore.getState().markClean();
       } catch (err) {
@@ -585,7 +538,7 @@ export function App() {
       <Toolbar onShowTutorial={() => setShowWelcome(true)} />
       <Hub />
       <LeftPanel />
-      <Canvas />
+      <CanvasRoot />
       {drawingEnabled && <DrawingPanel />}
       <CompletionGlow />
       <ShortcutHints />

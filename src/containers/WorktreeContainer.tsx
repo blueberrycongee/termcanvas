@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Position, WorktreeData } from "../types";
 import {
@@ -9,6 +9,12 @@ import {
 import { useCardLayoutStore } from "../stores/cardLayoutStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { TerminalTile } from "../terminal/TerminalTile";
+import { TerminalRuntimeHandle } from "../terminal/TerminalRuntimeHandle";
+import {
+  publishTerminalGeometry,
+  unpublishTerminalGeometry,
+} from "../terminal/terminalGeometryRegistry";
+import { resolveTerminalMountMode } from "../terminal/terminalRuntimePolicy";
 import { useDrag } from "../hooks/useDrag";
 import { DiffCard } from "../components/DiffCard";
 import { FileTreeCard } from "../components/FileTreeCard";
@@ -31,12 +37,32 @@ import {
 
 interface Props {
   projectId: string;
+  projectCollapsed: boolean;
   worktree: WorktreeData;
   projectPosition: Position;
 }
 
+function rectIntersectsViewport(
+  rect: { x: number; y: number; w: number; h: number },
+  viewport: { x: number; y: number; scale: number },
+) {
+  const margin = 120;
+  const left = -viewport.x / viewport.scale - margin;
+  const top = -viewport.y / viewport.scale - margin;
+  const right = left + window.innerWidth / viewport.scale + margin * 2;
+  const bottom = top + window.innerHeight / viewport.scale + margin * 2;
+
+  return (
+    rect.x < right &&
+    rect.x + rect.w > left &&
+    rect.y < bottom &&
+    rect.y + rect.h > top
+  );
+}
+
 export function WorktreeContainer({
   projectId,
+  projectCollapsed,
   worktree,
   projectPosition,
 }: Props) {
@@ -69,6 +95,7 @@ export function WorktreeContainer({
     updateTerminalSpan,
   } = useProjectStore();
   const allCards = useCardLayoutStore((s) => s.cards);
+  const viewport = useCanvasStore((s) => s.viewport);
 
   const isSelected = useSelectionStore((s) =>
     s.selectedItems.some(
@@ -78,6 +105,7 @@ export function WorktreeContainer({
         item.worktreeId === worktree.id,
     ),
   );
+  const selectWorktree = useSelectionStore((s) => s.selectWorktree);
 
   // Listen for close-card events (from batch delete)
   useEffect(() => {
@@ -129,6 +157,76 @@ export function WorktreeContainer({
   const spans = worktree.terminals.map((t) => t.span);
   const packed = packTerminals(spans);
   const computedSize = getWorktreeSize(spans, worktree.collapsed);
+  const terminalLayouts = useMemo(() => {
+    return worktree.terminals.map((terminal, index) => {
+      const item = packed[index];
+      if (!item) {
+        return null;
+      }
+
+      const absoluteRect = {
+        h: item.h,
+        w: item.w,
+        x: projectPosition.x + PROJ_PAD + worktree.position.x + WT_PAD + item.x,
+        y:
+          projectPosition.y +
+          PROJ_TITLE_H +
+          PROJ_PAD +
+          worktree.position.y +
+          WT_TITLE_H +
+          WT_PAD +
+          item.y,
+      };
+      const visible =
+        !projectCollapsed &&
+        !worktree.collapsed &&
+        rectIntersectsViewport(absoluteRect, viewport);
+
+      return {
+        absoluteRect,
+        item,
+        lodMode: resolveTerminalMountMode({
+          focused: terminal.focused,
+          visible,
+        }),
+        terminal,
+      };
+    });
+  }, [
+    packed,
+    projectPosition.x,
+    projectPosition.y,
+    viewport,
+    projectCollapsed,
+    worktree.collapsed,
+    worktree.position.x,
+    worktree.position.y,
+    worktree.terminals,
+  ]);
+
+  useEffect(() => {
+    for (const layout of terminalLayouts) {
+      if (!layout || (projectCollapsed || worktree.collapsed)) {
+        continue;
+      }
+
+      publishTerminalGeometry({
+        h: layout.absoluteRect.h,
+        projectId,
+        terminalId: layout.terminal.id,
+        worktreeId: worktree.id,
+        w: layout.absoluteRect.w,
+        x: layout.absoluteRect.x,
+        y: layout.absoluteRect.y,
+      });
+    }
+
+    return () => {
+      for (const terminal of worktree.terminals) {
+        unpublishTerminalGeometry(terminal.id);
+      }
+    };
+  }, [projectCollapsed, projectId, terminalLayouts, worktree.collapsed, worktree.id, worktree.terminals]);
 
   const handleZoomToFit = useCallback(
     (index: number) => {
@@ -291,7 +389,11 @@ export function WorktreeContainer({
         outline: isSelected ? "2px solid #3b82f6" : undefined,
         outlineOffset: isSelected ? -2 : undefined,
       }}
-      onClick={() => setFocusedWorktree(projectId, worktree.id)}
+      onClick={(e) => {
+        e.stopPropagation();
+        setFocusedWorktree(projectId, worktree.id);
+        selectWorktree(projectId, worktree.id);
+      }}
       onMouseEnter={() => {
         clearHoverCardHideTimeout(diffLeaveTimeout);
         clearHoverCardHideTimeout(fileTreeLeaveTimeout);
@@ -391,14 +493,30 @@ export function WorktreeContainer({
           overflow: "hidden",
         }}
       >
-        {worktree.terminals.map((terminal, index) => {
-          const item = packed[index];
-          if (!item) return null;
+        {terminalLayouts.map((layout) => {
+          if (!layout) {
+            return null;
+          }
+
+          return (
+            <TerminalRuntimeHandle
+              key={`runtime:${layout.terminal.id}`}
+              projectId={projectId}
+              terminal={layout.terminal}
+              worktreeId={worktree.id}
+              worktreePath={worktree.path}
+            />
+          );
+        })}
+        {terminalLayouts.map((layout, index) => {
+          if (!layout || layout.lodMode === "unmounted") return null;
+          const { item, terminal } = layout;
           const isDragging = dragState?.terminalId === terminal.id;
 
           return (
             <TerminalTile
               key={terminal.id}
+              lodMode={layout.lodMode}
               projectId={projectId}
               worktreeId={worktree.id}
               worktreePath={worktree.path}
@@ -411,7 +529,7 @@ export function WorktreeContainer({
               isDragging={isDragging}
               dragOffsetX={isDragging ? dragState.offsetX : 0}
               dragOffsetY={isDragging ? dragState.offsetY : 0}
-              onDoubleClick={() => handleZoomToFit(index)}
+              onDoubleClick={() => handleZoomToFit(item.index)}
               onSpanChange={(span) =>
                 updateTerminalSpan(projectId, worktree.id, terminal.id, span)
               }

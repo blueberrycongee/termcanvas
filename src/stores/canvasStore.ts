@@ -4,6 +4,10 @@ import { useWorkspaceStore } from "./workspaceStore";
 
 export type FocusLevel = "terminal" | "starred" | "worktree";
 export type LeftPanelTab = "files" | "diff" | "preview";
+export interface CanvasViewportAdapter {
+  setViewport: (viewport: Viewport, options?: { duration?: number }) => void;
+  getViewport: () => Viewport;
+}
 
 // Fixed panel dimensions (no user-resizable widths)
 export const RIGHT_PANEL_WIDTH = 240;
@@ -18,7 +22,11 @@ interface CanvasStore {
   leftPanelWidth: number;
   leftPanelActiveTab: LeftPanelTab;
   leftPanelPreviewFile: string | null;
+  registerViewportAdapter: (adapter: CanvasViewportAdapter | null) => void;
+  restoreViewport: (viewport: Viewport) => void;
   setViewport: (viewport: Partial<Viewport>) => void;
+  syncViewportFromRenderer: (viewport: Viewport) => void;
+  commitViewportFromRenderer: (viewport: Viewport) => void;
   resetViewport: () => void;
   setFocusLevel: (level: FocusLevel) => void;
   cycleFocusLevel: () => void;
@@ -34,9 +42,26 @@ const DEFAULT_VIEWPORT: Viewport = { x: 0, y: 0, scale: 1 };
 const ANIM_DURATION = 400;
 
 let animationId = 0;
+let activeViewportAdapter: CanvasViewportAdapter | null = null;
+let animationResetTimer: ReturnType<typeof setTimeout> | null = null;
 
 function markDirty() {
   useWorkspaceStore.getState().markDirty();
+}
+
+function clearAnimationResetTimer() {
+  if (animationResetTimer) {
+    clearTimeout(animationResetTimer);
+    animationResetTimer = null;
+  }
+}
+
+function viewportEquals(a: Viewport, b: Viewport) {
+  return (
+    Math.abs(a.x - b.x) < 0.001 &&
+    Math.abs(a.y - b.y) < 0.001 &&
+    Math.abs(a.scale - b.scale) < 0.0001
+  );
 }
 
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
@@ -48,6 +73,24 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   leftPanelWidth: 280,
   leftPanelActiveTab: "files" as LeftPanelTab,
   leftPanelPreviewFile: null,
+
+  registerViewportAdapter: (adapter) => {
+    activeViewportAdapter = adapter;
+    clearAnimationResetTimer();
+
+    if (!adapter) {
+      set({ isAnimating: false });
+      return;
+    }
+
+    adapter.setViewport(get().viewport);
+  },
+
+  restoreViewport: (viewport) => {
+    clearAnimationResetTimer();
+    set({ viewport, isAnimating: false });
+    activeViewportAdapter?.setViewport(viewport);
+  },
 
   setFocusLevel: (level) => set({ focusLevel: level }),
   cycleFocusLevel: () => {
@@ -72,13 +115,43 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setLeftPanelPreviewFile: (filePath) => set({ leftPanelPreviewFile: filePath }),
 
   setViewport: (partial) => {
-    set((state) => ({
-      viewport: { ...state.viewport, ...partial },
-    }));
+    const nextViewport = { ...get().viewport, ...partial };
+    if (viewportEquals(nextViewport, get().viewport)) {
+      return;
+    }
+
+    set({ viewport: nextViewport });
+    activeViewportAdapter?.setViewport(nextViewport);
     markDirty();
   },
 
-  resetViewport: () => set({ viewport: { ...DEFAULT_VIEWPORT } }),
+  syncViewportFromRenderer: (viewport) => {
+    if (viewportEquals(viewport, get().viewport)) {
+      return;
+    }
+
+    set({ viewport });
+  },
+
+  commitViewportFromRenderer: (viewport) => {
+    clearAnimationResetTimer();
+    if (viewportEquals(viewport, get().viewport)) {
+      set({ isAnimating: false });
+      markDirty();
+      return;
+    }
+
+    set({ viewport, isAnimating: false });
+    markDirty();
+  },
+
+  resetViewport: () => {
+    const nextViewport = { ...DEFAULT_VIEWPORT };
+    clearAnimationResetTimer();
+    set({ viewport: nextViewport, isAnimating: false });
+    activeViewportAdapter?.setViewport(nextViewport);
+    markDirty();
+  },
 
   animateTo: (targetX, targetY, targetScale) => {
     const { viewport } = get();
@@ -93,6 +166,26 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       Math.abs(startY - targetY) < 1 &&
       Math.abs(startScale - endScale) < 0.001
     ) {
+      return;
+    }
+
+    if (activeViewportAdapter) {
+      const nextViewport = {
+        x: targetX,
+        y: targetY,
+        scale: endScale,
+      };
+
+      clearAnimationResetTimer();
+      set({ isAnimating: true });
+      activeViewportAdapter.setViewport(nextViewport, {
+        duration: ANIM_DURATION,
+      });
+      animationResetTimer = setTimeout(() => {
+        set({ isAnimating: false });
+        animationResetTimer = null;
+      }, ANIM_DURATION);
+      markDirty();
       return;
     }
 

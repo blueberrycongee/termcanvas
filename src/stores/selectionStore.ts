@@ -18,6 +18,14 @@ interface SelectionStore {
   selectedItems: SelectedItem[];
   setSelectionRect: (rect: SelectionRect | null) => void;
   setSelectedItems: (items: SelectedItem[]) => void;
+  selectCard: (cardId: string) => void;
+  selectProject: (projectId: string) => void;
+  selectTerminal: (
+    projectId: string,
+    worktreeId: string,
+    terminalId: string,
+  ) => void;
+  selectWorktree: (projectId: string, worktreeId: string) => void;
   clearSelection: () => void;
 }
 
@@ -26,5 +34,25 @@ export const useSelectionStore = create<SelectionStore>((set) => ({
   selectedItems: [],
   setSelectionRect: (rect) => set({ selectionRect: rect }),
   setSelectedItems: (items) => set({ selectedItems: items }),
+  selectCard: (cardId) =>
+    set({
+      selectedItems: [{ type: "card", cardId }],
+      selectionRect: null,
+    }),
+  selectProject: (projectId) =>
+    set({
+      selectedItems: [{ type: "project", projectId }],
+      selectionRect: null,
+    }),
+  selectTerminal: (projectId, worktreeId, terminalId) =>
+    set({
+      selectedItems: [{ type: "terminal", projectId, worktreeId, terminalId }],
+      selectionRect: null,
+    }),
+  selectWorktree: (projectId, worktreeId) =>
+    set({
+      selectedItems: [{ type: "worktree", projectId, worktreeId }],
+      selectionRect: null,
+    }),
   clearSelection: () => set({ selectionRect: null, selectedItems: [] }),
 }));
