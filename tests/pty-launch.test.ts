@@ -9,7 +9,7 @@ import {
   type LaunchResolverDeps,
 } from "../electron/pty-launch.ts";
 
-const HOME_CLI_PATH = path.join("/opt/homebrew/bin", "codex");
+const HOME_CLI_PATH = path.posix.join("/opt/homebrew/bin", "codex");
 
 function createDeps(overrides: Partial<LaunchResolverDeps> = {}): LaunchResolverDeps {
   return {

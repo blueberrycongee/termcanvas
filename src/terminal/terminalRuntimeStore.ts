@@ -1,8 +1,6 @@
 import { create } from "zustand";
-import {
-  Terminal as XtermTerminalConstructor,
-  type Terminal as XtermTerminal,
-} from "@xterm/xterm";
+import * as xtermModule from "@xterm/xterm";
+import type { Terminal as XtermTerminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { ImageAddon } from "@xterm/addon-image";
 import { SerializeAddon } from "@xterm/addon-serialize";
@@ -78,10 +76,22 @@ interface ManagedTerminalRuntime {
   xterm: XtermTerminal | null;
 }
 
+type XtermTerminalConstructor = new (
+  options?: ConstructorParameters<typeof xtermModule.Terminal>[0],
+) => XtermTerminal;
+type XtermRuntimeModule = typeof xtermModule & {
+  default?: { Terminal?: XtermTerminalConstructor };
+};
+
 const dictionaries = { en, zh } as const;
 const WAITING_THRESHOLD = 15_000;
 const ACTIVITY_THROTTLE_MS = 3_000;
 const runtimeRegistry = new Map<string, ManagedTerminalRuntime>();
+const xtermRuntimeModule = xtermModule as XtermRuntimeModule;
+const XtermTerminalConstructor = (
+  xtermRuntimeModule.Terminal ??
+  xtermRuntimeModule.default?.Terminal
+) as XtermTerminalConstructor;
 
 export const useTerminalRuntimeStore = create<TerminalRuntimeStoreState>(
   () => ({
