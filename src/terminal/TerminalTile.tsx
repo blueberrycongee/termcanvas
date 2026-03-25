@@ -34,6 +34,7 @@ import {
   shouldDebugTerminalMouseCorrection,
 } from "./mousePosition";
 import { shouldSkipTerminalTileFocus } from "./tileFocusGuard";
+import { focusTerminalContentTarget } from "./contentFocus";
 
 interface Props {
   projectId: string;
@@ -1233,12 +1234,10 @@ function TerminalTileImpl({
         }}
         onMouseDown={(e) => {
           e.stopPropagation();
-        }}
-        onClick={() => {
-          const adapter = getComposerAdapter(terminal.type);
-          if (!adapter || adapter.inputMode === "type" || !composerEnabled) {
-            scheduleTerminalInputFocus();
-          }
+          focusTerminalContentTarget(terminal.type, composerEnabled, {
+            focusTerminal: () => setFocusedTerminal(terminal.id),
+            focusTerminalInput: scheduleTerminalInputFocus,
+          });
         }}
       />
 
