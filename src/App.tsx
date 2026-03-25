@@ -12,7 +12,7 @@ import { ShortcutHints } from "./components/ShortcutHints";
 import { CompletionGlow } from "./components/CompletionGlow";
 import { UsagePanel } from "./components/UsagePanel";
 import { WelcomePopup } from "./components/WelcomePopup";
-import { useProjectStore, createTerminal } from "./stores/projectStore";
+import { useProjectStore, createTerminal, getProjectBounds, generateId } from "./stores/projectStore";
 import { useCanvasStore } from "./stores/canvasStore";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useT } from "./i18n/useT";
@@ -423,7 +423,6 @@ export function App() {
           return;
         }
         const { projects, addProject } = useProjectStore.getState();
-        const { getProjectBounds, generateId } = await import("./stores/projectStore");
         let placeX = 0;
         const gap = 80;
         for (const p of projects) {
