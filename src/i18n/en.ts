@@ -70,6 +70,13 @@ export const en = {
   file_binary: "Binary file",
   file_read_error: "Failed to read file",
 
+  // LeftPanel
+  left_panel_files: "Files",
+  left_panel_diff: "Diff",
+  left_panel_preview: "Preview",
+  no_worktree_selected: "No worktree selected",
+  no_file_selected: "No file selected",
+
   // TerminalTile
   terminal_api_unavailable:
     "Terminal API not available. Not running in Electron.",

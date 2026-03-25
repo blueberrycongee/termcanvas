@@ -69,6 +69,13 @@ export const zh = {
   file_binary: "二进制文件",
   file_read_error: "读取文件失败",
 
+  // LeftPanel
+  left_panel_files: "文件",
+  left_panel_diff: "差异",
+  left_panel_preview: "预览",
+  no_worktree_selected: "未选择工作树",
+  no_file_selected: "未选择文件",
+
   // TerminalTile
   terminal_api_unavailable: "终端 API 不可用，未在 Electron 中运行。",
   failed_create_pty: (title: string, err: unknown) =>

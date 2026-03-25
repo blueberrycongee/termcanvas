@@ -1,4 +1,4 @@
-import { useCanvasStore, type FocusLevel } from "../stores/canvasStore";
+import { useCanvasStore, type FocusLevel, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useShortcutStore, formatShortcut } from "../stores/shortcutStore";
 import { getWorktreeFocusOrder, getTerminalFocusOrder } from "../stores/projectFocus";
@@ -27,7 +27,7 @@ interface FocusTarget {
 }
 
 export function Hub() {
-  const { focusLevel } = useCanvasStore();
+  const { focusLevel, leftPanelCollapsed, leftPanelWidth } = useCanvasStore();
   const { projects, focusedWorktreeId, setFocusedTerminal, setFocusedWorktree } =
     useProjectStore();
   const { shortcuts } = useShortcutStore();
@@ -159,11 +159,13 @@ export function Hub() {
   const levelShortcut = formatShortcut(shortcuts.cycleFocusLevel, !!isMac);
   const levelLabel = t[`hub.level.${focusLevel}`];
 
+  const leftOffset = leftPanelCollapsed ? COLLAPSED_TAB_WIDTH + 12 : leftPanelWidth + 12;
+
   return (
     <div
       ref={containerRef}
-      className="fixed left-3 z-50 select-none"
-      style={{ top: 52 }}
+      className="fixed z-50 select-none"
+      style={{ top: 52, left: leftOffset, transition: "left 0.2s ease" }}
     >
       {/* Capsule trigger */}
       <button

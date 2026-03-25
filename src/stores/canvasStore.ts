@@ -3,6 +3,7 @@ import type { Viewport } from "../types";
 import { useWorkspaceStore } from "./workspaceStore";
 
 export type FocusLevel = "terminal" | "starred" | "worktree";
+export type LeftPanelTab = "files" | "diff" | "preview";
 
 // Fixed panel dimensions (no user-resizable widths)
 export const RIGHT_PANEL_WIDTH = 240;
@@ -13,11 +14,19 @@ interface CanvasStore {
   isAnimating: boolean;
   focusLevel: FocusLevel;
   rightPanelCollapsed: boolean;
+  leftPanelCollapsed: boolean;
+  leftPanelWidth: number;
+  leftPanelActiveTab: LeftPanelTab;
+  leftPanelPreviewFile: string | null;
   setViewport: (viewport: Partial<Viewport>) => void;
   resetViewport: () => void;
   setFocusLevel: (level: FocusLevel) => void;
   cycleFocusLevel: () => void;
   setRightPanelCollapsed: (collapsed: boolean) => void;
+  setLeftPanelCollapsed: (collapsed: boolean) => void;
+  setLeftPanelWidth: (width: number) => void;
+  setLeftPanelActiveTab: (tab: LeftPanelTab) => void;
+  setLeftPanelPreviewFile: (filePath: string | null) => void;
   animateTo: (x: number, y: number, scale?: number) => void;
 }
 
@@ -35,6 +44,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   isAnimating: false,
   focusLevel: "terminal" as FocusLevel,
   rightPanelCollapsed: true,
+  leftPanelCollapsed: true,
+  leftPanelWidth: 280,
+  leftPanelActiveTab: "files" as LeftPanelTab,
+  leftPanelPreviewFile: null,
 
   setFocusLevel: (level) => set({ focusLevel: level }),
   cycleFocusLevel: () => {
@@ -44,6 +57,19 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set({ focusLevel: next });
   },
   setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
+  setLeftPanelCollapsed: (collapsed) => {
+    set({ leftPanelCollapsed: collapsed });
+    markDirty();
+  },
+  setLeftPanelWidth: (width) => {
+    set({ leftPanelWidth: width });
+    markDirty();
+  },
+  setLeftPanelActiveTab: (tab) => {
+    set({ leftPanelActiveTab: tab });
+    markDirty();
+  },
+  setLeftPanelPreviewFile: (filePath) => set({ leftPanelPreviewFile: filePath }),
 
   setViewport: (partial) => {
     set((state) => ({
