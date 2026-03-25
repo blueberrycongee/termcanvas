@@ -6,6 +6,7 @@ type CliTool = "claude" | "codex";
 
 export function InsightsButton({ compact = false }: { compact?: boolean } = {}) {
   const t = useT();
+  const insightsApi = window.termcanvas?.insights;
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<InsightsProgressEvent | null>(null);
   const [error, setError] = useState<{ message: string; detail?: string } | null>(null);
@@ -15,15 +16,24 @@ export function InsightsButton({ compact = false }: { compact?: boolean } = {}) 
   const currentJobIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    window.termcanvas.insights.getLastReport().then((p) => {
+    if (!insightsApi) {
+      return;
+    }
+
+    insightsApi.getLastReport().then((p) => {
       if (p) setReportPath(p);
     });
     return () => {
       cleanupRef.current?.();
     };
-  }, []);
+  }, [insightsApi]);
 
   const handleSelect = async (cliTool: CliTool) => {
+    if (!insightsApi) {
+      setError({ message: "Insights API unavailable." });
+      return;
+    }
+
     setShowPicker(false);
     setRunning(true);
     setError(null);
@@ -34,7 +44,7 @@ export function InsightsButton({ compact = false }: { compact?: boolean } = {}) 
       `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     currentJobIdRef.current = jobId;
 
-    const ins = window.termcanvas.insights;
+    const ins = insightsApi;
     cleanupRef.current?.();
     cleanupRef.current = ins.onProgress((p) => {
       if (p.jobId === currentJobIdRef.current) {
@@ -61,14 +71,14 @@ export function InsightsButton({ compact = false }: { compact?: boolean } = {}) 
   };
 
   const openReport = () => {
-    if (reportPath) window.termcanvas.insights.openReport(reportPath);
+    if (reportPath && insightsApi) insightsApi.openReport(reportPath);
   };
 
   if (compact) {
     return (
       <div className="relative inline-flex">
         <button
-          disabled={running}
+          disabled={running || !insightsApi}
           onClick={() => setShowPicker((v) => !v)}
           className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50 cursor-pointer"
           title={t.insights_generate}
@@ -197,7 +207,7 @@ export function InsightsButton({ compact = false }: { compact?: boolean } = {}) 
           </div>
         )}
         <button
-          disabled={running}
+          disabled={running || !insightsApi}
           className="w-full py-1.5 px-3 rounded-md text-[11px] font-medium border border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--accent)] transition-colors duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           onClick={() => setShowPicker((v) => !v)}
         >
