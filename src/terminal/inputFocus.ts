@@ -37,6 +37,29 @@ interface FocusContainer {
   contains: (node: Node | null) => boolean;
 }
 
+interface OpenableTerminal {
+  open: (parent: HTMLElement) => void;
+  focus: (options?: { preventScroll?: boolean }) => void;
+}
+
+export function openTerminalWithoutMountAutoFocus(
+  terminal: OpenableTerminal,
+  parent: HTMLElement,
+) {
+  const originalFocus = terminal.focus;
+
+  terminal.focus = (() => {
+    // ghostty-web calls focus() during open(); suppress that so app-level
+    // viewport animations remain the only thing moving on mount.
+  }) as OpenableTerminal["focus"];
+
+  try {
+    terminal.open(parent);
+  } finally {
+    terminal.focus = originalFocus;
+  }
+}
+
 function syncTextareaToCursor(terminal: FocusableTerminal, textarea: FocusTarget) {
   if (!textarea.style) {
     return;

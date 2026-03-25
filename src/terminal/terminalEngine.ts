@@ -4,6 +4,7 @@ import { serializeBufferToText } from "./scrollbackSnapshot";
 import { getSerializableBuffer } from "./scrollbackBuffer";
 import { createTerminalThemeState } from "./themeState";
 import { syncTerminalCursorBlink } from "./cursorBlink";
+import { openTerminalWithoutMountAutoFocus } from "./inputFocus.ts";
 import {
   acquireWebGL,
   releaseWebGL,
@@ -154,7 +155,7 @@ async function createGhosttySession(
 
   const fitAddon = new ghostty.FitAddon();
   terminal.loadAddon(fitAddon);
-  terminal.open(options.container);
+  openTerminalWithoutMountAutoFocus(terminal, options.container);
 
   if (options.scrollback) {
     terminal.write(options.scrollback, () => terminal.scrollToBottom());
