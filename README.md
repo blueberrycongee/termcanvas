@@ -151,7 +151,7 @@ Hydra lets you break a big task into smaller pieces and hand each piece to an AI
 
 > *"Use Hydra to split this refactor into subtasks and run them in parallel."*
 
-The agent already knows how to call `hydra spawn`, monitor progress, and merge results — you don't need to memorize any CLI flags.
+The agent already knows how to call Hydra workflows, monitor progress, and merge results — you don't need to memorize every CLI flag.
 
 ```bash
 hydra init    # teach Claude Code / Codex how to use Hydra in this project
@@ -161,12 +161,13 @@ hydra init    # teach Claude Code / Codex how to use Hydra in this project
 <summary>Manual usage</summary>
 
 ```bash
-hydra spawn --task "fix the login bug" --type claude --repo .
-hydra list
-hydra cleanup <agent-id>
+hydra run --task "fix the login bug" --repo . --template planner-implementer-evaluator
+hydra watch --repo . --workflow <workflow-id>
+hydra status --repo . --workflow <workflow-id>
+hydra cleanup --workflow <workflow-id> --repo . --force
 ```
 
-`hydra spawn` creates a worktree + branch, opens a terminal on the canvas, and sends the task. Pass `--auto-approve` to inherit the parent agent's permission level. For read-only tasks (review, analysis), pass `--worktree <path>` to reuse an existing worktree.
+Hydra workflows create task packages under `.hydra/workflows`, launch real Claude/Codex terminals with create-only prompts, and advance only on validated `result.json` + `done` evidence. See [Hydra Orchestration Guide](docs/hydra-orchestration.md) for architecture boundaries, troubleshooting, anti-patterns, and the local acceptance harness.
 
 </details>
 

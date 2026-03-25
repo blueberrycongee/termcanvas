@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "node --experimental-strip-types build.ts",
+    "e2e:acceptance": "node --experimental-strip-types scripts/e2e-acceptance.ts",
     "test": "node --experimental-strip-types --test tests/**/*.test.ts",
     "test:anti-optimistic": "node --experimental-strip-types --test tests/anti-optimistic.test.ts",
     "typecheck": "tsc --noEmit"

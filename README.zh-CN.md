@@ -145,7 +145,7 @@ Hydra 让你把大任务拆成小块，分派给不同的 AI agent，每个 agen
 
 > *"用 Hydra 把这次重构拆成子任务，并行执行。"*
 
-Agent 已经知道如何调用 `hydra spawn`、监控进度、合并结果——你不需要记任何 CLI 参数。
+Agent 已经知道如何调用 Hydra workflow、监控进度、合并结果——你不需要记住所有 CLI 参数。
 
 ```bash
 hydra init    # 教会 Claude Code / Codex 在这个项目中使用 Hydra
@@ -155,12 +155,13 @@ hydra init    # 教会 Claude Code / Codex 在这个项目中使用 Hydra
 <summary>手动使用</summary>
 
 ```bash
-hydra spawn --task "fix the login bug" --type claude --repo .
-hydra list
-hydra cleanup <agent-id>
+hydra run --task "fix the login bug" --repo . --template planner-implementer-evaluator
+hydra watch --repo . --workflow <workflow-id>
+hydra status --repo . --workflow <workflow-id>
+hydra cleanup --workflow <workflow-id> --repo . --force
 ```
 
-`hydra spawn` 会创建 worktree + 分支，在画布上打开终端，并发送任务。传入 `--auto-approve` 可继承父 agent 的权限级别。只读任务（审查、分析）可传入 `--worktree <path>` 复用已有 worktree。
+Hydra workflow 会在 `.hydra/workflows` 下创建任务包，通过 create-only prompt 启动真实 Claude/Codex 终端，并且只在 `result.json` + `done` 通过校验后推进。更多架构边界、故障排查、反模式和本地验收流程，见 [Hydra Orchestration Guide](docs/hydra-orchestration.md)。
 
 </details>
 
