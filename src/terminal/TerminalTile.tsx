@@ -30,6 +30,7 @@ import {
 import { handleTerminalCustomKeyEvent } from "./keyHandling";
 import { focusTerminalInputElement } from "./inputFocus";
 import { adoptCreatedPty } from "./ptyLifecycle";
+import { getInitialPtyCreateSize } from "./ptyCreateSize";
 import { getPtyResizeDecision, type PtyResizeSnapshot } from "./ptyResize";
 import { createTerminalReplayHistory } from "./replayHistory";
 import { buildTerminalSessionBootstrapConfig } from "./sessionBootstrap";
@@ -534,11 +535,27 @@ function TerminalTileImpl({
          * otherwise a fresh session is started.
          */
         const spawnPty = (resumeSessionId: string | undefined) => {
-          const opts: { cwd: string; shell?: string; args?: string[]; terminalId?: string; theme?: "dark" | "light" } = {
+          const opts: {
+            cwd: string;
+            shell?: string;
+            args?: string[];
+            terminalId?: string;
+            theme?: "dark" | "light";
+            cols?: number;
+            rows?: number;
+          } = {
             cwd: worktreePath,
             terminalId: terminal.id,
           };
           opts.theme = useThemeStore.getState().theme;
+          const initialPtySize = getInitialPtyCreateSize(
+            engineSessionRef.current,
+            terminalRef.current,
+          );
+          if (initialPtySize) {
+            opts.cols = initialPtySize.cols;
+            opts.rows = initialPtySize.rows;
+          }
 
           const launch = getTerminalLaunchOptions(
             terminal.type,
@@ -563,6 +580,13 @@ function TerminalTileImpl({
                 adopt: (nextPtyId) => {
                   ptyId = nextPtyId;
                   ptyIdRef.current = nextPtyId;
+                  if (initialPtySize) {
+                    lastSyncedPtySizeRef.current = {
+                      ptyId: nextPtyId,
+                      cols: initialPtySize.cols,
+                      rows: initialPtySize.rows,
+                    };
+                  }
                 },
                 destroy: (stalePtyId) =>
                   window.termcanvas.terminal.destroy(stalePtyId).catch((error) => {

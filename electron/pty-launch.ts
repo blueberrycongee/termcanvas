@@ -9,6 +9,8 @@ export interface PtyLaunchOptions {
   extraPathEntries?: string[];
   terminalId?: string;
   theme?: "dark" | "light";
+  cols?: number;
+  rows?: number;
 }
 
 export interface PtyResolvedLaunchSpec {

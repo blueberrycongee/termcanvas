@@ -22,8 +22,8 @@ export class PtyManager {
     try {
       ptyProcess = pty.spawn(launch.file, launch.args, {
         name: "xterm-256color",
-        cols: 80,
-        rows: 24,
+        cols: options.cols ?? 80,
+        rows: options.rows ?? 24,
         cwd: launch.cwd,
         env: launch.env,
       });

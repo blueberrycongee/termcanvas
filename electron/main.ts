@@ -196,7 +196,18 @@ function setupIpc() {
   // Terminal IPC
   ipcMain.handle(
     "terminal:create",
-    async (event, options: { cwd: string; shell?: string; args?: string[]; terminalId?: string; theme?: "dark" | "light" }) => {
+    async (
+      event,
+      options: {
+        cwd: string;
+        shell?: string;
+        args?: string[];
+        terminalId?: string;
+        theme?: "dark" | "light";
+        cols?: number;
+        rows?: number;
+      },
+    ) => {
       ensurePtyOwnerCleanup(event.sender);
       dbg(`terminal:create shell=${options.shell ?? "(default)"} args=${JSON.stringify(options.args)} cwd=${options.cwd}`);
       const ptyId = await ptyManager.create({
