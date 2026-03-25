@@ -363,6 +363,53 @@ function setupIpc() {
     sessionWatcher.unwatch(sessionId);
   });
 
+  // Validate that a session's JSONL file still exists on disk.
+  // Used before attempting --resume to avoid launching with a stale session ID.
+  ipcMain.handle(
+    "session:validate",
+    (_event, type: string, sessionId: string, cwd: string) => {
+      try {
+        if (type === "claude") {
+          const projectKey = cwd.replaceAll(/[/\\.:-]/g, "-");
+          const jsonlPath = path.join(
+            os.homedir(),
+            ".claude",
+            "projects",
+            projectKey,
+            sessionId + ".jsonl",
+          );
+          const exists = fs.existsSync(jsonlPath);
+          dbg(`session:validate type=claude sid=${sessionId} file=${jsonlPath} exists=${exists}`);
+          return exists;
+        }
+        if (type === "codex") {
+          const sessionsDir = path.join(os.homedir(), ".codex", "sessions");
+          const now = new Date();
+          for (let d = 0; d < 7; d++) {
+            const date = new Date(now.getTime() - d * 86400000);
+            const yyyy = String(date.getFullYear());
+            const mm = String(date.getMonth() + 1).padStart(2, "0");
+            const dd = String(date.getDate()).padStart(2, "0");
+            const dayDir = path.join(sessionsDir, yyyy, mm, dd);
+            if (!fs.existsSync(dayDir)) continue;
+            const files = fs.readdirSync(dayDir);
+            if (files.find((f) => f.includes(sessionId))) {
+              dbg(`session:validate type=codex sid=${sessionId} found=true`);
+              return true;
+            }
+          }
+          dbg(`session:validate type=codex sid=${sessionId} found=false`);
+          return false;
+        }
+        // For other types (kimi, gemini, etc.), assume valid — no known file layout
+        return true;
+      } catch (err) {
+        dbg(`session:validate ERROR: ${err}`);
+        return false;
+      }
+    },
+  );
+
   // State IPC
   ipcMain.handle("state:load", () => {
     return statePersistence.load();

@@ -678,7 +678,7 @@ export const useProjectStore = create<ProjectStore>((set) => ({
       ),
     })),
 
-  updateTerminalSessionId: (projectId, worktreeId, terminalId, sessionId) =>
+  updateTerminalSessionId: (projectId, worktreeId, terminalId, sessionId) => {
     set((state) => ({
       projects: mapTerminals(
         state.projects,
@@ -687,7 +687,9 @@ export const useProjectStore = create<ProjectStore>((set) => ({
         terminalId,
         (t) => ({ ...t, sessionId }),
       ),
-    })),
+    }));
+    markDirty();
+  },
 
   updateTerminalType: (projectId, worktreeId, terminalId, type) =>
     set((state) => ({
