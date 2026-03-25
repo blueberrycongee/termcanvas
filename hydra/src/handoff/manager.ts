@@ -27,10 +27,12 @@ export class HandoffManager {
     return path.join(this.handoffsDir, `${handoffId}.json`);
   }
 
-  create(handoff: Omit<Handoff, "id" | "created_at" | "status" | "retry_count">): Handoff {
+  create(
+    handoff: Omit<Handoff, "id" | "created_at" | "status" | "retry_count"> & Partial<Pick<Handoff, "id">>,
+  ): Handoff {
     const fullHandoff: Handoff = {
       ...handoff,
-      id: this.generateHandoffId(),
+      id: handoff.id ?? this.generateHandoffId(),
       created_at: new Date().toISOString(),
       status: "pending",
       retry_count: 0,

@@ -4,9 +4,14 @@ const args = process.argv.slice(2);
 const [command, ...rest] = args;
 
 function printUsage() {
-  console.log("Usage: hydra <spawn|list|cleanup|init> [options]");
+  console.log("Usage: hydra <run|tick|watch|status|retry|spawn|list|cleanup|init> [options]");
   console.log("");
   console.log("Commands:");
+  console.log("  run      Create and start a workflow");
+  console.log("  tick     Advance one workflow tick");
+  console.log("  watch    Poll a workflow until it reaches a terminal state");
+  console.log("  status   Show structured workflow status");
+  console.log("  retry    Retry a failed or timed-out workflow");
   console.log("  spawn    Spawn a sub-agent in a new TermCanvas terminal");
   console.log("  list     List all spawned agents");
   console.log("  cleanup  Clean up agent worktrees and terminals");
@@ -18,6 +23,31 @@ async function main() {
     case "spawn": {
       const { spawn } = await import("./spawn.js");
       await spawn(rest);
+      break;
+    }
+    case "run": {
+      const { run } = await import("./run.js");
+      await run(rest);
+      break;
+    }
+    case "tick": {
+      const { tick } = await import("./tick.js");
+      await tick(rest);
+      break;
+    }
+    case "watch": {
+      const { watch } = await import("./watch.js");
+      await watch(rest);
+      break;
+    }
+    case "status": {
+      const { status } = await import("./status.js");
+      await status(rest);
+      break;
+    }
+    case "retry": {
+      const { retry } = await import("./retry-command.js");
+      await retry(rest);
       break;
     }
     case "list": {

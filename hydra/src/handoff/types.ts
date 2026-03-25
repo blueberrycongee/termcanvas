@@ -4,6 +4,8 @@
  * Based on Anthropic's file-based agent communication pattern
  */
 
+import type { TaskPackagePaths } from "../protocol.ts";
+
 export type AgentRole =
   | "planner"
   | "implementer"
@@ -56,7 +58,8 @@ export interface HandoffTransition {
     | "mark_failed"
     | "mark_timed_out"
     | "schedule_retry"
-    | "retry_exhausted";
+    | "retry_exhausted"
+    | "manual_retry";
   from: HandoffStatus;
   to: HandoffStatus;
   at: string;
@@ -94,6 +97,8 @@ export interface Handoff {
   id: string;
   created_at: string;
   workflow_id: string;
+  workspace_root?: string;
+  worktree_path?: string;
 
   // 路由
   from: AgentInfo;
@@ -104,6 +109,7 @@ export interface Handoff {
 
   // 上下文
   context: HandoffContext;
+  artifacts?: TaskPackagePaths;
 
   // 控制
   status: HandoffStatus;
@@ -119,6 +125,17 @@ export interface Handoff {
   // 结果（完成后填充）
   result?: {
     success: boolean;
+    summary?: string;
+    outputs?: Array<{
+      path: string;
+      description: string;
+    }>;
+    evidence?: string[];
+    next_action?: {
+      type: "complete" | "retry" | "handoff";
+      reason: string;
+      handoff_id?: string;
+    };
     output_files?: string[];
     message?: string;
     completed_at?: string;

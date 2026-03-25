@@ -1,9 +1,14 @@
+import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import { loadAgent, listAgents, deleteAgent } from "./store.ts";
 import { isTermCanvasRunning, terminalDestroy, terminalStatus } from "./termcanvas.ts";
+import { HandoffManager } from "./handoff/manager.ts";
+import { deleteWorkflow, loadWorkflow } from "./workflow-store.ts";
 
 export interface CleanupArgs {
   agentId?: string;
+  workflowId?: string;
+  repo?: string;
   all: boolean;
   force: boolean;
 }
@@ -11,9 +16,12 @@ export interface CleanupArgs {
 function printCleanupUsage(): never {
   console.log("Usage: hydra cleanup <agentId> [options]");
   console.log("       hydra cleanup --all [options]");
+  console.log("       hydra cleanup --workflow <workflowId> --repo <path> [options]");
   console.log("");
   console.log("Options:");
   console.log("  --all      Clean up all agents");
+  console.log("  --workflow Clean up a workflow by ID");
+  console.log("  --repo     Repository path for workflow cleanup");
   console.log("  --force    Force cleanup even if agent is still running");
   process.exit(0);
 }
@@ -23,15 +31,37 @@ export function parseCleanupArgs(args: string[]): CleanupArgs {
     printCleanupUsage();
   }
 
+  const consumed = new Set<number>();
   const all = args.includes("--all");
   const force = args.includes("--force");
-  const agentId = args.find((a) => !a.startsWith("--"));
+  const workflowIdx = args.indexOf("--workflow");
+  const workflowId = workflowIdx >= 0 && workflowIdx + 1 < args.length ? args[workflowIdx + 1] : undefined;
+  if (workflowIdx >= 0) {
+    consumed.add(workflowIdx);
+    if (workflowIdx + 1 < args.length) consumed.add(workflowIdx + 1);
+  }
+  const repoIdx = args.indexOf("--repo");
+  const repo = repoIdx >= 0 && repoIdx + 1 < args.length ? args[repoIdx + 1] : undefined;
+  if (repoIdx >= 0) {
+    consumed.add(repoIdx);
+    if (repoIdx + 1 < args.length) consumed.add(repoIdx + 1);
+  }
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--force" || args[i] === "--all") {
+      consumed.add(i);
+    }
+  }
+  const agentId = args.find((arg, index) => !arg.startsWith("--") && !consumed.has(index));
 
-  if (!all && !agentId) {
-    throw new Error("Provide an agent ID or --all");
+  if (workflowId && !repo) {
+    throw new Error("Provide --repo when cleaning up a workflow");
   }
 
-  return { agentId, all, force };
+  if (!all && !agentId && !workflowId) {
+    throw new Error("Provide an agent ID, --workflow, or --all");
+  }
+
+  return { agentId, workflowId, repo, all, force };
 }
 
 export function buildGitWorktreeRemoveArgs(worktreePath: string): string[] {
@@ -103,10 +133,71 @@ function cleanupOne(agentId: string, force: boolean): void {
   console.log(`Cleaned up ${agentId}.`);
 }
 
+function cleanupWorkflow(workflowId: string, repo: string, force: boolean): void {
+  const workflow = loadWorkflow(repo, workflowId);
+  if (!workflow) {
+    console.error(`Workflow ${workflowId} not found.`);
+    return;
+  }
+
+  const manager = new HandoffManager(repo);
+  const handoff = manager.load(workflow.current_handoff_id);
+
+  if (handoff?.dispatch?.active_terminal_id && isTermCanvasRunning()) {
+    try {
+      const { status } = terminalStatus(handoff.dispatch.active_terminal_id);
+      if (isLiveTerminalStatus(status) && !force) {
+        console.error(
+          `Workflow ${workflowId} is still running (status: ${status}). Use --force to clean up anyway.`,
+        );
+        return;
+      }
+    } catch {
+      // terminal already gone
+    }
+
+    try {
+      terminalDestroy(handoff.dispatch.active_terminal_id);
+    } catch {
+      // terminal already gone
+    }
+  }
+
+  if (workflow.own_worktree) {
+    try {
+      execFileSync("git", buildGitWorktreeRemoveArgs(workflow.worktree_path), {
+        cwd: workflow.repo_path,
+        stdio: "pipe",
+      });
+    } catch {
+      // worktree already removed
+    }
+
+    if (workflow.branch) {
+      try {
+        execFileSync("git", buildGitBranchDeleteArgs(workflow.branch), {
+          cwd: workflow.repo_path,
+          stdio: "pipe",
+        });
+      } catch {
+        // branch already removed
+      }
+    }
+  }
+
+  for (const handoffId of workflow.handoff_ids) {
+    fs.rmSync(manager.getHandoffPath(handoffId), { force: true });
+  }
+  deleteWorkflow(repo, workflowId);
+  console.log(`Cleaned up workflow ${workflowId}.`);
+}
+
 export async function cleanup(args: string[]): Promise<void> {
   const opts = parseCleanupArgs(args);
 
-  if (opts.all) {
+  if (opts.workflowId && opts.repo) {
+    cleanupWorkflow(opts.workflowId, opts.repo, opts.force);
+  } else if (opts.all) {
     const agents = listAgents();
     if (agents.length === 0) {
       console.log("No agents to clean up.");
