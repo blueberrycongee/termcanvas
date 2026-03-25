@@ -325,9 +325,30 @@ export const en = {
   onboarding_switch_continue: "Press Enter to continue",
   onboarding_zoom_prompt: "Scroll to zoom, drag to pan",
   onboarding_zoom_continue: "Press Enter to continue",
-  onboarding_complete: "Tutorial complete! Close this window, then press {shortcut} to add your first project.",
+  onboarding_complete: "You're all set! Press {shortcut} to add your first project.",
   onboarding_complete_dismiss: "Press Enter or Escape to close.",
   onboarding_skip: "Escape to skip",
+  onboarding_back: "Back",
+  onboarding_next: "Next",
+  onboarding_done: "Get Started",
+
+  // Onboarding step 5: Composer
+  onboarding_composer_title: "Composer Bar",
+  onboarding_composer_desc: "Send text and images to any focused terminal without switching windows.",
+  onboarding_composer_tip_1: "Focus a terminal, then type in the composer to send commands",
+  onboarding_composer_tip_2: "Paste screenshots directly — agent terminals accept images",
+  onboarding_composer_tip_3: "Drag and drop files onto the composer to attach them",
+
+  // Onboarding step 6: Shortcuts
+  onboarding_shortcuts_title: "Keyboard Shortcuts",
+  onboarding_shortcuts_desc: "Everything is keyboard-driven. Here are the essentials:",
+
+  // Onboarding step 7: What makes TermCanvas different
+  onboarding_unique_title: "Why TermCanvas?",
+  onboarding_unique_1: "Infinite canvas — arrange terminals spatially, not in tabs",
+  onboarding_unique_2: "AI agents live alongside your terminals as first-class citizens",
+  onboarding_unique_3: "Git worktree-aware — each branch gets its own workspace",
+  onboarding_unique_4: "Save & restore full workspaces, including terminal state",
 } as const;
 
 export type TranslationKey = keyof typeof en;
