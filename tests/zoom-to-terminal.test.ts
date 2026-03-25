@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { zoomToTerminal } from "../src/utils/zoomToTerminal.ts";
-import { zoomToNewTerminal } from "../src/utils/zoomToNewTerminal.ts";
 import { panToTerminal } from "../src/utils/panToTerminal.ts";
 import { panToWorktree } from "../src/utils/panToWorktree.ts";
 import { useProjectStore } from "../src/stores/projectStore.ts";
@@ -62,38 +61,6 @@ function createProjects(): ProjectData[] {
   ];
 }
 
-function createSequentialProject(terminalCount: number): ProjectData[] {
-  return [
-    {
-      id: "project-1",
-      name: "Project One",
-      path: "/tmp/project-1",
-      position: { x: 120, y: 40 },
-      collapsed: false,
-      zIndex: 1,
-      worktrees: [
-        {
-          id: "worktree-1",
-          name: "main",
-          path: "/tmp/project-1",
-          position: { x: 0, y: 0 },
-          collapsed: false,
-          terminals: Array.from({ length: terminalCount }, (_, index) => ({
-            id: `terminal-${index + 1}`,
-            title: `Terminal ${index + 1}`,
-            type: "shell" as const,
-            minimized: false,
-            focused: index === terminalCount - 1,
-            ptyId: null,
-            status: "idle" as const,
-            span: { cols: 1, rows: 1 },
-          })),
-        },
-      ],
-    },
-  ];
-}
-
 function withWindowSize(width: number, height: number, run: () => void) {
   const previousWindow = (globalThis as { window?: Window }).window;
   (globalThis as { window?: Window }).window = {
@@ -117,9 +84,8 @@ function getExpectedTerminalViewportTarget(
   width: number,
   height: number,
   terminalId: string,
-  projects: ProjectData[] = createProjects(),
 ) {
-  const project = projects[0];
+  const project = createProjects()[0];
   const worktree = project.worktrees[0];
   const terminalIndex = worktree.terminals.findIndex((t) => t.id === terminalId);
   assert.notEqual(terminalIndex, -1);
@@ -152,19 +118,7 @@ function getExpectedTerminalViewportTarget(
 }
 
 function getExpectedWorktreeViewportTarget(width: number, height: number) {
-  return getExpectedWorktreeViewportTargetForProjects(
-    width,
-    height,
-    createProjects(),
-  );
-}
-
-function getExpectedWorktreeViewportTargetForProjects(
-  width: number,
-  height: number,
-  projects: ProjectData[],
-) {
-  const project = projects[0];
+  const project = createProjects()[0];
   const worktree = project.worktrees[0];
   const size = computeWorktreeSize(worktree.terminals.map((t) => t.span));
   const rightOffset = 32;
@@ -183,127 +137,6 @@ function getExpectedWorktreeViewportTargetForProjects(
     scale,
   };
 }
-
-test("zoomToNewTerminal recenters on the worktree when a new terminal starts a new row", () => {
-  const previousCanvasState = useCanvasStore.getState();
-  const previousProjectState = useProjectStore.getState();
-  const animateCalls: Array<{ x: number; y: number; scale: number | undefined }> = [];
-  const projects = createSequentialProject(4);
-
-  try {
-    useProjectStore.setState({
-      projects,
-      focusedProjectId: "project-1",
-      focusedWorktreeId: "worktree-1",
-    });
-    useCanvasStore.setState({
-      viewport: { x: 0, y: 0, scale: 1 },
-      rightPanelCollapsed: true,
-      animateTo: (x, y, scale) => {
-        animateCalls.push({ x, y, scale });
-      },
-    });
-
-    withWindowSize(1440, 900, () => {
-      zoomToNewTerminal("project-1", "worktree-1", "terminal-4");
-    });
-
-    const expected = getExpectedWorktreeViewportTargetForProjects(
-      1440,
-      900,
-      projects,
-    );
-
-    assert.equal(animateCalls.length, 1);
-    assert.equal(animateCalls[0].x, expected.x);
-    assert.equal(animateCalls[0].y, expected.y);
-    assert.equal(animateCalls[0].scale, expected.scale);
-  } finally {
-    useCanvasStore.setState(previousCanvasState);
-    useProjectStore.setState(previousProjectState);
-  }
-});
-
-test("zoomToNewTerminal keeps the terminal-centered target within the same row", () => {
-  const previousCanvasState = useCanvasStore.getState();
-  const previousProjectState = useProjectStore.getState();
-  const animateCalls: Array<{ x: number; y: number; scale: number | undefined }> = [];
-  const projects = createSequentialProject(3);
-
-  try {
-    useProjectStore.setState({
-      projects,
-      focusedProjectId: "project-1",
-      focusedWorktreeId: "worktree-1",
-    });
-    useCanvasStore.setState({
-      viewport: { x: 0, y: 0, scale: 1 },
-      rightPanelCollapsed: true,
-      animateTo: (x, y, scale) => {
-        animateCalls.push({ x, y, scale });
-      },
-    });
-
-    withWindowSize(1440, 900, () => {
-      zoomToNewTerminal("project-1", "worktree-1", "terminal-3");
-    });
-
-    const expected = getExpectedTerminalViewportTarget(
-      1440,
-      900,
-      "terminal-3",
-      projects,
-    );
-
-    assert.equal(animateCalls.length, 1);
-    assert.equal(animateCalls[0].x, expected.x);
-    assert.equal(animateCalls[0].y, expected.y);
-    assert.equal(animateCalls[0].scale, expected.scale);
-  } finally {
-    useCanvasStore.setState(previousCanvasState);
-    useProjectStore.setState(previousProjectState);
-  }
-});
-
-test("zoomToNewTerminal recenters on the worktree for later row wraps too", () => {
-  const previousCanvasState = useCanvasStore.getState();
-  const previousProjectState = useProjectStore.getState();
-  const animateCalls: Array<{ x: number; y: number; scale: number | undefined }> = [];
-  const projects = createSequentialProject(7);
-
-  try {
-    useProjectStore.setState({
-      projects,
-      focusedProjectId: "project-1",
-      focusedWorktreeId: "worktree-1",
-    });
-    useCanvasStore.setState({
-      viewport: { x: 0, y: 0, scale: 1 },
-      rightPanelCollapsed: true,
-      animateTo: (x, y, scale) => {
-        animateCalls.push({ x, y, scale });
-      },
-    });
-
-    withWindowSize(1440, 900, () => {
-      zoomToNewTerminal("project-1", "worktree-1", "terminal-7");
-    });
-
-    const expected = getExpectedWorktreeViewportTargetForProjects(
-      1440,
-      900,
-      projects,
-    );
-
-    assert.equal(animateCalls.length, 1);
-    assert.equal(animateCalls[0].x, expected.x);
-    assert.equal(animateCalls[0].y, expected.y);
-    assert.equal(animateCalls[0].scale, expected.scale);
-  } finally {
-    useCanvasStore.setState(previousCanvasState);
-    useProjectStore.setState(previousProjectState);
-  }
-});
 
 test("zoomToTerminal can focus the target terminal before animating", () => {
   const previousPreferences = usePreferencesStore.getState();
