@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 
 import { zoomToTerminal } from "../src/utils/zoomToTerminal.ts";
 import { panToTerminal } from "../src/utils/panToTerminal.ts";
+import { panToWorktree } from "../src/utils/panToWorktree.ts";
 import { useProjectStore } from "../src/stores/projectStore.ts";
 import { useCanvasStore } from "../src/stores/canvasStore.ts";
 import { usePreferencesStore } from "../src/stores/preferencesStore.ts";
 import {
+  computeWorktreeSize,
   packTerminals,
   PROJ_PAD,
   PROJ_TITLE_H,
@@ -115,6 +117,27 @@ function getExpectedTerminalViewportTarget(
   };
 }
 
+function getExpectedWorktreeViewportTarget(width: number, height: number) {
+  const project = createProjects()[0];
+  const worktree = project.worktrees[0];
+  const size = computeWorktreeSize(worktree.terminals.map((t) => t.span));
+  const rightOffset = 32;
+  const padding = 60;
+  const viewW = width - rightOffset - padding * 2;
+  const viewH = height - padding * 2;
+  const scale = Math.min(viewW / size.w, viewH / size.h) * 0.85;
+
+  const absX = project.position.x + PROJ_PAD + worktree.position.x;
+  const absY =
+    project.position.y + PROJ_TITLE_H + PROJ_PAD + worktree.position.y;
+
+  return {
+    x: -(absX + size.w / 2) * scale + (width - rightOffset) / 2,
+    y: -(absY + size.h / 2) * scale + height / 2,
+    scale,
+  };
+}
+
 test("zoomToTerminal can focus the target terminal before animating", () => {
   const previousPreferences = usePreferencesStore.getState();
   const previousCanvasState = useCanvasStore.getState();
@@ -198,6 +221,41 @@ test("panToTerminal animates to main viewport target", () => {
       useProjectStore.getState().projects[0].worktrees[0].terminals[1].focused,
       true,
     );
+  } finally {
+    useCanvasStore.setState(previousCanvasState);
+    useProjectStore.setState(previousProjectState);
+  }
+});
+
+test("panToWorktree animates to main viewport target", () => {
+  const previousCanvasState = useCanvasStore.getState();
+  const previousProjectState = useProjectStore.getState();
+  const animateCalls: Array<{ x: number; y: number; scale: number | undefined }> = [];
+
+  try {
+    useProjectStore.setState({
+      projects: createProjects(),
+      focusedProjectId: "project-1",
+      focusedWorktreeId: "worktree-1",
+    });
+    useCanvasStore.setState({
+      viewport: { x: 0, y: 0, scale: 1 },
+      rightPanelCollapsed: true,
+      animateTo: (x, y, scale) => {
+        animateCalls.push({ x, y, scale });
+      },
+    });
+
+    withWindowSize(1440, 900, () => {
+      panToWorktree("project-1", "worktree-1");
+    });
+
+    const expected = getExpectedWorktreeViewportTarget(1440, 900);
+
+    assert.equal(animateCalls.length, 1);
+    assert.equal(animateCalls[0].x, expected.x);
+    assert.equal(animateCalls[0].y, expected.y);
+    assert.equal(animateCalls[0].scale, expected.scale);
   } finally {
     useCanvasStore.setState(previousCanvasState);
     useProjectStore.setState(previousProjectState);
