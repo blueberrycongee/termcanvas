@@ -70,3 +70,35 @@ synchronous, user-initiated, and never fired by programmatic scrolls.
 
 These edge cases don't affect the primary use case (mouse wheel scroll-up
 during Claude/Codex streaming).
+
+### Attempt 5: `909dd28` — rely entirely on xterm v6 isUserScrolling
+
+- Removed all manual scroll management. Added an `onScroll` handler to
+  detect when `isUserScrolling` gets stuck at `viewportY=0` (ydisp
+  decremented to 0 by buffer trimming) and snap to bottom.
+- **Failed because**: the fix only triggered at the extreme (ydisp=0).
+  The viewport DRIFT itself was the real problem — as ydisp decremented
+  from the user's position toward 0, the user saw their content scroll
+  away. The snap-to-bottom at 0 was just the final symptom.
+
+### Attempt 6 (current fix): monkey-patch BufferService.scroll()
+
+- **Root cause**: `BufferService.scroll()` decrements `buffer.ydisp` by 1
+  on every buffer trim when `isUserScrolling` is true. This is intended
+  to keep the viewport pointed at the same content (as lines shift in the
+  circular buffer), but it causes the viewport to drift toward ydisp=0
+  during extended streaming.
+- **Fix**: Monkey-patch `_bufferService.scroll()` to freeze `buffer.ydisp`
+  (via a temporary `Object.defineProperty` accessor) during the scroll()
+  call when `isUserScrolling && buffer.lines.isFull`. The trim decrement
+  is silently ignored. The viewport stays at its absolute position while
+  content shifts beneath it (natural for a circular buffer).
+- **Why this works**: The freeze only applies during the synchronous
+  execution of `scroll()`. `scrollLines()` (user-initiated scrolling) is
+  a separate method and is not affected. `onScroll` events fire with the
+  frozen (stable) ydisp, so the Viewport never updates to a drifting
+  position. When the user scrolls to the bottom, `scrollLines()` resets
+  `isUserScrolling` to false, and normal auto-follow resumes.
+- **Trade-off**: The content at the viewport's position shifts as old lines
+  are evicted — the user sees newer content "flow through" their viewport.
+  This is acceptable since the old content is gone regardless.
