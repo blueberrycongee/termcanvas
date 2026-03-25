@@ -7,6 +7,7 @@ export type PtyCreateOptions = PtyLaunchOptions;
 export class PtyManager {
   private instances = new Map<number, pty.IPty>();
   private outputBuffers = new Map<number, string[]>();
+  private owners = new Map<number, number>();
   private readonly MAX_OUTPUT_LINES = 1000;
   private nextId = 1;
 
@@ -39,6 +40,14 @@ export class PtyManager {
 
   getPid(id: number): number | undefined {
     return this.instances.get(id)?.pid;
+  }
+
+  setOwner(id: number, ownerId: number) {
+    if (!this.instances.has(id)) {
+      return;
+    }
+
+    this.owners.set(id, ownerId);
   }
 
   write(id: number, data: string) {
@@ -133,6 +142,7 @@ export class PtyManager {
 
   async destroy(id: number): Promise<void> {
     const instance = this.instances.get(id);
+    this.owners.delete(id);
     if (!instance) {
       this.outputBuffers.delete(id);
       return;
@@ -167,6 +177,14 @@ export class PtyManager {
 
   async destroyAll(): Promise<void> {
     const ids = [...this.instances.keys()];
+    await Promise.all(ids.map((id) => this.destroy(id)));
+  }
+
+  async destroyOwnedBy(ownerId: number): Promise<void> {
+    const ids = [...this.owners.entries()]
+      .filter(([, mappedOwnerId]) => mappedOwnerId === ownerId)
+      .map(([id]) => id);
+
     await Promise.all(ids.map((id) => this.destroy(id)));
   }
 }

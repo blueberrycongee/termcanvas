@@ -179,15 +179,31 @@ function dbg(msg: string) {
 }
 
 function setupIpc() {
+  const attachedPtyOwnerCleanup = new Set<number>();
+
+  const ensurePtyOwnerCleanup = (sender: Electron.WebContents) => {
+    if (attachedPtyOwnerCleanup.has(sender.id)) {
+      return;
+    }
+
+    attachedPtyOwnerCleanup.add(sender.id);
+    sender.once("destroyed", () => {
+      attachedPtyOwnerCleanup.delete(sender.id);
+      void ptyManager.destroyOwnedBy(sender.id);
+    });
+  };
+
   // Terminal IPC
   ipcMain.handle(
     "terminal:create",
-    async (_event, options: { cwd: string; shell?: string; args?: string[]; terminalId?: string; theme?: "dark" | "light" }) => {
+    async (event, options: { cwd: string; shell?: string; args?: string[]; terminalId?: string; theme?: "dark" | "light" }) => {
+      ensurePtyOwnerCleanup(event.sender);
       dbg(`terminal:create shell=${options.shell ?? "(default)"} args=${JSON.stringify(options.args)} cwd=${options.cwd}`);
       const ptyId = await ptyManager.create({
         ...options,
         extraPathEntries: [getCliDir()],
       });
+      ptyManager.setOwner(ptyId, event.sender.id);
       const pid = ptyManager.getPid(ptyId);
       dbg(`terminal:create => ptyId=${ptyId} pid=${pid ?? "null"}`);
       ptyManager.onData(ptyId, (data: string) => {

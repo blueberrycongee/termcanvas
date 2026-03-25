@@ -29,6 +29,9 @@ import {
 } from "./focusScheduler";
 import { handleTerminalCustomKeyEvent } from "./keyHandling";
 import { focusTerminalInputElement } from "./inputFocus";
+import { adoptCreatedPty } from "./ptyLifecycle";
+import { createTerminalReplayHistory } from "./replayHistory";
+import { buildTerminalSessionBootstrapConfig } from "./sessionBootstrap";
 import {
   getCorrectedTerminalMousePosition,
   shouldDebugTerminalMouseCorrection,
@@ -222,6 +225,7 @@ function TerminalTileImpl({
   const sessionCancelRef = useRef<(() => void) | null>(null);
   const terminalBindingsCleanupRef = useRef<(() => void) | null>(null);
   const bufferedOutputRef = useRef<string[]>([]);
+  const replayHistoryRef = useRef(createTerminalReplayHistory(terminal.scrollback));
   const terminalLifecycleActiveRef = useRef(false);
   const rebuildQueueRef = useRef<Promise<void>>(Promise.resolve());
 
@@ -285,6 +289,7 @@ function TerminalTileImpl({
   }, [focusTerminalInput]);
 
   const writeTerminalOutput = useCallback((data: string) => {
+    replayHistoryRef.current.append(data);
     const terminalView = terminalRef.current;
     if (terminalView) {
       terminalView.write(data);
@@ -382,17 +387,21 @@ function TerminalTileImpl({
       const currentTheme = useThemeStore.getState().theme;
       const prefs = usePreferencesStore.getState();
 
-      return createTerminalEngineSession({
-        container,
+      const bootstrapConfig = buildTerminalSessionBootstrapConfig({
         theme: TERMINAL_THEMES[currentTheme],
         fontFamily: buildFontFamily(prefs.terminalFontFamily),
         fontSize: prefs.terminalFontSize,
         minimumContrastRatio: prefs.minimumContrastRatio,
-        cursorBlink: terminal.focused,
         scrollback: scrollback ?? terminal.scrollback,
+        focused: terminal.focused,
+      });
+
+      return createTerminalEngineSession({
+        container,
+        ...bootstrapConfig,
       });
     },
-    [terminal.focused, terminal.scrollback],
+    [terminal.scrollback],
   );
 
   const rebuildTerminalSession = useCallback(() => {
@@ -410,7 +419,8 @@ function TerminalTileImpl({
       terminalRef.current = null;
       engineSessionRef.current = null;
 
-      const scrollback = currentSession.serialize();
+      const scrollback =
+        replayHistoryRef.current.getContent() ?? currentSession.serialize();
       currentSession.dispose();
 
       const nextSession = await createSessionForCurrentPreferences(scrollback);
@@ -428,9 +438,7 @@ function TerminalTileImpl({
         nextSession.touch();
       }
 
-      const composerEnabled = usePreferencesStore.getState().composerEnabled;
-      const adapter = getComposerAdapter(terminal.type);
-      if (terminal.focused && (!adapter || !composerEnabled)) {
+      if (terminal.focused) {
         scheduleTerminalInputFocus();
       }
 
@@ -498,6 +506,11 @@ function TerminalTileImpl({
         }
 
         bindTerminalSession(session);
+        session.setCursorBlink(terminal.focused);
+        if (terminal.focused) {
+          session.touch();
+          scheduleTerminalInputFocus();
+        }
         registerTerminal(terminal.id, () => engineSessionRef.current?.serialize() ?? null);
 
         let ptyId: number | null = null;
@@ -536,8 +549,24 @@ function TerminalTileImpl({
           window.termcanvas.terminal
             .create(opts)
             .then(async (id) => {
-              ptyId = id;
-              ptyIdRef.current = id;
+              const adopted = await adoptCreatedPty(id, {
+                isActive: () => !cancelled && terminalLifecycleActiveRef.current,
+                adopt: (nextPtyId) => {
+                  ptyId = nextPtyId;
+                  ptyIdRef.current = nextPtyId;
+                },
+                destroy: (stalePtyId) =>
+                  window.termcanvas.terminal.destroy(stalePtyId).catch((error) => {
+                    console.error(
+                      `[TermCanvas] Failed to destroy stale PTY ${stalePtyId}:`,
+                      error,
+                    );
+                  }),
+              });
+              if (!adopted) {
+                return;
+              }
+
               updateTerminalPtyId(projectId, worktreeId, terminal.id, id);
               updateTerminalStatus(projectId, worktreeId, terminal.id, "running");
 
@@ -846,8 +875,7 @@ function TerminalTileImpl({
   }, [width, height, terminal.minimized]);
 
   useEffect(() => {
-    const adapter = getComposerAdapter(terminal.type);
-    const shouldFocusTerminalInput = terminal.focused && (!adapter || !composerEnabled);
+    const shouldFocusTerminalInput = terminal.focused;
     engineSessionRef.current?.setCursorBlink(terminal.focused);
 
     if (terminal.focused) {
@@ -862,12 +890,10 @@ function TerminalTileImpl({
   }, [
     terminal.focused,
     terminal.id,
-    terminal.type,
-    composerEnabled,
     scheduleTerminalInputFocus,
   ]);
 
-  // Listen for explicit terminal input focus requests (when composer is disabled)
+  // Listen for explicit terminal input focus requests.
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
@@ -1231,6 +1257,7 @@ function TerminalTileImpl({
           height: terminal.minimized ? 0 : undefined,
           padding: terminal.minimized ? 0 : 4,
           overflow: "hidden",
+          caretColor: "transparent",
         }}
         onMouseDown={(e) => {
           e.stopPropagation();

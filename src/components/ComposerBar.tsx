@@ -248,17 +248,6 @@ export function ComposerBar() {
     [setDraft],
   );
 
-  // Auto-focus Composer when target terminal changes so the user can
-  // start typing immediately without an extra click.
-  // All terminal types route input through the Composer (type-mode
-  // terminals use getPassthroughSequence to forward keystrokes).
-  const targetTerminalId = targetTerminal?.terminalId ?? null;
-  useEffect(() => {
-    if (targetTerminalId && isTargetReady) {
-      textareaRef.current?.focus();
-    }
-  }, [targetTerminalId, isTargetReady]);
-
   // Focus composer when an explicit focus shortcut is used (Cmd+[/], Cmd+E, etc.)
   useEffect(() => {
     const handleFocusComposer = () => requestAnimationFrame(() => textareaRef.current?.focus());

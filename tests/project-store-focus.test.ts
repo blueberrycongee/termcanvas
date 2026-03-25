@@ -168,7 +168,33 @@ test("clearFocus is a no-op when nothing is focused", () => {
   assert.equal(state.focusedWorktreeId, null);
 });
 
-test("setFocusedTerminal requests composer focus when the composer is enabled", () => {
+test("setFocusedTerminal requests direct terminal input focus even when the composer is enabled", () => {
+  resetStore();
+  const restoreWindow = installWindowMock();
+  const previousPreferences = usePreferencesStore.getState();
+  let focusedComposer = 0;
+  let focusedTerminalInput: string | null = null;
+
+  try {
+    usePreferencesStore.setState({ composerEnabled: true });
+    window.addEventListener("termcanvas:focus-composer", () => {
+      focusedComposer += 1;
+    });
+    window.addEventListener("termcanvas:focus-terminal-input", (event) => {
+      focusedTerminalInput = (event as CustomEvent).detail;
+    });
+
+    useProjectStore.getState().setFocusedTerminal("terminal-2");
+
+    assert.equal(focusedComposer, 0);
+    assert.equal(focusedTerminalInput, "terminal-2");
+  } finally {
+    usePreferencesStore.setState(previousPreferences);
+    restoreWindow();
+  }
+});
+
+test("setFocusedTerminal can still request composer focus explicitly", () => {
   resetStore();
   const restoreWindow = installWindowMock();
   const previousPreferences = usePreferencesStore.getState();
@@ -184,7 +210,9 @@ test("setFocusedTerminal requests composer focus when the composer is enabled", 
       focusedTerminalInput += 1;
     });
 
-    useProjectStore.getState().setFocusedTerminal("terminal-2");
+    useProjectStore.getState().setFocusedTerminal("terminal-2", {
+      focusComposer: true,
+    });
 
     assert.equal(focusedComposer, 1);
     assert.equal(focusedTerminalInput, 0);

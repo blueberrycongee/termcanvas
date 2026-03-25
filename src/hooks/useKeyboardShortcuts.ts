@@ -392,7 +392,9 @@ export function useKeyboardShortcuts() {
 
         const { composerEnabled } = usePreferencesStore.getState();
         if (composerEnabled) {
-          useProjectStore.getState().setFocusedTerminal(terminal.id);
+          useProjectStore.getState().setFocusedTerminal(terminal.id, {
+            focusComposer: true,
+          });
           useComposerStore
             .getState()
             .enterRenameTerminalTitleMode(terminal.id, terminal.customTitle ?? "");

@@ -67,6 +67,8 @@ function syncTextareaToCursor(terminal: FocusableTerminal, textarea: FocusTarget
   textarea.style.top = `${cursorY * cellHeight}px`;
   textarea.style.width = "1px";
   textarea.style.height = "1px";
+  textarea.style.caretColor = "transparent";
+  textarea.style.color = "transparent";
 }
 
 export function focusTerminalInputElement(

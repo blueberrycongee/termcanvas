@@ -63,6 +63,8 @@ test("terminal focus prefers ghostty textarea so IME can attach", () => {
   assert.equal(textareaStyle.position, "absolute");
   assert.equal(textareaStyle.left, "100px");
   assert.equal(textareaStyle.top, "100px");
+  assert.equal(textareaStyle.caretColor, "transparent");
+  assert.equal(textareaStyle.color, "transparent");
 });
 
 test("terminal focus falls back to terminal.focus when textarea is unavailable", () => {

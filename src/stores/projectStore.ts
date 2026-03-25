@@ -792,9 +792,8 @@ export const useProjectStore = create<ProjectStore>((set) => ({
         projects,
       };
     });
-    if (terminalId && options?.focusComposer !== false) {
-      const composerEnabled = usePreferencesStore.getState().composerEnabled;
-      if (composerEnabled) {
+    if (terminalId && typeof window !== "undefined") {
+      if (options?.focusComposer === true) {
         window.dispatchEvent(new CustomEvent("termcanvas:focus-composer"));
       } else {
         window.dispatchEvent(new CustomEvent("termcanvas:focus-terminal-input", { detail: terminalId }));

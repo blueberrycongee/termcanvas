@@ -1,5 +1,4 @@
 import type { TerminalType } from "../types/index.ts";
-import { getComposerAdapter } from "./cliConfig.ts";
 
 interface TerminalContentFocusActions {
   focusTerminal: () => void;
@@ -7,18 +6,11 @@ interface TerminalContentFocusActions {
 }
 
 export function focusTerminalContentTarget(
-  terminalType: TerminalType,
-  composerEnabled: boolean,
+  _terminalType: TerminalType,
+  _composerEnabled: boolean,
   actions: TerminalContentFocusActions,
 ) {
   actions.focusTerminal();
-
-  const adapter = getComposerAdapter(terminalType);
-
-  if (!adapter || adapter.inputMode === "type" || !composerEnabled) {
-    actions.focusTerminalInput();
-    return "terminal-input";
-  }
-
-  return "composer";
+  actions.focusTerminalInput();
+  return "terminal-input";
 }

@@ -10,6 +10,7 @@ import {
   type PendingFocusFrame,
 } from "../src/terminal/focusScheduler.ts";
 import { getComposerAdapter } from "../src/terminal/cliConfig.ts";
+import { adoptCreatedPty } from "../src/terminal/ptyLifecycle.ts";
 
 function createTestProjects(): {
   projects: ProjectData[];
@@ -115,9 +116,7 @@ function attachTerminalFocusHarness(
   const syncFromStore = () => {
     const location = findTerminalById(useProjectStore.getState().projects, terminalId);
     const terminal = location?.terminal;
-    const adapter = terminal ? getComposerAdapter(terminal.type) : null;
-    const composerEnabled = usePreferencesStore.getState().composerEnabled;
-    const shouldFocusTerminalInput = !!terminal && terminal.focused && (!adapter || !composerEnabled);
+    const shouldFocusTerminalInput = !!terminal && terminal.focused;
 
     if (shouldFocusTerminalInput) {
       scheduleTerminalFocus(focus, pending, requestFrame, cancelFrame);
@@ -190,4 +189,80 @@ test("queued terminal input focus is cancelled when worktree focus replaces a ne
     usePreferencesStore.setState(previousPreferences);
     restoreWindow();
   }
+});
+
+test("focused AI terminals still queue direct terminal input focus when composer is enabled", () => {
+  const restoreWindow = installWindowMock();
+  const previousProjectState = useProjectStore.getState();
+  const previousPreferences = usePreferencesStore.getState();
+
+  const queue = new Map<number, FrameRequestCallback>();
+  const cancelled: number[] = [];
+  const fired: string[] = [];
+
+  try {
+    const { projects, terminalBId } = createTestProjects();
+    projects[1].worktrees[0].terminals[0].type = "claude";
+
+    useProjectStore.setState({
+      projects,
+      focusedProjectId: null,
+      focusedWorktreeId: null,
+    });
+    usePreferencesStore.setState({ composerEnabled: true });
+
+    const detach = attachTerminalFocusHarness(
+      terminalBId,
+      queue,
+      cancelled,
+      fired,
+    );
+
+    try {
+      useProjectStore.getState().setFocusedTerminal(terminalBId);
+
+      assert.equal(queue.size, 1);
+      assert.deepEqual(fired, []);
+    } finally {
+      detach();
+    }
+  } finally {
+    useProjectStore.setState(previousProjectState);
+    usePreferencesStore.setState(previousPreferences);
+    restoreWindow();
+  }
+});
+
+test("late PTY creation is destroyed when the terminal lifecycle is no longer active", async () => {
+  const destroyed: number[] = [];
+  const adopted: number[] = [];
+
+  const accepted = await adoptCreatedPty(42, {
+    isActive: () => false,
+    adopt: (ptyId) => adopted.push(ptyId),
+    destroy: async (ptyId) => {
+      destroyed.push(ptyId);
+    },
+  });
+
+  assert.equal(accepted, false);
+  assert.deepEqual(adopted, []);
+  assert.deepEqual(destroyed, [42]);
+});
+
+test("active terminal lifecycle adopts the created PTY", async () => {
+  const destroyed: number[] = [];
+  const adopted: number[] = [];
+
+  const accepted = await adoptCreatedPty(84, {
+    isActive: () => true,
+    adopt: (ptyId) => adopted.push(ptyId),
+    destroy: async (ptyId) => {
+      destroyed.push(ptyId);
+    },
+  });
+
+  assert.equal(accepted, true);
+  assert.deepEqual(adopted, [84]);
+  assert.deepEqual(destroyed, []);
 });

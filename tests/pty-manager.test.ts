@@ -32,3 +32,24 @@ test("notifyThemeChanged ignores unknown PTYs", () => {
   manager.notifyThemeChanged(999);
   assert.ok(true);
 });
+
+test("destroyOwnedBy destroys every PTY registered to a renderer owner", async () => {
+  const manager = new PtyManager() as PtyManager & {
+    owners: Map<number, number>;
+    destroy: (id: number) => Promise<void>;
+  };
+  manager.owners.set(7, 101);
+  manager.owners.set(8, 101);
+  manager.owners.set(9, 202);
+
+  const destroyed: number[] = [];
+  manager.destroy = async (id: number) => {
+    destroyed.push(id);
+    manager.owners.delete(id);
+  };
+
+  await manager.destroyOwnedBy(101);
+
+  assert.deepEqual(destroyed, [7, 8]);
+  assert.deepEqual([...manager.owners.entries()], [[9, 202]]);
+});
