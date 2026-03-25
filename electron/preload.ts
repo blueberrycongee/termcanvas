@@ -170,6 +170,9 @@ contextBridge.exposeInMainWorld("termcanvas", {
   quota: {
     fetch: () => ipcRenderer.invoke("quota:fetch"),
   },
+  codexQuota: {
+    fetch: () => ipcRenderer.invoke("codex-quota:fetch"),
+  },
   insights: {
     generate: (cliTool: "claude" | "codex", jobId: string) =>
       ipcRenderer.invoke("insights:generate", cliTool, jobId) as Promise<

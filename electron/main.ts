@@ -633,6 +633,18 @@ function setupIpc() {
     return result;
   });
 
+  ipcMain.handle("codex-quota:fetch", async () => {
+    const { fetchCodexQuota } = await import("./codex-quota-fetcher");
+    const startedAt = Date.now();
+    const result = await fetchCodexQuota();
+    perfLog("codex-quota:fetch", {
+      ms: Date.now() - startedAt,
+      ok: result.ok,
+      rateLimited: result.ok ? false : result.rateLimited,
+    });
+    return result;
+  });
+
   // Insights
   let activeInsightsJobId: string | null = null;
   ipcMain.handle(

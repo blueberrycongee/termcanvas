@@ -4,7 +4,7 @@ import { useProjectStore } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { WorktreeContainer } from "./WorktreeContainer";
 import { useDrag } from "../hooks/useDrag";
-import { computeWorktreeSize, PROJ_PAD, PROJ_TITLE_H } from "../layout";
+import { getWorktreeSize, PROJ_PAD, PROJ_TITLE_H } from "../layout";
 import { useT } from "../i18n/useT";
 import { logFocusProfiler } from "../utils/focusPerf";
 
@@ -16,6 +16,7 @@ function ProjectContainerImpl({ project }: Props) {
   const t = useT();
   const updateProjectPosition = useProjectStore((s) => s.updateProjectPosition);
   const toggleProjectCollapse = useProjectStore((s) => s.toggleProjectCollapse);
+  const compactProjectWorktrees = useProjectStore((s) => s.compactProjectWorktrees);
   const removeProject = useProjectStore((s) => s.removeProject);
   const bringToFront = useProjectStore((s) => s.bringToFront);
 
@@ -40,7 +41,10 @@ function ProjectContainerImpl({ project }: Props) {
     let maxW = 300;
     let totalH = 0;
     for (const wt of project.worktrees) {
-      const wtSize = computeWorktreeSize(wt.terminals.map((t) => t.span));
+      const wtSize = getWorktreeSize(
+        wt.terminals.map((t) => t.span),
+        wt.collapsed,
+      );
       maxW = Math.max(maxW, wt.position.x + wtSize.w);
       totalH = Math.max(totalH, wt.position.y + wtSize.h);
     }
@@ -81,6 +85,53 @@ function ProjectContainerImpl({ project }: Props) {
           {project.name}
         </span>
         <div className="ml-auto flex items-center gap-1">
+          <button
+            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
+            onClick={(e) => {
+              e.stopPropagation();
+              compactProjectWorktrees(project.id);
+            }}
+            title={t.project_compact}
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <rect
+                x="1.75"
+                y="1.75"
+                width="3"
+                height="3"
+                rx="0.5"
+                stroke="currentColor"
+                strokeWidth="1.25"
+              />
+              <rect
+                x="7.25"
+                y="1.75"
+                width="3"
+                height="3"
+                rx="0.5"
+                stroke="currentColor"
+                strokeWidth="1.25"
+              />
+              <rect
+                x="1.75"
+                y="7.25"
+                width="3"
+                height="3"
+                rx="0.5"
+                stroke="currentColor"
+                strokeWidth="1.25"
+              />
+              <rect
+                x="7.25"
+                y="7.25"
+                width="3"
+                height="3"
+                rx="0.5"
+                stroke="currentColor"
+                strokeWidth="1.25"
+              />
+            </svg>
+          </button>
           <button
             className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
             onClick={(e) => {

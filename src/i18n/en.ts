@@ -48,6 +48,7 @@ export const en = {
 
   // ProjectContainer
   project_label: "Project",
+  project_compact: "Compact layout",
 
   // DiffCard
   diff: "Diff",
@@ -281,6 +282,7 @@ export const en = {
   usage_heatmap_loading: "Loading heatmap…",
   usage_heatmap_error: "Failed to load heatmap",
   usage_quota: "Claude Quota",
+  usage_quota_codex: "Codex Quota",
   usage_quota_5h: "5h",
   usage_quota_7d: "7d",
   usage_quota_resets: "resets",

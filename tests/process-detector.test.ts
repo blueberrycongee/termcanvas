@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { parsePsOutput } from "../electron/process-detector.ts";
+import {
+  getProcessListCommand,
+  parsePsOutput,
+  splitCommandLine,
+  parseWindowsProcessListOutput,
+} from "../electron/process-detector.ts";
 
 const HEADER = "  PID  PPID ARGS\n";
 
@@ -184,4 +189,52 @@ test("node without CLI arg is not detected", () => {
 
   const results = parsePsOutput(ps, [100]);
   assert.equal(results.length, 0);
+});
+
+test("getProcessListCommand uses PowerShell on Windows", () => {
+  assert.deepEqual(getProcessListCommand("win32"), {
+    command: "powershell.exe",
+    args: [
+      "-NoProfile",
+      "-Command",
+      "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CommandLine | ConvertTo-Json -Compress",
+    ],
+  });
+});
+
+test("splitCommandLine keeps quoted wrapper command aligned with remaining args", () => {
+  assert.deepEqual(
+    splitCommandLine("\"C:\\Program Files\\nodejs\\node.exe\" C:\\Users\\foo\\AppData\\Roaming\\npm\\claude"),
+    {
+      command: "C:\\Program Files\\nodejs\\node.exe",
+      rest: "C:\\Users\\foo\\AppData\\Roaming\\npm\\claude",
+    },
+  );
+});
+
+test("parseWindowsProcessListOutput detects node.exe wrapper paths", () => {
+  const processes = JSON.stringify([
+    { ProcessId: 100, ParentProcessId: 1, CommandLine: "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" },
+    {
+      ProcessId: 200,
+      ParentProcessId: 100,
+      CommandLine: "\"C:\\Program Files\\nodejs\\node.exe\" C:\\Users\\foo\\AppData\\Roaming\\npm\\claude",
+    },
+  ]);
+
+  const results = parseWindowsProcessListOutput(processes, [100]);
+  assert.equal(results.length, 1);
+  assert.equal(results[0].cliType, "claude");
+});
+
+test("parseWindowsProcessListOutput handles single-object JSON output", () => {
+  const processJson = JSON.stringify({
+    ProcessId: 200,
+    ParentProcessId: 100,
+    CommandLine: "C:\\Users\\foo\\bin\\codex.exe --help",
+  });
+
+  const results = parseWindowsProcessListOutput(processJson, [100]);
+  assert.equal(results.length, 1);
+  assert.equal(results[0].cliType, "codex");
 });

@@ -3,6 +3,7 @@ import {
   useProjectStore,
   createTerminal,
   generateId,
+  getProjectBounds,
 } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useNotificationStore } from "../stores/notificationStore";
@@ -18,7 +19,6 @@ import { usePreferencesStore } from "../stores/preferencesStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { getTerminalFocusOrder, getWorktreeFocusOrder } from "../stores/projectFocus";
 import {
-  computeWorktreeSize,
   PROJ_PAD,
   PROJ_TITLE_H,
 } from "../layout";
@@ -87,22 +87,11 @@ function zoomToFitAll() {
     maxX = -Infinity,
     maxY = -Infinity;
   for (const p of projects) {
-    let maxW = 300;
-    let totalH = 0;
-    for (const wt of p.worktrees) {
-      const wtSize = computeWorktreeSize(wt.terminals.map((t) => t.span));
-      maxW = Math.max(maxW, wt.position.x + wtSize.w);
-      totalH = Math.max(totalH, wt.position.y + wtSize.h);
-    }
-    const projW = Math.max(340, maxW + PROJ_PAD * 2);
-    const projH = Math.max(
-      PROJ_TITLE_H + PROJ_PAD + 60 + PROJ_PAD,
-      PROJ_TITLE_H + PROJ_PAD + totalH + PROJ_PAD,
-    );
-    minX = Math.min(minX, p.position.x);
-    minY = Math.min(minY, p.position.y);
-    maxX = Math.max(maxX, p.position.x + projW);
-    maxY = Math.max(maxY, p.position.y + projH);
+    const bounds = getProjectBounds(p);
+    minX = Math.min(minX, bounds.x);
+    minY = Math.min(minY, bounds.y);
+    maxX = Math.max(maxX, bounds.x + bounds.w);
+    maxY = Math.max(maxY, bounds.y + bounds.h);
   }
   const contentW = maxX - minX;
   const contentH = maxY - minY;
@@ -143,13 +132,8 @@ async function handleAddProject(t: ReturnType<typeof useT>) {
   let placeX = 0;
   const gap = 80;
   for (const p of projects) {
-    let maxW = 300;
-    for (const wt of p.worktrees) {
-      const wtSize = computeWorktreeSize(wt.terminals.map((tm) => tm.span));
-      maxW = Math.max(maxW, wt.position.x + wtSize.w);
-    }
-    const projW = Math.max(340, maxW + PROJ_PAD * 2);
-    placeX = Math.max(placeX, p.position.x + projW + gap);
+    const bounds = getProjectBounds(p);
+    placeX = Math.max(placeX, bounds.x + bounds.w + gap);
   }
 
   addProject({
@@ -182,29 +166,29 @@ async function handleAddProject(t: ReturnType<typeof useT>) {
       .setFocusedWorktree(newProject.id, newProject.worktrees[0].id);
   }
 
-  let projH: number;
-  if (!newProject || newProject.worktrees.length === 0) {
-    projH = PROJ_TITLE_H + PROJ_PAD + 60 + PROJ_PAD;
-  } else {
-    let totalH = 0;
-    for (const wt of newProject.worktrees) {
-      const wtSize = computeWorktreeSize(wt.terminals.map((tm) => tm.span));
-      totalH = Math.max(totalH, wt.position.y + wtSize.h);
-    }
-    projH = PROJ_TITLE_H + PROJ_PAD + totalH + PROJ_PAD;
-  }
-  // projW = 340: matches ProjectContainer's minWidth (new projects have
-  // empty worktrees, so computed width never exceeds minWidth).
-  const projW = 340;
+  const newProjectBounds = newProject
+    ? getProjectBounds(newProject)
+    : {
+        x: placeX,
+        y: 0,
+        w: 340,
+        h: PROJ_TITLE_H + PROJ_PAD + 60 + PROJ_PAD,
+      };
 
   const {
     viewport: { scale },
     rightPanelCollapsed,
   } = useCanvasStore.getState();
-  const target = getCenteredViewportTarget(placeX, 0, projW, projH, {
+  const target = getCenteredViewportTarget(
+    newProjectBounds.x,
+    newProjectBounds.y,
+    newProjectBounds.w,
+    newProjectBounds.h,
+    {
     rightPanelCollapsed,
     scale,
-  });
+    },
+  );
   useCanvasStore.getState().animateTo(target.x, target.y, scale);
 
   notify("info", t.info_added_project(info.name, info.worktrees.length));
