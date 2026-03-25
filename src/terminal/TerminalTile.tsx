@@ -398,10 +398,12 @@ function TerminalTileImpl({
 
       return createTerminalEngineSession({
         container,
+        backend: prefs.terminalBackend,
+        terminalId: terminal.id,
         ...bootstrapConfig,
       });
     },
-    [terminal.scrollback],
+    [terminal.id, terminal.scrollback],
   );
 
   const rebuildTerminalSession = useCallback(() => {
@@ -927,6 +929,15 @@ function TerminalTileImpl({
   useEffect(() => {
     const unsubscribe = useThemeStore.subscribe((state, previousState) => {
       if (state.theme !== previousState.theme) {
+        void rebuildTerminalSession();
+      }
+    });
+    return unsubscribe;
+  }, [rebuildTerminalSession]);
+
+  useEffect(() => {
+    const unsubscribe = usePreferencesStore.subscribe((state, previousState) => {
+      if (state.terminalBackend !== previousState.terminalBackend) {
         void rebuildTerminalSession();
       }
     });
