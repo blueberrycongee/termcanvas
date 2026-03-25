@@ -1,6 +1,6 @@
 import { useCanvasStore } from "../stores/canvasStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
-import { useProjectStore } from "../stores/projectStore";
+import { useProjectStore, getProjectBounds, generateId } from "../stores/projectStore";
 import { useDrawingStore } from "../stores/drawingStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { useBrowserCardStore } from "../stores/browserCardStore";
@@ -11,8 +11,6 @@ import { useViewportCulling } from "../hooks/useViewportCulling";
 import { ProjectContainer } from "../containers/ProjectContainer";
 import { BrowserCard } from "../components/BrowserCard";
 import { DrawingLayer } from "./DrawingLayer";
-import { getProjectBounds } from "../utils/projectBounds";
-import { generateId } from "../utils/id";
 
 import { FamilyTreeOverlay } from "../components/FamilyTreeOverlay";
 import { BoxSelectOverlay } from "./BoxSelectOverlay";

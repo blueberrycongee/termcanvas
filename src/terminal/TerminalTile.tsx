@@ -302,28 +302,6 @@ export function TerminalTile({
     xterm.loadAddon(serializeAddon);
     xterm.open(containerRef.current);
 
-    // Scroll-pinning: xterm v6 has built-in isUserScrolling in
-    // BufferService — when the user scrolls up, ydisp stops following
-    // ybase during writes.  We must NOT call scrollToBottom() in the
-    // write callback because that would override xterm's protection.
-
-    // Scroll-pinning fix: xterm v6's isUserScrolling flag gets stuck when
-    // the viewport is pushed to the very top (ydisp=0) during buffer trimming.
-    // Once stuck, ybase keeps growing while the viewport stays at 0 — the user
-    // sees stale/evicted content at the top and can't get back to live output.
-    // Fix: detect this state and snap back to the bottom.
-    const _bufSvc = (xterm as any)._core?._bufferService;
-    xterm.onScroll(() => {
-      if (
-        _bufSvc?.isUserScrolling &&
-        xterm.buffer.active.viewportY === 0 &&
-        xterm.buffer.active.baseY > xterm.rows
-      ) {
-        _bufSvc.isUserScrolling = false;
-        xterm.scrollToBottom();
-      }
-    });
-
     // GPU-accelerated rendering via context pool (max 8 active contexts)
     acquireWebGL(terminal.id, xterm);
 
