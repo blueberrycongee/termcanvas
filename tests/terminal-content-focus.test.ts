@@ -17,7 +17,7 @@ test("shell terminals focus terminal input directly on content mouse down", () =
   });
 
   assert.equal(result, "terminal-input");
-  assert.equal(focusedTerminal, 0);
+  assert.equal(focusedTerminal, 1);
   assert.equal(focusedTerminalInput, 1);
 });
 
@@ -53,6 +53,6 @@ test("AI terminals without composer enabled still focus terminal input directly"
   });
 
   assert.equal(result, "terminal-input");
-  assert.equal(focusedTerminal, 0);
+  assert.equal(focusedTerminal, 1);
   assert.equal(focusedTerminalInput, 1);
 });

@@ -11,6 +11,8 @@ export function focusTerminalContentTarget(
   composerEnabled: boolean,
   actions: TerminalContentFocusActions,
 ) {
+  actions.focusTerminal();
+
   const adapter = getComposerAdapter(terminalType);
 
   if (!adapter || adapter.inputMode === "type" || !composerEnabled) {
@@ -18,6 +20,5 @@ export function focusTerminalContentTarget(
     return "terminal-input";
   }
 
-  actions.focusTerminal();
   return "composer";
 }
