@@ -364,6 +364,16 @@ export function FileTreeCard({
           >
             {t.files}
           </span>
+          {!loading && entries.has(worktreePath) && (
+            <span className="text-[11px] text-[var(--text-muted)]">
+              {(() => {
+                const rootItems = entries.get(worktreePath) ?? [];
+                const dirs = rootItems.filter((e) => e.isDirectory).length;
+                const files = rootItems.length - dirs;
+                return t.filetree_summary(files, dirs);
+              })()}
+            </span>
+          )}
           <div className="flex-1" />
           {pinned && (
             <button
