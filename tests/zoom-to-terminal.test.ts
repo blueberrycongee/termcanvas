@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { zoomToTerminal } from "../src/utils/zoomToTerminal.ts";
+import { panToTerminal } from "../src/utils/panToTerminal.ts";
 import { useProjectStore } from "../src/stores/projectStore.ts";
 import { useCanvasStore } from "../src/stores/canvasStore.ts";
 import { usePreferencesStore } from "../src/stores/preferencesStore.ts";
@@ -155,6 +156,49 @@ test("zoomToTerminal can focus the target terminal before animating", () => {
     assert.equal(animateCalls[0].scale, expected.scale);
   } finally {
     usePreferencesStore.setState(previousPreferences);
+    useCanvasStore.setState(previousCanvasState);
+    useProjectStore.setState(previousProjectState);
+  }
+});
+
+test("panToTerminal animates to main viewport target", () => {
+  const previousCanvasState = useCanvasStore.getState();
+  const previousProjectState = useProjectStore.getState();
+  const animateCalls: Array<{ x: number; y: number; scale: number | undefined }> = [];
+
+  try {
+    useProjectStore.setState({
+      projects: createProjects(),
+      focusedProjectId: "project-1",
+      focusedWorktreeId: "worktree-1",
+    });
+    useCanvasStore.setState({
+      viewport: { x: 0, y: 0, scale: 1 },
+      rightPanelCollapsed: true,
+      animateTo: (x, y, scale) => {
+        animateCalls.push({ x, y, scale });
+      },
+    });
+
+    withWindowSize(1440, 900, () => {
+      panToTerminal("terminal-b");
+    });
+
+    const expected = getExpectedTerminalViewportTarget(
+      1440,
+      900,
+      "terminal-b",
+    );
+
+    assert.equal(animateCalls.length, 1);
+    assert.equal(animateCalls[0].x, expected.x);
+    assert.equal(animateCalls[0].y, expected.y);
+    assert.equal(animateCalls[0].scale, expected.scale);
+    assert.equal(
+      useProjectStore.getState().projects[0].worktrees[0].terminals[1].focused,
+      true,
+    );
+  } finally {
     useCanvasStore.setState(previousCanvasState);
     useProjectStore.setState(previousProjectState);
   }

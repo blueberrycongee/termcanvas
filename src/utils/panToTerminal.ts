@@ -1,16 +1,16 @@
-import { useProjectStore } from "../stores/projectStore";
-import { useCanvasStore } from "../stores/canvasStore";
+import { useProjectStore } from "../stores/projectStore.ts";
+import { useCanvasStore } from "../stores/canvasStore.ts";
 import {
   packTerminals,
   PROJ_PAD,
   PROJ_TITLE_H,
   WT_PAD,
   WT_TITLE_H,
-} from "../layout";
+} from "../layout.ts";
 import {
   getCenteredViewportTarget,
   getViewportFitScale,
-} from "./canvasViewport";
+} from "./canvasViewport.ts";
 
 /**
  * Animate the canvas viewport to center on the given terminal.
