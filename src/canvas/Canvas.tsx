@@ -1,4 +1,4 @@
-import { useCanvasStore } from "../stores/canvasStore";
+import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useProjectStore, getProjectBounds, generateId } from "../stores/projectStore";
 import { useDrawingStore } from "../stores/drawingStore";
@@ -18,7 +18,7 @@ import { useT } from "../i18n/useT";
 
 export function Canvas() {
   const t = useT();
-  const { viewport, isAnimating } = useCanvasStore();
+  const { viewport, isAnimating, leftPanelCollapsed, leftPanelWidth } = useCanvasStore();
   const animationBlur = usePreferencesStore((s) => s.animationBlur);
   const { projects } = useProjectStore();
   const { tool } = useDrawingStore();
@@ -142,9 +142,18 @@ export function Canvas() {
     });
   };
 
+  const leftOffset = leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
+
   return (
     <div
-      className={`fixed inset-0 overflow-hidden canvas-bg ${isDrawing ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing"}`}
+      className={`fixed overflow-hidden canvas-bg ${isDrawing ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing"}`}
+      style={{
+        left: leftOffset,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        transition: "left 0.2s ease",
+      }}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onDragOver={handleDragOver}

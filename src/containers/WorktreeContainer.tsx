@@ -16,14 +16,7 @@ import {
 } from "../terminal/terminalGeometryRegistry";
 import { resolveTerminalMountMode } from "../terminal/terminalRuntimePolicy";
 import { useDrag } from "../hooks/useDrag";
-import { DiffCard } from "../components/DiffCard";
-import { FileTreeCard } from "../components/FileTreeCard";
 import { FileCard } from "../components/FileCard";
-import {
-  clearHoverCardHideTimeout,
-  createHoverCardVisibilityState,
-  scheduleHoverCardHide,
-} from "../components/hoverCardVisibility";
 import { useT } from "../i18n/useT";
 import { useCanvasStore, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import {
@@ -67,21 +60,6 @@ export function WorktreeContainer({
   projectPosition,
 }: Props) {
   const t = useT();
-  const [showDiff, setShowDiff] = useState(false);
-  const [diffPinned, setDiffPinned] = useState(false);
-  const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const diffLeaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const diffCardHovered = useRef(false);
-  const diffPinnedRef = useRef(diffPinned);
-  const diffCardDragging = useRef(false);
-
-  const [showFileTree, setShowFileTree] = useState(false);
-  const [fileTreePinned, setFileTreePinned] = useState(false);
-  const fileTreeLeaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const fileTreeCardHovered = useRef(false);
-  const fileTreePinnedRef = useRef(fileTreePinned);
-  const fileTreeCardDragging = useRef(false);
-
   const [openFiles, setOpenFiles] = useState<
     { id: string; filePath: string; fileName: string }[]
   >([]);
@@ -94,7 +72,6 @@ export function WorktreeContainer({
     focusedWorktreeId,
     updateTerminalSpan,
   } = useProjectStore();
-  const allCards = useCardLayoutStore((s) => s.cards);
   const viewport = useCanvasStore((s) => s.viewport);
 
   const isSelected = useSelectionStore((s) =>
@@ -111,16 +88,7 @@ export function WorktreeContainer({
   useEffect(() => {
     const handler = (e: Event) => {
       const { cardId } = (e as CustomEvent<{ cardId: string }>).detail;
-      // Check if this card belongs to this worktree
-      const diffId = `diff:${worktree.id}`;
-      const fileTreeId = `filetree:${worktree.id}`;
-      if (cardId === diffId) {
-        setDiffPinned(false);
-        setShowDiff(false);
-      } else if (cardId === fileTreeId) {
-        setFileTreePinned(false);
-        setShowFileTree(false);
-      } else if (cardId.startsWith(`${worktree.id}-`)) {
+      if (cardId.startsWith(`${worktree.id}-`)) {
         // FileCard id pattern: worktreeId-timestamp
         setOpenFiles((prev) => prev.filter((f) => f.id !== cardId));
       }
@@ -341,40 +309,6 @@ export function WorktreeContainer({
     [projectId, worktree.id, worktree.terminals, reorderTerminal],
   );
 
-  diffPinnedRef.current = diffPinned;
-  fileTreePinnedRef.current = fileTreePinned;
-  const anyHoverCardDragging = useCallback(
-    () => diffCardDragging.current || fileTreeCardDragging.current,
-    [],
-  );
-
-  const scheduleDiffHide = useCallback(() => {
-    scheduleHoverCardHide(
-      diffLeaveTimeout,
-      () =>
-        createHoverCardVisibilityState({
-          pinned: diffPinnedRef.current,
-          hovered: diffCardHovered.current,
-          draggingSelf: diffCardDragging.current,
-          draggingRelated: fileTreeCardDragging.current,
-        }),
-      () => setShowDiff(false),
-    );
-  }, []);
-
-  const scheduleFileTreeHide = useCallback(() => {
-    scheduleHoverCardHide(
-      fileTreeLeaveTimeout,
-      () =>
-        createHoverCardVisibilityState({
-          pinned: fileTreePinnedRef.current,
-          hovered: fileTreeCardHovered.current,
-          draggingSelf: fileTreeCardDragging.current,
-          draggingRelated: diffCardDragging.current,
-        }),
-      () => setShowFileTree(false),
-    );
-  }, []);
 
   return (
     <div
@@ -393,28 +327,6 @@ export function WorktreeContainer({
         e.stopPropagation();
         setFocusedWorktree(projectId, worktree.id);
         selectWorktree(projectId, worktree.id);
-      }}
-      onMouseEnter={() => {
-        clearHoverCardHideTimeout(diffLeaveTimeout);
-        clearHoverCardHideTimeout(fileTreeLeaveTimeout);
-        if (!diffPinned || !fileTreePinned) {
-          hoverTimeout.current = setTimeout(() => {
-            if (!diffPinned) setShowDiff(true);
-            if (!fileTreePinned) setShowFileTree(true);
-          }, 400);
-        }
-      }}
-      onMouseLeave={() => {
-        if (hoverTimeout.current) {
-          clearTimeout(hoverTimeout.current);
-          hoverTimeout.current = null;
-        }
-        if (!diffPinned) {
-          scheduleDiffHide();
-        }
-        if (!fileTreePinned) {
-          scheduleFileTreeHide();
-        }
       }}
     >
       {/* Title bar */}
@@ -561,117 +473,15 @@ export function WorktreeContainer({
 
         return createPortal(
           <>
-            {showDiff && (
-              <DiffCard
-                projectId={projectId}
-                worktreeId={worktree.id}
-                worktreePath={worktree.path}
-                anchorX={absX}
-                anchorY={absY}
-                pinned={diffPinned}
-                onPin={() => setDiffPinned(true)}
-                onClose={() => {
-                  setDiffPinned(false);
-                  setShowDiff(false);
-                }}
-                onMouseEnter={() => {
-                  diffCardHovered.current = true;
-                  clearHoverCardHideTimeout(diffLeaveTimeout);
-                }}
-                onMouseLeave={() => {
-                  diffCardHovered.current = false;
-                  if (!diffPinned) {
-                    scheduleDiffHide();
-                  }
-                }}
-                onDragStateChange={(dragging) => {
-                  diffCardDragging.current = dragging;
-                  if (dragging) {
-                    clearHoverCardHideTimeout(diffLeaveTimeout);
-                    clearHoverCardHideTimeout(fileTreeLeaveTimeout);
-                    return;
-                  }
-                  if (!anyHoverCardDragging()) {
-                    if (!diffPinnedRef.current && !diffCardHovered.current) {
-                      scheduleDiffHide();
-                    }
-                    if (
-                      !fileTreePinnedRef.current &&
-                      !fileTreeCardHovered.current
-                    ) {
-                      scheduleFileTreeHide();
-                    }
-                  }
-                }}
-              />
-            )}
-            {showFileTree && (
-              <FileTreeCard
-                projectId={projectId}
-                worktreeId={worktree.id}
-                worktreePath={worktree.path}
-                anchorX={absX}
-                anchorY={absY}
-                pinned={fileTreePinned}
-                onPin={() => setFileTreePinned(true)}
-                onClose={() => {
-                  setFileTreePinned(false);
-                  setShowFileTree(false);
-                }}
-                onMouseEnter={() => {
-                  fileTreeCardHovered.current = true;
-                  clearHoverCardHideTimeout(fileTreeLeaveTimeout);
-                }}
-                onMouseLeave={() => {
-                  fileTreeCardHovered.current = false;
-                  if (!fileTreePinned) {
-                    scheduleFileTreeHide();
-                  }
-                }}
-                onDragStateChange={(dragging) => {
-                  fileTreeCardDragging.current = dragging;
-                  if (dragging) {
-                    clearHoverCardHideTimeout(diffLeaveTimeout);
-                    clearHoverCardHideTimeout(fileTreeLeaveTimeout);
-                    return;
-                  }
-                  if (!anyHoverCardDragging()) {
-                    if (!diffPinnedRef.current && !diffCardHovered.current) {
-                      scheduleDiffHide();
-                    }
-                    if (
-                      !fileTreePinnedRef.current &&
-                      !fileTreeCardHovered.current
-                    ) {
-                      scheduleFileTreeHide();
-                    }
-                  }
-                }}
-                onOpenFile={(filePath, fileName) => {
-                  setOpenFiles((prev) => {
-                    if (prev.some((f) => f.filePath === filePath)) return prev;
-                    return [
-                      ...prev,
-                      { id: `${worktree.id}-${Date.now()}`, filePath, fileName },
-                    ];
-                  });
-                }}
-              />
-            )}
             {openFiles.map((file) => {
-              // Anchor to FileTreeCard resolved position right edge, fallback to worktree anchor
-              const fileTreeCardId = `filetree:${worktree.id}`;
-              const ftCard = allCards[fileTreeCardId];
-              const fileAnchorX = ftCard ? ftCard.x + ftCard.w : absX;
-              const fileAnchorY = ftCard ? ftCard.y : absY;
               return (
                 <FileCard
                   key={file.id}
                   fileCardId={file.id}
                   filePath={file.filePath}
                   fileName={file.fileName}
-                  anchorX={fileAnchorX}
-                  anchorY={fileAnchorY}
+                  anchorX={absX}
+                  anchorY={absY}
                   onClose={() =>
                     setOpenFiles((prev) =>
                       prev.filter((f) => f.id !== file.id),
