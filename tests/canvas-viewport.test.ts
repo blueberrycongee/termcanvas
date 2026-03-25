@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  CANVAS_TOP_INSET,
   getCanvasViewportFrame,
   getCenteredViewportTarget,
   getViewportFitScale,
@@ -30,16 +29,16 @@ function withWindowSize(
   }
 }
 
-test("canvas viewport frame centers content below the toolbar inset", () => {
+test("canvas viewport frame centers content at window center (main semantics)", () => {
   withWindowSize(1440, 900, () => {
     const frame = getCanvasViewportFrame({ rightPanelCollapsed: true });
 
     assert.equal(frame.centerX, (1440 - 32) / 2);
-    assert.equal(frame.centerY, CANVAS_TOP_INSET + (900 - CANVAS_TOP_INSET) / 2);
+    assert.equal(frame.centerY, 900 / 2);
   });
 });
 
-test("centered viewport targets honor the toolbar-adjusted visual center", () => {
+test("centered viewport targets use window centerY (main semantics)", () => {
   withWindowSize(1440, 900, () => {
     const target = getCenteredViewportTarget(100, 200, 640, 480, {
       rightPanelCollapsed: true,
@@ -47,14 +46,11 @@ test("centered viewport targets honor the toolbar-adjusted visual center", () =>
     });
 
     assert.equal(target.x, -(100 + 320) + (1440 - 32) / 2);
-    assert.equal(
-      target.y,
-      -(200 + 240) + CANVAS_TOP_INSET + (900 - CANVAS_TOP_INSET) / 2,
-    );
+    assert.equal(target.y, -(200 + 240) + 900 / 2);
   });
 });
 
-test("fit scale uses the toolbar-adjusted viewport height", () => {
+test("fit scale uses full window height (main semantics)", () => {
   withWindowSize(1440, 900, () => {
     const scale = getViewportFitScale(640, 480, {
       rightPanelCollapsed: true,
@@ -63,7 +59,7 @@ test("fit scale uses the toolbar-adjusted viewport height", () => {
 
     assert.equal(
       scale,
-      Math.min((1440 - 32 - 120) / 640, (900 - CANVAS_TOP_INSET - 120) / 480),
+      Math.min((1440 - 32 - 120) / 640, (900 - 120) / 480),
     );
   });
 });

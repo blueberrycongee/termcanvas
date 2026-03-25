@@ -23,14 +23,14 @@ export function getCanvasViewportFrame(options: ViewportFrameOptions) {
     ? COLLAPSED_TAB_WIDTH
     : RIGHT_PANEL_WIDTH;
   const width = window.innerWidth - rightInset;
-  const height = window.innerHeight - CANVAS_TOP_INSET;
+  const height = window.innerHeight;
 
   return {
     rightInset,
     width,
     height,
     centerX: width / 2,
-    centerY: CANVAS_TOP_INSET + height / 2,
+    centerY: window.innerHeight / 2,
   };
 }
 
