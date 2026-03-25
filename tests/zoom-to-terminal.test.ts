@@ -5,6 +5,13 @@ import { zoomToTerminal } from "../src/utils/zoomToTerminal.ts";
 import { useProjectStore } from "../src/stores/projectStore.ts";
 import { useCanvasStore } from "../src/stores/canvasStore.ts";
 import { usePreferencesStore } from "../src/stores/preferencesStore.ts";
+import {
+  packTerminals,
+  PROJ_PAD,
+  PROJ_TITLE_H,
+  WT_PAD,
+  WT_TITLE_H,
+} from "../src/layout.ts";
 import type { ProjectData } from "../src/types/index.ts";
 
 function createProjects(): ProjectData[] {
@@ -70,6 +77,43 @@ function withWindowSize(width: number, height: number, run: () => void) {
   }
 }
 
+function getExpectedTerminalViewportTarget(
+  width: number,
+  height: number,
+  terminalId: string,
+) {
+  const project = createProjects()[0];
+  const worktree = project.worktrees[0];
+  const terminalIndex = worktree.terminals.findIndex((t) => t.id === terminalId);
+  assert.notEqual(terminalIndex, -1);
+
+  const item = packTerminals(worktree.terminals.map((t) => t.span))[terminalIndex];
+  assert.ok(item);
+
+  const rightOffset = 32;
+  const padding = 60;
+  const viewW = width - rightOffset - padding * 2;
+  const viewH = height - padding * 2;
+  const scale = Math.min(viewW / item.w, viewH / item.h) * 0.85;
+
+  const absX =
+    project.position.x + PROJ_PAD + worktree.position.x + WT_PAD + item.x;
+  const absY =
+    project.position.y +
+    PROJ_TITLE_H +
+    PROJ_PAD +
+    worktree.position.y +
+    WT_TITLE_H +
+    WT_PAD +
+    item.y;
+
+  return {
+    x: -(absX + item.w / 2) * scale + (width - rightOffset) / 2,
+    y: -(absY + item.h / 2) * scale + height / 2,
+    scale,
+  };
+}
+
 test("zoomToTerminal can focus the target terminal before animating", () => {
   const previousPreferences = usePreferencesStore.getState();
   const previousCanvasState = useCanvasStore.getState();
@@ -95,14 +139,20 @@ test("zoomToTerminal can focus the target terminal before animating", () => {
       zoomToTerminal("project-1", "worktree-1", "terminal-b", { focus: true });
     });
 
+    const expected = getExpectedTerminalViewportTarget(
+      1440,
+      900,
+      "terminal-b",
+    );
+
     const terminals =
       useProjectStore.getState().projects[0].worktrees[0].terminals;
     assert.equal(terminals[0].focused, false);
     assert.equal(terminals[1].focused, true);
     assert.equal(animateCalls.length, 1);
-    assert.ok(typeof animateCalls[0].x === "number");
-    assert.ok(typeof animateCalls[0].y === "number");
-    assert.ok(typeof animateCalls[0].scale === "number");
+    assert.equal(animateCalls[0].x, expected.x);
+    assert.equal(animateCalls[0].y, expected.y);
+    assert.equal(animateCalls[0].scale, expected.scale);
   } finally {
     usePreferencesStore.setState(previousPreferences);
     useCanvasStore.setState(previousCanvasState);
