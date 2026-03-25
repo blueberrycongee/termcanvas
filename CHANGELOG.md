@@ -2,6 +2,16 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.8.56] - 2026-03-25
+
+### Added
+- Codex quota display in the usage panel
+
+### Changed
+- Reduced usage panel polling frequency
+- Refined compact worktree sizing and visible worktree bounds for layout alignment
+
+
 ## [0.8.55] - 2026-03-24
 
 ### Fixed
