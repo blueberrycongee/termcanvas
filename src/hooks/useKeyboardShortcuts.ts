@@ -30,6 +30,7 @@ import { snapshotState } from "../snapshotState";
 import { updateWindowTitle } from "../titleHelper";
 import { panToWorktree } from "../utils/panToWorktree";
 import { zoomToTerminal } from "../utils/zoomToTerminal";
+import { zoomToNewTerminal } from "../utils/zoomToNewTerminal";
 import {
   CANVAS_TOP_INSET,
   getCenteredViewportTarget,
@@ -300,7 +301,7 @@ export function useKeyboardShortcuts() {
           const terminal = createTerminal("shell");
           addTerminal(focusedProjectId, focusedWorktreeId, terminal);
           setFocusedTerminal(terminal.id);
-          zoomToTerminal(focusedProjectId, focusedWorktreeId, terminal.id);
+          zoomToNewTerminal(focusedProjectId, focusedWorktreeId, terminal.id);
         }
         return;
       }
