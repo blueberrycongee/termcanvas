@@ -30,6 +30,7 @@ import {
 import { handleTerminalCustomKeyEvent } from "./keyHandling";
 import { focusTerminalInputElement } from "./inputFocus";
 import { adoptCreatedPty } from "./ptyLifecycle";
+import { getPtyResizeDecision, type PtyResizeSnapshot } from "./ptyResize";
 import { createTerminalReplayHistory } from "./replayHistory";
 import { buildTerminalSessionBootstrapConfig } from "./sessionBootstrap";
 import {
@@ -228,6 +229,7 @@ function TerminalTileImpl({
   const replayHistoryRef = useRef(createTerminalReplayHistory(terminal.scrollback));
   const terminalLifecycleActiveRef = useRef(false);
   const rebuildQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const lastSyncedPtySizeRef = useRef<PtyResizeSnapshot | null>(null);
 
   const removeTerminal = useProjectStore((s) => s.removeTerminal);
   const toggleTerminalMinimize = useProjectStore((s) => s.toggleTerminalMinimize);
@@ -373,7 +375,16 @@ function TerminalTileImpl({
     const targetPtyId = ptyId ?? ptyIdRef.current;
     if (targetPtyId !== null && targetPtyId !== undefined) {
       const { cols, rows } = terminalView;
-      window.termcanvas.terminal.resize(targetPtyId, cols, rows);
+      const nextSize = { ptyId: targetPtyId, cols, rows };
+      const { shouldResize } = getPtyResizeDecision(
+        lastSyncedPtySizeRef.current,
+        nextSize,
+      );
+
+      if (shouldResize) {
+        window.termcanvas.terminal.resize(targetPtyId, cols, rows);
+        lastSyncedPtySizeRef.current = nextSize;
+      }
     }
   }, []);
 
@@ -446,10 +457,6 @@ function TerminalTileImpl({
 
       fitTerminalToPty();
 
-      const ptyId = ptyIdRef.current;
-      if (ptyId !== null) {
-        window.termcanvas.terminal.notifyThemeChanged(ptyId);
-      }
     }).catch((err) => {
       const errStr = err instanceof Error ? err.message : String(err);
       notify("error", `[Terminal] Failed to refresh renderer: ${errStr}`);
@@ -832,6 +839,7 @@ function TerminalTileImpl({
           }
           if (ptyId !== null) {
             ptyIdRef.current = null;
+            lastSyncedPtySizeRef.current = null;
             window.termcanvas.terminal.destroy(ptyId).catch((err) => {
               console.error(`[TermCanvas] Failed to destroy PTY ${ptyId}:`, err);
             });
