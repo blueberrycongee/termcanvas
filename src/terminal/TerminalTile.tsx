@@ -219,6 +219,10 @@ function TerminalTileImpl({
   const ptyIdRef = useRef<number | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   const sessionCancelRef = useRef<(() => void) | null>(null);
+  const terminalBindingsCleanupRef = useRef<(() => void) | null>(null);
+  const bufferedOutputRef = useRef<string[]>([]);
+  const terminalLifecycleActiveRef = useRef(false);
+  const rebuildQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   const removeTerminal = useProjectStore((s) => s.removeTerminal);
   const toggleTerminalMinimize = useProjectStore((s) => s.toggleTerminalMinimize);
@@ -269,6 +273,189 @@ function TerminalTileImpl({
     worktreeId,
   ]);
 
+  const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
+  const focusTerminalInput = useCallback(() => {
+    const tile = tileRef.current;
+    const terminalView = terminalRef.current;
+    return focusTerminalInputElement(terminalView, tile);
+  }, []);
+  const scheduleTerminalInputFocus = useCallback(() => {
+    scheduleTerminalFocus(focusTerminalInput, pendingFocusFrameRef);
+  }, [focusTerminalInput]);
+
+  const writeTerminalOutput = useCallback((data: string) => {
+    const terminalView = terminalRef.current;
+    if (terminalView) {
+      terminalView.write(data);
+      return;
+    }
+    bufferedOutputRef.current.push(data);
+  }, []);
+
+  const flushBufferedOutput = useCallback(() => {
+    if (bufferedOutputRef.current.length === 0) {
+      return;
+    }
+    const bufferedOutput = bufferedOutputRef.current.join("");
+    bufferedOutputRef.current = [];
+    terminalRef.current?.write(bufferedOutput);
+  }, []);
+
+  const disposeTerminalBindings = useCallback(() => {
+    terminalBindingsCleanupRef.current?.();
+    terminalBindingsCleanupRef.current = null;
+  }, []);
+
+  const bindTerminalSession = useCallback((session: TerminalEngineSession) => {
+    disposeTerminalBindings();
+
+    const terminalView = session.terminal;
+    terminalRef.current = terminalView;
+    engineSessionRef.current = session;
+
+    terminalView.attachCustomKeyEventHandler((e) =>
+      handleTerminalCustomKeyEvent(e, (data) => {
+        const ptyId = ptyIdRef.current;
+        if (ptyId !== null) {
+          window.termcanvas.terminal.input(ptyId, data);
+        }
+      }),
+    );
+
+    const selectionDisposable = terminalView.onSelectionChange(() => {
+      const text = terminalView.getSelection();
+      if (text) {
+        navigator.clipboard.writeText(text);
+        if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+        setShowCopiedToast(true);
+        copiedTimerRef.current = setTimeout(() => setShowCopiedToast(false), 1500);
+      }
+    });
+
+    const inputDisposable = terminalView.onData((data) => {
+      const ptyId = ptyIdRef.current;
+      if (ptyId !== null) {
+        window.termcanvas.terminal.input(ptyId, data);
+      }
+    });
+
+    const resizeDisposable = terminalView.onResize(({ cols, rows }) => {
+      const ptyId = ptyIdRef.current;
+      if (ptyId !== null) {
+        window.termcanvas.terminal.resize(ptyId, cols, rows);
+      }
+    });
+
+    terminalBindingsCleanupRef.current = () => {
+      selectionDisposable.dispose();
+      inputDisposable.dispose();
+      resizeDisposable.dispose();
+    };
+
+    flushBufferedOutput();
+  }, [disposeTerminalBindings, flushBufferedOutput]);
+
+  const fitTerminalToPty = useCallback((ptyId?: number | null) => {
+    const session = engineSessionRef.current;
+    const terminalView = terminalRef.current;
+    if (!session || !terminalView) {
+      return;
+    }
+
+    session.fit();
+
+    const targetPtyId = ptyId ?? ptyIdRef.current;
+    if (targetPtyId !== null && targetPtyId !== undefined) {
+      const { cols, rows } = terminalView;
+      window.termcanvas.terminal.resize(targetPtyId, cols, rows);
+    }
+  }, []);
+
+  const createSessionForCurrentPreferences = useCallback(
+    async (scrollback?: string | null) => {
+      const container = containerRef.current;
+      if (!container) {
+        return null;
+      }
+
+      const currentTheme = useThemeStore.getState().theme;
+      const prefs = usePreferencesStore.getState();
+
+      return createTerminalEngineSession({
+        container,
+        theme: TERMINAL_THEMES[currentTheme],
+        fontFamily: buildFontFamily(prefs.terminalFontFamily),
+        fontSize: prefs.terminalFontSize,
+        minimumContrastRatio: prefs.minimumContrastRatio,
+        cursorBlink: terminal.focused,
+        scrollback: scrollback ?? terminal.scrollback,
+      });
+    },
+    [terminal.focused, terminal.scrollback],
+  );
+
+  const rebuildTerminalSession = useCallback(() => {
+    rebuildQueueRef.current = rebuildQueueRef.current.then(async () => {
+      if (!terminalLifecycleActiveRef.current) {
+        return;
+      }
+
+      const currentSession = engineSessionRef.current;
+      if (!currentSession) {
+        return;
+      }
+
+      disposeTerminalBindings();
+      terminalRef.current = null;
+      engineSessionRef.current = null;
+
+      const scrollback = currentSession.serialize();
+      currentSession.dispose();
+
+      const nextSession = await createSessionForCurrentPreferences(scrollback);
+      if (!nextSession) {
+        return;
+      }
+      if (!terminalLifecycleActiveRef.current) {
+        nextSession.dispose();
+        return;
+      }
+
+      bindTerminalSession(nextSession);
+      nextSession.setCursorBlink(terminal.focused);
+      if (terminal.focused) {
+        nextSession.touch();
+      }
+
+      const composerEnabled = usePreferencesStore.getState().composerEnabled;
+      const adapter = getComposerAdapter(terminal.type);
+      if (terminal.focused && (!adapter || !composerEnabled)) {
+        scheduleTerminalInputFocus();
+      }
+
+      fitTerminalToPty();
+
+      const ptyId = ptyIdRef.current;
+      if (ptyId !== null) {
+        window.termcanvas.terminal.notifyThemeChanged(ptyId);
+      }
+    }).catch((err) => {
+      const errStr = err instanceof Error ? err.message : String(err);
+      notify("error", `[Terminal] Failed to refresh renderer: ${errStr}`);
+    });
+
+    return rebuildQueueRef.current;
+  }, [
+    bindTerminalSession,
+    createSessionForCurrentPreferences,
+    disposeTerminalBindings,
+    fitTerminalToPty,
+    notify,
+    scheduleTerminalInputFocus,
+    terminal.focused,
+    terminal.type,
+  ]);
+
   useEffect(() => {
     if (!isEditingCustomTitle) return;
 
@@ -295,55 +482,28 @@ function TerminalTileImpl({
     }
 
     let cancelled = false;
+    terminalLifecycleActiveRef.current = true;
 
     void (async () => {
       try {
-        const currentTheme = useThemeStore.getState().theme;
-        const prefs = usePreferencesStore.getState();
-        const session = await createTerminalEngineSession({
-          container: containerRef.current!,
-          theme: TERMINAL_THEMES[currentTheme],
-          fontFamily: buildFontFamily(prefs.terminalFontFamily),
-          fontSize: prefs.terminalFontSize,
-          minimumContrastRatio: prefs.minimumContrastRatio,
-          cursorBlink: terminal.focused,
-          scrollback: terminal.scrollback,
-        });
+        const session = await createSessionForCurrentPreferences();
+        if (!session) {
+          return;
+        }
 
         if (cancelled) {
           session.dispose();
           return;
         }
 
-        const terminalView = session.terminal;
-        terminalRef.current = terminalView;
-        engineSessionRef.current = session;
-        registerTerminal(terminal.id, session.serialize);
+        bindTerminalSession(session);
+        registerTerminal(terminal.id, () => engineSessionRef.current?.serialize() ?? null);
 
         let ptyId: number | null = null;
+        const prefs = usePreferencesStore.getState();
         const cliOverride = prefs.cliCommands[terminal.type] ?? undefined;
         const wasResumeAttempt = !!terminal.sessionId && !!getTerminalLaunchOptions(terminal.type, terminal.sessionId, terminal.autoApprove);
         let hasRespawned = false;
-        let inputDisposable: { dispose(): void } | null = null;
-        let resizeDisposable: { dispose(): void } | null = null;
-
-        terminalView.attachCustomKeyEventHandler((e) =>
-          handleTerminalCustomKeyEvent(e, (data) => {
-            if (ptyId !== null) {
-              window.termcanvas.terminal.input(ptyId, data);
-            }
-          }),
-        );
-
-        const selectionDisposable = terminalView.onSelectionChange(() => {
-          const text = terminalView.getSelection();
-          if (text) {
-            navigator.clipboard.writeText(text);
-            if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
-            setShowCopiedToast(true);
-            copiedTimerRef.current = setTimeout(() => setShowCopiedToast(false), 1500);
-          }
-        });
 
         /**
          * Create a PTY and wire up input/resize handlers.
@@ -428,18 +588,7 @@ function TerminalTileImpl({
                 });
               }
 
-              inputDisposable?.dispose();
-              resizeDisposable?.dispose();
-              inputDisposable = terminalView.onData((data) => {
-                if (ptyId !== null) window.termcanvas.terminal.input(ptyId, data);
-              });
-              resizeDisposable = terminalView.onResize(({ cols, rows }) => {
-                if (ptyId !== null) window.termcanvas.terminal.resize(ptyId, cols, rows);
-              });
-
-              session.fit();
-              const { cols, rows } = terminalView;
-              window.termcanvas.terminal.resize(id, cols, rows);
+              fitTerminalToPty(id);
             })
             .catch((err) => {
               const errStr = err instanceof Error ? err.message : String(err);
@@ -452,12 +601,12 @@ function TerminalTileImpl({
 
               if (isNotFound) {
                 const command = launch?.shell ?? terminal.type;
-                terminalView.write(
+                writeTerminalOutput(
                   `\r\n\x1b[31m${t.cli_launch_error_title(command)}\x1b[0m\r\n` +
                   `\r\n\x1b[33m${t.cli_launch_error_action}: Settings > Agents\x1b[0m\r\n`,
                 );
               } else {
-                terminalView.write(
+                writeTerminalOutput(
                   `\r\n\x1b[31m[Error] Failed to create terminal: ${errStr}\x1b[0m\r\n`,
                 );
               }
@@ -534,7 +683,7 @@ function TerminalTileImpl({
         const removeOutput = window.termcanvas.terminal.onOutput(
           (id: number, data: string) => {
             if (id === ptyId) {
-              terminalView.write(data);
+              writeTerminalOutput(data);
               triggerDetection();
 
               if (!activityThrottled) {
@@ -581,13 +730,13 @@ function TerminalTileImpl({
                 hasRespawned = true;
                 console.log(`[TermCanvas] Resume failed for session=${terminal.sessionId}, respawning fresh`);
                 updateTerminalSessionId(projectId, worktreeId, terminal.id, undefined);
-                terminalView.write("\r\n\x1b[33m[Session expired, starting fresh…]\x1b[0m\r\n");
+                writeTerminalOutput("\r\n\x1b[33m[Session expired, starting fresh…]\x1b[0m\r\n");
                 spawnPty(undefined);
                 return;
               }
 
               currentStatus = exitCode === 0 ? "success" : "error";
-              terminalView.write(t.process_exited(exitCode));
+              writeTerminalOutput(t.process_exited(exitCode));
               updateTerminalStatus(
                 projectId,
                 worktreeId,
@@ -625,13 +774,12 @@ function TerminalTileImpl({
         );
 
         cleanupRef.current = () => {
+          terminalLifecycleActiveRef.current = false;
           if (waitingTimer) clearTimeout(waitingTimer);
           if (detectTimer) clearTimeout(detectTimer);
           sessionCancelRef.current?.();
           removeTurnComplete();
-          selectionDisposable.dispose();
-          inputDisposable?.dispose();
-          resizeDisposable?.dispose();
+          disposeTerminalBindings();
           const state = useProjectStore.getState();
           const proj = state.projects.find((p) => p.id === projectId);
           const wt = proj?.worktrees.find((w) => w.id === worktreeId);
@@ -642,9 +790,14 @@ function TerminalTileImpl({
           unregisterTerminal(terminal.id);
           removeOutput();
           removeExit();
+          bufferedOutputRef.current = [];
+          const activeSession = engineSessionRef.current;
           terminalRef.current = null;
           engineSessionRef.current = null;
-          session.dispose();
+          activeSession?.dispose();
+          if (activeSession !== session) {
+            session.dispose();
+          }
           if (ptyId !== null) {
             ptyIdRef.current = null;
             window.termcanvas.terminal.destroy(ptyId).catch((err) => {
@@ -661,10 +814,15 @@ function TerminalTileImpl({
 
     return () => {
       cancelled = true;
+      terminalLifecycleActiveRef.current = false;
       cleanupRef.current?.();
       cleanupRef.current = null;
     };
   }, [
+    bindTerminalSession,
+    createSessionForCurrentPreferences,
+    disposeTerminalBindings,
+    fitTerminalToPty,
     terminal.id,
     terminal.title,
     projectId,
@@ -685,18 +843,6 @@ function TerminalTileImpl({
 
     return () => cancelAnimationFrame(frame);
   }, [width, height, terminal.minimized]);
-
-  // Give terminal DOM focus when composer is disabled or terminal type
-  // doesn't support the Composer.
-  const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
-  const focusTerminalInput = useCallback(() => {
-    const tile = tileRef.current;
-    const terminalView = terminalRef.current;
-    return focusTerminalInputElement(terminalView, tile);
-  }, []);
-  const scheduleTerminalInputFocus = useCallback(() => {
-    scheduleTerminalFocus(focusTerminalInput, pendingFocusFrameRef);
-  }, [focusTerminalInput]);
 
   useEffect(() => {
     const adapter = getComposerAdapter(terminal.type);
@@ -752,14 +898,13 @@ function TerminalTileImpl({
 
   // Update terminal theme when app theme changes
   useEffect(() => {
-    const unsubscribe = useThemeStore.subscribe((state) => {
-      engineSessionRef.current?.applyTheme(TERMINAL_THEMES[state.theme]);
-      if (ptyIdRef.current !== null) {
-        window.termcanvas.terminal.notifyThemeChanged(ptyIdRef.current);
+    const unsubscribe = useThemeStore.subscribe((state, previousState) => {
+      if (state.theme !== previousState.theme) {
+        void rebuildTerminalSession();
       }
     });
     return unsubscribe;
-  }, []);
+  }, [rebuildTerminalSession]);
 
   // Update terminal font size when preference changes
   useEffect(() => {
