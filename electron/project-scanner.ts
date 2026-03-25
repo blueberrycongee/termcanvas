@@ -76,14 +76,30 @@ export class ProjectScanner {
   }
 
   async scanAsync(dirPath: string): Promise<ProjectInfo | null> {
+    const name = path.basename(dirPath);
+
+    // Try to detect if it's a git repo
+    let isGitRepo = false;
     try {
       await runGitAsync(dirPath, ["rev-parse", "--git-dir"]);
+      isGitRepo = true;
     } catch {
-      return null;
+      // Not a git repo, that's fine
     }
 
-    const name = path.basename(dirPath);
-    const worktrees = await this.listWorktreesAsync(dirPath);
+    let worktrees: WorktreeInfo[];
+    if (isGitRepo) {
+      worktrees = await this.listWorktreesAsync(dirPath);
+    } else {
+      // For non-git folders, create a single "worktree" entry
+      worktrees = [
+        {
+          path: dirPath,
+          branch: "main",
+          isMain: true,
+        },
+      ];
+    }
 
     return { name, path: dirPath, worktrees };
   }

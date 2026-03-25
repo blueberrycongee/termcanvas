@@ -163,7 +163,7 @@ async function handleAddProject(t: ReturnType<typeof useT>) {
     return;
   }
   if (!info) {
-    notify("warn", t.error_not_git(dirPath));
+    notify("error", t.error_scan("Failed to scan directory"));
     return;
   }
 
