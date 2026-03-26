@@ -276,10 +276,6 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
     offsetY: number;
     targetIndex: number;
   } | null>(null);
-  const stopHeaderButtonDrag = useCallback((event: React.MouseEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-  }, []);
 
   const spans = useMemo(
     () => worktree?.terminals.map((terminal) => terminal.span) ?? [],
@@ -430,7 +426,6 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
         <div className="flex items-center gap-1">
           <button
             className="nodrag nopan text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
-            onMouseDown={stopHeaderButtonDrag}
             onClick={(event) => {
               event.stopPropagation();
               toggleWorktreeCollapse(data.projectId, worktree.id);
@@ -454,7 +449,6 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
           </button>
           <button
             className="nodrag nopan text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
-            onMouseDown={stopHeaderButtonDrag}
             onClick={(event) => {
               event.stopPropagation();
               handleNewTerminal();
@@ -472,7 +466,6 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
           </button>
           <button
             className="nodrag nopan text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
-            onMouseDown={stopHeaderButtonDrag}
             onClick={(event) => {
               event.stopPropagation();
               addTerminal(
