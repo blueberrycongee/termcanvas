@@ -10,14 +10,31 @@ test("Hydra skill copy documents root-cause-first, no test hacking, and result g
   const skillPath = path.resolve(here, "..", "..", "skills", "skills", "hydra", "SKILL.md");
   const skill = fs.readFileSync(skillPath, "utf-8");
 
-  assert.match(skill, /Default: `hydra run --task ".*" --repo \.`/i);
+  assert.doesNotMatch(skill, /alwaysApply:\s*true/i);
+  assert.match(skill, /hydra run --task ".*" --repo \./i);
   assert.match(skill, /--template single-step/i);
+  assert.match(skill, /hydra spawn/i);
+  assert.match(skill, /planner -> implementer -> evaluator/i);
   assert.match(skill, /root cause/i);
   assert.match(skill, /Do not hack tests|test hacking/i);
   assert.match(skill, /silent fallback|swallow/i);
   assert.match(skill, /result\.json/i);
   assert.match(skill, /done/i);
   assert.match(skill, /hydra run|hydra tick|hydra watch|hydra status|hydra retry/i);
+});
+
+test("router skill stays always-on and classifies TermCanvas work before Hydra", () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const skillPath = path.resolve(here, "..", "..", "skills", "skills", "using-termcanvas", "SKILL.md");
+  const skill = fs.readFileSync(skillPath, "utf-8");
+
+  assert.match(skill, /alwaysApply:\s*true/i);
+  assert.match(skill, /rename/i);
+  assert.match(skill, /do it directly/i);
+  assert.match(skill, /hydra init/i);
+  assert.match(skill, /single-step/i);
+  assert.match(skill, /planner -> implementer -> evaluator/i);
+  assert.match(skill, /hydra spawn/i);
 });
 
 test("task package template links skills and hard gate requirements", () => {

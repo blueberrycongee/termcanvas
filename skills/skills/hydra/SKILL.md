@@ -1,14 +1,27 @@
 ---
 name: hydra
-description: Spawn AI sub-agents in isolated git worktrees via Hydra. Use when tasks can be parallelized or decomposed.
-alwaysApply: true
+description: Use when a task should run through Hydra's file-contract workflow in an isolated worktree, or when an existing Hydra workflow must be inspected, retried, or cleaned up.
 ---
 
 # Hydra Sub-Agent Tool
 
-Use Hydra when the task benefits from file-driven multi-agent orchestration.
-Hydra's completion gate is the file contract: `handoff.json`, `task.md`,
-`result.json`, and `done`. Terminal conversation is not a source of truth.
+Use this skill after routing has already determined that Hydra is the right
+execution path. Hydra is a strict file-contract workflow engine:
+`handoff.json`, `task.md`, `result.json`, and `done` are authoritative.
+Terminal conversation is not a source of truth.
+
+## Choose the mode
+
+- `hydra run --task "..." --repo . --template single-step`
+  - one implementer handoff
+  - use for clear implementation work that still needs worktree isolation and
+    `result.json` / `done` evidence
+- `hydra run --task "..." --repo .`
+  - default planner -> implementer -> evaluator workflow
+  - use for ambiguous, risky, PRD-driven, or long-running tasks
+- `hydra spawn --task "..." --repo .`
+  - one direct isolated worker terminal
+  - use when the split is already known and only a separate worker is needed
 
 ## Quality bar
 
@@ -19,20 +32,18 @@ Hydra's completion gate is the file contract: `handoff.json`, `task.md`,
 - A handoff only passes when `result.json` and `done` both exist and the schema
   validates.
 
-## Workflow
+## Workflow control
 
 1. Investigate first and write a concrete task description.
-2. Start the workflow:
-   - Default: `hydra run --task "..." --repo .`
-   - Existing worktree / read-only: `hydra run --task "..." --repo . --worktree .`
-   - Direct single-implementer path: `hydra run --task "..." --repo . --template single-step`
-   - The default workflow is planner -> implementer -> evaluator.
-3. Advance or inspect the workflow with structured commands:
+2. Start the chosen Hydra mode:
+   - Existing worktree / read-only workflow: `hydra run --task "..." --repo . --worktree .`
+   - Existing worktree / read-only worker: `hydra spawn --task "..." --repo . --worktree .`
+3. Advance or inspect workflow runs with structured commands:
    - `hydra tick --repo . --workflow <workflowId>`
    - `hydra watch --repo . --workflow <workflowId>`
    - `hydra status --repo . --workflow <workflowId>`
    - `hydra retry --repo . --workflow <workflowId>`
-4. Read workflow failures from `hydra status`; do not parse terminal prose.
+4. Read failures from `hydra status`; do not parse terminal prose.
 5. Clean up after completion: `hydra cleanup --workflow <workflowId> --repo .`
 
 ## Result contract
@@ -53,9 +64,3 @@ assuming success.
 When you are already running in auto-approve/full-access mode, pass
 `--auto-approve` so Claude/Codex sub-agents inherit the same autonomy.
 Do not pass it in restricted approval modes.
-
-## Optional compatibility mode
-
-Hydra still supports direct single-agent compatibility runs through
-`hydra spawn`, but the preferred control plane is workflow-driven:
-`run/tick/watch/status/retry`.
