@@ -74,8 +74,15 @@ export const en = {
   left_panel_files: "Files",
   left_panel_diff: "Diff",
   left_panel_preview: "Preview",
+  left_panel_enable_hydra: "Hydra",
+  left_panel_enable_hydra_busy: "Enabling\u2026",
   no_worktree_selected: "No worktree selected",
   no_file_selected: "No file selected",
+  hydra_enable_missing_target: "Focus a project or worktree before enabling Hydra.",
+  hydra_enable_success: (name: string) => `Hydra enabled for "${name}".`,
+  hydra_enable_already_current: (name: string) =>
+    `Hydra instructions are already current for "${name}".`,
+  hydra_enable_failed: (message: string) => `Failed to enable Hydra: ${message}`,
 
   // TerminalTile
   terminal_api_unavailable:

@@ -157,6 +157,31 @@ export interface ProjectUsage {
   calls: number;
 }
 
+export type HydraInstructionFileName = "CLAUDE.md" | "AGENTS.md";
+export type HydraInstructionStatus = "created" | "appended" | "updated" | "unchanged";
+
+export interface ProjectEnableHydraFileResult {
+  fileName: HydraInstructionFileName;
+  filePath: string;
+  status: HydraInstructionStatus;
+}
+
+export interface ProjectEnableHydraSuccess {
+  ok: true;
+  repoPath: string;
+  changed: boolean;
+  files: ProjectEnableHydraFileResult[];
+}
+
+export interface ProjectEnableHydraFailure {
+  ok: false;
+  error: string;
+}
+
+export type ProjectEnableHydraResult =
+  | ProjectEnableHydraSuccess
+  | ProjectEnableHydraFailure;
+
 export interface ModelUsage {
   model: string;
   input: number;
@@ -262,6 +287,7 @@ export interface TermCanvasAPI {
     rescanWorktrees: (
       dirPath: string,
     ) => Promise<{ path: string; branch: string; isMain: boolean }[]>;
+    enableHydra: (dirPath: string) => Promise<ProjectEnableHydraResult>;
     diff: (worktreePath: string) => Promise<{
       diff: string;
       files: {

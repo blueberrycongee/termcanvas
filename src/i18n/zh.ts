@@ -73,8 +73,15 @@ export const zh = {
   left_panel_files: "文件",
   left_panel_diff: "差异",
   left_panel_preview: "预览",
+  left_panel_enable_hydra: "Hydra",
+  left_panel_enable_hydra_busy: "启用中…",
   no_worktree_selected: "未选择工作树",
   no_file_selected: "未选择文件",
+  hydra_enable_missing_target: "请先聚焦一个项目或工作树，再启用 Hydra。",
+  hydra_enable_success: (name: string) => `已为“${name}”启用 Hydra。`,
+  hydra_enable_already_current: (name: string) =>
+    `“${name}”的 Hydra 指令已经是最新版本。`,
+  hydra_enable_failed: (message: string) => `启用 Hydra 失败：${message}`,
 
   // TerminalTile
   terminal_api_unavailable: "终端 API 不可用，未在 Electron 中运行。",

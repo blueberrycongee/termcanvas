@@ -1,7 +1,8 @@
-import { useMemo, useRef, useCallback } from "react";
+import { useMemo, useRef, useCallback, useState } from "react";
 import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useT } from "../i18n/useT";
+import { useNotificationStore } from "../stores/notificationStore";
 import { FilesContent } from "./LeftPanel/FilesContent";
 import { DiffContent } from "./LeftPanel/DiffContent";
 import { PreviewContent } from "./LeftPanel/PreviewContent";
@@ -16,9 +17,20 @@ export function LeftPanel() {
   const setWidth = useCanvasStore((s) => s.setLeftPanelWidth);
   const setActiveTab = useCanvasStore((s) => s.setLeftPanelActiveTab);
   const setPreviewFile = useCanvasStore((s) => s.setLeftPanelPreviewFile);
+  const notify = useNotificationStore((s) => s.notify);
 
   const focusedWorktreeId = useProjectStore((s) => s.focusedWorktreeId);
   const projects = useProjectStore((s) => s.projects);
+  const [hydraEnabling, setHydraEnabling] = useState(false);
+
+  const focusedProject = useMemo(() => {
+    if (!focusedWorktreeId) return null;
+    for (const p of projects) {
+      const wt = p.worktrees.find((w) => w.id === focusedWorktreeId);
+      if (wt) return p;
+    }
+    return null;
+  }, [focusedWorktreeId, projects]);
 
   const worktreePath = useMemo(() => {
     if (!focusedWorktreeId) return null;
@@ -64,6 +76,33 @@ export function LeftPanel() {
     setActiveTab("files");
   }, [setPreviewFile, setActiveTab]);
 
+  const handleEnableHydra = useCallback(async () => {
+    if (!focusedProject) {
+      notify("warn", t.hydra_enable_missing_target);
+      return;
+    }
+
+    setHydraEnabling(true);
+    try {
+      const result = await window.termcanvas.project.enableHydra(focusedProject.path);
+      if (!result.ok) {
+        notify("error", t.hydra_enable_failed(result.error));
+        return;
+      }
+
+      notify(
+        "info",
+        result.changed
+          ? t.hydra_enable_success(focusedProject.name)
+          : t.hydra_enable_already_current(focusedProject.name),
+      );
+    } catch (error) {
+      notify("error", t.hydra_enable_failed(String(error)));
+    } finally {
+      setHydraEnabling(false);
+    }
+  }, [focusedProject, notify, t]);
+
   if (collapsed) {
     return (
       <button
@@ -106,6 +145,17 @@ export function LeftPanel() {
         >
           {t.left_panel_preview}
         </button>
+        {focusedProject && (
+          <button
+            className="mx-1 rounded border border-[var(--border)] px-2 py-1 text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-150 disabled:cursor-default disabled:opacity-60"
+            style={{ fontFamily: '"Geist Mono", monospace' }}
+            onClick={handleEnableHydra}
+            disabled={hydraEnabling}
+            title={focusedProject.path}
+          >
+            {hydraEnabling ? t.left_panel_enable_hydra_busy : t.left_panel_enable_hydra}
+          </button>
+        )}
         <button
           className="px-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150"
           onClick={() => setCollapsed(true)}
