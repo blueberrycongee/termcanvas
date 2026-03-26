@@ -86,6 +86,9 @@ test("dispatchCreateOnly launches a terminal with the create-only prompt", async
         ),
         true,
         "terminal-parent",
+        "workflow-auth",
+        "handoff-abc123",
+        "/repo/project",
       ],
     },
   ]);
