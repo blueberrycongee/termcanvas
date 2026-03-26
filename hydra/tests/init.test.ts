@@ -6,25 +6,26 @@ import path from "node:path";
 
 import { init } from "../src/init.ts";
 
-const MARKER = "## Hydra Sub-Agent Tool";
-
-test("init creates Hydra instructions in both CLAUDE.md and AGENTS.md", async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hydra-init-"));
-  const prevCwd = process.cwd();
+async function runInit(dir: string): Promise<string[]> {
   const logs: string[] = [];
   const originalLog = console.log;
 
   console.log = (...args) => {
     logs.push(args.join(" "));
   };
-  process.chdir(dir);
 
   try {
-    await init();
+    await init(dir);
   } finally {
-    process.chdir(prevCwd);
     console.log = originalLog;
   }
+
+  return logs;
+}
+
+test("init creates Hydra instructions in both CLAUDE.md and AGENTS.md", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hydra-init-"));
+  const logs = await runInit(dir);
 
   const claudeMd = fs.readFileSync(path.join(dir, "CLAUDE.md"), "utf-8");
   const agentsMd = fs.readFileSync(path.join(dir, "AGENTS.md"), "utf-8");
@@ -37,32 +38,45 @@ test("init creates Hydra instructions in both CLAUDE.md and AGENTS.md", async ()
   ]);
 });
 
-test("init skips files that already contain the Hydra section and still updates the missing one", async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hydra-init-existing-"));
-  const prevCwd = process.cwd();
-  const logs: string[] = [];
-  const originalLog = console.log;
+test("init updates an existing Hydra block in place and preserves adjacent content", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hydra-init-update-"));
+  const staleSection = [
+    "# Project Notes",
+    "",
+    "## Hydra Sub-Agent Tool",
+    "",
+    "Old Hydra instructions.",
+    "",
+    "## Team Rules",
+    "",
+    "- Keep the repo tidy.",
+    "",
+  ].join("\n");
+  fs.writeFileSync(path.join(dir, "CLAUDE.md"), staleSection, "utf-8");
 
-  fs.writeFileSync(path.join(dir, "CLAUDE.md"), `${MARKER}\n`);
-  console.log = (...args) => {
-    logs.push(args.join(" "));
-  };
-  process.chdir(dir);
-
-  try {
-    await init();
-  } finally {
-    process.chdir(prevCwd);
-    console.log = originalLog;
-  }
+  const logs = await runInit(dir);
 
   const claudeMd = fs.readFileSync(path.join(dir, "CLAUDE.md"), "utf-8");
   const agentsMd = fs.readFileSync(path.join(dir, "AGENTS.md"), "utf-8");
 
   assert.equal(claudeMd.match(/## Hydra Sub-Agent Tool/g)?.length, 1);
+  assert.match(claudeMd, /Hydra now treats `result\.json` \+ `done` as the only completion evidence\./);
+  assert.match(claudeMd, /## Team Rules/);
   assert.match(agentsMd, /## Hydra Sub-Agent Tool/);
   assert.deepEqual(logs, [
-    "CLAUDE.md already contains hydra instructions — skipping.",
+    "Updated hydra instructions in CLAUDE.md",
     "Created AGENTS.md with hydra instructions",
+  ]);
+});
+
+test("init is idempotent when the current Hydra block is already present", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hydra-init-idempotent-"));
+
+  await runInit(dir);
+  const logs = await runInit(dir);
+
+  assert.deepEqual(logs, [
+    "CLAUDE.md already contains current hydra instructions",
+    "AGENTS.md already contains current hydra instructions",
   ]);
 });

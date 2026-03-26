@@ -35,33 +35,110 @@ Workflow:
 When NOT to use: simple fixes, high-certainty tasks, or work that is faster to do directly.
 `;
 
-export async function init(): Promise<void> {
-  for (const fileName of INSTRUCTION_FILES) {
-    upsertHydraInstructions(path.join(process.cwd(), fileName), fileName);
+export type InitInstructionStatus = "created" | "appended" | "updated" | "unchanged";
+
+export interface InitInstructionResult {
+  fileName: (typeof INSTRUCTION_FILES)[number];
+  filePath: string;
+  status: InitInstructionStatus;
+}
+
+export function syncHydraInstructions(
+  targetDir: string,
+): InitInstructionResult[] {
+  return INSTRUCTION_FILES.map((fileName) =>
+    upsertHydraInstructions(path.join(targetDir, fileName), fileName)
+  );
+}
+
+export async function init(targetDir = process.cwd()): Promise<InitInstructionResult[]> {
+  const results = syncHydraInstructions(targetDir);
+  for (const result of results) {
+    console.log(formatInitLog(result));
+  }
+  return results;
+}
+
+function formatInitLog(result: InitInstructionResult): string {
+  switch (result.status) {
+    case "created":
+      return `Created ${result.fileName} with hydra instructions`;
+    case "appended":
+      return `Appended hydra instructions to ${result.fileName}`;
+    case "updated":
+      return `Updated hydra instructions in ${result.fileName}`;
+    case "unchanged":
+      return `${result.fileName} already contains current hydra instructions`;
   }
 }
 
-function upsertHydraInstructions(filePath: string, fileName: string): void {
+function normalizeSection(section: string): string {
+  return section.trim().replace(/\s+$/gm, "");
+}
+
+function findHydraSectionRange(
+  content: string,
+): { start: number; end: number } | null {
+  const start = content.indexOf(MARKER);
+  if (start === -1) {
+    return null;
+  }
+
+  const nextHeadingStart = content.indexOf("\n## ", start + MARKER.length);
+  return {
+    start,
+    end: nextHeadingStart === -1 ? content.length : nextHeadingStart,
+  };
+}
+
+function extractHydraSection(content: string): string | null {
+  const range = findHydraSectionRange(content);
+  if (!range) {
+    return null;
+  }
+  return content.slice(range.start, range.end).trimEnd();
+}
+
+function replaceHydraSection(content: string): string {
+  const range = findHydraSectionRange(content);
+  if (!range) {
+    return content;
+  }
+  return content.slice(0, range.start) + HYDRA_SECTION.trim() + content.slice(range.end);
+}
+
+function buildAppendedContent(existing: string): string {
+  return existing.trimEnd() + "\n\n" + HYDRA_SECTION.trimStart();
+}
+
+function upsertHydraInstructions(
+  filePath: string,
+  fileName: (typeof INSTRUCTION_FILES)[number],
+): InitInstructionResult {
+  const desiredSection = HYDRA_SECTION.trim();
   let existing = "";
+  let content = "";
+  let status: InitInstructionStatus = "created";
+
   try {
     existing = fs.readFileSync(filePath, "utf-8");
   } catch {
-    // file doesn't exist — will create
+    content = HYDRA_SECTION.trimStart();
+    fs.writeFileSync(filePath, content);
+    return { fileName, filePath, status };
   }
 
-  if (existing.includes(MARKER)) {
-    console.log(`${fileName} already contains hydra instructions — skipping.`);
-    return;
+  const currentSection = extractHydraSection(existing);
+  if (currentSection) {
+    if (normalizeSection(currentSection) === normalizeSection(desiredSection)) {
+      return { fileName, filePath, status: "unchanged" };
+    }
+    content = replaceHydraSection(existing);
+    status = "updated";
+  } else {
+    content = existing ? buildAppendedContent(existing) : HYDRA_SECTION.trimStart();
+    status = existing ? "appended" : "created";
   }
-
-  const content = existing
-    ? existing.trimEnd() + "\n" + HYDRA_SECTION
-    : HYDRA_SECTION.trimStart();
-
   fs.writeFileSync(filePath, content);
-  console.log(
-    existing
-      ? `Appended hydra instructions to ${fileName}`
-      : `Created ${fileName} with hydra instructions`,
-  );
+  return { fileName, filePath, status };
 }
