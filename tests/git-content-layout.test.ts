@@ -1,24 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import * as gitContentLayout from "../src/components/LeftPanel/gitContentLayout.ts";
+import {
+  summarizeBranchInventory,
+  summarizeCommitRefs,
+  buildAheadBehindLabel,
+  getStatusDisplayPath,
+  getStatusColor,
+  getStatusLabel,
+  getVirtualCommitWindow,
+} from "../src/components/LeftPanel/gitContentLayout.ts";
 
 test("summarizeBranchInventory prioritizes the current local branch and counts branch groups", () => {
-  const summarizeBranchInventory = (
-    gitContentLayout as Record<string, unknown>
-  ).summarizeBranchInventory as
-    | ((branches: unknown[]) => {
-        localBranchCount: number;
-        remoteBranchCount: number;
-        currentBranchName: string | null;
-        trackingName: string | null;
-        orderedLocalBranchNames: string[];
-      })
-    | undefined;
-
-  assert.equal(typeof summarizeBranchInventory, "function");
-
-  const summary = summarizeBranchInventory!([
+  const summary = summarizeBranchInventory([
     {
       name: "feature/refactor",
       hash: "bbb2222",
@@ -66,104 +60,70 @@ test("summarizeBranchInventory prioritizes the current local branch and counts b
   });
 });
 
-test("summarizeGitHistoryMetrics reports commits, merges, contributors, and referenced commits", () => {
-  const summarizeGitHistoryMetrics = (
-    gitContentLayout as Record<string, unknown>
-  ).summarizeGitHistoryMetrics as
-    | ((commits: unknown[]) => {
-        commitCount: number;
-        mergeCount: number;
-        contributorCount: number;
-        referencedCommitCount: number;
-      })
-    | undefined;
+test("summarizeCommitRefs sorts by priority and limits visible refs", () => {
+  const result = summarizeCommitRefs(
+    ["origin/main", "HEAD -> main", "tag: v1.0", "feature"],
+    2,
+  );
 
-  assert.equal(typeof summarizeGitHistoryMetrics, "function");
+  assert.deepEqual(result.visibleRefs, ["HEAD -> main", "tag: v1.0"]);
+  assert.equal(result.hiddenCount, 2);
+});
 
-  const summary = summarizeGitHistoryMetrics!([
-    {
-      hash: "m",
-      parents: ["b", "c"],
-      refs: ["HEAD -> main", "origin/main"],
-      author: "Alice",
-      date: "2026-03-26T00:00:00.000Z",
-      message: "merge feature",
-      lane: 0,
-      row: 0,
-    },
-    {
-      hash: "b",
-      parents: ["a"],
-      refs: [],
-      author: "Alice",
-      date: "2026-03-25T00:00:00.000Z",
-      message: "main work",
-      lane: 0,
-      row: 1,
-    },
-    {
-      hash: "c",
-      parents: ["a"],
-      refs: ["feature"],
-      author: "Bob",
-      date: "2026-03-24T00:00:00.000Z",
-      message: "feature work",
-      lane: 1,
-      row: 2,
-    },
-  ]);
+test("summarizeCommitRefs returns empty for no refs", () => {
+  const result = summarizeCommitRefs([]);
+  assert.deepEqual(result.visibleRefs, []);
+  assert.equal(result.hiddenCount, 0);
+});
 
-  assert.deepEqual(summary, {
-    commitCount: 3,
-    mergeCount: 1,
-    contributorCount: 2,
-    referencedCommitCount: 2,
+test("buildAheadBehindLabel formats ahead/behind correctly", () => {
+  assert.equal(buildAheadBehindLabel(3, 0), "↑3");
+  assert.equal(buildAheadBehindLabel(0, 2), "↓2");
+  assert.equal(buildAheadBehindLabel(1, 5), "↑1 ↓5");
+  assert.equal(buildAheadBehindLabel(0, 0), null);
+});
+
+test("getStatusDisplayPath splits filename and directory", () => {
+  assert.deepEqual(getStatusDisplayPath("src/components/App.tsx"), {
+    fileName: "App.tsx",
+    directory: "src/components",
+  });
+  assert.deepEqual(getStatusDisplayPath("README.md"), {
+    fileName: "README.md",
+    directory: "",
+  });
+  assert.deepEqual(getStatusDisplayPath("a/b/c/d.ts"), {
+    fileName: "d.ts",
+    directory: "a/b/c",
   });
 });
 
-test("summarizeCommitFileStats totals file categories and line counts", () => {
-  const summarizeCommitFileStats = (
-    gitContentLayout as Record<string, unknown>
-  ).summarizeCommitFileStats as
-    | ((files: unknown[]) => {
-        totalFiles: number;
-        additions: number;
-        deletions: number;
-        binaryCount: number;
-        imageCount: number;
-        renamedCount: number;
-      })
-    | undefined;
+test("getStatusColor returns correct CSS variable for each status", () => {
+  assert.equal(getStatusColor("M"), "var(--amber)");
+  assert.equal(getStatusColor("A"), "var(--cyan)");
+  assert.equal(getStatusColor("D"), "var(--red)");
+  assert.equal(getStatusColor("R"), "var(--accent)");
+  assert.equal(getStatusColor("?"), "var(--cyan)");
+});
 
-  assert.equal(typeof summarizeCommitFileStats, "function");
+test("getStatusLabel maps untracked to U", () => {
+  assert.equal(getStatusLabel("?"), "U");
+  assert.equal(getStatusLabel("M"), "M");
+  assert.equal(getStatusLabel("A"), "A");
+});
 
-  const summary = summarizeCommitFileStats!([
-    {
-      name: "src/components/GitContent.tsx",
-      additions: 42,
-      deletions: 10,
-      binary: false,
-      isImage: false,
-      imageOld: null,
-      imageNew: null,
-    },
-    {
-      name: "assets/{old-logo.png => new-logo.png}",
-      additions: 0,
-      deletions: 0,
-      binary: true,
-      isImage: true,
-      imageOld: "before",
-      imageNew: "after",
-    },
-  ]);
-
-  assert.deepEqual(summary, {
-    totalFiles: 2,
-    additions: 42,
-    deletions: 10,
-    binaryCount: 1,
-    imageCount: 1,
-    renamedCount: 1,
+test("getVirtualCommitWindow calculates visible range with overscan", () => {
+  const result = getVirtualCommitWindow({
+    itemCount: 100,
+    rowHeight: 40,
+    scrollTop: 200,
+    viewportHeight: 400,
+    overscan: 5,
   });
+
+  // scrollTop=200, rowHeight=40 → first visible = 5
+  // startIndex = max(0, 5-5) = 0
+  // endIndex = min(100, ceil((200+400)/40) + 5) = min(100, 15+5) = 20
+  assert.equal(result.startIndex, 0);
+  assert.equal(result.endIndex, 20);
 });

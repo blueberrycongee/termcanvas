@@ -114,6 +114,28 @@ test("telemetry service keeps a bounded event ring", () => {
   assert.equal(page.events.at(-1)?.kind, "pty_exit");
 });
 
+test("telemetry service ignores stale PTY exits after a terminal respawns", () => {
+  const service = new TelemetryService({ processPollIntervalMs: 0 });
+  service.registerTerminal({
+    terminalId: "terminal-1",
+    worktreePath: "/tmp/project",
+    provider: "claude",
+  });
+
+  service.recordPtyCreated({ terminalId: "terminal-1", ptyId: 1, shellPid: 100 });
+  service.recordPtyCreated({ terminalId: "terminal-1", ptyId: 2, shellPid: 200 });
+  service.recordPtyExitByPtyId(1, 0, "2026-03-26T00:00:03.000Z");
+
+  let snapshot = service.getTerminalSnapshot("terminal-1");
+  assert.equal(snapshot?.pty_alive, true);
+  assert.notEqual(snapshot?.derived_status, "exited");
+
+  service.recordPtyExitByPtyId(2, 0, "2026-03-26T00:00:04.000Z");
+  snapshot = service.getTerminalSnapshot("terminal-1");
+  assert.equal(snapshot?.pty_alive, false);
+  assert.equal(snapshot?.derived_status, "exited");
+});
+
 test("workflow snapshot reads contract truth from Hydra handoff artifacts", () => {
   const repoPath = createRepoFixture();
   try {
