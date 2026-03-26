@@ -79,6 +79,7 @@ export const zh = {
   no_worktree_selected: "未选择工作树",
   no_file_selected: "未选择文件",
   git_not_repository: "不是 Git 仓库",
+  git_not_repository_hint: "初始化后即可在这里查看分支、拓扑和 commit 详情",
   git_init: "git init",
   git_init_busy: "初始化中…",
   git_branch: "分支",

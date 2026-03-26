@@ -80,6 +80,8 @@ export const en = {
   no_worktree_selected: "No worktree selected",
   no_file_selected: "No file selected",
   git_not_repository: "Not a Git repository",
+  git_not_repository_hint:
+    "Initialize this worktree to inspect branches, topology, and commit details.",
   git_init: "git init",
   git_init_busy: "Initializing\u2026",
   git_branch: "Branch",
