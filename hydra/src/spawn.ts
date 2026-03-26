@@ -181,6 +181,7 @@ export async function spawn(args: string[]): Promise<void> {
     worktreePath,
     agentType: parsed.type,
     taskFile: artifacts.task_file,
+    doneFile: artifacts.done_file,
     resultFile: artifacts.result_file,
     autoApprove: parsed.autoApprove,
     parentTerminalId,

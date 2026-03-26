@@ -12,6 +12,7 @@ export interface DispatchCreateOnlyRequest {
   worktreePath: string;
   agentType: string;
   taskFile: string;
+  doneFile: string;
   resultFile: string;
   autoApprove?: boolean;
   parentTerminalId?: string;
@@ -43,8 +44,14 @@ const DEFAULT_DEPENDENCIES: DispatcherDependencies = {
   terminalCreate,
 };
 
-export function buildCreateOnlyPrompt(taskFile: string, resultFile: string): string {
-  return `Read ${taskFile} for the full task contract. Write result JSON to ${resultFile}, then write the done marker described in the task package.`;
+export function buildCreateOnlyPrompt(
+  taskFile: string,
+  doneFile: string,
+  handoffId: string,
+  workflowId: string,
+  resultFile: string,
+): string {
+  return `Read ${taskFile} for the full task contract. Write a valid hydra/v2 result JSON to ${resultFile}. Then write a JSON done marker to ${doneFile} with version=hydra/v2, handoff_id=${handoffId}, workflow_id=${workflowId}, and result_file=${resultFile}.`;
 }
 
 export async function dispatchCreateOnly(
@@ -74,7 +81,13 @@ export async function dispatchCreateOnly(
     });
   }
 
-  const prompt = buildCreateOnlyPrompt(request.taskFile, request.resultFile);
+  const prompt = buildCreateOnlyPrompt(
+    request.taskFile,
+    request.doneFile,
+    request.handoffId,
+    request.workflowId,
+    request.resultFile,
+  );
   const terminal = dependencies.terminalCreate(
     request.worktreePath,
     request.agentType,

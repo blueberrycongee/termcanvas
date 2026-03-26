@@ -67,6 +67,10 @@ test("renderTaskPackageTemplate includes skills and output contract rules", () =
   assert.match(content, /## Output Contract/);
   assert.match(content, /result\.json/);
   assert.match(content, /done/);
+  assert.match(content, /done marker must be valid JSON/i);
+  assert.match(content, /"version": "hydra\/v2"/);
+  assert.match(content, /"handoff_id": "handoff-abc123"/);
+  assert.match(content, /"workflow_id": "workflow-auth"/);
   assert.match(content, /You must write both `result\.json` and `done` before finishing\./);
 });
 

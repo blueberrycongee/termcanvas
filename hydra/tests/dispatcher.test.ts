@@ -5,16 +5,23 @@ import {
   dispatchCreateOnly,
 } from "../src/dispatcher.ts";
 
-test("buildCreateOnlyPrompt only references task and result paths", () => {
+test("buildCreateOnlyPrompt spells out the done marker JSON contract", () => {
   const prompt = buildCreateOnlyPrompt(
     "/repo/.hydra/workflows/wf-1/handoff-1/task.md",
+    "/repo/.hydra/workflows/wf-1/handoff-1/done",
+    "handoff-1",
+    "wf-1",
     "/repo/.hydra/workflows/wf-1/handoff-1/result.json",
   );
 
   assert.ok(!prompt.includes("\n"), "prompt must stay single-line");
   assert.match(prompt, /task\.md/);
   assert.match(prompt, /result\.json/);
-  assert.doesNotMatch(prompt, /follow-up|input/i);
+  assert.match(prompt, /done/i);
+  assert.match(prompt, /JSON done marker/i);
+  assert.match(prompt, /handoff_id=handoff-1/);
+  assert.match(prompt, /workflow_id=wf-1/);
+  assert.match(prompt, /result_file=/);
 });
 
 test("dispatchCreateOnly launches a terminal with the create-only prompt", async () => {
@@ -28,6 +35,7 @@ test("dispatchCreateOnly launches a terminal with the create-only prompt", async
       worktreePath: "/repo/project/.worktrees/hydra-1",
       agentType: "codex",
       taskFile: "/repo/project/.hydra/workflows/workflow-auth/handoff-abc123/task.md",
+      doneFile: "/repo/project/.hydra/workflows/workflow-auth/handoff-abc123/done",
       resultFile: "/repo/project/.hydra/workflows/workflow-auth/handoff-abc123/result.json",
       autoApprove: true,
       parentTerminalId: "terminal-parent",
@@ -55,6 +63,9 @@ test("dispatchCreateOnly launches a terminal with the create-only prompt", async
     terminalTitle: "Codex",
     prompt: buildCreateOnlyPrompt(
       "/repo/project/.hydra/workflows/workflow-auth/handoff-abc123/task.md",
+      "/repo/project/.hydra/workflows/workflow-auth/handoff-abc123/done",
+      "handoff-abc123",
+      "workflow-auth",
       "/repo/project/.hydra/workflows/workflow-auth/handoff-abc123/result.json",
     ),
   });
@@ -68,6 +79,9 @@ test("dispatchCreateOnly launches a terminal with the create-only prompt", async
         "codex",
         buildCreateOnlyPrompt(
           "/repo/project/.hydra/workflows/workflow-auth/handoff-abc123/task.md",
+          "/repo/project/.hydra/workflows/workflow-auth/handoff-abc123/done",
+          "handoff-abc123",
+          "workflow-auth",
           "/repo/project/.hydra/workflows/workflow-auth/handoff-abc123/result.json",
         ),
         true,
@@ -88,6 +102,7 @@ test("dispatchCreateOnly fails when TermCanvas is not running", async () => {
           worktreePath: "/repo/project/.worktrees/hydra-1",
           agentType: "claude",
           taskFile: "/repo/project/task.md",
+          doneFile: "/repo/project/done",
           resultFile: "/repo/project/result.json",
         },
         {
@@ -119,6 +134,7 @@ test("dispatchCreateOnly fails when the repo is not on the canvas", async () => 
           worktreePath: "/repo/project/.worktrees/hydra-1",
           agentType: "claude",
           taskFile: "/repo/project/task.md",
+          doneFile: "/repo/project/done",
           resultFile: "/repo/project/result.json",
         },
         {

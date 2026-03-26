@@ -202,6 +202,7 @@ function buildDispatchRequestFromHandoff(
     worktreePath: handoff.worktree_path,
     agentType: handoff.to.agent_type,
     taskFile: handoff.artifacts.task_file,
+    doneFile: handoff.artifacts.done_file,
     resultFile: handoff.artifacts.result_file,
     autoApprove: workflow.auto_approve,
     parentTerminalId:
