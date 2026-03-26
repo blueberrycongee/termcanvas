@@ -21,6 +21,7 @@ export interface WorkflowRecord {
   base_branch: string;
   own_worktree: boolean;
   agent_type: AgentType;
+  parent_terminal_id?: string;
   created_at: string;
   updated_at: string;
   status: WorkflowStatus;

@@ -289,3 +289,94 @@ test("evaluator failure loops back to the implementer handoff", async () => {
     fs.rmSync(repoPath, { recursive: true, force: true });
   }
 });
+
+test("workflow dispatch persists the parent terminal id across later ticks", async () => {
+  const { repoPath, worktreePath } = createRepoFixture();
+  const parentTerminalId = "terminal-parent";
+  const previousParentTerminalId = process.env.TERMCANVAS_TERMINAL_ID;
+  const seenParents: Array<string | undefined> = [];
+
+  process.env.TERMCANVAS_TERMINAL_ID = parentTerminalId;
+
+  try {
+    const started = await runWorkflow(
+      {
+        task: "Keep workflow children linked to the invoking terminal",
+        repoPath,
+        worktreePath,
+        template: "planner-implementer-evaluator",
+        agentType: "codex",
+        evaluatorType: "claude",
+        timeoutMinutes: 5,
+        maxRetries: 1,
+        autoApprove: false,
+      },
+      {
+        now: () => "2026-03-26T12:20:00.000Z",
+        dispatchCreateOnly: async (request) => {
+          seenParents.push(request.parentTerminalId);
+          return {
+            projectId: "project-1",
+            terminalId: `terminal-${seenParents.length}`,
+            terminalType: request.agentType,
+            terminalTitle: request.agentType,
+            prompt: `Read ${request.taskFile}`,
+          };
+        },
+      },
+    );
+
+    const manager = new HandoffManager(repoPath);
+    const planner = manager.load(started.handoffs[0].id)!;
+    writeResultContract(
+      { artifacts: planner.artifacts! },
+      {
+        version: "hydra/v2",
+        handoff_id: planner.id,
+        workflow_id: planner.workflow_id,
+        success: true,
+        summary: "Planner produced a concrete implementation plan.",
+        outputs: [{ path: "plan.md", description: "Implementation plan" }],
+        evidence: ["manual planning"],
+        next_action: {
+          type: "handoff",
+          reason: "Implementation can start.",
+          handoff_id: started.handoffs[1].id,
+        },
+      },
+    );
+    writeDoneMarker({
+      artifacts: planner.artifacts!,
+      handoff_id: planner.id,
+      workflow_id: planner.workflow_id,
+    });
+
+    delete process.env.TERMCANVAS_TERMINAL_ID;
+
+    await tickWorkflow(
+      { repoPath, workflowId: started.workflow.id },
+      {
+        now: () => "2026-03-26T12:20:10.000Z",
+        dispatchCreateOnly: async (request) => {
+          seenParents.push(request.parentTerminalId);
+          return {
+            projectId: "project-1",
+            terminalId: `terminal-${seenParents.length}`,
+            terminalType: request.agentType,
+            terminalTitle: request.agentType,
+            prompt: `Read ${request.taskFile}`,
+          };
+        },
+      },
+    );
+
+    assert.deepEqual(seenParents, [parentTerminalId, parentTerminalId]);
+  } finally {
+    if (previousParentTerminalId === undefined) {
+      delete process.env.TERMCANVAS_TERMINAL_ID;
+    } else {
+      process.env.TERMCANVAS_TERMINAL_ID = previousParentTerminalId;
+    }
+    fs.rmSync(repoPath, { recursive: true, force: true });
+  }
+});

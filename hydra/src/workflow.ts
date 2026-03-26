@@ -204,6 +204,8 @@ function buildDispatchRequestFromHandoff(
     taskFile: handoff.artifacts.task_file,
     resultFile: handoff.artifacts.result_file,
     autoApprove: workflow.auto_approve,
+    parentTerminalId:
+      workflow.parent_terminal_id ?? process.env.TERMCANVAS_TERMINAL_ID,
   };
 }
 
@@ -415,6 +417,7 @@ export async function runWorkflow(
     base_branch: workspace.baseBranch,
     own_worktree: workspace.ownWorktree,
     agent_type: options.agentType,
+    parent_terminal_id: process.env.TERMCANVAS_TERMINAL_ID,
     created_at: now(),
     updated_at: now(),
     status: "pending",
