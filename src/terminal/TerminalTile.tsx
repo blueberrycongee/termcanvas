@@ -158,9 +158,9 @@ function TelemetrySummary({ terminalId }: { terminalId: string }) {
   }
 
   return (
-    <div className="flex items-center gap-2 min-w-0 shrink-0">
+    <div className="flex min-w-0 max-w-[18rem] shrink items-center gap-2">
       <span
-        className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-1.5 py-0.5 text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]"
+        className="shrink-0 rounded-full border border-[var(--border)] bg-[var(--surface)] px-1.5 py-0.5 text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]"
         style={{ fontFamily: '"Geist Mono", monospace' }}
         title={facts.join(" • ")}
       >
@@ -504,14 +504,14 @@ export function TerminalTile({
         </span>
         <HierarchyBadges terminal={terminal} />
         <span
-          className="text-[11px] text-[var(--text-muted)] truncate shrink-0"
+          className="min-w-0 max-w-[9rem] shrink truncate text-[11px] text-[var(--text-muted)]"
           style={{ fontFamily: '"Geist Mono", monospace' }}
         >
           {terminal.title}
         </span>
         <TelemetrySummary terminalId={terminal.id} />
         <div
-          className={`h-6 min-w-0 flex-1 rounded-md border px-1.5 text-[11px] ${
+          className={`h-6 min-w-[8rem] flex-1 rounded-md border px-1.5 text-[11px] ${
             terminal.customTitle
               ? "border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]"
               : "border-dashed border-[var(--border)] bg-[var(--bg)] text-[var(--text-faint)]"
