@@ -38,9 +38,22 @@ export function getTelemetryFacts(
 ): string[] {
   if (!snapshot) return [];
 
+  const sessionFact = snapshot.session_attached
+    ? snapshot.pty_alive
+      ? "Session attached"
+      : "Session recorded"
+    : "Session pending";
+
+  const processFact = snapshot.pty_alive
+    ? null
+    : snapshot.exit_code === undefined
+      ? "Process exited"
+      : `Process exited (${snapshot.exit_code})`;
+
   const facts = [
     `Provider ${snapshot.provider}`,
-    snapshot.session_attached ? "Session attached" : "Session pending",
+    processFact,
+    sessionFact,
     `Progress ${formatTelemetryAge(snapshot.last_meaningful_progress_at, nowMs)}`,
     snapshot.last_session_event_kind
       ? `Event ${snapshot.last_session_event_kind}`

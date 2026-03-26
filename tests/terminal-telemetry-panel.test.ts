@@ -50,3 +50,25 @@ test("getTelemetryFacts surfaces progress, event, tool, and contract facts", () 
     "Contract result / no done",
   ]);
 });
+
+test("getTelemetryFacts clarifies exited snapshots as recorded history", () => {
+  const facts = getTelemetryFacts(
+    {
+      ...SNAPSHOT,
+      pty_alive: false,
+      exit_code: 0,
+      derived_status: "exited",
+    },
+    Date.parse("2026-03-26T00:01:10.000Z"),
+  );
+
+  assert.deepEqual(facts, [
+    "Provider codex",
+    "Process exited (0)",
+    "Session recorded",
+    "Progress 1m ago",
+    "Event function_call_output",
+    "Tool npm run build",
+    "Contract result / no done",
+  ]);
+});
