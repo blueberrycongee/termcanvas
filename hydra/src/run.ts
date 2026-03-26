@@ -26,6 +26,11 @@ function printRunUsage(): never {
   console.log("  --timeout-minutes <num>  Per-handoff timeout in minutes (default: 30)");
   console.log("  --max-retries <num>      Automatic retry limit (default: 1)");
   console.log("  --auto-approve           Run sub-agent in auto-approve mode");
+  console.log("");
+  console.log("Mode guide:");
+  console.log("  hydra run                          planner -> implementer -> evaluator (default)");
+  console.log("  hydra run --template single-step  one implementer with file gates");
+  console.log("  hydra spawn                       one direct isolated worker");
   process.exit(0);
 }
 

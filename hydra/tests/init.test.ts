@@ -60,7 +60,9 @@ test("init updates an existing Hydra block in place and preserves adjacent conte
   const agentsMd = fs.readFileSync(path.join(dir, "AGENTS.md"), "utf-8");
 
   assert.equal(claudeMd.match(/## Hydra Sub-Agent Tool/g)?.length, 1);
-  assert.match(claudeMd, /Hydra now treats `result\.json` \+ `done` as the only completion evidence\./);
+  assert.match(claudeMd, /Hydra treats `result\.json` \+ `done` as the only completion evidence\./);
+  assert.match(claudeMd, /Mode selection:/);
+  assert.match(claudeMd, /hydra spawn --task/);
   assert.match(claudeMd, /## Team Rules/);
   assert.match(agentsMd, /## Hydra Sub-Agent Tool/);
   assert.deepEqual(logs, [

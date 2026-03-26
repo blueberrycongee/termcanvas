@@ -7,8 +7,9 @@ const INSTRUCTION_FILES = ["CLAUDE.md", "AGENTS.md"] as const;
 const HYDRA_SECTION = `
 ## Hydra Sub-Agent Tool
 
-Use Hydra when the task benefits from file-driven multi-agent orchestration.
-Hydra now treats \`result.json\` + \`done\` as the only completion evidence.
+Classify the task before choosing a mode. Hydra is for file-driven
+orchestration, not the default path for every change.
+Hydra treats \`result.json\` + \`done\` as the only completion evidence.
 Terminal conversation is not a source of truth.
 
 Core rules:
@@ -17,14 +18,21 @@ Core rules:
 - Do not add silent fallbacks or swallowed errors.
 - A handoff is only complete when both \`result.json\` and \`done\` exist and pass schema validation.
 
-Workflow:
-1. Start a workflow: \`hydra run --task "<specific task>" --repo . [--worktree .]\`
-2. For small/direct tasks, opt into a single implementer only: \`hydra run --task "<specific task>" --repo . --template single-step [--worktree .]\`
-3. Inspect one-shot progress: \`hydra tick --repo . --workflow <workflowId>\`
-4. Watch until terminal state: \`hydra watch --repo . --workflow <workflowId>\`
-5. Inspect structured state and failures: \`hydra status --repo . --workflow <workflowId>\`
-6. Retry a failed/timed-out workflow when allowed: \`hydra retry --repo . --workflow <workflowId>\`
-7. Clean up runtime state or worktrees: \`hydra cleanup --workflow <workflowId> --repo .\`
+Mode selection:
+1. Do the task directly when it is simple, local, or clearly faster without workflow overhead.
+2. Use a single implementer workflow when you still want Hydra evidence and retry control:
+   \`hydra run --task "<specific task>" --repo . --template single-step [--worktree .]\`
+3. Use the default planner -> implementer -> evaluator workflow for ambiguous, risky, or PRD-driven work:
+   \`hydra run --task "<specific task>" --repo . [--worktree .]\`
+4. Use a direct isolated worker when the split is already known:
+   \`hydra spawn --task "<specific task>" --repo . [--worktree .]\`
+
+Workflow control:
+1. Inspect one-shot progress: \`hydra tick --repo . --workflow <workflowId>\`
+2. Watch until terminal state: \`hydra watch --repo . --workflow <workflowId>\`
+3. Inspect structured state and failures: \`hydra status --repo . --workflow <workflowId>\`
+4. Retry a failed/timed-out workflow when allowed: \`hydra retry --repo . --workflow <workflowId>\`
+5. Clean up runtime state or worktrees: \`hydra cleanup --workflow <workflowId> --repo .\`
 
 \`result.json\` must contain:
 - \`success\`
@@ -33,7 +41,7 @@ Workflow:
 - \`evidence[]\`
 - \`next_action\`
 
-When NOT to use: simple fixes, high-certainty tasks, or work that is faster to do directly.
+When NOT to use: simple fixes, high-certainty tasks, or work that is faster to do directly in the current agent.
 `;
 
 export type InitInstructionStatus = "created" | "appended" | "updated" | "unchanged";

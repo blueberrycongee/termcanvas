@@ -7,15 +7,23 @@
 - Internal orchestration state lives in repo-local `.hydra/workflows/<workflow>/workflow.json` and `.hydra/handoffs/<handoff>.json`.
 - Workflow progression is state-machine-driven. `pending -> claimed -> in_progress -> completed|timed_out|failed` is explicit and idempotent.
 - Contract validation is strict-fail. Missing or invalid `result.json` / `done` files fail the handoff instead of being treated as success.
+- Current workflow templates are staged, not fan-out parallel graphs. `hydra spawn` remains the direct isolated-worker path when the split is already known.
+
+## Mode selection
+
+- Work directly in the current agent when the task is simple, local, or faster than paying workflow overhead.
+- Use `hydra run --template single-step` when you want one implementer plus worktree isolation, file evidence, and retry/status control.
+- Use default `hydra run` for the `planner -> implementer -> evaluator` loop on ambiguous, risky, or PRD-driven tasks.
+- Use `hydra spawn` when you already know the split and only need one isolated worker terminal.
 
 ## Runtime SOP
 
-1. Start a workflow:
+1. Start the chosen mode:
    ```bash
    hydra run --task "..." --repo .
    ```
-   The default workflow is `planner -> implementer -> evaluator`. For a single direct implementer run, pass `--template single-step`.
-2. Advance once:
+   The default workflow is `planner -> implementer -> evaluator`. For a single direct implementer run, pass `--template single-step`. For a direct isolated worker, use `hydra spawn --task "..." --repo .`.
+2. Advance a workflow once:
    ```bash
    hydra tick --repo . --workflow <workflowId>
    ```

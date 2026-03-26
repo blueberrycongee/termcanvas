@@ -7,15 +7,20 @@ function printUsage() {
   console.log("Usage: hydra <run|tick|watch|status|retry|spawn|list|cleanup|init> [options]");
   console.log("");
   console.log("Commands:");
-  console.log("  run      Create and start a workflow");
+  console.log("  run      Create and start a file-contract workflow");
   console.log("  tick     Advance one workflow tick");
   console.log("  watch    Poll a workflow until it reaches a terminal state");
   console.log("  status   Show structured workflow status");
   console.log("  retry    Retry a failed or timed-out workflow");
-  console.log("  spawn    Spawn a sub-agent in a new TermCanvas terminal");
+  console.log("  spawn    Create one direct isolated worker terminal");
   console.log("  list     List all spawned agents");
   console.log("  cleanup  Clean up agent worktrees and terminals");
   console.log("  init     Add hydra instructions to project CLAUDE.md and AGENTS.md");
+  console.log("");
+  console.log("Execution modes:");
+  console.log("  direct   stay in the current agent for simple/local tasks");
+  console.log("  run      use single-step or planner -> implementer -> evaluator");
+  console.log("  spawn    use one isolated worker when the split is already known");
 }
 
 async function main() {

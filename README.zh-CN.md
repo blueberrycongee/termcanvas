@@ -139,13 +139,20 @@ termcanvas diff ~/my-repo --summary
 
 <br>
 
-Hydra 让你把大任务拆成小块，分派给不同的 AI agent，每个 agent 在独立的 git worktree 中工作。所有 agent 都有自己的画布终端，你可以同时观察它们并行推进。
+Hydra 是 TermCanvas 面向长任务的“文件契约 + 状态机”编排引擎。它把隔离 worktree、明确交接产物、结构化重试与状态查询，组合在本地 Claude/Codex 终端之上。
 
-**最简单的用法是直接告诉你的 AI agent。** 在项目中运行 `hydra init` 之后，只需对 agent 说：
+**最简单的用法仍然是直接告诉你的 AI agent。** 在项目中运行 `hydra init` 之后，内置 router skill 应该先选最合适的路径：
 
-> *"用 Hydra 把这次重构拆成子任务，并行执行。"*
+- 简单或局部任务：留在当前 agent 直接做
+- 需要文件门禁但实现路径明确：`hydra run --template single-step`
+- 需求模糊、风险高、PRD 驱动：默认 `hydra run`
+- 已经知道怎么拆，只需要一个隔离 worker：`hydra spawn`
 
-Agent 已经知道如何调用 Hydra workflow、监控进度、合并结果——你不需要记住所有 CLI 参数。
+例如：
+
+> *"用 Hydra 实现 `docs/prd/auth-redesign.md`，你自己选合适模式，并把证据写进 workflow 文件。"*
+
+Agent 应该先路由任务，再在需要时调用对应的 Hydra 模式——你不需要记住所有 CLI 参数。
 
 ```bash
 hydra init    # 教会 Claude Code / Codex 在这个项目中使用 Hydra
@@ -156,12 +163,14 @@ hydra init    # 教会 Claude Code / Codex 在这个项目中使用 Hydra
 
 ```bash
 hydra run --task "fix the login bug" --repo .
+hydra run --task "implement the API change" --repo . --template single-step
+hydra spawn --task "investigate the flaky CI failure" --repo .
 hydra watch --repo . --workflow <workflow-id>
 hydra status --repo . --workflow <workflow-id>
 hydra cleanup --workflow <workflow-id> --repo . --force
 ```
 
-`hydra run` 现在默认使用 planner → implementer → evaluator 工作流。更小、更直接的任务可显式传 `--template single-step`。Hydra workflow 会在 `.hydra/workflows` 下创建任务包，通过 create-only prompt 启动真实 Claude/Codex 终端，并且只在 `result.json` + `done` 通过校验后推进。更多架构边界、故障排查、反模式和本地验收流程，见 [Hydra Orchestration Guide](docs/hydra-orchestration.md)。
+Hydra 在一套 harness 下提供三类执行模式：当前 agent 直接处理、`hydra run --template single-step`、默认 planner → implementer → evaluator 工作流，以及 `hydra spawn` 这种直接隔离 worker。当前 workflow 模板仍然是分阶段串行推进，而不是 fan-out 并行图；只有 `.hydra/workflows` 里的 `result.json` + `done` 校验通过后才会前进。更多架构边界、模式选择、故障排查、反模式和本地验收流程，见 [Hydra Orchestration Guide](docs/hydra-orchestration.md)。
 
 </details>
 

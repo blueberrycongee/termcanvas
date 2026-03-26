@@ -145,13 +145,20 @@ termcanvas diff ~/my-repo --summary
 
 <br>
 
-Hydra lets you break a big task into smaller pieces and hand each piece to an AI agent running in its own git worktree. Every agent gets its own terminal on the canvas, so you can watch them all work in parallel.
+Hydra is TermCanvas's file-contract workflow engine for longer-running coding tasks. It combines isolated worktrees, explicit handoff artifacts, and structured retry/status controls around local Claude/Codex terminals.
 
-**The easiest way to use Hydra is to ask your AI agent directly.** After running `hydra init` in your project, just tell your agent:
+**The easiest way to use Hydra is still to ask your AI agent directly.** After running `hydra init` in your project, the bundled router skill should choose the lightest fitting path:
 
-> *"Use Hydra to split this refactor into subtasks and run them in parallel."*
+- stay in the current agent for simple or local tasks
+- use `hydra run --template single-step` for one implementer with file gates
+- use default `hydra run` for planner → implementer → evaluator
+- use `hydra spawn` for one direct isolated worker when the split is already known
 
-The agent already knows how to call Hydra workflows, monitor progress, and merge results — you don't need to memorize every CLI flag.
+For example:
+
+> *"Use Hydra to implement the PRD in `docs/prd/auth-redesign.md`. Pick the right mode and keep evidence in the workflow files."*
+
+The agent should route the task first, then call the matching Hydra mode when needed — you don't need to memorize every CLI flag.
 
 ```bash
 hydra init    # teach Claude Code / Codex how to use Hydra in this project
@@ -162,12 +169,14 @@ hydra init    # teach Claude Code / Codex how to use Hydra in this project
 
 ```bash
 hydra run --task "fix the login bug" --repo .
+hydra run --task "implement the API change" --repo . --template single-step
+hydra spawn --task "investigate the flaky CI failure" --repo .
 hydra watch --repo . --workflow <workflow-id>
 hydra status --repo . --workflow <workflow-id>
 hydra cleanup --workflow <workflow-id> --repo . --force
 ```
 
-`hydra run` now defaults to the planner → implementer → evaluator workflow. For smaller direct tasks, opt into `--template single-step`. Hydra workflows create task packages under `.hydra/workflows`, launch real Claude/Codex terminals with create-only prompts, and advance only on validated `result.json` + `done` evidence. See [Hydra Orchestration Guide](docs/hydra-orchestration.md) for architecture boundaries, troubleshooting, anti-patterns, and the local acceptance harness.
+Hydra exposes three execution modes under one harness: direct work in the current agent, `hydra run --template single-step`, and the default planner → implementer → evaluator workflow, plus `hydra spawn` for a direct isolated worker. Current workflow templates are staged rather than fan-out parallel; they advance only on validated `result.json` + `done` evidence inside `.hydra/workflows`. See [Hydra Orchestration Guide](docs/hydra-orchestration.md) for architecture boundaries, mode selection, troubleshooting, anti-patterns, and the local acceptance harness.
 
 </details>
 
