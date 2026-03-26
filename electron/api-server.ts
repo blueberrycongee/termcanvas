@@ -3,11 +3,13 @@ import type { BrowserWindow } from "electron";
 import type { PtyManager } from "./pty-manager";
 import type { ProjectScanner } from "./project-scanner";
 import { getApiDiff } from "./git-diff";
+import type { TelemetryService } from "./telemetry-service";
 
 interface ApiServerDeps {
   getWindow: () => BrowserWindow | null;
   ptyManager: PtyManager;
   projectScanner: ProjectScanner;
+  telemetryService: TelemetryService;
 }
 
 export class ApiServer {
@@ -111,6 +113,22 @@ export class ApiServer {
     if (method === "PUT" && pathname.match(/^\/terminal\/[^/]+\/custom-title$/)) {
       const id = pathname.split("/")[2];
       return this.terminalSetCustomTitle(id, body);
+    }
+
+    if (method === "GET" && pathname.match(/^\/telemetry\/terminal\/[^/]+$/)) {
+      const id = pathname.split("/")[3];
+      return this.terminalTelemetry(id);
+    }
+    if (method === "GET" && pathname.match(/^\/telemetry\/terminal\/[^/]+\/events$/)) {
+      const id = pathname.split("/")[3];
+      const limit = parseInt(url.searchParams.get("limit") ?? "50", 10);
+      const cursor = url.searchParams.get("cursor") ?? undefined;
+      return this.terminalTelemetryEvents(id, limit, cursor);
+    }
+    if (method === "GET" && pathname.match(/^\/telemetry\/workflow\/[^/]+$/)) {
+      const id = pathname.split("/")[3];
+      const repoPath = url.searchParams.get("repo");
+      return this.workflowTelemetry(id, repoPath);
     }
 
     // Diff
@@ -224,6 +242,9 @@ export class ApiServer {
     const prompt = body?.prompt as string | undefined;
     const autoApprove = body?.autoApprove as boolean | undefined;
     const parentTerminalId = body?.parentTerminalId as string | undefined;
+    const workflowId = body?.workflowId as string | undefined;
+    const handoffId = body?.handoffId as string | undefined;
+    const repoPath = body?.repoPath as string | undefined;
     if (!worktree)
       throw Object.assign(new Error("worktree path is required"), {
         status: 400,
@@ -253,6 +274,14 @@ export class ApiServer {
     const terminal = await this.execRenderer(
       `window.__tcApi.addTerminal(${JSON.stringify(projectId)}, ${JSON.stringify(worktreeId)}, ${JSON.stringify(type)}, ${JSON.stringify(prompt)}, ${JSON.stringify(!!autoApprove)}, ${JSON.stringify(parentTerminalId ?? null)})`,
     );
+    this.deps.telemetryService.registerTerminal({
+      terminalId: terminal.id,
+      worktreePath: worktree,
+      provider: type === "claude" || type === "codex" ? type : "unknown",
+      workflowId,
+      handoffId,
+      repoPath,
+    });
     return { id: terminal.id, type: terminal.type, title: terminal.title };
   }
 
@@ -342,6 +371,33 @@ export class ApiServer {
       `window.__tcApi.setCustomTitle(${JSON.stringify(terminalId)}, ${JSON.stringify(customTitle)})`,
     );
     return { ok: true };
+  }
+
+  private async terminalTelemetry(terminalId: string) {
+    const snapshot = this.deps.telemetryService.getTerminalSnapshot(terminalId);
+    if (!snapshot) {
+      throw Object.assign(new Error("Telemetry terminal not found"), { status: 404 });
+    }
+    return snapshot;
+  }
+
+  private async terminalTelemetryEvents(
+    terminalId: string,
+    limit: number,
+    cursor?: string,
+  ) {
+    return this.deps.telemetryService.listTerminalEvents({ terminalId, limit, cursor });
+  }
+
+  private async workflowTelemetry(workflowId: string, repoPath: string | null) {
+    if (!repoPath) {
+      throw Object.assign(new Error("repo query parameter is required"), { status: 400 });
+    }
+    const snapshot = this.deps.telemetryService.getWorkflowSnapshot(repoPath, workflowId);
+    if (!snapshot) {
+      throw Object.assign(new Error("Workflow telemetry not found"), { status: 404 });
+    }
+    return snapshot;
   }
 
   private async getDiff(worktreePath: string, summary: boolean) {

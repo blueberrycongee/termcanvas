@@ -5,6 +5,9 @@ import {
   buildTermcanvasArgs,
   buildTerminalCreateArgs,
   buildTerminalInputArgs,
+  buildTelemetryEventsArgs,
+  buildTelemetryTerminalArgs,
+  buildTelemetryWorkflowArgs,
   getTermCanvasPortFile,
   isTermCanvasRunning,
 } from "../src/termcanvas.ts";
@@ -64,6 +67,39 @@ test("buildTerminalCreateArgs includes prompt when provided", () => {
   ]);
 });
 
+test("buildTerminalCreateArgs includes workflow telemetry metadata when provided", () => {
+  const args = buildTerminalCreateArgs(
+    "/tmp/wt",
+    "codex",
+    "Do the task",
+    true,
+    "parent-1",
+    "workflow-1",
+    "handoff-1",
+    "/repo/project",
+  );
+  assert.deepStrictEqual(args, [
+    "terminal",
+    "create",
+    "--worktree",
+    "/tmp/wt",
+    "--type",
+    "codex",
+    "--prompt",
+    "Do the task",
+    "--auto-approve",
+    "--parent-terminal",
+    "parent-1",
+    "--workflow-id",
+    "workflow-1",
+    "--handoff-id",
+    "handoff-1",
+    "--repo",
+    "/repo/project",
+    "--json",
+  ]);
+});
+
 test("buildTerminalInputArgs preserves shell metacharacters as literal text", () => {
   const args = buildTerminalInputArgs("tc-001", 'do $(touch /tmp/pwned) `uname`');
   assert.deepStrictEqual(args, [
@@ -73,6 +109,27 @@ test("buildTerminalInputArgs preserves shell metacharacters as literal text", ()
     'do $(touch /tmp/pwned) `uname`',
     "--json",
   ]);
+});
+
+test("buildTelemetryTerminalArgs targets telemetry terminal get", () => {
+  assert.deepStrictEqual(
+    buildTelemetryTerminalArgs("tc-001"),
+    ["telemetry", "get", "--terminal", "tc-001", "--json"],
+  );
+});
+
+test("buildTelemetryWorkflowArgs targets workflow get with repo", () => {
+  assert.deepStrictEqual(
+    buildTelemetryWorkflowArgs("workflow-1", "/repo/project"),
+    ["telemetry", "get", "--workflow", "workflow-1", "--repo", "/repo/project", "--json"],
+  );
+});
+
+test("buildTelemetryEventsArgs includes optional cursor", () => {
+  assert.deepStrictEqual(
+    buildTelemetryEventsArgs("tc-001", 20, "tc-001:5"),
+    ["telemetry", "events", "--terminal", "tc-001", "--limit", "20", "--cursor", "tc-001:5", "--json"],
+  );
 });
 
 test("getTermCanvasPortFile respects TERMCANVAS_INSTANCE and TERMCANVAS_PORT_FILE", () => {

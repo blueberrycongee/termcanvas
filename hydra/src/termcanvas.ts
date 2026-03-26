@@ -44,12 +44,42 @@ export function buildTermcanvasArgs(
   return [group, command, ...args, "--json"];
 }
 
-export function buildTerminalCreateArgs(worktreePath: string, type: string, prompt?: string, autoApprove?: boolean, parentTerminalId?: string): string[] {
+export function buildTerminalCreateArgs(
+  worktreePath: string,
+  type: string,
+  prompt?: string,
+  autoApprove?: boolean,
+  parentTerminalId?: string,
+  workflowId?: string,
+  handoffId?: string,
+  repoPath?: string,
+): string[] {
   const args = ["--worktree", worktreePath, "--type", type];
   if (prompt) args.push("--prompt", prompt);
   if (autoApprove) args.push("--auto-approve");
   if (parentTerminalId) args.push("--parent-terminal", parentTerminalId);
+  if (workflowId) args.push("--workflow-id", workflowId);
+  if (handoffId) args.push("--handoff-id", handoffId);
+  if (repoPath) args.push("--repo", repoPath);
   return buildTermcanvasArgs("terminal", "create", args);
+}
+
+export function buildTelemetryTerminalArgs(terminalId: string): string[] {
+  return buildTermcanvasArgs("telemetry", "get", ["--terminal", terminalId]);
+}
+
+export function buildTelemetryWorkflowArgs(workflowId: string, repoPath: string): string[] {
+  return buildTermcanvasArgs("telemetry", "get", ["--workflow", workflowId, "--repo", repoPath]);
+}
+
+export function buildTelemetryEventsArgs(
+  terminalId: string,
+  limit = 50,
+  cursor?: string,
+): string[] {
+  const args = ["--terminal", terminalId, "--limit", String(limit)];
+  if (cursor) args.push("--cursor", cursor);
+  return buildTermcanvasArgs("telemetry", "events", args);
 }
 
 export function buildTerminalInputArgs(terminalId: string, text: string): string[] {
@@ -90,8 +120,29 @@ export function projectRescan(projectId: string): void {
   tc("project", "rescan", [projectId]);
 }
 
-export function terminalCreate(worktreePath: string, type: string, prompt?: string, autoApprove?: boolean, parentTerminalId?: string): { id: string; type: string; title: string } {
-  return runTermcanvasJson(buildTerminalCreateArgs(worktreePath, type, prompt, autoApprove, parentTerminalId), 10_000);
+export function terminalCreate(
+  worktreePath: string,
+  type: string,
+  prompt?: string,
+  autoApprove?: boolean,
+  parentTerminalId?: string,
+  workflowId?: string,
+  handoffId?: string,
+  repoPath?: string,
+): { id: string; type: string; title: string } {
+  return runTermcanvasJson(
+    buildTerminalCreateArgs(
+      worktreePath,
+      type,
+      prompt,
+      autoApprove,
+      parentTerminalId,
+      workflowId,
+      handoffId,
+      repoPath,
+    ),
+    10_000,
+  );
 }
 
 export function terminalStatus(terminalId: string): { id: string; status: string; ptyId: number | null } {
@@ -104,6 +155,18 @@ export function terminalInput(terminalId: string, text: string): void {
 
 export function terminalDestroy(terminalId: string): void {
   tc("terminal", "destroy", [terminalId]);
+}
+
+export function telemetryTerminal(terminalId: string): any {
+  return runTermcanvasJson(buildTelemetryTerminalArgs(terminalId), 10_000);
+}
+
+export function telemetryWorkflow(workflowId: string, repoPath: string): any {
+  return runTermcanvasJson(buildTelemetryWorkflowArgs(workflowId, repoPath), 10_000);
+}
+
+export function telemetryEvents(terminalId: string, limit = 50, cursor?: string): any {
+  return runTermcanvasJson(buildTelemetryEventsArgs(terminalId, limit, cursor), 10_000);
 }
 
 export function findProjectByPath(repoPath: string): { id: string; path: string } | null {

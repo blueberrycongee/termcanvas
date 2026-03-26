@@ -102,11 +102,17 @@ async function main() {
         const typeIdx = rest.indexOf("--type");
         const promptIdx = rest.indexOf("--prompt");
         const parentIdx = rest.indexOf("--parent-terminal");
+        const workflowIdx = rest.indexOf("--workflow-id");
+        const handoffIdx = rest.indexOf("--handoff-id");
+        const repoIdx = rest.indexOf("--repo");
         const autoApprove = rest.includes("--auto-approve");
         const worktree = wtIdx >= 0 ? rest[wtIdx + 1] : undefined;
         const type = typeIdx >= 0 ? rest[typeIdx + 1] : "shell";
         const prompt = promptIdx >= 0 ? rest[promptIdx + 1] : undefined;
         const parentTerminalId = parentIdx >= 0 ? rest[parentIdx + 1] : undefined;
+        const workflowId = workflowIdx >= 0 ? rest[workflowIdx + 1] : undefined;
+        const handoffId = handoffIdx >= 0 ? rest[handoffIdx + 1] : undefined;
+        const repoPath = repoIdx >= 0 ? rest[repoIdx + 1] : undefined;
         if (!worktree) {
           console.error("--worktree is required");
           process.exit(1);
@@ -117,6 +123,9 @@ async function main() {
           ...(prompt ? { prompt } : {}),
           ...(autoApprove ? { autoApprove: true } : {}),
           ...(parentTerminalId ? { parentTerminalId } : {}),
+          ...(workflowId ? { workflowId } : {}),
+          ...(handoffId ? { handoffId } : {}),
+          ...(repoPath ? { repoPath } : {}),
         });
         if (jsonFlag) console.log(JSON.stringify(result, null, 2));
         else
@@ -176,6 +185,55 @@ async function main() {
           "Usage: termcanvas terminal <create|list|input|status|output|destroy|set-title> [args]",
         );
       }
+    } else if (group === "telemetry") {
+      if (command === "get") {
+        const terminalIdx = rest.indexOf("--terminal");
+        const workflowIdx = rest.indexOf("--workflow");
+        const repoIdx = rest.indexOf("--repo");
+        const terminalId = terminalIdx >= 0 ? rest[terminalIdx + 1] : undefined;
+        const workflowId = workflowIdx >= 0 ? rest[workflowIdx + 1] : undefined;
+        const repoPath = repoIdx >= 0 ? rest[repoIdx + 1] : process.cwd();
+
+        if (terminalId) {
+          const result = await request("GET", `/telemetry/terminal/${encodeURIComponent(terminalId)}`);
+          console.log(JSON.stringify(result, null, 2));
+          return;
+        }
+
+        if (workflowId) {
+          const result = await request(
+            "GET",
+            `/telemetry/workflow/${encodeURIComponent(workflowId)}?repo=${encodeURIComponent(repoPath)}`,
+          );
+          console.log(JSON.stringify(result, null, 2));
+          return;
+        }
+
+        console.error("Provide --terminal <id> or --workflow <id>");
+        process.exit(1);
+      } else if (command === "events") {
+        const terminalIdx = rest.indexOf("--terminal");
+        const limitIdx = rest.indexOf("--limit");
+        const cursorIdx = rest.indexOf("--cursor");
+        const terminalId = terminalIdx >= 0 ? rest[terminalIdx + 1] : undefined;
+        const limit = limitIdx >= 0 ? rest[limitIdx + 1] : "50";
+        const cursor = cursorIdx >= 0 ? rest[cursorIdx + 1] : undefined;
+        if (!terminalId) {
+          console.error("--terminal is required");
+          process.exit(1);
+        }
+        const query = new URLSearchParams({ limit });
+        if (cursor) query.set("cursor", cursor);
+        const result = await request(
+          "GET",
+          `/telemetry/terminal/${encodeURIComponent(terminalId)}/events?${query.toString()}`,
+        );
+        console.log(JSON.stringify(result, null, 2));
+      } else {
+        console.log(
+          "Usage: termcanvas telemetry <get|events> [--terminal <id> | --workflow <id> --repo <path>]",
+        );
+      }
     } else if (group === "diff" && command) {
       const worktreePath = command;
       const summary = rest.includes("--summary");
@@ -205,7 +263,7 @@ async function main() {
       console.log(JSON.stringify(state, null, 2));
     } else {
       console.log(
-        "Usage: termcanvas <project|terminal|diff|state> <command> [args]",
+        "Usage: termcanvas <project|terminal|telemetry|diff|state> <command> [args]",
       );
       console.log("");
       console.log("Commands:");
@@ -235,6 +293,15 @@ async function main() {
       );
       console.log(
         "  terminal set-title <id> <title>             Set custom title",
+      );
+      console.log(
+        "  telemetry get --terminal <id>               Get terminal telemetry",
+      );
+      console.log(
+        "  telemetry get --workflow <id> [--repo <p>]  Get workflow telemetry",
+      );
+      console.log(
+        "  telemetry events --terminal <id>            List terminal telemetry events",
       );
       console.log("  diff <worktree-path> [--summary]            Get git diff");
       console.log(

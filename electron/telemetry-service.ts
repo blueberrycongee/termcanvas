@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 import {
   HandoffManager,
 } from "../hydra/src/handoff/manager.ts";
@@ -8,6 +9,8 @@ import {
   validateResultContract,
 } from "../hydra/src/protocol.ts";
 import { loadWorkflow } from "../hydra/src/workflow-store.ts";
+import { getProcessSnapshot } from "./process-detector.ts";
+import { parseSessionTelemetryLine } from "./session-watcher.ts";
 import type {
   NormalizedSessionTelemetryEvent,
   SessionAttachConfidence,
@@ -30,7 +33,14 @@ interface TerminalState {
   lastContractKey: string | null;
   lastProcessKey: string | null;
   lastTokenTotal: number | null;
+  processPollTimer: NodeJS.Timeout | null;
   ptyId: number | null;
+  sessionFile: string | null;
+  sessionPollTimer: NodeJS.Timeout | null;
+  sessionReadInFlight: boolean;
+  sessionRemainder: string;
+  sessionWatcher: fs.FSWatcher | null;
+  sessionOffset: number;
   shellPid: number | null;
   snapshot: TerminalTelemetrySnapshot;
 }
@@ -171,6 +181,9 @@ function buildBaseSnapshot(input: RegisterTerminalInput): TerminalTelemetrySnaps
 export class TelemetryService {
   private readonly eventLimit: number;
   private readonly now: () => number;
+  private readonly processPollIntervalMs: number;
+  private readonly sessionPollIntervalMs: number;
+  private readonly sessionPrimeBytes: number;
   private readonly stallThresholdMs: number;
   private readonly ptyToTerminal = new Map<number, string>();
   private readonly terminals = new Map<string, TerminalState>();
@@ -178,10 +191,16 @@ export class TelemetryService {
   constructor(options?: {
     eventLimit?: number;
     now?: () => number;
+    processPollIntervalMs?: number;
+    sessionPollIntervalMs?: number;
+    sessionPrimeBytes?: number;
     stallThresholdMs?: number;
   }) {
     this.eventLimit = options?.eventLimit ?? DEFAULT_EVENT_LIMIT;
     this.now = options?.now ?? Date.now;
+    this.processPollIntervalMs = options?.processPollIntervalMs ?? 3_000;
+    this.sessionPollIntervalMs = options?.sessionPollIntervalMs ?? 2_000;
+    this.sessionPrimeBytes = options?.sessionPrimeBytes ?? 262_144;
     this.stallThresholdMs = options?.stallThresholdMs ?? DEFAULT_STALL_THRESHOLD_MS;
   }
 
@@ -221,6 +240,9 @@ export class TelemetryService {
       pty_id: input.ptyId,
       shell_pid: input.shellPid ?? null,
     });
+    if (typeof input.shellPid === "number") {
+      this.startProcessPolling(input.terminalId, input.shellPid);
+    }
     this.updateDerivedStatus(state);
   }
 
@@ -257,6 +279,7 @@ export class TelemetryService {
     const timestamp = at ?? isoNow(this.now);
     state.snapshot.pty_alive = false;
     state.snapshot.exit_code = exitCode;
+    this.stopProcessPolling(state);
     this.appendEvent(state, timestamp, "pty", "pty_exit", { exit_code: exitCode });
     this.updateDerivedStatus(state);
   }
@@ -284,6 +307,20 @@ export class TelemetryService {
     this.updateDerivedStatus(state);
   }
 
+  attachSessionSource(input: SessionAttachInput): void {
+    this.recordSessionAttached(input);
+    const state = this.ensureState(input.terminalId);
+    this.stopSessionTracking(state);
+    state.sessionFile = input.sessionFile ?? null;
+    state.sessionOffset = 0;
+    state.sessionRemainder = "";
+    if (!state.sessionFile) {
+      return;
+    }
+    this.primeSessionFromTail(state);
+    this.startSessionTracking(state);
+  }
+
   recordSessionAttachFailed(
     terminalId: string,
     reason: string,
@@ -293,6 +330,12 @@ export class TelemetryService {
     const timestamp = at ?? isoNow(this.now);
     this.appendEvent(state, timestamp, "session", "session_attach_failed", { reason });
     this.updateDerivedStatus(state);
+  }
+
+  detachSessionSource(terminalId: string): void {
+    const state = this.terminals.get(terminalId);
+    if (!state) return;
+    this.stopSessionTracking(state);
   }
 
   recordSessionTelemetry(
@@ -478,6 +521,13 @@ export class TelemetryService {
     };
   }
 
+  dispose(): void {
+    for (const state of this.terminals.values()) {
+      this.stopProcessPolling(state);
+      this.stopSessionTracking(state);
+    }
+  }
+
   private ensureState(
     terminalId: string,
     registration?: RegisterTerminalInput,
@@ -490,7 +540,14 @@ export class TelemetryService {
       lastContractKey: null,
       lastProcessKey: null,
       lastTokenTotal: null,
+      processPollTimer: null,
       ptyId: registration?.ptyId ?? null,
+      sessionFile: null,
+      sessionPollTimer: null,
+      sessionReadInFlight: false,
+      sessionRemainder: "",
+      sessionWatcher: null,
+      sessionOffset: 0,
       shellPid: registration?.shellPid ?? null,
       snapshot: buildBaseSnapshot(
         registration ?? {
@@ -634,5 +691,145 @@ export class TelemetryService {
       this.now(),
       this.stallThresholdMs,
     );
+  }
+
+  private startProcessPolling(terminalId: string, shellPid: number): void {
+    if (this.processPollIntervalMs <= 0) {
+      return;
+    }
+    const state = this.ensureState(terminalId);
+    this.stopProcessPolling(state);
+    state.shellPid = shellPid;
+    const poll = async () => {
+      try {
+        const snapshot = await getProcessSnapshot(shellPid);
+        this.recordProcessSnapshot(terminalId, {
+          descendantProcesses: snapshot.descendantProcesses.map((process) => ({
+            pid: process.pid,
+            command: process.command,
+            cli_type: process.cliType,
+          })),
+          foregroundTool: snapshot.foregroundTool,
+        });
+      } catch {
+        // Process tree sampling is advisory only.
+      }
+    };
+    void poll();
+    state.processPollTimer = setInterval(() => {
+      void poll();
+    }, this.processPollIntervalMs);
+  }
+
+  private stopProcessPolling(state: TerminalState): void {
+    if (state.processPollTimer) {
+      clearInterval(state.processPollTimer);
+      state.processPollTimer = null;
+    }
+  }
+
+  private startSessionTracking(state: TerminalState): void {
+    if (!state.sessionFile) return;
+    const read = () => {
+      void this.readSessionDelta(state);
+    };
+
+    state.sessionPollTimer = setInterval(read, this.sessionPollIntervalMs);
+    try {
+      const directory = path.dirname(state.sessionFile);
+      const basename = path.basename(state.sessionFile);
+      state.sessionWatcher = fs.watch(directory, (_event, changedFile) => {
+        if (changedFile && changedFile !== basename) return;
+        read();
+      });
+    } catch {
+      state.sessionWatcher = null;
+    }
+  }
+
+  private stopSessionTracking(state: TerminalState): void {
+    if (state.sessionPollTimer) {
+      clearInterval(state.sessionPollTimer);
+      state.sessionPollTimer = null;
+    }
+    state.sessionWatcher?.close();
+    state.sessionWatcher = null;
+    state.sessionReadInFlight = false;
+    state.sessionOffset = 0;
+    state.sessionRemainder = "";
+  }
+
+  private primeSessionFromTail(state: TerminalState): void {
+    if (!state.sessionFile) return;
+    try {
+      const stat = fs.statSync(state.sessionFile);
+      const size = stat.size;
+      if (size === 0) return;
+      const readStart = Math.max(0, size - this.sessionPrimeBytes);
+      const fd = fs.openSync(state.sessionFile, "r");
+      const buffer = Buffer.alloc(size - readStart);
+      fs.readSync(fd, buffer, 0, size - readStart, readStart);
+      fs.closeSync(fd);
+
+      const content = buffer.toString("utf-8");
+      let lines = content.split("\n");
+      if (readStart > 0 && !content.startsWith("\n")) {
+        lines = lines.slice(1);
+      }
+      const trailing = lines.at(-1) ?? "";
+      const completeLines = trailing === "" ? lines : lines.slice(0, -1);
+      for (const line of completeLines) {
+        if (!line.trim()) continue;
+        this.recordSessionTelemetry(
+          state.snapshot.terminal_id,
+          parseSessionTelemetryLine(line, state.snapshot.provider === "claude" ? "claude" : "codex"),
+        );
+      }
+      state.sessionRemainder = trailing === "" ? "" : trailing;
+      state.sessionOffset = size - Buffer.byteLength(state.sessionRemainder, "utf-8");
+    } catch {
+      // Session file might not exist yet.
+    }
+  }
+
+  private async readSessionDelta(state: TerminalState): Promise<void> {
+    if (!state.sessionFile || state.sessionReadInFlight) return;
+    state.sessionReadInFlight = true;
+    try {
+      let stat: fs.Stats;
+      try {
+        stat = fs.statSync(state.sessionFile);
+      } catch {
+        return;
+      }
+      if (stat.size < state.sessionOffset) {
+        state.sessionOffset = 0;
+        state.sessionRemainder = "";
+      }
+      if (stat.size === state.sessionOffset) {
+        return;
+      }
+
+      const byteLength = stat.size - state.sessionOffset;
+      const fd = fs.openSync(state.sessionFile, "r");
+      const buffer = Buffer.alloc(byteLength);
+      fs.readSync(fd, buffer, 0, byteLength, state.sessionOffset);
+      fs.closeSync(fd);
+
+      const chunk = `${state.sessionRemainder}${buffer.toString("utf-8")}`;
+      const lines = chunk.split("\n");
+      state.sessionRemainder = lines.pop() ?? "";
+      state.sessionOffset = stat.size - Buffer.byteLength(state.sessionRemainder, "utf-8");
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        this.recordSessionTelemetry(
+          state.snapshot.terminal_id,
+          parseSessionTelemetryLine(line, state.snapshot.provider === "claude" ? "claude" : "codex"),
+        );
+      }
+    } finally {
+      state.sessionReadInFlight = false;
+    }
   }
 }

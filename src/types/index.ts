@@ -1,4 +1,9 @@
 import type { SceneDocument } from "./scene";
+import type {
+  TelemetryEventPage,
+  TerminalTelemetrySnapshot,
+  WorkflowTelemetrySnapshot,
+} from "../../shared/telemetry";
 
 export * from "./scene";
 
@@ -272,11 +277,28 @@ export interface TermCanvasAPI {
   };
   session: {
     getCodexLatest: () => Promise<string | null>;
+    findCodex: (
+      cwd: string,
+      startedAt?: string,
+    ) => Promise<{ sessionId: string; filePath: string; confidence: "medium" | "weak" } | null>;
     getClaudeByPid: (pid: number) => Promise<string | null>;
     getKimiLatest: (cwd: string) => Promise<string | null>;
     watch: (type: string, sessionId: string, cwd: string) => Promise<{ ok: boolean; reason?: string }>;
     unwatch: (sessionId: string) => Promise<void>;
     onTurnComplete: (callback: (sessionId: string) => void) => () => void;
+  };
+  telemetry: {
+    attachSession: (input: {
+      terminalId: string;
+      provider: "claude" | "codex";
+      sessionId: string;
+      cwd: string;
+      confidence: "strong" | "medium" | "weak";
+    }) => Promise<{ ok: boolean; sessionFile: string | null }>;
+    detachSession: (terminalId: string) => Promise<void>;
+    getTerminal: (terminalId: string) => Promise<TerminalTelemetrySnapshot | null>;
+    getWorkflow: (workflowId: string, repoPath: string) => Promise<WorkflowTelemetrySnapshot | null>;
+    listEvents: (input: { terminalId: string; limit?: number; cursor?: string }) => Promise<TelemetryEventPage>;
   };
   project: {
     selectDirectory: () => Promise<string | null>;

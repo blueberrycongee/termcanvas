@@ -40,6 +40,7 @@ test("telemetry service updates meaningful progress from token growth and proces
   let nowMs = Date.parse("2026-03-26T00:00:00.000Z");
   const service = new TelemetryService({
     now: () => nowMs,
+    processPollIntervalMs: 0,
     stallThresholdMs: 30_000,
   });
 
@@ -238,6 +239,7 @@ test("workflow snapshot reads contract truth from Hydra handoff artifacts", () =
     assert.equal(workflowSnapshot?.retry_budget.remaining, 2);
     assert.equal(workflowSnapshot?.terminal?.result_exists, true);
     assert.equal(workflowSnapshot?.terminal?.done_exists, true);
+    service.dispose();
   } finally {
     fs.rmSync(repoPath, { recursive: true, force: true });
   }

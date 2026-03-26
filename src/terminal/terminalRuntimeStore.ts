@@ -196,6 +196,7 @@ async function pollSessionId(
   onFound: (sid: string) => void,
   shouldCancel: () => boolean,
   detectedCliPid?: number | null,
+  startedAt?: string,
 ) {
   const maxAttempts = 15;
   const interval = 2_000;
@@ -218,8 +219,9 @@ async function pollSessionId(
 
     let sessionId: string | null = null;
     if (cliType === "codex") {
-      sessionId = await window.termcanvas.session.getCodexLatest();
-      if (sessionId && sessionId === codexBaseline) {
+      const candidate = await window.termcanvas.session.findCodex(worktreePath, startedAt);
+      sessionId = candidate?.sessionId ?? null;
+      if (sessionId && sessionId === codexBaseline && candidate?.confidence !== "medium") {
         sessionId = null;
       }
     } else if (cliType === "claude") {
@@ -319,6 +321,11 @@ function clearWatchedSession(runtime: ManagedTerminalRuntime) {
 
   const sessionId = runtime.watchedSessionId;
   runtime.watchedSessionId = null;
+  if (runtime.meta.terminal.type === "claude" || runtime.meta.terminal.type === "codex") {
+    void window.termcanvas.telemetry.detachSession(runtime.meta.terminal.id).catch((error) => {
+      console.error("[terminalRuntime] failed to detach telemetry session:", error);
+    });
+  }
   void window.termcanvas.session.unwatch(sessionId).catch((error) => {
     console.error("[terminalRuntime] failed to unwatch session:", error);
   });
@@ -338,6 +345,17 @@ function watchSession(
   }
 
   runtime.watchedSessionId = sessionId;
+  if (type === "claude" || type === "codex") {
+    void window.termcanvas.telemetry.attachSession({
+      terminalId: runtime.meta.terminal.id,
+      provider: type,
+      sessionId,
+      cwd: runtime.meta.worktreePath,
+      confidence: type === "claude" ? "strong" : "medium",
+    }).catch((error: unknown) => {
+      console.error("[terminalRuntime] telemetry attach failed:", error);
+    });
+  }
   void window.termcanvas.session
     .watch(type, sessionId, runtime.meta.worktreePath)
     .then((result) => {
@@ -604,6 +622,7 @@ function scheduleSessionCapture(
     },
     () => cancelled || runtime.disposed,
     detectedCliPid,
+    new Date().toISOString(),
   ).then((result) => {
     if (result === "timeout") {
       notify(

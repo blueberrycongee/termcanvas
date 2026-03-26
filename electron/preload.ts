@@ -37,6 +37,10 @@ contextBridge.exposeInMainWorld("termcanvas", {
   session: {
     getCodexLatest: () =>
       ipcRenderer.invoke("session:get-codex-latest") as Promise<string | null>,
+    findCodex: (cwd: string, startedAt?: string) =>
+      ipcRenderer.invoke("session:find-codex", cwd, startedAt) as Promise<
+        { sessionId: string; filePath: string; confidence: "medium" | "weak" } | null
+      >,
     getClaudeByPid: (pid: number) =>
       ipcRenderer.invoke("session:get-claude-by-pid", pid) as Promise<
         string | null
@@ -60,6 +64,27 @@ contextBridge.exposeInMainWorld("termcanvas", {
       return () =>
         ipcRenderer.removeListener("session:turn-complete", listener);
     },
+  },
+  telemetry: {
+    attachSession: (input: {
+      terminalId: string;
+      provider: "claude" | "codex";
+      sessionId: string;
+      cwd: string;
+      confidence: "strong" | "medium" | "weak";
+    }) =>
+      ipcRenderer.invoke("telemetry:attach-session", input) as Promise<{
+        ok: boolean;
+        sessionFile: string | null;
+      }>,
+    detachSession: (terminalId: string) =>
+      ipcRenderer.invoke("telemetry:detach-session", terminalId) as Promise<void>,
+    getTerminal: (terminalId: string) =>
+      ipcRenderer.invoke("telemetry:get-terminal", terminalId),
+    getWorkflow: (workflowId: string, repoPath: string) =>
+      ipcRenderer.invoke("telemetry:get-workflow", workflowId, repoPath),
+    listEvents: (input: { terminalId: string; limit?: number; cursor?: string }) =>
+      ipcRenderer.invoke("telemetry:list-events", input),
   },
   project: {
     selectDirectory: () => ipcRenderer.invoke("project:select-directory"),

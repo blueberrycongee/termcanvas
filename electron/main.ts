@@ -9,7 +9,7 @@ import { PtyManager, OutputBatcher } from "./pty-manager";
 import { ProjectScanner } from "./project-scanner";
 import { StatePersistence, TERMCANVAS_DIR } from "./state-persistence";
 import { GitFileWatcher } from "./git-watcher";
-import { SessionWatcher, type SessionType } from "./session-watcher";
+import { SessionWatcher, resolveSessionFile, type SessionType } from "./session-watcher";
 import { ApiServer } from "./api-server";
 import { sendToWindow } from "./window-events";
 import { detectCli } from "./process-detector";
@@ -32,6 +32,7 @@ import {
   submitComposerRequest,
 } from "./composer-submit";
 import { collectUsage, collectHeatmapData } from "./usage-collector";
+import { findCodexJsonlFiles } from "./usage-collector";
 import { installDownloadedUpdate, setupAutoUpdater, stopAutoUpdater } from "./auto-updater";
 import { initAuth, login, logout, getAuthUser, getDeviceId, handleAuthCallback, onAuthStateChange, isLoggedIn } from "./auth";
 import { toFileUrl } from "./file-url";
@@ -39,6 +40,7 @@ import { queryCloudUsage, queryCloudHeatmap, backfillHistory, flushSyncQueue, sy
 import type { ComposerSubmitRequest } from "../src/types";
 import { getProjectDiff } from "./git-diff";
 import { createMenu } from "./menu";
+import { TelemetryService } from "./telemetry-service";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -84,11 +86,93 @@ const projectScanner = new ProjectScanner();
 const statePersistence = new StatePersistence();
 const gitWatcher = new GitFileWatcher();
 const sessionWatcher = new SessionWatcher();
+const telemetryService = new TelemetryService();
 const apiServer = new ApiServer({
   getWindow: () => mainWindow,
   ptyManager,
   projectScanner,
+  telemetryService,
 });
+
+function readCodexSessionMeta(filePath: string): { cwd: string | null; timestampMs: number | null } {
+  try {
+    const lines = fs.readFileSync(filePath, "utf-8").split("\n").slice(0, 20);
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const parsed = JSON.parse(line) as { type?: string; payload?: Record<string, unknown> };
+      if (parsed.type !== "session_meta" || !parsed.payload) continue;
+      const cwd = typeof parsed.payload.cwd === "string" ? parsed.payload.cwd : null;
+      const timestampMs =
+        typeof parsed.payload.timestamp === "string"
+          ? new Date(parsed.payload.timestamp).getTime()
+          : null;
+      return { cwd, timestampMs };
+    }
+  } catch {
+    // ignore parse failures
+  }
+  return { cwd: null, timestampMs: null };
+}
+
+function findBestCodexSession(
+  cwd: string,
+  startedAt?: string,
+): { sessionId: string; filePath: string; confidence: "medium" | "weak" } | null {
+  const startedMs = startedAt ? new Date(startedAt).getTime() : NaN;
+  const files = findCodexJsonlFiles();
+  const candidates = files
+    .map((filePath) => {
+      const stat = fs.statSync(filePath);
+      const meta = readCodexSessionMeta(filePath);
+      if (meta.cwd !== cwd) {
+        return null;
+      }
+      const anchorMs = Number.isFinite(meta.timestampMs ?? NaN)
+        ? meta.timestampMs!
+        : stat.mtimeMs;
+      const distance = Number.isFinite(startedMs) ? Math.abs(anchorMs - startedMs) : 0;
+      return {
+        sessionId: path.basename(filePath, ".jsonl"),
+        filePath,
+        confidence: "medium" as const,
+        anchorMs,
+        distance,
+      };
+    })
+    .filter((candidate): candidate is {
+      sessionId: string;
+      filePath: string;
+      confidence: "medium";
+      anchorMs: number;
+      distance: number;
+    } => candidate !== null)
+    .sort((left, right) => {
+      if (left.distance !== right.distance) return left.distance - right.distance;
+      return right.anchorMs - left.anchorMs;
+    });
+
+  if (candidates.length > 0) {
+    return candidates[0];
+  }
+
+  try {
+    const indexPath = path.join(os.homedir(), ".codex", "session_index.jsonl");
+    if (!fs.existsSync(indexPath)) return null;
+    const lines = fs.readFileSync(indexPath, "utf-8").trim().split("\n");
+    const last = lines[lines.length - 1];
+    if (!last) return null;
+    const entry = JSON.parse(last) as { id?: string };
+    if (!entry.id) return null;
+    const fallbackFile = files.find((filePath) => path.basename(filePath).includes(entry.id!));
+    return {
+      sessionId: entry.id,
+      filePath: fallbackFile ?? "",
+      confidence: "weak",
+    };
+  } catch {
+    return null;
+  }
+}
 
 function createWindow() {
   forceClose = false;
@@ -187,7 +271,7 @@ function setupIpc() {
   // Terminal IPC
   ipcMain.handle(
     "terminal:create",
-    async (_event, options: { cwd: string; shell?: string; args?: string[]; terminalId?: string; terminalType?: string; theme?: "dark" | "light" }) => {
+    async (_event, options: { cwd: string; shell?: string; args?: string[]; terminalId?: string; terminalType?: string; theme?: "dark" | "light"; workflowId?: string; handoffId?: string; repoPath?: string }) => {
       dbg(`terminal:create shell=${options.shell ?? "(default)"} args=${JSON.stringify(options.args)} cwd=${options.cwd}`);
       const ptyId = await ptyManager.create({
         ...options,
@@ -195,12 +279,33 @@ function setupIpc() {
       });
       const pid = ptyManager.getPid(ptyId);
       dbg(`terminal:create => ptyId=${ptyId} pid=${pid ?? "null"}`);
+      const terminalId = options.terminalId ?? `pty-${ptyId}`;
+      telemetryService.registerTerminal({
+        terminalId,
+        worktreePath: options.cwd,
+        provider:
+          options.terminalType === "claude" || options.terminalType === "codex"
+            ? options.terminalType
+            : "unknown",
+        workflowId: options.workflowId,
+        handoffId: options.handoffId,
+        repoPath: options.repoPath,
+        ptyId,
+        shellPid: pid ?? null,
+      });
+      telemetryService.recordPtyCreated({
+        terminalId,
+        ptyId,
+        shellPid: pid ?? null,
+      });
       ptyManager.onData(ptyId, (data: string) => {
         ptyManager.captureOutput(ptyId, data);
+        telemetryService.recordPtyOutputByPtyId(ptyId, data);
         outputBatcher.push(ptyId, data);
       });
       ptyManager.onExit(ptyId, (exitCode: number) => {
         dbg(`terminal:exit ptyId=${ptyId} pid=${pid ?? "null"} exitCode=${exitCode}`);
+        telemetryService.recordPtyExitByPtyId(ptyId, exitCode);
         sendToWindow(mainWindow, "terminal:exit", ptyId, exitCode);
       });
       return ptyId;
@@ -209,6 +314,7 @@ function setupIpc() {
 
   ipcMain.on("terminal:input", (_event, ptyId: number, data: string) => {
     ptyManager.write(ptyId, data);
+    telemetryService.recordPtyInputByPtyId(ptyId, data);
   });
 
   ipcMain.on(
@@ -256,6 +362,10 @@ function setupIpc() {
       console.warn("[session:get-codex-latest] failed to read session index:", err);
       return null;
     }
+  });
+
+  ipcMain.handle("session:find-codex", (_event, cwd: string, startedAt?: string) => {
+    return findBestCodexSession(cwd, startedAt);
   });
 
   ipcMain.handle("session:get-claude-by-pid", (_event, pid: number) => {
@@ -370,6 +480,47 @@ function setupIpc() {
 
   ipcMain.handle("session:unwatch", (_event, sessionId: string) => {
     sessionWatcher.unwatch(sessionId);
+  });
+
+  ipcMain.handle("telemetry:attach-session", (_event, input: {
+    terminalId: string;
+    provider: "claude" | "codex";
+    sessionId: string;
+    cwd: string;
+    confidence: "strong" | "medium" | "weak";
+  }) => {
+    const sessionFile = resolveSessionFile(input.sessionId, input.provider, input.cwd);
+    telemetryService.attachSessionSource({
+      terminalId: input.terminalId,
+      provider: input.provider,
+      sessionId: input.sessionId,
+      confidence: input.confidence,
+      sessionFile: sessionFile ?? undefined,
+    });
+    return {
+      ok: sessionFile !== null,
+      sessionFile,
+    };
+  });
+
+  ipcMain.handle("telemetry:detach-session", (_event, terminalId: string) => {
+    telemetryService.detachSessionSource(terminalId);
+  });
+
+  ipcMain.handle("telemetry:get-terminal", (_event, terminalId: string) => {
+    return telemetryService.getTerminalSnapshot(terminalId);
+  });
+
+  ipcMain.handle("telemetry:get-workflow", (_event, workflowId: string, repoPath: string) => {
+    return telemetryService.getWorkflowSnapshot(repoPath, workflowId);
+  });
+
+  ipcMain.handle("telemetry:list-events", (_event, input: {
+    terminalId: string;
+    limit?: number;
+    cursor?: string;
+  }) => {
+    return telemetryService.listTerminalEvents(input);
   });
 
   // State IPC

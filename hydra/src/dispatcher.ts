@@ -35,6 +35,9 @@ export interface DispatcherDependencies {
     prompt?: string,
     autoApprove?: boolean,
     parentTerminalId?: string,
+    workflowId?: string,
+    handoffId?: string,
+    repoPath?: string,
   ): { id: string; type: string; title: string };
 }
 
@@ -94,6 +97,9 @@ export async function dispatchCreateOnly(
     prompt,
     request.autoApprove,
     request.parentTerminalId,
+    request.workflowId,
+    request.handoffId,
+    request.repoPath,
   );
 
   return {
