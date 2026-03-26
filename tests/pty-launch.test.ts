@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import os from "node:os";
 import path from "node:path";
 
 import {
@@ -185,6 +186,37 @@ test("buildLaunchSpec injects light theme hints into the PTY environment", async
 
   assert.equal(launch.env.TERMCANVAS_THEME, "light");
   assert.equal(launch.env.COLORFGBG, "0;15");
+});
+
+test("buildLaunchSpec injects TermCanvas instance routing into the PTY environment", async () => {
+  const previousDevServerUrl = process.env.VITE_DEV_SERVER_URL;
+  process.env.VITE_DEV_SERVER_URL = "http://127.0.0.1:5173";
+
+  try {
+    const launch = await buildLaunchSpec(
+      {
+        cwd: "/repo",
+        terminalId: "terminal-42",
+      },
+      createDeps({
+        existsSync: (file) => ["/bin/zsh", "/repo"].includes(file),
+        isExecutable: (file) => ["/bin/zsh"].includes(file),
+      }),
+    );
+
+    assert.equal(launch.env.TERMCANVAS_TERMINAL_ID, "terminal-42");
+    assert.equal(launch.env.TERMCANVAS_INSTANCE, "dev");
+    assert.equal(
+      launch.env.TERMCANVAS_PORT_FILE,
+      path.join(os.homedir(), ".termcanvas-dev", "port"),
+    );
+  } finally {
+    if (previousDevServerUrl === undefined) {
+      delete process.env.VITE_DEV_SERVER_URL;
+    } else {
+      process.env.VITE_DEV_SERVER_URL = previousDevServerUrl;
+    }
+  }
 });
 
 test("buildLaunchSpec does not duplicate extraPathEntries already in PATH", async () => {

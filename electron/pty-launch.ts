@@ -1,6 +1,10 @@
 import { execFile } from "child_process";
 import fs from "fs";
 import path from "path";
+import {
+  getTermCanvasDataDir,
+  type TermCanvasInstance,
+} from "../shared/termcanvas-instance";
 
 export interface PtyLaunchOptions {
   cwd: string;
@@ -396,6 +400,14 @@ export async function buildLaunchSpec(
   if (options.terminalId) {
     shellEnv.TERMCANVAS_TERMINAL_ID = options.terminalId;
   }
+  const instance: TermCanvasInstance = process.env.VITE_DEV_SERVER_URL
+    ? "dev"
+    : "prod";
+  shellEnv.TERMCANVAS_INSTANCE = instance;
+  shellEnv.TERMCANVAS_PORT_FILE = path.join(
+    getTermCanvasDataDir(instance),
+    "port",
+  );
   applyThemeHints(shellEnv, options.theme);
 
   // Inject extra PATH entries (e.g. CLI dir) at the front

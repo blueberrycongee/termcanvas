@@ -1,14 +1,20 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import { HydraError } from "./errors.ts";
+import { resolveTermCanvasPortFile } from "../../shared/termcanvas-instance.ts";
 
-const PORT_FILE = path.join(os.homedir(), ".termcanvas", "port");
+export function getTermCanvasPortFile(
+  env: Record<string, string | undefined> = process.env,
+): string {
+  return resolveTermCanvasPortFile(env);
+}
 
-export function isTermCanvasRunning(): boolean {
+export function isTermCanvasRunning(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
   try {
-    fs.readFileSync(PORT_FILE, "utf-8");
+    fs.readFileSync(getTermCanvasPortFile(env), "utf-8");
     return true;
   } catch {
     return false;

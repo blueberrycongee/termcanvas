@@ -1,15 +1,13 @@
 import http from "http";
 import fs from "fs";
-import path from "path";
-import os from "os";
-
-const PORT_FILE = path.join(os.homedir(), ".termcanvas", "port");
+import { resolveTermCanvasPortFile } from "../shared/termcanvas-instance";
 
 function getPort(): number {
+  const portFile = resolveTermCanvasPortFile(process.env);
   try {
-    return parseInt(fs.readFileSync(PORT_FILE, "utf-8").trim(), 10);
+    return parseInt(fs.readFileSync(portFile, "utf-8").trim(), 10);
   } catch {
-    console.error("TermCanvas is not running (no port file found).");
+    console.error(`TermCanvas is not running (no port file found at ${portFile}).`);
     process.exit(1);
   }
 }
