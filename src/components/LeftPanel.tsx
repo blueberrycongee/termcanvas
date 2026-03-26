@@ -5,6 +5,7 @@ import { useT } from "../i18n/useT";
 import { useNotificationStore } from "../stores/notificationStore";
 import { FilesContent } from "./LeftPanel/FilesContent";
 import { DiffContent } from "./LeftPanel/DiffContent";
+import { GitContent } from "./LeftPanel/GitContent";
 import { PreviewContent } from "./LeftPanel/PreviewContent";
 
 export function LeftPanel() {
@@ -104,6 +105,15 @@ export function LeftPanel() {
   }, [focusedProject, notify, t]);
 
   if (collapsed) {
+    const collapsedLabel =
+      activeTab === "git"
+        ? t.left_panel_git
+        : activeTab === "diff"
+          ? t.left_panel_diff
+          : activeTab === "preview"
+            ? t.left_panel_preview
+            : t.left_panel_files;
+
     return (
       <button
         className="fixed left-0 z-40 bg-[var(--surface)] border-r border-[var(--border)] flex items-center justify-center hover:bg-[var(--surface-hover)] transition-colors duration-150"
@@ -111,7 +121,7 @@ export function LeftPanel() {
         onClick={() => setCollapsed(false)}
       >
         <span className="text-[var(--text-muted)] text-[11px] transform -rotate-90 whitespace-nowrap" style={{ fontFamily: '"Geist Mono", monospace' }}>
-          {t.left_panel_files}
+          {collapsedLabel}
         </span>
       </button>
     );
@@ -145,6 +155,13 @@ export function LeftPanel() {
         >
           {t.left_panel_preview}
         </button>
+        <button
+          className={`flex-1 text-[11px] py-2 transition-colors duration-150 ${activeTab === "git" ? "text-[var(--accent)] border-b-2 border-[var(--accent)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"}`}
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+          onClick={() => setActiveTab("git")}
+        >
+          {t.left_panel_git}
+        </button>
         {focusedProject && (
           <button
             className="mx-1 rounded border border-[var(--border)] px-2 py-1 text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-150 disabled:cursor-default disabled:opacity-60"
@@ -170,6 +187,7 @@ export function LeftPanel() {
       {activeTab === "files" && <FilesContent worktreePath={worktreePath} onFileClick={handleFileClick} />}
       {activeTab === "diff" && <DiffContent worktreePath={worktreePath} />}
       {activeTab === "preview" && <PreviewContent filePath={previewFile} onClose={handlePreviewClose} />}
+      {activeTab === "git" && <GitContent worktreePath={worktreePath} />}
 
       {/* Resize handle */}
       <div

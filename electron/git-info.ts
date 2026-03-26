@@ -1,0 +1,234 @@
+import { execFile } from "node:child_process";
+import path from "node:path";
+import { promisify } from "node:util";
+
+import type { ProjectDiffFile } from "./git-diff";
+
+const execFileAsync = promisify(execFile);
+const EMPTY_TREE_HASH = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+const IMAGE_EXTENSIONS = new Set([
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".svg",
+  ".webp",
+  ".bmp",
+  ".ico",
+]);
+const DEFAULT_MAX_BUFFER = 10 * 1024 * 1024;
+
+export interface GitBranchInfo {
+  name: string;
+  hash: string;
+  isCurrent: boolean;
+  isRemote: boolean;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+}
+
+export interface GitLogEntry {
+  hash: string;
+  parents: string[];
+  refs: string[];
+  author: string;
+  date: string;
+  message: string;
+}
+
+export interface GitCommitDetail {
+  message: string;
+  diff: string;
+  files: ProjectDiffFile[];
+}
+
+async function execGitText(
+  worktreePath: string,
+  args: string[],
+  maxBuffer = DEFAULT_MAX_BUFFER,
+): Promise<string> {
+  const { stdout } = await execFileAsync("git", args, {
+    cwd: worktreePath,
+    encoding: "utf-8",
+    maxBuffer,
+  });
+  return stdout;
+}
+
+function parseTracking(raw: string): { ahead: number; behind: number } {
+  if (!raw || raw.includes("gone")) {
+    return { ahead: 0, behind: 0 };
+  }
+
+  const aheadMatch = raw.match(/ahead (\d+)/);
+  const behindMatch = raw.match(/behind (\d+)/);
+  return {
+    ahead: aheadMatch ? Number.parseInt(aheadMatch[1], 10) : 0,
+    behind: behindMatch ? Number.parseInt(behindMatch[1], 10) : 0,
+  };
+}
+
+function parseRefs(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function buildProjectDiffFile(name: string, additionsRaw: string, deletionsRaw: string): ProjectDiffFile {
+  const binary = additionsRaw === "-" || deletionsRaw === "-";
+  const displayName = name.includes("=>")
+    ? name.slice(name.lastIndexOf("=>") + 2).replace(/[{}]/g, "").trim()
+    : name;
+  const extension = path.extname(displayName).toLowerCase();
+
+  return {
+    name,
+    additions: binary ? 0 : Number.parseInt(additionsRaw, 10),
+    deletions: binary ? 0 : Number.parseInt(deletionsRaw, 10),
+    binary,
+    isImage: IMAGE_EXTENSIONS.has(extension),
+    imageOld: null,
+    imageNew: null,
+  };
+}
+
+async function getCommitBase(worktreePath: string, hash: string): Promise<string> {
+  const parentsRaw = await execGitText(worktreePath, ["show", "--quiet", "--format=%P", hash], 1024 * 1024);
+  const firstParent = parentsRaw.trim().split(" ").filter(Boolean)[0];
+  return firstParent || EMPTY_TREE_HASH;
+}
+
+export async function isGitRepo(dirPath: string): Promise<boolean> {
+  try {
+    await execGitText(dirPath, ["rev-parse", "--git-dir"], 1024 * 1024);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function getGitBranches(worktreePath: string): Promise<GitBranchInfo[]> {
+  const raw = await execGitText(worktreePath, [
+    "for-each-ref",
+    "--format=%(refname)%09%(refname:short)%09%(objectname:short)%09%(HEAD)%09%(upstream:short)%09%(upstream:track)",
+    "refs/heads",
+    "refs/remotes",
+  ]);
+
+  const branches = raw
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [refName, shortName, hash, headMarker, upstreamRaw, trackingRaw] = line.split("\t");
+      const { ahead, behind } = parseTracking(trackingRaw ?? "");
+      return {
+        name: shortName,
+        hash,
+        isCurrent: headMarker === "*",
+        isRemote: refName.startsWith("refs/remotes/"),
+        upstream: upstreamRaw || null,
+        ahead,
+        behind,
+      };
+    })
+    .filter((branch) => !branch.name.endsWith("/HEAD"));
+
+  if (branches.some((branch) => branch.isCurrent)) {
+    return branches;
+  }
+
+  try {
+    const unbornHead = (await execGitText(
+      worktreePath,
+      ["symbolic-ref", "--short", "HEAD"],
+      1024 * 1024,
+    )).trim();
+    if (unbornHead) {
+      branches.unshift({
+        name: unbornHead,
+        hash: "",
+        isCurrent: true,
+        isRemote: false,
+        upstream: null,
+        ahead: 0,
+        behind: 0,
+      });
+    }
+  } catch {
+    // ignore detached HEAD or invalid repositories
+  }
+
+  return branches;
+}
+
+export async function getGitLog(
+  worktreePath: string,
+  count = 200,
+): Promise<GitLogEntry[]> {
+  const raw = await execGitText(worktreePath, [
+    "log",
+    "--all",
+    "--format=%H%x09%P%x09%D%x09%an%x09%aI%x09%s",
+    "--topo-order",
+    "-n",
+    String(count),
+  ]);
+
+  return raw
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [hash, parentsRaw, refsRaw, author, date, message] = line.split("\t");
+      return {
+        hash,
+        parents: parentsRaw ? parentsRaw.split(" ").filter(Boolean) : [],
+        refs: parseRefs(refsRaw ?? ""),
+        author,
+        date,
+        message,
+      };
+    });
+}
+
+export async function getGitCommitDetail(
+  worktreePath: string,
+  hash: string,
+): Promise<GitCommitDetail | null> {
+  try {
+    const base = await getCommitBase(worktreePath, hash);
+    const [messageRaw, diff, numstatRaw] = await Promise.all([
+      execGitText(worktreePath, ["show", "--quiet", "--format=%B", hash], 1024 * 1024),
+      execGitText(worktreePath, ["diff", "--find-renames", base, hash]),
+      execGitText(worktreePath, ["diff", "--find-renames", "--numstat", base, hash]),
+    ]);
+
+    const files = numstatRaw
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => {
+        const [additionsRaw, deletionsRaw, ...nameParts] = line.split("\t");
+        return buildProjectDiffFile(nameParts.join("\t"), additionsRaw, deletionsRaw);
+      });
+
+    return {
+      message: messageRaw.trimEnd(),
+      diff,
+      files,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function checkoutGitRef(worktreePath: string, ref: string): Promise<void> {
+  await execGitText(worktreePath, ["checkout", ref], DEFAULT_MAX_BUFFER);
+}
+
+export async function initGitRepo(worktreePath: string): Promise<void> {
+  await execGitText(worktreePath, ["init", "-b", "main"], DEFAULT_MAX_BUFFER);
+}

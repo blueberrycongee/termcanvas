@@ -255,6 +255,41 @@ export type InsightsGenerateResult =
       error: { code: string; message: string; detail?: string };
     };
 
+export interface GitBranchInfo {
+  name: string;
+  hash: string;
+  isCurrent: boolean;
+  isRemote: boolean;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+}
+
+export interface GitLogEntry {
+  hash: string;
+  parents: string[];
+  refs: string[];
+  author: string;
+  date: string;
+  message: string;
+}
+
+export interface GitCommitFile {
+  name: string;
+  additions: number;
+  deletions: number;
+  binary: boolean;
+  isImage: boolean;
+  imageOld: string | null;
+  imageNew: string | null;
+}
+
+export interface GitCommitDetail {
+  message: string;
+  diff: string;
+  files: GitCommitFile[];
+}
+
 // Preload API types
 export interface TermCanvasAPI {
   terminal: {
@@ -327,7 +362,17 @@ export interface TermCanvasAPI {
   git: {
     watch: (worktreePath: string) => Promise<void>;
     unwatch: (worktreePath: string) => Promise<void>;
+    branches: (worktreePath: string) => Promise<GitBranchInfo[]>;
+    log: (worktreePath: string, count?: number) => Promise<GitLogEntry[]>;
+    isRepo: (dirPath: string) => Promise<boolean>;
+    commitDetail: (worktreePath: string, hash: string) => Promise<GitCommitDetail | null>;
+    checkout: (worktreePath: string, ref: string) => Promise<void>;
+    init: (worktreePath: string) => Promise<void>;
     onChanged: (callback: (worktreePath: string) => void) => () => void;
+    onLogChanged: (callback: (worktreePath: string) => void) => () => void;
+    onPresenceChanged: (
+      callback: (worktreePath: string, payload: { isGitRepo: boolean }) => void,
+    ) => () => void;
   };
   state: {
     load: () => Promise<PersistedCanvasState | null>;

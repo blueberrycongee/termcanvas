@@ -112,6 +112,18 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("git:watch", worktreePath),
     unwatch: (worktreePath: string) =>
       ipcRenderer.invoke("git:unwatch", worktreePath),
+    branches: (worktreePath: string) =>
+      ipcRenderer.invoke("git:branches", worktreePath),
+    log: (worktreePath: string, count = 200) =>
+      ipcRenderer.invoke("git:log", worktreePath, count),
+    isRepo: (dirPath: string) =>
+      ipcRenderer.invoke("git:is-repo", dirPath) as Promise<boolean>,
+    commitDetail: (worktreePath: string, hash: string) =>
+      ipcRenderer.invoke("git:commit-detail", worktreePath, hash),
+    checkout: (worktreePath: string, ref: string) =>
+      ipcRenderer.invoke("git:checkout", worktreePath, ref),
+    init: (worktreePath: string) =>
+      ipcRenderer.invoke("git:init", worktreePath),
     onChanged: (callback: (worktreePath: string) => void) => {
       const listener = (
         _event: Electron.IpcRendererEvent,
@@ -119,6 +131,25 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ) => callback(worktreePath);
       ipcRenderer.on("git:changed", listener);
       return () => ipcRenderer.removeListener("git:changed", listener);
+    },
+    onLogChanged: (callback: (worktreePath: string) => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        worktreePath: string,
+      ) => callback(worktreePath);
+      ipcRenderer.on("git:log-changed", listener);
+      return () => ipcRenderer.removeListener("git:log-changed", listener);
+    },
+    onPresenceChanged: (
+      callback: (worktreePath: string, payload: { isGitRepo: boolean }) => void,
+    ) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        worktreePath: string,
+        payload: { isGitRepo: boolean },
+      ) => callback(worktreePath, payload);
+      ipcRenderer.on("git:presence-changed", listener);
+      return () => ipcRenderer.removeListener("git:presence-changed", listener);
     },
   },
   state: {

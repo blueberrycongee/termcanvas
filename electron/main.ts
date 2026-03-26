@@ -39,6 +39,14 @@ import { toFileUrl } from "./file-url";
 import { queryCloudUsage, queryCloudHeatmap, backfillHistory, flushSyncQueue, syncRecentRecords } from "./usage-sync";
 import type { ComposerSubmitRequest } from "../src/types";
 import { getProjectDiff } from "./git-diff";
+import {
+  checkoutGitRef,
+  getGitBranches,
+  getGitCommitDetail,
+  getGitLog,
+  initGitRepo,
+  isGitRepo,
+} from "./git-info";
 import { createMenu } from "./menu";
 import { TelemetryService } from "./telemetry-service";
 
@@ -459,13 +467,55 @@ function setupIpc() {
 
   // Git file watcher IPC (Layer 1 of DiffCard refresh)
   ipcMain.handle("git:watch", (_event, worktreePath: string) => {
-    gitWatcher.watch(worktreePath, () => {
-      sendToWindow(mainWindow, "git:changed", worktreePath);
+    gitWatcher.watch(worktreePath, {
+      onChanged: () => {
+        sendToWindow(mainWindow, "git:changed", worktreePath);
+      },
+      onLogChanged: () => {
+        sendToWindow(mainWindow, "git:log-changed", worktreePath);
+      },
+      onPresenceChanged: (repoState) => {
+        sendToWindow(mainWindow, "git:presence-changed", worktreePath, {
+          isGitRepo: repoState,
+        });
+      },
     });
   });
 
   ipcMain.handle("git:unwatch", (_event, worktreePath: string) => {
     gitWatcher.unwatch(worktreePath);
+  });
+
+  ipcMain.handle("git:is-repo", async (_event, dirPath: string) => {
+    return isGitRepo(dirPath);
+  });
+
+  ipcMain.handle("git:branches", async (_event, worktreePath: string) => {
+    try {
+      return await getGitBranches(worktreePath);
+    } catch {
+      return [];
+    }
+  });
+
+  ipcMain.handle("git:log", async (_event, worktreePath: string, count?: number) => {
+    try {
+      return await getGitLog(worktreePath, count);
+    } catch {
+      return [];
+    }
+  });
+
+  ipcMain.handle("git:commit-detail", async (_event, worktreePath: string, hash: string) => {
+    return getGitCommitDetail(worktreePath, hash);
+  });
+
+  ipcMain.handle("git:checkout", async (_event, worktreePath: string, ref: string) => {
+    return checkoutGitRef(worktreePath, ref);
+  });
+
+  ipcMain.handle("git:init", async (_event, worktreePath: string) => {
+    return initGitRepo(worktreePath);
   });
 
   // Session turn-completion watcher IPC
