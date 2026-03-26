@@ -67,11 +67,22 @@ test("renderTaskPackageTemplate includes skills and output contract rules", () =
   assert.match(content, /## Output Contract/);
   assert.match(content, /result\.json/);
   assert.match(content, /done/);
+  assert.match(content, /"success": true/);
+  assert.match(content, /"summary": "Explain what changed and whether the handoff passed\."/);
+  assert.match(content, /"next_action": \{/);
+  assert.match(content, /"type": "complete"/);
+  assert.match(content, /next_action\.handoff_id.*required.*next_action\.type=handoff/i);
   assert.match(content, /done marker must be valid JSON/i);
   assert.match(content, /"version": "hydra\/v2"/);
   assert.match(content, /"handoff_id": "handoff-abc123"/);
   assert.match(content, /"workflow_id": "workflow-auth"/);
   assert.match(content, /You must write both `result\.json` and `done` before finishing\./);
+  assert.match(content, /## Telemetry Checks/);
+  assert.match(content, /termcanvas telemetry get --workflow workflow-auth --repo \./);
+  assert.match(content, /termcanvas telemetry get --terminal <terminalId>/);
+  assert.match(content, /termcanvas telemetry events --terminal <terminalId> --limit 20/);
+  assert.match(content, /awaiting_contract/i);
+  assert.match(content, /stall_candidate/i);
 });
 
 test("writeTaskPackage renders handoff.json and task.md with consistent paths", () => {

@@ -63,6 +63,11 @@ test("init updates an existing Hydra block in place and preserves adjacent conte
   assert.match(claudeMd, /Hydra treats `result\.json` \+ `done` as the only completion evidence\./);
   assert.match(claudeMd, /Workflow patterns:/);
   assert.match(claudeMd, /hydra spawn --task/);
+  assert.match(claudeMd, /Telemetry polling:/);
+  assert.match(claudeMd, /termcanvas telemetry get --workflow <workflowId> --repo \./);
+  assert.match(claudeMd, /termcanvas telemetry events --terminal <terminalId> --limit 20/);
+  assert.match(claudeMd, /awaiting_contract/);
+  assert.match(claudeMd, /stall_candidate/);
   assert.match(claudeMd, /Worker control:/);
   assert.match(claudeMd, /hydra list --repo \./);
   assert.match(claudeMd, /## Team Rules/);

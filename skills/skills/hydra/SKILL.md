@@ -64,7 +64,12 @@ Terminal conversation is not a source of truth.
 7. Treat telemetry as advisory truth before completion:
    - `awaiting_contract` means the agent turn ended but `result.json` / `done` is still missing
    - `stall_candidate` means "needs attention", not automatic failure
-8. Clean up after completion:
+8. Treat `hydra watch` as the polling loop for the main brain:
+   - each poll should prefer telemetry over PTY prose
+   - if telemetry shows `thinking`, `tool_running`, `tool_pending`, recent meaningful progress, or a foreground tool, keep waiting
+   - if telemetry shows `awaiting_contract`, the model turn is done but the file contract is still pending
+   - if telemetry shows `stall_candidate`, inspect recent telemetry events before retry/takeover
+9. Clean up after completion:
    - workflow: `hydra cleanup --workflow <workflowId> --repo .`
    - worker: `hydra cleanup <agentId>`
 

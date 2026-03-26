@@ -37,6 +37,16 @@ Workflow control:
 4. Retry a failed/timed-out workflow when allowed: \`hydra retry --repo . --workflow <workflowId>\`
 5. Clean up runtime state or worktrees: \`hydra cleanup --workflow <workflowId> --repo .\`
 
+Telemetry polling:
+1. Treat \`hydra watch\` as the main-brain polling loop; do not infer progress from terminal prose alone.
+2. Before deciding wait / retry / takeover, query:
+   - \`termcanvas telemetry get --workflow <workflowId> --repo .\`
+   - \`termcanvas telemetry get --terminal <terminalId>\`
+   - \`termcanvas telemetry events --terminal <terminalId> --limit 20\`
+3. Keep waiting when telemetry shows recent meaningful progress, \`thinking\`, \`tool_running\`, \`tool_pending\`, or a foreground tool.
+4. Treat \`awaiting_contract\` as "turn complete, file contract still pending".
+5. Treat \`stall_candidate\` as "investigate before retry", not automatic failure.
+
 Worker control:
 1. List direct workers: \`hydra list --repo .\`
 2. Clean up a direct worker: \`hydra cleanup <agentId>\`
