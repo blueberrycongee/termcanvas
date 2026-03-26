@@ -19,6 +19,11 @@ Terminal conversation is not a source of truth.
 - `hydra run --task "..." --repo .`
   - default planner -> implementer -> evaluator workflow
   - use for ambiguous, risky, PRD-driven, or long-running tasks
+  - if the user wants one provider for all roles, pass `--all-type <provider>`
+  - if the user wants a mix, pass `--planner-type`, `--implementer-type`, and
+    `--evaluator-type`
+  - if the user does not specify providers, inherit the current terminal type
+    when available rather than hard-coding Claude or Codex
 
 ## Direct worker primitive
 
@@ -26,6 +31,8 @@ Terminal conversation is not a source of truth.
   - one direct isolated worker terminal
   - use when the split is already known and only a separate worker is needed
   - this is not a full workflow run
+  - use `--worker-type <provider>` when the user explicitly names the worker
+    provider
 
 ## Quality bar
 

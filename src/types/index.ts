@@ -258,6 +258,7 @@ export interface TermCanvasAPI {
       shell?: string;
       args?: string[];
       terminalId?: string;
+      terminalType?: string;
       theme?: "dark" | "light";
     }) => Promise<number>;
     destroy: (ptyId: number) => Promise<void>;

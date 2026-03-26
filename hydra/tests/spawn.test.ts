@@ -10,12 +10,12 @@ import {
 test("parseSpawnArgs extracts all flags correctly", () => {
   const args = parseSpawnArgs([
     "--task", "fix the bug",
-    "--type", "codex",
+    "--worker-type", "codex",
     "--repo", "/tmp/repo",
     "--base-branch", "develop",
   ]);
   assert.equal(args.task, "fix the bug");
-  assert.equal(args.type, "codex");
+  assert.equal(args.workerType, "codex");
   assert.equal(args.repo, "/tmp/repo");
   assert.equal(args.baseBranch, "develop");
   assert.equal(args.worktree, undefined);
@@ -27,12 +27,12 @@ test("parseSpawnArgs keeps kimi as the requested agent type", () => {
     "--type", "kimi",
     "--repo", "/tmp/repo",
   ]);
-  assert.equal(args.type, "kimi");
+  assert.equal(args.workerType, "kimi");
 });
 
-test("parseSpawnArgs defaults type to claude", () => {
+test("parseSpawnArgs leaves worker type unset when the caller wants inheritance", () => {
   const args = parseSpawnArgs(["--task", "do stuff", "--repo", "/tmp/repo"]);
-  assert.equal(args.type, "claude");
+  assert.equal(args.workerType, undefined);
 });
 
 test("parseSpawnArgs with --worktree", () => {

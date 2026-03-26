@@ -747,10 +747,12 @@ async function spawnPty(runtime: ManagedTerminalRuntime, resumeSessionId?: strin
     cwd: string;
     shell?: string;
     terminalId: string;
+    terminalType: string;
     theme: "dark" | "light";
   } = {
     cwd: runtime.meta.worktreePath,
     terminalId: runtime.meta.terminal.id,
+    terminalType: runtime.meta.terminal.type,
     theme: useThemeStore.getState().theme,
   };
 

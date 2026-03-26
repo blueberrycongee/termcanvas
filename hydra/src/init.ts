@@ -24,6 +24,9 @@ Workflow patterns:
    \`hydra run --task "<specific task>" --repo . --template single-step [--worktree .]\`
 3. Use the default planner -> implementer -> evaluator workflow for ambiguous, risky, or PRD-driven work:
    \`hydra run --task "<specific task>" --repo . [--worktree .]\`
+   - If the user says all roles should use one provider, pass \`--all-type <provider>\`.
+   - If the user wants a mix, pass \`--planner-type\`, \`--implementer-type\`, and \`--evaluator-type\`.
+   - If the user does not specify providers, Hydra should prefer the current terminal's provider when available.
 4. Use a direct isolated worker primitive when the split is already known and you do not need a full workflow:
    \`hydra spawn --task "<specific task>" --repo . [--worktree .]\`
 

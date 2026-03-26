@@ -35,7 +35,9 @@ export interface RunWorkflowOptions {
   repoPath: string;
   worktreePath?: string;
   template?: WorkflowTemplateName;
-  agentType: AgentType;
+  plannerType?: AgentType;
+  implementerType?: AgentType;
+  agentType?: AgentType;
   evaluatorType?: AgentType;
   timeoutMinutes: number;
   maxRetries: number;
@@ -357,6 +359,9 @@ export async function runWorkflow(
   const repoPath = path.resolve(options.repoPath);
   const workflowId = generateWorkflowId();
   const template = options.template ?? "planner-implementer-evaluator";
+  const implementerType = options.implementerType ?? options.agentType ?? "codex";
+  const plannerType = options.plannerType ?? implementerType;
+  const evaluatorType = options.evaluatorType ?? implementerType;
   const plannedHandoffIds = template === "single-step"
     ? [generateHandoffId()]
     : [generateHandoffId(), generateHandoffId(), generateHandoffId()];
@@ -366,8 +371,9 @@ export async function runWorkflow(
     template,
     workflowId,
     task: options.task,
-    implementerAgentType: options.agentType,
-    evaluatorAgentType: options.evaluatorType ?? "claude",
+    plannerAgentType: plannerType,
+    implementerAgentType: implementerType,
+    evaluatorAgentType: evaluatorType,
     repoPath,
     handoffIds: plannedHandoffIds,
   });
@@ -417,7 +423,7 @@ export async function runWorkflow(
     branch: workspace.branch,
     base_branch: workspace.baseBranch,
     own_worktree: workspace.ownWorktree,
-    agent_type: options.agentType,
+    agent_type: implementerType,
     parent_terminal_id: process.env.TERMCANVAS_TERMINAL_ID,
     created_at: now(),
     updated_at: now(),

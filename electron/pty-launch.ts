@@ -12,6 +12,7 @@ export interface PtyLaunchOptions {
   args?: string[];
   extraPathEntries?: string[];
   terminalId?: string;
+  terminalType?: string;
   theme?: "dark" | "light";
 }
 
@@ -399,6 +400,9 @@ export async function buildLaunchSpec(
   // Inject terminal ID so child processes (e.g. Hydra) can identify their parent
   if (options.terminalId) {
     shellEnv.TERMCANVAS_TERMINAL_ID = options.terminalId;
+  }
+  if (options.terminalType) {
+    shellEnv.TERMCANVAS_TERMINAL_TYPE = options.terminalType;
   }
   const instance: TermCanvasInstance = process.env.VITE_DEV_SERVER_URL
     ? "dev"

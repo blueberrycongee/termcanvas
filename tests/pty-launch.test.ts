@@ -197,6 +197,7 @@ test("buildLaunchSpec injects TermCanvas instance routing into the PTY environme
       {
         cwd: "/repo",
         terminalId: "terminal-42",
+        terminalType: "codex",
       },
       createDeps({
         existsSync: (file) => ["/bin/zsh", "/repo"].includes(file),
@@ -205,6 +206,7 @@ test("buildLaunchSpec injects TermCanvas instance routing into the PTY environme
     );
 
     assert.equal(launch.env.TERMCANVAS_TERMINAL_ID, "terminal-42");
+    assert.equal(launch.env.TERMCANVAS_TERMINAL_TYPE, "codex");
     assert.equal(launch.env.TERMCANVAS_INSTANCE, "dev");
     assert.equal(
       launch.env.TERMCANVAS_PORT_FILE,

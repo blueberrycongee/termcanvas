@@ -23,6 +23,7 @@ export interface BuildWorkflowTemplatePlanInput {
   template: WorkflowTemplateName;
   workflowId: string;
   task: string;
+  plannerAgentType: AgentType;
   implementerAgentType: AgentType;
   evaluatorAgentType: AgentType;
   repoPath: string;
@@ -53,7 +54,7 @@ export function buildWorkflowTemplatePlan(
           id: handoffId,
           from: {
             role: "planner",
-            agent_type: "claude",
+            agent_type: input.plannerAgentType,
             agent_id: "hydra-run",
           },
           to: {
@@ -93,12 +94,12 @@ export function buildWorkflowTemplatePlan(
         id: plannerId,
         from: {
           role: "planner",
-          agent_type: "claude",
+          agent_type: input.plannerAgentType,
           agent_id: "hydra-run",
         },
         to: {
           role: "planner",
-          agent_type: "claude",
+          agent_type: input.plannerAgentType,
           agent_id: null,
         },
         task: {
@@ -128,7 +129,7 @@ export function buildWorkflowTemplatePlan(
         id: implementerId,
         from: {
           role: "planner",
-          agent_type: "claude",
+          agent_type: input.plannerAgentType,
           agent_id: plannerId,
         },
         to: {

@@ -174,6 +174,47 @@ test("planner -> implementer -> evaluator template advances through all three ha
   }
 });
 
+test("runWorkflow honors explicit provider selection by role", async () => {
+  const { repoPath, worktreePath } = createRepoFixture();
+
+  try {
+    const started = await runWorkflow(
+      {
+        task: "Mix providers by role",
+        repoPath,
+        worktreePath,
+        template: "planner-implementer-evaluator",
+        plannerType: "claude",
+        implementerType: "codex",
+        evaluatorType: "gemini",
+        timeoutMinutes: 5,
+        maxRetries: 1,
+        autoApprove: false,
+      },
+      {
+        now: () => "2026-03-26T12:05:00.000Z",
+        dispatchCreateOnly: async (request) => ({
+          projectId: "project-1",
+          terminalId: `terminal-${request.handoffId}`,
+          terminalType: request.agentType,
+          terminalTitle: request.agentType,
+          prompt: `Read ${request.taskFile}`,
+        }),
+      },
+    );
+
+    assert.equal(started.workflow.agent_type, "codex");
+    assert.equal(started.handoffs[0].from.agent_type, "claude");
+    assert.equal(started.handoffs[0].to.agent_type, "claude");
+    assert.equal(started.handoffs[1].from.agent_type, "claude");
+    assert.equal(started.handoffs[1].to.agent_type, "codex");
+    assert.equal(started.handoffs[2].from.agent_type, "codex");
+    assert.equal(started.handoffs[2].to.agent_type, "gemini");
+  } finally {
+    fs.rmSync(repoPath, { recursive: true, force: true });
+  }
+});
+
 test("evaluator failure loops back to the implementer handoff", async () => {
   const { repoPath, worktreePath } = createRepoFixture();
 

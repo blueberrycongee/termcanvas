@@ -8,10 +8,17 @@ import {
 import { saveAgent } from "./store.ts";
 import { buildTaskPackageContext, writeTaskPackage } from "./task-package.ts";
 import { dispatchCreateOnly } from "./dispatcher.ts";
+import {
+  DEFAULT_AGENT_TYPE,
+  parseAgentTypeFlag,
+  resolveCurrentAgentType,
+  resolveWorkerAgentType,
+} from "./agent-selection.ts";
+import type { AgentType } from "./handoff/types.ts";
 
 export interface SpawnArgs {
   task: string;
-  type: string;
+  workerType?: AgentType;
   repo: string;
   worktree?: string;
   baseBranch?: string;
@@ -23,7 +30,8 @@ function printSpawnUsage(): never {
   console.log("");
   console.log("Options:");
   console.log("  --task <desc>       Task description for the sub-agent (required)");
-  console.log("  --type <type>       Agent type: claude, codex, kimi (default: claude)");
+  console.log("  --worker-type <type> Worker agent type");
+  console.log(`  --type <type>       Alias for --worker-type (fallback default: ${DEFAULT_AGENT_TYPE})`);
   console.log("  --repo <path>       Path to the git repository (required)");
   console.log("  --worktree <path>   Use an existing worktree (read-only mode)");
   console.log("  --base-branch <br>  Base branch for the new worktree (default: current)");
@@ -36,14 +44,14 @@ export function parseSpawnArgs(args: string[]): SpawnArgs {
     printSpawnUsage();
   }
 
-  const result: Partial<SpawnArgs> = { type: "claude" };
+  const result: Partial<SpawnArgs> = {};
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--task" && i + 1 < args.length) {
       result.task = args[++i];
-    } else if (arg === "--type" && i + 1 < args.length) {
-      result.type = args[++i];
+    } else if ((arg === "--worker-type" || arg === "--type") && i + 1 < args.length) {
+      result.workerType = parseAgentTypeFlag(arg, args[++i]);
     } else if (arg === "--repo" && i + 1 < args.length) {
       result.repo = args[++i];
     } else if (arg === "--worktree" && i + 1 < args.length) {
@@ -102,6 +110,8 @@ export function validateWorktreePath(repoPath: string, worktreePath: string): st
 export async function spawn(args: string[]): Promise<void> {
   const parsed = parseSpawnArgs(args);
   const repo = path.resolve(parsed.repo);
+  const workerType = resolveWorkerAgentType(parsed, process.env);
+  const parentAgentType = resolveCurrentAgentType(process.env) ?? workerType;
 
   // Validate repo is on canvas
   const project = findProjectByPath(repo);
@@ -143,12 +153,12 @@ export async function spawn(args: string[]): Promise<void> {
     handoffId,
     from: {
       role: "planner",
-      agent_type: "claude",
+      agent_type: parentAgentType,
       agent_id: process.env.TERMCANVAS_TERMINAL_ID ?? "hydra-spawn",
     },
     to: {
       role: "implementer",
-      agent_type: parsed.type as "claude" | "codex" | "kimi" | "gemini",
+      agent_type: workerType,
       agent_id: null,
     },
     task: {
@@ -179,7 +189,7 @@ export async function spawn(args: string[]): Promise<void> {
     handoffId,
     repoPath: repo,
     worktreePath,
-    agentType: parsed.type,
+    agentType: workerType,
     taskFile: artifacts.task_file,
     doneFile: artifacts.done_file,
     resultFile: artifacts.result_file,
@@ -191,7 +201,7 @@ export async function spawn(args: string[]): Promise<void> {
   saveAgent({
     id: agentId,
     task: parsed.task,
-    type: parsed.type,
+    type: workerType,
     workflowId,
     handoffId,
     repo,
