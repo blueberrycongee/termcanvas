@@ -2,8 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildProcessSnapshotFromEntries,
+  buildWindowsProcessSnapshot,
   getProcessListCommand,
   parsePsOutput,
+  parsePsSnapshot,
   splitCommandLine,
   parseWindowsProcessListOutput,
 } from "../electron/process-detector.ts";
@@ -237,4 +240,43 @@ test("parseWindowsProcessListOutput handles single-object JSON output", () => {
   const results = parseWindowsProcessListOutput(processJson, [100]);
   assert.equal(results.length, 1);
   assert.equal(results[0].cliType, "codex");
+});
+
+test("parsePsSnapshot returns descendant commands and foreground tool", () => {
+  const ps = HEADER +
+    "  100     1 /bin/zsh\n" +
+    "  200   100 codex\n" +
+    "  300   200 npm run build\n";
+
+  const snapshot = parsePsSnapshot(ps, [100]);
+  assert.equal(snapshot.descendantProcesses.length, 2);
+  assert.equal(snapshot.descendantProcesses[0].cliType, "codex");
+  assert.equal(snapshot.foregroundTool, "npm run build");
+});
+
+test("buildProcessSnapshotFromEntries prefers the last non-shell descendant", () => {
+  const snapshot = buildProcessSnapshotFromEntries(
+    [
+      { pid: 100, ppid: 1, args: "/bin/zsh" },
+      { pid: 200, ppid: 100, args: "claude" },
+      { pid: 300, ppid: 200, args: "python worker.py" },
+    ],
+    [100],
+  );
+
+  assert.equal(snapshot.foregroundTool, "python worker.py");
+});
+
+test("buildWindowsProcessSnapshot exposes foreground tool", () => {
+  const snapshot = buildWindowsProcessSnapshot(
+    JSON.stringify([
+      { ProcessId: 100, ParentProcessId: 1, CommandLine: "powershell.exe" },
+      { ProcessId: 200, ParentProcessId: 100, CommandLine: "codex.exe" },
+      { ProcessId: 300, ParentProcessId: 200, CommandLine: "npm.cmd run lint" },
+    ]),
+    [100],
+  );
+
+  assert.equal(snapshot.descendantProcesses.length, 2);
+  assert.equal(snapshot.foregroundTool, "npm.cmd run lint");
 });

@@ -1,11 +1,48 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
+import type { NormalizedSessionTelemetryEvent, TelemetryTurnState } from "../shared/telemetry.ts";
 
 export type SessionType = "claude" | "codex";
 
 interface CompletionSignal {
   completed: boolean;
+}
+
+function getObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? value as Record<string, unknown> : null;
+}
+
+function extractTextContent(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((block) => {
+      if (!block || typeof block !== "object") return "";
+      const entry = block as Record<string, unknown>;
+      if (typeof entry.text === "string") return entry.text;
+      if (typeof entry.thinking === "string") return entry.thinking;
+      if (typeof entry.content === "string") return entry.content;
+      return "";
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildEvent(
+  event: Omit<NormalizedSessionTelemetryEvent, "at"> & { at?: string },
+): NormalizedSessionTelemetryEvent {
+  return {
+    meaningful_progress: false,
+    ...event,
+  };
+}
+
+function buildClaudeStopReasonState(stopReason: unknown): TelemetryTurnState | undefined {
+  if (stopReason === "end_turn") return "turn_complete";
+  if (stopReason === "tool_use") return "tool_pending";
+  if (typeof stopReason === "string" && stopReason.length > 0) return "turn_aborted";
+  return undefined;
 }
 
 /**
@@ -84,7 +121,7 @@ export function toClaudeProjectKey(cwd: string): string {
 /**
  * Resolve the JSONL file path for a session.
  */
-function resolveSessionFile(
+export function resolveSessionFile(
   sessionId: string,
   type: SessionType,
   cwd: string,
@@ -119,6 +156,295 @@ function resolveSessionFile(
   }
 
   return null;
+}
+
+export function parseSessionTelemetryLine(
+  line: string,
+  type: SessionType,
+): NormalizedSessionTelemetryEvent[] {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(line) as Record<string, unknown>;
+  } catch {
+    return [];
+  }
+
+  const at = typeof parsed.timestamp === "string" ? parsed.timestamp : undefined;
+
+  if (type === "claude") {
+    const events: NormalizedSessionTelemetryEvent[] = [];
+    if (parsed.type === "assistant") {
+      const message = getObject(parsed.message);
+      const stopReason = message?.stop_reason;
+      const content = Array.isArray(message?.content) ? message?.content : [];
+      for (const block of content) {
+        if (!block || typeof block !== "object") continue;
+        const entry = block as Record<string, unknown>;
+        if (entry.type === "thinking") {
+          events.push(buildEvent({
+            at,
+            event_type: "thinking",
+            role: "assistant",
+            turn_state: "thinking",
+            meaningful_progress: true,
+          }));
+          continue;
+        }
+        if (entry.type === "tool_use") {
+          events.push(buildEvent({
+            at,
+            event_type: "tool_use",
+            role: "assistant",
+            tool_name: typeof entry.name === "string" ? entry.name : undefined,
+            turn_state: "tool_running",
+            meaningful_progress: true,
+          }));
+          continue;
+        }
+        const text =
+          typeof entry.text === "string"
+            ? entry.text
+            : typeof entry.content === "string"
+              ? entry.content
+              : "";
+        if (text.trim().length > 0) {
+          events.push(buildEvent({
+            at,
+            event_type: "assistant_message",
+            role: "assistant",
+            turn_state: "in_turn",
+            meaningful_progress: true,
+          }));
+        }
+      }
+
+      if (events.length === 0 && extractTextContent(message?.content).trim().length > 0) {
+        events.push(buildEvent({
+          at,
+          event_type: "assistant_message",
+          role: "assistant",
+          turn_state: "in_turn",
+          meaningful_progress: true,
+        }));
+      }
+
+      const stopState = buildClaudeStopReasonState(stopReason);
+      if (stopState) {
+        events.push(buildEvent({
+          at,
+          event_type: stopState === "turn_complete" ? "turn_complete" : "assistant_stop",
+          event_subtype: typeof stopReason === "string" ? stopReason : undefined,
+          role: "assistant",
+          turn_state: stopState,
+          meaningful_progress: stopState === "turn_complete",
+        }));
+      }
+      return events;
+    }
+
+    if (parsed.type === "user") {
+      const message = getObject(parsed.message);
+      const content = Array.isArray(message?.content) ? message?.content : [];
+      for (const block of content) {
+        if (!block || typeof block !== "object") continue;
+        const entry = block as Record<string, unknown>;
+        if (entry.type !== "tool_result") continue;
+        const toolUseResult = getObject(parsed.toolUseResult);
+        events.push(buildEvent({
+          at,
+          event_type: "tool_result",
+          role: "user",
+          event_subtype:
+            typeof toolUseResult?.status === "string"
+              ? toolUseResult.status
+              : undefined,
+          turn_state:
+            toolUseResult?.status === "async_launched"
+              ? "tool_running"
+              : "in_turn",
+          meaningful_progress: true,
+        }));
+      }
+      return events;
+    }
+
+    if (parsed.type === "system" && parsed.subtype === "turn_duration") {
+      return [
+        buildEvent({
+          at,
+          event_type: "turn_complete",
+          event_subtype: "turn_duration",
+          role: "system",
+          turn_state: "turn_complete",
+          meaningful_progress: true,
+        }),
+      ];
+    }
+
+    if (parsed.type === "queue-operation") {
+      return [
+        buildEvent({
+          at,
+          event_type: "queue_operation",
+          role: "system",
+          meaningful_progress: true,
+        }),
+      ];
+    }
+
+    if (parsed.type === "progress") {
+      return [
+        buildEvent({
+          at,
+          event_type: "progress",
+          role: "system",
+        }),
+      ];
+    }
+
+    return [];
+  }
+
+  const payload = getObject(parsed.payload);
+  if (!payload) return [];
+
+  if (parsed.type === "event_msg") {
+    if (payload.type === "task_started") {
+      return [
+        buildEvent({
+          at,
+          event_type: "task_started",
+          turn_state: "in_turn",
+        }),
+      ];
+    }
+    if (payload.type === "task_complete") {
+      return [
+        buildEvent({
+          at,
+          event_type: "task_complete",
+          turn_state: "turn_complete",
+          meaningful_progress: true,
+        }),
+      ];
+    }
+    if (payload.type === "turn_aborted") {
+      return [
+        buildEvent({
+          at,
+          event_type: "turn_aborted",
+          event_subtype: typeof payload.reason === "string" ? payload.reason : undefined,
+          turn_state: "turn_aborted",
+        }),
+      ];
+    }
+    if (payload.type === "agent_message") {
+      return [
+        buildEvent({
+          at,
+          event_type: "agent_message",
+          role: "assistant",
+          turn_state: "in_turn",
+          meaningful_progress: true,
+        }),
+      ];
+    }
+    if (payload.type === "user_message") {
+      return [
+        buildEvent({
+          at,
+          event_type: "user_message",
+          role: "user",
+          turn_state: "in_turn",
+        }),
+      ];
+    }
+    if (payload.type === "token_count") {
+      const info = getObject(payload.info);
+      const totals = getObject(info?.total_token_usage);
+      const tokenTotal =
+        (typeof totals?.input_tokens === "number" ? totals.input_tokens : 0) +
+        (typeof totals?.output_tokens === "number" ? totals.output_tokens : 0) +
+        (typeof totals?.cached_input_tokens === "number" ? totals.cached_input_tokens : 0) +
+        (typeof totals?.reasoning_output_tokens === "number" ? totals.reasoning_output_tokens : 0);
+      return [
+        buildEvent({
+          at,
+          event_type: "token_count",
+          token_total: tokenTotal,
+          turn_state: "in_turn",
+        }),
+      ];
+    }
+    if (payload.type === "context_compacted") {
+      return [
+        buildEvent({
+          at,
+          event_type: "context_compacted",
+        }),
+      ];
+    }
+    return [];
+  }
+
+  if (parsed.type === "response_item") {
+    if (payload.type === "reasoning") {
+      return [
+        buildEvent({
+          at,
+          event_type: "reasoning",
+          role: "assistant",
+          turn_state: "thinking",
+          meaningful_progress: true,
+        }),
+      ];
+    }
+    if (payload.type === "function_call" || payload.type === "custom_tool_call") {
+      return [
+        buildEvent({
+          at,
+          event_type: payload.type,
+          tool_name: typeof payload.name === "string" ? payload.name : undefined,
+          turn_state: "tool_running",
+          meaningful_progress: true,
+        }),
+      ];
+    }
+    if (
+      payload.type === "function_call_output" ||
+      payload.type === "custom_tool_call_output"
+    ) {
+      return [
+        buildEvent({
+          at,
+          event_type: payload.type,
+          turn_state: "tool_running",
+          meaningful_progress: true,
+        }),
+      ];
+    }
+    if (payload.type === "message") {
+      const role = payload.role === "assistant" || payload.role === "user"
+        ? payload.role
+        : undefined;
+      return [
+        buildEvent({
+          at,
+          event_type: "message",
+          role,
+          turn_state: role === "assistant" ? "in_turn" : undefined,
+          meaningful_progress: role === "assistant",
+        }),
+      ];
+    }
+    return [];
+  }
+
+  if (parsed.type === "compacted") {
+    return [buildEvent({ at, event_type: "compacted" })];
+  }
+
+  return [];
 }
 
 interface WatchEntry {

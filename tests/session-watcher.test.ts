@@ -6,6 +6,7 @@ import os from "node:os";
 
 import {
   checkTurnComplete,
+  parseSessionTelemetryLine,
   toClaudeProjectKey,
 } from "../electron/session-watcher.ts";
 
@@ -152,4 +153,82 @@ test("claude project key normalizes Windows paths", () => {
     toClaudeProjectKey("C:\\Users\\foo\\project"),
     "C--Users-foo-project",
   );
+});
+
+test("claude telemetry parser marks thinking and tool_pending distinctly", () => {
+  const events = parseSessionTelemetryLine(
+    JSON.stringify({
+      type: "assistant",
+      timestamp: "2026-03-26T00:00:00.000Z",
+      message: {
+        stop_reason: "tool_use",
+        content: [
+          { type: "thinking", thinking: "working" },
+          { type: "tool_use", name: "Bash" },
+        ],
+      },
+    }),
+    "claude",
+  );
+
+  assert.deepEqual(
+    events.map((event) => [event.event_type, event.turn_state]),
+    [
+      ["thinking", "thinking"],
+      ["tool_use", "tool_running"],
+      ["assistant_stop", "tool_pending"],
+    ],
+  );
+});
+
+test("claude telemetry parser treats tool_result as meaningful progress", () => {
+  const events = parseSessionTelemetryLine(
+    JSON.stringify({
+      type: "user",
+      timestamp: "2026-03-26T00:00:02.000Z",
+      toolUseResult: { status: "async_launched" },
+      message: {
+        content: [{ type: "tool_result", content: "started" }],
+      },
+    }),
+    "claude",
+  );
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].event_type, "tool_result");
+  assert.equal(events[0].turn_state, "tool_running");
+  assert.equal(events[0].meaningful_progress, true);
+});
+
+test("codex telemetry parser extracts token totals and thinking state", () => {
+  const tokenEvents = parseSessionTelemetryLine(
+    JSON.stringify({
+      type: "event_msg",
+      timestamp: "2026-03-26T00:00:03.000Z",
+      payload: {
+        type: "token_count",
+        info: {
+          total_token_usage: {
+            input_tokens: 10,
+            output_tokens: 20,
+            cached_input_tokens: 3,
+            reasoning_output_tokens: 7,
+          },
+        },
+      },
+    }),
+    "codex",
+  );
+  const reasoningEvents = parseSessionTelemetryLine(
+    JSON.stringify({
+      type: "response_item",
+      timestamp: "2026-03-26T00:00:04.000Z",
+      payload: { type: "reasoning", summary: [] },
+    }),
+    "codex",
+  );
+
+  assert.equal(tokenEvents[0].token_total, 40);
+  assert.equal(reasoningEvents[0].turn_state, "thinking");
+  assert.equal(reasoningEvents[0].meaningful_progress, true);
 });

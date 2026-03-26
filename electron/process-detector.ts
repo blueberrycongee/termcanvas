@@ -6,6 +6,24 @@ export interface DetectedCli {
   args: string;
 }
 
+export interface ProcessEntry {
+  pid: number;
+  ppid: number;
+  args: string;
+}
+
+export interface ProcessSnapshotEntry {
+  pid: number;
+  command: string;
+  cliType: string | null;
+  depth: number;
+}
+
+export interface ProcessSnapshot {
+  descendantProcesses: ProcessSnapshotEntry[];
+  foregroundTool: string | null;
+}
+
 // CLI names we recognise. Order matters: first match wins.
 const CLI_PATTERNS: [RegExp, string][] = [
   [/\bclaude\b/, "claude"],
@@ -19,6 +37,18 @@ const CLI_PATTERNS: [RegExp, string][] = [
 
 // Wrappers that delegate to another binary — check subsequent args for the real CLI
 const WRAPPER_NAMES = new Set(["node", "bun", "npx", "bunx"]);
+const SHELL_NAMES = new Set([
+  "bash",
+  "cmd",
+  "fish",
+  "login",
+  "powershell",
+  "powershell.exe",
+  "pwsh",
+  "sh",
+  "tmux",
+  "zsh",
+]);
 
 function normalizeProcessName(token: string): string {
   const trimmed = token.replace(/^"|"$/g, "");
@@ -56,9 +86,22 @@ function matchCli(args: string): string | null {
 }
 
 function collectDetectedClis(
-  processes: { pid: number; ppid: number; args: string }[],
+  processes: ProcessEntry[],
   shellPids: number[],
 ): DetectedCli[] {
+  return buildProcessSnapshotFromEntries(processes, shellPids).descendantProcesses
+    .filter((process) => process.cliType)
+    .map((process) => ({
+      pid: process.pid,
+      cliType: process.cliType!,
+      args: process.command,
+    }));
+}
+
+function collectDescendantProcesses(
+  processes: ProcessEntry[],
+  shellPids: number[],
+): ProcessSnapshotEntry[] {
   // Build parent → children map
   const childrenOf = new Map<number, number[]>();
   for (const p of processes) {
@@ -72,32 +115,64 @@ function collectDetectedClis(
 
   // BFS: collect all descendant PIDs
   const descendants = new Set<number>();
-  const queue = [...shellPids];
+  const queue = shellPids.map((pid) => ({ pid, depth: 0 }));
   let qi = 0;
   while (qi < queue.length) {
-    const children = childrenOf.get(queue[qi++]);
+    const current = queue[qi++];
+    const children = childrenOf.get(current.pid);
     if (!children) continue;
     for (const child of children) {
       if (!descendants.has(child)) {
         descendants.add(child);
-        queue.push(child);
+        queue.push({ pid: child, depth: current.depth + 1 });
       }
     }
   }
 
   // Match CLIs among descendants in BFS order (shallowest first).
   const processMap = new Map(processes.map((p) => [p.pid, p]));
-  const results: DetectedCli[] = [];
-  for (const pid of queue.slice(shellPids.length)) {
-    const proc = processMap.get(pid);
+  const results: ProcessSnapshotEntry[] = [];
+  for (const entry of queue.slice(shellPids.length)) {
+    const proc = processMap.get(entry.pid);
     if (!proc) continue;
-    const cliType = matchCli(proc.args);
-    if (cliType) {
-      results.push({ pid: proc.pid, cliType, args: proc.args });
-    }
+    results.push({
+      pid: proc.pid,
+      command: proc.args,
+      cliType: matchCli(proc.args),
+      depth: entry.depth,
+    });
   }
 
   return results;
+}
+
+function chooseForegroundTool(descendants: ProcessSnapshotEntry[]): string | null {
+  if (descendants.length === 0) return null;
+  for (let index = descendants.length - 1; index >= 0; index -= 1) {
+    const candidate = descendants[index];
+    const baseName = normalizeProcessName(splitCommandLine(candidate.command).command);
+    if (!SHELL_NAMES.has(baseName)) {
+      return candidate.command;
+    }
+  }
+
+  const cliCandidate = descendants.find((process) => process.cliType);
+  if (cliCandidate) return cliCandidate.command;
+
+  const lastProcess = descendants[descendants.length - 1];
+  const baseName = normalizeProcessName(splitCommandLine(lastProcess.command).command);
+  return SHELL_NAMES.has(baseName) ? null : lastProcess.command;
+}
+
+export function buildProcessSnapshotFromEntries(
+  processes: ProcessEntry[],
+  shellPids: number[],
+): ProcessSnapshot {
+  const descendantProcesses = collectDescendantProcesses(processes, shellPids);
+  return {
+    descendantProcesses,
+    foregroundTool: chooseForegroundTool(descendantProcesses),
+  };
 }
 
 /**
@@ -106,7 +181,7 @@ function collectDetectedClis(
  * Uses BFS so shallower matches appear first in results.
  */
 export function parsePsOutput(psOutput: string, shellPids: number[]): DetectedCli[] {
-  const processes: { pid: number; ppid: number; args: string }[] = [];
+  const processes: ProcessEntry[] = [];
   const lines = psOutput.split("\n");
   for (const line of lines) {
     const trimmed = line.trim();
@@ -126,11 +201,42 @@ export function parsePsOutput(psOutput: string, shellPids: number[]): DetectedCl
   return collectDetectedClis(processes, shellPids);
 }
 
+export function parsePsSnapshot(psOutput: string, shellPids: number[]): ProcessSnapshot {
+  const processes: ProcessEntry[] = [];
+  for (const line of psOutput.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("PID")) continue;
+    const match = trimmed.match(/^(\d+)\s+(\d+)\s+(.+)$/);
+    if (!match) continue;
+    processes.push({
+      pid: parseInt(match[1], 10),
+      ppid: parseInt(match[2], 10),
+      args: match[3],
+    });
+  }
+  return buildProcessSnapshotFromEntries(processes, shellPids);
+}
+
 export function parseWindowsProcessListOutput(
   processJson: string,
   shellPids: number[],
 ): DetectedCli[] {
-  if (!processJson.trim()) return [];
+  return buildWindowsProcessSnapshot(processJson, shellPids).descendantProcesses
+    .filter((process) => process.cliType)
+    .map((process) => ({
+      pid: process.pid,
+      cliType: process.cliType!,
+      args: process.command,
+    }));
+}
+
+export function buildWindowsProcessSnapshot(
+  processJson: string,
+  shellPids: number[],
+): ProcessSnapshot {
+  if (!processJson.trim()) {
+    return { descendantProcesses: [], foregroundTool: null };
+  }
 
   let parsed: unknown;
   try {
@@ -140,7 +246,7 @@ export function parseWindowsProcessListOutput(
   }
 
   const entries = Array.isArray(parsed) ? parsed : [parsed];
-  const processes: { pid: number; ppid: number; args: string }[] = [];
+  const processes: ProcessEntry[] = [];
 
   for (const entry of entries) {
     if (!entry || typeof entry !== "object") continue;
@@ -165,7 +271,7 @@ export function parseWindowsProcessListOutput(
     });
   }
 
-  return collectDetectedClis(processes, shellPids);
+  return buildProcessSnapshotFromEntries(processes, shellPids);
 }
 
 export function getProcessListCommand(
@@ -226,4 +332,18 @@ export async function detectCli(
   }
 
   return { cliType: first.cliType, pid: first.pid };
+}
+
+export async function getProcessSnapshot(shellPid: number): Promise<ProcessSnapshot> {
+  const processListCommand = getProcessListCommand();
+  const processOutput = await new Promise<string>((resolve, reject) => {
+    execFile(processListCommand.command, processListCommand.args, (err, stdout) => {
+      if (err) return reject(err);
+      resolve(stdout);
+    });
+  });
+
+  return process.platform === "win32"
+    ? buildWindowsProcessSnapshot(processOutput, [shellPid])
+    : parsePsSnapshot(processOutput, [shellPid]);
 }
