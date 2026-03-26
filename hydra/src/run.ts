@@ -20,7 +20,7 @@ function printRunUsage(): never {
   console.log("  --task <desc>            Task description (required)");
   console.log("  --repo <path>            Path to the git repository (required)");
   console.log("  --worktree <path>        Use an existing worktree");
-  console.log("  --template <name>       Workflow template: single-step | planner-implementer-evaluator");
+  console.log("  --template <name>        Workflow template: planner-implementer-evaluator | single-step");
   console.log("  --type <type>            Agent type: claude, codex, kimi, gemini (default: codex)");
   console.log("  --evaluator-type <type>  Evaluator agent type (default: claude)");
   console.log("  --timeout-minutes <num>  Per-handoff timeout in minutes (default: 30)");
@@ -35,7 +35,7 @@ export function parseRunArgs(args: string[]): RunArgs {
   }
 
   const result: Partial<RunArgs> = {
-    template: "single-step",
+    template: "planner-implementer-evaluator",
     type: "codex",
     evaluatorType: "claude",
     timeoutMinutes: 30,

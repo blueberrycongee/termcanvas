@@ -23,9 +23,10 @@ Hydra's completion gate is the file contract: `handoff.json`, `task.md`,
 
 1. Investigate first and write a concrete task description.
 2. Start the workflow:
-   - Standard: `hydra run --task "..." --repo .`
+   - Default: `hydra run --task "..." --repo .`
    - Existing worktree / read-only: `hydra run --task "..." --repo . --worktree .`
-   - Multi-hop planner/implementer/evaluator: `hydra run --task "..." --repo . --template planner-implementer-evaluator`
+   - Direct single-implementer path: `hydra run --task "..." --repo . --template single-step`
+   - The default workflow is planner -> implementer -> evaluator.
 3. Advance or inspect the workflow with structured commands:
    - `hydra tick --repo . --workflow <workflowId>`
    - `hydra watch --repo . --workflow <workflowId>`

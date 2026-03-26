@@ -2,12 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildTaskPackageContext, renderTaskPackageTemplate } from "../src/task-package.ts";
 
 test("Hydra skill copy documents root-cause-first, no test hacking, and result gate rules", () => {
-  const skillPath = path.resolve(process.cwd(), "..", "skills", "skills", "hydra", "SKILL.md");
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const skillPath = path.resolve(here, "..", "..", "skills", "skills", "hydra", "SKILL.md");
   const skill = fs.readFileSync(skillPath, "utf-8");
 
+  assert.match(skill, /Default: `hydra run --task ".*" --repo \.`/i);
+  assert.match(skill, /--template single-step/i);
   assert.match(skill, /root cause/i);
   assert.match(skill, /Do not hack tests|test hacking/i);
   assert.match(skill, /silent fallback|swallow/i);

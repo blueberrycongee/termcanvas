@@ -12,8 +12,9 @@
 
 1. Start a workflow:
    ```bash
-   hydra run --task "..." --repo . --template planner-implementer-evaluator
+   hydra run --task "..." --repo .
    ```
+   The default workflow is `planner -> implementer -> evaluator`. For a single direct implementer run, pass `--template single-step`.
 2. Advance once:
    ```bash
    hydra tick --repo . --workflow <workflowId>

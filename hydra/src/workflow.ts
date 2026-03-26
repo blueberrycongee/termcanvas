@@ -353,7 +353,7 @@ export async function runWorkflow(
   const now = nowFn(dependencies);
   const repoPath = path.resolve(options.repoPath);
   const workflowId = generateWorkflowId();
-  const template = options.template ?? "single-step";
+  const template = options.template ?? "planner-implementer-evaluator";
   const plannedHandoffIds = template === "single-step"
     ? [generateHandoffId()]
     : [generateHandoffId(), generateHandoffId(), generateHandoffId()];

@@ -161,13 +161,13 @@ hydra init    # teach Claude Code / Codex how to use Hydra in this project
 <summary>Manual usage</summary>
 
 ```bash
-hydra run --task "fix the login bug" --repo . --template planner-implementer-evaluator
+hydra run --task "fix the login bug" --repo .
 hydra watch --repo . --workflow <workflow-id>
 hydra status --repo . --workflow <workflow-id>
 hydra cleanup --workflow <workflow-id> --repo . --force
 ```
 
-Hydra workflows create task packages under `.hydra/workflows`, launch real Claude/Codex terminals with create-only prompts, and advance only on validated `result.json` + `done` evidence. See [Hydra Orchestration Guide](docs/hydra-orchestration.md) for architecture boundaries, troubleshooting, anti-patterns, and the local acceptance harness.
+`hydra run` now defaults to the planner → implementer → evaluator workflow. For smaller direct tasks, opt into `--template single-step`. Hydra workflows create task packages under `.hydra/workflows`, launch real Claude/Codex terminals with create-only prompts, and advance only on validated `result.json` + `done` evidence. See [Hydra Orchestration Guide](docs/hydra-orchestration.md) for architecture boundaries, troubleshooting, anti-patterns, and the local acceptance harness.
 
 </details>
 

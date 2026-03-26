@@ -155,13 +155,13 @@ hydra init    # 教会 Claude Code / Codex 在这个项目中使用 Hydra
 <summary>手动使用</summary>
 
 ```bash
-hydra run --task "fix the login bug" --repo . --template planner-implementer-evaluator
+hydra run --task "fix the login bug" --repo .
 hydra watch --repo . --workflow <workflow-id>
 hydra status --repo . --workflow <workflow-id>
 hydra cleanup --workflow <workflow-id> --repo . --force
 ```
 
-Hydra workflow 会在 `.hydra/workflows` 下创建任务包，通过 create-only prompt 启动真实 Claude/Codex 终端，并且只在 `result.json` + `done` 通过校验后推进。更多架构边界、故障排查、反模式和本地验收流程，见 [Hydra Orchestration Guide](docs/hydra-orchestration.md)。
+`hydra run` 现在默认使用 planner → implementer → evaluator 工作流。更小、更直接的任务可显式传 `--template single-step`。Hydra workflow 会在 `.hydra/workflows` 下创建任务包，通过 create-only prompt 启动真实 Claude/Codex 终端，并且只在 `result.json` + `done` 通过校验后推进。更多架构边界、故障排查、反模式和本地验收流程，见 [Hydra Orchestration Guide](docs/hydra-orchestration.md)。
 
 </details>
 

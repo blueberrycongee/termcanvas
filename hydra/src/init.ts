@@ -18,12 +18,13 @@ Core rules:
 - A handoff is only complete when both \`result.json\` and \`done\` exist and pass schema validation.
 
 Workflow:
-1. Start a workflow: \`hydra run --task "<specific task>" --repo . [--worktree .] [--template planner-implementer-evaluator]\`
-2. Inspect one-shot progress: \`hydra tick --repo . --workflow <workflowId>\`
-3. Watch until terminal state: \`hydra watch --repo . --workflow <workflowId>\`
-4. Inspect structured state and failures: \`hydra status --repo . --workflow <workflowId>\`
-5. Retry a failed/timed-out workflow when allowed: \`hydra retry --repo . --workflow <workflowId>\`
-6. Clean up runtime state or worktrees: \`hydra cleanup --workflow <workflowId> --repo .\`
+1. Start a workflow: \`hydra run --task "<specific task>" --repo . [--worktree .]\`
+2. For small/direct tasks, opt into a single implementer only: \`hydra run --task "<specific task>" --repo . --template single-step [--worktree .]\`
+3. Inspect one-shot progress: \`hydra tick --repo . --workflow <workflowId>\`
+4. Watch until terminal state: \`hydra watch --repo . --workflow <workflowId>\`
+5. Inspect structured state and failures: \`hydra status --repo . --workflow <workflowId>\`
+6. Retry a failed/timed-out workflow when allowed: \`hydra retry --repo . --workflow <workflowId>\`
+7. Clean up runtime state or worktrees: \`hydra cleanup --workflow <workflowId> --repo .\`
 
 \`result.json\` must contain:
 - \`success\`
