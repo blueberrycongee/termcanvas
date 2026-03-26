@@ -114,6 +114,16 @@ export function WorktreeContainer({
     const terminal = createTerminal("shell");
     addTerminal(projectId, worktree.id, terminal);
   }, [projectId, worktree.id, addTerminal]);
+  const stopHeaderButtonMouseDown = useCallback((event: React.MouseEvent) => {
+    event.stopPropagation();
+  }, []);
+  const stopHeaderButtonClick = useCallback(
+    (event: React.MouseEvent, action: () => void) => {
+      event.stopPropagation();
+      action();
+    },
+    [],
+  );
 
   const [dragState, setDragState] = useState<{
     terminalId: string;
@@ -343,7 +353,12 @@ export function WorktreeContainer({
         <div className="ml-auto flex items-center gap-1">
           <button
             className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
-            onClick={() => toggleWorktreeCollapse(projectId, worktree.id)}
+            onMouseDown={stopHeaderButtonMouseDown}
+            onClick={(event) =>
+              stopHeaderButtonClick(event, () =>
+                toggleWorktreeCollapse(projectId, worktree.id),
+              )
+            }
           >
             <svg
               width="10"
@@ -363,7 +378,8 @@ export function WorktreeContainer({
           </button>
           <button
             className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
-            onClick={handleNewTerminal}
+            onMouseDown={stopHeaderButtonMouseDown}
+            onClick={(event) => stopHeaderButtonClick(event, handleNewTerminal)}
             title={t.new_terminal}
           >
             <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
@@ -377,10 +393,13 @@ export function WorktreeContainer({
           </button>
           <button
             className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
-            onClick={() => {
-              const term = createTerminal("lazygit", "lazygit");
-              addTerminal(projectId, worktree.id, term);
-            }}
+            onMouseDown={stopHeaderButtonMouseDown}
+            onClick={(event) =>
+              stopHeaderButtonClick(event, () => {
+                const term = createTerminal("lazygit", "lazygit");
+                addTerminal(projectId, worktree.id, term);
+              })
+            }
             title={t.lazygit}
           >
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
