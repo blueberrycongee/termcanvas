@@ -1,4 +1,5 @@
 import path from "node:path";
+import { enrichWorkflowStatusView } from "./telemetry.ts";
 import { getWorkflowStatus } from "./workflow.ts";
 
 export interface StatusArgs {
@@ -33,9 +34,9 @@ export function parseStatusArgs(args: string[]): StatusArgs {
 
 export async function status(args: string[]): Promise<void> {
   const parsed = parseStatusArgs(args);
-  const result = getWorkflowStatus({
+  const result = enrichWorkflowStatusView(getWorkflowStatus({
     repoPath: path.resolve(parsed.repo),
     workflowId: parsed.workflow,
-  });
+  }));
   console.log(JSON.stringify(result, null, 2));
 }

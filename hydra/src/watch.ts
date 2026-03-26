@@ -1,4 +1,5 @@
 import path from "node:path";
+import { enrichWorkflowStatusView } from "./telemetry.ts";
 import { watchWorkflow } from "./workflow.ts";
 
 export interface WatchArgs {
@@ -53,11 +54,11 @@ export function parseWatchArgs(args: string[]): WatchArgs {
 
 export async function watch(args: string[]): Promise<void> {
   const parsed = parseWatchArgs(args);
-  const result = await watchWorkflow({
+  const result = enrichWorkflowStatusView(await watchWorkflow({
     repoPath: path.resolve(parsed.repo),
     workflowId: parsed.workflow,
     intervalMs: parsed.intervalMs,
     timeoutMs: parsed.timeoutMs,
-  });
+  }));
   console.log(JSON.stringify(result, null, 2));
 }
