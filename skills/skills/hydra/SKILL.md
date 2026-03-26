@@ -57,7 +57,14 @@ Terminal conversation is not a source of truth.
 4. For direct workers created by `hydra spawn`, use `hydra list` to inspect and
    `hydra cleanup <agentId>` to clean up.
 5. Read failures from structured Hydra state; do not parse terminal prose.
-6. Clean up after completion:
+6. Before deciding to keep waiting, retry, or take over a live workflow, query telemetry first:
+   - `termcanvas telemetry get --workflow <workflowId> --repo .`
+   - `termcanvas telemetry get --terminal <terminalId>`
+   - check `last_meaningful_progress_at`, `turn_state`, `foreground_tool`, and contract presence
+7. Treat telemetry as advisory truth before completion:
+   - `awaiting_contract` means the agent turn ended but `result.json` / `done` is still missing
+   - `stall_candidate` means "needs attention", not automatic failure
+8. Clean up after completion:
    - workflow: `hydra cleanup --workflow <workflowId> --repo .`
    - worker: `hydra cleanup <agentId>`
 

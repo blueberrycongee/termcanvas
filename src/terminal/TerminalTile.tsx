@@ -20,6 +20,7 @@ import {
   useTerminalRuntimeStore,
 } from "./terminalRuntimeStore";
 import type { TerminalMountMode } from "./terminalRuntimePolicy";
+import { getTelemetryBadgeLabel, getTelemetryFacts } from "./telemetryPresentation";
 import {
   cancelScheduledTerminalFocus,
   scheduleTerminalFocus,
@@ -143,6 +144,35 @@ function PreviewPane({
           {body}
         </pre>
       </div>
+    </div>
+  );
+}
+
+function TelemetrySummary({ terminalId }: { terminalId: string }) {
+  const telemetry = useTerminalRuntimeStore((s) => s.terminals[terminalId]?.telemetry ?? null);
+  const badge = getTelemetryBadgeLabel(telemetry);
+  const facts = getTelemetryFacts(telemetry);
+
+  if (!telemetry || !badge) {
+    return null;
+  }
+
+  return (
+    <div className="flex items-center gap-2 min-w-0 shrink-0">
+      <span
+        className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-1.5 py-0.5 text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]"
+        style={{ fontFamily: '"Geist Mono", monospace' }}
+        title={facts.join(" • ")}
+      >
+        {badge}
+      </span>
+      <span
+        className="min-w-0 truncate text-[10px] text-[var(--text-faint)]"
+        style={{ fontFamily: '"Geist Mono", monospace' }}
+        title={facts.join(" • ")}
+      >
+        {facts.join(" • ")}
+      </span>
     </div>
   );
 }
@@ -479,6 +509,7 @@ export function TerminalTile({
         >
           {terminal.title}
         </span>
+        <TelemetrySummary terminalId={terminal.id} />
         <div
           className={`h-6 min-w-0 flex-1 rounded-md border px-1.5 text-[11px] ${
             terminal.customTitle

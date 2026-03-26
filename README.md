@@ -101,7 +101,7 @@ Both CLIs are bundled with the app. Register them from Settings to use in any te
 <summary>Full command reference</summary>
 
 ```
-Usage: termcanvas <project|terminal|diff|state> <command> [args]
+Usage: termcanvas <project|terminal|telemetry|diff|state> <command> [args]
 
 Project commands:
   project add <path>                          Add a project to the canvas
@@ -118,6 +118,11 @@ Terminal commands:
   terminal output <id> [--lines N]             Read terminal output (default 50 lines)
   terminal destroy <id>                        Destroy a terminal
 
+Telemetry commands:
+  telemetry get --terminal <id>                Get terminal telemetry snapshot
+  telemetry get --workflow <id> [--repo <p>]   Get workflow telemetry snapshot
+  telemetry events --terminal <id>             List recent terminal telemetry events
+
 Other commands:
   diff <worktree-path> [--summary]             View git diff for a worktree
   state                                        Dump full canvas state as JSON
@@ -132,6 +137,7 @@ Flags:
 termcanvas project add ~/my-repo
 termcanvas terminal create --worktree ~/my-repo --type claude
 termcanvas terminal status <id>
+termcanvas telemetry get --terminal <id>
 termcanvas diff ~/my-repo --summary
 ```
 

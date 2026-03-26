@@ -17,6 +17,7 @@ import { buildFontFamily } from "./fontRegistry";
 import { useLocaleStore } from "../stores/localeStore";
 import { en } from "../i18n/en";
 import { zh } from "../i18n/zh";
+import type { TerminalTelemetrySnapshot } from "../../shared/telemetry";
 import {
   clampPreviewAnsi,
   resolveTerminalMountMode,
@@ -35,6 +36,7 @@ interface TerminalRuntimeSnapshot {
   copiedNonce: number;
   mode: TerminalMountMode;
   previewText: string;
+  telemetry: TerminalTelemetrySnapshot | null;
 }
 
 interface TerminalRuntimeStoreState {
@@ -70,6 +72,7 @@ interface ManagedTerminalRuntime {
   serializeAddon: SerializeAddon | null;
   sessionCancel: (() => void) | null;
   started: boolean;
+  telemetryTimer: ReturnType<typeof setInterval> | null;
   waitingTimer: ReturnType<typeof setTimeout> | null;
   wasResumeAttempt: boolean;
   watchedSessionId: string | null;
@@ -113,13 +116,15 @@ function updateRuntimeSnapshot(
       copiedNonce: 0,
       mode: "unmounted" as TerminalMountMode,
       previewText: "",
+      telemetry: null,
     };
     const next = { ...current, ...patch };
 
     if (
       next.copiedNonce === current.copiedNonce &&
       next.mode === current.mode &&
-      next.previewText === current.previewText
+      next.previewText === current.previewText &&
+      sameTelemetrySnapshot(next.telemetry, current.telemetry)
     ) {
       return state;
     }
@@ -131,6 +136,25 @@ function updateRuntimeSnapshot(
       },
     };
   });
+}
+
+function sameTelemetrySnapshot(
+  left: TerminalTelemetrySnapshot | null,
+  right: TerminalTelemetrySnapshot | null,
+) {
+  if (left === right) return true;
+  if (!left || !right) return false;
+  return (
+    left.derived_status === right.derived_status &&
+    left.provider === right.provider &&
+    left.session_attached === right.session_attached &&
+    left.last_meaningful_progress_at === right.last_meaningful_progress_at &&
+    left.last_session_event_kind === right.last_session_event_kind &&
+    left.foreground_tool === right.foreground_tool &&
+    left.result_exists === right.result_exists &&
+    left.done_exists === right.done_exists &&
+    left.turn_state === right.turn_state
+  );
 }
 
 function removeRuntimeSnapshot(terminalId: string) {
@@ -167,6 +191,7 @@ function bumpCopiedNonce(terminalId: string) {
       copiedNonce: 0,
       mode: "unmounted" as TerminalMountMode,
       previewText: "",
+      telemetry: null,
     };
 
     return {
@@ -556,6 +581,10 @@ function clearRuntimeTimers(runtime: ManagedTerminalRuntime) {
     clearTimeout(runtime.waitingTimer);
     runtime.waitingTimer = null;
   }
+  if (runtime.telemetryTimer) {
+    clearInterval(runtime.telemetryTimer);
+    runtime.telemetryTimer = null;
+  }
 }
 
 function setupRuntimeSubscriptions(runtime: ManagedTerminalRuntime) {
@@ -596,6 +625,27 @@ function setupRuntimeSubscriptions(runtime: ManagedTerminalRuntime) {
   });
 
   runtime.globalDisposers.push(themeUnsubscribe, preferencesUnsubscribe);
+}
+
+function refreshTelemetry(runtime: ManagedTerminalRuntime) {
+  if (!window.termcanvas?.telemetry) {
+    return;
+  }
+
+  void window.termcanvas.telemetry
+    .getTerminal(runtime.meta.terminal.id)
+    .then((snapshot) => {
+      if (runtime.disposed) return;
+      updateRuntimeSnapshot(runtime.meta.terminal.id, {
+        telemetry: snapshot,
+      });
+    })
+    .catch(() => {
+      if (runtime.disposed) return;
+      updateRuntimeSnapshot(runtime.meta.terminal.id, {
+        telemetry: null,
+      });
+    });
 }
 
 function scheduleSessionCapture(
@@ -732,6 +782,7 @@ function buildTerminalRuntime(
     serializeAddon: null,
     sessionCancel: null,
     started: false,
+    telemetryTimer: null,
     waitingTimer: null,
     wasResumeAttempt:
       !!meta.terminal.sessionId &&
@@ -749,6 +800,7 @@ function buildTerminalRuntime(
   updateRuntimeSnapshot(meta.terminal.id, {
     mode,
     previewText: toPreviewText(runtime.previewAnsi),
+    telemetry: null,
   });
 
   return runtime;
@@ -832,6 +884,10 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
 
   runtime.started = true;
   setupRuntimeSubscriptions(runtime);
+  refreshTelemetry(runtime);
+  runtime.telemetryTimer = setInterval(() => {
+    refreshTelemetry(runtime);
+  }, 2_000);
 
   runtime.outputUnsubscribe = window.termcanvas.terminal.onOutput((ptyId, data) => {
     if (ptyId !== runtime.ptyId) {
