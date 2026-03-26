@@ -10,7 +10,7 @@ execution path. Hydra is a strict file-contract workflow engine:
 `handoff.json`, `task.md`, `result.json`, and `done` are authoritative.
 Terminal conversation is not a source of truth.
 
-## Choose the mode
+## Choose the path
 
 - `hydra run --task "..." --repo . --template single-step`
   - one implementer handoff
@@ -19,9 +19,13 @@ Terminal conversation is not a source of truth.
 - `hydra run --task "..." --repo .`
   - default planner -> implementer -> evaluator workflow
   - use for ambiguous, risky, PRD-driven, or long-running tasks
+
+## Direct worker primitive
+
 - `hydra spawn --task "..." --repo .`
   - one direct isolated worker terminal
   - use when the split is already known and only a separate worker is needed
+  - this is not a full workflow run
 
 ## Quality bar
 
@@ -35,16 +39,20 @@ Terminal conversation is not a source of truth.
 ## Workflow control
 
 1. Investigate first and write a concrete task description.
-2. Start the chosen Hydra mode:
+2. Start the chosen workflow or worker path:
    - Existing worktree / read-only workflow: `hydra run --task "..." --repo . --worktree .`
    - Existing worktree / read-only worker: `hydra spawn --task "..." --repo . --worktree .`
-3. Advance or inspect workflow runs with structured commands:
+3. For workflow runs created by `hydra run`, advance or inspect with:
    - `hydra tick --repo . --workflow <workflowId>`
    - `hydra watch --repo . --workflow <workflowId>`
    - `hydra status --repo . --workflow <workflowId>`
    - `hydra retry --repo . --workflow <workflowId>`
-4. Read failures from `hydra status`; do not parse terminal prose.
-5. Clean up after completion: `hydra cleanup --workflow <workflowId> --repo .`
+4. For direct workers created by `hydra spawn`, use `hydra list` to inspect and
+   `hydra cleanup <agentId>` to clean up.
+5. Read failures from structured Hydra state; do not parse terminal prose.
+6. Clean up after completion:
+   - workflow: `hydra cleanup --workflow <workflowId> --repo .`
+   - worker: `hydra cleanup <agentId>`
 
 ## Result contract
 

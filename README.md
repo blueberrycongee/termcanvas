@@ -152,7 +152,7 @@ Hydra is TermCanvas's file-contract workflow engine for longer-running coding ta
 - stay in the current agent for simple or local tasks
 - use `hydra run --template single-step` for one implementer with file gates
 - use default `hydra run` for planner → implementer → evaluator
-- use `hydra spawn` for one direct isolated worker when the split is already known
+- use `hydra spawn` as a direct isolated-worker primitive when the split is already known
 
 For example:
 
@@ -171,12 +171,14 @@ hydra init    # teach Claude Code / Codex how to use Hydra in this project
 hydra run --task "fix the login bug" --repo .
 hydra run --task "implement the API change" --repo . --template single-step
 hydra spawn --task "investigate the flaky CI failure" --repo .
+hydra list --repo .
 hydra watch --repo . --workflow <workflow-id>
 hydra status --repo . --workflow <workflow-id>
 hydra cleanup --workflow <workflow-id> --repo . --force
+hydra cleanup <agent-id> --force
 ```
 
-Hydra exposes three execution modes under one harness: direct work in the current agent, `hydra run --template single-step`, and the default planner → implementer → evaluator workflow, plus `hydra spawn` for a direct isolated worker. Current workflow templates are staged rather than fan-out parallel; they advance only on validated `result.json` + `done` evidence inside `.hydra/workflows`. See [Hydra Orchestration Guide](docs/hydra-orchestration.md) for architecture boundaries, mode selection, troubleshooting, anti-patterns, and the local acceptance harness.
+Hydra exposes workflow execution through `hydra run`: `--template single-step` for one implementer or the default planner → implementer → evaluator loop. It also exposes `hydra spawn` as a direct isolated-worker primitive when you do not need a full workflow record. Current workflow templates are staged rather than fan-out parallel; only `hydra run` workflows advance through validated `result.json` + `done` evidence inside `.hydra/workflows`. See [Hydra Orchestration Guide](docs/hydra-orchestration.md) for architecture boundaries, mode selection, troubleshooting, anti-patterns, and the local acceptance harness.
 
 </details>
 

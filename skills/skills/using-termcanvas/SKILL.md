@@ -18,7 +18,7 @@ Route first. Choose the lightest path that preserves correctness.
 - Before using Hydra in a repo, ensure the project has current Hydra
   instructions via `hydra init` or the TermCanvas Hydra enable action.
 
-## Hydra mode choice
+## Hydra workflow patterns
 
 - `hydra run --task "..." --repo . --template single-step`
   - one implementer with `result.json` + `done` gates
@@ -26,12 +26,19 @@ Route first. Choose the lightest path that preserves correctness.
 - `hydra run --task "..." --repo .`
   - default planner -> implementer -> evaluator loop
   - use for ambiguous, risky, PRD-driven, or long-running tasks
+
+## Hydra worker primitive
+
 - `hydra spawn --task "..." --repo .`
   - one direct isolated worker terminal
-  - use when the task split is already known
+  - use when the task split is already known and you do not need a full workflow
 
 ## Guardrails
 
 - Do not describe Hydra workflows as automatic parallelism unless multiple
   spawned workers are actually involved.
-- Prefer `hydra status` and workflow files over terminal prose.
+- Use `hydra tick` / `hydra watch` / `hydra status` / `hydra retry` for
+  workflow runs created by `hydra run`.
+- Use `hydra list` and `hydra cleanup <agentId>` for direct workers created by
+  `hydra spawn`.
+- Prefer structured Hydra state and files over terminal prose.

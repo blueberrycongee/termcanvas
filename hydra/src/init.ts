@@ -18,13 +18,13 @@ Core rules:
 - Do not add silent fallbacks or swallowed errors.
 - A handoff is only complete when both \`result.json\` and \`done\` exist and pass schema validation.
 
-Mode selection:
+Workflow patterns:
 1. Do the task directly when it is simple, local, or clearly faster without workflow overhead.
 2. Use a single implementer workflow when you still want Hydra evidence and retry control:
    \`hydra run --task "<specific task>" --repo . --template single-step [--worktree .]\`
 3. Use the default planner -> implementer -> evaluator workflow for ambiguous, risky, or PRD-driven work:
    \`hydra run --task "<specific task>" --repo . [--worktree .]\`
-4. Use a direct isolated worker when the split is already known:
+4. Use a direct isolated worker primitive when the split is already known and you do not need a full workflow:
    \`hydra spawn --task "<specific task>" --repo . [--worktree .]\`
 
 Workflow control:
@@ -33,6 +33,10 @@ Workflow control:
 3. Inspect structured state and failures: \`hydra status --repo . --workflow <workflowId>\`
 4. Retry a failed/timed-out workflow when allowed: \`hydra retry --repo . --workflow <workflowId>\`
 5. Clean up runtime state or worktrees: \`hydra cleanup --workflow <workflowId> --repo .\`
+
+Worker control:
+1. List direct workers: \`hydra list --repo .\`
+2. Clean up a direct worker: \`hydra cleanup <agentId>\`
 
 \`result.json\` must contain:
 - \`success\`

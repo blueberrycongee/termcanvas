@@ -14,6 +14,8 @@ test("Hydra skill copy documents root-cause-first, no test hacking, and result g
   assert.match(skill, /hydra run --task ".*" --repo \./i);
   assert.match(skill, /--template single-step/i);
   assert.match(skill, /hydra spawn/i);
+  assert.match(skill, /not a full workflow run/i);
+  assert.match(skill, /hydra list/i);
   assert.match(skill, /planner -> implementer -> evaluator/i);
   assert.match(skill, /root cause/i);
   assert.match(skill, /Do not hack tests|test hacking/i);
@@ -35,6 +37,7 @@ test("router skill stays always-on and classifies TermCanvas work before Hydra",
   assert.match(skill, /single-step/i);
   assert.match(skill, /planner -> implementer -> evaluator/i);
   assert.match(skill, /hydra spawn/i);
+  assert.match(skill, /hydra list/i);
 });
 
 test("task package template links skills and hard gate requirements", () => {
