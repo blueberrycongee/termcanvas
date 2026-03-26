@@ -5,7 +5,7 @@ const BADGE_LABELS: Record<NonNullable<TerminalTelemetrySnapshot["derived_status
   progressing: "Progressing",
   awaiting_contract: "Awaiting contract",
   stall_candidate: "Stall candidate",
-  exited: "Exited",
+  exited: "Process exited",
 };
 
 export function formatTelemetryAge(

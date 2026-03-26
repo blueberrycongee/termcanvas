@@ -29,6 +29,17 @@ test("getTelemetryBadgeLabel maps derived status to UI label", () => {
   assert.equal(getTelemetryBadgeLabel(SNAPSHOT), "Progressing");
 });
 
+test("getTelemetryBadgeLabel clarifies exited status as process exit", () => {
+  assert.equal(
+    getTelemetryBadgeLabel({
+      ...SNAPSHOT,
+      pty_alive: false,
+      derived_status: "exited",
+    }),
+    "Process exited",
+  );
+});
+
 test("formatTelemetryAge returns compact relative text", () => {
   const nowMs = Date.parse("2026-03-26T00:01:10.000Z");
   assert.equal(formatTelemetryAge("2026-03-26T00:01:08.000Z", nowMs), "just now");
