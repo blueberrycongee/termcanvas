@@ -24,6 +24,15 @@ import {
   TerminalMountMode,
   toPreviewText,
 } from "./terminalRuntimePolicy";
+import {
+  createTerminalSelectionAutoCopyState,
+  markTerminalSelectionChanged,
+  markTerminalSelectionCopied,
+  markTerminalSelectionPointerEnded,
+  markTerminalSelectionPointerStarted,
+  shouldAutoCopyTerminalSelection,
+  type TerminalSelectionAutoCopyState,
+} from "./selectionAutoCopy";
 
 interface TerminalRuntimeMeta {
   projectId: string;
@@ -68,7 +77,9 @@ interface ManagedTerminalRuntime {
   previewAnsi: string;
   removeTurnComplete: (() => void) | null;
   resizeDisposable: { dispose(): void } | null;
+  selectionAutoCopy: TerminalSelectionAutoCopyState;
   selectionDisposable: { dispose(): void } | null;
+  selectionPointerCleanup: (() => void) | null;
   serializeAddon: SerializeAddon | null;
   sessionCancel: (() => void) | null;
   started: boolean;
@@ -218,7 +229,9 @@ async function pollSessionId(
   ptyId: number,
   cliType: string,
   worktreePath: string,
-  onFound: (sid: string) => void,
+  onFound: (
+    match: { sessionId: string; confidence?: "strong" | "medium" | "weak" },
+  ) => void,
   shouldCancel: () => boolean,
   detectedCliPid?: number | null,
   startedAt?: string,
@@ -243,20 +256,27 @@ async function pollSessionId(
     }
 
     let sessionId: string | null = null;
+    let confidence: "strong" | "medium" | "weak" | undefined;
     if (cliType === "codex") {
       const candidate = await window.termcanvas.session.findCodex(worktreePath, startedAt);
       sessionId = candidate?.sessionId ?? null;
+      confidence = candidate?.confidence;
       if (sessionId && sessionId === codexBaseline && candidate?.confidence !== "medium") {
         sessionId = null;
+        confidence = undefined;
       }
     } else if (cliType === "claude") {
       const pid = cachedPid ?? (await window.termcanvas.terminal.getPid(ptyId)) ?? null;
       if (!cachedPid && pid) {
         cachedPid = pid;
       }
-      if (pid) {
-        sessionId = await window.termcanvas.session.getClaudeByPid(pid);
-      }
+      const candidate = await window.termcanvas.session.findClaude(
+        worktreePath,
+        startedAt,
+        pid,
+      );
+      sessionId = candidate?.sessionId ?? null;
+      confidence = candidate?.confidence;
     } else if (cliType === "kimi") {
       sessionId = await window.termcanvas.session.getKimiLatest(worktreePath);
     }
@@ -266,7 +286,7 @@ async function pollSessionId(
     }
 
     if (sessionId) {
-      onFound(sessionId);
+      onFound({ sessionId, confidence });
       return;
     }
   }
@@ -360,6 +380,7 @@ function watchSession(
   runtime: ManagedTerminalRuntime,
   type: TerminalType,
   sessionId: string,
+  confidence?: "strong" | "medium" | "weak",
 ) {
   if (runtime.disposed) {
     return;
@@ -376,7 +397,7 @@ function watchSession(
       provider: type,
       sessionId,
       cwd: runtime.meta.worktreePath,
-      confidence: type === "claude" ? "strong" : "medium",
+      confidence: confidence ?? (type === "claude" ? "strong" : "medium"),
     }).catch((error: unknown) => {
       console.error("[terminalRuntime] telemetry attach failed:", error);
     });
@@ -431,6 +452,8 @@ function lookupCurrentTerminal(runtime: ManagedTerminalRuntime) {
 function disposeLiveBindings(runtime: ManagedTerminalRuntime) {
   runtime.selectionDisposable?.dispose();
   runtime.selectionDisposable = null;
+  runtime.selectionPointerCleanup?.();
+  runtime.selectionPointerCleanup = null;
   runtime.inputDisposable?.dispose();
   runtime.inputDisposable = null;
   runtime.resizeDisposable?.dispose();
@@ -540,15 +563,48 @@ function createTerminalRenderer(
     return true;
   });
 
-  runtime.selectionDisposable = xterm.onSelectionChange(() => {
+  const maybeAutoCopySelection = () => {
     const text = xterm.getSelection();
-    if (!text) {
+    if (
+      !shouldAutoCopyTerminalSelection(
+        runtime.selectionAutoCopy,
+        text,
+        "mouseup",
+      )
+    ) {
       return;
     }
 
+    runtime.selectionAutoCopy = markTerminalSelectionCopied(
+      runtime.selectionAutoCopy,
+    );
     void navigator.clipboard.writeText(text).catch(() => {});
     bumpCopiedNonce(runtime.meta.terminal.id);
     runtime.attachOptions?.onCopy?.();
+  };
+
+  const handleSelectionMouseUp = () => {
+    maybeAutoCopySelection();
+    runtime.selectionAutoCopy = markTerminalSelectionPointerEnded(
+      runtime.selectionAutoCopy,
+    );
+  };
+  const handleSelectionMouseDown = () => {
+    runtime.selectionAutoCopy = markTerminalSelectionPointerStarted(
+      runtime.selectionAutoCopy,
+    );
+  };
+  container.addEventListener("mousedown", handleSelectionMouseDown);
+  window.addEventListener("mouseup", handleSelectionMouseUp);
+  runtime.selectionPointerCleanup = () => {
+    container.removeEventListener("mousedown", handleSelectionMouseDown);
+    window.removeEventListener("mouseup", handleSelectionMouseUp);
+  };
+
+  runtime.selectionDisposable = xterm.onSelectionChange(() => {
+    runtime.selectionAutoCopy = markTerminalSelectionChanged(
+      runtime.selectionAutoCopy,
+    );
   });
 
   acquireWebGL(runtime.meta.terminal.id, xterm);
@@ -664,10 +720,10 @@ function scheduleSessionCapture(
     ptyId,
     cliType,
     runtime.meta.worktreePath,
-    (sessionId) => {
+    ({ sessionId, confidence }) => {
       setSessionId(runtime, sessionId);
       if (cliType === "claude" || cliType === "codex") {
-        watchSession(runtime, cliType, sessionId);
+        watchSession(runtime, cliType, sessionId, confidence);
       }
     },
     () => cancelled || runtime.disposed,
@@ -704,6 +760,16 @@ function triggerDetection(runtime: ManagedTerminalRuntime) {
       }
 
       setTerminalType(runtime, nextType);
+      if (nextType === "claude" || nextType === "codex") {
+        void window.termcanvas.telemetry.updateTerminal({
+          terminalId: runtime.meta.terminal.id,
+          worktreePath: runtime.meta.worktreePath,
+          provider: nextType,
+          ptyId: runtime.ptyId,
+        }).catch((error: unknown) => {
+          console.error("[terminalRuntime] telemetry provider update failed:", error);
+        });
+      }
       if (nextType === "tmux" && result?.sessionName) {
         setSessionId(runtime, result.sessionName);
         return;
@@ -778,7 +844,9 @@ function buildTerminalRuntime(
     previewAnsi: clampPreviewAnsi(meta.terminal.scrollback ?? ""),
     removeTurnComplete: null,
     resizeDisposable: null,
+    selectionAutoCopy: createTerminalSelectionAutoCopyState(),
     selectionDisposable: null,
+    selectionPointerCleanup: null,
     serializeAddon: null,
     sessionCancel: null,
     started: false,

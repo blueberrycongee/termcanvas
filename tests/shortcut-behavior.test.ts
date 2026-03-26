@@ -8,6 +8,14 @@ import {
   matchesShortcut,
 } from "../src/stores/shortcutStore.ts";
 import { getTerminalFocusOrder } from "../src/stores/projectFocus.ts";
+import {
+  createTerminalSelectionAutoCopyState,
+  markTerminalSelectionChanged,
+  markTerminalSelectionCopied,
+  markTerminalSelectionPointerEnded,
+  markTerminalSelectionPointerStarted,
+  shouldAutoCopyTerminalSelection,
+} from "../src/terminal/selectionAutoCopy.ts";
 import type { ProjectData } from "../src/types/index.ts";
 
 function withPlatform(
@@ -121,6 +129,38 @@ test("editable targets allow command shortcuts to reach the app on macOS", () =>
       true,
     );
   });
+});
+
+test("terminal auto-copy only fires after a pointer-completed selection", () => {
+  let state = createTerminalSelectionAutoCopyState();
+
+  state = markTerminalSelectionPointerStarted(state);
+  state = markTerminalSelectionChanged(state);
+  assert.equal(
+    shouldAutoCopyTerminalSelection(state, "selected text", "selectionchange"),
+    false,
+  );
+  assert.equal(
+    shouldAutoCopyTerminalSelection(state, "selected text", "mouseup"),
+    true,
+  );
+
+  state = markTerminalSelectionCopied(state);
+  state = markTerminalSelectionPointerEnded(state);
+  assert.equal(
+    shouldAutoCopyTerminalSelection(state, "selected text", "mouseup"),
+    false,
+  );
+
+  state = markTerminalSelectionChanged(state);
+  assert.equal(
+    shouldAutoCopyTerminalSelection(state, "selected text", "selectionchange"),
+    false,
+  );
+  assert.equal(
+    shouldAutoCopyTerminalSelection(state, "selected text", "mouseup"),
+    false,
+  );
 });
 
 test("rename title shortcut defaults to mod+semicolon", () => {
