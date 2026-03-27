@@ -166,7 +166,7 @@ export function Hub() {
     <div
       ref={containerRef}
       className="fixed z-50 select-none"
-      style={{ top: 52, left: leftOffset, transition: "left 0.2s ease" }}
+      style={{ top: 52, left: leftOffset }}
     >
       {/* Capsule trigger */}
       <button
