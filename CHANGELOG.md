@@ -2,6 +2,17 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.10.0] - 2026-03-27
+
+### Added
+- Git graph layout engine with tighter rail spacing for branch visualization
+- Hydra evaluator upgraded from code reviewer to QA engineer with tiered verification strategy
+
+### Fixed
+- Terminal PTY spawn now retries on transient failures
+- Git push/pull no longer hangs on auth prompts; stderr properly captured with 30s timeout
+- Left panel (git, files, diff) no longer goes blank when clicking canvas background
+
 ## [0.9.1] - 2026-03-27
 
 ### Fixed
