@@ -1156,7 +1156,7 @@ export function GitContent({
                           top: rowTop,
                           height: ROW_HEIGHT,
                           width: "100%",
-                          paddingLeft: graphRailModel.railWidth + 6,
+                          paddingLeft: graphRailModel.railWidth + 4,
                           backgroundColor: isSelected
                             ? "color-mix(in srgb, var(--accent) 8%, transparent)"
                             : isHovered

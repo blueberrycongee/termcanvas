@@ -99,11 +99,11 @@ export interface ExpandedVirtualCommitWindowInput extends VirtualCommitWindowInp
   selectedIndex: number;
 }
 
-const GRAPH_RAIL_MIN_WIDTH = 22;
-const GRAPH_RAIL_VISIBLE_LANES = 6;
-const GRAPH_RAIL_LANE_GAP = 8;
-const GRAPH_RAIL_LANE_START_X = 10;
-const GRAPH_RAIL_OVERFLOW_INSET = 8;
+const GRAPH_RAIL_MIN_WIDTH = 20;
+const GRAPH_RAIL_VISIBLE_LANES = 4;
+const GRAPH_RAIL_LANE_GAP = 7;
+const GRAPH_RAIL_LANE_START_X = 8;
+const GRAPH_RAIL_OVERFLOW_INSET = 6;
 
 function refPriority(
   ref: string,
