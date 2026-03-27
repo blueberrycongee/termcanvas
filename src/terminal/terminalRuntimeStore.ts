@@ -10,6 +10,8 @@ import { useNotificationStore } from "../stores/notificationStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useProjectStore } from "../stores/projectStore";
 import { getTerminalDisplayTitle } from "../stores/terminalState";
+import { useQuotaStore } from "../stores/quotaStore";
+import { useCodexQuotaStore } from "../stores/codexQuotaStore";
 import { useThemeStore, XTERM_THEMES } from "../stores/themeStore";
 import type { TerminalData, TerminalStatus, TerminalType } from "../types";
 import { getTerminalLaunchOptions, getTerminalPromptArgs } from "./cliConfig";
@@ -760,6 +762,11 @@ function triggerDetection(runtime: ManagedTerminalRuntime) {
       }
 
       setTerminalType(runtime, nextType);
+      if (nextType === "claude") {
+        useQuotaStore.getState().nudge();
+      } else if (nextType === "codex") {
+        void useCodexQuotaStore.getState().fetch();
+      }
       if (nextType === "claude" || nextType === "codex") {
         void window.termcanvas.telemetry.updateTerminal({
           terminalId: runtime.meta.terminal.id,

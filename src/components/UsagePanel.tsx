@@ -473,7 +473,6 @@ export function UsagePanel() {
   const quotaFetch = useQuotaStore((s) => s.fetch);
   const quotaOnCostChanged = useQuotaStore((s) => s.onCostChanged);
   const codexQuotaFetch = useCodexQuotaStore((s) => s.fetch);
-  const codexQuotaOnCostChanged = useCodexQuotaStore((s) => s.onCostChanged);
 
   const isLoggedIn = user !== null;
 
@@ -514,13 +513,12 @@ export function UsagePanel() {
     return () => clearInterval(interval);
   }, [collapsed, isLoggedIn, fetchUsage, quotaFetch, codexQuotaFetch, fetchCloud, fetchCloudHeatmap]);
 
-  // Bridge cost changes to quota store for adaptive polling
+  // Bridge cost changes to Claude quota store for adaptive polling
   useEffect(() => {
     if (summary) {
       quotaOnCostChanged(summary.totalCost);
-      codexQuotaOnCostChanged(summary.totalCost);
     }
-  }, [summary?.totalCost, quotaOnCostChanged, codexQuotaOnCostChanged]);
+  }, [summary?.totalCost, quotaOnCostChanged]);
 
   const handleDateChange = useCallback(
     (dateStr: string) => {

@@ -17,6 +17,7 @@ interface QuotaStore {
   _cooldownTimer: ReturnType<typeof setTimeout> | null;
 
   fetch: () => Promise<void>;
+  nudge: () => void;
   onCostChanged: (newCost: number) => void;
 }
 
@@ -64,6 +65,24 @@ export const useQuotaStore = create<QuotaStore>((set, get) => ({
       }
     } catch {
       set({ loading: false, error: "unavailable", pendingRefresh: false });
+    }
+  },
+
+  nudge: () => {
+    const { lastFetchAt, cooldownMs, pendingRefresh } = get();
+    const elapsed = Date.now() - lastFetchAt;
+    if (elapsed >= cooldownMs) {
+      void get().fetch();
+    } else if (!pendingRefresh) {
+      set({ pendingRefresh: true });
+      const remaining = cooldownMs - elapsed;
+      const prev = get()._cooldownTimer;
+      if (prev) clearTimeout(prev);
+      const timer = setTimeout(() => {
+        set({ _cooldownTimer: null });
+        void get().fetch();
+      }, remaining);
+      set({ _cooldownTimer: timer });
     }
   },
 
