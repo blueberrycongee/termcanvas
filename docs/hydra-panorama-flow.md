@@ -216,22 +216,31 @@ flowchart TD
 
 ```mermaid
 stateDiagram-v2
-    [*] --> pending: Handoff created
+    [*] --> pending: created
 
-    pending --> claimed: claimPending() — tick acquires file lock
+    pending --> claimed: claim lock
+    claimed --> in_progress: dispatched
 
-    claimed --> in_progress: markInProgress() — terminal dispatched
+    in_progress --> completed: contract valid
+    in_progress --> timed_out: timeout
+    in_progress --> failed: invalid
 
-    in_progress --> completed: markCompleted() — result.json + done valid
-    in_progress --> timed_out: markTimedOut() — timeout or PTY death
-    in_progress --> failed: markFailed() — validation error
+    timed_out --> pending: retry
+    timed_out --> failed: exhausted
 
-    timed_out --> pending: scheduleRetry() — retries remaining
-    timed_out --> failed: scheduleRetry() — retries exhausted
-
-    completed --> [*]: Advance to next stage or workflow complete
-    failed --> [*]: Workflow fails
+    completed --> [*]: advance
+    failed --> [*]: terminate
 ```
+
+| Transition | Trigger | Detail |
+|------------|---------|--------|
+| `pending → claimed` | `claimPending()` | Tick acquires file lock to prevent races |
+| `claimed → in_progress` | `markInProgress()` | Terminal dispatched, agent working |
+| `in_progress → completed` | `markCompleted()` | result.json + done validated |
+| `in_progress → timed_out` | `markTimedOut()` | Timeout elapsed or PTY death |
+| `in_progress → failed` | `markFailed()` | Contract validation error |
+| `timed_out → pending` | `scheduleRetry()` | Retries remaining, re-enqueue |
+| `timed_out → failed` | `scheduleRetry()` | Retry budget exhausted |
 
 **Telemetry Truth Layer** observes `in_progress` handoffs:
 - Session events, process tree, contract activity, git/worktree changes

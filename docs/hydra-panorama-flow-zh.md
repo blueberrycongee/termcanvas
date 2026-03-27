@@ -216,22 +216,31 @@ flowchart TD
 
 ```mermaid
 stateDiagram-v2
-    [*] --> pending: Handoff 创建
+    [*] --> pending: 创建
 
-    pending --> claimed: claimPending() — tick 获取文件锁
+    pending --> claimed: claim 锁定
+    claimed --> in_progress: dispatch 分发
 
-    claimed --> in_progress: markInProgress() — 终端已分发
+    in_progress --> completed: 合同有效
+    in_progress --> timed_out: 超时
+    in_progress --> failed: 验证失败
 
-    in_progress --> completed: markCompleted() — result.json + done 有效
-    in_progress --> timed_out: markTimedOut() — 超时或 PTY 死亡
-    in_progress --> failed: markFailed() — 验证错误
+    timed_out --> pending: 重试
+    timed_out --> failed: 耗尽
 
-    timed_out --> pending: scheduleRetry() — 还有重试次数
-    timed_out --> failed: scheduleRetry() — 重试次数耗尽
-
-    completed --> [*]: 推进到下一阶段或工作流完成
-    failed --> [*]: 工作流失败
+    completed --> [*]: 推进
+    failed --> [*]: 终止
 ```
+
+| 转换 | 触发条件 | 说明 |
+|------|----------|------|
+| `pending → claimed` | `claimPending()` | tick 获取文件锁，防止竞争 |
+| `claimed → in_progress` | `markInProgress()` | 终端已分发，agent 开始工作 |
+| `in_progress → completed` | `markCompleted()` | result.json + done 验证通过 |
+| `in_progress → timed_out` | `markTimedOut()` | 超时或 PTY 进程死亡 |
+| `in_progress → failed` | `markFailed()` | 合同验证错误 |
+| `timed_out → pending` | `scheduleRetry()` | 还有重试次数，重新排队 |
+| `timed_out → failed` | `scheduleRetry()` | 重试次数耗尽 |
 
 **遥测真相层**观测 `in_progress` 状态的 handoff:
 - 会话事件、进程树、合同文件活动、git/worktree 变更
