@@ -52,7 +52,7 @@ function ProviderQuotaSection({
 }) {
   const t = useT();
 
-  if (!quota && !loading) return null;
+  if (!quota && !loading && !error) return null;
 
   return (
     <div>
@@ -60,7 +60,7 @@ function ProviderQuotaSection({
         <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
           {title}
         </span>
-        {error === "rate_limited" && (
+        {error === "rate_limited" && quota && (
           <span className="text-[10px] text-[var(--text-faint)]" title="Rate limited, showing cached data">
             &#9203;
           </span>
@@ -119,6 +119,10 @@ function ProviderQuotaSection({
             </div>
           </div>
         </div>
+      ) : error ? (
+        <div className="mt-2 text-[10px] text-[var(--text-faint)]">
+          {error === "rate_limited" ? t.usage_quota_rate_limited : t.usage_quota_unavailable}
+        </div>
       ) : null}
     </div>
   );
@@ -135,6 +139,7 @@ export function QuotaSection(): React.ReactElement | null {
   const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
   const t = useT();
   const hasAnyQuota = claudeQuota || codexQuota;
+  const hasAnyError = claudeError || codexError;
   const isLoading = claudeLoading || codexLoading;
 
   useEffect(() => {
@@ -145,7 +150,7 @@ export function QuotaSection(): React.ReactElement | null {
     };
   }, [hasAnyQuota]);
 
-  if (!hasAnyQuota && !isLoading) return null;
+  if (!hasAnyQuota && !isLoading && !hasAnyError) return null;
 
   return (
     <div className="px-3 py-2.5 flex flex-col gap-3">

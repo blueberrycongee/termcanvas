@@ -332,6 +332,8 @@ export const en = {
   usage_quota_5h: "5h",
   usage_quota_7d: "7d",
   usage_quota_resets: "resets",
+  usage_quota_rate_limited: "Rate limited, retrying later",
+  usage_quota_unavailable: "Quota unavailable",
 
   // Auth
   auth_login_github: "Login with GitHub",

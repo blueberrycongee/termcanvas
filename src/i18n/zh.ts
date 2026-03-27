@@ -329,6 +329,8 @@ export const zh = {
   usage_quota_5h: "5h",
   usage_quota_7d: "7d",
   usage_quota_resets: "重置",
+  usage_quota_rate_limited: "请求受限，稍后重试",
+  usage_quota_unavailable: "额度不可用",
 
   // Auth
   auth_login_github: "使用 GitHub 登录",
