@@ -2,6 +2,18 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.13.0] - 2026-03-28
+
+### Added
+- Hydra plan approval gate: `--approve-plan` flag pauses workflow after planner for user review
+- `hydra approve` command to continue approved plans to implementation
+- `hydra revise --feedback "..."` command to re-run planner with structured feedback
+- Human-in-the-loop plan cycle: user → main brain → planner → review → revise/approve → implement → evaluate
+
+### Fixed
+- Hydra requeue now only deletes done marker, preserving result.json for downstream agents (evaluator findings for implementer, old plan for revised planner)
+- Git panel graph rail tightened to shift visual weight toward text
+
 ## [0.12.1] - 2026-03-27
 
 ### Fixed
