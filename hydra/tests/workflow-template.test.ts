@@ -326,6 +326,32 @@ test("evaluator failure loops back to the implementer handoff", async () => {
     assert.equal(looped.workflow.current_handoff_id, started.handoffs[1].id);
     assert.equal(status.handoffs[1].status, "in_progress");
     assert.equal(status.handoffs[2].status, "pending");
+
+    // Stale contract files must have been removed so the next tick
+    // does not immediately "complete" the implementer from old data.
+    const implHandoff = manager.load(started.handoffs[1].id)!;
+    assert.ok(!fs.existsSync(implHandoff.artifacts!.done_file), "stale implementer done file should be removed");
+    assert.ok(!fs.existsSync(implHandoff.artifacts!.result_file), "stale implementer result file should be removed");
+
+    // A subsequent tick should see the handoff as still in-progress (waiting),
+    // not immediately completed from stale files.
+    const afterLoop = await tickWorkflow(
+      { repoPath, workflowId: started.workflow.id },
+      {
+        now: () => "2026-03-26T12:10:35.000Z",
+        dispatchCreateOnly: async (request) => ({
+          projectId: "project-1",
+          terminalId: `terminal-post-loop-${request.handoffId}`,
+          terminalType: request.agentType,
+          terminalTitle: request.agentType,
+          prompt: `Read ${request.taskFile}`,
+        }),
+      },
+    );
+    assert.equal(afterLoop.workflow.status, "running");
+    assert.equal(afterLoop.workflow.current_handoff_id, started.handoffs[1].id);
+    const implAfterLoop = afterLoop.handoffs.find((h) => h.id === started.handoffs[1].id)!;
+    assert.equal(implAfterLoop.status, "in_progress");
   } finally {
     fs.rmSync(repoPath, { recursive: true, force: true });
   }

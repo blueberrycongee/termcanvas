@@ -239,6 +239,13 @@ function resetHandoffToPending(
     });
   }
 
+  // Remove stale contract files so the next tick does not treat
+  // old done/result data as evidence of completion.
+  if (handoff.artifacts) {
+    try { fs.unlinkSync(handoff.artifacts.done_file); } catch {}
+    try { fs.unlinkSync(handoff.artifacts.result_file); } catch {}
+  }
+
   const previousStatus = handoff.status;
   handoff.status = "pending";
   handoff.status_updated_at = now;
