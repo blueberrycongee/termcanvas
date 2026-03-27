@@ -2,6 +2,22 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.11.0] - 2026-03-27
+
+### Added
+- Hydra evaluator: structured `verification` field in result.json for tier-level reporting (runtime/build/probing/static)
+- Hydra evaluator: domain-specific evaluation guides (frontend, backend, infra) loaded on demand
+- Hydra workflow: telemetry-based early exit detection — retries within seconds instead of waiting for timeout
+- Hydra workflow: eager terminal destruction after handoff completion to prevent PTY/process accumulation
+
+### Changed
+- Hydra evaluator prompt rewritten to focus on deep evaluation (intent alignment, stub detection, test quality, architectural fit) instead of just CI checks
+- Hydra watch defaults increased to 30s poll interval and 1h timeout
+
+### Fixed
+- Hydra loop requeue: stale done/result files no longer cause infinite phantom completion cycles
+- Hydra cleanup: now destroys terminals for all handoffs in a workflow, not just the current one
+
 ## [0.10.0] - 2026-03-27
 
 ### Added
