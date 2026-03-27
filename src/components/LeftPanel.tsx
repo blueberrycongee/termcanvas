@@ -129,7 +129,7 @@ export function LeftPanel() {
   return (
     <div
       className="fixed left-0 z-40 bg-[var(--surface)] border-r border-[var(--border)] flex flex-col"
-      style={{ top: 44, height: "calc(100vh - 44px)", width, transition: "width 0.2s ease" }}
+      style={{ top: 44, height: "calc(100vh - 44px)", width }}
     >
       {/* Header */}
       <div className="flex items-center border-b border-[var(--border)] shrink-0" style={{ height: 40 }}>
