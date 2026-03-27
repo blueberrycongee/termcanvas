@@ -66,6 +66,144 @@ function renderList(items: string[], emptyMessage: string): string[] {
   return items.map((item) => `- ${item}`);
 }
 
+const EVAL_GUIDE_FRONTEND = `# Frontend Evaluation Guide
+
+Read this guide when the task involves UI components, pages, or user-facing interactions.
+
+## Visual Design
+- Does the UI have a coherent visual identity — consistent color palette, typography scale, and spacing rhythm?
+- Are visual elements aligned to a grid or layout system, or do they feel randomly placed?
+- Does the design avoid the "AI-generated" look — generic gradients, overused card layouts, default shadows?
+- Is there clear visual hierarchy? Can you tell at a glance what is primary, secondary, and tertiary?
+- Are colors accessible? Check contrast ratios for text on backgrounds (WCAG AA minimum: 4.5:1 for normal text).
+
+## Interaction & UX Flow
+- Walk through the primary user flow end to end. Does every step feel intentional?
+- Are loading states present where async operations happen? No sudden blank screens.
+- Do error states provide actionable feedback, not just "Something went wrong"?
+- Are transitions and animations purposeful (guiding attention) or gratuitous (distracting)?
+- Can the user undo or recover from mistakes? Are destructive actions guarded with confirmation?
+- Does the UI respond to user input within 100ms? Anything slower needs a visual indicator.
+
+## Responsive & Adaptive
+- Does the layout work at common breakpoints (mobile 375px, tablet 768px, desktop 1280px)?
+- Are touch targets at least 44x44px on mobile?
+- Does text remain readable without horizontal scrolling at any viewport width?
+- Are images and media sized appropriately — no oversized assets on mobile, no blurry upscaling on desktop?
+
+## Accessibility
+- Can all interactive elements be reached and activated via keyboard alone (Tab, Enter, Escape)?
+- Do form inputs have associated labels (not just placeholder text)?
+- Are semantic HTML elements used (button, nav, main, article) instead of generic divs with click handlers?
+- Do images have meaningful alt text (or empty alt for decorative images)?
+- Does the page have a logical heading hierarchy (h1 → h2 → h3, no skipped levels)?
+`;
+
+const EVAL_GUIDE_BACKEND = `# Backend Evaluation Guide
+
+Read this guide when the task involves APIs, services, data processing, or server-side logic.
+
+## Performance
+- Are database queries efficient? Look for N+1 query patterns, missing indexes on filtered/joined columns, and SELECT * when only a few columns are needed.
+- Are expensive operations (network calls, file I/O, heavy computation) happening in hot paths where they could be deferred, batched, or cached?
+- For list endpoints: is pagination implemented? Unbounded result sets are a production incident waiting to happen.
+- Are there obvious memory concerns — large objects held in closures, unbounded in-memory caches, streams not properly piped?
+
+## Security
+- Is user input validated and sanitized at the system boundary before reaching business logic?
+- Are SQL queries parameterized? String interpolation into queries is always a defect.
+- Is authentication checked on every protected route, not just assumed from middleware ordering?
+- Are secrets (API keys, tokens, passwords) kept out of code, logs, and error responses?
+- For APIs accepting file uploads: are file types, sizes, and paths validated?
+
+## Data Consistency
+- Do write operations that must be atomic use transactions or equivalent mechanisms?
+- Are error paths cleaning up partial state, or can a failed operation leave data in an inconsistent state?
+- Are concurrent access patterns considered? Race conditions in read-modify-write cycles are common and subtle.
+- If the task involves migrations: is the migration reversible? Does it handle existing data gracefully?
+
+## API Contract
+- Do endpoints return consistent response shapes? Same structure for success, error, and empty states.
+- Are HTTP status codes semantically correct (201 for creation, 404 for not found, 409 for conflict)?
+- Are error responses structured and machine-readable, not just string messages?
+- Is the API versioned or otherwise protected against breaking changes for existing consumers?
+
+## Error Handling
+- Do errors propagate with enough context to diagnose the root cause? A generic "Internal Server Error" in production logs is useless.
+- Are retryable vs. non-retryable errors distinguished? Retrying a 400 is a bug.
+- Are external service failures handled gracefully — timeouts, circuit breakers, fallback behavior where appropriate?
+`;
+
+const EVAL_GUIDE_INFRA = `# Infrastructure Evaluation Guide
+
+Read this guide when the task involves deployment, configuration, CI/CD, or operational tooling.
+
+## Configuration
+- Are environment-specific values (URLs, feature flags, resource limits) externalized into environment variables or config files, not hardcoded?
+- Is there a clear separation between secrets and non-secret configuration?
+- Are default values sensible for local development without requiring manual setup?
+- Is the configuration documented or self-describing (typed config schemas, .env.example)?
+
+## Deployment
+- Can the change be deployed without downtime? Rolling deploys, blue-green, or feature flags?
+- Is the change backward-compatible with the previous version during rollout?
+- If a database migration is involved: can it run while the old code is still serving traffic?
+- Is there a clear rollback path if the deployment fails?
+
+## Observability
+- Are meaningful log messages emitted at appropriate levels (info for business events, warn for recoverable issues, error for failures)?
+- Do logs include correlation IDs or request context for tracing across services?
+- Are key metrics (latency, error rate, throughput) instrumented or already covered by existing middleware?
+- Will alerts fire for the right conditions, with enough context to diagnose without guessing?
+
+## CI/CD Pipeline
+- Do the changes affect build or test pipelines? If so, are the pipeline definitions updated?
+- Are new dependencies pinned to specific versions, not floating ranges?
+- Are build artifacts reproducible — same input produces same output?
+`;
+
+const EVALUATOR_GUIDES: Record<string, { filename: string; content: string }> = {
+  frontend: { filename: "eval-frontend.md", content: EVAL_GUIDE_FRONTEND },
+  backend: { filename: "eval-backend.md", content: EVAL_GUIDE_BACKEND },
+  infra: { filename: "eval-infra.md", content: EVAL_GUIDE_INFRA },
+};
+
+function renderEvaluatorDomainGuideReference(
+  role: string,
+  packageDir: string,
+): string[] {
+  if (role !== "evaluator") {
+    return [];
+  }
+  const lines = [
+    "## Domain-Specific Evaluation Guides",
+    "",
+    "The following guides contain additional evaluation criteria for specific task types.",
+    "Read the ones relevant to this task — skip the rest:",
+    "",
+  ];
+  for (const [domain, guide] of Object.entries(EVALUATOR_GUIDES)) {
+    lines.push(
+      `- **${domain}**: ${path.join(packageDir, guide.filename)}`,
+    );
+  }
+  lines.push("");
+  return lines;
+}
+
+function writeEvaluatorGuides(contract: HandoffContract): void {
+  if (contract.to.role !== "evaluator") {
+    return;
+  }
+  for (const guide of Object.values(EVALUATOR_GUIDES)) {
+    fs.writeFileSync(
+      path.join(contract.artifacts.package_dir, guide.filename),
+      guide.content,
+      "utf-8",
+    );
+  }
+}
+
 function renderEvaluatorVerificationStrategy(role: string): string[] {
   if (role !== "evaluator") {
     return [];
@@ -194,6 +332,7 @@ export function renderTaskPackageTemplate(contract: HandoffContract): string {
     `- Write the done marker JSON to ${contract.artifacts.done_file}; do not write a plain-text path.`,
     "",
     ...renderEvaluatorVerificationStrategy(contract.to.role),
+    ...renderEvaluatorDomainGuideReference(contract.to.role, contract.artifacts.package_dir),
   ];
 
   return lines.join("\n");
@@ -211,5 +350,6 @@ export function writeTaskPackage(contract: HandoffContract): TaskPackagePaths {
     renderTaskPackageTemplate(contract),
     "utf-8",
   );
+  writeEvaluatorGuides(contract);
   return contract.artifacts;
 }
