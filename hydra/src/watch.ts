@@ -13,8 +13,8 @@ function printWatchUsage(): never {
   console.log("Usage: hydra watch --repo <path> --workflow <id> [options]");
   console.log("");
   console.log("Options:");
-  console.log("  --interval-ms <num>  Polling interval in milliseconds (default: 1000)");
-  console.log("  --timeout-ms <num>   Stop watching after this many milliseconds");
+  console.log("  --interval-ms <num>  Polling interval in milliseconds (default: 30000)");
+  console.log("  --timeout-ms <num>   Stop watching after this many milliseconds (default: 3600000)");
   process.exit(0);
 }
 
@@ -24,7 +24,8 @@ export function parseWatchArgs(args: string[]): WatchArgs {
   }
 
   const result: Partial<WatchArgs> = {
-    intervalMs: 1000,
+    intervalMs: 30_000,
+    timeoutMs: 3_600_000,
   };
 
   for (let i = 0; i < args.length; i++) {
