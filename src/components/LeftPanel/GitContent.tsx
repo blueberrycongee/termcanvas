@@ -7,13 +7,16 @@ import { useNotificationStore } from "../../stores/notificationStore";
 import type { GitCommitDetail, GitStatusEntry } from "../../types";
 import { parseDiff } from "../../utils/diffParser";
 import {
+  buildGitGraphRailModel,
   buildAheadBehindLabel,
+  getCommitRowTop,
+  getExpandedVirtualCommitWindow,
   getStatusColor,
   getStatusDisplayPath,
   getStatusLabel,
-  getVirtualCommitWindow,
   summarizeBranchInventory,
   summarizeCommitRefs,
+  type GitGraphRailModel,
 } from "./gitContentLayout";
 
 const MONO_STYLE = { fontFamily: '"Geist Mono", monospace' } as const;
@@ -360,9 +363,11 @@ function BranchPopover({
 // ── Commit detail inline panel ──
 
 function CommitDetailInline({
+  contentInset = 24,
   worktreePath,
   hash,
 }: {
+  contentInset?: number;
   worktreePath: string;
   hash: string;
 }) {
@@ -406,7 +411,13 @@ function CommitDetailInline({
   }
 
   return (
-    <div className="border-t" style={{ borderColor: "color-mix(in srgb, var(--border) 50%, transparent)" }}>
+    <div
+      className="border-t"
+      style={{
+        borderColor: "color-mix(in srgb, var(--border) 50%, transparent)",
+        backgroundColor: "var(--surface)",
+      }}
+    >
       {detail.files.map((file) => {
         const isExpanded = expandedFiles.has(file.name);
         const hunks = diffMap.get(file.name);
@@ -414,7 +425,8 @@ function CommitDetailInline({
         return (
           <div key={file.name}>
             <button
-              className="flex w-full items-center gap-1.5 px-6 py-1 text-left hover:bg-[var(--surface-hover)]"
+              className="flex w-full items-center gap-1.5 py-1 pr-6 text-left hover:bg-[var(--surface-hover)]"
+              style={{ paddingLeft: contentInset }}
               onClick={() => {
                 setExpandedFiles((prev) => {
                   const next = new Set(prev);
@@ -436,7 +448,10 @@ function CommitDetailInline({
               </span>
             </button>
             {isExpanded && hunks && hunks.length > 0 && (
-              <div className="overflow-x-auto px-6 py-1">
+              <div
+                className="overflow-x-auto py-1 pr-6"
+                style={{ paddingLeft: contentInset + 12 }}
+              >
                 {hunks.map((hunkContent, hunkIdx) => (
                   <div key={hunkIdx} style={{ minWidth: "fit-content" }}>
                     {hunkContent.split("\n").map((line, lineIdx) => {
@@ -472,6 +487,92 @@ function CommitDetailInline({
   );
 }
 
+function GitGraphRail({
+  model,
+  totalHeight,
+  onHoverCommit,
+  onLeaveCommit,
+  onSelectCommit,
+}: {
+  model: GitGraphRailModel;
+  totalHeight: number;
+  onHoverCommit: (hash: string) => void;
+  onLeaveCommit: (hash: string) => void;
+  onSelectCommit: (hash: string) => void;
+}) {
+  const hasInteractiveFocus = model.nodes.some((node) => node.isSelected || node.isHovered);
+  const firstOverflowNode = model.nodes.find((node) => node.isOverflow) ?? null;
+
+  return (
+    <svg
+      className="absolute left-0 top-0 z-10"
+      width={model.railWidth}
+      height={Math.max(totalHeight, 1)}
+      viewBox={`0 0 ${model.railWidth} ${Math.max(totalHeight, 1)}`}
+      fill="none"
+      aria-hidden="true"
+    >
+      {model.edges.map((edge) => (
+        <path
+          key={`${edge.fromHash}-${edge.toHash}`}
+          d={edge.path}
+          stroke={edge.color}
+          strokeWidth={edge.isFocused ? 1.6 : 1}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          opacity={hasInteractiveFocus ? (edge.isFocused ? 1 : 0.28) : 0.72}
+        />
+      ))}
+      {model.nodes.map((node) => (
+        <g
+          key={node.hash}
+          transform={`translate(${node.x} ${node.y})`}
+          onClick={() => onSelectCommit(node.hash)}
+          onMouseEnter={() => onHoverCommit(node.hash)}
+          onMouseLeave={() => onLeaveCommit(node.hash)}
+          style={{ cursor: "pointer" }}
+        >
+          {node.isSelected && (
+            <circle
+              r={8}
+              fill="color-mix(in srgb, var(--accent) 16%, transparent)"
+            />
+          )}
+          {node.isMerge && (
+            <circle
+              r={node.radius + 1.5}
+              fill="transparent"
+              stroke={node.color}
+              strokeWidth={1}
+              opacity={hasInteractiveFocus ? (node.isFocused ? 0.95 : 0.42) : 0.78}
+            />
+          )}
+          <circle
+            r={node.radius}
+            fill={node.isOverflow ? "var(--surface)" : node.color}
+            stroke={node.isOverflow ? node.color : "color-mix(in srgb, var(--bg) 78%, transparent)"}
+            strokeWidth={node.isOverflow ? 1.2 : 0.8}
+            opacity={hasInteractiveFocus ? (node.isFocused || node.isSelected || node.isHovered ? 1 : 0.42) : 0.96}
+          />
+        </g>
+      ))}
+      {model.overflow && firstOverflowNode && (
+        <text
+          x={model.overflow.x + 8}
+          y={firstOverflowNode.y + 3}
+          style={{
+            ...MONO_STYLE,
+            fill: "var(--text-faint)",
+            fontSize: "9px",
+          }}
+        >
+          {model.overflow.label}
+        </text>
+      )}
+    </svg>
+  );
+}
+
 // ── Main component ──
 
 export function GitContent({ worktreePath }: { worktreePath: string | null }) {
@@ -479,7 +580,7 @@ export function GitContent({ worktreePath }: { worktreePath: string | null }) {
   const { notify } = useNotificationStore();
 
   // Data hooks
-  const { commits, branches, isGitRepo, loading, refresh: refreshLog, loadMore, hasMore } = useGitLog(worktreePath);
+  const { commits, branches, edges, isGitRepo, loading, refresh: refreshLog, loadMore, hasMore } = useGitLog(worktreePath);
   const {
     stagedFiles,
     changedFiles,
@@ -511,6 +612,7 @@ export function GitContent({ worktreePath }: { worktreePath: string | null }) {
   const [branchPopoverOpen, setBranchPopoverOpen] = useState(false);
   const [initializingRepo, setInitializingRepo] = useState(false);
   const [switchingBranch, setSwitchingBranch] = useState(false);
+  const [hoveredCommitHash, setHoveredCommitHash] = useState<string | null>(null);
   const [selectedCommitHash, setSelectedCommitHash] = useState<string | null>(null);
 
   // History virtual scroll
@@ -546,6 +648,61 @@ export function GitContent({ worktreePath }: { worktreePath: string | null }) {
   useEffect(() => {
     adjustTextarea();
   }, [commitMessage, adjustTextarea]);
+
+  const selectedIndex = useMemo(
+    () => (selectedCommitHash ? commits.findIndex((commit) => commit.hash === selectedCommitHash) : -1),
+    [commits, selectedCommitHash],
+  );
+  const effectiveDetailHeight = selectedIndex >= 0 ? detailHeight : 0;
+  const effectiveViewportHeight = viewportHeight || 400;
+  const commitWindow = useMemo(
+    () =>
+      getExpandedVirtualCommitWindow({
+        itemCount: commits.length,
+        rowHeight: ROW_HEIGHT,
+        scrollTop,
+        viewportHeight: effectiveViewportHeight,
+        detailHeight: effectiveDetailHeight,
+        selectedIndex,
+      }),
+    [
+      commits.length,
+      effectiveDetailHeight,
+      effectiveViewportHeight,
+      scrollTop,
+      selectedIndex,
+    ],
+  );
+  const historyHeight = commits.length * ROW_HEIGHT + effectiveDetailHeight;
+  const graphRailModel = useMemo(
+    () =>
+      buildGitGraphRailModel({
+        commits,
+        detailHeight: effectiveDetailHeight,
+        edges,
+        hoveredCommitHash,
+        rowHeight: ROW_HEIGHT,
+        selectedCommitHash,
+        selectedIndex,
+        visibleEndIndex: commitWindow.endIndex,
+        visibleStartIndex: commitWindow.startIndex,
+      }),
+    [
+      commitWindow.endIndex,
+      commitWindow.startIndex,
+      commits,
+      edges,
+      effectiveDetailHeight,
+      hoveredCommitHash,
+      selectedCommitHash,
+      selectedIndex,
+    ],
+  );
+  const visibleCommits = commits.slice(commitWindow.startIndex, commitWindow.endIndex);
+  const handleCommitSelection = useCallback((hash: string) => {
+    setDetailHeight(0);
+    setSelectedCommitHash((prev) => (prev === hash ? null : hash));
+  }, []);
 
   // Refresh both on mount and on focus
   const refreshAll = useCallback(async () => {
@@ -930,58 +1087,79 @@ export function GitContent({ worktreePath }: { worktreePath: string | null }) {
               }
             }}
           >
-            <div style={{ height: commits.length * ROW_HEIGHT + (selectedCommitHash ? detailHeight : 0), position: "relative" }}>
-              {(() => {
-                const selectedIndex = selectedCommitHash
-                  ? commits.findIndex((c) => c.hash === selectedCommitHash)
-                  : -1;
-
-                // Compute virtual window; when a detail panel is expanded,
-                // also compute with shifted scroll to cover items on both sides
-                const vp = viewportHeight || 400;
-                const w1 = getVirtualCommitWindow({ itemCount: commits.length, rowHeight: ROW_HEIGHT, scrollTop, viewportHeight: vp });
-                let startIndex = w1.startIndex;
-                let endIndex = w1.endIndex;
-                if (selectedIndex >= 0 && detailHeight > 0) {
-                  const w2 = getVirtualCommitWindow({ itemCount: commits.length, rowHeight: ROW_HEIGHT, scrollTop: Math.max(0, scrollTop - detailHeight), viewportHeight: vp + detailHeight });
-                  startIndex = Math.min(startIndex, w2.startIndex);
-                  endIndex = Math.max(endIndex, w2.endIndex);
-                }
-
-                return commits.slice(startIndex, endIndex).map((c, i) => {
-                  const actualIndex = startIndex + i;
+            <div style={{ height: historyHeight, position: "relative" }}>
+              <GitGraphRail
+                model={graphRailModel}
+                totalHeight={historyHeight}
+                onHoverCommit={setHoveredCommitHash}
+                onLeaveCommit={(hash) => {
+                  setHoveredCommitHash((prev) => (prev === hash ? null : prev));
+                }}
+                onSelectCommit={handleCommitSelection}
+              />
+              {visibleCommits.map((c, i) => {
+                  const actualIndex = commitWindow.startIndex + i;
                   const isSelected = c.hash === selectedCommitHash;
-                  const { visibleRefs, hiddenCount } = summarizeCommitRefs(c.refs);
-                  // Offset items below the selected commit's detail panel
-                  const extraOffset = selectedIndex >= 0 && actualIndex > selectedIndex ? detailHeight : 0;
+                  const isHovered = c.hash === hoveredCommitHash;
+                  const isMergeCommit = c.parents.length > 1;
+                  const { visibleRefs, hiddenCount } = summarizeCommitRefs(c.refs, {
+                    currentBranchName: branchInfo.currentBranchName,
+                    localBranchNames: branchInfo.orderedLocalBranchNames,
+                    maxVisible: 3,
+                  });
+                  const rowTop = getCommitRowTop({
+                    detailHeight: effectiveDetailHeight,
+                    row: actualIndex,
+                    rowHeight: ROW_HEIGHT,
+                    selectedIndex,
+                  });
 
                   return (
                     <div key={c.hash}>
                       <button
-                        className="flex w-full items-center gap-2 px-3 text-left hover:bg-[var(--surface-hover)]"
+                        className="flex w-full items-center gap-2 pr-3 text-left hover:bg-[var(--surface-hover)]"
                         style={{
                           position: "absolute",
-                          top: actualIndex * ROW_HEIGHT + extraOffset,
+                          top: rowTop,
                           height: ROW_HEIGHT,
                           width: "100%",
+                          paddingLeft: graphRailModel.railWidth + 6,
                           backgroundColor: isSelected
                             ? "color-mix(in srgb, var(--accent) 8%, transparent)"
+                            : isHovered
+                              ? "color-mix(in srgb, var(--surface-hover) 82%, transparent)"
                             : undefined,
                           borderLeft: isSelected ? "2px solid var(--accent)" : "2px solid transparent",
                         }}
-                        onClick={() => {
-                          setDetailHeight(0);
-                          setSelectedCommitHash((prev) => (prev === c.hash ? null : c.hash));
+                        onClick={() => handleCommitSelection(c.hash)}
+                        onMouseEnter={() => setHoveredCommitHash(c.hash)}
+                        onMouseLeave={() => {
+                          setHoveredCommitHash((prev) => (prev === c.hash ? null : prev));
                         }}
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5">
                             <span
                               className="truncate text-[11px]"
-                              style={{ ...MONO_STYLE, color: "var(--text-primary)" }}
+                              style={{
+                                ...MONO_STYLE,
+                                color: isMergeCommit ? "var(--text-secondary)" : "var(--text-primary)",
+                              }}
                             >
                               {c.message}
                             </span>
+                            {isMergeCommit && (
+                              <span
+                                className="shrink-0 rounded px-1 text-[9px]"
+                                style={{
+                                  ...MONO_STYLE,
+                                  color: "var(--text-secondary)",
+                                  backgroundColor: "color-mix(in srgb, var(--text-secondary) 10%, transparent)",
+                                }}
+                              >
+                                merge
+                              </span>
+                            )}
                             {visibleRefs.map((ref) => (
                               <span
                                 key={ref}
@@ -1020,18 +1198,23 @@ export function GitContent({ worktreePath }: { worktreePath: string | null }) {
                           ref={detailRef}
                           style={{
                             position: "absolute",
-                            top: (actualIndex + 1) * ROW_HEIGHT,
-                            width: "100%",
-                            zIndex: 10,
+                            top: rowTop + ROW_HEIGHT,
+                            left: graphRailModel.railWidth,
+                            right: 0,
+                            zIndex: 5,
+                            backgroundColor: "var(--surface)",
                           }}
                         >
-                          <CommitDetailInline worktreePath={worktreePath!} hash={c.hash} />
+                          <CommitDetailInline
+                            worktreePath={worktreePath!}
+                            hash={c.hash}
+                            contentInset={6}
+                          />
                         </div>
                       )}
                     </div>
                   );
-                });
-              })()}
+                })}
             </div>
           </div>
         )}

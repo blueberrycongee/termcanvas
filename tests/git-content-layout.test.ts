@@ -2,14 +2,20 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildGitGraphRailModel,
   summarizeBranchInventory,
   summarizeCommitRefs,
   buildAheadBehindLabel,
+  getCommitNodeCenterY,
+  getCommitRowTop,
+  getExpandedVirtualCommitWindow,
+  getGitGraphRailMetrics,
   getStatusDisplayPath,
   getStatusColor,
   getStatusLabel,
   getVirtualCommitWindow,
 } from "../src/components/LeftPanel/gitContentLayout.ts";
+import { buildGitGraph } from "../src/utils/gitGraph.ts";
 
 test("summarizeBranchInventory prioritizes the current local branch and counts branch groups", () => {
   const summary = summarizeBranchInventory([
@@ -62,11 +68,15 @@ test("summarizeBranchInventory prioritizes the current local branch and counts b
 
 test("summarizeCommitRefs sorts by priority and limits visible refs", () => {
   const result = summarizeCommitRefs(
-    ["origin/main", "HEAD -> main", "tag: v1.0", "feature"],
-    2,
+    ["origin/main", "HEAD -> main", "tag: v1.0", "feature", "main"],
+    {
+      maxVisible: 3,
+      currentBranchName: "main",
+      localBranchNames: ["main", "feature"],
+    },
   );
 
-  assert.deepEqual(result.visibleRefs, ["HEAD -> main", "tag: v1.0"]);
+  assert.deepEqual(result.visibleRefs, ["HEAD -> main", "main", "feature"]);
   assert.equal(result.hiddenCount, 2);
 });
 
@@ -126,4 +136,162 @@ test("getVirtualCommitWindow calculates visible range with overscan", () => {
   // endIndex = min(100, ceil((200+400)/40) + 5) = min(100, 15+5) = 20
   assert.equal(result.startIndex, 0);
   assert.equal(result.endIndex, 20);
+});
+
+test("getGitGraphRailMetrics keeps compact widths and reports hidden lanes", () => {
+  assert.deepEqual(getGitGraphRailMetrics(2), {
+    railWidth: 28,
+    visibleLaneCount: 2,
+    hiddenLaneCount: 0,
+    laneGap: 8,
+    laneStartX: 10,
+    overflowX: null,
+  });
+
+  assert.deepEqual(getGitGraphRailMetrics(8), {
+    railWidth: 60,
+    visibleLaneCount: 6,
+    hiddenLaneCount: 2,
+    laneGap: 8,
+    laneStartX: 10,
+    overflowX: 52,
+  });
+});
+
+test("commit row helpers keep rows and nodes aligned around the expanded detail panel", () => {
+  assert.equal(
+    getCommitRowTop({ row: 1, rowHeight: 40, selectedIndex: 2, detailHeight: 90 }),
+    40,
+  );
+  assert.equal(
+    getCommitRowTop({ row: 3, rowHeight: 40, selectedIndex: 2, detailHeight: 90 }),
+    210,
+  );
+  assert.equal(
+    getCommitNodeCenterY({ row: 3, rowHeight: 40, selectedIndex: 2, detailHeight: 90 }),
+    230,
+  );
+});
+
+test("getExpandedVirtualCommitWindow covers rows on both sides of the inserted detail panel", () => {
+  const result = getExpandedVirtualCommitWindow({
+    itemCount: 100,
+    rowHeight: 40,
+    scrollTop: 400,
+    viewportHeight: 160,
+    detailHeight: 120,
+    selectedIndex: 10,
+    overscan: 1,
+  });
+
+  assert.deepEqual(result, {
+    startIndex: 6,
+    endIndex: 15,
+  });
+});
+
+test("buildGitGraphRailModel returns visible nodes, highlighted parent edges, and curved merge paths", () => {
+  const { commits, edges } = buildGitGraph([
+    {
+      hash: "m",
+      parents: ["b", "c"],
+      refs: ["HEAD -> main"],
+      author: "Test User",
+      date: "2026-03-26T00:00:00.000Z",
+      message: "merge feature",
+    },
+    {
+      hash: "b",
+      parents: ["a"],
+      refs: ["main"],
+      author: "Test User",
+      date: "2026-03-25T00:00:00.000Z",
+      message: "main work",
+    },
+    {
+      hash: "c",
+      parents: ["a"],
+      refs: ["feature"],
+      author: "Test User",
+      date: "2026-03-24T00:00:00.000Z",
+      message: "feature work",
+    },
+    {
+      hash: "a",
+      parents: [],
+      refs: [],
+      author: "Test User",
+      date: "2026-03-23T00:00:00.000Z",
+      message: "root",
+    },
+  ]);
+
+  const model = buildGitGraphRailModel({
+    commits,
+    edges,
+    rowHeight: 40,
+    visibleStartIndex: 0,
+    visibleEndIndex: commits.length,
+    selectedCommitHash: "m",
+    hoveredCommitHash: null,
+    selectedIndex: 0,
+    detailHeight: 0,
+  });
+
+  const mergeNode = model.nodes.find((node) => node.hash === "m");
+  const featureEdge = model.edges.find(
+    (edge) => edge.fromHash === "m" && edge.toHash === "c",
+  );
+  const trunkEdge = model.edges.find(
+    (edge) => edge.fromHash === "m" && edge.toHash === "b",
+  );
+
+  assert.ok(mergeNode);
+  assert.equal(mergeNode.x, 10);
+  assert.equal(mergeNode.y, 20);
+  assert.equal(mergeNode.isMerge, true);
+  assert.equal(mergeNode.isSelected, true);
+  assert.equal(mergeNode.radius, 5);
+
+  assert.ok(featureEdge);
+  assert.ok(featureEdge.path.includes("C"));
+  assert.equal(featureEdge.isFocused, true);
+
+  assert.ok(trunkEdge);
+  assert.ok(trunkEdge.path.includes("L"));
+  assert.equal(trunkEdge.isFocused, true);
+});
+
+test("buildGitGraphRailModel collapses hidden lanes into an overflow rail marker", () => {
+  const model = buildGitGraphRailModel({
+    commits: Array.from({ length: 8 }, (_, lane) => ({
+      hash: `c${lane}`,
+      parents: [],
+      refs: [],
+      author: "Test User",
+      date: "2026-03-20T00:00:00.000Z",
+      message: `commit ${lane}`,
+      lane,
+      row: lane,
+    })),
+    edges: [],
+    rowHeight: 40,
+    visibleStartIndex: 0,
+    visibleEndIndex: 8,
+    selectedCommitHash: null,
+    hoveredCommitHash: null,
+    selectedIndex: -1,
+    detailHeight: 0,
+  });
+
+  const overflowNode = model.nodes.find((node) => node.hash === "c7");
+
+  assert.deepEqual(model.overflow, {
+    x: 52,
+    label: "+2 lanes",
+    hiddenLaneCount: 2,
+  });
+  assert.ok(overflowNode);
+  assert.equal(overflowNode.isOverflow, true);
+  assert.equal(overflowNode.x, 52);
 });

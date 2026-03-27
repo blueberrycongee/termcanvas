@@ -1,4 +1,4 @@
-const GRAPH_COLORS = [
+export const GRAPH_COLORS = [
   "color-mix(in srgb, var(--accent) 88%, var(--surface) 12%)",
   "color-mix(in srgb, var(--cyan) 84%, var(--surface) 16%)",
   "color-mix(in srgb, var(--amber) 82%, var(--surface) 18%)",
@@ -22,6 +22,8 @@ export interface GraphCommit extends GitGraphInputCommit {
 }
 
 export interface GraphEdge {
+  fromHash: string;
+  toHash: string;
   fromLane: number;
   fromRow: number;
   toLane: number;
@@ -101,6 +103,8 @@ export function buildGitGraph(commits: GitGraphInputCommit[]): {
       }
 
       edges.push({
+        fromHash: commit.hash,
+        toHash: parentCommit.hash,
         fromLane: commit.lane,
         fromRow: commit.row,
         toLane: parentCommit.lane,

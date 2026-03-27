@@ -55,10 +55,22 @@ test("buildGitGraph keeps the first-parent history straight and routes merges on
   assert.equal(
     edges.some(
       (edge) =>
+        edge.fromHash === "m" &&
+        edge.toHash === "c" &&
         edge.fromLane === 0 &&
         edge.fromRow === 0 &&
         edge.toLane === 1 &&
         edge.toRow === 2,
+    ),
+    true,
+  );
+  assert.equal(
+    edges.some(
+      (edge) =>
+        edge.fromHash === "m" &&
+        edge.toHash === "b" &&
+        edge.fromLane === 0 &&
+        edge.toLane === 0,
     ),
     true,
   );
