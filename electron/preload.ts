@@ -41,6 +41,10 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("session:find-codex", cwd, startedAt) as Promise<
         { sessionId: string; filePath: string; confidence: "medium" | "weak" } | null
       >,
+    findClaude: (cwd: string, startedAt?: string, pid?: number | null) =>
+      ipcRenderer.invoke("session:find-claude", cwd, startedAt, pid) as Promise<
+        { sessionId: string; filePath: string; confidence: "strong" | "medium" | "weak" } | null
+      >,
     getClaudeByPid: (pid: number) =>
       ipcRenderer.invoke("session:get-claude-by-pid", pid) as Promise<
         string | null
@@ -79,6 +83,14 @@ contextBridge.exposeInMainWorld("termcanvas", {
       }>,
     detachSession: (terminalId: string) =>
       ipcRenderer.invoke("telemetry:detach-session", terminalId) as Promise<void>,
+    updateTerminal: (input: {
+      terminalId: string;
+      worktreePath?: string;
+      provider?: "claude" | "codex" | "unknown";
+      ptyId?: number | null;
+      shellPid?: number | null;
+    }) =>
+      ipcRenderer.invoke("telemetry:update-terminal", input),
     getTerminal: (terminalId: string) =>
       ipcRenderer.invoke("telemetry:get-terminal", terminalId),
     getWorkflow: (workflowId: string, repoPath: string) =>
@@ -124,6 +136,22 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("git:checkout", worktreePath, ref),
     init: (worktreePath: string) =>
       ipcRenderer.invoke("git:init", worktreePath),
+    status: (worktreePath: string) =>
+      ipcRenderer.invoke("git:status", worktreePath) as Promise<
+        import("../src/types").GitStatusEntry[]
+      >,
+    stage: (worktreePath: string, paths: string[]) =>
+      ipcRenderer.invoke("git:stage", worktreePath, paths) as Promise<void>,
+    unstage: (worktreePath: string, paths: string[]) =>
+      ipcRenderer.invoke("git:unstage", worktreePath, paths) as Promise<void>,
+    discard: (worktreePath: string, trackedPaths: string[], untrackedPaths: string[]) =>
+      ipcRenderer.invoke("git:discard", worktreePath, trackedPaths, untrackedPaths) as Promise<void>,
+    commit: (worktreePath: string, message: string) =>
+      ipcRenderer.invoke("git:commit", worktreePath, message) as Promise<string>,
+    push: (worktreePath: string) =>
+      ipcRenderer.invoke("git:push", worktreePath) as Promise<string>,
+    pull: (worktreePath: string) =>
+      ipcRenderer.invoke("git:pull", worktreePath) as Promise<string>,
     onChanged: (callback: (worktreePath: string) => void) => {
       const listener = (
         _event: Electron.IpcRendererEvent,

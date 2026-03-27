@@ -32,7 +32,6 @@ import {
   submitComposerRequest,
 } from "./composer-submit";
 import { collectUsage, collectHeatmapData } from "./usage-collector";
-import { findCodexJsonlFiles } from "./usage-collector";
 import { installDownloadedUpdate, setupAutoUpdater, stopAutoUpdater } from "./auto-updater";
 import { initAuth, login, logout, getAuthUser, getDeviceId, handleAuthCallback, onAuthStateChange, isLoggedIn } from "./auth";
 import { toFileUrl } from "./file-url";
@@ -41,14 +40,22 @@ import type { ComposerSubmitRequest } from "../src/types";
 import { getProjectDiff } from "./git-diff";
 import {
   checkoutGitRef,
+  createCommit,
+  discardFiles,
   getGitBranches,
   getGitCommitDetail,
   getGitLog,
+  getGitStatus,
+  gitPull,
+  gitPush,
   initGitRepo,
   isGitRepo,
+  stageFiles,
+  unstageFiles,
 } from "./git-info";
 import { createMenu } from "./menu";
 import { TelemetryService } from "./telemetry-service";
+import { findBestClaudeSession, findBestCodexSession } from "./session-discovery";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -101,86 +108,6 @@ const apiServer = new ApiServer({
   projectScanner,
   telemetryService,
 });
-
-function readCodexSessionMeta(filePath: string): { cwd: string | null; timestampMs: number | null } {
-  try {
-    const lines = fs.readFileSync(filePath, "utf-8").split("\n").slice(0, 20);
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      const parsed = JSON.parse(line) as { type?: string; payload?: Record<string, unknown> };
-      if (parsed.type !== "session_meta" || !parsed.payload) continue;
-      const cwd = typeof parsed.payload.cwd === "string" ? parsed.payload.cwd : null;
-      const timestampMs =
-        typeof parsed.payload.timestamp === "string"
-          ? new Date(parsed.payload.timestamp).getTime()
-          : null;
-      return { cwd, timestampMs };
-    }
-  } catch {
-    // ignore parse failures
-  }
-  return { cwd: null, timestampMs: null };
-}
-
-function findBestCodexSession(
-  cwd: string,
-  startedAt?: string,
-): { sessionId: string; filePath: string; confidence: "medium" | "weak" } | null {
-  const startedMs = startedAt ? new Date(startedAt).getTime() : NaN;
-  const files = findCodexJsonlFiles();
-  const candidates = files
-    .map((filePath) => {
-      const stat = fs.statSync(filePath);
-      const meta = readCodexSessionMeta(filePath);
-      if (meta.cwd !== cwd) {
-        return null;
-      }
-      const anchorMs = Number.isFinite(meta.timestampMs ?? NaN)
-        ? meta.timestampMs!
-        : stat.mtimeMs;
-      const distance = Number.isFinite(startedMs) ? Math.abs(anchorMs - startedMs) : 0;
-      return {
-        sessionId: path.basename(filePath, ".jsonl"),
-        filePath,
-        confidence: "medium" as const,
-        anchorMs,
-        distance,
-      };
-    })
-    .filter((candidate): candidate is {
-      sessionId: string;
-      filePath: string;
-      confidence: "medium";
-      anchorMs: number;
-      distance: number;
-    } => candidate !== null)
-    .sort((left, right) => {
-      if (left.distance !== right.distance) return left.distance - right.distance;
-      return right.anchorMs - left.anchorMs;
-    });
-
-  if (candidates.length > 0) {
-    return candidates[0];
-  }
-
-  try {
-    const indexPath = path.join(os.homedir(), ".codex", "session_index.jsonl");
-    if (!fs.existsSync(indexPath)) return null;
-    const lines = fs.readFileSync(indexPath, "utf-8").trim().split("\n");
-    const last = lines[lines.length - 1];
-    if (!last) return null;
-    const entry = JSON.parse(last) as { id?: string };
-    if (!entry.id) return null;
-    const fallbackFile = files.find((filePath) => path.basename(filePath).includes(entry.id!));
-    return {
-      sessionId: entry.id,
-      filePath: fallbackFile ?? "",
-      confidence: "weak",
-    };
-  } catch {
-    return null;
-  }
-}
 
 function createWindow() {
   forceClose = false;
@@ -404,6 +331,13 @@ function setupIpc() {
     }
   });
 
+  ipcMain.handle(
+    "session:find-claude",
+    (_event, cwd: string, startedAt?: string, pid?: number | null) => {
+      return findBestClaudeSession(cwd, startedAt, pid);
+    },
+  );
+
   ipcMain.handle("session:get-kimi-latest", (_event, cwd: string) => {
     try {
       // Kimi stores sessions under ~/.kimi/sessions/{cwd_hash}/{session_uuid}/
@@ -518,6 +452,38 @@ function setupIpc() {
     return initGitRepo(worktreePath);
   });
 
+  ipcMain.handle("git:status", async (_event, worktreePath: string) => {
+    try {
+      return await getGitStatus(worktreePath);
+    } catch {
+      return [];
+    }
+  });
+
+  ipcMain.handle("git:stage", async (_event, worktreePath: string, paths: string[]) => {
+    return stageFiles(worktreePath, paths);
+  });
+
+  ipcMain.handle("git:unstage", async (_event, worktreePath: string, paths: string[]) => {
+    return unstageFiles(worktreePath, paths);
+  });
+
+  ipcMain.handle("git:discard", async (_event, worktreePath: string, tracked: string[], untracked: string[]) => {
+    return discardFiles(worktreePath, tracked, untracked);
+  });
+
+  ipcMain.handle("git:commit", async (_event, worktreePath: string, message: string) => {
+    return createCommit(worktreePath, message);
+  });
+
+  ipcMain.handle("git:push", async (_event, worktreePath: string) => {
+    return gitPush(worktreePath);
+  });
+
+  ipcMain.handle("git:pull", async (_event, worktreePath: string) => {
+    return gitPull(worktreePath);
+  });
+
   // Session turn-completion watcher IPC
   ipcMain.handle(
     "session:watch",
@@ -555,6 +521,16 @@ function setupIpc() {
 
   ipcMain.handle("telemetry:detach-session", (_event, terminalId: string) => {
     telemetryService.detachSessionSource(terminalId);
+  });
+
+  ipcMain.handle("telemetry:update-terminal", (_event, input: {
+    terminalId: string;
+    worktreePath?: string;
+    provider?: "claude" | "codex" | "unknown";
+    ptyId?: number | null;
+    shellPid?: number | null;
+  }) => {
+    return telemetryService.updateTerminal(input);
   });
 
   ipcMain.handle("telemetry:get-terminal", (_event, terminalId: string) => {

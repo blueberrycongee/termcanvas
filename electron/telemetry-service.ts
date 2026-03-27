@@ -56,6 +56,17 @@ interface RegisterTerminalInput {
   shellPid?: number | null;
 }
 
+interface UpdateTerminalInput {
+  terminalId: string;
+  worktreePath?: string;
+  provider?: TelemetryProvider;
+  workflowId?: string;
+  handoffId?: string;
+  repoPath?: string;
+  ptyId?: number | null;
+  shellPid?: number | null;
+}
+
 interface SessionAttachInput {
   terminalId: string;
   provider: TelemetryProvider;
@@ -212,6 +223,9 @@ export class TelemetryService {
     state.snapshot.handoff_id = input.handoffId ?? state.snapshot.handoff_id;
     state.snapshot.repo_path = input.repoPath ?? state.snapshot.repo_path;
     if (input.ptyId !== undefined) {
+      if (state.ptyId !== null && state.ptyId !== input.ptyId) {
+        this.ptyToTerminal.delete(state.ptyId);
+      }
       state.ptyId = input.ptyId;
       state.snapshot.pty_alive = input.ptyId !== null;
       if (input.ptyId !== null) {
@@ -224,6 +238,34 @@ export class TelemetryService {
     return this.getTerminalSnapshot(input.terminalId)!;
   }
 
+  updateTerminal(input: UpdateTerminalInput): TerminalTelemetrySnapshot {
+    const state = this.ensureState(input.terminalId);
+    if (input.worktreePath !== undefined) {
+      state.snapshot.worktree_path = input.worktreePath;
+    }
+    if (input.provider !== undefined) {
+      state.snapshot.provider = input.provider;
+    }
+    state.snapshot.workflow_id = input.workflowId ?? state.snapshot.workflow_id;
+    state.snapshot.handoff_id = input.handoffId ?? state.snapshot.handoff_id;
+    state.snapshot.repo_path = input.repoPath ?? state.snapshot.repo_path;
+    if (input.ptyId !== undefined) {
+      if (state.ptyId !== null && state.ptyId !== input.ptyId) {
+        this.ptyToTerminal.delete(state.ptyId);
+      }
+      state.ptyId = input.ptyId;
+      state.snapshot.pty_alive = input.ptyId !== null;
+      if (input.ptyId !== null) {
+        this.ptyToTerminal.set(input.ptyId, input.terminalId);
+      }
+    }
+    if (input.shellPid !== undefined) {
+      state.shellPid = input.shellPid;
+    }
+    this.updateDerivedStatus(state);
+    return cloneSnapshot(state.snapshot);
+  }
+
   recordPtyCreated(input: {
     terminalId: string;
     ptyId: number;
@@ -231,6 +273,9 @@ export class TelemetryService {
     at?: string;
   }): void {
     const state = this.ensureState(input.terminalId);
+    if (state.ptyId !== null && state.ptyId !== input.ptyId) {
+      this.ptyToTerminal.delete(state.ptyId);
+    }
     state.ptyId = input.ptyId;
     state.shellPid = input.shellPid ?? state.shellPid;
     state.snapshot.pty_alive = true;
@@ -277,6 +322,10 @@ export class TelemetryService {
   recordPtyExit(terminalId: string, exitCode: number, at?: string): void {
     const state = this.ensureState(terminalId);
     const timestamp = at ?? isoNow(this.now);
+    if (state.ptyId !== null) {
+      this.ptyToTerminal.delete(state.ptyId);
+    }
+    state.ptyId = null;
     state.snapshot.pty_alive = false;
     state.snapshot.exit_code = exitCode;
     this.stopProcessPolling(state);
@@ -287,6 +336,11 @@ export class TelemetryService {
   recordPtyExitByPtyId(ptyId: number, exitCode: number, at?: string): void {
     const terminalId = this.ptyToTerminal.get(ptyId);
     if (!terminalId) return;
+    const state = this.terminals.get(terminalId);
+    if (state?.ptyId !== ptyId) {
+      this.ptyToTerminal.delete(ptyId);
+      return;
+    }
     this.recordPtyExit(terminalId, exitCode, at);
   }
 

@@ -43,6 +43,15 @@ export interface GitCommitDetail {
   files: ProjectDiffFile[];
 }
 
+export type GitFileStatus = "M" | "A" | "D" | "R" | "C" | "U" | "?";
+
+export interface GitStatusEntry {
+  path: string;
+  status: GitFileStatus;
+  staged: boolean;
+  originalPath?: string;
+}
+
 async function execGitText(
   worktreePath: string,
   args: string[],
@@ -231,4 +240,118 @@ export async function checkoutGitRef(worktreePath: string, ref: string): Promise
 
 export async function initGitRepo(worktreePath: string): Promise<void> {
   await execGitText(worktreePath, ["init", "-b", "main"], DEFAULT_MAX_BUFFER);
+}
+
+// -- Source control operations --
+
+const STATUS_CODE_MAP: Record<string, GitFileStatus> = {
+  M: "M",
+  A: "A",
+  D: "D",
+  R: "R",
+  C: "C",
+  U: "U",
+  T: "M", // type-change treated as modified
+};
+
+function mapStatusCode(code: string): GitFileStatus {
+  return STATUS_CODE_MAP[code] ?? "M";
+}
+
+export function parseGitStatusOutput(raw: string): GitStatusEntry[] {
+  if (!raw) return [];
+
+  const entries: GitStatusEntry[] = [];
+  const parts = raw.split("\0").filter(Boolean);
+
+  let i = 0;
+  while (i < parts.length) {
+    const entry = parts[i];
+    if (entry.length < 4) {
+      i++;
+      continue;
+    }
+
+    const x = entry[0]; // staged status
+    const y = entry[1]; // unstaged status
+    const filePath = entry.slice(3);
+
+    // Untracked
+    if (x === "?" && y === "?") {
+      entries.push({ path: filePath, status: "?", staged: false });
+      i++;
+      continue;
+    }
+
+    // Rename/copy in index: next part is the original path
+    const isRenameOrCopy = x === "R" || x === "C";
+    const originalPath = isRenameOrCopy ? parts[i + 1] : undefined;
+
+    // Staged change
+    if (x !== " " && x !== "?") {
+      entries.push({
+        path: filePath,
+        status: mapStatusCode(x),
+        staged: true,
+        ...(originalPath ? { originalPath } : {}),
+      });
+    }
+
+    // Unstaged change
+    if (y !== " ") {
+      entries.push({
+        path: filePath,
+        status: mapStatusCode(y),
+        staged: false,
+      });
+    }
+
+    i += isRenameOrCopy ? 2 : 1;
+  }
+
+  return entries;
+}
+
+export async function getGitStatus(worktreePath: string): Promise<GitStatusEntry[]> {
+  const raw = await execGitText(worktreePath, ["status", "--porcelain=v1", "-z"]);
+  return parseGitStatusOutput(raw);
+}
+
+export async function stageFiles(worktreePath: string, paths: string[]): Promise<void> {
+  if (paths.length === 0) return;
+  await execGitText(worktreePath, ["add", "--", ...paths]);
+}
+
+export async function unstageFiles(worktreePath: string, paths: string[]): Promise<void> {
+  if (paths.length === 0) return;
+  await execGitText(worktreePath, ["reset", "HEAD", "--", ...paths]);
+}
+
+export async function discardFiles(
+  worktreePath: string,
+  trackedPaths: string[],
+  untrackedPaths: string[],
+): Promise<void> {
+  const ops: Promise<string>[] = [];
+  if (trackedPaths.length > 0) {
+    ops.push(execGitText(worktreePath, ["checkout", "--", ...trackedPaths]));
+  }
+  if (untrackedPaths.length > 0) {
+    ops.push(execGitText(worktreePath, ["clean", "-f", "--", ...untrackedPaths]));
+  }
+  await Promise.all(ops);
+}
+
+export async function createCommit(worktreePath: string, message: string): Promise<string> {
+  const result = await execGitText(worktreePath, ["commit", "-m", message]);
+  const match = result.match(/\[[\w/.-]+ ([a-f0-9]+)\]/);
+  return match?.[1] ?? "";
+}
+
+export async function gitPush(worktreePath: string): Promise<string> {
+  return execGitText(worktreePath, ["push"]);
+}
+
+export async function gitPull(worktreePath: string): Promise<string> {
+  return execGitText(worktreePath, ["pull"]);
 }

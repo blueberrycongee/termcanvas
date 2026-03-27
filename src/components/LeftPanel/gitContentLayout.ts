@@ -1,5 +1,4 @@
-import type { GitBranchInfo, GitCommitFile } from "../../types";
-import type { GraphCommit } from "../../utils/gitGraph";
+import type { GitBranchInfo, GitFileStatus } from "../../types";
 
 export interface CommitRefSummary {
   visibleRefs: string[];
@@ -12,22 +11,6 @@ export interface BranchInventorySummary {
   currentBranchName: string | null;
   trackingName: string | null;
   orderedLocalBranchNames: string[];
-}
-
-export interface GitHistoryMetrics {
-  commitCount: number;
-  mergeCount: number;
-  contributorCount: number;
-  referencedCommitCount: number;
-}
-
-export interface CommitFileStats {
-  totalFiles: number;
-  additions: number;
-  deletions: number;
-  binaryCount: number;
-  imageCount: number;
-  renamedCount: number;
 }
 
 export interface VirtualCommitWindowInput {
@@ -102,64 +85,6 @@ export function summarizeBranchInventory(
   };
 }
 
-export function summarizeGitHistoryMetrics(
-  commits: Array<Pick<GraphCommit, "author" | "parents" | "refs">>,
-): GitHistoryMetrics {
-  const contributors = new Set<string>();
-  let mergeCount = 0;
-  let referencedCommitCount = 0;
-
-  for (const commit of commits) {
-    contributors.add(commit.author);
-    if (commit.parents.length > 1) {
-      mergeCount += 1;
-    }
-    if (commit.refs.length > 0) {
-      referencedCommitCount += 1;
-    }
-  }
-
-  return {
-    commitCount: commits.length,
-    mergeCount,
-    contributorCount: contributors.size,
-    referencedCommitCount,
-  };
-}
-
-export function summarizeCommitFileStats(
-  files: GitCommitFile[],
-): CommitFileStats {
-  let additions = 0;
-  let deletions = 0;
-  let binaryCount = 0;
-  let imageCount = 0;
-  let renamedCount = 0;
-
-  for (const file of files) {
-    additions += file.additions;
-    deletions += file.deletions;
-    if (file.binary) {
-      binaryCount += 1;
-    }
-    if (file.isImage) {
-      imageCount += 1;
-    }
-    if (file.name.includes("=>")) {
-      renamedCount += 1;
-    }
-  }
-
-  return {
-    totalFiles: files.length,
-    additions,
-    deletions,
-    binaryCount,
-    imageCount,
-    renamedCount,
-  };
-}
-
 export function getVirtualCommitWindow({
   itemCount,
   overscan = 8,
@@ -177,4 +102,45 @@ export function getVirtualCommitWindow({
     startIndex,
     endIndex,
   };
+}
+
+// -- Source control utilities --
+
+export function getStatusDisplayPath(filePath: string): { fileName: string; directory: string } {
+  const lastSlash = filePath.lastIndexOf("/");
+  if (lastSlash === -1) {
+    return { fileName: filePath, directory: "" };
+  }
+  return {
+    fileName: filePath.slice(lastSlash + 1),
+    directory: filePath.slice(0, lastSlash),
+  };
+}
+
+const STATUS_COLORS: Record<GitFileStatus, string> = {
+  M: "var(--amber)",
+  A: "var(--cyan)",
+  D: "var(--red)",
+  R: "var(--accent)",
+  C: "var(--accent)",
+  U: "var(--red)",
+  "?": "var(--cyan)",
+};
+
+export function getStatusColor(status: GitFileStatus): string {
+  return STATUS_COLORS[status] ?? "var(--text-secondary)";
+}
+
+const STATUS_LABELS: Record<GitFileStatus, string> = {
+  M: "M",
+  A: "A",
+  D: "D",
+  R: "R",
+  C: "C",
+  U: "U",
+  "?": "U",
+};
+
+export function getStatusLabel(status: GitFileStatus): string {
+  return STATUS_LABELS[status] ?? status;
 }

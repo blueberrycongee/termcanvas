@@ -290,6 +290,15 @@ export interface GitCommitDetail {
   files: GitCommitFile[];
 }
 
+export type GitFileStatus = "M" | "A" | "D" | "R" | "C" | "U" | "?";
+
+export interface GitStatusEntry {
+  path: string;
+  status: GitFileStatus;
+  staged: boolean;
+  originalPath?: string;
+}
+
 // Preload API types
 export interface TermCanvasAPI {
   terminal: {
@@ -316,6 +325,11 @@ export interface TermCanvasAPI {
       cwd: string,
       startedAt?: string,
     ) => Promise<{ sessionId: string; filePath: string; confidence: "medium" | "weak" } | null>;
+    findClaude: (
+      cwd: string,
+      startedAt?: string,
+      pid?: number | null,
+    ) => Promise<{ sessionId: string; filePath: string; confidence: "strong" | "medium" | "weak" } | null>;
     getClaudeByPid: (pid: number) => Promise<string | null>;
     getKimiLatest: (cwd: string) => Promise<string | null>;
     watch: (type: string, sessionId: string, cwd: string) => Promise<{ ok: boolean; reason?: string }>;
@@ -331,6 +345,13 @@ export interface TermCanvasAPI {
       confidence: "strong" | "medium" | "weak";
     }) => Promise<{ ok: boolean; sessionFile: string | null }>;
     detachSession: (terminalId: string) => Promise<void>;
+    updateTerminal: (input: {
+      terminalId: string;
+      worktreePath?: string;
+      provider?: "claude" | "codex" | "unknown";
+      ptyId?: number | null;
+      shellPid?: number | null;
+    }) => Promise<TerminalTelemetrySnapshot>;
     getTerminal: (terminalId: string) => Promise<TerminalTelemetrySnapshot | null>;
     getWorkflow: (workflowId: string, repoPath: string) => Promise<WorkflowTelemetrySnapshot | null>;
     listEvents: (input: { terminalId: string; limit?: number; cursor?: string }) => Promise<TelemetryEventPage>;
@@ -368,6 +389,13 @@ export interface TermCanvasAPI {
     commitDetail: (worktreePath: string, hash: string) => Promise<GitCommitDetail | null>;
     checkout: (worktreePath: string, ref: string) => Promise<void>;
     init: (worktreePath: string) => Promise<void>;
+    status: (worktreePath: string) => Promise<GitStatusEntry[]>;
+    stage: (worktreePath: string, paths: string[]) => Promise<void>;
+    unstage: (worktreePath: string, paths: string[]) => Promise<void>;
+    discard: (worktreePath: string, trackedPaths: string[], untrackedPaths: string[]) => Promise<void>;
+    commit: (worktreePath: string, message: string) => Promise<string>;
+    push: (worktreePath: string) => Promise<string>;
+    pull: (worktreePath: string) => Promise<string>;
     onChanged: (callback: (worktreePath: string) => void) => () => void;
     onLogChanged: (callback: (worktreePath: string) => void) => () => void;
     onPresenceChanged: (
