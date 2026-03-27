@@ -170,19 +170,21 @@ function CollapsibleGroup({
   defaultExpanded = true,
   actions,
   children,
+  className,
 }: {
   title: string;
   count: number;
   defaultExpanded?: boolean;
   actions?: React.ReactNode;
   children: React.ReactNode;
+  className?: string;
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   return (
-    <div>
+    <div className={className}>
       <button
-        className="group flex w-full items-center gap-1 px-2 py-1.5 text-left hover:bg-[var(--surface-hover)]"
+        className="group flex w-full shrink-0 items-center gap-1 px-2 py-1.5 text-left hover:bg-[var(--surface-hover)]"
         onClick={() => setExpanded((prev) => !prev)}
       >
         <IconChevron expanded={expanded} />
@@ -767,276 +769,273 @@ export function GitContent({ worktreePath }: { worktreePath: string | null }) {
         </div>
       </div>
 
-      {/* ── Scrollable content ── */}
-      <div className="flex-1 min-h-0 overflow-auto">
-        {totalChanges === 0 && !statusLoading && (
-          <div
-            className="px-4 py-6 text-center text-[11px]"
-            style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
-          >
-            {t.git_nothing_to_commit}
-          </div>
-        )}
-
-        {/* ── Staged Changes ── */}
-        {stagedFiles.length > 0 && (
-          <CollapsibleGroup
-            title={t.git_staged_changes}
-            count={stagedFiles.length}
-            actions={
-              <button
-                title={t.git_unstage_all}
-                onClick={async () => {
-                  try {
-                    await unstageAll();
-                  } catch (error) {
-                    notify("error", t.git_unstage_failed(String(error)));
+      {/* ── Changes area — shrinkable with cap ── */}
+      {totalChanges > 0 ? (
+        <div className="shrink-0 overflow-auto" style={{ maxHeight: "40%" }}>
+          {/* ── Staged Changes ── */}
+          {stagedFiles.length > 0 && (
+            <CollapsibleGroup
+              title={t.git_staged_changes}
+              count={stagedFiles.length}
+              actions={
+                <button
+                  title={t.git_unstage_all}
+                  onClick={async () => {
+                    try {
+                      await unstageAll();
+                    } catch (error) {
+                      notify("error", t.git_unstage_failed(String(error)));
+                    }
+                  }}
+                  className="flex h-5 w-5 items-center justify-center rounded hover:bg-[var(--surface-hover)]"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  <IconMinus />
+                </button>
+              }
+            >
+              {stagedFiles.map((entry) => (
+                <FileListItem
+                  key={`staged-${entry.path}`}
+                  entry={entry}
+                  actions={
+                    <ActionButton
+                      title={t.git_unstage}
+                      onClick={async () => {
+                        try {
+                          await unstageFiles([entry.path]);
+                        } catch (error) {
+                          notify("error", t.git_unstage_failed(String(error)));
+                        }
+                      }}
+                    >
+                      <IconMinus />
+                    </ActionButton>
                   }
-                }}
-                className="flex h-5 w-5 items-center justify-center rounded hover:bg-[var(--surface-hover)]"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                <IconMinus />
-              </button>
-            }
-          >
-            {stagedFiles.map((entry) => (
-              <FileListItem
-                key={`staged-${entry.path}`}
-                entry={entry}
-                actions={
-                  <ActionButton
-                    title={t.git_unstage}
+                />
+              ))}
+            </CollapsibleGroup>
+          )}
+
+          {/* ── Changes ── */}
+          {changedFiles.length > 0 && (
+            <CollapsibleGroup
+              title={t.git_changes}
+              count={changedFiles.length}
+              actions={
+                <>
+                  <button
+                    title={t.git_stage_all}
                     onClick={async () => {
                       try {
-                        await unstageFiles([entry.path]);
+                        await stageAll();
                       } catch (error) {
-                        notify("error", t.git_unstage_failed(String(error)));
+                        notify("error", t.git_stage_failed(String(error)));
                       }
                     }}
+                    className="flex h-5 w-5 items-center justify-center rounded hover:bg-[var(--surface-hover)]"
+                    style={{ color: "var(--text-secondary)" }}
                   >
-                    <IconMinus />
-                  </ActionButton>
-                }
-              />
-            ))}
-          </CollapsibleGroup>
-        )}
-
-        {/* ── Changes ── */}
-        {changedFiles.length > 0 && (
-          <CollapsibleGroup
-            title={t.git_changes}
-            count={changedFiles.length}
-            actions={
-              <>
-                <button
-                  title={t.git_stage_all}
-                  onClick={async () => {
-                    try {
-                      await stageAll();
-                    } catch (error) {
-                      notify("error", t.git_stage_failed(String(error)));
-                    }
-                  }}
-                  className="flex h-5 w-5 items-center justify-center rounded hover:bg-[var(--surface-hover)]"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  <IconPlus />
-                </button>
-                <button
-                  title={t.git_discard_all}
-                  onClick={async () => {
-                    try {
-                      await discardAll();
-                    } catch (error) {
-                      notify("error", t.git_discard_failed(String(error)));
-                    }
-                  }}
-                  className="flex h-5 w-5 items-center justify-center rounded hover:bg-[var(--surface-hover)]"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  <IconX />
-                </button>
-              </>
-            }
-          >
-            {changedFiles.map((entry) => (
-              <FileListItem
-                key={`changed-${entry.path}`}
-                entry={entry}
-                actions={
-                  <>
-                    <ActionButton
-                      title={t.git_stage}
-                      onClick={async () => {
-                        try {
-                          await stageFiles([entry.path]);
-                        } catch (error) {
-                          notify("error", t.git_stage_failed(String(error)));
-                        }
-                      }}
-                    >
-                      <IconPlus />
-                    </ActionButton>
-                    <ActionButton
-                      title={t.git_discard}
-                      onClick={async () => {
-                        try {
-                          await discardFiles([entry]);
-                        } catch (error) {
-                          notify("error", t.git_discard_failed(String(error)));
-                        }
-                      }}
-                    >
-                      <IconX />
-                    </ActionButton>
-                  </>
-                }
-              />
-            ))}
-          </CollapsibleGroup>
-        )}
-
-        {/* ── History ── */}
-        <CollapsibleGroup
-          title={t.git_history}
-          count={commits.length}
-          defaultExpanded={totalChanges === 0}
-        >
-          {commits.length === 0 ? (
-            <div
-              className="px-4 py-3 text-[11px]"
-              style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
+                    <IconPlus />
+                  </button>
+                  <button
+                    title={t.git_discard_all}
+                    onClick={async () => {
+                      try {
+                        await discardAll();
+                      } catch (error) {
+                        notify("error", t.git_discard_failed(String(error)));
+                      }
+                    }}
+                    className="flex h-5 w-5 items-center justify-center rounded hover:bg-[var(--surface-hover)]"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    <IconX />
+                  </button>
+                </>
+              }
             >
-              {t.git_no_commits}
-            </div>
-          ) : (
-            <div
-              ref={scrollRef}
-              className="relative overflow-auto"
-              style={{ maxHeight: 400 }}
-              onScroll={(e) => {
-                const el = e.currentTarget;
-                setScrollTop(el.scrollTop);
-                setViewportHeight(el.clientHeight);
-
-                // Load more when near bottom
-                if (hasMore && el.scrollHeight - el.scrollTop - el.clientHeight < 160) {
-                  loadMore();
-                }
-              }}
-            >
-              <div style={{ height: commits.length * ROW_HEIGHT + (selectedCommitHash ? detailHeight : 0), position: "relative" }}>
-                {(() => {
-                  const selectedIndex = selectedCommitHash
-                    ? commits.findIndex((c) => c.hash === selectedCommitHash)
-                    : -1;
-
-                  // Compute virtual window; when a detail panel is expanded,
-                  // also compute with shifted scroll to cover items on both sides
-                  const vp = viewportHeight || 400;
-                  const w1 = getVirtualCommitWindow({ itemCount: commits.length, rowHeight: ROW_HEIGHT, scrollTop, viewportHeight: vp });
-                  let startIndex = w1.startIndex;
-                  let endIndex = w1.endIndex;
-                  if (selectedIndex >= 0 && detailHeight > 0) {
-                    const w2 = getVirtualCommitWindow({ itemCount: commits.length, rowHeight: ROW_HEIGHT, scrollTop: Math.max(0, scrollTop - detailHeight), viewportHeight: vp + detailHeight });
-                    startIndex = Math.min(startIndex, w2.startIndex);
-                    endIndex = Math.max(endIndex, w2.endIndex);
+              {changedFiles.map((entry) => (
+                <FileListItem
+                  key={`changed-${entry.path}`}
+                  entry={entry}
+                  actions={
+                    <>
+                      <ActionButton
+                        title={t.git_stage}
+                        onClick={async () => {
+                          try {
+                            await stageFiles([entry.path]);
+                          } catch (error) {
+                            notify("error", t.git_stage_failed(String(error)));
+                          }
+                        }}
+                      >
+                        <IconPlus />
+                      </ActionButton>
+                      <ActionButton
+                        title={t.git_discard}
+                        onClick={async () => {
+                          try {
+                            await discardFiles([entry]);
+                          } catch (error) {
+                            notify("error", t.git_discard_failed(String(error)));
+                          }
+                        }}
+                      >
+                        <IconX />
+                      </ActionButton>
+                    </>
                   }
+                />
+              ))}
+            </CollapsibleGroup>
+          )}
+        </div>
+      ) : !statusLoading ? (
+        <div
+          className="shrink-0 px-4 py-6 text-center text-[11px]"
+          style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
+        >
+          {t.git_nothing_to_commit}
+        </div>
+      ) : null}
 
-                  return commits.slice(startIndex, endIndex).map((c, i) => {
-                    const actualIndex = startIndex + i;
-                    const isSelected = c.hash === selectedCommitHash;
-                    const { visibleRefs, hiddenCount } = summarizeCommitRefs(c.refs);
-                    // Offset items below the selected commit's detail panel
-                    const extraOffset = selectedIndex >= 0 && actualIndex > selectedIndex ? detailHeight : 0;
+      {/* ── History — fills remaining space ── */}
+      <CollapsibleGroup
+        title={t.git_history}
+        count={commits.length}
+        defaultExpanded={totalChanges === 0}
+        className="flex-1 min-h-0 flex flex-col"
+      >
+        {commits.length === 0 ? (
+          <div
+            className="px-4 py-3 text-[11px]"
+            style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
+          >
+            {t.git_no_commits}
+          </div>
+        ) : (
+          <div
+            ref={scrollRef}
+            className="relative flex-1 min-h-0 overflow-auto"
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              setScrollTop(el.scrollTop);
+              setViewportHeight(el.clientHeight);
 
-                    return (
-                      <div key={c.hash}>
-                        <button
-                          className="flex w-full items-center gap-2 px-3 text-left hover:bg-[var(--surface-hover)]"
+              // Load more when near bottom
+              if (hasMore && el.scrollHeight - el.scrollTop - el.clientHeight < 160) {
+                loadMore();
+              }
+            }}
+          >
+            <div style={{ height: commits.length * ROW_HEIGHT + (selectedCommitHash ? detailHeight : 0), position: "relative" }}>
+              {(() => {
+                const selectedIndex = selectedCommitHash
+                  ? commits.findIndex((c) => c.hash === selectedCommitHash)
+                  : -1;
+
+                // Compute virtual window; when a detail panel is expanded,
+                // also compute with shifted scroll to cover items on both sides
+                const vp = viewportHeight || 400;
+                const w1 = getVirtualCommitWindow({ itemCount: commits.length, rowHeight: ROW_HEIGHT, scrollTop, viewportHeight: vp });
+                let startIndex = w1.startIndex;
+                let endIndex = w1.endIndex;
+                if (selectedIndex >= 0 && detailHeight > 0) {
+                  const w2 = getVirtualCommitWindow({ itemCount: commits.length, rowHeight: ROW_HEIGHT, scrollTop: Math.max(0, scrollTop - detailHeight), viewportHeight: vp + detailHeight });
+                  startIndex = Math.min(startIndex, w2.startIndex);
+                  endIndex = Math.max(endIndex, w2.endIndex);
+                }
+
+                return commits.slice(startIndex, endIndex).map((c, i) => {
+                  const actualIndex = startIndex + i;
+                  const isSelected = c.hash === selectedCommitHash;
+                  const { visibleRefs, hiddenCount } = summarizeCommitRefs(c.refs);
+                  // Offset items below the selected commit's detail panel
+                  const extraOffset = selectedIndex >= 0 && actualIndex > selectedIndex ? detailHeight : 0;
+
+                  return (
+                    <div key={c.hash}>
+                      <button
+                        className="flex w-full items-center gap-2 px-3 text-left hover:bg-[var(--surface-hover)]"
+                        style={{
+                          position: "absolute",
+                          top: actualIndex * ROW_HEIGHT + extraOffset,
+                          height: ROW_HEIGHT,
+                          width: "100%",
+                          backgroundColor: isSelected
+                            ? "color-mix(in srgb, var(--accent) 8%, transparent)"
+                            : undefined,
+                          borderLeft: isSelected ? "2px solid var(--accent)" : "2px solid transparent",
+                        }}
+                        onClick={() => {
+                          setDetailHeight(0);
+                          setSelectedCommitHash((prev) => (prev === c.hash ? null : c.hash));
+                        }}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className="truncate text-[11px]"
+                              style={{ ...MONO_STYLE, color: "var(--text-primary)" }}
+                            >
+                              {c.message}
+                            </span>
+                            {visibleRefs.map((ref) => (
+                              <span
+                                key={ref}
+                                className="shrink-0 rounded px-1 text-[9px]"
+                                style={{
+                                  ...MONO_STYLE,
+                                  color: ref.startsWith("HEAD")
+                                    ? "var(--bg)"
+                                    : "var(--accent)",
+                                  backgroundColor: ref.startsWith("HEAD")
+                                    ? "var(--accent)"
+                                    : "color-mix(in srgb, var(--accent) 14%, transparent)",
+                                }}
+                              >
+                                {ref}
+                              </span>
+                            ))}
+                            {hiddenCount > 0 && (
+                              <span
+                                className="shrink-0 text-[9px]"
+                                style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
+                              >
+                                +{hiddenCount}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-2 text-[10px]" style={MONO_STYLE}>
+                            <span style={{ color: "var(--text-faint)" }}>{c.hash.slice(0, 7)}</span>
+                            <span style={{ color: "var(--text-muted)" }}>{c.author}</span>
+                            <span style={{ color: "var(--text-faint)" }}>{formatRelativeTime(c.date)}</span>
+                          </div>
+                        </div>
+                      </button>
+                      {isSelected && (
+                        <div
+                          ref={detailRef}
                           style={{
                             position: "absolute",
-                            top: actualIndex * ROW_HEIGHT + extraOffset,
-                            height: ROW_HEIGHT,
+                            top: (actualIndex + 1) * ROW_HEIGHT,
                             width: "100%",
-                            backgroundColor: isSelected
-                              ? "color-mix(in srgb, var(--accent) 8%, transparent)"
-                              : undefined,
-                            borderLeft: isSelected ? "2px solid var(--accent)" : "2px solid transparent",
-                          }}
-                          onClick={() => {
-                            setDetailHeight(0);
-                            setSelectedCommitHash((prev) => (prev === c.hash ? null : c.hash));
+                            zIndex: 10,
                           }}
                         >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <span
-                                className="truncate text-[11px]"
-                                style={{ ...MONO_STYLE, color: "var(--text-primary)" }}
-                              >
-                                {c.message}
-                              </span>
-                              {visibleRefs.map((ref) => (
-                                <span
-                                  key={ref}
-                                  className="shrink-0 rounded px-1 text-[9px]"
-                                  style={{
-                                    ...MONO_STYLE,
-                                    color: ref.startsWith("HEAD")
-                                      ? "var(--bg)"
-                                      : "var(--accent)",
-                                    backgroundColor: ref.startsWith("HEAD")
-                                      ? "var(--accent)"
-                                      : "color-mix(in srgb, var(--accent) 14%, transparent)",
-                                  }}
-                                >
-                                  {ref}
-                                </span>
-                              ))}
-                              {hiddenCount > 0 && (
-                                <span
-                                  className="shrink-0 text-[9px]"
-                                  style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
-                                >
-                                  +{hiddenCount}
-                                </span>
-                              )}
-                            </div>
-                            <div className="mt-0.5 flex items-center gap-2 text-[10px]" style={MONO_STYLE}>
-                              <span style={{ color: "var(--text-faint)" }}>{c.hash.slice(0, 7)}</span>
-                              <span style={{ color: "var(--text-muted)" }}>{c.author}</span>
-                              <span style={{ color: "var(--text-faint)" }}>{formatRelativeTime(c.date)}</span>
-                            </div>
-                          </div>
-                        </button>
-                        {isSelected && (
-                          <div
-                            ref={detailRef}
-                            style={{
-                              position: "absolute",
-                              top: (actualIndex + 1) * ROW_HEIGHT,
-                              width: "100%",
-                              zIndex: 10,
-                            }}
-                          >
-                            <CommitDetailInline worktreePath={worktreePath} hash={c.hash} />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
+                          <CommitDetailInline worktreePath={worktreePath} hash={c.hash} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
             </div>
-          )}
-        </CollapsibleGroup>
-
-        {/* bottom padding inside scrollable area */}
-        <div className="pb-4" />
-      </div>
+          </div>
+        )}
+      </CollapsibleGroup>
     </div>
   );
 }
