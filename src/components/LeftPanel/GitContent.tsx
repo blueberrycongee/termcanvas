@@ -438,7 +438,7 @@ function CommitDetailInline({
             {isExpanded && hunks && hunks.length > 0 && (
               <div className="overflow-x-auto px-6 py-1">
                 {hunks.map((hunkContent, hunkIdx) => (
-                  <div key={hunkIdx}>
+                  <div key={hunkIdx} style={{ minWidth: "fit-content" }}>
                     {hunkContent.split("\n").map((line, lineIdx) => {
                       let lineColor = "var(--text-muted)";
                       let lineBg = "transparent";
