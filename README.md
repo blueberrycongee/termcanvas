@@ -315,6 +315,8 @@ The goal is simple: **you describe intent, TermCanvas handles the rest.** Your c
 
 <div align="center">
 
+<img src="docs/QQ.jpg" width="240" alt="QQ Group" />
+
 [![Star History Chart](https://api.star-history.com/svg?repos=blueberrycongee/termcanvas&type=Date)](https://star-history.com/#blueberrycongee/termcanvas&Date)
 
 </div>
