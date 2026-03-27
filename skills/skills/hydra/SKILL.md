@@ -25,6 +25,24 @@ Terminal conversation is not a source of truth.
   - if the user does not specify providers, inherit the current terminal type
     when available rather than hard-coding Claude or Codex
 
+## Agent characteristics (soft guidance, not hard rules)
+
+When choosing providers for each role, consider these observed tendencies:
+
+**Claude** — stronger at reasoning, planning, and architectural judgment.
+- Good fit for: planner, evaluator
+- Watch out for: stub implementations (code that looks complete but doesn't work),
+  context-window anxiety (rushing to finish when context fills up)
+
+**Codex** — stronger at code generation, tends to complete the full task.
+- Good fit for: implementer
+- Watch out for: over-engineering (excessive try-catch, unnecessary boundary checks),
+  test hacking (over-mocking, tests that pass without exercising real code)
+
+These are defaults from experience, not constraints. The user can override freely
+with `--all-type` or per-role flags. When the user does not specify, a reasonable
+default is `--planner-type claude --implementer-type codex --evaluator-type claude`.
+
 ## Direct worker primitive
 
 - `hydra spawn --task "..." --repo .`
