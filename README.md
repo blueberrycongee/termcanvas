@@ -248,7 +248,7 @@ hydra cleanup <agent-id> --force
 
 Workflows advance through validated `result.json` + `done` evidence inside `.hydra/workflows/`. The telemetry truth layer provides real-time `turn_state`, `last_meaningful_progress_at`, and `derived_status` — used by both the UI (badges, advisory views) and Hydra itself (stall detection, retry decisions).
 
-**Typical workflow:** write a PRD → enable Hydra → let the main-brain agent choose the mode and orchestrate autonomously → monitor via `hydra watch` or the canvas UI → review the diff and merge. See [Hydra Orchestration Guide](docs/hydra-orchestration.md) for architecture, troubleshooting, and anti-patterns.
+**Typical workflow:** write a PRD → enable Hydra → let the main-brain agent choose the mode and orchestrate autonomously → monitor via `hydra watch` or the canvas UI → review the diff and merge. See [Hydra Orchestration Guide](docs/hydra-orchestration.md) for architecture, troubleshooting, and anti-patterns. For a visual overview of every mode, state machine, and system component, see the [Hydra Panoramic Flowchart](docs/hydra-panorama-flow.md).
 
 ---
 

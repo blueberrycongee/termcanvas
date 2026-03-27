@@ -248,7 +248,7 @@ hydra cleanup <agent-id> --force
 
 Workflow 在 `.hydra/workflows/` 中通过 `result.json` + `done` 的验证后才会前进。Telemetry 真相层提供实时 `turn_state`、`last_meaningful_progress_at` 和 `derived_status`——同时服务于 UI（徽章、建议视图）和 Hydra 自身（卡顿检测、重试决策）。
 
-**典型工作流：** 编写 PRD → 启用 Hydra → 让主脑 agent 自主选择模式并编排执行 → 通过 `hydra watch` 或画布 UI 监控 → 审查 diff 并合并。更多架构、故障排查和反模式，见 [Hydra Orchestration Guide](docs/hydra-orchestration.md)。
+**典型工作流：** 编写 PRD → 启用 Hydra → 让主脑 agent 自主选择模式并编排执行 → 通过 `hydra watch` 或画布 UI 监控 → 审查 diff 并合并。更多架构、故障排查和反模式，见 [Hydra 编排指南](docs/hydra-orchestration.md)。所有模式、状态机和系统组件的可视化全景，见 [Hydra 全景流程图](docs/hydra-panorama-flow-zh.md)。
 
 ---
 
