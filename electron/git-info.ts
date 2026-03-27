@@ -349,9 +349,42 @@ export async function createCommit(worktreePath: string, message: string): Promi
 }
 
 export async function gitPush(worktreePath: string): Promise<string> {
-  return execGitText(worktreePath, ["push"]);
+  return execGitRemote(worktreePath, ["push"]);
 }
 
 export async function gitPull(worktreePath: string): Promise<string> {
-  return execGitText(worktreePath, ["pull"]);
+  return execGitRemote(worktreePath, ["pull"]);
+}
+
+/**
+ * Execute a git remote command (push/pull) with safeguards:
+ * - GIT_TERMINAL_PROMPT=0 prevents hanging on auth prompts
+ * - 30s timeout prevents indefinite hangs
+ * - stderr is captured (git push/pull write progress to stderr)
+ */
+async function execGitRemote(
+  worktreePath: string,
+  args: string[],
+): Promise<string> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+  try {
+    const { stdout, stderr } = await execFileAsync("git", args, {
+      cwd: worktreePath,
+      encoding: "utf-8",
+      maxBuffer: DEFAULT_MAX_BUFFER,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+      signal: controller.signal,
+    });
+    return stdout || stderr;
+  } catch (err: unknown) {
+    if (err && typeof err === "object" && "killed" in err && (err as { killed: boolean }).killed) {
+      throw new Error(`git ${args[0]} timed out after 30s`);
+    }
+    const execErr = err as { stderr?: string; message?: string };
+    const detail = execErr.stderr || execErr.message || "Unknown error";
+    throw new Error(`git ${args[0]} failed: ${detail}`);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
