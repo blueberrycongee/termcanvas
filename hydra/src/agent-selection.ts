@@ -7,7 +7,7 @@ export const SUPPORTED_AGENT_TYPES = [
   "gemini",
 ] as const satisfies readonly AgentType[];
 
-export const DEFAULT_AGENT_TYPE: AgentType = "codex";
+export const DEFAULT_AGENT_TYPE: AgentType = "claude";
 
 const AGENT_TYPES = new Set<AgentType>(SUPPORTED_AGENT_TYPES);
 

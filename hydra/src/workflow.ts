@@ -12,6 +12,7 @@ import { HydraError } from "./errors.ts";
 import { HandoffManager } from "./handoff/manager.ts";
 import { HandoffStateMachine } from "./handoff/state-machine.ts";
 import type { Handoff, AgentType } from "./handoff/types.ts";
+import { resolveDefaultAgentType } from "./agent-selection.ts";
 import { validateHandoffContract, type ResultContract } from "./protocol.ts";
 import { registerDispatchAttempt, retryTimedOutHandoff } from "./retry.ts";
 import { buildTaskPackageContext, writeTaskPackage } from "./task-package.ts";
@@ -359,9 +360,10 @@ export async function runWorkflow(
   const repoPath = path.resolve(options.repoPath);
   const workflowId = generateWorkflowId();
   const template = options.template ?? "planner-implementer-evaluator";
-  const implementerType = options.implementerType ?? options.agentType ?? "codex";
-  const plannerType = options.plannerType ?? implementerType;
-  const evaluatorType = options.evaluatorType ?? implementerType;
+  const baseType = options.agentType ?? resolveDefaultAgentType();
+  const implementerType = options.implementerType ?? baseType;
+  const plannerType = options.plannerType ?? baseType;
+  const evaluatorType = options.evaluatorType ?? baseType;
   const plannedHandoffIds = template === "single-step"
     ? [generateHandoffId()]
     : [generateHandoffId(), generateHandoffId(), generateHandoffId()];
