@@ -72,29 +72,25 @@ const PLAN_GUIDE_FRONTEND = `# Frontend Audit Guide
 
 Read this guide when the task involves UI components, pages, or user-facing interactions.
 
-## User Flow Audit
-- Map out each user flow that touches the changed area. Walk through: entry point → actions → outcomes.
-- Identify dead ends — states the user can reach but can't do anything useful (empty tabs, blank panels, buttons that lead nowhere).
-- Check that every interactive element has a clear affordance (looks clickable/draggable/expandable).
-- Look for missing feedback: async operations without loading states, actions without confirmation, errors without recovery paths.
+## User Flow
+- Map each user flow through the changed area: entry → actions → outcomes.
+- Identify dead ends — states the user can reach but has nothing useful to do.
+- Identify missing feedback — operations that leave the user without indication of progress, success, or failure.
 
-## Interaction Anti-Patterns
-- State transitions without visual continuity (instant show/hide instead of animated transitions).
-- Inconsistent hover/active/focus states across similar elements.
-- Click targets smaller than 32x32px on desktop or 44x44px on touch.
-- Scroll containers without visible overflow indicators.
-- Modals or popovers that trap focus incorrectly or can't be dismissed with Escape.
+## Interaction Quality
+- Are state transitions visually continuous, or do elements appear/disappear abruptly?
+- Are interactive elements discoverable — can the user tell what is clickable, draggable, or expandable?
+- Are hover, active, and focus states consistent across similar elements?
+- Can all features be reached and operated via keyboard?
 
-## Layout Risks
-- Flex scroll chains: every ancestor of an overflow-auto container in a flex-col layout must have min-h-0. One missing link breaks scrolling.
-- Fixed/absolute positioning that doesn't account for dynamic content height.
-- Text truncation without title attributes or tooltips for full content.
-- Responsive breakpoints: does the layout degrade gracefully when the container is resized?
+## Layout Integrity
+- Are scroll containers actually scrollable, or do layout constraints prevent overflow from working?
+- Does the layout handle dynamic content sizes without breaking (very long text, empty states, many items)?
+- Does the layout degrade gracefully when the container is resized?
 
 ## Visual Consistency
-- Typography: are font sizes, weights, and families consistent with the rest of the app?
-- Spacing: does the component follow the same spacing rhythm (padding, gaps) as sibling components?
-- Color: are all colors from the CSS variable system, or are there hardcoded values?
+- Are typography, spacing, and color choices consistent with the rest of the application?
+- Are all colors and dimensions sourced from the design system, or are there hardcoded values?
 `;
 
 const PLAN_GUIDE_BACKEND = `# Backend Audit Guide
