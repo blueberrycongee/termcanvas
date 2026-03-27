@@ -66,6 +66,25 @@ function renderList(items: string[], emptyMessage: string): string[] {
   return items.map((item) => `- ${item}`);
 }
 
+function renderEvaluatorVerificationStrategy(role: string): string[] {
+  if (role !== "evaluator") {
+    return [];
+  }
+  return [
+    "## Verification Strategy",
+    "",
+    "You are a QA engineer. Use the most rigorous verification available in this environment, in priority order:",
+    "",
+    "1. **Runtime verification** — run the test suite (`npm test`, `pytest`, `cargo test`, etc.). If a dev server can be started, start it and probe key endpoints or interactions. If Playwright, Puppeteer, or Cypress are available, use them.",
+    "2. **Build verification** — confirm the project builds and type-checks cleanly (`tsc --noEmit`, `npm run build`, etc.).",
+    "3. **Targeted probing** — write temporary scripts or assertions to exercise critical paths. Inspect actual output, not just code structure.",
+    "4. **Static analysis** — only fall back to reading code when the above methods are genuinely unavailable.",
+    "",
+    "Report evidence from the highest tier you can reach. \"The code looks correct\" is not acceptable when tests exist and can be run.",
+    "",
+  ];
+}
+
 export function renderTaskPackageTemplate(contract: HandoffContract): string {
   const lines = [
     "# Hydra Task Package",
@@ -155,6 +174,7 @@ export function renderTaskPackageTemplate(contract: HandoffContract): string {
     "- You must write both `result.json` and `done` before finishing.",
     `- Write the done marker JSON to ${contract.artifacts.done_file}; do not write a plain-text path.`,
     "",
+    ...renderEvaluatorVerificationStrategy(contract.to.role),
   ];
 
   return lines.join("\n");
