@@ -41,7 +41,7 @@ flowchart TD
     SINGLE --> WORKER_SINGLE
 
     subgraph ISOLATED_WORKER ["Isolated Worker (new terminal)"]
-        WORKER_SPAWN[Worker agent\n reads task, executes]:::terminal
+        WORKER_SPAWN[Worker agent\nreads task, executes]:::terminal
         WORKER_SINGLE[Worker agent\nreads task, executes]:::terminal
         WORKER_SPAWN --> CONTRACT_S[Write result.json + done]:::file
         WORKER_SINGLE --> CONTRACT_SS[Write result.json + done]:::file
@@ -58,7 +58,7 @@ flowchart TD
     WORKFLOW_APPROVE{{hydra run\n--task ... --approve-plan}}:::hydra
     WORKFLOW_APPROVE --> WF_ENGINE
 
-    WF_ENGINE[Enter Workflow Engine\n▸ see Diagram 2]:::hydra
+    WF_ENGINE[Enter Workflow Engine\nsee Diagram 2]:::hydra
 ```
 
 ## 2. Workflow Engine — Planner → Implementer → Evaluator
@@ -84,7 +84,7 @@ flowchart TD
         DISPATCH_P[Dispatch handoff-0\nto Planner terminal]:::hydra
         DISPATCH_P --> P_WORK
 
-        P_WORK[Planner agent:\n• investigate codebase\n• list problems\n• define constraints\n• write implementation plan]:::agent
+        P_WORK[Planner agent:\n- investigate codebase\n- list problems\n- define constraints\n- write implementation plan]:::agent
 
         P_WORK --> P_CONTRACT[Write result.json + done]:::file
     end
@@ -113,7 +113,7 @@ flowchart TD
         WAIT_APPROVAL([Workflow status:\nwaiting_for_approval]):::state
         WAIT_APPROVAL --> BRAIN_UP
 
-        BRAIN_UP[Main Brain:\nread planner result.json\ntranslate → user summary]:::brain
+        BRAIN_UP[Main Brain:\nread planner result.json\ntranslate to user summary]:::brain
         BRAIN_UP --> USER_REVIEW
 
         USER_REVIEW([User reviews plan]):::user
@@ -123,13 +123,13 @@ flowchart TD
         APPROVE_DECIDE -- "Yes" --> APPROVE_CMD
         APPROVE_DECIDE -- "No" --> REVISE_LOOP
 
-        REVISE_LOOP[Main Brain ↔ User dialogue\nstructure feedback]:::brain
+        REVISE_LOOP[Main Brain + User dialogue\nstructure feedback]:::brain
         REVISE_LOOP --> REVISE_CMD
 
         REVISE_CMD{{hydra revise\n--feedback '...'}}:::hydra
         REVISE_CMD --> REVISE_WRITE
 
-        REVISE_WRITE[Write revision.md\nto planner package\nreset planner handoff → pending]:::hydra
+        REVISE_WRITE[Write revision.md\nto planner package\nreset planner handoff to pending]:::hydra
         REVISE_WRITE --> DISPATCH_P_REVISED
 
         DISPATCH_P_REVISED[Re-dispatch Planner\ncontext: prev result.json\n+ revision.md]:::hydra
@@ -151,7 +151,7 @@ flowchart TD
         DISPATCH_I[Dispatch handoff-1\nto Implementer terminal]:::hydra
         DISPATCH_I --> I_WORK
 
-        I_WORK[Implementer agent:\n• read planner's plan\n• implement changes\n• run tests\n• leave evidence]:::agent
+        I_WORK[Implementer agent:\n- read the plan\n- implement changes\n- run tests\n- leave evidence]:::agent
 
         I_WORK --> I_CONTRACT[Write result.json + done]:::file
     end
@@ -176,7 +176,7 @@ flowchart TD
         DISPATCH_E[Dispatch handoff-2\nto Evaluator terminal]:::hydra
         DISPATCH_E --> E_WORK
 
-        E_WORK[Evaluator agent:\n• read plan + implementation\n• run test suite + build\n• verify constraints\n• check for regressions\n• flag anti-patterns]:::agent
+        E_WORK[Evaluator agent:\n- read plan + implementation\n- run test suite + build\n- verify constraints\n- check for regressions\n- flag anti-patterns]:::agent
 
         E_WORK --> E_CONTRACT[Write result.json + done]:::file
     end
@@ -208,8 +208,8 @@ flowchart TD
     %% ══════════════════════════════════
     %% TERMINAL STATES
     %% ══════════════════════════════════
-    COMPLETED([Workflow: completed ✓]):::state
-    FAILED([Workflow: failed ✗]):::fail
+    COMPLETED([Workflow: completed]):::state
+    FAILED([Workflow: failed]):::fail
 ```
 
 ## 3. Handoff Lifecycle — State Machine
@@ -218,40 +218,28 @@ flowchart TD
 stateDiagram-v2
     [*] --> pending: Handoff created
 
-    pending --> claimed: claimPending()\n— tick acquires file lock
+    pending --> claimed: claimPending() — tick acquires file lock
 
-    claimed --> in_progress: markInProgress()\n— terminal dispatched
+    claimed --> in_progress: markInProgress() — terminal dispatched
 
-    in_progress --> completed: markCompleted()\n— result.json + done valid
-    in_progress --> timed_out: markTimedOut()\n— timeout or PTY death
-    in_progress --> failed: markFailed()\n— validation error
+    in_progress --> completed: markCompleted() — result.json + done valid
+    in_progress --> timed_out: markTimedOut() — timeout or PTY death
+    in_progress --> failed: markFailed() — validation error
 
-    timed_out --> pending: scheduleRetry()\n— retries remaining
-    timed_out --> failed: scheduleRetry()\n— retries exhausted
+    timed_out --> pending: scheduleRetry() — retries remaining
+    timed_out --> failed: scheduleRetry() — retries exhausted
 
-    completed --> [*]: Advance to next stage\nor workflow complete
+    completed --> [*]: Advance to next stage or workflow complete
     failed --> [*]: Workflow fails
-
-    note right of in_progress
-        Telemetry Truth Layer observes:
-        • session events
-        • process tree
-        • contract activity
-        • git/worktree changes
-        → derived_status:
-          progressing | awaiting_contract
-          | stall_candidate | exited
-    end note
-
-    note right of completed
-        Collector validates:
-        • done marker exists
-        • result.json exists
-        • schema match (hydra/v2)
-        • handoff_id / workflow_id match
-        • required fields present
-    end note
 ```
+
+**Telemetry Truth Layer** observes `in_progress` handoffs:
+- Session events, process tree, contract activity, git/worktree changes
+- Derived status: `progressing` | `awaiting_contract` | `stall_candidate` | `exited`
+
+**Collector** validates before marking `completed`:
+- `done` marker exists, `result.json` exists
+- Schema match (`hydra/v2`), `handoff_id` / `workflow_id` match, required fields present
 
 ## 4. File Contract — The Only Source of Truth
 
@@ -277,8 +265,8 @@ flowchart LR
     DM --> COLLECTOR{Collector\nvalidation gate}
     RJ --> COLLECTOR
 
-    COLLECTOR -- "Both valid\n+ schema match" --> PASS[✓ Completed]:::valid
-    COLLECTOR -- "Missing / malformed\n/ schema mismatch" --> REJECT[✗ Failed]:::invalid
+    COLLECTOR -- "Both valid\n+ schema match" --> PASS[Completed]:::valid
+    COLLECTOR -- "Missing / malformed\n/ schema mismatch" --> REJECT[Failed]:::invalid
 ```
 
 ## 5. Telemetry Truth Layer — Runtime Observation
@@ -308,7 +296,7 @@ flowchart TB
     end
 
     subgraph LAYER2 ["Layer 2 — Derived Snapshot"]
-        L2[TerminalTelemetrySnapshot\n• session_attached\n• turn_state\n• last_meaningful_progress_at\n• foreground_tool\n• done_exists / result_valid\n• derived_status]:::l2
+        L2[TerminalTelemetrySnapshot\nsession_attached\nturn_state\nlast_meaningful_progress_at\nforeground_tool\ndone_exists / result_valid\nderived_status]:::l2
     end
 
     subgraph LAYER3 ["Layer 3 — Consumer Decisions"]
@@ -342,15 +330,15 @@ flowchart TD
     USER([User]):::user
     USER <--> BRAIN
 
-    BRAIN[Main Brain\n— mode selection\n— up/down translation\n— approval mediation]:::brain
+    BRAIN[Main Brain\nmode selection\nup/down translation\napproval mediation]:::brain
 
     BRAIN <--> HYDRA_CLI
 
     subgraph HYDRA ["Hydra Control Plane"]
         HYDRA_CLI[CLI: run / tick / watch\nstatus / retry / approve\nrevise / spawn / cleanup]:::hydra
-        WF_ENGINE[Workflow Engine\n— state machine\n— template advance\n— evaluator loopback]:::hydra
-        COLLECTOR[Collector\n— contract validation\n— schema gate]:::hydra
-        RETRY[Retry Logic\n— timeout detection\n— process death\n— retry budget]:::hydra
+        WF_ENGINE[Workflow Engine\nstate machine\ntemplate advance\nevaluator loopback]:::hydra
+        COLLECTOR[Collector\ncontract validation\nschema gate]:::hydra
+        RETRY[Retry Logic\ntimeout detection\nprocess death\nretry budget]:::hydra
 
         HYDRA_CLI --> WF_ENGINE
         WF_ENGINE --> COLLECTOR
@@ -361,7 +349,7 @@ flowchart TD
 
     WF_ENGINE <--> DISPATCHER
 
-    DISPATCHER[Dispatcher\n— build prompt\n— call termcanvas\n  terminal create]:::hydra
+    DISPATCHER[Dispatcher\nbuild prompt\ncall termcanvas terminal create]:::hydra
 
     DISPATCHER --> TC
 
@@ -377,7 +365,7 @@ flowchart TD
     TC_PTY --> AGENT_TERMINAL
 
     subgraph AGENT_TERMINAL ["Agent Terminal (isolated)"]
-        AGENT[Claude / Codex CLI\n— read task.md\n— execute task\n— write result.json + done]:::agent
+        AGENT[Claude / Codex CLI\nread task.md\nexecute task\nwrite result.json + done]:::agent
     end
 
     AGENT_TERMINAL --> FS
@@ -394,7 +382,7 @@ flowchart TD
     FS --> COLLECTOR
     TC_TELEM --> TELEM_OUT
 
-    TELEM_OUT[Telemetry Snapshot\n— last_meaningful_progress_at\n— derived_status\n— turn_state]:::telem
+    TELEM_OUT[Telemetry Snapshot\nlast_meaningful_progress_at\nderived_status\nturn_state]:::telem
 
     TELEM_OUT --> WF_ENGINE
     TELEM_OUT --> BRAIN

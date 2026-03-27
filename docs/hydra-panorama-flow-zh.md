@@ -58,7 +58,7 @@ flowchart TD
     WORKFLOW_APPROVE{{hydra run\n--task ... --approve-plan}}:::hydra
     WORKFLOW_APPROVE --> WF_ENGINE
 
-    WF_ENGINE[进入工作流引擎\n▸ 见图 2]:::hydra
+    WF_ENGINE[进入工作流引擎\n见图 2]:::hydra
 ```
 
 ## 2. 工作流引擎 — 规划者 → 执行者 → 评估者
@@ -84,7 +84,7 @@ flowchart TD
         DISPATCH_P[分发 handoff-0\n到规划者终端]:::hydra
         DISPATCH_P --> P_WORK
 
-        P_WORK[规划者 agent:\n• 调查代码库\n• 列出问题\n• 定义约束\n• 编写实施计划]:::agent
+        P_WORK[规划者 agent:\n- 调查代码库\n- 列出问题\n- 定义约束\n- 编写实施计划]:::agent
 
         P_WORK --> P_CONTRACT[写 result.json + done]:::file
     end
@@ -113,7 +113,7 @@ flowchart TD
         WAIT_APPROVAL([工作流状态:\nwaiting_for_approval]):::state
         WAIT_APPROVAL --> BRAIN_UP
 
-        BRAIN_UP[主脑:\n读取规划者 result.json\n翻译 → 用户可理解的摘要]:::brain
+        BRAIN_UP[主脑:\n读取规划者 result.json\n翻译为用户可理解的摘要]:::brain
         BRAIN_UP --> USER_REVIEW
 
         USER_REVIEW([用户审阅计划]):::user
@@ -123,13 +123,13 @@ flowchart TD
         APPROVE_DECIDE -- "满意" --> APPROVE_CMD
         APPROVE_DECIDE -- "不满意" --> REVISE_LOOP
 
-        REVISE_LOOP[主脑 ↔ 用户对话\n结构化反馈]:::brain
+        REVISE_LOOP[主脑 + 用户对话\n结构化反馈]:::brain
         REVISE_LOOP --> REVISE_CMD
 
         REVISE_CMD{{hydra revise\n--feedback '...'}}:::hydra
         REVISE_CMD --> REVISE_WRITE
 
-        REVISE_WRITE[写 revision.md\n到规划者包目录\n重置规划者 handoff → pending]:::hydra
+        REVISE_WRITE[写 revision.md\n到规划者包目录\n重置规划者 handoff 为 pending]:::hydra
         REVISE_WRITE --> DISPATCH_P_REVISED
 
         DISPATCH_P_REVISED[重新分发规划者\n上下文: 上版 result.json\n+ revision.md]:::hydra
@@ -151,7 +151,7 @@ flowchart TD
         DISPATCH_I[分发 handoff-1\n到执行者终端]:::hydra
         DISPATCH_I --> I_WORK
 
-        I_WORK[执行者 agent:\n• 读取规划者的计划\n• 实现变更\n• 运行测试\n• 留下证据]:::agent
+        I_WORK[执行者 agent:\n- 读取规划者的计划\n- 实现变更\n- 运行测试\n- 留下证据]:::agent
 
         I_WORK --> I_CONTRACT[写 result.json + done]:::file
     end
@@ -176,7 +176,7 @@ flowchart TD
         DISPATCH_E[分发 handoff-2\n到评估者终端]:::hydra
         DISPATCH_E --> E_WORK
 
-        E_WORK[评估者 agent:\n• 读取计划 + 实现\n• 运行测试套件 + 构建\n• 验证约束\n• 检查回归\n• 标记反模式]:::agent
+        E_WORK[评估者 agent:\n- 读取计划 + 实现\n- 运行测试套件 + 构建\n- 验证约束\n- 检查回归\n- 标记反模式]:::agent
 
         E_WORK --> E_CONTRACT[写 result.json + done]:::file
     end
@@ -208,8 +208,8 @@ flowchart TD
     %% ══════════════════════════════════
     %% 终态
     %% ══════════════════════════════════
-    COMPLETED([工作流: 完成 ✓]):::state
-    FAILED([工作流: 失败 ✗]):::fail
+    COMPLETED([工作流: 完成]):::state
+    FAILED([工作流: 失败]):::fail
 ```
 
 ## 3. Handoff 生命周期 — 状态机
@@ -218,40 +218,28 @@ flowchart TD
 stateDiagram-v2
     [*] --> pending: Handoff 创建
 
-    pending --> claimed: claimPending()\n— tick 获取文件锁
+    pending --> claimed: claimPending() — tick 获取文件锁
 
-    claimed --> in_progress: markInProgress()\n— 终端已分发
+    claimed --> in_progress: markInProgress() — 终端已分发
 
-    in_progress --> completed: markCompleted()\n— result.json + done 有效
-    in_progress --> timed_out: markTimedOut()\n— 超时或 PTY 死亡
-    in_progress --> failed: markFailed()\n— 验证错误
+    in_progress --> completed: markCompleted() — result.json + done 有效
+    in_progress --> timed_out: markTimedOut() — 超时或 PTY 死亡
+    in_progress --> failed: markFailed() — 验证错误
 
-    timed_out --> pending: scheduleRetry()\n— 还有重试次数
-    timed_out --> failed: scheduleRetry()\n— 重试次数耗尽
+    timed_out --> pending: scheduleRetry() — 还有重试次数
+    timed_out --> failed: scheduleRetry() — 重试次数耗尽
 
-    completed --> [*]: 推进到下一阶段\n或工作流完成
+    completed --> [*]: 推进到下一阶段或工作流完成
     failed --> [*]: 工作流失败
-
-    note right of in_progress
-        遥测真相层观测:
-        • 会话事件
-        • 进程树
-        • 合同文件活动
-        • git/worktree 变更
-        → 派生状态:
-          progressing | awaiting_contract
-          | stall_candidate | exited
-    end note
-
-    note right of completed
-        收集器验证:
-        • done 标记存在
-        • result.json 存在
-        • schema 匹配 (hydra/v2)
-        • handoff_id / workflow_id 匹配
-        • 必填字段齐全
-    end note
 ```
+
+**遥测真相层**观测 `in_progress` 状态的 handoff:
+- 会话事件、进程树、合同文件活动、git/worktree 变更
+- 派生状态: `progressing` | `awaiting_contract` | `stall_candidate` | `exited`
+
+**收集器**在标记 `completed` 前验证:
+- `done` 标记存在、`result.json` 存在
+- Schema 匹配 (`hydra/v2`)、`handoff_id` / `workflow_id` 匹配、必填字段齐全
 
 ## 4. 文件合同 — 唯一真相来源
 
@@ -277,8 +265,8 @@ flowchart LR
     DM --> COLLECTOR{收集器\n验证门}
     RJ --> COLLECTOR
 
-    COLLECTOR -- "均有效\n+ schema 匹配" --> PASS[✓ 完成]:::valid
-    COLLECTOR -- "缺失 / 格式错误\n/ schema 不匹配" --> REJECT[✗ 失败]:::invalid
+    COLLECTOR -- "均有效\n+ schema 匹配" --> PASS[完成]:::valid
+    COLLECTOR -- "缺失 / 格式错误\n/ schema 不匹配" --> REJECT[失败]:::invalid
 ```
 
 ## 5. 遥测真相层 — 运行时观测
@@ -308,7 +296,7 @@ flowchart TB
     end
 
     subgraph LAYER2 ["第 2 层 — 派生快照"]
-        L2[TerminalTelemetrySnapshot\n• session_attached 是否附着\n• turn_state 轮次状态\n• last_meaningful_progress_at 最后有意义进展\n• foreground_tool 前台工具\n• done_exists / result_valid\n• derived_status 派生状态]:::l2
+        L2[TerminalTelemetrySnapshot\nsession_attached 是否附着\nturn_state 轮次状态\nlast_meaningful_progress_at\nforeground_tool 前台工具\ndone_exists / result_valid\nderived_status 派生状态]:::l2
     end
 
     subgraph LAYER3 ["第 3 层 — 消费层决策"]
@@ -342,15 +330,15 @@ flowchart TD
     USER([用户]):::user
     USER <--> BRAIN
 
-    BRAIN[主脑\n— 模式选择\n— 上行/下行翻译\n— 审批中介]:::brain
+    BRAIN[主脑\n模式选择\n上行/下行翻译\n审批中介]:::brain
 
     BRAIN <--> HYDRA_CLI
 
     subgraph HYDRA ["Hydra 控制面"]
         HYDRA_CLI[CLI: run / tick / watch\nstatus / retry / approve\nrevise / spawn / cleanup]:::hydra
-        WF_ENGINE[工作流引擎\n— 状态机\n— 模板推进\n— 评估者回环]:::hydra
-        COLLECTOR[收集器\n— 合同验证\n— schema 门]:::hydra
-        RETRY[重试逻辑\n— 超时检测\n— 进程死亡\n— 重试预算]:::hydra
+        WF_ENGINE[工作流引擎\n状态机\n模板推进\n评估者回环]:::hydra
+        COLLECTOR[收集器\n合同验证\nschema 门]:::hydra
+        RETRY[重试逻辑\n超时检测\n进程死亡\n重试预算]:::hydra
 
         HYDRA_CLI --> WF_ENGINE
         WF_ENGINE --> COLLECTOR
@@ -361,7 +349,7 @@ flowchart TD
 
     WF_ENGINE <--> DISPATCHER
 
-    DISPATCHER[分发器\n— 构建 prompt\n— 调用 termcanvas\n  terminal create]:::hydra
+    DISPATCHER[分发器\n构建 prompt\n调用 termcanvas terminal create]:::hydra
 
     DISPATCHER --> TC
 
@@ -377,7 +365,7 @@ flowchart TD
     TC_PTY --> AGENT_TERMINAL
 
     subgraph AGENT_TERMINAL ["Agent 终端 (隔离)"]
-        AGENT[Claude / Codex CLI\n— 读取 task.md\n— 执行任务\n— 写 result.json + done]:::agent
+        AGENT[Claude / Codex CLI\n读取 task.md\n执行任务\n写 result.json + done]:::agent
     end
 
     AGENT_TERMINAL --> FS
@@ -394,7 +382,7 @@ flowchart TD
     FS --> COLLECTOR
     TC_TELEM --> TELEM_OUT
 
-    TELEM_OUT[遥测快照\n— last_meaningful_progress_at\n— derived_status\n— turn_state]:::telem
+    TELEM_OUT[遥测快照\nlast_meaningful_progress_at\nderived_status\nturn_state]:::telem
 
     TELEM_OUT --> WF_ENGINE
     TELEM_OUT --> BRAIN
