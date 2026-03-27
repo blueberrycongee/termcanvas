@@ -2,6 +2,12 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.12.1] - 2026-03-27
+
+### Fixed
+- PTY leak: terminal destroy now sends SIGHUP to the entire process group instead of SIGTERM to the shell only, preventing orphaned Claude CLI and MCP server processes from accumulating and exhausting the system PTY limit
+- Quota panel: show error state instead of hiding the section on fetch failure
+
 ## [0.12.0] - 2026-03-27
 
 ### Added
