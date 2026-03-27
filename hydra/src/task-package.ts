@@ -66,6 +66,94 @@ function renderList(items: string[], emptyMessage: string): string[] {
   return items.map((item) => `- ${item}`);
 }
 
+// ── Planner domain audit guides ──
+
+const PLAN_GUIDE_FRONTEND = `# Frontend Audit Guide
+
+Read this guide when the task involves UI components, pages, or user-facing interactions.
+
+## User Flow Audit
+- Map out each user flow that touches the changed area. Walk through: entry point → actions → outcomes.
+- Identify dead ends — states the user can reach but can't do anything useful (empty tabs, blank panels, buttons that lead nowhere).
+- Check that every interactive element has a clear affordance (looks clickable/draggable/expandable).
+- Look for missing feedback: async operations without loading states, actions without confirmation, errors without recovery paths.
+
+## Interaction Anti-Patterns
+- State transitions without visual continuity (instant show/hide instead of animated transitions).
+- Inconsistent hover/active/focus states across similar elements.
+- Click targets smaller than 32x32px on desktop or 44x44px on touch.
+- Scroll containers without visible overflow indicators.
+- Modals or popovers that trap focus incorrectly or can't be dismissed with Escape.
+
+## Layout Risks
+- Flex scroll chains: every ancestor of an overflow-auto container in a flex-col layout must have min-h-0. One missing link breaks scrolling.
+- Fixed/absolute positioning that doesn't account for dynamic content height.
+- Text truncation without title attributes or tooltips for full content.
+- Responsive breakpoints: does the layout degrade gracefully when the container is resized?
+
+## Visual Consistency
+- Typography: are font sizes, weights, and families consistent with the rest of the app?
+- Spacing: does the component follow the same spacing rhythm (padding, gaps) as sibling components?
+- Color: are all colors from the CSS variable system, or are there hardcoded values?
+`;
+
+const PLAN_GUIDE_BACKEND = `# Backend Audit Guide
+
+Read this guide when the task involves APIs, services, data processing, or server-side logic.
+
+## API Contract Audit
+- List all endpoints/functions affected by the change. For each: what are the inputs, outputs, and error cases?
+- Are there callers that depend on the current behavior? Will they break?
+- Are error responses consistent with the rest of the API (same shape, same status codes)?
+
+## Data Flow Audit
+- Trace data from input to storage to output. Where can it be corrupted, lost, or leaked?
+- Are there race conditions in concurrent access patterns (read-modify-write without locking)?
+- Do write operations that must be atomic use transactions?
+- If the change involves migrations: is the migration reversible? Does it handle existing data?
+
+## Performance Risks
+- N+1 query patterns in loops that access related data.
+- Unbounded result sets without pagination.
+- Expensive operations (network calls, file I/O) in hot paths that could be deferred or cached.
+- Memory concerns: large objects in closures, unbounded caches, streams not piped.
+
+## Security Risks
+- User input reaching business logic without validation/sanitization.
+- String interpolation in SQL queries (must be parameterized).
+- Secrets in code, logs, or error responses.
+- Authentication/authorization gaps on new or modified routes.
+`;
+
+const PLAN_GUIDE_INFRA = `# Infrastructure Audit Guide
+
+Read this guide when the task involves deployment, configuration, CI/CD, or operational tooling.
+
+## Configuration Audit
+- Are environment-specific values externalized (env vars, config files), not hardcoded?
+- Is there a clear separation between secrets and non-secret configuration?
+- Are defaults sensible for local development?
+
+## Deployment Risks
+- Can the change be deployed without downtime?
+- Is it backward-compatible during rolling deployment?
+- Is there a rollback path?
+- If database changes are involved: can the migration run while old code serves traffic?
+
+## Observability
+- Are meaningful log messages emitted at appropriate levels?
+- Do logs include correlation IDs for tracing?
+- Are key metrics instrumented (latency, error rate, throughput)?
+`;
+
+const PLANNER_GUIDES: Record<string, { filename: string; content: string }> = {
+  frontend: { filename: "plan-frontend.md", content: PLAN_GUIDE_FRONTEND },
+  backend: { filename: "plan-backend.md", content: PLAN_GUIDE_BACKEND },
+  infra: { filename: "plan-infra.md", content: PLAN_GUIDE_INFRA },
+};
+
+// ── Evaluator domain evaluation guides ──
+
 const EVAL_GUIDE_FRONTEND = `# Frontend Evaluation Guide
 
 Read this guide when the task involves UI components, pages, or user-facing interactions.
@@ -167,6 +255,42 @@ const EVALUATOR_GUIDES: Record<string, { filename: string; content: string }> = 
   backend: { filename: "eval-backend.md", content: EVAL_GUIDE_BACKEND },
   infra: { filename: "eval-infra.md", content: EVAL_GUIDE_INFRA },
 };
+
+function renderPlannerDomainGuideReference(
+  role: string,
+  packageDir: string,
+): string[] {
+  if (role !== "planner") {
+    return [];
+  }
+  const lines = [
+    "## Domain-Specific Audit Guides",
+    "",
+    "The following guides contain audit checklists for specific task types.",
+    "Read the ones relevant to this task to guide your investigation — skip the rest:",
+    "",
+  ];
+  for (const [domain, guide] of Object.entries(PLANNER_GUIDES)) {
+    lines.push(
+      `- **${domain}**: ${path.join(packageDir, guide.filename)}`,
+    );
+  }
+  lines.push("");
+  return lines;
+}
+
+function writePlannerGuides(contract: HandoffContract): void {
+  if (contract.to.role !== "planner") {
+    return;
+  }
+  for (const guide of Object.values(PLANNER_GUIDES)) {
+    fs.writeFileSync(
+      path.join(contract.artifacts.package_dir, guide.filename),
+      guide.content,
+      "utf-8",
+    );
+  }
+}
 
 function renderEvaluatorDomainGuideReference(
   role: string,
@@ -331,6 +455,7 @@ export function renderTaskPackageTemplate(contract: HandoffContract): string {
     "- You must write both `result.json` and `done` before finishing.",
     `- Write the done marker JSON to ${contract.artifacts.done_file}; do not write a plain-text path.`,
     "",
+    ...renderPlannerDomainGuideReference(contract.to.role, contract.artifacts.package_dir),
     ...renderEvaluatorVerificationStrategy(contract.to.role),
     ...renderEvaluatorDomainGuideReference(contract.to.role, contract.artifacts.package_dir),
   ];
@@ -350,6 +475,7 @@ export function writeTaskPackage(contract: HandoffContract): TaskPackagePaths {
     renderTaskPackageTemplate(contract),
     "utf-8",
   );
+  writePlannerGuides(contract);
   writeEvaluatorGuides(contract);
   return contract.artifacts;
 }
