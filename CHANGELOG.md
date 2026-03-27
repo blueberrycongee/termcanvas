@@ -2,6 +2,12 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.9.1] - 2026-03-27
+
+### Fixed
+- Hydra: remove hardcoded codex default for implementer role, use flexible agent resolution chain
+- Hydra: add agent characteristics (Claude vs Codex strengths) to hydra skill for provider selection guidance
+
 ## [0.9.0] - 2026-03-27
 
 ### Added
