@@ -2,6 +2,28 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.9.0] - 2026-03-27
+
+### Added
+- Hydra orchestration system: task handoffs, workflow commands, planner-implementer-evaluator template
+- Hydra telemetry truth layer with query APIs and UI advisory views
+- Git panel in the left sidebar with staging, commit, push/pull, branch switching, and commit history
+- One-click hydra project enable button
+- CLI command routing to the active termcanvas instance
+- Termcanvas router skill
+
+### Changed
+- Redesigned git sidebar panel layout and inspector
+- Left panel resize now uses pointer capture for smoother interaction
+
+### Fixed
+- Git panel bottom dead space eliminated; history fills remaining space
+- Diff line backgrounds extend to full scrollable width on horizontal scroll
+- Commit detail panel no longer overlaps history items
+- Terminal title controls visibility restored
+- Terminal auto-copy focus regression resolved
+- Worktree header actions no longer re-expand legacy nodes
+
 ## [0.8.57] - 2026-03-25
 
 ### Changed

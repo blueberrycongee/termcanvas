@@ -556,7 +556,7 @@ export function GitContent({ worktreePath }: { worktreePath: string | null }) {
 
   const handleCommit = useCallback(async () => {
     if (!commitMessage.trim()) {
-      notify("warning", t.git_empty_commit_message);
+      notify("warn", t.git_empty_commit_message);
       return;
     }
     setCommitting(true);
@@ -567,7 +567,7 @@ export function GitContent({ worktreePath }: { worktreePath: string | null }) {
       }
       const hash = await commit(commitMessage);
       setCommitMessage("");
-      notify("success", t.git_commit_success(hash.slice(0, 7)));
+      notify("info", t.git_commit_success(hash.slice(0, 7)));
       await refreshLog();
     } catch (error) {
       notify("error", t.git_commit_failed(String(error)));
@@ -580,7 +580,7 @@ export function GitContent({ worktreePath }: { worktreePath: string | null }) {
     setPushing(true);
     try {
       await push();
-      notify("success", t.git_push_success);
+      notify("info", t.git_push_success);
       await refreshLog();
     } catch (error) {
       notify("error", t.git_push_failed(String(error)));
@@ -593,7 +593,7 @@ export function GitContent({ worktreePath }: { worktreePath: string | null }) {
     setPulling(true);
     try {
       await pull();
-      notify("success", t.git_pull_success);
+      notify("info", t.git_pull_success);
       await refreshAll();
     } catch (error) {
       notify("error", t.git_pull_failed(String(error)));
@@ -605,7 +605,7 @@ export function GitContent({ worktreePath }: { worktreePath: string | null }) {
   const handleBranchSwitch = useCallback(async (ref: string) => {
     setSwitchingBranch(true);
     try {
-      await window.termcanvas.git.checkout(worktreePath, ref);
+      await window.termcanvas.git.checkout(worktreePath!, ref);
       await refreshAll();
     } catch (error) {
       notify("error", t.git_checkout_failed(String(error)));
@@ -641,7 +641,7 @@ export function GitContent({ worktreePath }: { worktreePath: string | null }) {
             onClick={async () => {
               setInitializingRepo(true);
               try {
-                await window.termcanvas.git.init(worktreePath);
+                await window.termcanvas.git.init(worktreePath!);
                 await refreshAll();
               } catch (error) {
                 notify("error", t.git_init_failed(String(error)));
@@ -1025,7 +1025,7 @@ export function GitContent({ worktreePath }: { worktreePath: string | null }) {
                             zIndex: 10,
                           }}
                         >
-                          <CommitDetailInline worktreePath={worktreePath} hash={c.hash} />
+                          <CommitDetailInline worktreePath={worktreePath!} hash={c.hash} />
                         </div>
                       )}
                     </div>
