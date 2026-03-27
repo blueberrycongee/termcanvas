@@ -25,7 +25,7 @@
 
 <br>
 
-TermCanvas spreads all your terminals across an infinite spatial canvas — no more tabs, no more split panes. Drag them around, zoom in to focus, zoom out to see the big picture, and annotate with freehand drawings.
+TermCanvas spreads all your terminals across an infinite spatial canvas — no more tabs, no more split panes. Drag them around, zoom in to focus, zoom out to see the big picture.
 
 It organizes everything in a **Project → Worktree → Terminal** hierarchy that mirrors how you actually use git. Add a project, and TermCanvas auto-detects its worktrees. Create a new worktree from the terminal, and it appears on the canvas instantly.
 
@@ -66,13 +66,12 @@ npm run dev
 
 Infinite canvas — pan, zoom, and arrange terminals freely. Three-layer hierarchy: projects contain worktrees, worktrees contain terminals. New worktrees appear automatically as you create them.
 
-Double-click a terminal title bar to zoom-to-fit. Drag to reorder. Box-select multiple terminals. Annotate with pen, text, rectangles, and arrows. Save your entire layout to a `.termcanvas` file.
+Double-click a terminal title bar to zoom-to-fit. Drag to reorder. Box-select multiple terminals. Save your entire layout to a `.termcanvas` file.
 
 ### AI Coding Agents
 
 First-class support for **Claude Code**, **Codex**, **Kimi**, **Gemini**, and **OpenCode**.
 
-- **Composer** — a unified input bar that sends prompts to the focused agent, with image paste support
 - **Live status & completion glow** — see at a glance whether an agent is working, waiting, or done
 - **Telemetry truth layer** — real-time turn state, tool activity, and progress tracking per agent; stall detection, advisory badges, and structured snapshots for both UI and Hydra
 - **Session resume** — close and reopen an agent terminal without losing context
@@ -279,7 +278,6 @@ All shortcuts are customizable in Settings → Shortcuts. On Windows/Linux, repl
 <tr><td><b>Terminal</b></td><td>xterm.js (WebGL) · node-pty</td></tr>
 <tr><td><b>State</b></td><td>Zustand</td></tr>
 <tr><td><b>Styling</b></td><td>Tailwind CSS · Geist</td></tr>
-<tr><td><b>Drawing</b></td><td>perfect-freehand</td></tr>
 <tr><td><b>Auth & sync</b></td><td>Supabase</td></tr>
 <tr><td><b>Build</b></td><td>Vite · esbuild</td></tr>
 </table>
@@ -287,5 +285,34 @@ All shortcuts are customizable in Settings → Shortcuts. On Windows/Linux, repl
 <br>
 
 **Acknowledgements** — [lazygit](https://github.com/jesseduffield/lazygit) is integrated as a built-in terminal type for visual git management on the canvas.
+
+---
+
+## Roadmap
+
+TermCanvas is evolving from a local desktop tool into a **cloud-native AI development platform**. Here's what's coming:
+
+### Cloud Runtime
+
+Move task execution from your local machine to the cloud. Spin up AI agents on remote runtimes — your tasks run in managed environments with full git, toolchain, and dependency support, while your canvas remains the single pane of glass.
+
+- **Hosted agent execution** — delegate Claude, Codex, and other agent tasks to cloud workers with on-demand compute
+- **Persistent remote sessions** — close your laptop, come back later, your agents are still working
+- **Parallel cloud workers** — scale out Hydra workflows across multiple cloud instances instead of local terminals
+
+### Automated Vibe Pipeline
+
+End-to-end automation from idea to shipped code, powered by cloud runtime:
+
+- **Intent → Plan → Implement → Review → Merge** — a fully automated pipeline where you describe what you want and the system handles the rest
+- **Continuous vibe loop** — agents plan, implement, self-review, and iterate autonomously until the result meets acceptance criteria
+- **Pipeline-as-code** — define reusable workflow templates for common tasks (bug triage, feature implementation, migration, refactoring)
+- **Human-in-the-loop checkpoints** — configurable approval gates at any stage for when you want to stay in control
+
+### Vision
+
+The goal is simple: **you describe intent, TermCanvas handles the rest.** Your canvas becomes a mission control for autonomous AI development — monitor progress, review results, intervene when needed, and let the cloud do the heavy lifting.
+
+---
 
 **Contributing** — fork, branch, and open a PR. Licensed under [MIT](LICENSE).
