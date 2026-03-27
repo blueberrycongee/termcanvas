@@ -185,6 +185,7 @@ export function buildWorkflowTemplatePlan(
             "You must explicitly list failures, vulnerabilities, and unmet acceptance criteria with concrete evidence (command output, error logs, screenshots).",
             `If blocking issues remain, set success=false and hand off back to ${implementerId}.`,
             `If the work passes verification, set success=true and next_action.type=complete.`,
+            "Include a `verification` object in result.json reporting what you checked at each tier (runtime, build, probing, static) so the implementer can act on specific findings.",
           ].join("\n"),
           acceptance_criteria: [
             "Run the project's test suite and report results — do not skip this",

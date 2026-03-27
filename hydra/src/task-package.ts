@@ -82,6 +82,17 @@ function renderEvaluatorVerificationStrategy(role: string): string[] {
     "",
     "Report evidence from the highest tier you can reach. \"The code looks correct\" is not acceptable when tests exist and can be run.",
     "",
+    "Include a `verification` object in your result JSON so the next agent knows exactly what was checked:",
+    "```json",
+    '"verification": {',
+    '  "runtime":  { "ran": true,  "pass": false, "detail": "src/auth.test.ts: token undefined" },',
+    '  "build":    { "ran": true,  "pass": true,  "detail": "tsc clean" },',
+    '  "probing":  { "ran": false, "reason": "test suite covers critical paths" },',
+    '  "static":   { "ran": true,  "detail": "reviewed 3 changed files" }',
+    "}",
+    "```",
+    "If your highest completed tier is static analysis, explain why higher tiers were unavailable and apply stricter judgment before claiming success.",
+    "",
   ];
 }
 

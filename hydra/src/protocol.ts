@@ -84,6 +84,20 @@ export interface ResultNextAction {
   handoff_id?: string;
 }
 
+export interface VerificationTier {
+  ran: boolean;
+  pass?: boolean;
+  detail?: string;
+  reason?: string;
+}
+
+export interface ResultVerification {
+  runtime?: VerificationTier;
+  build?: VerificationTier;
+  probing?: VerificationTier;
+  static?: VerificationTier;
+}
+
 export interface ResultContract {
   version: typeof PROTOCOL_VERSION;
   handoff_id: string;
@@ -93,6 +107,7 @@ export interface ResultContract {
   outputs: ResultOutput[];
   evidence: string[];
   next_action: ResultNextAction;
+  verification?: ResultVerification;
 }
 
 export interface DoneMarker {
@@ -421,6 +436,31 @@ function validateNextAction(record: Record<string, unknown>, root: unknown): Res
   return nextAction;
 }
 
+function validateVerificationTier(value: unknown): VerificationTier | undefined {
+  if (!isRecord(value)) return undefined;
+  if (typeof value.ran !== "boolean") return undefined;
+  const tier: VerificationTier = { ran: value.ran };
+  if (typeof value.pass === "boolean") tier.pass = value.pass;
+  if (typeof value.detail === "string") tier.detail = value.detail;
+  if (typeof value.reason === "string") tier.reason = value.reason;
+  return tier;
+}
+
+function validateVerification(record: Record<string, unknown>): ResultVerification | undefined {
+  const value = record.verification;
+  if (value === undefined || !isRecord(value)) return undefined;
+  const v: ResultVerification = {};
+  const runtime = validateVerificationTier(value.runtime);
+  const build = validateVerificationTier(value.build);
+  const probing = validateVerificationTier(value.probing);
+  const staticTier = validateVerificationTier(value.static);
+  if (runtime) v.runtime = runtime;
+  if (build) v.build = build;
+  if (probing) v.probing = probing;
+  if (staticTier) v.static = staticTier;
+  return Object.keys(v).length > 0 ? v : undefined;
+}
+
 export function validateResultContract(
   value: unknown,
   handoff: Pick<HandoffContract, "handoff_id" | "workflow_id">,
@@ -436,6 +476,8 @@ export function validateResultContract(
     evidence: expectStringArray(record, "evidence", "PROTOCOL_INVALID_RESULT", "protocol.validate_result", value),
     next_action: validateNextAction(record, value),
   };
+  const verification = validateVerification(record);
+  if (verification) validated.verification = verification;
 
   if (validated.handoff_id !== handoff.handoff_id) {
     failProtocolValidation("PROTOCOL_INVALID_RESULT", "protocol.validate_result", "Invalid handoff_id: result does not match handoff", value);
