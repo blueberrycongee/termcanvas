@@ -17,10 +17,6 @@
 
 <img src="docs/image.png?v=2" alt="TermCanvas demo — multiple AI agents on an infinite canvas" />
 
-<br>
-
-[![Star History Chart](https://api.star-history.com/svg?repos=blueberrycongee/termcanvas&type=Date)](https://star-history.com/#blueberrycongee/termcanvas&Date)
-
 </div>
 
 <br>
@@ -316,3 +312,9 @@ The goal is simple: **you describe intent, TermCanvas handles the rest.** Your c
 ---
 
 **Contributing** — fork, branch, and open a PR. Licensed under [MIT](LICENSE).
+
+<div align="center">
+
+[![Star History Chart](https://api.star-history.com/svg?repos=blueberrycongee/termcanvas&type=Date)](https://star-history.com/#blueberrycongee/termcanvas&Date)
+
+</div>
