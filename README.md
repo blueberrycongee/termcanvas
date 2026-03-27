@@ -74,8 +74,13 @@ First-class support for **Claude Code**, **Codex**, **Kimi**, **Gemini**, and **
 
 - **Composer** — a unified input bar that sends prompts to the focused agent, with image paste support
 - **Live status & completion glow** — see at a glance whether an agent is working, waiting, or done
+- **Telemetry truth layer** — real-time turn state, tool activity, and progress tracking per agent; stall detection, advisory badges, and structured snapshots for both UI and Hydra
 - **Session resume** — close and reopen an agent terminal without losing context
 - **Inline diff cards** — review an agent's changes without leaving the canvas
+
+### Git
+
+Built-in Git panel in the left sidebar — commit history, diff viewer, and git status at a glance without leaving the canvas.
 
 ### Terminals
 
@@ -151,42 +156,96 @@ termcanvas diff ~/my-repo --summary
 
 <br>
 
-Hydra is TermCanvas's file-contract workflow engine for longer-running coding tasks. It combines isolated worktrees, explicit handoff artifacts, and structured retry/status controls around local Claude/Codex terminals.
+Hydra is TermCanvas's multi-agent orchestration engine. It coordinates Claude, Codex, and other AI agents through **file-contract handoffs** — isolated worktrees, a handoff state machine, protocol v2 contract validation, structured retry/timeout controls, and a telemetry truth layer for real-time progress tracking.
 
-**The easiest way to use Hydra is still to ask your AI agent directly.** After running `hydra init` in your project, the bundled router skill should choose the lightest fitting path:
+**Core idea:** terminal prose is not authoritative. Structured files (`handoff.json`, `task.md`, `result.json`, `done`) are the single source of truth.
+
+**The easiest way to use Hydra is to ask your AI agent directly.** Run `hydra init` in your project (or click "Enable Hydra" in the worktree header), and the bundled router skill picks the lightest fitting path:
 
 - stay in the current agent for simple or local tasks
-- use `hydra run --template single-step` for one implementer with file gates
-- use default `hydra run` for planner → implementer → evaluator
-- use `hydra spawn` as a direct isolated-worker primitive when the split is already known
+- `hydra run --template single-step` — one implementer with file gates
+- `hydra run` (default) — planner → implementer → evaluator with evaluator-to-implementer loops
+- `hydra spawn` — a direct isolated-worker primitive when the split is already known
+
+Each role can target a different provider (`--planner-type claude --implementer-type codex --evaluator-type claude`), or inherit from the current terminal.
 
 For example:
 
 > *"Use Hydra to implement the PRD in `docs/prd/auth-redesign.md`. Pick the right mode and keep evidence in the workflow files."*
-
-The agent should route the task first, then call the matching Hydra mode when needed — you don't need to memorize every CLI flag.
 
 ```bash
 hydra init    # teach Claude Code / Codex how to use Hydra in this project
 ```
 
 <details>
-<summary>Manual usage</summary>
+<summary>Full command reference</summary>
+
+```
+Usage: hydra <run|tick|watch|status|retry|spawn|list|cleanup|init> [options]
+
+Workflow commands:
+  run      Create and start a file-contract workflow
+           --task <desc>              Task description (required)
+           --repo <path>              Repository path (required)
+           --template <name>          single-step | planner-implementer-evaluator (default)
+           --all-type <type>          Force one agent type for all roles
+           --planner-type <type>      Planner agent type
+           --implementer-type <type>  Implementer agent type
+           --evaluator-type <type>    Evaluator agent type
+           --timeout-minutes <num>    Per-handoff timeout (default: 30)
+           --max-retries <num>        Automatic retry limit (default: 1)
+           --auto-approve             Run sub-agent in auto-approve mode
+
+  tick     Advance one workflow tick (collect result, dispatch next handoff)
+  watch    Poll a workflow until it reaches a terminal state
+  status   Show structured workflow status + telemetry advisory
+  retry    Retry a failed or timed-out workflow
+
+Worker commands:
+  spawn    Create one direct isolated worker terminal
+           --task <desc>              Task description (required)
+           --repo <path>              Repository path (required)
+           --worker-type <type>       Worker agent type
+           --base-branch <branch>     Base branch for the new worktree
+
+Management commands:
+  list     List all spawned agents
+  cleanup  Clean up agent worktrees and terminals
+  init     Add Hydra instructions to project CLAUDE.md and AGENTS.md
+```
+
+</details>
+
+<details>
+<summary>Example commands</summary>
 
 ```bash
+# Full workflow (planner → implementer → evaluator)
 hydra run --task "fix the login bug" --repo .
+
+# Mixed providers by role
+hydra run --task "implement auth" --repo . \
+  --planner-type claude --implementer-type codex --evaluator-type claude
+
+# Single-step (one implementer, file gates only)
 hydra run --task "implement the API change" --repo . --template single-step
+
+# Direct isolated worker
 hydra spawn --task "investigate the flaky CI failure" --repo .
-hydra list --repo .
+
+# Orchestration
 hydra watch --repo . --workflow <workflow-id>
 hydra status --repo . --workflow <workflow-id>
+hydra retry --repo . --workflow <workflow-id>
+
+# Cleanup
 hydra cleanup --workflow <workflow-id> --repo . --force
 hydra cleanup <agent-id> --force
 ```
 
-Hydra exposes workflow execution through `hydra run`: `--template single-step` for one implementer or the default planner → implementer → evaluator loop. It also exposes `hydra spawn` as a direct isolated-worker primitive when you do not need a full workflow record. Current workflow templates are staged rather than fan-out parallel; only `hydra run` workflows advance through validated `result.json` + `done` evidence inside `.hydra/workflows`. See [Hydra Orchestration Guide](docs/hydra-orchestration.md) for architecture boundaries, mode selection, troubleshooting, anti-patterns, and the local acceptance harness.
-
 </details>
+
+Workflows advance through validated `result.json` + `done` evidence inside `.hydra/workflows/`. The telemetry truth layer provides real-time `turn_state`, `last_meaningful_progress_at`, and `derived_status` — used by both the UI (badges, advisory views) and Hydra itself (stall detection, retry decisions). See [Hydra Orchestration Guide](docs/hydra-orchestration.md) for architecture, troubleshooting, and anti-patterns.
 
 ---
 

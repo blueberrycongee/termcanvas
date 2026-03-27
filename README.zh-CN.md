@@ -68,8 +68,13 @@ npm run dev
 
 - **Composer** —— 统一输入栏，向聚焦的 agent 发送提示，支持粘贴图片
 - **实时状态与完成闪光** —— 一眼看到 agent 正在工作、等待还是已完成
+- **Telemetry 真相层** —— 实时 turn 状态、工具活动、进度追踪；卡顿检测、状态徽章、结构化快照，同时服务 UI 和 Hydra
 - **会话恢复** —— 关闭并重新打开 agent 终端，不丢失上下文
 - **内联 diff 卡片** —— 不离开画布就能审查 agent 的代码变更
+
+### Git
+
+左侧栏内置 Git 面板——commit 历史、diff 查看器、git 状态一目了然，无需离开画布。
 
 ### 终端
 
@@ -147,42 +152,96 @@ termcanvas diff ~/my-repo --summary
 
 <br>
 
-Hydra 是 TermCanvas 面向长任务的“文件契约 + 状态机”编排引擎。它把隔离 worktree、明确交接产物、结构化重试与状态查询，组合在本地 Claude/Codex 终端之上。
+Hydra 是 TermCanvas 的多 agent 编排引擎。它通过**文件契约交接**协调 Claude、Codex 等 AI agent——隔离 worktree、handoff 状态机、protocol v2 合约验证、结构化重试/超时控制，以及用于实时进度追踪的 telemetry 真相层。
 
-**最简单的用法仍然是直接告诉你的 AI agent。** 在项目中运行 `hydra init` 之后，内置 router skill 应该先选最合适的路径：
+**核心理念：** 终端输出不具权威性。结构化文件（`handoff.json`、`task.md`、`result.json`、`done`）才是唯一的事实来源。
+
+**最简单的用法是直接告诉你的 AI agent。** 在项目中运行 `hydra init`（或在 worktree 标题栏点击”启用 Hydra”），内置 router skill 会选择最合适的路径：
 
 - 简单或局部任务：留在当前 agent 直接做
-- 需要文件门禁但实现路径明确：`hydra run --template single-step`
-- 需求模糊、风险高、PRD 驱动：默认 `hydra run`
-- 已经知道怎么拆，只需要一个隔离 worker primitive：`hydra spawn`
+- `hydra run --template single-step` —— 单个 implementer + 文件门禁
+- `hydra run`（默认）—— planner → implementer → evaluator，支持 evaluator 回环
+- `hydra spawn` —— 直接隔离 worker primitive，已知如何拆分时使用
+
+每个角色可以指定不同的 provider（`--planner-type claude --implementer-type codex --evaluator-type claude`），也可以继承当前终端类型。
 
 例如：
 
-> *"用 Hydra 实现 `docs/prd/auth-redesign.md`，你自己选合适模式，并把证据写进 workflow 文件。"*
-
-Agent 应该先路由任务，再在需要时调用对应的 Hydra 模式——你不需要记住所有 CLI 参数。
+> *”用 Hydra 实现 `docs/prd/auth-redesign.md`，你自己选合适模式，并把证据写进 workflow 文件。”*
 
 ```bash
 hydra init    # 教会 Claude Code / Codex 在这个项目中使用 Hydra
 ```
 
 <details>
-<summary>手动使用</summary>
+<summary>完整命令参考</summary>
+
+```
+用法: hydra <run|tick|watch|status|retry|spawn|list|cleanup|init> [options]
+
+Workflow 命令:
+  run      创建并启动文件契约 workflow
+           --task <desc>              任务描述（必填）
+           --repo <path>              仓库路径（必填）
+           --template <name>          single-step | planner-implementer-evaluator（默认）
+           --all-type <type>          所有角色使用同一 agent 类型
+           --planner-type <type>      Planner agent 类型
+           --implementer-type <type>  Implementer agent 类型
+           --evaluator-type <type>    Evaluator agent 类型
+           --timeout-minutes <num>    每次 handoff 超时（默认 30）
+           --max-retries <num>        自动重试上限（默认 1）
+           --auto-approve             子 agent 以 auto-approve 模式运行
+
+  tick     推进一个 workflow tick（收集结果、派发下一个 handoff）
+  watch    轮询 workflow 直到达到终态
+  status   显示结构化 workflow 状态 + telemetry 建议
+  retry    重试失败或超时的 workflow
+
+Worker 命令:
+  spawn    创建一个隔离 worker 终端
+           --task <desc>              任务描述（必填）
+           --repo <path>              仓库路径（必填）
+           --worker-type <type>       Worker agent 类型
+           --base-branch <branch>     新 worktree 的基础分支
+
+管理命令:
+  list     列出所有已创建的 agent
+  cleanup  清理 agent worktree 和终端
+  init     向项目添加 Hydra 指令（CLAUDE.md / AGENTS.md）
+```
+
+</details>
+
+<details>
+<summary>命令示例</summary>
 
 ```bash
-hydra run --task "fix the login bug" --repo .
-hydra run --task "implement the API change" --repo . --template single-step
-hydra spawn --task "investigate the flaky CI failure" --repo .
-hydra list --repo .
+# 完整 workflow（planner → implementer → evaluator）
+hydra run --task “fix the login bug” --repo .
+
+# 按角色混合 provider
+hydra run --task “implement auth” --repo . \
+  --planner-type claude --implementer-type codex --evaluator-type claude
+
+# 单步（一个 implementer + 文件门禁）
+hydra run --task “implement the API change” --repo . --template single-step
+
+# 直接隔离 worker
+hydra spawn --task “investigate the flaky CI failure” --repo .
+
+# 编排操作
 hydra watch --repo . --workflow <workflow-id>
 hydra status --repo . --workflow <workflow-id>
+hydra retry --repo . --workflow <workflow-id>
+
+# 清理
 hydra cleanup --workflow <workflow-id> --repo . --force
 hydra cleanup <agent-id> --force
 ```
 
-Hydra 通过 `hydra run` 提供 workflow 执行：要么是 `--template single-step` 的单 implementer，要么是默认的 planner → implementer → evaluator 回路。同时它也提供 `hydra spawn` 这种直接隔离 worker primitive，适用于不需要完整 workflow 记录的场景。当前 workflow 模板仍然是分阶段串行推进，而不是 fan-out 并行图；只有 `hydra run` 创建的 `.hydra/workflows` 在 `result.json` + `done` 校验通过后才会前进。更多架构边界、模式选择、故障排查、反模式和本地验收流程，见 [Hydra Orchestration Guide](docs/hydra-orchestration.md)。
-
 </details>
+
+Workflow 在 `.hydra/workflows/` 中通过 `result.json` + `done` 的验证后才会前进。Telemetry 真相层提供实时 `turn_state`、`last_meaningful_progress_at` 和 `derived_status`——同时服务于 UI（徽章、建议视图）和 Hydra 自身（卡顿检测、重试决策）。更多架构、故障排查和反模式，见 [Hydra Orchestration Guide](docs/hydra-orchestration.md)。
 
 ---
 
