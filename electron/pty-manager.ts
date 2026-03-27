@@ -3,32 +3,85 @@ import fs from "fs";
 import { buildLaunchSpec, type PtyLaunchOptions } from "./pty-launch.ts";
 
 export type PtyCreateOptions = PtyLaunchOptions;
+type PtySpawnFn = typeof pty.spawn;
+type BuildLaunchSpecFn = typeof buildLaunchSpec;
+
+interface PtyManagerDeps {
+  spawn: PtySpawnFn;
+  buildLaunchSpec: BuildLaunchSpecFn;
+}
+
+const RETRYABLE_PTY_SPAWN_ERRORS = [
+  /posix_spawnp failed/i,
+  /forkpty\(3\) failed/i,
+  /device not configured/i,
+];
+const MAX_PTY_CREATE_ATTEMPTS = 3;
+
+function isRetryablePtySpawnError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return RETRYABLE_PTY_SPAWN_ERRORS.some((pattern) => pattern.test(message));
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export class PtyManager {
   private instances = new Map<number, pty.IPty>();
   private outputBuffers = new Map<number, string[]>();
   private readonly MAX_OUTPUT_LINES = 1000;
   private nextId = 1;
+  private readonly deps: PtyManagerDeps;
+
+  constructor(deps: Partial<PtyManagerDeps> = {}) {
+    this.deps = {
+      spawn: pty.spawn,
+      buildLaunchSpec,
+      ...deps,
+    };
+  }
 
   async create(options: PtyCreateOptions): Promise<number> {
     if (!fs.existsSync(options.cwd)) {
       throw new Error(`Directory does not exist: ${options.cwd}`);
     }
 
-    const launch = await buildLaunchSpec(options);
+    const launch = await this.deps.buildLaunchSpec(options);
 
-    let ptyProcess: pty.IPty;
-    try {
-      ptyProcess = pty.spawn(launch.file, launch.args, {
-        name: "xterm-256color",
-        cols: 80,
-        rows: 24,
-        cwd: launch.cwd,
-        env: launch.env,
-      });
-    } catch (error) {
+    let ptyProcess: pty.IPty | null = null;
+    let lastError: unknown = null;
+    for (let attempt = 1; attempt <= MAX_PTY_CREATE_ATTEMPTS; attempt += 1) {
+      try {
+        ptyProcess = this.deps.spawn(launch.file, launch.args, {
+          name: "xterm-256color",
+          cols: 80,
+          rows: 24,
+          cwd: launch.cwd,
+          env: launch.env,
+        });
+        break;
+      } catch (error) {
+        lastError = error;
+        if (
+          attempt >= MAX_PTY_CREATE_ATTEMPTS ||
+          !isRetryablePtySpawnError(error)
+        ) {
+          throw new Error(
+            `Failed to spawn "${launch.file}" in "${launch.cwd}": ${String(error)}`,
+          );
+        }
+
+        console.warn(
+          `[PtyManager] transient PTY spawn failure on attempt ${attempt}/${MAX_PTY_CREATE_ATTEMPTS}: ${String(error)}`,
+        );
+        await sleep(attempt * 50);
+      }
+    }
+
+    if (!ptyProcess) {
       throw new Error(
-        `Failed to spawn "${launch.file}" in "${launch.cwd}": ${String(error)}`,
+        `Failed to spawn "${launch.file}" in "${launch.cwd}": ${String(lastError)}`,
       );
     }
 
