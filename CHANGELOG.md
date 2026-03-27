@@ -2,6 +2,21 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.12.0] - 2026-03-27
+
+### Added
+- Hydra planner: three-phase structure (investigate → constrain → plan) replacing direct task decomposition
+- Hydra planner: domain-specific audit guides (frontend, backend, infra) loaded on demand
+- Hydra evaluator: constraint and problem verification anchored to planner output
+- Hydra evaluator: regression check dimension — verify git diff doesn't break existing functionality
+
+### Changed
+- Left panel: removed standalone preview tab (preview is reached by clicking a file, not a tab)
+- Left panel: segmented tab bar with icons, collapsed icon strip, Hydra button relocated to git toolbar
+
+### Fixed
+- Left panel: git history scroll regression caused by missing flex height constraints in CollapsibleGroup
+
 ## [0.11.0] - 2026-03-27
 
 ### Added
