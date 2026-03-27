@@ -19,6 +19,7 @@ export interface RunArgs {
   timeoutMinutes: number;
   maxRetries: number;
   autoApprove: boolean;
+  approvePlan: boolean;
 }
 
 function printRunUsage(): never {
@@ -37,6 +38,7 @@ function printRunUsage(): never {
   console.log("  --timeout-minutes <num>  Per-handoff timeout in minutes (default: 30)");
   console.log("  --max-retries <num>      Automatic retry limit (default: 1)");
   console.log("  --auto-approve           Run sub-agent in auto-approve mode");
+  console.log("  --approve-plan           Pause after planner for user approval before implementing");
   console.log("");
   console.log("Mode guide:");
   console.log("  hydra run                          inherit the current terminal type when available");
@@ -58,6 +60,7 @@ export function parseRunArgs(args: string[]): RunArgs {
     timeoutMinutes: 30,
     maxRetries: 1,
     autoApprove: false,
+    approvePlan: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -84,6 +87,8 @@ export function parseRunArgs(args: string[]): RunArgs {
       result.maxRetries = Number.parseInt(args[++i], 10);
     } else if (arg === "--auto-approve") {
       result.autoApprove = true;
+    } else if (arg === "--approve-plan") {
+      result.approvePlan = true;
     }
   }
 
@@ -113,6 +118,7 @@ export async function run(args: string[]): Promise<void> {
     timeoutMinutes: parsed.timeoutMinutes,
     maxRetries: parsed.maxRetries,
     autoApprove: parsed.autoApprove,
+    approvePlan: parsed.approvePlan,
   });
   console.log(JSON.stringify(result, null, 2));
 }

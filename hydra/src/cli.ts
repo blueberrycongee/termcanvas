@@ -4,7 +4,7 @@ const args = process.argv.slice(2);
 const [command, ...rest] = args;
 
 function printUsage() {
-  console.log("Usage: hydra <run|tick|watch|status|retry|spawn|list|cleanup|init> [options]");
+  console.log("Usage: hydra <run|tick|watch|status|retry|approve|revise|spawn|list|cleanup|init> [options]");
   console.log("");
   console.log("Commands:");
   console.log("  run      Create and start a file-contract workflow");
@@ -12,6 +12,8 @@ function printUsage() {
   console.log("  watch    Poll a workflow until it reaches a terminal state");
   console.log("  status   Show structured workflow status");
   console.log("  retry    Retry a failed or timed-out workflow");
+  console.log("  approve  Approve a plan and continue to implementation");
+  console.log("  revise   Revise a plan with feedback and re-run planner");
   console.log("  spawn    Create one direct isolated worker terminal");
   console.log("  list     List all spawned agents");
   console.log("  cleanup  Clean up agent worktrees and terminals");
@@ -53,6 +55,16 @@ async function main() {
     case "retry": {
       const { retry } = await import("./retry-command.js");
       await retry(rest);
+      break;
+    }
+    case "approve": {
+      const { approve } = await import("./approve.js");
+      await approve(rest);
+      break;
+    }
+    case "revise": {
+      const { revise } = await import("./revise.js");
+      await revise(rest);
       break;
     }
     case "list": {

@@ -51,6 +51,7 @@ export interface RunWorkflowOptions {
   timeoutMinutes: number;
   maxRetries: number;
   autoApprove: boolean;
+  approvePlan?: boolean;
 }
 
 export interface TickWorkflowOptions {
@@ -476,6 +477,7 @@ export async function runWorkflow(
     timeout_minutes: options.timeoutMinutes,
     max_retries: options.maxRetries,
     auto_approve: options.autoApprove,
+    approve_plan: options.approvePlan,
   };
   saveWorkflow(workflow);
 
@@ -499,6 +501,11 @@ export async function tickWorkflow(
   const workflow = loadWorkflowOrThrow(repoPath, options.workflowId);
   const handoff = loadHandoffOrThrow(manager, workflow);
 
+  // Workflow is paused waiting for user approval — don't advance.
+  if (workflow.status === "waiting_for_approval") {
+    return buildStatusView(workflow);
+  }
+
   if (handoff.status === "pending") {
     await dispatchPendingHandoff(workflow, handoff, dependencies);
     workflow.status = "running";
@@ -520,7 +527,14 @@ export async function tickWorkflow(
         workflow.handoff_ids,
         handoff.id,
         collected.result,
+        { approvePlan: workflow.approve_plan },
       );
+      if (decision.outcome === "await_approval") {
+        workflow.status = "waiting_for_approval";
+        workflow.updated_at = now();
+        saveWorkflow(workflow);
+        return buildStatusView(workflow);
+      }
       if (decision.outcome === "complete") {
         workflow.result = collected.result;
         workflow.status = "completed";
@@ -703,7 +717,11 @@ export async function watchWorkflow(
       },
       dependencies,
     );
-    if (view.workflow.status === "completed" || view.workflow.status === "failed") {
+    if (
+      view.workflow.status === "completed" ||
+      view.workflow.status === "failed" ||
+      view.workflow.status === "waiting_for_approval"
+    ) {
       return view;
     }
 
@@ -740,6 +758,115 @@ export async function retryWorkflow(
       repoPath: workflow.repo_path,
       workflowId: workflow.id,
     },
+    dependencies,
+  );
+}
+
+export interface ApproveWorkflowOptions extends TickWorkflowOptions {}
+
+export interface ReviseWorkflowOptions extends TickWorkflowOptions {
+  feedback: string;
+}
+
+export async function approveWorkflow(
+  options: ApproveWorkflowOptions,
+  dependencies: WorkflowDependencies = {},
+): Promise<WorkflowStatusView> {
+  const now = nowFn(dependencies);
+  const repoPath = path.resolve(options.repoPath);
+  const workflow = loadWorkflowOrThrow(repoPath, options.workflowId);
+
+  if (workflow.status !== "waiting_for_approval") {
+    throw new HydraError(`Workflow is not waiting for approval (status: ${workflow.status})`, {
+      errorCode: "WORKFLOW_NOT_AWAITING_APPROVAL",
+      stage: "workflow.approve",
+      ids: { workflow_id: workflow.id },
+    });
+  }
+
+  // Advance past the planner to the implementer.
+  const manager = new HandoffManager(repoPath);
+  const plannerId = workflow.handoff_ids[0];
+  const implementerId = workflow.handoff_ids[1];
+  workflow.current_handoff_id = implementerId;
+  workflow.status = "running";
+  workflow.approve_plan = false;
+  workflow.updated_at = now();
+  saveWorkflow(workflow);
+
+  const nextHandoff = loadHandoffOrThrow(manager, workflow);
+  await dispatchPendingHandoff(workflow, nextHandoff, dependencies);
+  workflow.updated_at = now();
+  saveWorkflow(workflow);
+  return buildStatusView(workflow);
+}
+
+export async function reviseWorkflow(
+  options: ReviseWorkflowOptions,
+  dependencies: WorkflowDependencies = {},
+): Promise<WorkflowStatusView> {
+  const now = nowFn(dependencies);
+  const repoPath = path.resolve(options.repoPath);
+  const workflow = loadWorkflowOrThrow(repoPath, options.workflowId);
+
+  if (workflow.status !== "waiting_for_approval") {
+    throw new HydraError(`Workflow is not waiting for approval (status: ${workflow.status})`, {
+      errorCode: "WORKFLOW_NOT_AWAITING_APPROVAL",
+      stage: "workflow.revise",
+      ids: { workflow_id: workflow.id },
+    });
+  }
+
+  const manager = new HandoffManager(repoPath);
+  const plannerId = workflow.handoff_ids[0];
+  const plannerHandoff = manager.load(plannerId);
+  if (!plannerHandoff) {
+    throw new HydraError(`Planner handoff not found: ${plannerId}`, {
+      errorCode: "WORKFLOW_HANDOFF_NOT_FOUND",
+      stage: "workflow.revise",
+      ids: { workflow_id: workflow.id, handoff_id: plannerId },
+    });
+  }
+
+  // Write revision feedback alongside the planner's task package.
+  const revisionFile = path.join(plannerHandoff.artifacts!.package_dir, "revision.md");
+  const previousPlanFile = plannerHandoff.artifacts!.result_file;
+  fs.writeFileSync(
+    revisionFile,
+    [
+      "# Plan Revision Request",
+      "",
+      "The previous plan was reviewed and needs revision.",
+      "",
+      "## Previous Plan",
+      `Read the previous plan at: ${previousPlanFile}`,
+      "",
+      "## Feedback",
+      options.feedback,
+      "",
+      "## Instructions",
+      "Revise the plan to address the feedback above. Keep the three-section structure (Problems Found, Constraints, Implementation Plan). You may add, remove, or modify any section based on the feedback.",
+    ].join("\n"),
+    "utf-8",
+  );
+
+  // Update the planner handoff context to include the revision file.
+  plannerHandoff.context.files = [
+    ...plannerHandoff.context.files.filter((f) => !f.endsWith("revision.md")),
+    previousPlanFile,
+    revisionFile,
+  ];
+  manager.save(plannerHandoff);
+
+  // Reset planner to pending and re-dispatch.
+  resetHandoffToPending(manager, plannerId, now());
+  workflow.current_handoff_id = plannerId;
+  workflow.status = "running";
+  workflow.updated_at = now();
+  saveWorkflow(workflow);
+
+  return tickWorkflow(
+    { repoPath, workflowId: workflow.id },
     dependencies,
   );
 }

@@ -31,7 +31,7 @@ export interface BuildWorkflowTemplatePlanInput {
 }
 
 export interface TemplateAdvanceDecision {
-  outcome: "complete" | "advance" | "loop" | "fail";
+  outcome: "complete" | "advance" | "loop" | "fail" | "await_approval";
   nextHandoffId?: string;
   requeueHandoffIds?: string[];
   failure?: WorkflowFailure;
@@ -243,6 +243,7 @@ export function resolveTemplateAdvance(
   handoffIds: string[],
   currentHandoffId: string,
   result: { success: boolean; summary: string; next_action: { type: string; handoff_id?: string } },
+  options?: { approvePlan?: boolean },
 ): TemplateAdvanceDecision {
   if (template === "single-step") {
     if (result.success) {
@@ -279,6 +280,13 @@ export function resolveTemplateAdvance(
           message: result.summary,
           stage: "workflow.template",
         },
+      };
+    }
+    // After planner completes, pause for approval if requested.
+    if (currentIndex === 0 && options?.approvePlan) {
+      return {
+        outcome: "await_approval",
+        nextHandoffId: handoffIds[1],
       };
     }
     return {

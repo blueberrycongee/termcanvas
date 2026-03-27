@@ -3,7 +3,7 @@ import path from "node:path";
 import type { AgentType } from "./handoff/types.ts";
 import type { ResultContract } from "./protocol.ts";
 
-export type WorkflowStatus = "pending" | "running" | "completed" | "failed";
+export type WorkflowStatus = "pending" | "running" | "waiting_for_approval" | "completed" | "failed";
 
 export interface WorkflowFailure {
   code: string;
@@ -30,6 +30,7 @@ export interface WorkflowRecord {
   timeout_minutes: number;
   max_retries: number;
   auto_approve: boolean;
+  approve_plan?: boolean;
   result?: ResultContract;
   failure?: WorkflowFailure;
 }
