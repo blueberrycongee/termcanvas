@@ -43,10 +43,10 @@ export function PreviewContent({ filePath, onClose }: Props) {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="px-3 py-2 border-b border-[var(--border)] flex items-center gap-2 shrink-0">
-        <span className="text-[11px] text-[var(--text-primary)] truncate flex-1">{fileName}</span>
+      <div className="px-3 py-2.5 border-b border-[var(--border)] flex items-center gap-2 shrink-0">
+        <span className="text-[11px] font-medium text-[var(--text-primary)] truncate flex-1">{fileName}</span>
         <button
-          className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-0.5"
+          className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-150"
           onClick={onClose}
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -60,7 +60,7 @@ export function PreviewContent({ filePath, onClose }: Props) {
             <span className="text-[var(--text-muted)] text-[11px]">{t.loading}</span>
           </div>
         ) : (
-          <pre className="px-3 py-2 text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap break-words">
+          <pre className="px-4 py-3 text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap break-words">
             {content}
           </pre>
         )}

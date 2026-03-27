@@ -22,6 +22,15 @@ thirdparty/
 .hydra-result-*.md
 .hydra-task-*.md
 
+# Agent config for other runtimes
+AGENTS.md
+
+# Playwright MCP artifacts
+.playwright-mcp/
+
+# Debug snapshots
+git-harness-snapshot.md
+
 # Local workspace state
 .termcanvas/
 *.termcanvas

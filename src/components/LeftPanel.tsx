@@ -7,6 +7,55 @@ import { FilesContent } from "./LeftPanel/FilesContent";
 import { DiffContent } from "./LeftPanel/DiffContent";
 import { GitContent } from "./LeftPanel/GitContent";
 import { PreviewContent } from "./LeftPanel/PreviewContent";
+import type { LeftPanelTab } from "../stores/canvasStore";
+
+// ── Tab icon SVGs (14×14, matching the minimal aesthetic) ──
+
+function IconFiles({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 1.5h5l3.5 3.5v9.5h-8.5z" />
+      <path d="M9 1.5v3.5h3.5" />
+    </svg>
+  );
+}
+
+function IconDiff({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
+      <path d="M5 4h6M5 8h6M5 12h6" />
+      <circle cx="3" cy="4" r="0.8" fill="currentColor" stroke="none" />
+      <circle cx="3" cy="8" r="0.8" fill="currentColor" stroke="none" />
+      <circle cx="3" cy="12" r="0.8" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function IconPreview({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 3.5h12v9H2z" />
+      <path d="M2 6h12" />
+    </svg>
+  );
+}
+
+function IconGit({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="5" cy="3.5" r="1.5" />
+      <circle cx="5" cy="12.5" r="1.5" />
+      <circle cx="11" cy="6.5" r="1.5" />
+      <path d="M5 5v6M11 8v-0.5c0-1.5-1-2.5-3-2.5H5" />
+    </svg>
+  );
+}
+
+const TAB_CONFIG: { id: LeftPanelTab; icon: typeof IconFiles; labelKey: "left_panel_files" | "left_panel_diff" | "left_panel_git" }[] = [
+  { id: "files", icon: IconFiles, labelKey: "left_panel_files" },
+  { id: "diff", icon: IconDiff, labelKey: "left_panel_diff" },
+  { id: "git", icon: IconGit, labelKey: "left_panel_git" },
+];
 
 export function LeftPanel() {
   const t = useT();
@@ -111,26 +160,41 @@ export function LeftPanel() {
     }
   }, [focusedProject, notify, t]);
 
+  // ── Collapsed state: vertical icon strip ──
   if (collapsed) {
-    const collapsedLabel =
-      activeTab === "git"
-        ? t.left_panel_git
-        : activeTab === "diff"
-          ? t.left_panel_diff
-          : activeTab === "preview"
-            ? t.left_panel_preview
-            : t.left_panel_files;
-
     return (
-      <button
-        className="fixed left-0 z-40 bg-[var(--surface)] border-r border-[var(--border)] flex items-center justify-center hover:bg-[var(--surface-hover)] transition-colors duration-150"
+      <div
+        className="fixed left-0 z-40 bg-[var(--surface)] border-r border-[var(--border)] flex flex-col items-center pt-3 gap-1"
         style={{ top: 44, height: "calc(100vh - 44px)", width: COLLAPSED_TAB_WIDTH }}
-        onClick={() => setCollapsed(false)}
       >
-        <span className="text-[var(--text-muted)] text-[11px] transform -rotate-90 whitespace-nowrap" style={{ fontFamily: '"Geist Mono", monospace' }}>
-          {collapsedLabel}
-        </span>
-      </button>
+        {TAB_CONFIG.map(({ id, icon: Icon }) => (
+          <button
+            key={id}
+            className={`flex items-center justify-center w-6 h-6 rounded-md transition-colors duration-150 ${
+              activeTab === id
+                ? "text-[var(--accent)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+            }`}
+            title={t[`left_panel_${id}` as keyof typeof t] as string}
+            onClick={() => {
+              setActiveTab(id);
+              setCollapsed(false);
+            }}
+          >
+            <Icon size={14} />
+          </button>
+        ))}
+        <div className="mt-auto mb-3">
+          <button
+            className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors duration-150"
+            onClick={() => setCollapsed(false)}
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M3 2L7 5L3 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -139,68 +203,60 @@ export function LeftPanel() {
       className="fixed left-0 z-40 bg-[var(--surface)] border-r border-[var(--border)] flex flex-col"
       style={{ top: 44, height: "calc(100vh - 44px)", width }}
     >
-      {/* Header */}
-      <div className="flex items-center border-b border-[var(--border)] shrink-0" style={{ height: 40 }}>
-        <button
-          className={`flex-1 text-[11px] py-2 transition-colors duration-150 ${activeTab === "files" ? "text-[var(--accent)] border-b-2 border-[var(--accent)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"}`}
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-          onClick={() => setActiveTab("files")}
-        >
-          {t.left_panel_files}
-        </button>
-        <button
-          className={`flex-1 text-[11px] py-2 transition-colors duration-150 ${activeTab === "diff" ? "text-[var(--accent)] border-b-2 border-[var(--accent)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"}`}
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-          onClick={() => setActiveTab("diff")}
-        >
-          {t.left_panel_diff}
-        </button>
-        <button
-          className={`flex-1 text-[11px] py-2 transition-colors duration-150 ${activeTab === "preview" ? "text-[var(--accent)] border-b-2 border-[var(--accent)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"}`}
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-          onClick={() => setActiveTab("preview")}
-        >
-          {t.left_panel_preview}
-        </button>
-        <button
-          className={`flex-1 text-[11px] py-2 transition-colors duration-150 ${activeTab === "git" ? "text-[var(--accent)] border-b-2 border-[var(--accent)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"}`}
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-          onClick={() => setActiveTab("git")}
-        >
-          {t.left_panel_git}
-        </button>
-        {focusedProject && (
+      {/* ── Segmented Tab Bar ── */}
+      <div className="shrink-0 px-2 pt-2 pb-1.5">
+        <div className="flex items-center gap-0.5 rounded-lg bg-[var(--bg)] p-0.5">
+          {TAB_CONFIG.map(({ id, icon: Icon, labelKey }) => {
+            const isActive = activeTab === id;
+            return (
+              <button
+                key={id}
+                className={`flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[11px] transition-all duration-200 ${
+                  isActive
+                    ? "bg-[var(--surface-hover)] text-[var(--text-primary)] shadow-sm"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                }`}
+                style={{ fontFamily: '"Geist Mono", monospace' }}
+                onClick={() => setActiveTab(id)}
+              >
+                <Icon size={13} />
+                <span>{t[labelKey]}</span>
+              </button>
+            );
+          })}
+          {/* Collapse button */}
           <button
-            className="mx-1 rounded border border-[var(--border)] px-2 py-1 text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-150 disabled:cursor-default disabled:opacity-60"
-            style={{ fontFamily: '"Geist Mono", monospace' }}
-            onClick={handleEnableHydra}
-            disabled={hydraEnabling}
-            title={focusedProject.path}
+            className="flex items-center justify-center w-7 h-7 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-all duration-200 ml-0.5 shrink-0"
+            onClick={() => setCollapsed(true)}
           >
-            {hydraEnabling ? t.left_panel_enable_hydra_busy : t.left_panel_enable_hydra}
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M7 2L3 5L7 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
-        )}
-        <button
-          className="px-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150"
-          onClick={() => setCollapsed(true)}
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M7 2L3 5L7 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
+        </div>
       </div>
 
-      {/* Content */}
-      {activeTab === "files" && <FilesContent worktreePath={effectiveWorktreePath} onFileClick={handleFileClick} />}
-      {activeTab === "diff" && <DiffContent worktreePath={effectiveWorktreePath} />}
-      {activeTab === "preview" && <PreviewContent filePath={previewFile} onClose={handlePreviewClose} />}
-      {activeTab === "git" && <GitContent worktreePath={effectiveWorktreePath} />}
+      {/* ── Content ── */}
+      <div className="flex-1 min-h-0 flex flex-col">
+        {activeTab === "files" && <FilesContent worktreePath={effectiveWorktreePath} onFileClick={handleFileClick} />}
+        {activeTab === "diff" && <DiffContent worktreePath={effectiveWorktreePath} />}
+        {activeTab === "preview" && <PreviewContent filePath={previewFile} onClose={handlePreviewClose} />}
+        {activeTab === "git" && (
+          <GitContent
+            worktreePath={effectiveWorktreePath}
+            onEnableHydra={focusedProject ? handleEnableHydra : undefined}
+            hydraEnabling={hydraEnabling}
+          />
+        )}
+      </div>
 
-      {/* Resize handle */}
+      {/* ── Resize handle with visible rail ── */}
       <div
-        className="absolute top-0 right-0 w-1 h-full cursor-ew-resize hover:bg-[var(--accent)] hover:opacity-50 transition-opacity duration-150"
+        className="absolute top-0 right-0 w-1.5 h-full cursor-ew-resize group/resize"
         onPointerDown={handleResizeStart}
-      />
+      >
+        <div className="absolute right-0 top-0 w-px h-full bg-[var(--border)] group-hover/resize:bg-[var(--accent)] group-hover/resize:opacity-70 transition-colors duration-150" />
+      </div>
     </div>
   );
 }

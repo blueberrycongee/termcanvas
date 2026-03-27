@@ -59,8 +59,8 @@ export function DiffContent({ worktreePath }: Props) {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="px-3 py-2 border-b border-[var(--border)] shrink-0">
-        <span className="text-[11px] text-[var(--text-muted)]">
+      <div className="px-3 py-2.5 border-b border-[var(--border)] shrink-0">
+        <span className="text-[11px] font-medium text-[var(--text-secondary)]">
           {t.file_count(fileDiffs.length)}
           <span className="ml-1.5" style={{ color: "var(--cyan)" }}>+{totalAdd}</span>
           <span className="ml-1" style={{ color: "var(--red)" }}>-{totalDel}</span>
@@ -70,7 +70,7 @@ export function DiffContent({ worktreePath }: Props) {
         {fileDiffs.map((fd) => (
           <div key={fd.file.name}>
             <button
-              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--surface-hover)] transition-colors duration-150 text-left"
+              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[var(--surface-hover)] transition-colors duration-150 text-left"
               onClick={() => setExpandedFiles((current) => toggleExpandedFiles(current, fd.file.name))}
             >
               <svg
@@ -94,7 +94,7 @@ export function DiffContent({ worktreePath }: Props) {
               )}
             </button>
             {expandedFiles.has(fd.file.name) && (
-              <div className="bg-[var(--bg)] border-y border-[var(--border)] overflow-x-auto">
+              <div className="mx-2 my-1 rounded-md bg-[var(--bg)] border border-[var(--border)] overflow-x-auto overflow-hidden">
                 {fd.file.isImage ? (
                   <div className="px-3 py-3 flex items-start gap-3">
                     {fd.file.imageOld && (

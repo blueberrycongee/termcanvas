@@ -187,7 +187,7 @@ function CollapsibleGroup({
   return (
     <div className={className}>
       <button
-        className="group flex w-full shrink-0 items-center gap-1 px-2 py-1.5 text-left hover:bg-[var(--surface-hover)]"
+        className="group flex w-full shrink-0 items-center gap-1 px-2 py-2 text-left hover:bg-[var(--surface-hover)] transition-colors duration-150"
         onClick={() => setExpanded((prev) => !prev)}
       >
         <IconChevron expanded={expanded} />
@@ -215,7 +215,11 @@ function CollapsibleGroup({
           </span>
         )}
       </button>
-      {expanded && children}
+      {expanded && (
+        <div className="flex-1 min-h-0 flex flex-col border-b border-[var(--border)]">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -235,7 +239,7 @@ function FileListItem({
 
   return (
     <div
-      className="group flex items-center gap-1.5 px-4 py-1 hover:bg-[var(--surface-hover)]"
+      className="group flex items-center gap-1.5 mx-1 px-3 py-1 rounded-md hover:bg-[var(--surface-hover)] transition-colors duration-150"
       style={{ minHeight: 26 }}
     >
       <div className="min-w-0 flex-1">
@@ -575,7 +579,15 @@ function GitGraphRail({
 
 // ── Main component ──
 
-export function GitContent({ worktreePath }: { worktreePath: string | null }) {
+export function GitContent({
+  worktreePath,
+  onEnableHydra,
+  hydraEnabling,
+}: {
+  worktreePath: string | null;
+  onEnableHydra?: () => void;
+  hydraEnabling?: boolean;
+}) {
   const t = useT();
   const { notify } = useNotificationStore();
 
@@ -876,6 +888,17 @@ export function GitContent({ worktreePath }: { worktreePath: string | null }) {
             >
               <IconRefresh size={14} />
             </button>
+            {onEnableHydra && (
+              <button
+                title="Hydra"
+                disabled={hydraEnabling}
+                onClick={onEnableHydra}
+                className="flex h-6 items-center justify-center rounded-md px-1.5 text-[10px] font-medium transition-colors hover:bg-[var(--surface-hover)] disabled:opacity-40"
+                style={{ ...MONO_STYLE, color: "var(--text-secondary)" }}
+              >
+                {hydraEnabling ? "…" : "H"}
+              </button>
+            )}
           </div>
         </div>
 
@@ -1117,7 +1140,7 @@ export function GitContent({ worktreePath }: { worktreePath: string | null }) {
                   return (
                     <div key={c.hash}>
                       <button
-                        className="flex w-full items-center gap-2 pr-3 text-left hover:bg-[var(--surface-hover)]"
+                        className="flex w-full items-center gap-2 pr-3 text-left transition-colors duration-150"
                         style={{
                           position: "absolute",
                           top: rowTop,
@@ -1129,7 +1152,6 @@ export function GitContent({ worktreePath }: { worktreePath: string | null }) {
                             : isHovered
                               ? "color-mix(in srgb, var(--surface-hover) 82%, transparent)"
                             : undefined,
-                          borderLeft: isSelected ? "2px solid var(--accent)" : "2px solid transparent",
                         }}
                         onClick={() => handleCommitSelection(c.hash)}
                         onMouseEnter={() => setHoveredCommitHash(c.hash)}

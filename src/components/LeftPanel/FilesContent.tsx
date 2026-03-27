@@ -7,6 +7,8 @@ interface Props {
   onFileClick: (filePath: string) => void;
 }
 
+const MONO_STYLE = { fontFamily: '"Geist Mono", monospace' } as const;
+
 function FileIcon({ isDirectory, expanded }: { isDirectory: boolean; expanded?: boolean }) {
   if (isDirectory) {
     return (
@@ -30,6 +32,7 @@ function FileIcon({ isDirectory, expanded }: { isDirectory: boolean; expanded?: 
 export function FilesContent({ worktreePath, onFileClick }: Props) {
   const t = useT();
   const { entries, expandedDirs, toggleDir, loading } = useWorktreeFiles(worktreePath);
+  const previewFile = useCanvasStore((s) => s.leftPanelPreviewFile);
 
   const renderEntries = (dirPath: string, depth: number): React.ReactNode => {
     const items = entries.get(dirPath);
@@ -39,7 +42,7 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
         <div
           key="empty"
           className="text-[var(--text-muted)] text-[11px] py-1"
-          style={{ paddingLeft: depth * 16 + 12 }}
+          style={{ ...MONO_STYLE, paddingLeft: depth * 16 + 16 }}
         >
           {t.file_empty_dir}
         </div>
@@ -48,11 +51,16 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
     return items.map((entry) => {
       const fullPath = `${dirPath}/${entry.name}`;
       const isExpanded = expandedDirs.has(fullPath);
+      const isSelected = !entry.isDirectory && fullPath === previewFile;
       return (
         <div key={fullPath}>
           <button
-            className="w-full flex items-center gap-1.5 px-2 py-[3px] hover:bg-[var(--surface-hover)] transition-colors duration-150 text-left"
-            style={{ paddingLeft: depth * 16 + 8 }}
+            className={`w-full flex items-center gap-1.5 py-1 transition-colors duration-150 text-left ${
+              isSelected
+                ? "bg-[var(--surface-hover)] border-l-2 border-[var(--accent)]"
+                : "hover:bg-[var(--surface-hover)] border-l-2 border-transparent"
+            }`}
+            style={{ paddingLeft: depth * 16 + 12, paddingRight: 8 }}
             onClick={() => {
               if (entry.isDirectory) {
                 toggleDir(fullPath);
@@ -81,7 +89,10 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
               <span className="w-[6px] shrink-0" />
             )}
             <FileIcon isDirectory={entry.isDirectory} expanded={isExpanded} />
-            <span className="text-[var(--text-primary)] truncate text-[11px]">
+            <span
+              className={`truncate text-[11px] ${entry.isDirectory ? "font-medium text-[var(--text-primary)]" : "text-[var(--text-primary)]"}`}
+              style={MONO_STYLE}
+            >
               {entry.name}
             </span>
           </button>
@@ -111,8 +122,8 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
 
   return (
     <div
-      className="flex-1 overflow-auto min-h-0"
-      style={{ fontFamily: '"Geist Mono", monospace', fontSize: 11 }}
+      className="flex-1 overflow-auto min-h-0 pt-1"
+      style={{ ...MONO_STYLE, fontSize: 11 }}
     >
       {renderEntries(worktreePath, 0)}
     </div>
