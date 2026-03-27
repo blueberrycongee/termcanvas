@@ -447,3 +447,105 @@ test("workflow dispatch persists the parent terminal id across later ticks", asy
     fs.rmSync(repoPath, { recursive: true, force: true });
   }
 });
+
+test("tick retries when telemetry reports process exited past grace period", async () => {
+  const { repoPath, worktreePath } = createRepoFixture();
+  const dispatched: string[] = [];
+
+  try {
+    // Start workflow — dispatches planner
+    const started = await runWorkflow(
+      {
+        task: "Test early exit detection via telemetry",
+        repoPath,
+        worktreePath,
+        template: "single-step",
+        agentType: "claude",
+        timeoutMinutes: 30,
+        maxRetries: 2,
+        autoApprove: false,
+      },
+      {
+        now: () => "2026-03-26T14:00:00.000Z",
+        dispatchCreateOnly: async (request) => {
+          dispatched.push(request.handoffId);
+          return {
+            projectId: "project-1",
+            terminalId: `terminal-${dispatched.length}`,
+            terminalType: request.agentType,
+            terminalTitle: request.agentType,
+            prompt: `Read ${request.taskFile}`,
+          };
+        },
+      },
+    );
+    assert.equal(dispatched.length, 1);
+
+    // Tick within grace period — telemetry says dead but we should NOT retry yet
+    const withinGrace = await tickWorkflow(
+      { repoPath, workflowId: started.workflow.id },
+      {
+        // Only 5 seconds after dispatch — within 15s grace period
+        now: () => "2026-03-26T14:00:05.000Z",
+        dispatchCreateOnly: async (request) => {
+          dispatched.push(request.handoffId);
+          return {
+            projectId: "project-1",
+            terminalId: `terminal-${dispatched.length}`,
+            terminalType: request.agentType,
+            terminalTitle: request.agentType,
+            prompt: `Read ${request.taskFile}`,
+          };
+        },
+        checkTerminalAlive: () => false,
+      },
+    );
+    assert.equal(withinGrace.workflow.status, "running");
+    assert.equal(dispatched.length, 1, "should not dispatch during grace period");
+
+    // Tick past grace period — telemetry says dead, should trigger retry
+    const pastGrace = await tickWorkflow(
+      { repoPath, workflowId: started.workflow.id },
+      {
+        // 20 seconds after dispatch — past 15s grace period
+        now: () => "2026-03-26T14:00:20.000Z",
+        dispatchCreateOnly: async (request) => {
+          dispatched.push(request.handoffId);
+          return {
+            projectId: "project-1",
+            terminalId: `terminal-${dispatched.length}`,
+            terminalType: request.agentType,
+            terminalTitle: request.agentType,
+            prompt: `Read ${request.taskFile}`,
+          };
+        },
+        checkTerminalAlive: () => false,
+      },
+    );
+    assert.equal(pastGrace.workflow.status, "running");
+    assert.equal(dispatched.length, 2, "should have retried after grace period");
+
+    // Telemetry returns null (unavailable) — should NOT retry
+    const unavailable = await tickWorkflow(
+      { repoPath, workflowId: started.workflow.id },
+      {
+        now: () => "2026-03-26T14:00:40.000Z",
+        dispatchCreateOnly: async (request) => {
+          dispatched.push(request.handoffId);
+          return {
+            projectId: "project-1",
+            terminalId: `terminal-${dispatched.length}`,
+            terminalType: request.agentType,
+            terminalTitle: request.agentType,
+            prompt: `Read ${request.taskFile}`,
+          };
+        },
+        checkTerminalAlive: () => null,
+      },
+    );
+    assert.equal(unavailable.workflow.status, "running");
+    assert.equal(dispatched.length, 2, "should not retry when telemetry unavailable");
+  } finally {
+    fs.rmSync(repoPath, { recursive: true, force: true });
+  }
+});

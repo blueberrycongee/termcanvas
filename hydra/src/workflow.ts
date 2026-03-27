@@ -28,8 +28,15 @@ import {
   type WorkflowFailure,
   type WorkflowRecord,
 } from "./workflow-store.ts";
-import { findProjectByPath, projectRescan } from "./termcanvas.ts";
+import {
+  findProjectByPath,
+  isTermCanvasRunning,
+  projectRescan,
+  telemetryTerminal,
+} from "./termcanvas.ts";
 import { buildGitWorktreeAddArgs, validateWorktreePath } from "./spawn.ts";
+
+const SPAWN_GRACE_PERIOD_MS = 15_000;
 
 export interface RunWorkflowOptions {
   task: string;
@@ -66,9 +73,25 @@ export interface WorkflowDependencies {
   now?: () => string;
   dispatchCreateOnly?: (request: DispatchCreateOnlyRequest) => Promise<DispatchCreateOnlyResult>;
   sleep?: (ms: number) => Promise<void>;
+  /** Returns true if the terminal PTY is alive, false if dead, null if unknown/unavailable. */
+  checkTerminalAlive?: (terminalId: string) => boolean | null;
 }
 
 const DEFAULT_SLEEP = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+function defaultCheckTerminalAlive(terminalId: string): boolean | null {
+  try {
+    if (!isTermCanvasRunning()) return null;
+    const telemetry = telemetryTerminal(terminalId);
+    return telemetry?.pty_alive ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function checkTerminalAliveFn(dependencies: WorkflowDependencies | undefined) {
+  return dependencies?.checkTerminalAlive ?? defaultCheckTerminalAlive;
+}
 
 function nowFn(dependencies: WorkflowDependencies | undefined): () => string {
   return dependencies?.now ?? (() => new Date().toISOString());
@@ -536,6 +559,59 @@ export async function tickWorkflow(
       await stateMachine.markFailed(handoff.id, collected.failure);
       saveWorkflowFailure(workflow, collected.failure, now());
       return buildStatusView(workflow);
+    }
+
+    // Early exit detection via telemetry: if the agent process died
+    // without writing result/done, detect it within seconds instead
+    // of waiting for the full timeout (e.g. 30 minutes).
+    const activeTerminalId = handoff.dispatch?.active_terminal_id;
+    if (activeTerminalId) {
+      const alive = checkTerminalAliveFn(dependencies)(activeTerminalId);
+      if (alive === false) {
+        const lastAttempt = handoff.dispatch?.attempts.at(-1);
+        const dispatchedMs = lastAttempt?.started_at
+          ? Date.parse(lastAttempt.started_at)
+          : 0;
+        const elapsedMs = Date.parse(now()) - dispatchedMs;
+        if (elapsedMs > SPAWN_GRACE_PERIOD_MS) {
+          await stateMachine.markTimedOut(handoff.id, {
+            code: "HANDOFF_PROCESS_EXITED",
+            message: `Agent process exited without writing result (elapsed ${Math.round(elapsedMs / 1000)}s)`,
+            stage: "workflow.telemetry_check",
+          });
+          const retryDecision = await stateMachine.scheduleRetry(handoff.id);
+          workflow.updated_at = now();
+          if (retryDecision.handoff.status === "failed") {
+            saveWorkflowFailure(workflow, {
+              code: "HANDOFF_PROCESS_EXITED",
+              message: "Agent process exited and retry limit reached",
+              stage: "workflow.telemetry_check",
+            }, now());
+            return buildStatusView(workflow);
+          }
+          const dispatch = await dispatchFn(dependencies)(
+            buildDispatchRequestFromHandoff(workflow, handoff),
+          );
+          await stateMachine.claimPending(
+            handoff.id,
+            `retry:${handoff.id}:${now()}`,
+          );
+          await stateMachine.markInProgress(handoff.id, {
+            tickId: `retry:${handoff.id}:${now()}`,
+          });
+          registerDispatchAttempt(manager, handoff.id, {
+            terminalId: dispatch.terminalId,
+            agentType: dispatch.terminalType as AgentType,
+            prompt: dispatch.prompt,
+            startedAt: now(),
+            retryOf: activeTerminalId,
+          });
+          workflow.status = "running";
+          workflow.failure = undefined;
+          saveWorkflow(workflow);
+          return buildStatusView(workflow);
+        }
+      }
     }
 
     const retryOutcome = await retryTimedOutHandoff(
