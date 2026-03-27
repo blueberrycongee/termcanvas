@@ -195,10 +195,17 @@ export class PtyManager {
     this.instances.delete(id);
     this.outputBuffers.delete(id);
 
-    try {
-      process.kill(pid, "SIGTERM");
-    } catch {
-      return;
+    // Send SIGHUP to the entire process group (shell + CLI + MCP servers).
+    // This mirrors what macOS Terminal.app does when closing a window:
+    // the master PTY FD close triggers SIGHUP to the session, giving
+    // Claude CLI a chance to save its session before exiting.
+    if (pid > 1) {
+      try {
+        process.kill(-pid, "SIGHUP");
+      } catch {
+        // Process group may already be gone.
+        return;
+      }
     }
 
     const deadline = Date.now() + 5000;
@@ -208,13 +215,16 @@ export class PtyManager {
       } catch {
         return;
       }
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await sleep(100);
     }
 
-    try {
-      process.kill(pid, "SIGKILL");
-    } catch {
-      // Process exited while the timeout elapsed.
+    // Last resort: force kill the entire process group.
+    if (pid > 1) {
+      try {
+        process.kill(-pid, "SIGKILL");
+      } catch {
+        // Process group exited while the timeout elapsed.
+      }
     }
   }
 
