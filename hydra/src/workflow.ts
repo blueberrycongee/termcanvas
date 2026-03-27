@@ -33,6 +33,7 @@ import {
   isTermCanvasRunning,
   projectRescan,
   telemetryTerminal,
+  terminalDestroy,
 } from "./termcanvas.ts";
 import { buildGitWorktreeAddArgs, validateWorktreePath } from "./spawn.ts";
 
@@ -204,6 +205,16 @@ function loadHandoffOrThrow(manager: HandoffManager, workflow: WorkflowRecord): 
     });
   }
   return handoff;
+}
+
+function destroyHandoffTerminal(handoff: Handoff): void {
+  const terminalId = handoff.dispatch?.active_terminal_id;
+  if (!terminalId) return;
+  try {
+    terminalDestroy(terminalId);
+  } catch {
+    // Terminal may already be dead — that's fine.
+  }
 }
 
 function buildDispatchRequestFromHandoff(
@@ -502,6 +513,7 @@ export async function tickWorkflow(
 
     if (collected.status === "completed") {
       await stateMachine.markCompleted(handoff.id, mapResultContract(collected.result));
+      destroyHandoffTerminal(handoff);
       workflow.updated_at = now();
       const decision = resolveTemplateAdvance(
         workflow.template as WorkflowTemplateName,
@@ -529,6 +541,8 @@ export async function tickWorkflow(
       }
       if (decision.outcome === "loop" && decision.nextHandoffId && decision.requeueHandoffIds) {
         for (const requeueHandoffId of decision.requeueHandoffIds) {
+          const requeueHandoff = manager.load(requeueHandoffId);
+          if (requeueHandoff) destroyHandoffTerminal(requeueHandoff);
           resetHandoffToPending(manager, requeueHandoffId, now());
         }
         workflow.current_handoff_id = decision.nextHandoffId;
@@ -574,6 +588,7 @@ export async function tickWorkflow(
           : 0;
         const elapsedMs = Date.parse(now()) - dispatchedMs;
         if (elapsedMs > SPAWN_GRACE_PERIOD_MS) {
+          destroyHandoffTerminal(handoff);
           await stateMachine.markTimedOut(handoff.id, {
             code: "HANDOFF_PROCESS_EXITED",
             message: `Agent process exited without writing result (elapsed ${Math.round(elapsedMs / 1000)}s)`,

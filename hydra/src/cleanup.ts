@@ -141,25 +141,33 @@ function cleanupWorkflow(workflowId: string, repo: string, force: boolean): void
   }
 
   const manager = new HandoffManager(repo);
-  const handoff = manager.load(workflow.current_handoff_id);
 
-  if (handoff?.dispatch?.active_terminal_id && isTermCanvasRunning()) {
-    try {
-      const { status } = terminalStatus(handoff.dispatch.active_terminal_id);
-      if (isLiveTerminalStatus(status) && !force) {
-        console.error(
-          `Workflow ${workflowId} is still running (status: ${status}). Use --force to clean up anyway.`,
-        );
-        return;
+  if (isTermCanvasRunning()) {
+    // Destroy terminals for ALL handoffs, not just the current one.
+    for (const handoffId of workflow.handoff_ids) {
+      const handoff = manager.load(handoffId);
+      const terminalId = handoff?.dispatch?.active_terminal_id;
+      if (!terminalId) continue;
+
+      if (!force) {
+        try {
+          const { status } = terminalStatus(terminalId);
+          if (isLiveTerminalStatus(status)) {
+            console.error(
+              `Workflow ${workflowId} has a running terminal (${terminalId}, status: ${status}). Use --force to clean up anyway.`,
+            );
+            return;
+          }
+        } catch {
+          // terminal already gone
+        }
       }
-    } catch {
-      // terminal already gone
-    }
 
-    try {
-      terminalDestroy(handoff.dispatch.active_terminal_id);
-    } catch {
-      // terminal already gone
+      try {
+        terminalDestroy(terminalId);
+      } catch {
+        // terminal already gone
+      }
     }
   }
 
