@@ -274,11 +274,13 @@ function resetHandoffToPending(
     });
   }
 
-  // Remove stale contract files so the next tick does not treat
-  // old done/result data as evidence of completion.
+  // Remove the done marker so the next tick does not treat stale
+  // data as evidence of completion. Keep result.json — downstream
+  // agents may need it (evaluator findings for implementer, old
+  // plan for revised planner). Phantom completion only triggers
+  // when the done file exists.
   if (handoff.artifacts) {
     try { fs.unlinkSync(handoff.artifacts.done_file); } catch {}
-    try { fs.unlinkSync(handoff.artifacts.result_file); } catch {}
   }
 
   const previousStatus = handoff.status;
@@ -786,7 +788,6 @@ export async function approveWorkflow(
 
   // Advance past the planner to the implementer.
   const manager = new HandoffManager(repoPath);
-  const plannerId = workflow.handoff_ids[0];
   const implementerId = workflow.handoff_ids[1];
   workflow.current_handoff_id = implementerId;
   workflow.status = "running";

@@ -327,11 +327,11 @@ test("evaluator failure loops back to the implementer handoff", async () => {
     assert.equal(status.handoffs[1].status, "in_progress");
     assert.equal(status.handoffs[2].status, "pending");
 
-    // Stale contract files must have been removed so the next tick
-    // does not immediately "complete" the implementer from old data.
+    // The done marker must be removed to prevent phantom completion.
+    // result.json is preserved so downstream agents can read it
+    // (e.g. evaluator findings for the next implementer).
     const implHandoff = manager.load(started.handoffs[1].id)!;
     assert.ok(!fs.existsSync(implHandoff.artifacts!.done_file), "stale implementer done file should be removed");
-    assert.ok(!fs.existsSync(implHandoff.artifacts!.result_file), "stale implementer result file should be removed");
 
     // A subsequent tick should see the handoff as still in-progress (waiting),
     // not immediately completed from stale files.

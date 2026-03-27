@@ -47,6 +47,7 @@ test("parseRunArgs and parseWatchArgs read the orchestration CLI flags", () => {
       timeoutMinutes: 15,
       maxRetries: 2,
       autoApprove: false,
+      approvePlan: false,
     },
   );
 
