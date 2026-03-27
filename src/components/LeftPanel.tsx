@@ -1,4 +1,4 @@
-import { useMemo, useRef, useCallback, useState } from "react";
+import { useMemo, useCallback, useState } from "react";
 import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useT } from "../i18n/useT";
@@ -42,24 +42,23 @@ export function LeftPanel() {
     return null;
   }, [focusedWorktreeId, projects]);
 
-  const resizeRef = useRef<{ startX: number; origW: number } | null>(null);
-
   const handleResizeStart = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.PointerEvent) => {
       e.preventDefault();
-      resizeRef.current = { startX: e.clientX, origW: width };
-      const handleMove = (ev: MouseEvent) => {
-        if (!resizeRef.current) return;
-        const newWidth = Math.max(200, Math.min(600, resizeRef.current.origW + (ev.clientX - resizeRef.current.startX)));
-        setWidth(newWidth);
+      e.stopPropagation();
+      const handle = e.currentTarget as HTMLElement;
+      handle.setPointerCapture(e.pointerId);
+      const startX = e.clientX;
+      const origW = width;
+      const handleMove = (ev: PointerEvent) => {
+        setWidth(Math.max(200, Math.min(600, origW + (ev.clientX - startX))));
       };
       const handleUp = () => {
-        resizeRef.current = null;
-        window.removeEventListener("mousemove", handleMove);
-        window.removeEventListener("mouseup", handleUp);
+        handle.removeEventListener("pointermove", handleMove);
+        handle.removeEventListener("pointerup", handleUp);
       };
-      window.addEventListener("mousemove", handleMove);
-      window.addEventListener("mouseup", handleUp);
+      handle.addEventListener("pointermove", handleMove);
+      handle.addEventListener("pointerup", handleUp);
     },
     [width, setWidth]
   );
@@ -192,7 +191,7 @@ export function LeftPanel() {
       {/* Resize handle */}
       <div
         className="absolute top-0 right-0 w-1 h-full cursor-ew-resize hover:bg-[var(--accent)] hover:opacity-50 transition-opacity duration-150"
-        onMouseDown={handleResizeStart}
+        onPointerDown={handleResizeStart}
       />
     </div>
   );
