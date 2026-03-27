@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useState } from "react";
+import { useMemo, useCallback, useState, useRef } from "react";
 import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useT } from "../i18n/useT";
@@ -41,6 +41,14 @@ export function LeftPanel() {
     }
     return null;
   }, [focusedWorktreeId, projects]);
+
+  // Keep the last active worktree path so the left panel stays populated
+  // when focus is cleared (e.g. clicking the canvas background).
+  const lastWorktreePathRef = useRef<string | null>(null);
+  if (worktreePath) {
+    lastWorktreePathRef.current = worktreePath;
+  }
+  const effectiveWorktreePath = worktreePath ?? lastWorktreePathRef.current;
 
   const handleResizeStart = useCallback(
     (e: React.PointerEvent) => {
@@ -183,10 +191,10 @@ export function LeftPanel() {
       </div>
 
       {/* Content */}
-      {activeTab === "files" && <FilesContent worktreePath={worktreePath} onFileClick={handleFileClick} />}
-      {activeTab === "diff" && <DiffContent worktreePath={worktreePath} />}
+      {activeTab === "files" && <FilesContent worktreePath={effectiveWorktreePath} onFileClick={handleFileClick} />}
+      {activeTab === "diff" && <DiffContent worktreePath={effectiveWorktreePath} />}
       {activeTab === "preview" && <PreviewContent filePath={previewFile} onClose={handlePreviewClose} />}
-      {activeTab === "git" && <GitContent worktreePath={worktreePath} />}
+      {activeTab === "git" && <GitContent worktreePath={effectiveWorktreePath} />}
 
       {/* Resize handle */}
       <div
