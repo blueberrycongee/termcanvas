@@ -53,6 +53,7 @@ Workflow patterns:
 
 Workflow control:
 - After `hydra run` or `hydra spawn`, immediately start polling with `hydra watch`. Do not ask whether to watch — always watch.
+- Always run `hydra watch` as a background process (`run_in_background: true`) so the main brain stays responsive. Do not block the conversation waiting for watch to finish.
 1. Inspect one-shot progress: `hydra tick --repo . --workflow <workflowId>`
 2. Watch until terminal state: `hydra watch --repo . --workflow <workflowId>`
 3. Inspect structured state and failures: `hydra status --repo . --workflow <workflowId>`
