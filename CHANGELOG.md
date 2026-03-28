@@ -2,6 +2,29 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.16.0] - 2026-03-29
+
+### Added
+- Memory enhancement plugin: SessionStart hook injects explicit references and time-sensitive warnings into Claude Code context
+- Enhanced memory index generator: extracts cross-file markdown links and expired date detection
+- `GET /api/memory/index` API endpoint for hook integration
+- Memory Graph navigation skill: instructs agent to follow references and verify stale memories
+- Auto-enable TermCanvas plugin in Claude Code settings.json on startup (required for hooks)
+- OS file drop into project file tree with drag-and-drop copy
+- Auto-expand collapsed left panel and directories on OS file drag hover
+
+### Fixed
+- Hook script reads both dev/prod port files and bypasses proxy for localhost
+- Shell injection in hook script prevented via stdin parameter passing
+- Render loop no longer rebuilds on hover/select state changes (uses refs)
+- MEMORY.md read and watch callback exceptions caught to prevent main process crash
+- Regex lastIndex reset between nodes in date expiry detection
+- Worktree root directory no longer exposed to rename/delete in file tree context menu
+- Path traversal in rename/mkdir/createFile blocked by basename validation
+- Windows backslash and drive letter paths handled in memory directory derivation
+- PreviewContent saveAndExit no longer gets stuck on write failure
+- Dead `memory:read-file` IPC removed, CSS variables cached to avoid per-frame getComputedStyle
+
 ## [0.15.1] - 2026-03-29
 
 ### Fixed
