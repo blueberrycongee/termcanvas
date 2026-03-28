@@ -9,6 +9,9 @@ export const SUPPORTED_AGENT_TYPES = [
 
 export const DEFAULT_AGENT_TYPE: AgentType = "claude";
 
+/** Agent types that support auto-approve (bypass permission prompts). */
+export const AUTO_APPROVE_AGENT_TYPES = new Set<AgentType>(["claude", "codex"]);
+
 const AGENT_TYPES = new Set<AgentType>(SUPPORTED_AGENT_TYPES);
 
 export interface WorkflowAgentTypeSelection {

@@ -12,7 +12,7 @@ import { HydraError } from "./errors.ts";
 import { HandoffManager } from "./handoff/manager.ts";
 import { HandoffStateMachine } from "./handoff/state-machine.ts";
 import type { Handoff, AgentType } from "./handoff/types.ts";
-import { resolveDefaultAgentType } from "./agent-selection.ts";
+import { AUTO_APPROVE_AGENT_TYPES, resolveDefaultAgentType } from "./agent-selection.ts";
 import { validateHandoffContract, type ResultContract } from "./protocol.ts";
 import { registerDispatchAttempt, retryTimedOutHandoff } from "./retry.ts";
 import { buildTaskPackageContext, writeTaskPackage } from "./task-package.ts";
@@ -408,6 +408,21 @@ export async function runWorkflow(
   const implementerType = options.implementerType ?? baseType;
   const plannerType = options.plannerType ?? baseType;
   const evaluatorType = options.evaluatorType ?? baseType;
+  if (options.autoApprove) {
+    for (const agentType of [plannerType, implementerType, evaluatorType]) {
+      if (!AUTO_APPROVE_AGENT_TYPES.has(agentType)) {
+        throw new HydraError(
+          `Agent type "${agentType}" does not support auto-approve. Only ${[...AUTO_APPROVE_AGENT_TYPES].join(", ")} support it. Use --no-auto-approve or switch to a supported agent type.`,
+          {
+            errorCode: "AGENT_AUTO_APPROVE_UNSUPPORTED",
+            stage: "workflow.preflight",
+            ids: { workflow_id: workflowId },
+          },
+        );
+      }
+    }
+  }
+
   const plannedHandoffIds = template === "single-step"
     ? [generateHandoffId()]
     : [generateHandoffId(), generateHandoffId(), generateHandoffId()];

@@ -9,6 +9,7 @@ import { saveAgent } from "./store.ts";
 import { buildTaskPackageContext, writeTaskPackage } from "./task-package.ts";
 import { dispatchCreateOnly } from "./dispatcher.ts";
 import {
+  AUTO_APPROVE_AGENT_TYPES,
   DEFAULT_AGENT_TYPE,
   parseAgentTypeFlag,
   resolveCurrentAgentType,
@@ -116,6 +117,12 @@ export async function spawn(args: string[]): Promise<void> {
   const repo = path.resolve(parsed.repo);
   const workerType = resolveWorkerAgentType(parsed, process.env);
   const parentAgentType = resolveCurrentAgentType(process.env) ?? workerType;
+
+  if (parsed.autoApprove && !AUTO_APPROVE_AGENT_TYPES.has(workerType)) {
+    throw new Error(
+      `Agent type "${workerType}" does not support auto-approve. Only ${[...AUTO_APPROVE_AGENT_TYPES].join(", ")} support it. Use --no-auto-approve or switch to a supported agent type.`,
+    );
+  }
 
   const project = findProjectByPath(repo);
   if (!project) {

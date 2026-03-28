@@ -155,7 +155,7 @@ Hydra is TermCanvas's terminal orchestration framework for multi-agent workflows
 
 **Design philosophy:** each agent runs in its own terminal with a fresh context and full autonomy. Agents don't share conversation history — they share a **worktree** (code on disk) and **structured file contracts** (`handoff.json`, `task.md`, `result.json`, `done`). Terminal prose is not authoritative; validated files are the single source of truth. If a workflow fails, discard the worktree and start clean.
 
-This design is inspired by [Anthropic's harness design research](https://www.anthropic.com/engineering/harness-design-long-running-apps) on long-running agent orchestration, adapted for terminal-based agents where each process is naturally isolated.
+This design is inspired by [Anthropic's harness design research](https://www.anthropic.com/engineering/harness-design-long-running-apps) on long-running agent orchestration, adapted for terminal-based agents where each process is naturally isolated. For the theoretical foundations behind this approach, see [Harness Design from a Distribution Perspective](harness-design-essay.md).
 
 #### Getting started
 
