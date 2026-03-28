@@ -429,14 +429,30 @@ export function TerminalTile({
       e.target?.dispatchEvent(adjusted);
     };
 
+    // When zoomed, capture pointer on mousedown so that mousemove/mouseup
+    // events route through this container even when the cursor leaves it.
+    // Without this, xterm's document-level selection listener receives
+    // uncorrected coordinates while the mouse is outside, causing the
+    // selection to jump when the mouse re-enters.
+    const capturePointer = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      const { scale } = useCanvasStore.getState().viewport;
+      if (scale === 1) return;
+      const target = e.target instanceof Element ? e.target : container;
+      target.setPointerCapture(e.pointerId);
+    };
+
     const types = ["mousedown", "mousemove", "mouseup", "dblclick"];
     for (const type of types) {
       container.addEventListener(type, fix as EventListener, true);
     }
+    container.addEventListener("pointerdown", capturePointer);
+
     return () => {
       for (const type of types) {
         container.removeEventListener(type, fix as EventListener, true);
       }
+      container.removeEventListener("pointerdown", capturePointer);
     };
   }, [lodMode]);
 
