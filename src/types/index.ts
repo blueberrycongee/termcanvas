@@ -367,6 +367,7 @@ export interface TermCanvasAPI {
       dirPath: string,
     ) => Promise<{ path: string; branch: string; isMain: boolean }[]>;
     enableHydra: (dirPath: string) => Promise<ProjectEnableHydraResult>;
+    checkHydra: (dirPath: string) => Promise<"missing" | "outdated" | "current">;
     diff: (worktreePath: string) => Promise<{
       diff: string;
       files: {

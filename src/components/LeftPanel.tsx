@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useState, useRef } from "react";
+import { useMemo, useCallback, useState, useRef, useEffect } from "react";
 import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useT } from "../i18n/useT";
@@ -72,6 +72,7 @@ export function LeftPanel() {
   const focusedWorktreeId = useProjectStore((s) => s.focusedWorktreeId);
   const projects = useProjectStore((s) => s.projects);
   const [hydraEnabling, setHydraEnabling] = useState(false);
+  const checkedProjectRef = useRef<string | null>(null);
 
   const focusedProject = useMemo(() => {
     if (!focusedWorktreeId) return null;
@@ -98,6 +99,21 @@ export function LeftPanel() {
     lastWorktreePathRef.current = worktreePath;
   }
   const effectiveWorktreePath = worktreePath ?? lastWorktreePathRef.current;
+
+  // Check Hydra toolchain status when a project comes into focus.
+  useEffect(() => {
+    if (!focusedProject || !window.termcanvas?.project?.checkHydra) return;
+    if (checkedProjectRef.current === focusedProject.path) return;
+    checkedProjectRef.current = focusedProject.path;
+
+    window.termcanvas.project.checkHydra(focusedProject.path).then((status) => {
+      if (status === "outdated") {
+        notify("warn", t.hydra_outdated(focusedProject.name));
+      } else if (status === "missing") {
+        notify("info", t.hydra_missing(focusedProject.name));
+      }
+    }).catch(() => {});
+  }, [focusedProject, notify, t]);
 
   const handleResizeStart = useCallback(
     (e: React.PointerEvent) => {

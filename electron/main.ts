@@ -25,7 +25,7 @@ import {
   installSkillLinks,
   uninstallSkillLinks,
 } from "./skill-manager";
-import { enableHydraForProject } from "./hydra-project.ts";
+import { checkHydraProjectStatus, enableHydraForProject } from "./hydra-project.ts";
 import { buildLaunchSpec } from "./pty-launch.js";
 import {
   createDefaultComposerSubmitDeps,
@@ -396,6 +396,10 @@ function setupIpc() {
 
   ipcMain.handle("project:enable-hydra", (_event, dirPath: string) => {
     return enableHydraForProject(dirPath);
+  });
+
+  ipcMain.handle("project:check-hydra", (_event, dirPath: string) => {
+    return checkHydraProjectStatus(dirPath);
   });
 
   // Git file watcher IPC (Layer 1 of DiffCard refresh)

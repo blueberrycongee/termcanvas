@@ -122,6 +122,8 @@ export const en = {
   hydra_enable_already_current: (name: string) =>
     `Hydra instructions are already current for "${name}".`,
   hydra_enable_failed: (message: string) => `Failed to enable Hydra: ${message}`,
+  hydra_outdated: (name: string) => `Hydra toolchain for "${name}" is outdated. Click the ⚡ button in the Git panel to update.`,
+  hydra_missing: (name: string) => `Hydra toolchain is not set up for "${name}". Click the ⚡ button in the Git panel to enable.`,
 
   // TerminalTile
   terminal_api_unavailable:

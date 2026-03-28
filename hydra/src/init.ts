@@ -70,6 +70,39 @@ export interface InitInstructionResult {
   status: InitInstructionStatus;
 }
 
+export type HydraInjectStatus = "missing" | "outdated" | "current";
+
+/**
+ * Read-only check: are Hydra instructions present and up to date?
+ * Returns the worst status across all instruction files.
+ */
+export function checkHydraInstructionsStatus(
+  targetDir: string,
+): HydraInjectStatus {
+  const desiredSection = HYDRA_SECTION.trim();
+  let worst: HydraInjectStatus = "current";
+
+  for (const fileName of INSTRUCTION_FILES) {
+    const filePath = path.join(targetDir, fileName);
+    let content: string;
+    try {
+      content = fs.readFileSync(filePath, "utf-8");
+    } catch {
+      return "missing";
+    }
+
+    const currentSection = extractHydraSection(content);
+    if (!currentSection) {
+      return "missing";
+    }
+    if (normalizeSection(currentSection) !== normalizeSection(desiredSection)) {
+      worst = "outdated";
+    }
+  }
+
+  return worst;
+}
+
 export function syncHydraInstructions(
   targetDir: string,
 ): InitInstructionResult[] {

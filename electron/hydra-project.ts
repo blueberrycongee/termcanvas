@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
+  checkHydraInstructionsStatus,
   syncHydraInstructions,
   type InitInstructionResult,
 } from "../hydra/src/init.ts";
@@ -20,6 +21,16 @@ export interface EnableHydraForProjectFailure {
 export type EnableHydraForProjectResult =
   | EnableHydraForProjectSuccess
   | EnableHydraForProjectFailure;
+
+export type HydraInjectStatus = "missing" | "outdated" | "current";
+
+export function checkHydraProjectStatus(repoPath: string): HydraInjectStatus {
+  try {
+    return checkHydraInstructionsStatus(path.resolve(repoPath));
+  } catch {
+    return "missing";
+  }
+}
 
 export function enableHydraForProject(
   repoPath: string,

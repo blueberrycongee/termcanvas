@@ -105,6 +105,8 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("project:rescan-worktrees", dirPath),
     enableHydra: (dirPath: string) =>
       ipcRenderer.invoke("project:enable-hydra", dirPath),
+    checkHydra: (dirPath: string) =>
+      ipcRenderer.invoke("project:check-hydra", dirPath) as Promise<"missing" | "outdated" | "current">,
     diff: (worktreePath: string) =>
       ipcRenderer.invoke("project:diff", worktreePath) as Promise<{
         diff: string;
