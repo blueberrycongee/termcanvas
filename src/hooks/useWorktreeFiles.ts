@@ -44,5 +44,14 @@ export function useWorktreeFiles(worktreePath: string | null) {
     [entries]
   );
 
-  return { entries, expandedDirs, toggleDir, loading };
+  const refreshDir = useCallback(
+    (dirPath: string) => {
+      window.termcanvas.fs.listDir(dirPath).then((items) => {
+        setEntries((prev) => new Map(prev).set(dirPath, items));
+      });
+    },
+    [],
+  );
+
+  return { entries, expandedDirs, toggleDir, refreshDir, loading };
 }
