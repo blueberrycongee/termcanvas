@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/../scripts/memory-session-start.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
