@@ -26,6 +26,10 @@ function getClaudePluginsFile(home: string): string {
   return path.join(home, ".claude", "plugins", "installed_plugins.json");
 }
 
+function getClaudeSettingsFile(home: string): string {
+  return path.join(home, ".claude", "settings.json");
+}
+
 // installed_plugins.json helpers (safe read / atomic write)
 
 const PLUGIN_KEY = "termcanvas@termcanvas";
@@ -144,6 +148,27 @@ function unregisterClaudePlugin(filePath: string): boolean {
   return true;
 }
 
+// Claude Code settings.json — enable plugin for hooks
+
+/** Ensure termcanvas plugin is enabled in settings.json (required for hooks). */
+function ensurePluginEnabled(settingsFile: string): void {
+  let data: Record<string, unknown> = {};
+  try {
+    data = JSON.parse(fs.readFileSync(settingsFile, "utf-8"));
+  } catch {}
+
+  const enabled = (data.enabledPlugins ?? {}) as Record<string, boolean>;
+  if (enabled[PLUGIN_KEY] === true) return;
+
+  enabled[PLUGIN_KEY] = true;
+  data.enabledPlugins = enabled;
+
+  fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+  const tmp = settingsFile + ".tmp." + process.pid;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
+  fs.renameSync(tmp, settingsFile);
+}
+
 // Codex symlinks
 
 /** Check if a symlink already points to the expected target. */
@@ -242,6 +267,7 @@ export function installSkillLinks({
 }): boolean {
   try {
     registerClaudePlugin(getClaudePluginsFile(home), sourceDir, appVersion);
+    ensurePluginEnabled(getClaudeSettingsFile(home));
     installCodexSkillLinks(sourceDir, home);
     cleanupOldHydraSymlinks(home);
     return true;
@@ -271,6 +297,7 @@ export function ensureSkillLinks({
       registerClaudePlugin(pluginsFile, sourceDir, appVersion);
     }
 
+    ensurePluginEnabled(getClaudeSettingsFile(home));
     installCodexSkillLinks(sourceDir, home);
     cleanupOldHydraSymlinks(home);
 
