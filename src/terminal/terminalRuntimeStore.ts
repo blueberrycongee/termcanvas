@@ -1198,3 +1198,8 @@ export function destroyAllTerminalRuntimes() {
     destroyTerminalRuntime(terminalId);
   }
 }
+
+export function getTerminalPtyId(terminalId: string): number | null {
+  const runtime = runtimeRegistry.get(terminalId);
+  return runtime?.ptyId ?? null;
+}
