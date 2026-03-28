@@ -16,10 +16,12 @@ import {
   detachTerminalContainer,
   fitTerminalRuntime,
   focusTerminalRuntime,
+  getTerminalPtyId,
   touchTerminalRuntime,
   useTerminalRuntimeStore,
 } from "./terminalRuntimeStore";
 import type { TerminalMountMode } from "./terminalRuntimePolicy";
+import { shellEscapePath } from "../utils/shellEscape";
 import { getTelemetryBadgeLabel, getTelemetryFacts } from "./telemetryPresentation";
 import {
   cancelScheduledTerminalFocus,
@@ -214,6 +216,7 @@ export function TerminalTile({
   const previewText = useTerminalRuntimeStore(
     (s) => s.terminals[terminal.id]?.previewText ?? "",
   );
+  const [dragOver, setDragOver] = useState(false);
 
   const {
     removeTerminal,
@@ -461,9 +464,42 @@ export function TerminalTile({
     removeTerminal(projectId, worktreeId, terminal.id);
   }, [projectId, removeTerminal, terminal.id, worktreeId]);
 
+  const handleTileDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "copy";
+    setDragOver(true);
+  }, []);
+
+  const handleTileDragLeave = useCallback((e: React.DragEvent) => {
+    e.stopPropagation();
+    setDragOver(false);
+  }, []);
+
+  const handleTileDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragOver(false);
+
+      const filePath = e.dataTransfer.getData("text/plain");
+      if (!filePath) return;
+
+      const ptyId = getTerminalPtyId(terminal.id);
+      if (ptyId === null) return;
+
+      const escaped = shellEscapePath(filePath);
+      window.termcanvas.terminal.input(ptyId, escaped);
+    },
+    [terminal.id],
+  );
+
   return (
     <div
       ref={tileRef}
+      onDragOver={handleTileDragOver}
+      onDragLeave={handleTileDragLeave}
+      onDrop={handleTileDrop}
       className="absolute terminal-tile rounded-md bg-[var(--bg)] overflow-hidden flex flex-col border border-[var(--border)] hover:border-[var(--border-hover)]"
       style={{
         left: gridX + (isDragging ? dragOffsetX : 0),
@@ -475,9 +511,11 @@ export function TerminalTile({
         transition: isDragging ? "none" : "left 0.2s ease, top 0.2s ease",
         boxShadow: isDragging
           ? "0 8px 32px rgba(0,0,0,0.3)"
-          : terminal.focused
-            ? "0 0 0 1px rgba(0,112,243,0.45), 0 0 8px rgba(0,112,243,0.15)"
-            : undefined,
+          : dragOver
+            ? "0 0 0 2px var(--accent), 0 0 12px rgba(80,227,194,0.25)"
+            : terminal.focused
+              ? "0 0 0 1px rgba(0,112,243,0.45), 0 0 8px rgba(0,112,243,0.15)"
+              : undefined,
         transform: isDragging ? "scale(1.02)" : undefined,
         outline: isSelected ? "2px solid #3b82f6" : undefined,
         outlineOffset: isSelected ? -2 : undefined,
