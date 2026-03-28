@@ -156,17 +156,29 @@ export function LeftPanel() {
       handle.setPointerCapture(e.pointerId);
       const startX = e.clientX;
       const origW = width;
+      let rafId = 0;
       const handleMove = (ev: PointerEvent) => {
         setWidth(Math.max(200, Math.min(600, origW + (ev.clientX - startX))));
+        if (!rafId) {
+          rafId = requestAnimationFrame(() => {
+            rafId = 0;
+            const tid = projects
+              .flatMap((p) => p.worktrees)
+              .flatMap((w) => w.terminals)
+              .find((t) => t.focused)?.id;
+            if (tid) panToTerminal(tid);
+          });
+        }
       };
       const handleUp = () => {
+        cancelAnimationFrame(rafId);
         handle.removeEventListener("pointermove", handleMove);
         handle.removeEventListener("pointerup", handleUp);
       };
       handle.addEventListener("pointermove", handleMove);
       handle.addEventListener("pointerup", handleUp);
     },
-    [width, setWidth]
+    [width, setWidth, projects]
   );
 
   const handleFileClick = useCallback(

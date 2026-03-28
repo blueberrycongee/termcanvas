@@ -30,7 +30,7 @@ import { snapshotState } from "../snapshotState";
 import { updateWindowTitle } from "../titleHelper";
 import { panToTerminal } from "../utils/panToTerminal";
 import { panToWorktree } from "../utils/panToWorktree";
-import { getCanvasRightInset } from "../canvas/viewportBounds";
+import { getCanvasRightInset, getCanvasLeftInset } from "../canvas/viewportBounds";
 
 function getAllTerminals() {
   const { projects } = useProjectStore.getState();
@@ -81,7 +81,7 @@ function zoomToTerminal(terminalId: string) {
 
 function zoomToFitAll() {
   const { projects } = useProjectStore.getState();
-  const { rightPanelCollapsed } = useCanvasStore.getState();
+  const { rightPanelCollapsed, leftPanelCollapsed, leftPanelWidth } = useCanvasStore.getState();
   if (projects.length === 0) return;
   const padding = 80;
   const toolbarH = 44;
@@ -99,7 +99,8 @@ function zoomToFitAll() {
   const contentW = maxX - minX;
   const contentH = maxY - minY;
   const rightOffset = getCanvasRightInset(rightPanelCollapsed);
-  const viewW = window.innerWidth - rightOffset - padding * 2;
+  const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
   const viewH = window.innerHeight - toolbarH - padding * 2;
   const scale = Math.min(1, viewW / contentW, viewH / contentH);
   const x = -minX * scale + padding;

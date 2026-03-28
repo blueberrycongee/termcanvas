@@ -22,7 +22,7 @@ export function panToTerminal(terminalId: string): void {
     const rightOffset = getCanvasRightInset(rightPanelCollapsed);
     const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
     const padding = 60;
-    const viewW = window.innerWidth - rightOffset - padding * 2;
+    const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
     const viewH = window.innerHeight - padding * 2;
     const scale =
       Math.min(viewW / publishedGeometry.w, viewH / publishedGeometry.h) * 0.85;
@@ -100,7 +100,7 @@ export function panToTerminal(terminalId: string): void {
       const rightOffset = getCanvasRightInset(rightPanelCollapsed);
       const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
       const padding = 60;
-      const viewW = window.innerWidth - rightOffset - padding * 2;
+      const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
       const viewH = window.innerHeight - padding * 2;
       const scale = Math.min(viewW / item.w, viewH / item.h) * 0.85;
 
