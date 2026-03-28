@@ -193,17 +193,20 @@ export function LeftPanel() {
     [width, setWidth, projects]
   );
 
+  const prevTabRef = useRef<LeftPanelTab>("files");
+
   const handleFileClick = useCallback(
     (filePath: string) => {
+      if (activeTab !== "preview") prevTabRef.current = activeTab;
       setPreviewFile(filePath);
       setActiveTab("preview");
     },
-    [setPreviewFile, setActiveTab]
+    [activeTab, setPreviewFile, setActiveTab]
   );
 
   const handlePreviewClose = useCallback(() => {
     setPreviewFile(null);
-    setActiveTab("files");
+    setActiveTab(prevTabRef.current);
   }, [setPreviewFile, setActiveTab]);
 
   const handleEnableHydra = useCallback(async () => {
@@ -341,7 +344,7 @@ export function LeftPanel() {
           />
         )}
         {activeTab === "memory" && (
-          <MemoryContent worktreePath={effectiveWorktreePath} />
+          <MemoryContent worktreePath={effectiveWorktreePath} onFileClick={handleFileClick} />
         )}
       </div>
 

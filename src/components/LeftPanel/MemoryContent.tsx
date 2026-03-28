@@ -1,6 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useMemoryStore } from "../../stores/memoryStore";
-import { useCanvasStore } from "../../stores/canvasStore";
 
 // ─── Theme-aware colors ───────────────────────────────────────────────
 
@@ -505,21 +504,12 @@ function MemoryGraph({
 
 interface Props {
   worktreePath: string | null;
+  onFileClick: (filePath: string) => void;
 }
 
-export function MemoryContent({ worktreePath }: Props) {
+export function MemoryContent({ worktreePath, onFileClick }: Props) {
   const { graph, selectedNode, loading, setGraph, setSelectedNode, setLoading } =
     useMemoryStore();
-  const setPreviewFile = useCanvasStore((s) => s.setLeftPanelPreviewFile);
-  const setActiveTab = useCanvasStore((s) => s.setLeftPanelActiveTab);
-
-  const handleOpenFile = useCallback(
-    (filePath: string) => {
-      setPreviewFile(filePath);
-      setActiveTab("preview");
-    },
-    [setPreviewFile, setActiveTab],
-  );
 
   useEffect(() => {
     if (!worktreePath) return;
@@ -577,7 +567,7 @@ export function MemoryContent({ worktreePath }: Props) {
         graph={graph}
         selectedNode={selectedNode}
         onSelectNode={setSelectedNode}
-        onOpenFile={handleOpenFile}
+        onOpenFile={onFileClick}
       />
     </div>
   );
