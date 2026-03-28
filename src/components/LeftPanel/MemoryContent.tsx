@@ -1,5 +1,31 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useMemoryStore } from "../../stores/memoryStore";
+import { useCanvasStore } from "../../stores/canvasStore";
+
+// ─── Theme-aware colors ───────────────────────────────────────────────
+
+function getCssVar(name: string): string {
+  return getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+}
+
+const TYPE_COLORS: Record<string, { dark: string; light: string }> = {
+  index: { dark: "#e4e2df", light: "#1c1917" },
+  user: { dark: "#5b9ef5", light: "#2563eb" },
+  feedback: { dark: "#6cc4b0", light: "#0d9488" },
+  project: { dark: "#d4a24e", light: "#d97706" },
+  reference: { dark: "#9b7ad8", light: "#7c3aed" },
+  unknown: { dark: "#7a7773", light: "#6b6660" },
+};
+
+function getTypeColor(type: string): string {
+  const scheme = document.documentElement.getAttribute("data-theme");
+  const mode = scheme === "light" ? "light" : "dark";
+  return (TYPE_COLORS[type] ?? TYPE_COLORS.unknown)[mode];
+}
+
+// ─── Graph Node with position + emphasis ──────────────────────────────
 
 interface GraphNodePos {
   fileName: string;
@@ -11,7 +37,10 @@ interface GraphNodePos {
   y: number;
   vx: number;
   vy: number;
+  emphasis: number; // 0..1 animated
 }
+
+// ─── MemoryGraph ──────────────────────────────────────────────────────
 
 function MemoryGraph({
   graph,
@@ -35,61 +64,70 @@ function MemoryGraph({
   const containerRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<GraphNodePos[]>([]);
   const animRef = useRef<number>(0);
+  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
 
-  // Initialize positions: index node at center, others in a circle
+  // Build neighbor lookup
+  const neighborsOf = useCallback(
+    (fileName: string): Set<string> => {
+      const s = new Set<string>();
+      for (const e of graph.edges) {
+        if (e.source === fileName) s.add(e.target);
+        if (e.target === fileName) s.add(e.source);
+      }
+      return s;
+    },
+    [graph.edges],
+  );
+
+  // Initialize positions
   useEffect(() => {
     const w = containerRef.current?.clientWidth ?? 300;
     const h = containerRef.current?.clientHeight ?? 300;
     const cx = w / 2;
     const cy = h / 2;
-
     const nonIndex = graph.nodes.filter((n) => n.type !== "index");
 
     nodesRef.current = graph.nodes.map((n) => {
       if (n.type === "index") {
-        return { ...n, x: cx, y: cy, vx: 0, vy: 0 };
+        return { ...n, x: cx, y: cy, vx: 0, vy: 0, emphasis: 0 };
       }
       const i = nonIndex.indexOf(n);
       const angle = (2 * Math.PI * i) / Math.max(nonIndex.length, 1);
-      const r = Math.min(w, h) * 0.3;
+      const r = Math.min(w, h) * 0.28;
       return {
         ...n,
         x: cx + r * Math.cos(angle),
         y: cy + r * Math.sin(angle),
         vx: 0,
         vy: 0,
+        emphasis: 0,
       };
     });
   }, [graph.nodes]);
 
-  const typeColor = useCallback((type: string): string => {
-    switch (type) {
-      case "index":
-        return "#ffffff";
-      case "user":
-        return "#60a5fa";
-      case "feedback":
-        return "#4ade80";
-      case "project":
-        return "#fb923c";
-      case "reference":
-        return "#c084fc";
-      default:
-        return "#71717a";
-    }
-  }, []);
-
-  // Opacity: more recent = brighter
-  const nodeOpacity = useCallback((mtime: number): number => {
+  // Mtime freshness → base opacity
+  const nodeBaseAlpha = useCallback((mtime: number): number => {
     const ageMs = Date.now() - mtime;
     const dayMs = 86400000;
     if (ageMs < dayMs) return 1.0;
-    if (ageMs < 7 * dayMs) return 0.85;
-    if (ageMs < 30 * dayMs) return 0.7;
-    return 0.5;
+    if (ageMs < 7 * dayMs) return 0.88;
+    if (ageMs < 30 * dayMs) return 0.72;
+    return 0.55;
   }, []);
 
-  // Force simulation + render
+  // Node radius: logarithmic based on connections
+  const nodeRadius = useCallback(
+    (node: { fileName: string; type: string }): number => {
+      const conns = graph.edges.filter(
+        (e) => e.source === node.fileName || e.target === node.fileName,
+      ).length;
+      const base = node.type === "index" ? 11 : 6;
+      return Math.min(base + Math.log(conns + 1) * 3, node.type === "index" ? 18 : 14);
+    },
+    [graph.edges],
+  );
+
+  // Main render loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -103,29 +141,31 @@ function MemoryGraph({
 
     let running = true;
     let frame = 0;
+    const focusNode = hoveredNode ?? selectedNode;
+    const focusNeighbors = focusNode ? neighborsOf(focusNode) : new Set<string>();
 
     const tick = () => {
       if (!running) return;
       const nodes = nodesRef.current;
-      if (nodes.length === 0) return;
+      if (nodes.length === 0) {
+        animRef.current = requestAnimationFrame(tick);
+        return;
+      }
 
-      const w = canvas.width;
-      const h = canvas.height;
       const dpr = window.devicePixelRatio || 1;
-      const logicalW = w / dpr;
-      const logicalH = h / dpr;
-      const cx = logicalW / 2;
-      const cy = logicalH / 2;
+      const w = canvas.width / dpr;
+      const h = canvas.height / dpr;
+      const cx = w / 2;
+      const cy = h / 2;
 
-      // Only simulate for first ~200 frames, then just redraw
-      if (frame < 200) {
-        // Repulsion between all pairs
+      // ── Physics (first 300 frames) ──
+      if (frame < 300) {
         for (let i = 0; i < nodes.length; i++) {
           for (let j = i + 1; j < nodes.length; j++) {
             const dx = nodes[j].x - nodes[i].x;
             const dy = nodes[j].y - nodes[i].y;
             const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
-            const force = 800 / (dist * dist);
+            const force = 1200 / (dist * dist);
             const fx = (dx / dist) * force;
             const fy = (dy / dist) * force;
             nodes[i].vx -= fx;
@@ -134,14 +174,12 @@ function MemoryGraph({
             nodes[j].vy += fy;
           }
         }
-
-        // Attraction along edges (spring)
         for (const edge of edgeRefs) {
           if (!edge.source || !edge.target) continue;
           const dx = edge.target.x - edge.source.x;
           const dy = edge.target.y - edge.source.y;
           const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
-          const force = (dist - 120) * 0.008;
+          const force = (dist - 100) * 0.01;
           const fx = (dx / dist) * force;
           const fy = (dy / dist) * force;
           edge.source.vx += fx;
@@ -149,67 +187,159 @@ function MemoryGraph({
           edge.target.vx -= fx;
           edge.target.vy -= fy;
         }
-
-        // Center gravity
         for (const node of nodes) {
-          node.vx += (cx - node.x) * 0.003;
-          node.vy += (cy - node.y) * 0.003;
-          node.vx *= 0.85; // damping
-          node.vy *= 0.85;
+          node.vx += (cx - node.x) * 0.004;
+          node.vy += (cy - node.y) * 0.004;
+          node.vx *= 0.86;
+          node.vy *= 0.86;
           node.x += node.vx;
           node.y += node.vy;
-          // Clamp to canvas
-          node.x = Math.max(20, Math.min(logicalW - 20, node.x));
-          node.y = Math.max(20, Math.min(logicalH - 20, node.y));
+          node.x = Math.max(24, Math.min(w - 24, node.x));
+          node.y = Math.max(24, Math.min(h - 24, node.y));
         }
       }
 
-      // Draw
+      // ── Emphasis animation (smooth easing) ──
+      for (const node of nodes) {
+        const isFocused =
+          node.fileName === hoveredNode || node.fileName === selectedNode;
+        const isNeighbor = focusNeighbors.has(node.fileName);
+        const target = isFocused ? 1.0 : isNeighbor ? 0.65 : focusNode ? 0.08 : 0.5;
+        node.emphasis += (target - node.emphasis) * 0.16;
+      }
+
+      // ── Read theme colors ──
+      const bgColor = getCssVar("--sidebar");
+      const borderColor = getCssVar("--border");
+      const textPrimary = getCssVar("--text-primary");
+      const textMuted = getCssVar("--text-muted");
+      const textFaint = getCssVar("--text-faint");
+
+      // ── Draw ──
       ctx.save();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, logicalW, logicalH);
+      ctx.clearRect(0, 0, w, h);
+
+      // Background
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, w, h);
 
       // Edges
       for (const edge of edgeRefs) {
         if (!edge.source || !edge.target) continue;
-        ctx.strokeStyle = "#333";
-        ctx.lineWidth = 1;
+        const srcEmph = edge.source.emphasis;
+        const tgtEmph = edge.target.emphasis;
+        const edgeEmph = Math.max(srcEmph, tgtEmph);
+
+        // Alpha based on emphasis
+        let alpha: number;
+        let lw: number;
+        if (edgeEmph > 0.8) {
+          alpha = 0.7;
+          lw = 1.5;
+        } else if (edgeEmph > 0.4) {
+          alpha = 0.35;
+          lw = 1;
+        } else if (focusNode) {
+          alpha = 0.06;
+          lw = 0.5;
+        } else {
+          alpha = 0.25;
+          lw = 0.8;
+        }
+
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = edgeEmph > 0.4 ? textMuted : borderColor;
+        ctx.lineWidth = lw;
         ctx.beginPath();
         ctx.moveTo(edge.source.x, edge.source.y);
         ctx.lineTo(edge.target.x, edge.target.y);
         ctx.stroke();
+
+        // Arrow head (small, pointing toward target)
+        if (lw >= 1) {
+          const dx = edge.target.x - edge.source.x;
+          const dy = edge.target.y - edge.source.y;
+          const len = Math.sqrt(dx * dx + dy * dy);
+          if (len > 0) {
+            const tr = nodeRadius(edge.target);
+            const tipX = edge.target.x - (dx / len) * (tr + 3);
+            const tipY = edge.target.y - (dy / len) * (tr + 3);
+            const angle = Math.atan2(dy, dx);
+            const aSize = 4;
+            ctx.beginPath();
+            ctx.moveTo(tipX, tipY);
+            ctx.lineTo(
+              tipX - aSize * Math.cos(angle - 0.5),
+              tipY - aSize * Math.sin(angle - 0.5),
+            );
+            ctx.lineTo(
+              tipX - aSize * Math.cos(angle + 0.5),
+              tipY - aSize * Math.sin(angle + 0.5),
+            );
+            ctx.closePath();
+            ctx.fillStyle = ctx.strokeStyle;
+            ctx.fill();
+          }
+        }
       }
 
       // Nodes
       for (const node of nodes) {
-        const r = node.type === "index" ? 10 : 7;
-        const color = typeColor(node.type);
-        const alpha = nodeOpacity(node.mtime);
-        const isSelected = selectedNode === node.fileName;
+        const r = nodeRadius(node);
+        const color = getTypeColor(node.type);
+        const baseAlpha = nodeBaseAlpha(node.mtime);
+        const emph = node.emphasis;
 
-        ctx.globalAlpha = isSelected ? 1 : alpha;
-        ctx.fillStyle = isSelected ? "#fff" : color;
+        // Radius scales up slightly when emphasized
+        const rScale = emph > 0.8 ? 1.2 : emph > 0.4 ? 1.08 : 1.0;
+        const dr = r * rScale;
+
+        // Alpha: combine base (mtime) with emphasis
+        const alpha =
+          emph > 0.8 ? 1.0 : emph > 0.4 ? 0.9 : focusNode ? emph * 0.8 + 0.15 : baseAlpha;
+        ctx.globalAlpha = alpha;
+
+        // Glow for emphasized nodes
+        if (emph > 0.6) {
+          ctx.shadowColor = color;
+          ctx.shadowBlur = 8 * emph;
+        } else {
+          ctx.shadowColor = "transparent";
+          ctx.shadowBlur = 0;
+        }
+
+        // Node circle
+        ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
+        ctx.arc(node.x, node.y, dr, 0, Math.PI * 2);
         ctx.fill();
 
-        if (isSelected) {
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 2;
+        // Selection ring
+        if (node.fileName === selectedNode) {
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = textPrimary;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, dr + 3, 0, Math.PI * 2);
           ctx.stroke();
         }
 
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = "transparent";
+
         // Label
-        ctx.globalAlpha = isSelected ? 1 : alpha * 0.8;
-        ctx.fillStyle = isSelected ? "#e4e4e7" : "#a1a1aa";
-        ctx.font = "10px ui-monospace, monospace";
+        const labelAlpha = emph > 0.8 ? 1 : emph > 0.4 ? 0.75 : focusNode ? 0.15 : 0.6;
+        ctx.globalAlpha = labelAlpha;
+        ctx.fillStyle = emph > 0.8 ? textPrimary : textMuted;
+        ctx.font = `${emph > 0.8 ? 11 : 10}px ui-monospace, monospace`;
         ctx.textAlign = "center";
         const label =
-          node.name.length > 20 ? node.name.slice(0, 18) + "\u2026" : node.name;
-        ctx.fillText(label, node.x, node.y + r + 14);
-        ctx.globalAlpha = 1;
+          node.name.length > 18 ? node.name.slice(0, 16) + "\u2026" : node.name;
+        ctx.fillText(label, node.x, node.y + dr + 14);
       }
 
+      ctx.globalAlpha = 1;
       ctx.restore();
 
       frame++;
@@ -221,9 +351,16 @@ function MemoryGraph({
       running = false;
       cancelAnimationFrame(animRef.current);
     };
-  }, [graph, selectedNode, typeColor, nodeOpacity]);
+  }, [
+    graph,
+    selectedNode,
+    hoveredNode,
+    neighborsOf,
+    nodeBaseAlpha,
+    nodeRadius,
+  ]);
 
-  // Resize canvas to container
+  // Resize
   useEffect(() => {
     const container = containerRef.current;
     const canvas = canvasRef.current;
@@ -241,56 +378,106 @@ function MemoryGraph({
     return () => ro.disconnect();
   }, []);
 
-  // Click detection
-  const handleClick = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
+  // Hit testing helper
+  const hitTest = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>): GraphNodePos | undefined => {
       const canvas = canvasRef.current;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      const hit = nodesRef.current.find((n) => {
+      return nodesRef.current.find((n) => {
         const dx = n.x - x;
         const dy = n.y - y;
-        return dx * dx + dy * dy < 225; // ~15px radius
+        const r = nodeRadius(n);
+        return dx * dx + dy * dy < (r + 6) * (r + 6);
       });
+    },
+    [nodeRadius],
+  );
+
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      const hit = hitTest(e);
       onSelectNode(
         hit ? (hit.fileName === selectedNode ? null : hit.fileName) : null,
       );
     },
-    [onSelectNode, selectedNode],
+    [hitTest, onSelectNode, selectedNode],
   );
 
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      const hit = hitTest(e);
+      const next = hit?.fileName ?? null;
+      if (next !== hoveredNode) setHoveredNode(next);
+      const canvas = canvasRef.current;
+      if (canvas) canvas.style.cursor = hit ? "pointer" : "default";
+    },
+    [hitTest, hoveredNode],
+  );
+
+  const handleMouseLeave = useCallback(() => {
+    setHoveredNode(null);
+  }, []);
+
+  // Hover tooltip data
+  const hovered = hoveredNode
+    ? nodesRef.current.find((n) => n.fileName === hoveredNode)
+    : null;
+
   return (
-    <div ref={containerRef} className="flex-1 min-h-0 relative bg-zinc-950">
+    <div ref={containerRef} className="flex-1 min-h-0 relative">
       <canvas
         ref={canvasRef}
         onClick={handleClick}
-        className="absolute inset-0 cursor-pointer"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        className="absolute inset-0"
       />
+      {/* Hover tooltip */}
+      {hovered && (
+        <div
+          className="absolute top-2 right-2 max-w-[200px] px-3 py-2 rounded-lg text-xs
+            bg-[var(--surface)]/90 backdrop-blur-md border border-[var(--border)]
+            shadow-lg pointer-events-none transition-opacity duration-150"
+        >
+          <div className="font-medium text-[var(--text-primary)] truncate">
+            {hovered.name}
+          </div>
+          {hovered.description && (
+            <div className="text-[var(--text-muted)] mt-0.5 line-clamp-2">
+              {hovered.description}
+            </div>
+          )}
+          <div className="flex items-center gap-1.5 mt-1.5">
+            <span
+              className="w-2 h-2 rounded-full inline-block"
+              style={{ backgroundColor: getTypeColor(hovered.type) }}
+            />
+            <span className="text-[var(--text-secondary)]">{hovered.type}</span>
+          </div>
+        </div>
+      )}
+      {/* Legend */}
       {graph.nodes.length > 0 && (
-        <div className="absolute bottom-2 left-2 flex gap-2 text-[9px] text-zinc-600">
-          <span className="flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block" />
-            user
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
-            feedback
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block" />
-            project
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block" />
-            reference
-          </span>
+        <div className="absolute bottom-2 left-2 flex gap-2.5 text-[9px] text-[var(--text-faint)]">
+          {(["user", "feedback", "project", "reference"] as const).map((t) => (
+            <span key={t} className="flex items-center gap-1">
+              <span
+                className="w-1.5 h-1.5 rounded-full inline-block"
+                style={{ backgroundColor: getTypeColor(t) }}
+              />
+              {t}
+            </span>
+          ))}
         </div>
       )}
     </div>
   );
 }
+
+// ─── MemoryEditor ─────────────────────────────────────────────────────
 
 function MemoryEditor({
   node,
@@ -311,17 +498,17 @@ function MemoryEditor({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    // Reconstruct full file from frontmatter + body
     if (node.type === "index") {
       setContent(node.body);
     } else {
-      const parts = [`---`];
+      const parts = ["---"];
       if (node.name) parts.push(`name: ${node.name}`);
       if (node.description) parts.push(`description: ${node.description}`);
       if (node.type) parts.push(`type: ${node.type}`);
-      parts.push(`---`, "", node.body);
+      parts.push("---", "", node.body);
       setContent(parts.join("\n"));
     }
+    setEditing(false);
   }, [node]);
 
   const handleSave = async () => {
@@ -332,8 +519,8 @@ function MemoryEditor({
   };
 
   return (
-    <div className="border-t border-zinc-700 flex-1 min-h-0 flex flex-col">
-      <div className="flex items-center justify-between px-3 py-1.5 text-xs text-zinc-400 border-b border-zinc-800">
+    <div className="border-t border-[var(--border)] flex-1 min-h-0 flex flex-col">
+      <div className="flex items-center justify-between px-3 py-1.5 text-xs text-[var(--text-secondary)] border-b border-[var(--border)]">
         <span className="truncate">{node.fileName}</span>
         <div className="flex gap-2 ml-2 flex-shrink-0">
           {editing ? (
@@ -341,13 +528,13 @@ function MemoryEditor({
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="text-green-400 hover:text-green-300 disabled:opacity-50"
+                className="text-[var(--cyan)] hover:brightness-110 disabled:opacity-50"
               >
                 {saving ? "..." : "Save"}
               </button>
               <button
                 onClick={() => setEditing(false)}
-                className="hover:text-zinc-200"
+                className="hover:text-[var(--text-primary)]"
               >
                 Cancel
               </button>
@@ -355,12 +542,15 @@ function MemoryEditor({
           ) : (
             <button
               onClick={() => setEditing(true)}
-              className="hover:text-zinc-200"
+              className="hover:text-[var(--text-primary)]"
             >
               Edit
             </button>
           )}
-          <button onClick={onClose} className="hover:text-zinc-200">
+          <button
+            onClick={onClose}
+            className="hover:text-[var(--text-primary)]"
+          >
             ✕
           </button>
         </div>
@@ -369,17 +559,19 @@ function MemoryEditor({
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          className="flex-1 min-h-0 p-3 text-xs text-zinc-300 bg-transparent resize-none outline-none font-mono"
+          className="flex-1 min-h-0 p-3 text-xs text-[var(--text-primary)] bg-transparent resize-none outline-none font-mono"
           spellCheck={false}
         />
       ) : (
-        <div className="flex-1 min-h-0 overflow-auto p-3 text-xs text-zinc-300 whitespace-pre-wrap font-mono">
+        <div className="flex-1 min-h-0 overflow-auto p-3 text-xs text-[var(--text-primary)] whitespace-pre-wrap font-mono">
           {node.body}
         </div>
       )}
     </div>
   );
 }
+
+// ─── MemoryContent (main export) ──────────────────────────────────────
 
 interface Props {
   worktreePath: string | null;
@@ -388,6 +580,8 @@ interface Props {
 export function MemoryContent({ worktreePath }: Props) {
   const { graph, selectedNode, loading, setGraph, setSelectedNode, setLoading } =
     useMemoryStore();
+  const setPreviewFile = useCanvasStore((s) => s.setLeftPanelPreviewFile);
+  const setActiveTab = useCanvasStore((s) => s.setLeftPanelActiveTab);
 
   useEffect(() => {
     if (!worktreePath) return;
@@ -415,7 +609,7 @@ export function MemoryContent({ worktreePath }: Props) {
 
   if (!worktreePath) {
     return (
-      <div className="flex-1 flex items-center justify-center text-zinc-500 text-xs">
+      <div className="flex-1 flex items-center justify-center text-[var(--text-muted)] text-xs">
         No worktree selected
       </div>
     );
@@ -423,7 +617,7 @@ export function MemoryContent({ worktreePath }: Props) {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center text-zinc-500 text-xs">
+      <div className="flex-1 flex items-center justify-center text-[var(--text-muted)] text-xs">
         Loading memories...
       </div>
     );
@@ -431,7 +625,7 @@ export function MemoryContent({ worktreePath }: Props) {
 
   if (graph.nodes.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-zinc-500 text-xs px-4 text-center leading-relaxed">
+      <div className="flex-1 flex items-center justify-center text-[var(--text-muted)] text-xs px-4 text-center leading-relaxed">
         No memory files found.
         <br />
         Claude Code stores memories in ~/.claude/projects/
@@ -448,12 +642,8 @@ export function MemoryContent({ worktreePath }: Props) {
         selectedNode={selectedNode}
         onSelectNode={setSelectedNode}
       />
-
       {selected && (
-        <MemoryEditor
-          node={selected}
-          onClose={() => setSelectedNode(null)}
-        />
+        <MemoryEditor node={selected} onClose={() => setSelectedNode(null)} />
       )}
     </div>
   );
