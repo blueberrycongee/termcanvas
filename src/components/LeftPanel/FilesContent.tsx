@@ -55,6 +55,12 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
       return (
         <div key={fullPath}>
           <button
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData("text/plain", fullPath);
+              e.dataTransfer.setData("application/x-termcanvas-file", fullPath);
+              e.dataTransfer.effectAllowed = "copy";
+            }}
             className={`w-full flex items-center gap-1.5 py-1 transition-colors duration-150 text-left ${
               isSelected
                 ? "bg-[var(--surface-hover)] border-l-2 border-[var(--accent)]"
