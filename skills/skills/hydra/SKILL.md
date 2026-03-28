@@ -67,7 +67,8 @@ default is `--planner-type claude --implementer-type codex --evaluator-type clau
 2. Start the chosen workflow or worker path:
    - Existing worktree / read-only workflow: `hydra run --task "..." --repo . --worktree .`
    - Existing worktree / read-only worker: `hydra spawn --task "..." --repo . --worktree .`
-3. For workflow runs created by `hydra run`, advance or inspect with:
+3. After `hydra run` or `hydra spawn`, immediately start polling with `hydra watch`. Do not ask whether to watch — always watch.
+4. For workflow runs created by `hydra run`, advance or inspect with:
    - `hydra tick --repo . --workflow <workflowId>`
    - `hydra watch --repo . --workflow <workflowId>`
    - `hydra status --repo . --workflow <workflowId>`

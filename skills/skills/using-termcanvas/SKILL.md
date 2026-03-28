@@ -37,6 +37,7 @@ Route first. Choose the lightest path that preserves correctness.
 
 - Do not describe Hydra workflows as automatic parallelism unless multiple
   spawned workers are actually involved.
+- After `hydra run` or `hydra spawn`, immediately start `hydra watch` — do not ask whether to watch.
 - Use `hydra tick` / `hydra watch` / `hydra status` / `hydra retry` for
   workflow runs created by `hydra run`.
 - Use `hydra list` and `hydra cleanup <agentId>` for direct workers created by

@@ -31,6 +31,7 @@ Workflow patterns:
    \`hydra spawn --task "<specific task>" --repo . [--worktree .]\`
 
 Workflow control:
+- After \`hydra run\` or \`hydra spawn\`, immediately start polling with \`hydra watch\`. Do not ask whether to watch — always watch.
 1. Inspect one-shot progress: \`hydra tick --repo . --workflow <workflowId>\`
 2. Watch until terminal state: \`hydra watch --repo . --workflow <workflowId>\`
 3. Inspect structured state and failures: \`hydra status --repo . --workflow <workflowId>\`
