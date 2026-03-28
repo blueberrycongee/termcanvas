@@ -1,6 +1,8 @@
+import { useState, useCallback } from "react";
 import { useWorktreeFiles } from "../../hooks/useWorktreeFiles";
 import { useT } from "../../i18n/useT";
 import { useCanvasStore } from "../../stores/canvasStore";
+import { useNotificationStore } from "../../stores/notificationStore";
 
 interface Props {
   worktreePath: string | null;
@@ -31,8 +33,54 @@ function FileIcon({ isDirectory, expanded }: { isDirectory: boolean; expanded?: 
 
 export function FilesContent({ worktreePath, onFileClick }: Props) {
   const t = useT();
-  const { entries, expandedDirs, toggleDir, loading } = useWorktreeFiles(worktreePath);
+  const { entries, expandedDirs, toggleDir, refreshDir, loading } = useWorktreeFiles(worktreePath);
   const previewFile = useCanvasStore((s) => s.leftPanelPreviewFile);
+
+  const [dropTargetDir, setDropTargetDir] = useState<string | null>(null);
+
+  const isOsDrag = (e: React.DragEvent) =>
+    e.dataTransfer.types.includes("Files") &&
+    !e.dataTransfer.types.includes("application/x-termcanvas-file");
+
+  const handleDirDragOver = useCallback(
+    (e: React.DragEvent, dirPath: string) => {
+      if (!isOsDrag(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "copy";
+      setDropTargetDir(dirPath);
+    },
+    [],
+  );
+
+  const handleDirDragLeave = useCallback((e: React.DragEvent) => {
+    e.stopPropagation();
+    setDropTargetDir(null);
+  }, []);
+
+  const handleDirDrop = useCallback(
+    async (e: React.DragEvent, dirPath: string) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDropTargetDir(null);
+
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length === 0) return;
+
+      // @ts-ignore - path property exists on File in Electron
+      const sources: string[] = files.map((f) => f.path).filter(Boolean);
+      if (sources.length === 0) return;
+
+      const result = await window.termcanvas.fs.copy(sources, dirPath);
+      refreshDir(dirPath);
+
+      if (result.skipped.length > 0) {
+        const { notify } = useNotificationStore.getState();
+        notify("warn", `Skipped (already exist): ${result.skipped.join(", ")}`);
+      }
+    },
+    [refreshDir],
+  );
 
   const renderEntries = (dirPath: string, depth: number): React.ReactNode => {
     const items = entries.get(dirPath);
@@ -61,10 +109,15 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
               e.dataTransfer.setData("application/x-termcanvas-file", fullPath);
               e.dataTransfer.effectAllowed = "copy";
             }}
+            onDragOver={entry.isDirectory ? (e) => handleDirDragOver(e, fullPath) : undefined}
+            onDragLeave={entry.isDirectory ? handleDirDragLeave : undefined}
+            onDrop={entry.isDirectory ? (e) => handleDirDrop(e, fullPath) : undefined}
             className={`w-full flex items-center gap-1.5 py-1 transition-colors duration-150 text-left ${
-              isSelected
-                ? "bg-[var(--surface-hover)] border-l-2 border-[var(--accent)]"
-                : "hover:bg-[var(--surface-hover)] border-l-2 border-transparent"
+              dropTargetDir === fullPath
+                ? "bg-[rgba(80,227,194,0.15)] border-l-2 border-[var(--accent)]"
+                : isSelected
+                  ? "bg-[var(--surface-hover)] border-l-2 border-[var(--accent)]"
+                  : "hover:bg-[var(--surface-hover)] border-l-2 border-transparent"
             }`}
             style={{ paddingLeft: depth * 16 + 12, paddingRight: 8 }}
             onClick={() => {
@@ -128,8 +181,18 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
 
   return (
     <div
-      className="flex-1 overflow-auto min-h-0 pt-1"
+      className={`flex-1 overflow-auto min-h-0 pt-1 ${dropTargetDir === worktreePath ? "ring-1 ring-[var(--accent)]" : ""}`}
       style={{ ...MONO_STYLE, fontSize: 11 }}
+      onDragOver={(e) => {
+        if (!isOsDrag(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+        if (!dropTargetDir) setDropTargetDir(worktreePath);
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setDropTargetDir(null);
+      }}
+      onDrop={(e) => handleDirDrop(e, worktreePath!)}
     >
       {renderEntries(worktreePath, 0)}
     </div>
