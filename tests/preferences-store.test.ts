@@ -69,3 +69,16 @@ test("preferences stores and retrieves cliCommands", async () => {
   store.setCli("claude", null);
   assert.deepEqual(usePreferencesStore.getState().cliCommands, {});
 });
+
+test("smartRenderEnabled defaults to true and persists toggle", async () => {
+  installLocalStorage();
+
+  const { usePreferencesStore } = await loadPreferencesStoreModule("smart-render");
+  assert.equal(usePreferencesStore.getState().smartRenderEnabled, true);
+
+  usePreferencesStore.getState().setSmartRenderEnabled(false);
+  assert.equal(usePreferencesStore.getState().smartRenderEnabled, false);
+
+  const raw = JSON.parse(localStorage.getItem("termcanvas-preferences")!);
+  assert.equal(raw.smartRenderEnabled, false);
+});
