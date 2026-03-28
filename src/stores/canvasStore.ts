@@ -101,11 +101,26 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
   setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
   setLeftPanelCollapsed: (collapsed) => {
-    set({ leftPanelCollapsed: collapsed });
+    const { leftPanelCollapsed: was, leftPanelWidth, viewport } = get();
+    if (collapsed === was) return;
+    const oldLeft = was ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
+    const newLeft = collapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
+    set({
+      leftPanelCollapsed: collapsed,
+      viewport: { ...viewport, x: viewport.x - (newLeft - oldLeft) },
+    });
     markDirty();
   },
   setLeftPanelWidth: (width) => {
-    set({ leftPanelWidth: width });
+    const { leftPanelWidth: oldWidth, leftPanelCollapsed, viewport } = get();
+    if (!leftPanelCollapsed && width !== oldWidth) {
+      set({
+        leftPanelWidth: width,
+        viewport: { ...viewport, x: viewport.x - (width - oldWidth) },
+      });
+    } else {
+      set({ leftPanelWidth: width });
+    }
     markDirty();
   },
   setLeftPanelActiveTab: (tab) => {
