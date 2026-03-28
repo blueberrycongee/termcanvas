@@ -419,6 +419,10 @@ export interface TermCanvasAPI {
       | { type: string; content: string }
       | { error: string; size?: string }
     >;
+    copy: (sources: string[], destDir: string) => Promise<{
+      copied: string[];
+      skipped: string[];
+    }>;
   };
   fonts: {
     getPath: () => Promise<string>;

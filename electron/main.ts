@@ -653,6 +653,14 @@ function setupIpc() {
     }
   });
 
+  ipcMain.handle(
+    "fs:copy",
+    async (_event, sources: string[], destDir: string) => {
+      const { copyFiles } = await import("./fs-copy.js");
+      return copyFiles(sources, destDir);
+    },
+  );
+
   // CLI registration
   ipcMain.handle("cli:is-registered", () => isCliRegistered(getCliDir()));
   ipcMain.handle("cli:register", () => {
