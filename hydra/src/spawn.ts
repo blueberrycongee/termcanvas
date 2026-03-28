@@ -35,7 +35,7 @@ function printSpawnUsage(): never {
   console.log("  --repo <path>       Path to the git repository (required)");
   console.log("  --worktree <path>   Use an existing worktree (read-only mode)");
   console.log("  --base-branch <br>  Base branch for the new worktree (default: current)");
-  console.log("  --auto-approve      Run sub-agent in auto-approve mode");
+  console.log("  --no-auto-approve   Disable auto-approve (sub-agents auto-approve by default)");
   process.exit(0);
 }
 
@@ -44,7 +44,9 @@ export function parseSpawnArgs(args: string[]): SpawnArgs {
     printSpawnUsage();
   }
 
-  const result: Partial<SpawnArgs> = {};
+  const result: Partial<SpawnArgs> = {
+    autoApprove: true,
+  };
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -60,6 +62,8 @@ export function parseSpawnArgs(args: string[]): SpawnArgs {
       result.baseBranch = args[++i];
     } else if (arg === "--auto-approve") {
       result.autoApprove = true;
+    } else if (arg === "--no-auto-approve") {
+      result.autoApprove = false;
     }
   }
 

@@ -46,7 +46,7 @@ test("parseRunArgs and parseWatchArgs read the orchestration CLI flags", () => {
       evaluatorType: "gemini",
       timeoutMinutes: 15,
       maxRetries: 2,
-      autoApprove: false,
+      autoApprove: true,
       approvePlan: false,
     },
   );

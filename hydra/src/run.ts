@@ -37,7 +37,7 @@ function printRunUsage(): never {
   console.log(`  --type <type>            Alias for --implementer-type (fallback default: ${DEFAULT_AGENT_TYPE})`);
   console.log("  --timeout-minutes <num>  Per-handoff timeout in minutes (default: 30)");
   console.log("  --max-retries <num>      Automatic retry limit (default: 1)");
-  console.log("  --auto-approve           Run sub-agent in auto-approve mode");
+  console.log("  --no-auto-approve        Disable auto-approve (sub-agents auto-approve by default)");
   console.log("  --approve-plan           Pause after planner for user approval before implementing");
   console.log("");
   console.log("Mode guide:");
@@ -59,7 +59,7 @@ export function parseRunArgs(args: string[]): RunArgs {
     template: "planner-implementer-evaluator",
     timeoutMinutes: 30,
     maxRetries: 1,
-    autoApprove: false,
+    autoApprove: true,
     approvePlan: false,
   };
 
@@ -87,6 +87,8 @@ export function parseRunArgs(args: string[]): RunArgs {
       result.maxRetries = Number.parseInt(args[++i], 10);
     } else if (arg === "--auto-approve") {
       result.autoApprove = true;
+    } else if (arg === "--no-auto-approve") {
+      result.autoApprove = false;
     } else if (arg === "--approve-plan") {
       result.approvePlan = true;
     }
