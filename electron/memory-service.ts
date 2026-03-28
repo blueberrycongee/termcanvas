@@ -144,7 +144,10 @@ export function getMemoryDirForWorktree(worktreePath: string): string {
   return path.join(homeDir, ".claude", "projects", projectId, "memory");
 }
 
-const watchers = new Map<string, FSWatcher>();
+const watchers = new Map<
+  string,
+  { watcher: FSWatcher; timer: ReturnType<typeof setTimeout> | null }
+>();
 
 export function watchMemoryDir(
   dirPath: string,
@@ -153,18 +156,21 @@ export function watchMemoryDir(
   unwatchMemoryDir(dirPath);
   if (!fs.existsSync(dirPath)) return;
 
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  const watcher = fs.watch(dirPath, () => {
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(onChange, 500);
-  });
-  watchers.set(dirPath, watcher);
+  const entry: { watcher: FSWatcher; timer: ReturnType<typeof setTimeout> | null } = {
+    watcher: fs.watch(dirPath, () => {
+      if (entry.timer) clearTimeout(entry.timer);
+      entry.timer = setTimeout(onChange, 500);
+    }),
+    timer: null,
+  };
+  watchers.set(dirPath, entry);
 }
 
 export function unwatchMemoryDir(dirPath: string): void {
   const existing = watchers.get(dirPath);
   if (existing) {
-    existing.close();
+    if (existing.timer) clearTimeout(existing.timer);
+    existing.watcher.close();
     watchers.delete(dirPath);
   }
 }

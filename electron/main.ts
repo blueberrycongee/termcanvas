@@ -578,18 +578,6 @@ function setupIpc() {
     },
   );
 
-  ipcMain.handle(
-    "memory:write-file",
-    async (_event, filePath: string, content: string) => {
-      const nodefs = await import("node:fs");
-      try {
-        const existing = nodefs.readFileSync(filePath, "utf-8");
-        if (existing === content) return;
-      } catch {}
-      nodefs.writeFileSync(filePath, content, "utf-8");
-    },
-  );
-
   ipcMain.handle("memory:watch", async (_event, worktreePath: string) => {
     const { getMemoryDirForWorktree, watchMemoryDir, scanMemoryDir } =
       await import("./memory-service.js");

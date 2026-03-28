@@ -460,7 +460,6 @@ export interface TermCanvasAPI {
       mtime: number;
       ctime: number;
     } | null>;
-    writeFile: (filePath: string, content: string) => Promise<void>;
     watch: (worktreePath: string) => Promise<void>;
     unwatch: (worktreePath: string) => Promise<void>;
     onChanged: (callback: (graph: {

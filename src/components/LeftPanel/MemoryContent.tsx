@@ -28,6 +28,7 @@ function getTypeColor(type: string): string {
 
 interface GraphNodePos {
   fileName: string;
+  filePath: string;
   name: string;
   type: string;
   description: string;
@@ -50,7 +51,7 @@ function MemoryGraph({
   graph: {
     nodes: Array<{
       fileName: string;
-      filePath?: string;
+      filePath: string;
       name: string;
       type: string;
       description: string;
@@ -419,8 +420,8 @@ function MemoryGraph({
         onSelectNode(hit.fileName === selectedNode ? null : hit.fileName);
         // Open in Preview tab
         const node = graph.nodes.find((n) => n.fileName === hit.fileName);
-        if (node && "filePath" in node && node.filePath) {
-          onOpenFile(node.filePath as string);
+        if (node?.filePath) {
+          onOpenFile(node.filePath);
         }
       } else {
         onSelectNode(null);
@@ -522,6 +523,8 @@ export function MemoryContent({ worktreePath, onFileClick }: Props) {
         setGraph(result);
         setLoading(false);
       }
+    }).catch(() => {
+      if (!cancelled) setLoading(false);
     });
 
     window.termcanvas.memory.watch(worktreePath);
