@@ -63,3 +63,87 @@ test("findExplicitReferences ignores self-links", async () => {
   const refs = findExplicitReferences(nodes);
   assert.equal(refs.length, 0);
 });
+
+test("findTimeSensitiveMemories flags dates older than threshold", async () => {
+  const { findTimeSensitiveMemories } = await import(
+    `../electron/memory-index-generator.ts?ts-old-${Date.now()}`
+  );
+
+  const oldDate = new Date(Date.now() - 30 * 86400000)
+    .toISOString()
+    .slice(0, 10);
+  const nodes = [
+    {
+      fileName: "project_auth.md",
+      type: "project",
+      body: `Created on ${oldDate}, auth setup notes.`,
+    },
+  ];
+
+  const results = findTimeSensitiveMemories(nodes);
+  assert.equal(results.length, 1);
+  assert.equal(results[0].fileName, "project_auth.md");
+  assert.equal(results[0].date, oldDate);
+  assert.ok(results[0].daysAgo >= 29);
+});
+
+test("findTimeSensitiveMemories ignores recent dates", async () => {
+  const { findTimeSensitiveMemories } = await import(
+    `../electron/memory-index-generator.ts?ts-recent-${Date.now()}`
+  );
+
+  const today = new Date().toISOString().slice(0, 10);
+  const nodes = [
+    {
+      fileName: "feedback_db.md",
+      type: "feedback",
+      body: `Updated on ${today}, all good.`,
+    },
+  ];
+
+  const results = findTimeSensitiveMemories(nodes);
+  assert.equal(results.length, 0);
+});
+
+test("findTimeSensitiveMemories skips index nodes", async () => {
+  const { findTimeSensitiveMemories } = await import(
+    `../electron/memory-index-generator.ts?ts-index-${Date.now()}`
+  );
+
+  const oldDate = new Date(Date.now() - 30 * 86400000)
+    .toISOString()
+    .slice(0, 10);
+  const nodes = [
+    {
+      fileName: "MEMORY.md",
+      type: "index",
+      body: `Index created on ${oldDate}.`,
+    },
+  ];
+
+  const results = findTimeSensitiveMemories(nodes);
+  assert.equal(results.length, 0);
+});
+
+test("findTimeSensitiveMemories reports only one entry per file", async () => {
+  const { findTimeSensitiveMemories } = await import(
+    `../electron/memory-index-generator.ts?ts-one-${Date.now()}`
+  );
+
+  const oldDate1 = new Date(Date.now() - 30 * 86400000)
+    .toISOString()
+    .slice(0, 10);
+  const oldDate2 = new Date(Date.now() - 60 * 86400000)
+    .toISOString()
+    .slice(0, 10);
+  const nodes = [
+    {
+      fileName: "project_auth.md",
+      type: "project",
+      body: `Started ${oldDate1}, revised ${oldDate2}.`,
+    },
+  ];
+
+  const results = findTimeSensitiveMemories(nodes);
+  assert.equal(results.length, 1);
+});
