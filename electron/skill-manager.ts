@@ -150,18 +150,53 @@ function unregisterClaudePlugin(filePath: string): boolean {
 
 // Claude Code settings.json — enable plugin for hooks
 
-/** Ensure termcanvas plugin is enabled in settings.json (required for hooks). */
-function ensurePluginEnabled(settingsFile: string): void {
+/** Ensure termcanvas plugin is enabled and hooks are registered in settings.json. */
+function ensurePluginEnabled(settingsFile: string, sourceDir: string): void {
   let data: Record<string, unknown> = {};
   try {
     data = JSON.parse(fs.readFileSync(settingsFile, "utf-8"));
   } catch {}
 
-  const enabled = (data.enabledPlugins ?? {}) as Record<string, boolean>;
-  if (enabled[PLUGIN_KEY] === true) return;
+  let changed = false;
 
-  enabled[PLUGIN_KEY] = true;
-  data.enabledPlugins = enabled;
+  // Enable plugin
+  const enabled = (data.enabledPlugins ?? {}) as Record<string, boolean>;
+  if (enabled[PLUGIN_KEY] !== true) {
+    enabled[PLUGIN_KEY] = true;
+    data.enabledPlugins = enabled;
+    changed = true;
+  }
+
+  // Register SessionStart hook with absolute path (Claude Code reads hooks from settings.json)
+  const scriptPath = path.join(sourceDir, "scripts", "memory-session-start.sh");
+  const hooks = (data.hooks ?? {}) as Record<string, unknown[]>;
+  const sessionStart = (hooks.SessionStart ?? []) as Array<{
+    matcher?: string;
+    hooks?: Array<{ type: string; command: string; timeout?: number }>;
+  }>;
+
+  const hookCommand = `bash '${scriptPath}'`;
+  const alreadyRegistered = sessionStart.some((entry) =>
+    entry.hooks?.some((h) => h.command === hookCommand),
+  );
+
+  if (!alreadyRegistered) {
+    sessionStart.push({
+      matcher: "startup|clear|compact",
+      hooks: [
+        {
+          type: "command",
+          command: hookCommand,
+          timeout: 10,
+        },
+      ],
+    });
+    hooks.SessionStart = sessionStart;
+    data.hooks = hooks;
+    changed = true;
+  }
+
+  if (!changed) return;
 
   fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
   const tmp = settingsFile + ".tmp." + process.pid;
@@ -267,7 +302,7 @@ export function installSkillLinks({
 }): boolean {
   try {
     registerClaudePlugin(getClaudePluginsFile(home), sourceDir, appVersion);
-    ensurePluginEnabled(getClaudeSettingsFile(home));
+    ensurePluginEnabled(getClaudeSettingsFile(home), sourceDir);
     installCodexSkillLinks(sourceDir, home);
     cleanupOldHydraSymlinks(home);
     return true;
@@ -297,7 +332,7 @@ export function ensureSkillLinks({
       registerClaudePlugin(pluginsFile, sourceDir, appVersion);
     }
 
-    ensurePluginEnabled(getClaudeSettingsFile(home));
+    ensurePluginEnabled(getClaudeSettingsFile(home), sourceDir);
     installCodexSkillLinks(sourceDir, home);
     cleanupOldHydraSymlinks(home);
 
