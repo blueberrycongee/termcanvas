@@ -46,10 +46,12 @@ function MemoryGraph({
   graph,
   selectedNode,
   onSelectNode,
+  onOpenFile,
 }: {
   graph: {
     nodes: Array<{
       fileName: string;
+      filePath?: string;
       name: string;
       type: string;
       description: string;
@@ -59,11 +61,13 @@ function MemoryGraph({
   };
   selectedNode: string | null;
   onSelectNode: (fileName: string | null) => void;
+  onOpenFile: (filePath: string) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<GraphNodePos[]>([]);
   const animRef = useRef<number>(0);
+  const needsResizeRef = useRef(false);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
 
   // Build neighbor lookup
@@ -150,6 +154,19 @@ function MemoryGraph({
       if (nodes.length === 0) {
         animRef.current = requestAnimationFrame(tick);
         return;
+      }
+
+      // Apply pending resize inside the render loop (avoids blank frame)
+      if (needsResizeRef.current) {
+        needsResizeRef.current = false;
+        const container = containerRef.current;
+        if (container) {
+          const d = window.devicePixelRatio || 1;
+          canvas.width = container.clientWidth * d;
+          canvas.height = container.clientHeight * d;
+          canvas.style.width = container.clientWidth + "px";
+          canvas.style.height = container.clientHeight + "px";
+        }
       }
 
       const dpr = window.devicePixelRatio || 1;
@@ -360,21 +377,21 @@ function MemoryGraph({
     nodeRadius,
   ]);
 
-  // Resize
+  // Resize — just flag; the render loop applies the resize and immediately redraws
   useEffect(() => {
     const container = containerRef.current;
     const canvas = canvasRef.current;
     if (!container || !canvas) return;
-    const update = () => {
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = container.clientWidth * dpr;
-      canvas.height = container.clientHeight * dpr;
-      canvas.style.width = container.clientWidth + "px";
-      canvas.style.height = container.clientHeight + "px";
-    };
-    const ro = new ResizeObserver(update);
+    // Initial size
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = container.clientWidth * dpr;
+    canvas.height = container.clientHeight * dpr;
+    canvas.style.width = container.clientWidth + "px";
+    canvas.style.height = container.clientHeight + "px";
+    const ro = new ResizeObserver(() => {
+      needsResizeRef.current = true;
+    });
     ro.observe(container);
-    update();
     return () => ro.disconnect();
   }, []);
 
@@ -399,11 +416,18 @@ function MemoryGraph({
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const hit = hitTest(e);
-      onSelectNode(
-        hit ? (hit.fileName === selectedNode ? null : hit.fileName) : null,
-      );
+      if (hit) {
+        onSelectNode(hit.fileName === selectedNode ? null : hit.fileName);
+        // Open in Preview tab
+        const node = graph.nodes.find((n) => n.fileName === hit.fileName);
+        if (node && "filePath" in node && node.filePath) {
+          onOpenFile(node.filePath as string);
+        }
+      } else {
+        onSelectNode(null);
+      }
     },
-    [hitTest, onSelectNode, selectedNode],
+    [hitTest, onSelectNode, selectedNode, graph.nodes, onOpenFile],
   );
 
   const handleMouseMove = useCallback(
@@ -477,100 +501,6 @@ function MemoryGraph({
   );
 }
 
-// ─── MemoryEditor ─────────────────────────────────────────────────────
-
-function MemoryEditor({
-  node,
-  onClose,
-}: {
-  node: {
-    fileName: string;
-    filePath: string;
-    name: string;
-    description: string;
-    type: string;
-    body: string;
-  };
-  onClose: () => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [content, setContent] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (node.type === "index") {
-      setContent(node.body);
-    } else {
-      const parts = ["---"];
-      if (node.name) parts.push(`name: ${node.name}`);
-      if (node.description) parts.push(`description: ${node.description}`);
-      if (node.type) parts.push(`type: ${node.type}`);
-      parts.push("---", "", node.body);
-      setContent(parts.join("\n"));
-    }
-    setEditing(false);
-  }, [node]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    await window.termcanvas.memory.writeFile(node.filePath, content);
-    setSaving(false);
-    setEditing(false);
-  };
-
-  return (
-    <div className="border-t border-[var(--border)] flex-1 min-h-0 flex flex-col">
-      <div className="flex items-center justify-between px-3 py-1.5 text-xs text-[var(--text-secondary)] border-b border-[var(--border)]">
-        <span className="truncate">{node.fileName}</span>
-        <div className="flex gap-2 ml-2 flex-shrink-0">
-          {editing ? (
-            <>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="text-[var(--cyan)] hover:brightness-110 disabled:opacity-50"
-              >
-                {saving ? "..." : "Save"}
-              </button>
-              <button
-                onClick={() => setEditing(false)}
-                className="hover:text-[var(--text-primary)]"
-              >
-                Cancel
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={() => setEditing(true)}
-              className="hover:text-[var(--text-primary)]"
-            >
-              Edit
-            </button>
-          )}
-          <button
-            onClick={onClose}
-            className="hover:text-[var(--text-primary)]"
-          >
-            ✕
-          </button>
-        </div>
-      </div>
-      {editing ? (
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          className="flex-1 min-h-0 p-3 text-xs text-[var(--text-primary)] bg-transparent resize-none outline-none font-mono"
-          spellCheck={false}
-        />
-      ) : (
-        <div className="flex-1 min-h-0 overflow-auto p-3 text-xs text-[var(--text-primary)] whitespace-pre-wrap font-mono">
-          {node.body}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── MemoryContent (main export) ──────────────────────────────────────
 
 interface Props {
@@ -582,6 +512,14 @@ export function MemoryContent({ worktreePath }: Props) {
     useMemoryStore();
   const setPreviewFile = useCanvasStore((s) => s.setLeftPanelPreviewFile);
   const setActiveTab = useCanvasStore((s) => s.setLeftPanelActiveTab);
+
+  const handleOpenFile = useCallback(
+    (filePath: string) => {
+      setPreviewFile(filePath);
+      setActiveTab("preview");
+    },
+    [setPreviewFile, setActiveTab],
+  );
 
   useEffect(() => {
     if (!worktreePath) return;
@@ -633,18 +571,14 @@ export function MemoryContent({ worktreePath }: Props) {
     );
   }
 
-  const selected = graph.nodes.find((n) => n.fileName === selectedNode);
-
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <MemoryGraph
         graph={graph}
         selectedNode={selectedNode}
         onSelectNode={setSelectedNode}
+        onOpenFile={handleOpenFile}
       />
-      {selected && (
-        <MemoryEditor node={selected} onClose={() => setSelectedNode(null)} />
-      )}
     </div>
   );
 }
