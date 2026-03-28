@@ -146,7 +146,7 @@ export function scanMemoryDir(dirPath: string): MemoryGraph {
 
 export function getMemoryDirForWorktree(worktreePath: string): string {
   const homeDir = os.homedir();
-  const projectId = worktreePath.replace(/[\\/]/g, "-");
+  const projectId = worktreePath.replace(/[\\/:]/g, "-");
   return path.join(homeDir, ".claude", "projects", projectId, "memory");
 }
 
