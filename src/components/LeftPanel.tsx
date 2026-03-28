@@ -316,7 +316,7 @@ export function LeftPanel() {
                 onClick={() => setActiveTab(id)}
               >
                 <Icon size={13} />
-                <span>{t[labelKey]}</span>
+                {width > 260 && <span>{t[labelKey]}</span>}
               </button>
             );
           })}
