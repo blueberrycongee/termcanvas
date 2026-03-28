@@ -7,6 +7,7 @@ import { FilesContent } from "./LeftPanel/FilesContent";
 import { DiffContent } from "./LeftPanel/DiffContent";
 import { GitContent } from "./LeftPanel/GitContent";
 import { PreviewContent } from "./LeftPanel/PreviewContent";
+import { HydraSetupPopup } from "./HydraSetupPopup";
 import type { LeftPanelTab } from "../stores/canvasStore";
 
 // ── Tab icon SVGs (14×14, matching the minimal aesthetic) ──
@@ -195,67 +196,63 @@ export function LeftPanel() {
     }
   }, [focusedProject, notify, t]);
 
+  const hydraPopup = hydraStatus && focusedProject ? (
+    <HydraSetupPopup
+      status={hydraStatus}
+      projectName={focusedProject.name}
+      onEnable={handleHydraBannerAction}
+      onDismiss={() => setHydraStatus(null)}
+    />
+  ) : null;
+
   // ── Collapsed state: vertical icon strip ──
   if (collapsed) {
     return (
-      <div
-        className="fixed left-0 z-40 bg-[var(--surface)] border-r border-[var(--border)] flex flex-col items-center pt-3 gap-1"
-        style={{ top: 44, height: "calc(100vh - 44px)", width: COLLAPSED_TAB_WIDTH }}
-      >
-        {TAB_CONFIG.map(({ id, icon: Icon }) => (
-          <button
-            key={id}
-            className={`flex items-center justify-center w-6 h-6 rounded-md transition-colors duration-150 ${
-              activeTab === id
-                ? "text-[var(--accent)]"
-                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-            }`}
-            title={t[`left_panel_${id}` as keyof typeof t] as string}
-            onClick={() => {
-              setActiveTab(id);
-              setCollapsed(false);
-            }}
-          >
-            <Icon size={14} />
-          </button>
-        ))}
-        <div className="mt-auto mb-3">
-          <button
-            className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors duration-150"
-            onClick={() => setCollapsed(false)}
-          >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path d="M3 2L7 5L3 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
+      <>
+        {hydraPopup}
+        <div
+          className="fixed left-0 z-40 bg-[var(--surface)] border-r border-[var(--border)] flex flex-col items-center pt-3 gap-1"
+          style={{ top: 44, height: "calc(100vh - 44px)", width: COLLAPSED_TAB_WIDTH }}
+        >
+          {TAB_CONFIG.map(({ id, icon: Icon }) => (
+            <button
+              key={id}
+              className={`flex items-center justify-center w-6 h-6 rounded-md transition-colors duration-150 ${
+                activeTab === id
+                  ? "text-[var(--accent)]"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              }`}
+              title={t[`left_panel_${id}` as keyof typeof t] as string}
+              onClick={() => {
+                setActiveTab(id);
+                setCollapsed(false);
+              }}
+            >
+              <Icon size={14} />
+            </button>
+          ))}
+          <div className="mt-auto mb-3">
+            <button
+              className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors duration-150"
+              onClick={() => setCollapsed(false)}
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path d="M3 2L7 5L3 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
+    <>
+    {hydraPopup}
     <div
       className="fixed left-0 z-40 bg-[var(--surface)] border-r border-[var(--border)] flex flex-col"
       style={{ top: 44, height: "calc(100vh - 44px)", width }}
     >
-      {/* ── Hydra Toolchain Banner ── */}
-      {hydraStatus && (
-        <div className="shrink-0 px-2 pt-2">
-          <div className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 bg-[var(--accent)]/10 border border-[var(--accent)]/20">
-            <span className="text-[11px] text-[var(--accent)] flex-1 min-w-0 truncate">
-              {hydraStatus === "outdated" ? t.hydra_outdated : t.hydra_missing}
-            </span>
-            <button
-              className="shrink-0 text-[10px] font-medium px-2 py-0.5 rounded bg-[var(--accent)] text-white hover:opacity-90 transition-opacity disabled:opacity-50"
-              onClick={handleHydraBannerAction}
-              disabled={hydraEnabling}
-            >
-              {hydraEnabling ? "..." : hydraStatus === "outdated" ? t.hydra_update : t.hydra_enable_action}
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* ── Segmented Tab Bar ── */}
       <div className="shrink-0 px-2 pt-2 pb-1.5">
         <div className="flex items-center gap-0.5 rounded-lg bg-[var(--bg)] p-0.5">
@@ -310,5 +307,6 @@ export function LeftPanel() {
         <div className="absolute right-0 top-0 w-px h-full bg-[var(--border)] group-hover/resize:bg-[var(--accent)] group-hover/resize:opacity-70 transition-colors duration-150" />
       </div>
     </div>
+    </>
   );
 }

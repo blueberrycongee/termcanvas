@@ -128,6 +128,10 @@ export const en = {
   hydra_missing: "Hydra toolchain not set up",
   hydra_update: "Update",
   hydra_enable_action: "Enable",
+  hydra_popup_outdated: "The Hydra toolchain instructions in this project are outdated and may not work correctly with the current version.",
+  hydra_popup_missing: "This project doesn't have Hydra toolchain instructions yet. Enable Hydra to unlock multi-agent workflows.",
+  hydra_popup_desc: "This will add or update the Hydra section in CLAUDE.md and AGENTS.md with the latest workflow commands and telemetry instructions.",
+  hydra_popup_later: "Later",
 
   // TerminalTile
   terminal_api_unavailable:
