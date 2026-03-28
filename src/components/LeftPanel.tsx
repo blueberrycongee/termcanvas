@@ -7,6 +7,7 @@ import { FilesContent } from "./LeftPanel/FilesContent";
 import { DiffContent } from "./LeftPanel/DiffContent";
 import { GitContent } from "./LeftPanel/GitContent";
 import { PreviewContent } from "./LeftPanel/PreviewContent";
+import { MemoryContent } from "./LeftPanel/MemoryContent";
 import { HydraSetupPopup } from "./HydraSetupPopup";
 import { panToTerminal } from "../utils/panToTerminal";
 import type { LeftPanelTab } from "../stores/canvasStore";
@@ -53,10 +54,21 @@ function IconGit({ size = 14 }: { size?: number }) {
   );
 }
 
-const TAB_CONFIG: { id: LeftPanelTab; icon: typeof IconFiles; labelKey: "left_panel_files" | "left_panel_diff" | "left_panel_git" }[] = [
+function IconMemory({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="6" r="3.5" />
+      <path d="M4 12c0-2.2 1.8-4 4-4s4 1.8 4 4" />
+      <circle cx="8" cy="6" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+const TAB_CONFIG: { id: LeftPanelTab; icon: typeof IconFiles; labelKey: "left_panel_files" | "left_panel_diff" | "left_panel_git" | "left_panel_memory" }[] = [
   { id: "files", icon: IconFiles, labelKey: "left_panel_files" },
   { id: "diff", icon: IconDiff, labelKey: "left_panel_diff" },
   { id: "git", icon: IconGit, labelKey: "left_panel_git" },
+  { id: "memory", icon: IconMemory, labelKey: "left_panel_memory" },
 ];
 
 export function LeftPanel() {
@@ -327,6 +339,9 @@ export function LeftPanel() {
             onEnableHydra={focusedProject ? handleEnableHydra : undefined}
             hydraEnabling={hydraEnabling}
           />
+        )}
+        {activeTab === "memory" && (
+          <MemoryContent worktreePath={effectiveWorktreePath} />
         )}
       </div>
 
