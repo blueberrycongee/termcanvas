@@ -593,10 +593,20 @@ function setupIpc() {
   ipcMain.handle("memory:watch", async (_event, worktreePath: string) => {
     const { getMemoryDirForWorktree, watchMemoryDir, scanMemoryDir } =
       await import("./memory-service.js");
+    const { generateEnhancedIndex, MemoryIndexCache } = await import(
+      "./memory-index-generator.js"
+    );
     const memDir = getMemoryDirForWorktree(worktreePath);
+    const cache = new MemoryIndexCache(TERMCANVAS_DIR);
+
+    // Generate initial index
+    const initialGraph = scanMemoryDir(memDir);
+    cache.update(generateEnhancedIndex(initialGraph.nodes));
+
     watchMemoryDir(memDir, () => {
       const graph = scanMemoryDir(memDir);
       sendToWindow(mainWindow, "memory:changed", graph);
+      cache.update(generateEnhancedIndex(graph.nodes));
     });
   });
 
