@@ -570,14 +570,6 @@ function setupIpc() {
     return scanMemoryDir(memDir);
   });
 
-  ipcMain.handle(
-    "memory:read-file",
-    async (_event, filePath: string) => {
-      const { parseMemoryFile } = await import("./memory-service.js");
-      return parseMemoryFile(filePath);
-    },
-  );
-
   ipcMain.handle("memory:watch", async (_event, worktreePath: string) => {
     const { getMemoryDirForWorktree, watchMemoryDir, scanMemoryDir } =
       await import("./memory-service.js");

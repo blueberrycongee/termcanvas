@@ -228,8 +228,6 @@ contextBridge.exposeInMainWorld("termcanvas", {
   memory: {
     scan: (worktreePath: string) =>
       ipcRenderer.invoke("memory:scan", worktreePath),
-    readFile: (filePath: string) =>
-      ipcRenderer.invoke("memory:read-file", filePath),
     watch: (worktreePath: string) =>
       ipcRenderer.invoke("memory:watch", worktreePath),
     unwatch: (worktreePath: string) =>

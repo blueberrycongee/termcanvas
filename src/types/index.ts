@@ -450,16 +450,6 @@ export interface TermCanvasAPI {
       }>;
       dirPath: string;
     }>;
-    readFile: (filePath: string) => Promise<{
-      fileName: string;
-      filePath: string;
-      name: string;
-      description: string;
-      type: string;
-      body: string;
-      mtime: number;
-      ctime: number;
-    } | null>;
     watch: (worktreePath: string) => Promise<void>;
     unwatch: (worktreePath: string) => Promise<void>;
     onChanged: (callback: (graph: {

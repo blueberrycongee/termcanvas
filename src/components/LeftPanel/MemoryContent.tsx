@@ -3,10 +3,23 @@ import { useMemoryStore } from "../../stores/memoryStore";
 
 // ─── Theme-aware colors ───────────────────────────────────────────────
 
+const themeCache = { theme: "", vars: {} as Record<string, string> };
+
 function getCssVar(name: string): string {
-  return getComputedStyle(document.documentElement)
-    .getPropertyValue(name)
-    .trim();
+  const currentTheme =
+    document.documentElement.getAttribute("data-theme") || "dark";
+  if (themeCache.theme !== currentTheme) {
+    const style = getComputedStyle(document.documentElement);
+    themeCache.theme = currentTheme;
+    themeCache.vars = {
+      "--surface": style.getPropertyValue("--surface").trim(),
+      "--border": style.getPropertyValue("--border").trim(),
+      "--text-primary": style.getPropertyValue("--text-primary").trim(),
+      "--text-muted": style.getPropertyValue("--text-muted").trim(),
+      "--text-faint": style.getPropertyValue("--text-faint").trim(),
+    };
+  }
+  return themeCache.vars[name] ?? "";
 }
 
 const TYPE_COLORS: Record<string, { dark: string; light: string }> = {
