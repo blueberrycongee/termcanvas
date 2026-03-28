@@ -43,3 +43,11 @@ Route first. Choose the lightest path that preserves correctness.
 - Use `hydra list` and `hydra cleanup <agentId>` for direct workers created by
   `hydra spawn`.
 - Prefer structured Hydra state and files over terminal prose.
+
+## Memory Graph
+
+When the session context contains a `<memory-graph>` block from TermCanvas:
+
+- Check "References" before reading a memory file — referenced files are likely also relevant, follow the links
+- If a memory is marked "Time-sensitive" with a date that has clearly passed, verify its content against current project state before acting on it
+- Do not cite memory-graph metadata to the user — it's for your navigation, not for display
