@@ -57,22 +57,26 @@ export function clampCenterX(
   leftInset: number,
   rightInset: number,
 ): number {
-  // Step 1 — ideal: centre on full screen width
+  // viewport.x is canvas-local (canvas div starts at leftInset on screen).
+  // To place the object center at screen midpoint (window.innerWidth / 2):
+  //   leftInset + cx + objectCenter * scale = window.innerWidth / 2
   const objectCenterWorld = objectX + objectW / 2;
-  let cx = -objectCenterWorld * scale + window.innerWidth / 2;
+  let cx = window.innerWidth / 2 - leftInset - objectCenterWorld * scale;
 
-  // Step 2 — left clamp
-  const screenLeft = cx + objectX * scale;
-  const safeLeft = leftInset + PAN_SAFE_PADDING;
-  if (screenLeft < safeLeft) {
-    cx += safeLeft - screenLeft;
+  // Clamp boundaries are also canvas-local.
+  // Visible canvas area: 0 … (window.innerWidth - leftInset - rightInset)
+
+  // Left clamp: object left edge must stay PAN_SAFE_PADDING inside canvas
+  const canvasLeft = cx + objectX * scale;
+  if (canvasLeft < PAN_SAFE_PADDING) {
+    cx += PAN_SAFE_PADDING - canvasLeft;
   }
 
-  // Step 3 — right clamp
-  const screenRight = cx + (objectX + objectW) * scale;
-  const safeRight = window.innerWidth - rightInset - PAN_SAFE_PADDING;
-  if (screenRight > safeRight) {
-    cx -= screenRight - safeRight;
+  // Right clamp: object right edge must stay PAN_SAFE_PADDING from right panel
+  const canvasRight = cx + (objectX + objectW) * scale;
+  const visibleWidth = window.innerWidth - leftInset - rightInset;
+  if (canvasRight > visibleWidth - PAN_SAFE_PADDING) {
+    cx -= canvasRight - (visibleWidth - PAN_SAFE_PADDING);
   }
 
   return cx;
