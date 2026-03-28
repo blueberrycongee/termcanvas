@@ -19,6 +19,7 @@ export class SmartRenderParser {
   private blockStartLine = 0;
   private blockMeta: SegmentMeta | undefined;
   private segments: Segment[] = [];
+  private segmentMap = new Map<number, Segment>();
   private blockSegmentId = -1;
   private diffLineCount = 0;
 
@@ -60,6 +61,7 @@ export class SmartRenderParser {
     this.blockStartLine = 0;
     this.blockMeta = undefined;
     this.segments = [];
+    this.segmentMap.clear();
     this.blockSegmentId = -1;
     this.diffLineCount = 0;
   }
@@ -386,10 +388,11 @@ export class SmartRenderParser {
       ...(meta ? { meta } : {}),
     };
     this.segments.push(seg);
+    this.segmentMap.set(seg.id, seg);
     return seg;
   }
 
   private findSegment(id: number): Segment | undefined {
-    return this.segments.find((s) => s.id === id);
+    return this.segmentMap.get(id);
   }
 }

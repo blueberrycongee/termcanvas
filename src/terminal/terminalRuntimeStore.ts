@@ -458,7 +458,7 @@ function setTerminalType(
       if (runtime.smartPipeline) {
         const flushed = runtime.smartPipeline.checkTimeouts();
         if (flushed.length > 0) {
-          updateSegments(runtime.meta.terminal.id, [...runtime.smartPipeline.getSegments()]);
+          updateSegments(runtime.meta.terminal.id, runtime.smartPipeline.getSegments());
         }
       }
     }, 2_000);
@@ -850,7 +850,7 @@ function handleRuntimeOutput(runtime: ManagedTerminalRuntime, data: string) {
     }
     const newSegments = runtime.smartPipeline.feed(data);
     if (newSegments.length > 0) {
-      updateSegments(runtime.meta.terminal.id, [...runtime.smartPipeline.getSegments()]);
+      updateSegments(runtime.meta.terminal.id, runtime.smartPipeline.getSegments());
     }
   }
 

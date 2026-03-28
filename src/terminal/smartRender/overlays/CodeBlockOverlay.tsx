@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { DismissButton } from "./DismissButton";
 import hljs from "highlight.js/lib/core";
 import typescript from "highlight.js/lib/languages/typescript";
 import javascript from "highlight.js/lib/languages/javascript";
@@ -62,19 +63,7 @@ export function CodeBlockOverlay({ content, language, status, onDismiss }: Props
         >
           {copied ? "Copied" : "Copy"}
         </button>
-        <button
-          className="text-[var(--text-faint)] hover:text-[var(--text-primary)] p-0.5 rounded pointer-events-auto"
-          onClick={onDismiss}
-        >
-          <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
-            <path
-              d="M2.5 2.5L7.5 7.5M7.5 2.5L2.5 7.5"
-              stroke="currentColor"
-              strokeWidth="1.2"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
+        <DismissButton onClick={onDismiss} />
       </div>
       <pre
         className="px-3 pb-2 text-[11px] leading-relaxed overflow-x-auto"

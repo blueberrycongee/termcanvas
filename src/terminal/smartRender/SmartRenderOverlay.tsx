@@ -19,6 +19,8 @@ export function SmartRenderOverlay({ terminalId }: Props) {
   const viewportY = useSmartRenderStore((s) => s.viewportY[terminalId] ?? 0);
   const dims = useSmartRenderStore((s) => s.cellDimensions[terminalId]);
   const dismissed = useSmartRenderStore((s) => s.dismissedSegmentIds[terminalId]);
+  // Subscribe to version counter to re-render when segments mutate in place
+  useSmartRenderStore((s) => s.segmentVersion[terminalId]);
 
   const handleDismiss = useCallback(
     (segmentId: number) => dismissSegment(terminalId, segmentId),

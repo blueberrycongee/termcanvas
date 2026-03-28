@@ -10,6 +10,7 @@ export interface CellDimensions {
 
 interface SmartRenderStoreState {
   segments: Record<string, Segment[]>;
+  segmentVersion: Record<string, number>;
   viewportY: Record<string, number>;
   cellDimensions: Record<string, CellDimensions>;
   dismissedSegmentIds: Record<string, Set<number>>;
@@ -17,14 +18,19 @@ interface SmartRenderStoreState {
 
 export const useSmartRenderStore = create<SmartRenderStoreState>(() => ({
   segments: {},
+  segmentVersion: {},
   viewportY: {},
   cellDimensions: {},
   dismissedSegmentIds: {},
 }));
 
-export function updateSegments(terminalId: string, segments: Segment[]): void {
+export function updateSegments(terminalId: string, segments: readonly Segment[]): void {
   useSmartRenderStore.setState((state) => ({
-    segments: { ...state.segments, [terminalId]: segments },
+    segments: { ...state.segments, [terminalId]: segments as Segment[] },
+    segmentVersion: {
+      ...state.segmentVersion,
+      [terminalId]: (state.segmentVersion[terminalId] ?? 0) + 1,
+    },
   }));
 }
 

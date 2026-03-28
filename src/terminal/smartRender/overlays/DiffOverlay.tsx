@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DismissButton } from "./DismissButton";
 
 const COLLAPSE_THRESHOLD = 50;
 
@@ -37,19 +38,15 @@ export function DiffOverlay({ content, onDismiss }: Props) {
           {fileName}
         </span>
         <span className="text-[10px] text-[var(--text-muted)]">{lines.length} lines</span>
-        <button className="text-[var(--text-faint)] hover:text-[var(--text-primary)] p-0.5 rounded pointer-events-auto" onClick={onDismiss}>
-          <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
-            <path d="M2.5 2.5L7.5 7.5M7.5 2.5L2.5 7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-          </svg>
-        </button>
+        <DismissButton onClick={onDismiss} />
       </div>
       {expanded && (
         <pre className="px-3 py-1 text-[11px] leading-relaxed overflow-x-auto" style={{ fontFamily: '"Geist Mono", monospace' }}>
           {lines.map((line, i) => {
             let color = "var(--text-secondary)";
             let bg = "transparent";
-            if (line.startsWith("+") && !line.startsWith("+++")) { color = "var(--cyan)"; bg = "rgba(80, 227, 194, 0.06)"; }
-            else if (line.startsWith("-") && !line.startsWith("---")) { color = "var(--red)"; bg = "rgba(238, 0, 0, 0.06)"; }
+            if (line.startsWith("+") && !line.startsWith("+++")) { color = "var(--cyan)"; bg = "var(--cyan-bg, rgba(80, 227, 194, 0.06))"; }
+            else if (line.startsWith("-") && !line.startsWith("---")) { color = "var(--red)"; bg = "var(--red-bg, rgba(238, 0, 0, 0.06))"; }
             else if (line.startsWith("@@")) { color = "var(--accent)"; }
             else if (line.startsWith("index ") || line.startsWith("---") || line.startsWith("+++")) { color = "var(--text-muted)"; }
             return <div key={i} style={{ color, backgroundColor: bg }}>{line || " "}</div>;
