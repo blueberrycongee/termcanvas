@@ -11,10 +11,15 @@ import {
   WT_TITLE_H,
 } from "../layout";
 
+interface PanToTerminalOptions {
+  /** Skip animation and set viewport immediately (e.g. during drag). */
+  immediate?: boolean;
+}
+
 /**
  * Animate the canvas viewport to center on the given terminal.
  */
-export function panToTerminal(terminalId: string): void {
+export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): void {
   const publishedGeometry = getTerminalGeometry(terminalId);
   if (publishedGeometry) {
     const { rightPanelCollapsed, leftPanelCollapsed, leftPanelWidth } =
@@ -38,7 +43,11 @@ export function panToTerminal(terminalId: string): void {
       -(publishedGeometry.y + publishedGeometry.h / 2) * scale +
       window.innerHeight / 2;
 
-    useCanvasStore.getState().animateTo(centerX, centerY, scale);
+    if (opts?.immediate) {
+      useCanvasStore.getState().setViewport({ x: centerX, y: centerY, scale });
+    } else {
+      useCanvasStore.getState().animateTo(centerX, centerY, scale);
+    }
     useProjectStore.getState().setFocusedTerminal(terminalId);
     useSelectionStore
       .getState()
@@ -107,7 +116,11 @@ export function panToTerminal(terminalId: string): void {
       const centerX = clampCenterX(absX, item.w, scale, leftOffset, rightOffset);
       const centerY = -(absY + item.h / 2) * scale + window.innerHeight / 2;
 
-      useCanvasStore.getState().animateTo(centerX, centerY, scale);
+      if (opts?.immediate) {
+        useCanvasStore.getState().setViewport({ x: centerX, y: centerY, scale });
+      } else {
+        useCanvasStore.getState().animateTo(centerX, centerY, scale);
+      }
       useSelectionStore
         .getState()
         .selectTerminal(focusedProject.id, focusedWorktree.id, terminalId);

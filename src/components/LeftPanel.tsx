@@ -166,7 +166,7 @@ export function LeftPanel() {
               .flatMap((p) => p.worktrees)
               .flatMap((w) => w.terminals)
               .find((t) => t.focused)?.id;
-            if (tid) panToTerminal(tid);
+            if (tid) panToTerminal(tid, { immediate: true });
           });
         }
       };
