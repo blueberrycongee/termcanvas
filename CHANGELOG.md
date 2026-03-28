@@ -2,6 +2,24 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.14.0] - 2026-03-28
+
+### Added
+- Headless runtime: Electron-free Node.js runtime enabling Hydra to run inside cloud VMs (project-store, api-server, heartbeat, artifact-collector)
+- Dynamic panel-aware centering: focused terminals stay centered between both panels regardless of panel state
+- Real-time re-center during left panel resize drag
+- Left panel markdown preview with source toggle
+- Hydra setup popup replacing inline banner
+- Persistent Hydra status banner replacing transient toast
+- Auto-check Hydra toolchain status on project focus
+- Hydra sub-agents default to auto-approve
+
+### Fixed
+- Viewport scale calculation now accounts for left panel width, preventing terminal occlusion
+- Panel resize re-center uses immediate viewport update for smooth tracking
+- Suppress stale copied toast on terminal remount
+- Prevent selection jump when mouse re-enters terminal during zoom
+
 ## [0.13.0] - 2026-03-28
 
 ### Added
