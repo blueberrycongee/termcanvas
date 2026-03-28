@@ -192,7 +192,7 @@ function AgentsTabContent() {
 
 export function SettingsModal({ onClose }: Props) {
   const { locale, setLocale } = useLocaleStore();
-  const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize, terminalFontFamily, setTerminalFontFamily, composerEnabled, setComposerEnabled, drawingEnabled, setDrawingEnabled, browserEnabled, setBrowserEnabled, smartRenderEnabled, setSmartRenderEnabled, minimumContrastRatio, setMinimumContrastRatio } = usePreferencesStore();
+  const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize, terminalFontFamily, setTerminalFontFamily, composerEnabled, setComposerEnabled, drawingEnabled, setDrawingEnabled, browserEnabled, setBrowserEnabled, minimumContrastRatio, setMinimumContrastRatio } = usePreferencesStore();
   const [fontSizeDraft, setFontSizeDraft] = useState(terminalFontSize);
   const { shortcuts, setShortcut, resetAll } = useShortcutStore();
   const [downloadedFonts, setDownloadedFonts] = useState<Set<string>>(new Set());
@@ -595,32 +595,6 @@ export function SettingsModal({ onClose }: Props) {
                   <button
                     className={!browserEnabled ? activeBtn : inactiveBtn}
                     onClick={() => setBrowserEnabled(false)}
-                  >
-                    Off
-                  </button>
-                </div>
-              </div>
-
-              {/* Smart Render toggle */}
-              <div className="flex items-center justify-between">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[13px] text-[var(--text-secondary)]">
-                    {t.smart_render_toggle}
-                  </span>
-                  <span className="text-[11px] text-[var(--text-muted)]">
-                    {t.smart_render_toggle_desc}
-                  </span>
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    className={smartRenderEnabled ? activeBtn : inactiveBtn}
-                    onClick={() => setSmartRenderEnabled(true)}
-                  >
-                    On
-                  </button>
-                  <button
-                    className={!smartRenderEnabled ? activeBtn : inactiveBtn}
-                    onClick={() => setSmartRenderEnabled(false)}
                   >
                     Off
                   </button>

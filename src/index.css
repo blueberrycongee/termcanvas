@@ -91,20 +91,6 @@ body {
   color: var(--text-primary);
 }
 
-/* ── Smart Render — highlight.js token colors ── */
-.hljs-keyword { color: var(--purple); }
-.hljs-string { color: var(--cyan); }
-.hljs-number { color: var(--amber); }
-.hljs-comment { color: var(--text-muted); font-style: italic; }
-.hljs-function { color: var(--accent); }
-.hljs-title { color: var(--accent); }
-.hljs-built_in { color: var(--amber); }
-.hljs-type { color: var(--cyan); }
-.hljs-attr { color: var(--purple); }
-.hljs-literal { color: var(--amber); }
-.hljs-addition { color: var(--cyan); }
-.hljs-deletion { color: var(--red); }
-
 /* ── Canvas ── */
 .canvas-bg {
   background-color: var(--bg);

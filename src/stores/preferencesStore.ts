@@ -28,8 +28,6 @@ interface PreferencesStore {
   minimumContrastRatio: number;
   /** Per-terminal-type CLI command overrides */
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
-  /** When true, AI CLI output gets overlay rendering */
-  smartRenderEnabled: boolean;
   setAnimationBlur: (value: number) => void;
   setMinimumContrastRatio: (value: number) => void;
   setTerminalFontSize: (value: number) => void;
@@ -37,13 +35,12 @@ interface PreferencesStore {
   setComposerEnabled: (value: boolean) => void;
   setDrawingEnabled: (value: boolean) => void;
   setBrowserEnabled: (value: boolean) => void;
-  setSmartRenderEnabled: (value: boolean) => void;
   setCli: (type: TerminalType, config: CliCommandConfig | null) => void;
 }
 
 const STORAGE_KEY = "termcanvas-preferences";
 
-function loadPreferences(): { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; browserEnabled: boolean; smartRenderEnabled: boolean; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> } {
+function loadPreferences(): { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; browserEnabled: boolean; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> } {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -71,9 +68,6 @@ function loadPreferences(): { animationBlur: number; terminalFontSize: number; t
       let browserEnabled = false;
       if (parsed.browserEnabled === true) browserEnabled = true;
 
-      let smartRenderEnabled = true;
-      if (parsed.smartRenderEnabled === false) smartRenderEnabled = false;
-
       let minimumContrastRatio = DEFAULT_MIN_CONTRAST;
       const mcr = parsed.minimumContrastRatio;
       if (typeof mcr === "number" && mcr >= 1 && mcr <= 7) minimumContrastRatio = mcr;
@@ -87,15 +81,15 @@ function loadPreferences(): { animationBlur: number; terminalFontSize: number; t
         }
       }
 
-      return { animationBlur: blur, terminalFontSize: fontSize, terminalFontFamily: fontFamily, composerEnabled, drawingEnabled, browserEnabled, smartRenderEnabled, minimumContrastRatio, cliCommands };
+      return { animationBlur: blur, terminalFontSize: fontSize, terminalFontFamily: fontFamily, composerEnabled, drawingEnabled, browserEnabled, minimumContrastRatio, cliCommands };
     }
   } catch {
     // ignore
   }
-  return { animationBlur: DEFAULT_BLUR, terminalFontSize: DEFAULT_FONT_SIZE, terminalFontFamily: "geist-mono", composerEnabled: false, drawingEnabled: false, browserEnabled: false, smartRenderEnabled: true, minimumContrastRatio: DEFAULT_MIN_CONTRAST, cliCommands: {} };
+  return { animationBlur: DEFAULT_BLUR, terminalFontSize: DEFAULT_FONT_SIZE, terminalFontFamily: "geist-mono", composerEnabled: false, drawingEnabled: false, browserEnabled: false, minimumContrastRatio: DEFAULT_MIN_CONTRAST, cliCommands: {} };
 }
 
-function savePreferences(state: { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; browserEnabled: boolean; smartRenderEnabled: boolean; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> }) {
+function savePreferences(state: { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; browserEnabled: boolean; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> }) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
@@ -110,7 +104,6 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   browserEnabled: initialPrefs.browserEnabled,
   minimumContrastRatio: initialPrefs.minimumContrastRatio,
   cliCommands: initialPrefs.cliCommands,
-  smartRenderEnabled: initialPrefs.smartRenderEnabled,
   setAnimationBlur: (value) => {
     const clamped = Math.round(Math.max(0, Math.min(3, value)) * 10) / 10;
     set({ animationBlur: clamped });
@@ -141,10 +134,6 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   setBrowserEnabled: (value) => {
     set({ browserEnabled: value });
     savePreferences({ ...get(), browserEnabled: value });
-  },
-  setSmartRenderEnabled: (value) => {
-    set({ smartRenderEnabled: value });
-    savePreferences({ ...get(), smartRenderEnabled: value });
   },
   setCli: (type, config) => {
     const current = { ...get().cliCommands };

@@ -25,7 +25,6 @@ import {
   cancelScheduledTerminalFocus,
   scheduleTerminalFocus,
 } from "./focusScheduler";
-import { SmartRenderOverlay } from "./smartRender/SmartRenderOverlay";
 
 interface Props {
   lodMode: TerminalMountMode;
@@ -212,7 +211,6 @@ export function TerminalTile({
   const copiedNonce = useTerminalRuntimeStore(
     (s) => s.terminals[terminal.id]?.copiedNonce ?? 0,
   );
-  const prevCopiedNonceRef = useRef(copiedNonce);
   const previewText = useTerminalRuntimeStore(
     (s) => s.terminals[terminal.id]?.previewText ?? "",
   );
@@ -279,11 +277,9 @@ export function TerminalTile({
   const selectTerminal = useSelectionStore((s) => s.selectTerminal);
 
   useEffect(() => {
-    if (copiedNonce === 0 || copiedNonce === prevCopiedNonceRef.current) {
-      prevCopiedNonceRef.current = copiedNonce;
+    if (copiedNonce === 0) {
       return;
     }
-    prevCopiedNonceRef.current = copiedNonce;
 
     if (copiedTimerRef.current) {
       clearTimeout(copiedTimerRef.current);
@@ -646,27 +642,20 @@ export function TerminalTile({
 
       {lodMode === "live" ? (
         <div
-          className={terminal.minimized ? "" : "relative flex-1 min-h-0"}
-          style={{ height: terminal.minimized ? 0 : undefined, overflow: "hidden" }}
-        >
-          <div
-            ref={containerRef}
-            className="h-full"
-            style={{
-              padding: terminal.minimized ? 0 : 4,
-              overflow: "hidden",
-            }}
-            onClick={() => {
-              const adapter = getComposerAdapter(terminal.type);
-              if (!adapter || adapter.inputMode === "type" || !composerEnabled) {
-                scheduleXtermFocus();
-              }
-            }}
-          />
-          {!terminal.minimized && (terminal.type === "claude" || terminal.type === "codex") && (
-            <SmartRenderOverlay terminalId={terminal.id} />
-          )}
-        </div>
+          ref={containerRef}
+          className={terminal.minimized ? "" : "flex-1 min-h-0"}
+          style={{
+            height: terminal.minimized ? 0 : undefined,
+            padding: terminal.minimized ? 0 : 4,
+            overflow: "hidden",
+          }}
+          onClick={() => {
+            const adapter = getComposerAdapter(terminal.type);
+            if (!adapter || adapter.inputMode === "type" || !composerEnabled) {
+              scheduleXtermFocus();
+            }
+          }}
+        />
       ) : (
         <div
           className={terminal.minimized ? "" : "flex-1 min-h-0"}
