@@ -56,6 +56,35 @@ function clearAnimationResetTimer() {
   }
 }
 
+function getFocusedTerminalId(): string | null {
+  // Lazy import to avoid circular dependency
+  const { useProjectStore } = require("./projectStore");
+  const { projects } = useProjectStore.getState();
+  for (const p of projects) {
+    for (const w of p.worktrees) {
+      for (const t of w.terminals) {
+        if (t.focused) return t.id;
+      }
+    }
+  }
+  return null;
+}
+
+let panelRecenterRaf: number | null = null;
+
+function schedulePanelRecenter() {
+  if (panelRecenterRaf !== null) cancelAnimationFrame(panelRecenterRaf);
+  panelRecenterRaf = requestAnimationFrame(() => {
+    panelRecenterRaf = null;
+    const tid = getFocusedTerminalId();
+    if (tid) {
+      // Lazy import to avoid circular dependency
+      const { panToTerminal } = require("../utils/panToTerminal");
+      panToTerminal(tid);
+    }
+  });
+}
+
 function viewportEquals(a: Viewport, b: Viewport) {
   return (
     Math.abs(a.x - b.x) < 0.001 &&
@@ -101,26 +130,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
   setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
   setLeftPanelCollapsed: (collapsed) => {
-    const { leftPanelCollapsed: was, leftPanelWidth, viewport } = get();
-    if (collapsed === was) return;
-    const oldLeft = was ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
-    const newLeft = collapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
-    set({
-      leftPanelCollapsed: collapsed,
-      viewport: { ...viewport, x: viewport.x - (newLeft - oldLeft) },
-    });
+    set({ leftPanelCollapsed: collapsed });
     markDirty();
+    schedulePanelRecenter();
   },
   setLeftPanelWidth: (width) => {
-    const { leftPanelWidth: oldWidth, leftPanelCollapsed, viewport } = get();
-    if (!leftPanelCollapsed && width !== oldWidth) {
-      set({
-        leftPanelWidth: width,
-        viewport: { ...viewport, x: viewport.x - (width - oldWidth) },
-      });
-    } else {
-      set({ leftPanelWidth: width });
-    }
+    set({ leftPanelWidth: width });
     markDirty();
   },
   setLeftPanelActiveTab: (tab) => {
