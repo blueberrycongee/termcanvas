@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useMemoryStore } from "../../stores/memoryStore";
 
 interface GraphNodePos {
@@ -292,6 +292,95 @@ function MemoryGraph({
   );
 }
 
+function MemoryEditor({
+  node,
+  onClose,
+}: {
+  node: {
+    fileName: string;
+    filePath: string;
+    name: string;
+    description: string;
+    type: string;
+    body: string;
+  };
+  onClose: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [content, setContent] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    // Reconstruct full file from frontmatter + body
+    if (node.type === "index") {
+      setContent(node.body);
+    } else {
+      const parts = [`---`];
+      if (node.name) parts.push(`name: ${node.name}`);
+      if (node.description) parts.push(`description: ${node.description}`);
+      if (node.type) parts.push(`type: ${node.type}`);
+      parts.push(`---`, "", node.body);
+      setContent(parts.join("\n"));
+    }
+  }, [node]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await window.termcanvas.memory.writeFile(node.filePath, content);
+    setSaving(false);
+    setEditing(false);
+  };
+
+  return (
+    <div className="border-t border-zinc-700 flex-1 min-h-0 flex flex-col">
+      <div className="flex items-center justify-between px-3 py-1.5 text-xs text-zinc-400 border-b border-zinc-800">
+        <span className="truncate">{node.fileName}</span>
+        <div className="flex gap-2 ml-2 flex-shrink-0">
+          {editing ? (
+            <>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="text-green-400 hover:text-green-300 disabled:opacity-50"
+              >
+                {saving ? "..." : "Save"}
+              </button>
+              <button
+                onClick={() => setEditing(false)}
+                className="hover:text-zinc-200"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setEditing(true)}
+              className="hover:text-zinc-200"
+            >
+              Edit
+            </button>
+          )}
+          <button onClick={onClose} className="hover:text-zinc-200">
+            ✕
+          </button>
+        </div>
+      </div>
+      {editing ? (
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          className="flex-1 min-h-0 p-3 text-xs text-zinc-300 bg-transparent resize-none outline-none font-mono"
+          spellCheck={false}
+        />
+      ) : (
+        <div className="flex-1 min-h-0 overflow-auto p-3 text-xs text-zinc-300 whitespace-pre-wrap font-mono">
+          {node.body}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface Props {
   worktreePath: string | null;
 }
@@ -360,22 +449,11 @@ export function MemoryContent({ worktreePath }: Props) {
         onSelectNode={setSelectedNode}
       />
 
-      {/* Editor */}
       {selected && (
-        <div className="border-t border-zinc-700 flex-1 min-h-0 flex flex-col">
-          <div className="flex items-center justify-between px-3 py-1.5 text-xs text-zinc-400 border-b border-zinc-800">
-            <span className="truncate">{selected.fileName}</span>
-            <button
-              onClick={() => setSelectedNode(null)}
-              className="hover:text-zinc-200 ml-2 flex-shrink-0"
-            >
-              ✕
-            </button>
-          </div>
-          <div className="flex-1 min-h-0 overflow-auto p-3 text-xs text-zinc-300 whitespace-pre-wrap font-mono">
-            {selected.body}
-          </div>
-        </div>
+        <MemoryEditor
+          node={selected}
+          onClose={() => setSelectedNode(null)}
+        />
       )}
     </div>
   );
