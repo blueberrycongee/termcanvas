@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useWorktreeFiles } from "../../hooks/useWorktreeFiles";
 import { useT } from "../../i18n/useT";
 import { useCanvasStore } from "../../stores/canvasStore";
@@ -37,6 +37,8 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
   const previewFile = useCanvasStore((s) => s.leftPanelPreviewFile);
 
   const [dropTargetDir, setDropTargetDir] = useState<string | null>(null);
+  const autoExpandTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoExpandDir = useRef<string | null>(null);
 
   const isOsDrag = useCallback((e: React.DragEvent) => {
     const types = Array.from(e.dataTransfer.types);
@@ -44,20 +46,35 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
   }, []);
 
   const handleDirDragOver = useCallback(
-    (e: React.DragEvent, dirPath: string) => {
+    (e: React.DragEvent, dirPath: string, isDir?: boolean) => {
       e.preventDefault();
       e.stopPropagation();
       e.dataTransfer.dropEffect = "copy";
       if (isOsDrag(e)) {
         setDropTargetDir(dirPath);
+        // Auto-expand collapsed directories after hovering 500ms
+        if (isDir && !expandedDirs.has(dirPath) && autoExpandDir.current !== dirPath) {
+          if (autoExpandTimer.current) clearTimeout(autoExpandTimer.current);
+          autoExpandDir.current = dirPath;
+          autoExpandTimer.current = setTimeout(() => {
+            toggleDir(dirPath);
+            autoExpandTimer.current = null;
+            autoExpandDir.current = null;
+          }, 500);
+        }
       }
     },
-    [isOsDrag],
+    [isOsDrag, expandedDirs, toggleDir],
   );
 
   const handleDirDragLeave = useCallback((e: React.DragEvent) => {
     e.stopPropagation();
     setDropTargetDir(null);
+    if (autoExpandTimer.current) {
+      clearTimeout(autoExpandTimer.current);
+      autoExpandTimer.current = null;
+      autoExpandDir.current = null;
+    }
   }, []);
 
   const handleDirDrop = useCallback(
@@ -65,6 +82,11 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
       e.preventDefault();
       e.stopPropagation();
       setDropTargetDir(null);
+      if (autoExpandTimer.current) {
+        clearTimeout(autoExpandTimer.current);
+        autoExpandTimer.current = null;
+        autoExpandDir.current = null;
+      }
 
       // Only handle OS file drops, not internal file tree drags
       if (!isOsDrag(e)) return;
@@ -121,7 +143,7 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
               e.dataTransfer.setData("application/x-termcanvas-file", fullPath);
               e.dataTransfer.effectAllowed = "copy";
             }}
-            onDragOver={(e) => handleDirDragOver(e, entry.isDirectory ? fullPath : dirPath)}
+            onDragOver={(e) => handleDirDragOver(e, entry.isDirectory ? fullPath : dirPath, entry.isDirectory)}
             onDragLeave={handleDirDragLeave}
             onDrop={(e) => handleDirDrop(e, entry.isDirectory ? fullPath : dirPath)}
             className={`w-full flex items-center gap-1.5 py-1 transition-colors duration-150 text-left ${
