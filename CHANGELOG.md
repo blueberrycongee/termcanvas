@@ -2,6 +2,21 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.15.0] - 2026-03-29
+
+### Added
+- Memory tab in left panel: visualize Claude Code memory files as a force-directed knowledge graph
+- Graph features: theme-aware colors, multi-level emphasis on hover/select, glow effects, arrow edges, hover tooltip
+- Live memory graph updates via fs.watch when memory files change
+- Click memory node to open in Preview tab
+- Click-to-edit for all text/markdown files in Preview (auto-save on blur, ⌘S save, Esc cancel)
+- General `fs:writeFile` IPC with content comparison to avoid unnecessary writes
+
+### Fixed
+- Preview close now returns to originating tab (Memory or Files) instead of always Files
+- Canvas resize flicker eliminated by deferring resize to render loop
+- File writes skip when content unchanged, preserving mtime for accurate freshness signals
+
 ## [0.14.0] - 2026-03-28
 
 ### Added
