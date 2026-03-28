@@ -556,6 +556,7 @@ export class HeadlessApiServer {
     // PtyManager.onData/onExit don't return cleanup functions —
     // cleanup happens automatically when the PTY is destroyed.
     this.deps.ptyManager.onData(ptyId, (data: string) => {
+      this.deps.ptyManager.captureOutput(ptyId, data);
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(data);
       }
