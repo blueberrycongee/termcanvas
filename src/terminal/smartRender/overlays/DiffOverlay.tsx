@@ -21,6 +21,7 @@ export function DiffOverlay({ content, onDismiss }: Props) {
         {shouldCollapse && (
           <button
             className="text-[var(--text-muted)] hover:text-[var(--text-primary)] pointer-events-auto"
+            aria-label={expanded ? "Collapse" : "Expand"}
             onClick={() => setExpanded((v) => !v)}
           >
             <svg

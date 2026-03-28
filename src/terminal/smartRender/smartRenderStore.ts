@@ -58,8 +58,10 @@ export function updateCellDimensions(terminalId: string, dims: CellDimensions): 
 export function clearSmartRender(terminalId: string): void {
   useSmartRenderStore.setState((state) => {
     const { [terminalId]: _s, ...segments } = state.segments;
+    const { [terminalId]: _sv, ...segmentVersion } = state.segmentVersion;
     const { [terminalId]: _v, ...viewportY } = state.viewportY;
+    const { [terminalId]: _c, ...cellDimensions } = state.cellDimensions;
     const { [terminalId]: _d, ...dismissedSegmentIds } = state.dismissedSegmentIds;
-    return { segments, viewportY, dismissedSegmentIds };
+    return { segments, segmentVersion, viewportY, cellDimensions, dismissedSegmentIds };
   });
 }

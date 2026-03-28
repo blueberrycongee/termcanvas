@@ -39,7 +39,7 @@ export function CodeBlockOverlay({ content, language, status, onDismiss }: Props
   }, [content, language]);
 
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(content);
+    navigator.clipboard.writeText(content).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }, [content]);
@@ -58,6 +58,7 @@ export function CodeBlockOverlay({ content, language, status, onDismiss }: Props
         <span className="flex-1" />
         <button
           className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] pointer-events-auto px-1.5 py-0.5 rounded hover:bg-[var(--border)]/50"
+          aria-label={copied ? "Copied" : "Copy code"}
           onClick={handleCopy}
           style={{ fontFamily: '"Geist Mono", monospace' }}
         >

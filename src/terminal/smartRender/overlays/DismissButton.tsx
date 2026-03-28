@@ -7,6 +7,7 @@ export function DismissButton({ onClick, stopPropagation }: Props) {
   return (
     <button
       className="text-[var(--text-faint)] hover:text-[var(--text-primary)] p-0.5 rounded pointer-events-auto shrink-0"
+      aria-label="Dismiss"
       onClick={(e) => {
         if (stopPropagation) e.stopPropagation();
         onClick(e);

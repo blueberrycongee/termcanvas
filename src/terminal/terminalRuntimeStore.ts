@@ -732,6 +732,27 @@ function setupRuntimeSubscriptions(runtime: ManagedTerminalRuntime) {
       runtime.xterm.options.minimumContrastRatio = state.minimumContrastRatio;
       runtime.xterm.refresh(0, runtime.xterm.rows - 1);
     }
+
+    const isAiCli = runtime.meta.terminal.type === "claude" || runtime.meta.terminal.type === "codex";
+    if (!state.smartRenderEnabled && runtime.smartPipeline) {
+      if (runtime.smartTimeoutTimer) {
+        clearInterval(runtime.smartTimeoutTimer);
+        runtime.smartTimeoutTimer = null;
+      }
+      runtime.smartPipeline = null;
+      clearSmartRender(runtime.meta.terminal.id);
+    } else if (state.smartRenderEnabled && isAiCli && !runtime.smartPipeline) {
+      const offset = runtime.xterm.buffer.active.baseY + runtime.xterm.buffer.active.cursorY;
+      runtime.smartPipeline = new SmartRenderPipeline(offset);
+      runtime.smartTimeoutTimer = setInterval(() => {
+        if (runtime.smartPipeline) {
+          const flushed = runtime.smartPipeline.checkTimeouts();
+          if (flushed.length > 0) {
+            updateSegments(runtime.meta.terminal.id, runtime.smartPipeline.getSegments());
+          }
+        }
+      }, 2_000);
+    }
   });
 
   runtime.globalDisposers.push(themeUnsubscribe, preferencesUnsubscribe);
