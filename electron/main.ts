@@ -719,6 +719,44 @@ function setupIpc() {
     },
   );
 
+  ipcMain.handle(
+    "fs:rename",
+    (_event, oldPath: string, newName: string) => {
+      const newPath = path.join(path.dirname(oldPath), newName);
+      fs.renameSync(oldPath, newPath);
+    },
+  );
+
+  ipcMain.handle(
+    "fs:delete",
+    (_event, targetPath: string) => {
+      fs.rmSync(targetPath, { recursive: true, force: true });
+    },
+  );
+
+  ipcMain.handle(
+    "fs:mkdir",
+    (_event, dirPath: string, name: string) => {
+      fs.mkdirSync(path.join(dirPath, name), { recursive: true });
+    },
+  );
+
+  ipcMain.handle(
+    "fs:create-file",
+    (_event, dirPath: string, name: string) => {
+      const filePath = path.join(dirPath, name);
+      if (fs.existsSync(filePath)) throw new Error("File already exists");
+      fs.writeFileSync(filePath, "", "utf-8");
+    },
+  );
+
+  ipcMain.handle(
+    "fs:reveal",
+    (_event, targetPath: string) => {
+      shell.showItemInFolder(targetPath);
+    },
+  );
+
   // CLI registration
   ipcMain.handle("cli:is-registered", () => isCliRegistered(getCliDir()));
   ipcMain.handle("cli:register", () => {

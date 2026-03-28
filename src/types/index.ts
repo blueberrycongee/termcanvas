@@ -425,6 +425,11 @@ export interface TermCanvasAPI {
       skipped: string[];
     }>;
     getFilePath: (file: File) => string;
+    rename: (oldPath: string, newName: string) => Promise<void>;
+    delete: (targetPath: string) => Promise<void>;
+    mkdir: (dirPath: string, name: string) => Promise<void>;
+    createFile: (dirPath: string, name: string) => Promise<void>;
+    reveal: (targetPath: string) => Promise<void>;
   };
   memory: {
     scan: (worktreePath: string) => Promise<{

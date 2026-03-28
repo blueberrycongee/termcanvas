@@ -69,6 +69,16 @@ export const zh = {
   file_binary: "二进制文件",
   file_read_error: "读取文件失败",
 
+  // File context menu
+  ctx_new_file: "新建文件",
+  ctx_new_folder: "新建文件夹",
+  ctx_rename: "重命名",
+  ctx_delete: "删除",
+  ctx_copy_path: "复制路径",
+  ctx_reveal: (platform: string) =>
+    platform === "win32" ? "在资源管理器中显示" : platform === "linux" ? "在文件管理器中显示" : "在 Finder 中显示",
+  ctx_confirm_delete: (name: string) => `确定删除「${name}」？`,
+
   // LeftPanel
   left_panel_files: "文件",
   left_panel_diff: "差异",

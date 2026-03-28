@@ -214,6 +214,16 @@ contextBridge.exposeInMainWorld("termcanvas", {
         { copied: string[]; skipped: string[] }
       >,
     getFilePath: (file: File) => webUtils.getPathForFile(file),
+    rename: (oldPath: string, newName: string) =>
+      ipcRenderer.invoke("fs:rename", oldPath, newName) as Promise<void>,
+    delete: (targetPath: string) =>
+      ipcRenderer.invoke("fs:delete", targetPath) as Promise<void>,
+    mkdir: (dirPath: string, name: string) =>
+      ipcRenderer.invoke("fs:mkdir", dirPath, name) as Promise<void>,
+    createFile: (dirPath: string, name: string) =>
+      ipcRenderer.invoke("fs:create-file", dirPath, name) as Promise<void>,
+    reveal: (targetPath: string) =>
+      ipcRenderer.invoke("fs:reveal", targetPath) as Promise<void>,
   },
   memory: {
     scan: (worktreePath: string) =>

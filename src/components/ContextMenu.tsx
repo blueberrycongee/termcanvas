@@ -1,10 +1,8 @@
 import { useEffect, useRef } from "react";
 
-interface MenuItem {
-  label: string;
-  active?: boolean;
-  onClick: () => void;
-}
+export type MenuItem =
+  | { type?: "item"; label: string; active?: boolean; danger?: boolean; onClick: () => void }
+  | { type: "separator" };
 
 interface Props {
   x: number;
@@ -40,23 +38,29 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
       className="fixed z-[100] py-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg min-w-[140px]"
       style={{ left: x, top: y }}
     >
-      {items.map((item) => (
-        <button
-          key={item.label}
-          className={`w-full px-3 py-1.5 text-left text-[12px] transition-colors duration-100 ${
-            item.active
-              ? "text-[var(--accent)] bg-[var(--accent)]/10"
-              : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border)]"
-          }`}
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-          onClick={() => {
-            item.onClick();
-            onClose();
-          }}
-        >
-          {item.label}
-        </button>
-      ))}
+      {items.map((item, i) =>
+        item.type === "separator" ? (
+          <div key={`sep-${i}`} className="my-1 border-t border-[var(--border)]" />
+        ) : (
+          <button
+            key={item.label}
+            className={`w-full px-3 py-1.5 text-left text-[12px] transition-colors duration-100 ${
+              item.active
+                ? "text-[var(--accent)] bg-[var(--accent)]/10"
+                : item.danger
+                  ? "text-red-400 hover:text-red-300 hover:bg-[var(--border)]"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border)]"
+            }`}
+            style={{ fontFamily: '"Geist Mono", monospace' }}
+            onClick={() => {
+              item.onClick();
+              onClose();
+            }}
+          >
+            {item.label}
+          </button>
+        ),
+      )}
     </div>
   );
 }

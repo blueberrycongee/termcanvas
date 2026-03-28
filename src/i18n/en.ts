@@ -70,6 +70,16 @@ export const en = {
   file_binary: "Binary file",
   file_read_error: "Failed to read file",
 
+  // File context menu
+  ctx_new_file: "New File",
+  ctx_new_folder: "New Folder",
+  ctx_rename: "Rename",
+  ctx_delete: "Delete",
+  ctx_copy_path: "Copy Path",
+  ctx_reveal: (platform: string) =>
+    platform === "win32" ? "Reveal in Explorer" : platform === "linux" ? "Open in File Manager" : "Reveal in Finder",
+  ctx_confirm_delete: (name: string) => `Delete "${name}"?`,
+
   // LeftPanel
   left_panel_files: "Files",
   left_panel_diff: "Diff",
