@@ -303,6 +303,7 @@ export function MemoryContent({ worktreePath }: Props) {
   useEffect(() => {
     if (!worktreePath) return;
     let cancelled = false;
+
     setLoading(true);
     window.termcanvas.memory.scan(worktreePath).then((result) => {
       if (!cancelled) {
@@ -310,8 +311,16 @@ export function MemoryContent({ worktreePath }: Props) {
         setLoading(false);
       }
     });
+
+    window.termcanvas.memory.watch(worktreePath);
+    const unsubscribe = window.termcanvas.memory.onChanged((updatedGraph) => {
+      if (!cancelled) setGraph(updatedGraph);
+    });
+
     return () => {
       cancelled = true;
+      window.termcanvas.memory.unwatch(worktreePath);
+      unsubscribe();
     };
   }, [worktreePath, setGraph, setLoading]);
 

@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import type { FSWatcher } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -141,4 +142,29 @@ export function getMemoryDirForWorktree(worktreePath: string): string {
   const homeDir = os.homedir();
   const projectId = worktreePath.replace(/\//g, "-");
   return path.join(homeDir, ".claude", "projects", projectId, "memory");
+}
+
+const watchers = new Map<string, FSWatcher>();
+
+export function watchMemoryDir(
+  dirPath: string,
+  onChange: () => void,
+): void {
+  unwatchMemoryDir(dirPath);
+  if (!fs.existsSync(dirPath)) return;
+
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const watcher = fs.watch(dirPath, () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(onChange, 500);
+  });
+  watchers.set(dirPath, watcher);
+}
+
+export function unwatchMemoryDir(dirPath: string): void {
+  const existing = watchers.get(dirPath);
+  if (existing) {
+    existing.close();
+    watchers.delete(dirPath);
+  }
 }

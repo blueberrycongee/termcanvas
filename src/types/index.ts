@@ -455,6 +455,26 @@ export interface TermCanvasAPI {
       ctime: number;
     } | null>;
     writeFile: (filePath: string, content: string) => Promise<void>;
+    watch: (worktreePath: string) => Promise<void>;
+    unwatch: (worktreePath: string) => Promise<void>;
+    onChanged: (callback: (graph: {
+      nodes: Array<{
+        fileName: string;
+        filePath: string;
+        name: string;
+        description: string;
+        type: string;
+        body: string;
+        mtime: number;
+        ctime: number;
+      }>;
+      edges: Array<{
+        source: string;
+        target: string;
+        label: string;
+      }>;
+      dirPath: string;
+    }) => void) => () => void;
   };
   fonts: {
     getPath: () => Promise<string>;

@@ -218,6 +218,16 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("memory:read-file", filePath),
     writeFile: (filePath: string, content: string) =>
       ipcRenderer.invoke("memory:write-file", filePath, content),
+    watch: (worktreePath: string) =>
+      ipcRenderer.invoke("memory:watch", worktreePath),
+    unwatch: (worktreePath: string) =>
+      ipcRenderer.invoke("memory:unwatch", worktreePath),
+    onChanged: (callback: (graph: unknown) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, graph: unknown) =>
+        callback(graph);
+      ipcRenderer.on("memory:changed", listener);
+      return () => ipcRenderer.removeListener("memory:changed", listener);
+    },
   },
   cli: {
     isRegistered: () =>

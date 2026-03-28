@@ -586,6 +586,23 @@ function setupIpc() {
     },
   );
 
+  ipcMain.handle("memory:watch", async (_event, worktreePath: string) => {
+    const { getMemoryDirForWorktree, watchMemoryDir, scanMemoryDir } =
+      await import("./memory-service.js");
+    const memDir = getMemoryDirForWorktree(worktreePath);
+    watchMemoryDir(memDir, () => {
+      const graph = scanMemoryDir(memDir);
+      sendToWindow(mainWindow, "memory:changed", graph);
+    });
+  });
+
+  ipcMain.handle("memory:unwatch", async (_event, worktreePath: string) => {
+    const { getMemoryDirForWorktree, unwatchMemoryDir } =
+      await import("./memory-service.js");
+    const memDir = getMemoryDirForWorktree(worktreePath);
+    unwatchMemoryDir(memDir);
+  });
+
   // Workspace file IPC
   ipcMain.handle("workspace:save", async (_event, data: string) => {
     const result = await dialog.showSaveDialog(mainWindow!, {
