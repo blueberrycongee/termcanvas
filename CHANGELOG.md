@@ -2,6 +2,12 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.15.1] - 2026-03-29
+
+### Fixed
+- Memory graph background now matches panel surface color instead of being too dark
+- Tooltip opacity rendering fixed for Tailwind v4 compatibility
+
 ## [0.15.0] - 2026-03-29
 
 ### Added
