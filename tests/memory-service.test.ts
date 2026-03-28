@@ -143,3 +143,12 @@ test("getMemoryDirForWorktree derives correct Claude Code memory path", async ()
   assert.ok(result.endsWith("/-Users-zzzz-termcanvas/memory"));
   assert.ok(result.includes(".claude/projects"));
 });
+
+test("getMemoryDirForWorktree handles Windows paths", async () => {
+  const { getMemoryDirForWorktree } = await import(
+    `../electron/memory-service.ts?win-${Date.now()}`
+  );
+  const result = getMemoryDirForWorktree("C:\\Users\\test\\project");
+  assert.ok(!result.includes("\\\\") || process.platform === "win32");
+  assert.ok(result.includes("C-"));
+});
