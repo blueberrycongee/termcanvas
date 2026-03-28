@@ -48,11 +48,6 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
       e.preventDefault();
       e.stopPropagation();
       e.dataTransfer.dropEffect = "copy";
-      console.log("[FilesContent] dragover", {
-        dirPath,
-        types: Array.from(e.dataTransfer.types),
-        isOs: isOsDrag(e),
-      });
       if (isOsDrag(e)) {
         setDropTargetDir(dirPath);
       }
@@ -71,13 +66,6 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
       e.stopPropagation();
       setDropTargetDir(null);
 
-      console.log("[FilesContent] drop", {
-        dirPath,
-        types: Array.from(e.dataTransfer.types),
-        fileCount: e.dataTransfer.files.length,
-        isOs: isOsDrag(e),
-      });
-
       // Only handle OS file drops, not internal file tree drags
       if (!isOsDrag(e)) return;
 
@@ -87,12 +75,10 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
       const sources: string[] = files
         .map((f) => window.termcanvas.fs.getFilePath(f))
         .filter(Boolean);
-      console.log("[FilesContent] copy sources", sources, "→", dirPath);
       if (sources.length === 0) return;
 
       try {
         const result = await window.termcanvas.fs.copy(sources, dirPath);
-        console.log("[FilesContent] copy result", result);
         refreshDir(dirPath);
 
         if (result.skipped.length > 0) {
@@ -210,10 +196,6 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
       className={`flex-1 overflow-auto min-h-0 pt-1 ${dropTargetDir === worktreePath ? "ring-1 ring-[var(--accent)]" : ""}`}
       style={{ ...MONO_STYLE, fontSize: 11 }}
       onDragOver={(e) => {
-        console.log("[FilesContent] container dragover", {
-          types: Array.from(e.dataTransfer.types),
-          target: (e.target as HTMLElement).tagName,
-        });
         e.preventDefault();
         e.dataTransfer.dropEffect = "copy";
         if (isOsDrag(e) && !dropTargetDir) setDropTargetDir(worktreePath);
