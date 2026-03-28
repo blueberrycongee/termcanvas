@@ -79,6 +79,8 @@ export const en = {
   left_panel_enable_hydra_busy: "Enabling\u2026",
   no_worktree_selected: "No worktree selected",
   no_file_selected: "No file selected",
+  preview_source: "View source",
+  preview_rendered: "View rendered",
   git_not_repository: "Not a Git repository",
   git_not_repository_hint:
     "Initialize this worktree to start tracking changes.",

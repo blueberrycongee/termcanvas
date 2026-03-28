@@ -78,6 +78,8 @@ export const zh = {
   left_panel_enable_hydra_busy: "启用中…",
   no_worktree_selected: "未选择工作树",
   no_file_selected: "未选择文件",
+  preview_source: "查看源码",
+  preview_rendered: "查看渲染",
   git_not_repository: "不是 Git 仓库",
   git_not_repository_hint: "初始化后即可开始追踪变更",
   git_init: "git init",
