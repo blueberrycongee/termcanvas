@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.16.1] - 2026-03-29
+
+### Fixed
+- Memory SessionStart hook now registered in Claude Code settings.json with absolute path (plugin hooks.json alone was not loaded by Claude Code)
+
 ## [0.16.0] - 2026-03-29
 
 ### Added
