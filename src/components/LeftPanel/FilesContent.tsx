@@ -38,19 +38,22 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
 
   const [dropTargetDir, setDropTargetDir] = useState<string | null>(null);
 
-  const isOsDrag = (e: React.DragEvent) =>
-    e.dataTransfer.types.includes("Files") &&
-    !e.dataTransfer.types.includes("application/x-termcanvas-file");
+  const isOsDrag = useCallback((e: React.DragEvent) => {
+    const types = Array.from(e.dataTransfer.types);
+    return types.includes("Files") && !types.includes("application/x-termcanvas-file");
+  }, []);
 
   const handleDirDragOver = useCallback(
     (e: React.DragEvent, dirPath: string) => {
-      if (!isOsDrag(e)) return;
+      // Always allow drop so the browser doesn't block it
       e.preventDefault();
       e.stopPropagation();
       e.dataTransfer.dropEffect = "copy";
-      setDropTargetDir(dirPath);
+      if (isOsDrag(e)) {
+        setDropTargetDir(dirPath);
+      }
     },
-    [],
+    [isOsDrag],
   );
 
   const handleDirDragLeave = useCallback((e: React.DragEvent) => {
@@ -63,6 +66,9 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
       e.preventDefault();
       e.stopPropagation();
       setDropTargetDir(null);
+
+      // Only handle OS file drops, not internal file tree drags
+      if (!isOsDrag(e)) return;
 
       const files = Array.from(e.dataTransfer.files);
       if (files.length === 0) return;
@@ -79,7 +85,7 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
         notify("warn", `Skipped (already exist): ${result.skipped.join(", ")}`);
       }
     },
-    [refreshDir],
+    [isOsDrag, refreshDir],
   );
 
   const renderEntries = (dirPath: string, depth: number): React.ReactNode => {
@@ -109,9 +115,9 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
               e.dataTransfer.setData("application/x-termcanvas-file", fullPath);
               e.dataTransfer.effectAllowed = "copy";
             }}
-            onDragOver={entry.isDirectory ? (e) => handleDirDragOver(e, fullPath) : undefined}
-            onDragLeave={entry.isDirectory ? handleDirDragLeave : undefined}
-            onDrop={entry.isDirectory ? (e) => handleDirDrop(e, fullPath) : undefined}
+            onDragOver={(e) => handleDirDragOver(e, entry.isDirectory ? fullPath : dirPath)}
+            onDragLeave={handleDirDragLeave}
+            onDrop={(e) => handleDirDrop(e, entry.isDirectory ? fullPath : dirPath)}
             className={`w-full flex items-center gap-1.5 py-1 transition-colors duration-150 text-left ${
               dropTargetDir === fullPath
                 ? "bg-[rgba(80,227,194,0.15)] border-l-2 border-[var(--accent)]"
@@ -184,10 +190,9 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
       className={`flex-1 overflow-auto min-h-0 pt-1 ${dropTargetDir === worktreePath ? "ring-1 ring-[var(--accent)]" : ""}`}
       style={{ ...MONO_STYLE, fontSize: 11 }}
       onDragOver={(e) => {
-        if (!isOsDrag(e)) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = "copy";
-        if (!dropTargetDir) setDropTargetDir(worktreePath);
+        if (isOsDrag(e) && !dropTargetDir) setDropTargetDir(worktreePath);
       }}
       onDragLeave={(e) => {
         if (e.currentTarget === e.target) setDropTargetDir(null);
