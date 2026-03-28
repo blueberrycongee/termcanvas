@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.16.2] - 2026-03-29
+
+### Fixed
+- Left panel tabs collapse to icons only when panel width is narrow, preventing text wrapping to two lines
+
 ## [0.16.1] - 2026-03-29
 
 ### Fixed
