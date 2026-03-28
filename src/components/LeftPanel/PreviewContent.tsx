@@ -94,10 +94,15 @@ export function PreviewContent({ filePath, onClose, onNavigate }: Props) {
     if (!filePath) return;
     if (editContent !== originalContentRef.current) {
       setSaving(true);
-      await window.termcanvas.fs.writeFile(filePath, editContent);
-      setContent(editContent);
-      originalContentRef.current = editContent;
-      setSaving(false);
+      try {
+        await window.termcanvas.fs.writeFile(filePath, editContent);
+        setContent(editContent);
+        originalContentRef.current = editContent;
+      } catch {
+        // Write failed — silently revert to view mode
+      } finally {
+        setSaving(false);
+      }
     }
     setEditing(false);
   }, [filePath, editContent]);
