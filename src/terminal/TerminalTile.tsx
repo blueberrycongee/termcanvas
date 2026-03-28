@@ -212,6 +212,7 @@ export function TerminalTile({
   const copiedNonce = useTerminalRuntimeStore(
     (s) => s.terminals[terminal.id]?.copiedNonce ?? 0,
   );
+  const prevCopiedNonceRef = useRef(copiedNonce);
   const previewText = useTerminalRuntimeStore(
     (s) => s.terminals[terminal.id]?.previewText ?? "",
   );
@@ -278,9 +279,11 @@ export function TerminalTile({
   const selectTerminal = useSelectionStore((s) => s.selectTerminal);
 
   useEffect(() => {
-    if (copiedNonce === 0) {
+    if (copiedNonce === 0 || copiedNonce === prevCopiedNonceRef.current) {
+      prevCopiedNonceRef.current = copiedNonce;
       return;
     }
+    prevCopiedNonceRef.current = copiedNonce;
 
     if (copiedTimerRef.current) {
       clearTimeout(copiedTimerRef.current);
