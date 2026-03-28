@@ -1,5 +1,6 @@
 import { useProjectStore } from "../stores/projectStore";
-import { useCanvasStore, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
+import { useCanvasStore } from "../stores/canvasStore";
+import { getCanvasRightInset, getCanvasLeftInset, clampCenterX } from "../canvas/viewportBounds";
 import { useSelectionStore } from "../stores/selectionStore";
 import {
   getWorktreeSize,
@@ -25,14 +26,16 @@ export function panToWorktree(projectId: string, worktreeId: string): void {
   const absX = project.position.x + PROJ_PAD + worktree.position.x;
   const absY = project.position.y + PROJ_TITLE_H + PROJ_PAD + worktree.position.y;
 
-  const { rightPanelCollapsed } = useCanvasStore.getState();
-  const rightOffset = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH;
+  const { rightPanelCollapsed, leftPanelCollapsed, leftPanelWidth } =
+    useCanvasStore.getState();
+  const rightOffset = getCanvasRightInset(rightPanelCollapsed);
+  const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
   const padding = 60;
   const viewW = window.innerWidth - rightOffset - padding * 2;
   const viewH = window.innerHeight - padding * 2;
   const scale = Math.min(viewW / size.w, viewH / size.h) * 0.85;
 
-  const centerX = -(absX + size.w / 2) * scale + (window.innerWidth - rightOffset) / 2;
+  const centerX = clampCenterX(absX, size.w, scale, leftOffset, rightOffset);
   const centerY = -(absY + size.h / 2) * scale + window.innerHeight / 2;
 
   useCanvasStore.getState().animateTo(centerX, centerY, scale);
