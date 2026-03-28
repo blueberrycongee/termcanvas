@@ -561,6 +561,31 @@ function setupIpc() {
     statePersistence.save(state);
   });
 
+  // Memory service
+  ipcMain.handle("memory:scan", async (_event, worktreePath: string) => {
+    const { getMemoryDirForWorktree, scanMemoryDir } = await import(
+      "./memory-service.js"
+    );
+    const memDir = getMemoryDirForWorktree(worktreePath);
+    return scanMemoryDir(memDir);
+  });
+
+  ipcMain.handle(
+    "memory:read-file",
+    async (_event, filePath: string) => {
+      const { parseMemoryFile } = await import("./memory-service.js");
+      return parseMemoryFile(filePath);
+    },
+  );
+
+  ipcMain.handle(
+    "memory:write-file",
+    async (_event, filePath: string, content: string) => {
+      const nodefs = await import("node:fs");
+      nodefs.writeFileSync(filePath, content, "utf-8");
+    },
+  );
+
   // Workspace file IPC
   ipcMain.handle("workspace:save", async (_event, data: string) => {
     const result = await dialog.showSaveDialog(mainWindow!, {

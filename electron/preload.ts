@@ -211,6 +211,14 @@ contextBridge.exposeInMainWorld("termcanvas", {
       >,
     getFilePath: (file: File) => webUtils.getPathForFile(file),
   },
+  memory: {
+    scan: (worktreePath: string) =>
+      ipcRenderer.invoke("memory:scan", worktreePath),
+    readFile: (filePath: string) =>
+      ipcRenderer.invoke("memory:read-file", filePath),
+    writeFile: (filePath: string, content: string) =>
+      ipcRenderer.invoke("memory:write-file", filePath, content),
+  },
   cli: {
     isRegistered: () =>
       ipcRenderer.invoke("cli:is-registered") as Promise<boolean>,

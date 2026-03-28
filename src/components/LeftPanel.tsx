@@ -238,6 +238,12 @@ export function LeftPanel() {
         <div
           className="fixed left-0 z-40 bg-[var(--surface)] border-r border-[var(--border)] flex flex-col items-center pt-3 gap-1"
           style={{ top: 44, height: "calc(100vh - 44px)", width: COLLAPSED_TAB_WIDTH }}
+          onDragOver={(e) => {
+            if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+            e.preventDefault();
+            setActiveTab("files");
+            setCollapsed(false);
+          }}
         >
           {TAB_CONFIG.map(({ id, icon: Icon }) => (
             <button

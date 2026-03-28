@@ -134,3 +134,12 @@ test("scanMemoryDir handles empty directory", async () => {
   assert.equal(graph.edges.length, 0);
   fs.rmSync(tmpDir, { recursive: true });
 });
+
+test("getMemoryDirForWorktree derives correct Claude Code memory path", async () => {
+  const { getMemoryDirForWorktree } = await import(
+    `../electron/memory-service.ts?derive-${Date.now()}`
+  );
+  const result = getMemoryDirForWorktree("/Users/zzzz/termcanvas");
+  assert.ok(result.endsWith("/-Users-zzzz-termcanvas/memory"));
+  assert.ok(result.includes(".claude/projects"));
+});

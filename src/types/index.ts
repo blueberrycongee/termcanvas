@@ -425,6 +425,37 @@ export interface TermCanvasAPI {
     }>;
     getFilePath: (file: File) => string;
   };
+  memory: {
+    scan: (worktreePath: string) => Promise<{
+      nodes: Array<{
+        fileName: string;
+        filePath: string;
+        name: string;
+        description: string;
+        type: string;
+        body: string;
+        mtime: number;
+        ctime: number;
+      }>;
+      edges: Array<{
+        source: string;
+        target: string;
+        label: string;
+      }>;
+      dirPath: string;
+    }>;
+    readFile: (filePath: string) => Promise<{
+      fileName: string;
+      filePath: string;
+      name: string;
+      description: string;
+      type: string;
+      body: string;
+      mtime: number;
+      ctime: number;
+    } | null>;
+    writeFile: (filePath: string, content: string) => Promise<void>;
+  };
   fonts: {
     getPath: () => Promise<string>;
     listDownloaded: () => Promise<string[]>;

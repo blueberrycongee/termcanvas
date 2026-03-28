@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 export interface MemoryNode {
@@ -134,4 +135,10 @@ export function scanMemoryDir(dirPath: string): MemoryGraph {
   }
 
   return { nodes, edges, dirPath };
+}
+
+export function getMemoryDirForWorktree(worktreePath: string): string {
+  const homeDir = os.homedir();
+  const projectId = worktreePath.replace(/\//g, "-");
+  return path.join(homeDir, ".claude", "projects", projectId, "memory");
 }
