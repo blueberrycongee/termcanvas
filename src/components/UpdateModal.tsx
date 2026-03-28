@@ -30,6 +30,19 @@ export function UpdateModal({ onClose }: Props) {
     [onClose],
   );
 
+  const handleChangelogClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const anchor = (e.target as HTMLElement).closest("a");
+      if (!anchor) return;
+      e.preventDefault();
+      const href = anchor.getAttribute("href");
+      if (href && /^https?:\/\//.test(href)) {
+        window.open(href);
+      }
+    },
+    [],
+  );
+
   const notes = typeof info?.releaseNotes === "string" ? info.releaseNotes : "";
   const changelogHtml = notes
     ? (marked.parse(notes, { async: false }) as string)
@@ -69,6 +82,7 @@ export function UpdateModal({ onClose }: Props) {
           <div className="flex-1 min-h-0 overflow-auto px-5 py-4">
             <div
               className="prose prose-sm prose-invert max-w-none text-[13px] text-[var(--text-secondary)] [&_h1]:text-[15px] [&_h2]:text-[14px] [&_h3]:text-[13px] [&_h1]:text-[var(--text-primary)] [&_h2]:text-[var(--text-primary)] [&_h3]:text-[var(--text-primary)] [&_a]:text-[var(--accent)] [&_code]:text-[var(--accent)] [&_code]:bg-[var(--surface)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_ul]:pl-4 [&_li]:my-0.5"
+              onClick={handleChangelogClick}
               dangerouslySetInnerHTML={{ __html: changelogHtml }}
             />
           </div>

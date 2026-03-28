@@ -1,13 +1,14 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { marked } from "marked";
 import { useT } from "../../i18n/useT";
 
 interface Props {
   filePath: string | null;
   onClose: () => void;
+  onNavigate?: (filePath: string) => void;
 }
 
-export function PreviewContent({ filePath, onClose }: Props) {
+export function PreviewContent({ filePath, onClose, onNavigate }: Props) {
   const t = useT();
   const [content, setContent] = useState<string>("");
   const [fileType, setFileType] = useState<string>("text");
@@ -53,6 +54,37 @@ export function PreviewContent({ filePath, onClose }: Props) {
     return marked.parse(content, { async: false }) as string;
   }, [isMarkdown, content]);
 
+  const handleMarkdownClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const anchor = (e.target as HTMLElement).closest("a");
+      if (!anchor) return;
+      e.preventDefault();
+      const href = anchor.getAttribute("href");
+      if (!href) return;
+
+      // External links → system browser
+      if (/^https?:\/\//.test(href)) {
+        window.open(href);
+        return;
+      }
+
+      // Anchor links → scroll within preview
+      if (href.startsWith("#")) {
+        const target = (e.currentTarget as HTMLElement).querySelector(href);
+        target?.scrollIntoView({ behavior: "smooth" });
+        return;
+      }
+
+      // Relative file links → navigate in preview panel
+      if (onNavigate && filePath) {
+        const dir = filePath.substring(0, filePath.lastIndexOf("/"));
+        const resolved = dir + "/" + href;
+        onNavigate(resolved);
+      }
+    },
+    [filePath, onNavigate]
+  );
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="px-3 py-2.5 border-b border-[var(--border)] flex items-center gap-2 shrink-0">
@@ -90,7 +122,8 @@ export function PreviewContent({ filePath, onClose }: Props) {
           </div>
         ) : isMarkdown && !showSource ? (
           <div
-            className="px-4 py-3 prose prose-sm prose-invert max-w-none text-[12px] leading-relaxed text-[var(--text-secondary)] [&_h1]:text-[15px] [&_h2]:text-[14px] [&_h3]:text-[13px] [&_h1]:text-[var(--text-primary)] [&_h2]:text-[var(--text-primary)] [&_h3]:text-[var(--text-primary)] [&_h1]:mt-4 [&_h1]:mb-2 [&_h2]:mt-3 [&_h2]:mb-1.5 [&_h3]:mt-2 [&_h3]:mb-1 [&_p]:my-1.5 [&_a]:text-[var(--accent)] [&_code]:text-[var(--accent)] [&_code]:bg-[var(--surface)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[11px] [&_pre]:bg-[var(--surface)] [&_pre]:rounded-md [&_pre]:p-3 [&_pre]:text-[11px] [&_pre]:overflow-x-auto [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_ul]:pl-4 [&_ol]:pl-4 [&_li]:my-0.5 [&_blockquote]:border-l-2 [&_blockquote]:border-[var(--accent)] [&_blockquote]:pl-3 [&_blockquote]:text-[var(--text-muted)] [&_hr]:border-[var(--border)] [&_table]:text-[11px] [&_th]:p-1.5 [&_td]:p-1.5 [&_th]:border [&_td]:border [&_th]:border-[var(--border)] [&_td]:border-[var(--border)] [&_img]:max-w-full [&_img]:rounded"
+            className="px-4 py-3 prose prose-sm prose-invert max-w-none text-[12px] leading-relaxed text-[var(--text-secondary)] [&_h1]:text-[15px] [&_h2]:text-[14px] [&_h3]:text-[13px] [&_h1]:text-[var(--text-primary)] [&_h2]:text-[var(--text-primary)] [&_h3]:text-[var(--text-primary)] [&_h1]:mt-4 [&_h1]:mb-2 [&_h2]:mt-3 [&_h2]:mb-1.5 [&_h3]:mt-2 [&_h3]:mb-1 [&_p]:my-1.5 [&_a]:text-[var(--accent)] [&_a]:cursor-pointer [&_code]:text-[var(--accent)] [&_code]:bg-[var(--surface)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[11px] [&_pre]:bg-[var(--surface)] [&_pre]:rounded-md [&_pre]:p-3 [&_pre]:text-[11px] [&_pre]:overflow-x-auto [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_ul]:pl-4 [&_ol]:pl-4 [&_li]:my-0.5 [&_blockquote]:border-l-2 [&_blockquote]:border-[var(--accent)] [&_blockquote]:pl-3 [&_blockquote]:text-[var(--text-muted)] [&_hr]:border-[var(--border)] [&_table]:text-[11px] [&_th]:p-1.5 [&_td]:p-1.5 [&_th]:border [&_td]:border [&_th]:border-[var(--border)] [&_td]:border-[var(--border)] [&_img]:max-w-full [&_img]:rounded"
+            onClick={handleMarkdownClick}
             dangerouslySetInnerHTML={{ __html: markdownHtml }}
           />
         ) : (

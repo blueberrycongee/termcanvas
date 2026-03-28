@@ -314,7 +314,7 @@ export function LeftPanel() {
       <div className="flex-1 min-h-0 flex flex-col">
         {activeTab === "files" && <FilesContent worktreePath={effectiveWorktreePath} onFileClick={handleFileClick} />}
         {activeTab === "diff" && <DiffContent worktreePath={effectiveWorktreePath} />}
-        {activeTab === "preview" && <PreviewContent filePath={previewFile} onClose={handlePreviewClose} />}
+        {activeTab === "preview" && <PreviewContent filePath={previewFile} onClose={handlePreviewClose} onNavigate={handleFileClick} />}
         {activeTab === "git" && (
           <GitContent
             worktreePath={effectiveWorktreePath}
