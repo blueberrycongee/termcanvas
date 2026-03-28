@@ -216,6 +216,8 @@ export const en = {
   drawing_toggle_desc: "Experimental. Freehand drawing and annotation on the canvas",
   browser_toggle: "Built-in browser shortcut",
   browser_toggle_desc: "Experimental. Shows the open-browser button in the top toolbar when enabled",
+  smart_render_toggle: "Smart Render",
+  smart_render_toggle_desc: "Render AI CLI output (code blocks, markdown, diffs) as rich overlays",
   shortcuts_reset: "Reset to defaults",
   shortcuts_press_hint: "Press shortcut\u2026",
   shortcuts_conflict: "Conflicts with another shortcut",
