@@ -225,7 +225,7 @@ function MemoryGraph({
       }
 
       // ── Read theme colors ──
-      const bgColor = getCssVar("--sidebar");
+      const bgColor = getCssVar("--surface");
       const borderColor = getCssVar("--border");
       const textPrimary = getCssVar("--text-primary");
       const textMuted = getCssVar("--text-muted");
@@ -462,8 +462,9 @@ function MemoryGraph({
       {hovered && (
         <div
           className="absolute top-2 right-2 max-w-[200px] px-3 py-2 rounded-lg text-xs
-            bg-[var(--surface)]/90 backdrop-blur-md border border-[var(--border)]
+            backdrop-blur-md border border-[var(--border)]
             shadow-lg pointer-events-none transition-opacity duration-150"
+          style={{ backgroundColor: "color-mix(in srgb, var(--surface) 90%, transparent)" }}
         >
           <div className="font-medium text-[var(--text-primary)] truncate">
             {hovered.name}
