@@ -138,6 +138,12 @@ export class ApiServer {
       return this.getDiff(worktreePath, summary);
     }
 
+    // Memory index
+    if (method === "GET" && pathname === "/api/memory/index") {
+      const worktree = url.searchParams.get("worktree");
+      return this.memoryIndex(worktree);
+    }
+
     // State
     if (method === "GET" && pathname === "/state") {
       return this.getState();
@@ -398,6 +404,26 @@ export class ApiServer {
       throw Object.assign(new Error("Workflow telemetry not found"), { status: 404 });
     }
     return snapshot;
+  }
+
+  private async memoryIndex(worktree: string | null) {
+    if (!worktree) {
+      throw Object.assign(new Error("worktree query parameter is required"), {
+        status: 400,
+      });
+    }
+
+    const { getMemoryDirForWorktree, scanMemoryDir } = await import(
+      "./memory-service.js"
+    );
+    const { generateEnhancedIndex } = await import(
+      "./memory-index-generator.js"
+    );
+
+    const memDir = getMemoryDirForWorktree(worktree);
+    const graph = scanMemoryDir(memDir);
+    const index = generateEnhancedIndex(graph.nodes);
+    return { index };
   }
 
   private async getDiff(worktreePath: string, summary: boolean) {
