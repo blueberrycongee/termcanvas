@@ -423,6 +423,7 @@ export interface TermCanvasAPI {
       copied: string[];
       skipped: string[];
     }>;
+    getFilePath: (file: File) => string;
   };
   fonts: {
     getPath: () => Promise<string>;

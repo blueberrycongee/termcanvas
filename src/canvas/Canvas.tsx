@@ -46,8 +46,7 @@ export function Canvas() {
     if (files.length === 0) return;
 
     const file = files[0];
-    // @ts-ignore - path property exists on File in Electron
-    const dirPath = file.path;
+    const dirPath = window.termcanvas.fs.getFilePath(file);
     if (!dirPath) return;
 
     const { notify } = useNotificationStore.getState();

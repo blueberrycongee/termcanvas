@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 
 contextBridge.exposeInMainWorld("termcanvas", {
   terminal: {
@@ -209,6 +209,7 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("fs:copy", sources, destDir) as Promise<
         { copied: string[]; skipped: string[] }
       >,
+    getFilePath: (file: File) => webUtils.getPathForFile(file),
   },
   cli: {
     isRegistered: () =>
