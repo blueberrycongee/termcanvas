@@ -205,6 +205,10 @@ contextBridge.exposeInMainWorld("termcanvas", {
         | { type: string; content: string }
         | { error: string; size?: string }
       >,
+    writeFile: (filePath: string, content: string) =>
+      ipcRenderer.invoke("fs:write-file", filePath, content) as Promise<
+        { changed: boolean }
+      >,
     copy: (sources: string[], destDir: string) =>
       ipcRenderer.invoke("fs:copy", sources, destDir) as Promise<
         { copied: string[]; skipped: string[] }

@@ -700,6 +700,18 @@ function setupIpc() {
   });
 
   ipcMain.handle(
+    "fs:write-file",
+    (_event, filePath: string, content: string) => {
+      try {
+        const existing = fs.readFileSync(filePath, "utf-8");
+        if (existing === content) return { changed: false };
+      } catch {}
+      fs.writeFileSync(filePath, content, "utf-8");
+      return { changed: true };
+    },
+  );
+
+  ipcMain.handle(
     "fs:copy",
     async (_event, sources: string[], destDir: string) => {
       const { copyFiles } = await import("./fs-copy.js");

@@ -419,6 +419,7 @@ export interface TermCanvasAPI {
       | { type: string; content: string }
       | { error: string; size?: string }
     >;
+    writeFile: (filePath: string, content: string) => Promise<{ changed: boolean }>;
     copy: (sources: string[], destDir: string) => Promise<{
       copied: string[];
       skipped: string[];
