@@ -11,7 +11,8 @@ fi
 # Determine worktree from CWD
 WORKTREE=$(pwd)
 
-RESP=$(curl -s --max-time 5 "http://127.0.0.1:$PORT/api/memory/index?worktree=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$WORKTREE', safe=''))")" 2>/dev/null)
+ENCODED=$(printf '%s' "$WORKTREE" | python3 -c "import sys,urllib.parse; print(urllib.parse.quote(sys.stdin.read(), safe=''))" 2>/dev/null)
+RESP=$(curl -s --max-time 5 "http://127.0.0.1:$PORT/api/memory/index?worktree=$ENCODED" 2>/dev/null)
 if [ -z "$RESP" ]; then
   exit 0
 fi

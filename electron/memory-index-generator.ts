@@ -29,6 +29,7 @@ export function findTimeSensitiveMemories(
 
   for (const node of nodes) {
     if (node.type === "index") continue;
+    dateRe.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = dateRe.exec(node.body)) !== null) {
       const dateMs = new Date(match[1]).getTime();

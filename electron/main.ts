@@ -584,9 +584,11 @@ function setupIpc() {
     cache.update(generateEnhancedIndex(initialGraph.nodes));
 
     watchMemoryDir(memDir, () => {
-      const graph = scanMemoryDir(memDir);
-      sendToWindow(mainWindow, "memory:changed", graph);
-      cache.update(generateEnhancedIndex(graph.nodes));
+      try {
+        const graph = scanMemoryDir(memDir);
+        sendToWindow(mainWindow, "memory:changed", graph);
+        cache.update(generateEnhancedIndex(graph.nodes));
+      } catch {}
     });
   });
 

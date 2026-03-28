@@ -103,8 +103,14 @@ export function scanMemoryDir(dirPath: string): MemoryGraph {
     const filePath = path.join(dirPath, entry);
 
     if (entry === "MEMORY.md") {
-      const raw = fs.readFileSync(filePath, "utf-8");
-      const stat = fs.statSync(filePath);
+      let raw: string;
+      let stat: fs.Stats;
+      try {
+        raw = fs.readFileSync(filePath, "utf-8");
+        stat = fs.statSync(filePath);
+      } catch {
+        continue;
+      }
 
       nodes.push({
         fileName: entry,

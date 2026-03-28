@@ -81,7 +81,12 @@ function MemoryGraph({
   const nodesRef = useRef<GraphNodePos[]>([]);
   const animRef = useRef<number>(0);
   const needsResizeRef = useRef(false);
+  const hoveredNodeRef = useRef<string | null>(null);
+  const selectedNodeRef = useRef<string | null>(selectedNode);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+
+  // Keep refs in sync
+  selectedNodeRef.current = selectedNode;
 
   // Build neighbor lookup
   const neighborsOf = useCallback(
@@ -158,10 +163,10 @@ function MemoryGraph({
 
     let running = true;
     let frame = 0;
-    const focusNode = hoveredNode ?? selectedNode;
-    const focusNeighbors = focusNode ? neighborsOf(focusNode) : new Set<string>();
 
     const tick = () => {
+      const focusNode = hoveredNodeRef.current ?? selectedNodeRef.current;
+      const focusNeighbors = focusNode ? neighborsOf(focusNode) : new Set<string>();
       if (!running) return;
       const nodes = nodesRef.current;
       if (nodes.length === 0) {
@@ -232,7 +237,7 @@ function MemoryGraph({
       // ── Emphasis animation (smooth easing) ──
       for (const node of nodes) {
         const isFocused =
-          node.fileName === hoveredNode || node.fileName === selectedNode;
+          node.fileName === hoveredNodeRef.current || node.fileName === selectedNodeRef.current;
         const isNeighbor = focusNeighbors.has(node.fileName);
         const target = isFocused ? 1.0 : isNeighbor ? 0.65 : focusNode ? 0.08 : 0.5;
         node.emphasis += (target - node.emphasis) * 0.16;
@@ -346,7 +351,7 @@ function MemoryGraph({
         ctx.fill();
 
         // Selection ring
-        if (node.fileName === selectedNode) {
+        if (node.fileName === selectedNodeRef.current) {
           ctx.shadowBlur = 0;
           ctx.strokeStyle = textPrimary;
           ctx.lineWidth = 1.5;
@@ -383,8 +388,6 @@ function MemoryGraph({
     };
   }, [
     graph,
-    selectedNode,
-    hoveredNode,
     neighborsOf,
     nodeBaseAlpha,
     nodeRadius,
@@ -447,14 +450,18 @@ function MemoryGraph({
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const hit = hitTest(e);
       const next = hit?.fileName ?? null;
-      if (next !== hoveredNode) setHoveredNode(next);
+      if (next !== hoveredNodeRef.current) {
+        hoveredNodeRef.current = next;
+        setHoveredNode(next);
+      }
       const canvas = canvasRef.current;
       if (canvas) canvas.style.cursor = hit ? "pointer" : "default";
     },
-    [hitTest, hoveredNode],
+    [hitTest],
   );
 
   const handleMouseLeave = useCallback(() => {
+    hoveredNodeRef.current = null;
     setHoveredNode(null);
   }, []);
 
