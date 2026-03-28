@@ -316,7 +316,6 @@ export function findClaudeJsonlFiles(): string[] {
     collectJsonlRecursive(projectsDir, files);
   }
 
-  // Also check ~/.claude root
   try {
     const rootJsonls = fs.readdirSync(claudeDir).filter((f) => f.endsWith(".jsonl"));
     for (const f of rootJsonls) files.push(path.join(claudeDir, f));
@@ -482,7 +481,6 @@ export function parseCodexSession(
       obj = JSON.parse(line);
     } catch { continue; }
 
-    // Extract cwd from session_meta
     if (obj.type === "session_meta") {
       const payload = obj.payload as Record<string, unknown> | undefined;
       if (payload?.cwd) projectPath = payload.cwd as string;
@@ -500,7 +498,6 @@ export function parseCodexSession(
       continue;
     }
 
-    // Look for token_count events
     if (obj.type !== "event_msg") continue;
     const payload = obj.payload as Record<string, unknown> | undefined;
     if (!payload || payload.type !== "token_count") continue;
@@ -596,7 +593,6 @@ export async function collectHeatmapData(): Promise<Record<string, { tokens: num
   const utcEnd = fmt(endLocal.getTime());
   const startDateStr = `${startLocal.getFullYear()}-${String(startLocal.getMonth() + 1).padStart(2, "0")}-${String(startLocal.getDate()).padStart(2, "0")}`;
 
-  // Discover all files once
   const claudeFiles = findClaudeJsonlFiles();
   const codexFiles = findCodexJsonlFiles();
   const diskCache = loadHeatmapDiskCache();
@@ -785,7 +781,6 @@ export async function collectUsage(
     totalCacheCreate1h += r.cacheCreate1h;
     totalCost += cost;
 
-    // Bucket
     const localHour = utcToLocalHour(r.ts, tzOffsetHours);
     const bucketIdx = Math.floor(localHour / intervalHours);
     if (bucketIdx >= 0 && bucketIdx < bucketCount) {
@@ -799,7 +794,6 @@ export async function collectUsage(
       b.calls++;
     }
 
-    // Project
     const pKey = r.projectPath || "unknown";
     if (!projectMap.has(pKey)) {
       const name = pKey === "unknown" ? "Other" : path.basename(pKey);
@@ -814,7 +808,6 @@ export async function collectUsage(
     proj.cost += cost;
     proj.calls++;
 
-    // Model
     if (!modelMap.has(r.model)) {
       modelMap.set(r.model, { model: r.model, input: 0, output: 0, cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0, cost: 0, calls: 0 });
     }

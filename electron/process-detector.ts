@@ -65,7 +65,6 @@ export function splitCommandLine(args: string): { command: string; rest: string 
 }
 
 function matchCli(args: string): string | null {
-  // Extract the process name (first token)
   const { command, rest } = splitCommandLine(args);
   const baseName = normalizeProcessName(command);
 
@@ -102,7 +101,6 @@ function collectDescendantProcesses(
   processes: ProcessEntry[],
   shellPids: number[],
 ): ProcessSnapshotEntry[] {
-  // Build parent → children map
   const childrenOf = new Map<number, number[]>();
   for (const p of processes) {
     let siblings = childrenOf.get(p.ppid);
@@ -317,7 +315,6 @@ export async function detectCli(
   const first = results[0];
 
   if (first.cliType === "tmux") {
-    // Get the tmux session name
     try {
       const sessionName = await new Promise<string>((resolve, reject) => {
         execFile("tmux", ["display-message", "-p", "#S"], (err, stdout) => {

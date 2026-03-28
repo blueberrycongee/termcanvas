@@ -32,7 +32,6 @@ function screenToCanvas(clientX: number, clientY: number) {
 }
 
 function getItemsInRect(rect: { x: number; y: number; w: number; h: number }): SelectedItem[] {
-  // Normalize negative w/h
   const nr = {
     x: rect.w < 0 ? rect.x + rect.w : rect.x,
     y: rect.h < 0 ? rect.y + rect.h : rect.y,
@@ -43,7 +42,6 @@ function getItemsInRect(rect: { x: number; y: number; w: number; h: number }): S
   const items: SelectedItem[] = [];
   const { projects } = useProjectStore.getState();
 
-  // Collect projects
   const selectedProjectIds = new Set<string>();
   for (const p of projects) {
     const bounds = getProjectBounds(p);
@@ -53,7 +51,7 @@ function getItemsInRect(rect: { x: number; y: number; w: number; h: number }): S
     }
   }
 
-  // Collect worktrees (skip if parent project already selected)
+  // Skip worktrees whose parent project is already selected (avoid duplicates)
   const selectedWorktreeKeys = new Set<string>();
   for (const p of projects) {
     if (selectedProjectIds.has(p.id)) continue;
@@ -71,7 +69,7 @@ function getItemsInRect(rect: { x: number; y: number; w: number; h: number }): S
     }
   }
 
-  // Collect terminals (skip if parent project or worktree already selected)
+  // Skip terminals whose parent project or worktree is already selected
   for (const p of projects) {
     if (selectedProjectIds.has(p.id)) continue;
     for (const wt of p.worktrees) {
@@ -101,7 +99,6 @@ function getItemsInRect(rect: { x: number; y: number; w: number; h: number }): S
     }
   }
 
-  // Collect cards
   const cards = useCardLayoutStore.getState().cards;
   const projectBounds = projects.map((p) => getProjectBounds(p));
   const resolved = resolveAllCardPositions(cards, projectBounds);

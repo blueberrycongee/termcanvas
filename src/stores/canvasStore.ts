@@ -160,7 +160,6 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const startScale = viewport.scale;
     const endScale = targetScale ?? startScale;
 
-    // Skip animation if already at target
     if (
       Math.abs(startX - targetX) < 1 &&
       Math.abs(startY - targetY) < 1 &&

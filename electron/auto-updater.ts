@@ -37,7 +37,6 @@ export function setupAutoUpdater(window: BrowserWindow): void {
     ? setupMacUpdater(window)
     : setupElectronUpdater(window);
 
-  // Initial check after short delay, then periodic
   setTimeout(() => checkFn(), 5000);
   checkTimer = setInterval(() => checkFn(), CHECK_INTERVAL_MS);
 }

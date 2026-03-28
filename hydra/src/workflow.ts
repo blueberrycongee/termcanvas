@@ -503,7 +503,6 @@ export async function tickWorkflow(
   const workflow = loadWorkflowOrThrow(repoPath, options.workflowId);
   const handoff = loadHandoffOrThrow(manager, workflow);
 
-  // Workflow is paused waiting for user approval — don't advance.
   if (workflow.status === "waiting_for_approval") {
     return buildStatusView(workflow);
   }
@@ -786,7 +785,6 @@ export async function approveWorkflow(
     });
   }
 
-  // Advance past the planner to the implementer.
   const manager = new HandoffManager(repoPath);
   const implementerId = workflow.handoff_ids[1];
   workflow.current_handoff_id = implementerId;
@@ -829,7 +827,6 @@ export async function reviseWorkflow(
     });
   }
 
-  // Write revision feedback alongside the planner's task package.
   const revisionFile = path.join(plannerHandoff.artifacts!.package_dir, "revision.md");
   const previousPlanFile = plannerHandoff.artifacts!.result_file;
   fs.writeFileSync(
@@ -851,7 +848,6 @@ export async function reviseWorkflow(
     "utf-8",
   );
 
-  // Update the planner handoff context to include the revision file.
   plannerHandoff.context.files = [
     ...plannerHandoff.context.files.filter((f) => !f.endsWith("revision.md")),
     previousPlanFile,
@@ -859,7 +855,6 @@ export async function reviseWorkflow(
   ];
   manager.save(plannerHandoff);
 
-  // Reset planner to pending and re-dispatch.
   resetHandoffToPending(manager, plannerId, now());
   workflow.current_handoff_id = plannerId;
   workflow.status = "running";

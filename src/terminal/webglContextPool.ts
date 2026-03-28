@@ -13,13 +13,11 @@ const entries = new Map<string, PoolEntry>();
 let focusedId: string | null = null;
 
 export function acquireWebGL(terminalId: string, xterm: Terminal): boolean {
-  // Already has a context
   if (entries.has(terminalId)) {
     touch(terminalId);
     return true;
   }
 
-  // Evict if at limit
   if (entries.size >= MAX_CONTEXTS) {
     evictLRU();
   }

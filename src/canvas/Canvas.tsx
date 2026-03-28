@@ -45,7 +45,6 @@ export function Canvas() {
     const files = Array.from(e.dataTransfer.files);
     if (files.length === 0) return;
 
-    // Only process the first dropped item
     const file = files[0];
     // @ts-ignore - path property exists on File in Electron
     const dirPath = file.path;
@@ -194,13 +193,11 @@ export function Canvas() {
         <FamilyTreeOverlay />
       </div>
 
-      {/* Box-select overlay */}
       <BoxSelectOverlay />
 
       {/* Drawing overlay - outside transform div, uses its own <g> transform */}
       {usePreferencesStore((s) => s.drawingEnabled) && <DrawingLayer />}
 
-      {/* Empty state */}
       {projects.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center pointer-events-auto">

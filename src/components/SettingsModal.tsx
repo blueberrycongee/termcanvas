@@ -96,7 +96,6 @@ function AgentsTabContent() {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [statuses, setStatuses] = useState<Record<string, ValidateResult | null>>({});
 
-  // Auto-detect on mount
   useEffect(() => {
     for (const agent of AGENT_TYPES) {
       const command = cliCommands[agent]?.command ?? agent;

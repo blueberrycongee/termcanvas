@@ -350,13 +350,11 @@ function resolveOverlaps(projects: ProjectData[]): ProjectData[] {
   return measureRendererSync(
     "projectStore.resolveOverlaps",
     () => {
-      // First resolve worktree overlaps within each project
       const withResolvedWorktrees = projects.map((p) => ({
         ...p,
         worktrees: resolveWorktreeOverlaps(p.worktrees),
       }));
 
-      // Then resolve project overlaps
       const positions = new Map(
         withResolvedWorktrees.map((p) => [p.id, { ...p.position }]),
       );
@@ -376,7 +374,6 @@ function resolveOverlaps(projects: ProjectData[]): ProjectData[] {
         const currBounds = getProjectBounds({ ...curr, position: currPos });
 
         if (rectsOverlap(prevBounds, currBounds, OVERLAP_GAP)) {
-          // Push current project to the right edge of previous + gap
           currPos.x = prevBounds.x + prevBounds.w + OVERLAP_GAP;
         }
       }
@@ -866,7 +863,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   removeTerminal: (projectId, worktreeId, terminalId) => {
     const startedAt = performance.now();
     set((state) => {
-      // Check if the terminal being removed is focused
       let wasFocused = false;
       let adjacentTerminalId: string | null = null;
       for (const p of state.projects) {

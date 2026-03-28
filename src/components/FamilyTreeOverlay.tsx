@@ -53,7 +53,6 @@ function buildFamilyTree(projects: ProjectData[], terminalId: string): TreeNode[
   const nodes: TreeNode[] = [];
   const visited = new Set<string>();
 
-  // Find root (walk up parent chain)
   let rootId = terminalId;
   for (let i = 0; i < 20; i++) {
     const info = findTerminalById(projects, rootId);
@@ -61,13 +60,11 @@ function buildFamilyTree(projects: ProjectData[], terminalId: string): TreeNode[
     rootId = info.terminal.parentTerminalId;
   }
 
-  // Add root
   const rootInfo = findTerminalById(projects, rootId);
   if (!rootInfo) return [];
   nodes.push({ terminal: rootInfo.terminal, isRoot: true });
   visited.add(rootId);
 
-  // Add all children (BFS)
   const queue = [rootId];
   while (queue.length > 0) {
     const id = queue.shift()!;
@@ -136,7 +133,6 @@ export function FamilyTreeOverlay() {
     }
 
     if (hoveredId) {
-      // Check if this terminal has connections
       const info = findTerminalById(projects, hoveredId);
       const children = getChildTerminals(projects, hoveredId);
       const hasConnections = info?.terminal.parentTerminalId || children.length > 0;
@@ -256,23 +252,19 @@ export function FamilyTreeOverlay() {
                 setVisibleId(null);
               }}
             >
-              {/* Indent children */}
               {!node.isRoot && (
                 <span className="text-[var(--text-faint)] text-[10px] ml-1">└</span>
               )}
-              {/* Status dot */}
               <span
                 className="w-1.5 h-1.5 rounded-full shrink-0"
                 style={{ backgroundColor: statusColor }}
               />
-              {/* Type label */}
               <span
                 className="text-[10px] font-medium shrink-0"
                 style={{ color, fontFamily: '"Geist Mono", monospace' }}
               >
                 {node.terminal.type}
               </span>
-              {/* Title */}
               <span
                 className="text-[10px] text-[var(--text-muted)] truncate"
                 style={{ fontFamily: '"Geist Mono", monospace' }}

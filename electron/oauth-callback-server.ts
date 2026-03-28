@@ -149,7 +149,6 @@ export function startOAuthCallbackServer(): {
 
     // GET /callback — the main OAuth redirect target
     if (url.pathname === "/callback") {
-      // Check for error query params first
       const error = url.searchParams.get("error");
       const errorDescription = url.searchParams.get("error_description");
       if (error) {
@@ -187,7 +186,6 @@ export function startOAuthCallbackServer(): {
     res.end("Not found");
   });
 
-  // Handle port-in-use errors
   server.on("error", (err: NodeJS.ErrnoException) => {
     if (err.code === "EADDRINUSE") {
       console.error(
@@ -226,7 +224,6 @@ export function startOAuthCallbackServer(): {
     server.close();
   };
 
-  // Auto-shutdown after result
   resultPromise.then(() => {
     // Small delay so the browser can finish loading the response HTML
     setTimeout(() => shutdown(), 2000);

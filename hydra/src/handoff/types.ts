@@ -17,12 +17,12 @@ export type AgentRole =
 export type AgentType = "claude" | "codex" | "kimi" | "gemini";
 
 export type HandoffStatus =
-  | "pending"    // 等待处理
+  | "pending"
   | "claimed"    // 已被某个 tick 占位，避免重复派发
-  | "in_progress" // 正在处理
-  | "completed"  // 已完成
+  | "in_progress"
+  | "completed"
   | "timed_out"  // 超时，可重试
-  | "failed";    // 失败
+  | "failed";
 
 export interface AgentInfo {
   role: AgentRole;

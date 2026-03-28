@@ -95,7 +95,6 @@ export const useUsageStore = create<UsageStore>((set, get) => ({
       set({ loading: false });
     }
 
-    // Process the latest pending request
     const pending = get().pendingDate;
     if (pending) {
       set({ pendingDate: null });

@@ -282,7 +282,6 @@ export function resolveTemplateAdvance(
         },
       };
     }
-    // After planner completes, pause for approval if requested.
     if (currentIndex === 0 && options?.approvePlan) {
       return {
         outcome: "await_approval",

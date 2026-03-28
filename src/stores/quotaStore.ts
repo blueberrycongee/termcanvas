@@ -98,10 +98,8 @@ export const useQuotaStore = create<QuotaStore>((set, get) => ({
 
     const elapsed = Date.now() - state.lastFetchAt;
     if (elapsed >= state.cooldownMs) {
-      // Cooldown expired, fetch now
       get().fetch();
     } else if (!state.pendingRefresh) {
-      // Schedule fetch at cooldown expiry
       set({ pendingRefresh: true });
       const remaining = state.cooldownMs - elapsed;
       if (state._cooldownTimer) clearTimeout(state._cooldownTimer);

@@ -14,7 +14,6 @@ export function useCanvasInteraction() {
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
       if (e.ctrlKey || e.metaKey) {
-        // Zoom
         e.preventDefault();
         const delta = -e.deltaY * ZOOM_SENSITIVITY;
         const newScale = Math.min(
@@ -33,7 +32,6 @@ export function useCanvasInteraction() {
 
         setViewport({ x: newX, y: newY, scale: newScale });
       } else {
-        // Pan
         setViewport({
           x: viewport.x - e.deltaX,
           y: viewport.y - e.deltaY,

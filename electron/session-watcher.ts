@@ -70,7 +70,6 @@ export function checkTurnComplete(
     return { completed: false };
   }
 
-  // Parse last few lines as JSON
   const lines = content.split("\n").filter((l) => l.trim().length > 0);
 
   // Check from the end — the completion signal is usually the last or second-to-last line
@@ -137,7 +136,6 @@ export function resolveSessionFile(
     const sessionsDir = path.join(home, ".codex", "sessions");
     try {
       const now = new Date();
-      // Search last 7 days of date directories
       for (let d = 0; d < 7; d++) {
         const date = new Date(now.getTime() - d * 86400000);
         const yyyy = String(date.getFullYear());
@@ -481,7 +479,6 @@ export class SessionWatcher {
     const dir = path.dirname(filePath);
     const basename = path.basename(filePath);
 
-    // Ensure directory exists before watching
     if (!fs.existsSync(dir)) {
       try {
         fs.mkdirSync(dir, { recursive: true });

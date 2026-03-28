@@ -47,7 +47,6 @@ function MiniCalendar({ selectedDate, cachedDates, onSelect, onClose }: MiniCale
 
   const today = todayStr();
 
-  // Close on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
@@ -58,7 +57,6 @@ function MiniCalendar({ selectedDate, cachedDates, onSelect, onClose }: MiniCale
     return () => document.removeEventListener("mousedown", handleClick);
   }, [onClose]);
 
-  // Close on Escape
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -87,13 +85,12 @@ function MiniCalendar({ selectedDate, cachedDates, onSelect, onClose }: MiniCale
     });
   }, []);
 
-  // Build calendar grid
   const firstDay = new Date(viewYear, viewMonth, 1).getDay();
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const cells: (number | null)[] = [];
   for (let i = 0; i < firstDay; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-  // Fill remaining cells to complete the grid
+  // Pad to a full row so the 7-column grid doesn't leave a ragged last week
   while (cells.length % 7 !== 0) cells.push(null);
 
   const monthLabel = `${t.usage_cal_months[viewMonth]} ${viewYear}`;

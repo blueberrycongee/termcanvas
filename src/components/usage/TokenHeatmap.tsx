@@ -53,7 +53,7 @@ function buildGrid(data: Record<string, HeatmapEntry>): {
   const startDate = new Date(today);
   startDate.setDate(startDate.getDate() - (HEATMAP_DAYS - 1));
 
-  // Align start to Sunday
+  // Heatmap columns are weeks; align to Sunday so each column is a full Sun–Sat week
   const startDay = startDate.getDay();
   if (startDay !== 0) {
     startDate.setDate(startDate.getDate() - startDay);
@@ -62,11 +62,9 @@ function buildGrid(data: Record<string, HeatmapEntry>): {
   const totalDays = Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
   const weeks = Math.ceil(totalDays / 7);
 
-  // Compute max tokens for level scaling
   const values = Object.values(data).map((e) => e.tokens).filter((t) => t > 0);
   const maxTokens = values.length > 0 ? Math.max(...values) : 1;
 
-  // Build 7 rows × N columns grid
   const grid: (CellData | null)[][] = Array.from({ length: 7 }, () =>
     Array.from<null>({ length: weeks }).fill(null),
   );
@@ -80,7 +78,6 @@ function buildGrid(data: Record<string, HeatmapEntry>): {
       d.setDate(d.getDate() + week * 7 + day);
       const dateStr = toDateStr(d);
 
-      // Skip future dates
       if (dateStr > todayStr) continue;
 
       const entry = data[dateStr];

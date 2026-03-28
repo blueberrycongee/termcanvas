@@ -157,7 +157,6 @@ async function handleAddProject(t: ReturnType<typeof useT>) {
     })),
   });
 
-  // Center viewport on the newly created project.
   // Compute actual project size (same logic as ProjectContainer).
   const newProject = useProjectStore.getState().projects.find(
     (p) => p.path === info.path,
@@ -549,7 +548,6 @@ export function useKeyboardShortcuts() {
             i.type === "card",
         );
 
-        // Confirm if projects or worktrees are being deleted
         if (projectItems.length > 0 || worktreeItems.length > 0) {
           let message: string;
           if (projectItems.length > 0 && worktreeItems.length > 0) {
@@ -567,17 +565,14 @@ export function useKeyboardShortcuts() {
 
         const store = useProjectStore.getState();
 
-        // Delete projects
         for (const item of projectItems) {
           store.removeProject(item.projectId);
         }
 
-        // Delete worktrees
         for (const item of worktreeItems) {
           store.removeWorktree(item.projectId, item.worktreeId);
         }
 
-        // Delete terminals
         for (const item of terminalItems) {
           store.removeTerminal(
             item.projectId,

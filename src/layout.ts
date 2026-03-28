@@ -80,7 +80,6 @@ export function packTerminals(
 
   for (let i = 0; i < spans.length; i++) {
     const span = spans[i];
-    // Clamp span to grid width
     const sCols = Math.min(span.cols, gridCols);
     const sRows = span.rows;
 

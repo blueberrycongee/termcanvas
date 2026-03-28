@@ -272,22 +272,20 @@ export function parseGitStatusOutput(raw: string): GitStatusEntry[] {
       continue;
     }
 
-    const x = entry[0]; // staged status
-    const y = entry[1]; // unstaged status
+    const x = entry[0];
+    const y = entry[1];
     const filePath = entry.slice(3);
 
-    // Untracked
     if (x === "?" && y === "?") {
       entries.push({ path: filePath, status: "?", staged: false });
       i++;
       continue;
     }
 
-    // Rename/copy in index: next part is the original path
+    // git status -z uses an extra NUL-delimited field for the original path on renames/copies
     const isRenameOrCopy = x === "R" || x === "C";
     const originalPath = isRenameOrCopy ? parts[i + 1] : undefined;
 
-    // Staged change
     if (x !== " " && x !== "?") {
       entries.push({
         path: filePath,
@@ -297,7 +295,6 @@ export function parseGitStatusOutput(raw: string): GitStatusEntry[] {
       });
     }
 
-    // Unstaged change
     if (y !== " ") {
       entries.push({
         path: filePath,

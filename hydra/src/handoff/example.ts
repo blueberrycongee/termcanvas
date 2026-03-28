@@ -5,7 +5,6 @@
 import { HandoffManager } from "./manager.ts";
 import type { Handoff } from "./types.ts";
 
-// 示例：创建一个从 Planner 到 Implementer 的交接
 export function createPlannerToImplementerHandoff(
   workspaceRoot: string,
   workflowId: string,
@@ -23,7 +22,7 @@ export function createPlannerToImplementerHandoff(
     to: {
       role: "implementer",
       agent_type: "codex",
-      agent_id: null, // 待分配
+      agent_id: null,
     },
     task: {
       type: "implement-feature",

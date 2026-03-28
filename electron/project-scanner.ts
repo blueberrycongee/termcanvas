@@ -78,7 +78,6 @@ export class ProjectScanner {
   async scanAsync(dirPath: string): Promise<ProjectInfo | null> {
     const name = path.basename(dirPath);
 
-    // Try to detect if it's a git repo
     let isGitRepo = false;
     try {
       await runGitAsync(dirPath, ["rev-parse", "--git-dir"]);

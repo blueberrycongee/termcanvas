@@ -39,7 +39,6 @@ export function useGitStatus(worktreePath: string | null): UseGitStatusResult {
     }
   }, [worktreePath]);
 
-  // Initial load + watcher subscription
   useEffect(() => {
     mountedRef.current = true;
     if (!worktreePath) {

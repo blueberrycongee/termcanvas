@@ -601,7 +601,6 @@ export function GitContent({
   const t = useT();
   const { notify } = useNotificationStore();
 
-  // Data hooks
   const { commits, branches, edges, isGitRepo, loading, refresh: refreshLog, loadMore, hasMore } = useGitLog(worktreePath);
   const {
     stagedFiles,
@@ -619,14 +618,12 @@ export function GitContent({
     pull,
   } = useGitStatus(worktreePath);
 
-  // Branch info
   const branchInfo = useMemo(() => summarizeBranchInventory(branches), [branches]);
   const currentBranch = branches.find((b) => b.isCurrent);
   const aheadBehind = currentBranch
     ? buildAheadBehindLabel(currentBranch.ahead, currentBranch.behind)
     : null;
 
-  // Local state
   const [commitMessage, setCommitMessage] = useState("");
   const [committing, setCommitting] = useState(false);
   const [pushing, setPushing] = useState(false);
@@ -637,14 +634,12 @@ export function GitContent({
   const [hoveredCommitHash, setHoveredCommitHash] = useState<string | null>(null);
   const [selectedCommitHash, setSelectedCommitHash] = useState<string | null>(null);
 
-  // History virtual scroll
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [detailHeight, setDetailHeight] = useState(0);
   const detailRef = useRef<HTMLDivElement>(null);
 
-  // Measure the expanded commit detail panel height
   useEffect(() => {
     const el = detailRef.current;
     if (!el) { setDetailHeight(0); return; }
@@ -657,7 +652,6 @@ export function GitContent({
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-resize textarea
   const adjustTextarea = useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -726,7 +720,6 @@ export function GitContent({
     setSelectedCommitHash((prev) => (prev === hash ? null : hash));
   }, []);
 
-  // Refresh both on mount and on focus
   const refreshAll = useCallback(async () => {
     await Promise.all([refreshLog(), refreshStatus()]);
   }, [refreshLog, refreshStatus]);
@@ -740,7 +733,6 @@ export function GitContent({
     }
     setCommitting(true);
     try {
-      // If nothing staged but changes exist, stage all first
       if (stagedFiles.length === 0 && changedFiles.length > 0) {
         await stageAll();
       }
@@ -1114,7 +1106,6 @@ export function GitContent({
               setScrollTop(el.scrollTop);
               setViewportHeight(el.clientHeight);
 
-              // Load more when near bottom
               if (hasMore && el.scrollHeight - el.scrollTop - el.clientHeight < 160) {
                 loadMore();
               }

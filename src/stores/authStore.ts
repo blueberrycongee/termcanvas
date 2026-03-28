@@ -46,7 +46,6 @@ export const useAuthStore = create<AuthStore>((set) => ({
       ]);
       set({ user, deviceId, loading: false });
 
-      // Listen for auth state changes
       // @ts-expect-error -- auth API added by preload agent
       window.termcanvas.auth.onAuthStateChange((user: AuthUser | null) => {
         set({ user });

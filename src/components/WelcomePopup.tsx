@@ -96,7 +96,6 @@ function MiniCanvas({
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0, tx: 0, ty: 0 });
 
-  // Auto-zoom to focused terminal, or fit-all when unfocused
   useEffect(() => {
     if (step >= 1 && step <= 3) {
       if (focusedIndex >= 0) {

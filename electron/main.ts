@@ -167,7 +167,6 @@ function createWindow() {
     rendererReady = false;
   });
 
-  // Create application menu
   createMenu(mainWindow);
 
   if (process.env.VITE_DEV_SERVER_URL) {
@@ -349,7 +348,7 @@ function setupIpc() {
         const fullPath = path.join(sessionsDir, hashDir);
         const uuids = fs.readdirSync(fullPath);
         if (uuids.length > 0) {
-          return uuids[uuids.length - 1]; // Latest session UUID
+          return uuids[uuids.length - 1];
         }
       }
       return null;
@@ -1034,7 +1033,6 @@ function uninstallSkill(): boolean {
   return uninstallSkillLinks({ sourceDir: getSkillSourceDir() });
 }
 
-// Register termcanvas:// protocol for OAuth callback
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
     app.setAsDefaultProtocolClient("termcanvas", process.execPath, [path.resolve(process.argv[1])]);
@@ -1066,7 +1064,6 @@ app.whenReady().then(async () => {
   createWindow();
   if (mainWindow) setupAutoUpdater(mainWindow);
 
-  // Forward auth state changes to renderer, trigger backfill on login
   onAuthStateChange((user) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send("auth:state-changed", user);
@@ -1077,7 +1074,6 @@ app.whenReady().then(async () => {
     }
   });
 
-  // Periodically flush the sync queue and sync recent records (every 5 minutes)
   setInterval(() => {
     if (isLoggedIn()) {
       flushSyncQueue().catch((err) => console.error("[UsageSync] Periodic flush error:", err));

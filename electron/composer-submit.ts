@@ -181,7 +181,6 @@ async function submitBracketedPaste(
     if (adapter.pasteStrategy === "aggregate") {
       if (stagedImagePaths.length > 0) {
         writePtyData(request.ptyId, buildBracketedPaste(stagedImagePaths.join("\n")), deps, "paste-image", "pty-write-failed");
-        // Text as raw characters to bypass paste handler entirely
         if (request.text.trim().length > 0) {
           writePtyData(request.ptyId, request.text, deps, "paste-text", "pty-write-failed");
         }

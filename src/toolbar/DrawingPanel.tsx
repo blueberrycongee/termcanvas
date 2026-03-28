@@ -180,7 +180,6 @@ export function DrawingPanel() {
       <div
         className={`flex ${vertical ? "flex-col" : "flex-row"} gap-0.5 px-1.5 pb-1.5`}
       >
-        {/* Tool buttons */}
         {tools.map((toolItem) => (
           <button
             key={toolItem.id}
@@ -196,14 +195,12 @@ export function DrawingPanel() {
           </button>
         ))}
 
-        {/* Separator */}
         {vertical ? (
           <div className="h-px bg-[var(--border)] mx-1 my-0.5" />
         ) : (
           <div className="w-px bg-[var(--border)] my-1 mx-0.5" />
         )}
 
-        {/* Color dots */}
         <div
           className={`flex ${vertical ? "flex-col items-center" : "flex-row"} gap-1 ${vertical ? "py-0.5 px-1" : "py-1 px-0.5"}`}
         >
@@ -224,7 +221,6 @@ export function DrawingPanel() {
           ))}
         </div>
 
-        {/* Clear */}
         {elements.length > 0 && (
           <button
             className={`${btnBase} text-[var(--text-muted)] hover:text-[var(--red)]`}

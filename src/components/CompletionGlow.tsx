@@ -16,10 +16,8 @@ export function CompletionGlow() {
     }
   }
 
-  // Find focused index
   const focusedIdx = terminals.findIndex((t) => t.focused);
 
-  // When focused terminal is completed, mark it seen
   useEffect(() => {
     if (focusedIdx === -1) return;
     const focused = terminals[focusedIdx];
@@ -29,7 +27,6 @@ export function CompletionGlow() {
     }
   });
 
-  // Clean seen set: remove terminals that are no longer completed
   useEffect(() => {
     const seen = seenRef.current;
     let changed = false;

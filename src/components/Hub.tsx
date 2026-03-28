@@ -110,7 +110,6 @@ export function Hub() {
     [setFocusedWorktree],
   );
 
-  // Keyboard nav when expanded
   useEffect(() => {
     if (!expanded) return;
     const handler = (e: KeyboardEvent) => {
@@ -132,12 +131,10 @@ export function Hub() {
     return () => window.removeEventListener("keydown", handler, true);
   }, [expanded, selectedIndex, targets, selectTarget]);
 
-  // Reset selection on open / level change
   useEffect(() => {
     setSelectedIndex(0);
   }, [expanded, focusLevel]);
 
-  // Click outside to close
   useEffect(() => {
     if (!expanded) return;
     const handler = (e: MouseEvent) => {
@@ -149,7 +146,6 @@ export function Hub() {
     return () => window.removeEventListener("mousedown", handler);
   }, [expanded]);
 
-  // Scroll selected into view
   useEffect(() => {
     itemRefs.current[selectedIndex]?.scrollIntoView({ block: "nearest" });
   }, [selectedIndex]);
@@ -168,7 +164,6 @@ export function Hub() {
       className="fixed z-50 select-none"
       style={{ top: 52, left: leftOffset }}
     >
-      {/* Capsule trigger */}
       <button
         onClick={() => setExpanded(!expanded)}
         className="flex items-center gap-1.5 px-2.5 py-1 rounded-md
@@ -193,7 +188,6 @@ export function Hub() {
         </svg>
       </button>
 
-      {/* Dropdown panel */}
       <div
         className="mt-1 rounded-lg border border-[var(--border)]
           overflow-hidden origin-top"
@@ -214,13 +208,11 @@ export function Hub() {
             : "none",
         }}
       >
-        {/* Level header */}
         <div className="px-3 py-1.5 text-[10px] text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--border)] flex items-center justify-between">
           <span>{levelLabel}</span>
           <span className="text-[var(--text-faint)]">{levelShortcut}</span>
         </div>
 
-        {/* Target list */}
         <div className="overflow-y-auto py-0.5" style={{ maxHeight: 260 }}>
           {targets.length === 0 ? (
             <div className="px-3 py-2 text-[12px] text-[var(--text-muted)]">

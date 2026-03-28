@@ -79,7 +79,6 @@ test("detects grandchild CLI through intermediate process", () => {
     "  200   100 bash\n" +
     "  300   200 claude\n";
 
-  // Shell PID is 100 — claude (PID 300) is a grandchild via bash (PID 200)
   const results = parsePsOutput(ps, [100]);
   assert.equal(results.length, 1);
   assert.equal(results[0].cliType, "claude");
@@ -121,7 +120,6 @@ test("shallow direct child wins over deeper descendant regardless of PID order",
 
   const results = parsePsOutput(ps, [100]);
   assert.ok(results.length >= 2);
-  // claude (depth 1) should come before codex (depth 2)
   assert.equal(results[0].cliType, "claude");
   assert.equal(results[0].pid, 500);
   assert.equal(results[1].cliType, "codex");

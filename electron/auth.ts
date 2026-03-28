@@ -250,7 +250,6 @@ export async function login(): Promise<LoginResult> {
       return { ok: false, url: data.url, error: "Failed to open browser" };
     }
 
-    // Wait for the callback result and process it
     const result = await resultPromise;
     return await processCallbackResult(result);
   } catch (err) {
@@ -293,7 +292,6 @@ export async function initAuth(): Promise<void> {
     },
   });
 
-  // Listen for auth state changes from the Supabase client
   supabase.auth.onAuthStateChange((_event, session) => {
     if (session) {
       saveSession(session);
@@ -304,7 +302,6 @@ export async function initAuth(): Promise<void> {
     }
   });
 
-  // Attempt to restore saved session
   const saved = loadSession();
   if (saved) {
     try {
@@ -354,7 +351,6 @@ export async function handleAuthCallback(url: string): Promise<void> {
 
     const params = new URLSearchParams(paramsString);
 
-    // Check for error params first
     const error = params.get("error");
     const errorDescription = params.get("error_description");
     if (error) {

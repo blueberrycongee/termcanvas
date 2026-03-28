@@ -58,7 +58,6 @@ export function BrowserCard({ card }: Props) {
 
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Sync webview title, URL bar, and handle load errors
   useEffect(() => {
     const wv = webviewRef.current;
     if (!wv) return;
@@ -86,7 +85,6 @@ export function BrowserCard({ card }: Props) {
     };
   }, [card.id, updateCard]);
 
-  // Drag handler
   const handleDragStart = useCallback(
     (e: React.MouseEvent) => {
       if (e.button !== 0) return;
@@ -117,7 +115,6 @@ export function BrowserCard({ card }: Props) {
     [card.id, card.x, card.y, updateCard],
   );
 
-  // Resize handler
   const handleResizeStart = useCallback(
     (e: React.MouseEvent) => {
       if (e.button !== 0) return;
@@ -148,7 +145,6 @@ export function BrowserCard({ card }: Props) {
     [card.id, card.w, card.h, updateCard],
   );
 
-  // Navigate on Enter
   const handleUrlSubmit = () => {
     let url = urlInput.trim();
     if (!url) return;
@@ -157,7 +153,6 @@ export function BrowserCard({ card }: Props) {
     setUrlInput(url);
   };
 
-  // Listen for batch delete
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
@@ -182,7 +177,6 @@ export function BrowserCard({ card }: Props) {
         className="flex-none flex items-center gap-1.5 px-2 py-1.5 bg-[var(--bg)] border-b border-[var(--border)] cursor-grab active:cursor-grabbing select-none"
         onMouseDown={handleDragStart}
       >
-        {/* Back / Forward / Refresh */}
         <button
           className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
           onClick={() => webviewRef.current?.goBack()}
@@ -209,7 +203,6 @@ export function BrowserCard({ card }: Props) {
           </svg>
         </button>
 
-        {/* URL bar */}
         <input
           className="flex-1 min-w-0 px-2 py-0.5 text-[11px] rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] outline-none focus:border-[var(--text-secondary)]"
           style={{ fontFamily: '"Geist Mono", monospace' }}
@@ -221,7 +214,6 @@ export function BrowserCard({ card }: Props) {
           onMouseDown={(e) => e.stopPropagation()}
         />
 
-        {/* Close */}
         <button
           className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
           onClick={() => removeCard(card.id)}
@@ -232,7 +224,6 @@ export function BrowserCard({ card }: Props) {
         </button>
       </div>
 
-      {/* Webview */}
       <div className="flex-1 min-h-0 relative">
         <webview
           ref={webviewRef as React.Ref<HTMLElement>}
@@ -256,7 +247,6 @@ export function BrowserCard({ card }: Props) {
         )}
       </div>
 
-      {/* Resize handle */}
       <div
         className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
         onMouseDown={handleResizeStart}

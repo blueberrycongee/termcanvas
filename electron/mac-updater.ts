@@ -332,7 +332,6 @@ export class MacCustomUpdater {
   ): Promise<void> {
     this.downloading = true;
     try {
-      // Pick the ZIP matching the current architecture
       const isArm64 = process.arch === "arm64";
       const zipFile = release.files.find(
         (f) =>
@@ -348,13 +347,11 @@ export class MacCustomUpdater {
       const stagingDir = getStagingDir();
       const zipPath = join(stagingDir, zipFile.url);
 
-      // Clean and recreate staging directory
       if (existsSync(stagingDir)) {
         rmSync(stagingDir, { recursive: true, force: true });
       }
       mkdirSync(stagingDir, { recursive: true });
 
-      // Download with retry
       await downloadWithRetry(
         downloadUrl,
         zipPath,
@@ -364,18 +361,15 @@ export class MacCustomUpdater {
         },
       );
 
-      // Verify SHA-512
       const hash = await computeSha512(zipPath);
       if (hash !== zipFile.sha512) {
         rmSync(stagingDir, { recursive: true, force: true });
         throw new Error("SHA-512 verification failed — update is corrupted");
       }
 
-      // Extract
       const extractDir = join(stagingDir, "extracted");
       await extractZip(zipPath, extractDir);
 
-      // Locate the .app bundle inside the extracted directory
       const appName = readdirSync(extractDir).find((f) => f.endsWith(".app"));
       if (!appName) {
         throw new Error("No .app bundle found in update package");

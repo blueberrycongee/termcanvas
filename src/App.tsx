@@ -90,11 +90,9 @@ function useWorktreeWatcher() {
       }
     };
 
-    // Initial sync
     rescanAll();
     // Poll every 5s — simple, reliable, cross-platform
     const interval = setInterval(rescanAll, 5000);
-    // Immediate rescan on window focus
     window.addEventListener("focus", rescanAll);
 
     return () => {
@@ -362,10 +360,8 @@ export function App() {
     return !localStorage.getItem("termcanvas-welcome-seen");
   });
 
-  // Wire IPC updater events into the zustand store (once)
   useEffect(() => initUpdaterListeners(), []);
 
-  // Listen for menu events
   useEffect(() => {
     if (!window.termcanvas?.menu) return;
     return window.termcanvas.menu.onOpenFolder(async (dirPath: string) => {
@@ -406,7 +402,6 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load downloaded fonts on startup
   useEffect(() => {
     loadAllDownloadedFonts();
   }, []);

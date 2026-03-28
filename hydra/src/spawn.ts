@@ -113,7 +113,6 @@ export async function spawn(args: string[]): Promise<void> {
   const workerType = resolveWorkerAgentType(parsed, process.env);
   const parentAgentType = resolveCurrentAgentType(process.env) ?? workerType;
 
-  // Validate repo is on canvas
   const project = findProjectByPath(repo);
   if (!project) {
     throw new Error(`Repo not found on TermCanvas canvas: ${repo}`);
@@ -129,12 +128,10 @@ export async function spawn(args: string[]): Promise<void> {
   let ownWorktree: boolean;
 
   if (parsed.worktree) {
-    // Use existing worktree
     worktreePath = validateWorktreePath(repo, parsed.worktree);
     branch = null;
     ownWorktree = false;
   } else {
-    // Create new worktree
     branch = `hydra/${agentId}`;
     worktreePath = path.join(repo, ".worktrees", agentId);
     execFileSync("git", buildGitWorktreeAddArgs(branch, worktreePath, baseBranch), {
@@ -197,7 +194,6 @@ export async function spawn(args: string[]): Promise<void> {
     parentTerminalId,
   });
 
-  // Save agent record.
   // Unlike workflow handoffs (which are destroyed eagerly after completion),
   // spawn terminals are intentionally long-lived — the user may interact with
   // the worker, inspect intermediate state, or issue follow-up instructions.
@@ -221,7 +217,7 @@ export async function spawn(args: string[]): Promise<void> {
     createdAt: new Date().toISOString(),
   });
 
-  // Output result (resultFile tells the parent where to read the outcome)
+  // resultFile tells the parent where to read the outcome
   const result = {
     agentId,
     workflowId,

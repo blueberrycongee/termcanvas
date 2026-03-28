@@ -7,13 +7,11 @@ export function BoxSelectOverlay() {
 
   if (!rect) return null;
 
-  // Normalize negative dimensions
   const x = rect.w < 0 ? rect.x + rect.w : rect.x;
   const y = rect.h < 0 ? rect.y + rect.h : rect.y;
   const w = Math.abs(rect.w);
   const h = Math.abs(rect.h);
 
-  // Canvas coords → screen coords
   const screenX = x * viewport.scale + viewport.x;
   const screenY = y * viewport.scale + viewport.y;
   const screenW = w * viewport.scale;

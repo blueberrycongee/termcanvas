@@ -36,7 +36,6 @@ function readCodexSessionMeta(filePath: string): { cwd: string | null; timestamp
       return { cwd, timestampMs };
     }
   } catch {
-    // ignore parse failures
   }
   return { cwd: null, timestampMs: null };
 }

@@ -69,7 +69,6 @@ export function FileCard({
   const resolvedX = resolved.x;
   const resolvedY = resolved.y;
 
-  // Load file content
   useEffect(() => {
     if (!window.termcanvas) return;
     setFileContent({ status: "loading" });
@@ -168,7 +167,6 @@ export function FileCard({
     [size],
   );
 
-  // Connection line: solid from anchor to card left edge
   const lineX1 = anchorX;
   const lineY1 = anchorY + 20;
   const lineX2 = resolvedX;
@@ -211,7 +209,6 @@ export function FileCard({
         onMouseDown={(e) => e.stopPropagation()}
         onWheel={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div
           className="flex items-center gap-2 px-3 py-2 cursor-grab active:cursor-grabbing select-none shrink-0"
           onMouseDown={handleDragStart}
@@ -244,7 +241,6 @@ export function FileCard({
           </button>
         </div>
 
-        {/* Content */}
         <div
           className="flex-1 overflow-auto min-h-0"
           style={{ fontFamily: '"Geist Mono", monospace', fontSize: 11 }}
@@ -284,7 +280,6 @@ export function FileCard({
           )}
         </div>
 
-        {/* Resize handle */}
         <div
           className="absolute bottom-0 right-0 w-3 h-3 cursor-se-resize opacity-0 hover:opacity-100 transition-opacity duration-150"
           onMouseDown={handleResizeStart}

@@ -53,7 +53,6 @@ function useAnimatedNumber(target: number, duration = 400): number {
     const tick = (now: number) => {
       const elapsed = now - start;
       const progress = Math.min(1, elapsed / duration);
-      // ease-out cubic
       const t = 1 - Math.pow(1 - progress, 3);
       setDisplay(from + (to - from) * t);
       if (progress < 1) {
@@ -268,7 +267,6 @@ function CacheRateSection({
   summary: UsageSummary;
   animate: boolean;
 }) {
-  // Group models into clients
   const clients: { label: string; input: number; cacheRead: number; cacheCreate: number }[] = [];
   let claudeInput = 0, claudeCacheRead = 0, claudeCacheCreate = 0;
   let codexInput = 0, codexCacheRead = 0, codexCacheCreate = 0;
@@ -487,7 +485,6 @@ export function UsagePanel() {
     }
   }, [date]);
 
-  // Init auth store once on mount
   useEffect(() => {
     useAuthStore.getState().init();
   }, []);
@@ -540,7 +537,6 @@ export function UsagePanel() {
         if (!lb || cb.cost >= lb.cost) return cb;
         return lb;
       });
-      // Add local-only buckets missing from cloud
       for (const lb of summary.buckets) {
         if (!mergedBuckets.some((b) => b.hourStart === lb.hourStart)) {
           mergedBuckets.push(lb);
@@ -567,7 +563,6 @@ export function UsagePanel() {
     return isLoggedIn && cloudHeatmapData ? cloudHeatmapData : heatmapData;
   })();
 
-  // Compute monthly total for SummarySection
   let monthlyCost = 0;
   if (activeHeatmap) {
     const monthPrefix = date.slice(0, 7);

@@ -236,7 +236,7 @@ export async function flushSyncQueue(): Promise<void> {
   try {
     content = await readFile(SYNC_QUEUE_FILE, "utf-8");
   } catch {
-    return; // No queue file
+    return;
   }
 
   const lines = content.split("\n").filter(Boolean);
@@ -271,7 +271,6 @@ export async function flushSyncQueue(): Promise<void> {
 export async function backfillHistory(): Promise<void> {
   if (!isLoggedIn()) return;
 
-  // Check if already backfilled
   try {
     await access(BACKFILL_FLAG);
     return;
@@ -291,7 +290,6 @@ export async function backfillHistory(): Promise<void> {
 
   const allRecords: UsageRecord[] = [];
 
-  // Collect from Claude session files
   for (const f of findClaudeJsonlFiles()) {
     try {
       const { records } = parseClaudeSession(f, utcStart, utcEnd);
@@ -301,7 +299,6 @@ export async function backfillHistory(): Promise<void> {
     }
   }
 
-  // Collect from Codex session files
   for (const f of findCodexJsonlFiles()) {
     try {
       const { records } = parseCodexSession(f, utcStart, utcEnd);
@@ -318,10 +315,8 @@ export async function backfillHistory(): Promise<void> {
     return;
   }
 
-  // Map to DB rows with record_hash
   const rows = allRecords.map((record) => mapUsageRecordToRow(user.id, deviceId, record));
 
-  // Batch insert, yielding between batches
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     if (i > 0) await new Promise<void>((r) => setImmediate(r));
 
@@ -339,7 +334,6 @@ export async function backfillHistory(): Promise<void> {
     }
   }
 
-  // Mark as complete
   try {
     await writeFile(BACKFILL_FLAG, new Date().toISOString(), "utf-8");
     console.log(PREFIX, `Backfill complete: ${allRecords.length} records`);
@@ -456,7 +450,6 @@ export async function queryCloudUsage(dateStr: string): Promise<CloudUsageSummar
   const supabase = getSupabase();
   if (!supabase || !getAuthUser()) return null;
 
-  // Convert local date to UTC range
   const startMs = new Date(`${dateStr}T00:00:00`).getTime();
   const endMs = startMs + 86_400_000;
   const utcStart = new Date(startMs).toISOString();

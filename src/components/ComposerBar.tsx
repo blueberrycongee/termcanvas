@@ -168,7 +168,6 @@ export function ComposerBar() {
     [projects, renameTerminalId],
   );
 
-  // Slash command autocomplete state
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   // Track whether the user has explicitly navigated the slash menu with
@@ -186,12 +185,10 @@ export function ComposerBar() {
 
   const slashCommands = useMemo(() => {
     if (!slashMenuOpen || !targetTerminal) return [];
-    // Extract the query after "/"
     const query = draft.startsWith("/") ? draft.slice(1) : "";
     return filterSlashCommands(targetTerminal.type, query);
   }, [slashMenuOpen, targetTerminal, draft]);
 
-  // Open/close menu based on draft content
   useEffect(() => {
     if (isRenameMode) {
       setSlashMenuOpen(false);
@@ -342,7 +339,6 @@ export function ComposerBar() {
         }
       }
 
-      // Handle images — reuse the same validation as clipboard paste
       if (imageFiles.length > 0) {
         if (!targetTerminal || !targetAdapter) {
           const message = t.composer_missing_target;
@@ -378,7 +374,6 @@ export function ComposerBar() {
         }
       }
 
-      // Handle non-image files — insert paths into draft
       if (nonImagePaths.length > 0) {
         const pathText = nonImagePaths
           .map((p) => (/[\s"'\\$`!#&|;()<>]/.test(p) ? `"${p.replace(/"/g, '\\"')}"` : p))
@@ -572,7 +567,6 @@ export function ComposerBar() {
         }}
         onDrop={handleDrop}
       >
-        {/* Header */}
         <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--border)]">
           <span
             className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--accent)]"
@@ -596,7 +590,6 @@ export function ComposerBar() {
           </div>
         )}
 
-        {/* Image attachments */}
         {images.length > 0 && (
           <div className="flex flex-wrap gap-1.5 px-3 pt-2">
             {images.map((image: ComposerImageAttachment) => (
@@ -628,7 +621,6 @@ export function ComposerBar() {
           </div>
         )}
 
-        {/* Input area */}
         <div className="px-3 py-2">
           <div className="relative">
             {slashMenuOpen && slashCommands.length > 0 && (
@@ -659,7 +651,6 @@ export function ComposerBar() {
                   return;
                 }
 
-                // Slash command menu keyboard navigation
                 if (slashMenuOpen && slashCommands.length > 0) {
                   if (event.key === "ArrowDown") {
                     event.preventDefault();

@@ -224,7 +224,6 @@ export function LeftPanel() {
               </button>
             );
           })}
-          {/* Collapse button */}
           <button
             className="flex items-center justify-center w-7 h-7 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-all duration-200 ml-0.5 shrink-0"
             onClick={() => setCollapsed(true)}

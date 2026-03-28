@@ -276,7 +276,6 @@ export function WorktreeContainer({
         const cx = origItem.x + ox + origItem.w / 2;
         const cy = origItem.y + oy + origItem.h / 2;
 
-        // Find closest packed item by center distance
         let targetIndex = origIndex;
         let minDist = Infinity;
         for (const p of currentPacked) {

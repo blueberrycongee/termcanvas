@@ -17,12 +17,10 @@ export function SlashCommandMenu({
   const menuRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
 
-  // Scroll the selected item into view
   useEffect(() => {
     selectedRef.current?.scrollIntoView({ block: "nearest" });
   }, [selectedIndex]);
 
-  // Close on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
