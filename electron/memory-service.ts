@@ -1,6 +1,29 @@
 import fs from "node:fs";
 import path from "node:path";
 
+export interface MemoryNode {
+  fileName: string;
+  filePath: string;
+  name: string;
+  description: string;
+  type: string;
+  body: string;
+  mtime: number;
+  ctime: number;
+}
+
+export interface MemoryEdge {
+  source: string;
+  target: string;
+  label: string;
+}
+
+export interface MemoryGraph {
+  nodes: MemoryNode[];
+  edges: MemoryEdge[];
+  dirPath: string;
+}
+
 export interface MemoryFile {
   fileName: string;
   filePath: string;
@@ -53,4 +76,62 @@ export function parseMemoryFile(filePath: string): MemoryFile | null {
   } catch {
     return null;
   }
+}
+
+export function scanMemoryDir(dirPath: string): MemoryGraph {
+  const empty: MemoryGraph = { nodes: [], edges: [], dirPath };
+
+  if (!fs.existsSync(dirPath)) return empty;
+
+  let entries: string[];
+  try {
+    entries = fs
+      .readdirSync(dirPath)
+      .filter((f) => f.endsWith(".md"));
+  } catch {
+    return empty;
+  }
+
+  if (entries.length === 0) return empty;
+
+  const nodes: MemoryNode[] = [];
+  const edges: MemoryEdge[] = [];
+
+  for (const entry of entries) {
+    const filePath = path.join(dirPath, entry);
+
+    if (entry === "MEMORY.md") {
+      const raw = fs.readFileSync(filePath, "utf-8");
+      const stat = fs.statSync(filePath);
+
+      nodes.push({
+        fileName: entry,
+        filePath,
+        name: "MEMORY",
+        description: "",
+        type: "index",
+        body: raw,
+        mtime: stat.mtimeMs,
+        ctime: stat.birthtimeMs,
+      });
+
+      // Parse markdown links: [Title](file.md)
+      const linkRe = /\[([^\]]+)\]\(([^)]+\.md)\)/g;
+      let m: RegExpExecArray | null;
+      while ((m = linkRe.exec(raw)) !== null) {
+        edges.push({
+          source: "MEMORY.md",
+          target: m[2],
+          label: m[1],
+        });
+      }
+    } else {
+      const parsed = parseMemoryFile(filePath);
+      if (parsed) {
+        nodes.push(parsed);
+      }
+    }
+  }
+
+  return { nodes, edges, dirPath };
 }

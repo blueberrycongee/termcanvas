@@ -61,3 +61,76 @@ test("parseMemoryFile handles file without frontmatter", async () => {
 
   fs.rmSync(tmpDir, { recursive: true });
 });
+
+test("scanMemoryDir returns graph with nodes and edges from MEMORY.md", async () => {
+  const { scanMemoryDir } = await import(
+    `../electron/memory-service.ts?scan-${Date.now()}`
+  );
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mem-test-"));
+
+  fs.writeFileSync(
+    path.join(tmpDir, "MEMORY.md"),
+    `- [Hydra watch](feedback_hydra_watch.md) — always poll after dispatch
+- [Hydra approve](feedback_hydra_approve.md) — need --auto-approve
+`,
+  );
+
+  fs.writeFileSync(
+    path.join(tmpDir, "feedback_hydra_watch.md"),
+    `---
+name: hydra-auto-watch
+description: After launching Hydra workflows, immediately enter watch polling loop
+type: feedback
+---
+
+Watch after dispatch.
+`,
+  );
+
+  fs.writeFileSync(
+    path.join(tmpDir, "feedback_hydra_approve.md"),
+    `---
+name: Hydra must use --auto-approve
+description: Spawned CLIs need --auto-approve
+type: feedback
+---
+
+Always pass --auto-approve.
+`,
+  );
+
+  const graph = scanMemoryDir(tmpDir);
+
+  assert.equal(graph.nodes.length, 3);
+  const memoryNode = graph.nodes.find((n) => n.fileName === "MEMORY.md");
+  assert.ok(memoryNode);
+  assert.equal(memoryNode.type, "index");
+
+  assert.equal(graph.edges.length, 2);
+  assert.ok(graph.edges.every((e) => e.source === "MEMORY.md"));
+  const targets = graph.edges.map((e) => e.target).sort();
+  assert.deepEqual(targets, ["feedback_hydra_approve.md", "feedback_hydra_watch.md"]);
+
+  fs.rmSync(tmpDir, { recursive: true });
+});
+
+test("scanMemoryDir returns empty graph for non-existent dir", async () => {
+  const { scanMemoryDir } = await import(
+    `../electron/memory-service.ts?empty-${Date.now()}`
+  );
+  const graph = scanMemoryDir("/tmp/does-not-exist-dir-" + Date.now());
+  assert.equal(graph.nodes.length, 0);
+  assert.equal(graph.edges.length, 0);
+});
+
+test("scanMemoryDir handles empty directory", async () => {
+  const { scanMemoryDir } = await import(
+    `../electron/memory-service.ts?emptydir-${Date.now()}`
+  );
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mem-test-"));
+  const graph = scanMemoryDir(tmpDir);
+  assert.equal(graph.nodes.length, 0);
+  assert.equal(graph.edges.length, 0);
+  fs.rmSync(tmpDir, { recursive: true });
+});
