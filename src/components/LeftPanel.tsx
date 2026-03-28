@@ -72,6 +72,7 @@ export function LeftPanel() {
   const focusedWorktreeId = useProjectStore((s) => s.focusedWorktreeId);
   const projects = useProjectStore((s) => s.projects);
   const [hydraEnabling, setHydraEnabling] = useState(false);
+  const [hydraStatus, setHydraStatus] = useState<"missing" | "outdated" | null>(null);
   const checkedProjectRef = useRef<string | null>(null);
 
   const focusedProject = useMemo(() => {
@@ -107,13 +108,31 @@ export function LeftPanel() {
     checkedProjectRef.current = focusedProject.path;
 
     window.termcanvas.project.checkHydra(focusedProject.path).then((status) => {
-      if (status === "outdated") {
-        notify("warn", t.hydra_outdated(focusedProject.name));
-      } else if (status === "missing") {
-        notify("info", t.hydra_missing(focusedProject.name));
+      if (status === "outdated" || status === "missing") {
+        setHydraStatus(status);
+      } else {
+        setHydraStatus(null);
       }
     }).catch(() => {});
-  }, [focusedProject, notify, t]);
+  }, [focusedProject]);
+
+  const handleHydraBannerAction = useCallback(async () => {
+    if (!focusedProject || hydraEnabling) return;
+    setHydraEnabling(true);
+    try {
+      const result = await window.termcanvas.project.enableHydra(focusedProject.path);
+      setHydraStatus(null);
+      if (!result.ok) {
+        notify("error", t.hydra_enable_failed(result.error));
+        return;
+      }
+      notify("info", t.hydra_enable_success(focusedProject.name));
+    } catch (err: unknown) {
+      notify("error", t.hydra_enable_failed(err instanceof Error ? err.message : String(err)));
+    } finally {
+      setHydraEnabling(false);
+    }
+  }, [focusedProject, hydraEnabling, notify, t]);
 
   const handleResizeStart = useCallback(
     (e: React.PointerEvent) => {
@@ -219,6 +238,24 @@ export function LeftPanel() {
       className="fixed left-0 z-40 bg-[var(--surface)] border-r border-[var(--border)] flex flex-col"
       style={{ top: 44, height: "calc(100vh - 44px)", width }}
     >
+      {/* ── Hydra Toolchain Banner ── */}
+      {hydraStatus && (
+        <div className="shrink-0 px-2 pt-2">
+          <div className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 bg-[var(--accent)]/10 border border-[var(--accent)]/20">
+            <span className="text-[11px] text-[var(--accent)] flex-1 min-w-0 truncate">
+              {hydraStatus === "outdated" ? t.hydra_outdated : t.hydra_missing}
+            </span>
+            <button
+              className="shrink-0 text-[10px] font-medium px-2 py-0.5 rounded bg-[var(--accent)] text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+              onClick={handleHydraBannerAction}
+              disabled={hydraEnabling}
+            >
+              {hydraEnabling ? "..." : hydraStatus === "outdated" ? t.hydra_update : t.hydra_enable_action}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Segmented Tab Bar ── */}
       <div className="shrink-0 px-2 pt-2 pb-1.5">
         <div className="flex items-center gap-0.5 rounded-lg bg-[var(--bg)] p-0.5">

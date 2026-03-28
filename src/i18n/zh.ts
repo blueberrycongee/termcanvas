@@ -120,8 +120,10 @@ export const zh = {
   hydra_enable_already_current: (name: string) =>
     `“${name}”的 Hydra 指令已经是最新版本。`,
   hydra_enable_failed: (message: string) => `启用 Hydra 失败：${message}`,
-  hydra_outdated: (name: string) => `"${name}"的 Hydra 工具链版本过时，请点击 Git 面板的 ⚡ 按钮更新。`,
-  hydra_missing: (name: string) => `"${name}"尚未启用 Hydra 工具链，请点击 Git 面板的 ⚡ 按钮启用。`,
+  hydra_outdated: "Hydra 工具链版本过时",
+  hydra_missing: "Hydra 工具链未启用",
+  hydra_update: "更新",
+  hydra_enable_action: "启用",
 
   // TerminalTile
   terminal_api_unavailable: "终端 API 不可用，未在 Electron 中运行。",
