@@ -259,8 +259,9 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
     if (!ctxMenu) return [];
     const { path: filePath, isDir, parentDir, name } = ctxMenu;
     const targetDir = isDir ? filePath : parentDir;
+    const isRoot = filePath === worktreePath;
 
-    return [
+    const items: MenuItem[] = [
       {
         label: t.ctx_new_file,
         onClick: () => {
@@ -276,22 +277,30 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
           setEditing({ type: "newFolder", parentDir: targetDir, path: targetDir, name: "" });
         },
       },
-      { type: "separator" },
-      {
-        label: t.ctx_rename,
-        onClick: () => {
-          setEditing({ type: "rename", parentDir, path: filePath, name });
+    ];
+
+    if (!isRoot) {
+      items.push(
+        { type: "separator" },
+        {
+          label: t.ctx_rename,
+          onClick: () => {
+            setEditing({ type: "rename", parentDir, path: filePath, name });
+          },
         },
-      },
-      {
-        label: t.ctx_delete,
-        danger: true,
-        onClick: () => {
-          if (window.confirm(t.ctx_confirm_delete(name))) {
-            handleDelete(filePath, parentDir);
-          }
+        {
+          label: t.ctx_delete,
+          danger: true,
+          onClick: () => {
+            if (window.confirm(t.ctx_confirm_delete(name))) {
+              handleDelete(filePath, parentDir);
+            }
+          },
         },
-      },
+      );
+    }
+
+    items.push(
       { type: "separator" },
       {
         label: t.ctx_copy_path,
@@ -305,8 +314,10 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
           window.termcanvas.fs.reveal(filePath);
         },
       },
-    ];
-  }, [ctxMenu, t, expandedDirs, toggleDir, handleDelete]);
+    );
+
+    return items;
+  }, [ctxMenu, worktreePath, t, expandedDirs, toggleDir, handleDelete]);
 
   const renderEntries = (dirPath: string, depth: number): React.ReactNode => {
     const items = entries.get(dirPath);
