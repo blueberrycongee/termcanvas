@@ -154,6 +154,11 @@ body {
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 
+/* Override xterm's default cursor on viewport so text selection works naturally */
+.xterm .xterm-viewport {
+  cursor: text;
+}
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar {
   width: 5px;
