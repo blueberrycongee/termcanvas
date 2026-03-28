@@ -213,6 +213,8 @@ export const zh = {
   drawing_toggle_desc: "实验性功能。在画布上进行自由绘图和标注",
   browser_toggle: "内置浏览器入口",
   browser_toggle_desc: "实验性功能。开启后会在顶部工具栏显示打开浏览器按钮",
+  smart_render_toggle: "智能渲染",
+  smart_render_toggle_desc: "将 AI CLI 输出（代码块、Markdown、Diff）渲染为富文本覆盖层",
   shortcuts_reset: "恢复默认",
   shortcuts_press_hint: "按下快捷键…",
   shortcuts_conflict: "与其他快捷键冲突",
