@@ -56,35 +56,6 @@ function clearAnimationResetTimer() {
   }
 }
 
-function getFocusedTerminalId(): string | null {
-  // Lazy import to avoid circular dependency
-  const { useProjectStore } = require("./projectStore");
-  const { projects } = useProjectStore.getState();
-  for (const p of projects) {
-    for (const w of p.worktrees) {
-      for (const t of w.terminals) {
-        if (t.focused) return t.id;
-      }
-    }
-  }
-  return null;
-}
-
-let panelRecenterRaf: number | null = null;
-
-function schedulePanelRecenter() {
-  if (panelRecenterRaf !== null) cancelAnimationFrame(panelRecenterRaf);
-  panelRecenterRaf = requestAnimationFrame(() => {
-    panelRecenterRaf = null;
-    const tid = getFocusedTerminalId();
-    if (tid) {
-      // Lazy import to avoid circular dependency
-      const { panToTerminal } = require("../utils/panToTerminal");
-      panToTerminal(tid);
-    }
-  });
-}
-
 function viewportEquals(a: Viewport, b: Viewport) {
   return (
     Math.abs(a.x - b.x) < 0.001 &&
@@ -132,7 +103,6 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setLeftPanelCollapsed: (collapsed) => {
     set({ leftPanelCollapsed: collapsed });
     markDirty();
-    schedulePanelRecenter();
   },
   setLeftPanelWidth: (width) => {
     set({ leftPanelWidth: width });

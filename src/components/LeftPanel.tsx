@@ -8,6 +8,7 @@ import { DiffContent } from "./LeftPanel/DiffContent";
 import { GitContent } from "./LeftPanel/GitContent";
 import { PreviewContent } from "./LeftPanel/PreviewContent";
 import { HydraSetupPopup } from "./HydraSetupPopup";
+import { panToTerminal } from "../utils/panToTerminal";
 import type { LeftPanelTab } from "../stores/canvasStore";
 
 // ── Tab icon SVGs (14×14, matching the minimal aesthetic) ──
@@ -75,6 +76,18 @@ export function LeftPanel() {
   const [hydraEnabling, setHydraEnabling] = useState(false);
   const [hydraStatus, setHydraStatus] = useState<"missing" | "outdated" | null>(null);
   const checkedProjectRef = useRef<string | null>(null);
+
+  // Re-center the focused terminal when the left panel opens/closes
+  const prevCollapsedRef = useRef(collapsed);
+  useEffect(() => {
+    if (prevCollapsedRef.current === collapsed) return;
+    prevCollapsedRef.current = collapsed;
+    const tid = projects
+      .flatMap((p) => p.worktrees)
+      .flatMap((w) => w.terminals)
+      .find((t) => t.focused)?.id;
+    if (tid) panToTerminal(tid);
+  }, [collapsed, projects]);
 
   const focusedProject = useMemo(() => {
     if (!focusedWorktreeId) return null;
