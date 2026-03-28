@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 
 test("findExplicitReferences extracts cross-file markdown links", async () => {
   const { findExplicitReferences } = await import(
@@ -221,4 +224,48 @@ test("generateEnhancedIndex omits sections with no entries", async () => {
   const output = generateEnhancedIndex(nodes);
   assert.ok(output.includes("## References"));
   assert.ok(!output.includes("## Time-sensitive"));
+});
+
+test("MemoryIndexCache writes index and hash files", async () => {
+  const { MemoryIndexCache } = await import(
+    `../electron/memory-index-generator.ts?cache-write-${Date.now()}`
+  );
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mic-test-"));
+  try {
+    const cache = new MemoryIndexCache(tmpDir);
+    const result = cache.update("test content");
+    assert.equal(result, true);
+    assert.equal(
+      fs.readFileSync(path.join(tmpDir, "memory-index.md"), "utf-8"),
+      "test content",
+    );
+    assert.ok(fs.existsSync(path.join(tmpDir, "memory-index.hash")));
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("MemoryIndexCache skips write when content unchanged", async () => {
+  const { MemoryIndexCache } = await import(
+    `../electron/memory-index-generator.ts?cache-skip-${Date.now()}`
+  );
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mic-test-"));
+  try {
+    const cache = new MemoryIndexCache(tmpDir);
+    cache.update("same content");
+    const mtime1 = fs.statSync(
+      path.join(tmpDir, "memory-index.md"),
+    ).mtimeMs;
+    await new Promise((r) => setTimeout(r, 50));
+    const result = cache.update("same content");
+    assert.equal(result, false);
+    const mtime2 = fs.statSync(
+      path.join(tmpDir, "memory-index.md"),
+    ).mtimeMs;
+    assert.equal(mtime1, mtime2);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });

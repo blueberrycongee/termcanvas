@@ -1,3 +1,7 @@
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+
 export interface MemoryNodeLike {
   fileName: string;
   type: string;
@@ -66,6 +70,41 @@ export function generateEnhancedIndex(nodes: MemoryNodeLike[]): string {
 
   output += "</memory-graph>";
   return output;
+}
+
+export class MemoryIndexCache {
+  private dir: string;
+
+  constructor(dir: string) {
+    this.dir = dir;
+  }
+
+  update(content: string): boolean {
+    const hashFile = path.join(this.dir, "memory-index.hash");
+    const indexFile = path.join(this.dir, "memory-index.md");
+
+    const newHash = crypto.createHash("md5").update(content).digest("hex");
+
+    try {
+      const oldHash = fs.readFileSync(hashFile, "utf-8").trim();
+      if (oldHash === newHash) return false;
+    } catch {}
+
+    if (!fs.existsSync(this.dir)) {
+      fs.mkdirSync(this.dir, { recursive: true });
+    }
+    fs.writeFileSync(indexFile, content, "utf-8");
+    fs.writeFileSync(hashFile, newHash, "utf-8");
+    return true;
+  }
+
+  read(): string {
+    try {
+      return fs.readFileSync(path.join(this.dir, "memory-index.md"), "utf-8");
+    } catch {
+      return "";
+    }
+  }
 }
 
 export function findExplicitReferences(nodes: MemoryNodeLike[]): Reference[] {
