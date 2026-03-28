@@ -459,6 +459,50 @@ export function TerminalTile({
     };
   }, [lodMode]);
 
+  // Intercept drag events on the xterm container in the capture phase so they
+  // are not swallowed by xterm's own handlers.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || lodMode !== "live") return;
+
+    const onDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+      setDragOver(true);
+    };
+
+    const onDragLeave = (e: DragEvent) => {
+      e.stopPropagation();
+      setDragOver(false);
+    };
+
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragOver(false);
+
+      const filePath = e.dataTransfer?.getData("text/plain");
+      if (!filePath) return;
+
+      const ptyId = getTerminalPtyId(terminal.id);
+      if (ptyId === null) return;
+
+      const escaped = shellEscapePath(filePath);
+      window.termcanvas.terminal.input(ptyId, escaped);
+    };
+
+    container.addEventListener("dragover", onDragOver, true);
+    container.addEventListener("dragleave", onDragLeave, true);
+    container.addEventListener("drop", onDrop, true);
+
+    return () => {
+      container.removeEventListener("dragover", onDragOver, true);
+      container.removeEventListener("dragleave", onDragLeave, true);
+      container.removeEventListener("drop", onDrop, true);
+    };
+  }, [lodMode, terminal.id]);
+
   const handleClose = useCallback(() => {
     destroyTerminalRuntime(terminal.id);
     removeTerminal(projectId, worktreeId, terminal.id);
