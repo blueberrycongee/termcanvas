@@ -2,7 +2,7 @@ import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { getTerminalGeometry } from "../terminal/terminalGeometryRegistry";
-import { getCanvasRightInset } from "../canvas/viewportBounds";
+import { getCanvasRightInset, getCanvasLeftInset, clampCenterX } from "../canvas/viewportBounds";
 import {
   packTerminals,
   PROJ_PAD,
@@ -17,17 +17,23 @@ import {
 export function panToTerminal(terminalId: string): void {
   const publishedGeometry = getTerminalGeometry(terminalId);
   if (publishedGeometry) {
-    const { rightPanelCollapsed } = useCanvasStore.getState();
+    const { rightPanelCollapsed, leftPanelCollapsed, leftPanelWidth } =
+      useCanvasStore.getState();
     const rightOffset = getCanvasRightInset(rightPanelCollapsed);
+    const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
     const padding = 60;
     const viewW = window.innerWidth - rightOffset - padding * 2;
     const viewH = window.innerHeight - padding * 2;
     const scale =
       Math.min(viewW / publishedGeometry.w, viewH / publishedGeometry.h) * 0.85;
 
-    const centerX =
-      -(publishedGeometry.x + publishedGeometry.w / 2) * scale +
-      (window.innerWidth - rightOffset) / 2;
+    const centerX = clampCenterX(
+      publishedGeometry.x,
+      publishedGeometry.w,
+      scale,
+      leftOffset,
+      rightOffset,
+    );
     const centerY =
       -(publishedGeometry.y + publishedGeometry.h / 2) * scale +
       window.innerHeight / 2;
