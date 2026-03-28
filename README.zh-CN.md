@@ -155,7 +155,7 @@ Hydra 是 TermCanvas 的终端编排框架，用于多 agent 工作流。它将 
 
 **设计理念：** 每个 agent 在自己的终端中运行，拥有全新的上下文和完全的自主权。Agent 之间不共享对话历史——它们共享的是 **worktree**（磁盘上的代码）和**结构化文件契约**（`handoff.json`、`task.md`、`result.json`、`done`）。终端输出不具权威性，经过验证的文件才是唯一的事实来源。如果 workflow 失败，丢弃 worktree 重新开始。
 
-这一设计受到 [Anthropic 关于长时间运行 agent 编排的 harness 设计研究](https://www.anthropic.com/engineering/harness-design-long-running-apps)的启发，并针对终端 agent（每个进程天然隔离）做了适配。
+这一设计受到 [Anthropic 关于长时间运行 agent 编排的 harness 设计研究](https://www.anthropic.com/engineering/harness-design-long-running-apps)的启发，并针对终端 agent（每个进程天然隔离）做了适配。关于这一设计背后的理论基础，参见[从数据分布视角看 Harness 设计](harness-design-essay.md)。
 
 #### 开始使用
 
