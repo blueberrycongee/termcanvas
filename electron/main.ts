@@ -714,6 +714,8 @@ function setupIpc() {
   ipcMain.handle(
     "fs:rename",
     (_event, oldPath: string, newName: string) => {
+      const basename = path.basename(newName);
+      if (basename !== newName || !newName) throw new Error("Invalid name");
       const newPath = path.join(path.dirname(oldPath), newName);
       fs.renameSync(oldPath, newPath);
     },
@@ -729,6 +731,8 @@ function setupIpc() {
   ipcMain.handle(
     "fs:mkdir",
     (_event, dirPath: string, name: string) => {
+      const basename = path.basename(name);
+      if (basename !== name || !name) throw new Error("Invalid name");
       fs.mkdirSync(path.join(dirPath, name), { recursive: true });
     },
   );
@@ -736,6 +740,8 @@ function setupIpc() {
   ipcMain.handle(
     "fs:create-file",
     (_event, dirPath: string, name: string) => {
+      const basename = path.basename(name);
+      if (basename !== name || !name) throw new Error("Invalid name");
       const filePath = path.join(dirPath, name);
       if (fs.existsSync(filePath)) throw new Error("File already exists");
       fs.writeFileSync(filePath, "", "utf-8");
