@@ -38,6 +38,36 @@ export function findTimeSensitiveMemories(
   return results;
 }
 
+export function generateEnhancedIndex(nodes: MemoryNodeLike[]): string {
+  if (nodes.length === 0) return "";
+
+  const references = findExplicitReferences(nodes);
+  const timeSensitive = findTimeSensitiveMemories(nodes);
+
+  if (references.length === 0 && timeSensitive.length === 0) return "";
+
+  let output = '<memory-graph source="termcanvas">\n\n';
+
+  if (references.length > 0) {
+    output += "## References\n";
+    for (const ref of references) {
+      output += `- ${ref.from} \u2192 ${ref.to}\n`;
+    }
+    output += "\n";
+  }
+
+  if (timeSensitive.length > 0) {
+    output += "## Time-sensitive\n";
+    for (const ts of timeSensitive) {
+      output += `- ${ts.fileName} \u2014 mentions date ${ts.date} (>${ts.daysAgo}d ago)\n`;
+    }
+    output += "\n";
+  }
+
+  output += "</memory-graph>";
+  return output;
+}
+
 export function findExplicitReferences(nodes: MemoryNodeLike[]): Reference[] {
   const linkRe = /\[([^\]]*)\]\(([^)]+\.md)\)/g;
   const nodeFileNames = new Set(nodes.map((n) => n.fileName));

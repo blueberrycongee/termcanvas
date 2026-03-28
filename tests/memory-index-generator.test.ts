@@ -147,3 +147,78 @@ test("findTimeSensitiveMemories reports only one entry per file", async () => {
   const results = findTimeSensitiveMemories(nodes);
   assert.equal(results.length, 1);
 });
+
+test("generateEnhancedIndex produces full memory-graph block", async () => {
+  const { generateEnhancedIndex } = await import(
+    `../electron/memory-index-generator.ts?enh-full-${Date.now()}`
+  );
+
+  const oldDate = new Date(Date.now() - 30 * 86400000)
+    .toISOString()
+    .slice(0, 10);
+  const nodes = [
+    {
+      fileName: "MEMORY.md",
+      type: "index",
+      body: `- [Auth](project_auth.md)\n- [DB](feedback_db.md)`,
+    },
+    {
+      fileName: "project_auth.md",
+      type: "project",
+      body: `Auth notes.\nSee [DB feedback](feedback_db.md).\nCreated ${oldDate}.`,
+    },
+    {
+      fileName: "feedback_db.md",
+      type: "feedback",
+      body: `Database tips.`,
+    },
+  ];
+
+  const output = generateEnhancedIndex(nodes);
+  assert.ok(output.includes('<memory-graph source="termcanvas">'));
+  assert.ok(output.includes("</memory-graph>"));
+  assert.ok(output.includes("## References"));
+  assert.ok(output.includes("project_auth.md \u2192 feedback_db.md"));
+  assert.ok(output.includes("## Time-sensitive"));
+  assert.ok(output.includes(oldDate));
+});
+
+test("generateEnhancedIndex returns empty string when no signals", async () => {
+  const { generateEnhancedIndex } = await import(
+    `../electron/memory-index-generator.ts?enh-empty-${Date.now()}`
+  );
+
+  const nodes = [
+    {
+      fileName: "plain.md",
+      type: "feedback",
+      body: `Just some plain text with no links or dates.`,
+    },
+  ];
+
+  const output = generateEnhancedIndex(nodes);
+  assert.equal(output, "");
+});
+
+test("generateEnhancedIndex omits sections with no entries", async () => {
+  const { generateEnhancedIndex } = await import(
+    `../electron/memory-index-generator.ts?enh-partial-${Date.now()}`
+  );
+
+  const nodes = [
+    {
+      fileName: "project_auth.md",
+      type: "project",
+      body: `Auth notes. See [DB feedback](feedback_db.md).`,
+    },
+    {
+      fileName: "feedback_db.md",
+      type: "feedback",
+      body: `Database tips.`,
+    },
+  ];
+
+  const output = generateEnhancedIndex(nodes);
+  assert.ok(output.includes("## References"));
+  assert.ok(!output.includes("## Time-sensitive"));
+});
