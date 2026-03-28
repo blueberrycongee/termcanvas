@@ -26,6 +26,8 @@ import {
   TerminalMountMode,
   toPreviewText,
 } from "./terminalRuntimePolicy";
+import { SmartRenderPipeline } from "./smartRender/pipeline";
+import { updateSegments, updateViewportY, updateCellDimensions, clearSmartRender } from "./smartRender/smartRenderStore";
 import {
   createTerminalSelectionAutoCopyState,
   markTerminalSelectionChanged,
@@ -90,6 +92,8 @@ interface ManagedTerminalRuntime {
   wasResumeAttempt: boolean;
   watchedSessionId: string | null;
   xterm: XtermTerminal | null;
+  smartPipeline: SmartRenderPipeline | null;
+  smartTimeoutTimer: ReturnType<typeof setInterval> | null;
 }
 
 type XtermTerminalConstructor = new (
@@ -440,6 +444,25 @@ function setTerminalType(
       type,
     );
   updateTerminalInStore(runtime, (terminal) => ({ ...terminal, type }));
+
+  if (
+    (type === "claude" || type === "codex") &&
+    usePreferencesStore.getState().smartRenderEnabled &&
+    !runtime.smartPipeline
+  ) {
+    const offset = runtime.xterm
+      ? runtime.xterm.buffer.active.baseY + runtime.xterm.buffer.active.cursorY
+      : 0;
+    runtime.smartPipeline = new SmartRenderPipeline(offset);
+    runtime.smartTimeoutTimer = setInterval(() => {
+      if (runtime.smartPipeline) {
+        const flushed = runtime.smartPipeline.checkTimeouts();
+        if (flushed.length > 0) {
+          updateSegments(runtime.meta.terminal.id, [...runtime.smartPipeline.getSegments()]);
+        }
+      }
+    }, 2_000);
+  }
 }
 
 function lookupCurrentTerminal(runtime: ManagedTerminalRuntime) {
@@ -546,6 +569,25 @@ function createTerminalRenderer(
       bufferService.isUserScrolling = false;
       xterm.scrollToBottom();
     }
+    if (runtime.smartPipeline) {
+      updateViewportY(runtime.meta.terminal.id, xterm.buffer.active.viewportY);
+    }
+  });
+
+  xterm.onResize(() => {
+    if (runtime.smartPipeline) {
+      runtime.smartPipeline.reset();
+      clearSmartRender(runtime.meta.terminal.id);
+    }
+    const renderDims = (xterm as any)._core?._renderService?.dimensions;
+    if (renderDims) {
+      updateCellDimensions(runtime.meta.terminal.id, {
+        cellWidth: renderDims.css.cell.width,
+        cellHeight: renderDims.css.cell.height,
+        cols: xterm.cols,
+        rows: xterm.rows,
+      });
+    }
   });
 
   try {
@@ -613,6 +655,16 @@ function createTerminalRenderer(
   runtime.xterm = xterm;
   runtime.fitAddon = fitAddon;
   runtime.serializeAddon = serializeAddon;
+
+  const renderDims = (xterm as any)._core?._renderService?.dimensions;
+  if (renderDims) {
+    updateCellDimensions(runtime.meta.terminal.id, {
+      cellWidth: renderDims.css.cell.width,
+      cellHeight: renderDims.css.cell.height,
+      cols: xterm.cols,
+      rows: xterm.rows,
+    });
+  }
 
   registerTerminal(runtime.meta.terminal.id, xterm, serializeAddon);
   if (runtime.previewAnsi) {
@@ -790,6 +842,18 @@ function triggerDetection(runtime: ManagedTerminalRuntime) {
 function handleRuntimeOutput(runtime: ManagedTerminalRuntime, data: string) {
   appendPreview(runtime, data);
   runtime.xterm?.write(data);
+
+  if (runtime.smartPipeline) {
+    if (data.includes("\x1b[2J") || data.includes("\x1b[3J")) {
+      runtime.smartPipeline.reset();
+      clearSmartRender(runtime.meta.terminal.id);
+    }
+    const newSegments = runtime.smartPipeline.feed(data);
+    if (newSegments.length > 0) {
+      updateSegments(runtime.meta.terminal.id, [...runtime.smartPipeline.getSegments()]);
+    }
+  }
+
   triggerDetection(runtime);
 
   if (!runtime.activityThrottled) {
@@ -870,6 +934,8 @@ function buildTerminalRuntime(
       ),
     watchedSessionId: null,
     xterm: null,
+    smartPipeline: null,
+    smartTimeoutTimer: null,
   };
 
   updateRuntimeSnapshot(meta.terminal.id, {
@@ -1164,6 +1230,12 @@ export function destroyTerminalRuntime(terminalId: string) {
   }
 
   runtime.disposed = true;
+  if (runtime.smartTimeoutTimer) {
+    clearInterval(runtime.smartTimeoutTimer);
+    runtime.smartTimeoutTimer = null;
+  }
+  runtime.smartPipeline = null;
+  clearSmartRender(terminalId);
   clearRuntimeTimers(runtime);
   runtime.sessionCancel?.();
   runtime.sessionCancel = null;

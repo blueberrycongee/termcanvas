@@ -25,6 +25,7 @@ import {
   cancelScheduledTerminalFocus,
   scheduleTerminalFocus,
 } from "./focusScheduler";
+import { SmartRenderOverlay } from "./smartRender/SmartRenderOverlay";
 
 interface Props {
   lodMode: TerminalMountMode;
@@ -642,20 +643,27 @@ export function TerminalTile({
 
       {lodMode === "live" ? (
         <div
-          ref={containerRef}
-          className={terminal.minimized ? "" : "flex-1 min-h-0"}
-          style={{
-            height: terminal.minimized ? 0 : undefined,
-            padding: terminal.minimized ? 0 : 4,
-            overflow: "hidden",
-          }}
-          onClick={() => {
-            const adapter = getComposerAdapter(terminal.type);
-            if (!adapter || adapter.inputMode === "type" || !composerEnabled) {
-              scheduleXtermFocus();
-            }
-          }}
-        />
+          className={terminal.minimized ? "" : "relative flex-1 min-h-0"}
+          style={{ height: terminal.minimized ? 0 : undefined, overflow: "hidden" }}
+        >
+          <div
+            ref={containerRef}
+            className="h-full"
+            style={{
+              padding: terminal.minimized ? 0 : 4,
+              overflow: "hidden",
+            }}
+            onClick={() => {
+              const adapter = getComposerAdapter(terminal.type);
+              if (!adapter || adapter.inputMode === "type" || !composerEnabled) {
+                scheduleXtermFocus();
+              }
+            }}
+          />
+          {!terminal.minimized && (terminal.type === "claude" || terminal.type === "codex") && (
+            <SmartRenderOverlay terminalId={terminal.id} />
+          )}
+        </div>
       ) : (
         <div
           className={terminal.minimized ? "" : "flex-1 min-h-0"}
