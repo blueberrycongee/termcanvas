@@ -23,6 +23,7 @@ import { normalizeProjectsFocus, findNextVisibleTerminalId } from "./projectFocu
 import { useWorkspaceStore } from "./workspaceStore.ts";
 import { usePreferencesStore } from "./preferencesStore.ts";
 import { logSlowRendererPath, measureRendererSync } from "../utils/devPerf.ts";
+import { useFocusTileSizeStore } from "./focusTileSizeStore.ts";
 
 interface ProjectStore {
   projects: ProjectData[];
@@ -1181,7 +1182,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     });
   },
 
-  clearFocus: () =>
+  clearFocus: () => {
+    useFocusTileSizeStore.getState().clear();
     set((state) => {
       const { currentFocusedTerminalId } = inspectFocus(state.projects, null);
       const projects = updateFocusedTerminalFlags(
@@ -1203,7 +1205,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         focusedWorktreeId: null,
         projects,
       };
-    }),
+    });
+  },
 
   setProjects: (projects) => {
     set(() => normalizeProjectsFocus(projects));
