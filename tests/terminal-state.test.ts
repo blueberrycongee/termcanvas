@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 import {
   getTerminalHeaderContextLabel,
@@ -79,6 +81,68 @@ test("getTerminalHeaderContextLabel prefers the worktree branch label", () => {
 test("getTerminalHeaderContextLabel falls back to the terminal title when no worktree label exists", () => {
   assert.equal(getTerminalHeaderContextLabel("", "Terminal"), "Terminal");
   assert.equal(getTerminalHeaderContextLabel("   ", "Codex"), "Codex");
+});
+
+test("TerminalTile gives the worktree branch label layout priority over truncation", async () => {
+  const terminal: TerminalData = {
+    id: "terminal-1",
+    title: "Terminal",
+    type: "shell",
+    minimized: false,
+    focused: false,
+    ptyId: null,
+    status: "idle",
+    span: { cols: 1, rows: 1 },
+  };
+
+  Object.assign(globalThis, {
+    localStorage: {
+      getItem: () => null,
+      setItem: () => undefined,
+      removeItem: () => undefined,
+    },
+  });
+
+  const { TerminalTile } = await import("../src/terminal/TerminalTile.tsx");
+  const { useTerminalRuntimeStore } = await import(
+    "../src/terminal/terminalRuntimeStore.ts"
+  );
+
+  useTerminalRuntimeStore.setState({
+    terminals: {
+      [terminal.id]: {
+        copiedNonce: 0,
+        mode: "preview",
+        previewText: "",
+        telemetry: null,
+      },
+    },
+  });
+
+  const html = renderToStaticMarkup(
+    createElement(TerminalTile, {
+      lodMode: "preview",
+      projectId: "project-1",
+      worktreeId: "worktree-1",
+      worktreeName: "feature/very-long-branch-name",
+      worktreePath: "/tmp/project-1-feature",
+      terminal,
+      gridX: 0,
+      gridY: 0,
+      width: 640,
+      height: 480,
+    }),
+  );
+
+  const match = html.match(
+    /class="([^"]+)"[^>]*title="feature\/very-long-branch-name">feature\/very-long-branch-name<\/span>/,
+  );
+
+  assert.ok(match);
+  assert.match(match[1], /\bshrink-0\b/);
+  assert.match(match[1], /\bwhitespace-nowrap\b/);
+  assert.doesNotMatch(match[1], /\btruncate\b/);
+  assert.doesNotMatch(match[1], /max-w-\[9rem\]/);
 });
 
 test("withToggledTerminalStarred flips the terminal star state", () => {
