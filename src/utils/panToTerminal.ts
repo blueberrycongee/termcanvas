@@ -42,7 +42,7 @@ export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): 
 
     const centerX = clampCenterX(
       publishedGeometry.x,
-      publishedGeometry.w,
+      ideal.w,
       scale,
       leftOffset,
       rightOffset,
@@ -126,7 +126,7 @@ export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): 
 
       const scale = Math.min(viewW / ideal.w, viewH / ideal.h) * 0.90;
 
-      const centerX = clampCenterX(absX, item.w, scale, leftOffset, rightOffset);
+      const centerX = clampCenterX(absX, ideal.w, scale, leftOffset, rightOffset);
       const centerY = -(absY + item.h / 2) * scale + (topInset + window.innerHeight) / 2;
 
       if (opts?.immediate) {
