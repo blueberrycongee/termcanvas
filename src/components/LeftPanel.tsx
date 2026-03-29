@@ -165,7 +165,8 @@ export function LeftPanel() {
       e.preventDefault();
       e.stopPropagation();
       const handle = e.currentTarget as HTMLElement;
-      handle.setPointerCapture(e.pointerId);
+      const pid = e.pointerId;
+      handle.setPointerCapture(pid);
       const startX = e.clientX;
       const origW = width;
       let rafId = 0;
@@ -182,13 +183,18 @@ export function LeftPanel() {
           });
         }
       };
-      const handleUp = () => {
+      const cleanup = () => {
         cancelAnimationFrame(rafId);
         handle.removeEventListener("pointermove", handleMove);
-        handle.removeEventListener("pointerup", handleUp);
+        handle.removeEventListener("pointerup", cleanup);
+        handle.removeEventListener("pointercancel", cleanup);
+        handle.removeEventListener("lostpointercapture", cleanup);
+        try { handle.releasePointerCapture(pid); } catch {}
       };
       handle.addEventListener("pointermove", handleMove);
-      handle.addEventListener("pointerup", handleUp);
+      handle.addEventListener("pointerup", cleanup);
+      handle.addEventListener("pointercancel", cleanup);
+      handle.addEventListener("lostpointercapture", cleanup);
     },
     [width, setWidth, projects]
   );

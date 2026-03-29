@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.16.5] - 2026-03-30
+
+### Fixed
+- Left panel resize handle sticking after pointer capture loss
+
 ## [0.16.4] - 2026-03-30
 
 ### Added
