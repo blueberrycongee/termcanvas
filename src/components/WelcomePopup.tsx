@@ -139,7 +139,7 @@ function MiniCanvas({
   );
 
   useEffect(() => {
-    if (step !== 3) {
+    if (step !== 4) {
       setIsDragging(false);
       return;
     }
