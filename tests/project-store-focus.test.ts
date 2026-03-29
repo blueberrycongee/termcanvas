@@ -299,7 +299,7 @@ test("removeWorktree clears only the deleted worktree focus", () => {
   assert.equal(state.projects[0].worktrees.length, 0);
 });
 
-test("toggleProjectCollapse clears hidden terminal focus while keeping project focus", () => {
+test("toggleProjectCollapse moves focus to next visible terminal", () => {
   resetStore();
 
   useProjectStore.getState().toggleProjectCollapse("project-1");
@@ -307,11 +307,13 @@ test("toggleProjectCollapse clears hidden terminal focus while keeping project f
   const state = useProjectStore.getState();
   assert.equal(state.projects[0].collapsed, true);
   assert.equal(state.projects[0].worktrees[0].terminals[0].focused, false);
-  assert.equal(state.focusedProjectId, "project-1");
-  assert.equal(state.focusedWorktreeId, null);
+  // Focus should jump to terminal-4 in project-2
+  assert.equal(state.projects[1].worktrees[0].terminals[0].focused, true);
+  assert.equal(state.focusedProjectId, "project-2");
+  assert.equal(state.focusedWorktreeId, "worktree-2");
 });
 
-test("toggleWorktreeCollapse clears hidden terminal focus while keeping project focus", () => {
+test("toggleWorktreeCollapse moves focus to next visible terminal", () => {
   resetStore();
 
   useProjectStore.getState().toggleWorktreeCollapse("project-1", "worktree-1");
@@ -319,6 +321,27 @@ test("toggleWorktreeCollapse clears hidden terminal focus while keeping project 
   const state = useProjectStore.getState();
   assert.equal(state.projects[0].worktrees[0].collapsed, true);
   assert.equal(state.projects[0].worktrees[0].terminals[0].focused, false);
-  assert.equal(state.focusedProjectId, "project-1");
+  // Focus should jump to terminal-4 in project-2
+  assert.equal(state.projects[1].worktrees[0].terminals[0].focused, true);
+  assert.equal(state.focusedProjectId, "project-2");
+  assert.equal(state.focusedWorktreeId, "worktree-2");
+});
+
+test("toggleProjectCollapse clears focus when no visible terminal remains", () => {
+  const projects = createProjects();
+  // Collapse project-2 first so only project-1 terminals are visible
+  projects[1].collapsed = true;
+  useProjectStore.setState({
+    projects,
+    focusedProjectId: "project-1",
+    focusedWorktreeId: "worktree-1",
+  });
+
+  useProjectStore.getState().toggleProjectCollapse("project-1");
+
+  const state = useProjectStore.getState();
+  assert.equal(state.projects[0].collapsed, true);
+  assert.equal(state.projects[0].worktrees[0].terminals[0].focused, false);
+  assert.equal(state.focusedProjectId, null);
   assert.equal(state.focusedWorktreeId, null);
 });

@@ -19,7 +19,7 @@ import {
   withUpdatedTerminalCustomTitle,
   withUpdatedTerminalType,
 } from "./terminalState.ts";
-import { normalizeProjectsFocus } from "./projectFocus.ts";
+import { normalizeProjectsFocus, findNextVisibleTerminalId } from "./projectFocus.ts";
 import { useWorkspaceStore } from "./workspaceStore.ts";
 import { usePreferencesStore } from "./preferencesStore.ts";
 import { logSlowRendererPath, measureRendererSync } from "../utils/devPerf.ts";
@@ -661,22 +661,27 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       );
 
       if (currentFocusedTerminalId) {
+        const nextTerminalId = findNextVisibleTerminalId(
+          state.projects,
+          currentFocusedTerminalId,
+          projects,
+        );
         projects = updateFocusedTerminalFlags(
           projects,
           currentFocusedTerminalId,
-          null,
+          nextTerminalId,
         );
+        const lookup = inspectFocus(projects, nextTerminalId);
+        return {
+          focusedProjectId: lookup.nextProjectId,
+          focusedWorktreeId: lookup.nextWorktreeId,
+          projects,
+        };
       }
 
       return {
-        focusedProjectId:
-          nextCollapsed && state.focusedProjectId === projectId
-            ? projectId
-            : state.focusedProjectId,
-        focusedWorktreeId:
-          nextCollapsed && state.focusedProjectId === projectId
-            ? null
-            : state.focusedWorktreeId,
+        focusedProjectId: state.focusedProjectId,
+        focusedWorktreeId: state.focusedWorktreeId,
         projects,
       };
     });
@@ -814,26 +819,27 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       );
 
       if (currentFocusedTerminalId) {
+        const nextTerminalId = findNextVisibleTerminalId(
+          state.projects,
+          currentFocusedTerminalId,
+          projects,
+        );
         projects = updateFocusedTerminalFlags(
           projects,
           currentFocusedTerminalId,
-          null,
+          nextTerminalId,
         );
+        const lookup = inspectFocus(projects, nextTerminalId);
+        return {
+          focusedProjectId: lookup.nextProjectId,
+          focusedWorktreeId: lookup.nextWorktreeId,
+          projects,
+        };
       }
 
       return {
-        focusedProjectId:
-          nextCollapsed &&
-          state.focusedProjectId === projectId &&
-          state.focusedWorktreeId === worktreeId
-            ? projectId
-            : state.focusedProjectId,
-        focusedWorktreeId:
-          nextCollapsed &&
-          state.focusedProjectId === projectId &&
-          state.focusedWorktreeId === worktreeId
-            ? null
-            : state.focusedWorktreeId,
+        focusedProjectId: state.focusedProjectId,
+        focusedWorktreeId: state.focusedWorktreeId,
         projects,
       };
     });
@@ -940,15 +946,44 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     })),
 
   toggleTerminalMinimize: (projectId, worktreeId, terminalId) => {
-    set((state) => ({
-      projects: mapTerminals(
+    set((state) => {
+      const terminal = state.projects
+        .find((p) => p.id === projectId)
+        ?.worktrees.find((w) => w.id === worktreeId)
+        ?.terminals.find((t) => t.id === terminalId);
+      if (!terminal) return state;
+
+      const nextMinimized = !terminal.minimized;
+      let projects = mapTerminals(
         state.projects,
         projectId,
         worktreeId,
         terminalId,
-        (t) => ({ ...t, minimized: !t.minimized }),
-      ),
-    }));
+        (t) => ({ ...t, minimized: nextMinimized }),
+      );
+
+      // When minimizing the focused terminal, jump focus to next visible
+      if (nextMinimized && terminal.focused) {
+        const nextTerminalId = findNextVisibleTerminalId(
+          state.projects,
+          terminalId,
+          projects,
+        );
+        projects = updateFocusedTerminalFlags(
+          projects,
+          terminalId,
+          nextTerminalId,
+        );
+        const lookup = inspectFocus(projects, nextTerminalId);
+        return {
+          focusedProjectId: lookup.nextProjectId,
+          focusedWorktreeId: lookup.nextWorktreeId,
+          projects,
+        };
+      }
+
+      return { projects };
+    });
     markDirty();
   },
 

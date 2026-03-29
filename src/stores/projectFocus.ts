@@ -46,8 +46,20 @@ export function getTerminalFocusOrder(
   const terminals: Omit<TerminalFocusOrderItem, "index">[] = [];
 
   for (const project of projects) {
+    if (project.collapsed) {
+      continue;
+    }
+
     for (const worktree of project.worktrees) {
+      if (worktree.collapsed) {
+        continue;
+      }
+
       for (const terminal of worktree.terminals) {
+        if (terminal.minimized) {
+          continue;
+        }
+
         terminals.push({
           projectId: project.id,
           worktreeId: worktree.id,
@@ -58,6 +70,43 @@ export function getTerminalFocusOrder(
   }
 
   return terminals.map((terminal, index) => ({ ...terminal, index }));
+}
+
+/**
+ * Given the projects before and after a collapse, find the next visible
+ * terminal to receive focus. Walks forward from the old focused position,
+ * wrapping around if needed.
+ */
+export function findNextVisibleTerminalId(
+  oldProjects: ProjectData[],
+  focusedTerminalId: string,
+  newProjects: ProjectData[],
+): string | null {
+  const oldOrder = getTerminalFocusOrder(oldProjects);
+  const newOrder = getTerminalFocusOrder(newProjects);
+
+  if (newOrder.length === 0) return null;
+
+  const oldIdx = oldOrder.findIndex((t) => t.terminalId === focusedTerminalId);
+  if (oldIdx === -1) return newOrder[0].terminalId;
+
+  const newIds = new Set(newOrder.map((t) => t.terminalId));
+
+  // Look forward from old position
+  for (let i = oldIdx + 1; i < oldOrder.length; i++) {
+    if (newIds.has(oldOrder[i].terminalId)) {
+      return oldOrder[i].terminalId;
+    }
+  }
+
+  // Wrap around from start
+  for (let i = 0; i < oldIdx; i++) {
+    if (newIds.has(oldOrder[i].terminalId)) {
+      return oldOrder[i].terminalId;
+    }
+  }
+
+  return newOrder[0].terminalId;
 }
 
 export function normalizeProjectsFocus(
