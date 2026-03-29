@@ -24,6 +24,9 @@ import { useWorkspaceStore } from "./workspaceStore.ts";
 import { usePreferencesStore } from "./preferencesStore.ts";
 import { logSlowRendererPath, measureRendererSync } from "../utils/devPerf.ts";
 import { useFocusTileSizeStore } from "./focusTileSizeStore.ts";
+import { computeTileDimensions } from "./tileDimensionsStore.ts";
+import { getCanvasLeftInset, getCanvasRightInset } from "../canvas/viewportBounds.ts";
+import { useCanvasStore } from "./canvasStore.ts";
 
 interface ProjectStore {
   projects: ProjectData[];
@@ -1092,6 +1095,20 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
     if (terminalId !== null && focusLookup.nextProjectId === null) {
       return;
+    }
+
+    // Sync focus tile size override
+    if (terminalId) {
+      const { leftPanelCollapsed, leftPanelWidth, rightPanelCollapsed } =
+        useCanvasStore.getState();
+      const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+      const rightOffset = getCanvasRightInset(rightPanelCollapsed);
+      const ideal = computeTileDimensions(
+        window.innerWidth, window.innerHeight, leftOffset, rightOffset,
+      );
+      useFocusTileSizeStore.getState().set(terminalId, ideal.w, ideal.h);
+    } else {
+      useFocusTileSizeStore.getState().clear();
     }
 
     set((state) => {
