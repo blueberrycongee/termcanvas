@@ -176,25 +176,28 @@ function ensurePluginEnabled(settingsFile: string, sourceDir: string): void {
   }>;
 
   const hookCommand = `bash '${scriptPath}'`;
-  const alreadyRegistered = sessionStart.some((entry) =>
-    entry.hooks?.some((h) => h.command === hookCommand),
-  );
+  const scriptName = "memory-session-start.sh";
 
-  if (!alreadyRegistered) {
-    sessionStart.push({
-      matcher: "startup|clear|compact",
-      hooks: [
-        {
-          type: "command",
-          command: hookCommand,
-          timeout: 10,
-        },
-      ],
-    });
-    hooks.SessionStart = sessionStart;
-    data.hooks = hooks;
-    changed = true;
-  }
+  // Remove any existing termcanvas memory hooks (may have stale dev/prod paths)
+  const filtered = sessionStart.filter(
+    (entry) => !entry.hooks?.some((h) => h.command.includes(scriptName)),
+  );
+  const needsUpdate = filtered.length !== sessionStart.length;
+
+  // Add with current path
+  filtered.push({
+    matcher: "startup|clear|compact",
+    hooks: [
+      {
+        type: "command",
+        command: hookCommand,
+        timeout: 10,
+      },
+    ],
+  });
+  hooks.SessionStart = filtered;
+  data.hooks = hooks;
+  changed = true;
 
   if (!changed) return;
 
