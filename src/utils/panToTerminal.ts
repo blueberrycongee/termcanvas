@@ -17,6 +17,18 @@ interface PanToTerminalOptions {
   immediate?: boolean;
 }
 
+function isAlreadyFocused(terminalId: string): boolean {
+  const { projects } = useProjectStore.getState();
+  for (const p of projects) {
+    for (const w of p.worktrees) {
+      for (const t of w.terminals) {
+        if (t.focused) return t.id === terminalId;
+      }
+    }
+  }
+  return false;
+}
+
 /**
  * Animate the canvas viewport to center on the given terminal.
  */
@@ -93,7 +105,9 @@ export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): 
     } else {
       useCanvasStore.getState().animateTo(centerX, centerY, scale);
     }
-    useProjectStore.getState().setFocusedTerminal(terminalId);
+    if (!isAlreadyFocused(terminalId)) {
+      useProjectStore.getState().setFocusedTerminal(terminalId);
+    }
     useSelectionStore
       .getState()
       .selectTerminal(
@@ -111,7 +125,9 @@ export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): 
       const index = w.terminals.findIndex((t) => t.id === terminalId);
       if (index === -1) continue;
 
-      useProjectStore.getState().setFocusedTerminal(terminalId);
+      if (!isAlreadyFocused(terminalId)) {
+        useProjectStore.getState().setFocusedTerminal(terminalId);
+      }
       const { projects: focusedProjects } = useProjectStore.getState();
       const focusedProject = focusedProjects.find((candidate) => candidate.id === p.id);
       const focusedWorktree = focusedProject?.worktrees.find(
