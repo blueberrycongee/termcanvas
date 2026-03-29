@@ -178,6 +178,13 @@ function createWindow() {
   let rendererReady = false;
   // Intercept close to ask user about saving (only after page loads)
   mainWindow.webContents.on("did-finish-load", async () => {
+    // On renderer reload (HMR full-reload / manual reload), all frontend
+    // terminal references are lost.  Destroy every PTY the main process
+    // still holds so master FDs don't leak and exhaust the system limit.
+    if (rendererReady) {
+      console.warn("[PtyManager] renderer reloaded – destroying orphaned PTYs");
+      await ptyManager.destroyAll();
+    }
     rendererReady = true;
     try {
       const port = await apiServer.start();
