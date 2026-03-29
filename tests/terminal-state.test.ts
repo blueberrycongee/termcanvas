@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  getTerminalHeaderContextLabel,
   getTerminalDisplayTitle,
   normalizeTerminalCustomTitle,
   withToggledTerminalStarred,
@@ -66,6 +67,18 @@ test("getTerminalDisplayTitle includes the custom marker when present", () => {
   };
 
   assert.equal(getTerminalDisplayTitle(terminal), "fix-auth · Terminal");
+});
+
+test("getTerminalHeaderContextLabel prefers the worktree branch label", () => {
+  assert.equal(
+    getTerminalHeaderContextLabel("feature/memory-layer", "codex"),
+    "feature/memory-layer",
+  );
+});
+
+test("getTerminalHeaderContextLabel falls back to the terminal title when no worktree label exists", () => {
+  assert.equal(getTerminalHeaderContextLabel("", "Terminal"), "Terminal");
+  assert.equal(getTerminalHeaderContextLabel("   ", "Codex"), "Codex");
 });
 
 test("withToggledTerminalStarred flips the terminal star state", () => {

@@ -6,6 +6,7 @@ import { useSelectionStore } from "../stores/selectionStore";
 import { ContextMenu } from "../components/ContextMenu";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useCanvasStore } from "../stores/canvasStore";
+import { getTerminalHeaderContextLabel } from "../stores/terminalState";
 import { useT } from "../i18n/useT";
 import { getComposerAdapter } from "./cliConfig";
 import { panToTerminal } from "../utils/panToTerminal";
@@ -32,6 +33,7 @@ interface Props {
   lodMode: TerminalMountMode;
   projectId: string;
   worktreeId: string;
+  worktreeName: string;
   worktreePath: string;
   terminal: TerminalData;
   gridX: number;
@@ -183,6 +185,7 @@ export function TerminalTile({
   lodMode,
   projectId,
   worktreeId,
+  worktreeName,
   worktreePath,
   terminal,
   gridX,
@@ -232,6 +235,10 @@ export function TerminalTile({
     color: "#888",
     label: terminal.type,
   };
+  const headerContextLabel = getTerminalHeaderContextLabel(
+    worktreeName,
+    terminal.title,
+  );
 
   useEffect(() => {
     if (!isEditingCustomTitle) {
@@ -604,8 +611,9 @@ export function TerminalTile({
         <span
           className="min-w-0 max-w-[9rem] shrink truncate text-[11px] text-[var(--text-muted)]"
           style={{ fontFamily: '"Geist Mono", monospace' }}
+          title={headerContextLabel}
         >
-          {terminal.title}
+          {headerContextLabel}
         </span>
         <TelemetrySummary terminalId={terminal.id} />
         <div

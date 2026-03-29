@@ -417,6 +417,7 @@ export function WorktreeContainer({
               lodMode={layout.lodMode}
               projectId={projectId}
               worktreeId={worktree.id}
+              worktreeName={worktree.name}
               worktreePath={worktree.path}
               terminal={terminal}
               gridX={item.x + 8}

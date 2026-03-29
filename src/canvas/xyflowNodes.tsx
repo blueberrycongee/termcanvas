@@ -39,6 +39,7 @@ function WorktreeTerminalItem({
   projectId,
   terminal,
   worktreeId,
+  worktreeName,
   worktreePath,
 }: {
   dragOffsetX: number;
@@ -51,6 +52,7 @@ function WorktreeTerminalItem({
   projectId: string;
   terminal: TerminalData;
   worktreeId: string;
+  worktreeName: string;
   worktreePath: string;
 }) {
   const lodMode = useTerminalRuntimeStore(
@@ -74,6 +76,7 @@ function WorktreeTerminalItem({
       lodMode={lodMode}
       projectId={projectId}
       worktreeId={worktreeId}
+      worktreeName={worktreeName}
       worktreePath={worktreePath}
       terminal={terminal}
       gridX={item.x + 8}
@@ -516,6 +519,7 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
               key={terminal.id}
               projectId={data.projectId}
               worktreeId={worktree.id}
+              worktreeName={worktree.name}
               worktreePath={worktree.path}
               terminal={terminal}
               item={item}

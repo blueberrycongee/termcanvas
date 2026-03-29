@@ -49,3 +49,13 @@ export function getTerminalDisplayTitle(terminal: TerminalData): string {
     ? `${terminal.customTitle} · ${terminal.title}`
     : terminal.title;
 }
+
+export function getTerminalHeaderContextLabel(
+  worktreeName: string | undefined,
+  terminalTitle: string,
+): string {
+  const normalizedWorktreeName = worktreeName?.trim();
+  return normalizedWorktreeName && normalizedWorktreeName.length > 0
+    ? normalizedWorktreeName
+    : terminalTitle;
+}
