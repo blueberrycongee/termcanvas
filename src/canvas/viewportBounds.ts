@@ -19,13 +19,16 @@ export function rectIntersectsCanvasViewport(
   rect: { x: number; y: number; w: number; h: number },
   viewport: Viewport,
   rightPanelCollapsed: boolean,
+  leftPanelCollapsed: boolean,
+  leftPanelWidth: number,
   margin = 120,
 ) {
+  const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
   const left = -viewport.x / viewport.scale - margin;
   const top = -viewport.y / viewport.scale - margin;
   const right =
     left +
-    (window.innerWidth - getCanvasRightInset(rightPanelCollapsed)) /
+    (window.innerWidth - leftInset - getCanvasRightInset(rightPanelCollapsed)) /
       viewport.scale +
     margin * 2;
   const bottom = top + window.innerHeight / viewport.scale + margin * 2;

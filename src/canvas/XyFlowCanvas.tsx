@@ -83,11 +83,15 @@ function TerminalRuntimeLayer({
   projects,
   viewport,
   rightPanelCollapsed,
+  leftPanelCollapsed,
+  leftPanelWidth,
 }: {
   nodes: CanvasFlowNode[];
   projects: ReturnType<typeof useProjectStore.getState>["projects"];
   viewport: ReturnType<typeof useCanvasStore.getState>["viewport"];
   rightPanelCollapsed: boolean;
+  leftPanelCollapsed: boolean;
+  leftPanelWidth: number;
 }) {
   const managedTerminalIdsRef = useRef<Set<string>>(new Set());
   const publishedTerminalIdsRef = useRef<Set<string>>(new Set());
@@ -216,6 +220,8 @@ function TerminalRuntimeLayer({
           entry.absoluteRect,
           viewport,
           rightPanelCollapsed,
+          leftPanelCollapsed,
+          leftPanelWidth,
         );
       setTerminalRuntimeMode(
         entry.terminal.id,
@@ -225,7 +231,7 @@ function TerminalRuntimeLayer({
         }),
       );
     }
-  }, [rightPanelCollapsed, terminalEntries, viewport]);
+  }, [leftPanelCollapsed, leftPanelWidth, rightPanelCollapsed, terminalEntries, viewport]);
 
   useEffect(
     () => () => {
@@ -247,6 +253,8 @@ function XyFlowCanvasInner() {
   const t = useT();
   const viewport = useCanvasStore((state) => state.viewport);
   const rightPanelCollapsed = useCanvasStore((state) => state.rightPanelCollapsed);
+  const leftPanelCollapsed = useCanvasStore((state) => state.leftPanelCollapsed);
+  const leftPanelWidth = useCanvasStore((state) => state.leftPanelWidth);
   const projects = useProjectStore((state) => state.projects);
   const browserCards = useBrowserCardStore((state) => Object.values(state.cards));
   const { handleMouseDown: handleBoxSelectMouseDown } = useBoxSelect();
@@ -391,6 +399,8 @@ function XyFlowCanvasInner() {
         projects={projects}
         viewport={viewport}
         rightPanelCollapsed={rightPanelCollapsed}
+        leftPanelCollapsed={leftPanelCollapsed}
+        leftPanelWidth={leftPanelWidth}
       />
       <ReactFlow
         className="tc-xyflow"
