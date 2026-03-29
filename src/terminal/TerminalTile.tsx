@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useCallback, useState, useMemo } from "react";
+﻿import { useEffect, useRef, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import type { TerminalData } from "../types";
 import { useProjectStore, findTerminalById, getChildTerminals } from "../stores/projectStore";
@@ -30,8 +30,6 @@ import {
   scheduleTerminalFocus,
 } from "./focusScheduler";
 import { useSidebarDragStore } from "../stores/sidebarDragStore";
-import { snapshotBuffer, reflowSnapshot, type BufferSnapshot } from "./agentReflow";
-import { AgentReflowOverlay } from "./AgentReflowOverlay";
 
 interface Props {
   lodMode: TerminalMountMode;
@@ -221,16 +219,7 @@ export function TerminalTile({
   const isAgent = terminal.type === "claude" || terminal.type === "codex";
   const sidebarDragActive = useSidebarDragStore((s) => s.active);
 
-  interface ReflowState {
-    snapshot: BufferSnapshot;
-    cellWidth: number;
-    cellHeight: number;
-    fontFamily: string;
-    fontSize: number;
-    fgColor: string;
-    bgColor: string;
-  }
-  const [reflowState, setReflowState] = useState<ReflowState | null>(null);
+  const [frozenDims, setFrozenDims] = useState<{ width: number; height: number; bgColor: string } | null>(null);
 
   const {
     removeTerminal,
@@ -345,41 +334,21 @@ export function TerminalTile({
 
   useEffect(() => {
     if (!isAgent || !sidebarDragActive) {
-      setReflowState(null);
+      setFrozenDims(null);
       return;
     }
-    const runtime = getTerminalRuntime(terminal.id);
-    if (!runtime?.xterm) return;
+    const el = containerRef.current;
+    if (!el) return;
 
-    const xterm = runtime.xterm;
-    const dims = (xterm as unknown as Record<string, unknown>)._core as
-      | { _renderService?: { dimensions?: { css?: { cell?: { width: number; height: number } } } } }
-      | undefined;
-    const cell = dims?._renderService?.dimensions?.css?.cell;
-    if (!cell) return;
+    const bgColor =
+      getTerminalRuntime(terminal.id)?.xterm?.options.theme?.background ?? "#1e1e1e";
 
-    const snap = snapshotBuffer(
-      { buffer: { active: xterm.buffer.active } },
-      xterm.cols,
-    );
-
-    setReflowState({
-      snapshot: snap,
-      cellWidth: cell.width,
-      cellHeight: cell.height,
-      fontFamily: xterm.options.fontFamily ?? "monospace",
-      fontSize: xterm.options.fontSize ?? 13,
-      fgColor: xterm.options.theme?.foreground ?? "#cccccc",
-      bgColor: xterm.options.theme?.background ?? "#1e1e1e",
+    setFrozenDims({
+      width: el.offsetWidth,
+      height: el.offsetHeight,
+      bgColor,
     });
   }, [isAgent, sidebarDragActive, terminal.id]);
-
-  const reflowResult = useMemo(() => {
-    if (!reflowState) return null;
-    const containerWidth = width;
-    const newCols = Math.max(1, Math.floor(containerWidth / reflowState.cellWidth));
-    return reflowSnapshot(reflowState.snapshot, newCols);
-  }, [reflowState, width]);
 
   const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
   const focusLiveTerminal = useCallback(() => {
@@ -785,15 +754,18 @@ export function TerminalTile({
           style={{
             height: terminal.minimized ? 0 : undefined,
             overflow: "hidden",
+            backgroundColor: frozenDims?.bgColor,
           }}
         >
           <div
             ref={containerRef}
-            className="absolute inset-0"
+            className={frozenDims ? "absolute" : "absolute inset-0"}
             style={{
               padding: 0,
               overflow: "hidden",
-              visibility: reflowResult ? "hidden" : undefined,
+              ...(frozenDims
+                ? { top: 0, left: 0, width: frozenDims.width, height: frozenDims.height }
+                : undefined),
             }}
             onClick={() => {
               const adapter = getComposerAdapter(terminal.type);
@@ -802,19 +774,6 @@ export function TerminalTile({
               }
             }}
           />
-          {reflowResult && reflowState && !terminal.minimized && (
-            <AgentReflowOverlay
-              reflowResult={reflowResult}
-              width={width}
-              height={height - 40}
-              cellWidth={reflowState.cellWidth}
-              cellHeight={reflowState.cellHeight}
-              fontFamily={reflowState.fontFamily}
-              fontSize={reflowState.fontSize}
-              fgColor={reflowState.fgColor}
-              bgColor={reflowState.bgColor}
-            />
-          )}
         </div>
       ) : (
         <div
