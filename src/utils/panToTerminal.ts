@@ -10,8 +10,7 @@ import {
   WT_PAD,
   WT_TITLE_H,
 } from "../layout";
-import { computeTileDimensions } from "../stores/tileDimensionsStore";
-import { useFocusTileSizeStore } from "../stores/focusTileSizeStore";
+import { useTileDimensionsStore, setTrackSidebar, recomputeTileDimensions } from "../stores/tileDimensionsStore";
 
 interface PanToTerminalOptions {
   /** Skip animation and set viewport immediately (e.g. during drag). */
@@ -22,6 +21,9 @@ interface PanToTerminalOptions {
  * Animate the canvas viewport to center on the given terminal.
  */
 export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): void {
+  setTrackSidebar(true);
+  recomputeTileDimensions();
+
   const publishedGeometry = getTerminalGeometry(terminalId);
   if (publishedGeometry) {
     const { rightPanelCollapsed, leftPanelCollapsed, leftPanelWidth } =
@@ -33,22 +35,57 @@ export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): 
     const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
     const viewH = window.innerHeight - padding * 2;
 
-    // Compute ideal tile size for this viewport and set override
-    const ideal = computeTileDimensions(window.innerWidth, window.innerHeight, leftOffset, rightOffset);
-    useFocusTileSizeStore.getState().set(terminalId, ideal.w, ideal.h);
-
+    const tileDims = useTileDimensionsStore.getState();
     const scale =
-      Math.min(viewW / ideal.w, viewH / ideal.h) * 0.90;
+      Math.min(viewW / tileDims.w, viewH / tileDims.h) * 0.90;
+
+    // Recompute position from the project store with current tile dims.
+    // Published geometry may be stale after a tile-dim recomputation
+    // (e.g. sidebar resized while no terminal was focused).
+    let absX = publishedGeometry.x;
+    let absY = publishedGeometry.y;
+    let absH = publishedGeometry.h;
+    const { projects } = useProjectStore.getState();
+    const geomProject = projects.find((p) => p.id === publishedGeometry.projectId);
+    const geomWorktree = geomProject?.worktrees.find(
+      (w) => w.id === publishedGeometry.worktreeId,
+    );
+    if (geomProject && geomWorktree) {
+      const idx = geomWorktree.terminals.findIndex((t) => t.id === terminalId);
+      if (idx !== -1) {
+        const packed = packTerminals(
+          geomWorktree.terminals.map((t) => t.span),
+        );
+        const item = packed[idx];
+        if (item) {
+          absX =
+            geomProject.position.x +
+            PROJ_PAD +
+            geomWorktree.position.x +
+            WT_PAD +
+            item.x;
+          absY =
+            geomProject.position.y +
+            PROJ_TITLE_H +
+            PROJ_PAD +
+            geomWorktree.position.y +
+            WT_TITLE_H +
+            WT_PAD +
+            item.y;
+          absH = item.h;
+        }
+      }
+    }
 
     const centerX = clampCenterX(
-      publishedGeometry.x,
-      ideal.w,
+      absX,
+      tileDims.w,
       scale,
       leftOffset,
       rightOffset,
     );
     const centerY =
-      -(publishedGeometry.y + publishedGeometry.h / 2) * scale +
+      -(absY + absH / 2) * scale +
       (topInset + window.innerHeight) / 2;
 
     if (opts?.immediate) {
@@ -121,12 +158,10 @@ export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): 
       const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
       const viewH = window.innerHeight - padding * 2;
 
-      const ideal = computeTileDimensions(window.innerWidth, window.innerHeight, leftOffset, rightOffset);
-      useFocusTileSizeStore.getState().set(terminalId, ideal.w, ideal.h);
+      const tileDims = useTileDimensionsStore.getState();
+      const scale = Math.min(viewW / tileDims.w, viewH / tileDims.h) * 0.90;
 
-      const scale = Math.min(viewW / ideal.w, viewH / ideal.h) * 0.90;
-
-      const centerX = clampCenterX(absX, ideal.w, scale, leftOffset, rightOffset);
+      const centerX = clampCenterX(absX, tileDims.w, scale, leftOffset, rightOffset);
       const centerY = -(absY + item.h / 2) * scale + (topInset + window.innerHeight) / 2;
 
       if (opts?.immediate) {
