@@ -12,6 +12,13 @@ export const PROJ_TITLE_H = 40;
 
 export const DEFAULT_GRID_COLS = 3;
 
+export interface TileDims {
+  w: number;
+  h: number;
+}
+
+export const DEFAULT_TILE_DIMS: TileDims = { w: TERMINAL_W, h: TERMINAL_H };
+
 export interface TerminalSpan {
   cols: number;
   rows: number;
@@ -35,8 +42,12 @@ export interface PackedTerminal {
 export function packTerminals(
   spans: TerminalSpan[],
   gridCols: number = DEFAULT_GRID_COLS,
+  tileDims: TileDims = DEFAULT_TILE_DIMS,
 ): PackedTerminal[] {
   if (spans.length === 0) return [];
+
+  const tileW = tileDims.w;
+  const tileH = tileDims.h;
 
   // occupied[row][col] = true if cell is taken
   const occupied: boolean[][] = [];
@@ -91,10 +102,10 @@ export function packTerminals(
       col,
       row,
       span: { cols: sCols, rows: sRows },
-      x: col * (TERMINAL_W + GRID_GAP),
-      y: row * (TERMINAL_H + GRID_GAP),
-      w: sCols * TERMINAL_W + (sCols - 1) * GRID_GAP,
-      h: sRows * TERMINAL_H + (sRows - 1) * GRID_GAP,
+      x: col * (tileW + GRID_GAP),
+      y: row * (tileH + GRID_GAP),
+      w: sCols * tileW + (sCols - 1) * GRID_GAP,
+      h: sRows * tileH + (sRows - 1) * GRID_GAP,
     });
   }
 
@@ -107,6 +118,7 @@ export function packTerminals(
 export function computeWorktreeSize(
   spans: TerminalSpan[],
   gridCols?: number,
+  tileDims: TileDims = DEFAULT_TILE_DIMS,
 ): {
   w: number;
   h: number;
@@ -114,7 +126,7 @@ export function computeWorktreeSize(
   if (spans.length === 0)
     return { w: WT_MIN_W, h: WT_TITLE_H + WT_PAD + WT_EMPTY_BODY_H + WT_PAD };
 
-  const packed = packTerminals(spans, gridCols);
+  const packed = packTerminals(spans, gridCols, tileDims);
   let maxCol = 0;
   let maxRow = 0;
   for (const p of packed) {
@@ -122,11 +134,13 @@ export function computeWorktreeSize(
     maxRow = Math.max(maxRow, p.row + p.span.rows);
   }
 
-  const w = maxCol * TERMINAL_W + (maxCol - 1) * GRID_GAP + WT_PAD * 2;
+  const tileW = tileDims.w;
+  const tileH = tileDims.h;
+  const w = maxCol * tileW + (maxCol - 1) * GRID_GAP + WT_PAD * 2;
   const h =
     WT_TITLE_H +
     WT_PAD +
-    maxRow * TERMINAL_H +
+    maxRow * tileH +
     (maxRow - 1) * GRID_GAP +
     WT_PAD;
   return { w, h };
@@ -136,6 +150,7 @@ export function getWorktreeSize(
   spans: TerminalSpan[],
   collapsed: boolean,
   gridCols?: number,
+  tileDims: TileDims = DEFAULT_TILE_DIMS,
 ): {
   w: number;
   h: number;
@@ -143,11 +158,12 @@ export function getWorktreeSize(
   if (collapsed) {
     return { w: WT_MIN_W, h: WT_TITLE_H };
   }
-  return computeWorktreeSize(spans, gridCols);
+  return computeWorktreeSize(spans, gridCols, tileDims);
 }
 
 export function getStandardWorktreeWidth(
   gridCols: number = DEFAULT_GRID_COLS,
+  tileDims: TileDims = DEFAULT_TILE_DIMS,
 ): number {
-  return gridCols * TERMINAL_W + Math.max(0, gridCols - 1) * GRID_GAP + WT_PAD * 2;
+  return gridCols * tileDims.w + Math.max(0, gridCols - 1) * GRID_GAP + WT_PAD * 2;
 }
