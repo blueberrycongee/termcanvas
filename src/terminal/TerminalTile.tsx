@@ -27,6 +27,7 @@ import {
   cancelScheduledTerminalFocus,
   scheduleTerminalFocus,
 } from "./focusScheduler";
+import { useFocusTileSizeStore } from "../stores/focusTileSizeStore";
 
 interface Props {
   lodMode: TerminalMountMode;
@@ -218,6 +219,14 @@ export function TerminalTile({
   );
   const [dragOver, setDragOver] = useState(false);
 
+  // Use override dimensions when this terminal is focused
+  const isFocusTarget = useFocusTileSizeStore((s) => s.terminalId === terminal.id);
+  const focusW = useFocusTileSizeStore((s) => s.w);
+  const focusH = useFocusTileSizeStore((s) => s.h);
+  const hasFocusOverride = terminal.focused && isFocusTarget && focusW > 0;
+  const effectiveWidth = hasFocusOverride ? focusW : width;
+  const effectiveHeight = hasFocusOverride ? focusH : height;
+
   const {
     removeTerminal,
     toggleTerminalMinimize,
@@ -322,7 +331,7 @@ export function TerminalTile({
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [height, lodMode, terminal.id, terminal.minimized, width]);
+  }, [effectiveHeight, lodMode, terminal.id, terminal.minimized, effectiveWidth]);
 
   const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
   const focusLiveTerminal = useCallback(() => {
@@ -548,11 +557,11 @@ export function TerminalTile({
       style={{
         left: gridX + (isDragging ? dragOffsetX : 0),
         top: gridY + (isDragging ? dragOffsetY : 0),
-        width,
-        height: terminal.minimized ? "auto" : height,
-        zIndex: isDragging ? 50 : undefined,
+        width: effectiveWidth,
+        height: terminal.minimized ? "auto" : effectiveHeight,
+        zIndex: isDragging ? 50 : (hasFocusOverride ? 10 : undefined),
         opacity: isDragging ? 0.9 : 1,
-        transition: isDragging ? "none" : "left 0.2s ease, top 0.2s ease",
+        transition: isDragging ? "none" : "left 0.2s ease, top 0.2s ease, width 0.2s ease, height 0.2s ease",
         boxShadow: isDragging
           ? "0 8px 32px rgba(0,0,0,0.3)"
           : dragOver

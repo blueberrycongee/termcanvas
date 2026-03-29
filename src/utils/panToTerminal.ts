@@ -10,6 +10,8 @@ import {
   WT_PAD,
   WT_TITLE_H,
 } from "../layout";
+import { computeTileDimensions } from "../stores/tileDimensionsStore";
+import { useFocusTileSizeStore } from "../stores/focusTileSizeStore";
 
 interface PanToTerminalOptions {
   /** Skip animation and set viewport immediately (e.g. during drag). */
@@ -26,11 +28,17 @@ export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): 
       useCanvasStore.getState();
     const rightOffset = getCanvasRightInset(rightPanelCollapsed);
     const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
-    const padding = 60;
+    const padding = 40;
+    const topInset = 56;
     const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
     const viewH = window.innerHeight - padding * 2;
+
+    // Compute ideal tile size for this viewport and set override
+    const ideal = computeTileDimensions(window.innerWidth, window.innerHeight, leftOffset, rightOffset);
+    useFocusTileSizeStore.getState().set(terminalId, ideal.w, ideal.h);
+
     const scale =
-      Math.min(viewW / publishedGeometry.w, viewH / publishedGeometry.h) * 0.85;
+      Math.min(viewW / ideal.w, viewH / ideal.h) * 0.90;
 
     const centerX = clampCenterX(
       publishedGeometry.x,
@@ -41,7 +49,7 @@ export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): 
     );
     const centerY =
       -(publishedGeometry.y + publishedGeometry.h / 2) * scale +
-      window.innerHeight / 2;
+      (topInset + window.innerHeight) / 2;
 
     if (opts?.immediate) {
       useCanvasStore.getState().setViewport({ x: centerX, y: centerY, scale });
@@ -108,13 +116,18 @@ export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): 
         useCanvasStore.getState();
       const rightOffset = getCanvasRightInset(rightPanelCollapsed);
       const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
-      const padding = 60;
+      const padding = 40;
+      const topInset = 56;
       const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
       const viewH = window.innerHeight - padding * 2;
-      const scale = Math.min(viewW / item.w, viewH / item.h) * 0.85;
+
+      const ideal = computeTileDimensions(window.innerWidth, window.innerHeight, leftOffset, rightOffset);
+      useFocusTileSizeStore.getState().set(terminalId, ideal.w, ideal.h);
+
+      const scale = Math.min(viewW / ideal.w, viewH / ideal.h) * 0.90;
 
       const centerX = clampCenterX(absX, item.w, scale, leftOffset, rightOffset);
-      const centerY = -(absY + item.h / 2) * scale + window.innerHeight / 2;
+      const centerY = -(absY + item.h / 2) * scale + (topInset + window.innerHeight) / 2;
 
       if (opts?.immediate) {
         useCanvasStore.getState().setViewport({ x: centerX, y: centerY, scale });
