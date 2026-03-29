@@ -3,6 +3,7 @@
 ## Architecture boundaries
 
 - Hydra is a control plane, not an agent runtime. Agent execution is delegated to local `claude` / `codex` CLIs through `termcanvas terminal create --prompt`.
+- `termcanvas terminal input` is not a supported task-dispatch path for Claude/Codex automation. Launch a fresh agent terminal with `termcanvas terminal create --prompt` instead.
 - File evidence is authoritative. `handoff.json`, `task.md`, `result.json`, and `done` define the lifecycle. Terminal prose is not a source of truth.
 - Internal orchestration state lives in repo-local `.hydra/workflows/<workflow>/workflow.json` and `.hydra/handoffs/<handoff>.json`.
 - Workflow progression is state-machine-driven. `pending -> claimed -> in_progress -> completed|timed_out|failed` is explicit and idempotent.

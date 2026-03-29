@@ -176,10 +176,16 @@ async function main() {
         });
         if (jsonFlag) console.log(JSON.stringify(result, null, 2));
         else console.log("Title updated.");
+      } else if (command === "input") {
+        console.error(
+          "termcanvas terminal input has been removed. Start Claude/Codex tasks with `termcanvas terminal create --prompt \"...\"` instead.",
+        );
+        process.exit(1);
       } else {
         console.log(
           "Usage: termcanvas terminal <create|list|status|output|destroy|set-title> [args]",
         );
+        process.exit(1);
       }
     } else if (group === "telemetry") {
       if (command === "get") {
@@ -305,6 +311,7 @@ async function main() {
       console.log("");
       console.log("Flags:");
       console.log("  --json    Output in JSON format");
+      process.exit(1);
     }
   } catch (err: any) {
     console.error(err.error ?? err.message ?? err);

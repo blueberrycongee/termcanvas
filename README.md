@@ -134,11 +134,13 @@ Flags:
 
 ```bash
 termcanvas project add ~/my-repo
-termcanvas terminal create --worktree ~/my-repo --type claude
+termcanvas terminal create --worktree ~/my-repo --type claude --prompt "Audit the auth flow and fix the root cause"
 termcanvas terminal status <id>
 termcanvas telemetry get --terminal <id>
 termcanvas diff ~/my-repo --summary
 ```
+
+For Claude/Codex task automation, start a fresh terminal with `termcanvas terminal create --prompt "..."`. `termcanvas terminal input` is not a supported dispatch path.
 
 <br>
 

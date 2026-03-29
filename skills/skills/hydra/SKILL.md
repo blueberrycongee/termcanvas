@@ -52,6 +52,13 @@ default is `--planner-type claude --implementer-type codex --evaluator-type clau
   - use `--worker-type <provider>` when the user explicitly names the worker
     provider
 
+## Agent launch rule
+
+- When dispatching Claude/Codex through TermCanvas CLI, start a fresh agent
+  terminal with `termcanvas terminal create --prompt "..."`
+- Do not use `termcanvas terminal input` for task dispatch; it does not
+  reliably submit prompts and is not a supported automation path
+
 ## Quality bar
 
 - Root cause first. Fix the real implementation problem before changing tests.

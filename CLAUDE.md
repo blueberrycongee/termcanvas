@@ -51,6 +51,10 @@ Workflow patterns:
 4. Use a direct isolated worker primitive when the split is already known and you do not need a full workflow:
    `hydra spawn --task "<specific task>" --repo . [--worktree .]`
 
+Agent launch rule:
+- When dispatching Claude/Codex through TermCanvas CLI, start a fresh agent terminal with `termcanvas terminal create --prompt "..."`
+- Do not use `termcanvas terminal input` for task dispatch; it is not a supported automation path
+
 Workflow control:
 - After `hydra run` or `hydra spawn`, immediately start polling with `hydra watch`. Do not ask whether to watch — always watch.
 1. Inspect one-shot progress: `hydra tick --repo . --workflow <workflowId>`
