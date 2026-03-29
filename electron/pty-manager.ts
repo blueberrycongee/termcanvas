@@ -132,7 +132,16 @@ export class PtyManager {
     try {
       this.instances.get(id)?.resize(cols, rows);
     } catch {
-      // PTY fd may already be invalid after process exit
+      // PTY fd may already be invalid after process exit.
+      // Kill the process group before removing from map to prevent orphans.
+      const inst = this.instances.get(id);
+      if (inst && inst.pid > 1) {
+        try {
+          process.kill(-inst.pid, "SIGHUP");
+        } catch {
+          // Process group may already be gone.
+        }
+      }
       this.instances.delete(id);
     }
   }
