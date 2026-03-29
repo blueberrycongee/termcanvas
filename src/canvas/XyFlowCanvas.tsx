@@ -30,8 +30,8 @@ import {
   updateTerminalRuntime,
 } from "../terminal/terminalRuntimeStore";
 import { fromFlowViewport, toFlowViewport } from "./viewportAdapter";
-import { buildCanvasFlowNodes, type FocusOverride } from "./nodeProjection";
-import { useFocusTileSizeStore } from "../stores/focusTileSizeStore";
+import { buildCanvasFlowNodes } from "./nodeProjection";
+import { useTileDimensionsStore } from "../stores/tileDimensionsStore";
 import {
   xyflowNodeTypes,
   type CanvasFlowNode,
@@ -260,14 +260,12 @@ function XyFlowCanvasInner() {
   const browserCards = useBrowserCardStore((state) => Object.values(state.cards));
   const { handleMouseDown: handleBoxSelectMouseDown } = useBoxSelect();
   const projectLayoutKey = useMemo(() => buildProjectLayoutKey(projects), [projects]);
-  const focusId = useFocusTileSizeStore((s) => s.terminalId);
-  const focusW = useFocusTileSizeStore((s) => s.w);
-  const focusH = useFocusTileSizeStore((s) => s.h);
-  const focusOverride: FocusOverride | null = focusId ? { terminalId: focusId, w: focusW, h: focusH } : null;
+  const tileW = useTileDimensionsStore((s) => s.w);
+  const tileH = useTileDimensionsStore((s) => s.h);
   // Keep local drag state stable across focus/status/session churn in projectStore.
   const projectedNodes = useMemo(
-    () => buildCanvasFlowNodes(projects, focusOverride),
-    [projectLayoutKey, focusId, focusW, focusH],
+    () => buildCanvasFlowNodes(projects),
+    [projectLayoutKey, tileW, tileH],
   );
   const [nodes, setNodes, onNodesChange] =
     useNodesState<CanvasFlowNode>(projectedNodes);

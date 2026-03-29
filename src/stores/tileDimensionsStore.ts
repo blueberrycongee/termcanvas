@@ -1,14 +1,13 @@
-const TARGET_AREA = 640 * 480; // 307200
+import { create } from "zustand";
+import { useCanvasStore } from "./canvasStore";
+import { getCanvasLeftInset, getCanvasRightInset } from "../canvas/viewportBounds";
+
+const TARGET_AREA = 640 * 480;
 const MIN_W = 400;
 const MAX_W = 900;
 const MIN_H = 300;
 const MAX_H = 700;
 
-/**
- * Compute ideal terminal tile dimensions for a given viewport.
- * Preserves total area (~307200px²) while adapting the aspect ratio
- * to match the available space.
- */
 export function computeTileDimensions(
   windowWidth: number,
   windowHeight: number,
@@ -26,4 +25,54 @@ export function computeTileDimensions(
   h = Math.max(MIN_H, Math.min(MAX_H, TARGET_AREA / w));
 
   return { w: Math.round(w), h: Math.round(h) };
+}
+
+interface TileDimensionsState {
+  w: number;
+  h: number;
+}
+
+export const useTileDimensionsStore = create<TileDimensionsState>(() => ({
+  w: 640,
+  h: 480,
+}));
+
+export function recomputeTileDimensions() {
+  const { leftPanelCollapsed, leftPanelWidth, rightPanelCollapsed } =
+    useCanvasStore.getState();
+  const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  const rightOffset = getCanvasRightInset(rightPanelCollapsed);
+  const dims = computeTileDimensions(
+    window.innerWidth,
+    window.innerHeight,
+    leftOffset,
+    rightOffset,
+  );
+  const prev = useTileDimensionsStore.getState();
+  if (prev.w !== dims.w || prev.h !== dims.h) {
+    useTileDimensionsStore.setState(dims);
+  }
+}
+
+let trackSidebar = false;
+
+export function setTrackSidebar(active: boolean) {
+  trackSidebar = active;
+  if (active) recomputeTileDimensions();
+}
+
+useCanvasStore.subscribe((state, prev) => {
+  if (!trackSidebar) return;
+  if (
+    state.leftPanelCollapsed !== prev.leftPanelCollapsed ||
+    state.leftPanelWidth !== prev.leftPanelWidth ||
+    state.rightPanelCollapsed !== prev.rightPanelCollapsed
+  ) {
+    recomputeTileDimensions();
+  }
+});
+
+if (typeof window !== "undefined") {
+  window.addEventListener("resize", recomputeTileDimensions);
+  recomputeTileDimensions();
 }

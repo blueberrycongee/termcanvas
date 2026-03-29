@@ -2,19 +2,11 @@ import type { Node } from "@xyflow/react";
 import {
   PROJ_PAD,
   PROJ_TITLE_H,
-  WT_PAD,
-  WT_TITLE_H,
   getWorktreeSize,
-  packTerminals,
 } from "../layout";
 import type { ProjectData } from "../types";
 import { getProjectBounds } from "../stores/projectStore";
 
-export interface FocusOverride {
-  terminalId: string;
-  w: number;
-  h: number;
-}
 
 export interface ProjectNodeData {
   projectId: string;
@@ -40,7 +32,7 @@ export function worktreeNodeId(worktreeId: string) {
   return `worktree:${worktreeId}`;
 }
 
-export function buildCanvasFlowNodes(projects: ProjectData[], focus?: FocusOverride | null): CanvasFlowNode[] {
+export function buildCanvasFlowNodes(projects: ProjectData[]): CanvasFlowNode[] {
   return projects.flatMap((project) => {
     const projectBounds = getProjectBounds(project);
     const projectNode: CanvasFlowNode = {
@@ -73,22 +65,6 @@ export function buildCanvasFlowNodes(projects: ProjectData[], focus?: FocusOverr
     const worktreeNodes: CanvasFlowNode[] = project.worktrees.map((worktree) => {
       const spans = worktree.terminals.map((terminal) => terminal.span);
       const baseSize = getWorktreeSize(spans, worktree.collapsed);
-      let size = baseSize;
-
-      if (focus && !worktree.collapsed) {
-        const fi = worktree.terminals.findIndex((t) => t.id === focus.terminalId && t.focused);
-        if (fi >= 0) {
-          const packed = packTerminals(spans);
-          const item = packed[fi];
-          if (item) {
-            size = {
-              w: Math.max(baseSize.w, item.x + focus.w + WT_PAD * 2 + 16),
-              h: Math.max(baseSize.h, WT_TITLE_H + WT_PAD + item.y + focus.h + WT_PAD),
-            };
-          }
-        }
-      }
-
       return {
         id: worktreeNodeId(worktree.id),
         type: "worktree",
@@ -103,11 +79,11 @@ export function buildCanvasFlowNodes(projects: ProjectData[], focus?: FocusOverr
         },
         className: "tc-flow-node tc-flow-worktree",
         style: {
-          width: size.w,
-          height: size.h,
+          width: baseSize.w,
+          height: baseSize.h,
         },
-        width: size.w,
-        height: size.h,
+        width: baseSize.w,
+        height: baseSize.h,
         hidden: project.collapsed,
         draggable: true,
         selectable: false,

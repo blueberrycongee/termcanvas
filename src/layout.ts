@@ -1,3 +1,5 @@
+import { useTileDimensionsStore } from "./stores/tileDimensionsStore";
+
 export const TERMINAL_W = 640;
 export const TERMINAL_H = 480;
 export const GRID_GAP = 8;
@@ -17,7 +19,9 @@ export interface TileDims {
   h: number;
 }
 
-export const DEFAULT_TILE_DIMS: TileDims = { w: TERMINAL_W, h: TERMINAL_H };
+export function getDefaultTileDims(): TileDims {
+  return useTileDimensionsStore.getState();
+}
 
 export interface TerminalSpan {
   cols: number;
@@ -42,7 +46,7 @@ export interface PackedTerminal {
 export function packTerminals(
   spans: TerminalSpan[],
   gridCols: number = DEFAULT_GRID_COLS,
-  tileDims: TileDims = DEFAULT_TILE_DIMS,
+  tileDims: TileDims = getDefaultTileDims(),
 ): PackedTerminal[] {
   if (spans.length === 0) return [];
 
@@ -118,7 +122,7 @@ export function packTerminals(
 export function computeWorktreeSize(
   spans: TerminalSpan[],
   gridCols?: number,
-  tileDims: TileDims = DEFAULT_TILE_DIMS,
+  tileDims: TileDims = getDefaultTileDims(),
 ): {
   w: number;
   h: number;
@@ -150,7 +154,7 @@ export function getWorktreeSize(
   spans: TerminalSpan[],
   collapsed: boolean,
   gridCols?: number,
-  tileDims: TileDims = DEFAULT_TILE_DIMS,
+  tileDims: TileDims = getDefaultTileDims(),
 ): {
   w: number;
   h: number;
@@ -163,7 +167,7 @@ export function getWorktreeSize(
 
 export function getStandardWorktreeWidth(
   gridCols: number = DEFAULT_GRID_COLS,
-  tileDims: TileDims = DEFAULT_TILE_DIMS,
+  tileDims: TileDims = getDefaultTileDims(),
 ): number {
   return gridCols * tileDims.w + Math.max(0, gridCols - 1) * GRID_GAP + WT_PAD * 2;
 }

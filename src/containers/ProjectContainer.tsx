@@ -4,9 +4,9 @@ import { useProjectStore } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { WorktreeContainer } from "./WorktreeContainer";
 import { useDrag } from "../hooks/useDrag";
-import { getWorktreeSize, packTerminals, WT_PAD, WT_TITLE_H, PROJ_PAD, PROJ_TITLE_H } from "../layout";
+import { getWorktreeSize, PROJ_PAD, PROJ_TITLE_H } from "../layout";
+import { useTileDimensionsStore } from "../stores/tileDimensionsStore";
 import { useT } from "../i18n/useT";
-import { useFocusTileSizeStore } from "../stores/focusTileSizeStore";
 
 interface Props {
   project: ProjectData;
@@ -29,10 +29,6 @@ export function ProjectContainer({ project }: Props) {
   );
   const selectProject = useSelectionStore((s) => s.selectProject);
 
-  const focusTerminalId = useFocusTileSizeStore((s) => s.terminalId);
-  const focusW = useFocusTileSizeStore((s) => s.w);
-  const focusH = useFocusTileSizeStore((s) => s.h);
-
   const handleDrag = useDrag(
     project.position.x,
     project.position.y,
@@ -42,29 +38,17 @@ export function ProjectContainer({ project }: Props) {
     ),
   );
 
+  const tileW = useTileDimensionsStore((s) => s.w);
+  const tileH = useTileDimensionsStore((s) => s.h);
   const computedSize = useMemo(() => {
     if (project.worktrees.length === 0)
       return { w: 340, h: PROJ_TITLE_H + PROJ_PAD + 60 + PROJ_PAD };
+    const tileDims = { w: tileW, h: tileH };
     let maxW = 300;
     let totalH = 0;
     for (const wt of project.worktrees) {
       const spans = wt.terminals.map((t) => t.span);
-      let wtSize = getWorktreeSize(spans, wt.collapsed);
-
-      if (focusTerminalId && !wt.collapsed) {
-        const fi = wt.terminals.findIndex((t) => t.id === focusTerminalId && t.focused);
-        if (fi >= 0) {
-          const packed = packTerminals(spans);
-          const item = packed[fi];
-          if (item) {
-            wtSize = {
-              w: Math.max(wtSize.w, item.x + focusW + WT_PAD * 2 + 16),
-              h: Math.max(wtSize.h, WT_TITLE_H + WT_PAD + item.y + focusH + WT_PAD),
-            };
-          }
-        }
-      }
-
+      const wtSize = getWorktreeSize(spans, wt.collapsed, undefined, tileDims);
       maxW = Math.max(maxW, wt.position.x + wtSize.w);
       totalH = Math.max(totalH, wt.position.y + wtSize.h);
     }
@@ -72,7 +56,7 @@ export function ProjectContainer({ project }: Props) {
       w: maxW + PROJ_PAD * 2,
       h: PROJ_TITLE_H + PROJ_PAD + totalH + PROJ_PAD,
     };
-  }, [project.worktrees, focusTerminalId, focusW, focusH]);
+  }, [project.worktrees, tileW, tileH]);
 
   return (
     <div

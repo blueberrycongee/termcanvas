@@ -23,7 +23,7 @@ import { normalizeProjectsFocus, findNextVisibleTerminalId } from "./projectFocu
 import { useWorkspaceStore } from "./workspaceStore.ts";
 import { usePreferencesStore } from "./preferencesStore.ts";
 import { logSlowRendererPath, measureRendererSync } from "../utils/devPerf.ts";
-import { useFocusTileSizeStore } from "./focusTileSizeStore.ts";
+import { setTrackSidebar } from "./tileDimensionsStore.ts";
 
 interface ProjectStore {
   projects: ProjectData[];
@@ -1183,7 +1183,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
 
   clearFocus: () => {
-    useFocusTileSizeStore.getState().clear();
+    setTrackSidebar(false);
     set((state) => {
       const { currentFocusedTerminalId } = inspectFocus(state.projects, null);
       const projects = updateFocusedTerminalFlags(

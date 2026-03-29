@@ -15,11 +15,12 @@ import {
   unpublishTerminalGeometry,
 } from "../terminal/terminalGeometryRegistry";
 import { resolveTerminalMountMode } from "../terminal/terminalRuntimePolicy";
+import { panToTerminal } from "../utils/panToTerminal";
 import { useDrag } from "../hooks/useDrag";
 import { FileCard } from "../components/FileCard";
 import { useT } from "../i18n/useT";
 import { useCanvasStore } from "../stores/canvasStore";
-import { clampCenterX, getCanvasLeftInset, getCanvasRightInset } from "../canvas/viewportBounds";
+import { useTileDimensionsStore } from "../stores/tileDimensionsStore";
 import {
   packTerminals,
   getWorktreeSize,
@@ -28,7 +29,6 @@ import {
   PROJ_PAD,
   PROJ_TITLE_H,
 } from "../layout";
-import { useFocusTileSizeStore } from "../stores/focusTileSizeStore";
 
 interface Props {
   projectId: string;
@@ -134,24 +134,12 @@ export function WorktreeContainer({
     targetIndex: number;
   } | null>(null);
 
+  const tileW = useTileDimensionsStore((s) => s.w);
+  const tileH = useTileDimensionsStore((s) => s.h);
+  const tileDims = { w: tileW, h: tileH };
   const spans = worktree.terminals.map((t) => t.span);
-  const packed = packTerminals(spans);
-  const baseSize = getWorktreeSize(spans, worktree.collapsed);
-
-  const focusTerminalId = useFocusTileSizeStore((s) => s.terminalId);
-  const focusW = useFocusTileSizeStore((s) => s.w);
-  const focusH = useFocusTileSizeStore((s) => s.h);
-  const computedSize = useMemo(() => {
-    if (!focusTerminalId) return baseSize;
-    const fi = worktree.terminals.findIndex((t) => t.id === focusTerminalId && t.focused);
-    if (fi < 0) return baseSize;
-    const item = packed[fi];
-    if (!item) return baseSize;
-    return {
-      w: Math.max(baseSize.w, item.x + focusW + WT_PAD * 2 + 16),
-      h: Math.max(baseSize.h, WT_TITLE_H + WT_PAD + item.y + focusH + WT_PAD),
-    };
-  }, [baseSize, focusTerminalId, focusW, focusH, worktree.terminals, packed]);
+  const packed = packTerminals(spans, undefined, tileDims);
+  const computedSize = getWorktreeSize(spans, worktree.collapsed, undefined, tileDims);
   const terminalLayouts = useMemo(() => {
     return worktree.terminals.map((terminal, index) => {
       const item = packed[index];
@@ -223,44 +211,6 @@ export function WorktreeContainer({
     };
   }, [projectCollapsed, projectId, terminalLayouts, worktree.collapsed, worktree.id, worktree.terminals]);
 
-  const handleZoomToFit = useCallback(
-    (index: number) => {
-      const project = useProjectStore
-        .getState()
-        .projects.find((p) => p.id === projectId);
-      if (!project) return;
-      const wt = project.worktrees.find((w) => w.id === worktree.id);
-      if (!wt) return;
-      const currentPacked = packTerminals(wt.terminals.map((t) => t.span));
-      const item = currentPacked[index];
-      if (!item) return;
-
-      const absX =
-        project.position.x + PROJ_PAD + worktree.position.x + WT_PAD + item.x;
-      const absY =
-        project.position.y +
-        PROJ_TITLE_H +
-        PROJ_PAD +
-        worktree.position.y +
-        WT_TITLE_H +
-        WT_PAD +
-        item.y;
-
-      const { rightPanelCollapsed, leftPanelCollapsed, leftPanelWidth } = useCanvasStore.getState();
-      const rightOffset = getCanvasRightInset(rightPanelCollapsed);
-      const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
-      const padding = 60;
-      const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
-      const viewH = window.innerHeight - padding * 2;
-      const scale = Math.min(viewW / item.w, viewH / item.h) * 0.85;
-
-      const centerX = clampCenterX(absX, item.w, scale, leftOffset, rightOffset);
-      const centerY = -(absY + item.h / 2) * scale + window.innerHeight / 2;
-
-      useCanvasStore.getState().animateTo(centerX, centerY, scale);
-    },
-    [projectId, worktree.id, worktree.position],
-  );
 
   const handleTerminalDragStart = useCallback(
     (terminalId: string, e: React.MouseEvent) => {
@@ -477,7 +427,7 @@ export function WorktreeContainer({
               isDragging={isDragging}
               dragOffsetX={isDragging ? dragState.offsetX : 0}
               dragOffsetY={isDragging ? dragState.offsetY : 0}
-              onDoubleClick={() => handleZoomToFit(item.index)}
+              onDoubleClick={() => panToTerminal(terminal.id)}
               onSpanChange={(span) =>
                 updateTerminalSpan(projectId, worktree.id, terminal.id, span)
               }

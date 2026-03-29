@@ -8,7 +8,6 @@ import type { TerminalData } from "../types";
 import { useProjectStore, createTerminal } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { useCanvasStore } from "../stores/canvasStore";
-import { useFocusTileSizeStore } from "../stores/focusTileSizeStore";
 import { TerminalTile } from "../terminal/TerminalTile";
 import { resolveTerminalMountMode } from "../terminal/terminalRuntimePolicy";
 import { useTerminalRuntimeStore } from "../terminal/terminalRuntimeStore";
@@ -20,6 +19,7 @@ import {
   WT_TITLE_H,
 } from "../layout";
 import { panToTerminal } from "../utils/panToTerminal";
+import { useTileDimensionsStore } from "../stores/tileDimensionsStore";
 import {
   type ProjectNodeData,
   type WorktreeNodeData,
@@ -279,31 +279,18 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
     targetIndex: number;
   } | null>(null);
 
+  const tileW = useTileDimensionsStore((s) => s.w);
+  const tileH = useTileDimensionsStore((s) => s.h);
+  const tileDims = useMemo(() => ({ w: tileW, h: tileH }), [tileW, tileH]);
   const spans = useMemo(
     () => worktree?.terminals.map((terminal) => terminal.span) ?? [],
     [worktree],
   );
-  const packed = useMemo(() => packTerminals(spans), [spans]);
-  const baseSize = useMemo(
-    () => getWorktreeSize(spans, worktree?.collapsed ?? false),
-    [spans, worktree?.collapsed],
+  const packed = useMemo(() => packTerminals(spans, undefined, tileDims), [spans, tileDims]);
+  const computedSize = useMemo(
+    () => getWorktreeSize(spans, worktree?.collapsed ?? false, undefined, tileDims),
+    [spans, worktree?.collapsed, tileDims],
   );
-
-  // Expand container to fit focus-overridden tile
-  const focusTerminalId = useFocusTileSizeStore((s) => s.terminalId);
-  const focusW = useFocusTileSizeStore((s) => s.w);
-  const focusH = useFocusTileSizeStore((s) => s.h);
-  const computedSize = useMemo(() => {
-    if (!focusTerminalId || !worktree) return baseSize;
-    const fi = worktree.terminals.findIndex((t) => t.id === focusTerminalId && t.focused);
-    if (fi < 0) return baseSize;
-    const item = packed[fi];
-    if (!item) return baseSize;
-    return {
-      w: Math.max(baseSize.w, item.x + focusW + WT_PAD * 2 + 16),
-      h: Math.max(baseSize.h, WT_TITLE_H + WT_PAD + item.y + focusH + WT_PAD),
-    };
-  }, [baseSize, focusTerminalId, focusW, focusH, worktree, packed]);
 
   const terminalLayouts = useMemo(() => {
     if (!worktree) {
