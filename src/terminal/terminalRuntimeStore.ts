@@ -1203,3 +1203,11 @@ export function getTerminalPtyId(terminalId: string): number | null {
   const runtime = runtimeRegistry.get(terminalId);
   return runtime?.ptyId ?? null;
 }
+
+export type { ManagedTerminalRuntime };
+
+export function getTerminalRuntime(
+  terminalId: string,
+): ManagedTerminalRuntime | null {
+  return runtimeRegistry.get(terminalId) ?? null;
+}

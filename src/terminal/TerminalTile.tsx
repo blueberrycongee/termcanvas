@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useCallback, useState } from "react";
+﻿import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import type { TerminalData } from "../types";
 import { useProjectStore, findTerminalById, getChildTerminals } from "../stores/projectStore";
@@ -18,6 +18,7 @@ import {
   fitTerminalRuntime,
   focusTerminalRuntime,
   getTerminalPtyId,
+  getTerminalRuntime,
   touchTerminalRuntime,
   useTerminalRuntimeStore,
 } from "./terminalRuntimeStore";
@@ -28,6 +29,9 @@ import {
   cancelScheduledTerminalFocus,
   scheduleTerminalFocus,
 } from "./focusScheduler";
+import { useSidebarDragStore } from "../stores/sidebarDragStore";
+import { snapshotBuffer, reflowSnapshot, type BufferSnapshot } from "./agentReflow";
+import { AgentReflowOverlay } from "./AgentReflowOverlay";
 
 interface Props {
   lodMode: TerminalMountMode;
@@ -214,6 +218,19 @@ export function TerminalTile({
   );
   const [dragOver, setDragOver] = useState(false);
 
+  const isAgent = terminal.type === "claude" || terminal.type === "codex";
+  const sidebarDragActive = useSidebarDragStore((s) => s.active);
+
+  interface ReflowState {
+    snapshot: BufferSnapshot;
+    cellWidth: number;
+    cellHeight: number;
+    fontFamily: string;
+    fontSize: number;
+    fgColor: string;
+    bgColor: string;
+  }
+  const [reflowState, setReflowState] = useState<ReflowState | null>(null);
 
   const {
     removeTerminal,
@@ -317,13 +334,52 @@ export function TerminalTile({
 
   useEffect(() => {
     if (terminal.minimized || lodMode !== "live") return;
+    if (isAgent && sidebarDragActive) return;
 
     const frame = requestAnimationFrame(() => {
       fitTerminalRuntime(terminal.id);
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [height, lodMode, terminal.id, terminal.minimized, width]);
+  }, [height, isAgent, lodMode, sidebarDragActive, terminal.id, terminal.minimized, width]);
+
+  useEffect(() => {
+    if (!isAgent || !sidebarDragActive) {
+      setReflowState(null);
+      return;
+    }
+    const runtime = getTerminalRuntime(terminal.id);
+    if (!runtime?.xterm) return;
+
+    const xterm = runtime.xterm;
+    const dims = (xterm as unknown as Record<string, unknown>)._core as
+      | { _renderService?: { dimensions?: { css?: { cell?: { width: number; height: number } } } } }
+      | undefined;
+    const cell = dims?._renderService?.dimensions?.css?.cell;
+    if (!cell) return;
+
+    const snap = snapshotBuffer(
+      { buffer: { active: xterm.buffer.active } },
+      xterm.cols,
+    );
+
+    setReflowState({
+      snapshot: snap,
+      cellWidth: cell.width,
+      cellHeight: cell.height,
+      fontFamily: xterm.options.fontFamily ?? "monospace",
+      fontSize: xterm.options.fontSize ?? 13,
+      fgColor: xterm.options.theme?.foreground ?? "#cccccc",
+      bgColor: xterm.options.theme?.background ?? "#1e1e1e",
+    });
+  }, [isAgent, sidebarDragActive, terminal.id]);
+
+  const reflowResult = useMemo(() => {
+    if (!reflowState) return null;
+    const containerWidth = width;
+    const newCols = Math.max(1, Math.floor(containerWidth / reflowState.cellWidth));
+    return reflowSnapshot(reflowState.snapshot, newCols);
+  }, [reflowState, width]);
 
   const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
   const focusLiveTerminal = useCallback(() => {
@@ -725,20 +781,41 @@ export function TerminalTile({
 
       {lodMode === "live" ? (
         <div
-          ref={containerRef}
-          className={terminal.minimized ? "" : "flex-1 min-h-0"}
+          className={terminal.minimized ? "" : "flex-1 min-h-0 relative"}
           style={{
             height: terminal.minimized ? 0 : undefined,
-            padding: 0,
             overflow: "hidden",
           }}
-          onClick={() => {
-            const adapter = getComposerAdapter(terminal.type);
-            if (!adapter || adapter.inputMode === "type" || !composerEnabled) {
-              scheduleXtermFocus();
-            }
-          }}
-        />
+        >
+          <div
+            ref={containerRef}
+            className="absolute inset-0"
+            style={{
+              padding: 0,
+              overflow: "hidden",
+              visibility: reflowResult ? "hidden" : undefined,
+            }}
+            onClick={() => {
+              const adapter = getComposerAdapter(terminal.type);
+              if (!adapter || adapter.inputMode === "type" || !composerEnabled) {
+                scheduleXtermFocus();
+              }
+            }}
+          />
+          {reflowResult && reflowState && !terminal.minimized && (
+            <AgentReflowOverlay
+              reflowResult={reflowResult}
+              width={width}
+              height={height - 40}
+              cellWidth={reflowState.cellWidth}
+              cellHeight={reflowState.cellHeight}
+              fontFamily={reflowState.fontFamily}
+              fontSize={reflowState.fontSize}
+              fgColor={reflowState.fgColor}
+              bgColor={reflowState.bgColor}
+            />
+          )}
+        </div>
       ) : (
         <div
           className={terminal.minimized ? "" : "flex-1 min-h-0"}

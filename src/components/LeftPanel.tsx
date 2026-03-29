@@ -10,6 +10,7 @@ import { PreviewContent } from "./LeftPanel/PreviewContent";
 import { MemoryContent } from "./LeftPanel/MemoryContent";
 import { HydraSetupPopup } from "./HydraSetupPopup";
 import { panToTerminal } from "../utils/panToTerminal";
+import { useSidebarDragStore } from "../stores/sidebarDragStore";
 import type { LeftPanelTab } from "../stores/canvasStore";
 
 // ── Tab icon SVGs (14×14, matching the minimal aesthetic) ──
@@ -169,34 +170,29 @@ export function LeftPanel() {
       handle.setPointerCapture(pid);
       const startX = e.clientX;
       const origW = width;
-      let rafId = 0;
+      useSidebarDragStore.getState().setActive(true);
       const handleMove = (ev: PointerEvent) => {
         setWidth(Math.max(200, Math.min(600, origW + (ev.clientX - startX))));
-        if (!rafId) {
-          rafId = requestAnimationFrame(() => {
-            rafId = 0;
-            const tid = projects
-              .flatMap((p) => p.worktrees)
-              .flatMap((w) => w.terminals)
-              .find((t) => t.focused)?.id;
-            if (tid) panToTerminal(tid, { immediate: true });
-          });
-        }
       };
       const cleanup = () => {
-        cancelAnimationFrame(rafId);
         handle.removeEventListener("pointermove", handleMove);
         handle.removeEventListener("pointerup", cleanup);
         handle.removeEventListener("pointercancel", cleanup);
         handle.removeEventListener("lostpointercapture", cleanup);
         try { handle.releasePointerCapture(pid); } catch {}
+        useSidebarDragStore.getState().setActive(false);
+        const tid = useProjectStore.getState().projects
+          .flatMap((p) => p.worktrees)
+          .flatMap((w) => w.terminals)
+          .find((t) => t.focused)?.id;
+        if (tid) panToTerminal(tid, { immediate: true });
       };
       handle.addEventListener("pointermove", handleMove);
       handle.addEventListener("pointerup", cleanup);
       handle.addEventListener("pointercancel", cleanup);
       handle.addEventListener("lostpointercapture", cleanup);
     },
-    [width, setWidth, projects]
+    [width, setWidth]
   );
 
   const prevTabRef = useRef<LeftPanelTab>("files");
