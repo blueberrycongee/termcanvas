@@ -2,6 +2,19 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.16.4] - 2026-03-30
+
+### Added
+- Dynamic terminal tile aspect ratio based on available viewport size
+- Manual check-for-updates button in settings
+
+### Fixed
+- Skip collapsed/minimized terminals in focus navigation
+- Prepend space before dropped file path in PTY input
+- Destroy orphaned PTYs on renderer reload to prevent FD leak
+- Recompute terminal position on focus to avoid stale geometry after sidebar resize
+- Improve markdown preview readability and visual hierarchy
+
 ## [0.16.3] - 2026-03-29
 
 ### Fixed
