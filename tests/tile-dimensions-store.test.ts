@@ -65,3 +65,22 @@ test("default packTerminals still works without tileDims", () => {
   assert.equal(packed[0].w, 640);
   assert.equal(packed[0].h, 480);
 });
+
+test("computeTileDimensions handles zero-width gracefully", () => {
+  const result = computeTileDimensions(400, 1080, 500, 32);
+  assert.ok(result.w >= 400, `w=${result.w} should be >= 400`);
+  assert.ok(result.h >= 300, `h=${result.h} should be >= 300`);
+});
+
+test("packTerminals with custom dims produces correct 2x1 span", () => {
+  const packed = packTerminals([{ cols: 2, rows: 1 }], 3, { w: 500, h: 600 });
+  assert.equal(packed[0].w, 2 * 500 + 8);
+  assert.equal(packed[0].h, 600);
+});
+
+test("computeTileDimensions is stable across similar inputs", () => {
+  const a = computeTileDimensions(1920, 1080, 280, 32);
+  const b = computeTileDimensions(1920, 1080, 282, 32);
+  assert.ok(Math.abs(a.w - b.w) < 5, "small input change should produce small output change");
+  assert.ok(Math.abs(a.h - b.h) < 5, "small input change should produce small output change");
+});
