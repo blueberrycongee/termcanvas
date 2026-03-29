@@ -418,11 +418,11 @@ export function WorktreeContainer({
 
       {/* Terminals */}
       <div
-        className="px-2 pb-2 relative overflow-hidden"
+        className="px-2 pb-2 relative"
         style={{
           height: worktree.collapsed ? 0 : computedSize.h - WT_TITLE_H,
           padding: worktree.collapsed ? 0 : undefined,
-          overflow: "hidden",
+          overflow: worktree.terminals.some((t) => t.focused) ? "visible" : "hidden",
         }}
       >
         {terminalLayouts.map((layout) => {
