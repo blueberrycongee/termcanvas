@@ -8,6 +8,7 @@ import type { TerminalData } from "../types";
 import { useProjectStore, createTerminal } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { useCanvasStore } from "../stores/canvasStore";
+import { useFocusTileSizeStore } from "../stores/focusTileSizeStore";
 import { TerminalTile } from "../terminal/TerminalTile";
 import { resolveTerminalMountMode } from "../terminal/terminalRuntimePolicy";
 import { useTerminalRuntimeStore } from "../terminal/terminalRuntimeStore";
@@ -15,6 +16,7 @@ import { useT } from "../i18n/useT";
 import {
   packTerminals,
   getWorktreeSize,
+  WT_PAD,
   WT_TITLE_H,
 } from "../layout";
 import { panToTerminal } from "../utils/panToTerminal";
@@ -282,10 +284,27 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
     [worktree],
   );
   const packed = useMemo(() => packTerminals(spans), [spans]);
-  const computedSize = useMemo(
+  const baseSize = useMemo(
     () => getWorktreeSize(spans, worktree?.collapsed ?? false),
     [spans, worktree?.collapsed],
   );
+
+  // Expand container to fit focus-overridden tile
+  const focusTerminalId = useFocusTileSizeStore((s) => s.terminalId);
+  const focusW = useFocusTileSizeStore((s) => s.w);
+  const focusH = useFocusTileSizeStore((s) => s.h);
+  const computedSize = useMemo(() => {
+    if (!focusTerminalId || !worktree) return baseSize;
+    const fi = worktree.terminals.findIndex((t) => t.id === focusTerminalId && t.focused);
+    if (fi < 0) return baseSize;
+    const item = packed[fi];
+    if (!item) return baseSize;
+    return {
+      w: Math.max(baseSize.w, item.x + focusW + WT_PAD * 2 + 16),
+      h: Math.max(baseSize.h, WT_TITLE_H + WT_PAD + item.y + focusH + WT_PAD),
+    };
+  }, [baseSize, focusTerminalId, focusW, focusH, worktree, packed]);
+
   const terminalLayouts = useMemo(() => {
     if (!worktree) {
       return [];
@@ -407,9 +426,8 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
 
   return (
     <div
-      className="panel nopan h-full w-full"
+      className="panel nopan h-full w-full overflow-hidden"
       style={{
-        overflow: worktree?.terminals.some((t) => t.focused) ? "visible" : "hidden",
         borderLeft: `2px solid ${
           focusedWorktreeId === worktree.id ? "var(--accent)" : "var(--border)"
         }`,
@@ -495,7 +513,7 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
         style={{
           height: worktree.collapsed ? 0 : computedSize.h - WT_TITLE_H,
           padding: worktree.collapsed ? 0 : undefined,
-          overflow: worktree.terminals.some((t) => t.focused) ? "visible" : "hidden",
+          overflow: "hidden",
         }}
       >
         {terminalLayouts.map((layout) => {

@@ -4,7 +4,7 @@ import { useProjectStore } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { WorktreeContainer } from "./WorktreeContainer";
 import { useDrag } from "../hooks/useDrag";
-import { getWorktreeSize, PROJ_PAD, PROJ_TITLE_H } from "../layout";
+import { getWorktreeSize, packTerminals, WT_PAD, WT_TITLE_H, PROJ_PAD, PROJ_TITLE_H } from "../layout";
 import { useT } from "../i18n/useT";
 import { useFocusTileSizeStore } from "../stores/focusTileSizeStore";
 
@@ -29,10 +29,9 @@ export function ProjectContainer({ project }: Props) {
   );
   const selectProject = useSelectionStore((s) => s.selectProject);
 
-  const hasFocusedTerminal = project.worktrees.some((wt) =>
-    wt.terminals.some((t) => t.focused),
-  );
-  const focusOverrideActive = useFocusTileSizeStore((s) => s.terminalId !== null) && hasFocusedTerminal;
+  const focusTerminalId = useFocusTileSizeStore((s) => s.terminalId);
+  const focusW = useFocusTileSizeStore((s) => s.w);
+  const focusH = useFocusTileSizeStore((s) => s.h);
 
   const handleDrag = useDrag(
     project.position.x,
@@ -49,10 +48,23 @@ export function ProjectContainer({ project }: Props) {
     let maxW = 300;
     let totalH = 0;
     for (const wt of project.worktrees) {
-      const wtSize = getWorktreeSize(
-        wt.terminals.map((t) => t.span),
-        wt.collapsed,
-      );
+      const spans = wt.terminals.map((t) => t.span);
+      let wtSize = getWorktreeSize(spans, wt.collapsed);
+
+      if (focusTerminalId && !wt.collapsed) {
+        const fi = wt.terminals.findIndex((t) => t.id === focusTerminalId && t.focused);
+        if (fi >= 0) {
+          const packed = packTerminals(spans);
+          const item = packed[fi];
+          if (item) {
+            wtSize = {
+              w: Math.max(wtSize.w, item.x + focusW + WT_PAD * 2 + 16),
+              h: Math.max(wtSize.h, WT_TITLE_H + WT_PAD + item.y + focusH + WT_PAD),
+            };
+          }
+        }
+      }
+
       maxW = Math.max(maxW, wt.position.x + wtSize.w);
       totalH = Math.max(totalH, wt.position.y + wtSize.h);
     }
@@ -60,7 +72,7 @@ export function ProjectContainer({ project }: Props) {
       w: maxW + PROJ_PAD * 2,
       h: PROJ_TITLE_H + PROJ_PAD + totalH + PROJ_PAD,
     };
-  }, [project.worktrees]);
+  }, [project.worktrees, focusTerminalId, focusW, focusH]);
 
   return (
     <div
@@ -192,7 +204,7 @@ export function ProjectContainer({ project }: Props) {
         style={{
           height: project.collapsed ? 0 : computedSize.h - PROJ_TITLE_H,
           padding: project.collapsed ? 0 : undefined,
-          overflow: focusOverrideActive ? "visible" : "hidden",
+          overflow: "hidden",
         }}
       >
         {project.worktrees.map((worktree) => (

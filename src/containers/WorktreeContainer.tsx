@@ -28,6 +28,7 @@ import {
   PROJ_PAD,
   PROJ_TITLE_H,
 } from "../layout";
+import { useFocusTileSizeStore } from "../stores/focusTileSizeStore";
 
 interface Props {
   projectId: string;
@@ -135,7 +136,22 @@ export function WorktreeContainer({
 
   const spans = worktree.terminals.map((t) => t.span);
   const packed = packTerminals(spans);
-  const computedSize = getWorktreeSize(spans, worktree.collapsed);
+  const baseSize = getWorktreeSize(spans, worktree.collapsed);
+
+  const focusTerminalId = useFocusTileSizeStore((s) => s.terminalId);
+  const focusW = useFocusTileSizeStore((s) => s.w);
+  const focusH = useFocusTileSizeStore((s) => s.h);
+  const computedSize = useMemo(() => {
+    if (!focusTerminalId) return baseSize;
+    const fi = worktree.terminals.findIndex((t) => t.id === focusTerminalId && t.focused);
+    if (fi < 0) return baseSize;
+    const item = packed[fi];
+    if (!item) return baseSize;
+    return {
+      w: Math.max(baseSize.w, item.x + focusW + WT_PAD * 2 + 16),
+      h: Math.max(baseSize.h, WT_TITLE_H + WT_PAD + item.y + focusH + WT_PAD),
+    };
+  }, [baseSize, focusTerminalId, focusW, focusH, worktree.terminals, packed]);
   const terminalLayouts = useMemo(() => {
     return worktree.terminals.map((terminal, index) => {
       const item = packed[index];
@@ -422,7 +438,7 @@ export function WorktreeContainer({
         style={{
           height: worktree.collapsed ? 0 : computedSize.h - WT_TITLE_H,
           padding: worktree.collapsed ? 0 : undefined,
-          overflow: worktree.terminals.some((t) => t.focused) ? "visible" : "hidden",
+          overflow: "hidden",
         }}
       >
         {terminalLayouts.map((layout) => {
