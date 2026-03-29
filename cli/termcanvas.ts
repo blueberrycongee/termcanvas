@@ -152,10 +152,6 @@ async function main() {
             `${t.id}  ${t.type}  ${t.status}  ${t.title}  (${t.project}/${t.worktree})`,
           );
         }
-      } else if (command === "input" && rest[0] && rest[1]) {
-        const result = await request("POST", `/terminal/${rest[0]}/input`, { text: rest[1] });
-        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
-        else console.log("Sent.");
       } else if (command === "status" && rest[0]) {
         const result = await request("GET", `/terminal/${rest[0]}/status`);
         if (jsonFlag) console.log(JSON.stringify(result, null, 2));
@@ -182,7 +178,7 @@ async function main() {
         else console.log("Title updated.");
       } else {
         console.log(
-          "Usage: termcanvas terminal <create|list|input|status|output|destroy|set-title> [args]",
+          "Usage: termcanvas terminal <create|list|status|output|destroy|set-title> [args]",
         );
       }
     } else if (group === "telemetry") {
@@ -285,7 +281,6 @@ async function main() {
       console.log(
         "  terminal list [--worktree <p>]              List terminals",
       );
-      console.log("  terminal input <id> <text>                  Send input");
       console.log("  terminal status <id>                        Get status");
       console.log("  terminal output <id> [--lines N]            Read output");
       console.log(

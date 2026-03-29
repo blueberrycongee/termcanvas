@@ -82,10 +82,6 @@ export function buildTelemetryEventsArgs(
   return buildTermcanvasArgs("telemetry", "events", args);
 }
 
-export function buildTerminalInputArgs(terminalId: string, text: string): string[] {
-  return buildTermcanvasArgs("terminal", "input", [terminalId, text]);
-}
-
 function runTermcanvasJson(args: string[], timeout: number): any {
   let stdout: string;
   try {
@@ -147,10 +143,6 @@ export function terminalCreate(
 
 export function terminalStatus(terminalId: string): { id: string; status: string; ptyId: number | null } {
   return tc("terminal", "status", [terminalId]);
-}
-
-export function terminalInput(terminalId: string, text: string): void {
-  runTermcanvasJson(buildTerminalInputArgs(terminalId, text), 5_000);
 }
 
 export function terminalDestroy(terminalId: string): void {

@@ -114,7 +114,6 @@ Terminal commands:
           [--prompt <text>] [--parent-terminal <id>] [--auto-approve]
   terminal list [--worktree <path>]            List terminals
   terminal status <id>                         Get terminal status
-  terminal input <id> <text>                   Send text input to a terminal
   terminal output <id> [--lines N]             Read terminal output (default 50 lines)
   terminal destroy <id>                        Destroy a terminal
 

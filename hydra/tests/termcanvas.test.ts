@@ -4,7 +4,6 @@ import {
   parseJsonOrDie,
   buildTermcanvasArgs,
   buildTerminalCreateArgs,
-  buildTerminalInputArgs,
   buildTelemetryEventsArgs,
   buildTelemetryTerminalArgs,
   buildTelemetryWorkflowArgs,
@@ -96,17 +95,6 @@ test("buildTerminalCreateArgs includes workflow telemetry metadata when provided
     "handoff-1",
     "--repo",
     "/repo/project",
-    "--json",
-  ]);
-});
-
-test("buildTerminalInputArgs preserves shell metacharacters as literal text", () => {
-  const args = buildTerminalInputArgs("tc-001", 'do $(touch /tmp/pwned) `uname`');
-  assert.deepStrictEqual(args, [
-    "terminal",
-    "input",
-    "tc-001",
-    'do $(touch /tmp/pwned) `uname`',
     "--json",
   ]);
 });

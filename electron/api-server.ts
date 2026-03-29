@@ -93,10 +93,6 @@ export class ApiServer {
       const worktree = url.searchParams.get("worktree");
       return this.terminalList(worktree);
     }
-    if (method === "POST" && pathname.match(/^\/terminal\/[^/]+\/input$/)) {
-      const id = pathname.split("/")[2];
-      return this.terminalInput(id, body);
-    }
     if (method === "GET" && pathname.match(/^\/terminal\/[^/]+\/status$/)) {
       const id = pathname.split("/")[2];
       return this.terminalStatus(id);
@@ -312,25 +308,6 @@ export class ApiServer {
       }
     }
     return terminals;
-  }
-
-  private async terminalInput(terminalId: string, body: any) {
-    const text = body?.text;
-    if (!text)
-      throw Object.assign(new Error("text is required"), { status: 400 });
-
-    const terminal = await this.execRenderer(
-      `window.__tcApi.getTerminal(${JSON.stringify(terminalId)})`,
-    );
-    if (!terminal)
-      throw Object.assign(new Error("Terminal not found"), { status: 404 });
-    if (!terminal.ptyId)
-      throw Object.assign(new Error("Terminal has no active PTY"), {
-        status: 409,
-      });
-
-    this.deps.ptyManager.write(terminal.ptyId, text);
-    return { ok: true };
   }
 
   private async terminalStatus(terminalId: string) {
