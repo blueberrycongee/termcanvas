@@ -18,7 +18,8 @@ import { resolveTerminalMountMode } from "../terminal/terminalRuntimePolicy";
 import { useDrag } from "../hooks/useDrag";
 import { FileCard } from "../components/FileCard";
 import { useT } from "../i18n/useT";
-import { useCanvasStore, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
+import { useCanvasStore } from "../stores/canvasStore";
+import { clampCenterX, getCanvasLeftInset, getCanvasRightInset } from "../canvas/viewportBounds";
 import {
   packTerminals,
   getWorktreeSize,
@@ -229,14 +230,15 @@ export function WorktreeContainer({
         WT_PAD +
         item.y;
 
-      const { rightPanelCollapsed } = useCanvasStore.getState();
-      const rightOffset = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH;
+      const { rightPanelCollapsed, leftPanelCollapsed, leftPanelWidth } = useCanvasStore.getState();
+      const rightOffset = getCanvasRightInset(rightPanelCollapsed);
+      const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
       const padding = 60;
-      const viewW = window.innerWidth - rightOffset - padding * 2;
+      const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
       const viewH = window.innerHeight - padding * 2;
       const scale = Math.min(viewW / item.w, viewH / item.h) * 0.85;
 
-      const centerX = -(absX + item.w / 2) * scale + (window.innerWidth - rightOffset) / 2;
+      const centerX = clampCenterX(absX, item.w, scale, leftOffset, rightOffset);
       const centerY = -(absY + item.h / 2) * scale + window.innerHeight / 2;
 
       useCanvasStore.getState().animateTo(centerX, centerY, scale);
