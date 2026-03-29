@@ -561,8 +561,7 @@ export function TerminalTile({
               ? "0 0 0 1px rgba(0,112,243,0.45), 0 0 8px rgba(0,112,243,0.15)"
               : undefined,
         transform: isDragging ? "scale(1.02)" : undefined,
-        outline: isSelected ? "2px solid #3b82f6" : undefined,
-        outlineOffset: isSelected ? -2 : undefined,
+        outline: "none",
       }}
       onClick={(e) => {
         e.stopPropagation();
