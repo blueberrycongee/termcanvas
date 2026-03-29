@@ -242,6 +242,13 @@ export const zh = {
   update_modal_retry: "重试",
   update_modal_restart: "重启并更新",
 
+  // Update check (settings)
+  update_check: "检查更新",
+  update_checking_short: "检查中…",
+  update_downloading_short: (percent: number) => `下载中 ${Math.round(percent)}%`,
+  update_up_to_date: "已是最新",
+  update_restart_short: "重启并更新",
+
   // CLI
   cli_label: "命令行工具",
   cli_registered: "已注册",

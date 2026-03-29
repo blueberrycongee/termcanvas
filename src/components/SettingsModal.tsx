@@ -14,6 +14,7 @@ import { useT } from "../i18n/useT";
 import { FONT_REGISTRY } from "../terminal/fontRegistry";
 import { loadFont } from "../terminal/fontLoader";
 import { useNotificationStore } from "../stores/notificationStore";
+import { useUpdaterStore } from "../stores/updaterStore";
 
 const platform = window.termcanvas?.app.platform ?? "darwin";
 const isMac = platform === "darwin";
@@ -81,6 +82,74 @@ function ShortcutRow({
         </button>
       </div>
     </div>
+  );
+}
+
+function UpdateCheckButton() {
+  const t = useT();
+  const { status, downloadPercent } = useUpdaterStore();
+  const [upToDate, setUpToDate] = useState(false);
+
+  const handleCheck = useCallback(async () => {
+    setUpToDate(false);
+    useUpdaterStore.setState({ status: "checking", errorMessage: null });
+    await window.termcanvas.updater.check();
+    // If no update-available event fired, status stays "checking" → show "up to date"
+    const current = useUpdaterStore.getState().status;
+    if (current === "checking") {
+      useUpdaterStore.setState({ status: "idle" });
+      setUpToDate(true);
+      setTimeout(() => setUpToDate(false), 3000);
+    }
+  }, []);
+
+  const handleInstall = useCallback(() => {
+    useUpdaterStore.getState().requestRestartOnClose();
+    window.termcanvas.app.requestClose();
+  }, []);
+
+  if (upToDate) {
+    return (
+      <span className="text-[11px] text-[var(--text-muted)]">
+        {t.update_up_to_date}
+      </span>
+    );
+  }
+
+  if (status === "checking") {
+    return (
+      <span className="text-[11px] text-[var(--text-muted)]">
+        {t.update_checking_short}
+      </span>
+    );
+  }
+
+  if (status === "downloading") {
+    return (
+      <span className="text-[11px] text-[var(--text-muted)]">
+        {t.update_downloading_short(downloadPercent)}
+      </span>
+    );
+  }
+
+  if (status === "ready") {
+    return (
+      <button
+        className="text-[11px] text-[var(--accent)] hover:underline"
+        onClick={handleInstall}
+      >
+        {t.update_restart_short}
+      </button>
+    );
+  }
+
+  return (
+    <button
+      className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+      onClick={handleCheck}
+    >
+      {t.update_check}
+    </button>
   );
 }
 
@@ -634,15 +703,18 @@ export function SettingsModal({ onClose }: Props) {
               )}
 
               <div className="mt-1 flex items-center justify-between border-t border-[var(--border)] pt-4">
-                <span className="text-[12px] text-[var(--text-muted)]">
-                  {t.settings_version}
-                </span>
-                <span
-                  className="rounded-md bg-[var(--surface)] px-2 py-1 text-[11px] text-[var(--text-secondary)]"
-                  style={{ fontFamily: '"Geist Mono", monospace' }}
-                >
-                  v{appVersion ?? "unknown"}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[12px] text-[var(--text-muted)]">
+                    {t.settings_version}
+                  </span>
+                  <span
+                    className="rounded-md bg-[var(--surface)] px-2 py-1 text-[11px] text-[var(--text-secondary)]"
+                    style={{ fontFamily: '"Geist Mono", monospace' }}
+                  >
+                    v{appVersion ?? "unknown"}
+                  </span>
+                </div>
+                <UpdateCheckButton />
               </div>
             </div>
           )}

@@ -245,6 +245,13 @@ export const en = {
   update_modal_retry: "Retry",
   update_modal_restart: "Restart & Update",
 
+  // Update check (settings)
+  update_check: "Check for Updates",
+  update_checking_short: "Checking\u2026",
+  update_downloading_short: (percent: number) => `Downloading ${Math.round(percent)}%`,
+  update_up_to_date: "Up to date",
+  update_restart_short: "Restart & Update",
+
   // CLI
   cli_label: "Command line interface",
   cli_registered: "Registered",
