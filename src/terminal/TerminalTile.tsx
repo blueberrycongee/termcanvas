@@ -489,7 +489,7 @@ export function TerminalTile({
       if (ptyId === null) return;
 
       const escaped = shellEscapePath(filePath);
-      window.termcanvas.terminal.input(ptyId, escaped);
+      window.termcanvas.terminal.input(ptyId, " " + escaped);
     };
 
     container.addEventListener("dragover", onDragOver, true);
@@ -533,7 +533,7 @@ export function TerminalTile({
       if (ptyId === null) return;
 
       const escaped = shellEscapePath(filePath);
-      window.termcanvas.terminal.input(ptyId, escaped);
+      window.termcanvas.terminal.input(ptyId, " " + escaped);
     },
     [terminal.id],
   );
