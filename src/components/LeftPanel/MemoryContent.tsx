@@ -433,11 +433,14 @@ function MemoryGraph({
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const hit = hitTest(e);
       if (hit) {
-        onSelectNode(hit.fileName === selectedNode ? null : hit.fileName);
-        // Open in Preview tab
-        const node = graph.nodes.find((n) => n.fileName === hit.fileName);
-        if (node?.filePath) {
-          onOpenFile(node.filePath);
+        const isDeselecting = hit.fileName === selectedNode;
+        onSelectNode(isDeselecting ? null : hit.fileName);
+        // Open in Preview tab only when selecting, not deselecting
+        if (!isDeselecting) {
+          const node = graph.nodes.find((n) => n.fileName === hit.fileName);
+          if (node?.filePath) {
+            onOpenFile(node.filePath);
+          }
         }
       } else {
         onSelectNode(null);
