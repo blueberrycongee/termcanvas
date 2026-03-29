@@ -407,8 +407,9 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
 
   return (
     <div
-      className="panel nopan h-full w-full overflow-hidden"
+      className="panel nopan h-full w-full"
       style={{
+        overflow: worktree?.terminals.some((t) => t.focused) ? "visible" : "hidden",
         borderLeft: `2px solid ${
           focusedWorktreeId === worktree.id ? "var(--accent)" : "var(--border)"
         }`,

@@ -6,6 +6,7 @@ import { WorktreeContainer } from "./WorktreeContainer";
 import { useDrag } from "../hooks/useDrag";
 import { getWorktreeSize, PROJ_PAD, PROJ_TITLE_H } from "../layout";
 import { useT } from "../i18n/useT";
+import { useFocusTileSizeStore } from "../stores/focusTileSizeStore";
 
 interface Props {
   project: ProjectData;
@@ -27,6 +28,11 @@ export function ProjectContainer({ project }: Props) {
     ),
   );
   const selectProject = useSelectionStore((s) => s.selectProject);
+
+  const hasFocusedTerminal = project.worktrees.some((wt) =>
+    wt.terminals.some((t) => t.focused),
+  );
+  const focusOverrideActive = useFocusTileSizeStore((s) => s.terminalId !== null) && hasFocusedTerminal;
 
   const handleDrag = useDrag(
     project.position.x,
@@ -186,7 +192,7 @@ export function ProjectContainer({ project }: Props) {
         style={{
           height: project.collapsed ? 0 : computedSize.h - PROJ_TITLE_H,
           padding: project.collapsed ? 0 : undefined,
-          overflow: "hidden",
+          overflow: focusOverrideActive ? "visible" : "hidden",
         }}
       >
         {project.worktrees.map((worktree) => (
