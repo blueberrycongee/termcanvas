@@ -544,7 +544,7 @@ export function TerminalTile({
       onDragOver={handleTileDragOver}
       onDragLeave={handleTileDragLeave}
       onDrop={handleTileDrop}
-      className="absolute terminal-tile rounded-md bg-[var(--bg)] overflow-hidden flex flex-col border border-[var(--border)] hover:border-[var(--border-hover)]"
+      className="absolute terminal-tile rounded-md bg-[var(--bg)] overflow-hidden flex flex-col"
       style={{
         left: gridX + (isDragging ? dragOffsetX : 0),
         top: gridY + (isDragging ? dragOffsetY : 0),
@@ -728,7 +728,7 @@ export function TerminalTile({
           className={terminal.minimized ? "" : "flex-1 min-h-0"}
           style={{
             height: terminal.minimized ? 0 : undefined,
-            padding: terminal.minimized ? 0 : 4,
+            padding: 0,
             overflow: "hidden",
           }}
           onClick={() => {
