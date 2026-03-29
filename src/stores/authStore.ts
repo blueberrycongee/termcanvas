@@ -59,13 +59,17 @@ export const useAuthStore = create<AuthStore>((set) => ({
     // @ts-expect-error -- auth API added by preload agent
     if (!window.termcanvas?.auth) return;
     set({ loginPending: true });
-    // @ts-expect-error -- auth API added by preload agent
-    const result = await window.termcanvas.auth.login();
-    set({
-      loginPending: false,
-      loginError: result.ok ? null : (result.error ?? null),
-      loginFallbackUrl: result.url ?? null,
-    });
+    try {
+      // @ts-expect-error -- auth API added by preload agent
+      const result = await window.termcanvas.auth.login();
+      set({
+        loginPending: false,
+        loginError: result.ok ? null : (result.error ?? null),
+        loginFallbackUrl: result.url ?? null,
+      });
+    } catch {
+      set({ loginPending: false, loginError: "Login failed", loginFallbackUrl: null });
+    }
   },
 
   logout: async () => {
