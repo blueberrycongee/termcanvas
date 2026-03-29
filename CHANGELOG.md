@@ -2,6 +2,22 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.16.3] - 2026-03-29
+
+### Fixed
+- Kill process group before removing PTY instance on resize error
+- Restrict token and device-id file permissions to owner-only
+- Resolve theme-related visual issues across multiple components
+- Add 8px inset to terminal tiles within worktree containers
+- Remove selection outline from terminal tiles
+- Do not trigger onOpenFile when deselecting a memory graph node
+- Register welcome drag listeners on step 4 instead of step 3
+- Add try/catch to login() to prevent permanent loginPending lock
+- Remove terminal tile border classes and inner padding
+- Remove terminal tile border and light-only box-shadow
+- Deduplicate SessionStart hook by script name to prevent dev/prod double registration
+- Account for left sidebar in viewport centering calculations
+
 ## [0.16.2] - 2026-03-29
 
 ### Fixed
