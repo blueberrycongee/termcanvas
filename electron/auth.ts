@@ -55,7 +55,10 @@ function saveSession(session: Session): void {
   try {
     ensureDir();
     const tmp = AUTH_FILE + ".tmp";
-    fs.writeFileSync(tmp, JSON.stringify(session, null, 2), "utf-8");
+    fs.writeFileSync(tmp, JSON.stringify(session, null, 2), {
+      encoding: "utf-8",
+      mode: 0o600,
+    });
     fs.renameSync(tmp, AUTH_FILE);
     console.log("[Auth] Session saved");
   } catch (err) {
@@ -94,7 +97,7 @@ function loadOrCreateDeviceId(): string {
       return fs.readFileSync(DEVICE_ID_FILE, "utf-8").trim();
     }
     const id = crypto.randomUUID();
-    fs.writeFileSync(DEVICE_ID_FILE, id, "utf-8");
+    fs.writeFileSync(DEVICE_ID_FILE, id, { encoding: "utf-8", mode: 0o600 });
     console.log("[Auth] Generated device ID");
     return id;
   } catch (err) {
