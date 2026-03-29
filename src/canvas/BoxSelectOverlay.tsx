@@ -33,8 +33,8 @@ export function BoxSelectOverlay() {
         y={screenY}
         width={screenW}
         height={screenH}
-        fill="rgba(59,130,246,0.08)"
-        stroke="#3b82f6"
+        fill="color-mix(in srgb, var(--accent) 8%, transparent)"
+        stroke="var(--accent)"
         strokeDasharray="4 2"
         strokeWidth={1}
         vectorEffect="non-scaling-stroke"

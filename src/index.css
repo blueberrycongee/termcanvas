@@ -50,6 +50,7 @@
   --red: #e87272;
   --amber: #d4a24e;
   --cyan: #6cc4b0;
+  --green: #4ade80;
   --purple: #9b7ad8;
   --radius: 8px;
   color-scheme: dark;
@@ -72,6 +73,7 @@
   --red: #dc2626;
   --amber: #d97706;
   --cyan: #0d9488;
+  --green: #16a34a;
   --purple: #7c3aed;
   --radius: 8px;
   color-scheme: light;
@@ -268,4 +270,9 @@ body {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
 }

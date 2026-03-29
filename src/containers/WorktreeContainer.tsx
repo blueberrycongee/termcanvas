@@ -331,7 +331,7 @@ export function WorktreeContainer({
         height: computedSize.h,
         minWidth: 300,
         borderLeft: `2px solid ${focusedWorktreeId === worktree.id ? "var(--accent)" : "var(--border)"}`,
-        outline: isSelected ? "2px solid #3b82f6" : undefined,
+        outline: isSelected ? "2px solid var(--accent)" : undefined,
         outlineOffset: isSelected ? -2 : undefined,
       }}
       onClick={(e) => {

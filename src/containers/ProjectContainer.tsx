@@ -66,7 +66,7 @@ export function ProjectContainer({ project }: Props) {
         height: project.collapsed ? undefined : computedSize.h,
         minWidth: 340,
         zIndex: project.zIndex ?? 0,
-        outline: isSelected ? "2px solid #3b82f6" : undefined,
+        outline: isSelected ? "2px solid var(--accent)" : undefined,
         outlineOffset: isSelected ? -2 : undefined,
       }}
       onMouseDown={() => bringToFront(project.id)}

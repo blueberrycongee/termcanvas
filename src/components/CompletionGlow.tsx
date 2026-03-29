@@ -83,7 +83,7 @@ export function CompletionGlow() {
           width: 90,
           height: "calc(100vh - 44px)",
           background:
-            "linear-gradient(to right, rgba(59,130,246,0.28), transparent)",
+            "linear-gradient(to right, color-mix(in srgb, var(--accent) 28%, transparent), transparent)",
           opacity: showLeft ? 1 : 0,
         }}
       />
@@ -94,7 +94,7 @@ export function CompletionGlow() {
           width: 90,
           height: "calc(100vh - 44px)",
           background:
-            "linear-gradient(to left, rgba(59,130,246,0.28), transparent)",
+            "linear-gradient(to left, color-mix(in srgb, var(--accent) 28%, transparent), transparent)",
           opacity: showRight ? 1 : 0,
         }}
       />

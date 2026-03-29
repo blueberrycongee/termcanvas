@@ -3,7 +3,7 @@ import { useDrawingStore, type DrawingTool } from "../stores/drawingStore";
 import { useT } from "../i18n/useT";
 
 const colors = [
-  "#ededed",
+  "#c8c8c8",
   "#0070f3",
   "#ee0000",
   "#f5a623",

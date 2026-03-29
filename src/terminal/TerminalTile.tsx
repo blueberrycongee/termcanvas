@@ -556,9 +556,9 @@ export function TerminalTile({
         boxShadow: isDragging
           ? "0 8px 32px rgba(0,0,0,0.3)"
           : dragOver
-            ? "0 0 0 2px var(--accent), 0 0 12px rgba(80,227,194,0.25)"
+            ? "0 0 0 2px var(--accent), 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent)"
             : terminal.focused
-              ? "0 0 0 1px rgba(0,112,243,0.45), 0 0 8px rgba(0,112,243,0.15)"
+              ? "0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 8px color-mix(in srgb, var(--accent) 15%, transparent)"
               : undefined,
         transform: isDragging ? "scale(1.02)" : undefined,
         outline: "none",

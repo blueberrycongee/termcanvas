@@ -118,7 +118,7 @@ function ProjectNode({ data }: NodeProps<ProjectFlowNode>) {
     <div
       className="panel nopan relative h-full w-full overflow-visible"
       style={{
-        outline: isSelected ? "2px solid #3b82f6" : undefined,
+        outline: isSelected ? "2px solid var(--accent)" : undefined,
         outlineOffset: isSelected ? -2 : undefined,
       }}
     >
@@ -412,7 +412,7 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
         borderLeft: `2px solid ${
           focusedWorktreeId === worktree.id ? "var(--accent)" : "var(--border)"
         }`,
-        outline: isSelected ? "2px solid #3b82f6" : undefined,
+        outline: isSelected ? "2px solid var(--accent)" : undefined,
         outlineOffset: isSelected ? -2 : undefined,
       }}
     >

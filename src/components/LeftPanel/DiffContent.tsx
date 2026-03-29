@@ -123,10 +123,10 @@ export function DiffContent({ worktreePath }: Props) {
                       let bg = "transparent";
                       if (line.startsWith("+") && !line.startsWith("+++")) {
                         color = "var(--cyan)";
-                        bg = "rgba(80, 227, 194, 0.06)";
+                        bg = "rgba(80, 227, 194, 0.12)";
                       } else if (line.startsWith("-") && !line.startsWith("---")) {
                         color = "var(--red)";
-                        bg = "rgba(238, 0, 0, 0.06)";
+                        bg = "rgba(238, 0, 0, 0.12)";
                       } else if (line.startsWith("@@")) {
                         color = "var(--accent)";
                       } else if (line.startsWith("index ") || line.startsWith("---") || line.startsWith("+++")) {
