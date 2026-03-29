@@ -74,8 +74,8 @@ function WorktreeTerminalItem({
       worktreeId={worktreeId}
       worktreePath={worktreePath}
       terminal={terminal}
-      gridX={item.x}
-      gridY={item.y}
+      gridX={item.x + 8}
+      gridY={item.y + 8}
       width={item.w}
       height={item.h}
       onDragStart={onDragStart}
