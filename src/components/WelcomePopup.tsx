@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useShortcutStore, formatShortcut } from "../stores/shortcutStore";
 
 interface Props {
   onClose: () => void;
@@ -48,6 +49,15 @@ const TERMINALS = [
     ],
   },
 ] as const;
+
+const isMac = (window.termcanvas?.app.platform ?? "darwin") === "darwin";
+
+const TILE_OFFSETS = [
+  { x: -64, y: -44 },
+  { x: 64, y: -44 },
+  { x: -64, y: 44 },
+  { x: 64, y: 44 },
+];
 
 function DemoCursor({
   pos,
@@ -299,7 +309,96 @@ function KeystrokeBar({
 
 export function WelcomePopup({ onClose }: Props) {
   const backdropRef = useRef<HTMLDivElement>(null);
-  const [_isFinished, _setIsFinished] = useState(false);
+  const shortcuts = useShortcutStore((s) => s.shortcuts);
+  const canvasRef = useRef<HTMLDivElement>(null);
+
+  const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [focusedTile, setFocusedTile] = useState(-1);
+  const [tilesVisible, setTilesVisible] = useState([false, false, false, false]);
+  const [canvasTransform, setCanvasTransform] = useState({ x: 0, y: 0, scale: 1 });
+  const [panelVisible, setPanelVisible] = useState(false);
+  const [panelContent, setPanelContent] = useState<"usage" | "hydra">("usage");
+  const [keystroke, setKeystroke] = useState<{ key: string; en: string; zh: string } | null>(null);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [isFinished, setIsFinished] = useState(false);
+
+  const getCenter = () => {
+    const el = canvasRef.current;
+    if (!el) return { x: 190, y: 190 };
+    return { x: el.clientWidth / 2, y: el.clientHeight / 2 };
+  };
+
+  const getTileCenter = (index: number) => {
+    const center = getCenter();
+    const off = TILE_OFFSETS[index];
+    return { x: center.x + off.x, y: center.y + off.y };
+  };
+
+  useEffect(() => {
+    if (!isPlaying) return;
+    let cancelled = false;
+
+    const delay = (ms: number) =>
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, ms);
+      });
+
+    const run = async () => {
+      setIsFinished(false);
+      setFocusedTile(-1);
+      setTilesVisible([false, false, false, false]);
+      setCanvasTransform({ x: 0, y: 0, scale: 1 });
+      setKeystroke(null);
+      setPanelVisible(false);
+      setPanelContent("usage");
+      setIsDragging(false);
+
+      const center = getCenter();
+      setCursorPos(center);
+      await delay(400);
+      if (cancelled) return;
+
+      for (let i = 0; i < 4; i++) {
+        if (cancelled) return;
+        setTilesVisible((prev) => {
+          const next = [...prev];
+          next[i] = true;
+          return next;
+        });
+        await delay(150);
+      }
+      await delay(800);
+      if (cancelled) return;
+
+      const fmtClearFocus = formatShortcut(shortcuts.clearFocus, isMac);
+      const tile0 = getTileCenter(0);
+      setCursorPos(tile0);
+      await delay(400);
+      if (cancelled) return;
+
+      setKeystroke({ key: fmtClearFocus, en: "Toggle Focus", zh: "切换聚焦" });
+      await delay(300);
+      if (cancelled) return;
+
+      setFocusedTile(0);
+      setCanvasTransform({
+        x: -TILE_OFFSETS[0].x * 0.3,
+        y: -TILE_OFFSETS[0].y * 0.3,
+        scale: 1.3,
+      });
+      await delay(1500);
+      if (cancelled) return;
+
+      setIsFinished(true);
+      setIsPlaying(false);
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [isPlaying, shortcuts.clearFocus]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -325,7 +424,6 @@ export function WelcomePopup({ onClose }: Props) {
         className="rounded-md bg-[var(--bg)] overflow-hidden flex flex-col border border-[var(--border)] max-w-[800px] w-full mx-4 shadow-2xl"
         style={{ fontFamily: '"Geist Mono", monospace' }}
       >
-        {/* Title bar */}
         <div className="flex items-center gap-2 px-3 py-2 select-none shrink-0">
           <div className="w-[3px] h-3 rounded-full bg-amber-500/60 shrink-0" />
           <span
@@ -352,13 +450,12 @@ export function WelcomePopup({ onClose }: Props) {
           </button>
         </div>
 
-        {/* Content: sidebar + canvas/keystroke + panel */}
         <div className="flex flex-1 min-h-0">
           <DemoSidebar />
 
           <div className="flex-1 min-w-0 flex flex-col">
-            {/* Canvas area */}
             <div
+              ref={canvasRef}
               className="relative overflow-hidden flex-1"
               style={{
                 height: 380,
@@ -368,32 +465,49 @@ export function WelcomePopup({ onClose }: Props) {
                 backgroundSize: "20px 20px",
               }}
             >
-              <div className="absolute inset-0 flex items-center justify-center">
+              <div
+                className="absolute inset-0 flex items-center justify-center"
+                style={{
+                  transform: `translate(${canvasTransform.x}px, ${canvasTransform.y}px) scale(${canvasTransform.scale})`,
+                  transition: "transform 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+                }}
+              >
                 <div className="grid grid-cols-2 gap-2">
-                  {TERMINALS.map((term) => (
+                  {TERMINALS.map((term, i) => (
                     <DemoTile
                       key={term.name}
                       name={term.name}
                       color={term.color}
                       lines={[...term.lines]}
-                      focused={false}
-                      visible={true}
+                      focused={focusedTile === i}
+                      visible={tilesVisible[i]}
                     />
                   ))}
                 </div>
               </div>
 
-              <DemoCursor pos={{ x: 190, y: 190 }} dragging={false} />
+              <DemoCursor pos={cursorPos} dragging={isDragging} />
             </div>
 
-            <KeystrokeBar keystroke={null} />
+            <KeystrokeBar keystroke={keystroke} />
+
+            {isFinished && (
+              <div className="flex items-center justify-center py-2">
+                <button
+                  className="text-[11px] hover:underline"
+                  style={{ color: "var(--accent)" }}
+                  onClick={() => setIsPlaying(true)}
+                >
+                  <Bi en="Replay" zh="重播" />
+                </button>
+              </div>
+            )}
           </div>
 
-          <DemoPanel visible={false} content="usage" />
+          <DemoPanel visible={panelVisible} content={panelContent} />
         </div>
       </div>
 
-      {/* Close hint */}
       <div className="absolute bottom-6 text-[12px] text-[var(--text-muted)]">
         <Bi en="Escape to close" zh="Escape 关闭" />
       </div>
