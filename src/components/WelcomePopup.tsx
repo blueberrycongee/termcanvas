@@ -185,7 +185,7 @@ function DemoPanel({
   content: "usage" | "hydra";
 }) {
   return (
-    <div className="shrink-0 overflow-hidden" style={{ width: visible ? 180 : 0 }}>
+    <div className="shrink-0 overflow-hidden" style={{ width: visible ? 180 : 0, transition: "width 300ms cubic-bezier(0.34, 1.56, 0.64, 1)" }}>
       <div
         className="h-full border-l border-[var(--border)]"
         style={{
@@ -443,6 +443,31 @@ export function WelcomePopup({ onClose }: Props) {
       await delay(800);
       if (cancelled) return;
 
+      // Phase 6: Panel
+      const fmtTogglePanel = formatShortcut(shortcuts.toggleRightPanel, isMac);
+      setKeystroke({ key: fmtTogglePanel, en: "Toggle Panel", zh: "切换面板" });
+      await delay(300);
+      if (cancelled) return;
+
+      setPanelVisible(true);
+      setPanelContent("usage");
+      await delay(2000);
+      if (cancelled) return;
+
+      setPanelContent("hydra");
+      await delay(1500);
+      if (cancelled) return;
+
+      // Phase 7: Finish
+      setPanelVisible(false);
+      await delay(400);
+      if (cancelled) return;
+
+      const fmtAddProject = formatShortcut(shortcuts.addProject, isMac);
+      setKeystroke({ key: fmtAddProject, en: "Add Project", zh: "添加项目" });
+      await delay(1500);
+      if (cancelled) return;
+
       setIsFinished(true);
       setIsPlaying(false);
     };
@@ -451,7 +476,7 @@ export function WelcomePopup({ onClose }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [isPlaying, shortcuts.clearFocus, shortcuts.nextTerminal]);
+  }, [isPlaying, shortcuts.clearFocus, shortcuts.nextTerminal, shortcuts.toggleRightPanel, shortcuts.addProject]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
