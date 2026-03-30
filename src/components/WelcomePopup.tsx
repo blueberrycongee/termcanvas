@@ -592,6 +592,7 @@ function Timeline({
 }) {
   const canPrev = current > 0;
   const canNext = current < PHASES.length - 1;
+  const paused = completed >= current && canNext;
   return (
     <div className="shrink-0 flex items-center justify-between px-3 py-2 border-t border-[var(--border)]">
       <button
@@ -652,9 +653,10 @@ function Timeline({
       <button
         className="rounded p-1 transition-colors duration-150"
         style={{
-          color: canNext ? "var(--text-secondary)" : "var(--text-faint)",
-          background: canNext ? "var(--surface)" : "transparent",
+          color: paused ? "var(--accent)" : canNext ? "var(--text-secondary)" : "var(--text-faint)",
+          background: paused ? "var(--surface-hover)" : canNext ? "var(--surface)" : "transparent",
           cursor: canNext ? "pointer" : "default",
+          animation: paused ? "demo-nudge 2s ease-in-out infinite" : "none",
         }}
         onClick={() => canNext && onSelect(current + 1)}
       >
