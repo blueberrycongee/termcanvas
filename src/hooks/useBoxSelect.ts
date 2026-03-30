@@ -7,6 +7,7 @@ import {
   useSelectionStore,
   type SelectedItem,
 } from "../stores/selectionStore";
+import { screenPointToCanvasPoint } from "../canvas/viewportBounds";
 import {
   packTerminals,
   getWorktreeSize,
@@ -24,11 +25,15 @@ function rectsIntersect(
 }
 
 function screenToCanvas(clientX: number, clientY: number) {
-  const { viewport } = useCanvasStore.getState();
-  return {
-    x: (clientX - viewport.x) / viewport.scale,
-    y: (clientY - viewport.y) / viewport.scale,
-  };
+  const { viewport, leftPanelCollapsed, leftPanelWidth } =
+    useCanvasStore.getState();
+  return screenPointToCanvasPoint(
+    clientX,
+    clientY,
+    viewport,
+    leftPanelCollapsed,
+    leftPanelWidth,
+  );
 }
 
 function getItemsInRect(rect: { x: number; y: number; w: number; h: number }): SelectedItem[] {

@@ -15,6 +15,34 @@ export function getCanvasLeftInset(
   return leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
 }
 
+export function canvasPointToScreenPoint(
+  x: number,
+  y: number,
+  viewport: Viewport,
+  leftPanelCollapsed: boolean,
+  leftPanelWidth: number,
+) {
+  const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  return {
+    x: leftInset + viewport.x + x * viewport.scale,
+    y: viewport.y + y * viewport.scale,
+  };
+}
+
+export function screenPointToCanvasPoint(
+  clientX: number,
+  clientY: number,
+  viewport: Viewport,
+  leftPanelCollapsed: boolean,
+  leftPanelWidth: number,
+) {
+  const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  return {
+    x: (clientX - leftInset - viewport.x) / viewport.scale,
+    y: (clientY - viewport.y) / viewport.scale,
+  };
+}
+
 export function rectIntersectsCanvasViewport(
   rect: { x: number; y: number; w: number; h: number },
   viewport: Viewport,

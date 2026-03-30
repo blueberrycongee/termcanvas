@@ -16,6 +16,10 @@ import {
 } from "../layout";
 import { panToTerminal } from "../utils/panToTerminal";
 import { useT } from "../i18n/useT";
+import {
+  canvasPointToScreenPoint,
+  getCanvasLeftInset,
+} from "../canvas/viewportBounds";
 
 const TYPE_COLORS: Record<string, string> = {
   shell: "#888",
@@ -109,6 +113,8 @@ export function FamilyTreeOverlay() {
   const projects = useProjectStore((s) => s.projects);
   const viewport = useCanvasStore((s) => s.viewport);
   const rightPanelCollapsed = useCanvasStore((s) => s.rightPanelCollapsed);
+  const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
+  const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [visibleId, setVisibleId] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -180,7 +186,8 @@ export function FamilyTreeOverlay() {
   const panelWidth = rightPanelCollapsed
     ? COLLAPSED_TAB_WIDTH
     : RIGHT_PANEL_WIDTH;
-  const safeLeft = OVERLAY_MARGIN;
+  const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  const safeLeft = leftInset + OVERLAY_MARGIN;
   const safeTop = TOOLBAR_HEIGHT + OVERLAY_MARGIN;
   const safeRight = Math.max(
     safeLeft + 1,
@@ -188,8 +195,15 @@ export function FamilyTreeOverlay() {
   );
   const safeBottom = Math.max(safeTop + 1, window.innerHeight - OVERLAY_MARGIN);
 
-  const anchorLeft = anchorPos.x * viewport.scale + viewport.x;
-  const anchorTop = anchorPos.y * viewport.scale + viewport.y;
+  const anchorScreenPoint = canvasPointToScreenPoint(
+    anchorPos.x,
+    anchorPos.y,
+    viewport,
+    leftPanelCollapsed,
+    leftPanelWidth,
+  );
+  const anchorLeft = anchorScreenPoint.x;
+  const anchorTop = anchorScreenPoint.y;
   const anchorRight = anchorLeft + anchorPos.w * viewport.scale;
   const preferredY = anchorTop;
 

@@ -36,7 +36,10 @@ import {
   xyflowNodeTypes,
   type CanvasFlowNode,
 } from "./xyflowNodes";
-import { rectIntersectsCanvasViewport } from "./viewportBounds";
+import {
+  getCanvasLeftInset,
+  rectIntersectsCanvasViewport,
+} from "./viewportBounds";
 import {
   WT_PAD,
   WT_TITLE_H,
@@ -262,6 +265,7 @@ function XyFlowCanvasInner() {
   const projectLayoutKey = useMemo(() => buildProjectLayoutKey(projects), [projects]);
   const tileW = useTileDimensionsStore((s) => s.w);
   const tileH = useTileDimensionsStore((s) => s.h);
+  const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
   // Keep local drag state stable across focus/status/session churn in projectStore.
   const projectedNodes = useMemo(
     () => buildCanvasFlowNodes(projects),
@@ -394,7 +398,8 @@ function XyFlowCanvasInner() {
 
   return (
     <div
-      className="fixed inset-0 canvas-bg"
+      className="fixed top-0 right-0 bottom-0 overflow-hidden canvas-bg"
+      style={{ left: leftOffset }}
       onMouseDownCapture={handleBoxSelectMouseDown}
     >
       <TerminalRuntimeLayer
