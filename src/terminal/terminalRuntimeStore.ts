@@ -361,6 +361,24 @@ function setSessionId(
   updateTerminalInStore(runtime, (terminal) => ({ ...terminal, sessionId }));
 }
 
+function setAutoApprove(
+  runtime: ManagedTerminalRuntime,
+  autoApprove: boolean,
+) {
+  useProjectStore
+    .getState()
+    .updateTerminalAutoApprove(
+      runtime.meta.projectId,
+      runtime.meta.worktreeId,
+      runtime.meta.terminal.id,
+      autoApprove,
+    );
+  updateTerminalInStore(runtime, (terminal) => ({
+    ...terminal,
+    autoApprove: autoApprove || undefined,
+  }));
+}
+
 function clearWatchedSession(runtime: ManagedTerminalRuntime) {
   if (!runtime.watchedSessionId) {
     return;
@@ -762,6 +780,9 @@ function triggerDetection(runtime: ManagedTerminalRuntime) {
       }
 
       setTerminalType(runtime, nextType);
+      if (result?.autoApprove) {
+        setAutoApprove(runtime, true);
+      }
       if (nextType === "claude") {
         useQuotaStore.getState().nudge();
       } else if (nextType === "codex") {

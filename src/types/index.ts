@@ -317,7 +317,7 @@ export interface TermCanvasAPI {
     notifyThemeChanged: (ptyId: number) => void;
     onOutput: (callback: (ptyId: number, data: string) => void) => () => void;
     onExit: (callback: (ptyId: number, exitCode: number) => void) => () => void;
-    detectCli: (ptyId: number) => Promise<{ cliType: TerminalType; pid?: number; sessionName?: string } | null>;
+    detectCli: (ptyId: number) => Promise<{ cliType: TerminalType; pid?: number; sessionName?: string; autoApprove?: boolean } | null>;
   };
   session: {
     getCodexLatest: () => Promise<string | null>;

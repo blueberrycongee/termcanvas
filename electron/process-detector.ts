@@ -35,6 +35,11 @@ const CLI_PATTERNS: [RegExp, string][] = [
   [/\btmux\b/, "tmux"],
 ];
 
+const AUTO_APPROVE_PATTERNS: Record<string, RegExp> = {
+  claude: /--dangerously-skip-permissions/,
+  codex: /--dangerously-bypass-approvals-and-sandbox/,
+};
+
 // Wrappers that delegate to another binary — check subsequent args for the real CLI
 const WRAPPER_NAMES = new Set(["node", "bun", "npx", "bunx"]);
 const SHELL_NAMES = new Set([
@@ -328,7 +333,10 @@ export async function detectCli(
     }
   }
 
-  return { cliType: first.cliType, pid: first.pid };
+  const approvePattern = AUTO_APPROVE_PATTERNS[first.cliType];
+  const autoApprove = approvePattern ? approvePattern.test(first.args) : false;
+
+  return { cliType: first.cliType, pid: first.pid, autoApprove: autoApprove || undefined };
 }
 
 export async function getProcessSnapshot(shellPid: number): Promise<ProcessSnapshot> {

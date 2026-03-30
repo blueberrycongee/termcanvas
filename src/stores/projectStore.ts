@@ -83,6 +83,12 @@ interface ProjectStore {
     terminalId: string,
     sessionId: string | undefined,
   ) => void;
+  updateTerminalAutoApprove: (
+    projectId: string,
+    worktreeId: string,
+    terminalId: string,
+    autoApprove: boolean,
+  ) => void;
   updateTerminalType: (
     projectId: string,
     worktreeId: string,
@@ -1007,6 +1013,17 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         worktreeId,
         terminalId,
         (t) => ({ ...t, sessionId }),
+      ),
+    })),
+
+  updateTerminalAutoApprove: (projectId, worktreeId, terminalId, autoApprove) =>
+    set((state) => ({
+      projects: mapTerminals(
+        state.projects,
+        projectId,
+        worktreeId,
+        terminalId,
+        (t) => ({ ...t, autoApprove: autoApprove || undefined }),
       ),
     })),
 
