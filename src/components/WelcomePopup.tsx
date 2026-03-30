@@ -162,7 +162,7 @@ function DemoTile({
   );
 }
 
-function DemoSidebar({ expanded }: { expanded: boolean }) {
+function DemoSidebar({ expanded, activeTab }: { expanded: boolean; activeTab: "files" | "git" }) {
   return (
     <div
       className="shrink-0 flex flex-col border-r border-[var(--border)] overflow-hidden"
@@ -175,61 +175,125 @@ function DemoSidebar({ expanded }: { expanded: boolean }) {
       {expanded ? (
         <div className="flex flex-col h-full" style={{ width: 150 }}>
           <div className="flex gap-0.5 p-1 mx-1 mt-1.5 rounded-md" style={{ background: "var(--bg)" }}>
-            {["Files", "Git"].map((tab, i) => (
+            {[{ key: "files", label: "Files" }, { key: "git", label: "Git" }].map((tab) => (
               <div
-                key={tab}
+                key={tab.key}
                 className="flex-1 text-center py-0.5 rounded text-[8px]"
                 style={{
-                  background: i === 0 ? "var(--surface-hover)" : "transparent",
-                  color: i === 0 ? "var(--text-primary)" : "var(--text-muted)",
+                  background: activeTab === tab.key ? "var(--surface-hover)" : "transparent",
+                  color: activeTab === tab.key ? "var(--text-primary)" : "var(--text-muted)",
+                  transition: "background 150ms, color 150ms",
                 }}
               >
-                {tab}
+                {tab.label}
               </div>
             ))}
           </div>
-          <div className="flex-1 min-h-0 px-1.5 pt-2 flex flex-col gap-0.5 overflow-hidden">
-            <div className="flex items-center gap-1">
-              <span className="text-[7px]" style={{ color: "var(--accent)" }}>▼</span>
-              <span className="text-[8px] font-medium" style={{ color: "var(--text-secondary)" }}>src</span>
-            </div>
-            {["main.ts", "app.tsx", "index.css", "layout.ts", "types.ts"].map((f) => (
-              <div key={f} className="pl-3 flex items-center gap-1">
-                <div className="w-1 h-1 rounded-full" style={{ background: "var(--text-faint)" }} />
-                <span className="text-[7px] text-[var(--text-muted)]">{f}</span>
+          {activeTab === "files" ? (
+            <div className="flex-1 min-h-0 px-1.5 pt-2 flex flex-col gap-0.5 overflow-hidden">
+              <div className="flex items-center gap-1">
+                <span className="text-[7px]" style={{ color: "var(--accent)" }}>▼</span>
+                <span className="text-[8px] font-medium" style={{ color: "var(--text-secondary)" }}>src</span>
               </div>
-            ))}
-            <div className="flex items-center gap-1 mt-0.5">
-              <span className="text-[7px]" style={{ color: "var(--accent)" }}>▼</span>
-              <span className="text-[8px] font-medium" style={{ color: "var(--text-secondary)" }}>components</span>
-            </div>
-            {["App.tsx", "Hub.tsx", "Panel.tsx"].map((f) => (
-              <div key={f} className="pl-3 flex items-center gap-1">
-                <div className="w-1 h-1 rounded-full" style={{ background: "var(--text-faint)" }} />
-                <span className="text-[7px] text-[var(--text-muted)]">{f}</span>
-              </div>
-            ))}
-            <div className="flex items-center gap-1 mt-0.5">
-              <span className="text-[7px]" style={{ color: "var(--text-faint)" }}>▶</span>
-              <span className="text-[8px]" style={{ color: "var(--text-secondary)" }}>stores</span>
-            </div>
-            <div className="flex items-center gap-1 mt-0.5">
-              <span className="text-[7px]" style={{ color: "var(--text-faint)" }}>▶</span>
-              <span className="text-[8px]" style={{ color: "var(--text-secondary)" }}>tests</span>
-            </div>
-            <div className="flex items-center gap-1 mt-0.5">
-              <span className="text-[7px]" style={{ color: "var(--text-faint)" }}>▶</span>
-              <span className="text-[8px]" style={{ color: "var(--text-secondary)" }}>hooks</span>
-            </div>
-            <div className="mt-1.5 flex flex-col gap-0.5">
-              {["package.json", "tsconfig.json", "vite.config.ts", ".gitignore", "README.md"].map((f) => (
-                <div key={f} className="flex items-center gap-1">
+              {["main.ts", "app.tsx", "index.css", "layout.ts", "types.ts"].map((f) => (
+                <div key={f} className="pl-3 flex items-center gap-1">
                   <div className="w-1 h-1 rounded-full" style={{ background: "var(--text-faint)" }} />
                   <span className="text-[7px] text-[var(--text-muted)]">{f}</span>
                 </div>
               ))}
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className="text-[7px]" style={{ color: "var(--accent)" }}>▼</span>
+                <span className="text-[8px] font-medium" style={{ color: "var(--text-secondary)" }}>components</span>
+              </div>
+              {["App.tsx", "Hub.tsx", "Panel.tsx"].map((f) => (
+                <div key={f} className="pl-3 flex items-center gap-1">
+                  <div className="w-1 h-1 rounded-full" style={{ background: "var(--text-faint)" }} />
+                  <span className="text-[7px] text-[var(--text-muted)]">{f}</span>
+                </div>
+              ))}
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className="text-[7px]" style={{ color: "var(--text-faint)" }}>▶</span>
+                <span className="text-[8px]" style={{ color: "var(--text-secondary)" }}>stores</span>
+              </div>
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className="text-[7px]" style={{ color: "var(--text-faint)" }}>▶</span>
+                <span className="text-[8px]" style={{ color: "var(--text-secondary)" }}>tests</span>
+              </div>
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className="text-[7px]" style={{ color: "var(--text-faint)" }}>▶</span>
+                <span className="text-[8px]" style={{ color: "var(--text-secondary)" }}>hooks</span>
+              </div>
+              <div className="mt-1.5 flex flex-col gap-0.5">
+                {["package.json", "tsconfig.json", "vite.config.ts", ".gitignore", "README.md"].map((f) => (
+                  <div key={f} className="flex items-center gap-1">
+                    <div className="w-1 h-1 rounded-full" style={{ background: "var(--text-faint)" }} />
+                    <span className="text-[7px] text-[var(--text-muted)]">{f}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex-1 min-h-0 px-1.5 pt-2 flex flex-col gap-1.5 overflow-hidden">
+              <div>
+                <span className="text-[7px] font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                  Branch
+                </span>
+                <div className="mt-0.5 flex items-center gap-1 px-1 py-0.5 rounded" style={{ background: "var(--surface)" }}>
+                  <div className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--green)" }} />
+                  <span className="text-[8px] font-medium" style={{ color: "var(--text-primary)" }}>main</span>
+                </div>
+              </div>
+
+              <div>
+                <span className="text-[7px] font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                  Status
+                </span>
+                <div className="mt-0.5 flex flex-col gap-0.5">
+                  {[
+                    { file: "app.tsx", badge: "M", color: "var(--amber)" },
+                    { file: "index.css", badge: "M", color: "var(--amber)" },
+                    { file: "utils.ts", badge: "A", color: "var(--green)" },
+                  ].map((f) => (
+                    <div key={f.file} className="flex items-center gap-1">
+                      <span
+                        className="text-[6px] font-bold rounded px-0.5"
+                        style={{ background: f.color, color: "var(--bg)", minWidth: 10, textAlign: "center" }}
+                      >
+                        {f.badge}
+                      </span>
+                      <span className="text-[7px] text-[var(--text-muted)]">{f.file}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <span className="text-[7px] font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                  Commits
+                </span>
+                <div className="mt-0.5 flex flex-col gap-1">
+                  {[
+                    { hash: "a3f21c", msg: "feat: add panel", time: "2m" },
+                    { hash: "8d4e0b", msg: "fix: layout shift", time: "18m" },
+                    { hash: "c72a1f", msg: "refactor: stores", time: "1h" },
+                    { hash: "19be3d", msg: "chore: deps update", time: "3h" },
+                    { hash: "f0c84a", msg: "feat: sidebar tabs", time: "5h" },
+                    { hash: "6e21b7", msg: "fix: scroll reset", time: "8h" },
+                  ].map((c) => (
+                    <div key={c.hash} className="flex flex-col">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[7px] font-medium" style={{ color: "var(--accent)", fontFamily: '"Geist Mono", monospace' }}>
+                          {c.hash}
+                        </span>
+                        <span className="text-[6px]" style={{ color: "var(--text-faint)" }}>{c.time}</span>
+                      </div>
+                      <span className="text-[7px] text-[var(--text-muted)] truncate">{c.msg}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="flex flex-col items-center pt-2 gap-1.5" style={{ width: 32 }}>
@@ -615,6 +679,7 @@ export function WelcomePopup({ onClose }: Props) {
   const [canvasTransform, setCanvasTransform] = useState({ x: 0, y: 0, scale: 1 });
   const [panelVisible, setPanelVisible] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState<"files" | "git">("files");
   const [newProject, setNewProject] = useState(false);
   const [panelContent, setPanelContent] = useState<"usage" | "hydra">("usage");
   const [popupKeys, setPopupKeys] = useState<[string, string]>(["", ""]);
@@ -650,6 +715,7 @@ export function WelcomePopup({ onClose }: Props) {
     setPopupLabel(null);
     setPanelVisible(false);
     setSidebarExpanded(false);
+    setSidebarTab("files");
     setNewProject(false);
     setPanelContent("usage");
     setIsDragging(false);
@@ -807,10 +873,17 @@ export function WelcomePopup({ onClose }: Props) {
 
       } else if (phase === 5) {
         setCursorVisible(true);
+        setSidebarTab("files");
         setCursorPos({ x: 16, y: 100 });
         await delay(800);
         if (cancelled()) return;
         setSidebarExpanded(true);
+        await delay(1500);
+        if (cancelled()) return;
+        setCursorPos({ x: 110, y: 18 });
+        await delay(700);
+        if (cancelled()) return;
+        setSidebarTab("git");
         await delay(1500);
 
       } else if (phase === 6) {
@@ -926,7 +999,7 @@ export function WelcomePopup({ onClose }: Props) {
         </div>
 
         <div className="flex flex-1 min-h-0">
-          <DemoSidebar expanded={sidebarExpanded} />
+          <DemoSidebar expanded={sidebarExpanded} activeTab={sidebarTab} />
 
           <div className="flex-1 min-w-0 flex flex-col">
             <div
