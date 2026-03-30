@@ -1064,11 +1064,13 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
         <DemoCursor pos={cursorPos} dragging={isDragging} visible={cursorVisible} />
       </div>
 
-      <Timeline
-        current={activePhase}
-        completed={completedPhase}
-        onSelect={handleSelectPhase}
-      />
+      {!autoplay && (
+        <Timeline
+          current={activePhase}
+          completed={completedPhase}
+          onSelect={handleSelectPhase}
+        />
+      )}
     </>
   );
 }
