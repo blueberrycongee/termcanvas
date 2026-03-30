@@ -182,19 +182,14 @@ export function findBestClaudeSession(
   return { sessionId, filePath, confidence };
 }
 
-/**
- * Read the permissionMode from a Claude session JSONL file by reading
- * only the tail of the file.  Returns "bypassPermissions" when the
- * session is running with --dangerously-skip-permissions, or null if the
- * file is missing / unreadable / has no user entries.
- */
-export function readClaudeSessionPermissionMode(
-  sessionId: string,
-  cwd: string,
-): string | null {
-  const filePath = resolveSessionFile(sessionId, "claude", cwd);
-  if (!filePath) return null;
+const TAIL_BYTES = 64 * 1024;
 
+/**
+ * Read the last {@link TAIL_BYTES} of a file and return the lines in
+ * reverse order.  The first line may be truncated when the file exceeds
+ * the tail window — callers should tolerate parse failures gracefully.
+ */
+function readTailLines(filePath: string): string[] | null {
   let fd: number;
   try {
     fd = fs.openSync(filePath, "r");
@@ -204,31 +199,86 @@ export function readClaudeSessionPermissionMode(
 
   try {
     const stat = fs.fstatSync(fd);
-    const TAIL_BYTES = 64 * 1024;
-    const start = Math.max(0, stat.size - TAIL_BYTES);
-    const buf = Buffer.alloc(Math.min(TAIL_BYTES, stat.size));
-    fs.readSync(fd, buf, 0, buf.length, start);
-    const tail = buf.toString("utf-8");
-
-    const lines = tail.split("\n");
-    for (let i = lines.length - 1; i >= 0; i--) {
-      const line = lines[i];
-      if (!line.includes('"permissionMode"')) continue;
-      try {
-        const entry = JSON.parse(line) as {
-          type?: string;
-          permissionMode?: string;
-        };
-        if (entry.type === "user" && typeof entry.permissionMode === "string") {
-          return entry.permissionMode;
-        }
-      } catch {
-        // truncated first line or malformed — keep scanning
-      }
-    }
-
-    return null;
+    if (stat.size === 0) return [];
+    const readBytes = Math.min(TAIL_BYTES, stat.size);
+    const start = stat.size - readBytes;
+    const buf = Buffer.alloc(readBytes);
+    fs.readSync(fd, buf, 0, readBytes, start);
+    return buf.toString("utf-8").split("\n");
   } finally {
     fs.closeSync(fd);
   }
+}
+
+/**
+ * Read the permissionMode from a Claude session JSONL (last user entry).
+ * Returns "bypassPermissions" for --dangerously-skip-permissions, or null.
+ */
+export function readClaudeSessionPermissionMode(
+  sessionId: string,
+  cwd: string,
+): string | null {
+  const filePath = resolveSessionFile(sessionId, "claude", cwd);
+  if (!filePath) return null;
+
+  const lines = readTailLines(filePath);
+  if (!lines) return null;
+
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    if (!line.includes('"permissionMode"')) continue;
+    try {
+      const entry = JSON.parse(line) as {
+        type?: string;
+        permissionMode?: string;
+      };
+      if (entry.type === "user" && typeof entry.permissionMode === "string") {
+        return entry.permissionMode;
+      }
+    } catch {
+      // truncated or malformed — keep scanning
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Read approval/sandbox policy from a Codex session JSONL (last turn_context).
+ * Returns true when running with --dangerously-bypass-approvals-and-sandbox.
+ */
+export function readCodexSessionBypassState(
+  sessionId: string,
+  cwd: string,
+): boolean {
+  const filePath = resolveSessionFile(sessionId, "codex", cwd);
+  if (!filePath) return false;
+
+  const lines = readTailLines(filePath);
+  if (!lines) return false;
+
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    if (!line.includes('"approval_policy"')) continue;
+    try {
+      const entry = JSON.parse(line) as {
+        type?: string;
+        payload?: {
+          approval_policy?: string;
+          sandbox_policy?: { type?: string };
+        };
+      };
+      if (entry.type === "turn_context" && entry.payload) {
+        const { approval_policy, sandbox_policy } = entry.payload;
+        return (
+          approval_policy === "never" &&
+          sandbox_policy?.type === "danger-full-access"
+        );
+      }
+    } catch {
+      // truncated or malformed — keep scanning
+    }
+  }
+
+  return false;
 }

@@ -49,6 +49,8 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("session:get-permission-mode", sessionId, cwd) as Promise<
         string | null
       >,
+    getBypassState: (type: string, sessionId: string, cwd: string) =>
+      ipcRenderer.invoke("session:get-bypass-state", type, sessionId, cwd) as Promise<boolean>,
     getClaudeByPid: (pid: number) =>
       ipcRenderer.invoke("session:get-claude-by-pid", pid) as Promise<
         string | null

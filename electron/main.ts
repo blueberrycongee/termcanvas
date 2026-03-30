@@ -55,7 +55,7 @@ import {
 } from "./git-info";
 import { createMenu } from "./menu";
 import { TelemetryService } from "./telemetry-service";
-import { findBestClaudeSession, findBestCodexSession, readClaudeSessionPermissionMode } from "./session-discovery";
+import { findBestClaudeSession, findBestCodexSession, readClaudeSessionPermissionMode, readCodexSessionBypassState } from "./session-discovery";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -348,6 +348,19 @@ function setupIpc() {
     "session:get-permission-mode",
     (_event, sessionId: string, cwd: string) => {
       return readClaudeSessionPermissionMode(sessionId, cwd);
+    },
+  );
+
+  ipcMain.handle(
+    "session:get-bypass-state",
+    (_event, type: string, sessionId: string, cwd: string) => {
+      if (type === "claude") {
+        return readClaudeSessionPermissionMode(sessionId, cwd) === "bypassPermissions";
+      }
+      if (type === "codex") {
+        return readCodexSessionBypassState(sessionId, cwd);
+      }
+      return false;
     },
   );
 

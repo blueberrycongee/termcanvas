@@ -395,12 +395,18 @@ async function syncPermissionMode(
   sessionId: string,
 ) {
   try {
-    const mode = await window.termcanvas.session.getPermissionMode(
-      sessionId,
-      runtime.meta.worktreePath,
-    );
+    const type = runtime.meta.terminal.type;
+    let shouldBypass = false;
+
+    if (type === "claude" || type === "codex") {
+      shouldBypass = await window.termcanvas.session.getBypassState(
+        type,
+        sessionId,
+        runtime.meta.worktreePath,
+      );
+    }
+
     if (runtime.disposed) return;
-    const shouldBypass = mode === "bypassPermissions";
     if (shouldBypass !== !!runtime.meta.terminal.autoApprove) {
       setAutoApprove(runtime, shouldBypass);
     }
@@ -775,7 +781,7 @@ function scheduleSessionCapture(
       if (cliType === "claude" || cliType === "codex") {
         watchSession(runtime, cliType, sessionId, confidence);
       }
-      if (cliType === "claude") {
+      if (cliType === "claude" || cliType === "codex") {
         void syncPermissionMode(runtime, sessionId);
       }
     },
@@ -1080,10 +1086,10 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
     );
   };
 
-  // For restored Claude sessions, read permissionMode from the JSONL
-  // before spawning so --dangerously-skip-permissions is included.
+  // For restored Claude/Codex sessions, read permission state from the
+  // JSONL before spawning so the bypass flag is included in launch args.
   const needsPermissionSync =
-    runtime.meta.terminal.type === "claude" &&
+    (runtime.meta.terminal.type === "claude" || runtime.meta.terminal.type === "codex") &&
     !!runtime.meta.terminal.sessionId &&
     !runtime.meta.terminal.autoApprove;
 

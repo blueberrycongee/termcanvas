@@ -331,6 +331,7 @@ export interface TermCanvasAPI {
       pid?: number | null,
     ) => Promise<{ sessionId: string; filePath: string; confidence: "strong" | "medium" | "weak" } | null>;
     getPermissionMode: (sessionId: string, cwd: string) => Promise<string | null>;
+    getBypassState: (type: string, sessionId: string, cwd: string) => Promise<boolean>;
     getClaudeByPid: (pid: number) => Promise<string | null>;
     getKimiLatest: (cwd: string) => Promise<string | null>;
     watch: (type: string, sessionId: string, cwd: string) => Promise<{ ok: boolean; reason?: string }>;
