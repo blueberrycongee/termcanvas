@@ -2,6 +2,14 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.16.11] - 2026-03-30
+
+### Fixed
+- Persist CLI auto-approve flag (e.g. --dangerously-skip-permissions) across app restarts
+
+### Improved
+- Stagger non-focused PTY spawns on restore to reduce fork storm
+
 ## [0.16.10] - 2026-03-30
 
 ### Added
