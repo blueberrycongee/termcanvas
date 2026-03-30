@@ -369,6 +369,40 @@ function DemoPanel({
                 $31.50
               </span>
             </div>
+
+            <div className="flex flex-col gap-1" style={{ borderTop: "1px solid var(--border)", paddingTop: 6 }}>
+              <span className="text-[7px] font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                Sessions
+              </span>
+              {[
+                { time: "2m ago", tokens: "12.1k", cost: "$0.48" },
+                { time: "18m ago", tokens: "8.7k", cost: "$0.31" },
+                { time: "1h ago", tokens: "24.3k", cost: "$1.02" },
+                { time: "3h ago", tokens: "6.2k", cost: "$0.22" },
+              ].map((s, i) => (
+                <div key={i} className="flex items-center justify-between py-0.5">
+                  <span className="text-[7px]" style={{ color: "var(--text-faint)" }}>{s.time}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[7px]" style={{ color: "var(--text-muted)" }}>{s.tokens}</span>
+                    <span className="text-[7px] font-medium" style={{ color: "var(--text-secondary)", fontFamily: '"Geist Mono", monospace' }}>{s.cost}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-end gap-[2px]" style={{ borderTop: "1px solid var(--border)", paddingTop: 6, height: 32 }}>
+              {[3, 5, 4, 8, 6, 10, 7, 12, 9, 14, 11, 16, 13, 18, 20, 15, 22, 19, 24, 21, 28, 25].map((h, i) => (
+                <div
+                  key={i}
+                  className="flex-1 rounded-sm"
+                  style={{
+                    height: h,
+                    background: "var(--cyan)",
+                    opacity: 0.15 + (i / 22) * 0.35,
+                  }}
+                />
+              ))}
+            </div>
           </div>
         ) : (
           <div className="p-3 flex flex-col gap-3">
