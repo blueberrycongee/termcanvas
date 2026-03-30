@@ -188,28 +188,46 @@ function DemoSidebar({ expanded }: { expanded: boolean }) {
               </div>
             ))}
           </div>
-          <div className="flex-1 min-h-0 px-1.5 pt-2 flex flex-col gap-0.5">
+          <div className="flex-1 min-h-0 px-1.5 pt-2 flex flex-col gap-0.5 overflow-hidden">
             <div className="flex items-center gap-1">
               <span className="text-[7px]" style={{ color: "var(--accent)" }}>▼</span>
-              <span className="text-[8px]" style={{ color: "var(--text-secondary)" }}>src</span>
+              <span className="text-[8px] font-medium" style={{ color: "var(--text-secondary)" }}>src</span>
             </div>
-            {["main.ts", "app.tsx", "index.css"].map((f) => (
+            {["main.ts", "app.tsx", "index.css", "layout.ts", "types.ts"].map((f) => (
               <div key={f} className="pl-3 flex items-center gap-1">
                 <div className="w-1 h-1 rounded-full" style={{ background: "var(--text-faint)" }} />
                 <span className="text-[7px] text-[var(--text-muted)]">{f}</span>
               </div>
             ))}
-            <div className="flex items-center gap-1 mt-1">
+            <div className="flex items-center gap-1 mt-0.5">
+              <span className="text-[7px]" style={{ color: "var(--accent)" }}>▼</span>
+              <span className="text-[8px] font-medium" style={{ color: "var(--text-secondary)" }}>components</span>
+            </div>
+            {["App.tsx", "Hub.tsx", "Panel.tsx"].map((f) => (
+              <div key={f} className="pl-3 flex items-center gap-1">
+                <div className="w-1 h-1 rounded-full" style={{ background: "var(--text-faint)" }} />
+                <span className="text-[7px] text-[var(--text-muted)]">{f}</span>
+              </div>
+            ))}
+            <div className="flex items-center gap-1 mt-0.5">
+              <span className="text-[7px]" style={{ color: "var(--text-faint)" }}>▶</span>
+              <span className="text-[8px]" style={{ color: "var(--text-secondary)" }}>stores</span>
+            </div>
+            <div className="flex items-center gap-1 mt-0.5">
               <span className="text-[7px]" style={{ color: "var(--text-faint)" }}>▶</span>
               <span className="text-[8px]" style={{ color: "var(--text-secondary)" }}>tests</span>
             </div>
-            <div className="flex items-center gap-1 mt-1">
-              <div className="w-1 h-1 rounded-full" style={{ background: "var(--text-faint)" }} />
-              <span className="text-[7px] text-[var(--text-muted)]">package.json</span>
+            <div className="flex items-center gap-1 mt-0.5">
+              <span className="text-[7px]" style={{ color: "var(--text-faint)" }}>▶</span>
+              <span className="text-[8px]" style={{ color: "var(--text-secondary)" }}>hooks</span>
             </div>
-            <div className="flex items-center gap-1">
-              <div className="w-1 h-1 rounded-full" style={{ background: "var(--text-faint)" }} />
-              <span className="text-[7px] text-[var(--text-muted)]">tsconfig.json</span>
+            <div className="mt-1.5 flex flex-col gap-0.5">
+              {["package.json", "tsconfig.json", "vite.config.ts", ".gitignore", "README.md"].map((f) => (
+                <div key={f} className="flex items-center gap-1">
+                  <div className="w-1 h-1 rounded-full" style={{ background: "var(--text-faint)" }} />
+                  <span className="text-[7px] text-[var(--text-muted)]">{f}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
