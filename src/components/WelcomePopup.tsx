@@ -285,39 +285,53 @@ function DemoPanel({
   );
 }
 
-function KeystrokeBar({
-  keystroke,
+function KeystrokePopup({
+  keys,
+  visibleCount,
+  label,
 }: {
-  keystroke: { key: string; en: string; zh: string } | null;
+  keys: string[];
+  visibleCount: number;
+  label: { en: string; zh: string } | null;
 }) {
+  if (keys.length === 0) return null;
   return (
     <div
-      className="shrink-0 flex items-center justify-center"
-      style={{ height: 32 }}
+      className="absolute left-1/2 bottom-6 -translate-x-1/2 rounded-lg px-3 py-2 flex flex-col items-center gap-1"
+      style={{
+        background: "var(--bg)",
+        border: "1px solid var(--border)",
+        boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
+        zIndex: 55,
+        opacity: visibleCount > 0 ? 1 : 0,
+        transform: visibleCount > 0 ? "translate(-50%, 0)" : "translate(-50%, 4px)",
+        transition: "opacity 150ms, transform 150ms",
+      }}
     >
-      <div
-        style={{
-          opacity: keystroke ? 1 : 0,
-          transform: keystroke ? "translateY(0)" : "translateY(4px)",
-          transition: "opacity 150ms, transform 150ms",
-        }}
-      >
-        {keystroke && (
-          <div className="flex items-center gap-2 text-[11px]">
-            <span
-              className="rounded-md px-1.5 py-0.5"
-              style={{
-                background: "var(--surface)",
-                color: "var(--text-primary)",
-                fontFamily: '"Geist Mono", monospace',
-              }}
-            >
-              {keystroke.key}
-            </span>
-            <Bi en={keystroke.en} zh={keystroke.zh} />
-          </div>
-        )}
+      <div className="flex items-center gap-1">
+        {keys.map((k, i) => (
+          <span
+            key={i}
+            className="rounded-md px-2 py-0.5 text-[12px] font-medium"
+            style={{
+              background: i < visibleCount ? "var(--surface-hover)" : "var(--surface)",
+              color: i < visibleCount ? "var(--text-primary)" : "transparent",
+              border: "1px solid var(--border)",
+              fontFamily: '"Geist Mono", monospace',
+              transition: "color 120ms, background 120ms",
+              minWidth: 24,
+              textAlign: "center",
+            }}
+          >
+            {k}
+          </span>
+        ))}
       </div>
+      {label && visibleCount >= keys.length && (
+        <div className="text-[10px]">
+          <Bi en={label.en} zh={label.zh} />
+        </div>
+      )}
     </div>
   );
 }
@@ -406,7 +420,9 @@ export function WelcomePopup({ onClose }: Props) {
   const [canvasTransform, setCanvasTransform] = useState({ x: 0, y: 0, scale: 1 });
   const [panelVisible, setPanelVisible] = useState(false);
   const [panelContent, setPanelContent] = useState<"usage" | "hydra">("usage");
-  const [keystroke, setKeystroke] = useState<{ key: string; en: string; zh: string } | null>(null);
+  const [popupKeys, setPopupKeys] = useState<string[]>([]);
+  const [popupVisible, setPopupVisible] = useState(0);
+  const [popupLabel, setPopupLabel] = useState<{ en: string; zh: string } | null>(null);
 
   const [activePhase, setActivePhase] = useState(0);
   const [completedPhase, setCompletedPhase] = useState(-1);
@@ -432,7 +448,9 @@ export function WelcomePopup({ onClose }: Props) {
     setFocusedTile(-1);
     setTilesVisible([false, false, false, false]);
     setCanvasTransform({ x: 0, y: 0, scale: 1 });
-    setKeystroke(null);
+    setPopupKeys([]);
+    setPopupVisible(0);
+    setPopupLabel(null);
     setPanelVisible(false);
     setPanelContent("usage");
     setIsDragging(false);
@@ -452,9 +470,32 @@ export function WelcomePopup({ onClose }: Props) {
     const fmtTogglePanel = formatShortcut(shortcuts.toggleRightPanel, isMac);
     const fmtAddProject = formatShortcut(shortcuts.addProject, isMac);
 
+    const showKeys = async (
+      keys: string[],
+      label: { en: string; zh: string },
+    ) => {
+      setPopupKeys(keys);
+      setPopupVisible(0);
+      setPopupLabel(label);
+      await delay(150);
+      for (let i = 1; i <= keys.length; i++) {
+        if (cancelled()) return;
+        setPopupVisible(i);
+        await delay(200);
+      }
+      await delay(400);
+    };
+
+    const clearKeys = () => {
+      setPopupKeys([]);
+      setPopupVisible(0);
+      setPopupLabel(null);
+    };
+
     const setupForPhase = (phase: number) => {
       setIsDragging(false);
       setCursorVisible(phase === 4);
+      clearKeys();
       setPanelContent("usage");
       if (phase === 0) {
         resetState();
@@ -462,44 +503,28 @@ export function WelcomePopup({ onClose }: Props) {
         setTilesVisible([true, true, true, true]);
         setFocusedTile(-1);
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
-        setKeystroke(null);
         setPanelVisible(false);
-        setCursorPos(getCenter());
       } else if (phase === 2) {
         setTilesVisible([true, true, true, true]);
         setFocusedTile(0);
         setCanvasTransform({ x: -TILE_OFFSETS[0].x, y: -TILE_OFFSETS[0].y, scale: 1.8 });
-        setKeystroke({ key: fmtClearFocus, en: "Toggle Focus", zh: "切换聚焦" });
         setPanelVisible(false);
-        setCursorPos(getTileCenter(0));
       } else if (phase === 3) {
         setTilesVisible([true, true, true, true]);
         setFocusedTile(3);
         setCanvasTransform({ x: -TILE_OFFSETS[3].x, y: -TILE_OFFSETS[3].y, scale: 1.8 });
-        setKeystroke({ key: fmtNext, en: "Next Terminal", zh: "下一终端" });
         setPanelVisible(false);
-        setCursorPos(getTileCenter(3));
-      } else if (phase === 4) {
+      } else if (phase >= 4 && phase <= 6) {
         setTilesVisible([true, true, true, true]);
         setFocusedTile(-1);
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
-        setKeystroke(null);
-        setPanelVisible(false);
-        setCursorPos(getCenter());
-      } else if (phase === 5) {
-        setTilesVisible([true, true, true, true]);
-        setFocusedTile(-1);
-        setCanvasTransform({ x: 0, y: 0, scale: 1 });
-        setKeystroke(null);
-        setPanelVisible(false);
-        setCursorPos(getCenter());
-      } else if (phase === 6) {
-        setTilesVisible([true, true, true, true]);
-        setFocusedTile(-1);
-        setCanvasTransform({ x: 0, y: 0, scale: 1 });
-        setPanelVisible(false);
+        setPanelVisible(phase === 6);
         setCursorPos(getCenter());
       }
+    };
+
+    const splitShortcut = (shortcut: string): string[] => {
+      return shortcut.split(/\s+/).filter(Boolean);
     };
 
     const runPhase = async (phase: number) => {
@@ -516,38 +541,40 @@ export function WelcomePopup({ onClose }: Props) {
         await delay(600);
 
       } else if (phase === 1) {
-        setKeystroke({ key: fmtClearFocus, en: "Toggle Focus", zh: "切换聚焦" });
-        await delay(300);
+        await showKeys(splitShortcut(fmtClearFocus), { en: "Toggle Focus", zh: "切换聚焦" });
         if (cancelled()) return;
         setFocusedTile(0);
         setCanvasTransform({ x: -TILE_OFFSETS[0].x, y: -TILE_OFFSETS[0].y, scale: 1.8 });
         await delay(1200);
 
       } else if (phase === 2) {
-        setKeystroke({ key: fmtNext, en: "Next Terminal", zh: "下一终端" });
         for (const idx of [1, 2, 3]) {
+          if (cancelled()) return;
+          await showKeys(splitShortcut(fmtNext), { en: "Next Terminal", zh: "下一终端" });
           if (cancelled()) return;
           setFocusedTile(idx);
           setCanvasTransform({ x: -TILE_OFFSETS[idx].x, y: -TILE_OFFSETS[idx].y, scale: 1.8 });
-          await delay(1000);
+          await delay(600);
         }
 
       } else if (phase === 3) {
-        setKeystroke({ key: fmtClearFocus, en: "Toggle Focus", zh: "切换聚焦" });
-        await delay(300);
+        await showKeys(splitShortcut(fmtClearFocus), { en: "Toggle Focus", zh: "切换聚焦" });
         if (cancelled()) return;
         setFocusedTile(-1);
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
         await delay(1200);
 
       } else if (phase === 4) {
-        setKeystroke({ key: "Scroll", en: "Zoom", zh: "缩放" });
-        await delay(300);
+        await showKeys(["Scroll"], { en: "Zoom", zh: "缩放" });
         if (cancelled()) return;
         setCanvasTransform({ x: 0, y: 0, scale: 0.7 });
         await delay(800);
         if (cancelled()) return;
-        setKeystroke({ key: "Drag", en: "Pan", zh: "平移" });
+        clearKeys();
+        await delay(100);
+        await showKeys(["Drag"], { en: "Pan", zh: "平移" });
+        if (cancelled()) return;
+        setCursorVisible(true);
         setIsDragging(true);
         const panCenter = getCenter();
         for (let i = 1; i <= 16; i++) {
@@ -560,14 +587,16 @@ export function WelcomePopup({ onClose }: Props) {
         }
         setIsDragging(false);
         if (cancelled()) return;
-        setKeystroke({ key: "Scroll", en: "Zoom", zh: "缩放" });
+        clearKeys();
+        await delay(100);
+        await showKeys(["Scroll"], { en: "Zoom", zh: "缩放" });
+        if (cancelled()) return;
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
         setCursorPos(panCenter);
         await delay(800);
 
       } else if (phase === 5) {
-        setKeystroke({ key: fmtTogglePanel, en: "Toggle Panel", zh: "切换面板" });
-        await delay(300);
+        await showKeys(splitShortcut(fmtTogglePanel), { en: "Toggle Panel", zh: "切换面板" });
         if (cancelled()) return;
         setPanelVisible(true);
         setPanelContent("usage");
@@ -580,8 +609,8 @@ export function WelcomePopup({ onClose }: Props) {
         setPanelVisible(false);
         await delay(400);
         if (cancelled()) return;
-        setKeystroke({ key: fmtAddProject, en: "Add Project", zh: "添加项目" });
-        await delay(1000);
+        await showKeys(splitShortcut(fmtAddProject), { en: "Add Project", zh: "添加项目" });
+        await delay(800);
       }
 
       if (!cancelled()) {
@@ -710,9 +739,8 @@ export function WelcomePopup({ onClose }: Props) {
               </div>
 
               <DemoCursor pos={cursorPos} dragging={isDragging} visible={cursorVisible} />
+              <KeystrokePopup keys={popupKeys} visibleCount={popupVisible} label={popupLabel} />
             </div>
-
-            <KeystrokeBar keystroke={keystroke} key={keystroke?.key ?? "empty"} />
           </div>
 
           <DemoPanel visible={panelVisible} content={panelContent} />
