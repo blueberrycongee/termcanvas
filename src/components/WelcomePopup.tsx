@@ -317,38 +317,58 @@ function DemoPanel({
         }}
       >
         {content === "usage" ? (
-          <div className="p-3 flex flex-col gap-3">
-            <div
-              className="rounded"
-              style={{
-                height: 12,
-                width: "60%",
-                background: "var(--text-faint)",
-                opacity: 0.5,
-              }}
-            />
-            <div className="flex items-end gap-2" style={{ height: 60 }}>
-              {[40, 55, 30].map((h, i) => (
+          <div className="p-3 flex flex-col gap-2.5">
+            <div className="flex items-baseline justify-between">
+              <span className="text-[7px] font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                Today
+              </span>
+              <span className="text-[14px] font-semibold" style={{ color: "var(--amber)", fontFamily: '"Geist Mono", monospace' }}>
+                $4.82
+              </span>
+            </div>
+
+            <div className="flex items-end gap-[3px]" style={{ height: 48 }}>
+              {[12, 18, 14, 22, 28, 20, 35, 30, 42, 38, 48, 44].map((h, i) => (
                 <div
                   key={i}
                   className="rounded-sm flex-1"
                   style={{
                     height: h,
-                    background: "var(--accent)",
-                    opacity: 0.3 + i * 0.15,
+                    background: i >= 10 ? "var(--amber)" : "var(--accent)",
+                    opacity: 0.25 + (i / 12) * 0.5,
                   }}
                 />
               ))}
             </div>
-            <div
-              className="rounded"
-              style={{
-                height: 10,
-                width: "40%",
-                background: "var(--text-faint)",
-                opacity: 0.4,
-              }}
-            />
+
+            <div className="flex items-center justify-between" style={{ borderTop: "1px solid var(--border)", paddingTop: 6 }}>
+              <span className="text-[7px]" style={{ color: "var(--text-muted)" }}>Tokens</span>
+              <span className="text-[8px] font-medium" style={{ color: "var(--text-secondary)", fontFamily: '"Geist Mono", monospace' }}>
+                128.4k
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              {[
+                { label: "opus", pct: 72, color: "var(--accent)" },
+                { label: "sonnet", pct: 45, color: "var(--cyan)" },
+                { label: "haiku", pct: 18, color: "var(--green)" },
+              ].map((m) => (
+                <div key={m.label} className="flex items-center gap-1.5">
+                  <span className="text-[7px] w-8 text-right" style={{ color: "var(--text-muted)" }}>{m.label}</span>
+                  <div className="flex-1 rounded-full overflow-hidden" style={{ height: 4, background: "var(--border)" }}>
+                    <div className="h-full rounded-full" style={{ width: `${m.pct}%`, background: m.color, opacity: 0.7 }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between" style={{ borderTop: "1px solid var(--border)", paddingTop: 6 }}>
+              <span className="text-[7px]" style={{ color: "var(--text-muted)" }}>This week</span>
+              <span className="text-[9px] font-medium" style={{ color: "var(--text-secondary)", fontFamily: '"Geist Mono", monospace' }}>
+                $31.50
+              </span>
+            </div>
           </div>
         ) : (
           <div className="p-3 flex flex-col gap-3">
