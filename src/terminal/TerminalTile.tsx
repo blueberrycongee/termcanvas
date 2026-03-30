@@ -750,7 +750,7 @@ export function TerminalTile({
 
       {lodMode === "live" ? (
         <div
-          className={terminal.minimized ? "" : "flex-1 min-h-0 relative"}
+          className={terminal.minimized ? "relative" : "flex-1 min-h-0 relative"}
           style={{
             height: terminal.minimized ? 0 : undefined,
             overflow: "hidden",
