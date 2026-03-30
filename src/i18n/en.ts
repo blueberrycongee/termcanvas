@@ -387,33 +387,10 @@ export const en = {
   insights_open: "Open Report",
   insights_error: "Insights Error",
 
-  // Welcome popup
-  welcome_title: "termcanvas",
-  welcome_heading: "Welcome to TermCanvas!",
-  welcome_desc: "Manage terminals on an infinite canvas.",
-  welcome_quick_start: "Quick Start:",
-  welcome_step_1: "Click \"Add Project\" to add a project",
-  welcome_step_2: "Open terminals in your worktrees",
-  welcome_step_3: "Pan & zoom the canvas freely",
-  welcome_shortcuts: "Key Shortcuts:",
-  welcome_github: "GitHub:",
-  welcome_dismiss: "Press Enter to start the interactive tutorial, or Escape to skip.",
-
   // Canvas empty state
   canvas_empty_title: "No projects yet",
   canvas_empty_action: "Add Project",
 
-  // Onboarding tutorial
-  onboarding_dblclick_prompt: "Double-click a terminal title bar to focus it",
-  onboarding_focus_prompt: "Press {shortcut} to focus a terminal",
-  onboarding_unfocus_prompt: "Press {shortcut} again to unfocus",
-  onboarding_switch_prompt: "Press {next} / {prev} to switch terminals",
-  onboarding_switch_continue: "Press Enter to continue",
-  onboarding_zoom_prompt: "Scroll to zoom, drag to pan",
-  onboarding_zoom_continue: "Press Enter to continue",
-  onboarding_complete: "Tutorial complete! Close this window, then press {shortcut} to add your first project.",
-  onboarding_complete_dismiss: "Press Enter or Escape to close.",
-  onboarding_skip: "Escape to skip",
 } as const;
 
 export type TranslationKey = keyof typeof en;
