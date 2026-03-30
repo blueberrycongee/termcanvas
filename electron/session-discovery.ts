@@ -182,14 +182,15 @@ export function findBestClaudeSession(
   return { sessionId, filePath, confidence };
 }
 
-const TAIL_BYTES = 64 * 1024;
+const CHUNK_BYTES = 64 * 1024;
+const MAX_SCAN_BYTES = 512 * 1024;
 
 /**
- * Read the last {@link TAIL_BYTES} of a file and return the lines in
- * reverse order.  The first line may be truncated when the file exceeds
- * the tail window — callers should tolerate parse failures gracefully.
+ * Scan a JSONL file backwards in 64KB chunks (up to 512KB total) looking
+ * for a line matching {@link needle}.  Returns the first (most recent)
+ * matching line, or null.
  */
-function readTailLines(filePath: string): string[] | null {
+function scanTailForLine(filePath: string, needle: string): string | null {
   let fd: number;
   try {
     fd = fs.openSync(filePath, "r");
@@ -198,13 +199,40 @@ function readTailLines(filePath: string): string[] | null {
   }
 
   try {
-    const stat = fs.fstatSync(fd);
-    if (stat.size === 0) return [];
-    const readBytes = Math.min(TAIL_BYTES, stat.size);
-    const start = stat.size - readBytes;
-    const buf = Buffer.alloc(readBytes);
-    fs.readSync(fd, buf, 0, readBytes, start);
-    return buf.toString("utf-8").split("\n");
+    const fileSize = fs.fstatSync(fd).size;
+    if (fileSize === 0) return null;
+
+    let scanned = 0;
+    let cursor = fileSize;
+    let leftover = "";
+
+    while (scanned < MAX_SCAN_BYTES && cursor > 0) {
+      const readBytes = Math.min(CHUNK_BYTES, cursor);
+      cursor -= readBytes;
+      const buf = Buffer.alloc(readBytes);
+      fs.readSync(fd, buf, 0, readBytes, cursor);
+
+      const chunk = buf.toString("utf-8") + leftover;
+      const lines = chunk.split("\n");
+      // First element may be a partial line — carry it over
+      leftover = lines[0];
+
+      // Scan from the end of this chunk
+      for (let i = lines.length - 1; i >= 1; i--) {
+        if (lines[i].includes(needle)) {
+          return lines[i];
+        }
+      }
+
+      scanned += readBytes;
+    }
+
+    // Check the very first piece (leftover from the last iteration)
+    if (leftover.includes(needle)) {
+      return leftover;
+    }
+
+    return null;
   } finally {
     fs.closeSync(fd);
   }
@@ -221,23 +249,19 @@ export function readClaudeSessionPermissionMode(
   const filePath = resolveSessionFile(sessionId, "claude", cwd);
   if (!filePath) return null;
 
-  const lines = readTailLines(filePath);
-  if (!lines) return null;
+  const line = scanTailForLine(filePath, '"permissionMode"');
+  if (!line) return null;
 
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i];
-    if (!line.includes('"permissionMode"')) continue;
-    try {
-      const entry = JSON.parse(line) as {
-        type?: string;
-        permissionMode?: string;
-      };
-      if (entry.type === "user" && typeof entry.permissionMode === "string") {
-        return entry.permissionMode;
-      }
-    } catch {
-      // truncated or malformed — keep scanning
+  try {
+    const entry = JSON.parse(line) as {
+      type?: string;
+      permissionMode?: string;
+    };
+    if (entry.type === "user" && typeof entry.permissionMode === "string") {
+      return entry.permissionMode;
     }
+  } catch {
+    // malformed
   }
 
   return null;
@@ -254,30 +278,26 @@ export function readCodexSessionBypassState(
   const filePath = resolveSessionFile(sessionId, "codex", cwd);
   if (!filePath) return false;
 
-  const lines = readTailLines(filePath);
-  if (!lines) return false;
+  const line = scanTailForLine(filePath, '"approval_policy"');
+  if (!line) return false;
 
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i];
-    if (!line.includes('"approval_policy"')) continue;
-    try {
-      const entry = JSON.parse(line) as {
-        type?: string;
-        payload?: {
-          approval_policy?: string;
-          sandbox_policy?: { type?: string };
-        };
+  try {
+    const entry = JSON.parse(line) as {
+      type?: string;
+      payload?: {
+        approval_policy?: string;
+        sandbox_policy?: { type?: string };
       };
-      if (entry.type === "turn_context" && entry.payload) {
-        const { approval_policy, sandbox_policy } = entry.payload;
-        return (
-          approval_policy === "never" &&
-          sandbox_policy?.type === "danger-full-access"
-        );
-      }
-    } catch {
-      // truncated or malformed — keep scanning
+    };
+    if (entry.type === "turn_context" && entry.payload) {
+      const { approval_policy, sandbox_policy } = entry.payload;
+      return (
+        approval_policy === "never" &&
+        sandbox_policy?.type === "danger-full-access"
+      );
     }
+  } catch {
+    // malformed
   }
 
   return false;
