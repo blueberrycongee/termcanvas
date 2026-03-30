@@ -185,7 +185,7 @@ function DemoPanel({
   content: "usage" | "hydra";
 }) {
   return (
-    <div className="shrink-0 overflow-hidden" style={{ width: visible ? 180 : 0, transition: "width 300ms cubic-bezier(0.34, 1.56, 0.64, 1)" }}>
+    <div className="shrink-0 overflow-hidden" style={{ width: visible ? 180 : 0, transition: "width 300ms ease-out" }}>
       <div
         className="h-full border-l border-[var(--border)]"
         style={{
@@ -454,7 +454,6 @@ export function WelcomePopup({ onClose }: Props) {
       await delay(800);
       if (cancelled) return;
 
-      // Phase 6: Panel
       const fmtTogglePanel = formatShortcut(shortcuts.toggleRightPanel, isMac);
       setKeystroke({ key: fmtTogglePanel, en: "Toggle Panel", zh: "切换面板" });
       await delay(300);
@@ -469,7 +468,6 @@ export function WelcomePopup({ onClose }: Props) {
       await delay(1500);
       if (cancelled) return;
 
-      // Phase 7: Finish
       setPanelVisible(false);
       await delay(400);
       if (cancelled) return;
@@ -562,7 +560,7 @@ export function WelcomePopup({ onClose }: Props) {
                 height: 380,
                 background: "var(--surface)",
                 backgroundImage:
-                  "radial-gradient(circle, var(--text-faint) 1px, transparent 1px)",
+                  "radial-gradient(circle, var(--border) 0.5px, transparent 0.5px)",
                 backgroundSize: "20px 20px",
               }}
             >
@@ -570,7 +568,7 @@ export function WelcomePopup({ onClose }: Props) {
                 className="absolute inset-0 flex items-center justify-center"
                 style={{
                   transform: `translate(${canvasTransform.x}px, ${canvasTransform.y}px) scale(${canvasTransform.scale})`,
-                  transition: "transform 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+                  transition: isDragging ? "none" : "transform 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
                 }}
               >
                 <div className="grid grid-cols-2 gap-2">
@@ -590,10 +588,10 @@ export function WelcomePopup({ onClose }: Props) {
               <DemoCursor pos={cursorPos} dragging={isDragging} />
             </div>
 
-            <KeystrokeBar keystroke={keystroke} />
+            <KeystrokeBar keystroke={keystroke} key={keystroke?.key ?? "empty"} />
 
-            {isFinished && (
-              <div className="flex items-center justify-center py-2">
+            <div className="flex items-center justify-center" style={{ height: 32 }}>
+              {isFinished && (
                 <button
                   className="text-[11px] hover:underline"
                   style={{ color: "var(--accent)" }}
@@ -601,8 +599,8 @@ export function WelcomePopup({ onClose }: Props) {
                 >
                   <Bi en="Replay" zh="重播" />
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           <DemoPanel visible={panelVisible} content={panelContent} />
