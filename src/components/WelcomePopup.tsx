@@ -390,6 +390,59 @@ export function WelcomePopup({ onClose }: Props) {
       await delay(1500);
       if (cancelled) return;
 
+      const fmtNext = formatShortcut(shortcuts.nextTerminal, isMac);
+      setKeystroke({ key: fmtNext, en: "Next Terminal", zh: "下一终端" });
+      for (const idx of [1, 2, 3]) {
+        if (cancelled) return;
+        setFocusedTile(idx);
+        setCursorPos(getTileCenter(idx));
+        setCanvasTransform({
+          x: -TILE_OFFSETS[idx].x * 0.3,
+          y: -TILE_OFFSETS[idx].y * 0.3,
+          scale: 1.3,
+        });
+        await delay(1000);
+      }
+      if (cancelled) return;
+
+      setKeystroke({ key: fmtClearFocus, en: "Toggle Focus", zh: "切换聚焦" });
+      await delay(300);
+      if (cancelled) return;
+      setFocusedTile(-1);
+      setCursorPos(getCenter());
+      setCanvasTransform({ x: 0, y: 0, scale: 1 });
+      await delay(1500);
+      if (cancelled) return;
+
+      setKeystroke({ key: "Scroll", en: "Zoom", zh: "缩放" });
+      await delay(300);
+      if (cancelled) return;
+
+      setCanvasTransform({ x: 0, y: 0, scale: 0.7 });
+      await delay(800);
+      if (cancelled) return;
+
+      setKeystroke({ key: "Drag", en: "Pan", zh: "平移" });
+      setIsDragging(true);
+      const panCenter = getCenter();
+      const PAN_STEPS = 16;
+      for (let i = 1; i <= PAN_STEPS; i++) {
+        if (cancelled) return;
+        const progress = i / PAN_STEPS;
+        const panX = Math.sin(progress * Math.PI) * 30;
+        setCursorPos({ x: panCenter.x + panX, y: panCenter.y });
+        setCanvasTransform({ x: panX, y: 0, scale: 0.7 });
+        await delay(25);
+      }
+      setIsDragging(false);
+      if (cancelled) return;
+
+      setKeystroke({ key: "Scroll", en: "Zoom", zh: "缩放" });
+      setCanvasTransform({ x: 0, y: 0, scale: 1 });
+      setCursorPos(panCenter);
+      await delay(800);
+      if (cancelled) return;
+
       setIsFinished(true);
       setIsPlaying(false);
     };
@@ -398,7 +451,7 @@ export function WelcomePopup({ onClose }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [isPlaying, shortcuts.clearFocus]);
+  }, [isPlaying, shortcuts.clearFocus, shortcuts.nextTerminal]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
