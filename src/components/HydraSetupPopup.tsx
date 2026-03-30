@@ -6,9 +6,10 @@ interface Props {
   projectName: string;
   onEnable: () => Promise<void>;
   onDismiss: () => void;
+  onDismissForever: () => void;
 }
 
-export function HydraSetupPopup({ status, projectName, onEnable, onDismiss }: Props) {
+export function HydraSetupPopup({ status, projectName, onEnable, onDismiss, onDismissForever }: Props) {
   const t = useT();
   const backdropRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
@@ -74,6 +75,12 @@ export function HydraSetupPopup({ status, projectName, onEnable, onDismiss }: Pr
           </div>
 
           <div className="flex items-center gap-2 justify-end">
+            <button
+              className="text-[11px] px-3 py-1.5 rounded-md text-[var(--text-faint)] hover:text-[var(--text-muted)] transition-colors"
+              onClick={onDismissForever}
+            >
+              {t.hydra_popup_dont_remind}
+            </button>
             <button
               className="text-[11px] px-3 py-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
               onClick={onDismiss}

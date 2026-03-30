@@ -141,6 +141,7 @@ export const zh = {
   hydra_popup_missing: "当前项目尚未配置 Hydra 工具链指令。启用后可使用多 Agent 协作工作流。",
   hydra_popup_desc: "将在 CLAUDE.md 和 AGENTS.md 中添加或更新 Hydra 的工作流命令和遥测指令。",
   hydra_popup_later: "稍后",
+  hydra_popup_dont_remind: "不再提醒",
 
   // TerminalTile
   terminal_api_unavailable: "终端 API 不可用，未在 Electron 中运行。",

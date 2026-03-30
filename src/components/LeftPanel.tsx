@@ -88,7 +88,8 @@ export function LeftPanel() {
   const projects = useProjectStore((s) => s.projects);
   const [hydraEnabling, setHydraEnabling] = useState(false);
   const [hydraStatus, setHydraStatus] = useState<"missing" | "outdated" | null>(null);
-  const checkedProjectRef = useRef<string | null>(null);
+  const checkedProjectRef = useRef<Set<string>>(new Set());
+  const dismissedHydraRef = useRef<Set<string>>(new Set());
 
   // Re-center the focused terminal when the left panel opens/closes
   const prevCollapsedRef = useRef(collapsed);
@@ -131,8 +132,9 @@ export function LeftPanel() {
   // Check Hydra toolchain status when a project comes into focus.
   useEffect(() => {
     if (!focusedProject || !window.termcanvas?.project?.checkHydra) return;
-    if (checkedProjectRef.current === focusedProject.path) return;
-    checkedProjectRef.current = focusedProject.path;
+    if (checkedProjectRef.current.has(focusedProject.path)) return;
+    if (dismissedHydraRef.current.has(focusedProject.path)) return;
+    checkedProjectRef.current.add(focusedProject.path);
 
     window.termcanvas.project.checkHydra(focusedProject.path).then((status) => {
       if (status === "outdated" || status === "missing") {
@@ -244,6 +246,10 @@ export function LeftPanel() {
       projectName={focusedProject.name}
       onEnable={handleHydraBannerAction}
       onDismiss={() => setHydraStatus(null)}
+      onDismissForever={() => {
+        if (focusedProject) dismissedHydraRef.current.add(focusedProject.path);
+        setHydraStatus(null);
+      }}
     />
   ) : null;
 
