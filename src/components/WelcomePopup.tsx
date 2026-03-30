@@ -290,45 +290,48 @@ function KeystrokePopup({
   visibleCount,
   label,
 }: {
-  keys: string[];
+  keys: [string, string];
   visibleCount: number;
   label: { en: string; zh: string } | null;
 }) {
-  if (keys.length === 0) return null;
   return (
     <div
-      className="absolute left-1/2 bottom-6 -translate-x-1/2 rounded-lg px-3 py-2 flex flex-col items-center gap-1"
+      className="absolute left-1/2 bottom-6 rounded-lg px-3 py-2 flex flex-col items-center gap-1.5"
       style={{
         background: "var(--bg)",
         border: "1px solid var(--border)",
         boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
         zIndex: 55,
-        opacity: visibleCount > 0 ? 1 : 0,
-        transform: visibleCount > 0 ? "translate(-50%, 0)" : "translate(-50%, 4px)",
-        transition: "opacity 150ms, transform 150ms",
+        transform: "translateX(-50%)",
       }}
     >
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1.5">
         {keys.map((k, i) => (
           <span
             key={i}
-            className="rounded-md px-2 py-0.5 text-[12px] font-medium"
+            className="rounded-md py-0.5 text-[12px] font-medium"
             style={{
-              background: i < visibleCount ? "var(--surface-hover)" : "var(--surface)",
-              color: i < visibleCount ? "var(--text-primary)" : "transparent",
-              border: "1px solid var(--border)",
-              fontFamily: '"Geist Mono", monospace',
-              transition: "color 120ms, background 120ms",
-              minWidth: 24,
+              width: 32,
               textAlign: "center",
+              background: i < visibleCount ? "var(--accent)" : "var(--surface)",
+              color: i < visibleCount ? "var(--bg)" : "var(--text-faint)",
+              border: `1px solid ${i < visibleCount ? "var(--accent)" : "var(--border)"}`,
+              fontFamily: '"Geist Mono", monospace',
+              transition: "color 150ms, background 150ms, border-color 150ms",
             }}
           >
             {k}
           </span>
         ))}
       </div>
-      {label && visibleCount >= keys.length && (
-        <div className="text-[10px]">
+      {label && (
+        <div
+          className="text-[10px]"
+          style={{
+            opacity: visibleCount >= 2 ? 1 : 0,
+            transition: "opacity 150ms",
+          }}
+        >
           <Bi en={label.en} zh={label.zh} />
         </div>
       )}
@@ -420,7 +423,7 @@ export function WelcomePopup({ onClose }: Props) {
   const [canvasTransform, setCanvasTransform] = useState({ x: 0, y: 0, scale: 1 });
   const [panelVisible, setPanelVisible] = useState(false);
   const [panelContent, setPanelContent] = useState<"usage" | "hydra">("usage");
-  const [popupKeys, setPopupKeys] = useState<string[]>([]);
+  const [popupKeys, setPopupKeys] = useState<[string, string]>(["", ""]);
   const [popupVisible, setPopupVisible] = useState(0);
   const [popupLabel, setPopupLabel] = useState<{ en: string; zh: string } | null>(null);
 
@@ -448,7 +451,7 @@ export function WelcomePopup({ onClose }: Props) {
     setFocusedTile(-1);
     setTilesVisible([false, false, false, false]);
     setCanvasTransform({ x: 0, y: 0, scale: 1 });
-    setPopupKeys([]);
+    setPopupKeys(["", ""]);
     setPopupVisible(0);
     setPopupLabel(null);
     setPanelVisible(false);
@@ -471,25 +474,23 @@ export function WelcomePopup({ onClose }: Props) {
     const fmtAddProject = formatShortcut(shortcuts.addProject, isMac);
 
     const showKeys = async (
-      keys: string[],
+      keys: [string, string],
       label: { en: string; zh: string },
     ) => {
       setPopupKeys(keys);
       setPopupVisible(0);
       setPopupLabel(label);
       await delay(150);
-      for (let i = 1; i <= keys.length; i++) {
-        if (cancelled()) return;
-        setPopupVisible(i);
-        await delay(200);
-      }
+      if (cancelled()) return;
+      setPopupVisible(1);
+      await delay(250);
+      if (cancelled()) return;
+      setPopupVisible(2);
       await delay(400);
     };
 
     const clearKeys = () => {
-      setPopupKeys([]);
       setPopupVisible(0);
-      setPopupLabel(null);
     };
 
     const setupForPhase = (phase: number) => {
@@ -523,8 +524,9 @@ export function WelcomePopup({ onClose }: Props) {
       }
     };
 
-    const splitShortcut = (shortcut: string): string[] => {
-      return shortcut.split(/\s+/).filter(Boolean);
+    const splitShortcut = (shortcut: string): [string, string] => {
+      const parts = shortcut.split(/\s+/).filter(Boolean);
+      return [parts[0] ?? "", parts[1] ?? ""];
     };
 
     const runPhase = async (phase: number) => {
@@ -565,14 +567,14 @@ export function WelcomePopup({ onClose }: Props) {
         await delay(1200);
 
       } else if (phase === 4) {
-        await showKeys(["Scroll"], { en: "Zoom", zh: "缩放" });
+        await showKeys(["Scroll", "↕"], { en: "Zoom", zh: "缩放" });
         if (cancelled()) return;
         setCanvasTransform({ x: 0, y: 0, scale: 0.7 });
         await delay(800);
         if (cancelled()) return;
         clearKeys();
         await delay(100);
-        await showKeys(["Drag"], { en: "Pan", zh: "平移" });
+        await showKeys(["Drag", "↔"], { en: "Pan", zh: "平移" });
         if (cancelled()) return;
         setCursorVisible(true);
         setIsDragging(true);
@@ -589,7 +591,7 @@ export function WelcomePopup({ onClose }: Props) {
         if (cancelled()) return;
         clearKeys();
         await delay(100);
-        await showKeys(["Scroll"], { en: "Zoom", zh: "缩放" });
+        await showKeys(["Scroll", "↕"], { en: "Zoom", zh: "缩放" });
         if (cancelled()) return;
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
         setCursorPos(panCenter);
