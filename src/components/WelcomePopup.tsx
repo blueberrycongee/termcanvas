@@ -1,31 +1,15 @@
-import {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-  type MouseEvent as ReactMouseEvent,
-  type WheelEvent as ReactWheelEvent,
-} from "react";
-import { en } from "../i18n/en";
-import { zh } from "../i18n/zh";
-import {
-  useShortcutStore,
-  formatShortcut,
-  matchesShortcut,
-} from "../stores/shortcutStore";
-
-const isMac = (window.termcanvas?.app.platform ?? "darwin") === "darwin";
+import { useState, useEffect, useRef } from "react";
 
 interface Props {
   onClose: () => void;
 }
 
-function Bi({ en: enText, zh: zhText }: { en: string; zh: string }) {
+function Bi({ en: e, zh: z }: { en: string; zh: string }) {
   return (
     <>
-      <span style={{ color: "var(--cyan)" }}>{enText}</span>
+      <span style={{ color: "var(--cyan)" }}>{e}</span>
       <span className="text-[var(--text-faint)] mx-1">·</span>
-      <span style={{ color: "var(--amber)" }}>{zhText}</span>
+      <span style={{ color: "var(--amber)" }}>{z}</span>
     </>
   );
 }
@@ -65,200 +49,257 @@ const TERMINALS = [
   },
 ] as const;
 
-type TutorialStep = 0 | 1 | 2 | 3 | 4 | 5;
-
-// Terminal cell center offsets from grid center.
-// Grid: 2 cols × 2 rows, cell 120×80, gap 8px → total 248×168.
-const CELL_OFFSETS = [
-  { x: -64, y: -44 }, // top-left  (node)
-  { x: 64, y: -44 },  // top-right (build)
-  { x: -64, y: 44 },  // bottom-left (git)
-  { x: 64, y: 44 },   // bottom-right (test)
-];
-const FOCUS_SCALE = 1.4;
-
-function replaceToken(template: string, token: string, value: string): string {
-  return template.replace(token, value);
+function DemoCursor({
+  pos,
+  dragging,
+}: {
+  pos: { x: number; y: number };
+  dragging: boolean;
+}) {
+  return (
+    <svg
+      width="16"
+      height="20"
+      viewBox="0 0 16 20"
+      fill="none"
+      style={{
+        position: "absolute",
+        left: pos.x,
+        top: pos.y,
+        transition: dragging
+          ? "none"
+          : "left 350ms cubic-bezier(0.4, 0, 0.2, 1), top 350ms cubic-bezier(0.4, 0, 0.2, 1)",
+        filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))",
+        pointerEvents: "none",
+        zIndex: 50,
+      }}
+    >
+      <path
+        d="M1 1L1 14L4.5 10.5L8 18L10.5 17L7 9.5L12 9.5L1 1Z"
+        fill="white"
+        stroke="#1a1a1a"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
-function MiniCanvas({
-  focusedIndex,
-  step,
-  onZoomOrPan,
-  onTerminalDoubleClick,
+function DemoTile({
+  name,
+  color,
+  lines,
+  focused,
+  visible,
 }: {
-  focusedIndex: number;
-  step: TutorialStep;
-  onZoomOrPan: () => void;
-  onTerminalDoubleClick: (index: number) => void;
+  name: string;
+  color: string;
+  lines: { text: string; color: string }[];
+  focused: boolean;
+  visible: boolean;
 }) {
-  const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStart = useRef({ x: 0, y: 0, tx: 0, ty: 0 });
-
-  useEffect(() => {
-    if (step >= 1 && step <= 3) {
-      if (focusedIndex >= 0) {
-        const offset = CELL_OFFSETS[focusedIndex];
-        setTransform({ x: -offset.x, y: -offset.y, scale: FOCUS_SCALE });
-      } else {
-        setTransform({ x: 0, y: 0, scale: 1 });
-      }
-    }
-    if (step === 4) {
-      setTransform({ x: 0, y: 0, scale: 1 });
-    }
-  }, [step, focusedIndex]);
-
-  const handleWheel = useCallback(
-    (e: ReactWheelEvent<HTMLDivElement>) => {
-      if (step !== 4) return;
-      e.stopPropagation();
-      const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      setTransform((current) => ({
-        ...current,
-        scale: Math.max(0.5, Math.min(2, current.scale + delta)),
-      }));
-      onZoomOrPan();
-    },
-    [step, onZoomOrPan],
-  );
-
-  const handleMouseDown = useCallback(
-    (e: ReactMouseEvent<HTMLDivElement>) => {
-      if (step !== 4) return;
-      setIsDragging(true);
-      dragStart.current = {
-        x: e.clientX,
-        y: e.clientY,
-        tx: transform.x,
-        ty: transform.y,
-      };
-    },
-    [step, transform.x, transform.y],
-  );
-
-  useEffect(() => {
-    if (step !== 4) {
-      setIsDragging(false);
-      return;
-    }
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
-      const dx = e.clientX - dragStart.current.x;
-      const dy = e.clientY - dragStart.current.y;
-      setTransform((current) => ({
-        ...current,
-        x: dragStart.current.tx + dx,
-        y: dragStart.current.ty + dy,
-      }));
-      onZoomOrPan();
-    };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-    };
-
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [step, isDragging, onZoomOrPan]);
-
   return (
     <div
-      className="relative rounded bg-[var(--surface)] overflow-hidden select-none"
+      className="rounded border"
       style={{
-        height: 220,
-        cursor: step === 4 ? (isDragging ? "grabbing" : "grab") : "default",
+        width: 120,
+        height: 80,
+        background: "var(--bg)",
+        borderColor: focused ? "rgba(91,158,245,0.6)" : "var(--border)",
+        boxShadow: focused ? "0 0 12px rgba(91,158,245,0.45)" : "none",
+        opacity: visible ? 1 : 0,
+        transform: visible ? "scale(1)" : "scale(0.95)",
+        transition: "all 200ms ease-out",
       }}
-      onWheel={handleWheel}
-      onMouseDown={handleMouseDown}
+    >
+      <div className="flex items-center gap-1 px-1.5 py-0.5 border-b border-[var(--border)]">
+        <div
+          className="w-[3px] h-[7px] rounded-full shrink-0"
+          style={{ background: color }}
+        />
+        <span className="text-[9px] text-[var(--text-secondary)] truncate">
+          {name}
+        </span>
+      </div>
+      <div className="px-1.5 py-1 space-y-0.5">
+        {lines.map((line, i) => (
+          <div
+            key={i}
+            className="text-[8px] leading-tight truncate"
+            style={{ color: line.color }}
+          >
+            {line.text}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DemoSidebar() {
+  return (
+    <div
+      className="shrink-0 flex flex-col items-center pt-3 gap-2 border-r border-[var(--border)]"
+      style={{ width: 44, background: "var(--sidebar)" }}
     >
       <div
-        className="absolute inset-0 flex items-center justify-center"
+        className="rounded-md"
         style={{
-          transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
-          transition: isDragging ? "none" : "transform 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+          width: 20,
+          height: 20,
+          background: "var(--text-faint)",
+          opacity: 0.6,
+        }}
+      />
+      {[0.4, 0.3, 0.25, 0.2].map((op, i) => (
+        <div
+          key={i}
+          className="rounded"
+          style={{
+            width: 16,
+            height: 16,
+            background: "var(--text-faint)",
+            opacity: op,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function DemoPanel({
+  visible,
+  content,
+}: {
+  visible: boolean;
+  content: "usage" | "hydra";
+}) {
+  return (
+    <div className="shrink-0 overflow-hidden" style={{ width: visible ? 180 : 0 }}>
+      <div
+        className="h-full border-l border-[var(--border)]"
+        style={{
+          width: 180,
+          background: "var(--surface)",
+          transform: visible ? "translateX(0)" : "translateX(100%)",
+          transition:
+            "transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1)",
         }}
       >
-        <div className="grid grid-cols-2 gap-2">
-          {TERMINALS.map((term, index) => (
+        {content === "usage" ? (
+          <div className="p-3 flex flex-col gap-3">
             <div
-              key={term.name}
-              className="rounded border transition-all duration-200"
+              className="rounded"
               style={{
-                width: 120,
-                height: 80,
-                borderColor:
-                  focusedIndex === index
-                    ? "rgba(0,112,243,0.6)"
-                    : "var(--border)",
-                boxShadow:
-                  focusedIndex === index
-                    ? "0 0 12px rgba(0,112,243,0.45)"
-                    : "none",
-                background: "var(--bg)",
+                height: 12,
+                width: "60%",
+                background: "var(--text-faint)",
+                opacity: 0.5,
+              }}
+            />
+            <div className="flex items-end gap-2" style={{ height: 60 }}>
+              {[40, 55, 30].map((h, i) => (
+                <div
+                  key={i}
+                  className="rounded-sm flex-1"
+                  style={{
+                    height: h,
+                    background: "var(--accent)",
+                    opacity: 0.3 + i * 0.15,
+                  }}
+                />
+              ))}
+            </div>
+            <div
+              className="rounded"
+              style={{
+                height: 10,
+                width: "40%",
+                background: "var(--text-faint)",
+                opacity: 0.4,
+              }}
+            />
+          </div>
+        ) : (
+          <div className="p-3 flex flex-col gap-3">
+            {[0.5, 0.4].map((op, i) => (
+              <div
+                key={i}
+                className="rounded-full"
+                style={{
+                  height: 14,
+                  width: i === 0 ? "70%" : "50%",
+                  background: "var(--green)",
+                  opacity: op,
+                }}
+              />
+            ))}
+            <div
+              className="rounded-full"
+              style={{
+                height: 6,
+                width: "100%",
+                background: "var(--text-faint)",
+                opacity: 0.3,
+                overflow: "hidden",
               }}
             >
               <div
-                className="flex items-center gap-1 px-1.5 py-0.5 border-b border-[var(--border)] cursor-pointer"
-                onDoubleClick={() => onTerminalDoubleClick(index)}
-              >
-                <div
-                  className="w-[3px] h-[7px] rounded-full shrink-0"
-                  style={{ background: term.color }}
-                />
-                <span className="text-[9px] text-[var(--text-secondary)] truncate">
-                  {term.name}
-                </span>
-              </div>
-              <div className="px-1.5 py-1 space-y-0.5">
-                {term.lines.map((line, lineIndex) => (
-                  <div
-                    key={lineIndex}
-                    className="text-[8px] leading-tight truncate"
-                    style={{ color: line.color }}
-                  >
-                    {line.text}
-                  </div>
-                ))}
-              </div>
+                className="h-full rounded-full"
+                style={{
+                  width: "65%",
+                  background: "var(--accent)",
+                  opacity: 0.6,
+                }}
+              />
             </div>
-          ))}
-        </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function KeystrokeBar({
+  keystroke,
+}: {
+  keystroke: { key: string; en: string; zh: string } | null;
+}) {
+  return (
+    <div
+      className="shrink-0 flex items-center justify-center"
+      style={{ height: 32 }}
+    >
+      <div
+        style={{
+          opacity: keystroke ? 1 : 0,
+          transform: keystroke ? "translateY(0)" : "translateY(4px)",
+          transition: "opacity 150ms, transform 150ms",
+        }}
+      >
+        {keystroke && (
+          <div className="flex items-center gap-2 text-[11px]">
+            <span
+              className="rounded-md px-1.5 py-0.5"
+              style={{
+                background: "var(--surface)",
+                color: "var(--text-primary)",
+                fontFamily: '"Geist Mono", monospace',
+              }}
+            >
+              {keystroke.key}
+            </span>
+            <Bi en={keystroke.en} zh={keystroke.zh} />
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 export function WelcomePopup({ onClose }: Props) {
-  const shortcuts = useShortcutStore((s) => s.shortcuts);
   const backdropRef = useRef<HTMLDivElement>(null);
-  const [step, setStep] = useState<TutorialStep>(0);
-  const [focusedIndex, setFocusedIndex] = useState(-1);
-  const [hasDoubleClicked, setHasDoubleClicked] = useState(false);
-  const [focusToggleCount, setFocusToggleCount] = useState(0);
-  const [switchCount, setSwitchCount] = useState(0);
-  const [hasInteractedZoom, setHasInteractedZoom] = useState(false);
-
-  const handleZoomOrPan = useCallback(() => {
-    setHasInteractedZoom(true);
-  }, []);
-
-  const handleTerminalDoubleClick = useCallback(
-    (index: number) => {
-      // Double-click works in step 1 (dedicated) and later steps
-      if (step >= 1) {
-        setFocusedIndex(index);
-        setHasDoubleClicked(true);
-      }
-    },
-    [step],
-  );
+  const [_isFinished, _setIsFinished] = useState(false);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -266,158 +307,11 @@ export function WelcomePopup({ onClose }: Props) {
         e.preventDefault();
         e.stopPropagation();
         onClose();
-        return;
-      }
-
-      if (step === 0) {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          setStep(1);
-        }
-        return;
-      }
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      // Step 1: double-click (handled via mouse, Enter advances)
-      if (step === 1) {
-        if (e.key === "Enter" && hasDoubleClicked) {
-          setFocusedIndex(-1);
-          setStep(2);
-        }
-        return;
-      }
-
-      // Steps 2 & 3 share navigation shortcuts (matching real app)
-      if (step === 2 || step === 3) {
-        if (matchesShortcut(e, shortcuts.clearFocus)) {
-          setFocusedIndex((prev) => {
-            if (prev === -1) return 0;
-            return -1;
-          });
-          setFocusToggleCount((c) => c + 1);
-          return;
-        }
-
-        if (matchesShortcut(e, shortcuts.nextTerminal)) {
-          setFocusedIndex((prev) =>
-            prev === -1 ? 0 : (prev + 1) % TERMINALS.length,
-          );
-          if (step === 2) setFocusToggleCount((c) => Math.max(c, 1));
-          if (step === 3) setSwitchCount((c) => c + 1);
-          return;
-        }
-
-        if (matchesShortcut(e, shortcuts.prevTerminal)) {
-          setFocusedIndex((prev) =>
-            prev === -1 ? TERMINALS.length - 1 : (prev - 1 + TERMINALS.length) % TERMINALS.length,
-          );
-          if (step === 2) setFocusToggleCount((c) => Math.max(c, 1));
-          if (step === 3) setSwitchCount((c) => c + 1);
-          return;
-        }
-
-        if (e.key === "Enter") {
-          if (step === 2 && focusToggleCount >= 2) {
-            setFocusedIndex(0);
-            setStep(3);
-            return;
-          }
-          if (step === 3 && switchCount >= 2) {
-            setStep(4);
-            return;
-          }
-        }
-        return;
-      }
-
-      if (step === 4 && e.key === "Enter" && hasInteractedZoom) {
-        setStep(5);
-        return;
-      }
-
-      if (step === 5 && e.key === "Enter") {
-        onClose();
       }
     };
-
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
-  }, [step, hasDoubleClicked, focusToggleCount, switchCount, hasInteractedZoom, shortcuts, onClose]);
-
-  const shortcutItems = [
-    { key: shortcuts.addProject, en: en.shortcut_add_project, zh: zh.shortcut_add_project },
-    { key: shortcuts.newTerminal, en: en.shortcut_new_terminal, zh: zh.shortcut_new_terminal },
-    { key: shortcuts.cycleFocusLevel, en: en.shortcut_cycle_focus_level, zh: zh.shortcut_cycle_focus_level },
-    { key: shortcuts.toggleRightPanel, en: en.shortcut_toggle_right_panel, zh: zh.shortcut_toggle_right_panel },
-    { key: shortcuts.clearFocus, en: en.shortcut_clear_focus, zh: zh.shortcut_clear_focus },
-  ];
-
-  const steps = [
-    { en: en.welcome_step_1, zh: zh.welcome_step_1 },
-    { en: en.welcome_step_2, zh: zh.welcome_step_2 },
-    { en: en.welcome_step_3, zh: zh.welcome_step_3 },
-  ];
-
-  const fmtClearFocus = formatShortcut(shortcuts.clearFocus, isMac);
-  const fmtNext = formatShortcut(shortcuts.nextTerminal, isMac);
-  const fmtPrev = formatShortcut(shortcuts.prevTerminal, isMac);
-  const fmtAddProject = formatShortcut(shortcuts.addProject, isMac);
-
-  function getPrompt(): { en: string; zh: string } | null {
-    switch (step) {
-      case 1:
-        if (hasDoubleClicked) {
-          return { en: en.onboarding_switch_continue, zh: zh.onboarding_switch_continue };
-        }
-        return { en: en.onboarding_dblclick_prompt, zh: zh.onboarding_dblclick_prompt };
-      case 2:
-        if (focusToggleCount >= 2 && focusedIndex === -1) {
-          return { en: en.onboarding_switch_continue, zh: zh.onboarding_switch_continue };
-        }
-        if (focusedIndex >= 0) {
-          return {
-            en: replaceToken(en.onboarding_unfocus_prompt, "{shortcut}", fmtClearFocus),
-            zh: replaceToken(zh.onboarding_unfocus_prompt, "{shortcut}", fmtClearFocus),
-          };
-        }
-        return {
-          en: replaceToken(en.onboarding_focus_prompt, "{shortcut}", fmtClearFocus),
-          zh: replaceToken(zh.onboarding_focus_prompt, "{shortcut}", fmtClearFocus),
-        };
-      case 3:
-        if (switchCount >= 2) {
-          return { en: en.onboarding_switch_continue, zh: zh.onboarding_switch_continue };
-        }
-        return {
-          en: replaceToken(
-            replaceToken(en.onboarding_switch_prompt, "{next}", fmtNext),
-            "{prev}",
-            fmtPrev,
-          ),
-          zh: replaceToken(
-            replaceToken(zh.onboarding_switch_prompt, "{next}", fmtNext),
-            "{prev}",
-            fmtPrev,
-          ),
-        };
-      case 4:
-        if (hasInteractedZoom) {
-          return { en: en.onboarding_zoom_continue, zh: zh.onboarding_zoom_continue };
-        }
-        return { en: en.onboarding_zoom_prompt, zh: zh.onboarding_zoom_prompt };
-      case 5:
-        return {
-          en: replaceToken(en.onboarding_complete, "{shortcut}", fmtAddProject),
-          zh: replaceToken(zh.onboarding_complete, "{shortcut}", fmtAddProject),
-        };
-      default:
-        return null;
-    }
-  }
-
-  const prompt = getPrompt();
+  }, [onClose]);
 
   return (
     <div
@@ -428,7 +322,7 @@ export function WelcomePopup({ onClose }: Props) {
       }}
     >
       <div
-        className="rounded-md bg-[var(--bg)] overflow-hidden flex flex-col border border-[var(--border)] max-w-[560px] w-full mx-4 shadow-2xl max-h-[calc(100dvh-2rem)]"
+        className="rounded-md bg-[var(--bg)] overflow-hidden flex flex-col border border-[var(--border)] max-w-[800px] w-full mx-4 shadow-2xl"
         style={{ fontFamily: '"Geist Mono", monospace' }}
       >
         {/* Title bar */}
@@ -438,7 +332,7 @@ export function WelcomePopup({ onClose }: Props) {
             className="text-[11px] font-medium"
             style={{ color: "var(--cyan)" }}
           >
-            welcome
+            demo
           </span>
           <span className="text-[11px] text-[var(--text-muted)] truncate flex-1">
             termcanvas
@@ -458,104 +352,50 @@ export function WelcomePopup({ onClose }: Props) {
           </button>
         </div>
 
-        {/* Content */}
-        <div className="px-4 pb-5 pt-1 text-[13px] leading-relaxed overflow-y-auto min-h-0">
-          {step === 0 ? (
-            <>
-              <div className="text-[var(--text-muted)] mb-3">
-                $ cat welcome.txt
-              </div>
+        {/* Content: sidebar + canvas/keystroke + panel */}
+        <div className="flex flex-1 min-h-0">
+          <DemoSidebar />
 
-              <div className="mb-4">
-                <div className="font-medium text-[14px]">
-                  <Bi en={en.welcome_heading} zh={zh.welcome_heading} />
-                </div>
-                <div className="text-[13px]">
-                  <Bi en={en.welcome_desc} zh={zh.welcome_desc} />
-                </div>
-              </div>
-
-              <div className="mb-4">
-                <div className="mb-1 font-medium">
-                  <Bi en={en.welcome_quick_start} zh={zh.welcome_quick_start} />
-                </div>
-                <div className="space-y-0.5 pl-2">
-                  {steps.map((stepItem, index) => (
-                    <div key={index}>
-                      <span className="text-[var(--text-muted)]">{index + 1}.</span>{" "}
-                      <Bi en={stepItem.en} zh={stepItem.zh} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mb-4">
-                <div className="mb-1 font-medium">
-                  <Bi en={en.welcome_shortcuts} zh={zh.welcome_shortcuts} />
-                </div>
-                <div className="space-y-0.5 pl-2">
-                  {shortcutItems.map((item) => (
-                    <div key={item.key} className="flex gap-2">
-                      <span className="text-[var(--accent)] shrink-0">
-                        {formatShortcut(item.key, isMac)}
-                      </span>
-                      <span>
-                        <Bi en={item.en} zh={item.zh} />
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mb-4 text-[var(--text-secondary)]">
-                GitHub:{" "}
-                <a
-                  href="https://github.com/blueberrycongee/termcanvas"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[var(--accent)] hover:underline cursor-pointer"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  github.com/blueberrycongee/termcanvas
-                </a>
-              </div>
-
-              <div className="text-[12px]">
-                <Bi en={en.welcome_dismiss} zh={zh.welcome_dismiss} />
-              </div>
-            </>
-          ) : (
-            <>
-              <MiniCanvas
-                focusedIndex={focusedIndex}
-                step={step}
-                onZoomOrPan={handleZoomOrPan}
-                onTerminalDoubleClick={handleTerminalDoubleClick}
-              />
-
-              <div className="mt-3 text-center">
-                {prompt && (
-                  <div className="text-[13px]">
-                    <Bi en={prompt.en} zh={prompt.zh} />
-                  </div>
-                )}
-                {step === 5 && (
-                  <div className="text-[11px] mt-1 text-[var(--text-faint)]">
-                    <Bi
-                      en={en.onboarding_complete_dismiss}
-                      zh={zh.onboarding_complete_dismiss}
+          <div className="flex-1 min-w-0 flex flex-col">
+            {/* Canvas area */}
+            <div
+              className="relative overflow-hidden flex-1"
+              style={{
+                height: 380,
+                background: "var(--surface)",
+                backgroundImage:
+                  "radial-gradient(circle, var(--text-faint) 1px, transparent 1px)",
+                backgroundSize: "20px 20px",
+              }}
+            >
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="grid grid-cols-2 gap-2">
+                  {TERMINALS.map((term) => (
+                    <DemoTile
+                      key={term.name}
+                      name={term.name}
+                      color={term.color}
+                      lines={[...term.lines]}
+                      focused={false}
+                      visible={true}
                     />
-                  </div>
-                )}
-                {step >= 1 && step <= 4 && (
-                  <div className="text-[11px] mt-1 text-[var(--text-faint)]">
-                    <Bi en={en.onboarding_skip} zh={zh.onboarding_skip} />
-                  </div>
-                )}
+                  ))}
+                </div>
               </div>
-            </>
-          )}
+
+              <DemoCursor pos={{ x: 190, y: 190 }} dragging={false} />
+            </div>
+
+            <KeystrokeBar keystroke={null} />
+          </div>
+
+          <DemoPanel visible={false} content="usage" />
         </div>
+      </div>
+
+      {/* Close hint */}
+      <div className="absolute bottom-6 text-[12px] text-[var(--text-muted)]">
+        <Bi en="Escape to close" zh="Escape 关闭" />
       </div>
     </div>
   );
