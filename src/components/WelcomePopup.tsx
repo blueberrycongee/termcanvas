@@ -416,7 +416,8 @@ function KeystrokePopup({
             key={i}
             className="rounded-md py-0.5 text-[12px] font-medium"
             style={{
-              width: 32,
+              minWidth: 36,
+              paddingInline: 6,
               textAlign: "center",
               background: i < visibleCount ? "var(--accent)" : "var(--surface)",
               color: i < visibleCount ? "var(--bg)" : "var(--text-faint)",
