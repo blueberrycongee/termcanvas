@@ -322,6 +322,9 @@ export function WelcomePopup({ onClose }: Props) {
   const [keystroke, setKeystroke] = useState<{ key: string; en: string; zh: string } | null>(null);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isFinished, setIsFinished] = useState(false);
+  const prefersReducedMotion = useRef(
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
 
   const getCenter = () => {
     const el = canvasRef.current;
@@ -353,6 +356,14 @@ export function WelcomePopup({ onClose }: Props) {
       setPanelVisible(false);
       setPanelContent("usage");
       setIsDragging(false);
+
+      if (prefersReducedMotion.current) {
+        setTilesVisible([true, true, true, true]);
+        setCursorPos(getCenter());
+        setIsFinished(true);
+        setIsPlaying(false);
+        return;
+      }
 
       const center = getCenter();
       setCursorPos(center);
@@ -477,6 +488,18 @@ export function WelcomePopup({ onClose }: Props) {
       cancelled = true;
     };
   }, [isPlaying, shortcuts.clearFocus, shortcuts.nextTerminal, shortcuts.toggleRightPanel, shortcuts.addProject]);
+
+  useEffect(() => {
+    const handler = () => {
+      if (document.hidden) {
+        setIsPlaying(false);
+      } else if (!isFinished) {
+        setIsPlaying(true);
+      }
+    };
+    document.addEventListener("visibilitychange", handler);
+    return () => document.removeEventListener("visibilitychange", handler);
+  }, [isFinished]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
