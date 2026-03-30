@@ -1019,10 +1019,10 @@ export function WelcomePopup({ onClose }: Props) {
             >
               {completedPhase >= activePhase && activePhase < PHASES.length - 1 && (
                 <div
-                  className="absolute top-2 left-2.5 text-[9px]"
+                  className="absolute top-2.5 left-3 text-[11px]"
                   style={{ color: "var(--text-faint)", zIndex: 10 }}
                 >
-                  → or ▸ to continue
+                  ← prev · next →
                 </div>
               )}
               <div
