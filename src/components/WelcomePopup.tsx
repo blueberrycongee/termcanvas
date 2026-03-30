@@ -1019,8 +1019,8 @@ export function WelcomePopup({ onClose }: Props) {
             >
               {completedPhase >= activePhase && activePhase < PHASES.length - 1 && (
                 <div
-                  className="absolute top-2.5 left-3 text-[11px]"
-                  style={{ color: "var(--text-faint)", zIndex: 10 }}
+                  className="absolute top-2.5 left-3 text-[13px]"
+                  style={{ color: "var(--text-muted)", zIndex: 10 }}
                 >
                   ← prev · next →
                 </div>
