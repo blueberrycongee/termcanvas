@@ -554,6 +554,7 @@ export function App() {
             localStorage.setItem("termcanvas-welcome-seen", "1");
             setShowWelcome(false);
           }}
+          autoplay
         />
       )}
     </div>

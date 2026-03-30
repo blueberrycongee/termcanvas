@@ -259,8 +259,9 @@ export function LeftPanel() {
       <>
         {hydraPopup}
         <div
-          className="fixed left-0 z-40 bg-[var(--surface)] border-r border-[var(--border)] flex flex-col items-center pt-3 gap-1"
+          className="fixed left-0 z-40 bg-[var(--surface)] border-r border-[var(--border)] flex flex-col items-center pt-3 gap-1 cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors duration-150"
           style={{ top: 44, height: "calc(100vh - 44px)", width: COLLAPSED_TAB_WIDTH }}
+          onClick={() => setCollapsed(false)}
           onDragOver={(e) => {
             if (!Array.from(e.dataTransfer.types).includes("Files")) return;
             e.preventDefault();

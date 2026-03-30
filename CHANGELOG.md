@@ -2,6 +2,12 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.16.10] - 2026-03-30
+
+### Added
+- Click collapsed sidebar to expand, with hover highlight
+- Enable autoplay on welcome overlay
+
 ## [0.16.9] - 2026-03-30
 
 ### Fixed
