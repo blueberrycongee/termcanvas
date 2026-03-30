@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.16.7] - 2026-03-30
+
+### Added
+- "Don't remind" option in Hydra setup popup to suppress per-project prompts for the session
+
 ## [0.16.6] - 2026-03-30
 
 ### Added
