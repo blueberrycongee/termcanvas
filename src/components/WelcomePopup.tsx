@@ -580,8 +580,8 @@ export function WelcomePopup({ onClose }: Props) {
         setPanelVisible(false);
       } else if (phase === 3) {
         setTilesVisible([true, true, true, true]);
-        setFocusedTile(3);
-        setCanvasTransform({ x: -TILE_OFFSETS[3].x, y: -TILE_OFFSETS[3].y, scale: 1.8 });
+        setFocusedTile(0);
+        setCanvasTransform({ x: -TILE_OFFSETS[0].x, y: -TILE_OFFSETS[0].y, scale: 1.8 });
         setPanelVisible(false);
       } else if (phase >= 4 && phase <= 6) {
         setTilesVisible([true, true, true, true]);
@@ -635,11 +635,6 @@ export function WelcomePopup({ onClose }: Props) {
           setCanvasTransform({ x: -TILE_OFFSETS[idx].x, y: -TILE_OFFSETS[idx].y, scale: 1.8 });
           await delay(600);
         }
-        if (cancelled()) return;
-        await showKeys(splitShortcut(fmtNext), { en: "Next Terminal", zh: "下一终端" });
-        if (cancelled()) return;
-        setFocusedTile(3);
-        setCanvasTransform({ x: -TILE_OFFSETS[3].x, y: -TILE_OFFSETS[3].y, scale: 1.8 });
         await delay(600);
 
       } else if (phase === 3) {
