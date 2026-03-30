@@ -2,6 +2,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { findCodexJsonlFiles } from "./usage-collector";
+import { resolveSessionFile } from "./session-watcher";
 
 export interface FoundSession {
   sessionId: string;
@@ -179,4 +180,55 @@ export function findBestClaudeSession(
 
   const { sessionId, filePath, confidence } = candidates[0];
   return { sessionId, filePath, confidence };
+}
+
+/**
+ * Read the permissionMode from a Claude session JSONL file by reading
+ * only the tail of the file.  Returns "bypassPermissions" when the
+ * session is running with --dangerously-skip-permissions, or null if the
+ * file is missing / unreadable / has no user entries.
+ */
+export function readClaudeSessionPermissionMode(
+  sessionId: string,
+  cwd: string,
+): string | null {
+  const filePath = resolveSessionFile(sessionId, "claude", cwd);
+  if (!filePath) return null;
+
+  let fd: number;
+  try {
+    fd = fs.openSync(filePath, "r");
+  } catch {
+    return null;
+  }
+
+  try {
+    const stat = fs.fstatSync(fd);
+    const TAIL_BYTES = 64 * 1024;
+    const start = Math.max(0, stat.size - TAIL_BYTES);
+    const buf = Buffer.alloc(Math.min(TAIL_BYTES, stat.size));
+    fs.readSync(fd, buf, 0, buf.length, start);
+    const tail = buf.toString("utf-8");
+
+    const lines = tail.split("\n");
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i];
+      if (!line.includes('"permissionMode"')) continue;
+      try {
+        const entry = JSON.parse(line) as {
+          type?: string;
+          permissionMode?: string;
+        };
+        if (entry.type === "user" && typeof entry.permissionMode === "string") {
+          return entry.permissionMode;
+        }
+      } catch {
+        // truncated first line or malformed — keep scanning
+      }
+    }
+
+    return null;
+  } finally {
+    fs.closeSync(fd);
+  }
 }

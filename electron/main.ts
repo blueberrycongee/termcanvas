@@ -55,7 +55,7 @@ import {
 } from "./git-info";
 import { createMenu } from "./menu";
 import { TelemetryService } from "./telemetry-service";
-import { findBestClaudeSession, findBestCodexSession } from "./session-discovery";
+import { findBestClaudeSession, findBestCodexSession, readClaudeSessionPermissionMode } from "./session-discovery";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -341,6 +341,13 @@ function setupIpc() {
     "session:find-claude",
     (_event, cwd: string, startedAt?: string, pid?: number | null) => {
       return findBestClaudeSession(cwd, startedAt, pid);
+    },
+  );
+
+  ipcMain.handle(
+    "session:get-permission-mode",
+    (_event, sessionId: string, cwd: string) => {
+      return readClaudeSessionPermissionMode(sessionId, cwd);
     },
   );
 

@@ -45,6 +45,10 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("session:find-claude", cwd, startedAt, pid) as Promise<
         { sessionId: string; filePath: string; confidence: "strong" | "medium" | "weak" } | null
       >,
+    getPermissionMode: (sessionId: string, cwd: string) =>
+      ipcRenderer.invoke("session:get-permission-mode", sessionId, cwd) as Promise<
+        string | null
+      >,
     getClaudeByPid: (pid: number) =>
       ipcRenderer.invoke("session:get-claude-by-pid", pid) as Promise<
         string | null

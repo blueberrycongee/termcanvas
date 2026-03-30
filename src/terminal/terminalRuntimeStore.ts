@@ -390,6 +390,25 @@ function setAutoApprove(
   }));
 }
 
+async function syncPermissionMode(
+  runtime: ManagedTerminalRuntime,
+  sessionId: string,
+) {
+  try {
+    const mode = await window.termcanvas.session.getPermissionMode(
+      sessionId,
+      runtime.meta.worktreePath,
+    );
+    if (runtime.disposed) return;
+    const shouldBypass = mode === "bypassPermissions";
+    if (shouldBypass !== !!runtime.meta.terminal.autoApprove) {
+      setAutoApprove(runtime, shouldBypass);
+    }
+  } catch (error) {
+    console.error("[terminalRuntime] failed to sync permission mode:", error);
+  }
+}
+
 function clearWatchedSession(runtime: ManagedTerminalRuntime) {
   if (!runtime.watchedSessionId) {
     return;
@@ -756,6 +775,9 @@ function scheduleSessionCapture(
       if (cliType === "claude" || cliType === "codex") {
         watchSession(runtime, cliType, sessionId, confidence);
       }
+      if (cliType === "claude") {
+        void syncPermissionMode(runtime, sessionId);
+      }
     },
     () => cancelled || runtime.disposed,
     detectedCliPid,
@@ -1058,11 +1080,28 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
     );
   };
 
-  const delay = runtime.meta.terminal.focused ? 0 : nextSpawnDelay();
-  if (delay > 0) {
-    setTimeout(doSpawn, delay);
+  // For restored Claude sessions, read permissionMode from the JSONL
+  // before spawning so --dangerously-skip-permissions is included.
+  const needsPermissionSync =
+    runtime.meta.terminal.type === "claude" &&
+    !!runtime.meta.terminal.sessionId &&
+    !runtime.meta.terminal.autoApprove;
+
+  const scheduleSpawn = (spawn: () => void) => {
+    const delay = runtime.meta.terminal.focused ? 0 : nextSpawnDelay();
+    if (delay > 0) {
+      setTimeout(spawn, delay);
+    } else {
+      spawn();
+    }
+  };
+
+  if (needsPermissionSync) {
+    void syncPermissionMode(runtime, runtime.meta.terminal.sessionId!).then(
+      () => scheduleSpawn(doSpawn),
+    );
   } else {
-    doSpawn();
+    scheduleSpawn(doSpawn);
   }
 }
 
