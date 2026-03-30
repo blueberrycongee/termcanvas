@@ -65,6 +65,7 @@ const PHASES = [
   { en: "Switch", zh: "切换" },
   { en: "Unfocus", zh: "取消" },
   { en: "Zoom", zh: "缩放" },
+  { en: "Sidebar", zh: "侧栏" },
   { en: "Panel", zh: "面板" },
   { en: "Done", zh: "完成" },
 ] as const;
@@ -593,7 +594,6 @@ export function WelcomePopup({ onClose }: Props) {
     const fmtClearFocus = formatShortcut(shortcuts.clearFocus, isMac);
     const fmtNext = formatShortcut(shortcuts.nextTerminal, isMac);
     const fmtPrev = formatShortcut(shortcuts.prevTerminal, isMac);
-    const fmtTogglePanel = formatShortcut(shortcuts.toggleRightPanel, isMac);
     const fmtAddProject = formatShortcut(shortcuts.addProject, isMac);
 
     const showKeys = async (
@@ -618,7 +618,7 @@ export function WelcomePopup({ onClose }: Props) {
 
     const setupForPhase = (phase: number) => {
       setIsDragging(false);
-      setCursorVisible(phase === 4);
+      setCursorVisible(false);
       clearKeys();
       setPanelContent("usage");
       if (phase === 0) {
@@ -638,13 +638,14 @@ export function WelcomePopup({ onClose }: Props) {
         setFocusedTile(0);
         setCanvasTransform({ x: -TILE_OFFSETS[0].x, y: -TILE_OFFSETS[0].y, scale: 1.8 });
         setPanelVisible(false);
-      } else if (phase >= 4 && phase <= 6) {
+      } else if (phase >= 4 && phase <= 7) {
         setTilesVisible([true, true, true, true]);
         setFocusedTile(-1);
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
-        setPanelVisible(phase === 6);
-        setSidebarExpanded(phase === 5);
+        setSidebarExpanded(phase >= 6);
+        setPanelVisible(phase === 7);
         setNewProject(false);
+        setCursorVisible(phase === 4 || phase === 5 || phase === 6);
         setCursorPos(getCenter());
       }
     };
@@ -732,17 +733,28 @@ export function WelcomePopup({ onClose }: Props) {
         await delay(800);
 
       } else if (phase === 5) {
-        await showKeys(splitShortcut(fmtTogglePanel), { en: "Toggle Panel", zh: "切换面板" });
+        setCursorVisible(true);
+        setCursorPos({ x: 16, y: 20 });
+        await delay(500);
         if (cancelled()) return;
         setSidebarExpanded(true);
+        await delay(1500);
+
+      } else if (phase === 6) {
+        setCursorVisible(true);
+        const center = getCenter();
+        const canvasW = canvasRef.current?.clientWidth ?? 400;
+        setCursorPos({ x: canvasW - 20, y: center.y });
+        await delay(500);
+        if (cancelled()) return;
         setPanelVisible(true);
         setPanelContent("usage");
-        await delay(2000);
+        await delay(1500);
         if (cancelled()) return;
         setPanelContent("hydra");
         await delay(1500);
 
-      } else if (phase === 6) {
+      } else if (phase === 7) {
         setSidebarExpanded(false);
         setPanelVisible(false);
         await delay(400);
@@ -766,7 +778,7 @@ export function WelcomePopup({ onClose }: Props) {
     }
 
     runPhase(activePhase);
-  }, [activePhase, shortcuts.clearFocus, shortcuts.nextTerminal, shortcuts.prevTerminal, shortcuts.toggleRightPanel, shortcuts.addProject]);
+  }, [activePhase, shortcuts.clearFocus, shortcuts.nextTerminal, shortcuts.prevTerminal, shortcuts.addProject]);
 
   const handleSelectPhase = (index: number) => {
     runIdRef.current++;
