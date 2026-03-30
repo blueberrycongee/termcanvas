@@ -23,7 +23,7 @@ import { normalizeProjectsFocus, findNextVisibleTerminalId } from "./projectFocu
 import { useWorkspaceStore } from "./workspaceStore.ts";
 import { usePreferencesStore } from "./preferencesStore.ts";
 import { logSlowRendererPath, measureRendererSync } from "../utils/devPerf.ts";
-import { setTrackSidebar } from "./tileDimensionsStore.ts";
+import { setTrackSidebar, useTileDimensionsStore } from "./tileDimensionsStore.ts";
 
 interface ProjectStore {
   projects: ProjectData[];
@@ -1251,3 +1251,13 @@ export function getChildTerminals(
   }
   return children;
 }
+
+useTileDimensionsStore.subscribe((state, prev) => {
+  if (state.w === prev.w && state.h === prev.h) return;
+  const { projects } = useProjectStore.getState();
+  if (projects.length === 0) return;
+  const resolved = resolveOverlaps(projects);
+  if (resolved !== projects) {
+    useProjectStore.setState({ projects: resolved });
+  }
+});
