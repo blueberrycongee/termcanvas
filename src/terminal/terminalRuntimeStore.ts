@@ -102,6 +102,17 @@ type XtermRuntimeModule = typeof xtermModule & {
 const dictionaries = { en, zh } as const;
 const WAITING_THRESHOLD = 15_000;
 const ACTIVITY_THROTTLE_MS = 3_000;
+const SPAWN_STAGGER_MS = 150;
+
+let spawnStaggerCount = 0;
+let spawnStaggerResetTimer: ReturnType<typeof setTimeout> | null = null;
+
+function nextSpawnDelay(): number {
+  spawnStaggerCount += 1;
+  if (spawnStaggerResetTimer) clearTimeout(spawnStaggerResetTimer);
+  spawnStaggerResetTimer = setTimeout(() => { spawnStaggerCount = 0; }, 3_000);
+  return spawnStaggerCount * SPAWN_STAGGER_MS;
+}
 const runtimeRegistry = new Map<string, ManagedTerminalRuntime>();
 const xtermRuntimeModule = xtermModule as XtermRuntimeModule;
 const XtermTerminalConstructor = (
@@ -1037,11 +1048,22 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
   );
 
   runtime.globalDisposers.push(exitUnsubscribe);
-  runtime.ptyPromise = spawnPty(runtime, runtime.meta.terminal.sessionId).finally(
-    () => {
-      runtime.ptyPromise = null;
-    },
-  );
+
+  const doSpawn = () => {
+    if (runtime.disposed) return;
+    runtime.ptyPromise = spawnPty(runtime, runtime.meta.terminal.sessionId).finally(
+      () => {
+        runtime.ptyPromise = null;
+      },
+    );
+  };
+
+  const delay = runtime.meta.terminal.focused ? 0 : nextSpawnDelay();
+  if (delay > 0) {
+    setTimeout(doSpawn, delay);
+  } else {
+    doSpawn();
+  }
 }
 
 export function ensureTerminalRuntime(meta: TerminalRuntimeMeta) {
