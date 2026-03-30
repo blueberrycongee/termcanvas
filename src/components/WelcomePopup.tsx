@@ -161,33 +161,86 @@ function DemoTile({
   );
 }
 
-function DemoSidebar() {
+function DemoSidebar({ expanded }: { expanded: boolean }) {
   return (
     <div
-      className="shrink-0 flex flex-col items-center pt-3 gap-2 border-r border-[var(--border)]"
-      style={{ width: 44, background: "var(--sidebar)" }}
+      className="shrink-0 flex flex-col border-r border-[var(--border)] overflow-hidden"
+      style={{
+        width: expanded ? 150 : 32,
+        background: "var(--sidebar)",
+        transition: "width 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+      }}
     >
-      <div
-        className="rounded-md"
-        style={{
-          width: 20,
-          height: 20,
-          background: "var(--text-faint)",
-          opacity: 0.6,
-        }}
-      />
-      {[0.4, 0.3, 0.25, 0.2].map((op, i) => (
-        <div
-          key={i}
-          className="rounded"
-          style={{
-            width: 16,
-            height: 16,
-            background: "var(--text-faint)",
-            opacity: op,
-          }}
-        />
-      ))}
+      {expanded ? (
+        <div className="flex flex-col h-full" style={{ width: 150 }}>
+          <div className="flex gap-0.5 p-1 mx-1 mt-1.5 rounded-md" style={{ background: "var(--bg)" }}>
+            {["Files", "Git"].map((tab, i) => (
+              <div
+                key={tab}
+                className="flex-1 text-center py-0.5 rounded text-[8px]"
+                style={{
+                  background: i === 0 ? "var(--surface-hover)" : "transparent",
+                  color: i === 0 ? "var(--text-primary)" : "var(--text-muted)",
+                }}
+              >
+                {tab}
+              </div>
+            ))}
+          </div>
+          <div className="flex-1 min-h-0 px-1.5 pt-2 flex flex-col gap-0.5">
+            <div className="flex items-center gap-1">
+              <span className="text-[7px]" style={{ color: "var(--accent)" }}>▼</span>
+              <span className="text-[8px]" style={{ color: "var(--text-secondary)" }}>src</span>
+            </div>
+            {["main.ts", "app.tsx", "index.css"].map((f) => (
+              <div key={f} className="pl-3 flex items-center gap-1">
+                <div className="w-1 h-1 rounded-full" style={{ background: "var(--text-faint)" }} />
+                <span className="text-[7px] text-[var(--text-muted)]">{f}</span>
+              </div>
+            ))}
+            <div className="flex items-center gap-1 mt-1">
+              <span className="text-[7px]" style={{ color: "var(--text-faint)" }}>▶</span>
+              <span className="text-[8px]" style={{ color: "var(--text-secondary)" }}>tests</span>
+            </div>
+            <div className="flex items-center gap-1 mt-1">
+              <div className="w-1 h-1 rounded-full" style={{ background: "var(--text-faint)" }} />
+              <span className="text-[7px] text-[var(--text-muted)]">package.json</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-1 h-1 rounded-full" style={{ background: "var(--text-faint)" }} />
+              <span className="text-[7px] text-[var(--text-muted)]">tsconfig.json</span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center pt-2 gap-1.5" style={{ width: 32 }}>
+          {[
+            { color: "var(--accent)", active: true },
+            { color: "var(--text-muted)", active: false },
+            { color: "var(--text-muted)", active: false },
+            { color: "var(--text-muted)", active: false },
+          ].map((item, i) => (
+            <div
+              key={i}
+              className="rounded"
+              style={{
+                width: 14,
+                height: 14,
+                background: item.active ? "var(--surface-hover)" : "transparent",
+                border: `1px solid ${item.active ? "var(--border)" : "transparent"}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <div
+                className="rounded-sm"
+                style={{ width: 8, height: 8, background: item.color, opacity: item.active ? 1 : 0.4 }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -487,6 +540,7 @@ export function WelcomePopup({ onClose }: Props) {
   const [tilesVisible, setTilesVisible] = useState([false, false, false, false]);
   const [canvasTransform, setCanvasTransform] = useState({ x: 0, y: 0, scale: 1 });
   const [panelVisible, setPanelVisible] = useState(false);
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [newProject, setNewProject] = useState(false);
   const [panelContent, setPanelContent] = useState<"usage" | "hydra">("usage");
   const [popupKeys, setPopupKeys] = useState<[string, string]>(["", ""]);
@@ -521,6 +575,7 @@ export function WelcomePopup({ onClose }: Props) {
     setPopupVisible(0);
     setPopupLabel(null);
     setPanelVisible(false);
+    setSidebarExpanded(false);
     setNewProject(false);
     setPanelContent("usage");
     setIsDragging(false);
@@ -588,6 +643,7 @@ export function WelcomePopup({ onClose }: Props) {
         setFocusedTile(-1);
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
         setPanelVisible(phase === 6);
+        setSidebarExpanded(phase === 5);
         setNewProject(false);
         setCursorPos(getCenter());
       }
@@ -678,6 +734,7 @@ export function WelcomePopup({ onClose }: Props) {
       } else if (phase === 5) {
         await showKeys(splitShortcut(fmtTogglePanel), { en: "Toggle Panel", zh: "切换面板" });
         if (cancelled()) return;
+        setSidebarExpanded(true);
         setPanelVisible(true);
         setPanelContent("usage");
         await delay(2000);
@@ -686,6 +743,7 @@ export function WelcomePopup({ onClose }: Props) {
         await delay(1500);
 
       } else if (phase === 6) {
+        setSidebarExpanded(false);
         setPanelVisible(false);
         await delay(400);
         if (cancelled()) return;
@@ -787,7 +845,7 @@ export function WelcomePopup({ onClose }: Props) {
         </div>
 
         <div className="flex flex-1 min-h-0">
-          <DemoSidebar />
+          <DemoSidebar expanded={sidebarExpanded} />
 
           <div className="flex-1 min-w-0 flex flex-col">
             <div
