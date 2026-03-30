@@ -240,7 +240,7 @@ export function buildWindowsProcessSnapshot(
   try {
     parsed = JSON.parse(processJson);
   } catch {
-    return [];
+    return { descendantProcesses: [], foregroundTool: null };
   }
 
   const entries = Array.isArray(parsed) ? parsed : [parsed];
