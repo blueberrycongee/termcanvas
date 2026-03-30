@@ -468,14 +468,14 @@ export function WelcomePopup({ onClose }: Props) {
       } else if (phase === 2) {
         setTilesVisible([true, true, true, true]);
         setFocusedTile(0);
-        setCanvasTransform({ x: -TILE_OFFSETS[0].x * 0.3, y: -TILE_OFFSETS[0].y * 0.3, scale: 1.3 });
+        setCanvasTransform({ x: -TILE_OFFSETS[0].x * 0.6, y: -TILE_OFFSETS[0].y * 0.6, scale: 1.8 });
         setKeystroke({ key: fmtClearFocus, en: "Toggle Focus", zh: "切换聚焦" });
         setPanelVisible(false);
         setCursorPos(getTileCenter(0));
       } else if (phase === 3) {
         setTilesVisible([true, true, true, true]);
         setFocusedTile(3);
-        setCanvasTransform({ x: -TILE_OFFSETS[3].x * 0.3, y: -TILE_OFFSETS[3].y * 0.3, scale: 1.3 });
+        setCanvasTransform({ x: -TILE_OFFSETS[3].x * 0.6, y: -TILE_OFFSETS[3].y * 0.6, scale: 1.8 });
         setKeystroke({ key: fmtNext, en: "Next Terminal", zh: "下一终端" });
         setPanelVisible(false);
         setCursorPos(getTileCenter(3));
@@ -520,7 +520,7 @@ export function WelcomePopup({ onClose }: Props) {
         await delay(300);
         if (cancelled()) return;
         setFocusedTile(0);
-        setCanvasTransform({ x: -TILE_OFFSETS[0].x * 0.3, y: -TILE_OFFSETS[0].y * 0.3, scale: 1.3 });
+        setCanvasTransform({ x: -TILE_OFFSETS[0].x * 0.6, y: -TILE_OFFSETS[0].y * 0.6, scale: 1.8 });
         await delay(1200);
 
       } else if (phase === 2) {
@@ -528,7 +528,7 @@ export function WelcomePopup({ onClose }: Props) {
         for (const idx of [1, 2, 3]) {
           if (cancelled()) return;
           setFocusedTile(idx);
-          setCanvasTransform({ x: -TILE_OFFSETS[idx].x * 0.3, y: -TILE_OFFSETS[idx].y * 0.3, scale: 1.3 });
+          setCanvasTransform({ x: -TILE_OFFSETS[idx].x * 0.6, y: -TILE_OFFSETS[idx].y * 0.6, scale: 1.8 });
           await delay(1000);
         }
 
