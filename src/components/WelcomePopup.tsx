@@ -1017,13 +1017,14 @@ export function WelcomePopup({ onClose }: Props) {
                 backgroundSize: "20px 20px",
               }}
             >
-              <div
-                className="absolute top-2 left-2.5 text-[9px]"
-                style={{ color: "var(--text-faint)", zIndex: 10, transition: "opacity 200ms" }}
-                key={activePhase}
-              >
-                {PHASES[activePhase].en} · {PHASES[activePhase].zh}
-              </div>
+              {completedPhase >= activePhase && activePhase < PHASES.length - 1 && (
+                <div
+                  className="absolute top-2 left-2.5 text-[9px]"
+                  style={{ color: "var(--text-faint)", zIndex: 10 }}
+                >
+                  → or ▸ to continue
+                </div>
+              )}
               <div
                 className="absolute inset-0 flex items-center justify-center"
                 style={{
