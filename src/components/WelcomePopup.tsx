@@ -161,7 +161,7 @@ function DemoTile({
   );
 }
 
-function DemoSidebar({ newProject }: { newProject: boolean }) {
+function DemoSidebar() {
   return (
     <div
       className="shrink-0 flex flex-col items-center pt-3 gap-2 border-r border-[var(--border)]"
@@ -188,17 +188,57 @@ function DemoSidebar({ newProject }: { newProject: boolean }) {
           }}
         />
       ))}
+    </div>
+  );
+}
+
+function DemoProjectContainer({ visible }: { visible: boolean }) {
+  return (
+    <div
+      className="absolute rounded-md border"
+      style={{
+        right: 24,
+        top: 24,
+        width: 160,
+        opacity: visible ? 1 : 0,
+        transform: visible ? "scale(1) translateY(0)" : "scale(0.9) translateY(8px)",
+        transition: "all 300ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+        background: "var(--bg)",
+        borderColor: visible ? "var(--accent)" : "var(--border)",
+        boxShadow: visible ? "0 0 12px rgba(91,158,245,0.3)" : "none",
+        zIndex: 45,
+      }}
+    >
       <div
-        className="rounded"
-        style={{
-          width: 16,
-          height: 16,
-          background: newProject ? "var(--accent)" : "transparent",
-          opacity: newProject ? 0.8 : 0,
-          transform: newProject ? "scale(1)" : "scale(0.5)",
-          transition: "all 250ms cubic-bezier(0.34, 1.56, 0.64, 1)",
-        }}
-      />
+        className="flex items-center gap-1.5 px-2 py-1 border-b"
+        style={{ borderColor: "var(--border)" }}
+      >
+        <span className="text-[7px] font-medium" style={{ color: "var(--accent)" }}>
+          PROJECT
+        </span>
+        <span className="text-[8px] text-[var(--text-secondary)]">my-app</span>
+      </div>
+      <div className="p-1.5 flex flex-col gap-1">
+        <div
+          className="rounded border px-1.5 py-1"
+          style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+        >
+          <div className="flex items-center gap-1 mb-1">
+            <div className="w-[3px] h-[5px] rounded-full" style={{ background: "var(--cyan)" }} />
+            <span className="text-[7px] text-[var(--text-muted)]">main</span>
+          </div>
+          <div className="rounded" style={{ height: 20, background: "var(--surface-hover)", opacity: 0.5 }} />
+        </div>
+        <div
+          className="rounded border px-1.5 py-1"
+          style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+        >
+          <div className="flex items-center gap-1">
+            <div className="w-[3px] h-[5px] rounded-full" style={{ background: "var(--amber)" }} />
+            <span className="text-[7px] text-[var(--text-muted)]">feat/login</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -720,7 +760,7 @@ export function WelcomePopup({ onClose }: Props) {
         </div>
 
         <div className="flex flex-1 min-h-0">
-          <DemoSidebar newProject={newProject} />
+          <DemoSidebar />
 
           <div className="flex-1 min-w-0 flex flex-col">
             <div
@@ -756,6 +796,7 @@ export function WelcomePopup({ onClose }: Props) {
                 </div>
               </div>
 
+              <DemoProjectContainer visible={newProject} />
               <DemoCursor pos={cursorPos} dragging={isDragging} visible={cursorVisible} />
               <KeystrokePopup keys={popupKeys} visibleCount={popupVisible} label={popupLabel} />
             </div>
