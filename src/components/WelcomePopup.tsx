@@ -59,6 +59,16 @@ const TILE_OFFSETS = [
   { x: 64, y: 44 },
 ];
 
+const PHASES = [
+  { en: "Intro", zh: "开始" },
+  { en: "Focus", zh: "聚焦" },
+  { en: "Switch", zh: "切换" },
+  { en: "Unfocus", zh: "取消" },
+  { en: "Zoom", zh: "缩放" },
+  { en: "Panel", zh: "面板" },
+  { en: "Done", zh: "完成" },
+] as const;
+
 function DemoCursor({
   pos,
   dragging,
@@ -307,6 +317,77 @@ function KeystrokeBar({
   );
 }
 
+function Timeline({
+  current,
+  completed,
+  onSelect,
+  onNext,
+}: {
+  current: number;
+  completed: number;
+  onSelect: (index: number) => void;
+  onNext: () => void;
+}) {
+  const isLast = current >= PHASES.length - 1;
+  const paused = current === completed;
+  return (
+    <div className="shrink-0 flex items-center justify-between px-4 py-2 border-t border-[var(--border)]">
+      <div className="flex items-center gap-1">
+        {PHASES.map((phase, i) => (
+          <button
+            key={i}
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors duration-150"
+            style={{
+              background: i === current ? "var(--surface-hover)" : "transparent",
+              cursor: "pointer",
+            }}
+            onClick={() => onSelect(i)}
+          >
+            <div
+              className="rounded-full shrink-0 transition-all duration-200"
+              style={{
+                width: 6,
+                height: 6,
+                background:
+                  i === current
+                    ? "var(--accent)"
+                    : i <= completed
+                      ? "var(--text-muted)"
+                      : "var(--text-faint)",
+              }}
+            />
+            <span
+              className="text-[9px] hidden sm:inline"
+              style={{
+                color:
+                  i === current
+                    ? "var(--accent)"
+                    : i <= completed
+                      ? "var(--text-secondary)"
+                      : "var(--text-faint)",
+              }}
+            >
+              {phase.en}
+            </span>
+          </button>
+        ))}
+      </div>
+      {paused && !isLast && (
+        <button
+          className="text-[10px] px-2 py-0.5 rounded transition-colors duration-150"
+          style={{
+            color: "var(--accent)",
+            background: "var(--surface)",
+          }}
+          onClick={onNext}
+        >
+          <Bi en="Next ▸" zh="下一步 ▸" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function WelcomePopup({ onClose }: Props) {
   const backdropRef = useRef<HTMLDivElement>(null);
   const shortcuts = useShortcutStore((s) => s.shortcuts);
@@ -320,8 +401,11 @@ export function WelcomePopup({ onClose }: Props) {
   const [panelVisible, setPanelVisible] = useState(false);
   const [panelContent, setPanelContent] = useState<"usage" | "hydra">("usage");
   const [keystroke, setKeystroke] = useState<{ key: string; en: string; zh: string } | null>(null);
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [isFinished, setIsFinished] = useState(false);
+
+  const [activePhase, setActivePhase] = useState(0);
+  const [completedPhase, setCompletedPhase] = useState(-1);
+  const runIdRef = useRef(0);
+
   const prefersReducedMotion = useRef(
     window.matchMedia("(prefers-reduced-motion: reduce)").matches
   );
@@ -338,166 +422,203 @@ export function WelcomePopup({ onClose }: Props) {
     return { x: center.x + off.x, y: center.y + off.y };
   };
 
+  const resetState = () => {
+    setFocusedTile(-1);
+    setTilesVisible([false, false, false, false]);
+    setCanvasTransform({ x: 0, y: 0, scale: 1 });
+    setKeystroke(null);
+    setPanelVisible(false);
+    setPanelContent("usage");
+    setIsDragging(false);
+    setCursorPos(getCenter());
+  };
+
   useEffect(() => {
-    if (!isPlaying) return;
-    let cancelled = false;
+    const id = ++runIdRef.current;
+    const cancelled = () => runIdRef.current !== id;
 
     const delay = (ms: number) =>
-      new Promise<void>((resolve) => {
-        setTimeout(resolve, ms);
-      });
+      new Promise<void>((resolve) => { setTimeout(resolve, ms); });
 
-    const run = async () => {
-      setIsFinished(false);
-      setFocusedTile(-1);
-      setTilesVisible([false, false, false, false]);
-      setCanvasTransform({ x: 0, y: 0, scale: 1 });
-      setKeystroke(null);
-      setPanelVisible(false);
-      setPanelContent("usage");
+    const fmtClearFocus = formatShortcut(shortcuts.clearFocus, isMac);
+    const fmtNext = formatShortcut(shortcuts.nextTerminal, isMac);
+    const fmtTogglePanel = formatShortcut(shortcuts.toggleRightPanel, isMac);
+    const fmtAddProject = formatShortcut(shortcuts.addProject, isMac);
+
+    const setupForPhase = (phase: number) => {
       setIsDragging(false);
-
-      if (prefersReducedMotion.current) {
+      setPanelContent("usage");
+      if (phase === 0) {
+        resetState();
+      } else if (phase === 1) {
         setTilesVisible([true, true, true, true]);
+        setFocusedTile(-1);
+        setCanvasTransform({ x: 0, y: 0, scale: 1 });
+        setKeystroke(null);
+        setPanelVisible(false);
         setCursorPos(getCenter());
-        setIsFinished(true);
-        setIsPlaying(false);
-        return;
+      } else if (phase === 2) {
+        setTilesVisible([true, true, true, true]);
+        setFocusedTile(0);
+        setCanvasTransform({ x: -TILE_OFFSETS[0].x * 0.3, y: -TILE_OFFSETS[0].y * 0.3, scale: 1.3 });
+        setKeystroke({ key: fmtClearFocus, en: "Toggle Focus", zh: "切换聚焦" });
+        setPanelVisible(false);
+        setCursorPos(getTileCenter(0));
+      } else if (phase === 3) {
+        setTilesVisible([true, true, true, true]);
+        setFocusedTile(3);
+        setCanvasTransform({ x: -TILE_OFFSETS[3].x * 0.3, y: -TILE_OFFSETS[3].y * 0.3, scale: 1.3 });
+        setKeystroke({ key: fmtNext, en: "Next Terminal", zh: "下一终端" });
+        setPanelVisible(false);
+        setCursorPos(getTileCenter(3));
+      } else if (phase === 4) {
+        setTilesVisible([true, true, true, true]);
+        setFocusedTile(-1);
+        setCanvasTransform({ x: 0, y: 0, scale: 1 });
+        setKeystroke(null);
+        setPanelVisible(false);
+        setCursorPos(getCenter());
+      } else if (phase === 5) {
+        setTilesVisible([true, true, true, true]);
+        setFocusedTile(-1);
+        setCanvasTransform({ x: 0, y: 0, scale: 1 });
+        setKeystroke(null);
+        setPanelVisible(false);
+        setCursorPos(getCenter());
+      } else if (phase === 6) {
+        setTilesVisible([true, true, true, true]);
+        setFocusedTile(-1);
+        setCanvasTransform({ x: 0, y: 0, scale: 1 });
+        setPanelVisible(false);
+        setCursorPos(getCenter());
       }
+    };
 
-      const center = getCenter();
-      setCursorPos(center);
-      await delay(400);
-      if (cancelled) return;
+    const runPhase = async (phase: number) => {
+      setupForPhase(phase);
+      await delay(100);
+      if (cancelled()) return;
 
-      for (let i = 0; i < 4; i++) {
-        if (cancelled) return;
-        setTilesVisible((prev) => {
-          const next = [...prev];
-          next[i] = true;
-          return next;
-        });
-        await delay(150);
-      }
-      await delay(800);
-      if (cancelled) return;
+      if (phase === 0) {
+        for (let i = 0; i < 4; i++) {
+          if (cancelled()) return;
+          setTilesVisible((prev) => { const next = [...prev]; next[i] = true; return next; });
+          await delay(150);
+        }
+        await delay(600);
 
-      const fmtClearFocus = formatShortcut(shortcuts.clearFocus, isMac);
-      const tile0 = getTileCenter(0);
-      setCursorPos(tile0);
-      await delay(400);
-      if (cancelled) return;
+      } else if (phase === 1) {
+        const tile0 = getTileCenter(0);
+        setCursorPos(tile0);
+        await delay(400);
+        if (cancelled()) return;
+        setKeystroke({ key: fmtClearFocus, en: "Toggle Focus", zh: "切换聚焦" });
+        await delay(300);
+        if (cancelled()) return;
+        setFocusedTile(0);
+        setCanvasTransform({ x: -TILE_OFFSETS[0].x * 0.3, y: -TILE_OFFSETS[0].y * 0.3, scale: 1.3 });
+        await delay(1200);
 
-      setKeystroke({ key: fmtClearFocus, en: "Toggle Focus", zh: "切换聚焦" });
-      await delay(300);
-      if (cancelled) return;
+      } else if (phase === 2) {
+        setKeystroke({ key: fmtNext, en: "Next Terminal", zh: "下一终端" });
+        for (const idx of [1, 2, 3]) {
+          if (cancelled()) return;
+          setFocusedTile(idx);
+          setCursorPos(getTileCenter(idx));
+          setCanvasTransform({ x: -TILE_OFFSETS[idx].x * 0.3, y: -TILE_OFFSETS[idx].y * 0.3, scale: 1.3 });
+          await delay(1000);
+        }
 
-      setFocusedTile(0);
-      setCanvasTransform({
-        x: -TILE_OFFSETS[0].x * 0.3,
-        y: -TILE_OFFSETS[0].y * 0.3,
-        scale: 1.3,
-      });
-      await delay(1500);
-      if (cancelled) return;
+      } else if (phase === 3) {
+        setKeystroke({ key: fmtClearFocus, en: "Toggle Focus", zh: "切换聚焦" });
+        await delay(300);
+        if (cancelled()) return;
+        setFocusedTile(-1);
+        setCursorPos(getCenter());
+        setCanvasTransform({ x: 0, y: 0, scale: 1 });
+        await delay(1200);
 
-      const fmtNext = formatShortcut(shortcuts.nextTerminal, isMac);
-      setKeystroke({ key: fmtNext, en: "Next Terminal", zh: "下一终端" });
-      for (const idx of [1, 2, 3]) {
-        if (cancelled) return;
-        setFocusedTile(idx);
-        setCursorPos(getTileCenter(idx));
-        setCanvasTransform({
-          x: -TILE_OFFSETS[idx].x * 0.3,
-          y: -TILE_OFFSETS[idx].y * 0.3,
-          scale: 1.3,
-        });
+      } else if (phase === 4) {
+        setKeystroke({ key: "Scroll", en: "Zoom", zh: "缩放" });
+        await delay(300);
+        if (cancelled()) return;
+        setCanvasTransform({ x: 0, y: 0, scale: 0.7 });
+        await delay(800);
+        if (cancelled()) return;
+        setKeystroke({ key: "Drag", en: "Pan", zh: "平移" });
+        setIsDragging(true);
+        const panCenter = getCenter();
+        for (let i = 1; i <= 16; i++) {
+          if (cancelled()) return;
+          const progress = i / 16;
+          const panX = Math.sin(progress * Math.PI) * 30;
+          setCursorPos({ x: panCenter.x + panX, y: panCenter.y });
+          setCanvasTransform({ x: panX, y: 0, scale: 0.7 });
+          await delay(25);
+        }
+        setIsDragging(false);
+        if (cancelled()) return;
+        setKeystroke({ key: "Scroll", en: "Zoom", zh: "缩放" });
+        setCanvasTransform({ x: 0, y: 0, scale: 1 });
+        setCursorPos(panCenter);
+        await delay(800);
+
+      } else if (phase === 5) {
+        setKeystroke({ key: fmtTogglePanel, en: "Toggle Panel", zh: "切换面板" });
+        await delay(300);
+        if (cancelled()) return;
+        setPanelVisible(true);
+        setPanelContent("usage");
+        await delay(2000);
+        if (cancelled()) return;
+        setPanelContent("hydra");
+        await delay(1500);
+
+      } else if (phase === 6) {
+        setPanelVisible(false);
+        await delay(400);
+        if (cancelled()) return;
+        setKeystroke({ key: fmtAddProject, en: "Add Project", zh: "添加项目" });
         await delay(1000);
       }
-      if (cancelled) return;
 
-      setKeystroke({ key: fmtClearFocus, en: "Toggle Focus", zh: "切换聚焦" });
-      await delay(300);
-      if (cancelled) return;
-      setFocusedTile(-1);
-      setCursorPos(getCenter());
-      setCanvasTransform({ x: 0, y: 0, scale: 1 });
-      await delay(1500);
-      if (cancelled) return;
-
-      setKeystroke({ key: "Scroll", en: "Zoom", zh: "缩放" });
-      await delay(300);
-      if (cancelled) return;
-
-      setCanvasTransform({ x: 0, y: 0, scale: 0.7 });
-      await delay(800);
-      if (cancelled) return;
-
-      setKeystroke({ key: "Drag", en: "Pan", zh: "平移" });
-      setIsDragging(true);
-      const panCenter = getCenter();
-      const PAN_STEPS = 16;
-      for (let i = 1; i <= PAN_STEPS; i++) {
-        if (cancelled) return;
-        const progress = i / PAN_STEPS;
-        const panX = Math.sin(progress * Math.PI) * 30;
-        setCursorPos({ x: panCenter.x + panX, y: panCenter.y });
-        setCanvasTransform({ x: panX, y: 0, scale: 0.7 });
-        await delay(25);
+      if (!cancelled()) {
+        setCompletedPhase((prev) => Math.max(prev, phase));
       }
-      setIsDragging(false);
-      if (cancelled) return;
-
-      setKeystroke({ key: "Scroll", en: "Zoom", zh: "缩放" });
-      setCanvasTransform({ x: 0, y: 0, scale: 1 });
-      setCursorPos(panCenter);
-      await delay(800);
-      if (cancelled) return;
-
-      const fmtTogglePanel = formatShortcut(shortcuts.toggleRightPanel, isMac);
-      setKeystroke({ key: fmtTogglePanel, en: "Toggle Panel", zh: "切换面板" });
-      await delay(300);
-      if (cancelled) return;
-
-      setPanelVisible(true);
-      setPanelContent("usage");
-      await delay(2000);
-      if (cancelled) return;
-
-      setPanelContent("hydra");
-      await delay(1500);
-      if (cancelled) return;
-
-      setPanelVisible(false);
-      await delay(400);
-      if (cancelled) return;
-
-      const fmtAddProject = formatShortcut(shortcuts.addProject, isMac);
-      setKeystroke({ key: fmtAddProject, en: "Add Project", zh: "添加项目" });
-      await delay(1500);
-      if (cancelled) return;
-
-      setIsFinished(true);
-      setIsPlaying(false);
     };
 
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [isPlaying, shortcuts.clearFocus, shortcuts.nextTerminal, shortcuts.toggleRightPanel, shortcuts.addProject]);
+    if (prefersReducedMotion.current) {
+      setTilesVisible([true, true, true, true]);
+      setCursorPos(getCenter());
+      setCompletedPhase(PHASES.length - 1);
+      return;
+    }
+
+    runPhase(activePhase);
+  }, [activePhase, shortcuts.clearFocus, shortcuts.nextTerminal, shortcuts.toggleRightPanel, shortcuts.addProject]);
+
+  const handleSelectPhase = (index: number) => {
+    runIdRef.current++;
+    setActivePhase(index);
+  };
+
+  const handleNext = () => {
+    if (activePhase < PHASES.length - 1) {
+      handleSelectPhase(activePhase + 1);
+    }
+  };
 
   useEffect(() => {
     const handler = () => {
       if (document.hidden) {
-        setIsPlaying(false);
-      } else if (!isFinished) {
-        setIsPlaying(true);
+        runIdRef.current++;
+      } else {
+        handleSelectPhase(activePhase);
       }
     };
     document.addEventListener("visibilitychange", handler);
     return () => document.removeEventListener("visibilitychange", handler);
-  }, [isFinished]);
+  }, [activePhase]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -590,26 +711,17 @@ export function WelcomePopup({ onClose }: Props) {
             </div>
 
             <KeystrokeBar keystroke={keystroke} key={keystroke?.key ?? "empty"} />
-
-            <div className="flex items-center justify-center" style={{ height: 32 }}>
-              {isFinished && (
-                <button
-                  className="text-[11px] hover:underline"
-                  style={{ color: "var(--accent)" }}
-                  onClick={() => setIsPlaying(true)}
-                >
-                  <Bi en="Replay" zh="重播" />
-                </button>
-              )}
-            </div>
           </div>
 
           <DemoPanel visible={panelVisible} content={panelContent} />
         </div>
-      </div>
 
-      <div className="absolute bottom-6 text-[12px] text-[var(--text-muted)]">
-        <Bi en="Escape to close" zh="Escape 关闭" />
+        <Timeline
+          current={activePhase}
+          completed={completedPhase}
+          onSelect={handleSelectPhase}
+          onNext={handleNext}
+        />
       </div>
     </div>
   );
