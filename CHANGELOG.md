@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.16.8] - 2026-03-30
+
+### Fixed
+- Resolve worktree overlaps when tile dimensions change (window resize, sidebar drag)
+
 ## [0.16.7] - 2026-03-30
 
 ### Added
