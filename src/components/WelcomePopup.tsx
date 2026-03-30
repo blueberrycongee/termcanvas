@@ -523,6 +523,7 @@ export function WelcomePopup({ onClose }: Props) {
 
     const fmtClearFocus = formatShortcut(shortcuts.clearFocus, isMac);
     const fmtNext = formatShortcut(shortcuts.nextTerminal, isMac);
+    const fmtPrev = formatShortcut(shortcuts.prevTerminal, isMac);
     const fmtTogglePanel = formatShortcut(shortcuts.toggleRightPanel, isMac);
     const fmtAddProject = formatShortcut(shortcuts.addProject, isMac);
 
@@ -604,7 +605,7 @@ export function WelcomePopup({ onClose }: Props) {
         await delay(1200);
 
       } else if (phase === 2) {
-        for (const idx of [1, 2, 3]) {
+        for (const idx of [1, 2]) {
           if (cancelled()) return;
           await showKeys(splitShortcut(fmtNext), { en: "Next Terminal", zh: "下一终端" });
           if (cancelled()) return;
@@ -612,6 +613,20 @@ export function WelcomePopup({ onClose }: Props) {
           setCanvasTransform({ x: -TILE_OFFSETS[idx].x, y: -TILE_OFFSETS[idx].y, scale: 1.8 });
           await delay(600);
         }
+        for (const idx of [1, 0]) {
+          if (cancelled()) return;
+          await showKeys(splitShortcut(fmtPrev), { en: "Prev Terminal", zh: "上一终端" });
+          if (cancelled()) return;
+          setFocusedTile(idx);
+          setCanvasTransform({ x: -TILE_OFFSETS[idx].x, y: -TILE_OFFSETS[idx].y, scale: 1.8 });
+          await delay(600);
+        }
+        if (cancelled()) return;
+        await showKeys(splitShortcut(fmtNext), { en: "Next Terminal", zh: "下一终端" });
+        if (cancelled()) return;
+        setFocusedTile(3);
+        setCanvasTransform({ x: -TILE_OFFSETS[3].x, y: -TILE_OFFSETS[3].y, scale: 1.8 });
+        await delay(600);
 
       } else if (phase === 3) {
         await showKeys(splitShortcut(fmtClearFocus), { en: "Toggle Focus", zh: "切换聚焦" });
@@ -684,7 +699,7 @@ export function WelcomePopup({ onClose }: Props) {
     }
 
     runPhase(activePhase);
-  }, [activePhase, shortcuts.clearFocus, shortcuts.nextTerminal, shortcuts.toggleRightPanel, shortcuts.addProject]);
+  }, [activePhase, shortcuts.clearFocus, shortcuts.nextTerminal, shortcuts.prevTerminal, shortcuts.toggleRightPanel, shortcuts.addProject]);
 
   const handleSelectPhase = (index: number) => {
     runIdRef.current++;
