@@ -21,6 +21,7 @@ thirdparty/
 # Hydra temp files
 .hydra-result-*.md
 .hydra-task-*.md
+.hydra/
 
 # Agent config for other runtimes
 AGENTS.md
