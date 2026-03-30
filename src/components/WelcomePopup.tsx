@@ -72,9 +72,11 @@ const PHASES = [
 function DemoCursor({
   pos,
   dragging,
+  visible,
 }: {
   pos: { x: number; y: number };
   dragging: boolean;
+  visible: boolean;
 }) {
   return (
     <svg
@@ -86,9 +88,10 @@ function DemoCursor({
         position: "absolute",
         left: pos.x,
         top: pos.y,
+        opacity: visible ? 1 : 0,
         transition: dragging
-          ? "none"
-          : "left 350ms cubic-bezier(0.4, 0, 0.2, 1), top 350ms cubic-bezier(0.4, 0, 0.2, 1)",
+          ? "opacity 200ms"
+          : "left 350ms cubic-bezier(0.4, 0, 0.2, 1), top 350ms cubic-bezier(0.4, 0, 0.2, 1), opacity 200ms",
         filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))",
         pointerEvents: "none",
         zIndex: 50,
@@ -394,6 +397,7 @@ export function WelcomePopup({ onClose }: Props) {
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
+  const [cursorVisible, setCursorVisible] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [focusedTile, setFocusedTile] = useState(-1);
   const [tilesVisible, setTilesVisible] = useState([false, false, false, false]);
@@ -430,6 +434,7 @@ export function WelcomePopup({ onClose }: Props) {
     setPanelVisible(false);
     setPanelContent("usage");
     setIsDragging(false);
+    setCursorVisible(false);
     setCursorPos(getCenter());
   };
 
@@ -447,6 +452,7 @@ export function WelcomePopup({ onClose }: Props) {
 
     const setupForPhase = (phase: number) => {
       setIsDragging(false);
+      setCursorVisible(phase === 4);
       setPanelContent("usage");
       if (phase === 0) {
         resetState();
@@ -508,10 +514,6 @@ export function WelcomePopup({ onClose }: Props) {
         await delay(600);
 
       } else if (phase === 1) {
-        const tile0 = getTileCenter(0);
-        setCursorPos(tile0);
-        await delay(400);
-        if (cancelled()) return;
         setKeystroke({ key: fmtClearFocus, en: "Toggle Focus", zh: "切换聚焦" });
         await delay(300);
         if (cancelled()) return;
@@ -524,7 +526,6 @@ export function WelcomePopup({ onClose }: Props) {
         for (const idx of [1, 2, 3]) {
           if (cancelled()) return;
           setFocusedTile(idx);
-          setCursorPos(getTileCenter(idx));
           setCanvasTransform({ x: -TILE_OFFSETS[idx].x * 0.3, y: -TILE_OFFSETS[idx].y * 0.3, scale: 1.3 });
           await delay(1000);
         }
@@ -534,7 +535,6 @@ export function WelcomePopup({ onClose }: Props) {
         await delay(300);
         if (cancelled()) return;
         setFocusedTile(-1);
-        setCursorPos(getCenter());
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
         await delay(1200);
 
@@ -707,7 +707,7 @@ export function WelcomePopup({ onClose }: Props) {
                 </div>
               </div>
 
-              <DemoCursor pos={cursorPos} dragging={isDragging} />
+              <DemoCursor pos={cursorPos} dragging={isDragging} visible={cursorVisible} />
             </div>
 
             <KeystrokeBar keystroke={keystroke} key={keystroke?.key ?? "empty"} />
