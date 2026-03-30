@@ -1293,3 +1293,42 @@ export function getTerminalRuntime(
 ): ManagedTerminalRuntime | null {
   return runtimeRegistry.get(terminalId) ?? null;
 }
+
+/**
+ * Re-read sessionId (from sidecar) and permissionMode (from JSONL) for
+ * every live Claude terminal.  Call this before building a save snapshot
+ * so that /resume switches and Shift+T toggles are captured.
+ */
+export async function refreshClaudeSessionStates(): Promise<void> {
+  const tasks: Promise<void>[] = [];
+
+  for (const runtime of runtimeRegistry.values()) {
+    if (runtime.disposed || runtime.meta.terminal.type !== "claude" || runtime.ptyId === null) {
+      continue;
+    }
+
+    tasks.push(
+      (async () => {
+        // Re-read sessionId from sidecar via PID
+        const pid = await window.termcanvas.terminal.getPid(runtime.ptyId!);
+        if (!pid || runtime.disposed) return;
+
+        const latestSessionId =
+          await window.termcanvas.session.getClaudeByPid(pid);
+        if (runtime.disposed) return;
+
+        if (latestSessionId && latestSessionId !== runtime.meta.terminal.sessionId) {
+          setSessionId(runtime, latestSessionId);
+        }
+
+        // Re-read permissionMode from JSONL
+        const sessionId = runtime.meta.terminal.sessionId;
+        if (sessionId) {
+          await syncPermissionMode(runtime, sessionId);
+        }
+      })(),
+    );
+  }
+
+  await Promise.all(tasks);
+}

@@ -26,7 +26,7 @@ import {
   PROJ_TITLE_H,
 } from "../layout";
 import { shouldIgnoreShortcutTarget } from "./shortcutTarget";
-import { snapshotState } from "../snapshotState";
+import { snapshotStateWithRefresh } from "../snapshotState";
 import { updateWindowTitle } from "../titleHelper";
 import { panToTerminal } from "../utils/panToTerminal";
 import { panToWorktree } from "../utils/panToWorktree";
@@ -291,23 +291,47 @@ export function useKeyboardShortcuts() {
 
       if (matchesShortcut(e, shortcuts.saveWorkspace)) {
         e.preventDefault();
-        const snap = snapshotState();
-        const { workspacePath } = useWorkspaceStore.getState();
+        void snapshotStateWithRefresh().then((snap) => {
+          const { workspacePath } = useWorkspaceStore.getState();
 
-        if (workspacePath) {
-          window.termcanvas.workspace
-            .saveToPath(workspacePath, snap)
-            .then(async () => {
-              await window.termcanvas.state.save(snap);
-              useWorkspaceStore.getState().markClean();
-              updateWindowTitle();
-            })
-            .catch((err) => {
-              useNotificationStore
-                .getState()
-                .notify("error", t.save_error(String(err)));
-            });
-        } else {
+          if (workspacePath) {
+            window.termcanvas.workspace
+              .saveToPath(workspacePath, snap)
+              .then(async () => {
+                await window.termcanvas.state.save(snap);
+                useWorkspaceStore.getState().markClean();
+                updateWindowTitle();
+              })
+              .catch((err) => {
+                useNotificationStore
+                  .getState()
+                  .notify("error", t.save_error(String(err)));
+              });
+          } else {
+            window.termcanvas.workspace
+              .save(snap)
+              .then(async (savedPath) => {
+                if (!savedPath) {
+                  return;
+                }
+                useWorkspaceStore.getState().setWorkspacePath(savedPath);
+                await window.termcanvas.state.save(snap);
+                useWorkspaceStore.getState().markClean();
+                updateWindowTitle();
+              })
+              .catch((err) => {
+                useNotificationStore
+                  .getState()
+                  .notify("error", t.save_error(String(err)));
+              });
+          }
+        });
+        return;
+      }
+
+      if (matchesShortcut(e, shortcuts.saveWorkspaceAs)) {
+        e.preventDefault();
+        void snapshotStateWithRefresh().then((snap) => {
           window.termcanvas.workspace
             .save(snap)
             .then(async (savedPath) => {
@@ -324,29 +348,7 @@ export function useKeyboardShortcuts() {
                 .getState()
                 .notify("error", t.save_error(String(err)));
             });
-        }
-        return;
-      }
-
-      if (matchesShortcut(e, shortcuts.saveWorkspaceAs)) {
-        e.preventDefault();
-        const snap = snapshotState();
-        window.termcanvas.workspace
-          .save(snap)
-          .then(async (savedPath) => {
-            if (!savedPath) {
-              return;
-            }
-            useWorkspaceStore.getState().setWorkspacePath(savedPath);
-            await window.termcanvas.state.save(snap);
-            useWorkspaceStore.getState().markClean();
-            updateWindowTitle();
-          })
-          .catch((err) => {
-            useNotificationStore
-              .getState()
-              .notify("error", t.save_error(String(err)));
-          });
+        });
         return;
       }
 

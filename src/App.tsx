@@ -26,6 +26,7 @@ import {
   readWorkspaceSnapshot,
   restoreWorkspaceSnapshot,
   snapshotState,
+  snapshotStateWithRefresh,
   type SkipRestoreSnapshot,
 } from "./snapshotState";
 import { updateWindowTitle } from "./titleHelper";
@@ -237,7 +238,7 @@ function useCloseHandler() {
         void (async () => {
           const startedAt = performance.now();
           try {
-            await window.termcanvas.state.save(snapshotState());
+            await window.termcanvas.state.save(await snapshotStateWithRefresh());
           } catch (err) {
             console.error("[CloseHandler] failed to save recovery snapshot:", err);
           } finally {
@@ -260,7 +261,7 @@ function useCloseHandler() {
 
   const handleSave = useCallback(async () => {
     try {
-      const snap = snapshotState();
+      const snap = await snapshotStateWithRefresh();
       const { workspacePath } = useWorkspaceStore.getState();
 
       if (workspacePath) {

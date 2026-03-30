@@ -5,6 +5,7 @@ import { useBrowserCardStore } from "./stores/browserCardStore";
 import { useSelectionStore } from "./stores/selectionStore";
 import {
   destroyAllTerminalRuntimes,
+  refreshClaudeSessionStates,
   serializeAllTerminalRuntimeBuffers,
 } from "./terminal/terminalRuntimeStore";
 import { clearTerminalGeometryRegistry } from "./terminal/terminalGeometryRegistry";
@@ -111,4 +112,15 @@ export function snapshotState(): string {
     details: { bytes: serialized.length },
   });
   return serialized;
+}
+
+/**
+ * Refresh live Claude session states (sessionId + permissionMode) from
+ * disk, then build and serialize the snapshot.  Use this instead of
+ * snapshotState() when the save is user-initiated or happens at close
+ * time, so /resume switches and permission toggles are captured.
+ */
+export async function snapshotStateWithRefresh(): Promise<string> {
+  await refreshClaudeSessionStates();
+  return snapshotState();
 }
