@@ -694,14 +694,14 @@ export function WelcomePopup({ onClose }: Props) {
     window.matchMedia("(prefers-reduced-motion: reduce)").matches
   );
 
-  const getCenter = () => {
+  const getCanvasCenter = () => {
     const el = canvasRef.current;
     if (!el) return { x: 190, y: 190 };
-    return { x: el.clientWidth / 2, y: el.clientHeight / 2 };
+    return { x: el.offsetLeft + el.clientWidth / 2, y: el.clientHeight / 2 };
   };
 
   const getTileCenter = (index: number) => {
-    const center = getCenter();
+    const center = getCanvasCenter();
     const off = TILE_OFFSETS[index];
     return { x: center.x + off.x, y: center.y + off.y };
   };
@@ -720,7 +720,7 @@ export function WelcomePopup({ onClose }: Props) {
     setPanelContent("usage");
     setIsDragging(false);
     setCursorVisible(false);
-    setCursorPos(getCenter());
+    setCursorPos(getCanvasCenter());
   };
 
   useEffect(() => {
@@ -785,7 +785,7 @@ export function WelcomePopup({ onClose }: Props) {
         setPanelVisible(phase === 7);
         setNewProject(false);
         setCursorVisible(phase === 4 || phase === 5 || phase === 6);
-        if (phase === 4) setCursorPos(getCenter());
+        if (phase === 4) setCursorPos(getCanvasCenter());
       }
     };
 
@@ -852,7 +852,7 @@ export function WelcomePopup({ onClose }: Props) {
         if (cancelled()) return;
         setCursorVisible(true);
         setIsDragging(true);
-        const panCenter = getCenter();
+        const panCenter = getCanvasCenter();
         for (let i = 1; i <= 16; i++) {
           if (cancelled()) return;
           const progress = i / 16;
@@ -880,7 +880,7 @@ export function WelcomePopup({ onClose }: Props) {
         setSidebarExpanded(true);
         await delay(1500);
         if (cancelled()) return;
-        setCursorPos({ x: 110, y: 18 });
+        setCursorPos({ x: 115, y: 12 });
         await delay(700);
         if (cancelled()) return;
         setSidebarTab("git");
@@ -888,8 +888,9 @@ export function WelcomePopup({ onClose }: Props) {
 
       } else if (phase === 6) {
         setCursorVisible(true);
-        const canvasW = canvasRef.current?.clientWidth ?? 400;
-        setCursorPos({ x: canvasW - 20, y: 100 });
+        const el = canvasRef.current;
+        const rightEdge = el ? el.offsetLeft + el.clientWidth - 10 : 400;
+        setCursorPos({ x: rightEdge, y: 100 });
         await delay(800);
         if (cancelled()) return;
         setPanelVisible(true);
@@ -914,7 +915,7 @@ export function WelcomePopup({ onClose }: Props) {
 
     if (prefersReducedMotion.current) {
       setTilesVisible([true, true, true, true]);
-      setCursorPos(getCenter());
+      setCursorPos(getCanvasCenter());
       setCompletedPhase(PHASES.length - 1);
       return;
     }
@@ -998,7 +999,7 @@ export function WelcomePopup({ onClose }: Props) {
           </button>
         </div>
 
-        <div className="flex flex-1 min-h-0">
+        <div className="flex flex-1 min-h-0 relative">
           <DemoSidebar expanded={sidebarExpanded} activeTab={sidebarTab} />
 
           <div className="flex-1 min-w-0 flex flex-col">
@@ -1064,12 +1065,12 @@ export function WelcomePopup({ onClose }: Props) {
               </div>
 
               <DemoProjectContainer visible={newProject} />
-              <DemoCursor pos={cursorPos} dragging={isDragging} visible={cursorVisible} />
               <KeystrokePopup keys={popupKeys} visibleCount={popupVisible} label={popupLabel} />
             </div>
           </div>
 
           <DemoPanel visible={panelVisible} content={panelContent} />
+          <DemoCursor pos={cursorPos} dragging={isDragging} visible={cursorVisible} />
         </div>
 
         <Timeline
