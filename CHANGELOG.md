@@ -2,6 +2,14 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.16.14] - 2026-03-31
+
+### Added
+- Detect Codex bypass state (approval_policy + sandbox_policy) from session JSONL
+
+### Improved
+- Scan JSONL backwards in 64KB chunks (up to 512KB) instead of fixed tail read
+
 ## [0.16.13] - 2026-03-30
 
 ### Fixed
