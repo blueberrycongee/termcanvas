@@ -161,7 +161,7 @@ function DemoTile({
   );
 }
 
-function DemoSidebar() {
+function DemoSidebar({ newProject }: { newProject: boolean }) {
   return (
     <div
       className="shrink-0 flex flex-col items-center pt-3 gap-2 border-r border-[var(--border)]"
@@ -188,6 +188,17 @@ function DemoSidebar() {
           }}
         />
       ))}
+      <div
+        className="rounded"
+        style={{
+          width: 16,
+          height: 16,
+          background: newProject ? "var(--accent)" : "transparent",
+          opacity: newProject ? 0.8 : 0,
+          transform: newProject ? "scale(1)" : "scale(0.5)",
+          transition: "all 250ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+        }}
+      />
     </div>
   );
 }
@@ -422,6 +433,7 @@ export function WelcomePopup({ onClose }: Props) {
   const [tilesVisible, setTilesVisible] = useState([false, false, false, false]);
   const [canvasTransform, setCanvasTransform] = useState({ x: 0, y: 0, scale: 1 });
   const [panelVisible, setPanelVisible] = useState(false);
+  const [newProject, setNewProject] = useState(false);
   const [panelContent, setPanelContent] = useState<"usage" | "hydra">("usage");
   const [popupKeys, setPopupKeys] = useState<[string, string]>(["", ""]);
   const [popupVisible, setPopupVisible] = useState(0);
@@ -455,6 +467,7 @@ export function WelcomePopup({ onClose }: Props) {
     setPopupVisible(0);
     setPopupLabel(null);
     setPanelVisible(false);
+    setNewProject(false);
     setPanelContent("usage");
     setIsDragging(false);
     setCursorVisible(false);
@@ -520,6 +533,7 @@ export function WelcomePopup({ onClose }: Props) {
         setFocusedTile(-1);
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
         setPanelVisible(phase === 6);
+        setNewProject(false);
         setCursorPos(getCenter());
       }
     };
@@ -612,7 +626,9 @@ export function WelcomePopup({ onClose }: Props) {
         await delay(400);
         if (cancelled()) return;
         await showKeys(splitShortcut(fmtAddProject), { en: "Add Project", zh: "添加项目" });
-        await delay(800);
+        if (cancelled()) return;
+        setNewProject(true);
+        await delay(1200);
       }
 
       if (!cancelled()) {
@@ -704,7 +720,7 @@ export function WelcomePopup({ onClose }: Props) {
         </div>
 
         <div className="flex flex-1 min-h-0">
-          <DemoSidebar />
+          <DemoSidebar newProject={newProject} />
 
           <div className="flex-1 min-w-0 flex flex-col">
             <div
