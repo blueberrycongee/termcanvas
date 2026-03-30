@@ -3,6 +3,7 @@ import { useShortcutStore, formatShortcut } from "../stores/shortcutStore";
 
 interface Props {
   onClose: () => void;
+  autoplay?: boolean;
 }
 
 function Bi({ en: e, zh: z }: { en: string; zh: string }) {
@@ -668,7 +669,7 @@ function Timeline({
   );
 }
 
-export function WelcomePopup({ onClose }: Props) {
+export function WelcomePopup({ onClose, autoplay = false }: Props) {
   const backdropRef = useRef<HTMLDivElement>(null);
   const shortcuts = useShortcutStore((s) => s.shortcuts);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -930,6 +931,19 @@ export function WelcomePopup({ onClose }: Props) {
     setActivePhase(index);
   };
 
+  useEffect(() => {
+    if (!autoplay) return;
+    if (completedPhase < activePhase) return;
+    const timer = setTimeout(() => {
+      if (activePhase < PHASES.length - 1) {
+        handleSelectPhase(activePhase + 1);
+      } else {
+        setCompletedPhase(-1);
+        handleSelectPhase(0);
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [autoplay, completedPhase, activePhase]);
 
   useEffect(() => {
     const handler = () => {
@@ -1017,7 +1031,7 @@ export function WelcomePopup({ onClose }: Props) {
                 backgroundSize: "20px 20px",
               }}
             >
-              {completedPhase >= activePhase && activePhase < PHASES.length - 1 && (
+              {!autoplay && completedPhase >= activePhase && activePhase < PHASES.length - 1 && (
                 <div
                   className="absolute top-2.5 left-3 text-[13px]"
                   style={{ color: "var(--text-muted)", zIndex: 10 }}
