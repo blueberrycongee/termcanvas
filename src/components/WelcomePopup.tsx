@@ -1018,6 +1018,13 @@ export function WelcomePopup({ onClose }: Props) {
               }}
             >
               <div
+                className="absolute top-2 left-2.5 text-[9px]"
+                style={{ color: "var(--text-faint)", zIndex: 10, transition: "opacity 200ms" }}
+                key={activePhase}
+              >
+                {PHASES[activePhase].en} · {PHASES[activePhase].zh}
+              </div>
+              <div
                 className="absolute inset-0 flex items-center justify-center"
                 style={{
                   transform: `translate(${canvasTransform.x}px, ${canvasTransform.y}px) scale(${canvasTransform.scale})`,
