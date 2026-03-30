@@ -782,17 +782,45 @@ export function WelcomePopup({ onClose }: Props) {
                   transition: isDragging ? "none" : "transform 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
                 }}
               >
-                <div className="grid grid-cols-2 gap-2">
-                  {TERMINALS.map((term, i) => (
-                    <DemoTile
-                      key={term.name}
-                      name={term.name}
-                      color={term.color}
-                      lines={[...term.lines]}
-                      focused={focusedTile === i}
-                      visible={tilesVisible[i]}
-                    />
-                  ))}
+                <div
+                  className="rounded-md border"
+                  style={{
+                    background: "var(--bg)",
+                    borderColor: "var(--border)",
+                  }}
+                >
+                  <div
+                    className="flex items-center gap-1.5 px-2 py-1 border-b"
+                    style={{ borderColor: "var(--border)" }}
+                  >
+                    <span className="text-[7px] font-medium" style={{ color: "var(--accent)" }}>
+                      PROJECT
+                    </span>
+                    <span className="text-[8px] text-[var(--text-secondary)]">termcanvas</span>
+                  </div>
+                  <div className="p-1.5">
+                    <div
+                      className="rounded border px-1.5 pt-1 pb-1.5"
+                      style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+                    >
+                      <div className="flex items-center gap-1 mb-1">
+                        <div className="w-[3px] h-[5px] rounded-full" style={{ background: "var(--green)" }} />
+                        <span className="text-[7px] text-[var(--text-muted)]">main</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {TERMINALS.map((term, i) => (
+                          <DemoTile
+                            key={term.name}
+                            name={term.name}
+                            color={term.color}
+                            lines={[...term.lines]}
+                            focused={focusedTile === i}
+                            visible={tilesVisible[i]}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
