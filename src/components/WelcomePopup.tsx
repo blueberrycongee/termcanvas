@@ -769,10 +769,7 @@ export function WelcomePopup({ onClose }: Props) {
         if (cancelled()) return;
         setPanelVisible(true);
         setPanelContent("usage");
-        await delay(1500);
-        if (cancelled()) return;
-        setPanelContent("hydra");
-        await delay(1500);
+        await delay(2000);
 
       } else if (phase === 7) {
         setSidebarExpanded(false);
