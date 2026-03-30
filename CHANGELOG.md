@@ -2,6 +2,16 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.16.6] - 2026-03-30
+
+### Added
+- Agent terminal freeze during sidebar drag — xterm stays frozen at pre-drag size with zero PTY resize, zero flicker; commits one fit on drag-end
+- Buffer snapshot and reflow engine for agent terminals
+
+### Fixed
+- Skip redundant focus dispatch in panToTerminal when terminal is already focused
+- Account for left panel inset in canvas coordinate transforms (box select, family tree overlay, viewport calculations)
+
 ## [0.16.5] - 2026-03-30
 
 ### Fixed
