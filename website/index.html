@@ -21,8 +21,18 @@
 </head>
 <body>
   <nav id="topnav">
-    <button id="lang-toggle" aria-label="Switch language">中文</button>
+    <div class="nav-links">
+      <a href="#features" data-i18n="nav-features">Features</a>
+      <a href="#screenshots" data-i18n="nav-screenshots">Screenshots</a>
+      <a href="#demo" data-i18n="nav-demo">Demo</a>
+      <a href="#docs" data-i18n="nav-docs">Docs</a>
+    </div>
+    <div class="nav-actions">
+      <a href="https://github.com/blueberrycongee/termcanvas" class="nav-github">GitHub</a>
+      <button id="lang-toggle" aria-label="Switch language">中文</button>
+    </div>
   </nav>
+
   <section id="hero">
     <div id="ascii-logo"></div>
     <h1>TermCanvas</h1>
@@ -60,6 +70,198 @@
         <div class="feature-icon">&#9636;</div>
         <h3 data-i18n="f4-title">Usage Tracking</h3>
         <p data-i18n="f4-desc">Token cost dashboard with per-project and per-model breakdown. Know what you're spending.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Screenshots Gallery ──────────────────────────────────────── -->
+  <section id="screenshots">
+    <h2 data-i18n="screenshots-title">Screenshots</h2>
+    <div class="screenshots-grid">
+      <div class="screenshot-card">
+        <div class="screenshot-placeholder" aria-label="Canvas view with multiple terminals arranged spatially">
+          <span class="placeholder-icon">&#9633;</span>
+          <span class="placeholder-text" data-i18n="ss-canvas">Infinite canvas with terminals arranged freely</span>
+        </div>
+      </div>
+      <div class="screenshot-card">
+        <div class="screenshot-placeholder" aria-label="AI agents running in parallel with status indicators">
+          <span class="placeholder-icon">&#9678;</span>
+          <span class="placeholder-text" data-i18n="ss-agents">AI agents running side by side with live status</span>
+        </div>
+      </div>
+      <div class="screenshot-card">
+        <div class="screenshot-placeholder" aria-label="Composer input bar sending prompts to focused agent">
+          <span class="placeholder-icon">&#9654;</span>
+          <span class="placeholder-text" data-i18n="ss-composer">Composer sending prompts with image paste</span>
+        </div>
+      </div>
+      <div class="screenshot-card">
+        <div class="screenshot-placeholder" aria-label="Token usage dashboard with cost breakdown">
+          <span class="placeholder-icon">&#9636;</span>
+          <span class="placeholder-text" data-i18n="ss-usage">Usage dashboard with per-model cost breakdown</span>
+        </div>
+      </div>
+      <div class="screenshot-card">
+        <div class="screenshot-placeholder" aria-label="Drawing annotations on the canvas with pen, text, and shapes">
+          <span class="placeholder-icon">&#9998;</span>
+          <span class="placeholder-text" data-i18n="ss-drawing">Freehand drawing and annotations on canvas</span>
+        </div>
+      </div>
+      <div class="screenshot-card">
+        <div class="screenshot-placeholder" aria-label="Hydra multi-agent task orchestration view">
+          <span class="placeholder-icon">&#9733;</span>
+          <span class="placeholder-text" data-i18n="ss-hydra">Hydra orchestrating parallel agent tasks</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Demo Video ───────────────────────────────────────────────── -->
+  <section id="demo">
+    <h2 data-i18n="demo-title">Demo</h2>
+    <p class="demo-subtitle" data-i18n="demo-subtitle">See TermCanvas in action — from canvas navigation to multi-agent workflows.</p>
+    <div class="demo-video-container">
+      <div class="demo-video-placeholder">
+        <div class="play-icon">&#9654;</div>
+        <p data-i18n="demo-placeholder">Demo video coming soon</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Documentation ────────────────────────────────────────────── -->
+  <section id="docs">
+    <h2 data-i18n="docs-title">Documentation</h2>
+
+    <div class="docs-nav">
+      <a href="#docs-getting-started" class="docs-nav-link" data-i18n="docs-nav-gs">Getting Started</a>
+      <a href="#docs-concepts" class="docs-nav-link" data-i18n="docs-nav-concepts">Key Concepts</a>
+      <a href="#docs-shortcuts" class="docs-nav-link" data-i18n="docs-nav-shortcuts">Shortcuts</a>
+      <a href="#docs-config" class="docs-nav-link" data-i18n="docs-nav-config">Configuration</a>
+    </div>
+
+    <!-- Getting Started -->
+    <div class="docs-section" id="docs-getting-started">
+      <h3 data-i18n="docs-gs-title">Getting Started</h3>
+
+      <div class="docs-block">
+        <h4 data-i18n="docs-gs-install-title">Installation</h4>
+        <p data-i18n="docs-gs-install-desc">Download the latest release for your platform from GitHub Releases. TermCanvas supports macOS, Linux, and Windows.</p>
+        <div class="docs-code">
+          <code>
+# Or build from source<br>
+git clone https://github.com/blueberrycongee/termcanvas.git<br>
+cd termcanvas<br>
+npm install<br>
+npm run dev
+          </code>
+        </div>
+      </div>
+
+      <div class="docs-block">
+        <h4 data-i18n="docs-gs-cli-title">CLI Setup</h4>
+        <p data-i18n="docs-gs-cli-desc">After launching the app, go to Settings → General → Command line interface and click Register. This adds <code>termcanvas</code> and <code>hydra</code> to your PATH, enabling terminal and agent management from any shell.</p>
+      </div>
+
+      <div class="docs-block">
+        <h4 data-i18n="docs-gs-first-title">First Steps</h4>
+        <ol class="docs-steps">
+          <li data-i18n="docs-gs-step1">Open TermCanvas and add a project with <kbd>⌘</kbd> <kbd>O</kbd> (or File → Add Project)</li>
+          <li data-i18n="docs-gs-step2">TermCanvas auto-detects git worktrees in your project</li>
+          <li data-i18n="docs-gs-step3">Press <kbd>⌘</kbd> <kbd>T</kbd> to create a new terminal — choose shell, lazygit, or an AI agent</li>
+          <li data-i18n="docs-gs-step4">Drag terminals around the canvas, zoom in/out with scroll, and double-click title bars to zoom-to-fit</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- Key Concepts -->
+    <div class="docs-section" id="docs-concepts">
+      <h3 data-i18n="docs-concepts-title">Key Concepts</h3>
+
+      <div class="docs-block">
+        <h4 data-i18n="docs-concept-canvas-title">Canvas</h4>
+        <p data-i18n="docs-concept-canvas-desc">The infinite 2D workspace where all terminals live. Pan by dragging the background, zoom with scroll or pinch. Box-select multiple terminals by dragging from empty space. Annotate with pen, text, rectangles, and arrows using the drawing tools.</p>
+      </div>
+
+      <div class="docs-block">
+        <h4 data-i18n="docs-concept-hierarchy-title">Project → Worktree → Terminal</h4>
+        <p data-i18n="docs-concept-hierarchy-desc">TermCanvas organizes everything in a three-level hierarchy that mirrors how you use git. Add a project, and its worktrees appear automatically. Each worktree can contain multiple terminals — shells, lazygit, or AI agents.</p>
+      </div>
+
+      <div class="docs-block">
+        <h4 data-i18n="docs-concept-agents-title">AI Agents</h4>
+        <p data-i18n="docs-concept-agents-desc">First-class support for Claude Code, Codex, Gemini, Kimi, and OpenCode. Each agent runs in its own terminal with live status indicators (working, waiting, done) and a completion glow effect. Sessions persist across restarts.</p>
+      </div>
+
+      <div class="docs-block">
+        <h4 data-i18n="docs-concept-composer-title">Composer</h4>
+        <p data-i18n="docs-concept-composer-desc">The unified input bar at the bottom of the screen. It sends prompts to whichever agent terminal is currently focused. Supports pasting images directly into the prompt. Think of it as a shared command line for all your AI agents.</p>
+      </div>
+
+      <div class="docs-block">
+        <h4 data-i18n="docs-concept-hydra-title">Hydra</h4>
+        <p data-i18n="docs-concept-hydra-desc">A task orchestration tool that breaks large tasks into subtasks, each running in its own git worktree with a dedicated AI agent. Run <code>hydra init</code> in your project, then ask your agent to use Hydra — it handles the rest.</p>
+      </div>
+    </div>
+
+    <!-- Shortcuts -->
+    <div class="docs-section" id="docs-shortcuts">
+      <h3 data-i18n="docs-shortcuts-title">Keyboard Shortcuts</h3>
+      <p class="docs-shortcuts-note" data-i18n="docs-shortcuts-note">All shortcuts are customizable in Settings → Shortcuts. On Windows/Linux, replace ⌘ with Ctrl.</p>
+      <table class="shortcuts-table">
+        <thead>
+          <tr>
+            <th data-i18n="docs-shortcuts-col-key">Shortcut</th>
+            <th data-i18n="docs-shortcuts-col-action">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><kbd>⌘</kbd> <kbd>O</kbd></td><td data-i18n="sc-add-project">Add project</td></tr>
+          <tr><td><kbd>⌘</kbd> <kbd>B</kbd></td><td data-i18n="sc-sidebar">Toggle sidebar</td></tr>
+          <tr><td><kbd>⌘</kbd> <kbd>/</kbd></td><td data-i18n="sc-panel">Toggle right panel (usage)</td></tr>
+          <tr><td><kbd>⌘</kbd> <kbd>T</kbd></td><td data-i18n="sc-new-term">New terminal</td></tr>
+          <tr><td><kbd>⌘</kbd> <kbd>D</kbd></td><td data-i18n="sc-close-term">Close focused terminal</td></tr>
+          <tr><td><kbd>⌘</kbd> <kbd>;</kbd></td><td data-i18n="sc-rename">Rename terminal title</td></tr>
+          <tr><td><kbd>⌘</kbd> <kbd>]</kbd></td><td data-i18n="sc-next">Next terminal</td></tr>
+          <tr><td><kbd>⌘</kbd> <kbd>[</kbd></td><td data-i18n="sc-prev">Previous terminal</td></tr>
+          <tr><td><kbd>⌘</kbd> <kbd>E</kbd></td><td data-i18n="sc-unfocus">Unfocus / refocus last terminal</td></tr>
+          <tr><td><kbd>⌘</kbd> <kbd>F</kbd></td><td data-i18n="sc-star">Star / unstar terminal</td></tr>
+          <tr><td><kbd>⌘</kbd> <kbd>J</kbd></td><td data-i18n="sc-star-next">Next starred terminal</td></tr>
+          <tr><td><kbd>⌘</kbd> <kbd>K</kbd></td><td data-i18n="sc-star-prev">Previous starred terminal</td></tr>
+          <tr><td><kbd>⌘</kbd> <kbd>S</kbd></td><td data-i18n="sc-save">Save workspace</td></tr>
+          <tr><td><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>S</kbd></td><td data-i18n="sc-save-as">Save workspace as</td></tr>
+          <tr><td><kbd>⌘</kbd> <kbd>1</kbd>–<kbd>4</kbd></td><td data-i18n="sc-sizes">Terminal size presets</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Configuration -->
+    <div class="docs-section" id="docs-config">
+      <h3 data-i18n="docs-config-title">Configuration</h3>
+
+      <div class="docs-block">
+        <h4 data-i18n="docs-config-fonts-title">Fonts</h4>
+        <p data-i18n="docs-config-fonts-desc">6 downloadable monospace fonts are available in Settings. Each font is optimized for terminal rendering with proper ligature support.</p>
+      </div>
+
+      <div class="docs-block">
+        <h4 data-i18n="docs-config-theme-title">Theme</h4>
+        <p data-i18n="docs-config-theme-desc">Dark and light themes with a minimum contrast ratio setting for accessibility. The theme applies to the canvas, terminals, and all UI elements.</p>
+      </div>
+
+      <div class="docs-block">
+        <h4 data-i18n="docs-config-lang-title">Language</h4>
+        <p data-i18n="docs-config-lang-desc">English and Chinese are supported. The app auto-detects your system language on first launch. You can change it anytime in Settings.</p>
+      </div>
+
+      <div class="docs-block">
+        <h4 data-i18n="docs-config-updates-title">Updates</h4>
+        <p data-i18n="docs-config-updates-desc">Auto-update is enabled by default. New versions are downloaded in the background and applied on restart. An in-app changelog shows what changed in each release.</p>
+      </div>
+
+      <div class="docs-block">
+        <h4 data-i18n="docs-config-agent-title">Agent CLI Override</h4>
+        <p data-i18n="docs-config-agent-desc">Each AI agent type can have a custom CLI path configured in Settings. This lets you use specific versions or custom wrappers for Claude Code, Codex, and other agents.</p>
       </div>
     </div>
   </section>
