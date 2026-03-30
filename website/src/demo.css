@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+#demo-animation {
+  --bg: #1a1918;
+  --sidebar: #141312;
+  --sidebar-hover: #1c1b1a;
+  --surface: #222120;
+  --surface-hover: #2a2928;
+  --border: #333231;
+  --border-hover: #43423f;
+  --text-primary: #e4e2df;
+  --text-secondary: #918e89;
+  --text-muted: #7a7773;
+  --text-faint: #3e3c39;
+  --accent: #5b9ef5;
+  --red: #e87272;
+  --amber: #d4a24e;
+  --cyan: #6cc4b0;
+  --green: #4ade80;
+  --purple: #9b7ad8;
+  --radius: 8px;
+  font-family: "Geist Mono", "SF Mono", monospace;
+}
+
+@keyframes demo-nudge {
+  0%, 100% { transform: translateX(0); opacity: 1; }
+  50% { transform: translateX(2px); opacity: 0.7; }
+}
