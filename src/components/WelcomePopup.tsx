@@ -555,9 +555,10 @@ export function WelcomePopup({ onClose }: Props) {
           <div className="flex-1 min-w-0 flex flex-col">
             <div
               ref={canvasRef}
-              className="relative overflow-hidden flex-1"
+              className="relative overflow-hidden"
               style={{
                 height: 380,
+                minHeight: 380,
                 background: "var(--surface)",
                 backgroundImage:
                   "radial-gradient(circle, var(--border) 0.5px, transparent 0.5px)",
