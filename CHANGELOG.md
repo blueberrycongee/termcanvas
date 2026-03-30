@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.16.9] - 2026-03-30
+
+### Fixed
+- Minimized terminal tile showing xterm content over header instead of title bar with restore button
+
 ## [0.16.8] - 2026-03-30
 
 ### Fixed
