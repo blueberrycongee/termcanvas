@@ -2,10 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
-## [0.16.12] - 2026-03-30
+## [0.16.13] - 2026-03-30
 
 ### Fixed
 - Read Claude permissionMode from session JSONL to persist bypass permissions across restarts
+- Refresh Claude sessionId and permissionMode before save to capture /resume switches
 
 ## [0.16.11] - 2026-03-30
 
