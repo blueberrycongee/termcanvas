@@ -150,8 +150,15 @@ body {
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 
-/* Override xterm's default cursor on viewport so text selection works naturally */
-.xterm .xterm-viewport {
+/* Force text cursor inside terminal tiles.
+   xterm has multiple rules that flip cursor away from text:
+   .enable-mouse-events → default, .xterm-cursor-pointer → pointer, .xterm-viewport → default.
+   Scope to .terminal-tile so we don't leak into non-tile xterm instances. */
+.terminal-tile .xterm,
+.terminal-tile .xterm.enable-mouse-events,
+.terminal-tile .xterm.xterm-cursor-pointer,
+.terminal-tile .xterm .xterm-cursor-pointer,
+.terminal-tile .xterm .xterm-viewport {
   cursor: text;
 }
 
