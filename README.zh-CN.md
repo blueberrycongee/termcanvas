@@ -13,11 +13,11 @@
 
 <br>
 
-<img src="docs/image.png" alt="TermCanvas 演示 — 多个 AI agent 在无限画布上协作" />
+<img src="docs/demo.gif" alt="TermCanvas 实际操作 — 画布导航、聚焦、缩放、面板切换" />
 
 <br>
 
-<img src="docs/demo.gif" alt="TermCanvas 实际操作 — 画布导航、聚焦、缩放、面板切换" width="600" />
+<img src="docs/image.png" alt="TermCanvas 演示 — 多个 AI agent 在无限画布上协作" />
 
 </div>
 

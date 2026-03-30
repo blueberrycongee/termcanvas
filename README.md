@@ -15,11 +15,11 @@
 
 <br>
 
-<img src="docs/image.png?v=2" alt="TermCanvas demo — multiple AI agents on an infinite canvas" />
+<img src="docs/demo.gif" alt="TermCanvas in action — canvas navigation, focus, zoom, and panel switching" />
 
 <br>
 
-<img src="docs/demo.gif" alt="TermCanvas in action — canvas navigation, focus, zoom, and panel switching" width="600" />
+<img src="docs/image.png?v=2" alt="TermCanvas demo — multiple AI agents on an infinite canvas" />
 
 </div>
 
