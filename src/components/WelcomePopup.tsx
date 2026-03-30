@@ -92,7 +92,7 @@ function DemoCursor({
         opacity: visible ? 1 : 0,
         transition: dragging
           ? "opacity 200ms"
-          : "left 350ms cubic-bezier(0.4, 0, 0.2, 1), top 350ms cubic-bezier(0.4, 0, 0.2, 1), opacity 200ms",
+          : "left 600ms cubic-bezier(0.4, 0, 0.2, 1), top 600ms cubic-bezier(0.4, 0, 0.2, 1), opacity 200ms",
         filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))",
         pointerEvents: "none",
         zIndex: 50,
@@ -646,7 +646,7 @@ export function WelcomePopup({ onClose }: Props) {
         setPanelVisible(phase === 7);
         setNewProject(false);
         setCursorVisible(phase === 4 || phase === 5 || phase === 6);
-        setCursorPos(getCenter());
+        if (phase === 4) setCursorPos(getCenter());
       }
     };
 
@@ -734,18 +734,17 @@ export function WelcomePopup({ onClose }: Props) {
 
       } else if (phase === 5) {
         setCursorVisible(true);
-        setCursorPos({ x: 16, y: 20 });
-        await delay(500);
+        setCursorPos({ x: 16, y: 100 });
+        await delay(800);
         if (cancelled()) return;
         setSidebarExpanded(true);
         await delay(1500);
 
       } else if (phase === 6) {
         setCursorVisible(true);
-        const center = getCenter();
         const canvasW = canvasRef.current?.clientWidth ?? 400;
-        setCursorPos({ x: canvasW - 20, y: center.y });
-        await delay(500);
+        setCursorPos({ x: canvasW - 20, y: 100 });
+        await delay(800);
         if (cancelled()) return;
         setPanelVisible(true);
         setPanelContent("usage");
