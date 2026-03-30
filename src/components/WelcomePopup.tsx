@@ -128,8 +128,10 @@ function DemoTile({
         width: 120,
         height: 80,
         background: "var(--bg)",
-        borderColor: focused ? "rgba(91,158,245,0.6)" : "var(--border)",
-        boxShadow: focused ? "0 0 12px rgba(91,158,245,0.45)" : "none",
+        borderColor: focused ? "rgba(91,158,245,0.9)" : "var(--border)",
+        boxShadow: focused
+          ? "0 0 16px rgba(91,158,245,0.6), 0 0 32px rgba(91,158,245,0.25), inset 0 0 8px rgba(91,158,245,0.1)"
+          : "none",
         opacity: visible ? 1 : 0,
         transform: visible ? "scale(1)" : "scale(0.95)",
         transition: "all 200ms ease-out",
