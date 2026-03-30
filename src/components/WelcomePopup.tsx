@@ -394,17 +394,29 @@ function Timeline({
   current,
   completed,
   onSelect,
-  onNext,
 }: {
   current: number;
   completed: number;
   onSelect: (index: number) => void;
-  onNext: () => void;
 }) {
-  const isLast = current >= PHASES.length - 1;
-  const paused = current === completed;
+  const canPrev = current > 0;
+  const canNext = current < PHASES.length - 1;
   return (
-    <div className="shrink-0 flex items-center justify-between px-4 py-2 border-t border-[var(--border)]">
+    <div className="shrink-0 flex items-center justify-between px-3 py-2 border-t border-[var(--border)]">
+      <button
+        className="rounded p-1 transition-colors duration-150"
+        style={{
+          color: canPrev ? "var(--text-secondary)" : "var(--text-faint)",
+          background: canPrev ? "var(--surface)" : "transparent",
+          cursor: canPrev ? "pointer" : "default",
+        }}
+        onClick={() => canPrev && onSelect(current - 1)}
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M7.5 2.5L4 6L7.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
       <div className="flex items-center gap-1">
         {PHASES.map((phase, i) => (
           <button
@@ -445,18 +457,20 @@ function Timeline({
           </button>
         ))}
       </div>
-      {paused && !isLast && (
-        <button
-          className="text-[10px] px-2 py-0.5 rounded transition-colors duration-150"
-          style={{
-            color: "var(--accent)",
-            background: "var(--surface)",
-          }}
-          onClick={onNext}
-        >
-          <Bi en="Next ▸" zh="下一步 ▸" />
-        </button>
-      )}
+
+      <button
+        className="rounded p-1 transition-colors duration-150"
+        style={{
+          color: canNext ? "var(--text-secondary)" : "var(--text-faint)",
+          background: canNext ? "var(--surface)" : "transparent",
+          cursor: canNext ? "pointer" : "default",
+        }}
+        onClick={() => canNext && onSelect(current + 1)}
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
     </div>
   );
 }
@@ -706,11 +720,6 @@ export function WelcomePopup({ onClose }: Props) {
     setActivePhase(index);
   };
 
-  const handleNext = () => {
-    if (activePhase < PHASES.length - 1) {
-      handleSelectPhase(activePhase + 1);
-    }
-  };
 
   useEffect(() => {
     const handler = () => {
@@ -730,11 +739,19 @@ export function WelcomePopup({ onClose }: Props) {
         e.preventDefault();
         e.stopPropagation();
         onClose();
+        return;
+      }
+      if (e.key === "ArrowRight" && activePhase < PHASES.length - 1) {
+        e.preventDefault();
+        handleSelectPhase(activePhase + 1);
+      } else if (e.key === "ArrowLeft" && activePhase > 0) {
+        e.preventDefault();
+        handleSelectPhase(activePhase - 1);
       }
     };
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
-  }, [onClose]);
+  }, [onClose, activePhase]);
 
   return (
     <div
@@ -852,7 +869,7 @@ export function WelcomePopup({ onClose }: Props) {
           current={activePhase}
           completed={completedPhase}
           onSelect={handleSelectPhase}
-          onNext={handleNext}
+
         />
       </div>
     </div>
