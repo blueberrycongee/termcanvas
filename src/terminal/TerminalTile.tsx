@@ -45,6 +45,7 @@ interface Props {
   height: number;
   onDragStart?: (terminalId: string, e: React.MouseEvent) => void;
   isDragging?: boolean;
+  isStashing?: boolean;
   dragOffsetX?: number;
   dragOffsetY?: number;
   onDoubleClick?: () => void;
@@ -181,6 +182,7 @@ export function TerminalTile({
   height,
   onDragStart,
   isDragging = false,
+  isStashing = false,
   dragOffsetX = 0,
   dragOffsetY = 0,
   onDoubleClick,
@@ -569,7 +571,7 @@ export function TerminalTile({
         width: width,
         height: terminal.minimized ? "auto" : height,
         zIndex: isDragging ? 50 : undefined,
-        opacity: isDragging ? 0.9 : 1,
+        opacity: isStashing ? 0.4 : isDragging ? 0.9 : 1,
         transition: isDragging ? "none" : "left 0.2s ease, top 0.2s ease, width 0.2s ease, height 0.2s ease",
         boxShadow: isDragging
           ? "0 8px 32px rgba(0,0,0,0.3)"
@@ -578,7 +580,7 @@ export function TerminalTile({
             : terminal.focused
               ? "0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 8px color-mix(in srgb, var(--accent) 15%, transparent)"
               : undefined,
-        transform: isDragging ? "scale(1.02)" : undefined,
+        transform: isStashing ? "scale(0.95)" : isDragging ? "scale(1.02)" : undefined,
         outline: "none",
       }}
       onClick={(e) => {

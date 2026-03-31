@@ -1283,7 +1283,8 @@ useTileDimensionsStore.subscribe((state, prev) => {
 // --- Stash helpers (coordinate across projectStore + stashStore) ---
 
 import { useStashStore } from "./stashStore.ts";
-import { destroyTerminalRuntime, setTerminalRuntimeMode } from "../terminal/terminalRuntimeStore.ts";
+import { destroyTerminalRuntime, getTerminalPtyId, getTerminalRuntimePreviewAnsi } from "../terminal/terminalRuntimeStore.ts";
+import { serializeTerminal } from "../terminal/terminalRegistry.ts";
 
 export function stashTerminal(
   projectId: string,
@@ -1294,15 +1295,25 @@ export function stashTerminal(
   const loc = findTerminalById(store.projects, terminalId);
   if (!loc) return;
 
+  // Capture live xterm buffer before removing from store
+  const liveScrollback =
+    serializeTerminal(terminalId) ??
+    getTerminalRuntimePreviewAnsi(terminalId) ??
+    loc.terminal.scrollback;
+
   const entry: StashedTerminal = {
-    terminal: { ...loc.terminal, focused: false, minimized: false },
+    terminal: {
+      ...loc.terminal,
+      focused: false,
+      minimized: false,
+      scrollback: liveScrollback ?? undefined,
+    },
     projectId,
     worktreeId,
     stashedAt: Date.now(),
   };
 
   useStashStore.getState().stash(entry);
-  setTerminalRuntimeMode(terminalId, "preview");
   store.removeTerminal(projectId, worktreeId, terminalId);
 }
 
@@ -1351,8 +1362,18 @@ export function unstashTerminal(terminalId: string): void {
 
   if (!targetProjectId || !targetWorktreeId) return;
 
-  store.addTerminal(targetProjectId, targetWorktreeId, entry.terminal);
-  store.setFocusedTerminal(entry.terminal.id);
+  // If PTY is still alive, reconnect to it (task kept running while stashed).
+  // If PTY died, clear ptyId so ensureTerminalRuntime spawns fresh with --resume sessionId.
+  const livePtyId = getTerminalPtyId(entry.terminal.id);
+  const terminal = livePtyId != null
+    ? entry.terminal
+    : (() => {
+        destroyTerminalRuntime(entry.terminal.id);
+        return { ...entry.terminal, ptyId: null };
+      })();
+
+  store.addTerminal(targetProjectId!, targetWorktreeId!, terminal);
+  store.setFocusedTerminal(terminal.id);
 }
 
 export function destroyStashedTerminal(terminalId: string): void {

@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   type Node,
   type NodeProps,
@@ -12,6 +13,7 @@ import { TerminalTile } from "../terminal/TerminalTile";
 import { resolveTerminalMountMode } from "../terminal/terminalRuntimePolicy";
 import { useTerminalRuntimeStore } from "../terminal/terminalRuntimeStore";
 import { useT } from "../i18n/useT";
+import { TERMINAL_TYPE_CONFIG } from "../terminal/terminalTypeConfig";
 import {
   packTerminals,
   getWorktreeSize,
@@ -32,6 +34,7 @@ function WorktreeTerminalItem({
   dragOffsetX,
   dragOffsetY,
   isDragging,
+  isStashing,
   item,
   onDoubleClick,
   onDragStart,
@@ -45,6 +48,7 @@ function WorktreeTerminalItem({
   dragOffsetX: number;
   dragOffsetY: number;
   isDragging: boolean;
+  isStashing: boolean;
   item: { h: number; w: number; x: number; y: number };
   onDoubleClick: () => void;
   onDragStart: (terminalId: string, event: React.MouseEvent) => void;
@@ -85,6 +89,7 @@ function WorktreeTerminalItem({
       height={item.h}
       onDragStart={onDragStart}
       isDragging={isDragging}
+      isStashing={isStashing}
       dragOffsetX={dragOffsetX}
       dragOffsetY={dragOffsetY}
       onDoubleClick={onDoubleClick}
@@ -275,11 +280,15 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
         item.worktreeId === data.worktreeId,
     ),
   );
+  const worktreeRef = useRef<HTMLDivElement>(null);
   const [dragState, setDragState] = useState<{
     terminalId: string;
     offsetX: number;
     offsetY: number;
     targetIndex: number;
+    outsideWorktree?: boolean;
+    ghostX?: number;
+    ghostY?: number;
   } | null>(null);
 
   const tileW = useTileDimensionsStore((s) => s.w);
@@ -323,16 +332,12 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
 
   const handleTerminalDragStart = useCallback(
     (terminalId: string, event: React.MouseEvent) => {
-      if (!worktree) {
-        return;
-      }
+      if (!worktree) return;
 
       const originalIndex = worktree.terminals.findIndex(
         (terminal) => terminal.id === terminalId,
       );
-      if (originalIndex === -1) {
-        return;
-      }
+      if (originalIndex === -1) return;
 
       event.preventDefault();
       event.stopPropagation();
@@ -341,6 +346,13 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
       const startX = event.clientX;
       const startY = event.clientY;
 
+      const contentH = computedSize.h - WT_TITLE_H;
+      const contentW = computedSize.w;
+      const packed = packTerminals(
+        worktree.terminals.map((terminal) => terminal.span),
+      );
+      const startItem = packed[originalIndex];
+
       setDragState({
         terminalId,
         offsetX: 0,
@@ -348,27 +360,40 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
         targetIndex: originalIndex,
       });
 
-      window.dispatchEvent(new CustomEvent("termcanvas:terminal-drag-active"));
-
       const handleMove = (moveEvent: MouseEvent) => {
         const offsetX = (moveEvent.clientX - startX) / scale;
         const offsetY = (moveEvent.clientY - startY) / scale;
-        const currentPacked = packTerminals(
-          worktree.terminals.map((terminal) => terminal.span),
-        );
-        const originalItem = currentPacked[originalIndex];
 
-        if (!originalItem) {
+        if (!startItem) return;
+
+        const tileTop = startItem.y + offsetY;
+        const tileBottom = tileTop + startItem.h;
+        const tileLeft = startItem.x + offsetX;
+        const tileRight = tileLeft + startItem.w;
+
+        const outside =
+          tileTop < -8 ||
+          tileBottom > contentH + 8 ||
+          tileLeft < -8 ||
+          tileRight > contentW + 8;
+
+        if (outside) {
+          setDragState((prev) =>
+            prev
+              ? { ...prev, offsetX, offsetY, outsideWorktree: true, ghostX: moveEvent.clientX, ghostY: moveEvent.clientY }
+              : prev,
+          );
           return;
         }
 
-        const centerX = originalItem.x + offsetX + originalItem.w / 2;
-        const centerY = originalItem.y + offsetY + originalItem.h / 2;
+        // Normal reorder logic
+        const centerX = startItem.x + offsetX + startItem.w / 2;
+        const centerY = startItem.y + offsetY + startItem.h / 2;
 
         let targetIndex = originalIndex;
         let minDistance = Infinity;
 
-        for (const item of currentPacked) {
+        for (const item of packed) {
           const itemCenterX = item.x + item.w / 2;
           const itemCenterY = item.y + item.h / 2;
           const distance =
@@ -385,34 +410,22 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
           offsetX,
           offsetY,
           targetIndex,
+          outsideWorktree: false,
+          ghostX: undefined,
+          ghostY: undefined,
         });
       };
 
-      let lastMoveEvent: MouseEvent | null = null;
-      const origHandleMove = handleMove;
-      const wrappedHandleMove = (moveEvent: MouseEvent) => {
-        lastMoveEvent = moveEvent;
-        origHandleMove(moveEvent);
-      };
-
       const handleUp = () => {
-        window.removeEventListener("mousemove", wrappedHandleMove);
+        window.removeEventListener("mousemove", handleMove);
         window.removeEventListener("mouseup", handleUp);
-        window.dispatchEvent(new CustomEvent("termcanvas:terminal-drag-end"));
-
-        if (lastMoveEvent) {
-          const dropTarget = document.elementFromPoint(
-            lastMoveEvent.clientX,
-            lastMoveEvent.clientY,
-          );
-          if (dropTarget?.closest("[data-stash-drop-target]")) {
-            stashTerminal(data.projectId, data.worktreeId, terminalId);
-            setDragState(null);
-            return;
-          }
-        }
 
         setDragState((previous) => {
+          if (previous?.outsideWorktree) {
+            stashTerminal(data.projectId, data.worktreeId, terminalId);
+            return null;
+          }
+
           if (previous && previous.targetIndex !== originalIndex) {
             reorderTerminal(
               data.projectId,
@@ -426,10 +439,10 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
         });
       };
 
-      window.addEventListener("mousemove", wrappedHandleMove);
+      window.addEventListener("mousemove", handleMove);
       window.addEventListener("mouseup", handleUp);
     },
-    [data.projectId, data.worktreeId, reorderTerminal, worktree],
+    [data.projectId, data.worktreeId, reorderTerminal, worktree, computedSize],
   );
 
   if (!project || !worktree) {
@@ -438,6 +451,7 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
 
   return (
     <div
+      ref={worktreeRef}
       className="panel nopan h-full w-full overflow-hidden"
       style={{
         borderLeft: `2px solid ${
@@ -547,6 +561,7 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
               item={item}
               onDragStart={handleTerminalDragStart}
               isDragging={isDragging}
+              isStashing={isDragging && !!dragState.outsideWorktree}
               dragOffsetX={isDragging ? dragState.offsetX : 0}
               dragOffsetY={isDragging ? dragState.offsetY : 0}
               onDoubleClick={() => panToTerminal(terminal.id)}
@@ -566,6 +581,43 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
           </button>
         )}
       </div>
+
+      {dragState?.outsideWorktree && dragState.ghostX != null && (() => {
+        const draggedTerminal = worktree.terminals.find((t) => t.id === dragState.terminalId);
+        if (!draggedTerminal) return null;
+        const cfg = TERMINAL_TYPE_CONFIG[draggedTerminal.type] ?? { color: "#888", label: draggedTerminal.type };
+        return createPortal(
+          <div
+            className="pointer-events-none"
+            style={{
+              position: "fixed",
+              left: dragState.ghostX! - 20,
+              top: dragState.ghostY! - 20,
+              zIndex: 9999,
+            }}
+          >
+            <div
+              className="flex items-center gap-2 rounded-full px-4 py-2 shadow-2xl border-2"
+              style={{
+                background: "var(--surface)",
+                borderColor: cfg.color,
+                boxShadow: `0 0 24px ${cfg.color}50, 0 12px 40px rgba(0,0,0,0.4)`,
+                fontFamily: '"Geist Mono", monospace',
+                transform: "scale(1.1)",
+              }}
+            >
+              <span
+                className="w-3 h-3 rounded-full shrink-0 animate-pulse"
+                style={{ backgroundColor: cfg.color }}
+              />
+              <span className="text-[12px] font-semibold text-[var(--text-primary)] whitespace-nowrap">
+                {draggedTerminal.customTitle || cfg.label}
+              </span>
+            </div>
+          </div>,
+          document.body,
+        );
+      })()}
     </div>
   );
 }

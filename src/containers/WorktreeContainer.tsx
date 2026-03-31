@@ -5,10 +5,12 @@ import {
   useProjectStore,
   createTerminal,
   getProjectBounds,
+  stashTerminal,
 } from "../stores/projectStore";
 import { useCardLayoutStore } from "../stores/cardLayoutStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { TerminalTile } from "../terminal/TerminalTile";
+import { TERMINAL_TYPE_CONFIG } from "../terminal/terminalTypeConfig";
 import { TerminalRuntimeHandle } from "../terminal/TerminalRuntimeHandle";
 import {
   publishTerminalGeometry,
@@ -132,6 +134,9 @@ export function WorktreeContainer({
     offsetX: number;
     offsetY: number;
     targetIndex: number;
+    outsideWorktree?: boolean;
+    ghostX?: number;
+    ghostY?: number;
   } | null>(null);
 
   const tileW = useTileDimensionsStore((s) => s.w);
@@ -224,6 +229,11 @@ export function WorktreeContainer({
       const startX = e.clientX;
       const startY = e.clientY;
 
+      const contentH = computedSize.h - WT_TITLE_H;
+      const contentW = computedSize.w;
+      const packed = packTerminals(worktree.terminals.map((t) => t.span));
+      const startItem = packed[origIndex];
+
       setDragState({
         terminalId,
         offsetX: 0,
@@ -235,9 +245,31 @@ export function WorktreeContainer({
         const ox = (ev.clientX - startX) / scale;
         const oy = (ev.clientY - startY) / scale;
 
-        // Use current packed layout for hit testing
-        const currentSpans = worktree.terminals.map((t) => t.span);
-        const currentPacked = packTerminals(currentSpans);
+        if (!startItem) return;
+
+        // Check if tile would leave content area → stash mode
+        const tileTop = startItem.y + oy;
+        const tileBottom = tileTop + startItem.h;
+        const tileLeft = startItem.x + ox;
+        const tileRight = tileLeft + startItem.w;
+
+        const outside =
+          tileTop < -8 ||
+          tileBottom > contentH + 8 ||
+          tileLeft < -8 ||
+          tileRight > contentW + 8;
+
+        if (outside) {
+          setDragState((prev) =>
+            prev
+              ? { ...prev, offsetX: ox, offsetY: oy, outsideWorktree: true, ghostX: ev.clientX, ghostY: ev.clientY }
+              : prev,
+          );
+          return;
+        }
+
+        // Normal reorder logic
+        const currentPacked = packTerminals(worktree.terminals.map((t) => t.span));
         const origItem = currentPacked[origIndex];
         if (!origItem) return;
 
@@ -261,11 +293,21 @@ export function WorktreeContainer({
           offsetX: ox,
           offsetY: oy,
           targetIndex,
+          outsideWorktree: false,
+          ghostX: undefined,
+          ghostY: undefined,
         });
       };
 
       const handleUp = () => {
+        window.removeEventListener("mousemove", handleMove);
+        window.removeEventListener("mouseup", handleUp);
+
         setDragState((prev) => {
+          if (prev?.outsideWorktree) {
+            stashTerminal(projectId, worktree.id, terminalId);
+            return null;
+          }
           if (prev && prev.targetIndex !== origIndex) {
             reorderTerminal(
               projectId,
@@ -276,14 +318,12 @@ export function WorktreeContainer({
           }
           return null;
         });
-        window.removeEventListener("mousemove", handleMove);
-        window.removeEventListener("mouseup", handleUp);
       };
 
       window.addEventListener("mousemove", handleMove);
       window.addEventListener("mouseup", handleUp);
     },
-    [projectId, worktree.id, worktree.terminals, reorderTerminal],
+    [projectId, worktree.id, worktree.terminals, reorderTerminal, computedSize],
   );
 
 
@@ -426,6 +466,7 @@ export function WorktreeContainer({
               height={item.h}
               onDragStart={handleTerminalDragStart}
               isDragging={isDragging}
+              isStashing={isDragging && !!dragState.outsideWorktree}
               dragOffsetX={isDragging ? dragState.offsetX : 0}
               dragOffsetY={isDragging ? dragState.offsetY : 0}
               onDoubleClick={() => panToTerminal(terminal.id)}
@@ -479,6 +520,34 @@ export function WorktreeContainer({
             })}
           </>,
           portalTarget,
+        );
+      })()}
+
+      {dragState?.outsideWorktree && dragState.ghostX != null && (() => {
+        const draggedTerminal = worktree.terminals.find((t) => t.id === dragState.terminalId);
+        if (!draggedTerminal) return null;
+        const cfg = TERMINAL_TYPE_CONFIG[draggedTerminal.type] ?? { color: "#888", label: draggedTerminal.type };
+        return createPortal(
+          <div
+            className="pointer-events-none"
+            style={{ position: "fixed", left: dragState.ghostX! - 20, top: dragState.ghostY! - 20, zIndex: 9999 }}
+          >
+            <div
+              className="flex items-center gap-2 rounded-full px-4 py-2 shadow-2xl border-2"
+              style={{
+                background: "var(--surface)",
+                borderColor: cfg.color,
+                boxShadow: `0 0 24px ${cfg.color}50, 0 12px 40px rgba(0,0,0,0.4)`,
+                fontFamily: '"Geist Mono", monospace',
+              }}
+            >
+              <span className="w-3 h-3 rounded-full shrink-0 animate-pulse" style={{ backgroundColor: cfg.color }} />
+              <span className="text-[12px] font-semibold text-[var(--text-primary)] whitespace-nowrap">
+                {draggedTerminal.customTitle || cfg.label}
+              </span>
+            </div>
+          </div>,
+          document.body,
         );
       })()}
     </div>

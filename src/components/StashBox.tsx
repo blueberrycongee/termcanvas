@@ -137,8 +137,8 @@ export function StashBox() {
     return () => observer.disconnect();
   }, [expanded, items.length]);
 
-  const showButton = items.length > 0 || dragActive;
-  if (!showButton) return null;
+  // Always visible so users can discover the stash box
+  const showButton = true;
 
   const buttonLabel =
     dragActive && items.length === 0
