@@ -171,7 +171,7 @@ export function Canvas() {
         style={{
           transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`,
           transformOrigin: "0 0",
-          willChange: "transform",
+          willChange: isAnimating ? "transform" : undefined,
           filter: animationBlur > 0 && isAnimating ? `blur(${animationBlur}px)` : "none",
           transition: animationBlur > 0 ? "filter 0.15s ease" : "none",
         }}
