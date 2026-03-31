@@ -1,7 +1,9 @@
+import path from "node:path";
 import type { CommandHandler } from "../server.ts";
 
-const screenshot: CommandHandler = async (page, args) => {
-  const filePath = args[0] || "screenshot.png";
+const screenshot: CommandHandler = async (page, args, context) => {
+  const raw = args[0] || "screenshot.png";
+  const filePath = path.isAbsolute(raw) ? raw : path.resolve(context.cwd, raw);
   await page.screenshot({ path: filePath, fullPage: false });
   return { ok: true, output: `Screenshot saved to ${filePath}` };
 };
@@ -32,8 +34,7 @@ const tab: CommandHandler = async (_page, args, context) => {
   if (!context.listenedPages.has(target)) {
     context.listenedPages.add(target);
     target.on("console", (msg) => {
-      context.consoleMessages.push(`[${msg.type()}] ${msg.text()}`);
-      if (context.consoleMessages.length > 200) context.consoleMessages.shift();
+      context.pushConsoleMessage(`[${msg.type()}] ${msg.text()}`);
     });
   }
 

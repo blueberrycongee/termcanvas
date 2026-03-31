@@ -63,7 +63,7 @@ async function sendCommand(
       "Content-Type": "application/json",
       Authorization: `Bearer ${state.token}`,
     },
-    body: JSON.stringify({ command, args }),
+    body: JSON.stringify({ command, args, cwd: process.cwd() }),
   });
   return res.json();
 }

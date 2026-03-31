@@ -9,6 +9,7 @@ import type { Browser, Page } from "playwright";
 export interface CommandRequest {
   command: string;
   args: string[];
+  cwd?: string;
 }
 
 export interface CommandResult {
@@ -24,6 +25,8 @@ export interface BrowseContext {
   refMap: Map<string, { role: string; name: string; index: number }>;
   setPage: (p: Page) => void;
   listenedPages: Set<Page>;
+  cwd: string;
+  pushConsoleMessage: (msg: string) => void;
 }
 
 export type CommandHandler = (
@@ -47,28 +50,43 @@ export async function startServer(port = 0): Promise<{
   let idleTimer: ReturnType<typeof setTimeout>;
   let browser: Browser | null = null;
   let activePage: Page | null = null;
+  let isShuttingDown = false;
   const consoleMessages: string[] = [];
   const refMap = new Map<string, { role: string; name: string; index: number }>();
   const listenedPages = new Set<Page>();
 
   const resetIdle = () => {
     clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => shutdown(), IDLE_TIMEOUT_MS);
+    idleTimer = setTimeout(() => { shutdown().catch(() => {}); }, IDLE_TIMEOUT_MS);
   };
+
+  function pushConsoleMessage(msg: string) {
+    consoleMessages.push(msg);
+    if (consoleMessages.length > 200) consoleMessages.shift();
+  }
 
   function attachConsoleListener(page: Page) {
     if (listenedPages.has(page)) return;
     listenedPages.add(page);
     page.on("console", (msg) => {
-      consoleMessages.push(`[${msg.type()}] ${msg.text()}`);
-      if (consoleMessages.length > 200) consoleMessages.shift();
+      pushConsoleMessage(`[${msg.type()}] ${msg.text()}`);
     });
+  }
+
+  function resetBrowser() {
+    browser = null;
+    activePage = null;
+    listenedPages.clear();
+    refMap.clear();
   }
 
   async function ensureBrowser(): Promise<{ browser: Browser; page: Page }> {
     if (!browser) {
       const { chromium } = await import("playwright");
       browser = await chromium.launch({ headless: true });
+      browser.on("disconnected", () => {
+        resetBrowser();
+      });
       const context = await browser.newContext();
       activePage = await context.newPage();
       attachConsoleListener(activePage);
@@ -142,6 +160,8 @@ export async function startServer(port = 0): Promise<{
             activePage = p;
           },
           listenedPages,
+          cwd: parsed.cwd || process.cwd(),
+          pushConsoleMessage,
         };
         const result = await handler(page, parsed.args, context);
         res.writeHead(200, { "Content-Type": "application/json" });
@@ -160,19 +180,22 @@ export async function startServer(port = 0): Promise<{
   });
 
   const shutdown = async () => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
     clearTimeout(idleTimer);
     if (browser) {
       await browser.close().catch(() => {});
-      browser = null;
+      resetBrowser();
     }
-    server.close();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
     try {
       fs.unlinkSync(STATE_FILE);
     } catch {}
+    process.exit(0);
   };
 
-  process.on("SIGTERM", () => shutdown());
-  process.on("SIGINT", () => shutdown());
+  process.on("SIGTERM", () => { shutdown().catch(() => process.exit(1)); });
+  process.on("SIGINT", () => { shutdown().catch(() => process.exit(1)); });
 
   return new Promise((resolve) => {
     server.listen(port, "127.0.0.1", () => {
