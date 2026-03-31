@@ -7,7 +7,7 @@ import {
 } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useNotificationStore } from "../stores/notificationStore";
-import { useSelectionStore, type SelectedItem } from "../stores/selectionStore";
+import { useSelectionStore } from "../stores/selectionStore";
 import {
   useShortcutStore,
   matchesShortcut,
@@ -523,84 +523,6 @@ export function useKeyboardShortcuts() {
         }
       }
 
-      // Delete / Backspace — batch delete selected items
-      if (e.key === "Delete" || e.key === "Backspace") {
-        const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
-        if (tag === "textarea" || tag === "canvas" || tag === "input") return;
-
-        const { selectedItems, clearSelection } =
-          useSelectionStore.getState();
-        if (selectedItems.length === 0) return;
-
-        e.preventDefault();
-
-        const projectItems = selectedItems.filter(
-          (i): i is Extract<SelectedItem, { type: "project" }> =>
-            i.type === "project",
-        );
-        const worktreeItems = selectedItems.filter(
-          (i): i is Extract<SelectedItem, { type: "worktree" }> =>
-            i.type === "worktree",
-        );
-        const terminalItems = selectedItems.filter(
-          (i): i is Extract<SelectedItem, { type: "terminal" }> =>
-            i.type === "terminal",
-        );
-        const cardItems = selectedItems.filter(
-          (i): i is Extract<SelectedItem, { type: "card" }> =>
-            i.type === "card",
-        );
-
-        if (
-          projectItems.length > 0 ||
-          worktreeItems.length > 0 ||
-          terminalItems.length > 0
-        ) {
-          let message: string;
-          if (projectItems.length > 0 && worktreeItems.length > 0) {
-            message = t.confirm_delete_mixed(
-              projectItems.length,
-              worktreeItems.length,
-            );
-          } else if (projectItems.length > 0) {
-            message = t.confirm_delete_projects(projectItems.length);
-          } else if (worktreeItems.length > 0) {
-            message = t.confirm_delete_worktrees(worktreeItems.length);
-          } else {
-            message = t.confirm_delete_terminals(terminalItems.length);
-          }
-          if (!window.confirm(message)) return;
-        }
-
-        const store = useProjectStore.getState();
-
-        for (const item of projectItems) {
-          store.removeProject(item.projectId);
-        }
-
-        for (const item of worktreeItems) {
-          store.removeWorktree(item.projectId, item.worktreeId);
-        }
-
-        for (const item of terminalItems) {
-          store.removeTerminal(
-            item.projectId,
-            item.worktreeId,
-            item.terminalId,
-          );
-        }
-
-        // Close cards via CustomEvent
-        for (const item of cardItems) {
-          window.dispatchEvent(
-            new CustomEvent("termcanvas:close-card", {
-              detail: { cardId: item.cardId },
-            }),
-          );
-        }
-
-        clearSelection();
-      }
     };
 
     window.addEventListener("keydown", handler);
