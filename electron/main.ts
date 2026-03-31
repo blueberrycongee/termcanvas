@@ -172,6 +172,11 @@ function createWindow() {
     mainWindow = null;
     rendererReady = false;
   });
+  mainWindow.on("focus", () => {
+    for (const dirPath of fileTreeWatcher.getWatchedDirs()) {
+      sendToWindow(mainWindow, "fs:dir-changed", dirPath);
+    }
+  });
 
   createMenu(mainWindow);
 
