@@ -11,6 +11,9 @@ Route first. Choose the lightest path that preserves correctness.
 ## Routing
 
 - If the user asks to rename the current terminal or tab, use `rename`.
+- If the user asks to investigate a bug, debug, or diagnose an issue, use `investigate`.
+- If the user asks for a security review or audit, use `security-audit`.
+- If the user asks for a code review or diff review, use `code-review`.
 - If the task is simple, local, high-certainty, or faster in the current
   agent, do it directly. Do not invoke Hydra by default.
 - If the task needs an isolated worktree, file evidence, retry/status control,
