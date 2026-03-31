@@ -5,7 +5,8 @@
   "main": "dist-electron/main.js",
   "bin": {
     "termcanvas": "./dist-cli/termcanvas.js",
-    "hydra": "./dist-cli/hydra.js"
+    "hydra": "./dist-cli/hydra.js",
+    "browse": "./browse/dist/browse.js"
   },
   "scripts": {
     "dev": "vite",
