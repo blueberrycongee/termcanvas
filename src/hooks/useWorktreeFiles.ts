@@ -41,13 +41,7 @@ export function useWorktreeFiles(worktreePath: string | null) {
 
   useEffect(() => {
     if (!window.termcanvas) return;
-    const unsub = window.termcanvas.fs.onDirChanged((dirPath) => {
-      setEntries((prev) => {
-        if (prev.has(dirPath)) refreshDir(dirPath);
-        return prev;
-      });
-    });
-    return unsub;
+    return window.termcanvas.fs.onDirChanged(refreshDir);
   }, [refreshDir]);
 
   const toggleDir = useCallback(
