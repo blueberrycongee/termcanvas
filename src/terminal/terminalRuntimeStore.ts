@@ -670,7 +670,11 @@ function createTerminalRenderer(
 
   registerTerminal(runtime.meta.terminal.id, xterm, serializeAddon);
   if (runtime.previewAnsi) {
-    xterm.write(runtime.previewAnsi, () => xterm.scrollToBottom());
+    xterm.write(runtime.previewAnsi, () => {
+      if (!runtime.disposed && runtime.xterm) {
+        xterm.scrollToBottom();
+      }
+    });
   }
 
   wireLiveBindings(runtime);

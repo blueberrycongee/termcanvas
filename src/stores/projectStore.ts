@@ -1283,8 +1283,7 @@ useTileDimensionsStore.subscribe((state, prev) => {
 // --- Stash helpers (coordinate across projectStore + stashStore) ---
 
 import { useStashStore } from "./stashStore.ts";
-import { destroyTerminalRuntime, getTerminalPtyId, getTerminalRuntimePreviewAnsi } from "../terminal/terminalRuntimeStore.ts";
-import { serializeTerminal } from "../terminal/terminalRegistry.ts";
+import { destroyTerminalRuntime } from "../terminal/terminalRuntimeStore.ts";
 
 export function stashTerminal(
   projectId: string,
@@ -1292,98 +1291,80 @@ export function stashTerminal(
   terminalId: string,
 ): void {
   const store = useProjectStore.getState();
+
+  // Mark the terminal as stashed — it stays in the worktree so
+  // TerminalRuntimeHandle keeps running and the PTY stays alive.
+  // Same principle as worktree collapse.
+  const now = Date.now();
+  useProjectStore.setState((state) => ({
+    projects: state.projects.map((p) =>
+      p.id !== projectId
+        ? p
+        : {
+            ...p,
+            worktrees: p.worktrees.map((w) =>
+              w.id !== worktreeId
+                ? w
+                : {
+                    ...w,
+                    terminals: w.terminals.map((t) =>
+                      t.id !== terminalId
+                        ? t
+                        : { ...t, stashed: true, stashedAt: now, focused: false },
+                    ),
+                  },
+            ),
+          },
+    ),
+  }));
+
+  // Also add to stashStore so StashBox UI can display it
   const loc = findTerminalById(store.projects, terminalId);
   if (!loc) return;
-
-  // Capture live xterm buffer before removing from store
-  const liveScrollback =
-    serializeTerminal(terminalId) ??
-    getTerminalRuntimePreviewAnsi(terminalId) ??
-    loc.terminal.scrollback;
-
-  const entry: StashedTerminal = {
-    terminal: {
-      ...loc.terminal,
-      focused: false,
-      minimized: false,
-      scrollback: liveScrollback ?? undefined,
-    },
+  useStashStore.getState().stash({
+    terminal: loc.terminal,
     projectId,
     worktreeId,
-    stashedAt: Date.now(),
-  };
-
-  useStashStore.getState().stash(entry);
-  store.removeTerminal(projectId, worktreeId, terminalId);
+    stashedAt: loc.terminal.stashedAt ?? Date.now(),
+  });
 }
 
 export function unstashTerminal(terminalId: string): void {
-  const entry = useStashStore.getState().unstash(terminalId);
-  if (!entry) return;
+  // Remove from stash UI store
+  useStashStore.getState().unstash(terminalId);
 
-  const store = useProjectStore.getState();
-  const { focusedProjectId, focusedWorktreeId } = store;
+  // Clear the stashed flag — terminal is already in its worktree,
+  // TerminalRuntimeHandle never unmounted, PTY is still alive.
+  useProjectStore.setState((state) => ({
+    projects: state.projects.map((p) => ({
+      ...p,
+      worktrees: p.worktrees.map((w) => ({
+        ...w,
+        terminals: w.terminals.map((t) =>
+          t.id !== terminalId
+            ? t
+            : { ...t, stashed: false, stashedAt: undefined },
+        ),
+      })),
+    })),
+  }));
 
-  // Prefer focused worktree > original worktree > first available
-  let targetProjectId: string | null = null;
-  let targetWorktreeId: string | null = null;
-
-  if (focusedProjectId && focusedWorktreeId) {
-    const target = findWorktreeTarget(
-      store.projects,
-      focusedProjectId,
-      focusedWorktreeId,
-    );
-    if (target) {
-      targetProjectId = target.projectId;
-      targetWorktreeId = target.worktreeId;
-    }
-  }
-
-  if (!targetProjectId || !targetWorktreeId) {
-    const original = findWorktreeTarget(
-      store.projects,
-      entry.projectId,
-      entry.worktreeId,
-    );
-    if (original) {
-      targetProjectId = original.projectId;
-      targetWorktreeId = original.worktreeId;
-    }
-  }
-
-  if (!targetProjectId || !targetWorktreeId) {
-    const first = store.projects[0]?.worktrees[0];
-    if (first) {
-      targetProjectId = store.projects[0].id;
-      targetWorktreeId = first.id;
-    }
-  }
-
-  if (!targetProjectId || !targetWorktreeId) return;
-
-  // If PTY is still alive, reconnect to it (task kept running while stashed).
-  // If PTY died, clear ptyId so ensureTerminalRuntime spawns fresh with --resume sessionId.
-  const livePtyId = getTerminalPtyId(entry.terminal.id);
-  const terminal = livePtyId != null
-    ? entry.terminal
-    : (() => {
-        destroyTerminalRuntime(entry.terminal.id);
-        return { ...entry.terminal, ptyId: null };
-      })();
-
-  store.addTerminal(targetProjectId!, targetWorktreeId!, terminal);
-  store.setFocusedTerminal(terminal.id);
+  useProjectStore.getState().setFocusedTerminal(terminalId);
 }
 
 export function destroyStashedTerminal(terminalId: string): void {
-  useStashStore.getState().unstash(terminalId);
+  const entry = useStashStore.getState().unstash(terminalId);
+  if (entry) {
+    useProjectStore.getState().removeTerminal(entry.projectId, entry.worktreeId, terminalId);
+  }
   destroyTerminalRuntime(terminalId);
 }
 
 export function destroyAllStashedTerminals(): void {
   const { items } = useStashStore.getState();
+  const store = useProjectStore.getState();
   for (const entry of items) {
+    store.removeTerminal(entry.projectId, entry.worktreeId, entry.terminal.id);
     destroyTerminalRuntime(entry.terminal.id);
   }
   useStashStore.getState().clear();

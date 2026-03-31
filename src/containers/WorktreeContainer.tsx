@@ -447,7 +447,7 @@ export function WorktreeContainer({
           );
         })}
         {terminalLayouts.map((layout, index) => {
-          if (!layout || layout.lodMode === "unmounted") return null;
+          if (!layout || layout.lodMode === "unmounted" || layout.terminal.stashed) return null;
           const { item, terminal } = layout;
           const isDragging = dragState?.terminalId === terminal.id;
 

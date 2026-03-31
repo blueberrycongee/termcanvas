@@ -103,6 +103,8 @@ export interface TerminalData {
   sessionId?: string;
   initialPrompt?: string;
   autoApprove?: boolean;
+  stashed?: boolean;
+  stashedAt?: number;
 }
 
 export interface StashedTerminal {
