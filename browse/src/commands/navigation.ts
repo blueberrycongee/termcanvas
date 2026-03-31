@@ -17,7 +17,10 @@ const goto: CommandHandler = async (page, args) => {
 };
 
 const back: CommandHandler = async (page) => {
-  await page.goBack({ waitUntil: "domcontentloaded" });
+  const response = await page.goBack({ waitUntil: "domcontentloaded" });
+  if (!response) {
+    return { ok: false, output: "", error: "no previous page in history" };
+  }
   const title = await page.title();
   return { ok: true, output: `Back to ${page.url()}\nTitle: ${title}` };
 };

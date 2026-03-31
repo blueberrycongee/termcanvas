@@ -32,6 +32,51 @@ function makeFixture(): string {
   return dir;
 }
 
+function makeDuplicateFixture(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "browse-dup-"));
+  fs.writeFileSync(
+    path.join(dir, "index.html"),
+    `<!DOCTYPE html>
+<html><head><title>Duplicate Test</title></head>
+<body>
+  <button id="btn1" onclick="document.getElementById('r').textContent='first'">Submit</button>
+  <button id="btn2" onclick="document.getElementById('r').textContent='second'">Submit</button>
+  <div id="r"></div>
+</body></html>`,
+  );
+  return dir;
+}
+
+function makeScrollFixture(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "browse-scroll-"));
+  fs.writeFileSync(
+    path.join(dir, "index.html"),
+    `<!DOCTYPE html>
+<html><head><title>Scroll Test</title></head>
+<body>
+  <div style="height:3000px">spacer</div>
+  <button id="bottom-btn">Bottom Button</button>
+</body></html>`,
+  );
+  return dir;
+}
+
+function makeSelectFixture(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "browse-select-"));
+  fs.writeFileSync(
+    path.join(dir, "index.html"),
+    `<!DOCTYPE html>
+<html><head><title>Select Test</title></head>
+<body>
+  <select id="sel" aria-label="Color">
+    <option value="red">Red</option>
+    <option value="blue">Blue</option>
+  </select>
+</body></html>`,
+  );
+  return dir;
+}
+
 async function sendCommand(
   port: number,
   token: string,
@@ -108,6 +153,117 @@ test("fill works with CSS selector", async () => {
     ]);
     assert.equal(result.ok, true);
     assert.match(result.output, /Filled/);
+  } finally {
+    await shutdown();
+    fs.rmSync(dir, { recursive: true });
+  }
+});
+
+test("scroll works with @ref after snapshot", async () => {
+  setCommandRegistry(makeRegistry());
+  const { state, shutdown } = await startServer(0);
+  const dir = makeScrollFixture();
+  try {
+    await sendCommand(state.port, state.token, "goto", [
+      `file://${path.join(dir, "index.html")}`,
+    ]);
+    await sendCommand(state.port, state.token, "snapshot", ["-i"]);
+    const result = await sendCommand(state.port, state.token, "scroll", [
+      "@e1",
+    ]);
+    assert.equal(result.ok, true);
+    assert.match(result.output, /Scrolled to @e1/);
+  } finally {
+    await shutdown();
+    fs.rmSync(dir, { recursive: true });
+  }
+});
+
+test("scroll to bottom works without ref", async () => {
+  setCommandRegistry(makeRegistry());
+  const { state, shutdown } = await startServer(0);
+  const dir = makeScrollFixture();
+  try {
+    await sendCommand(state.port, state.token, "goto", [
+      `file://${path.join(dir, "index.html")}`,
+    ]);
+    const result = await sendCommand(state.port, state.token, "scroll", [
+      "bottom",
+    ]);
+    assert.equal(result.ok, true);
+    assert.match(result.output, /Scrolled to bottom/);
+  } finally {
+    await shutdown();
+    fs.rmSync(dir, { recursive: true });
+  }
+});
+
+test("duplicate role+name refs resolve to distinct elements", async () => {
+  setCommandRegistry(makeRegistry());
+  const { state, shutdown } = await startServer(0);
+  const dir = makeDuplicateFixture();
+  try {
+    await sendCommand(state.port, state.token, "goto", [
+      `file://${path.join(dir, "index.html")}`,
+    ]);
+    await sendCommand(state.port, state.token, "snapshot", ["-i"]);
+
+    const r1 = await sendCommand(state.port, state.token, "click", ["@e1"]);
+    assert.equal(r1.ok, true);
+    let text = await sendCommand(state.port, state.token, "text", []);
+    assert.match(text.output, /first/);
+
+    // Reset state
+    await sendCommand(state.port, state.token, "goto", [
+      `file://${path.join(dir, "index.html")}`,
+    ]);
+    await sendCommand(state.port, state.token, "snapshot", ["-i"]);
+
+    const r2 = await sendCommand(state.port, state.token, "click", ["@e2"]);
+    assert.equal(r2.ok, true);
+    text = await sendCommand(state.port, state.token, "text", []);
+    assert.match(text.output, /second/);
+  } finally {
+    await shutdown();
+    fs.rmSync(dir, { recursive: true });
+  }
+});
+
+test("hover works with @ref", async () => {
+  setCommandRegistry(makeRegistry());
+  const { state, shutdown } = await startServer(0);
+  const dir = makeFixture();
+  try {
+    await sendCommand(state.port, state.token, "goto", [
+      `file://${path.join(dir, "index.html")}`,
+    ]);
+    await sendCommand(state.port, state.token, "snapshot", ["-i"]);
+    const result = await sendCommand(state.port, state.token, "hover", [
+      "@e1",
+    ]);
+    assert.equal(result.ok, true);
+    assert.match(result.output, /Hovered/);
+  } finally {
+    await shutdown();
+    fs.rmSync(dir, { recursive: true });
+  }
+});
+
+test("select works with @ref", async () => {
+  setCommandRegistry(makeRegistry());
+  const { state, shutdown } = await startServer(0);
+  const dir = makeSelectFixture();
+  try {
+    await sendCommand(state.port, state.token, "goto", [
+      `file://${path.join(dir, "index.html")}`,
+    ]);
+    await sendCommand(state.port, state.token, "snapshot", ["-i"]);
+    const result = await sendCommand(state.port, state.token, "select", [
+      "@e1",
+      "blue",
+    ]);
+    assert.equal(result.ok, true);
+    assert.match(result.output, /Selected/);
   } finally {
     await shutdown();
     fs.rmSync(dir, { recursive: true });

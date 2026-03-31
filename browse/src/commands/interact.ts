@@ -9,7 +9,9 @@ function resolveTarget(
   if (target.startsWith("@e")) {
     const ref = context.refMap.get(target);
     if (!ref) throw new Error(`unknown ref: ${target} (run snapshot first)`);
-    return page.getByRole(ref.role as any, { name: ref.name });
+    return page
+      .getByRole(ref.role as any, { name: ref.name, exact: true })
+      .nth(ref.index);
   }
   return page.locator(target);
 }
@@ -44,13 +46,14 @@ const select: CommandHandler = async (page, args, context) => {
   return { ok: true, output: `Selected "${value}" in ${target}` };
 };
 
-const scroll: CommandHandler = async (page, args) => {
+const scroll: CommandHandler = async (page, args, context) => {
   const target = args[0];
   if (!target || target === "bottom") {
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     return { ok: true, output: "Scrolled to bottom" };
   }
-  await page.locator(target).scrollIntoViewIfNeeded();
+  const locator = resolveTarget(page, target, context);
+  await locator.scrollIntoViewIfNeeded();
   return { ok: true, output: `Scrolled to ${target}` };
 };
 

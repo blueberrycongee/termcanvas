@@ -3,6 +3,7 @@ import type { Page } from "playwright";
 export interface RefEntry {
   role: string;
   name: string;
+  index: number;
 }
 
 const INTERACTIVE_ROLES = new Set([
@@ -70,6 +71,8 @@ export function buildSnapshotFromAria(
   const refs = new Map<string, RefEntry>();
   let refCounter = 1;
 
+  const occurrenceCount = new Map<string, number>();
+
   for (const item of parsed) {
     const isInteractive = INTERACTIVE_ROLES.has(item.role);
     if (interactiveOnly && !isInteractive) continue;
@@ -78,8 +81,11 @@ export function buildSnapshotFromAria(
     const indentStr = "  ".repeat(depth);
     let ref = "";
     if (isInteractive) {
+      const key = `${item.role}\0${item.name}`;
+      const idx = occurrenceCount.get(key) ?? 0;
+      occurrenceCount.set(key, idx + 1);
       const refId = `@e${refCounter++}`;
-      refs.set(refId, { role: item.role, name: item.name });
+      refs.set(refId, { role: item.role, name: item.name, index: idx });
       ref = `${refId} `;
     }
     lines.push(`${indentStr}${ref}[${item.role}] "${item.name}"`);

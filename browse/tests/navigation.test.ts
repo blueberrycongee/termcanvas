@@ -83,3 +83,57 @@ test("goto rejects invalid URL scheme", async () => {
     await shutdown();
   }
 });
+
+test("back returns error when no history", async () => {
+  setCommandRegistry(navigationCommands);
+  const { state, shutdown } = await startServer(0);
+  const dir = makeFixture();
+  try {
+    await sendCommand(state.port, state.token, "goto", [
+      `file://${path.join(dir, "index.html")}`,
+    ]);
+    const result = await sendCommand(state.port, state.token, "back", []);
+    assert.equal(result.ok, false);
+    assert.match(result.error, /no previous page/);
+  } finally {
+    await shutdown();
+    fs.rmSync(dir, { recursive: true });
+  }
+});
+
+test("back navigates to previous page", async () => {
+  setCommandRegistry(navigationCommands);
+  const { state, shutdown } = await startServer(0);
+  const dir = makeFixture();
+  try {
+    await sendCommand(state.port, state.token, "goto", [
+      `file://${path.join(dir, "index.html")}`,
+    ]);
+    await sendCommand(state.port, state.token, "goto", [
+      `file://${path.join(dir, "page2.html")}`,
+    ]);
+    const result = await sendCommand(state.port, state.token, "back", []);
+    assert.equal(result.ok, true);
+    assert.match(result.output, /Test Page/);
+  } finally {
+    await shutdown();
+    fs.rmSync(dir, { recursive: true });
+  }
+});
+
+test("reload returns current page", async () => {
+  setCommandRegistry(navigationCommands);
+  const { state, shutdown } = await startServer(0);
+  const dir = makeFixture();
+  try {
+    await sendCommand(state.port, state.token, "goto", [
+      `file://${path.join(dir, "index.html")}`,
+    ]);
+    const result = await sendCommand(state.port, state.token, "reload", []);
+    assert.equal(result.ok, true);
+    assert.match(result.output, /Test Page/);
+  } finally {
+    await shutdown();
+    fs.rmSync(dir, { recursive: true });
+  }
+});

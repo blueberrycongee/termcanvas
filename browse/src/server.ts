@@ -21,8 +21,9 @@ export interface BrowseContext {
   browser: Browser;
   page: Page;
   consoleMessages: string[];
-  refMap: Map<string, { role: string; name: string }>;
+  refMap: Map<string, { role: string; name: string; index: number }>;
   setPage: (p: Page) => void;
+  listenedPages: Set<Page>;
 }
 
 export type CommandHandler = (
@@ -47,12 +48,22 @@ export async function startServer(port = 0): Promise<{
   let browser: Browser | null = null;
   let activePage: Page | null = null;
   const consoleMessages: string[] = [];
-  const refMap = new Map<string, { role: string; name: string }>();
+  const refMap = new Map<string, { role: string; name: string; index: number }>();
+  const listenedPages = new Set<Page>();
 
   const resetIdle = () => {
     clearTimeout(idleTimer);
     idleTimer = setTimeout(() => shutdown(), IDLE_TIMEOUT_MS);
   };
+
+  function attachConsoleListener(page: Page) {
+    if (listenedPages.has(page)) return;
+    listenedPages.add(page);
+    page.on("console", (msg) => {
+      consoleMessages.push(`[${msg.type()}] ${msg.text()}`);
+      if (consoleMessages.length > 200) consoleMessages.shift();
+    });
+  }
 
   async function ensureBrowser(): Promise<{ browser: Browser; page: Page }> {
     if (!browser) {
@@ -60,18 +71,14 @@ export async function startServer(port = 0): Promise<{
       browser = await chromium.launch({ headless: true });
       const context = await browser.newContext();
       activePage = await context.newPage();
-      activePage.on("console", (msg) => {
-        consoleMessages.push(`[${msg.type()}] ${msg.text()}`);
-        if (consoleMessages.length > 200) consoleMessages.shift();
-      });
+      attachConsoleListener(activePage);
     }
     return { browser, page: activePage! };
   }
 
   const server = http.createServer(async (req, res) => {
-    resetIdle();
-
     if (req.method === "GET" && req.url === "/health") {
+      resetIdle();
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, pid: process.pid }));
       return;
@@ -134,6 +141,7 @@ export async function startServer(port = 0): Promise<{
           setPage: (p: Page) => {
             activePage = p;
           },
+          listenedPages,
         };
         const result = await handler(page, parsed.args, context);
         res.writeHead(200, { "Content-Type": "application/json" });
@@ -143,6 +151,7 @@ export async function startServer(port = 0): Promise<{
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ ok: false, error: message }));
       }
+      resetIdle();
       return;
     }
 
@@ -175,7 +184,7 @@ export async function startServer(port = 0): Promise<{
       };
 
       fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
-      fs.writeFileSync(STATE_FILE, JSON.stringify(state));
+      fs.writeFileSync(STATE_FILE, JSON.stringify(state), { mode: 0o600 });
 
       resetIdle();
       resolve({ server, state, shutdown });

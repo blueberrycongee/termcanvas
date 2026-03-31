@@ -28,6 +28,15 @@ const tab: CommandHandler = async (_page, args, context) => {
   const target = pages[index];
   await target.bringToFront();
   context.setPage(target);
+
+  if (!context.listenedPages.has(target)) {
+    context.listenedPages.add(target);
+    target.on("console", (msg) => {
+      context.consoleMessages.push(`[${msg.type()}] ${msg.text()}`);
+      if (context.consoleMessages.length > 200) context.consoleMessages.shift();
+    });
+  }
+
   return { ok: true, output: `Switched to tab ${index}: ${target.url()}` };
 };
 

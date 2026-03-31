@@ -100,8 +100,7 @@ async function main() {
   // For "start-server" internal command, run inline
   if (command === "start-server") {
     setCommandRegistry(createCommandRegistry());
-    const { shutdown } = await startServer();
-    process.on("SIGTERM", () => shutdown());
+    await startServer();
     return;
   }
 
