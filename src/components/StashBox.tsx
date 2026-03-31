@@ -1,19 +1,37 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStashStore } from "../stores/stashStore";
-import { unstashTerminal } from "../stores/projectStore";
-import { destroyTerminalRuntime, getTerminalRuntimePreviewAnsi } from "../terminal/terminalRuntimeStore";
+import {
+  destroyAllStashedTerminals,
+  destroyStashedTerminal,
+  unstashTerminal,
+} from "../stores/projectStore";
+import { useProjectStore } from "../stores/projectStore";
+import { getTerminalRuntimePreviewAnsi } from "../terminal/terminalRuntimeStore";
 import { TERMINAL_TYPE_CONFIG } from "../terminal/terminalTypeConfig";
 import { useT } from "../i18n/useT";
 
 function StashCard({ terminalId }: { terminalId: string }) {
   const t = useT();
-  const entry = useStashStore((s) =>
-    s.items.find((item) => item.terminal.id === terminalId),
+  const terminal = useStashStore(
+    useCallback(
+      (s) => s.items.find((item) => item.terminal.id === terminalId)?.terminal,
+      [terminalId],
+    ),
   );
 
-  if (!entry) return null;
+  const restoreTarget = useProjectStore((s) => {
+    if (s.focusedProjectId && s.focusedWorktreeId) {
+      for (const p of s.projects) {
+        if (p.id !== s.focusedProjectId) continue;
+        const wt = p.worktrees.find((w) => w.id === s.focusedWorktreeId);
+        if (wt) return wt.name;
+      }
+    }
+    return null;
+  });
 
-  const { terminal } = entry;
+  if (!terminal) return null;
+
   const config = TERMINAL_TYPE_CONFIG[terminal.type] ?? {
     color: "#888",
     label: terminal.type,
@@ -55,16 +73,14 @@ function StashCard({ terminalId }: { terminalId: string }) {
           className="px-2 py-0.5 text-[10px] rounded border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-150"
           style={{ fontFamily: '"Geist Mono", monospace' }}
           onClick={() => unstashTerminal(terminal.id)}
+          title={restoreTarget ? `→ ${restoreTarget}` : undefined}
         >
           {t.stash_restore}
         </button>
         <button
           className="px-2 py-0.5 text-[10px] rounded border border-[var(--border)] text-[var(--text-faint)] hover:text-[var(--red)] hover:bg-[var(--surface-hover)] transition-colors duration-150"
           style={{ fontFamily: '"Geist Mono", monospace' }}
-          onClick={() => {
-            useStashStore.getState().unstash(terminal.id);
-            destroyTerminalRuntime(terminal.id);
-          }}
+          onClick={() => destroyStashedTerminal(terminal.id)}
         >
           {t.stash_destroy}
         </button>
@@ -79,6 +95,8 @@ export function StashBox() {
   const [expanded, setExpanded] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [hasOverflow, setHasOverflow] = useState(false);
 
   const handleClickAway = useCallback(
     (e: MouseEvent) => {
@@ -106,46 +124,88 @@ export function StashBox() {
     };
   }, []);
 
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !expanded) {
+      setHasOverflow(false);
+      return;
+    }
+    const check = () => setHasOverflow(el.scrollHeight > el.clientHeight);
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [expanded, items.length]);
+
   const showButton = items.length > 0 || dragActive;
   if (!showButton) return null;
+
+  const buttonLabel =
+    dragActive && items.length === 0
+      ? t.stash_drop_hint
+      : t.stash_count(items.length);
 
   return (
     <div ref={panelRef} className="fixed bottom-4 right-4 z-[90]" data-stash-drop-target>
       {expanded ? (
-        <div className="w-72 max-h-80 flex flex-col rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg">
+        <div
+          className="w-72 max-h-80 flex flex-col rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg"
+          aria-label={t.stash_box}
+        >
           <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)]">
             <span
               className="text-[11px] font-medium text-[var(--text-primary)]"
               style={{ fontFamily: '"Geist Mono", monospace' }}
             >
-              {t.stash_box}
+              {items.length > 0
+                ? `${t.stash_box} (${items.length})`
+                : t.stash_box}
             </span>
-            <button
-              className="text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-150 p-0.5"
-              onClick={() => setExpanded(false)}
-            >
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                <path
-                  d="M2.5 2.5L7.5 7.5M7.5 2.5L2.5 7.5"
-                  stroke="currentColor"
-                  strokeWidth="1.2"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
+            <div className="flex items-center gap-1">
+              {items.length > 0 && (
+                <button
+                  className="text-[10px] text-[var(--text-faint)] hover:text-[var(--red)] transition-colors duration-150 px-1.5 py-0.5 rounded"
+                  style={{ fontFamily: '"Geist Mono", monospace' }}
+                  onClick={() => destroyAllStashedTerminals()}
+                >
+                  {t.stash_clear_all}
+                </button>
+              )}
+              <button
+                className="text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-150 p-0.5"
+                onClick={() => setExpanded(false)}
+              >
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path
+                    d="M2.5 2.5L7.5 7.5M7.5 2.5L2.5 7.5"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+            </div>
           </div>
-          <div className="flex-1 min-h-0 overflow-auto p-2 flex flex-col gap-1.5">
-            {items.length === 0 ? (
-              <div className="text-center text-[11px] text-[var(--text-faint)] py-4">
-                {t.stash_empty}
-              </div>
-            ) : (
-              items.map((entry) => (
-                <StashCard
-                  key={entry.terminal.id}
-                  terminalId={entry.terminal.id}
-                />
-              ))
+          <div className="relative flex-1 min-h-0">
+            <div
+              ref={scrollRef}
+              className="overflow-auto max-h-[calc(20rem-2.5rem)] p-2 flex flex-col gap-1.5"
+            >
+              {items.length === 0 ? (
+                <div className="text-center text-[11px] text-[var(--text-faint)] py-4">
+                  {t.stash_empty}
+                </div>
+              ) : (
+                items.map((entry) => (
+                  <StashCard
+                    key={entry.terminal.id}
+                    terminalId={entry.terminal.id}
+                  />
+                ))
+              )}
+            </div>
+            {hasOverflow && (
+              <div className="absolute bottom-0 left-0 right-0 h-6 pointer-events-none bg-gradient-to-t from-[var(--surface)] to-transparent rounded-b-lg" />
             )}
           </div>
         </div>
@@ -158,6 +218,7 @@ export function StashBox() {
           }`}
           onClick={() => setExpanded(true)}
           data-stash-drop-target
+          aria-label={t.stash_count(items.length)}
         >
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
             <path
@@ -178,7 +239,7 @@ export function StashBox() {
             className="text-[11px] font-medium text-[var(--text-secondary)]"
             style={{ fontFamily: '"Geist Mono", monospace' }}
           >
-            {t.stash_count(items.length)}
+            {buttonLabel}
           </span>
         </button>
       )}

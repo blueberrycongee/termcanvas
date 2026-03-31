@@ -382,7 +382,9 @@ export const zh = {
   stash_empty: "没有暂存的终端",
   stash_restore: "恢复",
   stash_close: "关闭",
-  stash_count: (n: number) => `${n}`,
+  stash_count: (n: number) => `${n} 已暂存`,
+  stash_drop_hint: "拖放至此",
+  stash_clear_all: "全部清除",
   stash_terminal: "暂存",
   stash_destroy: "销毁",
 

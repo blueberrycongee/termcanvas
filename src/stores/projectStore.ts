@@ -1283,7 +1283,7 @@ useTileDimensionsStore.subscribe((state, prev) => {
 // --- Stash helpers (coordinate across projectStore + stashStore) ---
 
 import { useStashStore } from "./stashStore.ts";
-import { setTerminalRuntimeMode } from "../terminal/terminalRuntimeStore.ts";
+import { destroyTerminalRuntime, setTerminalRuntimeMode } from "../terminal/terminalRuntimeStore.ts";
 
 export function stashTerminal(
   projectId: string,
@@ -1353,4 +1353,17 @@ export function unstashTerminal(terminalId: string): void {
 
   store.addTerminal(targetProjectId, targetWorktreeId, entry.terminal);
   store.setFocusedTerminal(entry.terminal.id);
+}
+
+export function destroyStashedTerminal(terminalId: string): void {
+  useStashStore.getState().unstash(terminalId);
+  destroyTerminalRuntime(terminalId);
+}
+
+export function destroyAllStashedTerminals(): void {
+  const { items } = useStashStore.getState();
+  for (const entry of items) {
+    destroyTerminalRuntime(entry.terminal.id);
+  }
+  useStashStore.getState().clear();
 }

@@ -794,11 +794,6 @@ export function TerminalTile({
             y={contextMenu.y}
             items={[
               {
-                label: t.stash_terminal,
-                onClick: () => stashTerminal(projectId, worktreeId, terminal.id),
-              },
-              { type: "separator" as const },
-              {
                 label: "1×1",
                 active: terminal.span.cols === 1 && terminal.span.rows === 1,
                 onClick: () => onSpanChange?.({ cols: 1, rows: 1 }),
@@ -817,6 +812,11 @@ export function TerminalTile({
                 label: "2×2 Large",
                 active: terminal.span.cols === 2 && terminal.span.rows === 2,
                 onClick: () => onSpanChange?.({ cols: 2, rows: 2 }),
+              },
+              { type: "separator" as const },
+              {
+                label: t.stash_terminal,
+                onClick: () => stashTerminal(projectId, worktreeId, terminal.id),
               },
             ]}
             onClose={() => setContextMenu(null)}

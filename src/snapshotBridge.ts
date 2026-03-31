@@ -24,6 +24,7 @@ export interface LegacyWorkspaceSnapshot {
   projects: ReturnType<typeof useProjectStore.getState>["projects"];
   drawings: ReturnType<typeof useDrawingStore.getState>["elements"];
   browserCards: ReturnType<typeof useBrowserCardStore.getState>["cards"];
+  stashedTerminals?: StashedTerminal[];
 }
 
 export interface SceneWorkspaceSnapshot {
@@ -390,6 +391,8 @@ function migrateLegacySnapshot(
       ? value.browserCards
       : {};
 
+  const stashedTerminals = normalizeStashedTerminals(value.stashedTerminals);
+
   return {
     version: 1,
     browserCards:
@@ -397,6 +400,7 @@ function migrateLegacySnapshot(
     drawings: drawingsSource as LegacyWorkspaceSnapshot["drawings"],
     projects: normalizeProjectsFocus(migrateProjects(projectsSource)).projects,
     viewport: normalizeViewport(value.viewport),
+    ...(stashedTerminals.length > 0 ? { stashedTerminals } : {}),
   };
 }
 
@@ -537,6 +541,9 @@ function legacySnapshotFromScene(
     projects: normalizeProjectsFocus(legacyState.projects).projects,
     drawings: legacyState.drawings,
     browserCards: legacyState.browserCards,
+    ...(scene.stashedTerminals && scene.stashedTerminals.length > 0
+      ? { stashedTerminals: scene.stashedTerminals }
+      : {}),
   };
 }
 

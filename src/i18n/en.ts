@@ -385,7 +385,9 @@ export const en = {
   stash_empty: "No stashed terminals",
   stash_restore: "Restore",
   stash_close: "Close",
-  stash_count: (n: number) => `${n}`,
+  stash_count: (n: number) => `${n} stashed`,
+  stash_drop_hint: "Drop here",
+  stash_clear_all: "Clear All",
   stash_terminal: "Stash",
   stash_destroy: "Destroy",
 
