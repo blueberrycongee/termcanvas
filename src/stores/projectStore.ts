@@ -6,6 +6,7 @@ import type {
   TerminalType,
   TerminalStatus,
   TerminalOrigin,
+  StashedTerminal,
 } from "../types/index.ts";
 import {
   getStandardWorktreeWidth,
@@ -1278,3 +1279,91 @@ useTileDimensionsStore.subscribe((state, prev) => {
     useProjectStore.setState({ projects: resolved });
   }
 });
+
+// --- Stash helpers (coordinate across projectStore + stashStore) ---
+
+import { useStashStore } from "./stashStore.ts";
+import { destroyTerminalRuntime, setTerminalRuntimeMode } from "../terminal/terminalRuntimeStore.ts";
+
+export function stashTerminal(
+  projectId: string,
+  worktreeId: string,
+  terminalId: string,
+): void {
+  const store = useProjectStore.getState();
+  const loc = findTerminalById(store.projects, terminalId);
+  if (!loc) return;
+
+  const entry: StashedTerminal = {
+    terminal: { ...loc.terminal, focused: false, minimized: false },
+    projectId,
+    worktreeId,
+    stashedAt: Date.now(),
+  };
+
+  useStashStore.getState().stash(entry);
+  setTerminalRuntimeMode(terminalId, "preview");
+  store.removeTerminal(projectId, worktreeId, terminalId);
+}
+
+export function unstashTerminal(terminalId: string): void {
+  const entry = useStashStore.getState().unstash(terminalId);
+  if (!entry) return;
+
+  const store = useProjectStore.getState();
+  const { focusedProjectId, focusedWorktreeId } = store;
+
+  // Prefer focused worktree > original worktree > first available
+  let targetProjectId: string | null = null;
+  let targetWorktreeId: string | null = null;
+
+  if (focusedProjectId && focusedWorktreeId) {
+    const target = findWorktreeTarget(
+      store.projects,
+      focusedProjectId,
+      focusedWorktreeId,
+    );
+    if (target) {
+      targetProjectId = target.projectId;
+      targetWorktreeId = target.worktreeId;
+    }
+  }
+
+  if (!targetProjectId || !targetWorktreeId) {
+    const original = findWorktreeTarget(
+      store.projects,
+      entry.projectId,
+      entry.worktreeId,
+    );
+    if (original) {
+      targetProjectId = original.projectId;
+      targetWorktreeId = original.worktreeId;
+    }
+  }
+
+  if (!targetProjectId || !targetWorktreeId) {
+    const first = store.projects[0]?.worktrees[0];
+    if (first) {
+      targetProjectId = store.projects[0].id;
+      targetWorktreeId = first.id;
+    }
+  }
+
+  if (!targetProjectId || !targetWorktreeId) return;
+
+  store.addTerminal(targetProjectId, targetWorktreeId, entry.terminal);
+  store.setFocusedTerminal(entry.terminal.id);
+}
+
+export function destroyStashedTerminal(terminalId: string): void {
+  useStashStore.getState().unstash(terminalId);
+  destroyTerminalRuntime(terminalId);
+}
+
+export function destroyAllStashedTerminals(): void {
+  const { items } = useStashStore.getState();
+  for (const entry of items) {
+    destroyTerminalRuntime(entry.terminal.id);
+  }
+  useStashStore.getState().clear();
+}

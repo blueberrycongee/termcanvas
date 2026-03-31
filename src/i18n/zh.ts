@@ -377,6 +377,17 @@ export const zh = {
   insights_open: "打开报告",
   insights_error: "洞察报告错误",
 
+  // Stash Box
+  stash_box: "暂存",
+  stash_empty: "没有暂存的终端",
+  stash_restore: "恢复",
+  stash_close: "关闭",
+  stash_count: (n: number) => `${n} 已暂存`,
+  stash_drop_hint: "拖放至此",
+  stash_clear_all: "全部清除",
+  stash_terminal: "暂存",
+  stash_destroy: "销毁",
+
   // Canvas empty state
   canvas_empty_title: "还没有项目",
   canvas_empty_action: "添加项目",

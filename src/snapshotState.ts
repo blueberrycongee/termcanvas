@@ -3,6 +3,7 @@ import { useCanvasStore } from "./stores/canvasStore";
 import { useDrawingStore } from "./stores/drawingStore";
 import { useBrowserCardStore } from "./stores/browserCardStore";
 import { useSelectionStore } from "./stores/selectionStore";
+import { useStashStore } from "./stores/stashStore";
 import {
   destroyAllTerminalRuntimes,
   refreshClaudeSessionStates,
@@ -41,6 +42,7 @@ export function restoreWorkspaceSnapshot(
   useBrowserCardStore.setState({
     cards: restoredState.browserCards,
   });
+  useStashStore.getState().setItems(snapshot.scene.stashedTerminals ?? []);
 }
 
 export {
@@ -68,12 +70,25 @@ function buildLegacyWorkspaceSnapshot(): LegacyWorkspaceSnapshot {
     })),
   }));
 
+  const stashedTerminals = useStashStore.getState().items.map((entry) => ({
+    ...entry,
+    terminal: {
+      ...entry.terminal,
+      scrollback:
+        scrollbacks[entry.terminal.id] ??
+        entry.terminal.scrollback ??
+        undefined,
+      ptyId: null,
+    },
+  }));
+
   const snapshot = {
     version: 1 as const,
     viewport: useCanvasStore.getState().viewport,
     projects,
     drawings: useDrawingStore.getState().elements,
     browserCards: useBrowserCardStore.getState().cards,
+    stashedTerminals,
   };
 
   logSlowRendererPath("snapshotState.build", startedAt, {

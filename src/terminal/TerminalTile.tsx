@@ -1,7 +1,7 @@
 ﻿import { useEffect, useRef, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import type { TerminalData } from "../types";
-import { useProjectStore, findTerminalById, getChildTerminals } from "../stores/projectStore";
+import { useProjectStore, findTerminalById, getChildTerminals, stashTerminal } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { ContextMenu } from "../components/ContextMenu";
 import { usePreferencesStore } from "../stores/preferencesStore";
@@ -30,6 +30,7 @@ import {
   scheduleTerminalFocus,
 } from "./focusScheduler";
 import { useSidebarDragStore } from "../stores/sidebarDragStore";
+import { TERMINAL_TYPE_CONFIG } from "./terminalTypeConfig";
 
 interface Props {
   lodMode: TerminalMountMode;
@@ -50,16 +51,7 @@ interface Props {
   onSpanChange?: (span: { cols: number; rows: number }) => void;
 }
 
-const TYPE_CONFIG: Record<string, { color: string; label: string }> = {
-  shell: { color: "#888", label: "Shell" },
-  claude: { color: "#f5a623", label: "Claude" },
-  codex: { color: "#7928ca", label: "Codex" },
-  kimi: { color: "#0070f3", label: "Kimi" },
-  gemini: { color: "#4285f4", label: "Gemini" },
-  opencode: { color: "#50e3c2", label: "OpenCode" },
-  lazygit: { color: "#e84d31", label: "Lazygit" },
-  tmux: { color: "#1bb91f", label: "Tmux" },
-};
+const TYPE_CONFIG = TERMINAL_TYPE_CONFIG;
 
 function HierarchyBadges({ terminal }: { terminal: TerminalData }) {
   const projects = useProjectStore((s) => s.projects);
@@ -820,6 +812,11 @@ export function TerminalTile({
                 label: "2×2 Large",
                 active: terminal.span.cols === 2 && terminal.span.rows === 2,
                 onClick: () => onSpanChange?.({ cols: 2, rows: 2 }),
+              },
+              { type: "separator" as const },
+              {
+                label: t.stash_terminal,
+                onClick: () => stashTerminal(projectId, worktreeId, terminal.id),
               },
             ]}
             onClose={() => setContextMenu(null)}

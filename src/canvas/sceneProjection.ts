@@ -1,4 +1,4 @@
-import type { ProjectData, Viewport } from "../types";
+import type { ProjectData, StashedTerminal, Viewport } from "../types";
 import type { BrowserCardData } from "../stores/browserCardStore";
 import type {
   AnnotationElement,
@@ -16,6 +16,7 @@ interface LegacySceneState {
   projects?: ProjectData[] | null;
   drawings?: DrawingElement[] | null;
   browserCards?: Record<string, BrowserCardData> | null;
+  stashedTerminals?: StashedTerminal[] | null;
 }
 
 function worldAnchor(position: { x: number; y: number }): AnnotationAnchor {
@@ -230,6 +231,7 @@ export function buildSceneDocumentFromLegacyState(
     projects: state.projects ?? [],
     browserCards: state.browserCards ?? {},
     annotations: (state.drawings ?? []).map(drawingToAnnotation),
+    stashedTerminals: state.stashedTerminals ?? undefined,
   };
 }
 
@@ -240,11 +242,13 @@ export function sceneDocumentToLegacyState(
   projects: ProjectData[];
   drawings: DrawingElement[];
   browserCards: Record<string, BrowserCardData>;
+  stashedTerminals: StashedTerminal[];
 } {
   return {
     viewport: sceneCameraToViewport(scene.camera),
     projects: scene.projects,
     drawings: scene.annotations.map(annotationToDrawing),
     browserCards: scene.browserCards,
+    stashedTerminals: scene.stashedTerminals ?? [],
   };
 }

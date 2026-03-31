@@ -380,6 +380,17 @@ export const en = {
   insights_open: "Open Report",
   insights_error: "Insights Error",
 
+  // Stash Box
+  stash_box: "Stash",
+  stash_empty: "No stashed terminals",
+  stash_restore: "Restore",
+  stash_close: "Close",
+  stash_count: (n: number) => `${n} stashed`,
+  stash_drop_hint: "Drop here",
+  stash_clear_all: "Clear All",
+  stash_terminal: "Stash",
+  stash_destroy: "Destroy",
+
   // Canvas empty state
   canvas_empty_title: "No projects yet",
   canvas_empty_action: "Add Project",

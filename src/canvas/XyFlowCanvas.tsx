@@ -29,6 +29,7 @@ import {
   setTerminalRuntimeMode,
   updateTerminalRuntime,
 } from "../terminal/terminalRuntimeStore";
+import { useStashStore } from "../stores/stashStore";
 import { fromFlowViewport, toFlowViewport } from "./viewportAdapter";
 import { buildCanvasFlowNodes } from "./nodeProjection";
 import { useTileDimensionsStore } from "../stores/tileDimensionsStore";
@@ -177,8 +178,11 @@ function TerminalRuntimeLayer({
       updateTerminalRuntime(meta);
     }
 
+    const stashedIds = new Set(
+      useStashStore.getState().items.map((item) => item.terminal.id),
+    );
     for (const terminalId of managedTerminalIdsRef.current) {
-      if (!nextTerminalIds.has(terminalId)) {
+      if (!nextTerminalIds.has(terminalId) && !stashedIds.has(terminalId)) {
         destroyTerminalRuntime(terminalId);
       }
     }

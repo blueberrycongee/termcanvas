@@ -105,6 +105,13 @@ export interface TerminalData {
   autoApprove?: boolean;
 }
 
+export interface StashedTerminal {
+  terminal: TerminalData;
+  projectId: string;
+  worktreeId: string;
+  stashedAt: number;
+}
+
 export interface WorktreeData {
   id: string;
   name: string;

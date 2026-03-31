@@ -1,6 +1,7 @@
 import type { DrawingElement } from "./stores/drawingStore";
 import type {
   ProjectData,
+  StashedTerminal,
   TerminalOrigin,
   TerminalStatus,
   TerminalType,
@@ -23,6 +24,7 @@ export interface LegacyWorkspaceSnapshot {
   projects: ReturnType<typeof useProjectStore.getState>["projects"];
   drawings: ReturnType<typeof useDrawingStore.getState>["elements"];
   browserCards: ReturnType<typeof useBrowserCardStore.getState>["cards"];
+  stashedTerminals?: StashedTerminal[];
 }
 
 export interface SceneWorkspaceSnapshot {
@@ -389,6 +391,8 @@ function migrateLegacySnapshot(
       ? value.browserCards
       : {};
 
+  const stashedTerminals = normalizeStashedTerminals(value.stashedTerminals);
+
   return {
     version: 1,
     browserCards:
@@ -396,7 +400,66 @@ function migrateLegacySnapshot(
     drawings: drawingsSource as LegacyWorkspaceSnapshot["drawings"],
     projects: normalizeProjectsFocus(migrateProjects(projectsSource)).projects,
     viewport: normalizeViewport(value.viewport),
+    ...(stashedTerminals.length > 0 ? { stashedTerminals } : {}),
   };
+}
+
+function normalizeStashedTerminals(raw: unknown): StashedTerminal[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isRecord).flatMap((entry) => {
+    if (
+      typeof entry.projectId !== "string" ||
+      typeof entry.worktreeId !== "string" ||
+      typeof entry.stashedAt !== "number" ||
+      !isRecord(entry.terminal)
+    ) {
+      return [];
+    }
+    const t = entry.terminal;
+    if (typeof t.id !== "string" || typeof t.title !== "string") {
+      return [];
+    }
+    const span =
+      isRecord(t.span) &&
+      typeof t.span.cols === "number" &&
+      typeof t.span.rows === "number"
+        ? { cols: t.span.cols, rows: t.span.rows }
+        : { cols: 1, rows: 1 };
+    const origin: TerminalOrigin = t.origin === "agent" ? "agent" : "user";
+    return [
+      {
+        projectId: entry.projectId,
+        worktreeId: entry.worktreeId,
+        stashedAt: entry.stashedAt,
+        terminal: {
+          autoApprove:
+            typeof t.autoApprove === "boolean" ? t.autoApprove : undefined,
+          customTitle:
+            typeof t.customTitle === "string" ? t.customTitle : undefined,
+          focused: false,
+          id: t.id,
+          initialPrompt:
+            typeof t.initialPrompt === "string" ? t.initialPrompt : undefined,
+          minimized: false,
+          origin,
+          parentTerminalId:
+            typeof t.parentTerminalId === "string"
+              ? t.parentTerminalId
+              : undefined,
+          ptyId: null,
+          scrollback:
+            typeof t.scrollback === "string" ? t.scrollback : undefined,
+          sessionId:
+            typeof t.sessionId === "string" ? t.sessionId : undefined,
+          span,
+          starred: t.starred === true,
+          status: normalizeTerminalStatus(t.status),
+          title: t.title,
+          type: normalizeTerminalType(t.type),
+        },
+      },
+    ];
+  });
 }
 
 function coerceSceneDocument(value: unknown): SceneDocument | null {
@@ -435,6 +498,8 @@ function coerceSceneDocument(value: unknown): SceneDocument | null {
       })
     : [];
 
+  const stashedTerminals = normalizeStashedTerminals(record.stashedTerminals);
+
   return {
     version: 2,
     camera: normalizeSceneCamera(record.camera),
@@ -444,6 +509,7 @@ function coerceSceneDocument(value: unknown): SceneDocument | null {
         ? (record.browserCards as SceneDocument["browserCards"])
         : {},
     annotations,
+    ...(stashedTerminals.length > 0 ? { stashedTerminals } : {}),
   };
 }
 
@@ -475,6 +541,9 @@ function legacySnapshotFromScene(
     projects: normalizeProjectsFocus(legacyState.projects).projects,
     drawings: legacyState.drawings,
     browserCards: legacyState.browserCards,
+    ...(scene.stashedTerminals && scene.stashedTerminals.length > 0
+      ? { stashedTerminals: scene.stashedTerminals }
+      : {}),
   };
 }
 
