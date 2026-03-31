@@ -1280,9 +1280,8 @@ useTileDimensionsStore.subscribe((state, prev) => {
   }
 });
 
-// --- Stash helpers (coordinate across projectStore + stashStore) ---
+// --- Stash helpers (single source of truth: projectStore.stashed flag) ---
 
-import { useStashStore } from "./stashStore.ts";
 import { destroyTerminalRuntime } from "../terminal/terminalRuntimeStore.ts";
 
 export function stashTerminal(
@@ -1290,11 +1289,6 @@ export function stashTerminal(
   worktreeId: string,
   terminalId: string,
 ): void {
-  const store = useProjectStore.getState();
-
-  // Mark the terminal as stashed — it stays in the worktree so
-  // TerminalRuntimeHandle keeps running and the PTY stays alive.
-  // Same principle as worktree collapse.
   const now = Date.now();
   useProjectStore.setState((state) => ({
     projects: state.projects.map((p) =>
@@ -1317,24 +1311,10 @@ export function stashTerminal(
           },
     ),
   }));
-
-  // Also add to stashStore so StashBox UI can display it
-  const loc = findTerminalById(store.projects, terminalId);
-  if (!loc) return;
-  useStashStore.getState().stash({
-    terminal: loc.terminal,
-    projectId,
-    worktreeId,
-    stashedAt: loc.terminal.stashedAt ?? Date.now(),
-  });
+  markDirty();
 }
 
 export function unstashTerminal(terminalId: string): void {
-  // Remove from stash UI store
-  useStashStore.getState().unstash(terminalId);
-
-  // Clear the stashed flag — terminal is already in its worktree,
-  // TerminalRuntimeHandle never unmounted, PTY is still alive.
   useProjectStore.setState((state) => ({
     projects: state.projects.map((p) => ({
       ...p,
@@ -1348,12 +1328,32 @@ export function unstashTerminal(terminalId: string): void {
       })),
     })),
   }));
-
   useProjectStore.getState().setFocusedTerminal(terminalId);
+  markDirty();
+}
+
+export function getStashedTerminals(): Array<{
+  terminal: TerminalData;
+  projectId: string;
+  worktreeId: string;
+}> {
+  const { projects } = useProjectStore.getState();
+  const result: Array<{ terminal: TerminalData; projectId: string; worktreeId: string }> = [];
+  for (const p of projects) {
+    for (const w of p.worktrees) {
+      for (const t of w.terminals) {
+        if (t.stashed) {
+          result.push({ terminal: t, projectId: p.id, worktreeId: w.id });
+        }
+      }
+    }
+  }
+  return result;
 }
 
 export function destroyStashedTerminal(terminalId: string): void {
-  const entry = useStashStore.getState().unstash(terminalId);
+  const items = getStashedTerminals();
+  const entry = items.find((e) => e.terminal.id === terminalId);
   if (entry) {
     useProjectStore.getState().removeTerminal(entry.projectId, entry.worktreeId, terminalId);
   }
@@ -1361,11 +1361,10 @@ export function destroyStashedTerminal(terminalId: string): void {
 }
 
 export function destroyAllStashedTerminals(): void {
-  const { items } = useStashStore.getState();
+  const items = getStashedTerminals();
   const store = useProjectStore.getState();
   for (const entry of items) {
     store.removeTerminal(entry.projectId, entry.worktreeId, entry.terminal.id);
     destroyTerminalRuntime(entry.terminal.id);
   }
-  useStashStore.getState().clear();
 }

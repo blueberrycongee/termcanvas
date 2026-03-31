@@ -1,34 +1,30 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useStashStore } from "../stores/stashStore";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   destroyAllStashedTerminals,
   destroyStashedTerminal,
   unstashTerminal,
+  useProjectStore,
 } from "../stores/projectStore";
-import { useProjectStore } from "../stores/projectStore";
 import { getTerminalRuntimePreviewAnsi } from "../terminal/terminalRuntimeStore";
 import { TERMINAL_TYPE_CONFIG } from "../terminal/terminalTypeConfig";
 import { useT } from "../i18n/useT";
 
 function StashCard({ terminalId }: { terminalId: string }) {
   const t = useT();
-  const terminal = useStashStore(
+  const terminal = useProjectStore(
     useCallback(
-      (s) => s.items.find((item) => item.terminal.id === terminalId)?.terminal,
+      (s) => {
+        for (const p of s.projects) {
+          for (const w of p.worktrees) {
+            const found = w.terminals.find((t) => t.id === terminalId && t.stashed);
+            if (found) return found;
+          }
+        }
+        return undefined;
+      },
       [terminalId],
     ),
   );
-
-  const restoreTarget = useProjectStore((s) => {
-    if (s.focusedProjectId && s.focusedWorktreeId) {
-      for (const p of s.projects) {
-        if (p.id !== s.focusedProjectId) continue;
-        const wt = p.worktrees.find((w) => w.id === s.focusedWorktreeId);
-        if (wt) return wt.name;
-      }
-    }
-    return null;
-  });
 
   if (!terminal) return null;
 
@@ -73,7 +69,7 @@ function StashCard({ terminalId }: { terminalId: string }) {
           className="px-2 py-0.5 text-[10px] rounded border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-150"
           style={{ fontFamily: '"Geist Mono", monospace' }}
           onClick={() => unstashTerminal(terminal.id)}
-          title={restoreTarget ? `→ ${restoreTarget}` : undefined}
+          title={t.stash_restore}
         >
           {t.stash_restore}
         </button>
@@ -91,7 +87,18 @@ function StashCard({ terminalId }: { terminalId: string }) {
 
 export function StashBox() {
   const t = useT();
-  const items = useStashStore((s) => s.items);
+  const stashedTerminals = useProjectStore((s) => {
+    const result: Array<{ id: string; type: string }> = [];
+    for (const p of s.projects) {
+      for (const w of p.worktrees) {
+        for (const t of w.terminals) {
+          if (t.stashed) result.push({ id: t.id, type: t.type });
+        }
+      }
+    }
+    return result;
+  });
+  const items = stashedTerminals;
   const [expanded, setExpanded] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -196,10 +203,10 @@ export function StashBox() {
                   {t.stash_empty}
                 </div>
               ) : (
-                items.map((entry) => (
+                items.map((item) => (
                   <StashCard
-                    key={entry.terminal.id}
-                    terminalId={entry.terminal.id}
+                    key={item.id}
+                    terminalId={item.id}
                   />
                 ))
               )}
