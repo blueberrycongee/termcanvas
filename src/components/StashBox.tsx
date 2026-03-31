@@ -87,18 +87,22 @@ function StashCard({ terminalId }: { terminalId: string }) {
 
 export function StashBox() {
   const t = useT();
-  const stashedTerminals = useProjectStore((s) => {
-    const result: Array<{ id: string; type: string }> = [];
+  // Derive a stable string key so Zustand doesn't re-render on every selector call
+  const stashedKey = useProjectStore((s) => {
+    const ids: string[] = [];
     for (const p of s.projects) {
       for (const w of p.worktrees) {
         for (const t of w.terminals) {
-          if (t.stashed) result.push({ id: t.id, type: t.type });
+          if (t.stashed) ids.push(t.id);
         }
       }
     }
-    return result;
+    return ids.join(",");
   });
-  const items = stashedTerminals;
+  const items = useMemo(
+    () => stashedKey ? stashedKey.split(",").map((id) => ({ id })) : [],
+    [stashedKey],
+  );
   const [expanded, setExpanded] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
