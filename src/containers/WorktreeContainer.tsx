@@ -142,11 +142,15 @@ export function WorktreeContainer({
   const tileW = useTileDimensionsStore((s) => s.w);
   const tileH = useTileDimensionsStore((s) => s.h);
   const tileDims = { w: tileW, h: tileH };
-  const spans = worktree.terminals.map((t) => t.span);
+  const visibleTerminals = useMemo(
+    () => worktree.terminals.filter((t) => !t.stashed),
+    [worktree.terminals],
+  );
+  const spans = visibleTerminals.map((t) => t.span);
   const packed = packTerminals(spans, undefined, tileDims);
   const computedSize = getWorktreeSize(spans, worktree.collapsed, undefined, tileDims);
   const terminalLayouts = useMemo(() => {
-    return worktree.terminals.map((terminal, index) => {
+    return visibleTerminals.map((terminal, index) => {
       const item = packed[index];
       if (!item) {
         return null;
@@ -189,7 +193,7 @@ export function WorktreeContainer({
     worktree.collapsed,
     worktree.position.x,
     worktree.position.y,
-    worktree.terminals,
+    visibleTerminals,
   ]);
 
   useEffect(() => {
@@ -431,21 +435,15 @@ export function WorktreeContainer({
           overflow: "hidden",
         }}
       >
-        {terminalLayouts.map((layout) => {
-          if (!layout) {
-            return null;
-          }
-
-          return (
-            <TerminalRuntimeHandle
-              key={`runtime:${layout.terminal.id}`}
-              projectId={projectId}
-              terminal={layout.terminal}
-              worktreeId={worktree.id}
-              worktreePath={worktree.path}
-            />
-          );
-        })}
+        {worktree.terminals.map((terminal) => (
+          <TerminalRuntimeHandle
+            key={`runtime:${terminal.id}`}
+            projectId={projectId}
+            terminal={terminal}
+            worktreeId={worktree.id}
+            worktreePath={worktree.path}
+          />
+        ))}
         {terminalLayouts.map((layout, index) => {
           if (!layout || layout.lodMode === "unmounted" || layout.terminal.stashed) return null;
           const { item, terminal } = layout;
