@@ -31,13 +31,10 @@ async function ensureServer(): Promise<ServerState> {
     return existing;
   }
 
-  // Spawn a detached server process
+  // Spawn a detached server process using the current script with start-server
   const child = spawn(
     process.execPath,
-    [
-      "--experimental-strip-types",
-      new URL("./run-server.ts", import.meta.url).pathname,
-    ],
+    [process.argv[1], "start-server"],
     {
       detached: true,
       stdio: "ignore",
