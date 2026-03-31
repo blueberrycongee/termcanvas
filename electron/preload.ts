@@ -230,6 +230,20 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("fs:create-file", dirPath, name) as Promise<void>,
     reveal: (targetPath: string) =>
       ipcRenderer.invoke("fs:reveal", targetPath) as Promise<void>,
+    watchDir: (dirPath: string) =>
+      ipcRenderer.invoke("fs:watch-dir", dirPath) as Promise<void>,
+    unwatchDir: (dirPath: string) =>
+      ipcRenderer.invoke("fs:unwatch-dir", dirPath) as Promise<void>,
+    unwatchAllDirs: () =>
+      ipcRenderer.invoke("fs:unwatch-all-dirs") as Promise<void>,
+    onDirChanged: (callback: (dirPath: string) => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        dirPath: string,
+      ) => callback(dirPath);
+      ipcRenderer.on("fs:dir-changed", listener);
+      return () => ipcRenderer.removeListener("fs:dir-changed", listener);
+    },
   },
   memory: {
     scan: (worktreePath: string) =>

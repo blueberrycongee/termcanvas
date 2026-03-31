@@ -432,6 +432,10 @@ export interface TermCanvasAPI {
     mkdir: (dirPath: string, name: string) => Promise<void>;
     createFile: (dirPath: string, name: string) => Promise<void>;
     reveal: (targetPath: string) => Promise<void>;
+    watchDir: (dirPath: string) => Promise<void>;
+    unwatchDir: (dirPath: string) => Promise<void>;
+    unwatchAllDirs: () => Promise<void>;
+    onDirChanged: (callback: (dirPath: string) => void) => () => void;
   };
   memory: {
     scan: (worktreePath: string) => Promise<{

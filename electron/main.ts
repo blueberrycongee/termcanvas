@@ -9,6 +9,7 @@ import { PtyManager, OutputBatcher } from "./pty-manager";
 import { ProjectScanner } from "./project-scanner";
 import { StatePersistence, TERMCANVAS_DIR } from "./state-persistence";
 import { GitFileWatcher } from "./git-watcher";
+import { FileTreeWatcher } from "./file-tree-watcher";
 import { SessionWatcher, resolveSessionFile, type SessionType } from "./session-watcher";
 import { ApiServer } from "./api-server";
 import { sendToWindow } from "./window-events";
@@ -91,6 +92,8 @@ function cleanupPortFile() {
   } catch {}
 }
 
+const HIDDEN_DIRS = new Set(["node_modules", ".git", "dist", "build", "out"]);
+
 let mainWindow: BrowserWindow | null = null;
 let forceClose = false;
 const ptyManager = new PtyManager();
@@ -100,6 +103,9 @@ const outputBatcher = new OutputBatcher((ptyId, data) => {
 const projectScanner = new ProjectScanner();
 const statePersistence = new StatePersistence();
 const gitWatcher = new GitFileWatcher();
+const fileTreeWatcher = new FileTreeWatcher(HIDDEN_DIRS, (dirPath) => {
+  sendToWindow(mainWindow, "fs:dir-changed", dirPath);
+});
 const sessionWatcher = new SessionWatcher();
 const telemetryService = new TelemetryService();
 const apiServer = new ApiServer({
@@ -662,7 +668,6 @@ function setupIpc() {
   });
 
   // Filesystem IPC
-  const HIDDEN_DIRS = new Set(["node_modules", ".git", "dist", "build", "out"]);
   const IMAGE_EXTS_FS = new Set([".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"]);
   const MIME_MAP_FS: Record<string, string> = {
     ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -781,6 +786,16 @@ function setupIpc() {
       shell.showItemInFolder(targetPath);
     },
   );
+
+  ipcMain.handle("fs:watch-dir", (_event, dirPath: string) => {
+    fileTreeWatcher.watch(dirPath);
+  });
+  ipcMain.handle("fs:unwatch-dir", (_event, dirPath: string) => {
+    fileTreeWatcher.unwatch(dirPath);
+  });
+  ipcMain.handle("fs:unwatch-all-dirs", () => {
+    fileTreeWatcher.unwatchAll();
+  });
 
   // CLI registration
   ipcMain.handle("cli:is-registered", () => isCliRegistered(getCliDir()));
@@ -1099,6 +1114,7 @@ function setupIpc() {
     outputBatcher.dispose();
     await ptyManager.destroyAll();
     gitWatcher.unwatchAll();
+    fileTreeWatcher.unwatchAll();
     sessionWatcher.unwatchAll();
     forceClose = true;
     if (mainWindow) {
