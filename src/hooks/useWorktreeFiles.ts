@@ -17,12 +17,38 @@ export function useWorktreeFiles(worktreePath: string | null) {
       return;
     }
 
+    window.termcanvas.fs.unwatchAllDirs();
+
     setLoading(true);
     window.termcanvas.fs.listDir(worktreePath).then((items) => {
       setEntries(new Map([[worktreePath, items]]));
       setLoading(false);
     });
+
+    return () => {
+      window.termcanvas.fs.unwatchAllDirs();
+    };
   }, [worktreePath]);
+
+  const refreshDir = useCallback(
+    (dirPath: string) => {
+      window.termcanvas.fs.listDir(dirPath).then((items) => {
+        setEntries((prev) => new Map(prev).set(dirPath, items));
+      });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!window.termcanvas) return;
+    const unsub = window.termcanvas.fs.onDirChanged((dirPath) => {
+      setEntries((prev) => {
+        if (prev.has(dirPath)) refreshDir(dirPath);
+        return prev;
+      });
+    });
+    return unsub;
+  }, [refreshDir]);
 
   const toggleDir = useCallback(
     (dirPath: string) => {
@@ -30,8 +56,10 @@ export function useWorktreeFiles(worktreePath: string | null) {
         const next = new Set(prev);
         if (next.has(dirPath)) {
           next.delete(dirPath);
+          window.termcanvas.fs.unwatchDir(dirPath);
         } else {
           next.add(dirPath);
+          window.termcanvas.fs.watchDir(dirPath);
           if (!entries.has(dirPath)) {
             window.termcanvas.fs.listDir(dirPath).then((items) => {
               setEntries((prev) => new Map(prev).set(dirPath, items));
@@ -42,15 +70,6 @@ export function useWorktreeFiles(worktreePath: string | null) {
       });
     },
     [entries]
-  );
-
-  const refreshDir = useCallback(
-    (dirPath: string) => {
-      window.termcanvas.fs.listDir(dirPath).then((items) => {
-        setEntries((prev) => new Map(prev).set(dirPath, items));
-      });
-    },
-    [],
   );
 
   return { entries, expandedDirs, toggleDir, refreshDir, loading };
