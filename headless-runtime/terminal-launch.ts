@@ -160,18 +160,6 @@ export async function launchTrackedTerminal(
       status,
       exitCode,
     });
-    if (options.workflowId) {
-      options.eventBus?.emit(
-        exitCode === 0 ? "workflow_completed" : "workflow_failed",
-        {
-          workflowId: options.workflowId,
-          handoffId: options.handoffId,
-          repoPath: options.repoPath,
-          terminalId: terminal.id,
-          exitCode,
-        },
-      );
-    }
   });
 
   options.onMutation?.();
@@ -183,14 +171,6 @@ export async function launchTrackedTerminal(
     terminalId: terminal.id,
     type: terminal.type,
   });
-  if (options.workflowId) {
-    options.eventBus?.emit("workflow_started", {
-      workflowId: options.workflowId,
-      handoffId: options.handoffId,
-      repoPath: options.repoPath,
-      terminalId: terminal.id,
-    });
-  }
 
   return {
     id: terminal.id,

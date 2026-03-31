@@ -3,7 +3,14 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { TelemetryService } from "../electron/telemetry-service.ts";
+import { ServerEventBus } from "../headless-runtime/event-bus.ts";
+import { launchTrackedTerminal } from "../headless-runtime/terminal-launch.ts";
+import { ProjectStore } from "../headless-runtime/project-store.ts";
+import { createWorkflowControl } from "../headless-runtime/workflow-control.ts";
 import {
+  FakePtyManager,
+  addProjectWithMainWorktree,
   createWorkspaceFixture,
   startHeadlessServer,
   stopHeadlessServer,
@@ -34,6 +41,145 @@ function initRepo(repoPath: string): void {
   execFileSync("git", ["add", "README.md"], { cwd: repoPath, stdio: "pipe" });
   execFileSync("git", ["commit", "-m", "init"], { cwd: repoPath, stdio: "pipe" });
 }
+
+test("workflow-linked terminal exits do not emit workflow completion before the Hydra contract exists", async () => {
+  const workspaceDir = createWorkspaceFixture({});
+  const projectStore = new ProjectStore();
+  addProjectWithMainWorktree(projectStore, workspaceDir, "workflow-events");
+  const ptyManager = new FakePtyManager();
+  const telemetryService = new TelemetryService({
+    processPollIntervalMs: 0,
+    sessionPollIntervalMs: 0,
+  });
+  const eventBus = new ServerEventBus();
+
+  try {
+    await launchTrackedTerminal({
+      projectStore,
+      ptyManager,
+      telemetryService,
+      eventBus,
+      worktree: workspaceDir,
+      type: "codex",
+      workflowId: "workflow-test",
+      handoffId: "handoff-test",
+      repoPath: workspaceDir,
+    });
+
+    ptyManager.emitExit(1, 0);
+
+    assert.equal(
+      eventBus.getRecentEvents(10).some((event) => event.type === "workflow_completed"),
+      false,
+    );
+  } finally {
+    telemetryService.dispose();
+  }
+});
+
+test("workflow control emits workflow_completed only after Hydra marks the workflow complete", async () => {
+  const workspaceDir = createWorkspaceFixture({});
+  const repoPath = path.join(workspaceDir, "repo");
+  fs.mkdirSync(repoPath, { recursive: true });
+  initRepo(repoPath);
+
+  const worktrees = [
+    { path: repoPath, branch: "main", isMain: true },
+  ];
+  const projectStore = new ProjectStore();
+  const ptyManager = new FakePtyManager();
+  const telemetryService = new TelemetryService({
+    processPollIntervalMs: 0,
+    sessionPollIntervalMs: 0,
+  });
+  const eventBus = new ServerEventBus();
+  (ptyManager as { destroy: (ptyId: number) => void }).destroy = () => {};
+
+  const workflowControl = createWorkflowControl({
+    projectStore,
+    ptyManager,
+    telemetryService,
+    projectScanner: {
+      scan(dirPath: string) {
+        if (path.resolve(dirPath) !== repoPath) {
+          return null;
+        }
+        return {
+          name: "repo",
+          path: repoPath,
+          worktrees,
+        };
+      },
+      listWorktrees(dirPath: string) {
+        if (path.resolve(dirPath) !== repoPath) {
+          return [];
+        }
+        return worktrees;
+      },
+    },
+    eventBus,
+  });
+
+  try {
+    const started = await workflowControl.run({
+      task: "Implement headless workflow control",
+      repoPath,
+      worktreePath: repoPath,
+      template: "single-step",
+      allType: "codex",
+    });
+
+    assert.equal(
+      eventBus.getRecentEvents(10).some((event) => event.type === "workflow_started"),
+      true,
+    );
+    assert.equal(
+      eventBus.getRecentEvents(10).some((event) => event.type === "workflow_completed"),
+      false,
+    );
+
+    const handoff = started.handoffs[0];
+    fs.writeFileSync(
+      handoff.artifacts!.result_file,
+      JSON.stringify({
+        version: "hydra/v2",
+        handoff_id: handoff.id,
+        workflow_id: handoff.workflow_id,
+        success: true,
+        summary: "Completed workflow control implementation.",
+        outputs: [
+          {
+            path: "headless-runtime/workflow-control.ts",
+            description: "Workflow control implementation",
+          },
+        ],
+        evidence: ["workflow event test"],
+        next_action: { type: "complete", reason: "Workflow is complete." },
+      }, null, 2),
+      "utf-8",
+    );
+    fs.writeFileSync(
+      handoff.artifacts!.done_file,
+      JSON.stringify({
+        version: "hydra/v2",
+        handoff_id: handoff.id,
+        workflow_id: handoff.workflow_id,
+        result_file: handoff.artifacts!.result_file,
+      }, null, 2),
+      "utf-8",
+    );
+
+    const ticked = await workflowControl.tick(repoPath, started.workflow.id);
+
+    assert.equal(ticked.workflow.status, "completed");
+    assert.equal(
+      eventBus.getRecentEvents(10).some((event) => event.type === "workflow_completed"),
+      true,
+    );
+  } finally {
+    telemetryService.dispose();
+  }
+});
 
 test("workflow routes auto-track the repo and can complete a single-step run", async () => {
   const workspaceDir = createWorkspaceFixture({});

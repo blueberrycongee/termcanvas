@@ -91,6 +91,26 @@ function buildWorkflowSummary(record: WorkflowRecord): WorkflowSummary {
   };
 }
 
+function buildWorkflowEventPayload(view: WorkflowStatusView): Record<string, unknown> {
+  const currentHandoff = view.handoffs.find(
+    (handoff) => handoff.id === view.workflow.current_handoff_id,
+  );
+  return {
+    workflowId: view.workflow.id,
+    handoffId: view.workflow.current_handoff_id,
+    repoPath: view.workflow.repo_path,
+    terminalId: currentHandoff?.dispatch?.active_terminal_id,
+  };
+}
+
+function emitWorkflowEvent(
+  eventBus: ServerEventBus | undefined,
+  type: "workflow_started" | "workflow_completed" | "workflow_failed",
+  view: WorkflowStatusView,
+): void {
+  eventBus?.emit(type, buildWorkflowEventPayload(view));
+}
+
 export function createWorkflowControl(
   input: WorkflowControlDeps,
 ): WorkflowControl {
@@ -176,8 +196,8 @@ export function createWorkflowControl(
   };
 
   return {
-    run(request) {
-      return runWorkflow(
+    async run(request) {
+      const view = await runWorkflow(
         {
           task: request.task,
           repoPath: request.repoPath,
@@ -193,6 +213,8 @@ export function createWorkflowControl(
         },
         workflowDependencies,
       );
+      emitWorkflowEvent(input.eventBus, "workflow_started", view);
+      return view;
     },
     list(repoPath) {
       return listWorkflows(path.resolve(repoPath))
@@ -202,17 +224,31 @@ export function createWorkflowControl(
     status(repoPath, workflowId) {
       return getWorkflowStatus({ repoPath: path.resolve(repoPath), workflowId });
     },
-    tick(repoPath, workflowId) {
-      return tickWorkflow(
+    async tick(repoPath, workflowId) {
+      const previous = loadWorkflow(path.resolve(repoPath), workflowId);
+      const view = await tickWorkflow(
         { repoPath: path.resolve(repoPath), workflowId },
         workflowDependencies,
       );
+      if (view.workflow.status === "completed" && previous?.status !== "completed") {
+        emitWorkflowEvent(input.eventBus, "workflow_completed", view);
+      } else if (view.workflow.status === "failed" && previous?.status !== "failed") {
+        emitWorkflowEvent(input.eventBus, "workflow_failed", view);
+      }
+      return view;
     },
-    retry(repoPath, workflowId) {
-      return retryWorkflow(
+    async retry(repoPath, workflowId) {
+      const previous = loadWorkflow(path.resolve(repoPath), workflowId);
+      const view = await retryWorkflow(
         { repoPath: path.resolve(repoPath), workflowId },
         workflowDependencies,
       );
+      if (view.workflow.status === "completed" && previous?.status !== "completed") {
+        emitWorkflowEvent(input.eventBus, "workflow_completed", view);
+      } else if (view.workflow.status === "failed" && previous?.status !== "failed") {
+        emitWorkflowEvent(input.eventBus, "workflow_failed", view);
+      }
+      return view;
     },
     cleanup(repoPath, workflowId, force = false) {
       const resolvedRepo = path.resolve(repoPath);
