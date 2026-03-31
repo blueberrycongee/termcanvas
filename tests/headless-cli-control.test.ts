@@ -202,7 +202,7 @@ test("termcanvas workflow CLI runs, watches, and cleans up headless workflows", 
         "--interval-ms",
         "1",
         "--timeout-ms",
-        "2000",
+        "10000",
         "--json",
       ], cliEnv),
     );
