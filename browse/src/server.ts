@@ -149,27 +149,52 @@ export async function startServer(port = 0): Promise<{
         return;
       }
 
+      let b: Browser;
+      let page: Page;
       try {
-        const { browser: b, page } = await ensureBrowser();
-        const context: BrowseContext = {
-          browser: b,
-          page,
-          consoleMessages,
-          refMap,
-          setPage: (p: Page) => {
-            activePage = p;
-          },
-          listenedPages,
-          cwd: parsed.cwd || process.cwd(),
-          pushConsoleMessage,
-        };
+        ({ browser: b, page } = await ensureBrowser());
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        const hint = message.includes("Executable doesn't exist")
+          ? "Chromium is not installed. Run: npx playwright install chromium"
+          : `failed to start browser: ${message}`;
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: hint }));
+        resetIdle();
+        return;
+      }
+
+      const context: BrowseContext = {
+        browser: b,
+        page,
+        consoleMessages,
+        refMap,
+        setPage: (p: Page) => {
+          activePage = p;
+        },
+        listenedPages,
+        cwd: parsed.cwd || process.cwd(),
+        pushConsoleMessage,
+      };
+
+      try {
         const result = await handler(page, parsed.args, context);
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify(result));
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ ok: false, error: message }));
+        const isTimeout = message.includes("Timeout") || message.includes("exceeded");
+        const isDisconnected = message.includes("Target closed") || message.includes("Browser closed");
+        const status = isDisconnected ? 503 : 200;
+        res.writeHead(status, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          ok: false,
+          error: isTimeout
+            ? `timeout: ${message}`
+            : isDisconnected
+              ? `browser disconnected: ${message}`
+              : message,
+        }));
       }
       resetIdle();
       return;
