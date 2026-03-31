@@ -34,6 +34,9 @@ function installBrowserGlobals() {
   Object.defineProperty(globalThis, "window", {
     configurable: true,
     value: {
+      addEventListener() {},
+      innerHeight: 900,
+      innerWidth: 1440,
       navigator,
       termcanvas: undefined,
     },

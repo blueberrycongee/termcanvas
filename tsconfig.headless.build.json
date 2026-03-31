@@ -6,8 +6,11 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "noEmit": true,
     "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "outDir": "dist-headless",
+    "rootDir": ".",
+    "declaration": false,
     "resolveJsonModule": true,
     "isolatedModules": true
   },

@@ -2,36 +2,64 @@ import http from "http";
 import fs from "fs";
 import { resolveTermCanvasPortFile } from "../shared/termcanvas-instance";
 
-function getPort(): number {
+const CONNECTION_TIMEOUT_MS = 10_000;
+const MAX_RETRIES = 3;
+const RETRYABLE_CODES = new Set(["ECONNREFUSED", "ETIMEDOUT", "ECONNRESET"]);
+
+function getConnection(): { hostname: string; port: number } {
+  const envUrl = process.env.TERMCANVAS_URL?.trim();
+  if (envUrl) {
+    try {
+      const parsed = new URL(envUrl);
+      const port = parsed.port
+        ? parseInt(parsed.port, 10)
+        : parsed.protocol === "https:" ? 443 : 80;
+      return { hostname: parsed.hostname, port };
+    } catch {
+      console.error(`Invalid TERMCANVAS_URL: ${envUrl}`);
+      process.exit(1);
+    }
+  }
+
+  const envHost = process.env.TERMCANVAS_HOST?.trim();
+  const envPort = process.env.TERMCANVAS_PORT?.trim();
+
+  if (envHost && envPort) {
+    return { hostname: envHost, port: parseInt(envPort, 10) };
+  }
+
   const portFile = resolveTermCanvasPortFile(process.env);
   try {
-    return parseInt(fs.readFileSync(portFile, "utf-8").trim(), 10);
+    const port = parseInt(fs.readFileSync(portFile, "utf-8").trim(), 10);
+    return { hostname: "127.0.0.1", port };
   } catch {
     console.error(`TermCanvas is not running (no port file found at ${portFile}).`);
     process.exit(1);
   }
 }
 
-function request(method: string, urlPath: string, body?: any): Promise<any> {
-  const port = getPort();
+const apiToken = process.env.TERMCANVAS_API_TOKEN?.trim();
+
+function requestOnce(
+  method: string,
+  urlPath: string,
+  body?: unknown,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any> {
+  const { hostname, port } = getConnection();
   return new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : undefined;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (data) headers["Content-Length"] = String(Buffer.byteLength(data));
+    if (apiToken) headers["Authorization"] = `Bearer ${apiToken}`;
+
     const req = http.request(
-      {
-        hostname: "127.0.0.1",
-        port,
-        path: urlPath,
-        method,
-        headers: {
-          "Content-Type": "application/json",
-          ...(data
-            ? { "Content-Length": String(Buffer.byteLength(data)) }
-            : {}),
-        },
-      },
+      { hostname, port, path: urlPath, method, headers, timeout: CONNECTION_TIMEOUT_MS },
       (res) => {
         let responseBody = "";
-        res.on("data", (chunk) => (responseBody += chunk));
+        res.on("data", (chunk: string) => (responseBody += chunk));
         res.on("end", () => {
           try {
             const json = JSON.parse(responseBody);
@@ -46,13 +74,47 @@ function request(method: string, urlPath: string, body?: any): Promise<any> {
         });
       },
     );
-    req.on("error", (err) => {
-      console.error("Failed to connect to TermCanvas:", err.message);
-      process.exit(1);
+    req.on("timeout", () => {
+      req.destroy(new Error("ETIMEDOUT"));
     });
+    req.on("error", (err) => reject(err));
     if (data) req.write(data);
     req.end();
   });
+}
+
+async function request(
+  method: string,
+  urlPath: string,
+  body?: unknown,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await requestOnce(method, urlPath, body);
+    } catch (err: unknown) {
+      lastError = err;
+      const code = err instanceof Error && "code" in err
+        ? (err as NodeJS.ErrnoException).code
+        : undefined;
+      const isTimeout = err instanceof Error && err.message === "ETIMEDOUT";
+      if ((code && RETRYABLE_CODES.has(code)) || isTimeout) {
+        if (attempt < MAX_RETRIES) {
+          const delay = 1000 * 2 ** attempt;
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+      }
+      throw err;
+    }
+  }
+  const { hostname, port } = getConnection();
+  console.error(
+    `Failed to connect to TermCanvas at ${hostname}:${port} after ${MAX_RETRIES + 1} attempts.\n` +
+    `Check that the server is running and the host/port are correct.`,
+  );
+  throw lastError;
 }
 
 const args = process.argv.slice(2);
@@ -95,6 +157,230 @@ async function main() {
         else console.log(`Rescanned. ${result.worktrees} worktree(s) found.`);
       } else {
         console.log("Usage: termcanvas project <add|list|remove> [args]");
+      }
+    } else if (group === "workflow") {
+      if (command === "run") {
+        const taskIdx = rest.indexOf("--task");
+        const repoIdx = rest.indexOf("--repo");
+        const worktreeIdx = rest.indexOf("--worktree");
+        const templateIdx = rest.indexOf("--template");
+        const allTypeIdx = rest.indexOf("--all-type");
+        const plannerTypeIdx = rest.indexOf("--planner-type");
+        const implementerTypeIdx = rest.indexOf("--implementer-type");
+        const evaluatorTypeIdx = rest.indexOf("--evaluator-type");
+        const timeoutIdx = rest.indexOf("--timeout-minutes");
+        const retriesIdx = rest.indexOf("--max-retries");
+        const task = taskIdx >= 0 ? rest[taskIdx + 1] : undefined;
+        const repo = repoIdx >= 0 ? rest[repoIdx + 1] : undefined;
+        const worktree = worktreeIdx >= 0 ? rest[worktreeIdx + 1] : undefined;
+        const template = templateIdx >= 0 ? rest[templateIdx + 1] : undefined;
+        const allType = allTypeIdx >= 0 ? rest[allTypeIdx + 1] : undefined;
+        const plannerType = plannerTypeIdx >= 0 ? rest[plannerTypeIdx + 1] : undefined;
+        const implementerType = implementerTypeIdx >= 0 ? rest[implementerTypeIdx + 1] : undefined;
+        const evaluatorType = evaluatorTypeIdx >= 0 ? rest[evaluatorTypeIdx + 1] : undefined;
+        const timeoutMinutes = timeoutIdx >= 0 ? parseInt(rest[timeoutIdx + 1], 10) : undefined;
+        const maxRetries = retriesIdx >= 0 ? parseInt(rest[retriesIdx + 1], 10) : undefined;
+        const autoApprove = !rest.includes("--no-auto-approve");
+        const approvePlan = rest.includes("--approve-plan");
+
+        if (!task) {
+          console.error("--task is required");
+          process.exit(1);
+        }
+        if (!repo) {
+          console.error("--repo is required");
+          process.exit(1);
+        }
+
+        const result = await request("POST", "/workflow/run", {
+          task,
+          repo,
+          ...(worktree ? { worktree } : {}),
+          ...(template ? { template } : {}),
+          ...(allType ? { allType } : {}),
+          ...(plannerType ? { plannerType } : {}),
+          ...(implementerType ? { implementerType } : {}),
+          ...(evaluatorType ? { evaluatorType } : {}),
+          ...(timeoutMinutes ? { timeoutMinutes } : {}),
+          ...(maxRetries !== undefined ? { maxRetries } : {}),
+          autoApprove,
+          approvePlan,
+        });
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log(`Started workflow ${result.workflow.id}.`);
+      } else if (command === "list") {
+        const repoIdx = rest.indexOf("--repo");
+        const repo = repoIdx >= 0 ? rest[repoIdx + 1] : undefined;
+        if (!repo) {
+          console.error("--repo is required");
+          process.exit(1);
+        }
+        const result = await request(
+          "GET",
+          `/workflow/list?repo=${encodeURIComponent(repo)}`,
+        );
+        if (jsonFlag) {
+          console.log(JSON.stringify(result, null, 2));
+          return;
+        }
+        if (result.length === 0) {
+          console.log("No workflows.");
+          return;
+        }
+        for (const workflow of result) {
+          console.log(
+            `${workflow.id}  ${workflow.status}  ${workflow.current_handoff_id}  ${workflow.updated_at}`,
+          );
+        }
+      } else if (
+        (command === "status" || command === "tick" || command === "retry" || command === "cleanup" || command === "watch") &&
+        rest[0]
+      ) {
+        const workflowId = rest[0];
+        const repoIdx = rest.indexOf("--repo");
+        const repo = repoIdx >= 0 ? rest[repoIdx + 1] : undefined;
+        if (!repo) {
+          console.error("--repo is required");
+          process.exit(1);
+        }
+
+        if (command === "status") {
+          const result = await request(
+            "GET",
+            `/workflow/${encodeURIComponent(workflowId)}?repo=${encodeURIComponent(repo)}`,
+          );
+          if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+          else console.log(`${result.workflow.status}  ${result.workflow.current_handoff_id}`);
+        } else if (command === "tick") {
+          const result = await request(
+            "POST",
+            `/workflow/${encodeURIComponent(workflowId)}/tick`,
+            { repo },
+          );
+          if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+          else console.log(`${result.workflow.status}  ${result.workflow.current_handoff_id}`);
+        } else if (command === "retry") {
+          const result = await request(
+            "POST",
+            `/workflow/${encodeURIComponent(workflowId)}/retry`,
+            { repo },
+          );
+          if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+          else console.log(`${result.workflow.status}  ${result.workflow.current_handoff_id}`);
+        } else if (command === "cleanup") {
+          const force = rest.includes("--force");
+          const query = new URLSearchParams({ repo });
+          if (force) query.set("force", "true");
+          const result = await request(
+            "DELETE",
+            `/workflow/${encodeURIComponent(workflowId)}?${query.toString()}`,
+          );
+          if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+          else console.log("Cleaned up.");
+        } else {
+          const intervalIdx = rest.indexOf("--interval-ms");
+          const timeoutIdx = rest.indexOf("--timeout-ms");
+          const intervalMs = intervalIdx >= 0 ? parseInt(rest[intervalIdx + 1], 10) : 30_000;
+          const timeoutMs = timeoutIdx >= 0 ? parseInt(rest[timeoutIdx + 1], 10) : 3_600_000;
+          const startedAt = Date.now();
+          let result = await request(
+            "POST",
+            `/workflow/${encodeURIComponent(workflowId)}/tick`,
+            { repo },
+          );
+          while (
+            result.workflow.status !== "completed" &&
+            result.workflow.status !== "failed" &&
+            result.workflow.status !== "waiting_for_approval" &&
+            Date.now() - startedAt < timeoutMs
+          ) {
+            await new Promise((resolve) => setTimeout(resolve, intervalMs));
+            result = await request(
+              "POST",
+              `/workflow/${encodeURIComponent(workflowId)}/tick`,
+              { repo },
+            );
+          }
+          if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+          else console.log(`${result.workflow.status}  ${result.workflow.current_handoff_id}`);
+        }
+      } else {
+        console.log(
+          "Usage: termcanvas workflow <run|list|status|tick|watch|retry|cleanup> [args]",
+        );
+      }
+    } else if (group === "worktree") {
+      if (command === "list") {
+        const repoIdx = rest.indexOf("--repo");
+        const repo = repoIdx >= 0 ? rest[repoIdx + 1] : undefined;
+        if (!repo) {
+          console.error("--repo is required");
+          process.exit(1);
+        }
+        const result = await request(
+          "GET",
+          `/worktree/list?repo=${encodeURIComponent(repo)}`,
+        );
+        if (jsonFlag) {
+          console.log(JSON.stringify(result, null, 2));
+          return;
+        }
+        if (result.length === 0) {
+          console.log("No worktrees.");
+          return;
+        }
+        for (const worktree of result) {
+          console.log(`${worktree.path}  ${worktree.branch}`);
+        }
+      } else if (command === "create") {
+        const repoIdx = rest.indexOf("--repo");
+        const branchIdx = rest.indexOf("--branch");
+        const pathIdx = rest.indexOf("--path");
+        const baseBranchIdx = rest.indexOf("--base-branch");
+        const repo = repoIdx >= 0 ? rest[repoIdx + 1] : undefined;
+        const branch = branchIdx >= 0 ? rest[branchIdx + 1] : undefined;
+        const worktreePath = pathIdx >= 0 ? rest[pathIdx + 1] : undefined;
+        const baseBranch = baseBranchIdx >= 0 ? rest[baseBranchIdx + 1] : undefined;
+        if (!repo) {
+          console.error("--repo is required");
+          process.exit(1);
+        }
+        if (!branch) {
+          console.error("--branch is required");
+          process.exit(1);
+        }
+        const result = await request("POST", "/worktree/create", {
+          repo,
+          branch,
+          ...(worktreePath ? { path: worktreePath } : {}),
+          ...(baseBranch ? { baseBranch } : {}),
+        });
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log(`Created ${result.path}.`);
+      } else if (command === "remove") {
+        const repoIdx = rest.indexOf("--repo");
+        const pathIdx = rest.indexOf("--path");
+        const repo = repoIdx >= 0 ? rest[repoIdx + 1] : undefined;
+        const worktreePath = pathIdx >= 0 ? rest[pathIdx + 1] : undefined;
+        const force = rest.includes("--force");
+        if (!repo) {
+          console.error("--repo is required");
+          process.exit(1);
+        }
+        if (!worktreePath) {
+          console.error("--path is required");
+          process.exit(1);
+        }
+        const query = new URLSearchParams({
+          repo,
+          path: worktreePath,
+        });
+        if (force) query.set("force", "true");
+        const result = await request("DELETE", `/worktree?${query.toString()}`);
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log("Removed.");
+      } else {
+        console.log("Usage: termcanvas worktree <list|create|remove> [args]");
       }
     } else if (group === "terminal") {
       if (command === "create") {
@@ -265,7 +551,7 @@ async function main() {
       console.log(JSON.stringify(state, null, 2));
     } else {
       console.log(
-        "Usage: termcanvas <project|terminal|telemetry|diff|state> <command> [args]",
+        "Usage: termcanvas <project|workflow|worktree|terminal|telemetry|diff|state> <command> [args]",
       );
       console.log("");
       console.log("Commands:");
@@ -280,6 +566,36 @@ async function main() {
       );
       console.log(
         "  project rescan <id>                         Rescan worktrees",
+      );
+      console.log(
+        "  workflow run --task <t> --repo <p>         Start a workflow",
+      );
+      console.log(
+        "  workflow list --repo <p>                   List workflows",
+      );
+      console.log(
+        "  workflow status <id> --repo <p>            Get workflow status",
+      );
+      console.log(
+        "  workflow tick <id> --repo <p>              Advance one workflow tick",
+      );
+      console.log(
+        "  workflow watch <id> --repo <p>             Poll workflow until terminal state",
+      );
+      console.log(
+        "  workflow retry <id> --repo <p>             Retry failed workflow",
+      );
+      console.log(
+        "  workflow cleanup <id> --repo <p>           Clean up workflow runtime state",
+      );
+      console.log(
+        "  worktree list --repo <p>                   List worktrees",
+      );
+      console.log(
+        "  worktree create --repo <p> --branch <b>    Create a worktree",
+      );
+      console.log(
+        "  worktree remove --repo <p> --path <p>      Remove a worktree",
       );
       console.log(
         "  terminal create --worktree <p> --type <t>   Create terminal",

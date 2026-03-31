@@ -1,0 +1,13 @@
+.git
+.hydra
+.worktrees
+.DS_Store
+node_modules
+dist
+dist-cli
+dist-electron
+dist-headless
+coverage
+*.log
+.env
+server/.env

@@ -1,0 +1,247 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { execFile, execFileSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+import { ProjectScanner } from "../electron/project-scanner.ts";
+import {
+  createWorkspaceFixture,
+  startHeadlessServer,
+  stopHeadlessServer,
+} from "./headless-runtime-test-helpers.ts";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const execFileAsync = promisify(execFile);
+
+function initRepo(repoPath: string): void {
+  execFileSync("git", ["init", "-b", "main"], { cwd: repoPath, stdio: "pipe" });
+  execFileSync("git", ["config", "user.email", "test@example.com"], {
+    cwd: repoPath,
+    stdio: "pipe",
+  });
+  execFileSync("git", ["config", "user.name", "TermCanvas Test"], {
+    cwd: repoPath,
+    stdio: "pipe",
+  });
+  fs.writeFileSync(path.join(repoPath, "README.md"), "hello\n", "utf-8");
+  execFileSync("git", ["add", "README.md"], { cwd: repoPath, stdio: "pipe" });
+  execFileSync("git", ["commit", "-m", "init"], { cwd: repoPath, stdio: "pipe" });
+}
+
+async function runCli(args: string[], env: NodeJS.ProcessEnv): Promise<string> {
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ["--import", "tsx", "cli/termcanvas.ts", ...args],
+    {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        ...env,
+      },
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  return stdout.trim();
+}
+
+test("termcanvas workflow CLI runs, watches, and cleans up headless workflows", async () => {
+  const workspaceDir = createWorkspaceFixture({});
+  const repoPath = path.join(workspaceDir, "repo");
+  fs.mkdirSync(repoPath, { recursive: true });
+  initRepo(repoPath);
+
+  const worktrees = [{ path: repoPath, branch: "main", isMain: true }];
+
+  const harness = await startHeadlessServer({
+    workspaceDir,
+    projectScanner: {
+      scan(dirPath: string) {
+        if (path.resolve(dirPath) !== repoPath) {
+          return null;
+        }
+        return {
+          name: "repo",
+          path: repoPath,
+          worktrees,
+        };
+      },
+      listWorktrees(dirPath: string) {
+        if (path.resolve(dirPath) !== repoPath) {
+          return [];
+        }
+        return worktrees;
+      },
+    },
+  });
+
+  const cliEnv = { TERMCANVAS_URL: harness.baseUrl };
+
+  try {
+    const started = JSON.parse(
+      await runCli([
+        "workflow",
+        "run",
+        "--task",
+        "Implement headless workflow control",
+        "--repo",
+        repoPath,
+        "--worktree",
+        repoPath,
+        "--template",
+        "single-step",
+        "--all-type",
+        "codex",
+        "--json",
+      ], cliEnv),
+    );
+
+    assert.equal(started.workflow.status, "running");
+    assert.equal(started.workflow.worktree_path, repoPath);
+    assert.equal(harness.ptyManager.creates.length, 1);
+    assert.equal(harness.ptyManager.creates[0].shell, "codex");
+
+    const listed = JSON.parse(
+      await runCli(["workflow", "list", "--repo", repoPath, "--json"], cliEnv),
+    );
+    assert.equal(listed.length, 1);
+    assert.equal(listed[0].id, started.workflow.id);
+
+    const status = JSON.parse(
+      await runCli([
+        "workflow",
+        "status",
+        started.workflow.id,
+        "--repo",
+        repoPath,
+        "--json",
+      ], cliEnv),
+    );
+    assert.equal(status.workflow.status, "running");
+    assert.equal(status.workflow.current_handoff_id, started.handoffs[0].id);
+
+    const handoff = started.handoffs[0];
+    fs.writeFileSync(
+      handoff.artifacts.result_file,
+      JSON.stringify({
+        version: "hydra/v2",
+        handoff_id: handoff.id,
+        workflow_id: handoff.workflow_id,
+        success: true,
+        summary: "Completed workflow control implementation.",
+        outputs: [
+          {
+            path: "headless-runtime/workflow-control.ts",
+            description: "Workflow control implementation",
+          },
+        ],
+        evidence: ["cli workflow test"],
+        next_action: { type: "complete", reason: "Workflow is complete." },
+      }, null, 2),
+      "utf-8",
+    );
+    fs.writeFileSync(
+      handoff.artifacts.done_file,
+      JSON.stringify({
+        version: "hydra/v2",
+        handoff_id: handoff.id,
+        workflow_id: handoff.workflow_id,
+        result_file: handoff.artifacts.result_file,
+      }, null, 2),
+      "utf-8",
+    );
+
+    const watched = JSON.parse(
+      await runCli([
+        "workflow",
+        "watch",
+        started.workflow.id,
+        "--repo",
+        repoPath,
+        "--interval-ms",
+        "1",
+        "--timeout-ms",
+        "2000",
+        "--json",
+      ], cliEnv),
+    );
+    assert.equal(watched.workflow.status, "completed");
+    assert.equal(harness.projectStore.listTerminals().length, 0);
+
+    const cleaned = JSON.parse(
+      await runCli([
+        "workflow",
+        "cleanup",
+        started.workflow.id,
+        "--repo",
+        repoPath,
+        "--json",
+      ], cliEnv),
+    );
+    assert.equal(cleaned.ok, true);
+    assert.equal(
+      fs.existsSync(path.join(repoPath, ".hydra", "workflows", started.workflow.id)),
+      false,
+    );
+  } finally {
+    await stopHeadlessServer(harness);
+  }
+});
+
+test("termcanvas worktree CLI creates, lists, and removes headless worktrees", async () => {
+  const workspaceDir = createWorkspaceFixture({});
+  const repoPath = path.join(workspaceDir, "repo");
+  fs.mkdirSync(repoPath, { recursive: true });
+  initRepo(repoPath);
+
+  const harness = await startHeadlessServer({
+    workspaceDir,
+    projectScanner: new ProjectScanner(),
+  });
+
+  const cliEnv = { TERMCANVAS_URL: harness.baseUrl };
+
+  try {
+    const created = JSON.parse(
+      await runCli([
+        "worktree",
+        "create",
+        "--repo",
+        repoPath,
+        "--branch",
+        "feature/cloud-cli",
+        "--json",
+      ], cliEnv),
+    );
+    assert.equal(created.branch, "feature/cloud-cli");
+    assert.equal(fs.existsSync(created.path), true);
+
+    const listed = JSON.parse(
+      await runCli(["worktree", "list", "--repo", repoPath, "--json"], cliEnv),
+    );
+    assert.equal(listed.length, 2);
+    assert.equal(
+      listed.some((worktree: { branch: string }) => worktree.branch === "feature/cloud-cli"),
+      true,
+    );
+
+    const removed = JSON.parse(
+      await runCli([
+        "worktree",
+        "remove",
+        "--repo",
+        repoPath,
+        "--path",
+        created.path,
+        "--force",
+        "--json",
+      ], cliEnv),
+    );
+    assert.equal(removed.ok, true);
+    assert.equal(fs.existsSync(created.path), false);
+  } finally {
+    await stopHeadlessServer(harness);
+  }
+});

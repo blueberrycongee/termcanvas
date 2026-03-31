@@ -303,7 +303,12 @@ export function getProcessListCommand(
  */
 export async function detectCli(
   shellPid: number,
-): Promise<{ cliType: string; pid?: number; sessionName?: string } | null> {
+): Promise<{
+  cliType: string;
+  pid?: number;
+  sessionName?: string;
+  autoApprove?: boolean;
+} | null> {
   const processListCommand = getProcessListCommand();
   const processOutput = await new Promise<string>((resolve, reject) => {
     execFile(processListCommand.command, processListCommand.args, (err, stdout) => {

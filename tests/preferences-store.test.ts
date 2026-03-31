@@ -70,15 +70,21 @@ test("preferences stores and retrieves cliCommands", async () => {
   assert.deepEqual(usePreferencesStore.getState().cliCommands, {});
 });
 
-test("smartRenderEnabled defaults to true and persists toggle", async () => {
-  installLocalStorage();
+test("preferences ignore removed smart render settings while preserving supported values", async () => {
+  installLocalStorage(JSON.stringify({
+    smartRenderEnabled: false,
+    animationBlur: 1.5,
+  }));
 
-  const { usePreferencesStore } = await loadPreferencesStoreModule("smart-render");
-  assert.equal(usePreferencesStore.getState().smartRenderEnabled, true);
+  const { usePreferencesStore } = await loadPreferencesStoreModule("smart-render-removed");
+  const store = usePreferencesStore.getState();
 
-  usePreferencesStore.getState().setSmartRenderEnabled(false);
-  assert.equal(usePreferencesStore.getState().smartRenderEnabled, false);
+  assert.equal("smartRenderEnabled" in store, false);
+  assert.equal(store.animationBlur, 1.5);
+
+  store.setAnimationBlur(0);
 
   const raw = JSON.parse(localStorage.getItem("termcanvas-preferences")!);
-  assert.equal(raw.smartRenderEnabled, false);
+  assert.equal("smartRenderEnabled" in raw, false);
+  assert.equal(raw.animationBlur, 0);
 });

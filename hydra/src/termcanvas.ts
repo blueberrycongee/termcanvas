@@ -112,6 +112,10 @@ export function projectList(): any[] {
   return tc("project", "list");
 }
 
+export function projectAdd(repoPath: string): any {
+  return tc("project", "add", [repoPath]);
+}
+
 export function projectRescan(projectId: string): void {
   tc("project", "rescan", [projectId]);
 }
@@ -171,4 +175,32 @@ export function findProjectByPath(repoPath: string): { id: string; path: string 
     }
   }
   return null;
+}
+
+export function ensureProjectTracked(repoPath: string): { id: string; path: string } {
+  const abs = path.resolve(repoPath);
+  const existing = findProjectByPath(abs);
+  if (existing) {
+    projectRescan(existing.id);
+    return existing;
+  }
+
+  const created = projectAdd(abs);
+  const createdId =
+    created && typeof created.id === "string" && created.id
+      ? created.id
+      : undefined;
+  if (createdId) {
+    return { id: createdId, path: abs };
+  }
+
+  const tracked = findProjectByPath(abs);
+  if (!tracked) {
+    throw new HydraError(`Repo not found on TermCanvas canvas after add: ${abs}`, {
+      errorCode: "TERMCANVAS_PROJECT_TRACK_FAILED",
+      stage: "termcanvas.ensure_project",
+      ids: {},
+    });
+  }
+  return tracked;
 }

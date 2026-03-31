@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import crypto from "node:crypto";
 import {
+  ensureProjectTracked,
   findProjectByPath,
   projectRescan,
 } from "./termcanvas.ts";
@@ -124,11 +125,6 @@ export async function spawn(args: string[]): Promise<void> {
     );
   }
 
-  const project = findProjectByPath(repo);
-  if (!project) {
-    throw new Error(`Repo not found on TermCanvas canvas: ${repo}`);
-  }
-
   const agentId = generateAgentId();
   const workflowId = `workflow-${agentId}`;
   const handoffId = `handoff-${agentId}`;
@@ -150,10 +146,10 @@ export async function spawn(args: string[]): Promise<void> {
       encoding: "utf-8",
     });
     ownWorktree = true;
-
-    // Trigger TermCanvas to detect new worktree
-    projectRescan(project.id);
   }
+
+  const project = ensureProjectTracked(repo);
+  projectRescan(project.id);
 
   const taskPackage = buildTaskPackageContext({
     workspaceRoot: worktreePath,

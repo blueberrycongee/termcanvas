@@ -1,0 +1,28 @@
+services:
+  termcanvas:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+      args:
+        TERMCANVAS_AGENT_CLI_PACKAGE: ${TERMCANVAS_AGENT_CLI_PACKAGE:-@openai/codex}
+    ports:
+      - "${TERMCANVAS_PORT:-7080}:7080"
+    env_file:
+      - .env
+    environment:
+      - TERMCANVAS_HOST=0.0.0.0
+      - TERMCANVAS_PORT=7080
+      - TERMCANVAS_INSTANCE=${TERMCANVAS_INSTANCE:-prod}
+      - WORKSPACE_DIR=${WORKSPACE_DIR:-/workspace}
+    volumes:
+      - termcanvas-data:/home/termcanvas/.termcanvas
+      - "${HOST_WORKSPACE_DIR:-./_workspace}:${WORKSPACE_DIR:-/workspace}"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+volumes:
+  termcanvas-data:

@@ -4,7 +4,9 @@
  * Same HTTP API contract (routes, request/response shapes) as the Electron version.
  */
 
+import fs from "node:fs";
 import http from "node:http";
+import path from "node:path";
 import { URL } from "node:url";
 import { WebSocketServer, WebSocket } from "ws";
 import type { ProjectStore } from "./project-store.ts";
@@ -12,25 +14,96 @@ import type { PtyManager } from "../electron/pty-manager.ts";
 import type { ProjectScanner } from "../electron/project-scanner.ts";
 import { getApiDiff } from "../electron/git-diff.ts";
 import type { TelemetryService } from "../electron/telemetry-service.ts";
+import type { TerminalType } from "./project-store.ts";
+import type { ServerEventBus } from "./event-bus.ts";
+import { ensureProjectTracked, rescanTrackedProject } from "./project-sync.ts";
+import { createWorktreeControl, type WorktreeControl } from "./worktree-control.ts";
+import { createWorkflowControl, type WorkflowControl } from "./workflow-control.ts";
+import { destroyTrackedTerminal, launchTrackedTerminal } from "./terminal-launch.ts";
+import { listActiveWorkflowSummaries } from "./workflow-status.ts";
 
 interface HeadlessApiServerDeps {
   projectStore: ProjectStore;
   ptyManager: PtyManager;
   projectScanner: ProjectScanner;
   telemetryService: TelemetryService;
+  eventBus?: ServerEventBus;
   workspaceDir?: string;
+  onMutation?: () => void;
+  rateLimit?: number;
+  corsOrigins?: string[];
+  serverVersion?: string;
+  workflowControl?: WorkflowControl;
+  worktreeControl?: WorktreeControl;
 }
+
+interface RateLimitEntry {
+  count: number;
+  resetAt: number;
+}
+
+const CREDENTIAL_ENV_KEYS = [
+  "ANTHROPIC_API_KEY",
+  "OPENAI_API_KEY",
+  "OPENROUTER_API_KEY",
+  "GEMINI_API_KEY",
+  "DEEPSEEK_API_KEY",
+  "TERMCANVAS_API_TOKEN",
+] as const;
 
 export class HeadlessApiServer {
   private server: http.Server | null = null;
   private wss: WebSocketServer | null = null;
   private readonly deps: HeadlessApiServerDeps;
+  private readonly startedAt = Date.now();
+  private readonly apiToken: string | undefined;
+  private readonly rateLimit: number;
+  private readonly rateLimitMap = new Map<string, RateLimitEntry>();
+  private rateLimitCleanupTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly corsOrigins: string[];
+  private readonly serverVersion: string;
+  private ready = false;
+  private diskUsageBytes: number | null = null;
+  private diskUsageTimer: ReturnType<typeof setInterval> | null = null;
+  private diskUsageRefresh: Promise<number> | null = null;
+  private sseConnectionCount = 0;
+  private static readonly MAX_SSE_CONNECTIONS = 50;
+  private boundHost = "127.0.0.1";
+  private boundPort = 0;
+  private readonly workflowControl: WorkflowControl;
+  private readonly worktreeControl: WorktreeControl;
 
   constructor(deps: HeadlessApiServerDeps) {
     this.deps = deps;
+    this.apiToken = process.env.TERMCANVAS_API_TOKEN?.trim() || undefined;
+    this.rateLimit = deps.rateLimit ?? 0;
+    this.corsOrigins = deps.corsOrigins ?? [];
+    this.serverVersion = deps.serverVersion ?? "0.0.0";
+    this.workflowControl = deps.workflowControl ?? createWorkflowControl({
+      projectStore: deps.projectStore,
+      ptyManager: deps.ptyManager,
+      telemetryService: deps.telemetryService,
+      projectScanner: deps.projectScanner,
+      eventBus: deps.eventBus,
+      onMutation: deps.onMutation,
+    });
+    this.worktreeControl = deps.worktreeControl ?? createWorktreeControl({
+      projectStore: deps.projectStore,
+      projectScanner: deps.projectScanner,
+      onMutation: deps.onMutation,
+    });
   }
 
-  start(): Promise<number> {
+  start(port = 0, host = "127.0.0.1"): Promise<number> {
+    if (this.rateLimit > 0) {
+      this.rateLimitCleanupTimer = setInterval(() => {
+        const now = Date.now();
+        for (const [ip, entry] of this.rateLimitMap) {
+          if (entry.resetAt < now) this.rateLimitMap.delete(ip);
+        }
+      }, 60_000);
+    }
+
     return new Promise((resolve, reject) => {
       this.server = http.createServer((req, res) =>
         this.handleRequest(req, res),
@@ -46,6 +119,15 @@ export class HeadlessApiServer {
         );
 
         if (url.pathname === "/pty/stream") {
+          // Auth check on WebSocket upgrade
+          if (this.apiToken) {
+            const authHeader = request.headers["authorization"];
+            if (authHeader !== `Bearer ${this.apiToken}`) {
+              socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+              socket.destroy();
+              return;
+            }
+          }
           this.wss!.handleUpgrade(request, socket, head, (ws) => {
             this.handlePtyWebSocket(ws, url);
           });
@@ -54,16 +136,28 @@ export class HeadlessApiServer {
         }
       });
 
-      this.server.listen(0, "127.0.0.1", () => {
+      this.server.listen(port, host, () => {
         const addr = this.server!.address();
-        const port = typeof addr === "object" && addr ? addr.port : 0;
-        resolve(port);
+        const resolved = typeof addr === "object" && addr ? addr.port : 0;
+        this.ready = true;
+        this.boundHost = host;
+        this.boundPort = resolved;
+        void this.startDiskUsagePolling().then(() => resolve(resolved), reject);
       });
       this.server.on("error", reject);
     });
   }
 
   stop(): void {
+    this.ready = false;
+    if (this.rateLimitCleanupTimer) {
+      clearInterval(this.rateLimitCleanupTimer);
+      this.rateLimitCleanupTimer = null;
+    }
+    if (this.diskUsageTimer) {
+      clearInterval(this.diskUsageTimer);
+      this.diskUsageTimer = null;
+    }
     if (this.wss) {
       for (const client of this.wss.clients) {
         client.close();
@@ -79,11 +173,125 @@ export class HeadlessApiServer {
     req: http.IncomingMessage,
     res: http.ServerResponse,
   ): Promise<void> {
+    const start = Date.now();
     const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
     const method = req.method ?? "GET";
     const pathname = url.pathname;
 
     res.setHeader("Content-Type", "application/json");
+
+    // CORS handling
+    if (this.corsOrigins.length > 0) {
+      const origin = req.headers.origin;
+      if (origin && this.corsOrigins.includes(origin)) {
+        res.setHeader("Access-Control-Allow-Origin", origin);
+        res.setHeader(
+          "Access-Control-Allow-Methods",
+          "GET,POST,PUT,DELETE,OPTIONS",
+        );
+        res.setHeader(
+          "Access-Control-Allow-Headers",
+          "Authorization,Content-Type",
+        );
+        res.setHeader("Access-Control-Max-Age", "86400");
+      }
+    }
+
+    // Preflight
+    if (method === "OPTIONS") {
+      const statusCode = req.headers.origin &&
+        this.corsOrigins.includes(req.headers.origin) ? 204 : 404;
+      res.writeHead(statusCode);
+      res.end();
+      this.logRequest(method, pathname, statusCode, start);
+      return;
+    }
+
+    // Health endpoints are always public (no auth required)
+    if (method === "GET" && pathname === "/health") {
+      const terminals = this.deps.projectStore.listTerminals();
+      const activeWorkflows = this.getActiveWorkflows();
+      const mem = process.memoryUsage();
+      const statusCounts: Record<string, number> = {};
+      for (const t of terminals) {
+        statusCounts[t.status] = (statusCounts[t.status] ?? 0) + 1;
+      }
+      res.writeHead(200);
+      res.end(
+        JSON.stringify({
+          status: "ok",
+          version: this.serverVersion,
+          uptime_seconds: Math.floor((Date.now() - this.startedAt) / 1000),
+          node_version: process.version,
+          platform: process.platform,
+          active_terminals: terminals.length,
+          active_workflows: activeWorkflows.length,
+          terminal_status_summary: statusCounts,
+          memory: {
+            rss_bytes: mem.rss,
+            heap_used_bytes: mem.heapUsed,
+            heap_total_bytes: mem.heapTotal,
+          },
+          disk_usage_bytes: this.diskUsageBytes,
+        }),
+      );
+      this.logRequest(method, pathname, 200, start);
+      return;
+    }
+
+    if (method === "GET" && pathname === "/health/live") {
+      res.writeHead(200);
+      res.end(JSON.stringify({ status: "ok" }));
+      this.logRequest(method, pathname, 200, start);
+      return;
+    }
+
+    if (method === "GET" && pathname === "/health/ready") {
+      const code = this.ready ? 200 : 503;
+      res.writeHead(code);
+      res.end(JSON.stringify({ ready: this.ready }));
+      this.logRequest(method, pathname, code, start);
+      return;
+    }
+
+    // Rate limiting (applied before auth so brute-force is also limited)
+    if (this.rateLimit > 0) {
+      const ip = req.socket.remoteAddress ?? "unknown";
+      const now = Date.now();
+      let entry = this.rateLimitMap.get(ip);
+      if (!entry || entry.resetAt < now) {
+        entry = { count: 0, resetAt: now + 60_000 };
+        this.rateLimitMap.set(ip, entry);
+      }
+      entry.count++;
+      if (entry.count > this.rateLimit) {
+        const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
+        res.setHeader("Retry-After", String(retryAfter));
+        res.writeHead(429);
+        res.end(JSON.stringify({ error: "Too many requests" }));
+        this.logRequest(method, pathname, 429, start);
+        return;
+      }
+    }
+
+    // Auth check
+    if (this.apiToken) {
+      const authHeader = req.headers["authorization"];
+      if (authHeader !== `Bearer ${this.apiToken}`) {
+        res.writeHead(401);
+        res.end(JSON.stringify({ error: "Unauthorized" }));
+        this.logRequest(method, pathname, 401, start);
+        return;
+      }
+    }
+
+    // SSE endpoint — handled separately from JSON routes
+    const sseMatch = method === "GET" && pathname.match(/^\/api\/terminal\/([^/]+)\/events$/);
+    if (sseMatch) {
+      this.handleSSE(sseMatch[1], res);
+      this.logRequest(method, pathname, 200, start);
+      return;
+    }
 
     try {
       const body =
@@ -93,6 +301,7 @@ export class HeadlessApiServer {
       const result = await this.route(method, pathname, url, body);
       res.writeHead(200);
       res.end(JSON.stringify(result));
+      this.logRequest(method, pathname, 200, start);
     } catch (err: unknown) {
       const status =
         err instanceof Object && "status" in err
@@ -101,8 +310,30 @@ export class HeadlessApiServer {
       const message =
         err instanceof Error ? err.message : "Internal error";
       res.writeHead(status);
-      res.end(JSON.stringify({ error: message }));
+      res.end(JSON.stringify({ error: this.sanitizeErrorMessage(message) }));
+      this.logRequest(method, pathname, status, start);
     }
+  }
+
+  private logRequest(
+    method: string,
+    pathname: string,
+    status: number,
+    startTime: number,
+  ): void {
+    const duration = Date.now() - startTime;
+    console.log(`[api] ${method} ${pathname} ${status} ${duration}ms`);
+  }
+
+  private sanitizeErrorMessage(message: string): string {
+    let sanitized = message;
+    for (const key of CREDENTIAL_ENV_KEYS) {
+      const value = process.env[key]?.trim();
+      if (value && value.length >= 8) {
+        sanitized = sanitized.replaceAll(value, "[REDACTED]");
+      }
+    }
+    return sanitized;
   }
 
   private async route(
@@ -125,6 +356,44 @@ export class HeadlessApiServer {
     if (method === "POST" && pathname.match(/^\/project\/[^/]+\/rescan$/)) {
       const id = pathname.split("/")[2];
       return this.projectRescan(id);
+    }
+
+    // Workflow control endpoints
+    if (method === "POST" && pathname === "/workflow/run") {
+      return this.workflowRun(body);
+    }
+    if (method === "GET" && pathname === "/workflow/list") {
+      const repoPath = url.searchParams.get("repo");
+      return this.workflowList(repoPath);
+    }
+    if (method === "GET" && pathname.match(/^\/workflow\/[^/]+$/)) {
+      const id = pathname.split("/")[2];
+      const repoPath = url.searchParams.get("repo");
+      return this.workflowStatus(id, repoPath);
+    }
+    if (method === "POST" && pathname.match(/^\/workflow\/[^/]+\/tick$/)) {
+      const id = pathname.split("/")[2];
+      return this.workflowTick(id, body);
+    }
+    if (method === "POST" && pathname.match(/^\/workflow\/[^/]+\/retry$/)) {
+      const id = pathname.split("/")[2];
+      return this.workflowRetry(id, body);
+    }
+    if (method === "DELETE" && pathname.match(/^\/workflow\/[^/]+$/)) {
+      const id = pathname.split("/")[2];
+      return this.workflowCleanup(id, url);
+    }
+
+    // Worktree endpoints
+    if (method === "GET" && pathname === "/worktree/list") {
+      const repoPath = url.searchParams.get("repo");
+      return this.worktreeList(repoPath);
+    }
+    if (method === "POST" && pathname === "/worktree/create") {
+      return this.worktreeCreate(body);
+    }
+    if (method === "DELETE" && pathname === "/worktree") {
+      return this.worktreeRemove(url);
     }
 
     // Terminal endpoints
@@ -195,6 +464,17 @@ export class HeadlessApiServer {
       return this.getDiff(worktreePath, summary);
     }
 
+    // Memory index
+    if (method === "GET" && pathname === "/api/memory/index") {
+      const worktree = url.searchParams.get("worktree");
+      return this.memoryIndex(worktree);
+    }
+
+    // Server status dashboard
+    if (method === "GET" && pathname === "/api/status") {
+      return this.getServerStatus();
+    }
+
     // State
     if (method === "GET" && pathname === "/state") {
       return this.getState();
@@ -230,36 +510,17 @@ export class HeadlessApiServer {
       throw Object.assign(new Error("path is required"), { status: 400 });
     }
 
-    const scanned = this.deps.projectScanner.scan(dirPath);
-    if (!scanned) {
-      throw Object.assign(new Error("Not a git repository"), { status: 400 });
-    }
-
-    const projectData = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      name: scanned.name,
-      path: scanned.path,
-      position: { x: 0, y: 0 },
-      collapsed: false,
-      zIndex: 0,
-      worktrees: scanned.worktrees.map(
-        (wt: { path: string; branch: string }, i: number) => ({
-          id: `${Date.now()}-wt-${i}`,
-          name: wt.branch,
-          path: wt.path,
-          position: { x: 0, y: i * 400 },
-          collapsed: false,
-          terminals: [],
-        }),
-      ),
-    };
-
-    this.deps.projectStore.addProject(projectData);
+    const tracked = ensureProjectTracked({
+      projectStore: this.deps.projectStore,
+      projectScanner: this.deps.projectScanner,
+      repoPath: dirPath,
+      onMutation: this.deps.onMutation,
+    });
 
     return {
-      id: projectData.id,
-      name: projectData.name,
-      worktrees: projectData.worktrees.length,
+      id: tracked.project.id,
+      name: tracked.project.name,
+      worktrees: tracked.worktrees,
     };
   }
 
@@ -290,6 +551,7 @@ export class HeadlessApiServer {
 
   private projectRemove(id: string): { ok: boolean } {
     this.deps.projectStore.removeProject(id);
+    this.deps.onMutation?.();
     return { ok: true };
   }
 
@@ -297,23 +559,195 @@ export class HeadlessApiServer {
     ok: boolean;
     worktrees: number;
   } {
-    const project = this.deps.projectStore.getProjectById(projectId);
-    if (!project) {
-      throw Object.assign(new Error("Project not found"), { status: 404 });
+    const result = rescanTrackedProject({
+      projectStore: this.deps.projectStore,
+      projectScanner: this.deps.projectScanner,
+      projectId,
+      onMutation: this.deps.onMutation,
+    });
+    return { ok: true, worktrees: result.worktrees };
+  }
+
+  // --- Workflow routes ---
+
+  private workflowRun(body: unknown): Promise<unknown> {
+    const {
+      task,
+      repo,
+      repoPath,
+      worktree,
+      worktreePath,
+      template,
+      allType,
+      plannerType,
+      implementerType,
+      evaluatorType,
+      timeoutMinutes,
+      maxRetries,
+      autoApprove,
+      approvePlan,
+    } = body as {
+      task?: string;
+      repo?: string;
+      repoPath?: string;
+      worktree?: string;
+      worktreePath?: string;
+      template?: "single-step" | "planner-implementer-evaluator";
+      allType?: "claude" | "codex" | "kimi" | "gemini";
+      plannerType?: "claude" | "codex" | "kimi" | "gemini";
+      implementerType?: "claude" | "codex" | "kimi" | "gemini";
+      evaluatorType?: "claude" | "codex" | "kimi" | "gemini";
+      timeoutMinutes?: number;
+      maxRetries?: number;
+      autoApprove?: boolean;
+      approvePlan?: boolean;
+    };
+
+    if (!task) {
+      throw Object.assign(new Error("task is required"), { status: 400 });
+    }
+    const resolvedRepo = repoPath ?? repo;
+    if (!resolvedRepo) {
+      throw Object.assign(new Error("repo is required"), { status: 400 });
     }
 
-    const worktrees = this.deps.projectScanner.listWorktrees(project.path);
-    this.deps.projectStore.syncWorktrees(project.path, worktrees);
-    return { ok: true, worktrees: worktrees.length };
+    return this.workflowControl.run({
+      task,
+      repoPath: resolvedRepo,
+      worktreePath: worktreePath ?? worktree,
+      template,
+      allType,
+      plannerType,
+      implementerType,
+      evaluatorType,
+      timeoutMinutes,
+      maxRetries,
+      autoApprove,
+      approvePlan,
+    });
+  }
+
+  private workflowList(repoPath: string | null): unknown {
+    if (!repoPath) {
+      throw Object.assign(new Error("repo query parameter is required"), {
+        status: 400,
+      });
+    }
+    return this.workflowControl.list(repoPath);
+  }
+
+  private workflowStatus(workflowId: string, repoPath: string | null): unknown {
+    if (!repoPath) {
+      throw Object.assign(new Error("repo query parameter is required"), {
+        status: 400,
+      });
+    }
+    return this.workflowControl.status(repoPath, workflowId);
+  }
+
+  private workflowTick(workflowId: string, body: unknown): Promise<unknown> {
+    const { repo, repoPath } = body as { repo?: string; repoPath?: string };
+    const resolvedRepo = repoPath ?? repo;
+    if (!resolvedRepo) {
+      throw Object.assign(new Error("repo is required"), { status: 400 });
+    }
+    return this.workflowControl.tick(resolvedRepo, workflowId);
+  }
+
+  private workflowRetry(workflowId: string, body: unknown): Promise<unknown> {
+    const { repo, repoPath } = body as { repo?: string; repoPath?: string };
+    const resolvedRepo = repoPath ?? repo;
+    if (!resolvedRepo) {
+      throw Object.assign(new Error("repo is required"), { status: 400 });
+    }
+    return this.workflowControl.retry(resolvedRepo, workflowId);
+  }
+
+  private workflowCleanup(workflowId: string, url: URL): unknown {
+    const repoPath = url.searchParams.get("repo");
+    if (!repoPath) {
+      throw Object.assign(new Error("repo query parameter is required"), {
+        status: 400,
+      });
+    }
+    const force = url.searchParams.get("force");
+    return this.workflowControl.cleanup(
+      repoPath,
+      workflowId,
+      force === "1" || force === "true",
+    );
+  }
+
+  // --- Worktree routes ---
+
+  private worktreeList(repoPath: string | null): unknown {
+    if (!repoPath) {
+      throw Object.assign(new Error("repo query parameter is required"), {
+        status: 400,
+      });
+    }
+    return this.worktreeControl.list(repoPath);
+  }
+
+  private worktreeCreate(body: unknown): unknown {
+    const {
+      repo,
+      repoPath,
+      branch,
+      path: requestedPath,
+      worktreePath,
+      baseBranch,
+    } = body as {
+      repo?: string;
+      repoPath?: string;
+      branch?: string;
+      path?: string;
+      worktreePath?: string;
+      baseBranch?: string;
+    };
+    const resolvedRepo = repoPath ?? repo;
+    if (!resolvedRepo) {
+      throw Object.assign(new Error("repo is required"), { status: 400 });
+    }
+    if (!branch) {
+      throw Object.assign(new Error("branch is required"), { status: 400 });
+    }
+    return this.worktreeControl.create({
+      repoPath: resolvedRepo,
+      branch,
+      worktreePath: worktreePath ?? requestedPath,
+      baseBranch,
+    });
+  }
+
+  private worktreeRemove(url: URL): unknown {
+    const repoPath = url.searchParams.get("repo");
+    const worktreePath = url.searchParams.get("path");
+    if (!repoPath) {
+      throw Object.assign(new Error("repo query parameter is required"), {
+        status: 400,
+      });
+    }
+    if (!worktreePath) {
+      throw Object.assign(new Error("path query parameter is required"), {
+        status: 400,
+      });
+    }
+    const force = url.searchParams.get("force");
+    return this.worktreeControl.remove({
+      repoPath,
+      worktreePath,
+      force: force === "1" || force === "true",
+    });
   }
 
   // --- Terminal routes ---
 
-  private terminalCreate(body: unknown): {
+  private async terminalCreate(body: unknown): Promise<{
     id: string;
     type: string;
     title: string;
-  } {
+  }> {
     const {
       worktree,
       type = "shell",
@@ -340,27 +774,17 @@ export class HeadlessApiServer {
       });
     }
 
-    const found = this.deps.projectStore.findWorktree(worktree);
-    if (!found) {
-      throw Object.assign(new Error("Worktree not found on canvas"), {
-        status: 404,
-      });
-    }
-
-    const terminal = this.deps.projectStore.addTerminal(
-      found.projectId,
-      found.worktreeId,
-      type as Parameters<typeof this.deps.projectStore.addTerminal>[2],
+    const terminal = await launchTrackedTerminal({
+      projectStore: this.deps.projectStore,
+      ptyManager: this.deps.ptyManager,
+      telemetryService: this.deps.telemetryService,
+      eventBus: this.deps.eventBus,
+      onMutation: this.deps.onMutation,
+      worktree,
+      type: type as TerminalType,
       prompt,
       autoApprove,
       parentTerminalId,
-    );
-
-    this.deps.telemetryService.registerTerminal({
-      terminalId: terminal.id,
-      worktreePath: worktree,
-      provider:
-        type === "claude" || type === "codex" ? type : "unknown",
       workflowId,
       handoffId,
       repoPath,
@@ -426,19 +850,14 @@ export class HeadlessApiServer {
   }
 
   private terminalDestroy(terminalId: string): { ok: boolean } {
-    const terminal = this.deps.projectStore.getTerminal(terminalId);
-    if (!terminal) {
-      throw Object.assign(new Error("Terminal not found"), { status: 404 });
-    }
-    if (terminal.ptyId) {
-      this.deps.ptyManager.destroy(terminal.ptyId);
-    }
-    this.deps.projectStore.removeTerminal(
-      terminal.projectId,
-      terminal.worktreeId,
+    return destroyTrackedTerminal({
+      projectStore: this.deps.projectStore,
+      ptyManager: this.deps.ptyManager,
+      telemetryService: this.deps.telemetryService,
+      eventBus: this.deps.eventBus,
+      onMutation: this.deps.onMutation,
       terminalId,
-    );
-    return { ok: true };
+    });
   }
 
   private terminalSetCustomTitle(
@@ -459,6 +878,7 @@ export class HeadlessApiServer {
     if (!found) {
       throw Object.assign(new Error("Terminal not found"), { status: 404 });
     }
+    this.deps.onMutation?.();
     return { ok: true };
   }
 
@@ -509,6 +929,27 @@ export class HeadlessApiServer {
     return snapshot;
   }
 
+  // --- Memory route ---
+
+  private async memoryIndex(worktree: string | null): Promise<unknown> {
+    if (!worktree) {
+      throw Object.assign(
+        new Error("worktree query parameter is required"),
+        { status: 400 },
+      );
+    }
+    const { getMemoryDirForWorktree, scanMemoryDir } = await import(
+      "../electron/memory-service.js"
+    );
+    const { generateEnhancedIndex } = await import(
+      "../electron/memory-index-generator.js"
+    );
+    const memDir = getMemoryDirForWorktree(worktree);
+    const graph = scanMemoryDir(memDir);
+    const index = generateEnhancedIndex(graph.nodes);
+    return { index };
+  }
+
   // --- Diff route ---
 
   private async getDiff(
@@ -533,6 +974,143 @@ export class HeadlessApiServer {
 
   private getState(): unknown {
     return this.projectList();
+  }
+
+  // --- Server status ---
+
+  private getServerStatus(): unknown {
+    const terminals = this.deps.projectStore.listTerminals();
+    const activeWorkflows = this.getActiveWorkflows();
+    const recentEvents = this.deps.eventBus?.getRecentEvents(50) ?? [];
+    return {
+      terminals: terminals.map((t) => ({
+        id: t.id,
+        title: t.title,
+        type: t.type,
+        status: t.status,
+        project: t.project,
+        worktree: path.basename(t.worktree) || t.worktree,
+      })),
+      active_workflows: activeWorkflows.map((workflow) => ({
+        id: workflow.id,
+        status: workflow.status,
+        current_handoff_id: workflow.current_handoff_id,
+        updated_at: workflow.updated_at,
+      })),
+      recent_events: recentEvents,
+      server: {
+        version: this.serverVersion,
+        uptime_seconds: Math.floor((Date.now() - this.startedAt) / 1000),
+        config: {
+          host: this.boundHost,
+          port: this.boundPort,
+          rate_limit: this.rateLimit,
+          cors_origins: this.corsOrigins,
+          api_token_configured: Boolean(this.apiToken),
+          webhook_enabled: Boolean(process.env.TERMCANVAS_WEBHOOK_URL?.trim()),
+        },
+      },
+    };
+  }
+
+  // --- SSE ---
+
+  private handleSSE(terminalId: string, res: http.ServerResponse): void {
+    const eventBus = this.deps.eventBus;
+    if (!eventBus) {
+      res.writeHead(501);
+      res.end(JSON.stringify({ error: "Event bus not configured" }));
+      return;
+    }
+
+    const terminal = this.deps.projectStore.getTerminal(terminalId);
+    if (!terminal) {
+      res.writeHead(404);
+      res.end(JSON.stringify({ error: "Terminal not found" }));
+      return;
+    }
+
+    if (this.sseConnectionCount >= HeadlessApiServer.MAX_SSE_CONNECTIONS) {
+      res.writeHead(503);
+      res.end(JSON.stringify({ error: "Too many SSE connections" }));
+      return;
+    }
+
+    this.sseConnectionCount++;
+
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    });
+    res.write(":ok\n\n");
+
+    for (const event of eventBus.getTerminalEvents(terminalId, 50)) {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    }
+
+    const listener = (event: import("./event-bus.ts").ServerEvent) => {
+      const p = event.payload;
+      if (p.terminalId !== terminalId) return;
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    };
+
+    eventBus.on("*", listener);
+
+    res.on("close", () => {
+      eventBus.off("*", listener);
+      this.sseConnectionCount--;
+    });
+  }
+
+  // --- Disk usage polling ---
+
+  private async startDiskUsagePolling(): Promise<void> {
+    const wsDir = this.deps.workspaceDir;
+    if (!wsDir) return;
+
+    const update = async () => {
+      try {
+        this.diskUsageRefresh = Promise.resolve().then(() =>
+          HeadlessApiServer.calculateDirectorySize(wsDir)
+        );
+        this.diskUsageBytes = await this.diskUsageRefresh;
+      } catch {
+        this.diskUsageBytes = null;
+      } finally {
+        this.diskUsageRefresh = null;
+      }
+    };
+
+    await update();
+    this.diskUsageTimer = setInterval(() => {
+      void update();
+    }, 30_000);
+  }
+
+  private getActiveWorkflows() {
+    return listActiveWorkflowSummaries({
+      workspaceDir: this.deps.workspaceDir,
+      projectPaths: this.deps.projectStore.getProjects().map((project) => project.path),
+    });
+  }
+
+  private static calculateDirectorySize(targetPath: string): number {
+    const stats = fs.lstatSync(targetPath);
+    if (!stats.isDirectory()) {
+      return stats.size;
+    }
+
+    let total = 0;
+    for (const entry of fs.readdirSync(targetPath, { withFileTypes: true })) {
+      const entryPath = path.join(targetPath, entry.name);
+      if (entry.isDirectory()) {
+        total += HeadlessApiServer.calculateDirectorySize(entryPath);
+      } else {
+        total += fs.lstatSync(entryPath).size;
+      }
+    }
+    return total;
   }
 
   // --- WebSocket PTY ---

@@ -29,6 +29,7 @@ import {
   type WorkflowRecord,
 } from "./workflow-store.ts";
 import {
+  ensureProjectTracked,
   findProjectByPath,
   isTermCanvasRunning,
   projectRescan,
@@ -75,6 +76,8 @@ export interface WorkflowDependencies {
   now?: () => string;
   dispatchCreateOnly?: (request: DispatchCreateOnlyRequest) => Promise<DispatchCreateOnlyResult>;
   sleep?: (ms: number) => Promise<void>;
+  syncProject?: (repoPath: string) => void;
+  destroyTerminal?: (terminalId: string) => void;
   /** Returns true if the terminal PTY is alive, false if dead, null if unknown/unavailable. */
   checkTerminalAlive?: (terminalId: string) => boolean | null;
 }
@@ -107,6 +110,22 @@ function sleepFn(dependencies: WorkflowDependencies | undefined) {
   return dependencies?.sleep ?? DEFAULT_SLEEP;
 }
 
+function syncProjectFn(dependencies: WorkflowDependencies | undefined) {
+  if (dependencies?.syncProject) return dependencies.syncProject;
+  if (dependencies?.dispatchCreateOnly) {
+    return (_repoPath: string) => {};
+  }
+  return ensureProjectTracked;
+}
+
+function destroyTerminalFn(dependencies: WorkflowDependencies | undefined) {
+  if (dependencies?.destroyTerminal) return dependencies.destroyTerminal;
+  if (dependencies?.dispatchCreateOnly) {
+    return (_terminalId: string) => {};
+  }
+  return terminalDestroy;
+}
+
 function generateWorkflowId(): string {
   return `workflow-${crypto.randomBytes(6).toString("hex")}`;
 }
@@ -131,11 +150,13 @@ function prepareWorkflowWorkspace(
   repoPath: string,
   workflowId: string,
   requestedWorktreePath: string | undefined,
+  dependencies: WorkflowDependencies | undefined,
 ): { worktreePath: string; branch: string | null; baseBranch: string; ownWorktree: boolean } {
   const repo = path.resolve(repoPath);
   const baseBranch = getCurrentBranch(repo);
 
   if (requestedWorktreePath) {
+    syncProjectFn(dependencies)(repo);
     return {
       worktreePath: validateWorktreePath(repo, requestedWorktreePath),
       branch: null,
@@ -154,6 +175,8 @@ function prepareWorkflowWorkspace(
   const project = findProjectByPath(repo);
   if (project) {
     projectRescan(project.id);
+  } else {
+    syncProjectFn(dependencies)(repo);
   }
 
   return {
@@ -208,11 +231,14 @@ function loadHandoffOrThrow(manager: HandoffManager, workflow: WorkflowRecord): 
   return handoff;
 }
 
-function destroyHandoffTerminal(handoff: Handoff): void {
+function destroyHandoffTerminal(
+  handoff: Handoff,
+  dependencies: WorkflowDependencies | undefined,
+): void {
   const terminalId = handoff.dispatch?.active_terminal_id;
   if (!terminalId) return;
   try {
-    terminalDestroy(terminalId);
+    destroyTerminalFn(dependencies)(terminalId);
   } catch {
     // Terminal may already be dead — that's fine.
   }
@@ -426,7 +452,12 @@ export async function runWorkflow(
   const plannedHandoffIds = template === "single-step"
     ? [generateHandoffId()]
     : [generateHandoffId(), generateHandoffId(), generateHandoffId()];
-  const workspace = prepareWorkflowWorkspace(repoPath, workflowId, options.worktreePath);
+  const workspace = prepareWorkflowWorkspace(
+    repoPath,
+    workflowId,
+    options.worktreePath,
+    dependencies,
+  );
   const manager = new HandoffManager(repoPath);
   const plan = buildWorkflowTemplatePlan({
     template,
@@ -536,7 +567,7 @@ export async function tickWorkflow(
 
     if (collected.status === "completed") {
       await stateMachine.markCompleted(handoff.id, mapResultContract(collected.result));
-      destroyHandoffTerminal(handoff);
+      destroyHandoffTerminal(handoff, dependencies);
       workflow.updated_at = now();
       const decision = resolveTemplateAdvance(
         workflow.template as WorkflowTemplateName,
@@ -572,7 +603,7 @@ export async function tickWorkflow(
       if (decision.outcome === "loop" && decision.nextHandoffId && decision.requeueHandoffIds) {
         for (const requeueHandoffId of decision.requeueHandoffIds) {
           const requeueHandoff = manager.load(requeueHandoffId);
-          if (requeueHandoff) destroyHandoffTerminal(requeueHandoff);
+          if (requeueHandoff) destroyHandoffTerminal(requeueHandoff, dependencies);
           resetHandoffToPending(manager, requeueHandoffId, now());
         }
         workflow.current_handoff_id = decision.nextHandoffId;
@@ -618,7 +649,7 @@ export async function tickWorkflow(
           : 0;
         const elapsedMs = Date.parse(now()) - dispatchedMs;
         if (elapsedMs > SPAWN_GRACE_PERIOD_MS) {
-          destroyHandoffTerminal(handoff);
+          destroyHandoffTerminal(handoff, dependencies);
           await stateMachine.markTimedOut(handoff.id, {
             code: "HANDOFF_PROCESS_EXITED",
             message: `Agent process exited without writing result (elapsed ${Math.round(elapsedMs / 1000)}s)`,

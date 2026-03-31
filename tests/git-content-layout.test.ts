@@ -140,21 +140,21 @@ test("getVirtualCommitWindow calculates visible range with overscan", () => {
 
 test("getGitGraphRailMetrics keeps compact widths and reports hidden lanes", () => {
   assert.deepEqual(getGitGraphRailMetrics(2), {
-    railWidth: 28,
+    railWidth: 23,
     visibleLaneCount: 2,
     hiddenLaneCount: 0,
-    laneGap: 8,
-    laneStartX: 10,
+    laneGap: 7,
+    laneStartX: 8,
     overflowX: null,
   });
 
   assert.deepEqual(getGitGraphRailMetrics(8), {
-    railWidth: 60,
-    visibleLaneCount: 6,
-    hiddenLaneCount: 2,
-    laneGap: 8,
-    laneStartX: 10,
-    overflowX: 52,
+    railWidth: 37,
+    visibleLaneCount: 4,
+    hiddenLaneCount: 4,
+    laneGap: 7,
+    laneStartX: 8,
+    overflowX: 31,
   });
 });
 
@@ -247,7 +247,7 @@ test("buildGitGraphRailModel returns visible nodes, highlighted parent edges, an
   );
 
   assert.ok(mergeNode);
-  assert.equal(mergeNode.x, 10);
+  assert.equal(mergeNode.x, 8);
   assert.equal(mergeNode.y, 20);
   assert.equal(mergeNode.isMerge, true);
   assert.equal(mergeNode.isSelected, true);
@@ -287,11 +287,11 @@ test("buildGitGraphRailModel collapses hidden lanes into an overflow rail marker
   const overflowNode = model.nodes.find((node) => node.hash === "c7");
 
   assert.deepEqual(model.overflow, {
-    x: 52,
-    label: "+2 lanes",
-    hiddenLaneCount: 2,
+    x: 31,
+    label: "+4 lanes",
+    hiddenLaneCount: 4,
   });
   assert.ok(overflowNode);
   assert.equal(overflowNode.isOverflow, true);
-  assert.equal(overflowNode.x, 52);
+  assert.equal(overflowNode.x, 31);
 });
