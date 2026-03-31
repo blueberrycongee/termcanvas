@@ -11,6 +11,7 @@ import { DrawingPanel } from "./toolbar/DrawingPanel";
 import { ShortcutHints } from "./components/ShortcutHints";
 import { CompletionGlow } from "./components/CompletionGlow";
 import { UsagePanel } from "./components/UsagePanel";
+import { StashBox } from "./components/StashBox";
 import { WelcomePopup } from "./components/WelcomePopup";
 import {
   useProjectStore,
@@ -540,6 +541,7 @@ export function App() {
       <CompletionGlow />
       <ShortcutHints />
       <UsagePanel />
+      <StashBox />
       {composerEnabled && <ComposerBar />}
       <NotificationToast />
       {showCloseDialog && (
