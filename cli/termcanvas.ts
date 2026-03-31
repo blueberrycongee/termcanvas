@@ -1,4 +1,5 @@
 import http from "http";
+import https from "https";
 import fs from "fs";
 import { resolveTermCanvasPortFile } from "../shared/termcanvas-instance";
 
@@ -6,15 +7,44 @@ const CONNECTION_TIMEOUT_MS = 10_000;
 const MAX_RETRIES = 3;
 const RETRYABLE_CODES = new Set(["ECONNREFUSED", "ETIMEDOUT", "ECONNRESET"]);
 
-function getConnection(): { hostname: string; port: number } {
+interface ConnectionTarget {
+  protocol: "http:" | "https:";
+  hostname: string;
+  port: number;
+  basePath: string;
+}
+
+function normalizeBasePath(pathname: string): string {
+  if (!pathname || pathname === "/") {
+    return "";
+  }
+  return pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+}
+
+function buildRequestPath(basePath: string, urlPath: string): string {
+  const [pathname, search = ""] = urlPath.split("?");
+  const normalizedPath = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  const resolvedPath = `${basePath}${normalizedPath}`;
+  return search ? `${resolvedPath}?${search}` : resolvedPath;
+}
+
+function getConnection(): ConnectionTarget {
   const envUrl = process.env.TERMCANVAS_URL?.trim();
   if (envUrl) {
     try {
       const parsed = new URL(envUrl);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        throw new Error(`Unsupported protocol: ${parsed.protocol}`);
+      }
       const port = parsed.port
         ? parseInt(parsed.port, 10)
         : parsed.protocol === "https:" ? 443 : 80;
-      return { hostname: parsed.hostname, port };
+      return {
+        protocol: parsed.protocol,
+        hostname: parsed.hostname,
+        port,
+        basePath: normalizeBasePath(parsed.pathname),
+      };
     } catch {
       console.error(`Invalid TERMCANVAS_URL: ${envUrl}`);
       process.exit(1);
@@ -25,13 +55,23 @@ function getConnection(): { hostname: string; port: number } {
   const envPort = process.env.TERMCANVAS_PORT?.trim();
 
   if (envHost && envPort) {
-    return { hostname: envHost, port: parseInt(envPort, 10) };
+    return {
+      protocol: "http:",
+      hostname: envHost,
+      port: parseInt(envPort, 10),
+      basePath: "",
+    };
   }
 
   const portFile = resolveTermCanvasPortFile(process.env);
   try {
     const port = parseInt(fs.readFileSync(portFile, "utf-8").trim(), 10);
-    return { hostname: "127.0.0.1", port };
+    return {
+      protocol: "http:",
+      hostname: "127.0.0.1",
+      port,
+      basePath: "",
+    };
   } catch {
     console.error(`TermCanvas is not running (no port file found at ${portFile}).`);
     process.exit(1);
@@ -46,7 +86,7 @@ function requestOnce(
   body?: unknown,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<any> {
-  const { hostname, port } = getConnection();
+  const { protocol, hostname, port, basePath } = getConnection();
   return new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : undefined;
     const headers: Record<string, string> = {
@@ -55,8 +95,17 @@ function requestOnce(
     if (data) headers["Content-Length"] = String(Buffer.byteLength(data));
     if (apiToken) headers["Authorization"] = `Bearer ${apiToken}`;
 
-    const req = http.request(
-      { hostname, port, path: urlPath, method, headers, timeout: CONNECTION_TIMEOUT_MS },
+    const transport = protocol === "https:" ? https : http;
+    const req = transport.request(
+      {
+        protocol,
+        hostname,
+        port,
+        path: buildRequestPath(basePath, urlPath),
+        method,
+        headers,
+        timeout: CONNECTION_TIMEOUT_MS,
+      },
       (res) => {
         let responseBody = "";
         res.on("data", (chunk: string) => (responseBody += chunk));
@@ -109,9 +158,9 @@ async function request(
       throw err;
     }
   }
-  const { hostname, port } = getConnection();
+  const { protocol, hostname, port, basePath } = getConnection();
   console.error(
-    `Failed to connect to TermCanvas at ${hostname}:${port} after ${MAX_RETRIES + 1} attempts.\n` +
+    `Failed to connect to TermCanvas at ${protocol}//${hostname}:${port}${basePath} after ${MAX_RETRIES + 1} attempts.\n` +
     `Check that the server is running and the host/port are correct.`,
   );
   throw lastError;

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { execFile, execFileSync } from "node:child_process";
 import fs from "node:fs";
+import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -46,6 +47,44 @@ async function runCli(args: string[], env: NodeJS.ProcessEnv): Promise<string> {
   );
   return stdout.trim();
 }
+
+test("termcanvas CLI preserves TERMCANVAS_URL path prefixes for remote routing", async () => {
+  const seenPaths: string[] = [];
+  const server = http.createServer((req, res) => {
+    seenPaths.push(req.url ?? "");
+    if (req.url === "/termcanvas/project/list") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end("[]");
+      return;
+    }
+    res.writeHead(404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Not found" }));
+  });
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", () => resolve());
+  });
+
+  const address = server.address();
+  const port = typeof address === "object" && address ? address.port : 0;
+
+  try {
+    const output = await runCli(
+      ["project", "list", "--json"],
+      { TERMCANVAS_URL: `http://127.0.0.1:${port}/termcanvas` },
+    );
+
+    assert.equal(output, "[]");
+    assert.deepEqual(seenPaths, ["/termcanvas/project/list"]);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  }
+});
 
 test("termcanvas workflow CLI runs, watches, and cleans up headless workflows", async () => {
   const workspaceDir = createWorkspaceFixture({});
