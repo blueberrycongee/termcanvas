@@ -5,7 +5,7 @@ import {
   type NodeTypes,
 } from "@xyflow/react";
 import type { TerminalData } from "../types";
-import { useProjectStore, createTerminal } from "../stores/projectStore";
+import { useProjectStore, createTerminal, stashTerminal } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { TerminalTile } from "../terminal/TerminalTile";
@@ -348,6 +348,8 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
         targetIndex: originalIndex,
       });
 
+      window.dispatchEvent(new CustomEvent("termcanvas:terminal-drag-active"));
+
       const handleMove = (moveEvent: MouseEvent) => {
         const offsetX = (moveEvent.clientX - startX) / scale;
         const offsetY = (moveEvent.clientY - startY) / scale;
@@ -386,7 +388,30 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
         });
       };
 
+      let lastMoveEvent: MouseEvent | null = null;
+      const origHandleMove = handleMove;
+      const wrappedHandleMove = (moveEvent: MouseEvent) => {
+        lastMoveEvent = moveEvent;
+        origHandleMove(moveEvent);
+      };
+
       const handleUp = () => {
+        window.removeEventListener("mousemove", wrappedHandleMove);
+        window.removeEventListener("mouseup", handleUp);
+        window.dispatchEvent(new CustomEvent("termcanvas:terminal-drag-end"));
+
+        if (lastMoveEvent) {
+          const dropTarget = document.elementFromPoint(
+            lastMoveEvent.clientX,
+            lastMoveEvent.clientY,
+          );
+          if (dropTarget?.closest("[data-stash-drop-target]")) {
+            stashTerminal(data.projectId, data.worktreeId, terminalId);
+            setDragState(null);
+            return;
+          }
+        }
+
         setDragState((previous) => {
           if (previous && previous.targetIndex !== originalIndex) {
             reorderTerminal(
@@ -399,12 +424,9 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
 
           return null;
         });
-
-        window.removeEventListener("mousemove", handleMove);
-        window.removeEventListener("mouseup", handleUp);
       };
 
-      window.addEventListener("mousemove", handleMove);
+      window.addEventListener("mousemove", wrappedHandleMove);
       window.addEventListener("mouseup", handleUp);
     },
     [data.projectId, data.worktreeId, reorderTerminal, worktree],
