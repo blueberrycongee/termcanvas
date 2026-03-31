@@ -151,15 +151,22 @@ body {
 }
 
 /* Force text cursor inside terminal tiles.
-   xterm has multiple rules that flip cursor away from text:
-   .enable-mouse-events → default, .xterm-cursor-pointer → pointer, .xterm-viewport → default.
-   Scope to .terminal-tile so we don't leak into non-tile xterm instances. */
+   xterm v6 has many internal elements that set cursor away from text:
+   .enable-mouse-events → default, .xterm-cursor-pointer → pointer,
+   .xterm-viewport → default, .xterm-scrollable-element > .scrollbar → default.
+   Use !important to win over any cascade/specificity combination.
+   Also target the container (.tc-xterm-host) to cover pixel gaps between
+   the xterm element edge and the tile content area. */
+.tc-xterm-host,
 .terminal-tile .xterm,
 .terminal-tile .xterm.enable-mouse-events,
 .terminal-tile .xterm.xterm-cursor-pointer,
 .terminal-tile .xterm .xterm-cursor-pointer,
-.terminal-tile .xterm .xterm-viewport {
-  cursor: text;
+.terminal-tile .xterm .xterm-viewport,
+.terminal-tile .xterm .xterm-screen,
+.terminal-tile .xterm .xterm-scrollable-element,
+.terminal-tile .xterm .xterm-scrollable-element > .scrollbar {
+  cursor: text !important;
 }
 
 /* ── Scrollbar ── */

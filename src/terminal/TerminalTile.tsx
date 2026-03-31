@@ -759,7 +759,7 @@ export function TerminalTile({
         >
           <div
             ref={containerRef}
-            className={frozenDims ? "absolute" : "absolute inset-0"}
+            className={frozenDims ? "absolute tc-xterm-host" : "absolute inset-0 tc-xterm-host"}
             style={{
               padding: 0,
               overflow: "hidden",
