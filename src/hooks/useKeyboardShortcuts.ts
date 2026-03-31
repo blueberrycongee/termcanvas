@@ -551,7 +551,11 @@ export function useKeyboardShortcuts() {
             i.type === "card",
         );
 
-        if (projectItems.length > 0 || worktreeItems.length > 0) {
+        if (
+          projectItems.length > 0 ||
+          worktreeItems.length > 0 ||
+          terminalItems.length > 0
+        ) {
           let message: string;
           if (projectItems.length > 0 && worktreeItems.length > 0) {
             message = t.confirm_delete_mixed(
@@ -560,8 +564,10 @@ export function useKeyboardShortcuts() {
             );
           } else if (projectItems.length > 0) {
             message = t.confirm_delete_projects(projectItems.length);
-          } else {
+          } else if (worktreeItems.length > 0) {
             message = t.confirm_delete_worktrees(worktreeItems.length);
+          } else {
+            message = t.confirm_delete_terminals(terminalItems.length);
           }
           if (!window.confirm(message)) return;
         }

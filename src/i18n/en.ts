@@ -204,6 +204,8 @@ export const en = {
     `Delete ${n} selected project${n !== 1 ? "s" : ""}? This will close all terminals inside.`,
   confirm_delete_worktrees: (n: number) =>
     `Delete ${n} selected worktree${n !== 1 ? "s" : ""}? This will close all terminals inside.`,
+  confirm_delete_terminals: (n: number) =>
+    `Close ${n} selected terminal${n !== 1 ? "s" : ""}?`,
   confirm_delete_mixed: (projects: number, worktrees: number) =>
     `Delete ${projects} project${projects !== 1 ? "s" : ""} and ${worktrees} worktree${worktrees !== 1 ? "s" : ""}? This will close all terminals inside.`,
 
