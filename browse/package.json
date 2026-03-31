@@ -1,0 +1,21 @@
+{
+  "name": "@termcanvas/browse",
+  "version": "0.1.0",
+  "description": "Headless browser automation CLI for QA testing",
+  "type": "module",
+  "bin": {
+    "browse": "./dist/browse.js"
+  },
+  "scripts": {
+    "build": "node --experimental-strip-types build.ts",
+    "test": "node --experimental-strip-types --test tests/**/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "playwright": "^1.52.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.3"
+  }
+}
