@@ -1,7 +1,7 @@
 ﻿import { useEffect, useRef, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import type { TerminalData } from "../types";
-import { useProjectStore, findTerminalById, getChildTerminals } from "../stores/projectStore";
+import { useProjectStore, findTerminalById, getChildTerminals, stashTerminal } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { ContextMenu } from "../components/ContextMenu";
 import { usePreferencesStore } from "../stores/preferencesStore";
@@ -793,6 +793,11 @@ export function TerminalTile({
             x={contextMenu.x}
             y={contextMenu.y}
             items={[
+              {
+                label: t.stash_terminal,
+                onClick: () => stashTerminal(projectId, worktreeId, terminal.id),
+              },
+              { type: "separator" as const },
               {
                 label: "1×1",
                 active: terminal.span.cols === 1 && terminal.span.rows === 1,
