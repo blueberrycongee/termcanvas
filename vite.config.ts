@@ -90,6 +90,31 @@ function buildHydra(): Plugin {
   };
 }
 
+function buildBrowse(): Plugin {
+  const outfile = "dist-cli/browse.js";
+  const opts = {
+    entryPoints: ["browse/src/cli.ts"],
+    outfile,
+    format: "esm" as const,
+    platform: "node" as const,
+    bundle: true,
+    banner: { js: "#!/usr/bin/env node" },
+    external: ["playwright"],
+    plugins: [cliSymlinkPlugin(outfile)],
+  };
+  return {
+    name: "build-browse",
+    async buildStart() {
+      if (this.meta.watchMode) {
+        const ctx = await esbuildCtx(opts);
+        await ctx.watch();
+      } else {
+        await esbuild(opts);
+      }
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
     react(),
@@ -97,6 +122,7 @@ export default defineConfig({
     buildPreload(),
     buildCli(),
     buildHydra(),
+    buildBrowse(),
     electron([
       {
         entry: "electron/main.ts",

@@ -7,13 +7,9 @@
     "browse": "./dist/browse.js"
   },
   "scripts": {
-    "postinstall": "npx playwright install chromium",
     "build": "node --experimental-strip-types build.ts",
     "test": "node --experimental-strip-types --test tests/**/*.test.ts",
     "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "playwright": "^1.52.0"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

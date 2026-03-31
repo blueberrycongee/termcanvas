@@ -6,14 +6,14 @@
   "bin": {
     "termcanvas": "./dist-cli/termcanvas.js",
     "hydra": "./dist-cli/hydra.js",
-    "browse": "./browse/dist/browse.js"
+    "browse": "./dist-cli/browse.js"
   },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "generate:icons": "python3 scripts/generate-icons.py",
-    "postinstall": "electron-builder install-app-deps",
+    "postinstall": "electron-builder install-app-deps && npx playwright install chromium",
     "typecheck": "tsc --noEmit",
     "typecheck:headless": "tsc --noEmit -p tsconfig.headless.json",
     "build:headless": "tsc -p tsconfig.headless.build.json",
@@ -54,6 +54,7 @@
     "geist": "^1.7.0",
     "marked": "^17.0.4",
     "node-pty": "^1.1.0",
+    "playwright": "^1.52.0",
     "perfect-freehand": "^1.2.3",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
