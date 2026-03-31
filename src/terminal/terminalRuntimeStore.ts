@@ -803,11 +803,12 @@ function triggerDetection(runtime: ManagedTerminalRuntime) {
     return;
   }
 
-  if (runtime.detectTimer) {
-    clearTimeout(runtime.detectTimer);
-  }
+  // Don't reset an already-scheduled timer — allows detection during active output
+  if (runtime.detectTimer) return;
 
   runtime.detectTimer = setTimeout(() => {
+    runtime.detectTimer = null;
+
     if (runtime.ptyId === null || runtime.disposed) {
       return;
     }
@@ -815,6 +816,8 @@ function triggerDetection(runtime: ManagedTerminalRuntime) {
     void window.termcanvas.terminal.detectCli(runtime.ptyId).then((result) => {
       const nextType = (result?.cliType ?? null) as TerminalType | null;
       if (!nextType || nextType === runtime.meta.terminal.type) {
+        // Still undetected — reschedule
+        triggerDetection(runtime);
         return;
       }
 
@@ -844,7 +847,7 @@ function triggerDetection(runtime: ManagedTerminalRuntime) {
 
       scheduleSessionCapture(runtime, runtime.ptyId!, nextType, result?.pid);
     });
-  }, 3_000);
+  }, 1_000);
 }
 
 function handleRuntimeOutput(runtime: ManagedTerminalRuntime, data: string) {
