@@ -17,6 +17,7 @@ import {
   createGracefulShutdown,
   createPersistenceController,
 } from "./lifecycle.ts";
+import { sanitizeProjectsForPersistence } from "./persisted-projects.ts";
 import { listActiveWorkflowSummaries } from "./workflow-status.ts";
 import {
   resolveTermCanvasPortFile,
@@ -110,7 +111,7 @@ async function main(): Promise<void> {
       const raw = fs.readFileSync(statePath, "utf-8");
       const saved = JSON.parse(raw);
       if (Array.isArray(saved)) {
-        for (const project of saved) {
+        for (const project of sanitizeProjectsForPersistence(saved)) {
           projectStore.addProject(project);
         }
         console.log(`[headless] loaded ${saved.length} project(s) from state`);
@@ -122,7 +123,7 @@ async function main(): Promise<void> {
 
   const persistence = createPersistenceController(
     statePath,
-    () => projectStore.getProjects(),
+    () => sanitizeProjectsForPersistence(projectStore.getProjects()),
   );
 
   // Create and start API server
