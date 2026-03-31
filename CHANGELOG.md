@@ -2,6 +2,32 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.17.0] - 2026-04-01
+
+### Added
+- Terminal stash box: park running terminals and restore them later with PTY kept alive
+- Drag-to-stash: drag a terminal past its worktree boundary to stash it
+- Right-click context menu "Stash" action on terminal tiles
+- StashBox panel (bottom-right) to manage stashed terminals
+- Browse tool: headless Chromium sub-package with CLI client and HTTP daemon
+- Browse commands: navigation, interaction, screenshots, snapshots, cookies
+- QA skill for browser-based testing workflows
+- File tree watcher: per-directory fs.watch with IPC bridge
+- Rescan watched directories on window focus
+- Investigate, security-audit, and code-review skills
+
+### Improved
+- CLI type detection runs on fixed 1-second interval instead of 3-second idle debounce, no longer blocked by active output
+- Stashed terminals stay in worktree with TerminalRuntimeHandle mounted (same as collapse), preventing PTY interruption
+- Remaining terminals reflow when a sibling is stashed
+
+### Fixed
+- xterm v6 text cursor override
+- Canvas willChange hit-test offset during animation
+- Keyboard Backspace terminal delete now requires confirmation
+- React state updater side effect in file tree hook
+- xterm scrollToBottom crash on disposed instance during restore
+
 ## [0.16.14] - 2026-03-31
 
 ### Added
