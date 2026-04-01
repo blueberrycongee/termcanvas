@@ -19,6 +19,7 @@ interface SummaryResult {
   ok: boolean;
   summary?: string;
   error?: string;
+  sessionFileSize?: number;
 }
 
 const TIMEOUT_MS = 30_000;
@@ -159,7 +160,8 @@ export async function generateSummary(
     console.warn(`${tag} session file not found: ${sessionFile ?? "null"}`);
     return { ok: false, error: "Session file not found" };
   }
-  console.log(`${tag} session file: ${sessionFile}`);
+  const fileSize = fs.statSync(sessionFile).size;
+  console.log(`${tag} session file: ${sessionFile} (${fileSize} bytes)`);
 
   inFlight.add(terminalId);
   try {
@@ -180,7 +182,7 @@ export async function generateSummary(
     }
 
     console.log(`${tag} success: "${summary}"`);
-    return { ok: true, summary };
+    return { ok: true, summary, sessionFileSize: fileSize };
   } catch (err) {
     console.error(`${tag} failed:`, err);
     return { ok: false, error: String(err) };

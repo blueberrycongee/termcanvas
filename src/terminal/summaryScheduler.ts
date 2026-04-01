@@ -6,10 +6,10 @@ import { useNotificationStore } from "../stores/notificationStore";
 type SummaryCli = "claude" | "codex";
 
 const SUMMARY_ELIGIBLE_TYPES = new Set(["claude", "codex"]);
-const AUTO_SUMMARY_INTERVAL_MS = 30_000;
+const AUTO_SUMMARY_INTERVAL_MS = 10 * 60_000; // 10 minutes
 
 const inFlightRenderer = new Set<string>();
-const lastSummaryTimestamp = new Map<string, number>();
+const lastSummarySessionSize = new Map<string, number>();
 
 export function requestSummary(
   projectId: string,
@@ -45,7 +45,9 @@ export function requestSummary(
             terminal.id,
             result.summary,
           );
-        lastSummaryTimestamp.set(terminal.id, Date.now());
+        if (result.sessionFileSize != null) {
+          lastSummarySessionSize.set(terminal.id, result.sessionFileSize);
+        }
       } else {
         console.warn(`[SummaryScheduler] failed for ${terminal.id.slice(0, 8)}: ${result.error}`);
         useNotificationStore.getState().notify("warn", `Summary failed: ${result.error}`);
@@ -78,8 +80,8 @@ export function startAutoSummaryWatcher(): () => void {
           if (terminal.focused) continue;
           if (terminal.status === "running" || terminal.status === "active") continue;
 
-          const lastTs = lastSummaryTimestamp.get(terminal.id) ?? 0;
-          if (Date.now() - lastTs < 60_000) continue;
+          // Skip if already summarized and no known new content
+          if (terminal.customTitle && lastSummarySessionSize.has(terminal.id)) continue;
 
           requestSummary(
             project.id,
@@ -88,7 +90,7 @@ export function startAutoSummaryWatcher(): () => void {
             terminal,
             summaryCli,
           );
-          return;
+          return; // one at a time
         }
       }
     }
