@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocaleStore } from "../stores/localeStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
+import { PROVIDER_PRESETS, getPreset } from "../agentProviders";
 import type { TerminalType } from "../types";
 import {
   useShortcutStore,
@@ -261,7 +262,7 @@ function AgentsTabContent() {
 
 export function SettingsModal({ onClose }: Props) {
   const { locale, setLocale } = useLocaleStore();
-  const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize, terminalFontFamily, setTerminalFontFamily, composerEnabled, setComposerEnabled, drawingEnabled, setDrawingEnabled, browserEnabled, setBrowserEnabled, summaryEnabled, setSummaryEnabled, summaryCli, setSummaryCli, minimumContrastRatio, setMinimumContrastRatio, agentProvider, setAgentProvider, agentApiKey, setAgentApiKey, agentModel, setAgentModel } = usePreferencesStore();
+  const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize, terminalFontFamily, setTerminalFontFamily, composerEnabled, setComposerEnabled, drawingEnabled, setDrawingEnabled, browserEnabled, setBrowserEnabled, summaryEnabled, setSummaryEnabled, summaryCli, setSummaryCli, minimumContrastRatio, setMinimumContrastRatio, agentConfig, patchAgentConfig, setAgentConfig } = usePreferencesStore();
   const [fontSizeDraft, setFontSizeDraft] = useState(terminalFontSize);
   const { shortcuts, setShortcut, resetAll } = useShortcutStore();
   const [downloadedFonts, setDownloadedFonts] = useState<Set<string>>(new Set());
@@ -726,22 +727,61 @@ export function SettingsModal({ onClose }: Props) {
 
               {/* Agent Bubble */}
               <div className="flex items-center justify-between">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[13px] text-[var(--text-secondary)]">
-                    {t.agent_provider}
-                  </span>
-                </div>
-                <div className="flex gap-1">
-                  {(["anthropic", "openai", "google"] as const).map((p) => (
-                    <button
-                      key={p}
-                      className={agentProvider === p ? activeBtn : inactiveBtn}
-                      onClick={() => setAgentProvider(p)}
-                    >
-                      {p === "anthropic" ? "Anthropic" : p === "openai" ? "OpenAI" : "Google"}
-                    </button>
+                <span className="text-[13px] text-[var(--text-secondary)]">
+                  {t.agent_provider}
+                </span>
+                <select
+                  value={agentConfig.id}
+                  onChange={(e) => {
+                    const preset = getPreset(e.target.value);
+                    if (preset) {
+                      setAgentConfig({
+                        id: preset.id,
+                        name: preset.name,
+                        type: preset.type,
+                        baseURL: preset.baseURL,
+                        apiKey: agentConfig.id === preset.id ? agentConfig.apiKey : "",
+                        model: preset.defaultModel,
+                      });
+                    }
+                  }}
+                  className="w-[200px] rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+                >
+                  {PROVIDER_PRESETS.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
+                </select>
+              </div>
+              {agentConfig.id === "custom" && (
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px] text-[var(--text-secondary)]">
+                    Format
+                  </span>
+                  <div className="flex gap-1">
+                    {(["openai", "anthropic"] as const).map((t) => (
+                      <button
+                        key={t}
+                        className={agentConfig.type === t ? activeBtn : inactiveBtn}
+                        onClick={() => patchAgentConfig({ type: t })}
+                      >
+                        {t === "openai" ? "OpenAI" : "Anthropic"}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] text-[var(--text-secondary)]">
+                  Base URL
+                </span>
+                <input
+                  type="text"
+                  value={agentConfig.baseURL}
+                  onChange={(e) => patchAgentConfig({ baseURL: e.target.value })}
+                  placeholder="https://api.example.com/v1"
+                  className="w-[200px] rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--accent)]"
+                  style={{ fontFamily: '"Geist Mono", monospace' }}
+                />
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[13px] text-[var(--text-secondary)]">
@@ -749,9 +789,9 @@ export function SettingsModal({ onClose }: Props) {
                 </span>
                 <input
                   type="password"
-                  value={agentApiKey}
-                  onChange={(e) => setAgentApiKey(e.target.value)}
-                  placeholder={agentProvider === "anthropic" ? "sk-ant-..." : agentProvider === "openai" ? "sk-..." : "AI..."}
+                  value={agentConfig.apiKey}
+                  onChange={(e) => patchAgentConfig({ apiKey: e.target.value })}
+                  placeholder={getPreset(agentConfig.id)?.keyPlaceholder ?? "..."}
                   className="w-[200px] rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--accent)]"
                   style={{ fontFamily: '"Geist Mono", monospace' }}
                 />
@@ -762,9 +802,9 @@ export function SettingsModal({ onClose }: Props) {
                 </span>
                 <input
                   type="text"
-                  value={agentModel}
-                  onChange={(e) => setAgentModel(e.target.value)}
-                  placeholder={agentProvider === "anthropic" ? "claude-sonnet-4-20250514" : agentProvider === "openai" ? "gpt-4o" : "gemini-2.5-pro"}
+                  value={agentConfig.model}
+                  onChange={(e) => patchAgentConfig({ model: e.target.value })}
+                  placeholder={getPreset(agentConfig.id)?.defaultModel ?? ""}
                   className="w-[200px] rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--accent)]"
                   style={{ fontFamily: '"Geist Mono", monospace' }}
                 />

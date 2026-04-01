@@ -8,8 +8,10 @@
 
 import type { BrowserWindow } from "electron";
 import { AnthropicProvider } from "../agent/src/provider/anthropic.ts";
+import { OpenAIProvider } from "../agent/src/provider/openai.ts";
 import { agentLoop } from "../agent/src/loop.ts";
 import type { AgentEvent } from "../agent/src/loop.ts";
+import type { LLMProvider } from "../agent/src/provider/types.ts";
 import { ToolRegistry } from "../agent/src/tool.ts";
 import { registerAllTools } from "../agent/src/tools/index.ts";
 import type { Message } from "../agent/src/types.ts";
@@ -29,7 +31,8 @@ interface AgentSession {
 // ---------------------------------------------------------------------------
 
 export interface AgentConfig {
-  provider: "anthropic";
+  type: "anthropic" | "openai";
+  baseURL: string;
   apiKey: string;
   model: string;
 }
@@ -37,6 +40,21 @@ export interface AgentConfig {
 const SYSTEM_PROMPT = `You are an AI assistant embedded in TermCanvas, a terminal-based canvas workspace.
 You can help users manage terminals, projects, worktrees, and workflows through the available tools.
 Be concise and direct. Respond in the same language the user uses.`;
+
+function createProvider(config: AgentConfig): LLMProvider {
+  if (config.type === "anthropic") {
+    return new AnthropicProvider(
+      config.apiKey,
+      config.model,
+      config.baseURL || undefined,
+    );
+  }
+  return new OpenAIProvider(
+    config.apiKey,
+    config.model,
+    config.baseURL || undefined,
+  );
+}
 
 export class AgentService {
   private sessions = new Map<string, AgentSession>();
@@ -80,8 +98,8 @@ export class AgentService {
     // Append user message
     session.messages.push({ role: "user", content: text });
 
-    // Create provider
-    const provider = new AnthropicProvider(config.apiKey, config.model);
+    // Create provider based on config type
+    const provider = createProvider(config);
 
     // Prepare abort
     session.abortController = new AbortController();

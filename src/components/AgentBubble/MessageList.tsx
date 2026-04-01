@@ -38,7 +38,7 @@ function MessageBubble({ message }: { message: BubbleMessage }) {
 
 export function MessageList({ messages }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const agentApiKey = usePreferencesStore((s) => s.agentApiKey);
+  const agentApiKey = usePreferencesStore((s) => s.agentConfig.apiKey);
   const openSettings = useSettingsModalStore((s) => s.openSettings);
 
   useEffect(() => {

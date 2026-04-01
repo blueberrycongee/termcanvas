@@ -357,7 +357,7 @@ contextBridge.exposeInMainWorld("termcanvas", {
     },
   },
   agent: {
-    send: (sessionId: string, text: string, config: { provider: "anthropic"; apiKey: string; model: string }) =>
+    send: (sessionId: string, text: string, config: { type: "anthropic" | "openai"; baseURL: string; apiKey: string; model: string }) =>
       ipcRenderer.invoke("agent:send", sessionId, text, config),
     abort: (sessionId: string) =>
       ipcRenderer.invoke("agent:abort", sessionId),

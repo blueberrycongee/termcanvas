@@ -1184,7 +1184,7 @@ function setupIpc() {
 
   ipcMain.handle(
     "agent:send",
-    async (_event, sessionId: string, text: string, config: { provider: "anthropic"; apiKey: string; model: string }) => {
+    async (_event, sessionId: string, text: string, config: { type: "anthropic" | "openai"; baseURL: string; apiKey: string; model: string }) => {
       agentService.send(sessionId, text, config);
     },
   );

@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import type { TerminalType } from "../types/index.ts";
+import type { AgentProviderConfig } from "../agentProviders";
+import { defaultProviderConfig, getPreset, PROVIDER_PRESETS } from "../agentProviders";
 
 const DEFAULT_BLUR = 0;
 const DEFAULT_FONT_SIZE = 13;
@@ -11,35 +13,21 @@ export interface CliCommandConfig {
   args: string[];
 }
 
-export type AgentProvider = "anthropic" | "openai" | "google";
-
 interface PreferencesStore {
-  /** Blur intensity in px (0 = off, max 3) */
   animationBlur: number;
-  /** Terminal (xterm) font size in px (6–24) */
   terminalFontSize: number;
-  /** Terminal font ID from fontRegistry */
   terminalFontFamily: string;
-  /** When false, composer bar is hidden and xterm gets direct focus */
   composerEnabled: boolean;
-  /** When false, drawing panel and drawing layer are hidden */
   drawingEnabled: boolean;
-  /** When false, the toolbar browser shortcut stays hidden */
   browserEnabled: boolean;
-  /** When true, auto-summary is enabled for CLI terminals */
   summaryEnabled: boolean;
-  /** Which CLI to use for generating summaries */
   summaryCli: "claude" | "codex";
-  /** xterm minimum contrast ratio (1 = off, max 7) */
   minimumContrastRatio: number;
-  /** Per-terminal-type CLI command overrides */
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
-  /** Agent bubble LLM provider */
-  agentProvider: AgentProvider;
-  /** Agent bubble API key (BYOK) */
-  agentApiKey: string;
-  /** Agent bubble model ID */
-  agentModel: string;
+
+  /** Agent provider configuration */
+  agentConfig: AgentProviderConfig;
+
   setAnimationBlur: (value: number) => void;
   setMinimumContrastRatio: (value: number) => void;
   setTerminalFontSize: (value: number) => void;
@@ -50,16 +38,61 @@ interface PreferencesStore {
   setSummaryEnabled: (value: boolean) => void;
   setSummaryCli: (value: "claude" | "codex") => void;
   setCli: (type: TerminalType, config: CliCommandConfig | null) => void;
-  setAgentProvider: (value: AgentProvider) => void;
-  setAgentApiKey: (value: string) => void;
-  setAgentModel: (value: string) => void;
+  setAgentConfig: (config: AgentProviderConfig) => void;
+  patchAgentConfig: (patch: Partial<AgentProviderConfig>) => void;
 }
 
 const STORAGE_KEY = "termcanvas-preferences";
 
-const VALID_PROVIDERS = new Set<AgentProvider>(["anthropic", "openai", "google"]);
+interface SavedPrefs {
+  animationBlur: number;
+  terminalFontSize: number;
+  terminalFontFamily: string;
+  composerEnabled: boolean;
+  drawingEnabled: boolean;
+  browserEnabled: boolean;
+  summaryEnabled: boolean;
+  summaryCli: "claude" | "codex";
+  minimumContrastRatio: number;
+  cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
+  agentConfig: AgentProviderConfig;
+}
 
-function loadPreferences(): { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; browserEnabled: boolean; summaryEnabled: boolean; summaryCli: "claude" | "codex"; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>>; agentProvider: AgentProvider; agentApiKey: string; agentModel: string } {
+function migrateOldAgentFields(parsed: Record<string, unknown>): AgentProviderConfig {
+  // Migrate from old flat fields: agentProvider, agentApiKey, agentModel
+  const oldProvider = parsed.agentProvider as string | undefined;
+  const oldKey = (parsed.agentApiKey as string) ?? "";
+  const oldModel = (parsed.agentModel as string) ?? "";
+
+  const preset = getPreset(oldProvider ?? "anthropic") ?? PROVIDER_PRESETS[0];
+  return {
+    id: preset.id,
+    name: preset.name,
+    type: preset.type,
+    baseURL: preset.baseURL,
+    apiKey: oldKey,
+    model: oldModel || preset.defaultModel,
+  };
+}
+
+function loadAgentConfig(parsed: Record<string, unknown>): AgentProviderConfig {
+  const raw = parsed.agentConfig;
+  if (raw && typeof raw === "object" && "id" in (raw as object) && "type" in (raw as object)) {
+    const cfg = raw as Record<string, unknown>;
+    return {
+      id: (cfg.id as string) ?? "anthropic",
+      name: (cfg.name as string) ?? "Anthropic",
+      type: (cfg.type as "anthropic" | "openai") ?? "anthropic",
+      baseURL: (cfg.baseURL as string) ?? "",
+      apiKey: (cfg.apiKey as string) ?? "",
+      model: (cfg.model as string) ?? "",
+    };
+  }
+  // Old format — migrate
+  return migrateOldAgentFields(parsed);
+}
+
+function loadPreferences(): SavedPrefs {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -106,25 +139,58 @@ function loadPreferences(): { animationBlur: number; terminalFontSize: number; t
         }
       }
 
-      let agentProvider: AgentProvider = "anthropic";
-      if (VALID_PROVIDERS.has(parsed.agentProvider)) agentProvider = parsed.agentProvider;
+      const agentConfig = loadAgentConfig(parsed);
 
-      let agentApiKey = "";
-      if (typeof parsed.agentApiKey === "string") agentApiKey = parsed.agentApiKey;
-
-      let agentModel = "";
-      if (typeof parsed.agentModel === "string") agentModel = parsed.agentModel;
-
-      return { animationBlur: blur, terminalFontSize: fontSize, terminalFontFamily: fontFamily, composerEnabled, drawingEnabled, browserEnabled, summaryEnabled, summaryCli, minimumContrastRatio, cliCommands, agentProvider, agentApiKey, agentModel };
+      return {
+        animationBlur: blur,
+        terminalFontSize: fontSize,
+        terminalFontFamily: fontFamily,
+        composerEnabled,
+        drawingEnabled,
+        browserEnabled,
+        summaryEnabled,
+        summaryCli,
+        minimumContrastRatio,
+        cliCommands,
+        agentConfig,
+      };
     }
   } catch {
     // ignore
   }
-  return { animationBlur: DEFAULT_BLUR, terminalFontSize: DEFAULT_FONT_SIZE, terminalFontFamily: "geist-mono", composerEnabled: false, drawingEnabled: false, browserEnabled: false, summaryEnabled: false, summaryCli: "claude", minimumContrastRatio: DEFAULT_MIN_CONTRAST, cliCommands: {}, agentProvider: "anthropic", agentApiKey: "", agentModel: "" };
+  return {
+    animationBlur: DEFAULT_BLUR,
+    terminalFontSize: DEFAULT_FONT_SIZE,
+    terminalFontFamily: "geist-mono",
+    composerEnabled: false,
+    drawingEnabled: false,
+    browserEnabled: false,
+    summaryEnabled: false,
+    summaryCli: "claude",
+    minimumContrastRatio: DEFAULT_MIN_CONTRAST,
+    cliCommands: {},
+    agentConfig: defaultProviderConfig(),
+  };
 }
 
-function savePreferences(state: { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; browserEnabled: boolean; summaryEnabled: boolean; summaryCli: "claude" | "codex"; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>>; agentProvider: AgentProvider; agentApiKey: string; agentModel: string }) {
+function savePreferences(state: SavedPrefs) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function getSaveState(state: PreferencesStore): SavedPrefs {
+  return {
+    animationBlur: state.animationBlur,
+    terminalFontSize: state.terminalFontSize,
+    terminalFontFamily: state.terminalFontFamily,
+    composerEnabled: state.composerEnabled,
+    drawingEnabled: state.drawingEnabled,
+    browserEnabled: state.browserEnabled,
+    summaryEnabled: state.summaryEnabled,
+    summaryCli: state.summaryCli,
+    minimumContrastRatio: state.minimumContrastRatio,
+    cliCommands: state.cliCommands,
+    agentConfig: state.agentConfig,
+  };
 }
 
 const initialPrefs = loadPreferences();
@@ -140,47 +206,46 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   summaryCli: initialPrefs.summaryCli,
   minimumContrastRatio: initialPrefs.minimumContrastRatio,
   cliCommands: initialPrefs.cliCommands,
-  agentProvider: initialPrefs.agentProvider,
-  agentApiKey: initialPrefs.agentApiKey,
-  agentModel: initialPrefs.agentModel,
+  agentConfig: initialPrefs.agentConfig,
+
   setAnimationBlur: (value) => {
     const clamped = Math.round(Math.max(0, Math.min(3, value)) * 10) / 10;
     set({ animationBlur: clamped });
-    savePreferences({ ...get(), animationBlur: clamped });
+    savePreferences(getSaveState({ ...get(), animationBlur: clamped }));
   },
   setMinimumContrastRatio: (value) => {
     const clamped = Math.round(Math.max(1, Math.min(7, value)) * 10) / 10;
     set({ minimumContrastRatio: clamped });
-    savePreferences({ ...get(), minimumContrastRatio: clamped });
+    savePreferences(getSaveState({ ...get(), minimumContrastRatio: clamped }));
   },
   setTerminalFontSize: (value) => {
     const clamped = Math.max(6, Math.min(24, Math.round(value)));
     set({ terminalFontSize: clamped });
-    savePreferences({ ...get(), terminalFontSize: clamped });
+    savePreferences(getSaveState({ ...get(), terminalFontSize: clamped }));
   },
   setTerminalFontFamily: (fontId) => {
     set({ terminalFontFamily: fontId });
-    savePreferences({ ...get(), terminalFontFamily: fontId });
+    savePreferences(getSaveState({ ...get(), terminalFontFamily: fontId }));
   },
   setComposerEnabled: (value) => {
     set({ composerEnabled: value });
-    savePreferences({ ...get(), composerEnabled: value });
+    savePreferences(getSaveState({ ...get(), composerEnabled: value }));
   },
   setDrawingEnabled: (value) => {
     set({ drawingEnabled: value });
-    savePreferences({ ...get(), drawingEnabled: value });
+    savePreferences(getSaveState({ ...get(), drawingEnabled: value }));
   },
   setBrowserEnabled: (value) => {
     set({ browserEnabled: value });
-    savePreferences({ ...get(), browserEnabled: value });
+    savePreferences(getSaveState({ ...get(), browserEnabled: value }));
   },
   setSummaryEnabled: (value) => {
     set({ summaryEnabled: value });
-    savePreferences({ ...get(), summaryEnabled: value });
+    savePreferences(getSaveState({ ...get(), summaryEnabled: value }));
   },
   setSummaryCli: (value) => {
     set({ summaryCli: value });
-    savePreferences({ ...get(), summaryCli: value });
+    savePreferences(getSaveState({ ...get(), summaryCli: value }));
   },
   setCli: (type, config) => {
     const current = { ...get().cliCommands };
@@ -190,18 +255,16 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
       delete current[type];
     }
     set({ cliCommands: current });
-    savePreferences({ ...get(), cliCommands: current });
+    savePreferences(getSaveState({ ...get(), cliCommands: current }));
   },
-  setAgentProvider: (value) => {
-    set({ agentProvider: value });
-    savePreferences({ ...get(), agentProvider: value });
+  setAgentConfig: (config) => {
+    set({ agentConfig: config });
+    savePreferences(getSaveState({ ...get(), agentConfig: config }));
   },
-  setAgentApiKey: (value) => {
-    set({ agentApiKey: value });
-    savePreferences({ ...get(), agentApiKey: value });
-  },
-  setAgentModel: (value) => {
-    set({ agentModel: value });
-    savePreferences({ ...get(), agentModel: value });
+  patchAgentConfig: (patch) => {
+    const current = get().agentConfig;
+    const updated = { ...current, ...patch };
+    set({ agentConfig: updated });
+    savePreferences(getSaveState({ ...get(), agentConfig: updated }));
   },
 }));

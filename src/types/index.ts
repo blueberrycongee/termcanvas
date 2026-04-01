@@ -553,7 +553,7 @@ export interface TermCanvasAPI {
     getLastReport: () => Promise<string | null>;
   };
   agent: {
-    send: (sessionId: string, text: string, config: { provider: "anthropic"; apiKey: string; model: string }) => Promise<void>;
+    send: (sessionId: string, text: string, config: { type: "anthropic" | "openai"; baseURL: string; apiKey: string; model: string }) => Promise<void>;
     abort: (sessionId: string) => Promise<void>;
     clear: (sessionId: string) => Promise<void>;
     delete: (sessionId: string) => Promise<void>;
