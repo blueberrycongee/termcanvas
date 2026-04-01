@@ -7,6 +7,7 @@ import {
   RIGHT_PANEL_WIDTH,
   COLLAPSED_TAB_WIDTH,
 } from "../../stores/canvasStore";
+import { useAgentBubbleStore } from "../../stores/agentBubbleStore";
 
 interface ChatPanelProps {
   messages: BubbleMessage[];
@@ -73,6 +74,26 @@ export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProp
   const panelRef = useRef<HTMLDivElement>(null);
   const rightPanelCollapsed = useCanvasStore((s) => s.rightPanelCollapsed);
   const minRight = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH;
+
+  const sessions = useAgentBubbleStore((s) => s.sessions);
+  const activeSessionId = useAgentBubbleStore((s) => s.activeSessionId);
+  const newSession = useAgentBubbleStore((s) => s.newSession);
+  const switchSession = useAgentBubbleStore((s) => s.switchSession);
+  const deleteSession = useAgentBubbleStore((s) => s.deleteSession);
+  const [showSessionList, setShowSessionList] = useState(false);
+  const sessionListRef = useRef<HTMLDivElement>(null);
+
+  // Close session list on outside click
+  useEffect(() => {
+    if (!showSessionList) return;
+    const handler = (e: MouseEvent) => {
+      if (sessionListRef.current && !sessionListRef.current.contains(e.target as Node)) {
+        setShowSessionList(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showSessionList]);
 
   const [size, setSize] = useState({ w: INITIAL_WIDTH, h: INITIAL_HEIGHT });
   // Position: bottom-right anchor (distance from bottom and right edges of viewport)
@@ -228,22 +249,87 @@ export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProp
         className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] cursor-grab active:cursor-grabbing select-none shrink-0"
         onPointerDown={handleHeaderPointerDown}
       >
-        <span className="text-[13px] font-medium text-[var(--text-primary)]">
-          Agent
-        </span>
-        <button
-          className="text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-150 p-0.5"
-          onClick={onCollapse}
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path
-              d="M2.5 2.5L7.5 7.5M7.5 2.5L2.5 7.5"
-              stroke="currentColor"
-              strokeWidth="1.2"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
+        <div className="flex items-center gap-1.5 relative" ref={sessionListRef}>
+          {/* Session list toggle */}
+          <button
+            className="text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-150 p-0.5"
+            onClick={() => setShowSessionList((v) => !v)}
+            title="Chat history"
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 4h12M2 8h12M2 12h12" />
+            </svg>
+          </button>
+          <span className="text-[13px] font-medium text-[var(--text-primary)]">
+            Agent
+          </span>
+
+          {/* Session list dropdown */}
+          {showSessionList && (
+            <div className="absolute top-full left-0 mt-1 w-56 max-h-64 overflow-auto rounded-md border border-[var(--border)] bg-[var(--surface)] shadow-lg z-10">
+              {sessions.map((s) => (
+                <div
+                  key={s.id}
+                  className={`flex items-center gap-2 px-3 py-2 text-[12px] cursor-pointer transition-colors duration-100 group ${
+                    s.id === activeSessionId
+                      ? "bg-[var(--accent)]/10 text-[var(--accent)]"
+                      : "text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
+                  }`}
+                  onClick={() => {
+                    switchSession(s.id);
+                    setShowSessionList(false);
+                  }}
+                >
+                  <span className="flex-1 min-w-0 truncate">{s.title}</span>
+                  <span className="shrink-0 text-[10px] text-[var(--text-faint)]">
+                    {s.messages.length}
+                  </span>
+                  {sessions.length > 1 && (
+                    <button
+                      className="shrink-0 opacity-0 group-hover:opacity-100 text-[var(--text-faint)] hover:text-[var(--danger,#e55)] transition-opacity duration-100 p-0.5"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteSession(s.id);
+                      }}
+                      title="Delete"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                        <path d="M2.5 2.5L7.5 7.5M7.5 2.5L2.5 7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1">
+          {/* New chat button */}
+          <button
+            className="text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-150 p-0.5"
+            onClick={newSession}
+            title="New chat"
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+              <path d="M8 3v10M3 8h10" />
+            </svg>
+          </button>
+          {/* Close button */}
+          <button
+            className="text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-150 p-0.5"
+            onClick={onCollapse}
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path
+                d="M2.5 2.5L7.5 7.5M7.5 2.5L2.5 7.5"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Messages */}

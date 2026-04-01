@@ -1,2 +1,2 @@
 export { AgentBubble } from "./AgentBubble";
-export type { BubbleMessage, AgentBubbleProps } from "./types";
+export type { BubbleMessage, BubbleSession, AgentBubbleProps } from "./types";
