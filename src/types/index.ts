@@ -565,6 +565,25 @@ export interface TermCanvasAPI {
     requestClose: () => void;
     confirmClose: (options?: { installUpdate?: boolean }) => void;
   };
+  hooks: {
+    getSocketPath: () => Promise<string | null>;
+    onSessionStarted: (callback: (payload: {
+      terminalId: string;
+      sessionId: string;
+      transcriptPath: string | null;
+      cwd: string | null;
+    }) => void) => () => void;
+    onTurnComplete: (callback: (payload: {
+      terminalId: string;
+      sessionId: string | null;
+    }) => void) => () => void;
+    onStopFailure: (callback: (payload: {
+      terminalId: string;
+      sessionId: string | null;
+      error: string | null;
+      errorDetails: string | null;
+    }) => void) => () => void;
+  };
   menu: {
     onOpenFolder: (callback: (dirPath: string) => void) => () => void;
   };

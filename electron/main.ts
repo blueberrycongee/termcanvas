@@ -56,6 +56,7 @@ import {
 } from "./git-info";
 import { createMenu } from "./menu";
 import { TelemetryService } from "./telemetry-service";
+import { HookReceiver } from "./hook-receiver";
 import { findBestClaudeSession, findBestCodexSession, readClaudeSessionPermissionMode, readCodexSessionBypassState } from "./session-discovery";
 import { AgentService } from "./agent-service";
 
@@ -110,6 +111,31 @@ const fileTreeWatcher = new FileTreeWatcher(HIDDEN_DIRS, (dirPath) => {
 const sessionWatcher = new SessionWatcher();
 const telemetryService = new TelemetryService();
 const agentService = new AgentService();
+let hookSocketPath: string | null = null;
+const hookReceiver = new HookReceiver((event) => {
+  telemetryService.recordHookEvent(event.terminal_id, event);
+
+  if (event.hook_event_name === "SessionStart" && event.session_id) {
+    sendToWindow(mainWindow, "hook:session-started", {
+      terminalId: event.terminal_id,
+      sessionId: event.session_id,
+      transcriptPath: event.transcript_path ?? null,
+      cwd: event.cwd ?? null,
+    });
+  } else if (event.hook_event_name === "Stop") {
+    sendToWindow(mainWindow, "hook:turn-complete", {
+      terminalId: event.terminal_id,
+      sessionId: event.session_id ?? null,
+    });
+  } else if (event.hook_event_name === "StopFailure") {
+    sendToWindow(mainWindow, "hook:stop-failure", {
+      terminalId: event.terminal_id,
+      sessionId: event.session_id ?? null,
+      error: event.error ?? null,
+      errorDetails: event.error_details ?? null,
+    });
+  }
+});
 const apiServer = new ApiServer({
   getWindow: () => mainWindow,
   ptyManager,
@@ -231,6 +257,7 @@ function setupIpc() {
       const ptyId = await ptyManager.create({
         ...options,
         extraPathEntries: [getCliDir()],
+        ...(hookSocketPath ? { envOverrides: { TERMCANVAS_SOCKET: hookSocketPath } } : {}),
       });
       const pid = ptyManager.getPid(ptyId);
       dbg(`terminal:create => ptyId=${ptyId} pid=${pid ?? "null"}`);
@@ -592,6 +619,9 @@ function setupIpc() {
   }) => {
     return telemetryService.listTerminalEvents(input);
   });
+
+  // Hook system IPC
+  ipcMain.handle("hook:get-socket-path", () => hookSocketPath);
 
   // State IPC
   ipcMain.handle("state:load", () => {
@@ -1250,6 +1280,7 @@ app.whenReady().then(async () => {
     }
   });
 
+  hookSocketPath = await hookReceiver.start();
   ensureCliLinks();
   if (isCliRegistered(getCliDir())) ensureSkillInstalled();
   setupIpc();
@@ -1299,6 +1330,7 @@ app.whenReady().then(async () => {
 });
 
 app.on("will-quit", () => {
+  hookReceiver.stop();
   stopAutoUpdater();
   apiServer.stop();
   cleanupPortFile();

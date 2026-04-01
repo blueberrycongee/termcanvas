@@ -575,6 +575,138 @@ export class TelemetryService {
     };
   }
 
+  recordHookEvent(terminalId: string, event: {
+    hook_event_name: string;
+    session_id?: string;
+    transcript_path?: string;
+    cwd?: string;
+    [key: string]: unknown;
+  }): void {
+    const state = this.ensureState(terminalId);
+    const at = isoNow(this.now);
+
+    switch (event.hook_event_name) {
+      case "SessionStart":
+        if (event.session_id) {
+          this.recordSessionAttached({
+            terminalId,
+            provider: "claude",
+            sessionId: event.session_id as string,
+            confidence: "strong",
+            sessionFile: (event.transcript_path as string) ?? undefined,
+          });
+          if (event.transcript_path) {
+            this.attachSessionSource({
+              terminalId,
+              provider: "claude",
+              sessionId: event.session_id as string,
+              confidence: "strong",
+              sessionFile: event.transcript_path as string,
+            });
+          }
+        }
+        this.appendEvent(state, at, "session", "hook_session_start", {
+          session_id: event.session_id ?? null,
+          source: event.source ?? null,
+          model: event.model ?? null,
+        });
+        break;
+
+      case "Stop":
+        state.snapshot.turn_state = "turn_complete";
+        state.snapshot.last_meaningful_progress_at = at;
+        this.appendEvent(state, at, "session", "hook_stop", {
+          last_assistant_message: event.last_assistant_message ?? null,
+        });
+        break;
+
+      case "StopFailure":
+        state.snapshot.turn_state = "turn_complete";
+        this.appendEvent(state, at, "session", "hook_stop_failure", {
+          error: event.error ?? null,
+          error_details: event.error_details ?? null,
+          last_assistant_message: event.last_assistant_message ?? null,
+        });
+        break;
+
+      case "PreToolUse":
+        state.snapshot.turn_state = "tool_running";
+        state.snapshot.last_meaningful_progress_at = at;
+        state.snapshot.foreground_tool = event.tool_name as string | undefined;
+        this.appendEvent(state, at, "session", "hook_pre_tool", {
+          tool_name: event.tool_name ?? null,
+        });
+        break;
+
+      case "PostToolUse":
+        state.snapshot.turn_state = "in_turn";
+        state.snapshot.last_meaningful_progress_at = at;
+        state.snapshot.foreground_tool = undefined;
+        this.appendEvent(state, at, "session", "hook_post_tool", {
+          tool_name: event.tool_name ?? null,
+        });
+        break;
+
+      case "PostToolUseFailure":
+        state.snapshot.turn_state = "in_turn";
+        state.snapshot.foreground_tool = undefined;
+        this.appendEvent(state, at, "session", "hook_post_tool_failure", {
+          tool_name: event.tool_name ?? null,
+          error: event.error ?? null,
+          is_interrupt: event.is_interrupt ?? null,
+        });
+        break;
+
+      case "UserPromptSubmit":
+        state.snapshot.turn_state = "in_turn";
+        state.snapshot.last_meaningful_progress_at = at;
+        this.appendEvent(state, at, "session", "hook_user_prompt", {
+          prompt: event.prompt ?? null,
+        });
+        break;
+
+      case "SessionEnd":
+        this.appendEvent(state, at, "session", "hook_session_end", {
+          reason: event.reason ?? null,
+        });
+        break;
+
+      case "SubagentStart":
+        state.snapshot.last_meaningful_progress_at = at;
+        this.appendEvent(state, at, "session", "hook_subagent_start", {
+          agent_id: event.agent_id ?? null,
+          agent_type: event.agent_type ?? null,
+        });
+        break;
+
+      case "SubagentStop":
+        this.appendEvent(state, at, "session", "hook_subagent_stop", {
+          agent_id: event.agent_id ?? null,
+          agent_type: event.agent_type ?? null,
+        });
+        break;
+
+      case "PreCompact":
+        this.appendEvent(state, at, "session", "hook_pre_compact", {
+          trigger: event.trigger ?? null,
+        });
+        break;
+
+      case "PostCompact":
+        state.snapshot.last_meaningful_progress_at = at;
+        this.appendEvent(state, at, "session", "hook_post_compact", {
+          trigger: event.trigger ?? null,
+        });
+        break;
+
+      default:
+        this.appendEvent(state, at, "session", `hook_${event.hook_event_name}`, {});
+        break;
+    }
+
+    this.updateDerivedStatus(state);
+  }
+
   dispose(): void {
     for (const state of this.terminals.values()) {
       this.stopProcessPolling(state);
