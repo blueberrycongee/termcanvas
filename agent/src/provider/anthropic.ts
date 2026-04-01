@@ -280,7 +280,37 @@ function toMessageParams(messages: Message[]): MessageParam[] {
     out.push({ role: "assistant", content: blocks });
   }
 
-  return out;
+  // Merge consecutive same-role messages to satisfy Anthropic's alternating-role requirement
+  return mergeConsecutiveSameRole(out);
+}
+
+function mergeConsecutiveSameRole(messages: MessageParam[]): MessageParam[] {
+  if (messages.length <= 1) return messages;
+
+  const merged: MessageParam[] = [messages[0]];
+
+  for (let i = 1; i < messages.length; i++) {
+    const prev = merged[merged.length - 1];
+    const curr = messages[i];
+
+    if (prev.role === curr.role) {
+      // Convert both sides to content block arrays, then concatenate
+      const prevBlocks = toContentBlockArray(prev.content);
+      const currBlocks = toContentBlockArray(curr.content);
+      merged[merged.length - 1] = { role: prev.role, content: [...prevBlocks, ...currBlocks] } as MessageParam;
+    } else {
+      merged.push(curr);
+    }
+  }
+
+  return merged;
+}
+
+function toContentBlockArray(content: string | ContentBlockParam[]): ContentBlockParam[] {
+  if (typeof content === "string") {
+    return [{ type: "text" as const, text: content }];
+  }
+  return content;
 }
 
 function toAnthropicTool(schema: {
