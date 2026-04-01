@@ -51,7 +51,13 @@ export interface AssistantMessage {
   usage?: Usage;
 }
 
-export type Message = UserMessage | AssistantMessage;
+export interface SystemMessage {
+  role: "system";
+  content: string;
+  metadata?: { taskId?: string; type?: string };
+}
+
+export type Message = UserMessage | AssistantMessage | SystemMessage;
 
 export type StopReason =
   | "end_turn"
@@ -109,6 +115,14 @@ export interface ToolResult {
   content: string;
   is_error?: boolean;
 }
+
+export interface PendingToolResult {
+  status: "pending";
+  taskId: string;
+  content: string;
+}
+
+export type ToolCallReturn = ToolResult | PendingToolResult;
 
 // ---------------------------------------------------------------------------
 // Agent loop control

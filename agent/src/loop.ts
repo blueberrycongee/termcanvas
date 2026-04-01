@@ -9,7 +9,7 @@
  */
 
 import type { LLMProvider } from "./provider/types.ts";
-import type { ToolRegistry } from "./tool.ts";
+import type { ToolRegistry, PendingTask } from "./tool.ts";
 import { executeTools } from "./tool.ts";
 import type {
   AgentOptions,
@@ -40,6 +40,8 @@ export type AgentEvent =
   | { type: "tool_end"; name: string; content: string; is_error?: boolean }
   | { type: "cost_update"; costState: import("./cost-tracker.ts").CostState }
   | { type: "compaction"; beforeTokens: number; afterTokens: number }
+  | { type: "task_pending"; taskId: string; toolName: string }
+  | { type: "task_completed"; taskId: string; toolName: string; result: import("./types.ts").ToolResult }
   | { type: "loop_end"; result: LoopResult };
 
 // ---------------------------------------------------------------------------
@@ -61,6 +63,7 @@ export async function* agentLoop(
   const costTracker = new CostTracker(options.modelId ?? "");
   let compactionState = initialCompactionState();
   const contextWindow = getContextWindow(options.modelId ?? "");
+  const pendingTasks = new Map<string, PendingTask>();
 
   while (turnCount < maxTurns) {
     if (options.signal?.aborted) {
@@ -77,6 +80,28 @@ export async function* agentLoop(
 
     turnCount++;
     yield { type: "turn_start", turn: turnCount };
+
+    // ----- Collect completed background tasks -----
+    for (const [taskId, task] of pendingTasks) {
+      try {
+        // Non-blocking check: use Promise.race with an instant resolver
+        const result = await Promise.race([
+          task.promise.then((r) => ({ resolved: true as const, result: r })),
+          Promise.resolve({ resolved: false as const }),
+        ]);
+        if (result.resolved) {
+          pendingTasks.delete(taskId);
+          yield { type: "task_completed", taskId, toolName: task.toolName, result: result.result };
+          messages.push({
+            role: "system",
+            content: `<worker-notification taskId="${taskId}" tool="${task.toolName}">${result.result.content}</worker-notification>`,
+            metadata: { taskId, type: "task_completion" },
+          });
+        }
+      } catch {
+        pendingTasks.delete(taskId);
+      }
+    }
 
     // ----- Stream LLM response with error-category retry -----
     let assistantMessage: AssistantMessage | undefined;
@@ -184,17 +209,35 @@ export async function* agentLoop(
     );
 
     if (toolUseBlocks.length === 0) {
-      // No tools → done
+      if (pendingTasks.size === 0) {
+        // Truly done — no pending background work
+        yield { type: "turn_end", turn: turnCount };
+        const result: LoopResult = {
+          reason: "completed",
+          messages,
+          totalUsage,
+          turnCount,
+          costState: costTracker.getState(),
+        };
+        yield { type: "loop_end", result };
+        return result;
+      }
+
+      // Has pending tasks — wait for at least one to complete
+      const entries = [...pendingTasks.values()];
+      const nextCompleted = await Promise.race(
+        entries.map((t) => t.promise.then((r) => ({ taskId: t.taskId, toolName: t.toolName, result: r }))),
+      );
+      pendingTasks.delete(nextCompleted.taskId);
+      yield { type: "task_completed", taskId: nextCompleted.taskId, toolName: nextCompleted.toolName, result: nextCompleted.result };
+      messages.push({
+        role: "system",
+        content: `<worker-notification taskId="${nextCompleted.taskId}" tool="${nextCompleted.toolName}">${nextCompleted.result.content}</worker-notification>`,
+        metadata: { taskId: nextCompleted.taskId, type: "task_completion" },
+      });
+
       yield { type: "turn_end", turn: turnCount };
-      const result: LoopResult = {
-        reason: "completed",
-        messages,
-        totalUsage,
-        turnCount,
-        costState: costTracker.getState(),
-      };
-      yield { type: "loop_end", result };
-      return result;
+      continue;
     }
 
     // ----- Execute tools -----
@@ -209,6 +252,7 @@ export async function* agentLoop(
       yield { type: "tool_start" as const, name: call.name, input: call.input };
     }
 
+    const prevPendingSize = pendingTasks.size;
     const toolResults = await executeTools(
       calls,
       tools,
@@ -219,7 +263,17 @@ export async function* agentLoop(
       (name, result) => {
         options.onToolEnd?.(name, result);
       },
+      pendingTasks,
     );
+
+    // Emit task_pending events for newly registered background tasks
+    if (pendingTasks.size > prevPendingSize) {
+      for (const [taskId, task] of pendingTasks) {
+        if (task.startTime >= Date.now() - 1000) {
+          yield { type: "task_pending", taskId, toolName: task.toolName };
+        }
+      }
+    }
 
     // Yield tool_end events after execution
     for (const tr of toolResults) {

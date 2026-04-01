@@ -237,6 +237,11 @@ function toOpenAIMessages(systemPrompt: string, messages: Message[]): OpenAIMess
   const out: OpenAIMessage[] = [{ role: "system", content: systemPrompt }];
 
   for (const msg of messages) {
+    if (msg.role === "system") {
+      out.push({ role: "system", content: msg.content });
+      continue;
+    }
+
     if (msg.role === "user") {
       if (typeof msg.content === "string") {
         out.push({ role: "user", content: msg.content });
@@ -258,32 +263,33 @@ function toOpenAIMessages(systemPrompt: string, messages: Message[]): OpenAIMess
           out.push({ role: "user", content: textParts.join("\n") });
         }
       }
-    } else {
-      // assistant
-      const textParts: string[] = [];
-      const toolCallsOut: OpenAIMessage["tool_calls"] = [];
-
-      for (const block of msg.content) {
-        if (block.type === "text") {
-          textParts.push(block.text);
-        } else if (block.type === "tool_use") {
-          toolCallsOut.push({
-            id: block.id,
-            type: "function",
-            function: {
-              name: block.name,
-              arguments: JSON.stringify(block.input),
-            },
-          });
-        }
-      }
-
-      out.push({
-        role: "assistant",
-        content: textParts.join("\n") || null,
-        ...(toolCallsOut.length > 0 ? { tool_calls: toolCallsOut } : {}),
-      });
+      continue;
     }
+
+    // assistant
+    const textParts: string[] = [];
+    const toolCallsOut: OpenAIMessage["tool_calls"] = [];
+
+    for (const block of msg.content) {
+      if (block.type === "text") {
+        textParts.push(block.text);
+      } else if (block.type === "tool_use") {
+        toolCallsOut.push({
+          id: block.id,
+          type: "function",
+          function: {
+            name: block.name,
+            arguments: JSON.stringify(block.input),
+          },
+        });
+      }
+    }
+
+    out.push({
+      role: "assistant",
+      content: textParts.join("\n") || null,
+      ...(toolCallsOut.length > 0 ? { tool_calls: toolCallsOut } : {}),
+    });
   }
 
   return out;

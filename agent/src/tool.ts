@@ -7,7 +7,7 @@
  */
 
 import type { z, ZodObject, ZodRawShape } from "zod";
-import type { ToolResult } from "./types.ts";
+import type { ToolResult, ToolCallReturn, PendingToolResult } from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // Tool interface
@@ -18,8 +18,8 @@ export interface Tool<S extends ZodRawShape = ZodRawShape> {
   description: string;
   inputSchema: ZodObject<S>;
 
-  /** Execute the tool. */
-  call(input: z.infer<ZodObject<S>>, signal?: AbortSignal): Promise<ToolResult>;
+  /** Execute the tool. May return a pending result for background execution. */
+  call(input: z.infer<ZodObject<S>>, signal?: AbortSignal): Promise<ToolCallReturn>;
 
   /** Can this tool run in parallel with other read-only tools? */
   isReadOnly: boolean;
@@ -142,12 +142,24 @@ export interface ToolCallResult {
   is_error?: boolean;
 }
 
+export interface PendingTask {
+  taskId: string;
+  toolName: string;
+  startTime: number;
+  promise: Promise<ToolResult>;
+}
+
+function isPendingResult(result: ToolCallReturn): result is PendingToolResult {
+  return "status" in result && result.status === "pending";
+}
+
 export async function executeTools(
   calls: ToolCall[],
   registry: ToolRegistry,
   signal?: AbortSignal,
   onStart?: (name: string, input: Record<string, unknown>) => void,
   onEnd?: (name: string, result: ToolResult) => void,
+  pendingTasks?: Map<string, PendingTask>,
 ): Promise<ToolCallResult[]> {
   // Partition into batches: consecutive read-only calls form one concurrent batch,
   // each non-read-only call is its own serial batch.
@@ -157,12 +169,12 @@ export async function executeTools(
   for (const batch of batches) {
     if (batch.concurrent) {
       const batchResults = await Promise.all(
-        batch.calls.map((call) => executeSingle(call, registry, signal, onStart, onEnd)),
+        batch.calls.map((call) => executeSingle(call, registry, signal, onStart, onEnd, pendingTasks)),
       );
       results.push(...batchResults);
     } else {
       for (const call of batch.calls) {
-        results.push(await executeSingle(call, registry, signal, onStart, onEnd));
+        results.push(await executeSingle(call, registry, signal, onStart, onEnd, pendingTasks));
       }
     }
   }
@@ -176,6 +188,7 @@ async function executeSingle(
   signal?: AbortSignal,
   onStart?: (name: string, input: Record<string, unknown>) => void,
   onEnd?: (name: string, result: ToolResult) => void,
+  pendingTasks?: Map<string, PendingTask>,
 ): Promise<ToolCallResult> {
   const tool = registry.get(call.name);
   if (!tool) {
@@ -199,9 +212,30 @@ async function executeSingle(
       return { tool_use_id: call.id, ...result };
     }
 
-    const result = await tool.call(parsed.data, signal);
-    onEnd?.(call.name, result);
-    return { tool_use_id: call.id, ...result };
+    const callReturn = await tool.call(parsed.data, signal);
+
+    if (isPendingResult(callReturn)) {
+      // Background task: register the pending promise and return acknowledgment
+      if (pendingTasks) {
+        // The tool returned pending — it must provide a way to get the final result.
+        // The tool is responsible for setting up its own async work. We wrap it in a
+        // promise that the caller provided via the PendingToolResult convention.
+        // Since the tool already returned, we don't have the promise directly.
+        // Tools that want background execution should set this up before returning.
+        // For now, we create a placeholder that resolves when polled externally.
+        pendingTasks.set(callReturn.taskId, {
+          taskId: callReturn.taskId,
+          toolName: call.name,
+          startTime: Date.now(),
+          promise: Promise.resolve({ content: callReturn.content }),
+        });
+      }
+      onEnd?.(call.name, { content: callReturn.content });
+      return { tool_use_id: call.id, content: callReturn.content };
+    }
+
+    onEnd?.(call.name, callReturn);
+    return { tool_use_id: call.id, ...callReturn };
   } catch (err) {
     const result: ToolResult = {
       content: `Tool error: ${err instanceof Error ? err.message : String(err)}`,

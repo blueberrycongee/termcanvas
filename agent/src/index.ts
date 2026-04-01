@@ -10,10 +10,13 @@ export type {
   LoopExitReason,
   LoopResult,
   Message,
+  PendingToolResult,
   StopReason,
   StreamEvent,
+  SystemMessage,
   TextBlock,
   ThinkingBlock,
+  ToolCallReturn,
   ToolResult,
   ToolResultBlock,
   ToolUseBlock,
@@ -23,7 +26,7 @@ export type {
 export { emptyUsage, mergeUsage } from "./types.ts";
 
 // Tool system
-export type { APIToolSchema, ToolCall, ToolCallResult } from "./tool.ts";
+export type { APIToolSchema, PendingTask, ToolCall, ToolCallResult } from "./tool.ts";
 export type { Tool } from "./tool.ts";
 export { ToolRegistry, executeTools } from "./tool.ts";
 

@@ -72,6 +72,9 @@ function splitMessages(messages: Message[], preserveRecent: number): CompactionS
   const recentMessages = messages.slice(keepFrom);
 
   const conversationText = messagesToSummarize.map((msg) => {
+    if (msg.role === "system") {
+      return `SYSTEM: ${msg.content.slice(0, 200)}`;
+    }
     if (msg.role === "user") {
       const content = typeof msg.content === "string"
         ? msg.content

@@ -256,29 +256,39 @@ export class AnthropicProvider implements LLMProvider {
 // ---------------------------------------------------------------------------
 
 function toMessageParams(messages: Message[]): MessageParam[] {
-  return messages.map((msg): MessageParam => {
+  const out: MessageParam[] = [];
+
+  for (const msg of messages) {
+    if (msg.role === "system") {
+      // Anthropic API doesn't have system role in messages — inject as user message
+      out.push({ role: "user", content: `<system-reminder>${msg.content}</system-reminder>` });
+      continue;
+    }
+
     if (msg.role === "user") {
       if (typeof msg.content === "string") {
-        return { role: "user", content: msg.content };
+        out.push({ role: "user", content: msg.content });
+      } else {
+        const blocks: ContentBlockParam[] = msg.content.map((block) => {
+          if (block.type === "text") {
+            return { type: "text" as const, text: block.text };
+          }
+          // tool_result
+          const tr = block as {
+            tool_use_id: string;
+            content: string;
+            is_error?: boolean;
+          };
+          return {
+            type: "tool_result" as const,
+            tool_use_id: tr.tool_use_id,
+            content: tr.content,
+            ...(tr.is_error ? { is_error: true } : {}),
+          } as ToolResultBlockParam;
+        });
+        out.push({ role: "user", content: blocks });
       }
-      const blocks: ContentBlockParam[] = msg.content.map((block) => {
-        if (block.type === "text") {
-          return { type: "text" as const, text: block.text };
-        }
-        // tool_result
-        const tr = block as {
-          tool_use_id: string;
-          content: string;
-          is_error?: boolean;
-        };
-        return {
-          type: "tool_result" as const,
-          tool_use_id: tr.tool_use_id,
-          content: tr.content,
-          ...(tr.is_error ? { is_error: true } : {}),
-        } as ToolResultBlockParam;
-      });
-      return { role: "user", content: blocks };
+      continue;
     }
 
     // assistant
@@ -301,8 +311,10 @@ function toMessageParams(messages: Message[]): MessageParam[] {
           input: tu.input,
         };
       });
-    return { role: "assistant", content: blocks };
-  });
+    out.push({ role: "assistant", content: blocks });
+  }
+
+  return out;
 }
 
 function toAnthropicTool(schema: {
