@@ -56,7 +56,7 @@ export function getTerminalFocusOrder(
       }
 
       for (const terminal of worktree.terminals) {
-        if (terminal.minimized) {
+        if (terminal.minimized || terminal.stashed) {
           continue;
         }
 
