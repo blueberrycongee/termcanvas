@@ -59,36 +59,8 @@ export class OpenAIProvider implements LLMProvider {
       ...(tools ? { tools } : {}),
     };
 
-    const assembled = yield* this.streamWithRetry(body, params.signal);
+    const assembled = yield* this.doStream(body, params.signal);
     return assembled;
-  }
-
-  private async *streamWithRetry(
-    body: Record<string, unknown>,
-    signal?: AbortSignal,
-  ): AsyncGenerator<StreamEvent, AssistantMessage> {
-    const maxRetries = 3;
-    let lastError: Error | undefined;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      if (signal?.aborted) throw new Error("Aborted");
-
-      if (attempt > 0) {
-        const delay = Math.min(500 * 2 ** (attempt - 1), 16_000);
-        const jitter = delay * (0.75 + Math.random() * 0.5);
-        await sleep(jitter, signal);
-      }
-
-      try {
-        return yield* this.doStream(body, signal);
-      } catch (err) {
-        lastError = err instanceof Error ? err : new Error(String(err));
-        if (!isRetryable(err) || attempt === maxRetries) throw lastError;
-        yield { type: "error", error: lastError };
-      }
-    }
-
-    throw lastError ?? new Error("Stream failed");
   }
 
   private async *doStream(
@@ -330,23 +302,3 @@ function mapFinishReason(reason: string): StopReason {
   }
 }
 
-function isRetryable(err: unknown): boolean {
-  if (!(err instanceof Error)) return false;
-  const msg = err.message.toLowerCase();
-  if (msg.includes("abort")) return false;
-  if (msg.includes("connection") || msg.includes("timeout") || msg.includes("fetch")) return true;
-  const status = (err as { status?: number }).status;
-  if (status && (status >= 500 || status === 429 || status === 408)) return true;
-  return false;
-}
-
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) return reject(new Error("Aborted"));
-    const timer = setTimeout(resolve, ms);
-    signal?.addEventListener("abort", () => {
-      clearTimeout(timer);
-      reject(new Error("Aborted"));
-    }, { once: true });
-  });
-}
