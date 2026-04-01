@@ -53,12 +53,13 @@ function readSessionTail(sessionFile: string): string {
       const role = entry.role as string | undefined;
       const type = entry.type as string | undefined;
 
-      if (role === "user" || role === "assistant") {
+      if (type === "user" || type === "assistant") {
+        const msg = entry.message as Record<string, unknown> | undefined;
+        const text = extractText(msg?.content ?? entry.content);
+        if (text) messages.push(`[${type}] ${text}`);
+      } else if (role === "user" || role === "assistant") {
         const text = extractText(entry.content);
         if (text) messages.push(`[${role}] ${text}`);
-      } else if (type === "user" || type === "assistant") {
-        const text = extractText(entry.message ?? entry.content);
-        if (text) messages.push(`[${type}] ${text}`);
       }
     } catch {
       // skip malformed lines
@@ -73,10 +74,12 @@ function extractText(content: unknown): string {
   if (!Array.isArray(content)) return "";
   return content
     .map((block) => {
+      if (typeof block === "string") return block;
       if (!block || typeof block !== "object") return "";
       const entry = block as Record<string, unknown>;
       if (typeof entry.text === "string") return entry.text;
       if (typeof entry.content === "string") return entry.content;
+      // skip thinking/tool_use blocks — they're noise for summarization
       return "";
     })
     .filter(Boolean)
@@ -143,33 +146,43 @@ export async function generateSummary(
   input: SummaryInput,
 ): Promise<SummaryResult> {
   const { terminalId, sessionId, sessionType, cwd, summaryCli } = input;
+  const tag = `[Summary ${terminalId.slice(0, 8)}]`;
 
   if (inFlight.has(terminalId)) {
+    console.log(`${tag} skipped: already in flight`);
     return { ok: false, error: "Summary already in progress for this terminal" };
   }
 
+  console.log(`${tag} resolving session file: sessionId=${sessionId} type=${sessionType} cwd=${cwd}`);
   const sessionFile = resolveSessionFile(sessionId, sessionType, cwd);
   if (!sessionFile || !fs.existsSync(sessionFile)) {
+    console.warn(`${tag} session file not found: ${sessionFile ?? "null"}`);
     return { ok: false, error: "Session file not found" };
   }
+  console.log(`${tag} session file: ${sessionFile}`);
 
   inFlight.add(terminalId);
   try {
     const content = readSessionTail(sessionFile);
     if (!content) {
+      console.warn(`${tag} no session content to summarize`);
       return { ok: false, error: "No session content to summarize" };
     }
+    console.log(`${tag} session tail: ${content.length} chars, invoking ${summaryCli}...`);
 
     const prompt = buildSummaryPrompt(content);
     const raw = await invokeSummaryCli(summaryCli, prompt);
     const summary = raw.trim().replace(/\n+/g, " ").slice(0, 120);
 
     if (!summary) {
+      console.warn(`${tag} CLI returned empty response`);
       return { ok: false, error: "CLI returned empty response" };
     }
 
+    console.log(`${tag} success: "${summary}"`);
     return { ok: true, summary };
   } catch (err) {
+    console.error(`${tag} failed:`, err);
     return { ok: false, error: String(err) };
   } finally {
     inFlight.delete(terminalId);

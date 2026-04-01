@@ -1,6 +1,7 @@
 import type { TerminalData } from "../types/index.ts";
 import { useProjectStore } from "../stores/projectStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
+import { useNotificationStore } from "../stores/notificationStore";
 
 type SummaryCli = "claude" | "codex";
 
@@ -23,6 +24,7 @@ export function requestSummary(
   if (inFlightRenderer.has(terminal.id)) return;
 
   inFlightRenderer.add(terminal.id);
+  console.log(`[SummaryScheduler] requesting summary for ${terminal.id.slice(0, 8)} (${terminal.type})`);
 
   window.termcanvas.summary
     .generate({
@@ -34,6 +36,7 @@ export function requestSummary(
     })
     .then((result) => {
       if (result.ok && result.summary) {
+        console.log(`[SummaryScheduler] success for ${terminal.id.slice(0, 8)}: "${result.summary}"`);
         useProjectStore
           .getState()
           .updateTerminalCustomTitle(
@@ -43,10 +46,14 @@ export function requestSummary(
             result.summary,
           );
         lastSummaryTimestamp.set(terminal.id, Date.now());
+      } else {
+        console.warn(`[SummaryScheduler] failed for ${terminal.id.slice(0, 8)}: ${result.error}`);
+        useNotificationStore.getState().notify("warn", `Summary failed: ${result.error}`);
       }
     })
-    .catch(() => {
-      // silently ignore — not user-initiated in auto mode
+    .catch((err) => {
+      console.error(`[SummaryScheduler] IPC error for ${terminal.id.slice(0, 8)}:`, err);
+      useNotificationStore.getState().notify("error", `Summary error: ${String(err)}`);
     })
     .finally(() => {
       inFlightRenderer.delete(terminal.id);
