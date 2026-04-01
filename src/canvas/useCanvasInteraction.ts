@@ -16,6 +16,9 @@ export function useCanvasInteraction() {
   const zoomCursor = useRef({ x: 0, y: 0 });
   const zoomAnimating = useRef(false);
 
+  const panTarget = useRef({ x: 0, y: 0 });
+  const panAnimating = useRef(false);
+
   const handleWheel = useCallback((e: React.WheelEvent) => {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
@@ -44,11 +47,40 @@ export function useCanvasInteraction() {
         requestAnimationFrame(zoomTick);
       }
     } else {
-      const { viewport, setViewport } = useCanvasStore.getState();
-      setViewport({
-        x: viewport.x - e.deltaX,
-        y: viewport.y - e.deltaY,
-      });
+      const prev = panAnimating.current
+        ? panTarget.current
+        : useCanvasStore.getState().viewport;
+
+      panTarget.current = {
+        x: prev.x - e.deltaX,
+        y: prev.y - e.deltaY,
+      };
+
+      if (!panAnimating.current) {
+        panAnimating.current = true;
+        requestAnimationFrame(panTick);
+      }
+    }
+  }, []);
+
+  const panTick = useCallback(() => {
+    const { viewport, setViewport } = useCanvasStore.getState();
+    const target = panTarget.current;
+
+    const nextX = viewport.x + (target.x - viewport.x) * LERP_SPEED;
+    const nextY = viewport.y + (target.y - viewport.y) * LERP_SPEED;
+
+    setViewport({ x: nextX, y: nextY });
+
+    const done =
+      Math.abs(nextX - target.x) < 0.5 &&
+      Math.abs(nextY - target.y) < 0.5;
+
+    if (done) {
+      setViewport({ x: target.x, y: target.y });
+      panAnimating.current = false;
+    } else {
+      requestAnimationFrame(panTick);
     }
   }, []);
 
