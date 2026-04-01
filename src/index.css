@@ -150,16 +150,28 @@ body {
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 
-/* Force text cursor on the xterm host and every descendant.
-   A single wildcard rule is more robust than enumerating xterm internals
-   which change across versions (v6 added xterm-scrollable-element,
-   shadow overlays, etc.). */
+/* Force text cursor inside terminal tiles.
+   xterm v6 has many internal elements that set cursor away from text:
+   .enable-mouse-events → default, .xterm-cursor-pointer → pointer,
+   .xterm-viewport → default, .xterm-scrollable-element > .scrollbar → default.
+   Use !important to win over any cascade/specificity combination.
+   Also target the container (.tc-xterm-host) to cover pixel gaps between
+   the xterm element edge and the tile content area. */
 .tc-xterm-host,
-.tc-xterm-host * {
+.terminal-tile .xterm,
+.terminal-tile .xterm.enable-mouse-events,
+.terminal-tile .xterm.xterm-cursor-pointer,
+.terminal-tile .xterm .xterm-cursor-pointer,
+.terminal-tile .xterm .xterm-viewport,
+.terminal-tile .xterm .xterm-screen,
+.terminal-tile .xterm .xterm-scrollable-element,
+.terminal-tile .xterm .xterm-scrollable-element > .scrollbar {
   cursor: text !important;
 }
 
-/* xterm v6 scroll shadows sit at z-index 11 along the top and left edges.
+/* xterm v6 scroll shadows sit at z-index 11 along the top and left edges
+   of the scrollable element.  They intercept mouse events in the top-left
+   area of the terminal, preventing text selection from starting there.
    Disable their hit-testing so clicks fall through to the screen below. */
 .terminal-tile .xterm .xterm-scrollable-element > .shadow {
   pointer-events: none !important;
