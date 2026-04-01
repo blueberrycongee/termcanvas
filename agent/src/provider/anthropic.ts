@@ -118,6 +118,7 @@ export class AnthropicProvider implements LLMProvider {
     let stopReason: StopReason = null;
     let usage: Usage = { input_tokens: 0, output_tokens: 0 };
 
+    let completed = false;
     try {
       for await (const event of stream) {
         const streamEvent = event as MessageStreamEvent;
@@ -211,8 +212,9 @@ export class AnthropicProvider implements LLMProvider {
           }
         }
       }
+      completed = true;
     } finally {
-      stream.controller.abort();
+      if (!completed) stream.controller.abort();
     }
 
     // Assemble final message
