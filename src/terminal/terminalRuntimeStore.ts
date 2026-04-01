@@ -361,15 +361,32 @@ function setSessionId(
   runtime: ManagedTerminalRuntime,
   sessionId: string | undefined,
 ) {
-  useProjectStore
-    .getState()
-    .updateTerminalSessionId(
+  const prev = runtime.meta.terminal.sessionId;
+  const store = useProjectStore.getState();
+
+  store.updateTerminalSessionId(
+    runtime.meta.projectId,
+    runtime.meta.worktreeId,
+    runtime.meta.terminal.id,
+    sessionId,
+  );
+
+  // Clear stale summary title when session changes
+  if (prev && prev !== sessionId && runtime.meta.terminal.customTitle) {
+    store.updateTerminalCustomTitle(
       runtime.meta.projectId,
       runtime.meta.worktreeId,
       runtime.meta.terminal.id,
-      sessionId,
+      "",
     );
-  updateTerminalInStore(runtime, (terminal) => ({ ...terminal, sessionId }));
+    updateTerminalInStore(runtime, (terminal) => ({
+      ...terminal,
+      sessionId,
+      customTitle: undefined,
+    }));
+  } else {
+    updateTerminalInStore(runtime, (terminal) => ({ ...terminal, sessionId }));
+  }
 }
 
 function setAutoApprove(
