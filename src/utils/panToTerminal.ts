@@ -63,10 +63,11 @@ export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): 
       (w) => w.id === publishedGeometry.worktreeId,
     );
     if (geomProject && geomWorktree) {
-      const idx = geomWorktree.terminals.findIndex((t) => t.id === terminalId);
+      const visibleTerminals = geomWorktree.terminals.filter((t) => !t.stashed);
+      const idx = visibleTerminals.findIndex((t) => t.id === terminalId);
       if (idx !== -1) {
         const packed = packTerminals(
-          geomWorktree.terminals.map((t) => t.span),
+          visibleTerminals.map((t) => t.span),
         );
         const item = packed[idx];
         if (item) {
@@ -137,7 +138,10 @@ export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): 
         return;
       }
 
-      const focusedIndex = focusedWorktree.terminals.findIndex(
+      const visibleTerminals = focusedWorktree.terminals.filter(
+        (terminal) => !terminal.stashed,
+      );
+      const focusedIndex = visibleTerminals.findIndex(
         (terminal) => terminal.id === terminalId,
       );
       if (focusedIndex === -1) {
@@ -145,7 +149,7 @@ export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): 
       }
 
       const packed = packTerminals(
-        focusedWorktree.terminals.map((terminal) => terminal.span),
+        visibleTerminals.map((terminal) => terminal.span),
       );
       const item = packed[focusedIndex];
       if (!item) return;
