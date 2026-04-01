@@ -439,7 +439,7 @@ export function renderTaskPackageTemplate(contract: HandoffContract): string {
     "- Keep waiting when telemetry shows recent meaningful progress, `thinking`, `tool_running`, `tool_pending`, or a foreground tool.",
     "- `awaiting_contract` means the model turn finished but `result.json` / `done` is still pending.",
     "- `stall_candidate` means investigate before retrying or taking over.",
-    "- `error` means the agent hit an API error (check `last_hook_error` for type: `rate_limit`, `server_error`, `billing_error`, `authentication_failed`, `max_output_tokens`). For `rate_limit`/`server_error`, wait and retry. For `billing_error`/`authentication_failed`, stop — retries won't help.",
+    "- `error` means the agent hit an API error. Check `last_hook_error`: `rate_limit`/`server_error` → wait and retry; `billing_error`/`authentication_failed` → stop, retries won't help; `max_output_tokens` → context too long, retry with compact; `invalid_request` → stop and investigate.",
     "",
     "## Rules",
     "",
