@@ -138,7 +138,7 @@ export default defineConfig({
           build: {
             outDir: "dist-electron",
             rollupOptions: {
-              external: ["node-pty", "adm-zip"],
+              external: ["node-pty", "adm-zip", "@anthropic-ai/sdk"],
             },
           },
         },
