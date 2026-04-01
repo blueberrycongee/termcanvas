@@ -41,3 +41,4 @@ export type {
 
 // Built-in providers
 export { AnthropicProvider } from "./provider/anthropic.ts";
+export { OpenAIProvider } from "./provider/openai.ts";
