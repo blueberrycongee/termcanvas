@@ -429,7 +429,22 @@ export function TerminalTile({
       const { scale } = useCanvasStore.getState().viewport;
       if (scale === 1) return;
 
-      const rect = container.getBoundingClientRect();
+      // xterm computes selection coordinates from `.xterm-screen`, not the
+      // outer host div. When the canvas is zoomed, even a tiny mismatch between
+      // the host hitbox and xterm's actual screen area expands into a visible
+      // dead zone near the top-left. Measure against the real screen element
+      // and, if the pointer lands in a host/gap area, re-dispatch to the xterm
+      // root so selection still starts inside xterm.
+      const xtermRoot = container.querySelector(".xterm");
+      const screenElement =
+        container.querySelector(".xterm-screen") ?? xtermRoot ?? container;
+      const rect = screenElement.getBoundingClientRect();
+      const dispatchTarget =
+        e.target instanceof Element &&
+        xtermRoot instanceof Element &&
+        xtermRoot.contains(e.target)
+          ? e.target
+          : xtermRoot ?? container;
       const adjusted = new MouseEvent(e.type, {
         altKey: e.altKey,
         bubbles: e.bubbles,
@@ -449,7 +464,7 @@ export function TerminalTile({
       corrected.add(adjusted);
       e.stopPropagation();
       e.preventDefault();
-      e.target?.dispatchEvent(adjusted);
+      dispatchTarget.dispatchEvent(adjusted);
     };
 
     // When zoomed, capture pointer on mousedown so that mousemove/mouseup
@@ -465,16 +480,27 @@ export function TerminalTile({
       target.setPointerCapture(e.pointerId);
     };
 
+    // Stop mousedown from bubbling past the container so it never reaches
+    // the Canvas pan handler.  Without this, every click inside the terminal
+    // content area also starts a canvas pan, fighting xterm's selection.
+    // At scale != 1 the corrected event also needs to be caught; at scale 1
+    // the original native event needs to be caught.
+    const stopMouseDownBubble = (e: MouseEvent) => {
+      e.stopPropagation();
+    };
+
     const types = ["mousedown", "mousemove", "mouseup", "dblclick"];
     for (const type of types) {
       container.addEventListener(type, fix as EventListener, true);
     }
+    container.addEventListener("mousedown", stopMouseDownBubble);
     container.addEventListener("pointerdown", capturePointer);
 
     return () => {
       for (const type of types) {
         container.removeEventListener(type, fix as EventListener, true);
       }
+      container.removeEventListener("mousedown", stopMouseDownBubble);
       container.removeEventListener("pointerdown", capturePointer);
     };
   }, [lodMode]);
@@ -753,7 +779,11 @@ export function TerminalTile({
         >
           <div
             ref={containerRef}
-            className={frozenDims ? "absolute tc-xterm-host" : "absolute inset-0 tc-xterm-host"}
+            className={
+              frozenDims
+                ? "absolute tc-xterm-host nopan nodrag"
+                : "absolute inset-0 tc-xterm-host nopan nodrag"
+            }
             style={{
               padding: 0,
               overflow: "hidden",
