@@ -82,6 +82,16 @@ export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProp
   const deleteSession = useAgentBubbleStore((s) => s.deleteSession);
   const tabBarRef = useRef<HTMLDivElement>(null);
 
+  // Scroll active tab into view
+  useEffect(() => {
+    const container = tabBarRef.current;
+    if (!container) return;
+    const active = container.querySelector("[data-active-tab]") as HTMLElement | null;
+    if (active) {
+      active.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    }
+  }, [activeSessionId]);
+
   const [size, setSize] = useState({ w: INITIAL_WIDTH, h: INITIAL_HEIGHT });
   // Position: bottom-right anchor (distance from bottom and right edges of viewport)
   const [pos, setPos] = useState(() =>
@@ -245,6 +255,7 @@ export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProp
           {sessions.map((s) => (
             <button
               key={s.id}
+              data-active-tab={s.id === activeSessionId ? "" : undefined}
               className={`group flex items-center gap-1 shrink-0 max-w-[140px] rounded px-2 py-1 text-[11px] leading-tight transition-colors duration-100 ${
                 s.id === activeSessionId
                   ? "bg-[var(--surface-hover)] text-[var(--text-primary)]"
