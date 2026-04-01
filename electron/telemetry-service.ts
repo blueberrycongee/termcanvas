@@ -153,7 +153,16 @@ export function deriveTelemetryStatus(
     snapshot.turn_state === "tool_pending" ||
     !!snapshot.foreground_tool
   ) {
-    return "progressing";
+    if (snapshot.last_meaningful_progress_at) {
+      const lastProgressMs = new Date(snapshot.last_meaningful_progress_at).getTime();
+      if (Number.isFinite(lastProgressMs) && nowMs - lastProgressMs > stallThresholdMs * 4) {
+        // turn_state is stale — fall through to stall_candidate logic
+      } else {
+        return "progressing";
+      }
+    } else {
+      return "progressing";
+    }
   }
 
   if (snapshot.last_meaningful_progress_at) {

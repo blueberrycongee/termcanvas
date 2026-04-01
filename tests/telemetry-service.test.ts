@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { TelemetryService, deriveTelemetryStatus } from "../electron/telemetry-service.ts";
+import type { TerminalTelemetrySnapshot } from "../shared/telemetry.ts";
 
 function createRepoFixture() {
   const repoPath = fs.mkdtempSync(path.join(os.tmpdir(), "telemetry-repo-"));
@@ -265,4 +266,63 @@ test("workflow snapshot reads contract truth from Hydra handoff artifacts", () =
   } finally {
     fs.rmSync(repoPath, { recursive: true, force: true });
   }
+});
+
+test("deriveTelemetryStatus decays active turn_state to stall_candidate after 4x threshold", () => {
+  const stallThresholdMs = 45_000;
+  const base: TerminalTelemetrySnapshot = {
+    terminal_id: "terminal-1",
+    worktree_path: "/tmp/project",
+    provider: "claude",
+    session_attached: true,
+    session_attach_confidence: "medium",
+    turn_state: "thinking",
+    pty_alive: true,
+    descendant_processes: [],
+    done_exists: false,
+    result_exists: false,
+    derived_status: "starting",
+    last_meaningful_progress_at: "2026-03-26T00:00:00.000Z",
+    last_output_at: "2026-03-26T00:00:01.000Z",
+  };
+
+  // Within 4x threshold: still progressing
+  const withinDecay = deriveTelemetryStatus(
+    base,
+    Date.parse("2026-03-26T00:02:00.000Z"), // 120s < 180s
+    stallThresholdMs,
+  );
+  assert.equal(withinDecay, "progressing");
+
+  // Past 4x threshold: turn_state is stale, should become stall_candidate
+  const pastDecay = deriveTelemetryStatus(
+    base,
+    Date.parse("2026-03-26T00:04:00.000Z"), // 240s > 180s
+    stallThresholdMs,
+  );
+  assert.equal(pastDecay, "stall_candidate");
+
+  // Same for tool_running
+  const toolRunning = deriveTelemetryStatus(
+    { ...base, turn_state: "tool_running" },
+    Date.parse("2026-03-26T00:04:00.000Z"),
+    stallThresholdMs,
+  );
+  assert.equal(toolRunning, "stall_candidate");
+
+  // Same for tool_pending
+  const toolPending = deriveTelemetryStatus(
+    { ...base, turn_state: "tool_pending" },
+    Date.parse("2026-03-26T00:04:00.000Z"),
+    stallThresholdMs,
+  );
+  assert.equal(toolPending, "stall_candidate");
+
+  // Without last_meaningful_progress_at: still progressing (no decay possible)
+  const noProgress = deriveTelemetryStatus(
+    { ...base, last_meaningful_progress_at: undefined },
+    Date.parse("2026-03-26T00:04:00.000Z"),
+    stallThresholdMs,
+  );
+  assert.equal(noProgress, "progressing");
 });

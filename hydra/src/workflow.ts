@@ -39,6 +39,7 @@ import {
 import { buildGitWorktreeAddArgs, validateWorktreePath } from "./spawn.ts";
 
 const SPAWN_GRACE_PERIOD_MS = 15_000;
+const STALL_ESCALATION_MS = 180_000;
 
 export interface RunWorkflowOptions {
   task: string;
@@ -80,6 +81,8 @@ export interface WorkflowDependencies {
   destroyTerminal?: (terminalId: string) => void;
   /** Returns true if the terminal PTY is alive, false if dead, null if unknown/unavailable. */
   checkTerminalAlive?: (terminalId: string) => boolean | null;
+  /** Returns the full telemetry snapshot for a terminal, or null if unavailable. */
+  getTerminalTelemetry?: (terminalId: string) => { derived_status?: string; last_meaningful_progress_at?: string } | null;
 }
 
 const DEFAULT_SLEEP = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -96,6 +99,19 @@ function defaultCheckTerminalAlive(terminalId: string): boolean | null {
 
 function checkTerminalAliveFn(dependencies: WorkflowDependencies | undefined) {
   return dependencies?.checkTerminalAlive ?? defaultCheckTerminalAlive;
+}
+
+function defaultGetTerminalTelemetry(terminalId: string): { derived_status?: string; last_meaningful_progress_at?: string } | null {
+  try {
+    if (!isTermCanvasRunning()) return null;
+    return telemetryTerminal(terminalId) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function getTerminalTelemetryFn(dependencies: WorkflowDependencies | undefined) {
+  return dependencies?.getTerminalTelemetry ?? defaultGetTerminalTelemetry;
 }
 
 function nowFn(dependencies: WorkflowDependencies | undefined): () => string {
@@ -662,6 +678,54 @@ export async function tickWorkflow(
               code: "HANDOFF_PROCESS_EXITED",
               message: "Agent process exited and retry limit reached",
               stage: "workflow.telemetry_check",
+            }, now());
+            return buildStatusView(workflow);
+          }
+          const dispatch = await dispatchFn(dependencies)(
+            buildDispatchRequestFromHandoff(workflow, handoff),
+          );
+          await stateMachine.claimPending(
+            handoff.id,
+            `retry:${handoff.id}:${now()}`,
+          );
+          await stateMachine.markInProgress(handoff.id, {
+            tickId: `retry:${handoff.id}:${now()}`,
+          });
+          registerDispatchAttempt(manager, handoff.id, {
+            terminalId: dispatch.terminalId,
+            agentType: dispatch.terminalType as AgentType,
+            prompt: dispatch.prompt,
+            startedAt: now(),
+            retryOf: activeTerminalId,
+          });
+          workflow.status = "running";
+          workflow.failure = undefined;
+          saveWorkflow(workflow);
+          return buildStatusView(workflow);
+        }
+      }
+
+      // Stall detection: if telemetry reports stall_candidate for longer than
+      // STALL_ESCALATION_MS, the agent is alive but not making progress
+      // (e.g. stuck retrying API 500 errors). Escalate to timed_out + retry.
+      const telemetry = getTerminalTelemetryFn(dependencies)(activeTerminalId);
+      if (telemetry?.derived_status === "stall_candidate" && telemetry.last_meaningful_progress_at) {
+        const lastProgressMs = Date.parse(telemetry.last_meaningful_progress_at);
+        const stallDurationMs = Date.parse(now()) - lastProgressMs;
+        if (Number.isFinite(lastProgressMs) && stallDurationMs > STALL_ESCALATION_MS) {
+          destroyHandoffTerminal(handoff, dependencies);
+          await stateMachine.markTimedOut(handoff.id, {
+            code: "HANDOFF_STALL_DETECTED",
+            message: `Agent stalled for ${Math.round(stallDurationMs / 1000)}s (no meaningful progress)`,
+            stage: "workflow.stall_check",
+          });
+          const retryDecision = await stateMachine.scheduleRetry(handoff.id);
+          workflow.updated_at = now();
+          if (retryDecision.handoff.status === "failed") {
+            saveWorkflowFailure(workflow, {
+              code: "HANDOFF_STALL_DETECTED",
+              message: "Agent stalled and retry limit reached",
+              stage: "workflow.stall_check",
             }, now());
             return buildStatusView(workflow);
           }

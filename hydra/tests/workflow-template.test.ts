@@ -549,3 +549,111 @@ test("tick retries when telemetry reports process exited past grace period", asy
     fs.rmSync(repoPath, { recursive: true, force: true });
   }
 });
+
+test("tick retries when telemetry reports stall_candidate past escalation threshold", async () => {
+  const { repoPath, worktreePath } = createRepoFixture();
+  const dispatched: string[] = [];
+
+  try {
+    const started = await runWorkflow(
+      {
+        task: "Test stall detection via telemetry",
+        repoPath,
+        worktreePath,
+        template: "single-step",
+        agentType: "claude",
+        timeoutMinutes: 30,
+        maxRetries: 2,
+        autoApprove: false,
+      },
+      {
+        now: () => "2026-03-26T14:00:00.000Z",
+        dispatchCreateOnly: async (request) => {
+          dispatched.push(request.handoffId);
+          return {
+            projectId: "project-1",
+            terminalId: `terminal-${dispatched.length}`,
+            terminalType: request.agentType,
+            terminalTitle: request.agentType,
+            prompt: `Read ${request.taskFile}`,
+          };
+        },
+      },
+    );
+    assert.equal(dispatched.length, 1);
+
+    // Tick with stall_candidate but within 3-minute escalation window — should NOT retry
+    const withinEscalation = await tickWorkflow(
+      { repoPath, workflowId: started.workflow.id },
+      {
+        now: () => "2026-03-26T14:01:00.000Z",
+        dispatchCreateOnly: async (request) => {
+          dispatched.push(request.handoffId);
+          return {
+            projectId: "project-1",
+            terminalId: `terminal-${dispatched.length}`,
+            terminalType: request.agentType,
+            terminalTitle: request.agentType,
+            prompt: `Read ${request.taskFile}`,
+          };
+        },
+        checkTerminalAlive: () => true,
+        getTerminalTelemetry: () => ({
+          derived_status: "stall_candidate",
+          last_meaningful_progress_at: "2026-03-26T14:00:30.000Z", // 30s ago
+        }),
+      },
+    );
+    assert.equal(withinEscalation.workflow.status, "running");
+    assert.equal(dispatched.length, 1, "should not retry within escalation window");
+
+    // Tick with stall_candidate past 3-minute escalation — should trigger retry
+    const pastEscalation = await tickWorkflow(
+      { repoPath, workflowId: started.workflow.id },
+      {
+        now: () => "2026-03-26T14:05:00.000Z",
+        dispatchCreateOnly: async (request) => {
+          dispatched.push(request.handoffId);
+          return {
+            projectId: "project-1",
+            terminalId: `terminal-${dispatched.length}`,
+            terminalType: request.agentType,
+            terminalTitle: request.agentType,
+            prompt: `Read ${request.taskFile}`,
+          };
+        },
+        checkTerminalAlive: () => true,
+        getTerminalTelemetry: () => ({
+          derived_status: "stall_candidate",
+          last_meaningful_progress_at: "2026-03-26T14:00:30.000Z", // 4.5 min ago
+        }),
+      },
+    );
+    assert.equal(pastEscalation.workflow.status, "running");
+    assert.equal(dispatched.length, 2, "should have retried after stall escalation");
+
+    // getTerminalTelemetry returns null — should NOT retry
+    const telemetryNull = await tickWorkflow(
+      { repoPath, workflowId: started.workflow.id },
+      {
+        now: () => "2026-03-26T14:10:00.000Z",
+        dispatchCreateOnly: async (request) => {
+          dispatched.push(request.handoffId);
+          return {
+            projectId: "project-1",
+            terminalId: `terminal-${dispatched.length}`,
+            terminalType: request.agentType,
+            terminalTitle: request.agentType,
+            prompt: `Read ${request.taskFile}`,
+          };
+        },
+        checkTerminalAlive: () => true,
+        getTerminalTelemetry: () => null,
+      },
+    );
+    assert.equal(telemetryNull.workflow.status, "running");
+    assert.equal(dispatched.length, 2, "should not retry when telemetry unavailable");
+  } finally {
+    fs.rmSync(repoPath, { recursive: true, force: true });
+  }
+});
