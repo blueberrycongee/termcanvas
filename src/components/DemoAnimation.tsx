@@ -397,15 +397,37 @@ function DemoPanel({
   content: "usage" | "hydra";
 }) {
   return (
-    <div className="shrink-0 overflow-hidden" style={{ width: visible ? 180 : 0, transition: "width 300ms ease-out" }}>
+    <div className="shrink-0 flex overflow-hidden" style={{ width: visible ? 180 : 24, transition: "width 300ms ease-out" }}>
+      {/* Collapsed tab — always rendered, shown when panel is hidden */}
+      <div
+        className="shrink-0 flex flex-col items-center pt-2 gap-1.5 border-l border-[var(--border)]"
+        style={{
+          width: visible ? 0 : 24,
+          overflow: "hidden",
+          background: "var(--sidebar)",
+          transition: "width 300ms ease-out",
+        }}
+      >
+        <svg width="10" height="10" viewBox="0 0 14 14" fill="none" style={{ color: "var(--text-muted)", flexShrink: 0 }}>
+          <rect x="1.5" y="3" width="3" height="8" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+          <rect x="5.5" y="5" width="3" height="6" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+          <rect x="9.5" y="1" width="3" height="10" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+        </svg>
+        <span
+          className="text-[6px] uppercase tracking-widest"
+          style={{ writingMode: "vertical-lr", color: "var(--text-muted)", fontFamily: '"Geist Mono", monospace' }}
+        >
+          usage
+        </span>
+      </div>
+      {/* Expanded panel */}
       <div
         className="h-full border-l border-[var(--border)]"
         style={{
-          width: 180,
+          width: visible ? 180 : 0,
+          overflow: "hidden",
           background: "var(--surface)",
-          transform: visible ? "translateX(0)" : "translateX(100%)",
-          transition:
-            "transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+          transition: "width 300ms ease-out",
         }}
       >
         {content === "usage" ? (
