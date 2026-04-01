@@ -222,7 +222,7 @@ export const zh = {
   browser_toggle: "内置浏览器入口",
   browser_toggle_desc: "实验性功能。开启后会在顶部工具栏显示打开浏览器按钮",
   summary_toggle: "终端自动摘要",
-  summary_toggle_desc: "实验性功能。为 CLI 终端自动生成一行 AI 摘要",
+  summary_toggle_desc: "实验性功能。为 CLI 终端自动生成一行 AI 摘要，可能增加 token 用量",
   summary_cli_label: "摘要 CLI",
   summary_cli_desc: "用于生成摘要的 CLI 工具",
   summarize_terminal: "生成摘要",

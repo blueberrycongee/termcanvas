@@ -225,7 +225,7 @@ export const en = {
   browser_toggle: "Built-in browser shortcut",
   browser_toggle_desc: "Experimental. Shows the open-browser button in the top toolbar when enabled",
   summary_toggle: "Terminal auto-summary",
-  summary_toggle_desc: "Experimental. AI-generated one-line summaries for CLI terminal tiles",
+  summary_toggle_desc: "Experimental. AI-generated one-line summaries for CLI terminals. May increase token usage.",
   summary_cli_label: "Summary CLI",
   summary_cli_desc: "Which CLI to use for generating summaries",
   summarize_terminal: "Summarize",
