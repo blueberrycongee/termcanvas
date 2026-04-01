@@ -211,9 +211,40 @@ function ensurePluginEnabled(settingsFile: string, sourceDir: string): void {
   fs.renameSync(tmp, settingsFile);
 }
 
-// Codex symlinks
+// Skill manifest — tracks which skills we installed and at which version
 
-/** Check if a symlink already points to the expected target. */
+const MANIFEST_FILE = ".termcanvas-skills.json";
+
+interface SkillManifest {
+  version: string;
+  skills: string[];
+}
+
+function readManifest(targetDir: string): SkillManifest | null {
+  try {
+    return JSON.parse(
+      fs.readFileSync(path.join(targetDir, MANIFEST_FILE), "utf-8"),
+    ) as SkillManifest;
+  } catch {
+    return null;
+  }
+}
+
+function writeManifest(targetDir: string, manifest: SkillManifest): void {
+  const filePath = path.join(targetDir, MANIFEST_FILE);
+  const tmp = filePath + ".tmp." + process.pid;
+  fs.writeFileSync(tmp, JSON.stringify(manifest, null, 2), "utf-8");
+  fs.renameSync(tmp, filePath);
+}
+
+function removeManifest(targetDir: string): void {
+  try {
+    fs.unlinkSync(path.join(targetDir, MANIFEST_FILE));
+  } catch {}
+}
+
+// Symlink helpers
+
 function isSymlinkCurrent(linkPath: string, expectedTarget: string): boolean {
   try {
     return fs.readlinkSync(linkPath) === expectedTarget;
@@ -222,22 +253,62 @@ function isSymlinkCurrent(linkPath: string, expectedTarget: string): boolean {
   }
 }
 
-/** Install skill symlinks into a target directory by scanning the skills/ subdirectory. */
-function installSkillLinksTo(targetDir: string, sourceDir: string): void {
-  const linkType = getSkillLinkType();
+/** Scan bundled skill directories and return their names. */
+function listBundledSkills(sourceDir: string): string[] {
   const skillsRoot = path.join(sourceDir, "skills");
-  if (!fs.existsSync(skillsRoot)) return;
+  if (!fs.existsSync(skillsRoot)) return [];
+
+  const names: string[] = [];
+  for (const name of fs.readdirSync(skillsRoot)) {
+    try {
+      if (fs.statSync(path.join(skillsRoot, name)).isDirectory()) {
+        names.push(name);
+      }
+    } catch {}
+  }
+  return names;
+}
+
+/**
+ * Install skill symlinks into a target directory.
+ * Compares manifest version to decide between fast-path verification and
+ * full reconciliation (create/update symlinks + remove stale ones).
+ */
+function installSkillLinksTo(
+  targetDir: string,
+  sourceDir: string,
+  appVersion: string,
+): void {
+  const skillsRoot = path.join(sourceDir, "skills");
+  const currentSkills = listBundledSkills(sourceDir);
+  if (currentSkills.length === 0) return;
 
   fs.mkdirSync(targetDir, { recursive: true });
 
-  for (const name of fs.readdirSync(skillsRoot)) {
-    const skillDir = path.join(skillsRoot, name);
-    try {
-      if (!fs.statSync(skillDir).isDirectory()) continue;
-    } catch {
-      continue;
-    }
+  const oldManifest = readManifest(targetDir);
 
+  // Fast path: version matches → verify symlinks, skip manifest write
+  if (oldManifest?.version === appVersion) {
+    let allCurrent = true;
+    for (const name of currentSkills) {
+      if (
+        !isSymlinkCurrent(
+          path.join(targetDir, name),
+          path.join(skillsRoot, name),
+        )
+      ) {
+        allCurrent = false;
+        break;
+      }
+    }
+    if (allCurrent) return;
+  }
+
+  // Full reconciliation
+  const linkType = getSkillLinkType();
+
+  for (const name of currentSkills) {
+    const skillDir = path.join(skillsRoot, name);
     const link = path.join(targetDir, name);
 
     if (isSymlinkCurrent(link, skillDir)) continue;
@@ -256,24 +327,57 @@ function installSkillLinksTo(targetDir: string, sourceDir: string): void {
 
     fs.symlinkSync(skillDir, link, linkType);
   }
+
+  // Remove skills that existed in previous version but were dropped
+  if (oldManifest) {
+    const currentSet = new Set(currentSkills);
+    for (const name of oldManifest.skills) {
+      if (currentSet.has(name)) continue;
+      const link = path.join(targetDir, name);
+      try {
+        if (fs.lstatSync(link).isSymbolicLink()) fs.unlinkSync(link);
+      } catch {}
+    }
+  }
+
+  writeManifest(targetDir, { version: appVersion, skills: currentSkills });
 }
 
-/** Remove skill symlinks from a target directory by scanning the skills/ subdirectory. */
+/** Remove skill symlinks from a target directory. */
 function removeSkillLinksFrom(targetDir: string, sourceDir: string): void {
   const skillsRoot = path.join(sourceDir, "skills");
-  if (!fs.existsSync(skillsRoot)) return;
 
-  for (const name of fs.readdirSync(skillsRoot)) {
-    const link = path.join(targetDir, name);
-    try {
-      if (fs.lstatSync(link).isSymbolicLink()) fs.unlinkSync(link);
-    } catch {}
+  // Remove current bundle skills
+  if (fs.existsSync(skillsRoot)) {
+    for (const name of fs.readdirSync(skillsRoot)) {
+      const link = path.join(targetDir, name);
+      try {
+        if (fs.lstatSync(link).isSymbolicLink()) fs.unlinkSync(link);
+      } catch {}
+    }
   }
+
+  // Also remove any skills tracked by manifest (covers skills removed between versions)
+  const manifest = readManifest(targetDir);
+  if (manifest) {
+    for (const name of manifest.skills) {
+      const link = path.join(targetDir, name);
+      try {
+        if (fs.lstatSync(link).isSymbolicLink()) fs.unlinkSync(link);
+      } catch {}
+    }
+  }
+
+  removeManifest(targetDir);
 }
 
-function installAllSkillLinks(sourceDir: string, home: string): void {
-  installSkillLinksTo(getClaudeSkillsDir(home), sourceDir);
-  installSkillLinksTo(getCodexSkillsDir(home), sourceDir);
+function installAllSkillLinks(
+  sourceDir: string,
+  home: string,
+  appVersion: string,
+): void {
+  installSkillLinksTo(getClaudeSkillsDir(home), sourceDir, appVersion);
+  installSkillLinksTo(getCodexSkillsDir(home), sourceDir, appVersion);
 }
 
 function removeAllSkillLinks(sourceDir: string, home: string): void {
@@ -284,7 +388,7 @@ function removeAllSkillLinks(sourceDir: string, home: string): void {
 // Public API
 
 /**
- * Full install: register Claude plugin + create Codex symlinks + clean old links.
+ * Full install: register Claude plugin + create skill symlinks.
  * Called when user registers the CLI.
  */
 export function installSkillLinks({
@@ -299,7 +403,7 @@ export function installSkillLinks({
   try {
     registerClaudePlugin(getClaudePluginsFile(home), sourceDir, appVersion);
     ensurePluginEnabled(getClaudeSettingsFile(home), sourceDir);
-    installAllSkillLinks(sourceDir, home);
+    installAllSkillLinks(sourceDir, home, appVersion);
     return true;
   } catch (err) {
     console.error("[SkillManager] install failed:", err);
@@ -328,7 +432,7 @@ export function ensureSkillLinks({
     }
 
     ensurePluginEnabled(getClaudeSettingsFile(home), sourceDir);
-    installAllSkillLinks(sourceDir, home);
+    installAllSkillLinks(sourceDir, home, appVersion);
 
     return true;
   } catch (err) {
