@@ -45,7 +45,7 @@ async function invokeSummaryCli(
           "--resume", sessionId,
           "-p", prompt,
           "--max-turns", "1",
-          "--bare",
+          "--no-session-persistence",
           "--output-format", "text",
         ]
       : [
@@ -63,6 +63,7 @@ async function invokeSummaryCli(
     });
 
     const chunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
     let killed = false;
 
     const timer = setTimeout(() => {
@@ -71,6 +72,7 @@ async function invokeSummaryCli(
     }, TIMEOUT_MS);
 
     child.stdout.on("data", (chunk: Buffer) => chunks.push(chunk));
+    child.stderr.on("data", (chunk: Buffer) => stderrChunks.push(chunk));
 
     child.on("close", (code) => {
       clearTimeout(timer);
@@ -79,7 +81,8 @@ async function invokeSummaryCli(
         return;
       }
       if (code !== 0 && code !== null) {
-        reject(new Error(`Summary CLI exited with code ${code}`));
+        const stderr = Buffer.concat(stderrChunks).toString("utf-8").trim();
+        reject(new Error(`Summary CLI exited with code ${code}${stderr ? `: ${stderr.slice(0, 200)}` : ""}`));
         return;
       }
       resolve(Buffer.concat(chunks).toString("utf-8"));
