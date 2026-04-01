@@ -1,0 +1,19 @@
+{
+  "name": "agent",
+  "version": "0.1.0",
+  "description": "TermCanvas agent runtime — orchestration-only agent with BYOK LLM",
+  "type": "module",
+  "scripts": {
+    "build": "node --experimental-strip-types build.ts",
+    "test": "node --experimental-strip-types --test tests/**/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.3"
+  }
+}
