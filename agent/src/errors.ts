@@ -43,6 +43,7 @@ export function categorizeError(err: unknown): ErrorCategory {
 
   // Prompt too long
   if (
+    status === 413 ||
     msg.includes("prompt is too long") ||
     msg.includes("context length exceeded") ||
     msg.includes("maximum context length") ||
