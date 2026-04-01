@@ -10,7 +10,7 @@ import { getTerminalHeaderContextLabel } from "../stores/terminalState";
 import { useT } from "../i18n/useT";
 import { getComposerAdapter } from "./cliConfig";
 import { panToTerminal } from "../utils/panToTerminal";
-import { requestSummary } from "./summaryScheduler";
+import { requestSummary, useIsSummarizing } from "./summaryScheduler";
 import {
   attachTerminalContainer,
   blurTerminalRuntime,
@@ -212,6 +212,7 @@ export function TerminalTile({
   const [dragOver, setDragOver] = useState(false);
 
   const isAgent = terminal.type === "claude" || terminal.type === "codex";
+  const isSummarizing = useIsSummarizing(terminal.id);
   const sidebarDragActive = useSidebarDragStore((s) => s.active);
 
   const [frozenDims, setFrozenDims] = useState<{ width: number; height: number; bgColor: string } | null>(null);
@@ -716,6 +717,10 @@ export function TerminalTile({
                   }
                 }}
               />
+            ) : isSummarizing ? (
+              <span className="min-w-0 flex-1 truncate leading-[22px] animate-pulse text-[var(--text-faint)]">
+                {t.summary_in_progress}
+              </span>
             ) : (
               <span className="min-w-0 flex-1 truncate leading-[22px]">
                 {terminal.customTitle || t.terminal_custom_title_placeholder}

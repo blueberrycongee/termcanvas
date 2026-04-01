@@ -1,3 +1,4 @@
+import { create } from "zustand";
 import type { TerminalData } from "../types/index.ts";
 import { useProjectStore } from "../stores/projectStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
@@ -9,7 +10,30 @@ type SummaryCli = "claude" | "codex";
 const SUMMARY_ELIGIBLE_TYPES = new Set(["claude", "codex"]);
 const AUTO_SUMMARY_INTERVAL_MS = 10 * 60_000; // 10 minutes
 
-const inFlightRenderer = new Set<string>();
+const useSummaryFlightStore = create<{ ids: Set<string> }>(() => ({
+  ids: new Set(),
+}));
+
+function addInFlight(id: string) {
+  useSummaryFlightStore.setState((s) => {
+    const next = new Set(s.ids);
+    next.add(id);
+    return { ids: next };
+  });
+}
+
+function removeInFlight(id: string) {
+  useSummaryFlightStore.setState((s) => {
+    const next = new Set(s.ids);
+    next.delete(id);
+    return { ids: next };
+  });
+}
+
+export function useIsSummarizing(terminalId: string): boolean {
+  return useSummaryFlightStore((s) => s.ids.has(terminalId));
+}
+
 const lastSummarySessionSize = new Map<string, number>();
 
 export function requestSummary(
@@ -22,9 +46,9 @@ export function requestSummary(
   if (!SUMMARY_ELIGIBLE_TYPES.has(terminal.type)) return;
   if (!terminal.sessionId) return;
   if (!window.termcanvas?.summary) return;
-  if (inFlightRenderer.has(terminal.id)) return;
+  if (useSummaryFlightStore.getState().ids.has(terminal.id)) return;
 
-  inFlightRenderer.add(terminal.id);
+  addInFlight(terminal.id);
   console.log(`[SummaryScheduler] requesting summary for ${terminal.id.slice(0, 8)} (${terminal.type})`);
 
   const locale = useLocaleStore.getState().locale;
@@ -62,7 +86,7 @@ export function requestSummary(
       useNotificationStore.getState().notify("error", `Summary error: ${String(err)}`);
     })
     .finally(() => {
-      inFlightRenderer.delete(terminal.id);
+      removeInFlight(terminal.id);
     });
 }
 
