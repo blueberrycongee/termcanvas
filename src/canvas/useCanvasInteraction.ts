@@ -4,42 +4,76 @@ import { useDrawingStore } from "../stores/drawingStore";
 
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 2.0;
-const ZOOM_SENSITIVITY = 0.001;
+const ZOOM_SPEED = 0.005;
+const LERP_SPEED = 0.18;
+const LERP_EPSILON = 0.0005;
 
 export function useCanvasInteraction() {
-  const { viewport, setViewport } = useCanvasStore();
   const isPanning = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
 
-  const handleWheel = useCallback(
-    (e: React.WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        const delta = -e.deltaY * ZOOM_SENSITIVITY;
-        const newScale = Math.min(
-          MAX_SCALE,
-          Math.max(MIN_SCALE, viewport.scale * (1 + delta)),
-        );
+  const zoomTarget = useRef({ x: 0, y: 0, scale: 1 });
+  const zoomCursor = useRef({ x: 0, y: 0 });
+  const zoomAnimating = useRef(false);
 
-        // Zoom toward cursor position
-        const rect = e.currentTarget.getBoundingClientRect();
-        const cursorX = e.clientX - rect.left;
-        const cursorY = e.clientY - rect.top;
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
 
-        const scaleRatio = newScale / viewport.scale;
-        const newX = cursorX - (cursorX - viewport.x) * scaleRatio;
-        const newY = cursorY - (cursorY - viewport.y) * scaleRatio;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const cursorX = e.clientX - rect.left;
+      const cursorY = e.clientY - rect.top;
+      zoomCursor.current = { x: cursorX, y: cursorY };
 
-        setViewport({ x: newX, y: newY, scale: newScale });
-      } else {
-        setViewport({
-          x: viewport.x - e.deltaX,
-          y: viewport.y - e.deltaY,
-        });
+      const prev = zoomAnimating.current
+        ? zoomTarget.current
+        : useCanvasStore.getState().viewport;
+
+      const factor = Math.pow(2, -e.deltaY * ZOOM_SPEED);
+      const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, prev.scale * factor));
+
+      const scaleRatio = newScale / prev.scale;
+      zoomTarget.current = {
+        x: cursorX - (cursorX - prev.x) * scaleRatio,
+        y: cursorY - (cursorY - prev.y) * scaleRatio,
+        scale: newScale,
+      };
+
+      if (!zoomAnimating.current) {
+        zoomAnimating.current = true;
+        requestAnimationFrame(zoomTick);
       }
-    },
-    [viewport, setViewport],
-  );
+    } else {
+      const { viewport, setViewport } = useCanvasStore.getState();
+      setViewport({
+        x: viewport.x - e.deltaX,
+        y: viewport.y - e.deltaY,
+      });
+    }
+  }, []);
+
+  const zoomTick = useCallback(() => {
+    const { viewport, setViewport } = useCanvasStore.getState();
+    const target = zoomTarget.current;
+
+    const nextX = viewport.x + (target.x - viewport.x) * LERP_SPEED;
+    const nextY = viewport.y + (target.y - viewport.y) * LERP_SPEED;
+    const nextScale = viewport.scale + (target.scale - viewport.scale) * LERP_SPEED;
+
+    setViewport({ x: nextX, y: nextY, scale: nextScale });
+
+    const done =
+      Math.abs(nextScale - target.scale) < LERP_EPSILON &&
+      Math.abs(nextX - target.x) < 0.5 &&
+      Math.abs(nextY - target.y) < 0.5;
+
+    if (done) {
+      setViewport(target);
+      zoomAnimating.current = false;
+    } else {
+      requestAnimationFrame(zoomTick);
+    }
+  }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     const isDrawing = useDrawingStore.getState().tool !== "select";
