@@ -77,6 +77,10 @@ interface ManagedTerminalRuntime {
   ptyId: number | null;
   ptyPromise: Promise<void> | null;
   previewAnsi: string;
+  hookFallbackTimer: ReturnType<typeof setTimeout> | null;
+  removeHookSessionStarted: (() => void) | null;
+  removeHookTurnComplete: (() => void) | null;
+  removeHookStopFailure: (() => void) | null;
   removeTurnComplete: (() => void) | null;
   resizeDisposable: { dispose(): void } | null;
   selectionAutoCopy: TerminalSelectionAutoCopyState;
@@ -916,6 +920,10 @@ function buildTerminalRuntime(
     ptyId: meta.terminal.ptyId,
     ptyPromise: null,
     previewAnsi: clampPreviewAnsi(meta.terminal.scrollback ?? ""),
+    hookFallbackTimer: null,
+    removeHookSessionStarted: null,
+    removeHookTurnComplete: null,
+    removeHookStopFailure: null,
     removeTurnComplete: null,
     resizeDisposable: null,
     selectionAutoCopy: createTerminalSelectionAutoCopyState(),
@@ -981,6 +989,32 @@ async function spawnPty(runtime: ManagedTerminalRuntime, resumeSessionId?: strin
     options.args = [...launch.args, ...promptArgs];
   }
 
+  // Register hook listener BEFORE spawning pty to avoid race condition (C2)
+  let hookSessionReceived = false;
+  const isClaudeType = runtime.meta.terminal.type === "claude";
+
+  if (!resumeSessionId && launch && isClaudeType && window.termcanvas?.hooks) {
+    runtime.removeHookSessionStarted?.();
+    runtime.removeHookSessionStarted = window.termcanvas.hooks.onSessionStarted(
+      (payload) => {
+        if (payload.terminalId !== runtime.meta.terminal.id) return;
+        if (runtime.disposed || hookSessionReceived) return;
+        hookSessionReceived = true;
+
+        // Cancel polling fallback
+        runtime.sessionCancel?.();
+        if (runtime.hookFallbackTimer) {
+          clearTimeout(runtime.hookFallbackTimer);
+          runtime.hookFallbackTimer = null;
+        }
+
+        setSessionId(runtime, payload.sessionId);
+        watchSession(runtime, "claude", payload.sessionId, "strong");
+        void syncPermissionMode(runtime, payload.sessionId);
+      },
+    );
+  }
+
   try {
     const ptyId = await window.termcanvas.terminal.create(options);
     if (runtime.disposed) {
@@ -1000,11 +1034,25 @@ async function spawnPty(runtime: ManagedTerminalRuntime, resumeSessionId?: strin
     }
 
     if (!resumeSessionId && launch) {
-      scheduleSessionCapture(runtime, ptyId, runtime.meta.terminal.type);
+      if (isClaudeType && window.termcanvas?.hooks) {
+        // Hook-based path: fall back to polling after 10s if no hook event
+        runtime.hookFallbackTimer = setTimeout(() => {
+          runtime.hookFallbackTimer = null;
+          if (!hookSessionReceived && !runtime.disposed) {
+            scheduleSessionCapture(runtime, ptyId, runtime.meta.terminal.type);
+          }
+        }, 10_000);
+      } else {
+        scheduleSessionCapture(runtime, ptyId, runtime.meta.terminal.type);
+      }
     }
 
     wireLiveBindings(runtime);
   } catch (error) {
+    if (runtime.hookFallbackTimer) {
+      clearTimeout(runtime.hookFallbackTimer);
+      runtime.hookFallbackTimer = null;
+    }
     const message = error instanceof Error ? error.message : String(error);
     const t = getT();
     notify(
@@ -1081,6 +1129,34 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
       }
     },
   );
+
+  // Hook-based turn completion (supplements session watcher)
+  if (window.termcanvas?.hooks) {
+    runtime.removeHookTurnComplete = window.termcanvas.hooks.onTurnComplete(
+      (payload) => {
+        if (payload.terminalId !== runtime.meta.terminal.id) return;
+        if (
+          runtime.currentStatus === "active" ||
+          runtime.currentStatus === "waiting"
+        ) {
+          setStatus(runtime, "completed");
+        }
+      },
+    );
+
+    runtime.removeHookStopFailure = window.termcanvas.hooks.onStopFailure(
+      (payload) => {
+        if (payload.terminalId !== runtime.meta.terminal.id) return;
+        if (payload.error) {
+          setStatus(runtime, "error");
+          appendPreview(
+            runtime,
+            `\r\n\x1b[31m[Hook error: ${payload.error}]\x1b[0m\r\n`,
+          );
+        }
+      },
+    );
+  }
 
   runtime.globalDisposers.push(exitUnsubscribe);
 
@@ -1270,6 +1346,16 @@ export function destroyTerminalRuntime(terminalId: string) {
   runtime.outputUnsubscribe = null;
   runtime.removeTurnComplete?.();
   runtime.removeTurnComplete = null;
+  if (runtime.hookFallbackTimer) {
+    clearTimeout(runtime.hookFallbackTimer);
+    runtime.hookFallbackTimer = null;
+  }
+  runtime.removeHookSessionStarted?.();
+  runtime.removeHookSessionStarted = null;
+  runtime.removeHookTurnComplete?.();
+  runtime.removeHookTurnComplete = null;
+  runtime.removeHookStopFailure?.();
+  runtime.removeHookStopFailure = null;
 
   for (const dispose of runtime.globalDisposers) {
     dispose();
