@@ -23,6 +23,7 @@ import type {
   Usage,
 } from "./types.ts";
 import { emptyUsage, mergeUsage } from "./types.ts";
+import { categorizeError, isRetryableCategory, getRetryDelay } from "./errors.ts";
 
 // ---------------------------------------------------------------------------
 // Agent loop event — superset of stream events + loop-level events
@@ -47,6 +48,7 @@ export async function* agentLoop(
   options: AgentOptions,
 ): AsyncGenerator<AgentEvent, LoopResult> {
   const maxTurns = options.maxTurns ?? 50;
+  const maxRetries = 3;
   const messages: Message[] = [...initialMessages];
   const toolSchemas = tools.toAPISchemas();
   let totalUsage: Usage = emptyUsage();
@@ -67,37 +69,49 @@ export async function* agentLoop(
     turnCount++;
     yield { type: "turn_start", turn: turnCount };
 
-    // ----- Stream LLM response -----
-    let assistantMessage: AssistantMessage;
-    try {
-      const stream = provider.stream({
-        messages,
-        systemPrompt: options.systemPrompt,
-        tools: toolSchemas,
-        model: "", // model is set in provider config
-        signal: options.signal,
-      });
+    // ----- Stream LLM response with error-category retry -----
+    let assistantMessage: AssistantMessage | undefined;
+    let retryCount = 0;
 
-      // Forward stream events to caller, collect final message
-      let streamResult = await stream.next();
-      while (!streamResult.done) {
-        yield streamResult.value;
-        streamResult = await stream.next();
+    while (assistantMessage === undefined) {
+      try {
+        const stream = provider.stream({
+          messages,
+          systemPrompt: options.systemPrompt,
+          tools: toolSchemas,
+          model: "", // model is set in provider config
+          signal: options.signal,
+        });
+
+        let streamResult = await stream.next();
+        while (!streamResult.done) {
+          yield streamResult.value;
+          streamResult = await stream.next();
+        }
+        assistantMessage = streamResult.value;
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        const category = categorizeError(err);
+
+        yield { type: "error", error };
+
+        if (isRetryableCategory(category) && retryCount < maxRetries) {
+          retryCount++;
+          const delay = getRetryDelay(category, retryCount);
+          await sleep(delay, options.signal);
+          continue;
+        }
+
+        const result: LoopResult = {
+          reason: "error",
+          messages,
+          totalUsage,
+          turnCount,
+          errorCategory: category,
+        };
+        yield { type: "loop_end", result };
+        return result;
       }
-      assistantMessage = streamResult.value;
-    } catch (err) {
-      yield {
-        type: "error",
-        error: err instanceof Error ? err : new Error(String(err)),
-      };
-      const result: LoopResult = {
-        reason: "error",
-        messages,
-        totalUsage,
-        turnCount,
-      };
-      yield { type: "loop_end", result };
-      return result;
     }
 
     // Track usage
@@ -185,4 +199,19 @@ export async function* agentLoop(
   };
   yield { type: "loop_end", result };
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new Error("Aborted"));
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener("abort", () => {
+      clearTimeout(timer);
+      reject(new Error("Aborted"));
+    }, { once: true });
+  });
 }

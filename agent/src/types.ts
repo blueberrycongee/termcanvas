@@ -118,13 +118,15 @@ export type LoopExitReason =
   | "completed"
   | "max_turns"
   | "aborted"
-  | "error";
+  | "error"
+  | "budget_exceeded";
 
 export interface LoopResult {
   reason: LoopExitReason;
   messages: Message[];
   totalUsage: Usage;
   turnCount: number;
+  errorCategory?: import("./errors.ts").ErrorCategory;
 }
 
 // ---------------------------------------------------------------------------
