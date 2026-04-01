@@ -2,6 +2,21 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.18.0] - 2026-04-01
+
+### Added
+- Agent runtime: BYOK orchestration engine based on async generator loop with streaming tool_use cycle
+- Anthropic BYOK provider with streaming, retry, and abort support
+- 9 TermCanvas orchestration tools: CanvasState, Diff, Telemetry, ProjectManage, WorktreeManage, TerminalManage, HydraWorkflow, HydraAgent, BrowseAction
+- HTTP client for tools with 3-tier connection resolution and exponential backoff retry
+- Floating agent bubble UI: collapsible chat panel with drag, 8-direction resize, ESC to close
+- Agent bubble Zustand store for message and task state management
+- Terminal auto-summary: AI-generated one-line summaries with session resume and locale-aware prompts
+
+### Fixed
+- Auto-summary: skip Hydra sub-agent terminals, increase interval to 10min, skip already-summarized
+- Terminal: focus terminal after file drop from file tree
+
 ## [0.17.1] - 2026-04-01
 
 ### Fixed
