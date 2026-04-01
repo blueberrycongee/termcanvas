@@ -24,6 +24,7 @@ import type {
 } from "./types.ts";
 import { emptyUsage, mergeUsage } from "./types.ts";
 import { categorizeError, isRetryableCategory, getRetryDelay } from "./errors.ts";
+import { CostTracker } from "./cost-tracker.ts";
 
 // ---------------------------------------------------------------------------
 // Agent loop event — superset of stream events + loop-level events
@@ -35,6 +36,7 @@ export type AgentEvent =
   | { type: "turn_end"; turn: number }
   | { type: "tool_start"; name: string; input: Record<string, unknown> }
   | { type: "tool_end"; name: string; content: string; is_error?: boolean }
+  | { type: "cost_update"; costState: import("./cost-tracker.ts").CostState }
   | { type: "loop_end"; result: LoopResult };
 
 // ---------------------------------------------------------------------------
@@ -53,6 +55,7 @@ export async function* agentLoop(
   const toolSchemas = tools.toAPISchemas();
   let totalUsage: Usage = emptyUsage();
   let turnCount = 0;
+  const costTracker = new CostTracker(options.modelId ?? "");
 
   while (turnCount < maxTurns) {
     if (options.signal?.aborted) {
@@ -61,6 +64,7 @@ export async function* agentLoop(
         messages,
         totalUsage,
         turnCount,
+        costState: costTracker.getState(),
       };
       yield { type: "loop_end", result };
       return result;
@@ -108,15 +112,32 @@ export async function* agentLoop(
           totalUsage,
           turnCount,
           errorCategory: category,
+          costState: costTracker.getState(),
         };
         yield { type: "loop_end", result };
         return result;
       }
     }
 
-    // Track usage
+    // Track usage and cost
     if (assistantMessage.usage) {
       totalUsage = mergeUsage(totalUsage, assistantMessage.usage);
+      costTracker.addUsage(assistantMessage.usage);
+      yield { type: "cost_update", costState: costTracker.getState() };
+    }
+
+    // Budget check
+    if (options.maxBudgetUSD !== undefined && costTracker.exceedsBudget(options.maxBudgetUSD)) {
+      messages.push(assistantMessage);
+      const result: LoopResult = {
+        reason: "budget_exceeded",
+        messages,
+        totalUsage,
+        turnCount,
+        costState: costTracker.getState(),
+      };
+      yield { type: "loop_end", result };
+      return result;
     }
 
     // Append assistant message
@@ -135,6 +156,7 @@ export async function* agentLoop(
         messages,
         totalUsage,
         turnCount,
+        costState: costTracker.getState(),
       };
       yield { type: "loop_end", result };
       return result;
@@ -196,6 +218,7 @@ export async function* agentLoop(
     messages,
     totalUsage,
     turnCount,
+    costState: costTracker.getState(),
   };
   yield { type: "loop_end", result };
   return result;
