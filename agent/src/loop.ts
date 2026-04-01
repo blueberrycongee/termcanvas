@@ -25,6 +25,8 @@ import type {
 import { emptyUsage, mergeUsage } from "./types.ts";
 import { categorizeError, isRetryableCategory, getRetryDelay } from "./errors.ts";
 import { CostTracker } from "./cost-tracker.ts";
+import { shouldCompact, compactMessages, initialCompactionState } from "./compaction.ts";
+import { getContextWindow } from "./model-registry.ts";
 
 // ---------------------------------------------------------------------------
 // Agent loop event — superset of stream events + loop-level events
@@ -37,6 +39,7 @@ export type AgentEvent =
   | { type: "tool_start"; name: string; input: Record<string, unknown> }
   | { type: "tool_end"; name: string; content: string; is_error?: boolean }
   | { type: "cost_update"; costState: import("./cost-tracker.ts").CostState }
+  | { type: "compaction"; beforeTokens: number; afterTokens: number }
   | { type: "loop_end"; result: LoopResult };
 
 // ---------------------------------------------------------------------------
@@ -56,6 +59,8 @@ export async function* agentLoop(
   let totalUsage: Usage = emptyUsage();
   let turnCount = 0;
   const costTracker = new CostTracker(options.modelId ?? "");
+  let compactionState = initialCompactionState();
+  const contextWindow = getContextWindow(options.modelId ?? "");
 
   while (turnCount < maxTurns) {
     if (options.signal?.aborted) {
@@ -106,6 +111,20 @@ export async function* agentLoop(
           continue;
         }
 
+        // Emergency compaction on prompt_too_long
+        if (category === "prompt_too_long" && !compactionState.disabled) {
+          const compactionResult = await compactMessages(
+            provider, messages, options.systemPrompt, compactionState, options.signal,
+          );
+          if (compactionResult && compactionResult.compactedMessages !== messages) {
+            compactionState = compactionResult.state;
+            messages.length = 0;
+            messages.push(...compactionResult.compactedMessages);
+            yield { type: "compaction", beforeTokens: totalUsage.input_tokens, afterTokens: totalUsage.input_tokens };
+            continue;
+          }
+        }
+
         const result: LoopResult = {
           reason: "error",
           messages,
@@ -142,6 +161,22 @@ export async function* agentLoop(
 
     // Append assistant message
     messages.push(assistantMessage);
+
+    // ----- Auto-compaction check -----
+    if (assistantMessage.usage && shouldCompact(totalUsage.input_tokens, contextWindow, compactionState)) {
+      const beforeTokens = totalUsage.input_tokens;
+      const compactionResult = await compactMessages(
+        provider, messages, options.systemPrompt, compactionState, options.signal,
+      );
+      if (compactionResult) {
+        compactionState = compactionResult.state;
+        if (compactionResult.compactedMessages !== messages) {
+          messages.length = 0;
+          messages.push(...compactionResult.compactedMessages);
+          yield { type: "compaction", beforeTokens, afterTokens: beforeTokens };
+        }
+      }
+    }
 
     // ----- Check for tool use -----
     const toolUseBlocks = assistantMessage.content.filter(
