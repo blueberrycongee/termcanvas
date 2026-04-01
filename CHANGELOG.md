@@ -2,6 +2,32 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.19.0] - 2026-04-02
+
+### Added
+- Smooth stepless zoom and pan with lerp interpolation for fluid canvas navigation
+- OpenAI-compatible provider and provider preset definitions for agent runtime
+- Agent session isolation, horizontal tab bar, stop button, and auto-scroll active tab
+- IPC handlers, preload bridge, and AgentService for main-process agent runtime
+- Summarizing indicator in terminal title bar
+- CC hook-based lifecycle monitoring pipeline with StopFailure API error detection
+- Versioned manifest for skill lifecycle management
+- Scrollback buffer increased from 5k to 50k lines
+
+### Fixed
+- Stashed terminals excluded from keyboard focus cycle and panToTerminal layout
+- Native select replaced with custom dropdown for provider picker
+- Hub pointer events passed through container to terminal below
+- Collapsed hub dropdown no longer blocks terminal title bars
+- Text cursor wildcard selector reverted to fix cursor override
+- Stale customTitle cleared when session changes
+- Summary OAuth auth fixed by replacing --bare with --no-session-persistence
+- Socket bind awaited and fallback timer stored on hook runtime
+- cleanupOldHydraSymlinks no longer deletes newly-created hydra symlink
+
+### Changed
+- Agent migrated to unified provider config model
+
 ## [0.18.0] - 2026-04-01
 
 ### Added
