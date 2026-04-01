@@ -525,6 +525,7 @@ export interface TermCanvasAPI {
       sessionType: "claude" | "codex";
       cwd: string;
       summaryCli: "claude" | "codex";
+      locale: "en" | "zh";
     }) => Promise<{ ok: boolean; summary?: string; error?: string; sessionFileSize?: number }>;
   };
   insights: {

@@ -1,11 +1,11 @@
 import fs from "fs";
 import { spawn } from "child_process";
-import { buildCliInvocationArgs } from "./insights-cli";
 import { buildLaunchSpec } from "./pty-launch";
 import { resolveSessionFile } from "./session-watcher";
 
 type SummaryCli = "claude" | "codex";
 type SessionType = "claude" | "codex";
+type Locale = "en" | "zh";
 
 interface SummaryInput {
   terminalId: string;
@@ -13,6 +13,7 @@ interface SummaryInput {
   sessionType: SessionType;
   cwd: string;
   summaryCli: SummaryCli;
+  locale: Locale;
 }
 
 interface SummaryResult {
@@ -23,84 +24,34 @@ interface SummaryResult {
 }
 
 const TIMEOUT_MS = 30_000;
-const MAX_TAIL_BYTES = 65_536;
-
 const inFlight = new Set<string>();
 
-function readSessionTail(sessionFile: string): string {
-  const stat = fs.statSync(sessionFile);
-  const size = stat.size;
-  const start = Math.max(0, size - MAX_TAIL_BYTES);
-  const length = size - start;
-
-  const buffer = Buffer.alloc(length);
-  const fd = fs.openSync(sessionFile, "r");
-  try {
-    fs.readSync(fd, buffer, 0, length, start);
-  } finally {
-    fs.closeSync(fd);
-  }
-
-  const raw = buffer.toString("utf-8");
-  const lines = raw.split("\n").filter(Boolean);
-
-  // If we started mid-file, the first line is likely truncated — drop it
-  const validLines = start > 0 ? lines.slice(1) : lines;
-
-  const messages: string[] = [];
-  for (const line of validLines) {
-    try {
-      const entry = JSON.parse(line) as Record<string, unknown>;
-      const role = entry.role as string | undefined;
-      const type = entry.type as string | undefined;
-
-      if (type === "user" || type === "assistant") {
-        const msg = entry.message as Record<string, unknown> | undefined;
-        const text = extractText(msg?.content ?? entry.content);
-        if (text) messages.push(`[${type}] ${text}`);
-      } else if (role === "user" || role === "assistant") {
-        const text = extractText(entry.content);
-        if (text) messages.push(`[${role}] ${text}`);
-      }
-    } catch {
-      // skip malformed lines
-    }
-  }
-
-  return messages.join("\n");
-}
-
-function extractText(content: unknown): string {
-  if (typeof content === "string") return content.slice(0, 2000);
-  if (!Array.isArray(content)) return "";
-  return content
-    .map((block) => {
-      if (typeof block === "string") return block;
-      if (!block || typeof block !== "object") return "";
-      const entry = block as Record<string, unknown>;
-      if (typeof entry.text === "string") return entry.text;
-      if (typeof entry.content === "string") return entry.content;
-      // skip thinking/tool_use blocks — they're noise for summarization
-      return "";
-    })
-    .filter(Boolean)
-    .join("\n")
-    .slice(0, 2000);
-}
-
-function buildSummaryPrompt(sessionContent: string): string {
-  return `Summarize this CLI terminal session in exactly ONE short sentence (under 60 characters). The summary should describe the main task or topic. Output ONLY the summary sentence, nothing else. Detect the language of the conversation and reply in that same language.\n\n${sessionContent}`;
-}
+const LOCALE_PROMPTS: Record<Locale, string> = {
+  en: "Summarize what this session is working on in exactly ONE short sentence (under 60 characters, in English). Output ONLY the summary sentence, nothing else.",
+  zh: "用一句简短的中文总结这个会话正在做什么（不超过30个字）。只输出总结本身，不要输出任何其他内容。",
+};
 
 async function invokeSummaryCli(
   cliTool: SummaryCli,
+  sessionId: string,
   prompt: string,
+  cwd: string,
 ): Promise<string> {
-  const spec = await buildLaunchSpec({ cwd: process.cwd(), shell: cliTool });
-  const invocation = buildCliInvocationArgs(spec.args, cliTool, prompt);
+  const spec = await buildLaunchSpec({ cwd, shell: cliTool });
+
+  const cliArgs =
+    cliTool === "claude"
+      ? [
+          "--resume", sessionId,
+          "-p", prompt,
+          "--max-turns", "1",
+          "--bare",
+          "--output-format", "text",
+        ]
+      : ["exec", "--skip-git-repo-check", prompt];
 
   return new Promise<string>((resolve, reject) => {
-    const child = spawn(spec.file, invocation.args, {
+    const child = spawn(spec.file, [...spec.args, ...cliArgs], {
       cwd: spec.cwd,
       env: spec.env,
       stdio: ["pipe", "pipe", "pipe"],
@@ -134,19 +85,14 @@ async function invokeSummaryCli(
       reject(err);
     });
 
-    if (invocation.stdin !== null) {
-      child.stdin.write(invocation.stdin);
-      child.stdin.end();
-    } else {
-      child.stdin.end();
-    }
+    child.stdin.end();
   });
 }
 
 export async function generateSummary(
   input: SummaryInput,
 ): Promise<SummaryResult> {
-  const { terminalId, sessionId, sessionType, cwd, summaryCli } = input;
+  const { terminalId, sessionId, sessionType, cwd, summaryCli, locale } = input;
   const tag = `[Summary ${terminalId.slice(0, 8)}]`;
 
   if (inFlight.has(terminalId)) {
@@ -165,15 +111,10 @@ export async function generateSummary(
 
   inFlight.add(terminalId);
   try {
-    const content = readSessionTail(sessionFile);
-    if (!content) {
-      console.warn(`${tag} no session content to summarize`);
-      return { ok: false, error: "No session content to summarize" };
-    }
-    console.log(`${tag} session tail: ${content.length} chars, invoking ${summaryCli}...`);
+    const prompt = LOCALE_PROMPTS[locale] ?? LOCALE_PROMPTS.en;
+    console.log(`${tag} invoking ${summaryCli} --resume ${sessionId} (locale=${locale})...`);
 
-    const prompt = buildSummaryPrompt(content);
-    const raw = await invokeSummaryCli(summaryCli, prompt);
+    const raw = await invokeSummaryCli(summaryCli, sessionId, prompt, cwd);
     const summary = raw.trim().replace(/\n+/g, " ").slice(0, 120);
 
     if (!summary) {

@@ -2,6 +2,7 @@ import type { TerminalData } from "../types/index.ts";
 import { useProjectStore } from "../stores/projectStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useNotificationStore } from "../stores/notificationStore";
+import { useLocaleStore } from "../stores/localeStore";
 
 type SummaryCli = "claude" | "codex";
 
@@ -26,6 +27,8 @@ export function requestSummary(
   inFlightRenderer.add(terminal.id);
   console.log(`[SummaryScheduler] requesting summary for ${terminal.id.slice(0, 8)} (${terminal.type})`);
 
+  const locale = useLocaleStore.getState().locale;
+
   window.termcanvas.summary
     .generate({
       terminalId: terminal.id,
@@ -33,6 +36,7 @@ export function requestSummary(
       sessionType: terminal.type as "claude" | "codex",
       cwd: worktreePath,
       summaryCli,
+      locale,
     })
     .then((result) => {
       if (result.ok && result.summary) {
