@@ -11,29 +11,18 @@ export function AgentBubble({ onSendMessage, messages, activeTaskCount }: AgentB
 
   return (
     <>
-      {/* Collapsed bubble button */}
-      <div
-        className="transition-all duration-150 ease-out"
-        style={{
-          opacity: expanded ? 0 : 1,
-          transform: expanded ? "scale(0.95)" : "scale(1)",
-          pointerEvents: expanded ? "none" : "auto",
-        }}
-      >
+      {/* Collapsed bubble button — no wrapper with transform to avoid breaking fixed positioning */}
+      {!expanded && (
         <BubbleButton activeTaskCount={activeTaskCount} onExpand={handleExpand} />
-      </div>
+      )}
 
       {/* Expanded chat panel */}
       {expanded && (
-        <div
-          className="animate-[usage-fade-in-up_200ms_ease-out]"
-        >
-          <ChatPanel
-            messages={messages}
-            onSendMessage={onSendMessage}
-            onCollapse={handleCollapse}
-          />
-        </div>
+        <ChatPanel
+          messages={messages}
+          onSendMessage={onSendMessage}
+          onCollapse={handleCollapse}
+        />
       )}
     </>
   );
