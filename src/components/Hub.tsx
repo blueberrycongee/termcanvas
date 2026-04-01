@@ -161,7 +161,7 @@ export function Hub() {
   return (
     <div
       ref={containerRef}
-      className="fixed z-50 select-none"
+      className="fixed z-50 select-none pointer-events-none"
       style={{ top: 52, left: leftOffset }}
     >
       <button
@@ -170,7 +170,7 @@ export function Hub() {
           border border-[var(--border)] bg-[var(--surface)]
           text-[var(--text-secondary)] text-[12px]
           hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]
-          transition-colors duration-150 cursor-pointer"
+          transition-colors duration-150 cursor-pointer pointer-events-auto"
         style={{ transition: `colors 150ms, transform 280ms ${expanded ? SPRING_IN : SPRING_OUT}` }}
         title={`${levelLabel} (${levelShortcut})`}
       >
