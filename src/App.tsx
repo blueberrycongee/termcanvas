@@ -12,6 +12,8 @@ import { ShortcutHints } from "./components/ShortcutHints";
 import { CompletionGlow } from "./components/CompletionGlow";
 import { UsagePanel } from "./components/UsagePanel";
 import { StashBox } from "./components/StashBox";
+import { AgentBubble } from "./components/AgentBubble";
+import { useAgentBubbleStore } from "./stores/agentBubbleStore";
 import { WelcomePopup } from "./components/WelcomePopup";
 import {
   useProjectStore,
@@ -360,6 +362,21 @@ export function App() {
   const { showCloseDialog, handleSave, handleDiscard, handleCancel } =
     useCloseHandler();
 
+  const bubbleMessages = useAgentBubbleStore((s) => s.messages);
+  const bubbleTaskCount = useAgentBubbleStore((s) => s.activeTaskCount);
+  const addBubbleMessage = useAgentBubbleStore((s) => s.addMessage);
+  const handleBubbleSend = useCallback(
+    (text: string) => {
+      addBubbleMessage({
+        id: generateId(),
+        role: "user",
+        content: text,
+        timestamp: Date.now(),
+      });
+    },
+    [addBubbleMessage],
+  );
+
   const [showWelcome, setShowWelcome] = useState(() => {
     return !localStorage.getItem("termcanvas-welcome-seen");
   });
@@ -549,6 +566,11 @@ export function App() {
       <ShortcutHints />
       <UsagePanel />
       <StashBox />
+      <AgentBubble
+        messages={bubbleMessages}
+        activeTaskCount={bubbleTaskCount}
+        onSendMessage={handleBubbleSend}
+      />
       {composerEnabled && <ComposerBar />}
       <NotificationToast />
       {showCloseDialog && (

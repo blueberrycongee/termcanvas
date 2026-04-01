@@ -11,6 +11,7 @@ export interface PtyLaunchOptions {
   shell?: string;
   args?: string[];
   extraPathEntries?: string[];
+  envOverrides?: Record<string, string | undefined>;
   terminalId?: string;
   terminalType?: string;
   theme?: "dark" | "light";
@@ -413,6 +414,15 @@ export async function buildLaunchSpec(
     "port",
   );
   applyThemeHints(shellEnv, options.theme);
+  if (options.envOverrides) {
+    for (const [key, value] of Object.entries(options.envOverrides)) {
+      if (value === undefined) {
+        delete shellEnv[key];
+      } else {
+        shellEnv[key] = value;
+      }
+    }
+  }
 
   // Inject extra PATH entries (e.g. CLI dir) at the front
   if (options.extraPathEntries?.length) {
