@@ -281,25 +281,6 @@ function removeAllSkillLinks(sourceDir: string, home: string): void {
   removeSkillLinksFrom(getCodexSkillsDir(home), sourceDir);
 }
 
-// Old hydra symlink cleanup
-
-function cleanupOldHydraSymlinks(home: string): void {
-  const oldPaths = [
-    path.join(home, ".claude", "skills", "hydra"),
-    path.join(home, ".codex", "skills", "hydra"),
-  ];
-  for (const p of oldPaths) {
-    try {
-      const stat = fs.lstatSync(p);
-      if (!stat.isSymbolicLink()) continue;
-      const target = fs.readlinkSync(p);
-      if (target.includes("Resources/skill") || target.includes("Resources\\skill")) {
-        fs.unlinkSync(p);
-      }
-    } catch {}
-  }
-}
-
 // Public API
 
 /**
@@ -319,7 +300,6 @@ export function installSkillLinks({
     registerClaudePlugin(getClaudePluginsFile(home), sourceDir, appVersion);
     ensurePluginEnabled(getClaudeSettingsFile(home), sourceDir);
     installAllSkillLinks(sourceDir, home);
-    cleanupOldHydraSymlinks(home);
     return true;
   } catch (err) {
     console.error("[SkillManager] install failed:", err);
@@ -349,7 +329,6 @@ export function ensureSkillLinks({
 
     ensurePluginEnabled(getClaudeSettingsFile(home), sourceDir);
     installAllSkillLinks(sourceDir, home);
-    cleanupOldHydraSymlinks(home);
 
     return true;
   } catch (err) {
@@ -359,7 +338,7 @@ export function ensureSkillLinks({
 }
 
 /**
- * Uninstall: remove Claude plugin entry + Codex symlinks + old hydra links.
+ * Uninstall: remove Claude plugin entry + skill symlinks.
  * Called when user unregisters the CLI.
  */
 export function uninstallSkillLinks({
@@ -372,7 +351,6 @@ export function uninstallSkillLinks({
   try {
     unregisterClaudePlugin(getClaudePluginsFile(home));
     removeAllSkillLinks(sourceDir, home);
-    cleanupOldHydraSymlinks(home);
     return true;
   } catch (err) {
     console.error("[SkillManager] uninstall failed:", err);
