@@ -8,6 +8,9 @@ import { terminalTool } from "./terminal.ts";
 import { hydraWorkflowTool } from "./hydra-workflow.ts";
 import { hydraAgentTool } from "./hydra-agent.ts";
 import { browseTool } from "./browse.ts";
+import { readFileTool } from "./read-file.ts";
+import { globFileTool } from "./glob-file.ts";
+import { grepFileTool } from "./grep-file.ts";
 
 export function registerAllTools(registry: ToolRegistry): void {
   registry.register(canvasStateTool);
@@ -19,4 +22,7 @@ export function registerAllTools(registry: ToolRegistry): void {
   registry.register(hydraWorkflowTool);
   registry.register(hydraAgentTool);
   registry.register(browseTool);
+  registry.register(readFileTool);
+  registry.register(globFileTool);
+  registry.register(grepFileTool);
 }
