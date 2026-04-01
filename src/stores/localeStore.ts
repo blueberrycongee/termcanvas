@@ -3,9 +3,14 @@ import { create } from "zustand";
 export type Locale = "en" | "zh";
 
 function detectLocale(): Locale {
-  const saved = localStorage.getItem("termcanvas-locale");
+  const saved =
+    typeof localStorage !== "undefined"
+      ? localStorage.getItem("termcanvas-locale")
+      : null;
   if (saved === "en" || saved === "zh") return saved;
-  return navigator.language.startsWith("zh") ? "zh" : "en";
+  if (typeof navigator !== "undefined" && navigator.language.startsWith("zh"))
+    return "zh";
+  return "en";
 }
 
 interface LocaleStore {

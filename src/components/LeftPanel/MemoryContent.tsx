@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useMemoryStore } from "../../stores/memoryStore";
+import { useT } from "../../i18n/useT";
 
 // ─── Theme-aware colors ───────────────────────────────────────────────
 
@@ -533,6 +534,7 @@ interface Props {
 }
 
 export function MemoryContent({ worktreePath, onFileClick }: Props) {
+  const t = useT();
   const { graph, selectedNode, loading, setGraph, setSelectedNode, setLoading } =
     useMemoryStore();
 
@@ -565,7 +567,7 @@ export function MemoryContent({ worktreePath, onFileClick }: Props) {
   if (!worktreePath) {
     return (
       <div className="flex-1 flex items-center justify-center text-[var(--text-muted)] text-xs">
-        No worktree selected
+        {t.no_worktree_selected}
       </div>
     );
   }
@@ -573,7 +575,7 @@ export function MemoryContent({ worktreePath, onFileClick }: Props) {
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center text-[var(--text-muted)] text-xs">
-        Loading memories...
+        {t.memory_loading}
       </div>
     );
   }
@@ -581,9 +583,9 @@ export function MemoryContent({ worktreePath, onFileClick }: Props) {
   if (graph.nodes.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-[var(--text-muted)] text-xs px-4 text-center leading-relaxed">
-        No memory files found.
+        {t.memory_empty}
         <br />
-        Claude Code stores memories in ~/.claude/projects/
+        {t.memory_empty_hint}
       </div>
     );
   }

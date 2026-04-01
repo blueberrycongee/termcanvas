@@ -289,7 +289,7 @@ export function SettingsModal({ onClose }: Props) {
   }, []);
 
   useEffect(() => {
-    window.termcanvas.fonts.listDownloaded().then((files) => {
+    window.termcanvas?.fonts.listDownloaded().then((files) => {
       setDownloadedFonts(new Set(files));
     });
   }, []);
