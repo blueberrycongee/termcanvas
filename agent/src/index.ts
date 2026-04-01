@@ -57,6 +57,10 @@ export { categorizeError, isRetryableCategory, getRetryDelay } from "./errors.ts
 export type { CostState, TurnCost } from "./cost-tracker.ts";
 export { CostTracker, calculateTurnCost } from "./cost-tracker.ts";
 
+// Coordinator prompt
+export type { CoordinatorPromptContext } from "./coordinator-prompt.ts";
+export { buildCoordinatorPrompt } from "./coordinator-prompt.ts";
+
 // Built-in providers
 export { AnthropicProvider } from "./provider/anthropic.ts";
 export { OpenAIProvider } from "./provider/openai.ts";
