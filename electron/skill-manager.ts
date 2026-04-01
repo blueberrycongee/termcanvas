@@ -22,6 +22,10 @@ function getCodexSkillsDir(home: string): string {
   return path.join(home, ".codex", "skills");
 }
 
+function getClaudeSkillsDir(home: string): string {
+  return path.join(home, ".claude", "skills");
+}
+
 function getClaudePluginsFile(home: string): string {
   return path.join(home, ".claude", "plugins", "installed_plugins.json");
 }
@@ -218,14 +222,13 @@ function isSymlinkCurrent(linkPath: string, expectedTarget: string): boolean {
   }
 }
 
-/** Install Codex skill symlinks by scanning the skills/ subdirectory. */
-function installCodexSkillLinks(sourceDir: string, home: string): void {
+/** Install skill symlinks into a target directory by scanning the skills/ subdirectory. */
+function installSkillLinksTo(targetDir: string, sourceDir: string): void {
   const linkType = getSkillLinkType();
-  const codexDir = getCodexSkillsDir(home);
   const skillsRoot = path.join(sourceDir, "skills");
   if (!fs.existsSync(skillsRoot)) return;
 
-  fs.mkdirSync(codexDir, { recursive: true });
+  fs.mkdirSync(targetDir, { recursive: true });
 
   for (const name of fs.readdirSync(skillsRoot)) {
     const skillDir = path.join(skillsRoot, name);
@@ -235,7 +238,7 @@ function installCodexSkillLinks(sourceDir: string, home: string): void {
       continue;
     }
 
-    const link = path.join(codexDir, name);
+    const link = path.join(targetDir, name);
 
     if (isSymlinkCurrent(link, skillDir)) continue;
 
@@ -255,18 +258,27 @@ function installCodexSkillLinks(sourceDir: string, home: string): void {
   }
 }
 
-/** Remove Codex skill symlinks by scanning the skills/ subdirectory. */
-function removeCodexSkillLinks(sourceDir: string, home: string): void {
-  const codexDir = getCodexSkillsDir(home);
+/** Remove skill symlinks from a target directory by scanning the skills/ subdirectory. */
+function removeSkillLinksFrom(targetDir: string, sourceDir: string): void {
   const skillsRoot = path.join(sourceDir, "skills");
   if (!fs.existsSync(skillsRoot)) return;
 
   for (const name of fs.readdirSync(skillsRoot)) {
-    const link = path.join(codexDir, name);
+    const link = path.join(targetDir, name);
     try {
       if (fs.lstatSync(link).isSymbolicLink()) fs.unlinkSync(link);
     } catch {}
   }
+}
+
+function installAllSkillLinks(sourceDir: string, home: string): void {
+  installSkillLinksTo(getClaudeSkillsDir(home), sourceDir);
+  installSkillLinksTo(getCodexSkillsDir(home), sourceDir);
+}
+
+function removeAllSkillLinks(sourceDir: string, home: string): void {
+  removeSkillLinksFrom(getClaudeSkillsDir(home), sourceDir);
+  removeSkillLinksFrom(getCodexSkillsDir(home), sourceDir);
 }
 
 // Old hydra symlink cleanup
@@ -306,7 +318,7 @@ export function installSkillLinks({
   try {
     registerClaudePlugin(getClaudePluginsFile(home), sourceDir, appVersion);
     ensurePluginEnabled(getClaudeSettingsFile(home), sourceDir);
-    installCodexSkillLinks(sourceDir, home);
+    installAllSkillLinks(sourceDir, home);
     cleanupOldHydraSymlinks(home);
     return true;
   } catch (err) {
@@ -336,7 +348,7 @@ export function ensureSkillLinks({
     }
 
     ensurePluginEnabled(getClaudeSettingsFile(home), sourceDir);
-    installCodexSkillLinks(sourceDir, home);
+    installAllSkillLinks(sourceDir, home);
     cleanupOldHydraSymlinks(home);
 
     return true;
@@ -359,7 +371,7 @@ export function uninstallSkillLinks({
 }): boolean {
   try {
     unregisterClaudePlugin(getClaudePluginsFile(home));
-    removeCodexSkillLinks(sourceDir, home);
+    removeAllSkillLinks(sourceDir, home);
     cleanupOldHydraSymlinks(home);
     return true;
   } catch (err) {
