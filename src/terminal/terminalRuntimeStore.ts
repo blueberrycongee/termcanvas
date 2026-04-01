@@ -601,7 +601,7 @@ function createTerminalRenderer(
     fontSize: preferences.terminalFontSize,
     lineHeight: 1.4,
     minimumContrastRatio: preferences.minimumContrastRatio,
-    scrollback: 5_000,
+    scrollback: 50_000,
     theme: XTERM_THEMES[theme],
   });
   const fitAddon = new FitAddon();
