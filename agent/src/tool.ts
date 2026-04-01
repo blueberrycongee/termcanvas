@@ -147,6 +147,8 @@ export interface PendingTask {
   toolName: string;
   startTime: number;
   promise: Promise<ToolResult>;
+  settled: boolean;
+  settledResult?: ToolResult;
 }
 
 function isPendingResult(result: ToolCallReturn): result is PendingToolResult {
@@ -217,18 +219,16 @@ async function executeSingle(
     if (isPendingResult(callReturn)) {
       // Background task: register the pending promise and return acknowledgment
       if (pendingTasks) {
-        // The tool returned pending — it must provide a way to get the final result.
-        // The tool is responsible for setting up its own async work. We wrap it in a
-        // promise that the caller provided via the PendingToolResult convention.
-        // Since the tool already returned, we don't have the promise directly.
-        // Tools that want background execution should set this up before returning.
-        // For now, we create a placeholder that resolves when polled externally.
-        pendingTasks.set(callReturn.taskId, {
+        const promise = Promise.resolve({ content: callReturn.content });
+        const task: PendingTask = {
           taskId: callReturn.taskId,
           toolName: call.name,
           startTime: Date.now(),
-          promise: Promise.resolve({ content: callReturn.content }),
-        });
+          promise,
+          settled: false,
+        };
+        promise.then((r) => { task.settled = true; task.settledResult = r; });
+        pendingTasks.set(callReturn.taskId, task);
       }
       onEnd?.(call.name, { content: callReturn.content });
       return { tool_use_id: call.id, content: callReturn.content };

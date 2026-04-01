@@ -83,23 +83,15 @@ export async function* agentLoop(
 
     // ----- Collect completed background tasks -----
     for (const [taskId, task] of pendingTasks) {
-      try {
-        // Non-blocking check: use Promise.race with an instant resolver
-        const result = await Promise.race([
-          task.promise.then((r) => ({ resolved: true as const, result: r })),
-          Promise.resolve({ resolved: false as const }),
-        ]);
-        if (result.resolved) {
-          pendingTasks.delete(taskId);
-          yield { type: "task_completed", taskId, toolName: task.toolName, result: result.result };
-          messages.push({
-            role: "system",
-            content: `<worker-notification taskId="${taskId}" tool="${task.toolName}">${result.result.content}</worker-notification>`,
-            metadata: { taskId, type: "task_completion" },
-          });
-        }
-      } catch {
+      if (task.settled) {
+        const result = task.settledResult ?? { content: "" };
         pendingTasks.delete(taskId);
+        yield { type: "task_completed", taskId, toolName: task.toolName, result };
+        messages.push({
+          role: "system",
+          content: `<worker-notification taskId="${taskId}" tool="${task.toolName}">${result.content}</worker-notification>`,
+          metadata: { taskId, type: "task_completion" },
+        });
       }
     }
 
