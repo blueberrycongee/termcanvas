@@ -1,0 +1,151 @@
+/**
+ * Agent service — bridges the agent runtime with Electron IPC.
+ *
+ * Runs in the main process. Each BubbleSession maps to an AgentSession
+ * that holds its own message history and abort controller.
+ * Stream events are forwarded to the renderer via BrowserWindow.webContents.
+ */
+
+import type { BrowserWindow } from "electron";
+import { AnthropicProvider } from "../agent/src/provider/anthropic.ts";
+import { agentLoop } from "../agent/src/loop.ts";
+import type { AgentEvent } from "../agent/src/loop.ts";
+import { ToolRegistry } from "../agent/src/tool.ts";
+import { registerAllTools } from "../agent/src/tools/index.ts";
+import type { Message } from "../agent/src/types.ts";
+
+// ---------------------------------------------------------------------------
+// Session state
+// ---------------------------------------------------------------------------
+
+interface AgentSession {
+  messages: Message[];
+  abortController: AbortController | null;
+  running: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Service
+// ---------------------------------------------------------------------------
+
+export interface AgentConfig {
+  provider: "anthropic";
+  apiKey: string;
+  model: string;
+}
+
+const SYSTEM_PROMPT = `You are an AI assistant embedded in TermCanvas, a terminal-based canvas workspace.
+You can help users manage terminals, projects, worktrees, and workflows through the available tools.
+Be concise and direct. Respond in the same language the user uses.`;
+
+export class AgentService {
+  private sessions = new Map<string, AgentSession>();
+  private window: BrowserWindow | null = null;
+  private tools: ToolRegistry;
+
+  constructor() {
+    this.tools = new ToolRegistry();
+    registerAllTools(this.tools);
+  }
+
+  setWindow(win: BrowserWindow): void {
+    this.window = win;
+  }
+
+  private getSession(sessionId: string): AgentSession {
+    let session = this.sessions.get(sessionId);
+    if (!session) {
+      session = { messages: [], abortController: null, running: false };
+      this.sessions.set(sessionId, session);
+    }
+    return session;
+  }
+
+  private emit(sessionId: string, event: AgentEvent | { type: "stream_start" } | { type: "stream_end" }): void {
+    if (!this.window || this.window.isDestroyed()) return;
+    this.window.webContents.send("agent:event", sessionId, event);
+  }
+
+  async send(sessionId: string, text: string, config: AgentConfig): Promise<void> {
+    const session = this.getSession(sessionId);
+
+    if (session.running) {
+      this.emit(sessionId, {
+        type: "error",
+        error: new Error("Agent is already processing a message"),
+      });
+      return;
+    }
+
+    // Append user message
+    session.messages.push({ role: "user", content: text });
+
+    // Create provider
+    const provider = new AnthropicProvider(config.apiKey, config.model);
+
+    // Prepare abort
+    session.abortController = new AbortController();
+    session.running = true;
+
+    this.emit(sessionId, { type: "stream_start" });
+
+    try {
+      const loop = agentLoop(provider, this.tools, session.messages, {
+        systemPrompt: SYSTEM_PROMPT,
+        maxTurns: 20,
+        signal: session.abortController.signal,
+      });
+
+      let result = await loop.next();
+      while (!result.done) {
+        const event = result.value;
+        // Serialize errors (Error objects don't survive structured clone)
+        if (event.type === "error") {
+          this.emit(sessionId, {
+            type: "error",
+            error: new Error(event.error.message),
+          });
+        } else {
+          this.emit(sessionId, event);
+        }
+        result = await loop.next();
+      }
+
+      // loop.return is LoopResult — update session messages from it
+      const loopResult = result.value;
+      session.messages = loopResult.messages;
+    } catch (err) {
+      this.emit(sessionId, {
+        type: "error",
+        error: new Error(err instanceof Error ? err.message : String(err)),
+      });
+    } finally {
+      session.running = false;
+      session.abortController = null;
+      this.emit(sessionId, { type: "stream_end" });
+    }
+  }
+
+  abort(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (session?.abortController) {
+      session.abortController.abort();
+    }
+  }
+
+  clearSession(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      if (session.abortController) session.abortController.abort();
+      session.messages = [];
+      session.running = false;
+      session.abortController = null;
+    }
+  }
+
+  deleteSession(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (session?.abortController) session.abortController.abort();
+    this.sessions.delete(sessionId);
+  }
+}
