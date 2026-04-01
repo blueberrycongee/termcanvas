@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.17.1] - 2026-04-01
+
+### Fixed
+- Text selection in terminal top-left area: xterm v6 scroll shadow overlays intercepted mouse events, and mousedown bubbled to Canvas pan handler
+
 ## [0.17.0] - 2026-04-01
 
 ### Added
