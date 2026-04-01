@@ -356,6 +356,22 @@ contextBridge.exposeInMainWorld("termcanvas", {
       return () => ipcRenderer.removeListener("auth:state-changed", listener);
     },
   },
+  agent: {
+    send: (sessionId: string, text: string, config: { provider: "anthropic"; apiKey: string; model: string }) =>
+      ipcRenderer.invoke("agent:send", sessionId, text, config),
+    abort: (sessionId: string) =>
+      ipcRenderer.invoke("agent:abort", sessionId),
+    clear: (sessionId: string) =>
+      ipcRenderer.invoke("agent:clear", sessionId),
+    delete: (sessionId: string) =>
+      ipcRenderer.invoke("agent:delete", sessionId),
+    onEvent: (callback: (sessionId: string, event: unknown) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, sessionId: string, agentEvent: unknown) =>
+        callback(sessionId, agentEvent);
+      ipcRenderer.on("agent:event", listener);
+      return () => ipcRenderer.removeListener("agent:event", listener);
+    },
+  },
   app: {
     platform: process.platform as "darwin" | "win32" | "linux",
     onBeforeClose: (callback: () => void) => {

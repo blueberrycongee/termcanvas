@@ -57,6 +57,7 @@ import {
 import { createMenu } from "./menu";
 import { TelemetryService } from "./telemetry-service";
 import { findBestClaudeSession, findBestCodexSession, readClaudeSessionPermissionMode, readCodexSessionBypassState } from "./session-discovery";
+import { AgentService } from "./agent-service";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -108,6 +109,7 @@ const fileTreeWatcher = new FileTreeWatcher(HIDDEN_DIRS, (dirPath) => {
 });
 const sessionWatcher = new SessionWatcher();
 const telemetryService = new TelemetryService();
+const agentService = new AgentService();
 const apiServer = new ApiServer({
   getWindow: () => mainWindow,
   ptyManager,
@@ -179,6 +181,7 @@ function createWindow() {
   });
 
   createMenu(mainWindow);
+  agentService.setWindow(mainWindow);
 
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
@@ -1145,6 +1148,27 @@ function setupIpc() {
       return;
     }
     app.quit();
+  });
+
+  // ── Agent IPC ──
+
+  ipcMain.handle(
+    "agent:send",
+    async (_event, sessionId: string, text: string, config: { provider: "anthropic"; apiKey: string; model: string }) => {
+      agentService.send(sessionId, text, config);
+    },
+  );
+
+  ipcMain.handle("agent:abort", (_event, sessionId: string) => {
+    agentService.abort(sessionId);
+  });
+
+  ipcMain.handle("agent:clear", (_event, sessionId: string) => {
+    agentService.clearSession(sessionId);
+  });
+
+  ipcMain.handle("agent:delete", (_event, sessionId: string) => {
+    agentService.deleteSession(sessionId);
   });
 }
 
