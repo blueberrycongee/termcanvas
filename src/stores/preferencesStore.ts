@@ -11,6 +11,8 @@ export interface CliCommandConfig {
   args: string[];
 }
 
+export type AgentProvider = "anthropic" | "openai" | "google";
+
 interface PreferencesStore {
   /** Blur intensity in px (0 = off, max 3) */
   animationBlur: number;
@@ -32,6 +34,12 @@ interface PreferencesStore {
   minimumContrastRatio: number;
   /** Per-terminal-type CLI command overrides */
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
+  /** Agent bubble LLM provider */
+  agentProvider: AgentProvider;
+  /** Agent bubble API key (BYOK) */
+  agentApiKey: string;
+  /** Agent bubble model ID */
+  agentModel: string;
   setAnimationBlur: (value: number) => void;
   setMinimumContrastRatio: (value: number) => void;
   setTerminalFontSize: (value: number) => void;
@@ -42,11 +50,16 @@ interface PreferencesStore {
   setSummaryEnabled: (value: boolean) => void;
   setSummaryCli: (value: "claude" | "codex") => void;
   setCli: (type: TerminalType, config: CliCommandConfig | null) => void;
+  setAgentProvider: (value: AgentProvider) => void;
+  setAgentApiKey: (value: string) => void;
+  setAgentModel: (value: string) => void;
 }
 
 const STORAGE_KEY = "termcanvas-preferences";
 
-function loadPreferences(): { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; browserEnabled: boolean; summaryEnabled: boolean; summaryCli: "claude" | "codex"; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> } {
+const VALID_PROVIDERS = new Set<AgentProvider>(["anthropic", "openai", "google"]);
+
+function loadPreferences(): { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; browserEnabled: boolean; summaryEnabled: boolean; summaryCli: "claude" | "codex"; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>>; agentProvider: AgentProvider; agentApiKey: string; agentModel: string } {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -93,15 +106,24 @@ function loadPreferences(): { animationBlur: number; terminalFontSize: number; t
         }
       }
 
-      return { animationBlur: blur, terminalFontSize: fontSize, terminalFontFamily: fontFamily, composerEnabled, drawingEnabled, browserEnabled, summaryEnabled, summaryCli, minimumContrastRatio, cliCommands };
+      let agentProvider: AgentProvider = "anthropic";
+      if (VALID_PROVIDERS.has(parsed.agentProvider)) agentProvider = parsed.agentProvider;
+
+      let agentApiKey = "";
+      if (typeof parsed.agentApiKey === "string") agentApiKey = parsed.agentApiKey;
+
+      let agentModel = "";
+      if (typeof parsed.agentModel === "string") agentModel = parsed.agentModel;
+
+      return { animationBlur: blur, terminalFontSize: fontSize, terminalFontFamily: fontFamily, composerEnabled, drawingEnabled, browserEnabled, summaryEnabled, summaryCli, minimumContrastRatio, cliCommands, agentProvider, agentApiKey, agentModel };
     }
   } catch {
     // ignore
   }
-  return { animationBlur: DEFAULT_BLUR, terminalFontSize: DEFAULT_FONT_SIZE, terminalFontFamily: "geist-mono", composerEnabled: false, drawingEnabled: false, browserEnabled: false, summaryEnabled: false, summaryCli: "claude", minimumContrastRatio: DEFAULT_MIN_CONTRAST, cliCommands: {} };
+  return { animationBlur: DEFAULT_BLUR, terminalFontSize: DEFAULT_FONT_SIZE, terminalFontFamily: "geist-mono", composerEnabled: false, drawingEnabled: false, browserEnabled: false, summaryEnabled: false, summaryCli: "claude", minimumContrastRatio: DEFAULT_MIN_CONTRAST, cliCommands: {}, agentProvider: "anthropic", agentApiKey: "", agentModel: "" };
 }
 
-function savePreferences(state: { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; browserEnabled: boolean; summaryEnabled: boolean; summaryCli: "claude" | "codex"; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> }) {
+function savePreferences(state: { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; browserEnabled: boolean; summaryEnabled: boolean; summaryCli: "claude" | "codex"; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>>; agentProvider: AgentProvider; agentApiKey: string; agentModel: string }) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
@@ -118,6 +140,9 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   summaryCli: initialPrefs.summaryCli,
   minimumContrastRatio: initialPrefs.minimumContrastRatio,
   cliCommands: initialPrefs.cliCommands,
+  agentProvider: initialPrefs.agentProvider,
+  agentApiKey: initialPrefs.agentApiKey,
+  agentModel: initialPrefs.agentModel,
   setAnimationBlur: (value) => {
     const clamped = Math.round(Math.max(0, Math.min(3, value)) * 10) / 10;
     set({ animationBlur: clamped });
@@ -166,5 +191,17 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
     }
     set({ cliCommands: current });
     savePreferences({ ...get(), cliCommands: current });
+  },
+  setAgentProvider: (value) => {
+    set({ agentProvider: value });
+    savePreferences({ ...get(), agentProvider: value });
+  },
+  setAgentApiKey: (value) => {
+    set({ agentApiKey: value });
+    savePreferences({ ...get(), agentApiKey: value });
+  },
+  setAgentModel: (value) => {
+    set({ agentModel: value });
+    savePreferences({ ...get(), agentModel: value });
   },
 }));

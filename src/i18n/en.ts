@@ -256,6 +256,10 @@ export const en = {
   update_up_to_date: "Up to date",
   update_restart_short: "Restart & Update",
 
+  // Agent Bubble
+  agent_provider: "Agent Provider",
+  agent_model: "Agent Model",
+
   // CLI
   cli_label: "Command line interface",
   cli_registered: "Registered",

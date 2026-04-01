@@ -261,7 +261,7 @@ function AgentsTabContent() {
 
 export function SettingsModal({ onClose }: Props) {
   const { locale, setLocale } = useLocaleStore();
-  const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize, terminalFontFamily, setTerminalFontFamily, composerEnabled, setComposerEnabled, drawingEnabled, setDrawingEnabled, browserEnabled, setBrowserEnabled, summaryEnabled, setSummaryEnabled, summaryCli, setSummaryCli, minimumContrastRatio, setMinimumContrastRatio } = usePreferencesStore();
+  const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize, terminalFontFamily, setTerminalFontFamily, composerEnabled, setComposerEnabled, drawingEnabled, setDrawingEnabled, browserEnabled, setBrowserEnabled, summaryEnabled, setSummaryEnabled, summaryCli, setSummaryCli, minimumContrastRatio, setMinimumContrastRatio, agentProvider, setAgentProvider, agentApiKey, setAgentApiKey, agentModel, setAgentModel } = usePreferencesStore();
   const [fontSizeDraft, setFontSizeDraft] = useState(terminalFontSize);
   const { shortcuts, setShortcut, resetAll } = useShortcutStore();
   const [downloadedFonts, setDownloadedFonts] = useState<Set<string>>(new Set());
@@ -723,6 +723,52 @@ export function SettingsModal({ onClose }: Props) {
                   </div>
                 </div>
               )}
+
+              {/* Agent Bubble */}
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[13px] text-[var(--text-secondary)]">
+                    {t.agent_provider}
+                  </span>
+                </div>
+                <div className="flex gap-1">
+                  {(["anthropic", "openai", "google"] as const).map((p) => (
+                    <button
+                      key={p}
+                      className={agentProvider === p ? activeBtn : inactiveBtn}
+                      onClick={() => setAgentProvider(p)}
+                    >
+                      {p === "anthropic" ? "Anthropic" : p === "openai" ? "OpenAI" : "Google"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] text-[var(--text-secondary)]">
+                  API Key
+                </span>
+                <input
+                  type="password"
+                  value={agentApiKey}
+                  onChange={(e) => setAgentApiKey(e.target.value)}
+                  placeholder={agentProvider === "anthropic" ? "sk-ant-..." : agentProvider === "openai" ? "sk-..." : "AI..."}
+                  className="w-[200px] rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--accent)]"
+                  style={{ fontFamily: '"Geist Mono", monospace' }}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] text-[var(--text-secondary)]">
+                  {t.agent_model}
+                </span>
+                <input
+                  type="text"
+                  value={agentModel}
+                  onChange={(e) => setAgentModel(e.target.value)}
+                  placeholder={agentProvider === "anthropic" ? "claude-sonnet-4-20250514" : agentProvider === "openai" ? "gpt-4o" : "gemini-2.5-pro"}
+                  className="w-[200px] rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--accent)]"
+                  style={{ fontFamily: '"Geist Mono", monospace' }}
+                />
+              </div>
 
               {/* CLI registration */}
               {cliRegistered !== null && (

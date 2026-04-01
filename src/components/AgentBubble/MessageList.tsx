@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { BubbleMessage } from "./types";
+import { usePreferencesStore } from "../../stores/preferencesStore";
+import { useSettingsModalStore } from "../../stores/settingsModalStore";
 
 interface MessageListProps {
   messages: BubbleMessage[];
@@ -36,6 +38,8 @@ function MessageBubble({ message }: { message: BubbleMessage }) {
 
 export function MessageList({ messages }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const agentApiKey = usePreferencesStore((s) => s.agentApiKey);
+  const openSettings = useSettingsModalStore((s) => s.openSettings);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -50,9 +54,23 @@ export function MessageList({ messages }: MessageListProps) {
     <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto">
       {messages.length === 0 ? (
         <div className="flex items-center justify-center h-full px-6">
-          <p className="text-[11px] text-[var(--text-faint)] text-center leading-relaxed">
-            Send a message to start an agent task
-          </p>
+          {agentApiKey ? (
+            <p className="text-[11px] text-[var(--text-faint)] text-center leading-relaxed">
+              Send a message to start an agent task
+            </p>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-[11px] text-[var(--text-faint)] text-center leading-relaxed">
+                Configure an API key to get started
+              </p>
+              <button
+                className="text-[11px] text-[var(--accent)] hover:underline"
+                onClick={() => openSettings("general")}
+              >
+                Open Settings
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-2 p-3 pb-4">

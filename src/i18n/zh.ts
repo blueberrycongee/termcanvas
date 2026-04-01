@@ -253,6 +253,10 @@ export const zh = {
   update_up_to_date: "已是最新",
   update_restart_short: "重启并更新",
 
+  // Agent Bubble
+  agent_provider: "Agent 提供商",
+  agent_model: "Agent 模型",
+
   // CLI
   cli_label: "命令行工具",
   cli_registered: "已注册",
