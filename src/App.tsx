@@ -22,6 +22,7 @@ import {
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useT } from "./i18n/useT";
 import { loadAllDownloadedFonts } from "./terminal/fontLoader";
+import { startAutoSummaryWatcher } from "./terminal/summaryScheduler";
 import { shouldRunAutoSaveBackstop, useWorkspaceStore } from "./stores/workspaceStore";
 import {
   readWorkspaceSnapshot,
@@ -355,12 +356,18 @@ export function App() {
   const t = useT();
   const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
   const drawingEnabled = usePreferencesStore((s) => s.drawingEnabled);
+  const summaryEnabled = usePreferencesStore((s) => s.summaryEnabled);
   const { showCloseDialog, handleSave, handleDiscard, handleCancel } =
     useCloseHandler();
 
   const [showWelcome, setShowWelcome] = useState(() => {
     return !localStorage.getItem("termcanvas-welcome-seen");
   });
+
+  useEffect(() => {
+    if (!summaryEnabled) return;
+    return startAutoSummaryWatcher();
+  }, [summaryEnabled]);
 
   useEffect(() => initUpdaterListeners(), []);
 

@@ -24,6 +24,10 @@ interface PreferencesStore {
   drawingEnabled: boolean;
   /** When false, the toolbar browser shortcut stays hidden */
   browserEnabled: boolean;
+  /** When true, auto-summary is enabled for CLI terminals */
+  summaryEnabled: boolean;
+  /** Which CLI to use for generating summaries */
+  summaryCli: "claude" | "codex";
   /** xterm minimum contrast ratio (1 = off, max 7) */
   minimumContrastRatio: number;
   /** Per-terminal-type CLI command overrides */
@@ -35,12 +39,14 @@ interface PreferencesStore {
   setComposerEnabled: (value: boolean) => void;
   setDrawingEnabled: (value: boolean) => void;
   setBrowserEnabled: (value: boolean) => void;
+  setSummaryEnabled: (value: boolean) => void;
+  setSummaryCli: (value: "claude" | "codex") => void;
   setCli: (type: TerminalType, config: CliCommandConfig | null) => void;
 }
 
 const STORAGE_KEY = "termcanvas-preferences";
 
-function loadPreferences(): { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; browserEnabled: boolean; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> } {
+function loadPreferences(): { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; browserEnabled: boolean; summaryEnabled: boolean; summaryCli: "claude" | "codex"; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> } {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -68,6 +74,12 @@ function loadPreferences(): { animationBlur: number; terminalFontSize: number; t
       let browserEnabled = false;
       if (parsed.browserEnabled === true) browserEnabled = true;
 
+      let summaryEnabled = false;
+      if (parsed.summaryEnabled === true) summaryEnabled = true;
+
+      let summaryCli: "claude" | "codex" = "claude";
+      if (parsed.summaryCli === "codex") summaryCli = "codex";
+
       let minimumContrastRatio = DEFAULT_MIN_CONTRAST;
       const mcr = parsed.minimumContrastRatio;
       if (typeof mcr === "number" && mcr >= 1 && mcr <= 7) minimumContrastRatio = mcr;
@@ -81,15 +93,15 @@ function loadPreferences(): { animationBlur: number; terminalFontSize: number; t
         }
       }
 
-      return { animationBlur: blur, terminalFontSize: fontSize, terminalFontFamily: fontFamily, composerEnabled, drawingEnabled, browserEnabled, minimumContrastRatio, cliCommands };
+      return { animationBlur: blur, terminalFontSize: fontSize, terminalFontFamily: fontFamily, composerEnabled, drawingEnabled, browserEnabled, summaryEnabled, summaryCli, minimumContrastRatio, cliCommands };
     }
   } catch {
     // ignore
   }
-  return { animationBlur: DEFAULT_BLUR, terminalFontSize: DEFAULT_FONT_SIZE, terminalFontFamily: "geist-mono", composerEnabled: false, drawingEnabled: false, browserEnabled: false, minimumContrastRatio: DEFAULT_MIN_CONTRAST, cliCommands: {} };
+  return { animationBlur: DEFAULT_BLUR, terminalFontSize: DEFAULT_FONT_SIZE, terminalFontFamily: "geist-mono", composerEnabled: false, drawingEnabled: false, browserEnabled: false, summaryEnabled: false, summaryCli: "claude", minimumContrastRatio: DEFAULT_MIN_CONTRAST, cliCommands: {} };
 }
 
-function savePreferences(state: { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; browserEnabled: boolean; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> }) {
+function savePreferences(state: { animationBlur: number; terminalFontSize: number; terminalFontFamily: string; composerEnabled: boolean; drawingEnabled: boolean; browserEnabled: boolean; summaryEnabled: boolean; summaryCli: "claude" | "codex"; minimumContrastRatio: number; cliCommands: Partial<Record<TerminalType, CliCommandConfig>> }) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
@@ -102,6 +114,8 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   composerEnabled: initialPrefs.composerEnabled,
   drawingEnabled: initialPrefs.drawingEnabled,
   browserEnabled: initialPrefs.browserEnabled,
+  summaryEnabled: initialPrefs.summaryEnabled,
+  summaryCli: initialPrefs.summaryCli,
   minimumContrastRatio: initialPrefs.minimumContrastRatio,
   cliCommands: initialPrefs.cliCommands,
   setAnimationBlur: (value) => {
@@ -134,6 +148,14 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   setBrowserEnabled: (value) => {
     set({ browserEnabled: value });
     savePreferences({ ...get(), browserEnabled: value });
+  },
+  setSummaryEnabled: (value) => {
+    set({ summaryEnabled: value });
+    savePreferences({ ...get(), summaryEnabled: value });
+  },
+  setSummaryCli: (value) => {
+    set({ summaryCli: value });
+    savePreferences({ ...get(), summaryCli: value });
   },
   setCli: (type, config) => {
     const current = { ...get().cliCommands };

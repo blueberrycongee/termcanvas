@@ -10,6 +10,7 @@ import { getTerminalHeaderContextLabel } from "../stores/terminalState";
 import { useT } from "../i18n/useT";
 import { getComposerAdapter } from "./cliConfig";
 import { panToTerminal } from "../utils/panToTerminal";
+import { requestSummary } from "./summaryScheduler";
 import {
   attachTerminalContainer,
   blurTerminalRuntime,
@@ -854,6 +855,19 @@ export function TerminalTile({
                 label: t.stash_terminal,
                 onClick: () => stashTerminal(projectId, worktreeId, terminal.id),
               },
+              ...((terminal.type === "claude" || terminal.type === "codex") && terminal.sessionId
+                ? [{
+                    label: t.summarize_terminal,
+                    onClick: () =>
+                      requestSummary(
+                        projectId,
+                        worktreeId,
+                        worktreePath,
+                        terminal,
+                        usePreferencesStore.getState().summaryCli,
+                      ),
+                  }]
+                : []),
             ]}
             onClose={() => setContextMenu(null)}
           />,

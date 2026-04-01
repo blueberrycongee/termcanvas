@@ -518,6 +518,15 @@ export interface TermCanvasAPI {
   codexQuota: {
     fetch: () => Promise<QuotaFetchResult>;
   };
+  summary: {
+    generate: (input: {
+      terminalId: string;
+      sessionId: string;
+      sessionType: "claude" | "codex";
+      cwd: string;
+      summaryCli: "claude" | "codex";
+    }) => Promise<{ ok: boolean; summary?: string; error?: string }>;
+  };
   insights: {
     generate: (
       cliTool: "claude" | "codex",

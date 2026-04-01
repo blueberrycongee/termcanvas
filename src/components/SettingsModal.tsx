@@ -261,7 +261,7 @@ function AgentsTabContent() {
 
 export function SettingsModal({ onClose }: Props) {
   const { locale, setLocale } = useLocaleStore();
-  const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize, terminalFontFamily, setTerminalFontFamily, composerEnabled, setComposerEnabled, drawingEnabled, setDrawingEnabled, browserEnabled, setBrowserEnabled, minimumContrastRatio, setMinimumContrastRatio } = usePreferencesStore();
+  const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize, terminalFontFamily, setTerminalFontFamily, composerEnabled, setComposerEnabled, drawingEnabled, setDrawingEnabled, browserEnabled, setBrowserEnabled, summaryEnabled, setSummaryEnabled, summaryCli, setSummaryCli, minimumContrastRatio, setMinimumContrastRatio } = usePreferencesStore();
   const [fontSizeDraft, setFontSizeDraft] = useState(terminalFontSize);
   const { shortcuts, setShortcut, resetAll } = useShortcutStore();
   const [downloadedFonts, setDownloadedFonts] = useState<Set<string>>(new Set());
@@ -669,6 +669,60 @@ export function SettingsModal({ onClose }: Props) {
                   </button>
                 </div>
               </div>
+
+              {/* Summary toggle */}
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[13px] text-[var(--text-secondary)]">
+                    {t.summary_toggle}
+                  </span>
+                  <span className="text-[11px] text-[var(--text-muted)]">
+                    {t.summary_toggle_desc}
+                  </span>
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    className={summaryEnabled ? activeBtn : inactiveBtn}
+                    onClick={() => setSummaryEnabled(true)}
+                  >
+                    On
+                  </button>
+                  <button
+                    className={!summaryEnabled ? activeBtn : inactiveBtn}
+                    onClick={() => setSummaryEnabled(false)}
+                  >
+                    Off
+                  </button>
+                </div>
+              </div>
+
+              {/* Summary CLI selector */}
+              {summaryEnabled && (
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[13px] text-[var(--text-secondary)]">
+                      {t.summary_cli_label}
+                    </span>
+                    <span className="text-[11px] text-[var(--text-muted)]">
+                      {t.summary_cli_desc}
+                    </span>
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      className={summaryCli === "claude" ? activeBtn : inactiveBtn}
+                      onClick={() => setSummaryCli("claude")}
+                    >
+                      Claude
+                    </button>
+                    <button
+                      className={summaryCli === "codex" ? activeBtn : inactiveBtn}
+                      onClick={() => setSummaryCli("codex")}
+                    >
+                      Codex
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* CLI registration */}
               {cliRegistered !== null && (

@@ -306,6 +306,20 @@ contextBridge.exposeInMainWorld("termcanvas", {
   codexQuota: {
     fetch: () => ipcRenderer.invoke("codex-quota:fetch"),
   },
+  summary: {
+    generate: (input: {
+      terminalId: string;
+      sessionId: string;
+      sessionType: "claude" | "codex";
+      cwd: string;
+      summaryCli: "claude" | "codex";
+    }) =>
+      ipcRenderer.invoke("summary:generate", input) as Promise<{
+        ok: boolean;
+        summary?: string;
+        error?: string;
+      }>,
+  },
   insights: {
     generate: (cliTool: "claude" | "codex", jobId: string) =>
       ipcRenderer.invoke("insights:generate", cliTool, jobId) as Promise<

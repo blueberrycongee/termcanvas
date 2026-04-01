@@ -956,6 +956,21 @@ function setupIpc() {
     return result;
   });
 
+  // Summary
+  ipcMain.handle(
+    "summary:generate",
+    async (_event, input: {
+      terminalId: string;
+      sessionId: string;
+      sessionType: "claude" | "codex";
+      cwd: string;
+      summaryCli: "claude" | "codex";
+    }) => {
+      const { generateSummary } = await import("./summary-service.js");
+      return generateSummary(input);
+    },
+  );
+
   // Insights
   let activeInsightsJobId: string | null = null;
   ipcMain.handle(
