@@ -536,6 +536,8 @@ export function TerminalTile({
 
       const escaped = shellEscapePath(filePath);
       window.termcanvas.terminal.input(ptyId, " " + escaped);
+      setFocusedTerminal(terminal.id);
+      selectTerminal(projectId, worktreeId, terminal.id);
     };
 
     container.addEventListener("dragover", onDragOver, true);
@@ -547,7 +549,7 @@ export function TerminalTile({
       container.removeEventListener("dragleave", onDragLeave, true);
       container.removeEventListener("drop", onDrop, true);
     };
-  }, [lodMode, terminal.id]);
+  }, [lodMode, terminal.id, setFocusedTerminal, selectTerminal, projectId, worktreeId]);
 
   const handleClose = useCallback(() => {
     destroyTerminalRuntime(terminal.id);
@@ -580,8 +582,10 @@ export function TerminalTile({
 
       const escaped = shellEscapePath(filePath);
       window.termcanvas.terminal.input(ptyId, " " + escaped);
+      setFocusedTerminal(terminal.id);
+      selectTerminal(projectId, worktreeId, terminal.id);
     },
-    [terminal.id],
+    [terminal.id, setFocusedTerminal, selectTerminal, projectId, worktreeId],
   );
 
   return (
