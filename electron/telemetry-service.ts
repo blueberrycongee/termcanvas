@@ -129,6 +129,10 @@ export function deriveTelemetryStatus(
     return "exited";
   }
 
+  if (snapshot.turn_state === "turn_complete" && snapshot.last_hook_error) {
+    return "error";
+  }
+
   if (
     snapshot.turn_state === "turn_complete" &&
     snapshot.handoff_id &&
@@ -605,6 +609,8 @@ export class TelemetryService {
             });
           }
         }
+        state.snapshot.last_hook_error = undefined;
+        state.snapshot.last_hook_error_details = undefined;
         this.appendEvent(state, at, "session", "hook_session_start", {
           session_id: event.session_id ?? null,
           source: event.source ?? null,
@@ -613,6 +619,8 @@ export class TelemetryService {
         break;
 
       case "Stop":
+        state.snapshot.last_hook_error = undefined;
+        state.snapshot.last_hook_error_details = undefined;
         state.snapshot.turn_state = "turn_complete";
         state.snapshot.last_meaningful_progress_at = at;
         this.appendEvent(state, at, "session", "hook_stop", {
@@ -622,6 +630,8 @@ export class TelemetryService {
 
       case "StopFailure":
         state.snapshot.turn_state = "turn_complete";
+        state.snapshot.last_hook_error = typeof event.error === "string" ? event.error : "unknown";
+        state.snapshot.last_hook_error_details = typeof event.error_details === "string" ? event.error_details : undefined;
         this.appendEvent(state, at, "session", "hook_stop_failure", {
           error: event.error ?? null,
           error_details: event.error_details ?? null,
