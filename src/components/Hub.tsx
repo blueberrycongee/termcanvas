@@ -189,8 +189,8 @@ export function Hub() {
       </button>
 
       <div
-        className="mt-1 rounded-lg border border-[var(--border)]
-          overflow-hidden origin-top"
+        className="absolute left-0 mt-1 rounded-lg border border-[var(--border)]
+          overflow-hidden origin-top min-w-[200px]"
         style={{
           // Asymmetric spring transitions: bouncy enter, snappy exit
           transition: expanded
