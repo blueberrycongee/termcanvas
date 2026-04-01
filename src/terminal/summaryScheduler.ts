@@ -81,6 +81,7 @@ export function startAutoSummaryWatcher(): () => void {
         for (const terminal of worktree.terminals) {
           if (!SUMMARY_ELIGIBLE_TYPES.has(terminal.type)) continue;
           if (!terminal.sessionId) continue;
+          if (terminal.origin === "agent") continue;
           if (terminal.focused) continue;
           if (terminal.status === "running" || terminal.status === "active") continue;
 
