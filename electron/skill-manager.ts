@@ -385,6 +385,115 @@ function removeAllSkillLinks(sourceDir: string, home: string): void {
   removeSkillLinksFrom(getCodexSkillsDir(home), sourceDir);
 }
 
+// Lifecycle hook registration (CC hook-based monitoring)
+
+const LIFECYCLE_HOOK_EVENTS = [
+  "SessionStart",
+  "Stop",
+  "StopFailure",
+  "SessionEnd",
+  "PreToolUse",
+  "PostToolUse",
+  "PostToolUseFailure",
+  "UserPromptSubmit",
+  "SubagentStart",
+  "SubagentStop",
+  "PreCompact",
+  "PostCompact",
+] as const;
+
+const LIFECYCLE_MARKER = "termcanvas-hook.mjs";
+
+function ensureLifecycleHooks(settingsFile: string, scriptPath: string): void {
+  let data: Record<string, unknown> = {};
+  try {
+    data = JSON.parse(fs.readFileSync(settingsFile, "utf-8"));
+  } catch {}
+
+  const hooks = (data.hooks ?? {}) as Record<string, unknown[]>;
+  const hookCommand = `node '${scriptPath}'`;
+
+  for (const eventName of LIFECYCLE_HOOK_EVENTS) {
+    const existing = (hooks[eventName] ?? []) as Array<{
+      matcher?: string;
+      hooks?: Array<{ type: string; command: string; timeout?: number; async?: boolean }>;
+    }>;
+
+    // Remove any existing lifecycle hooks (by marker)
+    const filtered = existing.filter(
+      (entry) => !entry.hooks?.some((h) => h.command.includes(LIFECYCLE_MARKER)),
+    );
+
+    // SessionStart blocks briefly to capture session_id; all others are async
+    const isAsync = eventName !== "SessionStart";
+
+    filtered.push({
+      matcher: "",
+      hooks: [
+        {
+          type: "command",
+          command: hookCommand,
+          timeout: 5,
+          ...(isAsync ? { async: true } : {}),
+        },
+      ],
+    });
+
+    hooks[eventName] = filtered;
+  }
+
+  data.hooks = hooks;
+
+  fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+  const tmp = settingsFile + ".tmp." + process.pid;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
+  fs.renameSync(tmp, settingsFile);
+}
+
+function removeLifecycleHooks(settingsFile: string): void {
+  let data: Record<string, unknown> = {};
+  try {
+    data = JSON.parse(fs.readFileSync(settingsFile, "utf-8"));
+  } catch {
+    return;
+  }
+
+  const hooks = (data.hooks ?? {}) as Record<string, unknown[]>;
+  let changed = false;
+
+  for (const eventName of LIFECYCLE_HOOK_EVENTS) {
+    const existing = (hooks[eventName] ?? []) as Array<{
+      matcher?: string;
+      hooks?: Array<{ type: string; command: string }>;
+    }>;
+
+    const filtered = existing.filter(
+      (entry) => !entry.hooks?.some((h) => h.command.includes(LIFECYCLE_MARKER)),
+    );
+
+    if (filtered.length !== existing.length) {
+      changed = true;
+      if (filtered.length === 0) {
+        delete hooks[eventName];
+      } else {
+        hooks[eventName] = filtered;
+      }
+    }
+  }
+
+  if (Object.keys(hooks).length === 0) {
+    delete data.hooks;
+  } else {
+    data.hooks = hooks;
+  }
+
+  if (!changed) return;
+
+  const tmp = settingsFile + ".tmp." + process.pid;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
+  fs.renameSync(tmp, settingsFile);
+}
+
 // Public API
 
 /**
@@ -403,6 +512,10 @@ export function installSkillLinks({
   try {
     registerClaudePlugin(getClaudePluginsFile(home), sourceDir, appVersion);
     ensurePluginEnabled(getClaudeSettingsFile(home), sourceDir);
+    ensureLifecycleHooks(
+      getClaudeSettingsFile(home),
+      path.join(sourceDir, "scripts", "termcanvas-hook.mjs"),
+    );
     installAllSkillLinks(sourceDir, home, appVersion);
     return true;
   } catch (err) {
@@ -432,6 +545,10 @@ export function ensureSkillLinks({
     }
 
     ensurePluginEnabled(getClaudeSettingsFile(home), sourceDir);
+    ensureLifecycleHooks(
+      getClaudeSettingsFile(home),
+      path.join(sourceDir, "scripts", "termcanvas-hook.mjs"),
+    );
     installAllSkillLinks(sourceDir, home, appVersion);
 
     return true;
@@ -454,6 +571,7 @@ export function uninstallSkillLinks({
 }): boolean {
   try {
     unregisterClaudePlugin(getClaudePluginsFile(home));
+    removeLifecycleHooks(getClaudeSettingsFile(home));
     removeAllSkillLinks(sourceDir, home);
     return true;
   } catch (err) {

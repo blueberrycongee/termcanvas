@@ -392,6 +392,34 @@ contextBridge.exposeInMainWorld("termcanvas", {
       return () => ipcRenderer.removeListener("updater:error", listener);
     },
   },
+  hooks: {
+    getSocketPath: () =>
+      ipcRenderer.invoke("hook:get-socket-path") as Promise<string | null>,
+    onSessionStarted: (callback: (payload: { terminalId: string; sessionId: string; transcriptPath: string | null; cwd: string | null }) => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        payload: { terminalId: string; sessionId: string; transcriptPath: string | null; cwd: string | null },
+      ) => callback(payload);
+      ipcRenderer.on("hook:session-started", listener);
+      return () => ipcRenderer.removeListener("hook:session-started", listener);
+    },
+    onTurnComplete: (callback: (payload: { terminalId: string; sessionId: string | null }) => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        payload: { terminalId: string; sessionId: string | null },
+      ) => callback(payload);
+      ipcRenderer.on("hook:turn-complete", listener);
+      return () => ipcRenderer.removeListener("hook:turn-complete", listener);
+    },
+    onStopFailure: (callback: (payload: { terminalId: string; sessionId: string | null; error: string | null; errorDetails: string | null }) => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        payload: { terminalId: string; sessionId: string | null; error: string | null; errorDetails: string | null },
+      ) => callback(payload);
+      ipcRenderer.on("hook:stop-failure", listener);
+      return () => ipcRenderer.removeListener("hook:stop-failure", listener);
+    },
+  },
   menu: {
     onOpenFolder: (callback: (dirPath: string) => void) => {
       const listener = (_e: Electron.IpcRendererEvent, dirPath: string) => callback(dirPath);
