@@ -365,6 +365,10 @@ export function App() {
   const bubbleMessages = useAgentBubbleStore((s) => s.messages);
   const bubbleTaskCount = useAgentBubbleStore((s) => s.activeTaskCount);
   const addBubbleMessage = useAgentBubbleStore((s) => s.addMessage);
+  const activeSessionId = useAgentBubbleStore((s) => s.activeSessionId);
+  const agentProvider = usePreferencesStore((s) => s.agentProvider);
+  const agentApiKey = usePreferencesStore((s) => s.agentApiKey);
+  const agentModel = usePreferencesStore((s) => s.agentModel);
   const handleBubbleSend = useCallback(
     (text: string) => {
       addBubbleMessage({
@@ -373,8 +377,16 @@ export function App() {
         content: text,
         timestamp: Date.now(),
       });
+
+      if (agentApiKey) {
+        window.termcanvas.agent.send(activeSessionId, text, {
+          provider: agentProvider as "anthropic",
+          apiKey: agentApiKey,
+          model: agentModel || "claude-sonnet-4-20250514",
+        });
+      }
     },
-    [addBubbleMessage],
+    [addBubbleMessage, activeSessionId, agentProvider, agentApiKey, agentModel],
   );
 
   const [showWelcome, setShowWelcome] = useState(() => {

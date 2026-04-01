@@ -308,6 +308,21 @@ export interface GitStatusEntry {
   originalPath?: string;
 }
 
+// Agent stream event — subset of AgentEvent serializable across IPC
+export type AgentStreamEvent =
+  | { type: "stream_start" }
+  | { type: "stream_end" }
+  | { type: "text_delta"; text: string }
+  | { type: "thinking_delta"; thinking: string }
+  | { type: "tool_use_start"; id: string; name: string }
+  | { type: "tool_start"; name: string; input: Record<string, unknown> }
+  | { type: "tool_end"; name: string; content: string; is_error?: boolean }
+  | { type: "turn_start"; turn: number }
+  | { type: "turn_end"; turn: number }
+  | { type: "error"; error: { message: string } }
+  | { type: "message_start"; usage?: { input_tokens: number; output_tokens: number } }
+  | { type: "message_delta"; stop_reason: string | null };
+
 // Preload API types
 export interface TermCanvasAPI {
   terminal: {
@@ -536,6 +551,13 @@ export interface TermCanvasAPI {
     onProgress: (callback: (progress: InsightsProgressEvent) => void) => () => void;
     openReport: (filePath: string) => Promise<void>;
     getLastReport: () => Promise<string | null>;
+  };
+  agent: {
+    send: (sessionId: string, text: string, config: { provider: "anthropic"; apiKey: string; model: string }) => Promise<void>;
+    abort: (sessionId: string) => Promise<void>;
+    clear: (sessionId: string) => Promise<void>;
+    delete: (sessionId: string) => Promise<void>;
+    onEvent: (callback: (sessionId: string, event: AgentStreamEvent) => void) => () => void;
   };
   app: {
     platform: "darwin" | "win32" | "linux";
