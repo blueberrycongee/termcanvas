@@ -260,6 +260,55 @@ function AgentsTabContent() {
   );
 }
 
+function ProviderDropdown({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const current = PROVIDER_PRESETS.find((p) => p.id === value) ?? PROVIDER_PRESETS[0];
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative w-[200px]">
+      <button
+        className="w-full flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[12px] text-[var(--text-primary)] outline-none transition-colors duration-150 hover:border-[var(--accent)]"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span>{current.name}</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" className={`transition-transform duration-150 ${open ? "rotate-180" : ""}`}>
+          <path d="M2 3.5L5 6.5L8 3.5" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-full max-h-52 overflow-auto rounded-md border border-[var(--border)] bg-[var(--surface)] shadow-lg z-20">
+          {PROVIDER_PRESETS.map((p) => (
+            <button
+              key={p.id}
+              className={`w-full text-left px-3 py-1.5 text-[12px] transition-colors duration-100 ${
+                p.id === value
+                  ? "bg-[var(--border)] text-[var(--text-primary)]"
+                  : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+              }`}
+              onClick={() => {
+                onChange(p.id);
+                setOpen(false);
+              }}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SettingsModal({ onClose }: Props) {
   const { locale, setLocale } = useLocaleStore();
   const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize, terminalFontFamily, setTerminalFontFamily, composerEnabled, setComposerEnabled, drawingEnabled, setDrawingEnabled, browserEnabled, setBrowserEnabled, summaryEnabled, setSummaryEnabled, summaryCli, setSummaryCli, minimumContrastRatio, setMinimumContrastRatio, agentConfig, patchAgentConfig, setAgentConfig } = usePreferencesStore();
@@ -730,10 +779,10 @@ export function SettingsModal({ onClose }: Props) {
                 <span className="text-[13px] text-[var(--text-secondary)]">
                   {t.agent_provider}
                 </span>
-                <select
+                <ProviderDropdown
                   value={agentConfig.id}
-                  onChange={(e) => {
-                    const preset = getPreset(e.target.value);
+                  onChange={(presetId) => {
+                    const preset = getPreset(presetId);
                     if (preset) {
                       setAgentConfig({
                         id: preset.id,
@@ -745,12 +794,7 @@ export function SettingsModal({ onClose }: Props) {
                       });
                     }
                   }}
-                  className="w-[200px] rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
-                >
-                  {PROVIDER_PRESETS.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
+                />
               </div>
               {agentConfig.id === "custom" && (
                 <div className="flex items-center justify-between">
