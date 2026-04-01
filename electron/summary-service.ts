@@ -48,7 +48,12 @@ async function invokeSummaryCli(
           "--bare",
           "--output-format", "text",
         ]
-      : ["exec", "--skip-git-repo-check", prompt];
+      : [
+          "exec", "resume", sessionId,
+          "--skip-git-repo-check",
+          "--ephemeral",
+          prompt,
+        ];
 
   return new Promise<string>((resolve, reject) => {
     const child = spawn(spec.file, [...spec.args, ...cliArgs], {
