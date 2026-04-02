@@ -222,7 +222,7 @@ export function buildWorkflowTemplatePlan(
             "Report issues with concrete evidence (file paths, code snippets, command output)",
             `Use next_action.handoff_id=${implementerId} when issues must go back to implementation`,
           ],
-          skills: ["requesting-code-review", "verification-before-completion"],
+          skills: ["qa", "requesting-code-review", "verification-before-completion"],
         },
         context: {
           files: [plannerResult, implementerResult],

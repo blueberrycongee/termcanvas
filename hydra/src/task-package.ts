@@ -333,7 +333,7 @@ function renderEvaluatorVerificationStrategy(role: string): string[] {
     "",
     "### Baseline (do this first, stop early if it fails)",
     "",
-    "Run the test suite and build. If available, use Playwright, Puppeteer, or Cypress for UI verification. If either tests or build fail, report immediately — no further evaluation needed.",
+    "Run the test suite and build. For any task with UI changes, you MUST use the `browse` CLI to verify in a real browser — do not skip this step or substitute it with code reading. Run `browse goto <url>`, take screenshots with `browse screenshot`, test interactions with `browse click`/`browse fill`/`browse press`, and check `browse console` for errors. The browse server starts automatically on first use. Fall back to Playwright, Puppeteer, or Cypress only if browse is unavailable. If tests or build fail, report immediately — no further evaluation needed.",
     "",
     "### Deep evaluation (do this when the baseline passes)",
     "",
