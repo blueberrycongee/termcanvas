@@ -78,11 +78,19 @@ export function AgentRenderer({ terminalId, sessionId, projectId, worktreeId, cw
   const [hasNewMessages, setHasNewMessages] = useState(false);
 
   useEffect(() => {
-    if (!window.termcanvas?.agent) return;
+    console.log("[AgentRenderer] mount, sessionId:", sessionId, "cwd:", cwd);
+    if (!window.termcanvas?.agent) {
+      console.log("[AgentRenderer] window.termcanvas.agent not available!");
+      return;
+    }
 
     const unsubscribe = window.termcanvas.agent.onEvent(
       (evtSessionId: string, event: AgentStreamEvent) => {
-        if (evtSessionId !== sessionId) return;
+        console.log("[AgentRenderer] event:", evtSessionId, event.type);
+        if (evtSessionId !== sessionId) {
+          console.log("[AgentRenderer] sessionId mismatch, ignoring. expected:", sessionId, "got:", evtSessionId);
+          return;
+        }
         handleEvent(event);
       },
     );
@@ -275,7 +283,11 @@ export function AgentRenderer({ terminalId, sessionId, projectId, worktreeId, cw
 
   const handleSend = useCallback(
     (text: string) => {
-      if (!window.termcanvas?.agent) return;
+      if (!window.termcanvas?.agent) {
+        console.log("[AgentRenderer] send failed: agent API not available");
+        return;
+      }
+      console.log("[AgentRenderer] sending:", text.slice(0, 50), "sessionId:", sessionId, "cwd:", cwd);
       setSegments((prev) => [...prev, { kind: "user", text }]);
       lastSegmentRef.current = null;
       window.termcanvas.agent.send(sessionId, text, {
