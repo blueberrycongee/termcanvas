@@ -169,4 +169,7 @@ export interface AgentOptions {
 
   /** Callback when a tool finishes */
   onToolEnd?: (name: string, result: ToolResult) => void;
+
+  /** Model to switch to after max_output_tokens recovery exhausts retries */
+  fallbackModel?: string;
 }

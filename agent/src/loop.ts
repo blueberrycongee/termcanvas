@@ -26,7 +26,7 @@ import { emptyUsage, mergeUsage } from "./types.ts";
 import { categorizeError, isRetryableCategory, getRetryDelay } from "./errors.ts";
 import { CostTracker } from "./cost-tracker.ts";
 import { shouldCompact, compactMessages, initialCompactionState } from "./compaction.ts";
-import { getContextWindow } from "./model-registry.ts";
+import { getContextWindow, getMaxOutputTokens } from "./model-registry.ts";
 
 // ---------------------------------------------------------------------------
 // Agent loop event — superset of stream events + loop-level events
@@ -42,6 +42,8 @@ export type AgentEvent =
   | { type: "compaction"; beforeTokens: number; afterTokens: number }
   | { type: "task_pending"; taskId: string; toolName: string }
   | { type: "task_completed"; taskId: string; toolName: string; result: import("./types.ts").ToolResult }
+  | { type: "max_tokens_recovery"; attempt: number; maxTokens: number }
+  | { type: "fallback_model_switch"; from: string; to: string }
   | { type: "loop_end"; result: LoopResult };
 
 // ---------------------------------------------------------------------------
@@ -64,6 +66,9 @@ export async function* agentLoop(
   let compactionState = initialCompactionState();
   const contextWindow = getContextWindow(options.modelId ?? "");
   const pendingTasks = new Map<string, PendingTask>();
+  let maxTokensRecoveryCount = 0;
+  let currentMaxTokens: number | undefined;
+  let currentModel = options.modelId ?? "";
 
   while (turnCount < maxTurns) {
     if (options.signal?.aborted) {
@@ -105,8 +110,9 @@ export async function* agentLoop(
           messages,
           systemPrompt: options.systemPrompt,
           tools: toolSchemas,
-          model: "", // model is set in provider config
+          model: "",
           signal: options.signal,
+          ...(currentMaxTokens !== undefined ? { maxTokens: currentMaxTokens } : {}),
         });
 
         let streamResult = await stream.next();
@@ -206,8 +212,40 @@ export async function* agentLoop(
     );
 
     if (toolUseBlocks.length === 0) {
+      // max_tokens recovery: output was truncated, not a clean end_turn
+      if (assistantMessage.stop_reason === "max_tokens") {
+        const MAX_RECOVERY_ATTEMPTS = 3;
+        const OUTPUT_REDUCTION_FACTOR = 0.8;
+
+        if (maxTokensRecoveryCount < MAX_RECOVERY_ATTEMPTS) {
+          maxTokensRecoveryCount++;
+          const baseTokens = currentMaxTokens ?? getMaxOutputTokens(currentModel);
+          currentMaxTokens = Math.floor(baseTokens * OUTPUT_REDUCTION_FACTOR);
+          yield { type: "max_tokens_recovery", attempt: maxTokensRecoveryCount, maxTokens: currentMaxTokens };
+          messages.push({
+            role: "user",
+            content: "Output token limit hit. Resume directly from where you stopped — no preamble, no recap.",
+          });
+          yield { type: "turn_end", turn: turnCount };
+          continue;
+        }
+
+        if (options.fallbackModel) {
+          const previousModel = currentModel;
+          currentModel = options.fallbackModel;
+          currentMaxTokens = undefined;
+          maxTokensRecoveryCount = 0;
+          yield { type: "fallback_model_switch", from: previousModel, to: currentModel };
+          messages.push({
+            role: "user",
+            content: "Output token limit hit. Resume directly from where you stopped — no preamble, no recap.",
+          });
+          yield { type: "turn_end", turn: turnCount };
+          continue;
+        }
+      }
+
       if (pendingTasks.size === 0) {
-        // Truly done — no pending background work
         yield { type: "turn_end", turn: turnCount };
         const result: LoopResult = {
           reason: "completed",
