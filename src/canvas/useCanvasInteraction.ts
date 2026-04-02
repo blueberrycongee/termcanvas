@@ -56,9 +56,9 @@ export function useCanvasInteraction() {
     const { viewport, setViewport } = useCanvasStore.getState();
     const target = zoomTarget.current;
 
-    const nextX = viewport.x + (target.x - viewport.x) * LERP_SPEED;
-    const nextY = viewport.y + (target.y - viewport.y) * LERP_SPEED;
-    const nextScale = viewport.scale + (target.scale - viewport.scale) * LERP_SPEED;
+    const nextX = viewport.x + (target.x - viewport.x) * ZOOM_LERP;
+    const nextY = viewport.y + (target.y - viewport.y) * ZOOM_LERP;
+    const nextScale = viewport.scale + (target.scale - viewport.scale) * ZOOM_LERP;
 
     setViewport({ x: nextX, y: nextY, scale: nextScale });
 
