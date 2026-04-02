@@ -345,6 +345,7 @@ function renderEvaluatorVerificationStrategy(role: string): string[] {
     "- **Test honesty** — A test that asserts `expect(true).toBe(true)` or only validates a mock's return value is worse than no test — it creates false confidence. Flag dead tests, tautological assertions, and tests brittle to implementation details.",
     "- **User-facing quality** — For UI: try the interaction flow end to end. For APIs: check error responses, not just happy paths. For CLI: test discoverability and help text.",
     "- **Architectural coherence** — Does the new code follow existing patterns in the codebase, or does it introduce a conflicting style?",
+    "- **Independent assessment** — Do NOT let the implementer's self-reported summary guide your evaluation. Form your own judgment from code and runtime behavior first. Then compare with the implementer's claims — discrepancies between what they say and what you observe are the highest-priority findings.",
     "",
     "### Reporting",
     "",
