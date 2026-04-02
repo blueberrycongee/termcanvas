@@ -58,6 +58,7 @@ export class OpenAIProvider implements LLMProvider {
       model,
       messages,
       stream: true,
+      stream_options: { include_usage: true },
       ...(oSeries
         ? { max_completion_tokens: maxTokens }
         : { max_tokens: maxTokens }),
