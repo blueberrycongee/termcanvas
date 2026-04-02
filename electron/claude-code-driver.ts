@@ -141,6 +141,7 @@ export class ClaudeCodeDriver {
       "--output-format", "stream-json",
       "--input-format", "stream-json",
       "--print",
+      "--verbose",
     ];
 
     if (this.options.model) {
