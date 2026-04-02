@@ -215,7 +215,7 @@ export function TerminalTile({
   const [agentBodySize, setAgentBodySize] = useState<{ width: number; height: number } | null>(null);
 
   const isAgent = terminal.type === "claude" || terminal.type === "codex";
-  const useAgentRenderer = terminal.type === "claude";
+  const useAgentRenderer = false; // TODO: re-enable when agent renderer is ready
   const isSummarizing = useIsSummarizing(terminal.id);
   const sidebarDragActive = useSidebarDragStore((s) => s.active);
 
