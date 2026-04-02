@@ -808,7 +808,7 @@ export function TerminalTile({
       {useAgentRenderer ? (
         <div
           ref={agentBodyRef}
-          className={terminal.minimized ? "relative" : "flex-1 min-h-0 relative"}
+          className={terminal.minimized ? "relative nopan nodrag nowheel" : "flex-1 min-h-0 relative nopan nodrag nowheel"}
           style={{
             height: terminal.minimized ? 0 : undefined,
             overflow: "hidden",
