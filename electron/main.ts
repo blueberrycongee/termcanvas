@@ -1208,6 +1208,8 @@ function setupIpc() {
 
   ipcMain.handle("agent:start", (_event, sessionId: string, config: AgentConfig) => {
     agentService.startClaudeCode(sessionId, config);
+    const { getSlashCommandNames } = require("./slash-commands") as typeof import("./slash-commands");
+    return { slashCommands: getSlashCommandNames(config.cwd) };
   });
 
   ipcMain.handle("agent:approve", (_event, sessionId: string, requestId: string) => {

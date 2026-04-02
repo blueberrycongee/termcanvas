@@ -244,6 +244,7 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
   handleEventRef.current = handleEvent;
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
+  const subscribedRef = useRef(false);
 
   useEffect(() => {
     if (!window.termcanvas?.agent) return;
@@ -257,19 +258,26 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
         model: "",
         cwd,
         resumeSessionId,
+      }).then((result) => {
+        if (result?.slashCommands?.length) {
+          setSlashCommands(result.slashCommands);
+        }
       }).catch(() => {});
     }
 
-    const unsubscribe = window.termcanvas.agent.onEvent(
-      (evtSessionId: string, event: AgentStreamEvent) => {
-        if (evtSessionId !== sessionIdRef.current) return;
-        if (event.type === "system_init" && "slash_commands" in event && Array.isArray(event.slash_commands)) {
-          setSlashCommands(event.slash_commands as string[]);
-        }
-        handleEventRef.current(event);
-      },
-    );
-    return unsubscribe;
+    // Subscribe once, never unsubscribe during Strict Mode remount
+    if (!subscribedRef.current) {
+      subscribedRef.current = true;
+      window.termcanvas.agent.onEvent(
+        (evtSessionId: string, event: AgentStreamEvent) => {
+          if (evtSessionId !== sessionIdRef.current) return;
+          if (event.type === "system_init" && "slash_commands" in event && Array.isArray(event.slash_commands)) {
+            setSlashCommands(event.slash_commands as string[]);
+          }
+          handleEventRef.current(event);
+        },
+      );
+    }
   }, [sessionId, cwd, resumeSessionId]);
 
   useEffect(() => {
