@@ -165,8 +165,13 @@ export async function compactMessages(
       content: `<context-summary>\nThe following is a summary of the earlier conversation:\n${summaryText}\n</context-summary>`,
     };
 
+    const compacted = [summaryMessage, ...recentMessages];
+    if (compacted.length >= messages.length) {
+      return handleFailure(messages, state);
+    }
+
     return {
-      compactedMessages: [summaryMessage, ...recentMessages],
+      compactedMessages: compacted,
       state: {
         consecutiveFailures: 0,
         lastCompactionTurn: state.lastCompactionTurn + 1,

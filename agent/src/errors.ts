@@ -37,7 +37,7 @@ export function categorizeError(err: unknown): ErrorCategory {
   if (status !== undefined && (status >= 500 || status === 408 || status === 409)) {
     return "retryable_server";
   }
-  if (msg.includes("connection") || msg.includes("timeout") || msg.includes("econnrefused")) {
+  if (msg.includes("connection") || msg.includes("timeout") || msg.includes("econnrefused") || msg.includes("econnreset") || msg.includes("enotfound") || msg.includes("epipe") || msg.includes("ehostunreach")) {
     return "retryable_server";
   }
 
