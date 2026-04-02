@@ -2,6 +2,25 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.23.0] - 2026-04-02
+
+### Added
+- Claude Code headless driver via stream-json protocol
+- AgentRenderer component suite with theme, status bar, error handling, and auto-scroll
+- Agent output rendered inside TerminalTile on canvas
+- Slash command autocomplete in agent input box
+- Instant slash command loading via filesystem scan
+- Session resume across app restarts
+- Streaming event coverage for agent messages
+- Smooth LERP zoom on Cmd+scroll
+
+### Fixed
+- IME composition guard for agent input
+- Agent mousedown propagation and canvas event isolation (nopan/nodrag/nowheel)
+- IPC key separated from Claude Code session ID
+- Non-blocking agent start with ref-stable event subscription
+- Canvas zoom broken by undefined constant reference
+
 ## [0.22.0] - 2026-04-02
 
 ### Added
