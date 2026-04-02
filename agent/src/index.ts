@@ -64,6 +64,15 @@ export { CostTracker, calculateTurnCost } from "./cost-tracker.ts";
 export type { CoordinatorPromptContext } from "./coordinator-prompt.ts";
 export { buildCoordinatorPrompt } from "./coordinator-prompt.ts";
 
+// Approval bridge
+export type {
+  ApprovalPolicy,
+  PendingApproval,
+  ApprovalDecision,
+  ApprovalBridge,
+} from "./approval-bridge.ts";
+export { evaluateApproval } from "./approval-bridge.ts";
+
 // Session persistence
 export type { SessionConfig, TranscriptEntry, ResumedSession } from "./session.ts";
 export { SessionWriter, generateSessionId, resumeSession } from "./session.ts";

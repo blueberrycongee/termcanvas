@@ -184,4 +184,7 @@ export interface AgentOptions {
 
   /** Session persistence configuration */
   session?: import("./session.ts").SessionConfig;
+
+  /** Approval bridge for worker permission management */
+  approvalBridge?: import("./approval-bridge.ts").ApprovalBridge;
 }

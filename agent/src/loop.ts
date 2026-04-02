@@ -29,6 +29,7 @@ import { shouldCompact, compactMessages, initialCompactionState } from "./compac
 import { getContextWindow, getMaxOutputTokens } from "./model-registry.ts";
 import { buildFullSystemPrompt, buildSystemReminder, isSystemReminder } from "./context-injection.ts";
 import { SessionWriter, resumeSession, generateSessionId } from "./session.ts";
+import { evaluateApproval } from "./approval-bridge.ts";
 
 // ---------------------------------------------------------------------------
 // Agent loop event — superset of stream events + loop-level events
@@ -46,6 +47,8 @@ export type AgentEvent =
   | { type: "task_completed"; taskId: string; toolName: string; result: import("./types.ts").ToolResult }
   | { type: "max_tokens_recovery"; attempt: number; maxTokens: number }
   | { type: "fallback_model_switch"; from: string; to: string }
+  | { type: "approval_auto"; terminalId: string; toolName: string; action: "approve" | "reject" }
+  | { type: "approval_escalated"; terminalId: string; toolName: string }
   | { type: "loop_end"; result: LoopResult };
 
 // ---------------------------------------------------------------------------
@@ -118,6 +121,31 @@ export async function* agentLoop(
           content: `<worker-notification taskId="${taskId}" tool="${task.toolName}">${result.content}</worker-notification>`,
           metadata: { taskId, type: "task_completion" },
         });
+      }
+    }
+
+    // ----- Approval bridge -----
+    if (options.approvalBridge) {
+      const bridge = options.approvalBridge;
+      const approvals = await bridge.detectPendingApprovals();
+      for (const pending of approvals) {
+        const decision = evaluateApproval(pending, bridge.policy);
+        if (decision !== "escalate") {
+          await bridge.deliverDecision(pending.terminalId, decision);
+          yield { type: "approval_auto", terminalId: pending.terminalId, toolName: pending.toolName, action: decision.action };
+          messages.push({
+            role: "system",
+            content: `<approval-notification terminalId="${pending.terminalId}" tool="${pending.toolName}">${decision.reason}</approval-notification>`,
+            metadata: { type: "approval" },
+          });
+        } else {
+          yield { type: "approval_escalated", terminalId: pending.terminalId, toolName: pending.toolName };
+          messages.push({
+            role: "system",
+            content: `<approval-request terminalId="${pending.terminalId}" tool="${pending.toolName}">Worker needs permission for ${pending.toolName}. This is not a read-only operation. Ask the user whether to approve or reject.</approval-request>`,
+            metadata: { type: "approval" },
+          });
+        }
       }
     }
 
