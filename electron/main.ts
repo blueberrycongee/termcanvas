@@ -58,7 +58,7 @@ import { createMenu } from "./menu";
 import { TelemetryService } from "./telemetry-service";
 import { HookReceiver } from "./hook-receiver";
 import { findBestClaudeSession, findBestCodexSession, readClaudeSessionPermissionMode, readCodexSessionBypassState } from "./session-discovery";
-import { AgentService } from "./agent-service";
+import { AgentService, type AgentConfig } from "./agent-service";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1204,6 +1204,10 @@ function setupIpc() {
 
   ipcMain.handle("agent:delete", (_event, sessionId: string) => {
     agentService.deleteSession(sessionId);
+  });
+
+  ipcMain.handle("agent:start", (_event, sessionId: string, config: AgentConfig) => {
+    agentService.startClaudeCode(sessionId, config);
   });
 
   ipcMain.handle("agent:approve", (_event, sessionId: string, requestId: string) => {

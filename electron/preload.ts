@@ -372,6 +372,8 @@ contextBridge.exposeInMainWorld("termcanvas", {
     decrypt: (base64: string): Promise<string> => ipcRenderer.invoke("secure:decrypt", base64),
   },
   agent: {
+    start: (sessionId: string, config: { type: "claude-code"; cwd?: string; resumeSessionId?: string; baseURL: string; apiKey: string; model: string }) =>
+      ipcRenderer.invoke("agent:start", sessionId, config),
     send: (sessionId: string, text: string, config: { type: "anthropic" | "openai" | "claude-code"; baseURL: string; apiKey: string; model: string }) =>
       ipcRenderer.invoke("agent:send", sessionId, text, config),
     abort: (sessionId: string) =>

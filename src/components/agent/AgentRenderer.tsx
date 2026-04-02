@@ -80,19 +80,21 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
   const [hasNewMessages, setHasNewMessages] = useState(false);
 
   useEffect(() => {
-    console.log("[AgentRenderer] mount, sessionId:", sessionId, "cwd:", cwd);
-    if (!window.termcanvas?.agent) {
-      console.log("[AgentRenderer] window.termcanvas.agent not available!");
-      return;
-    }
+    if (!window.termcanvas?.agent) return;
+
+    // Start Claude Code process eagerly so system_init (with slash_commands) arrives before user types
+    window.termcanvas.agent.start(sessionId, {
+      type: "claude-code",
+      baseURL: "",
+      apiKey: "",
+      model: "",
+      cwd,
+      resumeSessionId,
+    });
 
     const unsubscribe = window.termcanvas.agent.onEvent(
       (evtSessionId: string, event: AgentStreamEvent) => {
-        console.log("[AgentRenderer] event:", evtSessionId, event.type);
-        if (evtSessionId !== sessionId) {
-          console.log("[AgentRenderer] sessionId mismatch, ignoring. expected:", sessionId, "got:", evtSessionId);
-          return;
-        }
+        if (evtSessionId !== sessionId) return;
         handleEvent(event);
       },
     );

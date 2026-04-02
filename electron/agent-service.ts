@@ -159,7 +159,7 @@ export class AgentService {
     }
   }
 
-  private sendClaudeCode(sessionId: string, text: string, config: AgentConfig): void {
+  private ensureDriver(sessionId: string, config: AgentConfig): ClaudeCodeDriver {
     let driver = this.drivers.get(sessionId);
     if (!driver) {
       driver = new ClaudeCodeDriver({
@@ -175,6 +175,15 @@ export class AgentService {
       this.drivers.set(sessionId, driver);
     }
     driver.start();
+    return driver;
+  }
+
+  startClaudeCode(sessionId: string, config: AgentConfig): void {
+    this.ensureDriver(sessionId, config);
+  }
+
+  private sendClaudeCode(sessionId: string, text: string, config: AgentConfig): void {
+    const driver = this.ensureDriver(sessionId, config);
     driver.send(text);
   }
 
