@@ -95,6 +95,15 @@ interface CCControlRequest {
   };
 }
 
+interface CCToolUseSummary {
+  type: "tool_use_summary";
+  tool_use_id: string;
+  tool_name: string;
+  result?: string;
+  is_error?: boolean;
+  [key: string]: unknown;
+}
+
 type CCStdoutMessage =
   | CCSystemInit
   | CCStreamEvent
@@ -102,6 +111,7 @@ type CCStdoutMessage =
   | CCToolProgress
   | CCResult
   | CCControlRequest
+  | CCToolUseSummary
   | { type: string; [key: string]: unknown };
 
 // ---------------------------------------------------------------------------
@@ -128,6 +138,8 @@ export class ClaudeCodeDriver {
   private buffer = "";
   private destroyed = false;
   private readonly options: ClaudeCodeDriverOptions;
+  private emittedToolIds = new Set<string>();
+  private streamedText = false;
 
   constructor(options: ClaudeCodeDriverOptions) {
     this.options = options;
@@ -142,6 +154,7 @@ export class ClaudeCodeDriver {
       "--input-format", "stream-json",
       "--print",
       "--verbose",
+      "--include-partial-messages",
     ];
 
     if (this.options.model) {
@@ -335,6 +348,9 @@ export class ClaudeCodeDriver {
       case "control_request":
         this.handleControlRequest(msg as CCControlRequest);
         break;
+      case "tool_use_summary":
+        this.handleToolUseSummary(msg as CCToolUseSummary);
+        break;
       default:
         // Ignore unknown message types (keep_alive, auth_status, etc.)
         break;
@@ -361,6 +377,7 @@ export class ClaudeCodeDriver {
       case "content_block_delta": {
         const delta = (event as ContentBlockDeltaText | ContentBlockDeltaThinking | ContentBlockDeltaInput).delta;
         if (delta.type === "text_delta") {
+          this.streamedText = true;
           this.emit({ type: "text_delta", text: (delta as { type: "text_delta"; text: string }).text });
         } else if (delta.type === "thinking_delta") {
           this.emit({ type: "thinking_delta", thinking: (delta as { type: "thinking_delta"; thinking: string }).thinking });
@@ -370,6 +387,7 @@ export class ClaudeCodeDriver {
       case "content_block_start": {
         const block = (event as ContentBlockStartToolUse).content_block;
         if (block?.type === "tool_use") {
+          this.emittedToolIds.add(block.id);
           this.emit({ type: "tool_use_start", id: block.id, name: block.name });
         }
         break;
@@ -384,13 +402,25 @@ export class ClaudeCodeDriver {
     if (!Array.isArray(content)) return;
 
     for (const block of content) {
-      if (block.type === "text") {
+      if (block.type === "text" && !this.streamedText) {
+        // Only emit if we didn't already stream this text via stream_event
         const tb = block as { type: "text"; text: string };
         this.emit({ type: "text_delta", text: tb.text });
+      } else if (block.type === "thinking") {
+        // Thinking is streamed via thinking_delta, but emit a final
+        // marker so ThinkingBlock knows streaming is done
+      } else if (block.type === "tool_use") {
+        const tu = block as { type: "tool_use"; id: string; name: string; input: Record<string, unknown> };
+        if (!this.emittedToolIds.has(tu.id)) {
+          this.emit({ type: "tool_use_start", id: tu.id, name: tu.name });
+        }
+        // Emit tool input update
+        this.emit({ type: "tool_start", name: tu.name, input: tu.input });
       }
-      // tool_use blocks are already emitted via content_block_start in
-      // handleStreamEvent, so skip them here to avoid duplicate ToolCards.
     }
+
+    // Reset streaming flag for next assistant turn
+    this.streamedText = false;
   }
 
   private handleToolProgress(msg: CCToolProgress): void {
@@ -427,5 +457,14 @@ export class ClaudeCodeDriver {
         tool_input: request.input ?? {},
       });
     }
+  }
+
+  private handleToolUseSummary(msg: CCToolUseSummary): void {
+    this.emit({
+      type: "tool_end",
+      name: msg.tool_name,
+      content: msg.result ?? "",
+      is_error: msg.is_error,
+    });
   }
 }
