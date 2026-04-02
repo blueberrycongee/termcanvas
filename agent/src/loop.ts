@@ -174,7 +174,7 @@ export async function* agentLoop(
           messages,
           systemPrompt: resolvedSystemPrompt,
           tools: toolSchemas,
-          model: "",
+          model: currentModel,
           signal: options.signal,
           ...(currentMaxTokens !== undefined ? { maxTokens: currentMaxTokens } : {}),
         });
