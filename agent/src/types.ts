@@ -187,4 +187,10 @@ export interface AgentOptions {
 
   /** Approval bridge for worker permission management */
   approvalBridge?: import("./approval-bridge.ts").ApprovalBridge;
+
+  /** Tracks dispatched terminal workers across turns */
+  workerTracker?: import("./worker-state.ts").WorkerTracker;
+
+  /** Telemetry check function for worker state polling */
+  telemetryCheckFn?: import("./worker-state.ts").TelemetryCheckFn;
 }

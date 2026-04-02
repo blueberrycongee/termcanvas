@@ -94,6 +94,10 @@ export type {
 } from "./tool-hooks.ts";
 export { runPreHooks, runPostHooks } from "./tool-hooks.ts";
 
+// Worker state machine
+export type { WorkerStatus, WorkerState, WorkerStateChange, TelemetryCheckFn } from "./worker-state.ts";
+export { WorkerTracker } from "./worker-state.ts";
+
 // Built-in providers
 export { AnthropicProvider } from "./provider/anthropic.ts";
 export { OpenAIProvider } from "./provider/openai.ts";

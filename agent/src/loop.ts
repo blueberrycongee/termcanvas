@@ -30,6 +30,7 @@ import { getContextWindow, getMaxOutputTokens } from "./model-registry.ts";
 import { buildFullSystemPrompt, buildSystemReminder, isSystemReminder } from "./context-injection.ts";
 import { SessionWriter, resumeSession, generateSessionId } from "./session.ts";
 import { evaluateApproval } from "./approval-bridge.ts";
+import type { WorkerStatus } from "./worker-state.ts";
 
 // ---------------------------------------------------------------------------
 // Agent loop event — superset of stream events + loop-level events
@@ -49,6 +50,8 @@ export type AgentEvent =
   | { type: "fallback_model_switch"; from: string; to: string }
   | { type: "approval_auto"; terminalId: string; toolName: string; action: "approve" | "reject" }
   | { type: "approval_escalated"; terminalId: string; toolName: string }
+  | { type: "worker_state_change"; terminalId: string; from: WorkerStatus; to: WorkerStatus }
+  | { type: "worker_active_warning"; activeCount: number }
   | { type: "loop_end"; result: LoopResult };
 
 // ---------------------------------------------------------------------------
@@ -109,6 +112,19 @@ export async function* agentLoop(
 
     turnCount++;
     yield { type: "turn_start", turn: turnCount };
+
+    // ----- Auto-check worker telemetry -----
+    if (options.workerTracker && options.telemetryCheckFn) {
+      const changes = await options.workerTracker.checkAll(options.telemetryCheckFn);
+      for (const change of changes) {
+        yield { type: "worker_state_change", terminalId: change.terminalId, from: change.from, to: change.to };
+        messages.push({
+          role: "system",
+          content: `<worker-state terminalId="${change.terminalId}">Status changed: ${change.from} → ${change.to}</worker-state>`,
+          metadata: { type: "worker_state" },
+        });
+      }
+    }
 
     // ----- Collect completed background tasks -----
     for (const [taskId, task] of pendingTasks) {
@@ -324,6 +340,16 @@ export async function* agentLoop(
       }
 
       if (pendingTasks.size === 0) {
+        const activeWorkers = options.workerTracker?.activeCount() ?? 0;
+        if (activeWorkers > 0) {
+          yield { type: "worker_active_warning", activeCount: activeWorkers };
+          messages.push({
+            role: "system",
+            content: `<worker-warning>${activeWorkers} worker(s) still active. Exiting may lose their results.</worker-warning>`,
+            metadata: { type: "worker_state" },
+          });
+        }
+
         yield { type: "turn_end", turn: turnCount };
         const result: LoopResult = {
           reason: "completed",
