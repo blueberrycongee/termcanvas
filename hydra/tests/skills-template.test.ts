@@ -38,7 +38,7 @@ test("router skill stays always-on and classifies TermCanvas work before Hydra",
   const skill = fs.readFileSync(skillPath, "utf-8");
 
   assert.match(skill, /alwaysApply:\s*true/i);
-  assert.match(skill, /rename/i);
+  assert.match(skill, /challenge/i);
   assert.match(skill, /do it directly/i);
   assert.match(skill, /hydra init/i);
   assert.match(skill, /single-step/i);
@@ -46,6 +46,23 @@ test("router skill stays always-on and classifies TermCanvas work before Hydra",
   assert.match(skill, /hydra spawn/i);
   assert.match(skill, /hydra list/i);
   assert.match(skill, /termcanvas terminal create --prompt/i);
+});
+
+test("challenge skill defines four orthogonal attack methodologies", () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const skillPath = path.resolve(here, "..", "..", "skills", "skills", "challenge", "SKILL.md");
+  const skill = fs.readFileSync(skillPath, "utf-8");
+
+  assert.doesNotMatch(skill, /alwaysApply:\s*true/i);
+  assert.match(skill, /hydra spawn/i);
+  assert.match(skill, /Counterexample/i);
+  assert.match(skill, /Hidden Assumptions/i);
+  assert.match(skill, /Causal Challenge/i);
+  assert.match(skill, /Boundary Test/i);
+  assert.match(skill, /result\.json/i);
+  assert.match(skill, /severity/i);
+  assert.match(skill, /critical/i);
+  assert.match(skill, /neutral/i);
 });
 
 test("task package template links skills and hard gate requirements", () => {

@@ -1,6 +1,6 @@
 {
   "name": "termcanvas",
-  "description": "TermCanvas skills: Hydra sub-agent orchestration, systematic debugging, security auditing, code review, browser-based QA testing, and terminal management.",
+  "description": "TermCanvas skills: Hydra sub-agent orchestration, adversarial review, systematic debugging, security auditing, code review, and browser-based QA testing.",
   "author": {
     "name": "blueberrycongee"
   }

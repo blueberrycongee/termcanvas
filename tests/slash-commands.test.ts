@@ -6,22 +6,25 @@ import {
   getSlashCommands,
 } from "../src/terminal/slashCommands.ts";
 
-test("Claude terminals expose the TermCanvas rename skill in slash commands", () => {
+test("Claude terminals expose built-in slash commands", () => {
   const commands = getSlashCommands("claude").map((command) => command.command);
 
-  assert.ok(commands.includes("/termcanvas:rename"));
+  assert.ok(commands.includes("/help"));
+  assert.ok(commands.includes("/compact"));
+  assert.ok(commands.includes("/skills"));
 });
 
-test("Codex terminals expose the TermCanvas rename skill in slash commands", () => {
+test("Codex terminals expose built-in slash commands", () => {
   const commands = getSlashCommands("codex").map((command) => command.command);
 
-  assert.ok(commands.includes("/termcanvas:rename"));
+  assert.ok(commands.includes("/help"));
+  assert.ok(commands.includes("/skills"));
 });
 
-test("filterSlashCommands finds the TermCanvas rename skill by plugin prefix", () => {
-  const commands = filterSlashCommands("claude", "termcanvas").map(
+test("filterSlashCommands narrows results by query", () => {
+  const commands = filterSlashCommands("claude", "comp").map(
     (command) => command.command,
   );
 
-  assert.deepEqual(commands, ["/termcanvas:rename"]);
+  assert.ok(commands.includes("/compact"));
 });

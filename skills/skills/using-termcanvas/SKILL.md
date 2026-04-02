@@ -10,7 +10,7 @@ Route first. Choose the lightest path that preserves correctness.
 
 ## Routing
 
-- If the user asks to rename the current terminal or tab, use `rename`.
+- If the user wants to challenge, stress-test, or critically review an idea, argument, or proposal, use `challenge`.
 - If the user asks to investigate a bug, debug, or diagnose an issue, use `investigate`.
 - If the user asks for a security review or audit, use `security-audit`.
 - If the user asks for a code review or diff review, use `code-review`.

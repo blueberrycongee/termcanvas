@@ -23,10 +23,6 @@ const CLAUDE_COMMANDS: readonly SlashCommand[] = [
   { command: "/status", description: "Show status information" },
   { command: "/terminal-setup", description: "Set up terminal integration" },
   { command: "/skills", description: "List available skills" },
-  {
-    command: "/termcanvas:rename",
-    description: "Generate a concise title for this terminal and apply it in TermCanvas",
-  },
   { command: "/vim", description: "Toggle vim mode" },
 ] as const;
 
@@ -39,10 +35,6 @@ const CODEX_COMMANDS: readonly SlashCommand[] = [
   { command: "/compact", description: "Compact conversation" },
   { command: "/clear", description: "Clear conversation" },
   { command: "/skills", description: "Use skills to improve how Codex performs specific tasks" },
-  {
-    command: "/termcanvas:rename",
-    description: "Generate a concise title for this terminal and apply it in TermCanvas",
-  },
 ] as const;
 
 const NO_COMMANDS: readonly SlashCommand[] = [];
