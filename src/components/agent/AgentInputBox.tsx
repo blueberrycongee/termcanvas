@@ -33,6 +33,7 @@ export function AgentInputBox({ running, isDark, onSend, onAbort }: AgentInputBo
           rows={1}
           placeholder={running ? "Agent is working..." : "Send a message..."}
           disabled={running}
+          onMouseDown={(e) => e.stopPropagation()}
           onKeyDown={handleKeyDown}
           className={`w-full resize-none rounded-md border pl-3 pr-10 py-2 text-sm outline-none transition-colors duration-150 disabled:opacity-50 ${
             isDark
