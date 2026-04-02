@@ -28,7 +28,12 @@ interface ToolSegment {
   approval?: { requestId: string };
 }
 
-type MessageSegment = ThinkingSegment | TextSegment | ToolSegment;
+interface UserSegment {
+  kind: "user";
+  text: string;
+}
+
+type MessageSegment = ThinkingSegment | TextSegment | ToolSegment | UserSegment;
 
 interface ErrorBanner {
   id: number;
@@ -84,7 +89,6 @@ export function AgentRenderer({ terminalId: _, sessionId, height, width }: Agent
     switch (event.type) {
       case "stream_start":
         setRunning(true);
-        setSegments([]);
         setErrors([]);
         lastSegmentRef.current = null;
         break;
@@ -263,6 +267,8 @@ export function AgentRenderer({ terminalId: _, sessionId, height, width }: Agent
   const handleSend = useCallback(
     (text: string) => {
       if (!window.termcanvas?.agent) return;
+      setSegments((prev) => [...prev, { kind: "user", text }]);
+      lastSegmentRef.current = null;
       window.termcanvas.agent.send(sessionId, text, {
         type: "claude-code",
         baseURL: "",
@@ -315,6 +321,16 @@ export function AgentRenderer({ terminalId: _, sessionId, height, width }: Agent
         <div className="px-4 py-3 space-y-1">
           {segments.map((seg, i) => {
             switch (seg.kind) {
+              case "user":
+                return (
+                  <div key={i} className="flex justify-end my-2">
+                    <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
+                      isDark ? "bg-zinc-700 text-zinc-100" : "bg-zinc-200 text-zinc-900"
+                    }`}>
+                      {seg.text}
+                    </div>
+                  </div>
+                );
               case "text":
                 return <MessageBubble key={i} text={seg.text} isDark={isDark} />;
               case "thinking":

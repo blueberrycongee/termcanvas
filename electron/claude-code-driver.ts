@@ -379,10 +379,18 @@ export class ClaudeCodeDriver {
     }
   }
 
-  private handleAssistant(_msg: CCAssistantMessage): void {
-    // tool_use blocks are already emitted via content_block_start in
-    // handleStreamEvent, so we intentionally skip re-emitting here to
-    // avoid duplicate ToolCards in the UI.
+  private handleAssistant(msg: CCAssistantMessage): void {
+    const content = msg.message?.content;
+    if (!Array.isArray(content)) return;
+
+    for (const block of content) {
+      if (block.type === "text") {
+        const tb = block as { type: "text"; text: string };
+        this.emit({ type: "text_delta", text: tb.text });
+      }
+      // tool_use blocks are already emitted via content_block_start in
+      // handleStreamEvent, so skip them here to avoid duplicate ToolCards.
+    }
   }
 
   private handleToolProgress(msg: CCToolProgress): void {
