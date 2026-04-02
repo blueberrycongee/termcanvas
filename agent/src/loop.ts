@@ -23,7 +23,7 @@ import type {
   Usage,
 } from "./types.ts";
 import { emptyUsage, mergeUsage } from "./types.ts";
-import { categorizeError, isRetryableCategory, getRetryDelay } from "./errors.ts";
+import { categorizeError, isRetryableCategory, getRetryDelay, parseTokenLimits } from "./errors.ts";
 import { CostTracker } from "./cost-tracker.ts";
 import { shouldCompact, compactMessages, initialCompactionState } from "./compaction.ts";
 import { getContextWindow, getMaxOutputTokens } from "./model-registry.ts";
@@ -226,18 +226,21 @@ export async function* agentLoop(
 
         // Emergency compaction on prompt_too_long
         if (category === "prompt_too_long" && !compactionState.disabled) {
+          const tokenLimits = parseTokenLimits(err);
+          const beforeTokens = totalUsage.input_tokens;
           const compactionResult = await compactMessages(
             provider, messages, options.systemPrompt, compactionState, options.signal,
           );
           if (compactionResult && compactionResult.compactedMessages !== messages) {
             compactionState = compactionResult.state;
+            const ratio = compactionResult.compactedMessages.length / Math.max(messages.length, 1);
             messages.length = 0;
             messages.push(...compactionResult.compactedMessages);
-            // WIP: afterTokens equals beforeTokens — actual post-compaction count
-            // is unknown until the next API call. Consumers reading this event
-            // get misleading data. Either drop afterTokens or estimate from the
-            // compacted message lengths.
-            yield { type: "compaction", beforeTokens: totalUsage.input_tokens, afterTokens: totalUsage.input_tokens };
+            const afterTokens = tokenLimits?.limit
+              ? Math.floor(tokenLimits.limit * 0.7)
+              : Math.floor(beforeTokens * ratio);
+            yield { type: "compaction", beforeTokens, afterTokens };
+            retryCount = 0;
             continue;
           }
         }
@@ -291,9 +294,10 @@ export async function* agentLoop(
       if (compactionResult) {
         compactionState = compactionResult.state;
         if (compactionResult.compactedMessages !== messages) {
+          const ratio = compactionResult.compactedMessages.length / Math.max(messages.length, 1);
           messages.length = 0;
           messages.push(...compactionResult.compactedMessages);
-          yield { type: "compaction", beforeTokens, afterTokens: beforeTokens };
+          yield { type: "compaction", beforeTokens, afterTokens: Math.floor(beforeTokens * ratio) };
           sessionWriter?.appendCompactionMarker(turnCount);
         }
       }
