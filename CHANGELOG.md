@@ -2,6 +2,14 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.22.0] - 2026-04-02
+
+### Added
+- Auto-compact worktrees after user opts in via Cmd+Shift+G
+
+### Fixed
+- Toolbar workspace name overlapping control buttons on narrow windows
+
 ## [0.21.0] - 2026-04-02
 
 ### Added
