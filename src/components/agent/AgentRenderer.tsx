@@ -54,6 +54,7 @@ interface StatusInfo {
 interface AgentRendererProps {
   terminalId: string;
   sessionId: string;
+  resumeSessionId?: string;
   projectId: string;
   worktreeId: string;
   cwd: string;
@@ -63,7 +64,7 @@ interface AgentRendererProps {
 
 let errorIdCounter = 0;
 
-export function AgentRenderer({ terminalId, sessionId, projectId, worktreeId, cwd, height, width }: AgentRendererProps) {
+export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectId, worktreeId, cwd, height, width }: AgentRendererProps) {
   const isDark = useThemeStore((s) => s.theme) === "dark";
   const [segments, setSegments] = useState<MessageSegment[]>([]);
   const [running, setRunning] = useState(false);
@@ -296,6 +297,7 @@ export function AgentRenderer({ terminalId, sessionId, projectId, worktreeId, cw
         apiKey: "",
         model: "",
         cwd,
+        resumeSessionId,
       });
     },
     [sessionId],

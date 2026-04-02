@@ -565,7 +565,7 @@ export interface TermCanvasAPI {
     decrypt: (base64: string) => Promise<string>;
   };
   agent: {
-    send: (sessionId: string, text: string, config: { type: "anthropic" | "openai" | "claude-code"; baseURL: string; apiKey: string; model: string; cwd?: string }) => Promise<void>;
+    send: (sessionId: string, text: string, config: { type: "anthropic" | "openai" | "claude-code"; baseURL: string; apiKey: string; model: string; cwd?: string; resumeSessionId?: string }) => Promise<void>;
     abort: (sessionId: string) => Promise<void>;
     clear: (sessionId: string) => Promise<void>;
     delete: (sessionId: string) => Promise<void>;

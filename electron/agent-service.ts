@@ -38,6 +38,7 @@ export interface AgentConfig {
   apiKey: string;
   model: string;
   cwd?: string;
+  resumeSessionId?: string;
 }
 
 const SYSTEM_PROMPT = `You are an AI assistant embedded in TermCanvas, a terminal-based canvas workspace.
@@ -161,13 +162,11 @@ export class AgentService {
   private sendClaudeCode(sessionId: string, text: string, config: AgentConfig): void {
     let driver = this.drivers.get(sessionId);
     if (!driver) {
-      // Only resume if sessionId looks like a Claude Code UUID session
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId);
       driver = new ClaudeCodeDriver({
         sessionId,
         cwd: config.cwd ?? process.cwd(),
         model: config.model || undefined,
-        resumeSessionId: isUUID ? sessionId : undefined,
+        resumeSessionId: config.resumeSessionId || undefined,
         env: { CLAUDE_CODE_NO_FLICKER: "0" },
       });
       driver.onEvent((event: AgentStreamEvent) => {
