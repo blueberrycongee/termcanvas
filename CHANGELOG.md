@@ -2,6 +2,24 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.21.0] - 2026-04-02
+
+### Added
+- Hook-first agent observation: push-based telemetry replaces 2s polling as primary state source
+- Hook script hardening: 10s timeout, single retry on connection failure, error logging to tmpdir
+- HookReceiver health metrics (eventsReceived, parseErrors, lastEventAt) exposed via IPC
+- Hook-based CLI type upgrade: shell terminals auto-detected as Claude via SessionStart hook
+- Event-driven auto-summary triggered on turn completion instead of 10-minute scan
+- Missed hook event detection via pendingPreToolUse tracking with console warnings
+- Adaptive telemetry polling: 5s fast fallback when push events go silent, 30s when healthy
+
+### Fixed
+- foreground_tool guard uses semantic pendingPreToolUse flag instead of 5s time window
+- Stale pendingPreToolUse auto-resets after 5 minutes when CC crashes without PostToolUse
+- Turn completion deduplication prevents double-firing from session watcher and hook listener
+- Process polling reduced from 3s to 15s; session file polling from 2s to 10s
+- SessionWatcher fallback polling relaxed to 60s delay / 30s interval
+
 ## [0.20.0] - 2026-04-02
 
 ### Added
