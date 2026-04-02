@@ -2,6 +2,19 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.24.0] - 2026-04-03
+
+### Added
+- Challenge gate: 4 parallel adversarial workers review evaluator success verdicts before completing Hydra workflows
+- Evaluator skepticism rules: independent assessment before reading implementer claims, no-evidence-no-pass, default to fail when uncertain
+
+### Changed
+- Browse CLI is now mandatory for Hydra evaluator UI verification (Playwright/Puppeteer/Cypress as fallback only)
+- QA skill added to evaluator skill set
+
+### Fixed
+- Browse CLI missing from Linux symlink registration (CLI_NAMES)
+
 ## [0.23.0] - 2026-04-02
 
 ### Added
