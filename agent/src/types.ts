@@ -125,6 +125,18 @@ export interface PendingToolResult {
 export type ToolCallReturn = ToolResult | PendingToolResult;
 
 // ---------------------------------------------------------------------------
+// Progress (side-channel event, NOT part of Message union)
+// ---------------------------------------------------------------------------
+
+export interface ProgressMessage {
+  toolCallId: string;
+  data: unknown;
+  timestamp: number;
+}
+
+export type OnProgress = (data: unknown) => void;
+
+// ---------------------------------------------------------------------------
 // Agent loop control
 // ---------------------------------------------------------------------------
 

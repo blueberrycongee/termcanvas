@@ -7,7 +7,7 @@
  */
 
 import type { z, ZodObject, ZodRawShape } from "zod";
-import type { ToolResult, ToolCallReturn, PendingToolResult } from "./types.ts";
+import type { ToolResult, ToolCallReturn, PendingToolResult, OnProgress } from "./types.ts";
 import type { ToolHooks } from "./tool-hooks.ts";
 import { runPreHooks, runPostHooks } from "./tool-hooks.ts";
 
@@ -21,7 +21,7 @@ export interface Tool<S extends ZodRawShape = ZodRawShape> {
   inputSchema: ZodObject<S>;
 
   /** Execute the tool. May return a pending result for background execution. */
-  call(input: z.infer<ZodObject<S>>, signal?: AbortSignal): Promise<ToolCallReturn>;
+  call(input: z.infer<ZodObject<S>>, signal?: AbortSignal, onProgress?: OnProgress): Promise<ToolCallReturn>;
 
   /** Can this tool run in parallel with other read-only tools? */
   isReadOnly: boolean;
@@ -157,6 +157,8 @@ function isPendingResult(result: ToolCallReturn): result is PendingToolResult {
   return "status" in result && result.status === "pending";
 }
 
+export type OnProgressFactory = (toolCallId: string, toolName: string) => OnProgress;
+
 export async function executeTools(
   calls: ToolCall[],
   registry: ToolRegistry,
@@ -165,6 +167,7 @@ export async function executeTools(
   onEnd?: (name: string, result: ToolResult) => void,
   pendingTasks?: Map<string, PendingTask>,
   hooks?: ToolHooks,
+  onProgressFactory?: OnProgressFactory,
 ): Promise<ToolCallResult[]> {
   const batches = partitionCalls(calls, registry);
   const results: ToolCallResult[] = [];
@@ -172,12 +175,12 @@ export async function executeTools(
   for (const batch of batches) {
     if (batch.concurrent) {
       const batchResults = await Promise.all(
-        batch.calls.map((call) => executeSingle(call, registry, signal, onStart, onEnd, pendingTasks, hooks)),
+        batch.calls.map((call) => executeSingle(call, registry, signal, onStart, onEnd, pendingTasks, hooks, onProgressFactory)),
       );
       results.push(...batchResults);
     } else {
       for (const call of batch.calls) {
-        results.push(await executeSingle(call, registry, signal, onStart, onEnd, pendingTasks, hooks));
+        results.push(await executeSingle(call, registry, signal, onStart, onEnd, pendingTasks, hooks, onProgressFactory));
       }
     }
   }
@@ -193,6 +196,7 @@ async function executeSingle(
   onEnd?: (name: string, result: ToolResult) => void,
   pendingTasks?: Map<string, PendingTask>,
   hooks?: ToolHooks,
+  onProgressFactory?: OnProgressFactory,
 ): Promise<ToolCallResult> {
   const tool = registry.get(call.name);
   if (!tool) {
@@ -244,7 +248,8 @@ async function executeSingle(
       return { tool_use_id: call.id, ...result };
     }
 
-    const callReturn = await tool.call(parsed.data, signal);
+    const onProgress = onProgressFactory?.(call.id, call.name);
+    const callReturn = await tool.call(parsed.data, signal, onProgress);
 
     if (isPendingResult(callReturn)) {
       if (pendingTasks) {

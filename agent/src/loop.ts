@@ -52,6 +52,7 @@ export type AgentEvent =
   | { type: "approval_escalated"; terminalId: string; toolName: string }
   | { type: "worker_state_change"; terminalId: string; from: WorkerStatus; to: WorkerStatus }
   | { type: "worker_active_warning"; activeCount: number }
+  | { type: "tool_progress"; toolCallId: string; toolName: string; data: unknown; timestamp: number }
   | { type: "loop_end"; result: LoopResult };
 
 // ---------------------------------------------------------------------------
@@ -396,6 +397,7 @@ export async function* agentLoop(
     }
 
     const prevPendingSize = pendingTasks.size;
+    const progressEvents: AgentEvent[] = [];
     const toolResults = await executeTools(
       calls,
       tools,
@@ -408,7 +410,15 @@ export async function* agentLoop(
       },
       pendingTasks,
       options.hooks,
+      (toolCallId, toolName) => (data) => {
+        progressEvents.push({ type: "tool_progress", toolCallId, toolName, data, timestamp: Date.now() });
+      },
     );
+
+    // Yield buffered progress events
+    for (const evt of progressEvents) {
+      yield evt;
+    }
 
     // Emit task_pending events for newly registered background tasks
     if (pendingTasks.size > prevPendingSize) {
