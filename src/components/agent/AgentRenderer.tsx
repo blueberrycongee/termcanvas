@@ -78,34 +78,7 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
   const autoScrollRef = useRef(true);
   const lastSegmentRef = useRef<"text" | "thinking" | "tool" | null>(null);
   const [hasNewMessages, setHasNewMessages] = useState(false);
-
-  useEffect(() => {
-    console.log("[AgentRenderer] mount, sessionId:", sessionId, "cwd:", cwd, "hasStartApi:", !!window.termcanvas?.agent?.start);
-    if (!window.termcanvas?.agent) return;
-
-    // Start Claude Code process eagerly so system_init (with slash_commands) arrives before user types
-    window.termcanvas.agent.start(sessionId, {
-      type: "claude-code",
-      baseURL: "",
-      apiKey: "",
-      model: "",
-      cwd,
-      resumeSessionId,
-    }).then((result: { slashCommands?: string[] } | void) => {
-      if (result && result.slashCommands?.length) {
-        setSlashCommands(result.slashCommands);
-      }
-    }).catch(() => {});
-
-    const unsubscribe = window.termcanvas.agent.onEvent(
-      (evtSessionId: string, event: AgentStreamEvent) => {
-        console.log("[AgentRenderer] event received:", event.type, "from:", evtSessionId, "expected:", sessionId);
-        if (evtSessionId !== sessionId) return;
-        handleEvent(event);
-      },
-    );
-    return unsubscribe;
-  }, [sessionId]);
+  const startedRef = useRef(false);
 
   const handleEvent = useCallback((event: AgentStreamEvent) => {
     switch (event.type) {
@@ -265,6 +238,39 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
         break;
     }
   }, []);
+
+  // Ref-based handler to survive Strict Mode double-mount
+  const handleEventRef = useRef(handleEvent);
+  handleEventRef.current = handleEvent;
+  const sessionIdRef = useRef(sessionId);
+  sessionIdRef.current = sessionId;
+
+  useEffect(() => {
+    if (!window.termcanvas?.agent) return;
+
+    if (!startedRef.current) {
+      startedRef.current = true;
+      window.termcanvas.agent.start(sessionId, {
+        type: "claude-code",
+        baseURL: "",
+        apiKey: "",
+        model: "",
+        cwd,
+        resumeSessionId,
+      }).catch(() => {});
+    }
+
+    const unsubscribe = window.termcanvas.agent.onEvent(
+      (evtSessionId: string, event: AgentStreamEvent) => {
+        if (evtSessionId !== sessionIdRef.current) return;
+        if (event.type === "system_init" && "slash_commands" in event && Array.isArray(event.slash_commands)) {
+          setSlashCommands(event.slash_commands as string[]);
+        }
+        handleEventRef.current(event);
+      },
+    );
+    return unsubscribe;
+  }, [sessionId, cwd, resumeSessionId]);
 
   useEffect(() => {
     const el = scrollRef.current;

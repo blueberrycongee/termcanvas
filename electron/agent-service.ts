@@ -178,23 +178,9 @@ export class AgentService {
     return driver;
   }
 
-  startClaudeCode(sessionId: string, config: AgentConfig): Promise<{ slashCommands: string[] }> {
+  startClaudeCode(sessionId: string, config: AgentConfig): { slashCommands: string[] } {
     const driver = this.ensureDriver(sessionId, config);
-    // Wait for system_init to arrive with slash_commands (max 10s)
-    return new Promise((resolve) => {
-      if (driver.cachedSlashCommands) {
-        resolve({ slashCommands: driver.cachedSlashCommands });
-        return;
-      }
-      const timeout = setTimeout(() => resolve({ slashCommands: [] }), 10000);
-      const unsub = driver.onEvent((event) => {
-        if (event.type === "system_init" && "slash_commands" in event && Array.isArray(event.slash_commands)) {
-          clearTimeout(timeout);
-          unsub();
-          resolve({ slashCommands: event.slash_commands as string[] });
-        }
-      });
-    });
+    return { slashCommands: driver.cachedSlashCommands ?? [] };
   }
 
   private sendClaudeCode(sessionId: string, text: string, config: AgentConfig): void {
