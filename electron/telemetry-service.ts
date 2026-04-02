@@ -472,7 +472,17 @@ export class TelemetryService {
     }));
 
     // Don't let ps data overwrite hook-set foreground_tool while a tool is running
-    if (!state.pendingPreToolUse) {
+    if (state.pendingPreToolUse) {
+      // Auto-reset if stuck for >5 minutes (CC crashed without PostToolUse)
+      if (this.now() - state.pendingPreToolUseAt > 5 * 60_000) {
+        console.warn(
+          `[Telemetry] Resetting stale pendingPreToolUse for terminal=${terminalId} (>5min without PostToolUse)`,
+        );
+        state.pendingPreToolUse = false;
+        state.snapshot.turn_state = "unknown";
+        state.snapshot.foreground_tool = snapshot.foregroundTool ?? undefined;
+      }
+    } else {
       state.snapshot.foreground_tool = snapshot.foregroundTool ?? undefined;
     }
 
