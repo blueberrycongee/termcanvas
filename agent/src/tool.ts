@@ -217,7 +217,11 @@ async function executeSingle(
     const callReturn = await tool.call(parsed.data, signal);
 
     if (isPendingResult(callReturn)) {
-      // Background task: register the pending promise and return acknowledgment
+      // WIP: promise resolves immediately — background execution is non-functional.
+      // The tool returns PendingToolResult but has no way to supply a real async
+      // promise, so the task settles on the next microtick and loop.ts collects
+      // the ack message as if it were the real result. Fix by letting tools
+      // register a deferred promise (e.g. via a resolve callback or direct Map access).
       if (pendingTasks) {
         const promise = Promise.resolve({ content: callReturn.content });
         const task: PendingTask = {

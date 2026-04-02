@@ -22,6 +22,11 @@ function isBinary(buffer: Buffer): boolean {
   return false;
 }
 
+// WIP: only escapes `.`, `*`, `?` — regex metacharacters like `(`, `{`, `+`,
+// `[`, `|` pass through raw, so patterns like `*.{ts,tsx}` silently fail
+// (brace expansion doesn't work, match becomes a literal `{ts,tsx}` test).
+// Fix: escape all regex specials first, then replace glob wildcards; or use
+// Node 22+ path.matchesGlob / minimatch.
 function matchGlob(filename: string, globPattern: string): boolean {
   const regex = globPattern
     .replace(/\./g, "\\.")

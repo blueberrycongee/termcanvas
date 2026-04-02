@@ -137,6 +137,10 @@ export async function* agentLoop(
             compactionState = compactionResult.state;
             messages.length = 0;
             messages.push(...compactionResult.compactedMessages);
+            // WIP: afterTokens equals beforeTokens — actual post-compaction count
+            // is unknown until the next API call. Consumers reading this event
+            // get misleading data. Either drop afterTokens or estimate from the
+            // compacted message lengths.
             yield { type: "compaction", beforeTokens: totalUsage.input_tokens, afterTokens: totalUsage.input_tokens };
             continue;
           }
@@ -190,6 +194,7 @@ export async function* agentLoop(
         if (compactionResult.compactedMessages !== messages) {
           messages.length = 0;
           messages.push(...compactionResult.compactedMessages);
+          // WIP: same issue as emergency compaction above — afterTokens is stale.
           yield { type: "compaction", beforeTokens, afterTokens: beforeTokens };
         }
       }
