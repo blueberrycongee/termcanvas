@@ -17,6 +17,7 @@ import type {
   StopReason,
   Usage,
 } from "../types.ts";
+import { isOSeriesModel, getModelCapability } from "../model-registry.ts";
 
 // ---------------------------------------------------------------------------
 // Provider
@@ -38,8 +39,10 @@ export class OpenAIProvider implements LLMProvider {
   async *stream(params: StreamParams): AsyncGenerator<StreamEvent, AssistantMessage> {
     const model = params.model || this.model;
     const maxTokens = params.maxTokens ?? 16384;
+    const oSeries = isOSeriesModel(model);
+    const systemRole = getModelCapability(model)?.systemRoleName ?? "system";
 
-    const messages = toOpenAIMessages(params.systemPrompt, params.messages);
+    const messages = toOpenAIMessages(params.systemPrompt, params.messages, systemRole);
     const tools = params.tools.length > 0
       ? params.tools.map((t) => ({
           type: "function" as const,
@@ -54,8 +57,14 @@ export class OpenAIProvider implements LLMProvider {
     const body: Record<string, unknown> = {
       model,
       messages,
-      max_tokens: maxTokens,
       stream: true,
+      stream_options: { include_usage: true },
+      ...(oSeries
+        ? { max_completion_tokens: maxTokens }
+        : { max_tokens: maxTokens }),
+      ...(oSeries && params.reasoningEffort
+        ? { reasoning_effort: params.reasoningEffort }
+        : {}),
       ...(tools ? { tools } : {}),
     };
 
@@ -199,18 +208,22 @@ export class OpenAIProvider implements LLMProvider {
 // ---------------------------------------------------------------------------
 
 interface OpenAIMessage {
-  role: "system" | "user" | "assistant" | "tool";
+  role: "system" | "developer" | "user" | "assistant" | "tool";
   content?: string | null;
   tool_calls?: { id: string; type: "function"; function: { name: string; arguments: string } }[];
   tool_call_id?: string;
 }
 
-function toOpenAIMessages(systemPrompt: string, messages: Message[]): OpenAIMessage[] {
-  const out: OpenAIMessage[] = [{ role: "system", content: systemPrompt }];
+function toOpenAIMessages(
+  systemPrompt: string,
+  messages: Message[],
+  systemRole: "system" | "developer" = "system",
+): OpenAIMessage[] {
+  const out: OpenAIMessage[] = [{ role: systemRole, content: systemPrompt }];
 
   for (const msg of messages) {
     if (msg.role === "system") {
-      out.push({ role: "system", content: msg.content });
+      out.push({ role: systemRole, content: msg.content });
       continue;
     }
 

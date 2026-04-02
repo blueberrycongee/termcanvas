@@ -8,6 +8,8 @@
 
 import type { z, ZodObject, ZodRawShape } from "zod";
 import type { ToolResult, ToolCallReturn, PendingToolResult } from "./types.ts";
+import type { ToolHooks } from "./tool-hooks.ts";
+import { runPreHooks, runPostHooks } from "./tool-hooks.ts";
 
 // ---------------------------------------------------------------------------
 // Tool interface
@@ -162,21 +164,20 @@ export async function executeTools(
   onStart?: (name: string, input: Record<string, unknown>) => void,
   onEnd?: (name: string, result: ToolResult) => void,
   pendingTasks?: Map<string, PendingTask>,
+  hooks?: ToolHooks,
 ): Promise<ToolCallResult[]> {
-  // Partition into batches: consecutive read-only calls form one concurrent batch,
-  // each non-read-only call is its own serial batch.
   const batches = partitionCalls(calls, registry);
   const results: ToolCallResult[] = [];
 
   for (const batch of batches) {
     if (batch.concurrent) {
       const batchResults = await Promise.all(
-        batch.calls.map((call) => executeSingle(call, registry, signal, onStart, onEnd, pendingTasks)),
+        batch.calls.map((call) => executeSingle(call, registry, signal, onStart, onEnd, pendingTasks, hooks)),
       );
       results.push(...batchResults);
     } else {
       for (const call of batch.calls) {
-        results.push(await executeSingle(call, registry, signal, onStart, onEnd, pendingTasks));
+        results.push(await executeSingle(call, registry, signal, onStart, onEnd, pendingTasks, hooks));
       }
     }
   }
@@ -191,6 +192,7 @@ async function executeSingle(
   onStart?: (name: string, input: Record<string, unknown>) => void,
   onEnd?: (name: string, result: ToolResult) => void,
   pendingTasks?: Map<string, PendingTask>,
+  hooks?: ToolHooks,
 ): Promise<ToolCallResult> {
   const tool = registry.get(call.name);
   if (!tool) {
@@ -201,10 +203,38 @@ async function executeSingle(
     };
   }
 
-  onStart?.(call.name, call.input);
+  let effectiveInput = call.input;
+
+  if (hooks && hooks.pre.length > 0) {
+    const preResult = await runPreHooks(hooks.pre, {
+      toolName: call.name,
+      input: effectiveInput,
+      isReadOnly: tool.isReadOnly,
+    });
+
+    if (preResult.blocked || preResult.permission === "deny") {
+      const result: ToolResult = {
+        content: preResult.message ?? "Tool execution denied by hook",
+        is_error: true,
+      };
+      return { tool_use_id: call.id, ...result };
+    }
+
+    if (preResult.permission === "ask") {
+      const result: ToolResult = {
+        content: `Permission required: ${preResult.message ?? "Tool requires approval"}`,
+        is_error: true,
+      };
+      return { tool_use_id: call.id, ...result };
+    }
+
+    effectiveInput = preResult.input;
+  }
+
+  onStart?.(call.name, effectiveInput);
 
   try {
-    const parsed = tool.inputSchema.safeParse(call.input);
+    const parsed = tool.inputSchema.safeParse(effectiveInput);
     if (!parsed.success) {
       const result: ToolResult = {
         content: `Invalid input: ${parsed.error.message}`,
@@ -217,11 +247,6 @@ async function executeSingle(
     const callReturn = await tool.call(parsed.data, signal);
 
     if (isPendingResult(callReturn)) {
-      // WIP: promise resolves immediately — background execution is non-functional.
-      // The tool returns PendingToolResult but has no way to supply a real async
-      // promise, so the task settles on the next microtick and loop.ts collects
-      // the ack message as if it were the real result. Fix by letting tools
-      // register a deferred promise (e.g. via a resolve callback or direct Map access).
       if (pendingTasks) {
         const promise = Promise.resolve({ content: callReturn.content });
         const task: PendingTask = {
@@ -238,8 +263,31 @@ async function executeSingle(
       return { tool_use_id: call.id, content: callReturn.content };
     }
 
-    onEnd?.(call.name, callReturn);
-    return { tool_use_id: call.id, ...callReturn };
+    let finalOutput = callReturn.content;
+
+    if (hooks && hooks.post.length > 0) {
+      const postResult = await runPostHooks(hooks.post, {
+        toolName: call.name,
+        input: effectiveInput,
+        output: finalOutput,
+        isReadOnly: tool.isReadOnly,
+      });
+
+      if (postResult.blocked) {
+        const result: ToolResult = {
+          content: postResult.message ?? "Tool output blocked by hook",
+          is_error: true,
+        };
+        onEnd?.(call.name, result);
+        return { tool_use_id: call.id, ...result };
+      }
+
+      finalOutput = postResult.output;
+    }
+
+    const result: ToolResult = { content: finalOutput, is_error: callReturn.is_error };
+    onEnd?.(call.name, result);
+    return { tool_use_id: call.id, ...result };
   } catch (err) {
     const result: ToolResult = {
       content: `Tool error: ${err instanceof Error ? err.message : String(err)}`,

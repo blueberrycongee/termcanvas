@@ -64,6 +64,36 @@ export { CostTracker, calculateTurnCost } from "./cost-tracker.ts";
 export type { CoordinatorPromptContext } from "./coordinator-prompt.ts";
 export { buildCoordinatorPrompt } from "./coordinator-prompt.ts";
 
+// Approval bridge
+export type {
+  ApprovalPolicy,
+  PendingApproval,
+  ApprovalDecision,
+  ApprovalBridge,
+} from "./approval-bridge.ts";
+export { evaluateApproval } from "./approval-bridge.ts";
+
+// Session persistence
+export type { SessionConfig, TranscriptEntry, ResumedSession } from "./session.ts";
+export { SessionWriter, generateSessionId, resumeSession } from "./session.ts";
+
+// Context injection
+export type { SystemPromptConfig, EphemeralContext } from "./context-injection.ts";
+export { buildFullSystemPrompt, buildSystemReminder, isSystemReminder, stripSystemReminders } from "./context-injection.ts";
+
+// Tool hooks
+export type {
+  PermissionDecision,
+  PreHook,
+  PreHookContext,
+  PreHookResult,
+  PostHook,
+  PostHookContext,
+  PostHookResult,
+  ToolHooks,
+} from "./tool-hooks.ts";
+export { runPreHooks, runPostHooks } from "./tool-hooks.ts";
+
 // Built-in providers
 export { AnthropicProvider } from "./provider/anthropic.ts";
 export { OpenAIProvider } from "./provider/openai.ts";

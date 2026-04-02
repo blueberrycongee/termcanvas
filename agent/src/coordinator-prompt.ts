@@ -122,6 +122,17 @@ Each worker dispatch costs API tokens. Be efficient:
 - Read code yourself before dispatching — informed prompts save worker tokens`;
   sections.push(costSection);
 
+  // Section 9 — Approval Handling
+  sections.push(`# Approval Handling
+
+Read-only operations from workers are auto-approved. Destructive operations are surfaced to you as <approval-request> messages.
+
+When you see an <approval-request>:
+1. Read the tool name and input to understand what the worker wants to do
+2. Present the request to the user with context about the operation and its risks
+3. Wait for the user's decision before proceeding
+4. Never auto-approve destructive operations on behalf of the user`);
+
   // Active workers context
   if (context.activeWorkers && context.activeWorkers.length > 0) {
     const workerList = context.activeWorkers

@@ -169,4 +169,22 @@ export interface AgentOptions {
 
   /** Callback when a tool finishes */
   onToolEnd?: (name: string, result: ToolResult) => void;
+
+  /** Model to switch to after max_output_tokens recovery exhausts retries */
+  fallbackModel?: string;
+
+  /** Pre/post tool execution hooks */
+  hooks?: import("./tool-hooks.ts").ToolHooks;
+
+  /** Structured system prompt with static/dynamic split */
+  systemPromptConfig?: import("./context-injection.ts").SystemPromptConfig;
+
+  /** Ephemeral context injected as system-reminder each turn */
+  ephemeralContext?: import("./context-injection.ts").EphemeralContext | (() => import("./context-injection.ts").EphemeralContext);
+
+  /** Session persistence configuration */
+  session?: import("./session.ts").SessionConfig;
+
+  /** Approval bridge for worker permission management */
+  approvalBridge?: import("./approval-bridge.ts").ApprovalBridge;
 }

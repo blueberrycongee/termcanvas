@@ -37,6 +37,7 @@ export interface StreamParams {
   maxTokens?: number;
   signal?: AbortSignal;
   thinking?: ThinkingConfig;
+  reasoningEffort?: "low" | "medium" | "high";
 }
 
 export interface ThinkingConfig {

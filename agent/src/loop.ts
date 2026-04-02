@@ -26,7 +26,10 @@ import { emptyUsage, mergeUsage } from "./types.ts";
 import { categorizeError, isRetryableCategory, getRetryDelay } from "./errors.ts";
 import { CostTracker } from "./cost-tracker.ts";
 import { shouldCompact, compactMessages, initialCompactionState } from "./compaction.ts";
-import { getContextWindow } from "./model-registry.ts";
+import { getContextWindow, getMaxOutputTokens } from "./model-registry.ts";
+import { buildFullSystemPrompt, buildSystemReminder, isSystemReminder } from "./context-injection.ts";
+import { SessionWriter, resumeSession, generateSessionId } from "./session.ts";
+import { evaluateApproval } from "./approval-bridge.ts";
 
 // ---------------------------------------------------------------------------
 // Agent loop event — superset of stream events + loop-level events
@@ -42,6 +45,10 @@ export type AgentEvent =
   | { type: "compaction"; beforeTokens: number; afterTokens: number }
   | { type: "task_pending"; taskId: string; toolName: string }
   | { type: "task_completed"; taskId: string; toolName: string; result: import("./types.ts").ToolResult }
+  | { type: "max_tokens_recovery"; attempt: number; maxTokens: number }
+  | { type: "fallback_model_switch"; from: string; to: string }
+  | { type: "approval_auto"; terminalId: string; toolName: string; action: "approve" | "reject" }
+  | { type: "approval_escalated"; terminalId: string; toolName: string }
   | { type: "loop_end"; result: LoopResult };
 
 // ---------------------------------------------------------------------------
@@ -56,14 +63,36 @@ export async function* agentLoop(
 ): AsyncGenerator<AgentEvent, LoopResult> {
   const maxTurns = options.maxTurns ?? 50;
   const maxRetries = 3;
-  const messages: Message[] = [...initialMessages];
+  let messages: Message[] = [...initialMessages];
   const toolSchemas = tools.toAPISchemas();
   let totalUsage: Usage = emptyUsage();
   let turnCount = 0;
-  const costTracker = new CostTracker(options.modelId ?? "");
+  let costTracker = new CostTracker(options.modelId ?? "");
   let compactionState = initialCompactionState();
-  const contextWindow = getContextWindow(options.modelId ?? "");
+  let contextWindow = getContextWindow(options.modelId ?? "");
   const pendingTasks = new Map<string, PendingTask>();
+  let maxTokensRecoveryCount = 0;
+  let currentMaxTokens: number | undefined;
+  let currentModel = options.modelId ?? "";
+
+  // Session: resume or initialize
+  let sessionWriter: SessionWriter | undefined;
+  if (options.session) {
+    const sessionId = options.session.sessionId ?? generateSessionId();
+
+    if (options.session.resumeFromId) {
+      const resumed = await resumeSession(options.session.resumeFromId, options.session.persistDir);
+      if (resumed.messages.length > 0) {
+        messages = resumed.messages;
+      }
+      if (resumed.costState) {
+        costTracker = new CostTracker(options.modelId ?? "", resumed.costState);
+      }
+      compactionState = resumed.compactionState;
+    }
+
+    sessionWriter = new SessionWriter(sessionId, options.session.persistDir);
+  }
 
   while (turnCount < maxTurns) {
     if (options.signal?.aborted) {
@@ -95,6 +124,56 @@ export async function* agentLoop(
       }
     }
 
+    // ----- Approval bridge -----
+    if (options.approvalBridge) {
+      const bridge = options.approvalBridge;
+      const approvals = await bridge.detectPendingApprovals();
+      for (const pending of approvals) {
+        const decision = evaluateApproval(pending, bridge.policy);
+        if (decision !== "escalate") {
+          try {
+            await bridge.deliverDecision(pending.terminalId, decision);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            messages.push({
+              role: "system",
+              content: `<approval-warning terminalId="${pending.terminalId}" tool="${pending.toolName}">Failed to deliver approval: ${msg}</approval-warning>`,
+              metadata: { type: "approval" },
+            });
+            continue;
+          }
+          yield { type: "approval_auto", terminalId: pending.terminalId, toolName: pending.toolName, action: decision.action };
+          messages.push({
+            role: "system",
+            content: `<approval-notification terminalId="${pending.terminalId}" tool="${pending.toolName}">${decision.reason}</approval-notification>`,
+            metadata: { type: "approval" },
+          });
+        } else {
+          yield { type: "approval_escalated", terminalId: pending.terminalId, toolName: pending.toolName };
+          messages.push({
+            role: "system",
+            content: `<approval-request terminalId="${pending.terminalId}" tool="${pending.toolName}">Worker needs permission for ${pending.toolName}. This is not a read-only operation. Ask the user whether to approve or reject.</approval-request>`,
+            metadata: { type: "approval" },
+          });
+        }
+      }
+    }
+
+    // ----- Resolve system prompt and ephemeral context -----
+    const resolvedSystemPrompt = options.systemPromptConfig
+      ? buildFullSystemPrompt(options.systemPromptConfig)
+      : options.systemPrompt;
+
+    if (options.ephemeralContext) {
+      const idx = messages.findIndex(isSystemReminder);
+      if (idx !== -1) messages.splice(idx, 1);
+
+      const ctx = typeof options.ephemeralContext === "function"
+        ? options.ephemeralContext()
+        : options.ephemeralContext;
+      messages.unshift(buildSystemReminder(ctx));
+    }
+
     // ----- Stream LLM response with error-category retry -----
     let assistantMessage: AssistantMessage | undefined;
     let retryCount = 0;
@@ -103,10 +182,11 @@ export async function* agentLoop(
       try {
         const stream = provider.stream({
           messages,
-          systemPrompt: options.systemPrompt,
+          systemPrompt: resolvedSystemPrompt,
           tools: toolSchemas,
-          model: "", // model is set in provider config
+          model: currentModel,
           signal: options.signal,
+          ...(currentMaxTokens !== undefined ? { maxTokens: currentMaxTokens } : {}),
         });
 
         let streamResult = await stream.next();
@@ -162,8 +242,10 @@ export async function* agentLoop(
     // Track usage and cost
     if (assistantMessage.usage) {
       totalUsage = mergeUsage(totalUsage, assistantMessage.usage);
-      costTracker.addUsage(assistantMessage.usage);
-      yield { type: "cost_update", costState: costTracker.getState() };
+      costTracker.addUsage(assistantMessage.usage, currentModel);
+      const costState = costTracker.getState();
+      yield { type: "cost_update", costState };
+      sessionWriter?.appendCostSnapshot(costState);
     }
 
     // Budget check
@@ -182,6 +264,7 @@ export async function* agentLoop(
 
     // Append assistant message
     messages.push(assistantMessage);
+    sessionWriter?.appendMessage(assistantMessage);
 
     // ----- Auto-compaction check -----
     if (assistantMessage.usage && shouldCompact(totalUsage.input_tokens, contextWindow, compactionState)) {
@@ -194,8 +277,8 @@ export async function* agentLoop(
         if (compactionResult.compactedMessages !== messages) {
           messages.length = 0;
           messages.push(...compactionResult.compactedMessages);
-          // WIP: same issue as emergency compaction above — afterTokens is stale.
           yield { type: "compaction", beforeTokens, afterTokens: beforeTokens };
+          sessionWriter?.appendCompactionMarker(turnCount);
         }
       }
     }
@@ -206,8 +289,41 @@ export async function* agentLoop(
     );
 
     if (toolUseBlocks.length === 0) {
+      // max_tokens recovery: output was truncated, not a clean end_turn
+      if (assistantMessage.stop_reason === "max_tokens") {
+        const MAX_RECOVERY_ATTEMPTS = 3;
+        const OUTPUT_REDUCTION_FACTOR = 0.8;
+
+        if (maxTokensRecoveryCount < MAX_RECOVERY_ATTEMPTS) {
+          maxTokensRecoveryCount++;
+          const baseTokens = currentMaxTokens ?? getMaxOutputTokens(currentModel);
+          currentMaxTokens = Math.floor(baseTokens * OUTPUT_REDUCTION_FACTOR);
+          yield { type: "max_tokens_recovery", attempt: maxTokensRecoveryCount, maxTokens: currentMaxTokens };
+          messages.push({
+            role: "user",
+            content: "Output token limit hit. Resume directly from where you stopped — no preamble, no recap.",
+          });
+          yield { type: "turn_end", turn: turnCount };
+          continue;
+        }
+
+        if (options.fallbackModel) {
+          const previousModel = currentModel;
+          currentModel = options.fallbackModel;
+          contextWindow = getContextWindow(currentModel);
+          currentMaxTokens = undefined;
+          maxTokensRecoveryCount = 0;
+          yield { type: "fallback_model_switch", from: previousModel, to: currentModel };
+          messages.push({
+            role: "user",
+            content: "Output token limit hit. Resume directly from where you stopped — no preamble, no recap.",
+          });
+          yield { type: "turn_end", turn: turnCount };
+          continue;
+        }
+      }
+
       if (pendingTasks.size === 0) {
-        // Truly done — no pending background work
         yield { type: "turn_end", turn: turnCount };
         const result: LoopResult = {
           reason: "completed",
@@ -261,6 +377,7 @@ export async function* agentLoop(
         options.onToolEnd?.(name, result);
       },
       pendingTasks,
+      options.hooks,
     );
 
     // Emit task_pending events for newly registered background tasks
@@ -293,7 +410,9 @@ export async function* agentLoop(
       ...(tr.is_error ? { is_error: true } : {}),
     }));
 
-    messages.push({ role: "user", content: resultBlocks });
+    const toolResultMessage = { role: "user" as const, content: resultBlocks };
+    messages.push(toolResultMessage);
+    sessionWriter?.appendMessage(toolResultMessage);
 
     yield { type: "turn_end", turn: turnCount };
   }

@@ -8,6 +8,7 @@
 
 import type { LLMProvider } from "./provider/types.ts";
 import type { Message } from "./types.ts";
+import { isSystemReminder } from "./context-injection.ts";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -56,7 +57,6 @@ interface CompactionSplit {
 }
 
 function splitMessages(messages: Message[], preserveRecent: number): CompactionSplit {
-  // Count turns: each assistant+user pair is one turn
   const turnBoundaries: number[] = [];
   for (let i = 0; i < messages.length; i++) {
     if (messages[i].role === "assistant") {
@@ -68,7 +68,7 @@ function splitMessages(messages: Message[], preserveRecent: number): CompactionS
     ? turnBoundaries[turnBoundaries.length - preserveRecent]
     : 0;
 
-  const messagesToSummarize = messages.slice(0, keepFrom);
+  const messagesToSummarize = messages.slice(0, keepFrom).filter((m) => !isSystemReminder(m));
   const recentMessages = messages.slice(keepFrom);
 
   const conversationText = messagesToSummarize.map((msg) => {
