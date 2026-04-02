@@ -64,6 +64,10 @@ export { CostTracker, calculateTurnCost } from "./cost-tracker.ts";
 export type { CoordinatorPromptContext } from "./coordinator-prompt.ts";
 export { buildCoordinatorPrompt } from "./coordinator-prompt.ts";
 
+// Session persistence
+export type { SessionConfig, TranscriptEntry, ResumedSession } from "./session.ts";
+export { SessionWriter, generateSessionId, resumeSession } from "./session.ts";
+
 // Context injection
 export type { SystemPromptConfig, EphemeralContext } from "./context-injection.ts";
 export { buildFullSystemPrompt, buildSystemReminder, isSystemReminder, stripSystemReminders } from "./context-injection.ts";

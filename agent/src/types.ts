@@ -181,4 +181,7 @@ export interface AgentOptions {
 
   /** Ephemeral context injected as system-reminder each turn */
   ephemeralContext?: import("./context-injection.ts").EphemeralContext | (() => import("./context-injection.ts").EphemeralContext);
+
+  /** Session persistence configuration */
+  session?: import("./session.ts").SessionConfig;
 }

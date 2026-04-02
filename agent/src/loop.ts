@@ -28,6 +28,7 @@ import { CostTracker } from "./cost-tracker.ts";
 import { shouldCompact, compactMessages, initialCompactionState } from "./compaction.ts";
 import { getContextWindow, getMaxOutputTokens } from "./model-registry.ts";
 import { buildFullSystemPrompt, buildSystemReminder, isSystemReminder } from "./context-injection.ts";
+import { SessionWriter, resumeSession, generateSessionId } from "./session.ts";
 
 // ---------------------------------------------------------------------------
 // Agent loop event — superset of stream events + loop-level events
@@ -59,17 +60,36 @@ export async function* agentLoop(
 ): AsyncGenerator<AgentEvent, LoopResult> {
   const maxTurns = options.maxTurns ?? 50;
   const maxRetries = 3;
-  const messages: Message[] = [...initialMessages];
+  let messages: Message[] = [...initialMessages];
   const toolSchemas = tools.toAPISchemas();
   let totalUsage: Usage = emptyUsage();
   let turnCount = 0;
-  const costTracker = new CostTracker(options.modelId ?? "");
+  let costTracker = new CostTracker(options.modelId ?? "");
   let compactionState = initialCompactionState();
   const contextWindow = getContextWindow(options.modelId ?? "");
   const pendingTasks = new Map<string, PendingTask>();
   let maxTokensRecoveryCount = 0;
   let currentMaxTokens: number | undefined;
   let currentModel = options.modelId ?? "";
+
+  // Session: resume or initialize
+  let sessionWriter: SessionWriter | undefined;
+  if (options.session) {
+    const sessionId = options.session.sessionId ?? generateSessionId();
+
+    if (options.session.resumeFromId) {
+      const resumed = await resumeSession(options.session.resumeFromId, options.session.persistDir);
+      if (resumed.messages.length > 0) {
+        messages = resumed.messages;
+      }
+      if (resumed.costState) {
+        costTracker = new CostTracker(options.modelId ?? "", resumed.costState);
+      }
+      compactionState = resumed.compactionState;
+    }
+
+    sessionWriter = new SessionWriter(sessionId, options.session.persistDir);
+  }
 
   while (turnCount < maxTurns) {
     if (options.signal?.aborted) {
@@ -185,7 +205,9 @@ export async function* agentLoop(
     if (assistantMessage.usage) {
       totalUsage = mergeUsage(totalUsage, assistantMessage.usage);
       costTracker.addUsage(assistantMessage.usage);
-      yield { type: "cost_update", costState: costTracker.getState() };
+      const costState = costTracker.getState();
+      yield { type: "cost_update", costState };
+      sessionWriter?.appendCostSnapshot(costState);
     }
 
     // Budget check
@@ -204,6 +226,7 @@ export async function* agentLoop(
 
     // Append assistant message
     messages.push(assistantMessage);
+    sessionWriter?.appendMessage(assistantMessage);
 
     // ----- Auto-compaction check -----
     if (assistantMessage.usage && shouldCompact(totalUsage.input_tokens, contextWindow, compactionState)) {
@@ -216,8 +239,8 @@ export async function* agentLoop(
         if (compactionResult.compactedMessages !== messages) {
           messages.length = 0;
           messages.push(...compactionResult.compactedMessages);
-          // WIP: same issue as emergency compaction above — afterTokens is stale.
           yield { type: "compaction", beforeTokens, afterTokens: beforeTokens };
+          sessionWriter?.appendCompactionMarker(turnCount);
         }
       }
     }
@@ -348,7 +371,9 @@ export async function* agentLoop(
       ...(tr.is_error ? { is_error: true } : {}),
     }));
 
-    messages.push({ role: "user", content: resultBlocks });
+    const toolResultMessage = { role: "user" as const, content: resultBlocks };
+    messages.push(toolResultMessage);
+    sessionWriter?.appendMessage(toolResultMessage);
 
     yield { type: "turn_end", turn: turnCount };
   }
