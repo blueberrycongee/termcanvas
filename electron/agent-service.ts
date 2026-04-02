@@ -165,6 +165,7 @@ export class AgentService {
         sessionId,
         cwd: config.cwd ?? process.cwd(),
         model: config.model || undefined,
+        resumeSessionId: sessionId,
         env: { CLAUDE_CODE_NO_FLICKER: "0" },
       });
       driver.onEvent((event: AgentStreamEvent) => {

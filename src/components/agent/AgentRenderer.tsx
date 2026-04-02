@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AgentStreamEvent } from "../../types";
 import { useThemeStore } from "../../stores/themeStore";
+import { useProjectStore } from "../../stores/projectStore";
 import { MessageBubble } from "./MessageBubble";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { ToolCard } from "./ToolCard";
@@ -53,6 +54,8 @@ interface StatusInfo {
 interface AgentRendererProps {
   terminalId: string;
   sessionId: string;
+  projectId: string;
+  worktreeId: string;
   cwd: string;
   height: number;
   width: number;
@@ -60,7 +63,7 @@ interface AgentRendererProps {
 
 let errorIdCounter = 0;
 
-export function AgentRenderer({ terminalId: _, sessionId, cwd, height, width }: AgentRendererProps) {
+export function AgentRenderer({ terminalId, sessionId, projectId, worktreeId, cwd, height, width }: AgentRendererProps) {
   const isDark = useThemeStore((s) => s.theme) === "dark";
   const [segments, setSegments] = useState<MessageSegment[]>([]);
   const [running, setRunning] = useState(false);
@@ -218,6 +221,11 @@ export function AgentRenderer({ terminalId: _, sessionId, cwd, height, width }: 
           model: event.model,
           toolsCount: event.tools_count,
         }));
+        if (event.session_id) {
+          useProjectStore.getState().updateTerminalSessionId(
+            projectId, worktreeId, terminalId, event.session_id,
+          );
+        }
         break;
 
       case "result_info":

@@ -818,6 +818,8 @@ export function TerminalTile({
             <AgentRenderer
               terminalId={terminal.id}
               sessionId={terminal.sessionId ?? terminal.id}
+              projectId={projectId}
+              worktreeId={worktreeId}
               cwd={worktreePath}
               width={agentBodySize.width}
               height={agentBodySize.height}
