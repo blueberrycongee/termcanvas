@@ -59,36 +59,8 @@ export class OpenAIProvider implements LLMProvider {
       ...(tools ? { tools } : {}),
     };
 
-    const assembled = yield* this.streamWithRetry(body, params.signal);
+    const assembled = yield* this.doStream(body, params.signal);
     return assembled;
-  }
-
-  private async *streamWithRetry(
-    body: Record<string, unknown>,
-    signal?: AbortSignal,
-  ): AsyncGenerator<StreamEvent, AssistantMessage> {
-    const maxRetries = 3;
-    let lastError: Error | undefined;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      if (signal?.aborted) throw new Error("Aborted");
-
-      if (attempt > 0) {
-        const delay = Math.min(500 * 2 ** (attempt - 1), 16_000);
-        const jitter = delay * (0.75 + Math.random() * 0.5);
-        await sleep(jitter, signal);
-      }
-
-      try {
-        return yield* this.doStream(body, signal);
-      } catch (err) {
-        lastError = err instanceof Error ? err : new Error(String(err));
-        if (!isRetryable(err) || attempt === maxRetries) throw lastError;
-        yield { type: "error", error: lastError };
-      }
-    }
-
-    throw lastError ?? new Error("Stream failed");
   }
 
   private async *doStream(
@@ -237,6 +209,11 @@ function toOpenAIMessages(systemPrompt: string, messages: Message[]): OpenAIMess
   const out: OpenAIMessage[] = [{ role: "system", content: systemPrompt }];
 
   for (const msg of messages) {
+    if (msg.role === "system") {
+      out.push({ role: "system", content: msg.content });
+      continue;
+    }
+
     if (msg.role === "user") {
       if (typeof msg.content === "string") {
         out.push({ role: "user", content: msg.content });
@@ -258,32 +235,33 @@ function toOpenAIMessages(systemPrompt: string, messages: Message[]): OpenAIMess
           out.push({ role: "user", content: textParts.join("\n") });
         }
       }
-    } else {
-      // assistant
-      const textParts: string[] = [];
-      const toolCallsOut: OpenAIMessage["tool_calls"] = [];
-
-      for (const block of msg.content) {
-        if (block.type === "text") {
-          textParts.push(block.text);
-        } else if (block.type === "tool_use") {
-          toolCallsOut.push({
-            id: block.id,
-            type: "function",
-            function: {
-              name: block.name,
-              arguments: JSON.stringify(block.input),
-            },
-          });
-        }
-      }
-
-      out.push({
-        role: "assistant",
-        content: textParts.join("\n") || null,
-        ...(toolCallsOut.length > 0 ? { tool_calls: toolCallsOut } : {}),
-      });
+      continue;
     }
+
+    // assistant
+    const textParts: string[] = [];
+    const toolCallsOut: OpenAIMessage["tool_calls"] = [];
+
+    for (const block of msg.content) {
+      if (block.type === "text") {
+        textParts.push(block.text);
+      } else if (block.type === "tool_use") {
+        toolCallsOut.push({
+          id: block.id,
+          type: "function",
+          function: {
+            name: block.name,
+            arguments: JSON.stringify(block.input),
+          },
+        });
+      }
+    }
+
+    out.push({
+      role: "assistant",
+      content: textParts.join("\n") || null,
+      ...(toolCallsOut.length > 0 ? { tool_calls: toolCallsOut } : {}),
+    });
   }
 
   return out;
@@ -324,23 +302,3 @@ function mapFinishReason(reason: string): StopReason {
   }
 }
 
-function isRetryable(err: unknown): boolean {
-  if (!(err instanceof Error)) return false;
-  const msg = err.message.toLowerCase();
-  if (msg.includes("abort")) return false;
-  if (msg.includes("connection") || msg.includes("timeout") || msg.includes("fetch")) return true;
-  const status = (err as { status?: number }).status;
-  if (status && (status >= 500 || status === 429 || status === 408)) return true;
-  return false;
-}
-
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) return reject(new Error("Aborted"));
-    const timer = setTimeout(resolve, ms);
-    signal?.addEventListener("abort", () => {
-      clearTimeout(timer);
-      reject(new Error("Aborted"));
-    }, { once: true });
-  });
-}

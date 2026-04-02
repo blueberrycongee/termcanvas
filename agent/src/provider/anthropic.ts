@@ -67,42 +67,8 @@ export class AnthropicProvider implements LLMProvider {
         : {}),
     };
 
-    const assembled = yield* this.streamWithRetry(requestParams, params.signal);
+    const assembled = yield* this.doStream(requestParams, params.signal);
     return assembled;
-  }
-
-  private async *streamWithRetry(
-    params: Record<string, unknown>,
-    signal?: AbortSignal,
-  ): AsyncGenerator<StreamEvent, AssistantMessage> {
-    const maxRetries = 3;
-    let lastError: Error | undefined;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      if (signal?.aborted) {
-        throw new Error("Aborted");
-      }
-
-      if (attempt > 0) {
-        const delay = Math.min(500 * 2 ** (attempt - 1), 16_000);
-        const jitter = delay * (0.75 + Math.random() * 0.5);
-        await sleep(jitter, signal);
-      }
-
-      try {
-        return yield* this.doStream(params, signal);
-      } catch (err) {
-        lastError = err instanceof Error ? err : new Error(String(err));
-
-        if (!isRetryable(err) || attempt === maxRetries) {
-          throw lastError;
-        }
-
-        yield { type: "error", error: lastError };
-      }
-    }
-
-    throw lastError ?? new Error("Stream failed");
   }
 
   private async *doStream(
@@ -256,29 +222,39 @@ export class AnthropicProvider implements LLMProvider {
 // ---------------------------------------------------------------------------
 
 function toMessageParams(messages: Message[]): MessageParam[] {
-  return messages.map((msg): MessageParam => {
+  const out: MessageParam[] = [];
+
+  for (const msg of messages) {
+    if (msg.role === "system") {
+      // Anthropic API doesn't have system role in messages — inject as user message
+      out.push({ role: "user", content: `<system-reminder>${msg.content}</system-reminder>` });
+      continue;
+    }
+
     if (msg.role === "user") {
       if (typeof msg.content === "string") {
-        return { role: "user", content: msg.content };
+        out.push({ role: "user", content: msg.content });
+      } else {
+        const blocks: ContentBlockParam[] = msg.content.map((block) => {
+          if (block.type === "text") {
+            return { type: "text" as const, text: block.text };
+          }
+          // tool_result
+          const tr = block as {
+            tool_use_id: string;
+            content: string;
+            is_error?: boolean;
+          };
+          return {
+            type: "tool_result" as const,
+            tool_use_id: tr.tool_use_id,
+            content: tr.content,
+            ...(tr.is_error ? { is_error: true } : {}),
+          } as ToolResultBlockParam;
+        });
+        out.push({ role: "user", content: blocks });
       }
-      const blocks: ContentBlockParam[] = msg.content.map((block) => {
-        if (block.type === "text") {
-          return { type: "text" as const, text: block.text };
-        }
-        // tool_result
-        const tr = block as {
-          tool_use_id: string;
-          content: string;
-          is_error?: boolean;
-        };
-        return {
-          type: "tool_result" as const,
-          tool_use_id: tr.tool_use_id,
-          content: tr.content,
-          ...(tr.is_error ? { is_error: true } : {}),
-        } as ToolResultBlockParam;
-      });
-      return { role: "user", content: blocks };
+      continue;
     }
 
     // assistant
@@ -301,8 +277,40 @@ function toMessageParams(messages: Message[]): MessageParam[] {
           input: tu.input,
         };
       });
-    return { role: "assistant", content: blocks };
-  });
+    out.push({ role: "assistant", content: blocks });
+  }
+
+  // Merge consecutive same-role messages to satisfy Anthropic's alternating-role requirement
+  return mergeConsecutiveSameRole(out);
+}
+
+function mergeConsecutiveSameRole(messages: MessageParam[]): MessageParam[] {
+  if (messages.length <= 1) return messages;
+
+  const merged: MessageParam[] = [messages[0]];
+
+  for (let i = 1; i < messages.length; i++) {
+    const prev = merged[merged.length - 1];
+    const curr = messages[i];
+
+    if (prev.role === curr.role) {
+      // Convert both sides to content block arrays, then concatenate
+      const prevBlocks = toContentBlockArray(prev.content);
+      const currBlocks = toContentBlockArray(curr.content);
+      merged[merged.length - 1] = { role: prev.role, content: [...prevBlocks, ...currBlocks] } as MessageParam;
+    } else {
+      merged.push(curr);
+    }
+  }
+
+  return merged;
+}
+
+function toContentBlockArray(content: string | ContentBlockParam[]): ContentBlockParam[] {
+  if (typeof content === "string") {
+    return [{ type: "text" as const, text: content }];
+  }
+  return content;
 }
 
 function toAnthropicTool(schema: {
@@ -326,26 +334,3 @@ type PartialBlock =
   | { type: "tool_use"; id: string; name: string; inputJson: string }
   | { type: "thinking"; thinking: string };
 
-function isRetryable(err: unknown): boolean {
-  if (!(err instanceof Error)) return false;
-  const msg = err.message.toLowerCase();
-  if (msg.includes("abort")) return false;
-  // Retry on network errors and 5xx / 429
-  if (msg.includes("connection") || msg.includes("timeout")) return true;
-  const status = (err as { status?: number }).status;
-  if (status && (status >= 500 || status === 429 || status === 408 || status === 409)) {
-    return true;
-  }
-  return false;
-}
-
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) return reject(new Error("Aborted"));
-    const timer = setTimeout(resolve, ms);
-    signal?.addEventListener("abort", () => {
-      clearTimeout(timer);
-      reject(new Error("Aborted"));
-    }, { once: true });
-  });
-}

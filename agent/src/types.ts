@@ -51,7 +51,13 @@ export interface AssistantMessage {
   usage?: Usage;
 }
 
-export type Message = UserMessage | AssistantMessage;
+export interface SystemMessage {
+  role: "system";
+  content: string;
+  metadata?: { taskId?: string; type?: string };
+}
+
+export type Message = UserMessage | AssistantMessage | SystemMessage;
 
 export type StopReason =
   | "end_turn"
@@ -110,6 +116,14 @@ export interface ToolResult {
   is_error?: boolean;
 }
 
+export interface PendingToolResult {
+  status: "pending";
+  taskId: string;
+  content: string;
+}
+
+export type ToolCallReturn = ToolResult | PendingToolResult;
+
 // ---------------------------------------------------------------------------
 // Agent loop control
 // ---------------------------------------------------------------------------
@@ -118,13 +132,16 @@ export type LoopExitReason =
   | "completed"
   | "max_turns"
   | "aborted"
-  | "error";
+  | "error"
+  | "budget_exceeded";
 
 export interface LoopResult {
   reason: LoopExitReason;
   messages: Message[];
   totalUsage: Usage;
   turnCount: number;
+  errorCategory?: import("./errors.ts").ErrorCategory;
+  costState?: import("./cost-tracker.ts").CostState;
 }
 
 // ---------------------------------------------------------------------------
@@ -135,8 +152,14 @@ export interface AgentOptions {
   /** System prompt sent to the LLM */
   systemPrompt: string;
 
+  /** Model ID for cost tracking and registry lookups */
+  modelId?: string;
+
   /** Maximum agentic turns before forced stop */
   maxTurns?: number;
+
+  /** Maximum USD spend before forced stop */
+  maxBudgetUSD?: number;
 
   /** AbortSignal for cancellation */
   signal?: AbortSignal;
