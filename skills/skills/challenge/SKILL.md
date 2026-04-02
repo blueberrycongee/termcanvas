@@ -98,17 +98,14 @@ Each worker writes `result.json`:
 }
 ```
 
-## Step 3: Monitor
+## Step 3: Watch
 
-`hydra spawn` creates direct workers, not workflow runs. Do NOT use
-`hydra watch` — it requires a workflowId and only works with `hydra run`.
+For each spawned worker, run `hydra watch --agent <agentId>`. This polls
+the worker's handoff contract until it reaches a terminal state (completed,
+failed, or terminal dead).
 
-Instead, monitor spawn workers via:
-1. `hydra list --repo .` to check worker status
-2. `termcanvas telemetry get --terminal <terminalId>` for each worker
-3. Poll until all 4 workers reach a terminal state (`done` file exists)
-
-Do not proceed until all 4 complete.
+Run all 4 watches in parallel (background bash commands or concurrent
+tool calls). Do not proceed until all 4 complete.
 
 ## Step 4: Synthesize
 

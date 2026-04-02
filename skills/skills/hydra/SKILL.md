@@ -80,8 +80,10 @@ default is `--planner-type claude --implementer-type codex --evaluator-type clau
    - `hydra watch --repo . --workflow <workflowId>`
    - `hydra status --repo . --workflow <workflowId>`
    - `hydra retry --repo . --workflow <workflowId>`
-4. For direct workers created by `hydra spawn`, use `hydra list` to inspect and
-   `hydra cleanup <agentId>` to clean up.
+4. For direct workers created by `hydra spawn`:
+   - `hydra watch --agent <agentId>` to poll until completion
+   - `hydra list --repo .` to list all agents
+   - `hydra cleanup <agentId>` to clean up
 5. Read failures from structured Hydra state; do not parse terminal prose.
 6. Before deciding to keep waiting, retry, or take over a live workflow, query telemetry first:
    - `termcanvas telemetry get --workflow <workflowId> --repo .`

@@ -55,6 +55,7 @@ test("challenge skill defines four orthogonal attack methodologies", () => {
 
   assert.doesNotMatch(skill, /alwaysApply:\s*true/i);
   assert.match(skill, /hydra spawn/i);
+  assert.match(skill, /hydra watch --agent/i);
   assert.match(skill, /Counterexample/i);
   assert.match(skill, /Hidden Assumptions/i);
   assert.match(skill, /Causal Challenge/i);

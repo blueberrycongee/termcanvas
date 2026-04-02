@@ -9,7 +9,7 @@ function printUsage() {
   console.log("Commands:");
   console.log("  run      Create and start a file-contract workflow");
   console.log("  tick     Advance one workflow tick");
-  console.log("  watch    Poll a workflow until it reaches a terminal state");
+  console.log("  watch    Poll a workflow or spawned agent until it reaches a terminal state");
   console.log("  status   Show structured workflow status");
   console.log("  retry    Retry a failed or timed-out workflow");
   console.log("  approve  Approve a plan and continue to implementation");
