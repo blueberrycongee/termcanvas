@@ -1253,7 +1253,7 @@ function dataUrlToPngBuffer(dataUrl: string): Buffer {
   return image.toPNG();
 }
 
-const CLI_NAMES = ["termcanvas", "hydra"];
+const CLI_NAMES = ["termcanvas", "hydra", "browse"];
 
 /** Ensure CLI launchers exist for the current platform. */
 function ensureCliLinks(): void {

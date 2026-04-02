@@ -5,7 +5,7 @@ import path from "path";
 
 import { ensureCliLauncher } from "./cli-launchers.ts";
 
-const CLI_NAMES = ["termcanvas", "hydra"] as const;
+const CLI_NAMES = ["termcanvas", "hydra", "browse"] as const;
 const WINDOWS_PATH_KEY = "HKCU\\Environment";
 const WINDOWS_PATH_VALUE = "Path";
 
