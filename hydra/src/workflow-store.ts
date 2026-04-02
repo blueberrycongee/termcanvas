@@ -1,9 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { AgentType } from "./handoff/types.ts";
+import type { ChallengeState } from "./challenge.ts";
 import type { ResultContract } from "./protocol.ts";
 
-export type WorkflowStatus = "pending" | "running" | "waiting_for_approval" | "completed" | "failed";
+export type WorkflowStatus = "pending" | "running" | "challenging" | "waiting_for_approval" | "completed" | "failed";
 
 export interface WorkflowFailure {
   code: string;
@@ -31,6 +32,8 @@ export interface WorkflowRecord {
   max_retries: number;
   auto_approve: boolean;
   approve_plan?: boolean;
+  challenge?: ChallengeState;
+  challenge_completed?: boolean;
   result?: ResultContract;
   failure?: WorkflowFailure;
 }

@@ -22,6 +22,11 @@ import {
   type WorkflowTemplateName,
 } from "./workflow-template.ts";
 import {
+  spawnChallengeWorkers,
+  collectChallengeResults,
+  destroyChallengeTerminals,
+} from "./challenge.ts";
+import {
   deleteWorkflow,
   loadWorkflow,
   saveWorkflow,
@@ -553,6 +558,79 @@ export async function tickWorkflow(
     return buildStatusView(workflow);
   }
 
+  if (workflow.status === "challenging" && workflow.challenge) {
+    const challengeDecision = collectChallengeResults(workflow.challenge);
+    if (challengeDecision === null) {
+      return buildStatusView(workflow);
+    }
+
+    destroyChallengeTerminals(
+      workflow.challenge,
+      destroyTerminalFn(dependencies),
+    );
+
+    if (challengeDecision.override) {
+      // Write challenge findings to the evaluator's result file so
+      // the implementer picks them up via the existing loop mechanism.
+      const evaluatorHandoffId = workflow.challenge.evaluator_handoff_id;
+      const evaluatorHandoff = manager.load(evaluatorHandoffId);
+      if (evaluatorHandoff?.artifacts) {
+        const syntheticResult = {
+          version: "hydra/v2",
+          handoff_id: evaluatorHandoffId,
+          workflow_id: workflow.id,
+          success: false,
+          summary: challengeDecision.summary,
+          outputs: [],
+          evidence: workflow.challenge.workers.map((w) => `challenge:${w.methodology}`),
+          next_action: {
+            type: "handoff",
+            reason: "Challenge workers found issues the evaluator missed",
+            handoff_id: workflow.handoff_ids[1],
+          },
+        };
+        fs.writeFileSync(
+          evaluatorHandoff.artifacts.result_file,
+          JSON.stringify(syntheticResult, null, 2),
+          "utf-8",
+        );
+      }
+
+      // Loop back: reset implementer and evaluator to pending
+      const implementerId = workflow.handoff_ids[1];
+      const evaluatorId = workflow.handoff_ids[2];
+      for (const requeueId of [implementerId, evaluatorId]) {
+        const requeueHandoff = manager.load(requeueId);
+        if (requeueHandoff) destroyHandoffTerminal(requeueHandoff, dependencies);
+        resetHandoffToPending(manager, requeueId, now());
+      }
+
+      workflow.current_handoff_id = implementerId;
+      workflow.status = "running";
+      workflow.failure = undefined;
+      workflow.result = undefined;
+      workflow.challenge = undefined;
+      workflow.challenge_completed = true;
+      workflow.updated_at = now();
+      saveWorkflow(workflow);
+
+      const nextHandoff = loadHandoffOrThrow(manager, workflow);
+      await dispatchPendingHandoff(workflow, nextHandoff, dependencies);
+      workflow.updated_at = now();
+      saveWorkflow(workflow);
+      return buildStatusView(workflow);
+    }
+
+    // Challenge confirmed success
+    workflow.status = "completed";
+    workflow.failure = undefined;
+    workflow.challenge = undefined;
+    workflow.challenge_completed = true;
+    workflow.updated_at = now();
+    saveWorkflow(workflow);
+    return buildStatusView(workflow);
+  }
+
   if (handoff.status === "pending") {
     await dispatchPendingHandoff(workflow, handoff, dependencies);
     workflow.status = "running";
@@ -583,6 +661,43 @@ export async function tickWorkflow(
         return buildStatusView(workflow);
       }
       if (decision.outcome === "complete") {
+        // For PIE template, run challenge gate on first evaluator success
+        if (
+          workflow.template === "planner-implementer-evaluator" &&
+          !workflow.challenge_completed &&
+          handoff.id === workflow.handoff_ids[2]
+        ) {
+          const plannerResultFile = path.join(
+            repoPath, ".hydra", "workflows", workflow.id,
+            workflow.handoff_ids[0], "result.json",
+          );
+          const evaluatorResultFile = path.join(
+            repoPath, ".hydra", "workflows", workflow.id,
+            handoff.id, "result.json",
+          );
+          const challenge = await spawnChallengeWorkers(
+            {
+              workflowId: workflow.id,
+              repoPath,
+              worktreePath: workflow.worktree_path,
+              evaluatorResultFile,
+              plannerResultFile,
+              evaluatorHandoffId: handoff.id,
+              autoApprove: workflow.auto_approve,
+              agentType: handoff.to.agent_type as AgentType,
+              parentTerminalId:
+                workflow.parent_terminal_id ?? process.env.TERMCANVAS_TERMINAL_ID,
+            },
+            dispatchFn(dependencies),
+          );
+          workflow.challenge = challenge;
+          workflow.result = collected.result;
+          workflow.status = "challenging";
+          workflow.updated_at = now();
+          saveWorkflow(workflow);
+          return buildStatusView(workflow);
+        }
+
         workflow.result = collected.result;
         workflow.status = "completed";
         workflow.failure = undefined;
