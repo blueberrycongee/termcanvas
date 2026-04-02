@@ -84,6 +84,7 @@ export function AgentRenderer({ terminalId: _, sessionId, height, width }: Agent
     switch (event.type) {
       case "stream_start":
         setRunning(true);
+        setSegments([]);
         setErrors([]);
         lastSegmentRef.current = null;
         break;
