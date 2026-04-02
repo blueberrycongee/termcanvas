@@ -91,8 +91,8 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
       >
         {isMac && <div aria-hidden="true" className="w-[72px] shrink-0" />}
 
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-28">
-          <div className="flex min-w-0 max-w-[min(44vw,420px)] items-center gap-2 rounded-full px-3 py-1">
+        <div className="flex flex-1 min-w-0 items-center justify-center">
+          <div className="flex min-w-0 items-center gap-2 px-3 py-1">
             {dirty && (
               <span
                 aria-hidden="true"
@@ -113,8 +113,6 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
             </span>
           </div>
         </div>
-
-        <div className="flex-1" />
 
         <div className={controlRow} style={noDrag}>
           <div className={controlSection}>
