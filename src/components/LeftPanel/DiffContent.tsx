@@ -117,7 +117,7 @@ export function DiffContent({ worktreePath }: Props) {
                 ) : fd.file.binary ? (
                   <div className="px-3 py-3 text-[var(--text-muted)] text-center">{t.binary_changed}</div>
                 ) : (
-                  <pre className="px-3 py-1 leading-relaxed">
+                  <pre className="px-3 py-1 leading-relaxed" style={{ width: "fit-content", minWidth: "100%" }}>
                     {fd.hunks.join("\n").split("\n").map((line, i) => {
                       let color = "var(--text-secondary)";
                       let bg = "transparent";
