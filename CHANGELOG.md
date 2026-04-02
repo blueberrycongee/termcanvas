@@ -2,6 +2,38 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.20.0] - 2026-04-02
+
+### Added
+- SuperHydra P0/P1 agent runtime with filesystem tools, model registry, cost tracking, compaction, o-series adaptation, streaming, fallback model, tool hooks, context injection, and session persistence
+- API key encryption at rest via Electron safeStorage
+- Approval bridge with policy-based auto-approve and escalation
+- JSONL session persistence with append-only transcript and resume
+- Composable pre/post tool hooks with permission decisions
+- Fallback model and max_output_tokens recovery with progressive retry
+- OpenAI o-series adaptation with max_completion_tokens, developer role, reasoning_effort
+- Auto-compaction with circuit breaker
+- Cost/budget tracking with per-turn USD calculation
+- Error categorization and loop-level retry
+- Static model capability registry
+- ReadFile, GlobFile, GrepFile read-only filesystem tools for agent
+- Async/background tool execution with pending task registry
+- Structured coordinator system prompt builder
+- Challenge skill
+- Hydra telemetry enrichment and retry for agent watch
+- Hydra watch support for spawned agents
+
+### Fixed
+- Network errors classified as retryable; compaction same-size loop guarded
+- 5 agent review-round bugs: cost model, approval crash, callback imbalance, stale context, dead code
+- currentModel passed to provider.stream() so fallback model switch takes effect
+- Consecutive same-role messages merged in Anthropic conversion
+- Synchronous settled flag for pending task detection
+- Provider-level retry removed to eliminate double retry
+- HTTP 413 categorized as prompt_too_long
+- termcanvas-hook.mjs moved to skills/scripts/ to match registered path
+- Hydra spawn uses hydra list instead of hydra watch
+
 ## [0.19.0] - 2026-04-02
 
 ### Added
