@@ -217,7 +217,6 @@ async function executeSingle(
         content: preResult.message ?? "Tool execution denied by hook",
         is_error: true,
       };
-      onEnd?.(call.name, result);
       return { tool_use_id: call.id, ...result };
     }
 
@@ -226,7 +225,6 @@ async function executeSingle(
         content: `Permission required: ${preResult.message ?? "Tool requires approval"}`,
         is_error: true,
       };
-      onEnd?.(call.name, result);
       return { tool_use_id: call.id, ...result };
     }
 

@@ -32,7 +32,6 @@ export interface ResumedSession {
   messages: Message[];
   costState: CostState | undefined;
   compactionState: CompactionState;
-  consumedUUIDs: Set<string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -107,7 +106,6 @@ export async function resumeSession(
       messages: [],
       costState: undefined,
       compactionState: { consecutiveFailures: 0, lastCompactionTurn: 0, disabled: false },
-      consumedUUIDs: new Set(),
     };
   }
 
@@ -123,7 +121,6 @@ export async function resumeSession(
 
   let lastCompactionIdx = -1;
   let lastCostState: CostState | undefined;
-  const consumedUUIDs = new Set<string>();
 
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i];
@@ -132,9 +129,6 @@ export async function resumeSession(
     }
     if (entry.type === "cost_snapshot") {
       lastCostState = entry.costState;
-    }
-    if (entry.type === "message") {
-      consumedUUIDs.add(entry.uuid);
     }
   }
 
@@ -155,6 +149,5 @@ export async function resumeSession(
       lastCompactionTurn: lastCompactionIdx >= 0 ? 1 : 0,
       disabled: false,
     },
-    consumedUUIDs,
   };
 }

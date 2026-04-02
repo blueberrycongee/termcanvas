@@ -69,7 +69,7 @@ export async function* agentLoop(
   let turnCount = 0;
   let costTracker = new CostTracker(options.modelId ?? "");
   let compactionState = initialCompactionState();
-  const contextWindow = getContextWindow(options.modelId ?? "");
+  let contextWindow = getContextWindow(options.modelId ?? "");
   const pendingTasks = new Map<string, PendingTask>();
   let maxTokensRecoveryCount = 0;
   let currentMaxTokens: number | undefined;
@@ -131,7 +131,17 @@ export async function* agentLoop(
       for (const pending of approvals) {
         const decision = evaluateApproval(pending, bridge.policy);
         if (decision !== "escalate") {
-          await bridge.deliverDecision(pending.terminalId, decision);
+          try {
+            await bridge.deliverDecision(pending.terminalId, decision);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            messages.push({
+              role: "system",
+              content: `<approval-warning terminalId="${pending.terminalId}" tool="${pending.toolName}">Failed to deliver approval: ${msg}</approval-warning>`,
+              metadata: { type: "approval" },
+            });
+            continue;
+          }
           yield { type: "approval_auto", terminalId: pending.terminalId, toolName: pending.toolName, action: decision.action };
           messages.push({
             role: "system",
@@ -232,7 +242,7 @@ export async function* agentLoop(
     // Track usage and cost
     if (assistantMessage.usage) {
       totalUsage = mergeUsage(totalUsage, assistantMessage.usage);
-      costTracker.addUsage(assistantMessage.usage);
+      costTracker.addUsage(assistantMessage.usage, currentModel);
       const costState = costTracker.getState();
       yield { type: "cost_update", costState };
       sessionWriter?.appendCostSnapshot(costState);
@@ -300,6 +310,7 @@ export async function* agentLoop(
         if (options.fallbackModel) {
           const previousModel = currentModel;
           currentModel = options.fallbackModel;
+          contextWindow = getContextWindow(currentModel);
           currentMaxTokens = undefined;
           maxTokensRecoveryCount = 0;
           yield { type: "fallback_model_switch", from: previousModel, to: currentModel };
