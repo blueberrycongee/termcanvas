@@ -90,6 +90,37 @@ export function requestSummary(
     });
 }
 
+const turnCompletedTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+export function onTerminalTurnCompleted(terminalId: string): void {
+  // Debounce: wait 5s in case of rapid turn completions
+  if (turnCompletedTimers.has(terminalId)) return;
+
+  const timer = setTimeout(() => {
+    turnCompletedTimers.delete(terminalId);
+    if (!window.termcanvas?.summary) return;
+
+    const { projects } = useProjectStore.getState();
+    const { summaryCli } = usePreferencesStore.getState();
+
+    for (const project of projects) {
+      for (const worktree of project.worktrees) {
+        const terminal = worktree.terminals.find((t) => t.id === terminalId);
+        if (!terminal) continue;
+        if (!SUMMARY_ELIGIBLE_TYPES.has(terminal.type)) return;
+        if (!terminal.sessionId) return;
+        if (terminal.origin === "agent") return;
+        if (terminal.focused) return;
+        if (terminal.customTitle && lastSummarySessionSize.has(terminal.id)) return;
+
+        requestSummary(project.id, worktree.id, worktree.path, terminal, summaryCli);
+        return;
+      }
+    }
+  }, 5_000);
+  turnCompletedTimers.set(terminalId, timer);
+}
+
 export function startAutoSummaryWatcher(): () => void {
   let disposed = false;
 

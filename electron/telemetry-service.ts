@@ -28,10 +28,14 @@ const DEFAULT_EVENT_LIMIT = 200;
 const DEFAULT_STALL_THRESHOLD_MS = 45_000;
 
 interface TerminalState {
+  id: string;
   events: TelemetryEvent[];
   nextEventId: number;
   lastContractKey: string | null;
+  lastHookToolAt: number;
   lastProcessKey: string | null;
+  pendingPreToolUse: boolean;
+  pendingPreToolUseAt: number;
   lastTokenTotal: number | null;
   processPollTimer: NodeJS.Timeout | null;
   ptyId: number | null;
@@ -202,6 +206,7 @@ export class TelemetryService {
   private readonly stallThresholdMs: number;
   private readonly ptyToTerminal = new Map<number, string>();
   private readonly terminals = new Map<string, TerminalState>();
+  private readonly onSnapshotChanged?: (terminalId: string, snapshot: TerminalTelemetrySnapshot) => void;
 
   constructor(options?: {
     eventLimit?: number;
@@ -210,13 +215,15 @@ export class TelemetryService {
     sessionPollIntervalMs?: number;
     sessionPrimeBytes?: number;
     stallThresholdMs?: number;
+    onSnapshotChanged?: (terminalId: string, snapshot: TerminalTelemetrySnapshot) => void;
   }) {
     this.eventLimit = options?.eventLimit ?? DEFAULT_EVENT_LIMIT;
     this.now = options?.now ?? Date.now;
-    this.processPollIntervalMs = options?.processPollIntervalMs ?? 3_000;
-    this.sessionPollIntervalMs = options?.sessionPollIntervalMs ?? 2_000;
+    this.processPollIntervalMs = options?.processPollIntervalMs ?? 15_000;
+    this.sessionPollIntervalMs = options?.sessionPollIntervalMs ?? 10_000;
     this.sessionPrimeBytes = options?.sessionPrimeBytes ?? 262_144;
     this.stallThresholdMs = options?.stallThresholdMs ?? DEFAULT_STALL_THRESHOLD_MS;
+    this.onSnapshotChanged = options?.onSnapshotChanged;
   }
 
   registerTerminal(input: RegisterTerminalInput): TerminalTelemetrySnapshot {
@@ -463,7 +470,12 @@ export class TelemetryService {
     state.snapshot.descendant_processes = snapshot.descendantProcesses.map((process) => ({
       ...process,
     }));
-    state.snapshot.foreground_tool = snapshot.foregroundTool ?? undefined;
+
+    // Don't let stale ps data overwrite hook-set foreground_tool
+    const hookToolFresh = this.now() - state.lastHookToolAt < 5_000;
+    if (!hookToolFresh) {
+      state.snapshot.foreground_tool = snapshot.foregroundTool ?? undefined;
+    }
 
     if (hasMeaningfulChange) {
       state.snapshot.last_meaningful_progress_at = timestamp;
@@ -619,6 +631,7 @@ export class TelemetryService {
         break;
 
       case "Stop":
+        state.pendingPreToolUse = false;
         state.snapshot.last_hook_error = undefined;
         state.snapshot.last_hook_error_details = undefined;
         state.snapshot.turn_state = "turn_complete";
@@ -629,6 +642,7 @@ export class TelemetryService {
         break;
 
       case "StopFailure":
+        state.pendingPreToolUse = false;
         state.snapshot.turn_state = "turn_complete";
         state.snapshot.last_hook_error = typeof event.error === "string" ? event.error : "unknown";
         state.snapshot.last_hook_error_details = typeof event.error_details === "string" ? event.error_details : undefined;
@@ -640,24 +654,35 @@ export class TelemetryService {
         break;
 
       case "PreToolUse":
+        if (state.pendingPreToolUse) {
+          console.warn(
+            `[Telemetry] Missed PostToolUse for terminal=${terminalId} (new PreToolUse arrived while pending)`,
+          );
+        }
+        state.pendingPreToolUse = true;
+        state.pendingPreToolUseAt = this.now();
         state.snapshot.turn_state = "tool_running";
         state.snapshot.last_meaningful_progress_at = at;
         state.snapshot.foreground_tool = event.tool_name as string | undefined;
+        state.lastHookToolAt = this.now();
         this.appendEvent(state, at, "session", "hook_pre_tool", {
           tool_name: event.tool_name ?? null,
         });
         break;
 
       case "PostToolUse":
+        state.pendingPreToolUse = false;
         state.snapshot.turn_state = "in_turn";
         state.snapshot.last_meaningful_progress_at = at;
         state.snapshot.foreground_tool = undefined;
+        state.lastHookToolAt = this.now();
         this.appendEvent(state, at, "session", "hook_post_tool", {
           tool_name: event.tool_name ?? null,
         });
         break;
 
       case "PostToolUseFailure":
+        state.pendingPreToolUse = false;
         state.snapshot.turn_state = "in_turn";
         state.snapshot.foreground_tool = undefined;
         this.appendEvent(state, at, "session", "hook_post_tool_failure", {
@@ -731,10 +756,14 @@ export class TelemetryService {
     const existing = this.terminals.get(terminalId);
     if (existing) return existing;
     const state: TerminalState = {
+      id: terminalId,
       events: [],
       nextEventId: 1,
       lastContractKey: null,
+      lastHookToolAt: 0,
       lastProcessKey: null,
+      pendingPreToolUse: false,
+      pendingPreToolUseAt: 0,
       lastTokenTotal: null,
       processPollTimer: null,
       ptyId: registration?.ptyId ?? null,
@@ -882,11 +911,24 @@ export class TelemetryService {
   }
 
   private updateDerivedStatus(state: TerminalState): void {
+    const prev = state.snapshot.derived_status;
+    const prevTurn = state.snapshot.turn_state;
+    const prevTool = state.snapshot.foreground_tool;
+
     state.snapshot.derived_status = deriveTelemetryStatus(
       state.snapshot,
       this.now(),
       this.stallThresholdMs,
     );
+
+    if (
+      this.onSnapshotChanged &&
+      (state.snapshot.derived_status !== prev ||
+        state.snapshot.turn_state !== prevTurn ||
+        state.snapshot.foreground_tool !== prevTool)
+    ) {
+      this.onSnapshotChanged(state.id, { ...state.snapshot });
+    }
   }
 
   private startProcessPolling(terminalId: string, shellPid: number): void {
@@ -990,6 +1032,8 @@ export class TelemetryService {
 
   private async readSessionDelta(state: TerminalState): Promise<void> {
     if (!state.sessionFile || state.sessionReadInFlight) return;
+    // Skip if hook events already provided recent state
+    if (this.now() - state.lastHookToolAt < 2_000) return;
     state.sessionReadInFlight = true;
     try {
       let stat: fs.Stats;

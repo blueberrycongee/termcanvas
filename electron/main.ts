@@ -109,7 +109,11 @@ const fileTreeWatcher = new FileTreeWatcher(HIDDEN_DIRS, (dirPath) => {
   sendToWindow(mainWindow, "fs:dir-changed", dirPath);
 });
 const sessionWatcher = new SessionWatcher();
-const telemetryService = new TelemetryService();
+const telemetryService = new TelemetryService({
+  onSnapshotChanged: (terminalId, snapshot) => {
+    sendToWindow(mainWindow, "telemetry:snapshot-changed", { terminalId, snapshot });
+  },
+});
 const agentService = new AgentService();
 let hookSocketPath: string | null = null;
 const hookReceiver = new HookReceiver((event) => {
@@ -622,6 +626,7 @@ function setupIpc() {
 
   // Hook system IPC
   ipcMain.handle("hook:get-socket-path", () => hookSocketPath);
+  ipcMain.handle("hook:get-health", () => hookReceiver.getHealth());
 
   // State IPC
   ipcMain.handle("state:load", () => {

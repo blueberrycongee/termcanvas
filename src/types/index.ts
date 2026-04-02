@@ -381,6 +381,9 @@ export interface TermCanvasAPI {
     getTerminal: (terminalId: string) => Promise<TerminalTelemetrySnapshot | null>;
     getWorkflow: (workflowId: string, repoPath: string) => Promise<WorkflowTelemetrySnapshot | null>;
     listEvents: (input: { terminalId: string; limit?: number; cursor?: string }) => Promise<TelemetryEventPage>;
+    onSnapshotChanged: (
+      callback: (payload: { terminalId: string; snapshot: TerminalTelemetrySnapshot }) => void,
+    ) => () => void;
   };
   project: {
     selectDirectory: () => Promise<string | null>;
@@ -572,6 +575,12 @@ export interface TermCanvasAPI {
   };
   hooks: {
     getSocketPath: () => Promise<string | null>;
+    getHealth: () => Promise<{
+      socketPath: string | null;
+      lastEventAt: string | null;
+      eventsReceived: number;
+      parseErrors: number;
+    }>;
     onSessionStarted: (callback: (payload: {
       terminalId: string;
       sessionId: string;

@@ -20,6 +20,7 @@ import { useLocaleStore } from "../stores/localeStore";
 import { en } from "../i18n/en";
 import { zh } from "../i18n/zh";
 import type { TerminalTelemetrySnapshot } from "../../shared/telemetry";
+import { onTerminalTurnCompleted } from "./summaryScheduler";
 import {
   clampPreviewAnsi,
   resolveTerminalMountMode,
@@ -65,6 +66,7 @@ interface ManagedTerminalRuntime {
   attachOptions: AttachOptions | null;
   cliOverride: ReturnType<typeof usePreferencesStore.getState>["cliCommands"][TerminalType];
   currentStatus: TerminalStatus;
+  detectAttempts: number;
   detectTimer: ReturnType<typeof setTimeout> | null;
   disposed: boolean;
   fitAddon: FitAddon | null;
@@ -78,6 +80,7 @@ interface ManagedTerminalRuntime {
   ptyPromise: Promise<void> | null;
   previewAnsi: string;
   hookFallbackTimer: ReturnType<typeof setTimeout> | null;
+  lastTurnCompletedAt: number;
   removeHookSessionStarted: (() => void) | null;
   removeHookTurnComplete: (() => void) | null;
   removeHookStopFailure: (() => void) | null;
@@ -104,7 +107,7 @@ type XtermRuntimeModule = typeof xtermModule & {
 };
 
 const dictionaries = { en, zh } as const;
-const WAITING_THRESHOLD = 15_000;
+const WAITING_THRESHOLD = 30_000;
 const ACTIVITY_THROTTLE_MS = 3_000;
 const SPAWN_STAGGER_MS = 150;
 
@@ -253,8 +256,8 @@ async function pollSessionId(
   detectedCliPid?: number | null,
   startedAt?: string,
 ) {
-  const maxAttempts = 15;
-  const interval = 2_000;
+  const maxAttempts = 10;
+  const interval = 5_000;
 
   let cachedPid: number | null = detectedCliPid ?? null;
   if (!cachedPid && cliType === "claude") {
@@ -823,10 +826,15 @@ function scheduleSessionCapture(
   });
 }
 
+const DETECT_INTERVAL_MS = 3_000;
+const DETECT_MAX_ATTEMPTS = 30;
+
 function triggerDetection(runtime: ManagedTerminalRuntime) {
   if (runtime.meta.terminal.type !== "shell" || runtime.ptyId === null) {
     return;
   }
+
+  if (runtime.detectAttempts >= DETECT_MAX_ATTEMPTS) return;
 
   // Don't reset an already-scheduled timer — allows detection during active output
   if (runtime.detectTimer) return;
@@ -838,6 +846,7 @@ function triggerDetection(runtime: ManagedTerminalRuntime) {
       return;
     }
 
+    runtime.detectAttempts++;
     void window.termcanvas.terminal.detectCli(runtime.ptyId).then((result) => {
       const nextType = (result?.cliType ?? null) as TerminalType | null;
       if (!nextType || nextType === runtime.meta.terminal.type) {
@@ -872,7 +881,7 @@ function triggerDetection(runtime: ManagedTerminalRuntime) {
 
       scheduleSessionCapture(runtime, runtime.ptyId!, nextType, result?.pid);
     });
-  }, 1_000);
+  }, DETECT_INTERVAL_MS);
 }
 
 function handleRuntimeOutput(runtime: ManagedTerminalRuntime, data: string) {
@@ -925,6 +934,7 @@ function buildTerminalRuntime(
     cliOverride:
       usePreferencesStore.getState().cliCommands[meta.terminal.type] ?? undefined,
     currentStatus: meta.terminal.status,
+    detectAttempts: 0,
     detectTimer: null,
     disposed: false,
     fitAddon: null,
@@ -938,6 +948,7 @@ function buildTerminalRuntime(
     ptyPromise: null,
     previewAnsi: clampPreviewAnsi(meta.terminal.scrollback ?? ""),
     hookFallbackTimer: null,
+    lastTurnCompletedAt: 0,
     removeHookSessionStarted: null,
     removeHookTurnComplete: null,
     removeHookStopFailure: null,
@@ -1008,11 +1019,13 @@ async function spawnPty(runtime: ManagedTerminalRuntime, resumeSessionId?: strin
 
   // Register hook listener BEFORE spawning pty to avoid race condition (C2)
   let hookSessionReceived = false;
-  const isClaudeType = runtime.meta.terminal.type === "claude";
+  const isHookEnabled =
+    (runtime.meta.terminal.type === "claude" || runtime.meta.terminal.type === "shell") &&
+    !!window.termcanvas?.hooks;
 
-  if (!resumeSessionId && launch && isClaudeType && window.termcanvas?.hooks) {
+  if (!resumeSessionId && launch && isHookEnabled) {
     runtime.removeHookSessionStarted?.();
-    runtime.removeHookSessionStarted = window.termcanvas.hooks.onSessionStarted(
+    runtime.removeHookSessionStarted = window.termcanvas!.hooks.onSessionStarted(
       (payload) => {
         if (payload.terminalId !== runtime.meta.terminal.id) return;
         if (runtime.disposed || hookSessionReceived) return;
@@ -1023,6 +1036,18 @@ async function spawnPty(runtime: ManagedTerminalRuntime, resumeSessionId?: strin
         if (runtime.hookFallbackTimer) {
           clearTimeout(runtime.hookFallbackTimer);
           runtime.hookFallbackTimer = null;
+        }
+
+        // Hook-based CLI type upgrade: shell → claude
+        if (runtime.meta.terminal.type === "shell") {
+          setTerminalType(runtime, "claude");
+          useQuotaStore.getState().nudge();
+          void window.termcanvas!.telemetry.updateTerminal({
+            terminalId: runtime.meta.terminal.id,
+            worktreePath: runtime.meta.worktreePath,
+            provider: "claude",
+            ptyId: runtime.ptyId,
+          }).catch(() => {});
         }
 
         setSessionId(runtime, payload.sessionId);
@@ -1051,17 +1076,23 @@ async function spawnPty(runtime: ManagedTerminalRuntime, resumeSessionId?: strin
     }
 
     if (!resumeSessionId && launch) {
-      if (isClaudeType && window.termcanvas?.hooks) {
-        // Hook-based path: fall back to polling after 10s if no hook event
+      if (runtime.meta.terminal.type === "claude" && isHookEnabled) {
+        // Hook is primary for claude; fall back to polling after 30s if no hook event
         runtime.hookFallbackTimer = setTimeout(() => {
           runtime.hookFallbackTimer = null;
           if (!hookSessionReceived && !runtime.disposed) {
+            console.warn(
+              `[TerminalRuntime] Hook session fallback triggered for terminal=${runtime.meta.terminal.id}`,
+            );
             scheduleSessionCapture(runtime, ptyId, runtime.meta.terminal.type);
           }
-        }, 10_000);
-      } else {
+        }, 30_000);
+      } else if (runtime.meta.terminal.type !== "shell") {
+        // Non-shell, non-claude types (e.g., codex) use polling directly
         scheduleSessionCapture(runtime, ptyId, runtime.meta.terminal.type);
       }
+      // Shell terminals: hook listener is set up opportunistically,
+      // triggerDetection handles discovery via ps polling
     }
 
     wireLiveBindings(runtime);
@@ -1094,7 +1125,29 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
   refreshTelemetry(runtime);
   runtime.telemetryTimer = setInterval(() => {
     refreshTelemetry(runtime);
-  }, 2_000);
+  }, 30_000);
+
+  // Push-based telemetry: immediate updates from hook events
+  if (window.termcanvas.telemetry?.onSnapshotChanged) {
+    let prevTurnState: string | undefined;
+    const removePush = window.termcanvas.telemetry.onSnapshotChanged((payload) => {
+      if (payload.terminalId !== runtime.meta.terminal.id) return;
+      if (runtime.disposed) return;
+
+      const snap = payload.snapshot as TerminalTelemetrySnapshot;
+
+      // Trigger auto-summary when turn completes
+      if (snap.turn_state === "turn_complete" && prevTurnState !== "turn_complete") {
+        onTerminalTurnCompleted(runtime.meta.terminal.id);
+      }
+      prevTurnState = snap.turn_state;
+
+      updateRuntimeSnapshot(runtime.meta.terminal.id, {
+        telemetry: snap,
+      });
+    });
+    runtime.globalDisposers.push(removePush);
+  }
 
   runtime.outputUnsubscribe = window.termcanvas.terminal.onOutput((ptyId, data) => {
     if (ptyId !== runtime.ptyId) {
@@ -1135,14 +1188,24 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
     );
   });
 
+  const TURN_COMPLETE_DEDUP_MS = 5_000;
+
+  const handleTurnComplete = () => {
+    const now = Date.now();
+    if (now - runtime.lastTurnCompletedAt < TURN_COMPLETE_DEDUP_MS) return;
+    if (
+      runtime.currentStatus !== "active" &&
+      runtime.currentStatus !== "waiting"
+    ) return;
+    runtime.lastTurnCompletedAt = now;
+    setStatus(runtime, "completed");
+  };
+
   runtime.removeTurnComplete = window.termcanvas.session.onTurnComplete(
     (sessionId) => {
       const terminal = lookupCurrentTerminal(runtime);
-      if (
-        terminal?.sessionId === sessionId &&
-        (runtime.currentStatus === "active" || runtime.currentStatus === "waiting")
-      ) {
-        setStatus(runtime, "completed");
+      if (terminal?.sessionId === sessionId) {
+        handleTurnComplete();
       }
     },
   );
@@ -1152,12 +1215,7 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
     runtime.removeHookTurnComplete = window.termcanvas.hooks.onTurnComplete(
       (payload) => {
         if (payload.terminalId !== runtime.meta.terminal.id) return;
-        if (
-          runtime.currentStatus === "active" ||
-          runtime.currentStatus === "waiting"
-        ) {
-          setStatus(runtime, "completed");
-        }
+        handleTurnComplete();
       },
     );
 

@@ -556,9 +556,9 @@ export class SessionWatcher {
     });
 
     // Fallback polling: fs.watch on macOS can miss events (rename from atomic writes).
-    // After 30s, poll every 10s as a safety net.
-    const POLL_DELAY = 30_000;
-    const POLL_INTERVAL = 10_000;
+    // Hooks are the primary turn-completion signal; this is a safety net.
+    const POLL_DELAY = 60_000;
+    const POLL_INTERVAL = 30_000;
     const pollTimer = setTimeout(() => {
       const entry = this.entries.get(sessionId);
       if (!entry) return;

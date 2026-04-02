@@ -10,14 +10,33 @@ export interface HookEvent {
   [key: string]: unknown;
 }
 
+export interface HookHealth {
+  socketPath: string | null;
+  lastEventAt: string | null;
+  eventsReceived: number;
+  parseErrors: number;
+}
+
 export class HookReceiver {
   private server: net.Server | null = null;
   private socketPath: string | null = null;
   private readonly onEvent: (event: HookEvent) => void;
   private cleanupRegistered = false;
+  private eventsReceived = 0;
+  private parseErrors = 0;
+  private lastEventAt: string | null = null;
 
   constructor(onEvent: (event: HookEvent) => void) {
     this.onEvent = onEvent;
+  }
+
+  getHealth(): HookHealth {
+    return {
+      socketPath: this.socketPath,
+      lastEventAt: this.lastEventAt,
+      eventsReceived: this.eventsReceived,
+      parseErrors: this.parseErrors,
+    };
   }
 
   async start(): Promise<string> {
@@ -44,21 +63,34 @@ export class HookReceiver {
 
           if (!parsed || typeof parsed !== "object") {
             console.warn("[HookReceiver] Received non-object JSON, skipping");
+            this.parseErrors++;
             return;
           }
 
           if (!parsed.terminal_id) {
             console.warn("[HookReceiver] Event missing terminal_id, skipping");
+            this.parseErrors++;
             return;
           }
 
           if (!parsed.hook_event_name) {
             console.warn("[HookReceiver] Event missing hook_event_name, skipping");
+            this.parseErrors++;
             return;
           }
 
+          this.eventsReceived++;
+          this.lastEventAt = new Date().toISOString();
+
+          console.log(
+            `[HookReceiver] ${parsed.hook_event_name} terminal=${parsed.terminal_id}` +
+            (parsed.tool_name ? ` tool=${parsed.tool_name}` : "") +
+            (parsed.session_id ? ` session=${parsed.session_id}` : "") +
+            (parsed.error ? ` error=${parsed.error}` : ""),
+          );
           this.onEvent(parsed as HookEvent);
         } catch (err) {
+          this.parseErrors++;
           console.warn("[HookReceiver] Failed to parse hook event:", err);
         }
       });

@@ -103,6 +103,16 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("telemetry:get-workflow", workflowId, repoPath),
     listEvents: (input: { terminalId: string; limit?: number; cursor?: string }) =>
       ipcRenderer.invoke("telemetry:list-events", input),
+    onSnapshotChanged: (
+      callback: (payload: { terminalId: string; snapshot: Record<string, unknown> }) => void,
+    ) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        payload: { terminalId: string; snapshot: Record<string, unknown> },
+      ) => callback(payload);
+      ipcRenderer.on("telemetry:snapshot-changed", listener);
+      return () => ipcRenderer.removeListener("telemetry:snapshot-changed", listener);
+    },
   },
   project: {
     selectDirectory: () => ipcRenderer.invoke("project:select-directory"),
@@ -416,6 +426,13 @@ contextBridge.exposeInMainWorld("termcanvas", {
   hooks: {
     getSocketPath: () =>
       ipcRenderer.invoke("hook:get-socket-path") as Promise<string | null>,
+    getHealth: () =>
+      ipcRenderer.invoke("hook:get-health") as Promise<{
+        socketPath: string | null;
+        lastEventAt: string | null;
+        eventsReceived: number;
+        parseErrors: number;
+      }>,
     onSessionStarted: (callback: (payload: { terminalId: string; sessionId: string; transcriptPath: string | null; cwd: string | null }) => void) => {
       const listener = (
         _event: Electron.IpcRendererEvent,
