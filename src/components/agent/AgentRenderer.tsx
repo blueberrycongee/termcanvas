@@ -53,13 +53,14 @@ interface StatusInfo {
 interface AgentRendererProps {
   terminalId: string;
   sessionId: string;
+  cwd: string;
   height: number;
   width: number;
 }
 
 let errorIdCounter = 0;
 
-export function AgentRenderer({ terminalId: _, sessionId, height, width }: AgentRendererProps) {
+export function AgentRenderer({ terminalId: _, sessionId, cwd, height, width }: AgentRendererProps) {
   const isDark = useThemeStore((s) => s.theme) === "dark";
   const [segments, setSegments] = useState<MessageSegment[]>([]);
   const [running, setRunning] = useState(false);
@@ -274,6 +275,7 @@ export function AgentRenderer({ terminalId: _, sessionId, height, width }: Agent
         baseURL: "",
         apiKey: "",
         model: "",
+        cwd,
       });
     },
     [sessionId],

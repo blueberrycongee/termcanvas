@@ -12,7 +12,7 @@ export function AgentInputBox({ running, isDark, onSend, onAbort }: AgentInputBo
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey) {
+      if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
         e.preventDefault();
         if (running) return;
         const value = textareaRef.current?.value.trim();
