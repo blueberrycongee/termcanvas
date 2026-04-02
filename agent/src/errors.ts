@@ -83,6 +83,37 @@ const BASE_DELAY_RATE_LIMIT = 2000;
 const BASE_DELAY_SERVER = 500;
 const MAX_DELAY = 30_000;
 
+export interface TokenLimits {
+  actual?: number;
+  limit?: number;
+}
+
+const TOKEN_LIMIT_PATTERNS = [
+  /maximum context length is (\d+).*?requested (\d+)/i,
+  /prompt is too long:\s*(\d+)\s*tokens?\s*>\s*(\d+)/i,
+  /context length exceeded.*?(\d+).*?(\d+)/i,
+] as const;
+
+export function parseTokenLimits(err: unknown): TokenLimits | undefined {
+  if (!(err instanceof Error)) return undefined;
+  const msg = err.message;
+
+  for (const pattern of TOKEN_LIMIT_PATTERNS) {
+    const match = msg.match(pattern);
+    if (match) {
+      const n1 = parseInt(match[1], 10);
+      const n2 = parseInt(match[2], 10);
+      // First pattern: limit then actual; others: actual then limit
+      if (pattern === TOKEN_LIMIT_PATTERNS[0]) {
+        return { limit: n1, actual: n2 };
+      }
+      return { actual: n1, limit: n2 };
+    }
+  }
+
+  return undefined;
+}
+
 export function getRetryDelay(category: ErrorCategory, attempt: number): number {
   const base = category === "retryable_rate_limit" ? BASE_DELAY_RATE_LIMIT : BASE_DELAY_SERVER;
   const exponential = Math.min(base * 2 ** (attempt - 1), MAX_DELAY);

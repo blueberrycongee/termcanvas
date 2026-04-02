@@ -23,13 +23,14 @@ import type {
   Usage,
 } from "./types.ts";
 import { emptyUsage, mergeUsage } from "./types.ts";
-import { categorizeError, isRetryableCategory, getRetryDelay } from "./errors.ts";
+import { categorizeError, isRetryableCategory, getRetryDelay, parseTokenLimits } from "./errors.ts";
 import { CostTracker } from "./cost-tracker.ts";
 import { shouldCompact, compactMessages, initialCompactionState } from "./compaction.ts";
 import { getContextWindow, getMaxOutputTokens } from "./model-registry.ts";
 import { buildFullSystemPrompt, buildSystemReminder, isSystemReminder } from "./context-injection.ts";
 import { SessionWriter, resumeSession, generateSessionId } from "./session.ts";
 import { evaluateApproval } from "./approval-bridge.ts";
+import type { WorkerStatus } from "./worker-state.ts";
 
 // ---------------------------------------------------------------------------
 // Agent loop event — superset of stream events + loop-level events
@@ -49,6 +50,9 @@ export type AgentEvent =
   | { type: "fallback_model_switch"; from: string; to: string }
   | { type: "approval_auto"; terminalId: string; toolName: string; action: "approve" | "reject" }
   | { type: "approval_escalated"; terminalId: string; toolName: string }
+  | { type: "worker_state_change"; terminalId: string; from: WorkerStatus; to: WorkerStatus }
+  | { type: "worker_active_warning"; activeCount: number }
+  | { type: "tool_progress"; toolCallId: string; toolName: string; data: unknown; timestamp: number }
   | { type: "loop_end"; result: LoopResult };
 
 // ---------------------------------------------------------------------------
@@ -109,6 +113,19 @@ export async function* agentLoop(
 
     turnCount++;
     yield { type: "turn_start", turn: turnCount };
+
+    // ----- Auto-check worker telemetry -----
+    if (options.workerTracker && options.telemetryCheckFn) {
+      const changes = await options.workerTracker.checkAll(options.telemetryCheckFn);
+      for (const change of changes) {
+        yield { type: "worker_state_change", terminalId: change.terminalId, from: change.from, to: change.to };
+        messages.push({
+          role: "system",
+          content: `<worker-state terminalId="${change.terminalId}">Status changed: ${change.from} → ${change.to}</worker-state>`,
+          metadata: { type: "worker_state" },
+        });
+      }
+    }
 
     // ----- Collect completed background tasks -----
     for (const [taskId, task] of pendingTasks) {
@@ -210,18 +227,21 @@ export async function* agentLoop(
 
         // Emergency compaction on prompt_too_long
         if (category === "prompt_too_long" && !compactionState.disabled) {
+          const tokenLimits = parseTokenLimits(err);
+          const beforeTokens = totalUsage.input_tokens;
           const compactionResult = await compactMessages(
             provider, messages, options.systemPrompt, compactionState, options.signal,
           );
           if (compactionResult && compactionResult.compactedMessages !== messages) {
             compactionState = compactionResult.state;
+            const ratio = compactionResult.compactedMessages.length / Math.max(messages.length, 1);
             messages.length = 0;
             messages.push(...compactionResult.compactedMessages);
-            // WIP: afterTokens equals beforeTokens — actual post-compaction count
-            // is unknown until the next API call. Consumers reading this event
-            // get misleading data. Either drop afterTokens or estimate from the
-            // compacted message lengths.
-            yield { type: "compaction", beforeTokens: totalUsage.input_tokens, afterTokens: totalUsage.input_tokens };
+            const afterTokens = tokenLimits?.limit
+              ? Math.floor(tokenLimits.limit * 0.7)
+              : Math.floor(beforeTokens * ratio);
+            yield { type: "compaction", beforeTokens, afterTokens };
+            retryCount = 0;
             continue;
           }
         }
@@ -275,9 +295,10 @@ export async function* agentLoop(
       if (compactionResult) {
         compactionState = compactionResult.state;
         if (compactionResult.compactedMessages !== messages) {
+          const ratio = compactionResult.compactedMessages.length / Math.max(messages.length, 1);
           messages.length = 0;
           messages.push(...compactionResult.compactedMessages);
-          yield { type: "compaction", beforeTokens, afterTokens: beforeTokens };
+          yield { type: "compaction", beforeTokens, afterTokens: Math.floor(beforeTokens * ratio) };
           sessionWriter?.appendCompactionMarker(turnCount);
         }
       }
@@ -324,6 +345,16 @@ export async function* agentLoop(
       }
 
       if (pendingTasks.size === 0) {
+        const activeWorkers = options.workerTracker?.activeCount() ?? 0;
+        if (activeWorkers > 0) {
+          yield { type: "worker_active_warning", activeCount: activeWorkers };
+          messages.push({
+            role: "system",
+            content: `<worker-warning>${activeWorkers} worker(s) still active. Exiting may lose their results.</worker-warning>`,
+            metadata: { type: "worker_state" },
+          });
+        }
+
         yield { type: "turn_end", turn: turnCount };
         const result: LoopResult = {
           reason: "completed",
@@ -366,6 +397,7 @@ export async function* agentLoop(
     }
 
     const prevPendingSize = pendingTasks.size;
+    const progressEvents: AgentEvent[] = [];
     const toolResults = await executeTools(
       calls,
       tools,
@@ -378,7 +410,15 @@ export async function* agentLoop(
       },
       pendingTasks,
       options.hooks,
+      (toolCallId, toolName) => (data) => {
+        progressEvents.push({ type: "tool_progress", toolCallId, toolName, data, timestamp: Date.now() });
+      },
     );
+
+    // Yield buffered progress events
+    for (const evt of progressEvents) {
+      yield evt;
+    }
 
     // Emit task_pending events for newly registered background tasks
     if (pendingTasks.size > prevPendingSize) {

@@ -10,7 +10,9 @@ export type {
   LoopExitReason,
   LoopResult,
   Message,
+  OnProgress,
   PendingToolResult,
+  ProgressMessage,
   StopReason,
   StreamEvent,
   SystemMessage,
@@ -26,7 +28,7 @@ export type {
 export { emptyUsage, mergeUsage } from "./types.ts";
 
 // Tool system
-export type { APIToolSchema, PendingTask, ToolCall, ToolCallResult } from "./tool.ts";
+export type { APIToolSchema, OnProgressFactory, PendingTask, ToolCall, ToolCallResult } from "./tool.ts";
 export type { Tool } from "./tool.ts";
 export { ToolRegistry, executeTools } from "./tool.ts";
 
@@ -93,6 +95,10 @@ export type {
   ToolHooks,
 } from "./tool-hooks.ts";
 export { runPreHooks, runPostHooks } from "./tool-hooks.ts";
+
+// Worker state machine
+export type { WorkerStatus, WorkerState, WorkerStateChange, TelemetryCheckFn } from "./worker-state.ts";
+export { WorkerTracker } from "./worker-state.ts";
 
 // Built-in providers
 export { AnthropicProvider } from "./provider/anthropic.ts";
