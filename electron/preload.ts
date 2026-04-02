@@ -372,7 +372,7 @@ contextBridge.exposeInMainWorld("termcanvas", {
     decrypt: (base64: string): Promise<string> => ipcRenderer.invoke("secure:decrypt", base64),
   },
   agent: {
-    send: (sessionId: string, text: string, config: { type: "anthropic" | "openai"; baseURL: string; apiKey: string; model: string }) =>
+    send: (sessionId: string, text: string, config: { type: "anthropic" | "openai" | "claude-code"; baseURL: string; apiKey: string; model: string }) =>
       ipcRenderer.invoke("agent:send", sessionId, text, config),
     abort: (sessionId: string) =>
       ipcRenderer.invoke("agent:abort", sessionId),
@@ -380,6 +380,10 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("agent:clear", sessionId),
     delete: (sessionId: string) =>
       ipcRenderer.invoke("agent:delete", sessionId),
+    approve: (sessionId: string, requestId: string) =>
+      ipcRenderer.invoke("agent:approve", sessionId, requestId),
+    deny: (sessionId: string, requestId: string, reason?: string) =>
+      ipcRenderer.invoke("agent:deny", sessionId, requestId, reason),
     onEvent: (callback: (sessionId: string, event: unknown) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, sessionId: string, agentEvent: unknown) =>
         callback(sessionId, agentEvent);

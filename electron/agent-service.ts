@@ -15,6 +15,8 @@ import type { LLMProvider } from "../agent/src/provider/types.ts";
 import { ToolRegistry } from "../agent/src/tool.ts";
 import { registerAllTools } from "../agent/src/tools/index.ts";
 import type { Message } from "../agent/src/types.ts";
+import { ClaudeCodeDriver } from "./claude-code-driver.ts";
+import type { AgentStreamEvent } from "../src/types/index.ts";
 
 // ---------------------------------------------------------------------------
 // Session state
@@ -31,10 +33,11 @@ interface AgentSession {
 // ---------------------------------------------------------------------------
 
 export interface AgentConfig {
-  type: "anthropic" | "openai";
+  type: "anthropic" | "openai" | "claude-code";
   baseURL: string;
   apiKey: string;
   model: string;
+  cwd?: string;
 }
 
 const SYSTEM_PROMPT = `You are an AI assistant embedded in TermCanvas, a terminal-based canvas workspace.
@@ -58,6 +61,7 @@ function createProvider(config: AgentConfig): LLMProvider {
 
 export class AgentService {
   private sessions = new Map<string, AgentSession>();
+  private drivers = new Map<string, ClaudeCodeDriver>();
   private window: BrowserWindow | null = null;
   private tools: ToolRegistry;
 
@@ -84,7 +88,17 @@ export class AgentService {
     this.window.webContents.send("agent:event", sessionId, event);
   }
 
+  private emitStreamEvent(sessionId: string, event: AgentStreamEvent): void {
+    if (!this.window || this.window.isDestroyed()) return;
+    this.window.webContents.send("agent:event", sessionId, event);
+  }
+
   async send(sessionId: string, text: string, config: AgentConfig): Promise<void> {
+    if (config.type === "claude-code") {
+      this.sendClaudeCode(sessionId, text, config);
+      return;
+    }
+
     const session = this.getSession(sessionId);
 
     if (session.running) {
@@ -144,7 +158,44 @@ export class AgentService {
     }
   }
 
+  private sendClaudeCode(sessionId: string, text: string, config: AgentConfig): void {
+    let driver = this.drivers.get(sessionId);
+    if (!driver) {
+      driver = new ClaudeCodeDriver({
+        sessionId,
+        cwd: config.cwd ?? process.cwd(),
+        model: config.model || undefined,
+        env: { CLAUDE_CODE_NO_FLICKER: "0" },
+      });
+      driver.onEvent((event: AgentStreamEvent) => {
+        this.emitStreamEvent(sessionId, event);
+      });
+      this.drivers.set(sessionId, driver);
+    }
+    driver.start();
+    driver.send(text);
+  }
+
+  approve(sessionId: string, requestId: string): void {
+    const driver = this.drivers.get(sessionId);
+    if (driver) {
+      driver.approve(requestId);
+    }
+  }
+
+  deny(sessionId: string, requestId: string, reason?: string): void {
+    const driver = this.drivers.get(sessionId);
+    if (driver) {
+      driver.deny(requestId, reason);
+    }
+  }
+
   abort(sessionId: string): void {
+    const driver = this.drivers.get(sessionId);
+    if (driver) {
+      driver.abort();
+      return;
+    }
     const session = this.sessions.get(sessionId);
     if (session?.abortController) {
       session.abortController.abort();
@@ -152,6 +203,12 @@ export class AgentService {
   }
 
   clearSession(sessionId: string): void {
+    const driver = this.drivers.get(sessionId);
+    if (driver) {
+      void driver.destroy();
+      this.drivers.delete(sessionId);
+      return;
+    }
     const session = this.sessions.get(sessionId);
     if (session) {
       if (session.abortController) session.abortController.abort();
@@ -162,6 +219,12 @@ export class AgentService {
   }
 
   deleteSession(sessionId: string): void {
+    const driver = this.drivers.get(sessionId);
+    if (driver) {
+      void driver.destroy();
+      this.drivers.delete(sessionId);
+      return;
+    }
     const session = this.sessions.get(sessionId);
     if (session?.abortController) session.abortController.abort();
     this.sessions.delete(sessionId);

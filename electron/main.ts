@@ -1206,6 +1206,14 @@ function setupIpc() {
     agentService.deleteSession(sessionId);
   });
 
+  ipcMain.handle("agent:approve", (_event, sessionId: string, requestId: string) => {
+    agentService.approve(sessionId, requestId);
+  });
+
+  ipcMain.handle("agent:deny", (_event, sessionId: string, requestId: string, reason?: string) => {
+    agentService.deny(sessionId, requestId, reason);
+  });
+
   // ── Secure storage (safeStorage) ──────────────────────────────
   ipcMain.handle("secure:is-available", () => safeStorage.isEncryptionAvailable());
 
