@@ -2,10 +2,8 @@ interface AgentStatusBarProps {
   generating: boolean;
   tokenUsage: { input: number; output: number } | null;
   model?: string;
-  toolsCount?: number;
   costUsd?: number;
   durationMs?: number;
-  numTurns?: number;
   isDark: boolean;
 }
 

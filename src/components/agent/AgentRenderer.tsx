@@ -84,7 +84,6 @@ export function AgentRenderer({ terminalId: _, sessionId, height, width }: Agent
     switch (event.type) {
       case "stream_start":
         setRunning(true);
-        setSegments([]);
         setErrors([]);
         lastSegmentRef.current = null;
         break;
@@ -301,10 +300,8 @@ export function AgentRenderer({ terminalId: _, sessionId, height, width }: Agent
         generating={running}
         tokenUsage={tokenUsage}
         model={statusInfo.model}
-        toolsCount={statusInfo.toolsCount}
         costUsd={statusInfo.costUsd}
         durationMs={statusInfo.durationMs}
-        numTurns={statusInfo.numTurns}
         isDark={isDark}
       />
 

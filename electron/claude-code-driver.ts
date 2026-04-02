@@ -233,9 +233,13 @@ export class ClaudeCodeDriver {
     }
   }
 
-  /** Register an event listener. */
-  onEvent(callback: (event: AgentStreamEvent) => void): void {
+  /** Register an event listener. Returns an unsubscribe function. */
+  onEvent(callback: (event: AgentStreamEvent) => void): () => void {
     this.listeners.push(callback);
+    return () => {
+      const idx = this.listeners.indexOf(callback);
+      if (idx !== -1) this.listeners.splice(idx, 1);
+    };
   }
 
   /** Graceful shutdown: interrupt then wait for exit. */
@@ -245,11 +249,11 @@ export class ClaudeCodeDriver {
 
     if (!this.proc) return;
 
-    // Send interrupt control_request to end session gracefully
+    // Send end_session control_request to end session gracefully
     this.writeStdin({
       type: "control_request",
       request_id: `shutdown-${Date.now()}`,
-      request: { subtype: "interrupt" },
+      request: { subtype: "end_session" },
     });
 
     // Wait for exit with a timeout
@@ -374,16 +378,10 @@ export class ClaudeCodeDriver {
     }
   }
 
-  private handleAssistant(msg: CCAssistantMessage): void {
-    const content = msg.message?.content;
-    if (!Array.isArray(content)) return;
-
-    for (const block of content) {
-      if (block.type === "tool_use") {
-        const tu = block as { type: "tool_use"; id: string; name: string; input: Record<string, unknown> };
-        this.emit({ type: "tool_use_start", id: tu.id, name: tu.name });
-      }
-    }
+  private handleAssistant(_msg: CCAssistantMessage): void {
+    // tool_use blocks are already emitted via content_block_start in
+    // handleStreamEvent, so we intentionally skip re-emitting here to
+    // avoid duplicate ToolCards in the UI.
   }
 
   private handleToolProgress(msg: CCToolProgress): void {

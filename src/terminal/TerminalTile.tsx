@@ -325,16 +325,22 @@ export function TerminalTile({
     if (!useAgentRenderer) return;
     const el = agentBodyRef.current;
     if (!el) return;
+    let rafId = 0;
     const observer = new ResizeObserver(([entry]) => {
-      if (entry) {
+      if (!entry) return;
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
         setAgentBodySize({
           width: entry.contentRect.width,
           height: entry.contentRect.height,
         });
-      }
+      });
     });
     observer.observe(el);
-    return () => observer.disconnect();
+    return () => {
+      cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
   }, [useAgentRenderer]);
 
   useEffect(() => {
