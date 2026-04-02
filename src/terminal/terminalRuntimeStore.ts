@@ -94,6 +94,7 @@ interface ManagedTerminalRuntime {
   sessionCancel: (() => void) | null;
   started: boolean;
   telemetryTimer: ReturnType<typeof setInterval> | null;
+  usesAgentRenderer: boolean;
   waitingTimer: ReturnType<typeof setTimeout> | null;
   wasResumeAttempt: boolean;
   watchedSessionId: string | null;
@@ -963,6 +964,7 @@ function buildTerminalRuntime(
     sessionCancel: null,
     started: false,
     telemetryTimer: null,
+    usesAgentRenderer: meta.terminal.type === "claude",
     waitingTimer: null,
     wasResumeAttempt:
       !!meta.terminal.sessionId &&
@@ -1345,6 +1347,9 @@ export function attachTerminalContainer(
 
   runtime.attachOptions = options;
   if (runtime.xterm) {
+    return;
+  }
+  if (runtime.usesAgentRenderer) {
     return;
   }
 

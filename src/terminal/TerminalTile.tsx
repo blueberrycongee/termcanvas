@@ -32,6 +32,7 @@ import {
 } from "./focusScheduler";
 import { useSidebarDragStore } from "../stores/sidebarDragStore";
 import { TERMINAL_TYPE_CONFIG } from "./terminalTypeConfig";
+import { AgentRenderer } from "../components/agent/AgentRenderer";
 
 interface Props {
   lodMode: TerminalMountMode;
@@ -210,8 +211,11 @@ export function TerminalTile({
     (s) => s.terminals[terminal.id]?.previewText ?? "",
   );
   const [dragOver, setDragOver] = useState(false);
+  const agentBodyRef = useRef<HTMLDivElement>(null);
+  const [agentBodySize, setAgentBodySize] = useState<{ width: number; height: number } | null>(null);
 
   const isAgent = terminal.type === "claude" || terminal.type === "codex";
+  const useAgentRenderer = terminal.type === "claude";
   const isSummarizing = useIsSummarizing(terminal.id);
   const sidebarDragActive = useSidebarDragStore((s) => s.active);
 
@@ -307,7 +311,7 @@ export function TerminalTile({
   );
 
   useEffect(() => {
-    if (lodMode !== "live" || !containerRef.current) {
+    if (lodMode !== "live" || !containerRef.current || useAgentRenderer) {
       return;
     }
 
@@ -315,10 +319,27 @@ export function TerminalTile({
     return () => {
       detachTerminalContainer(terminal.id);
     };
-  }, [lodMode, terminal.id]);
+  }, [lodMode, terminal.id, useAgentRenderer]);
+
+  useEffect(() => {
+    if (!useAgentRenderer) return;
+    const el = agentBodyRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) {
+        setAgentBodySize({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
+        });
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [useAgentRenderer]);
 
   useEffect(() => {
     if (terminal.minimized || lodMode !== "live") return;
+    if (useAgentRenderer) return;
     if (isAgent && sidebarDragActive) return;
 
     const frame = requestAnimationFrame(() => {
@@ -326,7 +347,7 @@ export function TerminalTile({
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [height, isAgent, lodMode, sidebarDragActive, terminal.id, terminal.minimized, width]);
+  }, [height, isAgent, lodMode, sidebarDragActive, terminal.id, terminal.minimized, useAgentRenderer, width]);
 
   useEffect(() => {
     if (!isAgent || !sidebarDragActive) {
@@ -778,7 +799,25 @@ export function TerminalTile({
         </div>
       </div>
 
-      {lodMode === "live" ? (
+      {useAgentRenderer ? (
+        <div
+          ref={agentBodyRef}
+          className={terminal.minimized ? "relative" : "flex-1 min-h-0 relative"}
+          style={{
+            height: terminal.minimized ? 0 : undefined,
+            overflow: "hidden",
+          }}
+        >
+          {!terminal.minimized && agentBodySize && (
+            <AgentRenderer
+              terminalId={terminal.id}
+              sessionId={terminal.sessionId ?? ""}
+              width={agentBodySize.width}
+              height={agentBodySize.height}
+            />
+          )}
+        </div>
+      ) : lodMode === "live" ? (
         <div
           className={terminal.minimized ? "relative" : "flex-1 min-h-0 relative"}
           style={{
