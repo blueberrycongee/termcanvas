@@ -64,6 +64,10 @@ export { CostTracker, calculateTurnCost } from "./cost-tracker.ts";
 export type { CoordinatorPromptContext } from "./coordinator-prompt.ts";
 export { buildCoordinatorPrompt } from "./coordinator-prompt.ts";
 
+// Context injection
+export type { SystemPromptConfig, EphemeralContext } from "./context-injection.ts";
+export { buildFullSystemPrompt, buildSystemReminder, isSystemReminder, stripSystemReminders } from "./context-injection.ts";
+
 // Tool hooks
 export type {
   PermissionDecision,

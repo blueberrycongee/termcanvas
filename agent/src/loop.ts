@@ -27,6 +27,7 @@ import { categorizeError, isRetryableCategory, getRetryDelay } from "./errors.ts
 import { CostTracker } from "./cost-tracker.ts";
 import { shouldCompact, compactMessages, initialCompactionState } from "./compaction.ts";
 import { getContextWindow, getMaxOutputTokens } from "./model-registry.ts";
+import { buildFullSystemPrompt, buildSystemReminder, isSystemReminder } from "./context-injection.ts";
 
 // ---------------------------------------------------------------------------
 // Agent loop event — superset of stream events + loop-level events
@@ -100,6 +101,21 @@ export async function* agentLoop(
       }
     }
 
+    // ----- Resolve system prompt and ephemeral context -----
+    const resolvedSystemPrompt = options.systemPromptConfig
+      ? buildFullSystemPrompt(options.systemPromptConfig)
+      : options.systemPrompt;
+
+    if (options.ephemeralContext) {
+      const idx = messages.findIndex(isSystemReminder);
+      if (idx !== -1) messages.splice(idx, 1);
+
+      const ctx = typeof options.ephemeralContext === "function"
+        ? options.ephemeralContext()
+        : options.ephemeralContext;
+      messages.unshift(buildSystemReminder(ctx));
+    }
+
     // ----- Stream LLM response with error-category retry -----
     let assistantMessage: AssistantMessage | undefined;
     let retryCount = 0;
@@ -108,7 +124,7 @@ export async function* agentLoop(
       try {
         const stream = provider.stream({
           messages,
-          systemPrompt: options.systemPrompt,
+          systemPrompt: resolvedSystemPrompt,
           tools: toolSchemas,
           model: "",
           signal: options.signal,

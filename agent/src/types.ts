@@ -175,4 +175,10 @@ export interface AgentOptions {
 
   /** Pre/post tool execution hooks */
   hooks?: import("./tool-hooks.ts").ToolHooks;
+
+  /** Structured system prompt with static/dynamic split */
+  systemPromptConfig?: import("./context-injection.ts").SystemPromptConfig;
+
+  /** Ephemeral context injected as system-reminder each turn */
+  ephemeralContext?: import("./context-injection.ts").EphemeralContext | (() => import("./context-injection.ts").EphemeralContext);
 }
