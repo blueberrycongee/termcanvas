@@ -161,11 +161,13 @@ export class AgentService {
   private sendClaudeCode(sessionId: string, text: string, config: AgentConfig): void {
     let driver = this.drivers.get(sessionId);
     if (!driver) {
+      // Only resume if sessionId looks like a Claude Code UUID session
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId);
       driver = new ClaudeCodeDriver({
         sessionId,
         cwd: config.cwd ?? process.cwd(),
         model: config.model || undefined,
-        resumeSessionId: sessionId,
+        resumeSessionId: isUUID ? sessionId : undefined,
         env: { CLAUDE_CODE_NO_FLICKER: "0" },
       });
       driver.onEvent((event: AgentStreamEvent) => {
