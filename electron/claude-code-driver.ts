@@ -140,6 +140,7 @@ export class ClaudeCodeDriver {
   private readonly options: ClaudeCodeDriverOptions;
   private emittedToolIds = new Set<string>();
   private streamedText = false;
+  cachedSlashCommands: string[] | null = null;
 
   constructor(options: ClaudeCodeDriverOptions) {
     this.options = options;
@@ -377,6 +378,9 @@ export class ClaudeCodeDriver {
         session_id: msg.session_id,
         slash_commands: Array.isArray(msg.slash_commands) ? msg.slash_commands as string[] : undefined,
       });
+      if (Array.isArray(msg.slash_commands)) {
+        this.cachedSlashCommands = msg.slash_commands as string[];
+      }
     }
   }
 

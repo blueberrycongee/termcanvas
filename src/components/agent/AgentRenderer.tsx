@@ -84,7 +84,6 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
     if (!window.termcanvas?.agent) return;
 
     // Start Claude Code process eagerly so system_init (with slash_commands) arrives before user types
-    console.log("[AgentRenderer] calling agent.start");
     window.termcanvas.agent.start(sessionId, {
       type: "claude-code",
       baseURL: "",
@@ -92,7 +91,11 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
       model: "",
       cwd,
       resumeSessionId,
-    }).then(() => console.log("[AgentRenderer] start resolved")).catch((e: unknown) => console.error("[AgentRenderer] start error:", e));
+    }).then((result: { slashCommands?: string[] } | void) => {
+      if (result && result.slashCommands?.length) {
+        setSlashCommands(result.slashCommands);
+      }
+    }).catch(() => {});
 
     const unsubscribe = window.termcanvas.agent.onEvent(
       (evtSessionId: string, event: AgentStreamEvent) => {
