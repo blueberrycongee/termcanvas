@@ -375,6 +375,7 @@ export class ClaudeCodeDriver {
         model: msg.model as string | undefined,
         tools_count: typeof msg.tools === "number" ? msg.tools : Array.isArray(msg.tools) ? (msg.tools as unknown[]).length : undefined,
         session_id: msg.session_id,
+        slash_commands: Array.isArray(msg.slash_commands) ? msg.slash_commands as string[] : undefined,
       });
     }
   }

@@ -324,7 +324,7 @@ export type AgentStreamEvent =
   | { type: "message_start"; usage?: { input_tokens: number; output_tokens: number } }
   | { type: "message_delta"; stop_reason: string | null }
   | { type: "approval_request"; request_id: string; tool_name: string; tool_input: Record<string, unknown> }
-  | { type: "system_init"; model?: string; tools_count?: number; session_id?: string }
+  | { type: "system_init"; model?: string; tools_count?: number; session_id?: string; slash_commands?: string[] }
   | { type: "result_info"; cost_usd?: number; input_tokens?: number; output_tokens?: number; duration_ms?: number; num_turns?: number };
 
 // Preload API types

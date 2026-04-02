@@ -71,6 +71,7 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
   const [tokenUsage, setTokenUsage] = useState<{ input: number; output: number } | null>(null);
   const [errors, setErrors] = useState<ErrorBanner[]>([]);
   const [statusInfo, setStatusInfo] = useState<StatusInfo>({});
+  const [slashCommands, setSlashCommands] = useState<string[]>([]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [userScrolledUp, setUserScrolledUp] = useState(false);
@@ -230,6 +231,9 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
           model: event.model,
           toolsCount: event.tools_count,
         }));
+        if (event.slash_commands) {
+          setSlashCommands(event.slash_commands);
+        }
         if (event.session_id) {
           useProjectStore.getState().updateTerminalSessionId(
             projectId, worktreeId, terminalId, event.session_id,
@@ -427,6 +431,7 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
         onSend={handleSend}
         onAbort={handleAbort}
         isDark={isDark}
+        slashCommands={slashCommands}
       />
     </div>
   );
