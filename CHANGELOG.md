@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.24.1] - 2026-04-03
+
+### Fixed
+- Terminal white screen: xterm never created because containerRef was null when useEffect ran; switched to callback ref so container availability triggers attachment
+
 ## [0.24.0] - 2026-04-03
 
 ### Added
