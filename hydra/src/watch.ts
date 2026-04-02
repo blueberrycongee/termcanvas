@@ -1,8 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { collectTaskPackage, type CollectTaskPackageResult } from "./collector.ts";
+import {
+  dispatchCreateOnly as defaultDispatchCreateOnly,
+  type DispatchCreateOnlyRequest,
+  type DispatchCreateOnlyResult,
+} from "./dispatcher.ts";
 import type { HandoffContract, ResultContract } from "./protocol.ts";
-import { loadAgent, type AgentRecord } from "./store.ts";
+import { loadAgent, saveAgent as defaultSaveAgent, type AgentRecord } from "./store.ts";
 import { enrichWorkflowStatusView } from "./telemetry.ts";
 import { isTermCanvasRunning, telemetryTerminal } from "./termcanvas.ts";
 import { watchWorkflow } from "./workflow.ts";
@@ -20,12 +25,18 @@ export interface AgentStatusView {
   };
   result?: ResultContract;
   failure?: { code: string; message: string; stage: string };
+  telemetry?: {
+    turn_state?: string;
+    foreground_tool?: string;
+    last_meaningful_progress_at?: string;
+  };
 }
 
 export interface WatchAgentOptions {
   agentId: string;
   intervalMs: number;
   timeoutMs?: number;
+  maxRetries?: number;
 }
 
 export interface WatchAgentDependencies {
@@ -33,6 +44,9 @@ export interface WatchAgentDependencies {
   sleep?: (ms: number) => Promise<void>;
   loadAgent?: (id: string) => AgentRecord | null;
   checkTerminalAlive?: (terminalId: string) => boolean | null;
+  telemetryTerminal?: (terminalId: string) => any;
+  dispatchCreateOnly?: (request: DispatchCreateOnlyRequest) => Promise<DispatchCreateOnlyResult>;
+  saveAgent?: (record: AgentRecord) => void;
 }
 
 const DEFAULT_SLEEP = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -47,6 +61,11 @@ function defaultCheckTerminalAlive(terminalId: string): boolean | null {
   }
 }
 
+function defaultAgentTelemetry(terminalId: string): any {
+  if (!isTermCanvasRunning()) return null;
+  return telemetryTerminal(terminalId);
+}
+
 function readHandoffContract(filePath: string): HandoffContract | null {
   try {
     return JSON.parse(fs.readFileSync(filePath, "utf-8")) as HandoffContract;
@@ -55,7 +74,11 @@ function readHandoffContract(filePath: string): HandoffContract | null {
   }
 }
 
-function buildStatusView(agent: AgentRecord, collected: CollectTaskPackageResult): AgentStatusView {
+function buildStatusView(
+  agent: AgentRecord,
+  collected: CollectTaskPackageResult,
+  telemetryData?: AgentStatusView["telemetry"],
+): AgentStatusView {
   const base = {
     id: agent.id,
     task: agent.task,
@@ -70,7 +93,7 @@ function buildStatusView(agent: AgentRecord, collected: CollectTaskPackageResult
   if (collected.status === "failed") {
     return { agent: { ...base, status: "failed" }, failure: collected.failure };
   }
-  return { agent: { ...base, status: "running" } };
+  return { agent: { ...base, status: "running" }, telemetry: telemetryData };
 }
 
 export async function watchAgent(
@@ -81,6 +104,10 @@ export async function watchAgent(
   const sleep = dependencies.sleep ?? DEFAULT_SLEEP;
   const load = dependencies.loadAgent ?? loadAgent;
   const checkAlive = dependencies.checkTerminalAlive ?? defaultCheckTerminalAlive;
+  const getTelemetry = dependencies.telemetryTerminal ?? defaultAgentTelemetry;
+  const dispatch = dependencies.dispatchCreateOnly ?? defaultDispatchCreateOnly;
+  const save = dependencies.saveAgent ?? defaultSaveAgent;
+  const maxRetries = options.maxRetries ?? 1;
   const startedAtMs = Date.parse(now());
 
   const agent = load(options.agentId);
@@ -131,6 +158,8 @@ export async function watchAgent(
     };
   }
 
+  let retryCount = 0;
+
   while (true) {
     const collected = collectTaskPackage(contract);
 
@@ -138,26 +167,64 @@ export async function watchAgent(
       return buildStatusView(agent, collected);
     }
 
-    // Terminal died without producing result → failed
+    // Enrich running state with telemetry
+    let telemetryData: AgentStatusView["telemetry"];
+    try {
+      const t = getTelemetry(agent.terminalId);
+      if (t) {
+        telemetryData = {
+          turn_state: t.turn_state,
+          foreground_tool: t.foreground_tool,
+          last_meaningful_progress_at: t.last_meaningful_progress_at,
+        };
+      }
+    } catch {
+      // Telemetry unavailable — continue without it
+    }
+
+    // Terminal died without producing result → retry or fail
     const alive = checkAlive(agent.terminalId);
     if (alive === false) {
-      return {
-        agent: {
-          id: agent.id, status: "failed", task: agent.task, type: agent.type,
-          terminalId: agent.terminalId, worktreePath: agent.worktreePath,
-        },
-        failure: {
-          code: "AGENT_TERMINAL_DEAD",
-          message: `Terminal ${agent.terminalId} is no longer running`,
-          stage: "watch.check_terminal",
-        },
-      };
+      if (
+        retryCount >= maxRetries ||
+        !agent.workflowId || !agent.handoffId ||
+        !agent.taskFile || !agent.doneFile || !agent.resultFile
+      ) {
+        return {
+          agent: {
+            id: agent.id, status: "failed", task: agent.task, type: agent.type,
+            terminalId: agent.terminalId, worktreePath: agent.worktreePath,
+          },
+          failure: {
+            code: "AGENT_TERMINAL_DEAD",
+            message: `Terminal ${agent.terminalId} is no longer running (retries exhausted: ${retryCount}/${maxRetries})`,
+            stage: "watch.check_terminal",
+          },
+        };
+      }
+
+      retryCount++;
+      const dispatched = await dispatch({
+        workflowId: agent.workflowId,
+        handoffId: agent.handoffId,
+        repoPath: agent.repo,
+        worktreePath: agent.worktreePath,
+        agentType: agent.type,
+        taskFile: agent.taskFile,
+        doneFile: agent.doneFile,
+        resultFile: agent.resultFile,
+        autoApprove: true,
+        parentTerminalId: process.env.TERMCANVAS_TERMINAL_ID,
+      });
+      agent.terminalId = dispatched.terminalId;
+      save(agent);
+      continue;
     }
 
     // Timeout check
     const elapsedMs = Date.parse(now()) - startedAtMs;
     if (options.timeoutMs !== undefined && elapsedMs >= options.timeoutMs) {
-      return buildStatusView(agent, collected);
+      return buildStatusView(agent, collected, telemetryData);
     }
 
     await sleep(options.intervalMs);
