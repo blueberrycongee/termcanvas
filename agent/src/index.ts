@@ -64,6 +64,19 @@ export { CostTracker, calculateTurnCost } from "./cost-tracker.ts";
 export type { CoordinatorPromptContext } from "./coordinator-prompt.ts";
 export { buildCoordinatorPrompt } from "./coordinator-prompt.ts";
 
+// Tool hooks
+export type {
+  PermissionDecision,
+  PreHook,
+  PreHookContext,
+  PreHookResult,
+  PostHook,
+  PostHookContext,
+  PostHookResult,
+  ToolHooks,
+} from "./tool-hooks.ts";
+export { runPreHooks, runPostHooks } from "./tool-hooks.ts";
+
 // Built-in providers
 export { AnthropicProvider } from "./provider/anthropic.ts";
 export { OpenAIProvider } from "./provider/openai.ts";

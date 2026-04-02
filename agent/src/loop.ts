@@ -299,6 +299,7 @@ export async function* agentLoop(
         options.onToolEnd?.(name, result);
       },
       pendingTasks,
+      options.hooks,
     );
 
     // Emit task_pending events for newly registered background tasks

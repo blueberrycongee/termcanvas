@@ -172,4 +172,7 @@ export interface AgentOptions {
 
   /** Model to switch to after max_output_tokens recovery exhausts retries */
   fallbackModel?: string;
+
+  /** Pre/post tool execution hooks */
+  hooks?: import("./tool-hooks.ts").ToolHooks;
 }
