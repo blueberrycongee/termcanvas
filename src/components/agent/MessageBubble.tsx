@@ -2,6 +2,7 @@ import { useCallback } from "react";
 
 interface MessageBubbleProps {
   text: string;
+  isDark: boolean;
 }
 
 interface ParsedSegment {
@@ -34,9 +35,8 @@ function parseCodeBlocks(text: string): ParsedSegment[] {
   return segments;
 }
 
-function renderInlineMarkdown(text: string): React.ReactNode[] {
+function renderInlineMarkdown(text: string, isDark: boolean): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
-  // Combined regex for inline code, bold, italic, and links
   const inline = /`([^`]+)`|\*\*(.+?)\*\*|\*(.+?)\*|\[([^\]]+)\]\(([^)]+)\)/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -48,14 +48,14 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
     }
     if (match[1] !== undefined) {
       nodes.push(
-        <code key={key++} className="bg-zinc-800 text-emerald-300 px-1 py-0.5 rounded text-[0.85em] font-mono">
+        <code key={key++} className={`px-1 py-0.5 rounded text-[0.85em] font-mono ${isDark ? "bg-zinc-800 text-emerald-300" : "bg-zinc-200 text-emerald-700"}`}>
           {match[1]}
         </code>,
       );
     } else if (match[2] !== undefined) {
-      nodes.push(<strong key={key++} className="font-semibold text-zinc-50">{match[2]}</strong>);
+      nodes.push(<strong key={key++} className={`font-semibold ${isDark ? "text-zinc-50" : "text-zinc-900"}`}>{match[2]}</strong>);
     } else if (match[3] !== undefined) {
-      nodes.push(<em key={key++} className="italic text-zinc-300">{match[3]}</em>);
+      nodes.push(<em key={key++} className={`italic ${isDark ? "text-zinc-300" : "text-zinc-600"}`}>{match[3]}</em>);
     } else if (match[4] !== undefined && match[5] !== undefined) {
       nodes.push(
         <a
@@ -63,7 +63,7 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
           href={match[5]}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-emerald-400 underline underline-offset-2 hover:text-emerald-300"
+          className={`underline underline-offset-2 ${isDark ? "text-emerald-400 hover:text-emerald-300" : "text-emerald-600 hover:text-emerald-500"}`}
         >
           {match[4]}
         </a>,
@@ -78,7 +78,7 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
   return nodes;
 }
 
-function CopyButton({ text }: { text: string }) {
+function CopyButton({ text, isDark }: { text: string; isDark: boolean }) {
   const handleCopy = useCallback(async () => {
     await navigator.clipboard.writeText(text);
   }, [text]);
@@ -86,7 +86,7 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="text-zinc-500 hover:text-zinc-300 transition-colors duration-150 p-1"
+      className={`transition-colors duration-150 p-1 ${isDark ? "text-zinc-500 hover:text-zinc-300" : "text-zinc-400 hover:text-zinc-600"}`}
       title="Copy code"
     >
       <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
@@ -97,22 +97,22 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-export function MessageBubble({ text }: MessageBubbleProps) {
+export function MessageBubble({ text, isDark }: MessageBubbleProps) {
   const segments = parseCodeBlocks(text);
 
   return (
-    <div className="text-sm text-zinc-100 leading-relaxed font-sans">
+    <div className={`text-sm leading-relaxed font-sans ${isDark ? "text-zinc-100" : "text-zinc-900"}`}>
       {segments.map((seg, i) => {
         if (seg.type === "code_block") {
           return (
-            <div key={i} className="my-2 rounded-md bg-zinc-950 border border-zinc-800 overflow-hidden">
-              <div className="flex items-center justify-between px-3 py-1 bg-zinc-900 border-b border-zinc-800">
-                <span className="text-[10px] text-zinc-500 uppercase tracking-wider">
+            <div key={i} className={`my-2 rounded-md overflow-hidden border ${isDark ? "bg-zinc-950 border-zinc-800" : "bg-zinc-100 border-zinc-300"}`}>
+              <div className={`flex items-center justify-between px-3 py-1 border-b ${isDark ? "bg-zinc-900 border-zinc-800" : "bg-zinc-200 border-zinc-300"}`}>
+                <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-zinc-500" : "text-zinc-500"}`}>
                   {seg.language || "code"}
                 </span>
-                <CopyButton text={seg.content} />
+                <CopyButton text={seg.content} isDark={isDark} />
               </div>
-              <pre className="px-3 py-2 overflow-x-auto text-xs font-mono text-zinc-300 leading-relaxed">
+              <pre className={`px-3 py-2 overflow-x-auto text-xs font-mono leading-relaxed ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>
                 <code>{seg.content}</code>
               </pre>
             </div>
@@ -120,7 +120,7 @@ export function MessageBubble({ text }: MessageBubbleProps) {
         }
         return (
           <span key={i} className="whitespace-pre-wrap">
-            {renderInlineMarkdown(seg.content)}
+            {renderInlineMarkdown(seg.content, isDark)}
           </span>
         );
       })}

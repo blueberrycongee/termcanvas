@@ -3,15 +3,16 @@ import { useState } from "react";
 interface ThinkingBlockProps {
   text: string;
   streaming: boolean;
+  isDark: boolean;
 }
 
-export function ThinkingBlock({ text, streaming }: ThinkingBlockProps) {
+export function ThinkingBlock({ text, streaming, isDark }: ThinkingBlockProps) {
   const [expanded, setExpanded] = useState(false);
 
   return (
     <div className="my-1">
       <button
-        className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors duration-150"
+        className={`flex items-center gap-1.5 text-xs transition-colors duration-150 ${isDark ? "text-zinc-500 hover:text-zinc-300" : "text-zinc-400 hover:text-zinc-600"}`}
         onClick={() => setExpanded((v) => !v)}
       >
         <svg
@@ -27,7 +28,7 @@ export function ThinkingBlock({ text, streaming }: ThinkingBlockProps) {
         </span>
       </button>
       {expanded && (
-        <div className="mt-1 pl-4 text-xs text-zinc-500 italic whitespace-pre-wrap leading-relaxed">
+        <div className={`mt-1 pl-4 text-xs italic whitespace-pre-wrap leading-relaxed ${isDark ? "text-zinc-500" : "text-zinc-400"}`}>
           {text}
         </div>
       )}

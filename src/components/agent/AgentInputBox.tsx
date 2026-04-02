@@ -2,11 +2,12 @@ import { useCallback, useRef } from "react";
 
 interface AgentInputBoxProps {
   running: boolean;
+  isDark: boolean;
   onSend: (text: string) => void;
   onAbort: () => void;
 }
 
-export function AgentInputBox({ running, onSend, onAbort }: AgentInputBoxProps) {
+export function AgentInputBox({ running, isDark, onSend, onAbort }: AgentInputBoxProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleKeyDown = useCallback(
@@ -25,7 +26,7 @@ export function AgentInputBox({ running, onSend, onAbort }: AgentInputBoxProps) 
   );
 
   return (
-    <div className="shrink-0 border-t border-zinc-700 px-3 py-2 bg-zinc-900">
+    <div className={`shrink-0 border-t px-3 py-2 ${isDark ? "border-zinc-700 bg-zinc-900" : "border-zinc-200 bg-white"}`}>
       <div className="relative">
         <textarea
           ref={textareaRef}
@@ -33,11 +34,15 @@ export function AgentInputBox({ running, onSend, onAbort }: AgentInputBoxProps) 
           placeholder={running ? "Agent is working..." : "Send a message..."}
           disabled={running}
           onKeyDown={handleKeyDown}
-          className="w-full resize-none rounded-md border border-zinc-700 bg-zinc-800 pl-3 pr-10 py-2 text-sm text-zinc-100 outline-none transition-colors duration-150 placeholder:text-zinc-500 focus:border-emerald-600 disabled:opacity-50"
+          className={`w-full resize-none rounded-md border pl-3 pr-10 py-2 text-sm outline-none transition-colors duration-150 disabled:opacity-50 ${
+            isDark
+              ? "border-zinc-700 bg-zinc-800 text-zinc-100 placeholder:text-zinc-500 focus:border-emerald-600"
+              : "border-zinc-300 bg-zinc-50 text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-500"
+          }`}
         />
         {running ? (
           <button
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-red-400 transition-colors duration-150 p-1"
+            className={`absolute right-2 top-1/2 -translate-y-1/2 transition-colors duration-150 p-1 ${isDark ? "text-zinc-500 hover:text-red-400" : "text-zinc-400 hover:text-red-500"}`}
             onClick={onAbort}
             aria-label="Stop"
           >
@@ -47,7 +52,7 @@ export function AgentInputBox({ running, onSend, onAbort }: AgentInputBoxProps) 
           </button>
         ) : (
           <button
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-emerald-400 transition-colors duration-150 p-1"
+            className={`absolute right-2 top-1/2 -translate-y-1/2 transition-colors duration-150 p-1 ${isDark ? "text-zinc-500 hover:text-emerald-400" : "text-zinc-400 hover:text-emerald-500"}`}
             onClick={() => {
               const value = textareaRef.current?.value.trim();
               if (value) {

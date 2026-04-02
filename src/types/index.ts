@@ -323,7 +323,9 @@ export type AgentStreamEvent =
   | { type: "error"; error: { message: string } }
   | { type: "message_start"; usage?: { input_tokens: number; output_tokens: number } }
   | { type: "message_delta"; stop_reason: string | null }
-  | { type: "approval_request"; request_id: string; tool_name: string; tool_input: Record<string, unknown> };
+  | { type: "approval_request"; request_id: string; tool_name: string; tool_input: Record<string, unknown> }
+  | { type: "system_init"; model?: string; tools_count?: number; session_id?: string }
+  | { type: "result_info"; cost_usd?: number; input_tokens?: number; output_tokens?: number; duration_ms?: number; num_turns?: number };
 
 // Preload API types
 export interface TermCanvasAPI {

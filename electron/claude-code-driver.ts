@@ -339,6 +339,12 @@ export class ClaudeCodeDriver {
   private handleSystem(msg: CCSystemInit): void {
     if (msg.subtype === "init") {
       this.emit({ type: "stream_start" });
+      this.emit({
+        type: "system_init",
+        model: msg.model as string | undefined,
+        tools_count: typeof msg.tools === "number" ? msg.tools : Array.isArray(msg.tools) ? (msg.tools as unknown[]).length : undefined,
+        session_id: msg.session_id,
+      });
     }
   }
 
@@ -393,6 +399,14 @@ export class ClaudeCodeDriver {
       const errorText = typeof msg.result === "string" ? msg.result : "Unknown error";
       this.emit({ type: "error", error: { message: errorText } });
     }
+    this.emit({
+      type: "result_info",
+      cost_usd: typeof msg.cost_usd === "number" ? msg.cost_usd : typeof msg.total_cost_usd === "number" ? msg.total_cost_usd : undefined,
+      input_tokens: typeof msg.input_tokens === "number" ? msg.input_tokens : (msg.usage as Record<string, unknown> | undefined)?.input_tokens as number | undefined,
+      output_tokens: typeof msg.output_tokens === "number" ? msg.output_tokens : (msg.usage as Record<string, unknown> | undefined)?.output_tokens as number | undefined,
+      duration_ms: typeof msg.duration_ms === "number" ? msg.duration_ms : undefined,
+      num_turns: typeof msg.num_turns === "number" ? msg.num_turns : undefined,
+    });
     this.emit({ type: "stream_end" });
   }
 

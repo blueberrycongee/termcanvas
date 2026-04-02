@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AgentStreamEvent } from "../../types";
+import { useThemeStore } from "../../stores/themeStore";
 import { MessageBubble } from "./MessageBubble";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { ToolCard } from "./ToolCard";
 import { AgentInputBox } from "./AgentInputBox";
 import { AgentStatusBar } from "./AgentStatusBar";
 
-// Internal message model accumulated from stream events
 interface ThinkingSegment {
   kind: "thinking";
   text: string;
@@ -30,6 +30,21 @@ interface ToolSegment {
 
 type MessageSegment = ThinkingSegment | TextSegment | ToolSegment;
 
+interface ErrorBanner {
+  id: number;
+  message: string;
+}
+
+interface StatusInfo {
+  model?: string;
+  toolsCount?: number;
+  costUsd?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  durationMs?: number;
+  numTurns?: number;
+}
+
 interface AgentRendererProps {
   terminalId: string;
   sessionId: string;
@@ -37,17 +52,22 @@ interface AgentRendererProps {
   width: number;
 }
 
+let errorIdCounter = 0;
+
 export function AgentRenderer({ terminalId: _, sessionId, height, width }: AgentRendererProps) {
+  const isDark = useThemeStore((s) => s.theme) === "dark";
   const [segments, setSegments] = useState<MessageSegment[]>([]);
   const [running, setRunning] = useState(false);
   const [tokenUsage, setTokenUsage] = useState<{ input: number; output: number } | null>(null);
+  const [errors, setErrors] = useState<ErrorBanner[]>([]);
+  const [statusInfo, setStatusInfo] = useState<StatusInfo>({});
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [userScrolledUp, setUserScrolledUp] = useState(false);
   const autoScrollRef = useRef(true);
   const lastSegmentRef = useRef<"text" | "thinking" | "tool" | null>(null);
+  const [hasNewMessages, setHasNewMessages] = useState(false);
 
-  // Subscribe to agent events
   useEffect(() => {
     if (!window.termcanvas?.agent) return;
 
@@ -65,12 +85,12 @@ export function AgentRenderer({ terminalId: _, sessionId, height, width }: Agent
       case "stream_start":
         setRunning(true);
         setSegments([]);
+        setErrors([]);
         lastSegmentRef.current = null;
         break;
 
       case "stream_end":
         setRunning(false);
-        // Mark any streaming thinking as done
         setSegments((prev) =>
           prev.map((s) =>
             s.kind === "thinking" && s.streaming ? { ...s, streaming: false } : s,
@@ -79,6 +99,7 @@ export function AgentRenderer({ terminalId: _, sessionId, height, width }: Agent
         break;
 
       case "text_delta":
+        if (!autoScrollRef.current) setHasNewMessages(true);
         setSegments((prev) => {
           if (lastSegmentRef.current === "text" && prev.length > 0) {
             const last = prev[prev.length - 1];
@@ -105,6 +126,7 @@ export function AgentRenderer({ terminalId: _, sessionId, height, width }: Agent
         break;
 
       case "tool_use_start":
+        if (!autoScrollRef.current) setHasNewMessages(true);
         lastSegmentRef.current = "tool";
         setSegments((prev) => [
           ...prev,
@@ -114,7 +136,6 @@ export function AgentRenderer({ terminalId: _, sessionId, height, width }: Agent
 
       case "tool_start":
         setSegments((prev) => {
-          // Update the last tool segment with input
           for (let i = prev.length - 1; i >= 0; i--) {
             if (prev[i].kind === "tool" && (prev[i] as ToolSegment).name === event.name) {
               const updated = [...prev];
@@ -164,7 +185,6 @@ export function AgentRenderer({ terminalId: _, sessionId, height, width }: Agent
             output: (prev?.output ?? 0) + event.usage!.output_tokens,
           }));
         }
-        // Close any streaming thinking from previous message
         setSegments((prev) =>
           prev.map((s) =>
             s.kind === "thinking" && s.streaming ? { ...s, streaming: false } : s,
@@ -174,7 +194,6 @@ export function AgentRenderer({ terminalId: _, sessionId, height, width }: Agent
         break;
 
       case "message_delta":
-        // Turn ended, finalize thinking
         setSegments((prev) =>
           prev.map((s) =>
             s.kind === "thinking" && s.streaming ? { ...s, streaming: false } : s,
@@ -184,12 +203,27 @@ export function AgentRenderer({ terminalId: _, sessionId, height, width }: Agent
         break;
 
       case "error":
-        lastSegmentRef.current = "text";
-        setSegments((prev) => [
-          ...prev,
-          { kind: "text", text: `Error: ${event.error.message}` },
-        ]);
+        setErrors((prev) => [...prev, { id: ++errorIdCounter, message: event.error.message }]);
         setRunning(false);
+        break;
+
+      case "system_init":
+        setStatusInfo((prev) => ({
+          ...prev,
+          model: event.model,
+          toolsCount: event.tools_count,
+        }));
+        break;
+
+      case "result_info":
+        setStatusInfo((prev) => ({
+          ...prev,
+          costUsd: event.cost_usd,
+          inputTokens: event.input_tokens,
+          outputTokens: event.output_tokens,
+          durationMs: event.duration_ms,
+          numTurns: event.num_turns,
+        }));
         break;
 
       case "turn_start":
@@ -198,7 +232,6 @@ export function AgentRenderer({ terminalId: _, sessionId, height, width }: Agent
     }
   }, []);
 
-  // Auto-scroll logic
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || !autoScrollRef.current) return;
@@ -211,6 +244,7 @@ export function AgentRenderer({ terminalId: _, sessionId, height, width }: Agent
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
     autoScrollRef.current = atBottom;
     setUserScrolledUp(!atBottom);
+    if (atBottom) setHasNewMessages(false);
   }, []);
 
   const scrollToBottom = useCallback(() => {
@@ -219,6 +253,11 @@ export function AgentRenderer({ terminalId: _, sessionId, height, width }: Agent
     el.scrollTop = el.scrollHeight;
     autoScrollRef.current = true;
     setUserScrolledUp(false);
+    setHasNewMessages(false);
+  }, []);
+
+  const dismissError = useCallback((id: number) => {
+    setErrors((prev) => prev.filter((e) => e.id !== id));
   }, []);
 
   const handleSend = useCallback(
@@ -255,10 +294,19 @@ export function AgentRenderer({ terminalId: _, sessionId, height, width }: Agent
 
   return (
     <div
-      className="flex flex-col bg-zinc-900 text-zinc-100 overflow-hidden"
+      className={`flex flex-col overflow-hidden ${isDark ? "bg-zinc-900 text-zinc-100" : "bg-white text-zinc-900"}`}
       style={{ height, width }}
     >
-      <AgentStatusBar generating={running} tokenUsage={tokenUsage} />
+      <AgentStatusBar
+        generating={running}
+        tokenUsage={tokenUsage}
+        model={statusInfo.model}
+        toolsCount={statusInfo.toolsCount}
+        costUsd={statusInfo.costUsd}
+        durationMs={statusInfo.durationMs}
+        numTurns={statusInfo.numTurns}
+        isDark={isDark}
+      />
 
       {/* Scrollable message area */}
       <div
@@ -270,9 +318,9 @@ export function AgentRenderer({ terminalId: _, sessionId, height, width }: Agent
           {segments.map((seg, i) => {
             switch (seg.kind) {
               case "text":
-                return <MessageBubble key={i} text={seg.text} />;
+                return <MessageBubble key={i} text={seg.text} isDark={isDark} />;
               case "thinking":
-                return <ThinkingBlock key={i} text={seg.text} streaming={seg.streaming} />;
+                return <ThinkingBlock key={i} text={seg.text} streaming={seg.streaming} isDark={isDark} />;
               case "tool":
                 return (
                   <ToolCard
@@ -284,32 +332,63 @@ export function AgentRenderer({ terminalId: _, sessionId, height, width }: Agent
                     approval={seg.approval ? { requestId: seg.approval.requestId, sessionId } : undefined}
                     onApprove={handleApprove}
                     onDeny={handleDeny}
+                    isDark={isDark}
                   />
                 );
             }
           })}
           {segments.length === 0 && !running && (
-            <div className="flex items-center justify-center h-32 text-zinc-600 text-sm">
+            <div className={`flex items-center justify-center h-32 text-sm ${isDark ? "text-zinc-600" : "text-zinc-400"}`}>
               Send a message to start
             </div>
           )}
         </div>
       </div>
 
-      {/* Scroll to bottom indicator */}
-      {userScrolledUp && running && (
-        <button
-          className="absolute bottom-16 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-zinc-700 text-zinc-300 text-xs shadow-lg hover:bg-zinc-600 transition-colors duration-150"
-          onClick={scrollToBottom}
-        >
-          Scroll to bottom
-        </button>
+      {/* Error banners */}
+      {errors.length > 0 && (
+        <div className="shrink-0 px-3 space-y-1">
+          {errors.map((err) => (
+            <div
+              key={err.id}
+              className="flex items-start gap-2 px-3 py-2 rounded-md bg-red-500/15 border border-red-500/30 text-red-400 text-xs"
+            >
+              <span className="flex-1 min-w-0 break-words">{err.message}</span>
+              <button
+                className="shrink-0 hover:text-red-300 transition-colors duration-150"
+                onClick={() => dismissError(err.id)}
+                aria-label="Dismiss error"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                  <path d="M2 2l8 8M10 2l-8 8" />
+                </svg>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Scroll to bottom / new messages */}
+      {userScrolledUp && (
+        <div className="relative shrink-0">
+          <button
+            className={`absolute bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs shadow-lg transition-colors duration-150 ${
+              isDark
+                ? "bg-zinc-700/80 text-zinc-300 hover:bg-zinc-600/90"
+                : "bg-zinc-200/80 text-zinc-700 hover:bg-zinc-300/90"
+            } backdrop-blur-sm`}
+            onClick={scrollToBottom}
+          >
+            {hasNewMessages ? "New messages" : "Scroll to bottom"}
+          </button>
+        </div>
       )}
 
       <AgentInputBox
         running={running}
         onSend={handleSend}
         onAbort={handleAbort}
+        isDark={isDark}
       />
     </div>
   );
