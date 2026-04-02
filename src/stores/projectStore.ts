@@ -697,31 +697,22 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
 
   compactProjectWorktrees: (projectId) => {
-    let changed = false;
-
     set((state) => {
       const updatedProjects = state.projects.map((project) => {
         if (project.id !== projectId) return project;
-
         const compactedWorktrees = compactWorktreeLayout(project.worktrees);
-        if (compactedWorktrees === project.worktrees) {
+        if (compactedWorktrees === project.worktrees && project.autoCompact) {
           return project;
         }
-
-        changed = true;
-        return { ...project, worktrees: compactedWorktrees };
+        return { ...project, autoCompact: true, worktrees: compactedWorktrees };
       });
 
-      if (!changed) {
+      if (updatedProjects.every((p, i) => p === state.projects[i])) {
         return state;
       }
-
       return { projects: resolveOverlaps(updatedProjects) };
     });
-
-    if (changed) {
-      markDirty();
-    }
+    markDirty();
   },
 
   bringToFront: (projectId) =>
@@ -742,6 +733,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             ? p
             : {
                 ...p,
+                autoCompact: false,
                 worktrees: p.worktrees.map((w) =>
                   w.id !== worktreeId ? w : { ...w, position: { x, y } },
                 ),
@@ -765,16 +757,26 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         focusedWorktreeId: removedFocusedWorktree
           ? null
           : state.focusedWorktreeId,
-        projects: resolveOverlaps(
-          state.projects.map((p) =>
+        projects: (() => {
+          const filtered = state.projects.map((p) =>
             p.id !== projectId
               ? p
               : {
                   ...p,
                   worktrees: p.worktrees.filter((w) => w.id !== worktreeId),
                 },
-          ),
-        ),
+          );
+          const project = filtered.find((p) => p.id === projectId);
+          return resolveOverlaps(
+            project?.autoCompact
+              ? filtered.map((p) =>
+                  p.id !== projectId
+                    ? p
+                    : { ...p, worktrees: compactWorktreeLayout(p.worktrees) },
+                )
+              : filtered,
+          );
+        })(),
       };
     });
     markDirty();
@@ -855,22 +857,32 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
 
   addTerminal: (projectId, worktreeId, terminal) => {
-    set((state) => ({
-      projects: resolveOverlaps(
-        state.projects.map((p) =>
-          p.id !== projectId
-            ? p
-            : {
-                ...p,
-                worktrees: p.worktrees.map((w) =>
-                  w.id !== worktreeId
-                    ? w
-                    : { ...w, terminals: [...w.terminals, terminal] },
-                ),
-              },
+    set((state) => {
+      const updated = state.projects.map((p) =>
+        p.id !== projectId
+          ? p
+          : {
+              ...p,
+              worktrees: p.worktrees.map((w) =>
+                w.id !== worktreeId
+                  ? w
+                  : { ...w, terminals: [...w.terminals, terminal] },
+              ),
+            },
+      );
+      const project = updated.find((p) => p.id === projectId);
+      return {
+        projects: resolveOverlaps(
+          project?.autoCompact
+            ? updated.map((p) =>
+                p.id !== projectId
+                  ? p
+                  : { ...p, worktrees: compactWorktreeLayout(p.worktrees) },
+              )
+            : updated,
         ),
-      ),
-    }));
+      };
+    });
     markDirty();
   },
 
@@ -896,24 +908,32 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         }
       }
 
+      const filtered = state.projects.map((p) =>
+        p.id !== projectId
+          ? p
+          : {
+              ...p,
+              worktrees: p.worktrees.map((w) =>
+                w.id !== worktreeId
+                  ? w
+                  : {
+                      ...w,
+                      terminals: w.terminals.filter(
+                        (t) => t.id !== terminalId,
+                      ),
+                    },
+              ),
+            },
+      );
+      const project = filtered.find((p) => p.id === projectId);
       const updatedProjects = resolveOverlaps(
-        state.projects.map((p) =>
-          p.id !== projectId
-            ? p
-            : {
-                ...p,
-                worktrees: p.worktrees.map((w) =>
-                  w.id !== worktreeId
-                    ? w
-                    : {
-                        ...w,
-                        terminals: w.terminals.filter(
-                          (t) => t.id !== terminalId,
-                        ),
-                      },
-                ),
-              },
-        ),
+        project?.autoCompact
+          ? filtered.map((p) =>
+              p.id !== projectId
+                ? p
+                : { ...p, worktrees: compactWorktreeLayout(p.worktrees) },
+            )
+          : filtered,
       );
 
       if (!wasFocused) {
@@ -1068,17 +1088,27 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
 
   updateTerminalSpan: (projectId, worktreeId, terminalId, span) => {
-    set((state) => ({
-      projects: resolveOverlaps(
-        mapTerminals(
-          state.projects,
-          projectId,
-          worktreeId,
-          terminalId,
-          (t) => ({ ...t, span }),
+    set((state) => {
+      const updated = mapTerminals(
+        state.projects,
+        projectId,
+        worktreeId,
+        terminalId,
+        (t) => ({ ...t, span }),
+      );
+      const project = updated.find((p) => p.id === projectId);
+      return {
+        projects: resolveOverlaps(
+          project?.autoCompact
+            ? updated.map((p) =>
+                p.id !== projectId
+                  ? p
+                  : { ...p, worktrees: compactWorktreeLayout(p.worktrees) },
+              )
+            : updated,
         ),
-      ),
-    }));
+      };
+    });
     markDirty();
   },
 

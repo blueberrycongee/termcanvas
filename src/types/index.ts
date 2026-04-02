@@ -130,6 +130,7 @@ export interface ProjectData {
   position: Position;
   collapsed: boolean;
   zIndex: number;
+  autoCompact?: boolean;
   worktrees: WorktreeData[];
 }
 
