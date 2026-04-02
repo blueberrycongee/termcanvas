@@ -471,9 +471,8 @@ export class TelemetryService {
       ...process,
     }));
 
-    // Don't let stale ps data overwrite hook-set foreground_tool
-    const hookToolFresh = this.now() - state.lastHookToolAt < 5_000;
-    if (!hookToolFresh) {
+    // Don't let ps data overwrite hook-set foreground_tool while a tool is running
+    if (!state.pendingPreToolUse) {
       state.snapshot.foreground_tool = snapshot.foregroundTool ?? undefined;
     }
 
