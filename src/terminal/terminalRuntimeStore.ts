@@ -80,6 +80,7 @@ interface ManagedTerminalRuntime {
   ptyPromise: Promise<void> | null;
   previewAnsi: string;
   hookFallbackTimer: ReturnType<typeof setTimeout> | null;
+  lastPushAt: number;
   lastTurnCompletedAt: number;
   removeHookSessionStarted: (() => void) | null;
   removeHookTurnComplete: (() => void) | null;
@@ -948,6 +949,7 @@ function buildTerminalRuntime(
     ptyPromise: null,
     previewAnsi: clampPreviewAnsi(meta.terminal.scrollback ?? ""),
     hookFallbackTimer: null,
+    lastPushAt: 0,
     lastTurnCompletedAt: 0,
     removeHookSessionStarted: null,
     removeHookTurnComplete: null,
@@ -1123,9 +1125,21 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
   runtime.started = true;
   setupRuntimeSubscriptions(runtime);
   refreshTelemetry(runtime);
-  runtime.telemetryTimer = setInterval(() => {
+
+  const TELEMETRY_POLL_SLOW = 30_000;
+  const TELEMETRY_POLL_FAST = 5_000;
+  const PUSH_STALE_THRESHOLD = 60_000;
+
+  // Adaptive polling: slow when push is active, fast when push goes silent
+  const telemetryTick = () => {
     refreshTelemetry(runtime);
-  }, 30_000);
+    const pushStale = runtime.lastPushAt > 0 &&
+      Date.now() - runtime.lastPushAt > PUSH_STALE_THRESHOLD;
+    const currentInterval = pushStale ? TELEMETRY_POLL_FAST : TELEMETRY_POLL_SLOW;
+    if (runtime.telemetryTimer) clearInterval(runtime.telemetryTimer);
+    runtime.telemetryTimer = setInterval(telemetryTick, currentInterval);
+  };
+  runtime.telemetryTimer = setInterval(telemetryTick, TELEMETRY_POLL_SLOW);
 
   // Push-based telemetry: immediate updates from hook events
   if (window.termcanvas.telemetry?.onSnapshotChanged) {
@@ -1133,6 +1147,7 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
     const removePush = window.termcanvas.telemetry.onSnapshotChanged((payload) => {
       if (payload.terminalId !== runtime.meta.terminal.id) return;
       if (runtime.disposed) return;
+      runtime.lastPushAt = Date.now();
 
       const snap = payload.snapshot as TerminalTelemetrySnapshot;
 
