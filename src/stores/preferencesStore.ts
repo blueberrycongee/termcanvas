@@ -27,6 +27,8 @@ interface PreferencesStore {
 
   /** Agent provider configuration */
   agentConfig: AgentProviderConfig;
+  /** True once the encrypted API key has been decrypted into memory */
+  apiKeyReady: boolean;
 
   setAnimationBlur: (value: number) => void;
   setMinimumContrastRatio: (value: number) => void;
@@ -43,6 +45,8 @@ interface PreferencesStore {
 }
 
 const STORAGE_KEY = "termcanvas-preferences";
+const SECURE_API_KEY_STORAGE_KEY = "termcanvas-secure-apikey";
+const PLAINTEXT_FALLBACK_PREFIX = "plain:";
 
 interface SavedPrefs {
   animationBlur: number;
@@ -84,12 +88,13 @@ function loadAgentConfig(parsed: Record<string, unknown>): AgentProviderConfig {
       name: (cfg.name as string) ?? "Anthropic",
       type: (cfg.type as "anthropic" | "openai") ?? "anthropic",
       baseURL: (cfg.baseURL as string) ?? "",
-      apiKey: (cfg.apiKey as string) ?? "",
+      apiKey: "",
       model: (cfg.model as string) ?? "",
     };
   }
-  // Old format — migrate
-  return migrateOldAgentFields(parsed);
+  // Old format — migrate (apiKey decrypted later by hydrateApiKey)
+  const migrated = migrateOldAgentFields(parsed);
+  return { ...migrated, apiKey: "" };
 }
 
 function loadPreferences(): SavedPrefs {
@@ -174,7 +179,85 @@ function loadPreferences(): SavedPrefs {
 }
 
 function savePreferences(state: SavedPrefs) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  const stripped = { ...state, agentConfig: { ...state.agentConfig, apiKey: "" } };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(stripped));
+  void saveApiKeySecure(state.agentConfig.apiKey);
+}
+
+async function saveApiKeySecure(apiKey: string): Promise<void> {
+  if (!apiKey) {
+    localStorage.removeItem(SECURE_API_KEY_STORAGE_KEY);
+    return;
+  }
+  if (!window.termcanvas?.secure) {
+    localStorage.setItem(SECURE_API_KEY_STORAGE_KEY, PLAINTEXT_FALLBACK_PREFIX + apiKey);
+    return;
+  }
+  try {
+    const encrypted = await window.termcanvas.secure.encrypt(apiKey);
+    localStorage.setItem(SECURE_API_KEY_STORAGE_KEY, encrypted);
+  } catch {
+    localStorage.setItem(SECURE_API_KEY_STORAGE_KEY, PLAINTEXT_FALLBACK_PREFIX + apiKey);
+  }
+}
+
+export async function hydrateApiKey(): Promise<void> {
+  const { getState, setState } = usePreferencesStore;
+
+  if (!window.termcanvas?.secure) {
+    // Not in Electron — fall back to legacy plaintext
+    const legacyKey = readLegacyApiKey();
+    if (legacyKey) {
+      getState().patchAgentConfig({ apiKey: legacyKey });
+    }
+    setState({ apiKeyReady: true });
+    return;
+  }
+
+  try {
+    const secureValue = localStorage.getItem(SECURE_API_KEY_STORAGE_KEY);
+    if (secureValue) {
+      let apiKey: string;
+      if (secureValue.startsWith(PLAINTEXT_FALLBACK_PREFIX)) {
+        apiKey = secureValue.slice(PLAINTEXT_FALLBACK_PREFIX.length);
+        // Attempt upgrade to encrypted now that we're running
+        try {
+          const encrypted = await window.termcanvas.secure.encrypt(apiKey);
+          localStorage.setItem(SECURE_API_KEY_STORAGE_KEY, encrypted);
+        } catch { /* keep plaintext fallback */ }
+      } else {
+        apiKey = await window.termcanvas.secure.decrypt(secureValue);
+      }
+      if (apiKey) {
+        getState().patchAgentConfig({ apiKey });
+      }
+      setState({ apiKeyReady: true });
+      return;
+    }
+
+    // Migration: legacy plaintext stored in preferences JSON
+    const legacyKey = readLegacyApiKey();
+    if (legacyKey) {
+      // patchAgentConfig triggers savePreferences → saveApiKeySecure (encrypts)
+      getState().patchAgentConfig({ apiKey: legacyKey });
+    }
+  } catch {
+    // Decryption or parse failure — discard corrupted data
+    localStorage.removeItem(SECURE_API_KEY_STORAGE_KEY);
+  }
+
+  setState({ apiKeyReady: true });
+}
+
+function readLegacyApiKey(): string {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return "";
+    const parsed = JSON.parse(raw);
+    return (parsed.agentConfig?.apiKey as string) ?? (parsed.agentApiKey as string) ?? "";
+  } catch {
+    return "";
+  }
 }
 
 function getSaveState(state: PreferencesStore): SavedPrefs {
@@ -207,6 +290,7 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   minimumContrastRatio: initialPrefs.minimumContrastRatio,
   cliCommands: initialPrefs.cliCommands,
   agentConfig: initialPrefs.agentConfig,
+  apiKeyReady: false,
 
   setAnimationBlur: (value) => {
     const clamped = Math.round(Math.max(0, Math.min(3, value)) * 10) / 10;

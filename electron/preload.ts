@@ -356,6 +356,11 @@ contextBridge.exposeInMainWorld("termcanvas", {
       return () => ipcRenderer.removeListener("auth:state-changed", listener);
     },
   },
+  secure: {
+    isAvailable: (): Promise<boolean> => ipcRenderer.invoke("secure:is-available"),
+    encrypt: (plaintext: string): Promise<string> => ipcRenderer.invoke("secure:encrypt", plaintext),
+    decrypt: (base64: string): Promise<string> => ipcRenderer.invoke("secure:decrypt", base64),
+  },
   agent: {
     send: (sessionId: string, text: string, config: { type: "anthropic" | "openai"; baseURL: string; apiKey: string; model: string }) =>
       ipcRenderer.invoke("agent:send", sessionId, text, config),

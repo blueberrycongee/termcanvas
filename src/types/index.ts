@@ -552,6 +552,11 @@ export interface TermCanvasAPI {
     openReport: (filePath: string) => Promise<void>;
     getLastReport: () => Promise<string | null>;
   };
+  secure: {
+    isAvailable: () => Promise<boolean>;
+    encrypt: (plaintext: string) => Promise<string>;
+    decrypt: (base64: string) => Promise<string>;
+  };
   agent: {
     send: (sessionId: string, text: string, config: { type: "anthropic" | "openai"; baseURL: string; apiKey: string; model: string }) => Promise<void>;
     abort: (sessionId: string) => Promise<void>;

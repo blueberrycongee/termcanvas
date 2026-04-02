@@ -39,6 +39,7 @@ function MessageBubble({ message }: { message: BubbleMessage }) {
 export function MessageList({ messages }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const agentApiKey = usePreferencesStore((s) => s.agentConfig.apiKey);
+  const apiKeyReady = usePreferencesStore((s) => s.apiKeyReady);
   const openSettings = useSettingsModalStore((s) => s.openSettings);
 
   useEffect(() => {
@@ -54,7 +55,7 @@ export function MessageList({ messages }: MessageListProps) {
     <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto">
       {messages.length === 0 ? (
         <div className="flex items-center justify-center h-full px-6">
-          {agentApiKey ? (
+          {!apiKeyReady ? null : agentApiKey ? (
             <p className="text-[11px] text-[var(--text-faint)] text-center leading-relaxed">
               Send a message to start an agent task
             </p>

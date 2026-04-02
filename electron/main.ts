@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, nativeImage, shell } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, nativeImage, shell, safeStorage } from "electron";
 import https from "https";
 import path from "path";
 import fs from "fs";
@@ -1199,6 +1199,23 @@ function setupIpc() {
 
   ipcMain.handle("agent:delete", (_event, sessionId: string) => {
     agentService.deleteSession(sessionId);
+  });
+
+  // ── Secure storage (safeStorage) ──────────────────────────────
+  ipcMain.handle("secure:is-available", () => safeStorage.isEncryptionAvailable());
+
+  ipcMain.handle("secure:encrypt", (_event, plaintext: string) => {
+    if (!safeStorage.isEncryptionAvailable()) {
+      throw new Error("safeStorage unavailable");
+    }
+    return safeStorage.encryptString(plaintext).toString("base64");
+  });
+
+  ipcMain.handle("secure:decrypt", (_event, base64: string) => {
+    if (!safeStorage.isEncryptionAvailable()) {
+      throw new Error("safeStorage unavailable");
+    }
+    return safeStorage.decryptString(Buffer.from(base64, "base64"));
   });
 }
 

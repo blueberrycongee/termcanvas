@@ -6,7 +6,7 @@ import { Hub } from "./components/Hub";
 import { LeftPanel } from "./components/LeftPanel";
 import { initUpdaterListeners, useUpdaterStore } from "./stores/updaterStore";
 import { ComposerBar } from "./components/ComposerBar";
-import { usePreferencesStore } from "./stores/preferencesStore";
+import { usePreferencesStore, hydrateApiKey } from "./stores/preferencesStore";
 import { DrawingPanel } from "./toolbar/DrawingPanel";
 import { ShortcutHints } from "./components/ShortcutHints";
 import { CompletionGlow } from "./components/CompletionGlow";
@@ -398,6 +398,7 @@ export function App() {
   }, [summaryEnabled]);
 
   useEffect(() => initUpdaterListeners(), []);
+  useEffect(() => { void hydrateApiKey(); }, []);
 
   useEffect(() => {
     if (!window.termcanvas?.menu) return;
