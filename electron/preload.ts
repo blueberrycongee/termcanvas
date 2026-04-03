@@ -464,6 +464,15 @@ contextBridge.exposeInMainWorld("termcanvas", {
       return () => ipcRenderer.removeListener("hook:stop-failure", listener);
     },
   },
+  sessions: {
+    onListChanged: (callback: (sessions: unknown[]) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, sessions: unknown[]) => callback(sessions);
+      ipcRenderer.on("sessions:list-changed", listener);
+      return () => ipcRenderer.removeListener("sessions:list-changed", listener);
+    },
+    loadReplay: (filePath: string) =>
+      ipcRenderer.invoke("sessions:load-replay", filePath),
+  },
   menu: {
     onOpenFolder: (callback: (dirPath: string) => void) => {
       const listener = (_e: Electron.IpcRendererEvent, dirPath: string) => callback(dirPath);

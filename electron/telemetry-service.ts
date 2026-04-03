@@ -23,6 +23,7 @@ import type {
   TerminalTelemetrySnapshot,
   WorkflowTelemetrySnapshot,
 } from "../shared/telemetry.ts";
+import type { SessionInfo } from "../shared/sessions.ts";
 
 const DEFAULT_EVENT_LIMIT = 200;
 const DEFAULT_STALL_THRESHOLD_MS = 45_000;
@@ -1080,5 +1081,42 @@ export class TelemetryService {
     } finally {
       state.sessionReadInFlight = false;
     }
+  }
+
+  getManagedSessions(): SessionInfo[] {
+    const results: SessionInfo[] = [];
+    for (const [_terminalId, state] of this.terminals) {
+      const snap = state.snapshot;
+      if (!snap.session_id || !snap.session_file) continue;
+
+      const sessionEvents = state.events.filter(e => e.source === "session");
+      const startedAt = sessionEvents[0]?.at ?? snap.last_meaningful_progress_at ?? new Date().toISOString();
+
+      results.push({
+        sessionId: snap.session_id,
+        projectDir: snap.worktree_path,
+        filePath: snap.session_file,
+        isLive: snap.pty_alive,
+        isManaged: true,
+        status: this.mapTurnStateToStatus(snap.turn_state, snap.derived_status),
+        currentTool: snap.foreground_tool,
+        startedAt,
+        lastActivityAt: snap.last_meaningful_progress_at ?? new Date().toISOString(),
+        messageCount: sessionEvents.length,
+        tokenTotal: state.lastTokenTotal ?? 0,
+      });
+    }
+    return results;
+  }
+
+  private mapTurnStateToStatus(
+    turn: TelemetryTurnState,
+    derived: TelemetryDerivedStatus,
+  ): SessionInfo["status"] {
+    if (derived === "error") return "error";
+    if (turn === "tool_running" || turn === "tool_pending") return "tool_running";
+    if (turn === "thinking" || turn === "in_turn") return "generating";
+    if (turn === "turn_complete") return "turn_complete";
+    return "idle";
   }
 }
