@@ -964,7 +964,7 @@ function buildTerminalRuntime(
     sessionCancel: null,
     started: false,
     telemetryTimer: null,
-    usesAgentRenderer: meta.terminal.type === "claude",
+    usesAgentRenderer: false,
     waitingTimer: null,
     wasResumeAttempt:
       !!meta.terminal.sessionId &&
