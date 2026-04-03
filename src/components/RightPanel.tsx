@@ -1,6 +1,7 @@
 import { useCanvasStore, COLLAPSED_TAB_WIDTH, RIGHT_PANEL_WIDTH } from "../stores/canvasStore";
 import type { RightPanelTab } from "../stores/canvasStore";
 import { UsagePanel } from "./UsagePanel";
+import { SessionsPanel } from "./SessionsPanel";
 
 const TABS: { id: RightPanelTab; label: string; icon: React.ReactNode }[] = [
   {
@@ -97,11 +98,7 @@ export function RightPanel() {
         {/* Content */}
         <div className="flex-1 min-h-0">
           {activeTab === "usage" && <UsagePanel />}
-          {activeTab === "sessions" && (
-            <div className="px-3 py-4 text-[11px] text-[var(--text-faint)]">
-              Sessions (coming soon)
-            </div>
-          )}
+          {activeTab === "sessions" && <SessionsPanel />}
         </div>
       </div>
     </div>
