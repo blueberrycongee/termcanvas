@@ -1,5 +1,6 @@
 import type { Terminal } from "@xterm/xterm";
 import { WebglAddon } from "@xterm/addon-webgl";
+import { useNotificationStore } from "../stores/notificationStore";
 
 interface PoolEntry {
   terminalId: string;
@@ -25,6 +26,10 @@ export function acquireWebGL(terminalId: string, xterm: Terminal): boolean {
   try {
     const addon = new WebglAddon();
     addon.onContextLoss(() => {
+      const count = (parseInt(localStorage.getItem("tc:webgl-loss-count") ?? "0", 10) || 0) + 1;
+      localStorage.setItem("tc:webgl-loss-count", String(count));
+      localStorage.setItem("tc:webgl-loss-last", new Date().toISOString());
+      useNotificationStore.getState().notify("warn", `WebGL context lost for terminal ${terminalId} (total: ${count})`);
       addon.dispose();
       entries.delete(terminalId);
     });
