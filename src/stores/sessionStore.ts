@@ -11,6 +11,7 @@ interface SessionStore {
   replayCurrentIndex: number;
   replayIsPlaying: boolean;
   replaySpeed: number;
+  replayError: string | null;
   setSessions: (sessions: SessionInfo[]) => void;
   loadReplay: (filePath: string) => Promise<void>;
   exitReplay: () => void;
@@ -22,6 +23,8 @@ interface SessionStore {
   setSpeed: (speed: number) => void;
 }
 
+let replaySeq = 0;
+
 export const useSessionStore = create<SessionStore>((set, get) => ({
   liveSessions: [],
   historySessions: [],
@@ -30,6 +33,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   replayCurrentIndex: 0,
   replayIsPlaying: false,
   replaySpeed: 1,
+  replayError: null,
 
   setSessions: (sessions) => {
     const live = sessions.filter((s) => s.isLive);
@@ -38,12 +42,19 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   loadReplay: async (filePath) => {
-    set({ panelView: "replay", replayTimeline: null, replayCurrentIndex: 0, replayIsPlaying: false });
-    const timeline = await window.termcanvas.sessions.loadReplay(filePath);
-    set({ replayTimeline: timeline });
+    const seq = ++replaySeq;
+    set({ panelView: "replay", replayTimeline: null, replayCurrentIndex: 0, replayIsPlaying: false, replayError: null });
+    try {
+      const timeline = await window.termcanvas.sessions.loadReplay(filePath);
+      if (seq !== replaySeq) return; // stale response — a newer load superseded this one
+      set({ replayTimeline: timeline });
+    } catch (err) {
+      if (seq !== replaySeq) return;
+      set({ replayError: err instanceof Error ? err.message : "Failed to load replay", panelView: "replay" });
+    }
   },
 
-  exitReplay: () => set({ panelView: "list", replayTimeline: null, replayCurrentIndex: 0, replayIsPlaying: false }),
+  exitReplay: () => set({ panelView: "list", replayTimeline: null, replayCurrentIndex: 0, replayIsPlaying: false, replayError: null }),
 
   seekTo: (index) => {
     const timeline = get().replayTimeline;

@@ -67,6 +67,7 @@ const SPEEDS = [1, 2, 4, 8];
 
 export function SessionReplayView() {
   const timeline = useSessionStore((s) => s.replayTimeline);
+  const replayError = useSessionStore((s) => s.replayError);
   const currentIndex = useSessionStore((s) => s.replayCurrentIndex);
   const isPlaying = useSessionStore((s) => s.replayIsPlaying);
   const speed = useSessionStore((s) => s.replaySpeed);
@@ -120,8 +121,20 @@ export function SessionReplayView() {
 
   if (!timeline) {
     return (
-      <div className="flex flex-col h-full items-center justify-center">
-        <div className="text-[11px] text-[var(--text-faint)]">Loading replay...</div>
+      <div className="flex flex-col h-full items-center justify-center gap-2">
+        {replayError ? (
+          <>
+            <div className="text-[11px] text-[#ef4444]">{replayError}</div>
+            <button
+              className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+              onClick={exitReplay}
+            >
+              Back to sessions
+            </button>
+          </>
+        ) : (
+          <div className="text-[11px] text-[var(--text-faint)]">Loading replay...</div>
+        )}
       </div>
     );
   }

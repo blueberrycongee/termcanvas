@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs";
+import fsp from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { parseSessionTelemetryLine, type SessionType } from "./session-watcher.ts";
@@ -125,7 +126,7 @@ export class SessionScanner {
   }
 
   async loadReplay(filePath: string): Promise<ReplayTimeline> {
-    const content = fs.readFileSync(filePath, "utf-8");
+    const content = await fsp.readFile(filePath, "utf-8");
     const lines = content.split("\n").filter(Boolean);
     const sessionId = path.basename(filePath, ".jsonl");
     const projectDir = path.basename(path.dirname(filePath));
@@ -145,6 +146,20 @@ export class SessionScanner {
 
       const timestamp = typeof raw.timestamp === "string" ? raw.timestamp : new Date().toISOString();
       const parsed = parseSessionTelemetryLine(line, type);
+
+      // Inject user_prompt event for "type":"user" lines that contain actual user text
+      if (raw.type === "user") {
+        const userText = this.extractUserPromptText(raw);
+        if (userText) {
+          const idx = events.length;
+          events.push({
+            index: idx,
+            timestamp,
+            type: "user_prompt",
+            textPreview: userText,
+          });
+        }
+      }
 
       for (const ev of parsed) {
         const timelineType = this.mapEventType(ev.event_type);
@@ -191,6 +206,7 @@ export class SessionScanner {
       case "tool_result": return "tool_result";
       case "assistant_message": return "assistant_text";
       case "turn_complete": return "turn_complete";
+      case "user_message": return "user_prompt";
       case "assistant_stop": return null;
       case "queue_operation": return null;
       case "progress": return null;
@@ -214,6 +230,21 @@ export class SessionScanner {
         if (typeof input.command === "string") return `$ ${input.command.slice(0, 180)}`;
         if (typeof input.file_path === "string") return input.file_path;
       }
+    }
+    return "";
+  }
+
+  private extractUserPromptText(raw: Record<string, unknown>): string {
+    const message = raw.message as Record<string, unknown> | undefined;
+    if (!message) return "";
+    const content = message.content;
+    if (typeof content === "string") return content.slice(0, 200);
+    if (!Array.isArray(content)) return "";
+    for (const block of content) {
+      if (!block || typeof block !== "object") continue;
+      const entry = block as Record<string, unknown>;
+      if (entry.type === "text" && typeof entry.text === "string") return entry.text.slice(0, 200);
+      if (entry.type === "tool_result") continue;
     }
     return "";
   }
