@@ -2,6 +2,22 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.0] - 2026-04-03
+
+### Added
+- Live sessions panel and session replay in right sidebar
+- Session scanner with managed session discovery
+- Session store with IPC subscription
+- Right panel tab system with Usage and Sessions tabs
+- i18n for sessions panel and replay view
+
+### Fixed
+- Race guard, error handling, async IO, and user prompt issues (challenge findings)
+- Summary CLI stderr capture increased from 200 to 500 chars for better error diagnostics
+
+### Changed
+- Stable socket path for hook receiver
+
 ## [0.24.2] - 2026-04-03
 
 ### Fixed
