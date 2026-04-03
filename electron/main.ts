@@ -59,6 +59,7 @@ import { TelemetryService } from "./telemetry-service";
 import { HookReceiver } from "./hook-receiver";
 import { findBestClaudeSession, findBestCodexSession, readClaudeSessionPermissionMode, readCodexSessionBypassState } from "./session-discovery";
 import { AgentService, type AgentConfig } from "./agent-service";
+import { SessionScanner } from "./session-scanner.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -115,6 +116,7 @@ const telemetryService = new TelemetryService({
   },
 });
 const agentService = new AgentService();
+const sessionScanner = new SessionScanner();
 let hookSocketPath: string | null = null;
 const hookReceiver = new HookReceiver((event) => {
   telemetryService.recordHookEvent(event.terminal_id, event);
@@ -627,6 +629,11 @@ function setupIpc() {
   // Hook system IPC
   ipcMain.handle("hook:get-socket-path", () => hookSocketPath);
   ipcMain.handle("hook:get-health", () => hookReceiver.getHealth());
+
+  // Sessions IPC
+  ipcMain.handle("sessions:load-replay", async (_event, filePath: string) => {
+    return sessionScanner.loadReplay(filePath);
+  });
 
   // State IPC
   ipcMain.handle("state:load", () => {
@@ -1317,6 +1324,15 @@ app.whenReady().then(async () => {
   });
 
   hookSocketPath = await hookReceiver.start();
+  sessionScanner.start((sessions) => {
+    const managed = telemetryService.getManagedSessions();
+    const managedIds = new Set(managed.map((s) => s.sessionId));
+    const external = sessions.filter((s) => !managedIds.has(s.sessionId));
+    const merged = [...managed, ...external].sort(
+      (a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt),
+    );
+    sendToWindow(mainWindow, "sessions:list-changed", merged);
+  });
   ensureCliLinks();
   if (isCliRegistered(getCliDir())) ensureSkillInstalled();
   setupIpc();

@@ -605,6 +605,10 @@ export interface TermCanvasAPI {
       errorDetails: string | null;
     }) => void) => () => void;
   };
+  sessions: {
+    onListChanged: (callback: (sessions: import("../../shared/sessions").SessionInfo[]) => void) => () => void;
+    loadReplay: (filePath: string) => Promise<import("../../shared/sessions").ReplayTimeline>;
+  };
   menu: {
     onOpenFolder: (callback: (dirPath: string) => void) => () => void;
   };
