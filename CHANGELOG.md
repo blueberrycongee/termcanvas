@@ -2,6 +2,12 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.24.2] - 2026-04-03
+
+### Fixed
+- Terminal white screen on spawn and after layout changes: runtime-side `usesAgentRenderer` guard blocked xterm attachment for claude-type terminals
+- Instrument WebGL context loss with toast notification and localStorage counter for observability
+
 ## [0.24.1] - 2026-04-03
 
 ### Fixed
