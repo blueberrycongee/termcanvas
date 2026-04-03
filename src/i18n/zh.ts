@@ -368,6 +368,19 @@ export const zh = {
   usage_quota_rate_limited: "请求受限，稍后重试",
   usage_quota_unavailable: "额度不可用",
 
+  // Sessions panel
+  sessions_tab: "会话",
+  sessions_live: "实时",
+  sessions_history: "历史",
+  sessions_no_sessions: "暂无会话",
+  sessions_managed: "受管",
+  sessions_msgs: "条消息",
+  sessions_events: "个事件",
+  sessions_tokens: "tokens",
+  sessions_loading: "加载回放…",
+  sessions_load_error_back: "返回会话列表",
+  sessions_back: "返回",
+
   // Auth
   auth_login_github: "使用 GitHub 登录",
   auth_logout: "退出登录",

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useSessionStore } from "../stores/sessionStore";
+import { useT } from "../i18n/useT";
 import type { TimelineEvent } from "../../shared/sessions";
 
 const EVENT_ICONS: Record<TimelineEvent["type"], string> = {
@@ -78,6 +79,7 @@ export function SessionReplayView() {
   const togglePlayback = useSessionStore((s) => s.togglePlayback);
   const stopPlayback = useSessionStore((s) => s.stopPlayback);
   const setSpeed = useSessionStore((s) => s.setSpeed);
+  const t = useT();
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const currentRef = useRef<HTMLDivElement>(null);
@@ -129,11 +131,11 @@ export function SessionReplayView() {
               className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
               onClick={exitReplay}
             >
-              Back to sessions
+              {t.sessions_load_error_back}
             </button>
           </>
         ) : (
-          <div className="text-[11px] text-[var(--text-faint)]">Loading replay...</div>
+          <div className="text-[11px] text-[var(--text-faint)]">{t.sessions_loading}</div>
         )}
       </div>
     );
@@ -159,7 +161,7 @@ export function SessionReplayView() {
             {projectDir.replace(/^-/, "").split("-").pop()}
           </div>
           <div className="text-[9px] text-[var(--text-faint)]">
-            {timeline.events.length} events · {Math.round(timeline.totalTokens / 1000)}k tokens
+            {timeline.events.length} {t.sessions_events} · {Math.round(timeline.totalTokens / 1000)}k {t.sessions_tokens}
           </div>
         </div>
       </div>

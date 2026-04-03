@@ -371,6 +371,19 @@ export const en = {
   usage_quota_rate_limited: "Rate limited, retrying later",
   usage_quota_unavailable: "Quota unavailable",
 
+  // Sessions panel
+  sessions_tab: "Sessions",
+  sessions_live: "Live",
+  sessions_history: "History",
+  sessions_no_sessions: "No sessions found",
+  sessions_managed: "managed",
+  sessions_msgs: "msgs",
+  sessions_events: "events",
+  sessions_tokens: "tokens",
+  sessions_loading: "Loading replay…",
+  sessions_load_error_back: "Back to sessions",
+  sessions_back: "Back",
+
   // Auth
   auth_login_github: "Login with GitHub",
   auth_logout: "Logout",
