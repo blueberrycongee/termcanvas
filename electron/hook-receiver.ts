@@ -40,7 +40,7 @@ export class HookReceiver {
   }
 
   async start(): Promise<string> {
-    const socketPath = `${os.tmpdir()}/termcanvas-${process.pid}.sock`;
+    const socketPath = `${os.tmpdir()}/termcanvas.sock`;
 
     // Remove stale socket from previous crash
     try {

@@ -4,6 +4,7 @@ import { useWorkspaceStore } from "./workspaceStore";
 
 export type FocusLevel = "terminal" | "starred" | "worktree";
 export type LeftPanelTab = "files" | "diff" | "preview" | "git" | "memory";
+export type RightPanelTab = "usage" | "sessions";
 export interface CanvasViewportAdapter {
   setViewport: (viewport: Viewport, options?: { duration?: number }) => void;
   getViewport: () => Viewport;
@@ -18,6 +19,7 @@ interface CanvasStore {
   isAnimating: boolean;
   focusLevel: FocusLevel;
   rightPanelCollapsed: boolean;
+  rightPanelActiveTab: RightPanelTab;
   leftPanelCollapsed: boolean;
   leftPanelWidth: number;
   leftPanelActiveTab: LeftPanelTab;
@@ -31,6 +33,7 @@ interface CanvasStore {
   setFocusLevel: (level: FocusLevel) => void;
   cycleFocusLevel: () => void;
   setRightPanelCollapsed: (collapsed: boolean) => void;
+  setRightPanelActiveTab: (tab: RightPanelTab) => void;
   setLeftPanelCollapsed: (collapsed: boolean) => void;
   setLeftPanelWidth: (width: number) => void;
   setLeftPanelActiveTab: (tab: LeftPanelTab) => void;
@@ -69,6 +72,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   isAnimating: false,
   focusLevel: "terminal" as FocusLevel,
   rightPanelCollapsed: true,
+  rightPanelActiveTab: "sessions" as RightPanelTab,
   leftPanelCollapsed: true,
   leftPanelWidth: 280,
   leftPanelActiveTab: "files" as LeftPanelTab,
@@ -100,6 +104,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set({ focusLevel: next });
   },
   setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
+  setRightPanelActiveTab: (tab) => set({ rightPanelActiveTab: tab }),
   setLeftPanelCollapsed: (collapsed) => {
     set({ leftPanelCollapsed: collapsed });
     markDirty();
