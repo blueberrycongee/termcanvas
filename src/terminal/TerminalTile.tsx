@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useCallback, useState } from "react";
+﻿import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { TerminalData } from "../types";
 import { useProjectStore, findTerminalById, getChildTerminals, stashTerminal } from "../stores/projectStore";
@@ -201,10 +201,7 @@ export function TerminalTile({
   );
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tileRef = useRef<HTMLDivElement>(null);
-  const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
-  const containerRef = useCallback((node: HTMLDivElement | null) => {
-    setContainerEl(node);
-  }, []);
+  const containerRef = useRef<HTMLDivElement>(null);
   const pendingFocusFrameRef = useRef<number | null>(null);
   const customTitleInputRef = useRef<HTMLInputElement>(null);
   const copiedNonce = useTerminalRuntimeStore(
@@ -313,16 +310,16 @@ export function TerminalTile({
     [],
   );
 
-  useEffect(() => {
-    if (lodMode !== "live" || !containerEl || useAgentRenderer) {
+  useLayoutEffect(() => {
+    if (lodMode !== "live" || !containerRef.current || useAgentRenderer) {
       return;
     }
 
-    attachTerminalContainer(terminal.id, containerEl);
+    attachTerminalContainer(terminal.id, containerRef.current);
     return () => {
       detachTerminalContainer(terminal.id);
     };
-  }, [lodMode, terminal.id, useAgentRenderer, containerEl]);
+  }, [lodMode, terminal.id, useAgentRenderer]);
 
   useEffect(() => {
     if (!useAgentRenderer) return;
@@ -363,17 +360,17 @@ export function TerminalTile({
       setFrozenDims(null);
       return;
     }
-    if (!containerEl) return;
+    if (!containerRef.current) return;
 
     const bgColor =
       getTerminalRuntime(terminal.id)?.xterm?.options.theme?.background ?? "#1e1e1e";
 
     setFrozenDims({
-      width: containerEl.offsetWidth,
-      height: containerEl.offsetHeight,
+      width: containerRef.current.offsetWidth,
+      height: containerRef.current.offsetHeight,
       bgColor,
     });
-  }, [isAgent, sidebarDragActive, terminal.id, containerEl]);
+  }, [isAgent, sidebarDragActive, terminal.id]);
 
   const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
   const focusLiveTerminal = useCallback(() => {
@@ -450,7 +447,8 @@ export function TerminalTile({
   }, [startCustomTitleEdit, terminal.id]);
 
   useEffect(() => {
-    if (!containerEl || lodMode !== "live") return;
+    const container = containerRef.current;
+    if (!container || lodMode !== "live") return;
 
     const corrected = new WeakSet<Event>();
 
@@ -465,16 +463,16 @@ export function TerminalTile({
       // dead zone near the top-left. Measure against the real screen element
       // and, if the pointer lands in a host/gap area, re-dispatch to the xterm
       // root so selection still starts inside xterm.
-      const xtermRoot = containerEl.querySelector(".xterm");
+      const xtermRoot = container.querySelector(".xterm");
       const screenElement =
-        containerEl.querySelector(".xterm-screen") ?? xtermRoot ?? containerEl;
+        container.querySelector(".xterm-screen") ?? xtermRoot ?? container;
       const rect = screenElement.getBoundingClientRect();
       const dispatchTarget =
         e.target instanceof Element &&
         xtermRoot instanceof Element &&
         xtermRoot.contains(e.target)
           ? e.target
-          : xtermRoot ?? containerEl;
+          : xtermRoot ?? container;
       const adjusted = new MouseEvent(e.type, {
         altKey: e.altKey,
         bubbles: e.bubbles,
@@ -506,7 +504,7 @@ export function TerminalTile({
       if (e.button !== 0) return;
       const { scale } = useCanvasStore.getState().viewport;
       if (scale === 1) return;
-      const target = e.target instanceof Element ? e.target : containerEl;
+      const target = e.target instanceof Element ? e.target : container;
       target.setPointerCapture(e.pointerId);
     };
 
@@ -521,24 +519,24 @@ export function TerminalTile({
 
     const types = ["mousedown", "mousemove", "mouseup", "dblclick"];
     for (const type of types) {
-      containerEl.addEventListener(type, fix as EventListener, true);
+      container.addEventListener(type, fix as EventListener, true);
     }
-    containerEl.addEventListener("mousedown", stopMouseDownBubble);
-    containerEl.addEventListener("pointerdown", capturePointer);
+    container.addEventListener("mousedown", stopMouseDownBubble);
+    container.addEventListener("pointerdown", capturePointer);
 
     return () => {
       for (const type of types) {
-        containerEl.removeEventListener(type, fix as EventListener, true);
+        container.removeEventListener(type, fix as EventListener, true);
       }
-      containerEl.removeEventListener("mousedown", stopMouseDownBubble);
-      containerEl.removeEventListener("pointerdown", capturePointer);
+      container.removeEventListener("mousedown", stopMouseDownBubble);
+      container.removeEventListener("pointerdown", capturePointer);
     };
-  }, [lodMode, containerEl]);
+  }, [lodMode]);
 
   // Intercept drag events on the xterm container in the capture phase so they
   // are not swallowed by xterm's own handlers.
   useEffect(() => {
-    const container = containerEl;
+    const container = containerRef.current;
     if (!container || lodMode !== "live") return;
 
     const onDragOver = (e: DragEvent) => {
@@ -579,7 +577,7 @@ export function TerminalTile({
       container.removeEventListener("dragleave", onDragLeave, true);
       container.removeEventListener("drop", onDrop, true);
     };
-  }, [lodMode, terminal.id, setFocusedTerminal, selectTerminal, projectId, worktreeId, containerEl]);
+  }, [lodMode, terminal.id, setFocusedTerminal, selectTerminal, projectId, worktreeId]);
 
   const handleClose = useCallback(() => {
     destroyTerminalRuntime(terminal.id);
