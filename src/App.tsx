@@ -10,7 +10,7 @@ import { usePreferencesStore, hydrateApiKey } from "./stores/preferencesStore";
 import { DrawingPanel } from "./toolbar/DrawingPanel";
 import { ShortcutHints } from "./components/ShortcutHints";
 import { CompletionGlow } from "./components/CompletionGlow";
-import { UsagePanel } from "./components/UsagePanel";
+import { RightPanel } from "./components/RightPanel";
 import { StashBox } from "./components/StashBox";
 import { AgentBubble } from "./components/AgentBubble";
 import { useAgentBubbleStore } from "./stores/agentBubbleStore";
@@ -576,7 +576,7 @@ export function App() {
       {drawingEnabled && <DrawingPanel />}
       <CompletionGlow />
       <ShortcutHints />
-      <UsagePanel />
+      <RightPanel />
       <StashBox />
       <AgentBubble
         messages={bubbleMessages}

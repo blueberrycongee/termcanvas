@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useRef, useState, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { useUsageStore } from "../stores/usageStore";
-import { useCanvasStore, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
+import { useCanvasStore } from "../stores/canvasStore";
 import { useAuthStore } from "../stores/authStore";
 import { useT } from "../i18n/useT";
 import { DateNavigator } from "./usage/DateNavigator";
@@ -462,10 +462,6 @@ function ModelsContent({
 
 export function UsagePanel() {
   const { summary, loading, date, cachedDates, fetch: fetchUsage, heatmapData, fetchHeatmap, cloudSummary, cloudHeatmapData, fetchCloud, fetchCloudHeatmap } = useUsageStore();
-  const {
-    rightPanelCollapsed: collapsed,
-    setRightPanelCollapsed: setCollapsed,
-  } = useCanvasStore();
   const { user, deviceId } = useAuthStore();
   const t = useT();
   const quotaFetch = useQuotaStore((s) => s.fetch);
@@ -489,10 +485,13 @@ export function UsagePanel() {
     useAuthStore.getState().init();
   }, []);
 
-  // Fetch on mount / un-collapse, and poll every 5 minutes.
-  // Date changes are handled by handleDateChange / cell click directly — no need to re-fetch here.
+  const lastFetchRef = useRef(0);
+
+  // Fetch on mount, skip if data was fetched within last 30s (tab switch debounce).
+  // Poll every 5 minutes.
   useEffect(() => {
-    if (collapsed) return;
+    if (summary && Date.now() - lastFetchRef.current < 30_000) return;
+    lastFetchRef.current = Date.now();
     void fetchUsage();
     void quotaFetch();
     void codexQuotaFetch();
@@ -500,6 +499,7 @@ export function UsagePanel() {
       void fetchCloud();
     }
     const interval = setInterval(() => {
+      lastFetchRef.current = Date.now();
       void fetchUsage();
       void codexQuotaFetch();
       if (isLoggedIn) {
@@ -508,7 +508,7 @@ export function UsagePanel() {
       }
     }, 5 * 60_000);
     return () => clearInterval(interval);
-  }, [collapsed, isLoggedIn, fetchUsage, quotaFetch, codexQuotaFetch, fetchCloud, fetchCloudHeatmap]);
+  }, [isLoggedIn, fetchUsage, quotaFetch, codexQuotaFetch, fetchCloud, fetchCloudHeatmap]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Bridge cost changes to Claude quota store for adaptive polling
   useEffect(() => {
@@ -573,132 +573,101 @@ export function UsagePanel() {
   const monthlyData = monthlyCost > 0 ? { cost: monthlyCost } : undefined;
 
   return (
-    <div className="fixed right-0 z-40 flex" style={{ top: 44, height: "calc(100vh - 44px)" }}>
-      {/* Collapsed tab */}
-      <button
-        className="shrink-0 flex flex-col items-center pt-3 gap-2 bg-[var(--sidebar)] overflow-hidden border-l border-[var(--border)] hover:bg-[var(--sidebar-hover)] cursor-pointer"
-        style={{
-          width: collapsed ? COLLAPSED_TAB_WIDTH : 0,
-          transition: "width 0.2s ease, background-color 0.15s",
-        }}
-        onClick={() => setCollapsed(false)}
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-[var(--text-muted)] shrink-0">
-          <rect x="1.5" y="3" width="3" height="8" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
-          <rect x="5.5" y="5" width="3" height="6" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
-          <rect x="9.5" y="1" width="3" height="10" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
-        </svg>
-        <span
-          className="text-[9px] text-[var(--text-muted)] uppercase tracking-widest whitespace-nowrap"
-          style={{ writingMode: "vertical-lr", fontFamily: '"Geist Mono", monospace' }}
-        >
-          {t.usage_title}
-        </span>
-      </button>
+    <div className="flex flex-col h-full">
+      {/* Header with date navigation */}
+      <DateNavigator
+        date={date}
+        cachedDates={cachedDates}
+        onDateChange={handleDateChange}
+        onCollapse={() => useCanvasStore.getState().setRightPanelCollapsed(true)}
+      />
 
-      {/* Expanded panel */}
-      <div
-        className="shrink-0 flex flex-col bg-[var(--sidebar)] overflow-hidden border-l border-[var(--border)]"
-        style={{
-          width: collapsed ? 0 : RIGHT_PANEL_WIDTH,
-          transition: "width 0.2s ease",
-        }}
-      >
-        {/* Header with date navigation */}
-        <DateNavigator
-          date={date}
-          cachedDates={cachedDates}
-          onDateChange={handleDateChange}
-          onCollapse={() => setCollapsed(true)}
-        />
+      {/* Quota — fixed, not affected by date or scroll */}
+      <QuotaSection />
+      <div className="mx-3 h-px bg-[var(--border)]" />
 
-        {/* Quota — fixed, not affected by date or scroll */}
-        <QuotaSection />
-        <div className="mx-3 h-px bg-[var(--border)]" />
+      {/* Auth login/user button + insights */}
+      <div className="px-3 py-1.5 shrink-0 border-b border-[var(--border)] flex items-center gap-2">
+        <InsightsButton compact />
+        <div className="ml-auto">
+          <LoginButton />
+        </div>
+      </div>
 
-        {/* Auth login/user button + insights */}
-        <div className="px-3 py-1.5 shrink-0 border-b border-[var(--border)] flex items-center gap-2">
-          <InsightsButton compact />
-          <div className="ml-auto">
-            <LoginButton />
+      {/* Content */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {loading && !activeSummary ? (
+          <div className="px-3 py-4 text-[11px] text-[var(--text-faint)]">
+            {t.loading}
           </div>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          {loading && !activeSummary ? (
-            <div className="px-3 py-4 text-[11px] text-[var(--text-faint)]">
-              {t.loading}
+        ) : activeSummary ? (
+          <div key={animKey} className="flex flex-col pb-3">
+            <div className="usage-section-enter" style={{ animationDelay: "0ms" }}>
+              <SummarySection t={t} summary={activeSummary} monthlyData={monthlyData} />
             </div>
-          ) : activeSummary ? (
-            <div key={animKey} className="flex flex-col pb-3">
-              <div className="usage-section-enter" style={{ animationDelay: "0ms" }}>
-                <SummarySection t={t} summary={activeSummary} monthlyData={monthlyData} />
-              </div>
-              <div className="mx-3 h-px bg-[var(--border)]" />
-              <div className="usage-section-enter" style={{ animationDelay: "40ms" }}>
-                <TimelineSection t={t} summary={activeSummary} animate={true} />
-              </div>
-              <div className="mx-3 h-px bg-[var(--border)]" />
-              <div className="usage-section-enter" style={{ animationDelay: "80ms" }}>
-                {summary && <CacheRateSection t={t} summary={summary} animate={true} />}
-              </div>
-              {activeSummary.projects.length > 0 && (
-                <>
-                  <div className="mx-3 h-px bg-[var(--border)]" />
-                  <div className="usage-section-enter" style={{ animationDelay: "120ms" }}>
-                    <CollapsibleSection title={t.usage_projects}>
-                      <ProjectsContent t={t} projects={activeSummary.projects} totalCost={activeSummary.totalCost} animate={true} />
-                    </CollapsibleSection>
-                  </div>
-                </>
-              )}
-              {activeSummary.models.length > 0 && (
-                <>
-                  <div className="mx-3 h-px bg-[var(--border)]" />
-                  <div className="usage-section-enter" style={{ animationDelay: "160ms" }}>
-                    <CollapsibleSection title={t.usage_models}>
-                      <ModelsContent t={t} models={activeSummary.models} animate={true} />
-                    </CollapsibleSection>
-                  </div>
-                </>
-              )}
-              {isLoggedIn && cloudSummary && cloudSummary.devices.length > 0 && (
-                <>
-                  <div className="mx-3 h-px bg-[var(--border)]" />
-                  <div className="usage-section-enter" style={{ animationDelay: "200ms" }}>
-                    <CollapsibleSection title={t.auth_devices}>
-                      <DeviceBreakdown devices={cloudSummary.devices} localDeviceId={deviceId} />
-                    </CollapsibleSection>
-                  </div>
-                </>
-              )}
-              {isLoggedIn && !cloudSummary && (
-                <>
-                  <div className="mx-3 h-px bg-[var(--border)]" />
-                  <div className="px-3 py-2 text-[10px] text-[var(--text-faint)]">{t.auth_cloud_error}</div>
-                </>
-              )}
-              <div className="mx-3 h-px bg-[var(--border)]" />
-              <div className="usage-section-enter" style={{ animationDelay: "240ms" }}>
-                <TokenHeatmap
-                  animate={true}
-                  data={activeHeatmap ?? undefined}
-                  onVisible={() => {
-                    void fetchHeatmap();
-                    if (isLoggedIn) {
-                      void fetchCloudHeatmap();
-                    }
-                  }}
-                />
-              </div>
+            <div className="mx-3 h-px bg-[var(--border)]" />
+            <div className="usage-section-enter" style={{ animationDelay: "40ms" }}>
+              <TimelineSection t={t} summary={activeSummary} animate={true} />
             </div>
-          ) : (
-            <div className="px-3 py-4 text-[11px] text-[var(--text-faint)]">
-              {t.usage_no_data}
+            <div className="mx-3 h-px bg-[var(--border)]" />
+            <div className="usage-section-enter" style={{ animationDelay: "80ms" }}>
+              {summary && <CacheRateSection t={t} summary={summary} animate={true} />}
             </div>
-          )}
-        </div>
+            {activeSummary.projects.length > 0 && (
+              <>
+                <div className="mx-3 h-px bg-[var(--border)]" />
+                <div className="usage-section-enter" style={{ animationDelay: "120ms" }}>
+                  <CollapsibleSection title={t.usage_projects}>
+                    <ProjectsContent t={t} projects={activeSummary.projects} totalCost={activeSummary.totalCost} animate={true} />
+                  </CollapsibleSection>
+                </div>
+              </>
+            )}
+            {activeSummary.models.length > 0 && (
+              <>
+                <div className="mx-3 h-px bg-[var(--border)]" />
+                <div className="usage-section-enter" style={{ animationDelay: "160ms" }}>
+                  <CollapsibleSection title={t.usage_models}>
+                    <ModelsContent t={t} models={activeSummary.models} animate={true} />
+                  </CollapsibleSection>
+                </div>
+              </>
+            )}
+            {isLoggedIn && cloudSummary && cloudSummary.devices.length > 0 && (
+              <>
+                <div className="mx-3 h-px bg-[var(--border)]" />
+                <div className="usage-section-enter" style={{ animationDelay: "200ms" }}>
+                  <CollapsibleSection title={t.auth_devices}>
+                    <DeviceBreakdown devices={cloudSummary.devices} localDeviceId={deviceId} />
+                  </CollapsibleSection>
+                </div>
+              </>
+            )}
+            {isLoggedIn && !cloudSummary && (
+              <>
+                <div className="mx-3 h-px bg-[var(--border)]" />
+                <div className="px-3 py-2 text-[10px] text-[var(--text-faint)]">{t.auth_cloud_error}</div>
+              </>
+            )}
+            <div className="mx-3 h-px bg-[var(--border)]" />
+            <div className="usage-section-enter" style={{ animationDelay: "240ms" }}>
+              <TokenHeatmap
+                animate={true}
+                data={activeHeatmap ?? undefined}
+                onVisible={() => {
+                  void fetchHeatmap();
+                  if (isLoggedIn) {
+                    void fetchCloudHeatmap();
+                  }
+                }}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="px-3 py-4 text-[11px] text-[var(--text-faint)]">
+            {t.usage_no_data}
+          </div>
+        )}
       </div>
     </div>
   );
