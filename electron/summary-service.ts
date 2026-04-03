@@ -82,7 +82,7 @@ async function invokeSummaryCli(
       }
       if (code !== 0 && code !== null) {
         const stderr = Buffer.concat(stderrChunks).toString("utf-8").trim();
-        reject(new Error(`Summary CLI exited with code ${code}${stderr ? `: ${stderr.slice(0, 200)}` : ""}`));
+        reject(new Error(`Summary CLI exited with code ${code}${stderr ? `: ${stderr.slice(0, 500)}` : ""}`));
         return;
       }
       resolve(Buffer.concat(chunks).toString("utf-8"));
