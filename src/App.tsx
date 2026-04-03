@@ -11,6 +11,7 @@ import { DrawingPanel } from "./toolbar/DrawingPanel";
 import { ShortcutHints } from "./components/ShortcutHints";
 import { CompletionGlow } from "./components/CompletionGlow";
 import { RightPanel } from "./components/RightPanel";
+import { initSessionStoreIPC } from "./stores/sessionStore";
 import { StashBox } from "./components/StashBox";
 import { AgentBubble } from "./components/AgentBubble";
 import { useAgentBubbleStore } from "./stores/agentBubbleStore";
@@ -399,6 +400,10 @@ export function App() {
 
   useEffect(() => initUpdaterListeners(), []);
   useEffect(() => { void hydrateApiKey(); }, []);
+  useEffect(() => {
+    if (!window.termcanvas?.sessions) return;
+    return initSessionStoreIPC();
+  }, []);
 
   useEffect(() => {
     if (!window.termcanvas?.menu) return;
