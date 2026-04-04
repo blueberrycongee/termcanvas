@@ -62,7 +62,7 @@ import {
 import { createMenu } from "./menu";
 import { TelemetryService } from "./telemetry-service";
 import { HookReceiver } from "./hook-receiver";
-import { findBestClaudeSession, findBestCodexSession, readClaudeSessionPermissionMode, readCodexSessionBypassState } from "./session-discovery";
+import { findBestClaudeSession, findBestCodexSession, readClaudeSessionPermissionMode, readCodexSessionBypassState, readLatestCodexSessionId } from "./session-discovery";
 import { AgentService, type AgentConfig } from "./agent-service";
 import { SessionScanner } from "./session-scanner.ts";
 
@@ -340,17 +340,7 @@ function setupIpc() {
   // Session ID discovery for codex/claude
   ipcMain.handle("session:get-codex-latest", () => {
     try {
-      const indexPath = path.join(
-        os.homedir(),
-        ".codex",
-        "session_index.jsonl",
-      );
-      if (!fs.existsSync(indexPath)) return null;
-      const lines = fs.readFileSync(indexPath, "utf-8").trim().split("\n");
-      const last = lines[lines.length - 1];
-      if (!last) return null;
-      const entry = JSON.parse(last);
-      return entry.id as string;
+      return readLatestCodexSessionId();
     } catch (err) {
       console.warn("[session:get-codex-latest] failed to read session index:", err);
       return null;
