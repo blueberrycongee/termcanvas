@@ -217,6 +217,8 @@ export const en = {
   font_download: "Download",
   font_downloading: "Downloading\u2026",
   font_download_failed: "Download failed",
+  setting_on: "On",
+  setting_off: "Off",
   animation_blur: "Focus animation blur",
   minimum_contrast: "Minimum contrast ratio",
   composer_toggle: "Composer input bar",
@@ -260,6 +262,9 @@ export const en = {
   // Agent Bubble
   agent_provider: "Agent Provider",
   agent_model: "Agent Model",
+  agent_format: "Format",
+  agent_base_url: "Base URL",
+  agent_api_key: "API Key",
 
   // CLI
   cli_label: "Command line interface",
@@ -267,6 +272,8 @@ export const en = {
   cli_not_registered: "Not registered",
   cli_registering: "Registering\u2026",
   cli_unregistering: "Unregistering\u2026",
+  cli_register_failed: "Failed to enable CLI integration",
+  cli_unregister_failed: "Failed to disable CLI integration",
 
   // CLI Agent Settings
   settings_agents: "Agents",

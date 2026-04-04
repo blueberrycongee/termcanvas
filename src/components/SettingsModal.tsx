@@ -90,6 +90,8 @@ function UpdateCheckButton() {
   const t = useT();
   const { status, downloadPercent } = useUpdaterStore();
   const [upToDate, setUpToDate] = useState(false);
+  const updateStatusClass =
+    "inline-flex min-w-[132px] justify-end text-right text-[11px]";
 
   const handleCheck = useCallback(async () => {
     setUpToDate(false);
@@ -111,7 +113,7 @@ function UpdateCheckButton() {
 
   if (upToDate) {
     return (
-      <span className="text-[11px] text-[var(--text-muted)]">
+      <span className={`${updateStatusClass} text-[var(--text-muted)]`} aria-live="polite">
         {t.update_up_to_date}
       </span>
     );
@@ -119,7 +121,7 @@ function UpdateCheckButton() {
 
   if (status === "checking") {
     return (
-      <span className="text-[11px] text-[var(--text-muted)]">
+      <span className={`${updateStatusClass} text-[var(--text-muted)]`} aria-live="polite">
         {t.update_checking_short}
       </span>
     );
@@ -127,7 +129,7 @@ function UpdateCheckButton() {
 
   if (status === "downloading") {
     return (
-      <span className="text-[11px] text-[var(--text-muted)]">
+      <span className={`${updateStatusClass} text-[var(--text-muted)]`} aria-live="polite">
         {t.update_downloading_short(downloadPercent)}
       </span>
     );
@@ -136,7 +138,7 @@ function UpdateCheckButton() {
   if (status === "ready") {
     return (
       <button
-        className="text-[11px] text-[var(--accent)] hover:underline"
+        className={`${updateStatusClass} text-[var(--accent)] hover:underline`}
         onClick={handleInstall}
       >
         {t.update_restart_short}
@@ -146,7 +148,7 @@ function UpdateCheckButton() {
 
   return (
     <button
-      className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+      className={`${updateStatusClass} text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors`}
       onClick={handleCheck}
     >
       {t.update_check}
@@ -239,7 +241,7 @@ function AgentsTabContent() {
             </button>
 
             <span
-              className={`text-[11px] shrink-0 min-w-[80px] text-right ${
+              className={`text-[11px] shrink-0 min-w-[120px] text-right ${
                 status === null
                   ? "text-[var(--text-muted)]"
                   : status.ok
@@ -364,6 +366,32 @@ export function SettingsModal({ onClose }: Props) {
       ? t.cli_registered
       : t.cli_not_registered;
 
+  const handleCliIntegrationToggle = useCallback(
+    async (nextEnabled: boolean) => {
+      setCliLoading(true);
+      setCliPendingAction(nextEnabled ? "register" : "unregister");
+
+      try {
+        const ok = nextEnabled
+          ? await window.termcanvas.cli.register()
+          : await window.termcanvas.cli.unregister();
+
+        if (!ok) {
+          useNotificationStore
+            .getState()
+            .notify("error", nextEnabled ? t.cli_register_failed : t.cli_unregister_failed);
+          return;
+        }
+
+        setCliRegistered(nextEnabled);
+      } finally {
+        setCliPendingAction(null);
+        setCliLoading(false);
+      }
+    },
+    [t],
+  );
+
   // Close on Escape (when not recording)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -405,7 +433,7 @@ export function SettingsModal({ onClose }: Props) {
   );
 
   const toggleBtn =
-    "px-3 py-1.5 rounded-md text-[13px] transition-colors duration-150";
+    "inline-flex min-w-[56px] justify-center px-3 py-1.5 rounded-md text-[13px] transition-colors duration-150";
   const activeBtn = `${toggleBtn} bg-[var(--border)] text-[var(--text-primary)]`;
   const inactiveBtn = `${toggleBtn} text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]`;
 
@@ -528,6 +556,8 @@ export function SettingsModal({ onClose }: Props) {
                     const isAvailable = isBuiltin || isDownloaded;
                     const isSelected = terminalFontFamily === font.id;
                     const isDownloading = downloadingFont === font.id;
+                    const fontBadgeClass =
+                      "inline-flex min-w-[88px] justify-center text-[11px] px-1.5 py-0.5 rounded bg-[var(--surface)]";
 
                     return (
                       <div
@@ -556,18 +586,18 @@ export function SettingsModal({ onClose }: Props) {
                         </div>
                         <div className="flex items-center gap-1.5 ml-2 shrink-0">
                           {isBuiltin && (
-                            <span className="text-[11px] text-[var(--text-muted)] px-1.5 py-0.5 rounded bg-[var(--surface)]">
+                            <span className={`${fontBadgeClass} text-[var(--text-muted)]`}>
                               {t.font_builtin}
                             </span>
                           )}
                           {!isBuiltin && isDownloaded && (
-                            <span className="text-[11px] text-[var(--text-muted)] px-1.5 py-0.5 rounded bg-[var(--surface)]">
+                            <span className={`${fontBadgeClass} text-[var(--text-muted)]`}>
                               {t.font_downloaded}
                             </span>
                           )}
                           {!isBuiltin && !isDownloaded && !isDownloading && (
                             <button
-                              className="text-[11px] text-[var(--accent)] hover:text-[var(--text-primary)] px-1.5 py-0.5 rounded bg-[var(--surface)] hover:bg-[var(--border)] transition-colors duration-100"
+                              className={`${fontBadgeClass} text-[var(--accent)] hover:text-[var(--text-primary)] hover:bg-[var(--border)] transition-colors duration-100`}
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 setDownloadingFont(font.id);
@@ -599,7 +629,7 @@ export function SettingsModal({ onClose }: Props) {
                             </button>
                           )}
                           {isDownloading && (
-                            <span className="text-[11px] text-[var(--text-muted)] px-1.5 py-0.5 flex items-center gap-1">
+                            <span className={`${fontBadgeClass} text-[var(--text-muted)] flex items-center gap-1`} aria-live="polite">
                               <svg className="animate-spin h-3 w-3" viewBox="0 0 16 16" fill="none">
                                 <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.3" />
                                 <path d="M14 8a6 6 0 0 0-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -633,7 +663,7 @@ export function SettingsModal({ onClose }: Props) {
                     className="text-[12px] text-[var(--text-muted)] w-10 text-right tabular-nums"
                     style={{ fontFamily: '"Geist Mono", monospace' }}
                   >
-                    {animationBlur === 0 ? "Off" : `${animationBlur.toFixed(1)}`}
+                    {animationBlur === 0 ? t.setting_off : `${animationBlur.toFixed(1)}`}
                   </span>
                 </div>
               </div>
@@ -657,7 +687,7 @@ export function SettingsModal({ onClose }: Props) {
                     className="text-[12px] text-[var(--text-muted)] w-10 text-right tabular-nums"
                     style={{ fontFamily: '"Geist Mono", monospace' }}
                   >
-                    {minimumContrastRatio <= 1 ? "Off" : `${minimumContrastRatio.toFixed(1)}`}
+                    {minimumContrastRatio <= 1 ? t.setting_off : `${minimumContrastRatio.toFixed(1)}`}
                   </span>
                 </div>
               </div>
@@ -677,13 +707,13 @@ export function SettingsModal({ onClose }: Props) {
                     className={composerEnabled ? activeBtn : inactiveBtn}
                     onClick={() => setComposerEnabled(true)}
                   >
-                    On
+                    {t.setting_on}
                   </button>
                   <button
                     className={!composerEnabled ? activeBtn : inactiveBtn}
                     onClick={() => setComposerEnabled(false)}
                   >
-                    Off
+                    {t.setting_off}
                   </button>
                 </div>
               </div>
@@ -703,13 +733,13 @@ export function SettingsModal({ onClose }: Props) {
                     className={drawingEnabled ? activeBtn : inactiveBtn}
                     onClick={() => setDrawingEnabled(true)}
                   >
-                    On
+                    {t.setting_on}
                   </button>
                   <button
                     className={!drawingEnabled ? activeBtn : inactiveBtn}
                     onClick={() => setDrawingEnabled(false)}
                   >
-                    Off
+                    {t.setting_off}
                   </button>
                 </div>
               </div>
@@ -729,13 +759,13 @@ export function SettingsModal({ onClose }: Props) {
                     className={browserEnabled ? activeBtn : inactiveBtn}
                     onClick={() => setBrowserEnabled(true)}
                   >
-                    On
+                    {t.setting_on}
                   </button>
                   <button
                     className={!browserEnabled ? activeBtn : inactiveBtn}
                     onClick={() => setBrowserEnabled(false)}
                   >
-                    Off
+                    {t.setting_off}
                   </button>
                 </div>
               </div>
@@ -755,13 +785,13 @@ export function SettingsModal({ onClose }: Props) {
                     className={summaryEnabled ? activeBtn : inactiveBtn}
                     onClick={() => setSummaryEnabled(true)}
                   >
-                    On
+                    {t.setting_on}
                   </button>
                   <button
                     className={!summaryEnabled ? activeBtn : inactiveBtn}
                     onClick={() => setSummaryEnabled(false)}
                   >
-                    Off
+                    {t.setting_off}
                   </button>
                 </div>
               </div>
@@ -819,7 +849,7 @@ export function SettingsModal({ onClose }: Props) {
               {agentConfig.id === "custom" && (
                 <div className="flex items-center justify-between">
                   <span className="text-[13px] text-[var(--text-secondary)]">
-                    Format
+                    {t.agent_format}
                   </span>
                   <div className="flex gap-1">
                     {(["openai", "anthropic"] as const).map((t) => (
@@ -836,7 +866,7 @@ export function SettingsModal({ onClose }: Props) {
               )}
               <div className="flex items-center justify-between">
                 <span className="text-[13px] text-[var(--text-secondary)]">
-                  Base URL
+                  {t.agent_base_url}
                 </span>
                 <input
                   type="text"
@@ -849,7 +879,7 @@ export function SettingsModal({ onClose }: Props) {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[13px] text-[var(--text-secondary)]">
-                  API Key
+                  {t.agent_api_key}
                 </span>
                 <input
                   type="password"
@@ -901,30 +931,16 @@ export function SettingsModal({ onClose }: Props) {
                     <button
                       className={effectiveCliRegistered ? activeBtn : inactiveBtn}
                       disabled={cliLoading || effectiveCliRegistered === true}
-                      onClick={async () => {
-                        setCliLoading(true);
-                        setCliPendingAction("register");
-                        const ok = await window.termcanvas.cli.register();
-                        if (ok) setCliRegistered(true);
-                        setCliPendingAction(null);
-                        setCliLoading(false);
-                      }}
+                      onClick={() => void handleCliIntegrationToggle(true)}
                     >
-                      On
+                      {t.setting_on}
                     </button>
                     <button
                       className={!effectiveCliRegistered ? activeBtn : inactiveBtn}
                       disabled={cliLoading || effectiveCliRegistered === false}
-                      onClick={async () => {
-                        setCliLoading(true);
-                        setCliPendingAction("unregister");
-                        const ok = await window.termcanvas.cli.unregister();
-                        if (ok) setCliRegistered(false);
-                        setCliPendingAction(null);
-                        setCliLoading(false);
-                      }}
+                      onClick={() => void handleCliIntegrationToggle(false)}
                     >
-                      Off
+                      {t.setting_off}
                     </button>
                   </div>
                 </div>

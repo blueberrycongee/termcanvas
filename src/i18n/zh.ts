@@ -214,6 +214,8 @@ export const zh = {
   font_download: "下载",
   font_downloading: "下载中…",
   font_download_failed: "下载失败",
+  setting_on: "开启",
+  setting_off: "关闭",
   animation_blur: "聚焦动画模糊",
   minimum_contrast: "最低对比度",
   composer_toggle: "Composer 输入栏",
@@ -257,6 +259,9 @@ export const zh = {
   // Agent Bubble
   agent_provider: "Agent 提供商",
   agent_model: "Agent 模型",
+  agent_format: "格式",
+  agent_base_url: "Base URL",
+  agent_api_key: "API Key",
 
   // CLI
   cli_label: "命令行工具",
@@ -264,6 +269,8 @@ export const zh = {
   cli_not_registered: "未注册",
   cli_registering: "注册中…",
   cli_unregistering: "取消注册中…",
+  cli_register_failed: "启用命令行集成失败",
+  cli_unregister_failed: "关闭命令行集成失败",
 
   // CLI Agent Settings
   settings_agents: "Agent",
