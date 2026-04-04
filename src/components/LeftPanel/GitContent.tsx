@@ -918,25 +918,38 @@ export function GitContent({
       {/* ── Commit Input ── */}
       <div className="shrink-0 border-b px-3 py-2" style={{ borderColor: "var(--border)" }}>
         <div className="flex gap-1.5">
-          <textarea
-            ref={textareaRef}
-            value={commitMessage}
-            onChange={(e) => setCommitMessage(e.target.value)}
-            placeholder={t.git_commit_message_placeholder}
-            rows={1}
-            className="min-w-0 flex-1 resize-none rounded-md border bg-transparent px-2 py-1.5 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] focus:outline-none"
-            style={{
-              ...MONO_STYLE,
-              borderColor: "var(--border)",
-              lineHeight: "18px",
-            }}
-            onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                e.preventDefault();
-                handleCommit();
-              }
-            }}
-          />
+          <div className="relative min-w-0 flex-1">
+            {!commitMessage && (
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-2 top-1/2 -translate-y-1/2 overflow-hidden whitespace-nowrap text-[11px] text-[var(--text-faint)]"
+                style={MONO_STYLE}
+              >
+                {t.git_commit_message_placeholder}
+              </span>
+            )}
+            <textarea
+              ref={textareaRef}
+              value={commitMessage}
+              onChange={(e) => setCommitMessage(e.target.value)}
+              placeholder=""
+              aria-label={t.git_commit_message_placeholder}
+              rows={1}
+              className="min-w-0 flex-1 resize-none rounded-md border bg-transparent px-2 py-1.5 text-[11px] text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
+              style={{
+                ...MONO_STYLE,
+                borderColor: "var(--border)",
+                lineHeight: "18px",
+                width: "100%",
+              }}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                  e.preventDefault();
+                  handleCommit();
+                }
+              }}
+            />
+          </div>
           <button
             title={t.git_commit}
             disabled={committing || (!commitMessage.trim())}
