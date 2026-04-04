@@ -444,6 +444,10 @@ function setupIpc() {
     return await projectScanner.scanAsync(dirPath);
   });
 
+  ipcMain.handle("project:list-child-git-repos", async (_event, dirPath: string) => {
+    return await projectScanner.listChildGitReposAsync(dirPath);
+  });
+
   ipcMain.handle("project:diff", async (_event, worktreePath: string) => {
     const startedAt = Date.now();
     try {

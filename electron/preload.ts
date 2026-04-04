@@ -117,6 +117,10 @@ contextBridge.exposeInMainWorld("termcanvas", {
   project: {
     selectDirectory: () => ipcRenderer.invoke("project:select-directory"),
     scan: (dirPath: string) => ipcRenderer.invoke("project:scan", dirPath),
+    listChildGitRepos: (dirPath: string) =>
+      ipcRenderer.invoke("project:list-child-git-repos", dirPath) as Promise<
+        { name: string; path: string }[]
+      >,
     rescanWorktrees: (dirPath: string) =>
       ipcRenderer.invoke("project:rescan-worktrees", dirPath),
     enableHydra: (dirPath: string) =>

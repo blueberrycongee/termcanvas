@@ -1,5 +1,5 @@
 import { execFile, execFileSync, execSync } from "child_process";
-import { existsSync } from "fs";
+import { existsSync, readdirSync } from "fs";
 import path from "path";
 
 interface WorktreeInfo {
@@ -13,6 +13,13 @@ interface ProjectInfo {
   path: string;
   worktrees: WorktreeInfo[];
 }
+
+export interface ChildGitRepoInfo {
+  name: string;
+  path: string;
+}
+
+const IGNORED_CHILD_DIRS = new Set([".git", "node_modules"]);
 
 function parseWorktreesOutput(output: string): WorktreeInfo[] {
   const worktrees: WorktreeInfo[] = [];
@@ -101,6 +108,35 @@ export class ProjectScanner {
     }
 
     return { name, path: dirPath, worktrees };
+  }
+
+  listChildGitRepos(dirPath: string): ChildGitRepoInfo[] {
+    try {
+      return readdirSync(dirPath, { withFileTypes: true })
+        .filter((entry) => {
+          if (!entry.isDirectory()) {
+            return false;
+          }
+
+          if (entry.name.startsWith(".")) {
+            return false;
+          }
+
+          return !IGNORED_CHILD_DIRS.has(entry.name);
+        })
+        .map((entry) => ({
+          name: entry.name,
+          path: path.join(dirPath, entry.name),
+        }))
+        .filter((entry) => existsSync(path.join(entry.path, ".git")))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    } catch {
+      return [];
+    }
+  }
+
+  async listChildGitReposAsync(dirPath: string): Promise<ChildGitRepoInfo[]> {
+    return this.listChildGitRepos(dirPath);
   }
 
   listWorktrees(dirPath: string): WorktreeInfo[] {

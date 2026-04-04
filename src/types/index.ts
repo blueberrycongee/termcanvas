@@ -396,6 +396,9 @@ export interface TermCanvasAPI {
       path: string;
       worktrees: { path: string; branch: string; isMain: boolean }[];
     } | null>;
+    listChildGitRepos: (dirPath: string) => Promise<
+      { name: string; path: string }[]
+    >;
     rescanWorktrees: (
       dirPath: string,
     ) => Promise<{ path: string; branch: string; isMain: boolean }[]>;
