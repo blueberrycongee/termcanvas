@@ -27,6 +27,15 @@ function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
+function projectName(projectDir: string): string {
+  const normalized = projectDir.replace(/\\/g, "/");
+  if (normalized.includes("/")) {
+    const parts = normalized.split("/").filter(Boolean);
+    return parts[parts.length - 1] || projectDir;
+  }
+  return projectDir.replace(/^-/, "").split("-").pop() || projectDir;
+}
+
 function TimelineRow({
   event,
   isCurrent,
@@ -158,7 +167,7 @@ export function SessionReplayView() {
         </button>
         <div className="flex-1 min-w-0">
           <div className="text-[11px] font-medium truncate">
-            {projectDir.replace(/^-/, "").split("-").pop()}
+            {projectName(projectDir)}
           </div>
           <div className="text-[9px] text-[var(--text-faint)]">
             {timeline.events.length} {t.sessions_events} · {Math.round(timeline.totalTokens / 1000)}k {t.sessions_tokens}

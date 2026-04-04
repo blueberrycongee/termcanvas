@@ -24,6 +24,11 @@ function formatTime(iso: string): string {
 }
 
 function projectName(dir: string): string {
+  const normalized = dir.replace(/\\/g, "/");
+  if (normalized.includes("/")) {
+    const parts = normalized.split("/").filter(Boolean);
+    return parts[parts.length - 1] || dir;
+  }
   const parts = dir.replace(/^-/, "").split("-");
   return parts[parts.length - 1] || dir;
 }
