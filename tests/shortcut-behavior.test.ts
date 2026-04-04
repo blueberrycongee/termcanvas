@@ -5,7 +5,9 @@ import { shouldIgnoreShortcutTarget } from "../src/hooks/shortcutTarget.ts";
 import {
   DEFAULT_SHORTCUTS,
   eventToShortcut,
+  isRegisteredAppShortcutEvent,
   matchesShortcut,
+  useShortcutStore,
 } from "../src/stores/shortcutStore.ts";
 import { getTerminalFocusOrder } from "../src/stores/projectFocus.ts";
 import {
@@ -95,6 +97,52 @@ test("matchesShortcut uses ctrl as mod on Windows", () => {
       false,
     );
   });
+});
+
+test("registered app shortcuts are recognized on Windows", () => {
+  withPlatform("win32", () => {
+    assert.equal(
+      isRegisteredAppShortcutEvent(
+        createKeyboardEvent({ key: "t", ctrlKey: true }),
+      ),
+      true,
+    );
+    assert.equal(
+      isRegisteredAppShortcutEvent(
+        createKeyboardEvent({ key: "c", ctrlKey: true }),
+      ),
+      false,
+    );
+  });
+});
+
+test("customized shortcuts are recognized as app shortcuts", () => {
+  const previousShortcuts = useShortcutStore.getState().shortcuts;
+  useShortcutStore.setState({
+    shortcuts: {
+      ...previousShortcuts,
+      newTerminal: "mod+shift+n",
+    },
+  });
+
+  try {
+    withPlatform("win32", () => {
+      assert.equal(
+        isRegisteredAppShortcutEvent(
+          createKeyboardEvent({ key: "n", ctrlKey: true, shiftKey: true }),
+        ),
+        true,
+      );
+      assert.equal(
+        isRegisteredAppShortcutEvent(
+          createKeyboardEvent({ key: "t", ctrlKey: true }),
+        ),
+        false,
+      );
+    });
+  } finally {
+    useShortcutStore.setState({ shortcuts: previousShortcuts });
+  }
 });
 
 test("editable targets still ignore plain typing shortcuts", () => {

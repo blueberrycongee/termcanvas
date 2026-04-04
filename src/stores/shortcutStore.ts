@@ -144,6 +144,16 @@ export function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
 }
 
 /**
+ * Check whether a KeyboardEvent matches any currently registered app shortcut.
+ */
+export function isRegisteredAppShortcutEvent(
+  e: KeyboardEvent,
+  shortcuts: ShortcutMap = useShortcutStore.getState().shortcuts,
+): boolean {
+  return Object.values(shortcuts).some((shortcut) => matchesShortcut(e, shortcut));
+}
+
+/**
  * Format a shortcut string for display, e.g. "mod+b" -> "⌘ B" or "Ctrl B".
  */
 export function formatShortcut(shortcut: string, isMac: boolean): string {

@@ -17,6 +17,7 @@ import type { TerminalData, TerminalStatus, TerminalType } from "../types";
 import { getTerminalLaunchOptions, getTerminalPromptArgs } from "./cliConfig";
 import { buildFontFamily } from "./fontRegistry";
 import { useLocaleStore } from "../stores/localeStore";
+import { isRegisteredAppShortcutEvent } from "../stores/shortcutStore";
 import { en } from "../i18n/en";
 import { zh } from "../i18n/zh";
 import type { TerminalTelemetrySnapshot } from "../../shared/telemetry";
@@ -637,6 +638,10 @@ function createTerminalRenderer(
   }
 
   xterm.attachCustomKeyEventHandler((event) => {
+    if (event.type === "keydown" && isRegisteredAppShortcutEvent(event)) {
+      return false;
+    }
+
     if (event.type === "keydown" && event.metaKey) {
       if (event.key === "Backspace" && runtime.ptyId !== null) {
         window.termcanvas.terminal.input(runtime.ptyId, "\x15");
