@@ -338,6 +338,10 @@ function XyFlowCanvasInner() {
     useSelectionStore.getState().clearSelection();
   }, []);
 
+  const stopCanvasMouseDown = useCallback((event: React.MouseEvent) => {
+    event.stopPropagation();
+  }, []);
+
   const handleAddProject = useCallback(async () => {
     if (!window.termcanvas) return;
 
@@ -526,7 +530,10 @@ function XyFlowCanvasInner() {
             <div className="text-[var(--text-muted)] text-lg font-light mb-4">
               {t.canvas_empty_title}
             </div>
-            <div className="flex items-center justify-center gap-3">
+            <div
+              className="flex items-center justify-center gap-3"
+              onMouseDown={stopCanvasMouseDown}
+            >
               <button
                 onClick={handleNewTerminal}
                 className="px-6 py-3 bg-[var(--accent)] hover:brightness-110 text-white rounded-lg transition-all"

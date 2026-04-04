@@ -38,6 +38,10 @@ export function Canvas() {
     handlePanMouseDown(e);
   };
 
+  const stopCanvasMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -176,7 +180,10 @@ export function Canvas() {
             <div className="text-[var(--text-muted)] text-lg font-light mb-4">
               {t.canvas_empty_title}
             </div>
-            <div className="flex items-center justify-center gap-3">
+            <div
+              className="flex items-center justify-center gap-3"
+              onMouseDown={stopCanvasMouseDown}
+            >
               <button
                 onClick={handleNewTerminal}
                 className="px-6 py-3 bg-[var(--accent)] hover:brightness-110 text-white rounded-lg transition-all"

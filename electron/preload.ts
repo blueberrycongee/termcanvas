@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import os from "os";
 
 contextBridge.exposeInMainWorld("termcanvas", {
   terminal: {
@@ -395,7 +394,7 @@ contextBridge.exposeInMainWorld("termcanvas", {
     },
   },
   app: {
-    homePath: os.homedir(),
+    homePath: process.env.HOME ?? process.env.USERPROFILE ?? "",
     platform: process.platform as "darwin" | "win32" | "linux",
     onBeforeClose: (callback: () => void) => {
       const listener = () => callback();
