@@ -1,5 +1,5 @@
 import fs from "fs";
-import { DatabaseSync } from "node:sqlite";
+import { createRequire } from "node:module";
 import os from "os";
 import path from "path";
 import { resolveSessionFile } from "./session-watcher";
@@ -27,6 +27,40 @@ const CODEX_SESSION_LOOKBACK_DAYS = 7;
 const CODEX_INDEX_RECENT_LIMIT = 24;
 const CODEX_FALLBACK_SCAN_LIMIT = 32;
 const CODEX_STATE_DB_CANDIDATE_LIMIT = 24;
+const require = createRequire(import.meta.url);
+
+interface SqliteStatement {
+  all(...params: unknown[]): unknown;
+  get(...params: unknown[]): unknown;
+}
+
+interface SqliteDatabase {
+  prepare(sql: string): SqliteStatement;
+  close(): void;
+}
+
+type DatabaseSyncCtor = new (
+  filePath: string,
+  options?: { readonly?: boolean },
+) => SqliteDatabase;
+
+let cachedDatabaseSyncCtor: DatabaseSyncCtor | null | undefined;
+
+function getDatabaseSyncCtor(): DatabaseSyncCtor | null {
+  if (cachedDatabaseSyncCtor !== undefined) {
+    return cachedDatabaseSyncCtor;
+  }
+
+  try {
+    const mod = require("node:sqlite") as { DatabaseSync?: DatabaseSyncCtor };
+    cachedDatabaseSyncCtor =
+      typeof mod.DatabaseSync === "function" ? mod.DatabaseSync : null;
+  } catch {
+    cachedDatabaseSyncCtor = null;
+  }
+
+  return cachedDatabaseSyncCtor;
+}
 
 function safeParseJson(filePath: string): Record<string, unknown> | null {
   try {
@@ -153,8 +187,13 @@ function findBestCodexSessionInStateDb(
     return null;
   }
 
+  const DatabaseSync = getDatabaseSyncCtor();
+  if (!DatabaseSync) {
+    return null;
+  }
+
   const startedMs = startedAt ? new Date(startedAt).getTime() : NaN;
-  let db: DatabaseSync | null = null;
+  let db: SqliteDatabase | null = null;
 
   try {
     db = new DatabaseSync(dbPath, { readonly: true });
@@ -228,7 +267,12 @@ function readLatestCodexSessionIdFromStateDb(homeDir = os.homedir()): string | n
     return null;
   }
 
-  let db: DatabaseSync | null = null;
+  const DatabaseSync = getDatabaseSyncCtor();
+  if (!DatabaseSync) {
+    return null;
+  }
+
+  let db: SqliteDatabase | null = null;
   try {
     db = new DatabaseSync(dbPath, { readonly: true });
     const row = db.prepare(`
