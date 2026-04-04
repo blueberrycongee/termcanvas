@@ -619,18 +619,6 @@ function createTerminalRenderer(
   xterm.loadAddon(serializeAddon);
   xterm.open(container);
 
-  const bufferService = (xterm as any)._core?._bufferService;
-  xterm.onScroll(() => {
-    if (
-      bufferService?.isUserScrolling &&
-      xterm.buffer.active.viewportY === 0 &&
-      xterm.buffer.active.baseY > xterm.rows
-    ) {
-      bufferService.isUserScrolling = false;
-      xterm.scrollToBottom();
-    }
-  });
-
   try {
     xterm.loadAddon(new ImageAddon());
   } catch {
