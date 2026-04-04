@@ -17,6 +17,17 @@ export interface HookHealth {
   parseErrors: number;
 }
 
+export function getHookSocketPath(
+  platform: NodeJS.Platform = process.platform,
+  pid: number = process.pid,
+  tmpDir: string = os.tmpdir(),
+): string {
+  if (platform === "win32") {
+    return `\\\\.\\pipe\\termcanvas-${pid}`;
+  }
+  return `${tmpDir}/termcanvas-${pid}.sock`;
+}
+
 export class HookReceiver {
   private server: net.Server | null = null;
   private socketPath: string | null = null;
@@ -40,13 +51,15 @@ export class HookReceiver {
   }
 
   async start(): Promise<string> {
-    const socketPath = `${os.tmpdir()}/termcanvas-${process.pid}.sock`;
+    const socketPath = getHookSocketPath();
 
-    // Remove stale socket from previous crash
-    try {
-      fs.unlinkSync(socketPath);
-    } catch {
-      // No stale socket — fine
+    if (process.platform !== "win32") {
+      // Remove stale unix socket from a previous crash.
+      try {
+        fs.unlinkSync(socketPath);
+      } catch {
+        // No stale socket — fine
+      }
     }
 
     this.server = net.createServer((connection) => {
@@ -100,12 +113,18 @@ export class HookReceiver {
       });
     });
 
-    this.server.on("error", (err) => {
-      console.error("[HookReceiver] Server error:", err);
-    });
+    await new Promise<void>((resolve, reject) => {
+      const onError = (err: Error) => {
+        this.server?.off("error", onError);
+        console.error("[HookReceiver] Server error:", err);
+        reject(err);
+      };
 
-    await new Promise<void>((resolve) => {
-      this.server!.listen(socketPath, () => resolve());
+      this.server!.once("error", onError);
+      this.server!.listen(socketPath, () => {
+        this.server?.off("error", onError);
+        resolve();
+      });
     });
     this.socketPath = socketPath;
 
@@ -132,6 +151,7 @@ export class HookReceiver {
 
   private removeSocket(): void {
     if (!this.socketPath) return;
+    if (process.platform === "win32") return;
     try {
       fs.unlinkSync(this.socketPath);
     } catch {

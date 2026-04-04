@@ -1338,7 +1338,12 @@ app.whenReady().then(async () => {
     }
   });
 
-  hookSocketPath = await hookReceiver.start();
+  try {
+    hookSocketPath = await hookReceiver.start();
+  } catch (error) {
+    hookSocketPath = null;
+    console.error("[HookReceiver] Startup disabled:", error);
+  }
   sessionScanner.start((sessions) => {
     const managed = telemetryService.getManagedSessions();
     const managedIds = new Set(managed.map((s) => s.sessionId));
