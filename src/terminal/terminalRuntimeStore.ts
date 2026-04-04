@@ -258,8 +258,8 @@ async function pollSessionId(
   detectedCliPid?: number | null,
   startedAt?: string,
 ) {
-  const maxAttempts = 10;
-  const interval = 5_000;
+  const maxAttempts = cliType === "codex" ? 20 : 10;
+  const interval = cliType === "codex" ? 500 : 5_000;
 
   let cachedPid: number | null = detectedCliPid ?? null;
   if (!cachedPid && cliType === "claude") {
@@ -272,7 +272,9 @@ async function pollSessionId(
   }
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, interval));
+    if (attempt > 0 || cliType !== "codex") {
+      await new Promise((resolve) => setTimeout(resolve, interval));
+    }
     if (shouldCancel()) {
       return;
     }

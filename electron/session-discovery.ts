@@ -1,4 +1,5 @@
 import fs from "fs";
+import { DatabaseSync } from "node:sqlite";
 import os from "os";
 import path from "path";
 import { resolveSessionFile } from "./session-watcher";
@@ -25,6 +26,7 @@ interface RecentCodexSessionFile {
 const CODEX_SESSION_LOOKBACK_DAYS = 7;
 const CODEX_INDEX_RECENT_LIMIT = 24;
 const CODEX_FALLBACK_SCAN_LIMIT = 32;
+const CODEX_STATE_DB_CANDIDATE_LIMIT = 24;
 
 function safeParseJson(filePath: string): Record<string, unknown> | null {
   try {
@@ -112,6 +114,136 @@ function readJsonlTailLines(filePath: string, limit: number): string[] {
 
 function getCodexSessionIndexPath(homeDir = os.homedir()): string {
   return path.join(homeDir, ".codex", "session_index.jsonl");
+}
+
+function getCodexStateDbPath(homeDir = os.homedir()): string | null {
+  const codexDir = path.join(homeDir, ".codex");
+  let entries: string[];
+  try {
+    entries = fs.readdirSync(codexDir);
+  } catch {
+    return null;
+  }
+
+  const candidates = entries
+    .map((entry) => {
+      const match = /^state_(\d+)\.sqlite$/.exec(entry);
+      if (!match) return null;
+      return {
+        filePath: path.join(codexDir, entry),
+        version: Number.parseInt(match[1] ?? "", 10),
+      };
+    })
+    .filter(
+      (candidate): candidate is { filePath: string; version: number } =>
+        candidate !== null && Number.isFinite(candidate.version),
+    )
+    .sort((left, right) => right.version - left.version);
+
+  return candidates[0]?.filePath ?? null;
+}
+
+function findBestCodexSessionInStateDb(
+  cwd: string,
+  startedAt?: string,
+  homeDir = os.homedir(),
+): FoundSession | null {
+  const dbPath = getCodexStateDbPath(homeDir);
+  if (!dbPath || !fs.existsSync(dbPath)) {
+    return null;
+  }
+
+  const startedMs = startedAt ? new Date(startedAt).getTime() : NaN;
+  let db: DatabaseSync | null = null;
+
+  try {
+    db = new DatabaseSync(dbPath, { readonly: true });
+    const rows = db.prepare(`
+      SELECT id, rollout_path, created_at, updated_at
+      FROM threads
+      WHERE cwd = ? AND archived = 0
+      ORDER BY created_at DESC
+      LIMIT ?
+    `).all(cwd, CODEX_STATE_DB_CANDIDATE_LIMIT) as Array<{
+      id?: string;
+      rollout_path?: string;
+      created_at?: number;
+      updated_at?: number;
+    }>;
+
+    const candidates = rows
+      .map((row) => {
+        if (typeof row.id !== "string" || row.id.length === 0) {
+          return null;
+        }
+        const createdAtMs =
+          typeof row.created_at === "number" ? row.created_at * 1000 : null;
+        const updatedAtMs =
+          typeof row.updated_at === "number" ? row.updated_at * 1000 : null;
+        const anchorMs = createdAtMs ?? updatedAtMs ?? 0;
+        const distance = Number.isFinite(startedMs)
+          ? Math.abs(anchorMs - startedMs)
+          : 0;
+        const filePath =
+          typeof row.rollout_path === "string" ? row.rollout_path : "";
+
+        return {
+          sessionId: row.id,
+          filePath,
+          confidence: "medium" as const,
+          anchorMs,
+          distance,
+        };
+      })
+      .filter(
+        (candidate): candidate is {
+          sessionId: string;
+          filePath: string;
+          confidence: "medium";
+          anchorMs: number;
+          distance: number;
+        } => candidate !== null,
+      )
+      .sort((left, right) => {
+        if (left.distance !== right.distance) return left.distance - right.distance;
+        return right.anchorMs - left.anchorMs;
+      });
+
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    const { sessionId, filePath, confidence } = candidates[0];
+    return { sessionId, filePath, confidence };
+  } catch {
+    return null;
+  } finally {
+    db?.close();
+  }
+}
+
+function readLatestCodexSessionIdFromStateDb(homeDir = os.homedir()): string | null {
+  const dbPath = getCodexStateDbPath(homeDir);
+  if (!dbPath || !fs.existsSync(dbPath)) {
+    return null;
+  }
+
+  let db: DatabaseSync | null = null;
+  try {
+    db = new DatabaseSync(dbPath, { readonly: true });
+    const row = db.prepare(`
+      SELECT id
+      FROM threads
+      WHERE archived = 0
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).get() as { id?: string } | undefined;
+    return typeof row?.id === "string" ? row.id : null;
+  } catch {
+    return null;
+  } finally {
+    db?.close();
+  }
 }
 
 function readRecentCodexSessionIndexEntries(
@@ -202,6 +334,10 @@ function listRecentCodexSessionFiles(homeDir = os.homedir()): RecentCodexSession
 }
 
 export function readLatestCodexSessionId(homeDir = os.homedir()): string | null {
+  const fromDb = readLatestCodexSessionIdFromStateDb(homeDir);
+  if (fromDb) {
+    return fromDb;
+  }
   const latest = readRecentCodexSessionIndexEntries(homeDir, 1)[0];
   return latest?.sessionId ?? null;
 }
@@ -211,6 +347,11 @@ export function findBestCodexSession(
   startedAt?: string,
   homeDir = os.homedir(),
 ): FoundSession | null {
+  const fromDb = findBestCodexSessionInStateDb(cwd, startedAt, homeDir);
+  if (fromDb) {
+    return fromDb;
+  }
+
   const startedMs = startedAt ? new Date(startedAt).getTime() : NaN;
   const recentFiles = listRecentCodexSessionFiles(homeDir);
   const recentFileMap = new Map(

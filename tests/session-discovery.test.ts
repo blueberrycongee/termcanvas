@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import os from "node:os";
 import path from "node:path";
 
@@ -89,6 +90,52 @@ function writeSessionIndex(homeDir: string, entries: Array<{ id: string; updated
     entries.map((entry) => JSON.stringify(entry)).join("\n"),
     "utf-8",
   );
+}
+
+function writeStateDbThreads(
+  homeDir: string,
+  rows: Array<{
+    id: string;
+    cwd: string;
+    createdAtSec: number;
+    updatedAtSec: number;
+    rolloutPath: string;
+    archived?: number;
+  }>,
+): void {
+  const dbPath = path.join(homeDir, ".codex", "state_5.sqlite");
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  const db = new DatabaseSync(dbPath);
+  try {
+    db.exec(`
+      CREATE TABLE threads (
+        id TEXT PRIMARY KEY,
+        rollout_path TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        cwd TEXT NOT NULL,
+        archived INTEGER NOT NULL DEFAULT 0
+      )
+    `);
+
+    const stmt = db.prepare(`
+      INSERT INTO threads (id, rollout_path, created_at, updated_at, cwd, archived)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const row of rows) {
+      stmt.run(
+        row.id,
+        row.rolloutPath,
+        row.createdAtSec,
+        row.updatedAtSec,
+        row.cwd,
+        row.archived ?? 0,
+      );
+    }
+  } finally {
+    db.close();
+  }
 }
 
 test("findBestClaudeSession prefers exact pid sidecar", () => {
@@ -181,6 +228,70 @@ test("readLatestCodexSessionId reads the newest session index entry", () => {
     ]);
 
     assert.equal(readLatestCodexSessionId(homeDir), "newest-session");
+  });
+});
+
+test("readLatestCodexSessionId prefers the newest state db thread id", () => {
+  withTempHome((homeDir) => {
+    writeStateDbThreads(homeDir, [
+      {
+        id: "db-older-session",
+        cwd: "/tmp/project",
+        createdAtSec: 100,
+        updatedAtSec: 100,
+        rolloutPath: "/tmp/older.jsonl",
+      },
+      {
+        id: "db-newest-session",
+        cwd: "/tmp/project",
+        createdAtSec: 200,
+        updatedAtSec: 200,
+        rolloutPath: "/tmp/newest.jsonl",
+      },
+    ]);
+    writeSessionIndex(homeDir, [
+      { id: "index-session", updated_at: "2026-04-05T09:05:00Z" },
+    ]);
+
+    assert.equal(readLatestCodexSessionId(homeDir), "db-newest-session");
+  });
+});
+
+test("findBestCodexSession prefers state db matches before file fallback", () => {
+  withTempHome((homeDir) => {
+    const startedAt = "2026-04-05T05:47:17.000Z";
+    const targetFile = writeCodexSession(
+      homeDir,
+      "file-session",
+      "2026-04-05T05:47:18.000Z",
+      "/tmp/project-db",
+    );
+
+    writeStateDbThreads(homeDir, [
+      {
+        id: "db-target-session",
+        cwd: "/tmp/project-db",
+        createdAtSec: 1775339237,
+        updatedAtSec: 1775339238,
+        rolloutPath: "/tmp/from-db.jsonl",
+      },
+      {
+        id: "db-other-session",
+        cwd: "/tmp/other",
+        createdAtSec: 1775339200,
+        updatedAtSec: 1775339201,
+        rolloutPath: "/tmp/other.jsonl",
+      },
+    ]);
+
+    const found = findBestCodexSession("/tmp/project-db", startedAt, homeDir);
+
+    assert.deepEqual(found, {
+      sessionId: "db-target-session",
+      filePath: "/tmp/from-db.jsonl",
+      confidence: "medium",
+    });
+    assert.notEqual(found?.filePath, targetFile);
   });
 });
 
