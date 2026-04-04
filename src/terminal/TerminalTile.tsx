@@ -201,6 +201,7 @@ export function TerminalTile({
   );
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tileRef = useRef<HTMLDivElement>(null);
+  const settledFitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
   const containerRef = useCallback((node: HTMLDivElement | null) => {
     setContainerEl(node);
@@ -306,6 +307,9 @@ export function TerminalTile({
 
   useEffect(
     () => () => {
+      if (settledFitTimerRef.current) {
+        clearTimeout(settledFitTimerRef.current);
+      }
       if (copiedTimerRef.current) {
         clearTimeout(copiedTimerRef.current);
       }
@@ -357,6 +361,64 @@ export function TerminalTile({
 
     return () => cancelAnimationFrame(frame);
   }, [height, isAgent, lodMode, sidebarDragActive, terminal.id, terminal.minimized, useAgentRenderer, width]);
+
+  useEffect(() => {
+    const tile = tileRef.current;
+    if (!tile) return;
+
+    const handleTransitionEnd = (event: TransitionEvent) => {
+      if (event.target !== tile) return;
+      if (event.propertyName !== "width" && event.propertyName !== "height") {
+        return;
+      }
+      if (terminal.minimized || lodMode !== "live") return;
+      if (useAgentRenderer) return;
+      if (isAgent && useSidebarDragStore.getState().active) return;
+
+      requestAnimationFrame(() => {
+        fitTerminalRuntime(terminal.id);
+      });
+    };
+
+    tile.addEventListener("transitionend", handleTransitionEnd);
+    return () => {
+      tile.removeEventListener("transitionend", handleTransitionEnd);
+    };
+  }, [isAgent, lodMode, terminal.id, terminal.minimized, useAgentRenderer]);
+
+  useEffect(() => {
+    if (!containerEl) return;
+
+    const scheduleSettledFit = () => {
+      if (settledFitTimerRef.current) {
+        clearTimeout(settledFitTimerRef.current);
+      }
+
+      settledFitTimerRef.current = setTimeout(() => {
+        settledFitTimerRef.current = null;
+        if (terminal.minimized || lodMode !== "live") return;
+        if (useAgentRenderer) return;
+        if (isAgent && useSidebarDragStore.getState().active) return;
+
+        requestAnimationFrame(() => {
+          fitTerminalRuntime(terminal.id);
+        });
+      }, 120);
+    };
+
+    const observer = new ResizeObserver(() => {
+      scheduleSettledFit();
+    });
+
+    observer.observe(containerEl);
+    return () => {
+      observer.disconnect();
+      if (settledFitTimerRef.current) {
+        clearTimeout(settledFitTimerRef.current);
+        settledFitTimerRef.current = null;
+      }
+    };
+  }, [containerEl, isAgent, lodMode, terminal.id, terminal.minimized, useAgentRenderer]);
 
   useEffect(() => {
     if (!isAgent || !sidebarDragActive) {
@@ -632,7 +694,10 @@ export function TerminalTile({
         height: terminal.minimized ? "auto" : height,
         zIndex: isDragging ? 50 : undefined,
         opacity: isStashing ? 0.4 : isDragging ? 0.9 : 1,
-        transition: isDragging ? "none" : "left 0.2s ease, top 0.2s ease, width 0.2s ease, height 0.2s ease",
+        transition:
+          isDragging || lodMode === "live"
+            ? "none"
+            : "left 0.2s ease, top 0.2s ease, width 0.2s ease, height 0.2s ease",
         boxShadow: isDragging
           ? "0 8px 32px rgba(0,0,0,0.3)"
           : dragOver
