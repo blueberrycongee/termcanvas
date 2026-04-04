@@ -20,6 +20,7 @@ import { useT } from "../i18n/useT";
 import { useComposerStore } from "../stores/composerStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useSettingsModalStore } from "../stores/settingsModalStore";
 import { getTerminalFocusOrder, getWorktreeFocusOrder } from "../stores/projectFocus";
 import {
   packTerminals,
@@ -179,6 +180,10 @@ export function useKeyboardShortcuts() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (useSettingsModalStore.getState().open) {
+        return;
+      }
+
       if (shouldIgnoreShortcutTarget(e)) {
         return;
       }
@@ -511,7 +516,8 @@ export function useKeyboardShortcuts() {
 
     };
 
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    // Use capture so app shortcuts still fire when focused controls stop propagation.
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
   }, [shortcuts, t]);
 }
