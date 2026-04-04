@@ -51,6 +51,7 @@ linux:
 
 win:
   icon: build/icon.ico
+  artifactName: "${productName}-Setup-${version}.${ext}"
   target:
     - nsis
 

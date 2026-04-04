@@ -88,7 +88,7 @@ function ShortcutRow({
 
 function UpdateCheckButton() {
   const t = useT();
-  const { status, downloadPercent } = useUpdaterStore();
+  const { status, downloadPercent, errorMessage } = useUpdaterStore();
   const [upToDate, setUpToDate] = useState(false);
   const updateStatusClass =
     "inline-flex min-w-[132px] justify-end text-right text-[11px]";
@@ -141,6 +141,18 @@ function UpdateCheckButton() {
         onClick={handleInstall}
       >
         {t.update_restart_short}
+      </button>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <button
+        className={`${updateStatusClass} text-[var(--amber)] hover:text-[var(--text-secondary)] transition-colors`}
+        onClick={handleCheck}
+        title={errorMessage ?? t.update_error}
+      >
+        {t.update_error}
       </button>
     );
   }
