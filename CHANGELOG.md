@@ -2,6 +2,18 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.2] - 2026-04-05
+
+### Added
+- Automatic CLI integration on first app launch, including Codex/Claude skill installation
+
+### Changed
+- Settings modal toggles and status text polished for more stable async feedback and localized copy
+
+### Fixed
+- Hidden unfinished agent message bubble from the app UI
+- CLI integration toggle now respects explicit user opt-out while still allowing manual re-enable
+
 ## [0.25.0] - 2026-04-03
 
 ### Added
