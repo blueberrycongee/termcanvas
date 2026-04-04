@@ -13,13 +13,10 @@ import { CompletionGlow } from "./components/CompletionGlow";
 import { RightPanel } from "./components/RightPanel";
 import { initSessionStoreIPC } from "./stores/sessionStore";
 import { StashBox } from "./components/StashBox";
-import { AgentBubble } from "./components/AgentBubble";
-import { useAgentBubbleStore } from "./stores/agentBubbleStore";
 import { WelcomePopup } from "./components/WelcomePopup";
 import {
   useProjectStore,
   createTerminal,
-  generateId,
 } from "./stores/projectStore";
 import { addScannedProjectAndFocus } from "./projects/projectCreation";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
@@ -363,32 +360,6 @@ export function App() {
   const { showCloseDialog, handleSave, handleDiscard, handleCancel } =
     useCloseHandler();
 
-  const bubbleMessages = useAgentBubbleStore((s) => s.messages);
-  const bubbleTaskCount = useAgentBubbleStore((s) => s.activeTaskCount);
-  const addBubbleMessage = useAgentBubbleStore((s) => s.addMessage);
-  const activeSessionId = useAgentBubbleStore((s) => s.activeSessionId);
-  const agentConfig = usePreferencesStore((s) => s.agentConfig);
-  const handleBubbleSend = useCallback(
-    (text: string) => {
-      addBubbleMessage({
-        id: generateId(),
-        role: "user",
-        content: text,
-        timestamp: Date.now(),
-      });
-
-      if (agentConfig.apiKey) {
-        window.termcanvas.agent.send(activeSessionId, text, {
-          type: agentConfig.type,
-          baseURL: agentConfig.baseURL,
-          apiKey: agentConfig.apiKey,
-          model: agentConfig.model,
-        });
-      }
-    },
-    [addBubbleMessage, activeSessionId, agentConfig],
-  );
-
   const [showWelcome, setShowWelcome] = useState(() => {
     return !localStorage.getItem("termcanvas-welcome-seen");
   });
@@ -561,11 +532,6 @@ export function App() {
       <ShortcutHints />
       <RightPanel />
       <StashBox />
-      <AgentBubble
-        messages={bubbleMessages}
-        activeTaskCount={bubbleTaskCount}
-        onSendMessage={handleBubbleSend}
-      />
       {composerEnabled && <ComposerBar />}
       <NotificationToast />
       {showCloseDialog && (
