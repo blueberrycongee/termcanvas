@@ -1,5 +1,15 @@
 import { FONT_REGISTRY, type FontEntry } from "./fontRegistry";
 
+export function toFontFileUrl(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, "/");
+  const withLeadingSlash = /^[A-Za-z]:\//.test(normalized)
+    ? `/${normalized}`
+    : normalized.startsWith("/")
+      ? normalized
+      : `/${normalized}`;
+  return `file://${encodeURI(withLeadingSlash)}`;
+}
+
 /** Load a single font into the document via FontFace API */
 export async function loadFont(
   entry: FontEntry,
@@ -7,7 +17,7 @@ export async function loadFont(
 ): Promise<boolean> {
   if (entry.source === "builtin") return true;
   try {
-    const filePath = `file://${fontsDir}/${entry.fileName}`;
+    const filePath = toFontFileUrl(`${fontsDir}/${entry.fileName}`);
     const face = new FontFace(
       entry.cssFamily.replace(/"/g, ""),
       `url("${filePath}")`,
