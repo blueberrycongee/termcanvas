@@ -21,7 +21,7 @@ export interface ShortcutMap {
   spanLarge: string;
 }
 
-export const DEFAULT_SHORTCUTS: ShortcutMap = {
+const LEGACY_DEFAULT_SHORTCUTS: ShortcutMap = {
   addProject: "mod+o",
   cycleFocusLevel: "mod+g",
   compactFocusedProject: "mod+shift+g",
@@ -40,6 +40,28 @@ export const DEFAULT_SHORTCUTS: ShortcutMap = {
   spanTall: "mod+3",
   spanLarge: "mod+4",
 };
+
+const ALT_DEFAULT_SHORTCUTS: ShortcutMap = {
+  addProject: "alt+o",
+  cycleFocusLevel: "alt+g",
+  compactFocusedProject: "alt+shift+g",
+  newTerminal: "alt+t",
+  saveWorkspace: "alt+s",
+  saveWorkspaceAs: "alt+shift+s",
+  renameTerminalTitle: "alt+;",
+  nextTerminal: "alt+]",
+  prevTerminal: "alt+[",
+  clearFocus: "alt+e",
+  closeFocused: "alt+d",
+  toggleRightPanel: "alt+/",
+  toggleStarFocused: "alt+f",
+  spanDefault: "alt+1",
+  spanWide: "alt+2",
+  spanTall: "alt+3",
+  spanLarge: "alt+4",
+};
+
+export const DEFAULT_SHORTCUTS: ShortcutMap = { ...LEGACY_DEFAULT_SHORTCUTS };
 
 const STORAGE_KEY = "termcanvas-shortcuts";
 
@@ -67,17 +89,42 @@ function hasUnsupportedPlatformModifier(
     : e.metaKey && !e.ctrlKey;
 }
 
+export function getDefaultShortcuts(
+  platform: ShortcutPlatform = getShortcutPlatform(),
+): ShortcutMap {
+  return platform === "darwin"
+    ? { ...LEGACY_DEFAULT_SHORTCUTS }
+    : { ...ALT_DEFAULT_SHORTCUTS };
+}
+
+function isLegacyDefaultShortcutMap(shortcuts: ShortcutMap): boolean {
+  return (
+    Object.entries(LEGACY_DEFAULT_SHORTCUTS) as Array<
+      [keyof ShortcutMap, string]
+    >
+  ).every(([key, value]) => shortcuts[key] === value);
+}
+
 function loadShortcuts(): ShortcutMap {
+  const platform = getShortcutPlatform();
+  const defaults = getDefaultShortcuts(platform);
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
-      const parsed = JSON.parse(saved);
-      return { ...DEFAULT_SHORTCUTS, ...parsed };
+      const parsed = {
+        ...defaults,
+        ...JSON.parse(saved),
+      } as ShortcutMap;
+      if (platform !== "darwin" && isLegacyDefaultShortcutMap(parsed)) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(defaults));
+        return defaults;
+      }
+      return parsed;
     }
   } catch {
     // ignore
   }
-  return { ...DEFAULT_SHORTCUTS };
+  return defaults;
 }
 
 interface ShortcutStore {
@@ -97,8 +144,9 @@ export const useShortcutStore = create<ShortcutStore>((set) => ({
     }),
 
   resetAll: () => {
+    const defaults = getDefaultShortcuts();
     localStorage.removeItem(STORAGE_KEY);
-    return set({ shortcuts: { ...DEFAULT_SHORTCUTS } });
+    return set({ shortcuts: defaults });
   },
 }));
 

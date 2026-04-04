@@ -259,7 +259,7 @@ Workflows advance through validated `result.json` + `done` evidence inside `.hyd
 
 ## Keyboard Shortcuts
 
-All shortcuts are customizable in Settings → Shortcuts. On Windows/Linux, replace <kbd>⌘</kbd> with <kbd>Ctrl</kbd>.
+All shortcuts are customizable in Settings → Shortcuts. On Windows/Linux, the default app shortcuts use <kbd>Alt</kbd>.
 
 | Shortcut | Action |
 |----------|--------|

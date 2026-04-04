@@ -18,7 +18,7 @@ export function hasPrimaryModifier(
 }
 
 export function shouldIgnoreShortcutTarget(
-  e: Pick<KeyboardEvent, "target" | "metaKey" | "ctrlKey">,
+  e: Pick<KeyboardEvent, "target" | "metaKey" | "ctrlKey" | "altKey">,
 ): boolean {
-  return isEditableTarget(e.target) && !hasPrimaryModifier(e);
+  return isEditableTarget(e.target) && !hasPrimaryModifier(e) && !e.altKey;
 }

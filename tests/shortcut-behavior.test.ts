@@ -5,6 +5,7 @@ import { shouldIgnoreShortcutTarget } from "../src/hooks/shortcutTarget.ts";
 import {
   DEFAULT_SHORTCUTS,
   eventToShortcut,
+  getDefaultShortcuts,
   isRegisteredAppShortcutEvent,
   matchesShortcut,
   useShortcutStore,
@@ -103,7 +104,7 @@ test("registered app shortcuts are recognized on Windows", () => {
   withPlatform("win32", () => {
     assert.equal(
       isRegisteredAppShortcutEvent(
-        createKeyboardEvent({ key: "t", ctrlKey: true }),
+        createKeyboardEvent({ key: "t", altKey: true }),
       ),
       true,
     );
@@ -152,6 +153,20 @@ test("editable targets still ignore plain typing shortcuts", () => {
         createKeyboardEvent({ target: createTarget("TEXTAREA") }),
       ),
       true,
+    );
+  });
+});
+
+test("editable targets allow alt shortcuts to reach the app on Windows", () => {
+  withPlatform("win32", () => {
+    assert.equal(
+      shouldIgnoreShortcutTarget(
+        createKeyboardEvent({
+          target: createTarget("TEXTAREA"),
+          altKey: true,
+        }),
+      ),
+      false,
     );
   });
 });
@@ -228,6 +243,50 @@ test("cycle focus level shortcut defaults to mod+g and matches correctly", () =>
 
 test("compact focused project shortcut defaults to mod+shift+g", () => {
   assert.equal(DEFAULT_SHORTCUTS.compactFocusedProject, "mod+shift+g");
+});
+
+test("Windows defaults use alt-based shortcuts", () => {
+  withPlatform("win32", () => {
+    const defaults = getDefaultShortcuts();
+    assert.equal(defaults.newTerminal, "alt+t");
+    assert.equal(defaults.saveWorkspace, "alt+s");
+    assert.equal(defaults.toggleRightPanel, "alt+/");
+  });
+});
+
+test("resetAll restores platform defaults on Windows", () => {
+  const previousShortcuts = useShortcutStore.getState().shortcuts;
+  const previousStorage = globalThis.localStorage;
+  const storage = new Map<string, string>();
+  (globalThis as { localStorage?: Storage }).localStorage = {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      storage.set(key, value);
+    },
+    removeItem: (key: string) => {
+      storage.delete(key);
+    },
+    clear: () => storage.clear(),
+    key: (index: number) => Array.from(storage.keys())[index] ?? null,
+    get length() {
+      return storage.size;
+    },
+  } as Storage;
+
+  try {
+    withPlatform("win32", () => {
+      useShortcutStore.getState().setShortcut("newTerminal", "mod+t");
+      useShortcutStore.getState().resetAll();
+      assert.equal(useShortcutStore.getState().shortcuts.newTerminal, "alt+t");
+    });
+  } finally {
+    useShortcutStore.setState({ shortcuts: previousShortcuts });
+    if (previousStorage === undefined) {
+      delete (globalThis as { localStorage?: Storage }).localStorage;
+    } else {
+      (globalThis as { localStorage?: Storage }).localStorage = previousStorage;
+    }
+  }
 });
 
 test("terminal focus order follows natural project/worktree/array order", () => {
