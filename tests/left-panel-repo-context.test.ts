@@ -32,7 +32,7 @@ test("resolveRepoContext selects the preferred child repo when available", () =>
     }),
     {
       selectedRepoPath: "/tmp/acme/frontend",
-      selectorKind: "multiple",
+      selectorKind: "inline",
       targetPath: "/tmp/acme/frontend",
     },
   );
@@ -49,6 +49,26 @@ test("resolveRepoContext falls back to the first child repo when no preference e
       selectedRepoPath: "/tmp/acme/frontend",
       selectorKind: "single",
       targetPath: "/tmp/acme/frontend",
+    },
+  );
+});
+
+test("resolveRepoContext uses dropdown mode when there are many child repos", () => {
+  assert.deepEqual(
+    resolveRepoContext({
+      childRepos: [
+        { name: "api", path: "/tmp/acme/api" },
+        { name: "frontend", path: "/tmp/acme/frontend" },
+        { name: "worker", path: "/tmp/acme/worker" },
+      ],
+      directoryIsGitRepo: false,
+      directoryPath: "/tmp/acme",
+      preferredRepoPath: "/tmp/acme/worker",
+    }),
+    {
+      selectedRepoPath: "/tmp/acme/worker",
+      selectorKind: "dropdown",
+      targetPath: "/tmp/acme/worker",
     },
   );
 });

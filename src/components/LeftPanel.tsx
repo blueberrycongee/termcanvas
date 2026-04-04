@@ -426,30 +426,59 @@ export function LeftPanel() {
               </div>
               {repoContext.selectorKind === "single" ? (
                 <div
-                  className="mt-1.5 rounded-md border border-[var(--border)] px-2.5 py-1.5 text-[11px] text-[var(--text-primary)]"
+                  className="mt-1.5 truncate rounded-md border border-[var(--border)] px-2.5 py-1.5 text-[11px] text-[var(--text-primary)]"
                   style={{ fontFamily: '"Geist Mono", monospace' }}
+                  title={childRepos[0]?.name}
                 >
                   {childRepos[0]?.name}
                 </div>
-              ) : (
+              ) : repoContext.selectorKind === "inline" ? (
                 <div className="mt-1.5 flex items-center gap-1 rounded-md bg-[var(--surface)] p-1">
                   {childRepos.map((repo) => {
                     const isActive = repo.path === repoContext.targetPath;
                     return (
                       <button
                         key={repo.path}
-                        className={`flex-1 rounded-md px-2.5 py-1.5 text-[11px] transition-all duration-150 ${
+                        className={`min-w-0 flex-1 rounded-md px-2.5 py-1.5 text-[11px] transition-all duration-150 ${
                           isActive
                             ? "bg-[var(--surface-hover)] text-[var(--text-primary)]"
                             : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
                         }`}
                         style={{ fontFamily: '"Geist Mono", monospace' }}
                         onClick={() => handleSelectChildRepo(repo.path)}
+                        title={repo.name}
                       >
-                        {repo.name}
+                        <span className="block truncate">{repo.name}</span>
                       </button>
                     );
                   })}
+                </div>
+              ) : (
+                <div className="relative mt-1.5">
+                  <select
+                    className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 pr-8 text-[11px] text-[var(--text-primary)] outline-none transition-colors duration-150 hover:border-[var(--border-hover)] focus:border-[var(--accent)]"
+                    style={{ fontFamily: '"Geist Mono", monospace' }}
+                    value={repoContext.targetPath ?? ""}
+                    onChange={(event) => handleSelectChildRepo(event.target.value)}
+                    aria-label={t.left_panel_repo}
+                  >
+                    {childRepos.map((repo) => (
+                      <option key={repo.path} value={repo.path}>
+                        {repo.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[var(--text-faint)]">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                      <path
+                        d="M2.2 3.5L5 6.3L7.8 3.5"
+                        stroke="currentColor"
+                        strokeWidth="1.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
                 </div>
               )}
             </div>

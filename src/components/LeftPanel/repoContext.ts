@@ -5,7 +5,7 @@ export interface RepoContextOption {
 
 export interface RepoContextResolution {
   selectedRepoPath: string | null;
-  selectorKind: "none" | "single" | "multiple";
+  selectorKind: "none" | "single" | "inline" | "dropdown";
   targetPath: string | null;
 }
 
@@ -45,7 +45,12 @@ export function resolveRepoContext(params: {
 
   return {
     selectedRepoPath,
-    selectorKind: childRepos.length === 1 ? "single" : "multiple",
+    selectorKind:
+      childRepos.length === 1
+        ? "single"
+        : childRepos.length === 2
+          ? "inline"
+          : "dropdown",
     targetPath: selectedRepoPath,
   };
 }
