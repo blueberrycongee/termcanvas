@@ -326,6 +326,7 @@ export function SettingsModal({ onClose }: Props) {
   const backdropRef = useRef<HTMLDivElement>(null);
   const [cliRegistered, setCliRegistered] = useState<boolean | null>(null);
   const [cliLoading, setCliLoading] = useState(false);
+  const [cliPendingAction, setCliPendingAction] = useState<"register" | "unregister" | null>(null);
   const [appVersion, setAppVersion] = useState<string | null>(null);
 
   useEffect(() => {
@@ -862,27 +863,43 @@ export function SettingsModal({ onClose }: Props) {
                       {t.cli_label}
                     </span>
                     <span className="text-[11px] text-[var(--text-muted)]">
-                      termcanvas, hydra
+                      {cliRegistered ? t.cli_registered : t.cli_not_registered}
                     </span>
                   </div>
-                  {cliRegistered ? (
-                    <span className={`${toggleBtn} bg-[var(--border)] text-[var(--text-muted)] cursor-default`}>
-                      {t.cli_registered}
-                    </span>
-                  ) : (
+                  <div className="flex gap-1">
                     <button
-                      className={inactiveBtn}
-                      disabled={cliLoading}
+                      className={cliRegistered ? activeBtn : inactiveBtn}
+                      disabled={cliLoading || cliRegistered}
                       onClick={async () => {
                         setCliLoading(true);
+                        setCliPendingAction("register");
                         const ok = await window.termcanvas.cli.register();
                         if (ok) setCliRegistered(true);
+                        setCliPendingAction(null);
                         setCliLoading(false);
                       }}
                     >
-                      {cliLoading ? t.cli_registering : t.cli_not_registered}
+                      {cliLoading && cliPendingAction === "register"
+                        ? t.cli_registering
+                        : "On"}
                     </button>
-                  )}
+                    <button
+                      className={!cliRegistered ? activeBtn : inactiveBtn}
+                      disabled={cliLoading || !cliRegistered}
+                      onClick={async () => {
+                        setCliLoading(true);
+                        setCliPendingAction("unregister");
+                        const ok = await window.termcanvas.cli.unregister();
+                        if (ok) setCliRegistered(false);
+                        setCliPendingAction(null);
+                        setCliLoading(false);
+                      }}
+                    >
+                      {cliLoading && cliPendingAction === "unregister"
+                        ? t.cli_unregistering
+                        : "Off"}
+                    </button>
+                  </div>
                 </div>
               )}
 

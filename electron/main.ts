@@ -26,6 +26,11 @@ import {
   installSkillLinks,
   uninstallSkillLinks,
 } from "./skill-manager";
+import {
+  readCliIntegrationState,
+  syncCliIntegrationOnStartup,
+  writeCliIntegrationState,
+} from "./cli-integration";
 import { checkHydraProjectStatus, enableHydraForProject } from "./hydra-project.ts";
 import { buildLaunchSpec } from "./pty-launch.js";
 import {
@@ -855,12 +860,18 @@ function setupIpc() {
   ipcMain.handle("cli:is-registered", () => isCliRegistered(getCliDir()));
   ipcMain.handle("cli:register", () => {
     const ok = registerCli(getCliDir());
-    if (ok) installSkill();
+    if (ok) {
+      writeCliIntegrationState({ autoRegister: true });
+      installSkill();
+    }
     return ok;
   });
   ipcMain.handle("cli:unregister", () => {
     const ok = unregisterCli(getCliDir());
-    if (ok) uninstallSkill();
+    if (ok) {
+      writeCliIntegrationState({ autoRegister: false });
+      uninstallSkill();
+    }
     return ok;
   });
 
@@ -1338,7 +1349,16 @@ app.whenReady().then(async () => {
     sendToWindow(mainWindow, "sessions:list-changed", merged);
   });
   ensureCliLinks();
-  if (isCliRegistered(getCliDir())) ensureSkillInstalled();
+  syncCliIntegrationOnStartup({
+    autoRegisterEnabled: readCliIntegrationState().autoRegister,
+    cliRegistered: isCliRegistered(getCliDir()),
+    registerCli: () => registerCli(getCliDir()),
+    installSkills: installSkill,
+    ensureSkills: ensureSkillInstalled,
+    persistAutoRegisterEnabled: (enabled) => {
+      writeCliIntegrationState({ autoRegister: enabled });
+    },
+  });
   setupIpc();
   await initAuth();
   createWindow();

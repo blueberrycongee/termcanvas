@@ -263,6 +263,7 @@ export const zh = {
   cli_registered: "已注册",
   cli_not_registered: "未注册",
   cli_registering: "注册中…",
+  cli_unregistering: "取消注册中…",
 
   // CLI Agent Settings
   settings_agents: "Agent",

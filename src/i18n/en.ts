@@ -266,6 +266,7 @@ export const en = {
   cli_registered: "Registered",
   cli_not_registered: "Not registered",
   cli_registering: "Registering\u2026",
+  cli_unregistering: "Unregistering\u2026",
 
   // CLI Agent Settings
   settings_agents: "Agents",

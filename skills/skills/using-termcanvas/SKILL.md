@@ -1,6 +1,6 @@
 ---
 name: using-termcanvas
-description: Use at the start of work in a TermCanvas-managed repo to decide whether to stay in the current agent, invoke Hydra, or use a narrow TermCanvas skill.
+description: Use when starting work in a TermCanvas-managed repo to route between direct work, Hydra, or a narrow TermCanvas skill.
 alwaysApply: true
 ---
 
