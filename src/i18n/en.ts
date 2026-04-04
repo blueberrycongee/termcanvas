@@ -86,6 +86,7 @@ export const en = {
   left_panel_preview: "Preview",
   left_panel_git: "Git",
   left_panel_memory: "Memory",
+  left_panel_repo: "Repo",
   left_panel_enable_hydra: "Hydra",
   left_panel_enable_hydra_busy: "Enabling\u2026",
   no_worktree_selected: "No worktree selected",

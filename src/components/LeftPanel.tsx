@@ -12,6 +12,10 @@ import { HydraSetupPopup } from "./HydraSetupPopup";
 import { panToTerminal } from "../utils/panToTerminal";
 import { useSidebarDragStore } from "../stores/sidebarDragStore";
 import type { LeftPanelTab } from "../stores/canvasStore";
+import {
+  resolveRepoContext,
+  type RepoContextOption,
+} from "./LeftPanel/repoContext";
 
 // ── Tab icon SVGs (14×14, matching the minimal aesthetic) ──
 
@@ -88,8 +92,12 @@ export function LeftPanel() {
   const projects = useProjectStore((s) => s.projects);
   const [hydraEnabling, setHydraEnabling] = useState(false);
   const [hydraStatus, setHydraStatus] = useState<"missing" | "outdated" | null>(null);
+  const [directoryIsGitRepo, setDirectoryIsGitRepo] = useState(false);
+  const [childRepos, setChildRepos] = useState<RepoContextOption[]>([]);
+  const [selectedChildRepoPath, setSelectedChildRepoPath] = useState<string | null>(null);
   const checkedProjectRef = useRef<Set<string>>(new Set());
   const dismissedHydraRef = useRef<Set<string>>(new Set());
+  const preferredRepoPathRef = useRef<Map<string, string>>(new Map());
 
   // Re-center the focused terminal when the left panel opens/closes
   const prevCollapsedRef = useRef(collapsed);
@@ -128,6 +136,71 @@ export function LeftPanel() {
     lastWorktreePathRef.current = worktreePath;
   }
   const effectiveWorktreePath = worktreePath ?? lastWorktreePathRef.current;
+  const repoScopedTabs = activeTab === "diff" || activeTab === "git" || activeTab === "memory";
+
+  useEffect(() => {
+    if (!effectiveWorktreePath || !window.termcanvas) {
+      setDirectoryIsGitRepo(false);
+      setChildRepos([]);
+      setSelectedChildRepoPath(null);
+      return;
+    }
+
+    let cancelled = false;
+    const preferredRepoPath =
+      preferredRepoPathRef.current.get(effectiveWorktreePath) ?? null;
+
+    Promise.all([
+      window.termcanvas.git.isRepo(effectiveWorktreePath),
+      window.termcanvas.project.listChildGitRepos(effectiveWorktreePath),
+    ])
+      .then(([isGitRepo, repos]) => {
+        if (cancelled) return;
+        setDirectoryIsGitRepo(isGitRepo);
+        setChildRepos(repos);
+
+        const resolution = resolveRepoContext({
+          childRepos: repos,
+          directoryIsGitRepo: isGitRepo,
+          directoryPath: effectiveWorktreePath,
+          preferredRepoPath,
+        });
+        setSelectedChildRepoPath(resolution.selectedRepoPath);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setDirectoryIsGitRepo(false);
+        setChildRepos([]);
+        setSelectedChildRepoPath(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveWorktreePath]);
+
+  const repoContext = useMemo(
+    () =>
+      resolveRepoContext({
+        childRepos,
+        directoryIsGitRepo,
+        directoryPath: effectiveWorktreePath,
+        preferredRepoPath: selectedChildRepoPath,
+      }),
+    [childRepos, directoryIsGitRepo, effectiveWorktreePath, selectedChildRepoPath],
+  );
+  const repoContextPath = repoScopedTabs
+    ? repoContext.targetPath
+    : effectiveWorktreePath;
+
+  const handleSelectChildRepo = useCallback(
+    (repoPath: string) => {
+      if (!effectiveWorktreePath) return;
+      preferredRepoPathRef.current.set(effectiveWorktreePath, repoPath);
+      setSelectedChildRepoPath(repoPath);
+    },
+    [effectiveWorktreePath],
+  );
 
   // Check Hydra toolchain status when a project comes into focus.
   useEffect(() => {
@@ -342,18 +415,58 @@ export function LeftPanel() {
 
       {/* ── Content ── */}
       <div className="flex-1 min-h-0 flex flex-col">
+        {repoScopedTabs && repoContext.selectorKind !== "none" && (
+          <div className="shrink-0 px-2 pb-1.5">
+            <div className="rounded-lg bg-[var(--bg)] px-2 py-2">
+              <div
+                className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-faint)]"
+                style={{ fontFamily: '"Geist Mono", monospace' }}
+              >
+                {t.left_panel_repo}
+              </div>
+              {repoContext.selectorKind === "single" ? (
+                <div
+                  className="mt-1.5 rounded-md border border-[var(--border)] px-2.5 py-1.5 text-[11px] text-[var(--text-primary)]"
+                  style={{ fontFamily: '"Geist Mono", monospace' }}
+                >
+                  {childRepos[0]?.name}
+                </div>
+              ) : (
+                <div className="mt-1.5 flex items-center gap-1 rounded-md bg-[var(--surface)] p-1">
+                  {childRepos.map((repo) => {
+                    const isActive = repo.path === repoContext.targetPath;
+                    return (
+                      <button
+                        key={repo.path}
+                        className={`flex-1 rounded-md px-2.5 py-1.5 text-[11px] transition-all duration-150 ${
+                          isActive
+                            ? "bg-[var(--surface-hover)] text-[var(--text-primary)]"
+                            : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                        }`}
+                        style={{ fontFamily: '"Geist Mono", monospace' }}
+                        onClick={() => handleSelectChildRepo(repo.path)}
+                      >
+                        {repo.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         {activeTab === "files" && <FilesContent worktreePath={effectiveWorktreePath} onFileClick={handleFileClick} />}
-        {activeTab === "diff" && <DiffContent worktreePath={effectiveWorktreePath} />}
+        {activeTab === "diff" && <DiffContent worktreePath={repoContextPath} />}
         {activeTab === "preview" && <PreviewContent filePath={previewFile} onClose={handlePreviewClose} onNavigate={handleFileClick} />}
         {activeTab === "git" && (
           <GitContent
-            worktreePath={effectiveWorktreePath}
+            worktreePath={repoContextPath}
             onEnableHydra={focusedProject ? handleEnableHydra : undefined}
             hydraEnabling={hydraEnabling}
           />
         )}
         {activeTab === "memory" && (
-          <MemoryContent worktreePath={effectiveWorktreePath} onFileClick={handleFileClick} />
+          <MemoryContent worktreePath={repoContextPath} onFileClick={handleFileClick} />
         )}
       </div>
 
