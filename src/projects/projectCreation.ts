@@ -61,3 +61,54 @@ export function addScannedProjectAndFocus(info: ScannedProjectInfo): ProjectData
   const project = createProjectFromScan(info, getNextProjectPositionX(projects));
   return addProjectAndFocusFirstWorktree(project);
 }
+
+export function addDefaultTerminalProject(homePath: string): ProjectData {
+  const { projects } = useProjectStore.getState();
+  const project: ProjectData = {
+    id: generateId(),
+    name: "~",
+    path: homePath,
+    position: { x: getNextProjectPositionX(projects), y: 0 },
+    collapsed: false,
+    zIndex: 0,
+    worktrees: [
+      {
+        id: generateId(),
+        name: "~",
+        path: homePath,
+        position: { x: 0, y: 0 },
+        collapsed: false,
+        terminals: [],
+      },
+    ],
+  };
+  return addProjectAndFocusFirstWorktree(project);
+}
+
+export function ensureTerminalCreationTarget(homePath: string): {
+  projectId: string;
+  worktreeId: string;
+} | null {
+  const { focusedProjectId, focusedWorktreeId, projects } = useProjectStore.getState();
+  if (focusedProjectId && focusedWorktreeId) {
+    return {
+      projectId: focusedProjectId,
+      worktreeId: focusedWorktreeId,
+    };
+  }
+
+  if (projects.length > 0) {
+    return null;
+  }
+
+  const project = addDefaultTerminalProject(homePath);
+  const worktree = project.worktrees[0];
+  if (!worktree) {
+    return null;
+  }
+
+  return {
+    projectId: project.id,
+    worktreeId: worktree.id,
+  };
+}

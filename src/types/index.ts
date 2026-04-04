@@ -575,6 +575,7 @@ export interface TermCanvasAPI {
     onEvent: (callback: (sessionId: string, event: AgentStreamEvent) => void) => () => void;
   };
   app: {
+    homePath: string;
     platform: "darwin" | "win32" | "linux";
     onBeforeClose: (callback: () => void) => () => void;
     requestClose: () => void;

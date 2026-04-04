@@ -4,7 +4,10 @@ import {
   createTerminal,
   getProjectBounds,
 } from "../stores/projectStore";
-import { addScannedProjectAndFocus } from "../projects/projectCreation";
+import {
+  addScannedProjectAndFocus,
+  ensureTerminalCreationTarget,
+} from "../projects/projectCreation";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { useSelectionStore } from "../stores/selectionStore";
@@ -248,11 +251,24 @@ export function useKeyboardShortcuts() {
 
       if (matchesShortcut(e, shortcuts.newTerminal)) {
         e.preventDefault();
-        const { focusedProjectId, focusedWorktreeId, addTerminal, setFocusedTerminal } =
+        const {
+          projects,
+          focusedProjectId,
+          focusedWorktreeId,
+          addTerminal,
+          setFocusedTerminal,
+        } =
           useProjectStore.getState();
-        if (focusedProjectId && focusedWorktreeId) {
+        const target =
+          focusedProjectId && focusedWorktreeId
+            ? { projectId: focusedProjectId, worktreeId: focusedWorktreeId }
+            : projects.length === 0 && window.termcanvas?.app.homePath
+              ? ensureTerminalCreationTarget(window.termcanvas.app.homePath)
+              : null;
+
+        if (target) {
           const terminal = createTerminal("shell");
-          addTerminal(focusedProjectId, focusedWorktreeId, terminal);
+          addTerminal(target.projectId, target.worktreeId, terminal);
           setFocusedTerminal(terminal.id);
           zoomToTerminal(terminal.id);
         }

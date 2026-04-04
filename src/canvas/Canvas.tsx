@@ -1,11 +1,14 @@
 import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
-import { useProjectStore } from "../stores/projectStore";
+import { useProjectStore, createTerminal } from "../stores/projectStore";
 import { useDrawingStore } from "../stores/drawingStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { useBrowserCardStore } from "../stores/browserCardStore";
 import { useNotificationStore } from "../stores/notificationStore";
-import { addScannedProjectAndFocus } from "../projects/projectCreation";
+import {
+  addScannedProjectAndFocus,
+  ensureTerminalCreationTarget,
+} from "../projects/projectCreation";
 import { useCanvasInteraction } from "./useCanvasInteraction";
 import { useBoxSelect } from "../hooks/useBoxSelect";
 import { useViewportCulling } from "../hooks/useViewportCulling";
@@ -16,6 +19,7 @@ import { DrawingLayer } from "./DrawingLayer";
 import { FamilyTreeOverlay } from "../components/FamilyTreeOverlay";
 import { BoxSelectOverlay } from "./BoxSelectOverlay";
 import { useT } from "../i18n/useT";
+import { panToTerminal } from "../utils/panToTerminal";
 
 export function Canvas() {
   const t = useT();
@@ -95,6 +99,20 @@ export function Canvas() {
     addScannedProjectAndFocus(info);
   };
 
+  const handleNewTerminal = () => {
+    const homePath = window.termcanvas?.app.homePath;
+    if (!homePath) return;
+
+    const target = ensureTerminalCreationTarget(homePath);
+    if (!target) return;
+
+    const terminal = createTerminal("shell");
+    const { addTerminal, setFocusedTerminal } = useProjectStore.getState();
+    addTerminal(target.projectId, target.worktreeId, terminal);
+    setFocusedTerminal(terminal.id);
+    panToTerminal(terminal.id);
+  };
+
   const leftOffset = leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
 
   return (
@@ -158,12 +176,20 @@ export function Canvas() {
             <div className="text-[var(--text-muted)] text-lg font-light mb-4">
               {t.canvas_empty_title}
             </div>
-            <button
-              onClick={handleAddProject}
-              className="px-6 py-3 bg-[var(--button-bg)] hover:bg-[var(--button-bg-hover)] text-[var(--button-text)] rounded-lg transition-colors"
-            >
-              {t.canvas_empty_action}
-            </button>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={handleNewTerminal}
+                className="px-6 py-3 bg-[var(--accent)] hover:brightness-110 text-white rounded-lg transition-all"
+              >
+                {t.shortcut_new_terminal}
+              </button>
+              <button
+                onClick={handleAddProject}
+                className="px-6 py-3 bg-[var(--button-bg)] hover:bg-[var(--button-bg-hover)] text-[var(--button-text)] rounded-lg transition-colors"
+              >
+                {t.canvas_empty_action}
+              </button>
+            </div>
           </div>
         </div>
       )}

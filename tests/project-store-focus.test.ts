@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { addScannedProjectAndFocus } from "../src/projects/projectCreation.ts";
+import {
+  addScannedProjectAndFocus,
+  ensureTerminalCreationTarget,
+} from "../src/projects/projectCreation.ts";
 import { useProjectStore } from "../src/stores/projectStore.ts";
 import type { ProjectData } from "../src/types/index.ts";
 
@@ -348,6 +351,38 @@ test("addScannedProjectAndFocus focuses the first worktree of the created projec
   assert.equal(state.projects.length, 1);
   assert.equal(state.focusedProjectId, createdProject.id);
   assert.equal(state.focusedWorktreeId, createdProject.worktrees[0].id);
+});
+
+test("ensureTerminalCreationTarget creates a default home project when the store is empty", () => {
+  useProjectStore.setState({
+    projects: [],
+    focusedProjectId: null,
+    focusedWorktreeId: null,
+  });
+
+  const target = ensureTerminalCreationTarget("/Users/tester");
+  const state = useProjectStore.getState();
+
+  assert.ok(target);
+  assert.equal(state.projects.length, 1);
+  assert.equal(state.projects[0].path, "/Users/tester");
+  assert.equal(state.projects[0].worktrees.length, 1);
+  assert.equal(state.projects[0].worktrees[0].path, "/Users/tester");
+  assert.equal(state.focusedProjectId, target.projectId);
+  assert.equal(state.focusedWorktreeId, target.worktreeId);
+});
+
+test("ensureTerminalCreationTarget returns the focused worktree when one already exists", () => {
+  resetStore();
+
+  const before = useProjectStore.getState().projects;
+  const target = ensureTerminalCreationTarget("/Users/tester");
+  const state = useProjectStore.getState();
+
+  assert.ok(target);
+  assert.strictEqual(state.projects, before);
+  assert.equal(target.projectId, "project-1");
+  assert.equal(target.worktreeId, "worktree-1");
 });
 
 test("toggleProjectCollapse clears focus when no visible terminal remains", () => {

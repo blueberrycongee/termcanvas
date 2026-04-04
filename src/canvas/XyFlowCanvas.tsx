@@ -10,7 +10,7 @@ import {
   type OnNodeDrag,
   type ReactFlowInstance,
 } from "@xyflow/react";
-import { useProjectStore } from "../stores/projectStore";
+import { createTerminal, useProjectStore } from "../stores/projectStore";
 import { useBrowserCardStore } from "../stores/browserCardStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { useCanvasStore } from "../stores/canvasStore";
@@ -49,7 +49,11 @@ import {
   PROJ_PAD,
   PROJ_TITLE_H,
 } from "../layout";
-import { addScannedProjectAndFocus } from "../projects/projectCreation";
+import {
+  addScannedProjectAndFocus,
+  ensureTerminalCreationTarget,
+} from "../projects/projectCreation";
+import { panToTerminal } from "../utils/panToTerminal";
 
 const EMPTY_EDGES: never[] = [];
 
@@ -361,6 +365,20 @@ function XyFlowCanvasInner() {
     addScannedProjectAndFocus(info);
   }, [notify, t]);
 
+  const handleNewTerminal = useCallback(() => {
+    const homePath = window.termcanvas?.app.homePath;
+    if (!homePath) return;
+
+    const target = ensureTerminalCreationTarget(homePath);
+    if (!target) return;
+
+    const terminal = createTerminal("shell");
+    const { addTerminal, setFocusedTerminal } = useProjectStore.getState();
+    addTerminal(target.projectId, target.worktreeId, terminal);
+    setFocusedTerminal(terminal.id);
+    panToTerminal(terminal.id);
+  }, []);
+
   const handleNodeClick = useCallback<NodeMouseHandler<CanvasFlowNode>>(
     (_event, node) => {
       if (node.type === "project") {
@@ -508,12 +526,20 @@ function XyFlowCanvasInner() {
             <div className="text-[var(--text-muted)] text-lg font-light mb-4">
               {t.canvas_empty_title}
             </div>
-            <button
-              onClick={handleAddProject}
-              className="px-6 py-3 bg-[var(--button-bg)] hover:bg-[var(--button-bg-hover)] text-[var(--button-text)] rounded-lg transition-colors"
-            >
-              {t.canvas_empty_action}
-            </button>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={handleNewTerminal}
+                className="px-6 py-3 bg-[var(--accent)] hover:brightness-110 text-white rounded-lg transition-all"
+              >
+                {t.shortcut_new_terminal}
+              </button>
+              <button
+                onClick={handleAddProject}
+                className="px-6 py-3 bg-[var(--button-bg)] hover:bg-[var(--button-bg-hover)] text-[var(--button-text)] rounded-lg transition-colors"
+              >
+                {t.canvas_empty_action}
+              </button>
+            </div>
           </div>
         </div>
       )}
