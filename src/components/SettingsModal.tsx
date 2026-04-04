@@ -345,6 +345,22 @@ export function SettingsModal({ onClose }: Props) {
     });
   }, []);
 
+  const effectiveCliRegistered =
+    cliPendingAction === "register"
+      ? true
+      : cliPendingAction === "unregister"
+        ? false
+        : cliRegistered;
+
+  const cliStatusText =
+    cliPendingAction === "register"
+      ? t.cli_registering
+      : cliPendingAction === "unregister"
+        ? t.cli_unregistering
+        : cliRegistered
+          ? t.cli_registered
+          : t.cli_not_registered;
+
   // Close on Escape (when not recording)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -863,13 +879,13 @@ export function SettingsModal({ onClose }: Props) {
                       {t.cli_label}
                     </span>
                     <span className="text-[11px] text-[var(--text-muted)]">
-                      {cliRegistered ? t.cli_registered : t.cli_not_registered}
+                      {cliStatusText}
                     </span>
                   </div>
                   <div className="flex gap-1">
                     <button
-                      className={cliRegistered ? activeBtn : inactiveBtn}
-                      disabled={cliLoading || cliRegistered}
+                      className={effectiveCliRegistered ? activeBtn : inactiveBtn}
+                      disabled={cliLoading || effectiveCliRegistered === true}
                       onClick={async () => {
                         setCliLoading(true);
                         setCliPendingAction("register");
@@ -879,13 +895,11 @@ export function SettingsModal({ onClose }: Props) {
                         setCliLoading(false);
                       }}
                     >
-                      {cliLoading && cliPendingAction === "register"
-                        ? t.cli_registering
-                        : "On"}
+                      On
                     </button>
                     <button
-                      className={!cliRegistered ? activeBtn : inactiveBtn}
-                      disabled={cliLoading || !cliRegistered}
+                      className={!effectiveCliRegistered ? activeBtn : inactiveBtn}
+                      disabled={cliLoading || effectiveCliRegistered === false}
                       onClick={async () => {
                         setCliLoading(true);
                         setCliPendingAction("unregister");
@@ -895,9 +909,7 @@ export function SettingsModal({ onClose }: Props) {
                         setCliLoading(false);
                       }}
                     >
-                      {cliLoading && cliPendingAction === "unregister"
-                        ? t.cli_unregistering
-                        : "Off"}
+                      Off
                     </button>
                   </div>
                 </div>
