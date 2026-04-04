@@ -95,9 +95,11 @@ export function LeftPanel() {
   const [directoryIsGitRepo, setDirectoryIsGitRepo] = useState(false);
   const [childRepos, setChildRepos] = useState<RepoContextOption[]>([]);
   const [selectedChildRepoPath, setSelectedChildRepoPath] = useState<string | null>(null);
+  const [repoMenuOpen, setRepoMenuOpen] = useState(false);
   const checkedProjectRef = useRef<Set<string>>(new Set());
   const dismissedHydraRef = useRef<Set<string>>(new Set());
   const preferredRepoPathRef = useRef<Map<string, string>>(new Map());
+  const repoMenuRef = useRef<HTMLDivElement>(null);
 
   // Re-center the focused terminal when the left panel opens/closes
   const prevCollapsedRef = useRef(collapsed);
@@ -198,9 +200,37 @@ export function LeftPanel() {
       if (!effectiveWorktreePath) return;
       preferredRepoPathRef.current.set(effectiveWorktreePath, repoPath);
       setSelectedChildRepoPath(repoPath);
+      setRepoMenuOpen(false);
     },
     [effectiveWorktreePath],
   );
+
+  useEffect(() => {
+    if (!repoMenuOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (repoMenuRef.current?.contains(event.target as Node)) return;
+      setRepoMenuOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setRepoMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [repoMenuOpen]);
+
+  useEffect(() => {
+    if (repoContext.selectorKind !== "dropdown") {
+      setRepoMenuOpen(false);
+    }
+  }, [repoContext.selectorKind]);
 
   // Check Hydra toolchain status when a project comes into focus.
   useEffect(() => {
@@ -454,22 +484,27 @@ export function LeftPanel() {
                   })}
                 </div>
               ) : (
-                <div className="relative mt-1.5">
-                  <select
-                    className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 pr-8 text-[11px] text-[var(--text-primary)] outline-none transition-colors duration-150 hover:border-[var(--border-hover)] focus:border-[var(--accent)]"
+                <div className="relative mt-1.5" ref={repoMenuRef}>
+                  <button
+                    className="flex w-full items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-[11px] text-[var(--text-primary)] transition-colors duration-150 hover:border-[var(--border-hover)] hover:bg-[var(--surface-hover)]"
                     style={{ fontFamily: '"Geist Mono", monospace' }}
-                    value={repoContext.targetPath ?? ""}
-                    onChange={(event) => handleSelectChildRepo(event.target.value)}
+                    onClick={() => setRepoMenuOpen((open) => !open)}
                     aria-label={t.left_panel_repo}
+                    aria-haspopup="menu"
+                    aria-expanded={repoMenuOpen}
                   >
-                    {childRepos.map((repo) => (
-                      <option key={repo.path} value={repo.path}>
-                        {repo.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[var(--text-faint)]">
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                    <span className="min-w-0 flex-1 truncate text-left">
+                      {childRepos.find((repo) => repo.path === repoContext.targetPath)?.name}
+                    </span>
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 10 10"
+                      fill="none"
+                      className={`shrink-0 text-[var(--text-faint)] transition-transform duration-150 ${
+                        repoMenuOpen ? "rotate-180" : ""
+                      }`}
+                    >
                       <path
                         d="M2.2 3.5L5 6.3L7.8 3.5"
                         stroke="currentColor"
@@ -478,7 +513,36 @@ export function LeftPanel() {
                         strokeLinejoin="round"
                       />
                     </svg>
-                  </div>
+                  </button>
+                  {repoMenuOpen && (
+                    <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--bg)] shadow-lg">
+                      {childRepos.map((repo) => {
+                        const isActive = repo.path === repoContext.targetPath;
+                        return (
+                          <button
+                            key={repo.path}
+                            className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[11px] transition-colors duration-100 ${
+                              isActive
+                                ? "bg-[var(--surface-hover)] text-[var(--text-primary)]"
+                                : "text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                            }`}
+                            style={{ fontFamily: '"Geist Mono", monospace' }}
+                            onClick={() => handleSelectChildRepo(repo.path)}
+                            title={repo.name}
+                          >
+                            <span className="min-w-0 flex-1 truncate">{repo.name}</span>
+                            <span
+                              className={`shrink-0 text-[10px] ${
+                                isActive ? "text-[var(--accent)]" : "text-transparent"
+                              }`}
+                            >
+                              ●
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
