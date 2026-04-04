@@ -50,14 +50,12 @@ test("end-to-end: goto → snapshot → click → screenshot → stop", async ()
   const dir = makeFixture();
   const screenshotPath = path.join(dir, "e2e.png");
   try {
-    // 1. Navigate
     const gotoResult = await sendCommand(state.port, state.token, "goto", [
       `file://${path.join(dir, "index.html")}`,
     ]);
     assert.equal(gotoResult.ok, true);
     assert.match(gotoResult.output, /E2E Test Page/);
 
-    // 2. Snapshot with refs
     const snapResult = await sendCommand(state.port, state.token, "snapshot", [
       "-i",
     ]);
@@ -65,7 +63,6 @@ test("end-to-end: goto → snapshot → click → screenshot → stop", async ()
     assert.match(snapResult.output, /@e1/);
     assert.match(snapResult.output, /button/);
 
-    // 3. Click ref
     const clickResult = await sendCommand(
       state.port,
       state.token,
@@ -74,11 +71,9 @@ test("end-to-end: goto → snapshot → click → screenshot → stop", async ()
     );
     assert.equal(clickResult.ok, true);
 
-    // Verify click had effect
     const textResult = await sendCommand(state.port, state.token, "text", []);
     assert.match(textResult.output, /done/);
 
-    // 4. Screenshot
     const ssResult = await sendCommand(
       state.port,
       state.token,
@@ -88,7 +83,6 @@ test("end-to-end: goto → snapshot → click → screenshot → stop", async ()
     assert.equal(ssResult.ok, true);
     assert.ok(fs.existsSync(screenshotPath));
 
-    // 5. URL check
     const urlResult = await sendCommand(state.port, state.token, "url", []);
     assert.match(urlResult.output, /index\.html/);
   } finally {
@@ -106,17 +100,14 @@ test("end-to-end: fill input and press key", async () => {
       `file://${path.join(dir, "index.html")}`,
     ]);
 
-    // Snapshot to get refs
     await sendCommand(state.port, state.token, "snapshot", ["-i"]);
 
-    // Find the textbox ref and fill it
     const fillResult = await sendCommand(state.port, state.token, "fill", [
       "input",
       "hello world",
     ]);
     assert.equal(fillResult.ok, true);
 
-    // Press Enter
     const pressResult = await sendCommand(state.port, state.token, "press", [
       "Enter",
     ]);

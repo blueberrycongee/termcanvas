@@ -122,7 +122,6 @@ function markLastAttemptTimedOut(
 }
 
 // Note: timeout and manual retries intentionally do NOT destroy the old
-// terminal. The timed-out agent may still be running (just slow), and the
 // user may want to inspect it for diagnostics. Terminal cleanup happens
 // via Cmd+D (SIGHUP to process group) or `hydra cleanup`.
 export async function retryTimedOutHandoff(

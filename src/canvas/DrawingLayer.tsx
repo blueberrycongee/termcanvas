@@ -229,7 +229,6 @@ export function DrawingLayer() {
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      {/* Apply viewport transform so drawings follow pan/zoom */}
       <g
         transform={`translate(${viewport.x}, ${viewport.y}) scale(${viewport.scale})`}
       >

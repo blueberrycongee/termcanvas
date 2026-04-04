@@ -40,7 +40,6 @@ export const telemetryTool: Tool<typeof inputSchema.shape> = {
       return { content: JSON.stringify(result, null, 2) };
     }
 
-    // list-events
     if (!input.terminalId) return { content: "terminalId is required for list-events", is_error: true };
     const params = new URLSearchParams({ limit: String(input.limit ?? 50) });
     if (input.cursor) params.set("cursor", input.cursor);

@@ -27,7 +27,6 @@ export function readCliIntegrationState(
       return { autoRegister: raw.autoRegister };
     }
   } catch {
-    // Missing or invalid config falls back to enabled-by-default behavior.
   }
 
   return { autoRegister: true };

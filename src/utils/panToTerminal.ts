@@ -13,7 +13,6 @@ import {
 import { useTileDimensionsStore, setTrackSidebar, recomputeTileDimensions } from "../stores/tileDimensionsStore";
 
 interface PanToTerminalOptions {
-  /** Skip animation and set viewport immediately (e.g. during drag). */
   immediate?: boolean;
 }
 
@@ -51,9 +50,6 @@ export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): 
     const scale =
       Math.min(viewW / tileDims.w, viewH / tileDims.h) * 0.90;
 
-    // Recompute position from the project store with current tile dims.
-    // Published geometry may be stale after a tile-dim recomputation
-    // (e.g. sidebar resized while no terminal was focused).
     let absX = publishedGeometry.x;
     let absY = publishedGeometry.y;
     let absH = publishedGeometry.h;

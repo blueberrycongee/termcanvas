@@ -38,7 +38,6 @@ export const projectTool: Tool<typeof inputSchema.shape> = {
       return { content: JSON.stringify(result, null, 2) };
     }
 
-    // rescan
     if (!input.projectId) return { content: "projectId is required for rescan", is_error: true };
     const result = await client.request("POST", `/project/${encodeURIComponent(input.projectId)}/rescan`);
     return { content: JSON.stringify(result, null, 2) };

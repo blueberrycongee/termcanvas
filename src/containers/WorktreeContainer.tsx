@@ -88,12 +88,10 @@ export function WorktreeContainer({
   );
   const selectWorktree = useSelectionStore((s) => s.selectWorktree);
 
-  // Listen for close-card events (from batch delete)
   useEffect(() => {
     const handler = (e: Event) => {
       const { cardId } = (e as CustomEvent<{ cardId: string }>).detail;
       if (cardId.startsWith(`${worktree.id}-`)) {
-        // FileCard id pattern: worktreeId-timestamp
         setOpenFiles((prev) => prev.filter((f) => f.id !== cardId));
       }
     };
@@ -220,7 +218,6 @@ export function WorktreeContainer({
     };
   }, [projectCollapsed, projectId, terminalLayouts, worktree.collapsed, worktree.id, worktree.terminals]);
 
-
   const handleTerminalDragStart = useCallback(
     (terminalId: string, e: React.MouseEvent) => {
       const origIndex = worktree.terminals.findIndex(
@@ -251,7 +248,6 @@ export function WorktreeContainer({
 
         if (!startItem) return;
 
-        // Check if tile would leave content area → stash mode
         const tileTop = startItem.y + oy;
         const tileBottom = tileTop + startItem.h;
         const tileLeft = startItem.x + ox;
@@ -272,7 +268,6 @@ export function WorktreeContainer({
           return;
         }
 
-        // Normal reorder logic
         const currentPacked = packTerminals(worktree.terminals.map((t) => t.span));
         const origItem = currentPacked[origIndex];
         if (!origItem) return;
@@ -330,7 +325,6 @@ export function WorktreeContainer({
     [projectId, worktree.id, worktree.terminals, reorderTerminal, computedSize],
   );
 
-
   return (
     <div
       className="absolute"
@@ -350,7 +344,6 @@ export function WorktreeContainer({
         selectWorktree(projectId, worktree.id);
       }}
     >
-      {/* Title bar */}
       <div
         className="flex items-center gap-2 px-3 py-2 select-none cursor-grab active:cursor-grabbing"
         onMouseDown={handleDrag}
@@ -426,7 +419,6 @@ export function WorktreeContainer({
         </div>
       </div>
 
-      {/* Terminals */}
       <div
         className="px-2 pb-2 relative"
         style={{

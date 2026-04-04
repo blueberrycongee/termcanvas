@@ -12,7 +12,6 @@ import type {
 const EVAL_ROOT = join(fileURLToPath(import.meta.url), "../..");
 const RESULTS_DIR = join(EVAL_ROOT, "results");
 
-/** Compute summary statistics from task results */
 export function computeSummary(tasks: TaskResult[]): RunSummary {
   const resolved = tasks.filter((t) => t.pass).length;
   const totalTokens = tasks.reduce((sum, t) => sum + t.tokens, 0);
@@ -32,7 +31,6 @@ export function computeSummary(tasks: TaskResult[]): RunSummary {
   };
 }
 
-/** Save a run result to disk */
 export async function saveRunResult(result: RunResult): Promise<string> {
   const runDir = join(RESULTS_DIR, result.run_id);
   await mkdir(runDir, { recursive: true });
@@ -40,7 +38,6 @@ export async function saveRunResult(result: RunResult): Promise<string> {
   const resultPath = join(runDir, "result.json");
   await writeFile(resultPath, JSON.stringify(result, null, 2));
 
-  // Also save individual task results for easy inspection
   const tasksDir = join(runDir, "tasks");
   await mkdir(tasksDir, { recursive: true });
   for (const task of result.tasks) {
@@ -48,7 +45,6 @@ export async function saveRunResult(result: RunResult): Promise<string> {
     await writeFile(taskPath, JSON.stringify(task, null, 2));
   }
 
-  // Save a summary for quick reference
   const summaryPath = join(runDir, "summary.json");
   await writeFile(
     summaryPath,
@@ -68,14 +64,12 @@ export async function saveRunResult(result: RunResult): Promise<string> {
   return resultPath;
 }
 
-/** Load a run result from disk */
 export async function loadRunResult(runId: string): Promise<RunResult> {
   const resultPath = join(RESULTS_DIR, runId, "result.json");
   const raw = await readFile(resultPath, "utf-8");
   return JSON.parse(raw) as RunResult;
 }
 
-/** List all available run IDs */
 export async function listRuns(): Promise<string[]> {
   if (!existsSync(RESULTS_DIR)) return [];
 
@@ -94,13 +88,11 @@ export async function listRuns(): Promise<string[]> {
   return runs.sort();
 }
 
-/** Load all run results */
 export async function loadAllRuns(): Promise<RunResult[]> {
   const runIds = await listRuns();
   return Promise.all(runIds.map(loadRunResult));
 }
 
-/** Generate a unique run ID */
 export function generateRunId(): string {
   const now = new Date();
   const date = now.toISOString().slice(0, 10).replace(/-/g, "");

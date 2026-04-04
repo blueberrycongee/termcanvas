@@ -101,7 +101,6 @@ export function LeftPanel() {
   const preferredRepoPathRef = useRef<Map<string, string>>(new Map());
   const repoMenuRef = useRef<HTMLDivElement>(null);
 
-  // Re-center the focused terminal when the left panel opens/closes
   const prevCollapsedRef = useRef(collapsed);
   useEffect(() => {
     if (prevCollapsedRef.current === collapsed) return;
@@ -132,7 +131,6 @@ export function LeftPanel() {
   }, [focusedWorktreeId, projects]);
 
   // Keep the last active worktree path so the left panel stays populated
-  // when focus is cleared (e.g. clicking the canvas background).
   const lastWorktreePathRef = useRef<string | null>(null);
   if (worktreePath) {
     lastWorktreePathRef.current = worktreePath;
@@ -232,7 +230,6 @@ export function LeftPanel() {
     }
   }, [repoContext.selectorKind]);
 
-  // Check Hydra toolchain status when a project comes into focus.
   useEffect(() => {
     if (!focusedProject || !window.termcanvas?.project?.checkHydra) return;
     if (checkedProjectRef.current.has(focusedProject.path)) return;
@@ -356,7 +353,6 @@ export function LeftPanel() {
     />
   ) : null;
 
-  // ── Collapsed state: vertical icon strip ──
   if (collapsed) {
     return (
       <>
@@ -411,7 +407,6 @@ export function LeftPanel() {
       className="fixed left-0 z-40 bg-[var(--surface)] border-r border-[var(--border)] flex flex-col"
       style={{ top: 44, height: "calc(100vh - 44px)", width }}
     >
-      {/* ── Segmented Tab Bar ── */}
       <div className="shrink-0 px-2 pt-2 pb-1.5">
         <div className="flex items-center gap-0.5 rounded-lg bg-[var(--bg)] p-0.5">
           {TAB_CONFIG.map(({ id, icon: Icon, labelKey }) => {
@@ -443,7 +438,6 @@ export function LeftPanel() {
         </div>
       </div>
 
-      {/* ── Content ── */}
       <div className="flex-1 min-h-0 flex flex-col">
         {repoScopedTabs && repoContext.selectorKind !== "none" && (
           <div className="shrink-0 px-2 pb-1.5">
@@ -563,7 +557,6 @@ export function LeftPanel() {
         )}
       </div>
 
-      {/* ── Resize handle with visible rail ── */}
       <div
         className="absolute top-0 right-0 w-1.5 h-full cursor-ew-resize group/resize"
         onPointerDown={handleResizeStart}

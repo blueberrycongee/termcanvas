@@ -30,7 +30,6 @@ export function serializeAllTerminals(): Record<string, string> {
     try {
       result[id] = entry.serialize.serialize();
     } catch {
-      // Terminal may be disposed
     }
   }
   return result;

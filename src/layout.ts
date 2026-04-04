@@ -53,7 +53,6 @@ export function packTerminals(
   const tileW = tileDims.w;
   const tileH = tileDims.h;
 
-  // occupied[row][col] = true if cell is taken
   const occupied: boolean[][] = [];
 
   function isOccupied(r: number, c: number): boolean {
@@ -116,9 +115,6 @@ export function packTerminals(
   return result;
 }
 
-/**
- * Compute worktree container size from packed terminal layout.
- */
 export function computeWorktreeSize(
   spans: TerminalSpan[],
   gridCols?: number,

@@ -139,7 +139,6 @@ async function handleAddProject(t: ReturnType<typeof useT>) {
 
   const createdProject = addScannedProjectAndFocus(info);
 
-  // Compute actual project size (same logic as ProjectContainer).
   const newProject = useProjectStore.getState().projects.find(
     (p) => p.id === createdProject.id,
   );
@@ -205,7 +204,6 @@ export function useKeyboardShortcuts() {
         const focusedIdx = getFocusedTerminalIndex(list);
 
         if (focusedIdx !== -1) {
-          // Currently focused → save it, clear focus, zoom out to fit all
           const focused = list[focusedIdx];
           lastFocusedRef.current = {
             projectId: focused.projectId,
@@ -216,13 +214,11 @@ export function useKeyboardShortcuts() {
           useSelectionStore.getState().clearSelection();
           zoomToFitAll();
         } else if (lastFocusedRef.current) {
-          // Not focused, has history → restore last focused terminal
           const { projectId, worktreeId, terminalId } =
             lastFocusedRef.current;
           useProjectStore.getState().setFocusedTerminal(terminalId);
           zoomToTerminal(terminalId);
         } else if (list.length > 0) {
-          // Never focused → focus the first terminal
           const first = list[0];
           lastFocusedRef.current = {
             projectId: first.projectId,
@@ -419,8 +415,6 @@ export function useKeyboardShortcuts() {
         const { focusedProjectId, projects, compactProjectWorktrees } =
           useProjectStore.getState();
 
-        // Focus navigation (terminal/starred/worktree) keeps focusedProjectId in sync.
-        // Use it as the primary semantic target for "compact".
         const targetProjectId =
           focusedProjectId ?? (projects.length === 1 ? projects[0].id : null);
         if (!targetProjectId) {
@@ -521,7 +515,6 @@ export function useKeyboardShortcuts() {
 
     };
 
-    // Use capture so app shortcuts still fire when focused controls stop propagation.
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
   }, [shortcuts, t]);

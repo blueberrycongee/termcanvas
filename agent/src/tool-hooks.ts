@@ -6,10 +6,6 @@
  * Permission precedence: deny > ask > allow.
  */
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export type PermissionDecision = "allow" | "deny" | "ask";
 
 export interface PreHookContext {
@@ -45,10 +41,6 @@ export interface ToolHooks {
   pre: PreHook[];
   post: PostHook[];
 }
-
-// ---------------------------------------------------------------------------
-// Hook runners
-// ---------------------------------------------------------------------------
 
 export interface PreHookAggregate {
   permission: PermissionDecision;
@@ -137,10 +129,6 @@ export async function runPostHooks(
 
   return { output: currentOutput, blocked: false, message };
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function mergePermission(current: PermissionDecision, incoming: PermissionDecision): PermissionDecision {
   const PRIORITY: Record<PermissionDecision, number> = { allow: 0, ask: 1, deny: 2 };

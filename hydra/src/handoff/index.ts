@@ -1,6 +1,3 @@
-/**
- * Handoff System - Public API
- */
 
 export { HandoffManager } from "./manager.ts";
 export { HandoffStateMachine } from "./state-machine.ts";

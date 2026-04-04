@@ -24,7 +24,6 @@ export interface ProcessSnapshot {
   foregroundTool: string | null;
 }
 
-// CLI names we recognise. Order matters: first match wins.
 const CLI_PATTERNS: [RegExp, string][] = [
   [/\bclaude\b/, "claude"],
   [/\bcodex\b/, "codex"],
@@ -73,8 +72,6 @@ function matchCli(args: string): string | null {
   const { command, rest } = splitCommandLine(args);
   const baseName = normalizeProcessName(command);
 
-  // If the process is a wrapper (node, bun, npx, bunx), match against the full args string
-  // to catch patterns like `node /usr/local/bin/claude` or `npx codex`
   if (WRAPPER_NAMES.has(baseName)) {
     for (const [pattern, cliType] of CLI_PATTERNS) {
       if (pattern.test(rest)) return cliType;
@@ -82,7 +79,6 @@ function matchCli(args: string): string | null {
     return null;
   }
 
-  // Direct execution: match just the base process name
   for (const [pattern, cliType] of CLI_PATTERNS) {
     if (pattern.test(baseName)) return cliType;
   }
@@ -116,7 +112,6 @@ function collectDescendantProcesses(
     siblings.push(p.pid);
   }
 
-  // BFS: collect all descendant PIDs
   const descendants = new Set<number>();
   const queue = shellPids.map((pid) => ({ pid, depth: 0 }));
   let qi = 0;
@@ -132,7 +127,6 @@ function collectDescendantProcesses(
     }
   }
 
-  // Match CLIs among descendants in BFS order (shallowest first).
   const processMap = new Map(processes.map((p) => [p.pid, p]));
   const results: ProcessSnapshotEntry[] = [];
   for (const entry of queue.slice(shellPids.length)) {
@@ -190,7 +184,6 @@ export function parsePsOutput(psOutput: string, shellPids: number[]): DetectedCl
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("PID")) continue;
 
-    // Format: "  PID  PPID ARGS..."
     const match = trimmed.match(/^(\d+)\s+(\d+)\s+(.+)$/);
     if (!match) continue;
 

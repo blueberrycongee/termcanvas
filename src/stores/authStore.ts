@@ -20,7 +20,6 @@ interface AuthStore {
   clearLoginError: () => void;
 }
 
-// The window.termcanvas.auth API is added by the preload agent in parallel.
 // All auth property accesses use @ts-expect-error until the type declaration is merged.
 
 export const useAuthStore = create<AuthStore>((set) => ({

@@ -152,7 +152,6 @@ export type PersistedCanvasState =
   | SceneCanvasState
   | { skipRestore: true };
 
-// Usage statistics types
 export interface UsageBucket {
   label: string;
   hourStart: number;
@@ -309,7 +308,6 @@ export interface GitStatusEntry {
   originalPath?: string;
 }
 
-// Agent stream event — subset of AgentEvent serializable across IPC
 export type AgentStreamEvent =
   | { type: "stream_start" }
   | { type: "stream_end" }
@@ -327,7 +325,6 @@ export type AgentStreamEvent =
   | { type: "system_init"; model?: string; tools_count?: number; session_id?: string; slash_commands?: string[] }
   | { type: "result_info"; cost_usd?: number; input_tokens?: number; output_tokens?: number; duration_ms?: number; num_turns?: number };
 
-// Preload API types
 export interface TermCanvasAPI {
   terminal: {
     create: (options: {

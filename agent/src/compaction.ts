@@ -10,18 +10,10 @@ import type { LLMProvider } from "./provider/types.ts";
 import type { Message } from "./types.ts";
 import { isSystemReminder } from "./context-injection.ts";
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const COMPACTION_BUFFER_TOKENS = 20_000;
 const PRESERVE_RECENT_TURNS = 4;
 const MAX_CONSECUTIVE_FAILURES = 3;
 const COMPACTION_MAX_TOKENS = 4_096;
-
-// ---------------------------------------------------------------------------
-// State (JSON-serializable)
-// ---------------------------------------------------------------------------
 
 export interface CompactionState {
   consecutiveFailures: number;
@@ -33,10 +25,6 @@ export function initialCompactionState(): CompactionState {
   return { consecutiveFailures: 0, lastCompactionTurn: 0, disabled: false };
 }
 
-// ---------------------------------------------------------------------------
-// Threshold check
-// ---------------------------------------------------------------------------
-
 export function shouldCompact(
   currentTokens: number,
   contextWindow: number,
@@ -45,10 +33,6 @@ export function shouldCompact(
   if (state.disabled) return false;
   return currentTokens > contextWindow - COMPACTION_BUFFER_TOKENS;
 }
-
-// ---------------------------------------------------------------------------
-// Prompt builder
-// ---------------------------------------------------------------------------
 
 interface CompactionSplit {
   messagesToSummarize: Message[];
@@ -113,10 +97,6 @@ Write a concise summary that captures the essential state:`;
 
   return { messagesToSummarize, recentMessages, prompt };
 }
-
-// ---------------------------------------------------------------------------
-// Compaction execution
-// ---------------------------------------------------------------------------
 
 export async function compactMessages(
   provider: LLMProvider,

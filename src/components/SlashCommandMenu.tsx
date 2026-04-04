@@ -58,7 +58,6 @@ export function SlashCommandMenu({
               onMouseEnter={() => {
                 // Let parent handle index via mouse — not needed since
                 // we highlight on hover via CSS, but selection on click
-                // uses the command directly.
               }}
             >
               <span

@@ -2,7 +2,6 @@
 @import "@xyflow/react/dist/style.css";
 @import "@xterm/xterm/css/xterm.css";
 
-/* Geist Sans - Variable */
 @font-face {
   font-family: "Geist Sans";
   src: url("/node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2")
@@ -12,7 +11,6 @@
   font-display: swap;
 }
 
-/* Geist Mono - Variable */
 @font-face {
   font-family: "Geist Mono";
   src: url("/node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2")
@@ -22,7 +20,6 @@
   font-display: swap;
 }
 
-/* Geist Pixel Square */
 @font-face {
   font-family: "Geist Pixel Square";
   src: url("/node_modules/geist/dist/fonts/geist-pixel/GeistPixel-Square.woff2")
@@ -32,7 +29,6 @@
   font-display: swap;
 }
 
-/* ── Design tokens: Dark (default) ── */
 :root,
 [data-theme="dark"] {
   --bg: #1a1918;
@@ -56,7 +52,6 @@
   color-scheme: dark;
 }
 
-/* ── Design tokens: Light ── */
 [data-theme="light"] {
   --bg: #eae8e4;
   --sidebar: #e2e0dc;
@@ -93,7 +88,6 @@ body {
   color: var(--text-primary);
 }
 
-/* ── Canvas ── */
 .canvas-bg {
   background-color: var(--bg);
   --dot-color: rgba(255, 255, 255, 0.06);
@@ -111,7 +105,6 @@ body {
   --dot-color: #d4d0ca;
 }
 
-/* ── Light mode depth: subtle shadows instead of heavy borders ── */
 [data-theme="light"] .panel {
   border-color: #ddd9d4;
   box-shadow:
@@ -119,7 +112,6 @@ body {
     0 2px 6px rgba(0, 0, 0, 0.03);
 }
 
-/* ── Panel ── */
 .panel {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -145,7 +137,6 @@ body {
   padding: 2px 8px;
 }
 
-/* ── Terminal tile ── */
 .terminal-tile {
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
@@ -177,7 +168,6 @@ body {
   pointer-events: none !important;
 }
 
-/* ── Scrollbar ── */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
@@ -196,7 +186,6 @@ body {
   background: var(--border-hover);
 }
 
-/* ── Animations ── */
 @keyframes pulse-dot {
   0%,
   100% {
@@ -211,7 +200,6 @@ body {
   animation: pulse-dot 2s ease-in-out infinite;
 }
 
-/* ── Usage panel animations ── */
 @keyframes usage-fade-in-up {
   from {
     opacity: 0;
@@ -272,7 +260,6 @@ body {
   animation: usage-calendar-in 0.2s ease-out both;
 }
 
-/* ── Heatmap animations ── */
 @keyframes heatmap-cell-in {
   from {
     opacity: 0;
@@ -288,7 +275,6 @@ body {
   animation: heatmap-cell-in 0.3s ease-out both;
 }
 
-/* ── Hierarchy animations ── */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }

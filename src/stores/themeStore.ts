@@ -13,7 +13,6 @@ function loadTheme(): Theme {
     const saved = localStorage.getItem("termcanvas-theme");
     if (saved === "dark" || saved === "light") return saved;
   } catch {
-    // localStorage unavailable — fall back to default
   }
   return "dark";
 }
@@ -32,7 +31,6 @@ export const useThemeStore = create<ThemeStore>((set) => ({
       try {
         localStorage.setItem("termcanvas-theme", next);
       } catch {
-        // localStorage unavailable — theme still works for this session
       }
       return { theme: next };
     }),

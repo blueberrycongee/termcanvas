@@ -11,25 +11,16 @@ import type { ToolResult, ToolCallReturn, PendingToolResult, OnProgress } from "
 import type { ToolHooks } from "./tool-hooks.ts";
 import { runPreHooks, runPostHooks } from "./tool-hooks.ts";
 
-// ---------------------------------------------------------------------------
-// Tool interface
-// ---------------------------------------------------------------------------
-
 export interface Tool<S extends ZodRawShape = ZodRawShape> {
   name: string;
   description: string;
   inputSchema: ZodObject<S>;
 
-  /** Execute the tool. May return a pending result for background execution. */
   call(input: z.infer<ZodObject<S>>, signal?: AbortSignal, onProgress?: OnProgress): Promise<ToolCallReturn>;
 
   /** Can this tool run in parallel with other read-only tools? */
   isReadOnly: boolean;
 }
-
-// ---------------------------------------------------------------------------
-// Tool registry
-// ---------------------------------------------------------------------------
 
 export class ToolRegistry {
   private tools = new Map<string, Tool>();
@@ -46,15 +37,11 @@ export class ToolRegistry {
     return [...this.tools.values()];
   }
 
-  /** Convert all tools to JSON Schema for the LLM API. */
   toAPISchemas(): APIToolSchema[] {
     return this.all().map(toolToAPISchema);
   }
 }
 
-// ---------------------------------------------------------------------------
-// JSON Schema conversion (Zod → API tool definition)
-// ---------------------------------------------------------------------------
 
 export interface APIToolSchema {
   name: string;
@@ -88,12 +75,10 @@ function zodFieldToJsonSchema(field: z.ZodTypeAny): Record<string, unknown> {
   const base: Record<string, unknown> = {};
   if (description) base.description = description;
 
-  // Unwrap optional/nullable
   if (def.typeName === "ZodOptional" || def.typeName === "ZodNullable") {
     return { ...base, ...zodFieldToJsonSchema(def.innerType) };
   }
 
-  // Unwrap default
   if (def.typeName === "ZodDefault") {
     return { ...base, ...zodFieldToJsonSchema(def.innerType) };
   }
@@ -128,9 +113,7 @@ function toolToAPISchema(tool: Tool): APIToolSchema {
   };
 }
 
-// ---------------------------------------------------------------------------
 // Tool executor — partitions by read-only safety
-// ---------------------------------------------------------------------------
 
 export interface ToolCall {
   id: string;

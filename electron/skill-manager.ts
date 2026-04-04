@@ -6,7 +6,6 @@ function getSkillLinkType(platform = process.platform): "junction" | "dir" {
   return platform === "win32" ? "junction" : "dir";
 }
 
-/** Resolve the bundled skills/ directory (plugin root). */
 export function getSkillsSourceDir(
   resourcesPath: string,
   currentDir: string,
@@ -15,8 +14,6 @@ export function getSkillsSourceDir(
   if (fs.existsSync(prodDir)) return prodDir;
   return path.resolve(currentDir, "..", "skills");
 }
-
-// Path helpers
 
 function getCodexSkillsDir(home: string): string {
   return path.join(home, ".codex", "skills");
@@ -33,8 +30,6 @@ function getClaudePluginsFile(home: string): string {
 function getClaudeSettingsFile(home: string): string {
   return path.join(home, ".claude", "settings.json");
 }
-
-// installed_plugins.json helpers (safe read / atomic write)
 
 const PLUGIN_KEY = "termcanvas@termcanvas";
 
@@ -67,7 +62,6 @@ function readInstalledPlugins(filePath: string): InstalledPlugins | null {
   }
 }
 
-/** Atomic write: write to temp file then rename. */
 function writeInstalledPlugins(filePath: string, data: InstalledPlugins): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const tmp = filePath + ".tmp." + process.pid;
@@ -75,9 +69,6 @@ function writeInstalledPlugins(filePath: string, data: InstalledPlugins): void {
   fs.renameSync(tmp, filePath);
 }
 
-// Claude Code plugin registration
-
-/** Check if the Claude plugin entry already points to sourceDir. */
 function isClaudePluginCurrent(filePath: string, sourceDir: string): boolean {
   const data = readInstalledPlugins(filePath);
   if (!data) return false;
@@ -111,7 +102,6 @@ function registerClaudePlugin(
     }
   }
 
-  // Merge: only touch our entry, preserve everything else
   const existing = data.plugins[PLUGIN_KEY];
   const userEntries = Array.isArray(existing)
     ? existing.filter((e) => e.scope !== "user")
@@ -130,7 +120,6 @@ function registerClaudePlugin(
   return true;
 }
 
-/** Remove the termcanvas plugin entry (user scope only). */
 function unregisterClaudePlugin(filePath: string): boolean {
   const data = readInstalledPlugins(filePath);
   if (!data) return true;
@@ -154,7 +143,6 @@ function unregisterClaudePlugin(filePath: string): boolean {
 
 // Claude Code settings.json — enable plugin for hooks
 
-/** Ensure termcanvas plugin is enabled and hooks are registered in settings.json. */
 function ensurePluginEnabled(settingsFile: string, sourceDir: string): void {
   let data: Record<string, unknown> = {};
   try {
@@ -163,7 +151,6 @@ function ensurePluginEnabled(settingsFile: string, sourceDir: string): void {
 
   let changed = false;
 
-  // Enable plugin
   const enabled = (data.enabledPlugins ?? {}) as Record<string, boolean>;
   if (enabled[PLUGIN_KEY] !== true) {
     enabled[PLUGIN_KEY] = true;
@@ -171,7 +158,6 @@ function ensurePluginEnabled(settingsFile: string, sourceDir: string): void {
     changed = true;
   }
 
-  // Register SessionStart hook with absolute path (Claude Code reads hooks from settings.json)
   const scriptPath = path.join(sourceDir, "scripts", "memory-session-start.sh");
   const hooks = (data.hooks ?? {}) as Record<string, unknown[]>;
   const sessionStart = (hooks.SessionStart ?? []) as Array<{
@@ -182,13 +168,11 @@ function ensurePluginEnabled(settingsFile: string, sourceDir: string): void {
   const hookCommand = `bash '${scriptPath}'`;
   const scriptName = "memory-session-start.sh";
 
-  // Remove any existing termcanvas memory hooks (may have stale dev/prod paths)
   const filtered = sessionStart.filter(
     (entry) => !entry.hooks?.some((h) => h.command.includes(scriptName)),
   );
   const needsUpdate = filtered.length !== sessionStart.length;
 
-  // Add with current path
   filtered.push({
     matcher: "startup|clear|compact",
     hooks: [
@@ -243,8 +227,6 @@ function removeManifest(targetDir: string): void {
   } catch {}
 }
 
-// Symlink helpers
-
 function isSymlinkCurrent(linkPath: string, expectedTarget: string): boolean {
   try {
     return fs.readlinkSync(linkPath) === expectedTarget;
@@ -253,7 +235,6 @@ function isSymlinkCurrent(linkPath: string, expectedTarget: string): boolean {
   }
 }
 
-/** Scan bundled skill directories and return their names. */
 function listBundledSkills(sourceDir: string): string[] {
   const skillsRoot = path.join(sourceDir, "skills");
   if (!fs.existsSync(skillsRoot)) return [];
@@ -287,7 +268,6 @@ function installSkillLinksTo(
 
   const oldManifest = readManifest(targetDir);
 
-  // Fast path: version matches → verify symlinks, skip manifest write
   if (oldManifest?.version === appVersion) {
     let allCurrent = true;
     for (const name of currentSkills) {
@@ -304,7 +284,6 @@ function installSkillLinksTo(
     if (allCurrent) return;
   }
 
-  // Full reconciliation
   const linkType = getSkillLinkType();
 
   for (const name of currentSkills) {
@@ -328,7 +307,6 @@ function installSkillLinksTo(
     fs.symlinkSync(skillDir, link, linkType);
   }
 
-  // Remove skills that existed in previous version but were dropped
   if (oldManifest) {
     const currentSet = new Set(currentSkills);
     for (const name of oldManifest.skills) {
@@ -343,11 +321,9 @@ function installSkillLinksTo(
   writeManifest(targetDir, { version: appVersion, skills: currentSkills });
 }
 
-/** Remove skill symlinks from a target directory. */
 function removeSkillLinksFrom(targetDir: string, sourceDir: string): void {
   const skillsRoot = path.join(sourceDir, "skills");
 
-  // Remove current bundle skills
   if (fs.existsSync(skillsRoot)) {
     for (const name of fs.readdirSync(skillsRoot)) {
       const link = path.join(targetDir, name);
@@ -357,7 +333,6 @@ function removeSkillLinksFrom(targetDir: string, sourceDir: string): void {
     }
   }
 
-  // Also remove any skills tracked by manifest (covers skills removed between versions)
   const manifest = readManifest(targetDir);
   if (manifest) {
     for (const name of manifest.skills) {
@@ -384,8 +359,6 @@ function removeAllSkillLinks(sourceDir: string, home: string): void {
   removeSkillLinksFrom(getClaudeSkillsDir(home), sourceDir);
   removeSkillLinksFrom(getCodexSkillsDir(home), sourceDir);
 }
-
-// Lifecycle hook registration (CC hook-based monitoring)
 
 const LIFECYCLE_HOOK_EVENTS = [
   "SessionStart",
@@ -419,7 +392,6 @@ function ensureLifecycleHooks(settingsFile: string, scriptPath: string): void {
       hooks?: Array<{ type: string; command: string; timeout?: number; async?: boolean }>;
     }>;
 
-    // Remove any existing lifecycle hooks (by marker)
     const filtered = existing.filter(
       (entry) => !entry.hooks?.some((h) => h.command.includes(LIFECYCLE_MARKER)),
     );
@@ -494,8 +466,6 @@ function removeLifecycleHooks(settingsFile: string): void {
   fs.renameSync(tmp, settingsFile);
 }
 
-// Public API
-
 /**
  * Full install: register Claude plugin + create skill symlinks.
  * Called when user registers the CLI.
@@ -558,10 +528,6 @@ export function ensureSkillLinks({
   }
 }
 
-/**
- * Uninstall: remove Claude plugin entry + skill symlinks.
- * Called when user unregisters the CLI.
- */
 export function uninstallSkillLinks({
   home = os.homedir(),
   sourceDir,

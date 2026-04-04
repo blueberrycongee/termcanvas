@@ -134,7 +134,6 @@ export function createWorkflowControl(
         terminalId,
       });
     } catch {
-      // Terminal may already be gone.
     }
   };
 
@@ -284,7 +283,6 @@ export function createWorkflowControl(
             stdio: "pipe",
           });
         } catch {
-          // Worktree may already be removed.
         }
         if (workflow.branch) {
           try {
@@ -293,7 +291,6 @@ export function createWorkflowControl(
               stdio: "pipe",
             });
           } catch {
-            // Branch may already be removed.
           }
         }
         syncProject(workflow.repo_path);

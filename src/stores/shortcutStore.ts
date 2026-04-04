@@ -122,7 +122,6 @@ function loadShortcuts(): ShortcutMap {
       return parsed;
     }
   } catch {
-    // ignore
   }
   return defaults;
 }
@@ -168,9 +167,6 @@ export function eventToShortcut(e: KeyboardEvent): string {
   return parts.join("+");
 }
 
-/**
- * Check if a KeyboardEvent matches a shortcut string.
- */
 export function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
   const platform = getShortcutPlatform();
   if (hasUnsupportedPlatformModifier(e, platform)) return false;

@@ -261,7 +261,6 @@ export class HandoffStateMachine {
         try {
           fs.unlinkSync(lockPath);
         } catch {
-          // lock was never acquired or already removed
         }
       }
     }

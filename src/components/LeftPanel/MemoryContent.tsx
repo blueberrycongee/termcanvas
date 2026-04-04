@@ -2,8 +2,6 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { useMemoryStore } from "../../stores/memoryStore";
 import { useT } from "../../i18n/useT";
 
-// ─── Theme-aware colors ───────────────────────────────────────────────
-
 const themeCache = { theme: "", vars: {} as Record<string, string> };
 
 function getCssVar(name: string): string {
@@ -38,8 +36,6 @@ function getTypeColor(type: string): string {
   return (TYPE_COLORS[type] ?? TYPE_COLORS.unknown)[mode];
 }
 
-// ─── Graph Node with position + emphasis ──────────────────────────────
-
 interface GraphNodePos {
   fileName: string;
   filePath: string;
@@ -53,8 +49,6 @@ interface GraphNodePos {
   vy: number;
   emphasis: number; // 0..1 animated
 }
-
-// ─── MemoryGraph ──────────────────────────────────────────────────────
 
 function MemoryGraph({
   graph,
@@ -86,10 +80,8 @@ function MemoryGraph({
   const selectedNodeRef = useRef<string | null>(selectedNode);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
 
-  // Keep refs in sync
   selectedNodeRef.current = selectedNode;
 
-  // Build neighbor lookup
   const neighborsOf = useCallback(
     (fileName: string): Set<string> => {
       const s = new Set<string>();
@@ -102,7 +94,6 @@ function MemoryGraph({
     [graph.edges],
   );
 
-  // Initialize positions
   useEffect(() => {
     const w = containerRef.current?.clientWidth ?? 300;
     const h = containerRef.current?.clientHeight ?? 300;
@@ -128,7 +119,6 @@ function MemoryGraph({
     });
   }, [graph.nodes]);
 
-  // Mtime freshness → base opacity
   const nodeBaseAlpha = useCallback((mtime: number): number => {
     const ageMs = Date.now() - mtime;
     const dayMs = 86400000;
@@ -138,7 +128,6 @@ function MemoryGraph({
     return 0.55;
   }, []);
 
-  // Node radius: logarithmic based on connections
   const nodeRadius = useCallback(
     (node: { fileName: string; type: string }): number => {
       const conns = graph.edges.filter(
@@ -150,7 +139,6 @@ function MemoryGraph({
     [graph.edges],
   );
 
-  // Main render loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -194,7 +182,6 @@ function MemoryGraph({
       const cx = w / 2;
       const cy = h / 2;
 
-      // ── Physics (first 300 frames) ──
       if (frame < 300) {
         for (let i = 0; i < nodes.length; i++) {
           for (let j = i + 1; j < nodes.length; j++) {
@@ -235,7 +222,6 @@ function MemoryGraph({
         }
       }
 
-      // ── Emphasis animation (smooth easing) ──
       for (const node of nodes) {
         const isFocused =
           node.fileName === hoveredNodeRef.current || node.fileName === selectedNodeRef.current;
@@ -244,30 +230,25 @@ function MemoryGraph({
         node.emphasis += (target - node.emphasis) * 0.16;
       }
 
-      // ── Read theme colors ──
       const bgColor = getCssVar("--surface");
       const borderColor = getCssVar("--border");
       const textPrimary = getCssVar("--text-primary");
       const textMuted = getCssVar("--text-muted");
       const textFaint = getCssVar("--text-faint");
 
-      // ── Draw ──
       ctx.save();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
 
-      // Background
       ctx.fillStyle = bgColor;
       ctx.fillRect(0, 0, w, h);
 
-      // Edges
       for (const edge of edgeRefs) {
         if (!edge.source || !edge.target) continue;
         const srcEmph = edge.source.emphasis;
         const tgtEmph = edge.target.emphasis;
         const edgeEmph = Math.max(srcEmph, tgtEmph);
 
-        // Alpha based on emphasis
         let alpha: number;
         let lw: number;
         if (edgeEmph > 0.8) {
@@ -292,7 +273,6 @@ function MemoryGraph({
         ctx.lineTo(edge.target.x, edge.target.y);
         ctx.stroke();
 
-        // Arrow head (small, pointing toward target)
         if (lw >= 1) {
           const dx = edge.target.x - edge.source.x;
           const dy = edge.target.y - edge.source.y;
@@ -320,23 +300,19 @@ function MemoryGraph({
         }
       }
 
-      // Nodes
       for (const node of nodes) {
         const r = nodeRadius(node);
         const color = getTypeColor(node.type);
         const baseAlpha = nodeBaseAlpha(node.mtime);
         const emph = node.emphasis;
 
-        // Radius scales up slightly when emphasized
         const rScale = emph > 0.8 ? 1.2 : emph > 0.4 ? 1.08 : 1.0;
         const dr = r * rScale;
 
-        // Alpha: combine base (mtime) with emphasis
         const alpha =
           emph > 0.8 ? 1.0 : emph > 0.4 ? 0.9 : focusNode ? emph * 0.8 + 0.15 : baseAlpha;
         ctx.globalAlpha = alpha;
 
-        // Glow for emphasized nodes
         if (emph > 0.6) {
           ctx.shadowColor = color;
           ctx.shadowBlur = 8 * emph;
@@ -345,7 +321,6 @@ function MemoryGraph({
           ctx.shadowBlur = 0;
         }
 
-        // Node circle
         ctx.fillStyle = color;
         ctx.beginPath();
         ctx.arc(node.x, node.y, dr, 0, Math.PI * 2);
@@ -364,7 +339,6 @@ function MemoryGraph({
         ctx.shadowBlur = 0;
         ctx.shadowColor = "transparent";
 
-        // Label
         const labelAlpha = emph > 0.8 ? 1 : emph > 0.4 ? 0.75 : focusNode ? 0.15 : 0.6;
         ctx.globalAlpha = labelAlpha;
         ctx.fillStyle = emph > 0.8 ? textPrimary : textMuted;
@@ -399,7 +373,6 @@ function MemoryGraph({
     const container = containerRef.current;
     const canvas = canvasRef.current;
     if (!container || !canvas) return;
-    // Initial size
     const dpr = window.devicePixelRatio || 1;
     canvas.width = container.clientWidth * dpr;
     canvas.height = container.clientHeight * dpr;
@@ -412,7 +385,6 @@ function MemoryGraph({
     return () => ro.disconnect();
   }, []);
 
-  // Hit testing helper
   const hitTest = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>): GraphNodePos | undefined => {
       const canvas = canvasRef.current;
@@ -436,7 +408,6 @@ function MemoryGraph({
       if (hit) {
         const isDeselecting = hit.fileName === selectedNode;
         onSelectNode(isDeselecting ? null : hit.fileName);
-        // Open in Preview tab only when selecting, not deselecting
         if (!isDeselecting) {
           const node = graph.nodes.find((n) => n.fileName === hit.fileName);
           if (node?.filePath) {
@@ -469,7 +440,6 @@ function MemoryGraph({
     setHoveredNode(null);
   }, []);
 
-  // Hover tooltip data
   const hovered = hoveredNode
     ? nodesRef.current.find((n) => n.fileName === hoveredNode)
     : null;
@@ -483,7 +453,6 @@ function MemoryGraph({
         onMouseLeave={handleMouseLeave}
         className="absolute inset-0"
       />
-      {/* Hover tooltip */}
       {hovered && (
         <div
           className="absolute top-2 right-2 max-w-[200px] px-3 py-2 rounded-lg text-xs
@@ -508,7 +477,6 @@ function MemoryGraph({
           </div>
         </div>
       )}
-      {/* Legend */}
       {graph.nodes.length > 0 && (
         <div className="absolute bottom-2 left-2 flex gap-2.5 text-[9px] text-[var(--text-faint)]">
           {(["user", "feedback", "project", "reference"] as const).map((t) => (
@@ -525,8 +493,6 @@ function MemoryGraph({
     </div>
   );
 }
-
-// ─── MemoryContent (main export) ──────────────────────────────────────
 
 interface Props {
   worktreePath: string | null;

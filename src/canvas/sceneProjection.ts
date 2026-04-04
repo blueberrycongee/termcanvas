@@ -115,7 +115,6 @@ function anchorToWorldPoint(anchor: AnnotationAnchor): { x: number; y: number } 
     return anchor.position;
   }
 
-  // Entity anchors are not rendered natively by the current drawing store yet.
   // Fall back to the stored local offset so persisted annotations still round-trip.
   return anchor.offset;
 }

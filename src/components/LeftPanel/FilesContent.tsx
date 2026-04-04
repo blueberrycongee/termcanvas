@@ -33,7 +33,6 @@ function FileIcon({ isDirectory, expanded }: { isDirectory: boolean; expanded?: 
   );
 }
 
-/** Inline text input for rename / new file / new folder */
 function InlineInput({
   defaultValue,
   depth,
@@ -101,7 +100,6 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
   const autoExpandTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoExpandDir = useRef<string | null>(null);
 
-  // Context menu state
   const [ctxMenu, setCtxMenu] = useState<{
     x: number;
     y: number;
@@ -111,7 +109,6 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
     name: string;
   } | null>(null);
 
-  // Inline editing state: rename, newFile, newFolder
   const [editing, setEditing] = useState<{
     type: "rename" | "newFile" | "newFolder";
     parentDir: string;
@@ -265,7 +262,6 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
       {
         label: t.ctx_new_file,
         onClick: () => {
-          // Expand dir if not already
           if (isDir && !expandedDirs.has(filePath)) toggleDir(filePath);
           setEditing({ type: "newFile", parentDir: targetDir, path: targetDir, name: "" });
         },
@@ -325,7 +321,6 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
 
     const nodes: React.ReactNode[] = [];
 
-    // Show inline input for new file/folder at top of this directory
     if (editing && (editing.type === "newFile" || editing.type === "newFolder") && editing.parentDir === dirPath) {
       nodes.push(
         <InlineInput
@@ -467,7 +462,6 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
       }}
       onDrop={(e) => handleDirDrop(e, worktreePath!)}
       onContextMenu={(e) => {
-        // Right-click on empty area → context menu for root dir
         if (e.target === e.currentTarget) {
           e.preventDefault();
           setCtxMenu({

@@ -97,7 +97,6 @@ function UpdateCheckButton() {
     setUpToDate(false);
     useUpdaterStore.setState({ status: "checking", errorMessage: null });
     await window.termcanvas.updater.check();
-    // If no update-available event fired, status stays "checking" → show "up to date"
     const current = useUpdaterStore.getState().status;
     if (current === "checking") {
       useUpdaterStore.setState({ status: "idle" });
@@ -392,7 +391,6 @@ export function SettingsModal({ onClose }: Props) {
     [t],
   );
 
-  // Close on Escape (when not recording)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (recordingKey) {
@@ -401,7 +399,6 @@ export function SettingsModal({ onClose }: Props) {
         const shortcut = eventToShortcut(e);
         if (!shortcut) return; // modifier-only press
 
-        // Check for conflicts
         const conflicting = Object.entries(shortcuts).find(
           ([k, v]) => k !== recordingKey && v === shortcut,
         );
@@ -451,7 +448,6 @@ export function SettingsModal({ onClose }: Props) {
       onClick={handleBackdropClick}
     >
       <div className="bg-[var(--bg)] border border-[var(--border)] rounded-lg w-full max-w-lg mx-4 overflow-hidden">
-        {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-0">
           <h2 className="text-[17px] font-medium text-[var(--text-primary)]">
             {t.settings}
@@ -471,7 +467,6 @@ export function SettingsModal({ onClose }: Props) {
           </button>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-0 px-6 mt-3 border-b border-[var(--border)]">
           <button
             className={tabBtn(tab === "general")}
@@ -493,11 +488,9 @@ export function SettingsModal({ onClose }: Props) {
           </button>
         </div>
 
-        {/* Content */}
         <div className="px-6 py-5 min-h-[280px] max-h-[60vh] overflow-y-auto">
           {tab === "general" && (
             <div className="flex flex-col gap-5">
-              {/* Language */}
               <div className="flex items-center justify-between">
                 <span className="text-[13px] text-[var(--text-secondary)]">
                   {t.language}
@@ -518,7 +511,6 @@ export function SettingsModal({ onClose }: Props) {
                 </div>
               </div>
 
-              {/* Terminal font size */}
               <div className="flex items-center justify-between">
                 <span className="text-[13px] text-[var(--text-secondary)]">
                   {t.terminal_font_size}
@@ -544,7 +536,6 @@ export function SettingsModal({ onClose }: Props) {
                 </div>
               </div>
 
-              {/* Terminal font */}
               <div className="flex flex-col gap-1.5">
                 <span className="text-[13px] text-[var(--text-secondary)]">
                   {t.terminal_font}
@@ -644,7 +635,6 @@ export function SettingsModal({ onClose }: Props) {
                 </div>
               </div>
 
-              {/* Animation blur */}
               <div className="flex items-center justify-between">
                 <span className="text-[13px] text-[var(--text-secondary)]">
                   {t.animation_blur}
@@ -668,7 +658,6 @@ export function SettingsModal({ onClose }: Props) {
                 </div>
               </div>
 
-              {/* Minimum contrast ratio */}
               <div className="flex items-center justify-between">
                 <span className="text-[13px] text-[var(--text-secondary)]">
                   {t.minimum_contrast}
@@ -692,7 +681,6 @@ export function SettingsModal({ onClose }: Props) {
                 </div>
               </div>
 
-              {/* Composer toggle */}
               <div className="flex items-center justify-between">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[13px] text-[var(--text-secondary)]">
@@ -718,7 +706,6 @@ export function SettingsModal({ onClose }: Props) {
                 </div>
               </div>
 
-              {/* Drawing toggle */}
               <div className="flex items-center justify-between">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[13px] text-[var(--text-secondary)]">
@@ -744,7 +731,6 @@ export function SettingsModal({ onClose }: Props) {
                 </div>
               </div>
 
-              {/* Browser toggle */}
               <div className="flex items-center justify-between">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[13px] text-[var(--text-secondary)]">
@@ -770,7 +756,6 @@ export function SettingsModal({ onClose }: Props) {
                 </div>
               </div>
 
-              {/* Summary toggle */}
               <div className="flex items-center justify-between">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[13px] text-[var(--text-secondary)]">
@@ -796,7 +781,6 @@ export function SettingsModal({ onClose }: Props) {
                 </div>
               </div>
 
-              {/* Summary CLI selector */}
               {summaryEnabled && (
                 <div className="flex items-center justify-between">
                   <div className="flex flex-col gap-0.5">
@@ -824,7 +808,6 @@ export function SettingsModal({ onClose }: Props) {
                 </div>
               )}
 
-              {/* Agent Bubble */}
               <div className="flex items-center justify-between">
                 <span className="text-[13px] text-[var(--text-secondary)]">
                   {t.agent_provider}
@@ -904,7 +887,6 @@ export function SettingsModal({ onClose }: Props) {
                 />
               </div>
 
-              {/* CLI registration */}
               {cliRegistered !== null && (
                 <div className="flex items-center justify-between">
                   <div className="flex flex-col gap-0.5">

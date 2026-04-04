@@ -14,9 +14,7 @@ const LEVEL_ICONS: Record<FocusLevel, string> = {
 };
 
 // Spring-approximating cubic-beziers derived from Spotlight's CASpringAnimation params
-// Invocation: perceptualDuration=0.28, bounce=0.41 → overshoot ~2-3%
 const SPRING_IN = "cubic-bezier(0.34, 1.56, 0.64, 1)";
-// Dismissal: perceptualDuration=0.28, bounce=0.32 → tighter, snappier
 const SPRING_OUT = "cubic-bezier(0.32, 1.25, 0.64, 1)";
 
 interface FocusTarget {
@@ -192,14 +190,12 @@ export function Hub() {
         className="absolute left-0 mt-1 rounded-lg border border-[var(--border)]
           overflow-hidden origin-top min-w-[200px]"
         style={{
-          // Asymmetric spring transitions: bouncy enter, snappy exit
           transition: expanded
             ? `transform 280ms ${SPRING_IN}, opacity 100ms ease-out, backdrop-filter 280ms ${SPRING_IN}`
             : `transform 200ms ${SPRING_OUT}, opacity 120ms ease-in, backdrop-filter 200ms ease-out`,
           transform: expanded ? "scale(1)" : "scale(0.95)",
           opacity: expanded ? 1 : 0,
           pointerEvents: expanded ? "auto" : "none",
-          // Glass material — translucent surface + blur
           backgroundColor: "color-mix(in srgb, var(--surface) 85%, transparent)",
           backdropFilter: expanded ? "blur(20px) saturate(1.4)" : "blur(0px) saturate(1)",
           WebkitBackdropFilter: expanded ? "blur(20px) saturate(1.4)" : "blur(0px) saturate(1)",

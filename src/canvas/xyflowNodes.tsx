@@ -386,7 +386,6 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
           return;
         }
 
-        // Normal reorder logic
         const centerX = startItem.x + offsetX + startItem.w / 2;
         const centerY = startItem.y + offsetY + startItem.h / 2;
 

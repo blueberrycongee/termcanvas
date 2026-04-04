@@ -391,7 +391,6 @@ export function App() {
         notify("error", String(err));
       }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

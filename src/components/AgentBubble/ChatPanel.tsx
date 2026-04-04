@@ -82,7 +82,6 @@ export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProp
   const deleteSession = useAgentBubbleStore((s) => s.deleteSession);
   const tabBarRef = useRef<HTMLDivElement>(null);
 
-  // Scroll active tab into view
   useEffect(() => {
     const container = tabBarRef.current;
     if (!container) return;
@@ -93,7 +92,6 @@ export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProp
   }, [activeSessionId]);
 
   const [size, setSize] = useState({ w: INITIAL_WIDTH, h: INITIAL_HEIGHT });
-  // Position: bottom-right anchor (distance from bottom and right edges of viewport)
   const [pos, setPos] = useState(() =>
     clampPos(128, 16, INITIAL_WIDTH, INITIAL_HEIGHT, rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH),
   );
@@ -111,7 +109,6 @@ export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProp
     return () => window.removeEventListener("keydown", handler, true);
   }, [onCollapse]);
 
-  // Reclamp position on window resize
   useEffect(() => {
     const onResize = () => {
       setPos((p) => clampPos(p.bottom, p.right, size.w, size.h, minRight));
@@ -120,7 +117,6 @@ export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProp
     return () => window.removeEventListener("resize", onResize);
   }, [size, minRight]);
 
-  // Drag by header
   const handleHeaderPointerDown = useCallback(
     (e: React.PointerEvent) => {
       if ((e.target as HTMLElement).closest("button")) return;
@@ -154,7 +150,6 @@ export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProp
     [pos, size, minRight],
   );
 
-  // Resize by edges
   const handlePanelPointerDown = useCallback(
     (e: React.PointerEvent) => {
       const panel = panelRef.current;
@@ -182,7 +177,6 @@ export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProp
 
         if (edge.includes("e")) {
           newW = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startSize.w + dx));
-          // expanding east means moving the left edge, but we anchor right, so adjust right
           newRight = Math.max(0, startPos.right - (newW - startSize.w));
         }
         if (edge.includes("w")) {
@@ -190,7 +184,6 @@ export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProp
         }
         if (edge.includes("s")) {
           newH = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, startSize.h + dy));
-          // expanding south means moving the bottom edge down
           newBottom = Math.max(0, startPos.bottom - (newH - startSize.h));
         }
         if (edge.includes("n")) {
@@ -217,11 +210,9 @@ export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProp
     [size, pos, minRight],
   );
 
-  // Update cursor on mouse move over panel edges
   const handlePanelPointerMove = useCallback((e: React.PointerEvent) => {
     const panel = panelRef.current;
     if (!panel) return;
-    // Skip cursor updates during active pointer capture (drag/resize in progress)
     if (panel.hasPointerCapture(e.pointerId)) return;
     const rect = panel.getBoundingClientRect();
     const edge = getEdge(rect, e.clientX, e.clientY);
@@ -241,12 +232,10 @@ export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProp
       onPointerDown={handlePanelPointerDown}
       onPointerMove={handlePanelPointerMove}
     >
-      {/* Tab bar header */}
       <div
         className="flex items-center border-b border-[var(--border)] cursor-grab active:cursor-grabbing select-none shrink-0"
         onPointerDown={handleHeaderPointerDown}
       >
-        {/* Scrollable tab area */}
         <div
           ref={tabBarRef}
           className="flex-1 min-w-0 flex items-center overflow-x-auto px-1.5 py-1.5 gap-0.5"
@@ -289,7 +278,6 @@ export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProp
           ))}
         </div>
 
-        {/* Fixed right controls */}
         <div className="flex items-center gap-0.5 px-1.5 shrink-0">
           <button
             className="text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded hover:bg-[var(--surface-hover)]"
@@ -312,10 +300,8 @@ export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProp
         </div>
       </div>
 
-      {/* Messages */}
       <MessageList messages={messages} />
 
-      {/* Input */}
       <MessageInput
         onSend={onSendMessage}
         onAbort={() => window.termcanvas.agent.abort(activeSessionId)}

@@ -39,8 +39,6 @@ test("shouldReuseTimedCache respects ttl windows", () => {
   assert.equal(shouldReuseTimedCache(cachedAt, 500, 1_501), false);
 });
 
-// ── Codex parsing tests ─────────────────────────────────────────────────
-
 function writeCodexJsonl(lines: object[]): string {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-test-"));
   const filePath = path.join(tmpDir, "test-session.jsonl");
@@ -80,7 +78,6 @@ test("parseCodexSession subtracts cached_input_tokens from input_tokens", () => 
 
   assert.equal(records.length, 1);
   const r = records[0];
-  // input should be non-cached portion only
   assert.equal(r.input, 20_000);
   assert.equal(r.cacheRead, 80_000);
   assert.equal(r.output, 5_000);
@@ -186,10 +183,8 @@ test("parseCodexSession clamps input to zero when cached exceeds total", () => {
 });
 
 test("computeCost applies codex pricing correctly", () => {
-  // 20k non-cached input, 80k cached, 5k output
   const cost = computeCost("codex", 20_000, 5_000, 80_000, 0, 0);
 
-  // Expected: (20k/1M)*1.50 + (5k/1M)*6.00 + (80k/1M)*0.375
   const expected = (20_000 / 1e6) * 1.50
                  + (5_000 / 1e6) * 6.00
                  + (80_000 / 1e6) * 0.375;
@@ -226,8 +221,6 @@ test("parseCodexQuotaFromContent reads primary and secondary rate limits", () =>
   assert.equal(quota.sevenDay.resetsAt, "2026-03-30T14:34:42.000Z");
 });
 
-// ── Hydra worktree attribution tests ────────────────────────────────────
-
 function writeClaudeJsonl(dirName: string, lines: object[]): { filePath: string; dir: string } {
   const projectsDir = path.join(os.homedir(), ".claude", "projects");
   const dir = path.join(projectsDir, dirName);
@@ -254,8 +247,6 @@ const sampleClaudeMessage = [
 ];
 
 test("parseClaudeSession maps Hydra .worktrees path to parent project", () => {
-  // Hydra creates worktrees at repo/.worktrees/hydra-id
-  // Claude may encode .worktrees as -.worktrees- (keeping the dot)
   const { filePath, dir } = writeClaudeJsonl(
     "-tmp-test-proj-.worktrees-hydra-abc123",
     sampleClaudeMessage,
@@ -277,7 +268,6 @@ test("parseClaudeSession maps Hydra .worktrees path to parent project", () => {
 });
 
 test("parseClaudeSession maps --worktrees path to parent project", () => {
-  // Claude may also encode .worktrees as --worktrees- (stripping the dot)
   const { filePath, dir } = writeClaudeJsonl(
     "-tmp-test-proj--worktrees-feature-branch",
     sampleClaudeMessage,

@@ -1,7 +1,4 @@
 // demo/ascii-logo.js — smooth true-color ASCII logo animation
-// Renders to <canvas> with fillText for zero DOM overhead per frame.
-
-// ── Configuration ────────────────────────────────────────────────────
 
 const RAMP = " .:-=+*#%@$";
 
@@ -24,8 +21,6 @@ const SLEEP_DURATION = 500;
 const SLEEP_AFTER = 3000;
 const PUPIL_LERP = 0.08;
 
-// ── Wave Functions ───────────────────────────────────────────────────
-
 function easeWave(x) {
   const abs = Math.abs(x);
   const eased = abs * abs * (3 - 2 * abs);
@@ -40,8 +35,6 @@ function organicWave(t, phase, freqs) {
   }
   return easeWave(v);
 }
-
-// ── Source Canvas Drawing ────────────────────────────────────────────
 
 function roundRect(ctx, x, y, w, h, r) {
   r = Math.min(r, w / 2, h / 2);
@@ -59,7 +52,6 @@ function drawLogo(ctx, w, h, eye) {
   const sx = (v) => (v / 1024) * w;
   const sy = (v) => (v / 1024) * h;
 
-  // 1. Outer rounded rect with subtle gradient
   const outerGrad = ctx.createLinearGradient(sx(72), sy(72), sx(952), sy(952));
   outerGrad.addColorStop(0, "#1e1e1e");
   outerGrad.addColorStop(1, "#161616");
@@ -67,7 +59,6 @@ function drawLogo(ctx, w, h, eye) {
   roundRect(ctx, sx(72), sy(72), sx(880), sy(880), sx(224));
   ctx.fill();
 
-  // 2. Terminal frame with vertical gradient + soft glow
   ctx.save();
   const frameGrad = ctx.createLinearGradient(sx(512), sy(188), sx(512), sy(872));
   frameGrad.addColorStop(0, "#dca830");
@@ -79,11 +70,9 @@ function drawLogo(ctx, w, h, eye) {
   ctx.fillRect(sx(208), sy(188), sx(608), sy(684));
   ctx.restore();
 
-  // 3. Screen interior
   ctx.fillStyle = "#0a0a0a";
   ctx.fillRect(sx(316), sy(296), sx(392), sy(468));
 
-  // 4. Cursor / Eye
   drawCursorOrEye(ctx, w, h, eye);
 }
 
@@ -124,12 +113,9 @@ function drawCursorOrEye(ctx, w, h, eye) {
   }
 }
 
-// ── Color Mapping ────────────────────────────────────────────────────
-
 const colorCache = new Map();
 
 function getDisplayColor(r, g, b) {
-  // Quantize input to reduce unique colors and cache hits
   r = (r >> 3) << 3;
   g = (g >> 3) << 3;
   b = (b >> 3) << 3;
@@ -164,8 +150,6 @@ function getDisplayColor(r, g, b) {
   colorCache.set(key, color);
   return color;
 }
-
-// ── Eye State Machine ────────────────────────────────────────────────
 
 function createEyeState() {
   return {
@@ -225,8 +209,6 @@ function updateEyeState(eye, time) {
   }
 }
 
-// ── Animation Loop ───────────────────────────────────────────────────
-
 class AnimationLoop {
   #raf = null;
   #callback;
@@ -252,8 +234,6 @@ class AnimationLoop {
   }
 }
 
-// ── Mouse Tracking ───────────────────────────────────────────────────
-
 function setupMouseTracking(eye, element) {
   document.addEventListener("mousemove", (e) => {
     const rect = element.getBoundingClientRect();
@@ -275,8 +255,6 @@ function setupMouseTracking(eye, element) {
   });
 }
 
-// ── Initialization ───────────────────────────────────────────────────
-
 function init() {
   const COLS = 80;
   const ROWS = 40;
@@ -284,13 +262,11 @@ function init() {
   const FONT_SIZE = 12;
   const LINE_HEIGHT = 1.1;
 
-  // Source canvas with willReadFrequently for fast getImageData
   const srcCanvas = document.createElement("canvas");
   srcCanvas.width = COLS * SRC_SCALE;
   srcCanvas.height = ROWS * SRC_SCALE;
   const srcCtx = srcCanvas.getContext("2d", { willReadFrequently: true });
 
-  // Measure monospace character dimensions
   const dpr = window.devicePixelRatio || 1;
   const fontStr = `${FONT_SIZE}px "Geist Mono","SF Mono","Cascadia Code","Fira Code",Consolas,monospace`;
   const tmpCanvas = document.createElement("canvas");
@@ -299,7 +275,6 @@ function init() {
   const charW = tmpCtx.measureText("M").width;
   const charH = FONT_SIZE * LINE_HEIGHT;
 
-  // Display canvas (retina-ready)
   const logicalW = Math.ceil(COLS * charW);
   const logicalH = Math.ceil(ROWS * charH);
   const displayCanvas = document.createElement("canvas");
@@ -314,7 +289,6 @@ function init() {
   const eye = createEyeState();
   setupMouseTracking(eye, displayCanvas);
 
-  // Pre-computed constants for the render loop
   const canvasW = srcCanvas.width;
   const canvasH = srcCanvas.height;
   const cellW = canvasW / COLS;
@@ -356,7 +330,6 @@ function init() {
         const color = getDisplayColor(r, g, b);
         if (!color) continue;
 
-        // Minimize fillStyle changes by batching same colors
         if (color !== lastColor) {
           dispCtx.fillStyle = color;
           lastColor = color;
@@ -366,7 +339,6 @@ function init() {
     }
   }
 
-  // Respect prefers-reduced-motion
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
     drawLogo(srcCtx, canvasW, canvasH, eye);
     renderFrame(0);

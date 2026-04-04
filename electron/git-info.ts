@@ -167,7 +167,6 @@ export async function getGitBranches(worktreePath: string): Promise<GitBranchInf
       });
     }
   } catch {
-    // ignore detached HEAD or invalid repositories
   }
 
   return branches;
@@ -242,8 +241,6 @@ export async function initGitRepo(worktreePath: string): Promise<void> {
   await execGitText(worktreePath, ["init", "-b", "main"], DEFAULT_MAX_BUFFER);
 }
 
-// -- Source control operations --
-
 const STATUS_CODE_MAP: Record<string, GitFileStatus> = {
   M: "M",
   A: "A",
@@ -282,7 +279,6 @@ export function parseGitStatusOutput(raw: string): GitStatusEntry[] {
       continue;
     }
 
-    // git status -z uses an extra NUL-delimited field for the original path on renames/copies
     const isRenameOrCopy = x === "R" || x === "C";
     const originalPath = isRenameOrCopy ? parts[i + 1] : undefined;
 

@@ -3,8 +3,6 @@ import path from "path";
 import os from "os";
 import { TERMCANVAS_DIR } from "./state-persistence.ts";
 
-// ── Pricing (per million tokens) ───────────────────────────────────────
-
 const PRICING: Record<string, { input: number; output: number; cache_read: number; cache_create_5m: number; cache_create_1h: number }> = {
   "claude-opus-4-6":   { input: 5.00, output: 25.00, cache_read: 0.50, cache_create_5m: 6.25,  cache_create_1h: 10.00 },
   "claude-sonnet-4-6": { input: 3.00, output: 15.00, cache_read: 0.30, cache_create_5m: 3.75,  cache_create_1h: 6.00 },
@@ -13,22 +11,20 @@ const PRICING: Record<string, { input: number; output: number; cache_read: numbe
   default:             { input: 5.00, output: 25.00, cache_read: 0.50, cache_create_5m: 6.25,  cache_create_1h: 10.00 },
 };
 
-// ── Types ──────────────────────────────────────────────────────────────
-
 export interface UsageRecord {
-  ts: string;         // UTC ISO string (no Z)
-  msgId: string;      // unique key for deduplication
+  ts: string;
+  msgId: string;
   model: string;
   input: number;
   output: number;
   cacheRead: number;
   cacheCreate5m: number;
   cacheCreate1h: number;
-  projectPath: string; // cwd of the session, for project matching
+  projectPath: string;
 }
 
 export interface UsageBucket {
-  label: string;      // e.g. "10:00-12:00"
+  label: string;
   hourStart: number;
   input: number;
   output: number;
@@ -63,7 +59,7 @@ export interface ModelUsage {
 }
 
 export interface UsageSummary {
-  date: string;               // YYYY-MM-DD
+  date: string;
   sessions: number;
   totalInput: number;
   totalOutput: number;
@@ -71,7 +67,7 @@ export interface UsageSummary {
   totalCacheCreate5m: number;
   totalCacheCreate1h: number;
   totalCost: number;
-  buckets: UsageBucket[];     // 2-hour buckets
+  buckets: UsageBucket[];
   projects: ProjectUsage[];
   models: ModelUsage[];
 }
@@ -120,11 +116,8 @@ function perfLog(label: string, details: Record<string, unknown>) {
   console.log(`[Perf] ${label}`, details);
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────
-
 function matchPricing(model: string) {
   if (PRICING[model]) return PRICING[model];
-  // Match versioned model IDs like "claude-opus-4-6-20251001" → "claude-opus-4-6"
   for (const key of Object.keys(PRICING)) {
     if (key !== "default" && model.startsWith(key)) return PRICING[key];
   }
@@ -167,9 +160,7 @@ export function shouldReuseTimedCache(
   return nowMs - cachedAt < ttlMs;
 }
 
-/** Get the local timezone offset in hours from UTC. */
 export function getLocalTzOffsetHours(): number {
-  // getTimezoneOffset returns minutes, negative for east of UTC
   return -(new Date().getTimezoneOffset() / 60);
 }
 
@@ -183,7 +174,6 @@ export function dateToUtcRange(dateStr: string): { utcStart: string; utcEnd: str
   return { utcStart: fmt(startMs), utcEnd: fmt(endMs) };
 }
 
-/** Convert UTC timestamp string to local hour given timezone offset. */
 function utcToLocalHour(tsClean: string, tzOffsetHours: number): number {
   const utcMs = new Date(tsClean + "Z").getTime();
   const localMs = utcMs + tzOffsetHours * 3600_000;
@@ -203,7 +193,6 @@ function loadHeatmapDiskCache(): HeatmapDiskCache {
       return parsed;
     }
   } catch {
-    // fall through
   }
 
   heatmapDiskCache = {
@@ -288,8 +277,6 @@ function buildHeatmapEntry(
   };
 }
 
-// ── JSONL file discovery ───────────────────────────────────────────────
-
 function collectJsonlRecursive(dir: string, files: string[], depth = 0): void {
   if (depth > 4) return; // guard against deep nesting
   try {
@@ -367,8 +354,6 @@ export function findCodexJsonlFiles(): string[] {
   return files;
 }
 
-// ── Claude JSONL parsing ───────────────────────────────────────────────
-
 export function parseClaudeSession(
   filePath: string,
   utcStart: string,
@@ -383,16 +368,10 @@ export function parseClaudeSession(
     return { records: [], projectPath };
   }
 
-  // Extract project path by finding the "-" prefixed directory under projects/
-  // e.g. ~/.claude/projects/-Users-zzzz-termcanvas/session/subagents/xxx.jsonl
-  //       → projectPath = "/Users/zzzz/termcanvas"
   const projectsDir = path.join(os.homedir(), ".claude", "projects");
   const rel = path.relative(projectsDir, filePath);
   const topDir = rel.split(path.sep)[0];
   if (topDir && topDir.startsWith("-")) {
-    // Strip worktree suffix so usage is attributed to the parent project:
-    //   --worktrees-*  → EnterWorktree adjacent dirs (e.g. repo--worktrees/branch)
-    //   -.worktrees-*  → Hydra .worktrees subdirs   (e.g. repo/.worktrees/hydra-id)
     const cleaned = topDir.replace(/(--worktrees-|-.worktrees-).*$/, "");
     projectPath = cleaned.replace(/-/g, "/");
   }
@@ -430,7 +409,6 @@ export function parseClaudeSession(
     const cc5m = cacheDetail?.ephemeral_5m_input_tokens ?? Math.max(0, ccTotal - cc1h);
     const cc5mFinal = (cc5m + cc1h < ccTotal) ? ccTotal - cc1h : cc5m;
 
-    // Overwrite: later entries for same message ID have final usage
     byMsgId.set(msgId, {
       ts: tsClean,
       msgId,
@@ -446,8 +424,6 @@ export function parseClaudeSession(
 
   return { records: [...byMsgId.values()], projectPath };
 }
-
-// ── Codex JSONL parsing ────────────────────────────────────────────────
 
 export function parseCodexSession(
   filePath: string,
@@ -566,8 +542,6 @@ export function parseCodexSession(
   return { records, projectPath };
 }
 
-// ── Heatmap API ─────────────────────────────────────────────────────────
-
 /**
  * Collect heatmap data for the last 91 days in a single pass.
  * Scans files once, reads each file once, buckets records by local date.
@@ -584,7 +558,6 @@ export async function collectHeatmapData(): Promise<Record<string, { tokens: num
   const HEATMAP_DAYS = 91;
   const tzOffsetHours = getLocalTzOffsetHours();
 
-  // Compute UTC range covering the full 91-day window in local time
   const today = new Date();
   const startLocal = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (HEATMAP_DAYS - 1));
   const endLocal = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1); // tomorrow midnight
@@ -605,7 +578,6 @@ export async function collectHeatmapData(): Promise<Record<string, { tokens: num
   const startedAt = Date.now();
 
   // Yield between files so large session scans don't monopolize the main
-  // process long enough to trigger macOS beachballing while the panel refreshes.
   for (let i = 0; i < claudeFiles.length; i++) {
     if (i > 0) await yieldToEventLoop();
     const f = claudeFiles[i];
@@ -694,8 +666,6 @@ export async function collectHeatmapData(): Promise<Record<string, { tokens: num
   return result;
 }
 
-// ── Main API ───────────────────────────────────────────────────────────
-
 /**
  * Collect usage data for a given date (local timezone).
  * Uses the machine's local timezone by default.
@@ -753,8 +723,6 @@ export async function collectUsage(
       sessionPaths.add(f);
     }
   }
-
-  // ── Aggregate ──
 
   let totalInput = 0, totalOutput = 0, totalCacheRead = 0, totalCacheCreate5m = 0, totalCacheCreate1h = 0, totalCost = 0;
 

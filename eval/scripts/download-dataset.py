@@ -26,7 +26,6 @@ DATASETS = {
     },
 }
 
-
 def count_files_in_patch(patch: str) -> list[str]:
     """Extract file paths from a unified diff patch."""
     files = []
@@ -37,7 +36,6 @@ def count_files_in_patch(patch: str) -> list[str]:
                 files.append(parts[1])
     return files
 
-
 def count_lines_in_patch(patch: str) -> int:
     """Count added/removed lines in a patch."""
     count = 0
@@ -46,7 +44,6 @@ def count_lines_in_patch(patch: str) -> int:
            not line.startswith("+++") and not line.startswith("---"):
             count += 1
     return count
-
 
 def download_parquet(dataset_name: str) -> list[dict]:
     """Download parquet files and return as list of dicts."""
@@ -74,7 +71,6 @@ def download_parquet(dataset_name: str) -> list[dict]:
         print(f"  Loaded {len(rows)} rows from file {i+1}")
 
     return all_rows
-
 
 def main():
     import argparse
@@ -122,7 +118,6 @@ def main():
     with open(output_path, "w") as f:
         json.dump(selected, f, indent=2, default=str)
     print(f"\nSaved to {output_path}")
-
 
 if __name__ == "__main__":
     main()

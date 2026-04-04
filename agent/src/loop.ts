@@ -32,9 +32,7 @@ import { SessionWriter, resumeSession, generateSessionId } from "./session.ts";
 import { evaluateApproval } from "./approval-bridge.ts";
 import type { WorkerStatus } from "./worker-state.ts";
 
-// ---------------------------------------------------------------------------
 // Agent loop event — superset of stream events + loop-level events
-// ---------------------------------------------------------------------------
 
 export type AgentEvent =
   | StreamEvent
@@ -54,10 +52,6 @@ export type AgentEvent =
   | { type: "worker_active_warning"; activeCount: number }
   | { type: "tool_progress"; toolCallId: string; toolName: string; data: unknown; timestamp: number }
   | { type: "loop_end"; result: LoopResult };
-
-// ---------------------------------------------------------------------------
-// Main loop
-// ---------------------------------------------------------------------------
 
 export async function* agentLoop(
   provider: LLMProvider,
@@ -79,7 +73,6 @@ export async function* agentLoop(
   let currentMaxTokens: number | undefined;
   let currentModel = options.modelId ?? "";
 
-  // Session: resume or initialize
   let sessionWriter: SessionWriter | undefined;
   if (options.session) {
     const sessionId = options.session.sessionId ?? generateSessionId();
@@ -114,7 +107,6 @@ export async function* agentLoop(
     turnCount++;
     yield { type: "turn_start", turn: turnCount };
 
-    // ----- Auto-check worker telemetry -----
     if (options.workerTracker && options.telemetryCheckFn) {
       const changes = await options.workerTracker.checkAll(options.telemetryCheckFn);
       for (const change of changes) {
@@ -127,7 +119,6 @@ export async function* agentLoop(
       }
     }
 
-    // ----- Collect completed background tasks -----
     for (const [taskId, task] of pendingTasks) {
       if (task.settled) {
         const result = task.settledResult ?? { content: "" };
@@ -141,7 +132,6 @@ export async function* agentLoop(
       }
     }
 
-    // ----- Approval bridge -----
     if (options.approvalBridge) {
       const bridge = options.approvalBridge;
       const approvals = await bridge.detectPendingApprovals();
@@ -176,7 +166,6 @@ export async function* agentLoop(
       }
     }
 
-    // ----- Resolve system prompt and ephemeral context -----
     const resolvedSystemPrompt = options.systemPromptConfig
       ? buildFullSystemPrompt(options.systemPromptConfig)
       : options.systemPrompt;
@@ -191,7 +180,6 @@ export async function* agentLoop(
       messages.unshift(buildSystemReminder(ctx));
     }
 
-    // ----- Stream LLM response with error-category retry -----
     let assistantMessage: AssistantMessage | undefined;
     let retryCount = 0;
 
@@ -225,7 +213,6 @@ export async function* agentLoop(
           continue;
         }
 
-        // Emergency compaction on prompt_too_long
         if (category === "prompt_too_long" && !compactionState.disabled) {
           const tokenLimits = parseTokenLimits(err);
           const beforeTokens = totalUsage.input_tokens;
@@ -259,7 +246,6 @@ export async function* agentLoop(
       }
     }
 
-    // Track usage and cost
     if (assistantMessage.usage) {
       totalUsage = mergeUsage(totalUsage, assistantMessage.usage);
       costTracker.addUsage(assistantMessage.usage, currentModel);
@@ -268,7 +254,6 @@ export async function* agentLoop(
       sessionWriter?.appendCostSnapshot(costState);
     }
 
-    // Budget check
     if (options.maxBudgetUSD !== undefined && costTracker.exceedsBudget(options.maxBudgetUSD)) {
       messages.push(assistantMessage);
       const result: LoopResult = {
@@ -282,11 +267,9 @@ export async function* agentLoop(
       return result;
     }
 
-    // Append assistant message
     messages.push(assistantMessage);
     sessionWriter?.appendMessage(assistantMessage);
 
-    // ----- Auto-compaction check -----
     if (assistantMessage.usage && shouldCompact(totalUsage.input_tokens, contextWindow, compactionState)) {
       const beforeTokens = totalUsage.input_tokens;
       const compactionResult = await compactMessages(
@@ -304,13 +287,11 @@ export async function* agentLoop(
       }
     }
 
-    // ----- Check for tool use -----
     const toolUseBlocks = assistantMessage.content.filter(
       (b): b is ToolUseBlock => b.type === "tool_use",
     );
 
     if (toolUseBlocks.length === 0) {
-      // max_tokens recovery: output was truncated, not a clean end_turn
       if (assistantMessage.stop_reason === "max_tokens") {
         const MAX_RECOVERY_ATTEMPTS = 3;
         const OUTPUT_REDUCTION_FACTOR = 0.8;
@@ -384,14 +365,12 @@ export async function* agentLoop(
       continue;
     }
 
-    // ----- Execute tools -----
     const calls = toolUseBlocks.map((b) => ({
       id: b.id,
       name: b.name,
       input: b.input,
     }));
 
-    // Yield tool_start events before execution
     for (const call of calls) {
       yield { type: "tool_start" as const, name: call.name, input: call.input };
     }
@@ -415,12 +394,10 @@ export async function* agentLoop(
       },
     );
 
-    // Yield buffered progress events
     for (const evt of progressEvents) {
       yield evt;
     }
 
-    // Emit task_pending events for newly registered background tasks
     if (pendingTasks.size > prevPendingSize) {
       for (const [taskId, task] of pendingTasks) {
         if (task.startTime >= Date.now() - 1000) {
@@ -429,7 +406,6 @@ export async function* agentLoop(
       }
     }
 
-    // Yield tool_end events after execution
     for (const tr of toolResults) {
       const call = calls.find((c) => c.id === tr.tool_use_id);
       if (call) {
@@ -442,7 +418,6 @@ export async function* agentLoop(
       }
     }
 
-    // Append tool results as user message
     const resultBlocks: ToolResultBlock[] = toolResults.map((tr) => ({
       type: "tool_result" as const,
       tool_use_id: tr.tool_use_id,
@@ -457,7 +432,6 @@ export async function* agentLoop(
     yield { type: "turn_end", turn: turnCount };
   }
 
-  // Max turns reached
   const result: LoopResult = {
     reason: "max_turns",
     messages,
@@ -468,10 +442,6 @@ export async function* agentLoop(
   yield { type: "loop_end", result };
   return result;
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {

@@ -2,11 +2,8 @@ export interface FontEntry {
   id: string;
   name: string;
   source: "builtin" | "google-fonts" | "github";
-  /** Download URL (ignored for builtin fonts) */
   url: string;
-  /** Filename stored in userData/fonts/ (ignored for builtin) */
   fileName: string;
-  /** CSS font-family value to pass to xterm */
   cssFamily: string;
 }
 

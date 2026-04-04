@@ -29,7 +29,6 @@ async function getOAuthToken(): Promise<string | null> {
     );
     const raw = stdout.trim();
     const parsed = JSON.parse(raw);
-    // Token may be nested under various keys: { claudeAiOauth: { accessToken } },
     // { default: { accessToken } }, or flat { accessToken }
     const creds = parsed.claudeAiOauth ?? parsed.default ?? parsed;
     return creds.accessToken ?? creds.access_token ?? null;

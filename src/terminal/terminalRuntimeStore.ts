@@ -383,7 +383,6 @@ function setSessionId(
     sessionId,
   );
 
-  // Clear stale summary title when session changes
   if (prev && prev !== sessionId && runtime.meta.terminal.customTitle) {
     store.updateTerminalCustomTitle(
       runtime.meta.projectId,
@@ -622,7 +621,6 @@ function createTerminalRenderer(
   try {
     xterm.loadAddon(new ImageAddon());
   } catch {
-    // Optional addon.
   }
 
   xterm.attachCustomKeyEventHandler((event) => {
@@ -1037,7 +1035,6 @@ async function spawnPty(runtime: ManagedTerminalRuntime, resumeSessionId?: strin
           runtime.hookFallbackTimer = null;
         }
 
-        // Hook-based CLI type upgrade: shell → claude
         if (runtime.meta.terminal.type === "shell") {
           setTerminalType(runtime, "claude");
           useQuotaStore.getState().nudge();
@@ -1087,11 +1084,8 @@ async function spawnPty(runtime: ManagedTerminalRuntime, resumeSessionId?: strin
           }
         }, 30_000);
       } else if (runtime.meta.terminal.type !== "shell") {
-        // Non-shell, non-claude types (e.g., codex) use polling directly
         scheduleSessionCapture(runtime, ptyId, runtime.meta.terminal.type);
       }
-      // Shell terminals: hook listener is set up opportunistically,
-      // triggerDetection handles discovery via ps polling
     }
 
     wireLiveBindings(runtime);
@@ -1127,7 +1121,6 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
   const TELEMETRY_POLL_FAST = 5_000;
   const PUSH_STALE_THRESHOLD = 60_000;
 
-  // Adaptive polling: slow when push is active, fast when push goes silent
   const telemetryTick = () => {
     refreshTelemetry(runtime);
     const pushStale = runtime.lastPushAt > 0 &&
@@ -1148,7 +1141,6 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
 
       const snap = payload.snapshot as TerminalTelemetrySnapshot;
 
-      // Trigger auto-summary when turn completes
       if (snap.turn_state === "turn_complete" && prevTurnState !== "turn_complete") {
         onTerminalTurnCompleted(runtime.meta.terminal.id);
       }
@@ -1222,7 +1214,6 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
     },
   );
 
-  // Hook-based turn completion (supplements session watcher)
   if (window.termcanvas?.hooks) {
     runtime.removeHookTurnComplete = window.termcanvas.hooks.onTurnComplete(
       (payload) => {
@@ -1498,7 +1489,6 @@ export async function refreshClaudeSessionStates(): Promise<void> {
 
     tasks.push(
       (async () => {
-        // Re-read sessionId from sidecar via PID
         const pid = await window.termcanvas.terminal.getPid(runtime.ptyId!);
         if (!pid || runtime.disposed) return;
 

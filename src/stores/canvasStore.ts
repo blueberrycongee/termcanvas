@@ -10,7 +10,6 @@ export interface CanvasViewportAdapter {
   getViewport: () => Viewport;
 }
 
-// Fixed panel dimensions (no user-resizable widths)
 export const RIGHT_PANEL_WIDTH = 240;
 export const COLLAPSED_TAB_WIDTH = 32;
 

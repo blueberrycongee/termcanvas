@@ -88,13 +88,9 @@ export function clampCenterX(
   leftInset: number,
   rightInset: number,
 ): number {
-  // viewport.x is canvas-local (canvas div starts at leftInset on screen).
-  // To place the object center at screen midpoint (window.innerWidth / 2):
-  //   leftInset + cx + objectCenter * scale = window.innerWidth / 2
   const objectCenterWorld = objectX + objectW / 2;
   let cx = window.innerWidth / 2 - leftInset - objectCenterWorld * scale;
 
-  // Clamp boundaries are also canvas-local.
   // Visible canvas area: 0 … (window.innerWidth - leftInset - rightInset)
 
   // Left clamp: object left edge must stay PAN_SAFE_PADDING inside canvas

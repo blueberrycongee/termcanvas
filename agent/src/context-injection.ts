@@ -8,10 +8,6 @@
 
 import type { UserMessage, Message } from "./types.ts";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export interface SystemPromptConfig {
   staticPrompt: string;
   dynamicPrompt?: () => string;
@@ -19,20 +15,12 @@ export interface SystemPromptConfig {
 
 export type EphemeralContext = Record<string, string>;
 
-// ---------------------------------------------------------------------------
-// System prompt
-// ---------------------------------------------------------------------------
-
 const DYNAMIC_BOUNDARY = "<!-- dynamic-boundary -->";
 
 export function buildFullSystemPrompt(config: SystemPromptConfig): string {
   if (!config.dynamicPrompt) return config.staticPrompt;
   return `${config.staticPrompt}\n${DYNAMIC_BOUNDARY}\n${config.dynamicPrompt()}`;
 }
-
-// ---------------------------------------------------------------------------
-// System-reminder message
-// ---------------------------------------------------------------------------
 
 export function buildSystemReminder(context: EphemeralContext): UserMessage {
   const sections = Object.entries(context)
@@ -50,10 +38,6 @@ export function isSystemReminder(msg: Message): boolean {
   if (typeof msg.content !== "string") return false;
   return msg.content.startsWith("<system-reminder>");
 }
-
-// ---------------------------------------------------------------------------
-// Message filtering for compaction
-// ---------------------------------------------------------------------------
 
 export function stripSystemReminders(messages: Message[]): Message[] {
   return messages.filter((msg) => !isSystemReminder(msg));

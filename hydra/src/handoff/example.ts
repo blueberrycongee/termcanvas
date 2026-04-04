@@ -1,6 +1,3 @@
-/**
- * Handoff System - Usage Example
- */
 
 import { HandoffManager } from "./manager.ts";
 import type { Handoff } from "./types.ts";

@@ -6,7 +6,6 @@ import type {
 } from "./types.ts";
 import { loadRunResult } from "./results.ts";
 
-/** Compare two evaluation runs */
 export async function compareRuns(
   runIdA: string,
   runIdB: string,
@@ -19,12 +18,10 @@ export async function compareRuns(
   return compareResults(resultA, resultB);
 }
 
-/** Compare two run results directly */
 export function compareResults(
   resultA: RunResult,
   resultB: RunResult,
 ): RunComparison {
-  // Find config differences
   const configDiff: Record<string, { a: unknown; b: unknown }> = {};
   const configKeys = new Set([
     ...Object.keys(resultA.config),
@@ -39,7 +36,6 @@ export function compareResults(
     }
   }
 
-  // Compare per-task results
   const taskMapA = new Map(resultA.tasks.map((t) => [t.task_id, t]));
   const taskMapB = new Map(resultB.tasks.map((t) => [t.task_id, t]));
   const allTaskIds = new Set([...taskMapA.keys(), ...taskMapB.keys()]);
@@ -65,7 +61,6 @@ export function compareResults(
     });
   }
 
-  // Summary comparison
   const sa = resultA.summary;
   const sb = resultB.summary;
 
@@ -99,14 +94,12 @@ export function compareResults(
   };
 }
 
-/** Format a comparison as a human-readable report */
 export function formatComparison(comparison: RunComparison): string {
   const lines: string[] = [];
 
   lines.push(`# Evaluation Comparison: ${comparison.run_a} vs ${comparison.run_b}`);
   lines.push("");
 
-  // Config diff
   if (Object.keys(comparison.config_diff).length > 0) {
     lines.push("## Configuration Differences");
     lines.push("");
@@ -118,7 +111,6 @@ export function formatComparison(comparison: RunComparison): string {
     lines.push("");
   }
 
-  // Summary comparison
   const sd = comparison.summary_diff;
   lines.push("## Summary");
   lines.push("");
@@ -138,7 +130,6 @@ export function formatComparison(comparison: RunComparison): string {
   );
   lines.push("");
 
-  // Per-task comparison
   const improved = comparison.task_diffs.filter(
     (t) => t.status === "improved",
   );
@@ -164,7 +155,6 @@ export function formatComparison(comparison: RunComparison): string {
     lines.push("");
   }
 
-  // Full task table
   lines.push("## All Tasks");
   lines.push("");
   lines.push("| Task | Run A | Run B | Status | Tokens A | Tokens B | Time A | Time B |");

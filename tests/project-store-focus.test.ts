@@ -387,7 +387,6 @@ test("ensureTerminalCreationTarget returns the focused worktree when one already
 
 test("toggleProjectCollapse clears focus when no visible terminal remains", () => {
   const projects = createProjects();
-  // Collapse project-2 first so only project-1 terminals are visible
   projects[1].collapsed = true;
   useProjectStore.setState({
     projects,

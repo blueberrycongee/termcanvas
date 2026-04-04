@@ -74,7 +74,6 @@ function getItemsInRect(rect: { x: number; y: number; w: number; h: number }): S
     }
   }
 
-  // Skip terminals whose parent project or worktree is already selected
   for (const p of projects) {
     if (selectedProjectIds.has(p.id)) continue;
     for (const wt of p.worktrees) {

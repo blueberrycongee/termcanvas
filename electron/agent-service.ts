@@ -18,19 +18,11 @@ import type { Message } from "../agent/src/types.ts";
 import { ClaudeCodeDriver } from "./claude-code-driver.ts";
 import type { AgentStreamEvent } from "../src/types/index.ts";
 
-// ---------------------------------------------------------------------------
-// Session state
-// ---------------------------------------------------------------------------
-
 interface AgentSession {
   messages: Message[];
   abortController: AbortController | null;
   running: boolean;
 }
-
-// ---------------------------------------------------------------------------
-// Service
-// ---------------------------------------------------------------------------
 
 export interface AgentConfig {
   type: "anthropic" | "openai" | "claude-code";
@@ -110,13 +102,10 @@ export class AgentService {
       return;
     }
 
-    // Append user message
     session.messages.push({ role: "user", content: text });
 
-    // Create provider based on config type
     const provider = createProvider(config);
 
-    // Prepare abort
     session.abortController = new AbortController();
     session.running = true;
 
@@ -144,7 +133,6 @@ export class AgentService {
         result = await loop.next();
       }
 
-      // loop.return is LoopResult — update session messages from it
       const loopResult = result.value;
       session.messages = loopResult.messages;
     } catch (err) {

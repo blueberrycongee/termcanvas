@@ -28,7 +28,6 @@ function mockS3Client(uploads: ArtifactManifestEntry[] = []): S3Client {
 function mockExec(calls: Array<{ file: string; args: string[] }> = []): ExecFn {
   return async (file, args, _opts) => {
     calls.push({ file, args });
-    // If tar is called with -czf, create a fake tar.gz so readFile succeeds
     if (file === "tar" && args[0] === "-czf") {
       await fs.writeFile(args[1], "fake-tar-content");
     }
@@ -132,7 +131,6 @@ describe("ArtifactCollector", () => {
     assert.equal(manifest[0].type, "git");
     assert.equal(manifest[0].url, "git://cloud/test-123");
 
-    // Verify git commands
     assert.deepEqual(execCalls[0], { file: "git", args: ["add", "-A"] });
     assert.equal(execCalls[1].file, "git");
     assert.ok(execCalls[1].args.includes("commit"));
@@ -170,7 +168,6 @@ describe("ArtifactCollector", () => {
     assert.equal(manifest[0].type, "files");
     assert.ok(manifest[0].url.startsWith("s3://my-bucket/"));
 
-    // Verify tar was called
     const tarCall = execCalls.find((c) => c.file === "tar");
     assert.ok(tarCall, "should call tar to create archive");
 

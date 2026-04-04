@@ -1,7 +1,3 @@
-/**
- * Headless runtime entry point for cloud sandbox execution.
- * Wires together all services and handles lifecycle.
- */
 
 import fs from "node:fs";
 import path from "node:path";
@@ -66,13 +62,11 @@ async function main(): Promise<void> {
     `[headless] starting — workspace=${config.workspaceDir} taskId=${config.taskId ?? "none"}`,
   );
 
-  // Initialize services (reuse existing modules with zero Electron deps)
   const ptyManager = new PtyManager();
   const telemetryService = new TelemetryService();
   const projectScanner = new ProjectScanner();
   const projectStore = new ProjectStore();
 
-  // Read version from package.json
   let serverVersion = "0.0.0";
   try {
     const pkgPath = path.resolve(
@@ -86,10 +80,8 @@ async function main(): Promise<void> {
     // Non-critical — version will show 0.0.0
   }
 
-  // Event bus
   const eventBus = new ServerEventBus();
 
-  // Webhook notification service
   let webhookService: WebhookService | null = null;
   const webhookUrl = process.env.TERMCANVAS_WEBHOOK_URL?.trim();
   if (webhookUrl) {
@@ -126,7 +118,6 @@ async function main(): Promise<void> {
     () => sanitizeProjectsForPersistence(projectStore.getProjects()),
   );
 
-  // Create and start API server
   const apiServer = new HeadlessApiServer({
     projectStore,
     ptyManager,
@@ -149,7 +140,6 @@ async function main(): Promise<void> {
     version: serverVersion,
   });
 
-  // Write port file for discovery
   const portFile = resolveTermCanvasPortFile();
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
@@ -157,7 +147,6 @@ async function main(): Promise<void> {
   fs.writeFileSync(portFile, String(port), "utf-8");
   console.log(`[headless] port file written: ${portFile}`);
 
-  // Start heartbeat if callback URL is configured
   let heartbeat: Heartbeat | null = null;
   if (config.resultCallbackUrl) {
     heartbeat = new Heartbeat({

@@ -25,9 +25,7 @@ interface PreferencesStore {
   minimumContrastRatio: number;
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
 
-  /** Agent provider configuration */
   agentConfig: AgentProviderConfig;
-  /** True once the encrypted API key has been decrypted into memory */
   apiKeyReady: boolean;
 
   setAnimationBlur: (value: number) => void;
@@ -63,7 +61,6 @@ interface SavedPrefs {
 }
 
 function migrateOldAgentFields(parsed: Record<string, unknown>): AgentProviderConfig {
-  // Migrate from old flat fields: agentProvider, agentApiKey, agentModel
   const oldProvider = parsed.agentProvider as string | undefined;
   const oldKey = (parsed.agentApiKey as string) ?? "";
   const oldModel = (parsed.agentModel as string) ?? "";
@@ -161,7 +158,6 @@ function loadPreferences(): SavedPrefs {
       };
     }
   } catch {
-    // ignore
   }
   return {
     animationBlur: DEFAULT_BLUR,
@@ -235,10 +231,8 @@ export async function hydrateApiKey(): Promise<void> {
       return;
     }
 
-    // Migration: legacy plaintext stored in preferences JSON
     const legacyKey = readLegacyApiKey();
     if (legacyKey) {
-      // patchAgentConfig triggers savePreferences → saveApiKeySecure (encrypts)
       getState().patchAgentConfig({ apiKey: legacyKey });
     }
   } catch {

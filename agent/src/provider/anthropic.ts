@@ -25,10 +25,6 @@ import type {
   Usage,
 } from "../types.ts";
 
-// ---------------------------------------------------------------------------
-// Provider
-// ---------------------------------------------------------------------------
-
 export class AnthropicProvider implements LLMProvider {
   readonly name = "anthropic";
   private client: Anthropic;
@@ -183,7 +179,6 @@ export class AnthropicProvider implements LLMProvider {
       if (!completed) stream.controller.abort();
     }
 
-    // Assemble final message
     const content: ContentBlock[] = [];
     for (const [, block] of [...contentBlocks.entries()].sort(
       ([a], [b]) => a - b,
@@ -195,7 +190,6 @@ export class AnthropicProvider implements LLMProvider {
         try {
           input = JSON.parse(block.inputJson || "{}");
         } catch {
-          // malformed JSON — keep empty
         }
         content.push({
           type: "tool_use",
@@ -217,10 +211,6 @@ export class AnthropicProvider implements LLMProvider {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Message conversion
-// ---------------------------------------------------------------------------
-
 function toMessageParams(messages: Message[]): MessageParam[] {
   const out: MessageParam[] = [];
 
@@ -239,7 +229,6 @@ function toMessageParams(messages: Message[]): MessageParam[] {
           if (block.type === "text") {
             return { type: "text" as const, text: block.text };
           }
-          // tool_result
           const tr = block as {
             tool_use_id: string;
             content: string;
@@ -257,14 +246,12 @@ function toMessageParams(messages: Message[]): MessageParam[] {
       continue;
     }
 
-    // assistant
     const blocks: ContentBlockParam[] = msg.content
       .filter((b) => b.type !== "thinking")
       .map((block) => {
         if (block.type === "text") {
           return { type: "text" as const, text: block.text };
         }
-        // tool_use
         const tu = block as {
           id: string;
           name: string;
@@ -280,7 +267,6 @@ function toMessageParams(messages: Message[]): MessageParam[] {
     out.push({ role: "assistant", content: blocks });
   }
 
-  // Merge consecutive same-role messages to satisfy Anthropic's alternating-role requirement
   return mergeConsecutiveSameRole(out);
 }
 
@@ -294,7 +280,6 @@ function mergeConsecutiveSameRole(messages: MessageParam[]): MessageParam[] {
     const curr = messages[i];
 
     if (prev.role === curr.role) {
-      // Convert both sides to content block arrays, then concatenate
       const prevBlocks = toContentBlockArray(prev.content);
       const currBlocks = toContentBlockArray(curr.content);
       merged[merged.length - 1] = { role: prev.role, content: [...prevBlocks, ...currBlocks] } as MessageParam;
@@ -324,10 +309,6 @@ function toAnthropicTool(schema: {
     input_schema: schema.input_schema,
   };
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 type PartialBlock =
   | { type: "text"; text: string }

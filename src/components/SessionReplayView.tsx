@@ -93,12 +93,10 @@ export function SessionReplayView() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const currentRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to current event
   useEffect(() => {
     currentRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [currentIndex]);
 
-  // Playback timer
   useEffect(() => {
     if (!isPlaying || !timeline) return;
 
@@ -155,7 +153,6 @@ export function SessionReplayView() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
       <div className="shrink-0 px-2 py-2 border-b border-[var(--border)] flex items-center gap-2">
         <button
           className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
@@ -175,7 +172,6 @@ export function SessionReplayView() {
         </div>
       </div>
 
-      {/* Timeline */}
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-1 py-1">
         {timeline.events.map((event) => (
           <div key={event.index} ref={event.index === currentIndex ? currentRef : undefined}>
@@ -188,9 +184,7 @@ export function SessionReplayView() {
         ))}
       </div>
 
-      {/* Playback controls */}
       <div className="shrink-0 border-t border-[var(--border)] px-2 py-1.5">
-        {/* Progress bar */}
         <div
           className="h-1 bg-[var(--border)] rounded-full mb-1.5 cursor-pointer"
           onClick={handleProgressClick}
@@ -201,7 +195,6 @@ export function SessionReplayView() {
           />
         </div>
 
-        {/* Controls row */}
         <div className="flex items-center gap-1">
           <button className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer" onClick={() => seekTo(0)}>
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 2v6M8 2L4 5l4 3V2z" fill="currentColor"/></svg>
@@ -225,7 +218,6 @@ export function SessionReplayView() {
 
           <div className="flex-1" />
 
-          {/* Speed */}
           <button
             className="text-[9px] tabular-nums text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer px-1"
             style={{ fontFamily: '"Geist Mono", monospace' }}
@@ -237,7 +229,6 @@ export function SessionReplayView() {
             {speed}x
           </button>
 
-          {/* Position */}
           <span className="text-[9px] tabular-nums text-[var(--text-faint)]" style={{ fontFamily: '"Geist Mono", monospace' }}>
             {currentIndex + 1}/{timeline.events.length}
           </span>

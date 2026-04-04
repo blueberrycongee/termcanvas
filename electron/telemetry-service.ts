@@ -960,7 +960,6 @@ export class TelemetryService {
           foregroundTool: snapshot.foregroundTool,
         });
       } catch {
-        // Process tree sampling is advisory only.
       }
     };
     void poll();
@@ -1036,13 +1035,11 @@ export class TelemetryService {
       state.sessionRemainder = trailing === "" ? "" : trailing;
       state.sessionOffset = size - Buffer.byteLength(state.sessionRemainder, "utf-8");
     } catch {
-      // Session file might not exist yet.
     }
   }
 
   private async readSessionDelta(state: TerminalState): Promise<void> {
     if (!state.sessionFile || state.sessionReadInFlight) return;
-    // Skip if hook events already provided recent state
     if (this.now() - state.lastHookToolAt < 2_000) return;
     state.sessionReadInFlight = true;
     try {

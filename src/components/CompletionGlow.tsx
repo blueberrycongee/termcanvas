@@ -6,7 +6,6 @@ export function CompletionGlow() {
   const seenRef = useRef(new Set<string>());
   const [, forceUpdate] = useState(0);
 
-  // Build flat navigation list (same order as useKeyboardShortcuts)
   const terminals: { id: string; status: string; focused: boolean }[] = [];
   for (const p of projects) {
     for (const w of p.worktrees) {
@@ -40,12 +39,9 @@ export function CompletionGlow() {
     if (changed) forceUpdate((n) => n + 1);
   });
 
-  // Compute which sides to show.
   // Navigation is circular (nextTerminal wraps around), so the glow
   // direction must account for wrap-around.  "Left" means prevTerminal
   // would reach an unseen completed terminal; "right" means nextTerminal
-  // would.  We pick the shorter circular direction for each unseen
-  // terminal to decide which side to illuminate.
   const unseen = (t: { id: string; status: string }) =>
     t.status === "completed" && !seenRef.current.has(t.id);
 
@@ -53,7 +49,6 @@ export function CompletionGlow() {
   let showRight = false;
 
   if (focusedIdx === -1) {
-    // No focus: any unseen completed → show both sides
     const hasUnseen = terminals.some(unseen);
     showLeft = hasUnseen;
     showRight = hasUnseen;
@@ -61,9 +56,7 @@ export function CompletionGlow() {
     const n = terminals.length;
     for (let i = 0; i < n; i++) {
       if (i === focusedIdx || !unseen(terminals[i])) continue;
-      // Distance going forward (nextTerminal direction → right glow)
       const fwd = (i - focusedIdx + n) % n;
-      // Distance going backward (prevTerminal direction → left glow)
       const bwd = (focusedIdx - i + n) % n;
       if (fwd <= bwd) {
         showRight = true;

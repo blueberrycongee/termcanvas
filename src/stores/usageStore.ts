@@ -10,9 +10,7 @@ interface UsageStore {
   summary: UsageSummary | null;
   loading: boolean;
   date: string; // YYYY-MM-DD
-  /** Tracks which dates are known to have usage data (scheme B: only after visit) */
   cachedDates: Record<string, boolean>;
-  /** In-memory cache of fetched summaries by date */
   summaryCache: Record<string, UsageSummary>;
   summaryFetchedAt: Record<string, number>;
   /** When a fetch is in-flight, stores the latest requested date so it's fetched next */
@@ -68,7 +66,6 @@ export const useUsageStore = create<UsageStore>((set, get) => ({
       return;
     }
 
-    // If already loading, queue the latest request instead of dropping it
     if (get().loading) {
       set({ pendingDate: target });
       return;

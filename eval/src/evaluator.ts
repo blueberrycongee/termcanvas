@@ -9,7 +9,6 @@ import type { TaskDefinition, SWEBenchPrediction } from "./types.ts";
 const EVAL_ROOT = join(fileURLToPath(import.meta.url), "../..");
 const REPO_CACHE_DIR = join(tmpdir(), "eval-repo-cache");
 
-/** Run a command and return stdout */
 function exec(
   cmd: string,
   args: string[],
@@ -35,7 +34,6 @@ function exec(
   });
 }
 
-/** Write predictions to JSONL for SWE-bench evaluation */
 export async function writePredictions(
   predictions: SWEBenchPrediction[],
   outputPath: string,
@@ -44,7 +42,6 @@ export async function writePredictions(
   await writeFile(outputPath, lines);
 }
 
-/** Run SWE-bench Docker evaluation on predictions */
 export async function runSWEBenchEval(options: {
   predictionsPath: string;
   dataset: string;
@@ -87,7 +84,6 @@ export async function runSWEBenchEval(options: {
   }
 }
 
-/** Parse SWE-bench evaluation results from output directory */
 async function parseSWEBenchResults(
   outputDir: string,
   runId: string,
@@ -142,7 +138,6 @@ export function evaluatePatchSimple(
   };
 }
 
-/** Extract file paths from a unified diff */
 function extractPatchFiles(patch: string): string[] {
   const files: string[] = [];
   for (const line of patch.split("\n")) {
@@ -154,7 +149,6 @@ function extractPatchFiles(patch: string): string[] {
   return files;
 }
 
-/** Extract added/removed lines from a patch */
 function extractChangedLines(patch: string): Set<string> {
   const lines = new Set<string>();
   for (const line of patch.split("\n")) {
@@ -170,21 +164,18 @@ function extractChangedLines(patch: string): Set<string> {
   return lines;
 }
 
-/** Compute overlap between two sets of lines */
 function computeLineOverlap(a: Set<string>, b: Set<string>): number {
   if (b.size === 0) return 0;
   const intersection = new Set([...a].filter((line) => b.has(line)));
   return intersection.size / b.size;
 }
 
-/** Get or create a cached bare clone of a repository */
 async function getRepoCachePath(repo: string): Promise<string> {
   await mkdir(REPO_CACHE_DIR, { recursive: true });
   const safeRepo = repo.replace(/\//g, "__");
   const cachePath = join(REPO_CACHE_DIR, safeRepo);
 
   if (existsSync(cachePath)) {
-    // Update the cache
     console.log(`  Using cached repo: ${repo}`);
     await exec("git", ["fetch", "--all"], {
       cwd: cachePath,
@@ -211,7 +202,6 @@ export async function setupTaskWorkdir(
   const workDir = join(baseDir, safeId);
 
   if (existsSync(workDir)) {
-    // Reset to base commit
     await exec("git", ["checkout", "-f", task.base_commit], {
       cwd: workDir,
       timeout: 60,
@@ -220,11 +210,9 @@ export async function setupTaskWorkdir(
     return workDir;
   }
 
-  // Clone from cache
   const cachePath = await getRepoCachePath(task.repo);
   await exec("git", ["clone", cachePath, workDir], { timeout: 300 });
 
-  // Add the original remote for proper diff headers
   await exec(
     "git",
     ["remote", "set-url", "origin", `https://github.com/${task.repo}.git`],

@@ -54,7 +54,6 @@ export function DrawingPanel() {
     return () => window.removeEventListener("resize", onResize);
   }, [clampPos]);
 
-  // Re-clamp after layout toggle (dimensions change between vertical/horizontal)
   useLayoutEffect(() => {
     setPos((p) => clampPos(p.x, p.y));
   }, [vertical, clampPos]);
@@ -95,7 +94,6 @@ export function DrawingPanel() {
       className="fixed z-[95] bg-[var(--bg)] border border-[var(--border)] rounded-lg shadow-lg"
       style={{ left: pos.x, top: pos.y }}
     >
-      {/* Drag handle + layout toggle */}
       <div
         className="flex items-center gap-1 px-1.5 py-1 cursor-grab active:cursor-grabbing select-none"
         onMouseDown={handleDragStart}
@@ -176,7 +174,6 @@ export function DrawingPanel() {
         </button>
       </div>
 
-      {/* Tools + colors */}
       <div
         className={`flex ${vertical ? "flex-col" : "flex-row"} gap-0.5 px-1.5 pb-1.5`}
       >

@@ -24,8 +24,6 @@ export function installDownloadedUpdate(): void {
 }
 
 export function setupAutoUpdater(window: BrowserWindow): void {
-  // Keep updater IPC available in dev, but never let the dev instance
-  // touch shared updater state or trigger downloads/install flows.
   ipcMain.handle("updater:get-version", () => app.getVersion());
 
   if (IS_DEV) {
@@ -48,9 +46,6 @@ export function stopAutoUpdater(): void {
   }
 }
 
-// ---------------------------------------------------------------------------
-// macOS: custom updater (bypasses Squirrel.Mac signature verification)
-// ---------------------------------------------------------------------------
 
 function setupMacUpdater(window: BrowserWindow): () => void {
   macUpdater = new MacCustomUpdater(window);
@@ -68,10 +63,6 @@ function setupMacUpdater(window: BrowserWindow): () => void {
     macUpdater?.checkForUpdates().catch(() => {});
   };
 }
-
-// ---------------------------------------------------------------------------
-// Windows / Linux: standard electron-updater
-// ---------------------------------------------------------------------------
 
 function setupElectronUpdater(window: BrowserWindow): () => void {
   autoUpdater.autoDownload = true;
@@ -120,9 +111,7 @@ function setupElectronUpdater(window: BrowserWindow): () => void {
   };
 }
 
-// ---------------------------------------------------------------------------
 // Cache cleanup (electron-updater only, not used on macOS)
-// ---------------------------------------------------------------------------
 
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 

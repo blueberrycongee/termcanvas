@@ -92,14 +92,12 @@ export function findNextVisibleTerminalId(
 
   const newIds = new Set(newOrder.map((t) => t.terminalId));
 
-  // Look forward from old position
   for (let i = oldIdx + 1; i < oldOrder.length; i++) {
     if (newIds.has(oldOrder[i].terminalId)) {
       return oldOrder[i].terminalId;
     }
   }
 
-  // Wrap around from start
   for (let i = 0; i < oldIdx; i++) {
     if (newIds.has(oldOrder[i].terminalId)) {
       return oldOrder[i].terminalId;

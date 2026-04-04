@@ -36,7 +36,6 @@ export function RightPanel() {
 
   return (
     <div className="fixed right-0 z-40 flex" style={{ top: 44, height: "calc(100vh - 44px)" }}>
-      {/* Collapsed tab strip */}
       <div
         className="h-full shrink-0 flex flex-col items-center pt-2 gap-1 bg-[var(--sidebar)] overflow-hidden border-l border-[var(--border)] cursor-pointer hover:bg-[var(--sidebar-hover)]"
         style={{
@@ -62,7 +61,6 @@ export function RightPanel() {
         ))}
       </div>
 
-      {/* Expanded panel */}
       <div
         className="shrink-0 flex flex-col bg-[var(--sidebar)] overflow-hidden border-l border-[var(--border)]"
         style={{
@@ -70,7 +68,6 @@ export function RightPanel() {
           transition: "width 0.2s ease",
         }}
       >
-        {/* Tab bar */}
         <div className="shrink-0 flex items-center border-b border-[var(--border)] h-[34px]">
           {TAB_IDS.map((id) => (
             <button
@@ -97,7 +94,6 @@ export function RightPanel() {
           </button>
         </div>
 
-        {/* Content */}
         <div className="flex-1 min-h-0">
           {activeTab === "usage" && <UsagePanel />}
           {activeTab === "sessions" && <SessionsPanel />}

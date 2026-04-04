@@ -420,7 +420,6 @@ function DemoPanel({
           usage
         </span>
       </div>
-      {/* Expanded panel */}
       <div
         className="h-full border-l border-[var(--border)]"
         style={{

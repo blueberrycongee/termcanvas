@@ -6,10 +6,6 @@
  * monitor, and report.
  */
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export interface CoordinatorPromptContext {
   availableTools: string[];
   workerTypes: string[];
@@ -19,10 +15,6 @@ export interface CoordinatorPromptContext {
   worktreePath?: string;
   repoPath?: string;
 }
-
-// ---------------------------------------------------------------------------
-// Prompt builder
-// ---------------------------------------------------------------------------
 
 export function buildCoordinatorPrompt(context: CoordinatorPromptContext): string {
   const sections: string[] = [];
@@ -133,7 +125,6 @@ When you see an <approval-request>:
 3. Wait for the user's decision before proceeding
 4. Never auto-approve destructive operations on behalf of the user`);
 
-  // Active workers context
   if (context.activeWorkers && context.activeWorkers.length > 0) {
     const workerList = context.activeWorkers
       .map((w) => `- ${w.id}: ${w.description}`)
@@ -143,10 +134,6 @@ When you see an <approval-request>:
 
   return sections.join("\n\n");
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function categorizeTools(tools: string[]): Record<string, string[]> {
   const perception = ["ReadFile", "GlobFile", "GrepFile"];

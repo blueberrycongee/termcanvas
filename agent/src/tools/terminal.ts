@@ -74,7 +74,6 @@ export const terminalTool: Tool<typeof inputSchema.shape> = {
       return { content: JSON.stringify(result, null, 2) };
     }
 
-    // set-title
     if (!input.terminalId) return { content: "terminalId is required for set-title", is_error: true };
     if (!input.customTitle) return { content: "customTitle is required for set-title", is_error: true };
     const result = await client.request(

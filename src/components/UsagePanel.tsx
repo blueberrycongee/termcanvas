@@ -16,8 +16,6 @@ import { useQuotaStore } from "../stores/quotaStore";
 import { useCodexQuotaStore } from "../stores/codexQuotaStore";
 import type { UsageSummary, ProjectUsage, ModelUsage } from "../types";
 
-// ── Helpers ────────────────────────────────────────────────────────────
-
 function fmtCost(c: number): string {
   return c >= 1 ? `$${c.toFixed(2)}` : `$${c.toFixed(3)}`;
 }
@@ -32,8 +30,6 @@ function pct(value: number, total: number): string {
   if (total === 0) return "0%";
   return `${Math.round((value / total) * 100)}%`;
 }
-
-// ── Animated cost number ──────────────────────────────────────────────
 
 function useAnimatedNumber(target: number, duration = 400): number {
   const [display, setDisplay] = useState(target);
@@ -67,8 +63,6 @@ function useAnimatedNumber(target: number, duration = 400): number {
   return display;
 }
 
-// ── Bar component ──────────────────────────────────────────────────────
-
 function Bar({
   value,
   max,
@@ -97,8 +91,6 @@ function Bar({
     </div>
   );
 }
-
-// ── Hover tooltip wrapper ─────────────────────────────────────────────
 
 function HoverDetail({ children, tooltip }: { children: React.ReactNode; tooltip: React.ReactNode }) {
   const [show, setShow] = useState(false);
@@ -158,8 +150,6 @@ function HoverDetail({ children, tooltip }: { children: React.ReactNode; tooltip
   );
 }
 
-// ── Collapsible section wrapper ────────────────────────────────────────
-
 function CollapsibleSection({
   title,
   children,
@@ -194,8 +184,6 @@ function CollapsibleSection({
     </div>
   );
 }
-
-// ── Section components ─────────────────────────────────────────────────
 
 function SummarySection({ t, summary, monthlyData }: { t: ReturnType<typeof useT>; summary: UsageSummary; monthlyData?: { cost: number } }) {
   const animatedCost = useAnimatedNumber(summary.totalCost);
@@ -291,7 +279,6 @@ function CacheRateSection({
     clients.push({ label: "Codex", input: codexInput, cacheRead: codexCacheRead, cacheCreate: codexCacheCreate });
   }
 
-  // Cache hit rate = cacheRead / totalInputTokens (input + cacheRead + cacheCreate)
   const overallInput = summary.totalInput;
   const overallCacheRead = summary.totalCacheRead;
   const overallCacheCreate = summary.totalCacheCreate5m + summary.totalCacheCreate1h;
@@ -313,7 +300,6 @@ function CacheRateSection({
     }),
   ];
 
-  // Skip if only one client (overall == that client, redundant)
   const showRows = clients.length > 1 ? rows : [rows[0]];
 
   return (
@@ -458,8 +444,6 @@ function ModelsContent({
   );
 }
 
-// ── Main panel ─────────────────────────────────────────────────────────
-
 export function UsagePanel() {
   const { summary, loading, date, cachedDates, fetch: fetchUsage, heatmapData, fetchHeatmap, cloudSummary, cloudHeatmapData, fetchCloud, fetchCloudHeatmap } = useUsageStore();
   const { user, deviceId } = useAuthStore();
@@ -470,7 +454,6 @@ export function UsagePanel() {
 
   const isLoggedIn = user !== null;
 
-  // Track data version to trigger entry animations
   const [animKey, setAnimKey] = useState(0);
   const prevDateRef = useRef(date);
 
@@ -488,7 +471,6 @@ export function UsagePanel() {
   const lastFetchRef = useRef(0);
 
   // Fetch on mount, skip if data was fetched within last 30s (tab switch debounce).
-  // Poll every 5 minutes.
   useEffect(() => {
     if (summary && Date.now() - lastFetchRef.current < 30_000) return;
     lastFetchRef.current = Date.now();
@@ -510,7 +492,6 @@ export function UsagePanel() {
     return () => clearInterval(interval);
   }, [isLoggedIn, fetchUsage, quotaFetch, codexQuotaFetch, fetchCloud, fetchCloudHeatmap]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Bridge cost changes to Claude quota store for adaptive polling
   useEffect(() => {
     if (summary) {
       quotaOnCostChanged(summary.totalCost);
@@ -525,12 +506,8 @@ export function UsagePanel() {
     [fetchUsage, fetchCloud, isLoggedIn],
   );
 
-  // Choose data source based on login state
-  // When logged in, prefer cloud (multi-device) but fall back to local maximums
-  // in case backfill hasn't completed yet
   const activeSummary = (() => {
     if (isLoggedIn && cloudSummary && summary) {
-      // Merge buckets: per hour, take the larger cost (cloud has multi-device, local has pre-sync)
       const localBucketMap = new Map(summary.buckets.map((b) => [b.hourStart, b]));
       const mergedBuckets = cloudSummary.buckets.map((cb) => {
         const lb = localBucketMap.get(cb.hourStart);
@@ -555,7 +532,6 @@ export function UsagePanel() {
     }
     return isLoggedIn && cloudSummary ? cloudSummary : summary;
   })();
-  // Merge cloud + local heatmap: cloud wins per-day (multi-device), local fills gaps (pre-login)
   const activeHeatmap = (() => {
     if (isLoggedIn && cloudHeatmapData && heatmapData) {
       return mergeUsageHeatmaps(heatmapData, cloudHeatmapData);
@@ -574,7 +550,6 @@ export function UsagePanel() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header with date navigation */}
       <DateNavigator
         date={date}
         cachedDates={cachedDates}
@@ -582,11 +557,9 @@ export function UsagePanel() {
         onCollapse={() => useCanvasStore.getState().setRightPanelCollapsed(true)}
       />
 
-      {/* Quota — fixed, not affected by date or scroll */}
       <QuotaSection />
       <div className="mx-3 h-px bg-[var(--border)]" />
 
-      {/* Auth login/user button + insights */}
       <div className="px-3 py-1.5 shrink-0 border-b border-[var(--border)] flex items-center gap-2">
         <InsightsButton compact />
         <div className="ml-auto">
@@ -594,7 +567,6 @@ export function UsagePanel() {
         </div>
       </div>
 
-      {/* Content */}
       <div className="flex-1 min-h-0 overflow-y-auto">
         {loading && !activeSummary ? (
           <div className="px-3 py-4 text-[11px] text-[var(--text-faint)]">

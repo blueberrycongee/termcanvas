@@ -44,7 +44,6 @@ export function ToolCard({
 
   return (
     <div className={`my-2 rounded-md border overflow-hidden ${border} ${bg}`}>
-      {/* Header */}
       <div className={`flex items-center gap-2 px-3 py-1.5 border-b ${border} ${bg}`}>
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${isDark ? "text-zinc-400" : "text-zinc-500"}`}>
           <path d="M14.3 2.3L9.9 6.7M5.1 8.1L2.5 13.5L7.9 10.9M6.5 9.5L10.5 5.5" />
@@ -58,7 +57,6 @@ export function ToolCard({
         )}
       </div>
 
-      {/* Input (collapsible) */}
       {input && Object.keys(input).length > 0 && (
         <div className={`border-b ${border}`}>
           <button
@@ -83,7 +81,6 @@ export function ToolCard({
         </div>
       )}
 
-      {/* Result */}
       {result !== undefined && (
         <div className="px-3 py-2">
           <pre className={`text-xs font-mono whitespace-pre-wrap leading-relaxed ${isError ? "text-red-400" : isDark ? "text-zinc-400" : "text-zinc-500"}`}>
@@ -92,7 +89,6 @@ export function ToolCard({
         </div>
       )}
 
-      {/* Approval buttons */}
       {approval && approvalState === "pending" && (
         <div className={`flex items-center gap-2 px-3 py-2 border-t ${border}`}>
           <button

@@ -6,10 +6,6 @@
  * into the conversation.
  */
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export type WorkerStatus =
   | "pending"
   | "running"
@@ -36,18 +32,12 @@ export type TelemetryCheckFn = (
   terminalId: string,
 ) => Promise<{ status: WorkerStatus }>;
 
-// ---------------------------------------------------------------------------
 // Terminal statuses — no further transitions possible
-// ---------------------------------------------------------------------------
 
 const TERMINAL_STATUSES: ReadonlySet<WorkerStatus> = new Set([
   "completed",
   "failed",
 ]);
-
-// ---------------------------------------------------------------------------
-// WorkerTracker
-// ---------------------------------------------------------------------------
 
 export class WorkerTracker {
   private workers = new Map<string, WorkerState>();

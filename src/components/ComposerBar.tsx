@@ -77,38 +77,25 @@ const ARROW_SEQUENCES: Record<string, string> = {
   ArrowLeft: "\x1b[D",
 };
 
-/**
- * Map keyboard events to terminal escape sequences for keys that should be
- * forwarded to the PTY rather than handled by the Composer textarea.
- * Returns null if the key should stay in the textarea.
- */
 function getPassthroughSequence(
   event: React.KeyboardEvent<HTMLTextAreaElement>,
   draft: string,
   hasImages: boolean,
 ): string | null {
-  // Shift+Tab → mode cycling (e.g. Claude Code permission modes)
   if (event.key === "Tab" && event.shiftKey) return "\x1b[Z";
-  // Escape → cancel / go back
   if (event.key === "Escape") return "\x1b";
-  // Ctrl+C → interrupt (only when no text is selected, so copy still works)
   if (event.key === "c" && event.ctrlKey && !event.metaKey) {
     const el = event.target as HTMLTextAreaElement;
     if (el.selectionStart === el.selectionEnd) {
       return "\x03";
     }
   }
-  // Enter → forward to terminal when Composer has no content
-  // (e.g. confirm permission prompts, accept defaults)
   if (event.key === "Enter" && !event.shiftKey && draft.trim().length === 0 && !hasImages) {
     return "\r";
   }
-  // Backspace → forward to terminal when Composer is empty
   if (event.key === "Backspace" && draft.length === 0 && !hasImages) {
     return "\x7f";
   }
-  // Cmd+Arrow → always forward to terminal (history / cursor control)
-  // Plain Arrow → forward only when Composer is empty
   const arrowSeq = ARROW_SEQUENCES[event.key];
   if (arrowSeq && (hasPrimaryModifier(event) || draft.trim().length === 0)) {
     return arrowSeq;
@@ -170,10 +157,6 @@ export function ComposerBar() {
 
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
-  // Track whether the user has explicitly navigated the slash menu with
-  // arrow keys.  When true, Enter selects the highlighted command; when
-  // false, Enter falls through to normal submit so typing "/he⏎" sends
-  // the text instead of accidentally picking "/help".
   const slashNavigatedRef = useRef(false);
   // Track explicit dismissals (Escape / click-outside) so the useEffect
   // doesn't re-open the menu when an unrelated dep like targetTerminal changes.
@@ -195,16 +178,12 @@ export function ComposerBar() {
       return;
     }
 
-    // Reset dismissed flag when the draft actually changes — the user is
-    // still typing, so they expect the menu to respond again.
     if (prevSlashDraftRef.current !== draft) {
       prevSlashDraftRef.current = draft;
       slashDismissedRef.current = false;
     }
 
     if (draft.startsWith("/") && targetTerminal) {
-      // If the user explicitly dismissed the menu (Escape / click-outside),
-      // don't re-open until the draft changes.
       if (slashDismissedRef.current) return;
 
       const commands = filterSlashCommands(
@@ -214,11 +193,9 @@ export function ComposerBar() {
       if (commands.length > 0) {
         setSlashMenuOpen((wasOpen) => {
           if (!wasOpen) {
-            // Menu is opening for the first time — reset to top
             setSlashSelectedIndex(0);
             slashNavigatedRef.current = false;
           } else {
-            // Menu was already open — clamp index to new list bounds
             setSlashSelectedIndex((prev) =>
               Math.min(prev, commands.length - 1),
             );
@@ -247,8 +224,6 @@ export function ComposerBar() {
 
   // Auto-focus Composer when target terminal changes so the user can
   // start typing immediately without an extra click.
-  // All terminal types route input through the Composer (type-mode
-  // terminals use getPassthroughSequence to forward keystrokes).
   const targetTerminalId = targetTerminal?.terminalId ?? null;
   useEffect(() => {
     if (targetTerminalId && isTargetReady) {
@@ -256,7 +231,6 @@ export function ComposerBar() {
     }
   }, [targetTerminalId, isTargetReady]);
 
-  // Focus composer when an explicit focus shortcut is used (Cmd+[/], Cmd+E, etc.)
   useEffect(() => {
     const handleFocusComposer = () => requestAnimationFrame(() => textareaRef.current?.focus());
     window.addEventListener("termcanvas:focus-composer", handleFocusComposer);
@@ -331,7 +305,6 @@ export function ComposerBar() {
         if (file.type.startsWith("image/")) {
           imageFiles.push(file);
         } else {
-          // Electron enriches dropped File objects with an absolute `path` property
           const filePath = (file as File & { path?: string }).path;
           if (filePath) {
             nonImagePaths.push(filePath);
@@ -483,9 +456,7 @@ export function ComposerBar() {
       notify("error", t.composer_submit_failed(message));
     } finally {
       setSubmitting(false);
-      // The textarea was `disabled` during submission and lost DOM focus.
       // Restore focus unconditionally (success, failure, and error paths).
-      // React may not have flushed the re-render yet, so defer to next frame.
       requestAnimationFrame(() => textareaRef.current?.focus());
     }
   }, [

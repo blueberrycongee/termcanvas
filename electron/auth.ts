@@ -7,8 +7,6 @@ import os from "os";
 import { TERMCANVAS_DIR } from "./state-persistence";
 import { startOAuthCallbackServer, type CallbackResult } from "./oauth-callback-server";
 
-// ── Types ──
-
 interface AuthUser {
   id: string;
   username: string;
@@ -19,27 +17,19 @@ interface AuthUser {
 type AuthStateCallback = (user: AuthUser | null) => void;
 type LoginResult = { ok: boolean; url?: string; error?: string };
 
-// ── Constants ──
-
-// Injected at build time via vite.config.ts define (replaces process.env.VITE_*)
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? "";
 
 const AUTH_FILE = path.join(TERMCANVAS_DIR, "auth.json");
 // Device ID is always in ~/.termcanvas/ (not ~/.termcanvas-dev/) so that
-// dev and production instances on the same machine share the same identity
 // and don't double-count usage records uploaded to Supabase.
 const DEVICE_ID_DIR = path.join(os.homedir(), ".termcanvas");
 const DEVICE_ID_FILE = path.join(DEVICE_ID_DIR, "device-id");
-
-// ── State ──
 
 let supabase: SupabaseClient | null = null;
 let currentUser: AuthUser | null = null;
 let deviceId: string = "";
 const listeners: Set<AuthStateCallback> = new Set();
-
-// ── Helpers ──
 
 function isConfigured(): boolean {
   return SUPABASE_URL.length > 0 && SUPABASE_ANON_KEY.length > 0;
@@ -189,8 +179,6 @@ async function processCallbackResult(result: CallbackResult): Promise<LoginResul
     }
   }
 }
-
-// ── Public API ──
 
 export function getSupabase(): SupabaseClient | null {
   return supabase;
@@ -343,7 +331,6 @@ export async function handleAuthCallback(url: string): Promise<void> {
     // Parse the callback URL to extract tokens or error info
     // Supabase redirects with fragment: termcanvas://auth/callback#access_token=...&refresh_token=...
     // Or with error: termcanvas://auth/callback#error=xxx&error_description=yyy
-    // URL constructor may not parse custom protocols well, so handle manually
     const hashIndex = url.indexOf("#");
     const queryIndex = url.indexOf("?");
     const paramsString = hashIndex !== -1

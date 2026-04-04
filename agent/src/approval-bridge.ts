@@ -5,10 +5,6 @@
  * and either auto-approves (read-only) or escalates to the user.
  */
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export type ApprovalPolicy = "auto_readonly" | "ask_all" | "auto_all";
 
 export interface PendingApproval {
@@ -30,9 +26,7 @@ export interface ApprovalBridge {
   policy: ApprovalPolicy;
 }
 
-// ---------------------------------------------------------------------------
 // Policy evaluation
-// ---------------------------------------------------------------------------
 
 export function evaluateApproval(
   pending: PendingApproval,

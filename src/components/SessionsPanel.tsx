@@ -88,7 +88,6 @@ export function SessionsPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Live Sessions */}
       {liveSessions.length > 0 && (
         <div className="shrink-0 px-3 pt-3 pb-2">
           <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1.5" style={{ fontFamily: '"Geist Mono", monospace' }}>
@@ -106,7 +105,6 @@ export function SessionsPanel() {
         <div className="mx-3 h-px bg-[var(--border)]" />
       )}
 
-      {/* History */}
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="px-3 pt-2 pb-1">
           <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1" style={{ fontFamily: '"Geist Mono", monospace' }}>

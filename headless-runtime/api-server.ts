@@ -109,7 +109,6 @@ export class HeadlessApiServer {
         this.handleRequest(req, res),
       );
 
-      // WebSocket upgrade handling
       this.wss = new WebSocketServer({ noServer: true });
 
       this.server.on("upgrade", (request, socket, head) => {
@@ -119,7 +118,6 @@ export class HeadlessApiServer {
         );
 
         if (url.pathname === "/pty/stream") {
-          // Auth check on WebSocket upgrade
           if (this.apiToken) {
             const authHeader = request.headers["authorization"];
             if (authHeader !== `Bearer ${this.apiToken}`) {
@@ -180,7 +178,6 @@ export class HeadlessApiServer {
 
     res.setHeader("Content-Type", "application/json");
 
-    // CORS handling
     if (this.corsOrigins.length > 0) {
       const origin = req.headers.origin;
       if (origin && this.corsOrigins.includes(origin)) {
@@ -197,7 +194,6 @@ export class HeadlessApiServer {
       }
     }
 
-    // Preflight
     if (method === "OPTIONS") {
       const statusCode = req.headers.origin &&
         this.corsOrigins.includes(req.headers.origin) ? 204 : 404;
@@ -254,7 +250,6 @@ export class HeadlessApiServer {
       return;
     }
 
-    // Rate limiting (applied before auth so brute-force is also limited)
     if (this.rateLimit > 0) {
       const ip = req.socket.remoteAddress ?? "unknown";
       const now = Date.now();
@@ -274,7 +269,6 @@ export class HeadlessApiServer {
       }
     }
 
-    // Auth check
     if (this.apiToken) {
       const authHeader = req.headers["authorization"];
       if (authHeader !== `Bearer ${this.apiToken}`) {
@@ -342,7 +336,6 @@ export class HeadlessApiServer {
     url: URL,
     body: unknown,
   ): Promise<unknown> {
-    // Project endpoints
     if (method === "POST" && pathname === "/project/add") {
       return this.projectAdd(body);
     }
@@ -358,7 +351,6 @@ export class HeadlessApiServer {
       return this.projectRescan(id);
     }
 
-    // Workflow control endpoints
     if (method === "POST" && pathname === "/workflow/run") {
       return this.workflowRun(body);
     }
@@ -384,7 +376,6 @@ export class HeadlessApiServer {
       return this.workflowCleanup(id, url);
     }
 
-    // Worktree endpoints
     if (method === "GET" && pathname === "/worktree/list") {
       const repoPath = url.searchParams.get("repo");
       return this.worktreeList(repoPath);
@@ -396,7 +387,6 @@ export class HeadlessApiServer {
       return this.worktreeRemove(url);
     }
 
-    // Terminal endpoints
     if (method === "POST" && pathname === "/terminal/create") {
       return this.terminalCreate(body);
     }
@@ -455,7 +445,6 @@ export class HeadlessApiServer {
       return this.workflowTelemetry(id, repoPath);
     }
 
-    // Diff
     if (method === "GET" && pathname.startsWith("/diff/")) {
       const worktreePath = decodeURIComponent(
         pathname.slice("/diff/".length),
@@ -464,18 +453,15 @@ export class HeadlessApiServer {
       return this.getDiff(worktreePath, summary);
     }
 
-    // Memory index
     if (method === "GET" && pathname === "/api/memory/index") {
       const worktree = url.searchParams.get("worktree");
       return this.memoryIndex(worktree);
     }
 
-    // Server status dashboard
     if (method === "GET" && pathname === "/api/status") {
       return this.getServerStatus();
     }
 
-    // State
     if (method === "GET" && pathname === "/state") {
       return this.getState();
     }
@@ -497,8 +483,6 @@ export class HeadlessApiServer {
       req.on("error", reject);
     });
   }
-
-  // --- Project routes ---
 
   private projectAdd(body: unknown): {
     id: string;
@@ -567,8 +551,6 @@ export class HeadlessApiServer {
     });
     return { ok: true, worktrees: result.worktrees };
   }
-
-  // --- Workflow routes ---
 
   private workflowRun(body: unknown): Promise<unknown> {
     const {
@@ -678,8 +660,6 @@ export class HeadlessApiServer {
     );
   }
 
-  // --- Worktree routes ---
-
   private worktreeList(repoPath: string | null): unknown {
     if (!repoPath) {
       throw Object.assign(new Error("repo query parameter is required"), {
@@ -740,8 +720,6 @@ export class HeadlessApiServer {
       force: force === "1" || force === "true",
     });
   }
-
-  // --- Terminal routes ---
 
   private async terminalCreate(body: unknown): Promise<{
     id: string;
@@ -882,8 +860,6 @@ export class HeadlessApiServer {
     return { ok: true };
   }
 
-  // --- Telemetry routes ---
-
   private terminalTelemetry(terminalId: string): unknown {
     const snapshot =
       this.deps.telemetryService.getTerminalSnapshot(terminalId);
@@ -929,8 +905,6 @@ export class HeadlessApiServer {
     return snapshot;
   }
 
-  // --- Memory route ---
-
   private async memoryIndex(worktree: string | null): Promise<unknown> {
     if (!worktree) {
       throw Object.assign(
@@ -950,8 +924,6 @@ export class HeadlessApiServer {
     return { index };
   }
 
-  // --- Diff route ---
-
   private async getDiff(
     worktreePath: string,
     summary: boolean,
@@ -970,13 +942,9 @@ export class HeadlessApiServer {
     }
   }
 
-  // --- State route ---
-
   private getState(): unknown {
     return this.projectList();
   }
-
-  // --- Server status ---
 
   private getServerStatus(): unknown {
     const terminals = this.deps.projectStore.listTerminals();
@@ -1012,8 +980,6 @@ export class HeadlessApiServer {
       },
     };
   }
-
-  // --- SSE ---
 
   private handleSSE(terminalId: string, res: http.ServerResponse): void {
     const eventBus = this.deps.eventBus;
@@ -1063,8 +1029,6 @@ export class HeadlessApiServer {
     });
   }
 
-  // --- Disk usage polling ---
-
   private async startDiskUsagePolling(): Promise<void> {
     const wsDir = this.deps.workspaceDir;
     if (!wsDir) return;
@@ -1112,8 +1076,6 @@ export class HeadlessApiServer {
     }
     return total;
   }
-
-  // --- WebSocket PTY ---
 
   private handlePtyWebSocket(ws: WebSocket, url: URL): void {
     const ptyIdParam = url.searchParams.get("ptyId");

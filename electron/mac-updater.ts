@@ -47,21 +47,6 @@ interface UpdateState extends PendingUpdate {
   downloadedAt: string;
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Parse the latest-mac.yml produced by electron-builder.
- *
- * Format:
- *   version: X.Y.Z
- *   files:
- *     - url: Name.zip
- *       sha512: base64hash
- *       size: 12345
- *   releaseDate: 'ISO-string'
- */
 function parseLatestYml(content: string): ReleaseInfo {
   const version = content.match(/^version:\s*(.+)$/m)?.[1]?.trim() ?? "";
   const releaseDate =
@@ -80,7 +65,6 @@ function parseLatestYml(content: string): ReleaseInfo {
   return { version, files, releaseDate };
 }
 
-/** Returns true if version `a` is strictly newer than `b`. */
 function isNewerVersion(a: string, b: string): boolean {
   const pa = a.split(".").map(Number);
   const pb = b.split(".").map(Number);
@@ -91,7 +75,6 @@ function isNewerVersion(a: string, b: string): boolean {
   return false;
 }
 
-/** Fetch text from a URL using Electron's net module (follows redirects). */
 function fetchText(url: string, userAgent?: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const request = net.request(url);
@@ -114,7 +97,6 @@ function fetchText(url: string, userAgent?: string): Promise<string> {
   });
 }
 
-/** Download a file with progress reporting. */
 function downloadFile(
   url: string,
   destPath: string,
@@ -159,7 +141,6 @@ function downloadFile(
   });
 }
 
-/** Download with automatic retry and exponential backoff. */
 async function downloadWithRetry(
   url: string,
   destPath: string,
@@ -182,7 +163,6 @@ async function downloadWithRetry(
   throw lastError;
 }
 
-/** Compute SHA-512 hash of a file, returned as base64 (streaming). */
 function computeSha512(filePath: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const hash = createHash("sha512");
@@ -193,7 +173,6 @@ function computeSha512(filePath: string): Promise<string> {
   });
 }
 
-/** Extract a ZIP file using macOS ditto (preserves attributes, handles unicode). */
 function extractZip(zipPath: string, destDir: string): Promise<void> {
   return new Promise((resolve, reject) => {
     mkdirSync(destDir, { recursive: true });
@@ -213,11 +192,9 @@ function getStatePath(): string {
 }
 
 function getAppBundlePath(): string {
-  // app.getAppPath() → /path/to/App.app/Contents/Resources/app.asar
   return resolve(app.getAppPath(), "../../..");
 }
 
-/** Check if the .app bundle location is writable (fails for DMG mounts). */
 function isAppLocationWritable(): boolean {
   try {
     accessSync(dirname(getAppBundlePath()), constants.W_OK);
@@ -226,10 +203,6 @@ function isAppLocationWritable(): boolean {
     return false;
   }
 }
-
-// ---------------------------------------------------------------------------
-// MacCustomUpdater
-// ---------------------------------------------------------------------------
 
 /**
  * Custom macOS updater that bypasses Squirrel.Mac's code signature
@@ -271,7 +244,6 @@ export class MacCustomUpdater {
   async checkForUpdates(): Promise<void> {
     if (this.downloading) return;
 
-    // If a pending update was restored from disk, notify the frontend
     if (this.pendingUpdate) {
       sendToWindow(this.window, "updater:update-downloaded", {
         version: this.pendingUpdate.version,
@@ -292,7 +264,6 @@ export class MacCustomUpdater {
       if (!release.version) return;
       if (!isNewerVersion(release.version, app.getVersion())) return;
 
-      // Fetch release notes from GitHub API (optional, best-effort)
       let releaseNotes = "";
       try {
         const ua = `TermCanvas/${app.getVersion()}`;
@@ -318,7 +289,6 @@ export class MacCustomUpdater {
     }
   }
 
-  /** Explicitly install the pending update and relaunch. */
   quitAndInstall(): void {
     if (!this.pendingUpdate) return;
     this.installing = true;
@@ -375,7 +345,6 @@ export class MacCustomUpdater {
         throw new Error("No .app bundle found in update package");
       }
 
-      // Remove ZIP to save disk space
       rmSync(zipPath, { force: true });
 
       this.pendingUpdate = {
@@ -505,7 +474,6 @@ export class MacCustomUpdater {
     }
   }
 
-  /** Remove leftover staging directory. */
   private cleanStagingDir(): void {
     const dir = getStagingDir();
     if (existsSync(dir)) {

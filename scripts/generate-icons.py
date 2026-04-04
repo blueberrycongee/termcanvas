@@ -8,7 +8,6 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter
 
-
 ROOT = Path(__file__).resolve().parent.parent
 BUILD_DIR = ROOT / "build"
 DOCS_DIR = ROOT / "docs"
@@ -33,11 +32,9 @@ BAR_Y0 = 376
 BAR_X1 = 563
 BAR_Y1 = 684
 
-
 def ensure_dirs() -> None:
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
-
 
 def build_master_png() -> Image.Image:
     canvas = Image.new("RGBA", (CANVAS_SIZE, CANVAS_SIZE), (0, 0, 0, 0))
@@ -67,7 +64,6 @@ def build_master_png() -> Image.Image:
     draw.rectangle((BAR_X0, BAR_Y0, BAR_X1, BAR_Y1), fill=SYMBOL_COLOR)
     return canvas
 
-
 def write_svg() -> None:
     svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="{CANVAS_SIZE}" height="{CANVAS_SIZE}" viewBox="0 0 {CANVAS_SIZE} {CANVAS_SIZE}" fill="none">
   <defs>
@@ -84,16 +80,13 @@ def write_svg() -> None:
 """
     (BUILD_DIR / "icon.svg").write_text(svg, encoding="utf-8")
 
-
 def write_pngs(master: Image.Image) -> None:
     master.save(BUILD_DIR / "icon.png")
     master.resize((256, 256), Image.LANCZOS).save(DOCS_DIR / "icon.png")
 
-
 def write_ico(master: Image.Image) -> None:
     icon_sizes = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
     master.save(BUILD_DIR / "icon.ico", sizes=icon_sizes)
-
 
 def write_icns(master: Image.Image) -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -112,7 +105,6 @@ def write_icns(master: Image.Image) -> None:
             check=True,
         )
 
-
 def main() -> None:
     ensure_dirs()
     master = build_master_png()
@@ -120,7 +112,6 @@ def main() -> None:
     write_pngs(master)
     write_ico(master)
     write_icns(master)
-
 
 if __name__ == "__main__":
     main()

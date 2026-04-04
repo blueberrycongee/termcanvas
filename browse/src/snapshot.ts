@@ -35,8 +35,6 @@ function parseAriaSnapshot(snapshot: string): ParsedLine[] {
   const lines: ParsedLine[] = [];
   for (const raw of snapshot.split("\n")) {
     if (!raw.trim()) continue;
-    // Lines look like: "- button "Submit"" or "  - textbox "Email""
-    // Or metadata like: "  - /url: https://..."
     const match = raw.match(/^(\s*)- (\w[\w-]*)\s*"([^"]*)"/);
     if (match) {
       lines.push({
@@ -57,7 +55,6 @@ function parseAriaSnapshot(snapshot: string): ParsedLine[] {
         raw,
       });
     }
-    // Skip metadata lines like "- /url: ..."
   }
   return lines;
 }

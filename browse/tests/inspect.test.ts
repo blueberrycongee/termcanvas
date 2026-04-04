@@ -127,7 +127,6 @@ test("console captures page messages", async () => {
     await sendCommand(state.port, state.token, "goto", [
       `file://${path.join(dir, "index.html")}`,
     ]);
-    // Wait for script to execute
     await new Promise((r) => setTimeout(r, 200));
     const result = await sendCommand(state.port, state.token, "console", []);
     assert.equal(result.ok, true);

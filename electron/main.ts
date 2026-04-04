@@ -170,12 +170,10 @@ function createWindow() {
       nodeIntegration: false,
       webviewTag: true,
     },
-    // macOS: hidden title bar with inset traffic lights
     ...(isMac && {
       titleBarStyle: "hiddenInset" as const,
       trafficLightPosition: { x: 14, y: 14 },
     }),
-    // Windows: hidden title bar with native window controls overlay
     ...(isWin && {
       titleBarStyle: "hidden" as const,
       titleBarOverlay: {
@@ -184,20 +182,17 @@ function createWindow() {
         height: 44,
       },
     }),
-    // Linux: hidden title bar (no native overlay, app handles everything)
     ...(!isMac &&
       !isWin && {
         titleBarStyle: "hidden" as const,
       }),
   });
 
-  // Open external links in system browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: "deny" };
   });
 
-  // Secure webview attachment: enforce isolation, strip preload
   mainWindow.webContents.on("will-attach-webview", (_event, webPreferences) => {
     webPreferences.nodeIntegration = false;
     webPreferences.contextIsolation = true;
@@ -227,11 +222,7 @@ function createWindow() {
   }
 
   let rendererReady = false;
-  // Intercept close to ask user about saving (only after page loads)
   mainWindow.webContents.on("did-finish-load", async () => {
-    // On renderer reload (HMR full-reload / manual reload), all frontend
-    // terminal references are lost.  Destroy every PTY the main process
-    // still holds so master FDs don't leak and exhaust the system limit.
     if (rendererReady) {
       console.warn("[PtyManager] renderer reloaded – destroying orphaned PTYs");
       await ptyManager.destroyAll();
@@ -252,7 +243,6 @@ function createWindow() {
   });
 }
 
-// ── Debug file logger for session capture investigation ──
 const DEBUG_LOG = path.join(TERMCANVAS_DIR, "session-debug.log");
 function dbg(msg: string) {
   const line = `[${new Date().toISOString()}] ${msg}\n`;
@@ -260,7 +250,6 @@ function dbg(msg: string) {
 }
 
 function setupIpc() {
-  // Terminal IPC
   ipcMain.handle(
     "terminal:create",
     async (_event, options: { cwd: string; shell?: string; args?: string[]; terminalId?: string; terminalType?: string; theme?: "dark" | "light"; workflowId?: string; handoffId?: string; repoPath?: string }) => {
@@ -337,7 +326,6 @@ function setupIpc() {
     return detectCli(shellPid);
   });
 
-  // Session ID discovery for codex/claude
   ipcMain.handle("session:get-codex-latest", () => {
     try {
       return readLatestCodexSessionId();
@@ -362,7 +350,6 @@ function setupIpc() {
       const exists = fs.existsSync(sessionFile);
       dbg(`session:get-claude-by-pid pid=${pid} file=${sessionFile} exists=${exists}`);
       if (!exists) {
-        // List actual session files for comparison
         const sessDir = path.join(os.homedir(), ".claude", "sessions");
         try {
           const files = fs.readdirSync(sessDir).filter(f => f.endsWith(".json"));
@@ -411,7 +398,6 @@ function setupIpc() {
       // Kimi stores sessions under ~/.kimi/sessions/{cwd_hash}/{session_uuid}/
       const sessionsDir = path.join(os.homedir(), ".kimi", "sessions");
       if (!fs.existsSync(sessionsDir)) return null;
-      // Find the project hash dir by checking which contains sessions for this cwd
       const hashDirs = fs.readdirSync(sessionsDir);
       for (const hashDir of hashDirs.reverse()) {
         const fullPath = path.join(sessionsDir, hashDir);
@@ -426,7 +412,6 @@ function setupIpc() {
     }
   });
 
-  // Project IPC
   ipcMain.handle("project:select-directory", async () => {
     const result = await dialog.showOpenDialog(mainWindow!, {
       properties: ["openDirectory"],
@@ -475,7 +460,6 @@ function setupIpc() {
     return checkHydraProjectStatus(dirPath);
   });
 
-  // Git file watcher IPC (Layer 1 of DiffCard refresh)
   ipcMain.handle("git:watch", (_event, worktreePath: string) => {
     gitWatcher.watch(worktreePath, {
       onChanged: () => {
@@ -560,7 +544,6 @@ function setupIpc() {
     return gitPull(worktreePath);
   });
 
-  // Session turn-completion watcher IPC
   ipcMain.handle(
     "session:watch",
     (_event, type: SessionType, sessionId: string, cwd: string) => {
@@ -625,16 +608,13 @@ function setupIpc() {
     return telemetryService.listTerminalEvents(input);
   });
 
-  // Hook system IPC
   ipcMain.handle("hook:get-socket-path", () => hookSocketPath);
   ipcMain.handle("hook:get-health", () => hookReceiver.getHealth());
 
-  // Sessions IPC
   ipcMain.handle("sessions:load-replay", async (_event, filePath: string) => {
     return sessionScanner.loadReplay(filePath);
   });
 
-  // State IPC
   ipcMain.handle("state:load", () => {
     return statePersistence.load();
   });
@@ -643,7 +623,6 @@ function setupIpc() {
     statePersistence.save(state);
   });
 
-  // Memory service
   ipcMain.handle("memory:scan", async (_event, worktreePath: string) => {
     const { getMemoryDirForWorktree, scanMemoryDir } = await import(
       "./memory-service.js"
@@ -661,7 +640,6 @@ function setupIpc() {
     const memDir = getMemoryDirForWorktree(worktreePath);
     const cache = new MemoryIndexCache(TERMCANVAS_DIR);
 
-    // Generate initial index
     const initialGraph = scanMemoryDir(memDir);
     cache.update(generateEnhancedIndex(initialGraph.nodes));
 
@@ -681,7 +659,6 @@ function setupIpc() {
     unwatchMemoryDir(memDir);
   });
 
-  // Workspace file IPC
   ipcMain.handle("workspace:save", async (_event, data: string) => {
     const result = await dialog.showSaveDialog(mainWindow!, {
       title: "Save Workspace",
@@ -716,7 +693,6 @@ function setupIpc() {
     return fs.readFileSync(result.filePaths[0], "utf-8");
   });
 
-  // Filesystem IPC
   const IMAGE_EXTS_FS = new Set([".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"]);
   const MIME_MAP_FS: Record<string, string> = {
     ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -755,7 +731,6 @@ function setupIpc() {
         return { type: "image", content: `data:${mime};base64,${buf.toString("base64")}` };
       }
 
-      // Binary detection: check first 8KB for null bytes
       const fd = fs.openSync(filePath, "r");
       const probe = Buffer.alloc(8192);
       const bytesRead = fs.readSync(fd, probe, 0, 8192, 0);
@@ -846,7 +821,6 @@ function setupIpc() {
     fileTreeWatcher.unwatchAll();
   });
 
-  // CLI registration
   ipcMain.handle("cli:is-registered", () => isCliRegistered(getCliDir()));
   ipcMain.handle("cli:register", () => {
     const ok = registerCli(getCliDir());
@@ -897,7 +871,6 @@ function setupIpc() {
     },
   );
 
-  // Composer submission
   ipcMain.handle("composer:submit", async (_event, request: ComposerSubmitRequest) => {
     if (!ptyManager.getPid(request.ptyId)) {
       return {
@@ -951,7 +924,6 @@ function setupIpc() {
     }
   });
 
-  // Usage statistics
   ipcMain.handle("usage:query", async (_event, dateStr: string) => {
     const startedAt = Date.now();
     const result = await collectUsage(dateStr);
@@ -1006,7 +978,6 @@ function setupIpc() {
     return result;
   });
 
-  // Summary
   ipcMain.handle(
     "summary:generate",
     async (_event, input: {
@@ -1021,7 +992,6 @@ function setupIpc() {
     },
   );
 
-  // Insights
   let activeInsightsJobId: string | null = null;
   ipcMain.handle(
     "insights:generate",
@@ -1073,7 +1043,6 @@ function setupIpc() {
     }
   });
 
-  // Font management
   const fontsDir = path.join(app.getPath("userData"), "fonts");
 
   ipcMain.handle("font:get-path", () => fontsDir);
@@ -1130,7 +1099,6 @@ function setupIpc() {
         }
         fs.writeFileSync(tmpZip, buf);
 
-        // Extract target font file from zip (cross-platform, no shell unzip)
         const zip = new AdmZip(tmpZip);
         const zipEntries = zip.getEntries();
         const matchEntry = zipEntries.find((e) =>
@@ -1156,7 +1124,6 @@ function setupIpc() {
     },
   );
 
-  // Auth IPC
   ipcMain.handle("auth:login", async () => {
     return login();
   });
@@ -1173,7 +1140,6 @@ function setupIpc() {
     return getDeviceId();
   });
 
-  // Close flow
   ipcMain.on("app:request-close", () => {
     if (mainWindow) {
       mainWindow.close();
@@ -1196,8 +1162,6 @@ function setupIpc() {
     }
     app.quit();
   });
-
-  // ── Agent IPC ──
 
   ipcMain.handle(
     "agent:send",
@@ -1232,7 +1196,6 @@ function setupIpc() {
     agentService.deny(sessionId, requestId, reason);
   });
 
-  // ── Secure storage (safeStorage) ──────────────────────────────
   ipcMain.handle("secure:is-available", () => safeStorage.isEncryptionAvailable());
 
   ipcMain.handle("secure:encrypt", (_event, plaintext: string) => {
@@ -1253,7 +1216,6 @@ function setupIpc() {
 function getCliDir(): string {
   const prodDir = path.join(process.resourcesPath, "cli");
   if (fs.existsSync(prodDir)) return prodDir;
-  // dev mode: dist-cli/ relative to dist-electron/
   return path.resolve(__dirname, "..", "dist-cli");
 }
 
@@ -1267,7 +1229,6 @@ function dataUrlToPngBuffer(dataUrl: string): Buffer {
 
 const CLI_NAMES = ["termcanvas", "hydra", "browse"];
 
-/** Ensure CLI launchers exist for the current platform. */
 function ensureCliLinks(): void {
   const cliDir = getCliDir();
   if (!fs.existsSync(cliDir)) return;
@@ -1277,7 +1238,6 @@ function ensureCliLinks(): void {
     try {
       ensureCliLauncher(jsFile);
     } catch {
-      // read-only fs in packaged apps; best-effort only
     }
   }
 }
@@ -1313,7 +1273,6 @@ if (process.defaultApp) {
 }
 
 app.whenReady().then(async () => {
-  // Handle webview webContents: open new windows in system browser, sanitize UA
   app.on("web-contents-created", (_event, contents) => {
     if (contents.getType() === "webview") {
       contents.setWindowOpenHandler(({ url }) => {
@@ -1376,7 +1335,6 @@ app.whenReady().then(async () => {
     }
   }, 5 * 60_000);
 
-  // Handle termcanvas:// protocol on macOS
   app.on("open-url", async (_event, url) => {
     if (url.startsWith("termcanvas://auth/callback")) {
       await handleAuthCallback(url);
@@ -1388,7 +1346,6 @@ app.whenReady().then(async () => {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
     }
-    // Handle auth callback from argv (Windows/Linux)
     const authUrl = argv.find(arg => arg.startsWith("termcanvas://auth/callback"));
     if (authUrl) {
       handleAuthCallback(authUrl);

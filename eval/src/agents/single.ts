@@ -11,7 +11,6 @@ const COST_PER_1K_INPUT_TOKENS = 0.015;
 const COST_PER_1K_OUTPUT_TOKENS = 0.075;
 const DEFAULT_TIMEOUT_S = 600;
 
-/** Build the prompt for the agent */
 function buildPrompt(task: TaskDefinition): string {
   return [
     "You are a senior software engineer. Fix the following issue in this repository.",
@@ -27,7 +26,6 @@ function buildPrompt(task: TaskDefinition): string {
   ].join("\n");
 }
 
-/** Run a command with stdin support, return stdout */
 function execWithStdin(
   cmd: string,
   args: string[],
@@ -71,7 +69,6 @@ function execWithStdin(
   });
 }
 
-/** Run an exec command and return stdout */
 function exec(
   cmd: string,
   args: string[],
@@ -97,7 +94,6 @@ function exec(
   });
 }
 
-/** Parse Claude Code JSON output for token usage and cost */
 function parseClaudeJsonOutput(output: string): {
   tokens: number;
   cost: number;
@@ -113,7 +109,6 @@ function parseClaudeJsonOutput(output: string): {
   }
 }
 
-/** Estimate cost from tokens (rough approximation) */
 function estimateCost(tokens: number): number {
   const inputTokens = tokens * 0.7;
   const outputTokens = tokens * 0.3;
@@ -123,12 +118,10 @@ function estimateCost(tokens: number): number {
   );
 }
 
-/** Capture the git diff produced by the agent */
 async function capturePatch(
   workDir: string,
   baseCommit: string,
 ): Promise<string> {
-  // Check for committed changes first
   const { stdout: committedPatch } = await exec(
     "git",
     ["diff", baseCommit, "HEAD"],
@@ -136,12 +129,10 @@ async function capturePatch(
   );
   if (committedPatch.trim()) return committedPatch;
 
-  // Fall back to uncommitted changes
   const { stdout: patch } = await exec("git", ["diff"], { cwd: workDir });
   return patch;
 }
 
-/** Single Claude Code agent runner */
 export class SingleClaudeRunner implements AgentRunner {
   async run(
     task: TaskDefinition,
@@ -190,7 +181,6 @@ export class SingleClaudeRunner implements AgentRunner {
   }
 }
 
-/** Single Codex agent runner */
 export class SingleCodexRunner implements AgentRunner {
   async run(
     task: TaskDefinition,
@@ -202,7 +192,6 @@ export class SingleCodexRunner implements AgentRunner {
     const startTime = Date.now();
 
     try {
-      // Codex exec mode with full-auto for non-interactive
       const { stdout, stderr } = await execWithStdin(
         "codex",
         [
@@ -217,7 +206,6 @@ export class SingleCodexRunner implements AgentRunner {
       const duration = (Date.now() - startTime) / 1000;
       const modelPatch = await capturePatch(workDir, task.base_commit);
 
-      // Parse codex JSON output for cost info
       let cost = 0;
       try {
         const lines = stdout

@@ -21,7 +21,6 @@ export function ensureCliLauncher(
   try {
     fs.chmodSync(jsPath, 0o755);
   } catch {
-    // best-effort for generated artifacts
   }
 
   const basePath = jsPath.replace(/\.js$/, "");
@@ -30,7 +29,6 @@ export function ensureCliLauncher(
     try {
       fs.unlinkSync(basePath);
     } catch {
-      // no stale unix-style launcher
     }
     fs.writeFileSync(
       `${basePath}.cmd`,

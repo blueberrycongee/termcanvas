@@ -75,6 +75,5 @@ export function deleteAgent(id: string): void {
   try {
     fs.unlinkSync(agentPath(id));
   } catch {
-    // already gone
   }
 }

@@ -10,7 +10,6 @@ export function toFontFileUrl(filePath: string): string {
   return `file://${encodeURI(withLeadingSlash)}`;
 }
 
-/** Load a single font into the document via FontFace API */
 export async function loadFont(
   entry: FontEntry,
   fontsDir: string,
@@ -30,7 +29,6 @@ export async function loadFont(
   }
 }
 
-/** Load all downloaded fonts on app startup */
 export async function loadAllDownloadedFonts(): Promise<void> {
   if (!window.termcanvas?.fonts) {
     return;

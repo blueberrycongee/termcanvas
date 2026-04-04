@@ -131,7 +131,6 @@ export function FamilyTreeOverlay() {
     return () => window.removeEventListener("termcanvas:terminal-hover", handler);
   }, []);
 
-  // Show overlay after 500ms hover, hide when no longer hovering
   useEffect(() => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
@@ -149,7 +148,6 @@ export function FamilyTreeOverlay() {
         }, 500);
       }
     } else {
-      // Delay hide to allow moving to overlay
       timerRef.current = setTimeout(() => {
         if (!overlayHovered.current) {
           setVisibleId(null);

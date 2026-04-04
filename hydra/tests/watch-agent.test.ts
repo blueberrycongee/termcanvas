@@ -6,8 +6,6 @@ import os from "node:os";
 import { parseWatchArgs, watchAgent, type AgentStatusView } from "../src/watch.ts";
 import type { AgentRecord } from "../src/store.ts";
 
-// ── parseWatchArgs tests ──
-
 test("parseWatchArgs accepts --agent without --repo", () => {
   const args = parseWatchArgs(["--agent", "hydra-abc123"]);
   assert.equal(args.agent, "hydra-abc123");
@@ -44,8 +42,6 @@ test("parseWatchArgs respects --interval-ms and --timeout-ms", () => {
   assert.equal(args.intervalMs, 5000);
   assert.equal(args.timeoutMs, 60000);
 });
-
-// ── watchAgent tests ──
 
 function makeTestAgent(dir: string): { agent: AgentRecord; contractPath: string } {
   const agentId = "hydra-test-watch";
@@ -113,7 +109,6 @@ test("watchAgent detects completed agent via done + result files", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hydra-watch-"));
   const { agent, contractPath } = makeTestAgent(dir);
 
-  // Write valid result + done
   const resultContract = {
     version: "hydra/v2",
     handoff_id: agent.handoffId,
@@ -190,8 +185,6 @@ test("watchAgent times out while waiting", async () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-// ── Telemetry enrichment tests ──
-
 test("watchAgent enriches running state with telemetry", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hydra-watch-"));
   const { agent } = makeTestAgent(dir);
@@ -246,8 +239,6 @@ test("watchAgent returns no telemetry when unavailable", async () => {
 
   fs.rmSync(dir, { recursive: true, force: true });
 });
-
-// ── Retry on terminal death tests ──
 
 test("watchAgent retries after terminal death then completes", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hydra-watch-"));

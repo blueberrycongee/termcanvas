@@ -54,7 +54,6 @@ export class HookReceiver {
     const socketPath = getHookSocketPath();
 
     if (process.platform !== "win32") {
-      // Remove stale unix socket from a previous crash.
       try {
         fs.unlinkSync(socketPath);
       } catch {

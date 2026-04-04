@@ -8,9 +8,7 @@ import {
 import { useCardLayoutStore } from "../stores/cardLayoutStore";
 import { useCanvasStore } from "../stores/canvasStore";
 
-// Declare <webview> as a valid JSX intrinsic element
 declare global {
-  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace JSX {
     interface IntrinsicElements {
       webview: React.DetailedHTMLProps<
@@ -69,7 +67,6 @@ export function BrowserCard({ card }: Props) {
       setLoadError(null);
     }) as EventListener;
     const onFailLoad = ((e: Event & { errorCode: number; errorDescription: string; isMainFrame: boolean }) => {
-      // -3 = ERR_ABORTED (normal during navigation), ignore
       if (!e.isMainFrame || e.errorCode === -3) return;
       setLoadError(e.errorDescription);
     }) as EventListener;
@@ -172,7 +169,6 @@ export function BrowserCard({ card }: Props) {
         height: card.h,
       }}
     >
-      {/* Title bar — draggable */}
       <div
         className="flex-none flex items-center gap-1.5 px-2 py-1.5 bg-[var(--bg)] border-b border-[var(--border)] cursor-grab active:cursor-grabbing select-none"
         onMouseDown={handleDragStart}

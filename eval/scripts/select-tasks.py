@@ -5,10 +5,8 @@ import json
 import sys
 from pathlib import Path
 
-
 def count_files(patch: str) -> int:
     return patch.count("diff --git")
-
 
 def count_lines(patch: str) -> int:
     count = 0
@@ -17,7 +15,6 @@ def count_lines(patch: str) -> int:
            not line.startswith("+++") and not line.startswith("---"):
             count += 1
     return count
-
 
 def main():
     input_file = sys.argv[1] if len(sys.argv) > 1 else "tasks/swe-bench-all-multi.json"
@@ -67,7 +64,6 @@ def main():
     with open(output_file, "w") as f:
         json.dump(selected, f, indent=2, default=str)
     print(f"\nSaved to {output_file}")
-
 
 if __name__ == "__main__":
     main()

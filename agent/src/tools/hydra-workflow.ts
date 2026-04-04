@@ -71,7 +71,6 @@ export const hydraWorkflowTool: Tool<typeof inputSchema.shape> = {
       return { content: JSON.stringify(result, null, 2) };
     }
 
-    // All remaining actions require workflowId and repo
     if (!input.workflowId) return { content: "workflowId is required for " + action, is_error: true };
     if (!input.repo) return { content: "repo is required for " + action, is_error: true };
     const wfId = encodeURIComponent(input.workflowId);
@@ -99,7 +98,6 @@ export const hydraWorkflowTool: Tool<typeof inputSchema.shape> = {
       return { content: JSON.stringify(result, null, 2) };
     }
 
-    // watch: polling loop
     const intervalMs = input.intervalMs ?? 30_000;
     const timeoutMs = input.timeoutMs ?? 3_600_000;
     const startedAt = Date.now();

@@ -42,12 +42,10 @@ function scanSkillDir(dirPath: string): SlashCommand[] {
       }
     }
   } catch {
-    // Directory unreadable
   }
   return commands;
 }
 
-// Built-in Claude Code slash commands (always available)
 const BUILTIN_COMMANDS: SlashCommand[] = [
   { name: "compact", description: "Compact conversation context" },
   { name: "cost", description: "Show token usage and cost" },
@@ -65,7 +63,6 @@ export function getSlashCommands(projectCwd?: string): SlashCommand[] {
   const commands = [...BUILTIN_COMMANDS];
   const seen = new Set(commands.map((c) => c.name));
 
-  // Global user skills
   for (const cmd of scanSkillDir(globalSkillDir)) {
     if (!seen.has(cmd.name)) {
       seen.add(cmd.name);
@@ -73,7 +70,6 @@ export function getSlashCommands(projectCwd?: string): SlashCommand[] {
     }
   }
 
-  // Project-level skills
   if (projectCwd) {
     const projectSkillDir = join(projectCwd, ".claude", "skills");
     for (const cmd of scanSkillDir(projectSkillDir)) {
@@ -84,21 +80,18 @@ export function getSlashCommands(projectCwd?: string): SlashCommand[] {
     }
   }
 
-  // Plugin skills (scan plugin directories)
   const pluginDir = join(homedir(), ".claude", "plugins", "marketplaces");
   if (existsSync(pluginDir)) {
     try {
       for (const marketplace of readdirSync(pluginDir, { withFileTypes: true })) {
         if (!marketplace.isDirectory()) continue;
         const mDir = join(pluginDir, marketplace.name);
-        // Plugins can have skills in subdirectories
         for (const cmd of scanSkillDir(join(mDir, "skills"))) {
           if (!seen.has(cmd.name)) {
             seen.add(cmd.name);
             commands.push(cmd);
           }
         }
-        // Some plugins have skills directly with skill.md
         for (const cmd of scanSkillDir(mDir)) {
           const prefixed = `${marketplace.name}:${cmd.name}`;
           if (!seen.has(prefixed) && !seen.has(cmd.name)) {
@@ -108,7 +101,6 @@ export function getSlashCommands(projectCwd?: string): SlashCommand[] {
         }
       }
     } catch {
-      // Plugin dir unreadable
     }
   }
 

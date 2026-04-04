@@ -1,15 +1,12 @@
 export const en = {
-  // Common
   cancel: "Cancel",
   save: "Save",
   dont_save: "Don't Save",
 
-  // App – CloseDialog
   save_workspace_title: "Save workspace?",
   save_workspace_desc:
     "Save your projects, terminals, and drawings to a file so you can restore them later.",
 
-  // Toolbar / Settings modal
   settings: "Settings",
   reset: "Reset",
   fit: "Fit",
@@ -18,7 +15,6 @@ export const en = {
   language: "Language",
   theme: "Theme",
 
-  // Sidebar
   projects: "Projects",
   add: "+ Add",
   open: "Open",
@@ -41,16 +37,13 @@ export const en = {
   info_added_project: (name: string, count: number) =>
     `Added "${name}" with ${count} worktree${count !== 1 ? "s" : ""}.`,
 
-  // WorktreeContainer
   new_terminal: "New terminal",
   lazygit: "Git (lazygit)",
   new_terminal_btn: "+ New Terminal",
 
-  // ProjectContainer
   project_label: "Project",
   project_compact: "Compact layout",
 
-  // DiffCard
   diff: "Diff",
   loading: "Loading...",
   no_changes: "No changes",
@@ -62,7 +55,6 @@ export const en = {
   binary_changed: "Binary file changed",
   file_count: (n: number) => `${n} file${n !== 1 ? "s" : ""}`,
 
-  // FileTreeCard / FileCard
   files: "Files",
   file_viewer: "File",
   file_empty_dir: "Empty directory",
@@ -70,7 +62,6 @@ export const en = {
   file_binary: "Binary file",
   file_read_error: "Failed to read file",
 
-  // File context menu
   ctx_new_file: "New File",
   ctx_new_folder: "New Folder",
   ctx_rename: "Rename",
@@ -80,7 +71,6 @@ export const en = {
     platform === "win32" ? "Reveal in Explorer" : platform === "linux" ? "Open in File Manager" : "Reveal in Finder",
   ctx_confirm_delete: (name: string) => `Delete "${name}"?`,
 
-  // LeftPanel
   left_panel_files: "Files",
   left_panel_diff: "Diff",
   left_panel_preview: "Preview",
@@ -149,7 +139,6 @@ export const en = {
   hydra_popup_later: "Later",
   hydra_popup_dont_remind: "Don't remind",
 
-  // TerminalTile
   terminal_api_unavailable:
     "Terminal API not available. Not running in Electron.",
   failed_create_pty: (title: string, err: unknown) =>
@@ -163,7 +152,6 @@ export const en = {
   terminal_star: "Star terminal",
   terminal_unstar: "Unstar terminal",
 
-  // DrawingPanel
   tool_select: "Select",
   tool_pen: "Pen",
   tool_text: "Text",
@@ -172,13 +160,11 @@ export const en = {
   layout_horizontal: "Horizontal layout",
   layout_vertical: "Vertical layout",
 
-  // Toolbar
   tutorial: "Tutorial",
   toolbar_untitled_workspace: "Untitled Workspace",
   zoom_out: "Zoom out",
   zoom_in: "Zoom in",
 
-  // ShortcutHints
   shortcut_add_project: "Add project",
   shortcut_cycle_focus_level: "Cycle focus level",
   shortcut_compact_focused_project: "Compact focused project",
@@ -203,8 +189,6 @@ export const en = {
   save_error: (err: string) => `Save failed: ${err}`,
   project_compact_focus_required: "Focus a project, worktree, or terminal first",
 
-
-  // Settings page
   settings_general: "General",
   settings_shortcuts: "Shortcuts",
   settings_version: "Version",
@@ -243,7 +227,6 @@ export const en = {
   update_ready: "Update ready, click to view",
   update_error: "Update error",
 
-  // UpdateModal
   update_modal_title_ready: "Update Ready",
   update_modal_title: "Update",
   update_modal_downloading: (percent: number) => `Downloading... ${Math.round(percent)}%`,
@@ -252,21 +235,18 @@ export const en = {
   update_modal_retry: "Retry",
   update_modal_restart: "Restart & Update",
 
-  // Update check (settings)
   update_check: "Check for Updates",
   update_checking_short: "Checking\u2026",
   update_downloading_short: (percent: number) => `Downloading ${Math.round(percent)}%`,
   update_up_to_date: "Up to date",
   update_restart_short: "Restart & Update",
 
-  // Agent Bubble
   agent_provider: "Agent Provider",
   agent_model: "Agent Model",
   agent_format: "Format",
   agent_base_url: "Base URL",
   agent_api_key: "API Key",
 
-  // CLI
   cli_label: "Command line interface",
   cli_registered: "Registered",
   cli_not_registered: "Not registered",
@@ -275,7 +255,6 @@ export const en = {
   cli_register_failed: "Failed to enable CLI integration",
   cli_unregister_failed: "Failed to disable CLI integration",
 
-  // CLI Agent Settings
   settings_agents: "Agents",
   agent_status_found: (version: string) => `Found (${version})`,
   agent_status_not_found: "Not found",
@@ -287,7 +266,6 @@ export const en = {
     `${command} CLI is not configured or cannot be launched.`,
   cli_launch_error_action: "Open Settings",
 
-  // Composer
   composer_label: "Composer",
   composer_target_label: "Target",
   composer_submit: "Send",
@@ -335,12 +313,10 @@ export const en = {
   ) => `Failed to send to "${title}" during ${stage}: ${detail}`,
   composer_submit_failed: (err: string) => `Composer submit failed: ${err}`,
 
-  // Hierarchy
   hierarchy_agent_tree: "Agent Tree",
   hierarchy_parent: (type: string) => `Parent: ${type}`,
   hierarchy_agents: (n: number) => `${n} agent${n !== 1 ? "s" : ""}`,
 
-  // Usage panel
   usage_title: "Usage",
   usage_monthly: "This month",
   usage_sessions: "Sessions",
@@ -380,7 +356,6 @@ export const en = {
   usage_quota_rate_limited: "Rate limited, retrying later",
   usage_quota_unavailable: "Quota unavailable",
 
-  // Sessions panel
   sessions_tab: "Sessions",
   sessions_live: "Live",
   sessions_history: "History",
@@ -393,7 +368,6 @@ export const en = {
   sessions_load_error_back: "Back to sessions",
   sessions_back: "Back",
 
-  // Auth
   auth_login_github: "Login with GitHub",
   auth_logout: "Logout",
   auth_logging_in: "Logging in...",
@@ -403,7 +377,6 @@ export const en = {
   auth_devices: "Devices",
   auth_cloud_error: "Cloud data unavailable",
 
-  // Insights
   insights_generate: "Generate Insights",
   insights_select_cli: "Generate for",
   insights_validating: "Validating CLI...",
@@ -416,7 +389,6 @@ export const en = {
   insights_open: "Open Report",
   insights_error: "Insights Error",
 
-  // Stash Box
   stash_box: "Stash",
   stash_empty: "No stashed terminals",
   stash_restore: "Restore",
@@ -427,7 +399,6 @@ export const en = {
   stash_terminal: "Stash",
   stash_destroy: "Destroy",
 
-  // Canvas empty state
   canvas_empty_title: "No projects yet",
   canvas_empty_action: "Add Project",
 

@@ -103,7 +103,6 @@ async function handleRun(args: string[]): Promise<void> {
       "max-workers": { type: "string", default: "1" },
       "swebench-eval": { type: "boolean", default: false },
       benchmark: { type: "string", default: "swe-bench" },
-      // Model options
       "claude-model": { type: "string" },
       "codex-model": { type: "string" },
       "orchestrator-model": { type: "string" },
@@ -120,7 +119,6 @@ async function handleRun(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  // Load tasks
   let tasks;
   if (values.tasks) {
     tasks = await loadTasksFromFile(values.tasks);

@@ -48,7 +48,6 @@ export class Heartbeat {
     this.timer = setInterval(() => {
       this.tick();
     }, this.intervalMs);
-    // Send first heartbeat immediately
     this.tick();
   }
 

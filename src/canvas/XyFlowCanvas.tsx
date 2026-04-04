@@ -277,7 +277,6 @@ function XyFlowCanvasInner() {
   const tileW = useTileDimensionsStore((s) => s.w);
   const tileH = useTileDimensionsStore((s) => s.h);
   const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
-  // Keep local drag state stable across focus/status/session churn in projectStore.
   const projectedNodes = useMemo(
     () => buildCanvasFlowNodes(projects),
     [projectLayoutKey, tileW, tileH],

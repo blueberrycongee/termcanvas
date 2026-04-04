@@ -72,7 +72,6 @@ export function checkTurnComplete(
 
   const lines = content.split("\n").filter((l) => l.trim().length > 0);
 
-  // Check from the end — the completion signal is usually the last or second-to-last line
   for (let i = lines.length - 1; i >= Math.max(0, lines.length - 5); i--) {
     let parsed: Record<string, unknown>;
     try {
@@ -82,7 +81,6 @@ export function checkTurnComplete(
     }
 
     if (type === "claude") {
-      // Signal 1: assistant message with stop_reason "end_turn"
       if (
         parsed.type === "assistant" &&
         typeof parsed.message === "object" &&
@@ -91,14 +89,12 @@ export function checkTurnComplete(
       ) {
         return { completed: true };
       }
-      // Signal 2: system message with subtype "turn_duration"
       if (parsed.type === "system" && parsed.subtype === "turn_duration") {
         return { completed: true };
       }
     }
 
     if (type === "codex") {
-      // Signal: event_msg with payload.type "task_complete"
       if (
         parsed.type === "event_msg" &&
         typeof parsed.payload === "object" &&
@@ -117,9 +113,6 @@ export function toClaudeProjectKey(cwd: string): string {
   return cwd.replaceAll(/[/\\.:]/g, "-");
 }
 
-/**
- * Resolve the JSONL file path for a session.
- */
 export function resolveSessionFile(
   sessionId: string,
   type: SessionType,
@@ -492,13 +485,9 @@ export class SessionWatcher {
     try {
       lastNotifiedMtime = fs.statSync(filePath).mtimeMs;
     } catch {
-      // File may not exist yet
     }
 
     let debounceTimer: NodeJS.Timeout | null = null;
-    // Track whether we already notified for the current turn's completion.
-    // Reset when we observe a non-completed state (i.e. a new turn has started
-    // and pushed the old turn_duration out of the JSONL tail).
     let awaitingNewTurn = false;
 
     const tryCheck = (source: string): boolean => {
@@ -582,7 +571,6 @@ export class SessionWatcher {
       pollTimer,
     });
 
-    // Initial check: the turn may have completed before the watcher was set up.
     // Mark awaitingNewTurn so we don't re-fire for the same completion, but
     // still fire the callback so the renderer knows the current state.
     if (lastNotifiedMtime > 0) {

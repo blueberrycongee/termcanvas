@@ -38,7 +38,6 @@ export const worktreeTool: Tool<typeof inputSchema.shape> = {
       return { content: JSON.stringify(result, null, 2) };
     }
 
-    // remove
     if (!input.path) return { content: "path is required for remove", is_error: true };
     const params = new URLSearchParams({ repo, path: input.path });
     if (input.force) params.set("force", "true");

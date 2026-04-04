@@ -5,10 +5,6 @@
  * a single category system that drives loop-level recovery decisions.
  */
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export type ErrorCategory =
   | "retryable_rate_limit"
   | "retryable_server"
@@ -18,17 +14,12 @@ export type ErrorCategory =
   | "billing_error"
   | "fatal";
 
-// ---------------------------------------------------------------------------
-// Categorization
-// ---------------------------------------------------------------------------
-
 export function categorizeError(err: unknown): ErrorCategory {
   if (!(err instanceof Error)) return "fatal";
 
   const msg = err.message.toLowerCase();
   const status = (err as { status?: number }).status;
 
-  // Rate limiting
   if (status === 429 || msg.includes("rate limit") || msg.includes("overloaded") || msg.includes("too many requests")) {
     return "retryable_rate_limit";
   }
@@ -41,7 +32,6 @@ export function categorizeError(err: unknown): ErrorCategory {
     return "retryable_server";
   }
 
-  // Prompt too long
   if (
     status === 413 ||
     msg.includes("prompt is too long") ||
@@ -53,7 +43,6 @@ export function categorizeError(err: unknown): ErrorCategory {
     return "prompt_too_long";
   }
 
-  // Media too large
   if (msg.includes("media_too_large") || msg.includes("file too large")) {
     return "media_too_large";
   }
@@ -70,10 +59,6 @@ export function categorizeError(err: unknown): ErrorCategory {
 
   return "fatal";
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 export function isRetryableCategory(category: ErrorCategory): boolean {
   return category === "retryable_rate_limit" || category === "retryable_server";

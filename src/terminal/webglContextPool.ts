@@ -52,7 +52,6 @@ export function releaseWebGL(terminalId: string): void {
     try {
       entry.addon.dispose();
     } catch {
-      // addon may already be disposed
     }
     entries.delete(terminalId);
   }
@@ -72,7 +71,6 @@ export function touch(terminalId: string): void {
 function evictLRU(): void {
   let oldest: PoolEntry | null = null;
   for (const entry of entries.values()) {
-    // Never evict the focused terminal
     if (entry.terminalId === focusedId) continue;
     if (!oldest || entry.lastUsed < oldest.lastUsed) {
       oldest = entry;
@@ -82,7 +80,6 @@ function evictLRU(): void {
     try {
       oldest.addon.dispose();
     } catch {
-      // addon may already be disposed
     }
     entries.delete(oldest.terminalId);
   }

@@ -9,7 +9,6 @@ interface QuotaStore {
   loading: boolean;
   error: "rate_limited" | "unavailable" | null;
 
-  // Adaptive polling internals
   lastFetchAt: number;
   cooldownMs: number;
   pendingRefresh: boolean;

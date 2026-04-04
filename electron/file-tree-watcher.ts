@@ -31,7 +31,6 @@ export class FileTreeWatcher {
 
       this.watchers.set(dirPath, { watcher, timer: null });
     } catch {
-      // directory may not exist
     }
   }
 

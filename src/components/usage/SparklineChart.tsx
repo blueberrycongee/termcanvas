@@ -15,9 +15,7 @@ function fmtTokens(n: number): string {
 
 interface SparklineChartProps {
   buckets: UsageBucket[];
-  /** When true, bars animate in with stagger */
   animate: boolean;
-  /** YYYY-MM-DD date string for the displayed data */
   date?: string;
 }
 
@@ -67,7 +65,6 @@ export function SparklineChart({ buckets, animate, date }: SparklineChartProps) 
         })}
       </div>
 
-      {/* Tooltip */}
       {hovered !== null && buckets[hovered] && buckets[hovered].calls > 0 && (
         <SparklineTooltip
           bucket={buckets[hovered]}
@@ -78,7 +75,6 @@ export function SparklineChart({ buckets, animate, date }: SparklineChartProps) 
         />
       )}
 
-      {/* Time axis */}
       <div
         className="flex justify-between mt-0.5 text-[9px] text-[var(--text-faint)]"
         style={{ fontFamily: '"Geist Mono", monospace' }}
@@ -92,8 +88,6 @@ export function SparklineChart({ buckets, animate, date }: SparklineChartProps) 
     </div>
   );
 }
-
-// ── Tooltip ───────────────────────────────────────────────────────────
 
 interface SparklineTooltipProps {
   bucket: UsageBucket;

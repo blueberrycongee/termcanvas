@@ -18,7 +18,6 @@ import {
 } from "./evaluator.ts";
 import { computeSummary, saveRunResult, generateRunId } from "./results.ts";
 
-/** Create the appropriate agent runner for the config */
 function createRunner(config: EvalConfig): AgentRunner {
   switch (config.mode) {
     case "single-claude":
@@ -32,7 +31,6 @@ function createRunner(config: EvalConfig): AgentRunner {
   }
 }
 
-/** Run a single task and return the result */
 async function runTask(
   task: TaskDefinition,
   runner: AgentRunner,
@@ -72,7 +70,6 @@ async function runTask(
     );
 
     // pass/fail is determined later by SWE-bench Docker evaluation
-    // (run scripts/run-swebench-eval.py after the run completes)
     return {
       task_id: task.instance_id,
       pass: false, // placeholder — real verdict from SWE-bench Docker
@@ -104,7 +101,6 @@ async function runTask(
   }
 }
 
-/** Run tasks with concurrency limit */
 async function runWithConcurrency<T>(
   items: T[],
   concurrency: number,
@@ -130,7 +126,6 @@ async function runWithConcurrency<T>(
   await Promise.all(active);
 }
 
-/** Main evaluation runner */
 export async function runEvaluation(
   tasks: TaskDefinition[],
   config: EvalConfig,
@@ -163,7 +158,6 @@ export async function runEvaluation(
   const taskResults: TaskResult[] = new Array(tasks.length);
 
   if (maxWorkers <= 1) {
-    // Sequential execution
     for (let i = 0; i < tasks.length; i++) {
       const result = await runTask(
         tasks[i],
@@ -182,7 +176,6 @@ export async function runEvaluation(
       );
     }
   } else {
-    // Parallel execution with concurrency limit
     console.log(`Running ${tasks.length} tasks with ${maxWorkers} workers...\n`);
     await runWithConcurrency(tasks, maxWorkers, async (task, index) => {
       const result = await runTask(
@@ -199,7 +192,6 @@ export async function runEvaluation(
 
   const completedAt = new Date().toISOString();
 
-  // Optionally run SWE-bench Docker evaluation
   if (config.run_swebench_eval) {
     console.log("\nRunning SWE-bench Docker evaluation...");
 

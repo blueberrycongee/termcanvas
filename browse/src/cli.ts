@@ -31,7 +31,6 @@ async function ensureServer(): Promise<ServerState> {
     return existing;
   }
 
-  // Spawn a detached server process using the current script with start-server
   const child = spawn(
     process.execPath,
     [process.argv[1], "start-server"],
@@ -43,7 +42,6 @@ async function ensureServer(): Promise<ServerState> {
   );
   child.unref();
 
-  // Wait for state file to appear
   for (let i = 0; i < 50; i++) {
     await new Promise((r) => setTimeout(r, 100));
     const state = readState();
@@ -97,7 +95,6 @@ async function main() {
     return;
   }
 
-  // For "start-server" internal command, run inline
   if (command === "start-server") {
     setCommandRegistry(createCommandRegistry());
     await startServer();

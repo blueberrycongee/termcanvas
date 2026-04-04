@@ -43,8 +43,6 @@ function readManifest(home: string, provider: string) {
   }
 }
 
-// --- basic install / uninstall ---
-
 test("installSkillLinks creates symlinks for all skills including hydra", () => {
   const { home, sourceDir } = makeTempEnv();
   assert.equal(installSkillLinks({ home, sourceDir, appVersion: "0.18.0" }), true);
@@ -71,8 +69,6 @@ test("uninstallSkillLinks removes all symlinks and manifest", () => {
   assert.equal(readManifest(home, "codex"), null);
 });
 
-// --- manifest ---
-
 test("installSkillLinks writes manifest with version and skill list", () => {
   const { home, sourceDir } = makeTempEnv();
   installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
@@ -81,8 +77,6 @@ test("installSkillLinks writes manifest with version and skill list", () => {
   assert.equal(m.version, "0.18.0");
   assert.deepEqual(m.skills.sort(), ["code-review", "hydra", "qa"]);
 });
-
-// --- ensure (idempotent) ---
 
 test("ensureSkillLinks preserves hydra symlink across repeated calls", () => {
   const { home, sourceDir } = makeTempEnv();
@@ -129,15 +123,12 @@ test("ensureSkillLinks updates stale symlinks", () => {
   assert.equal(fs.readlinkSync(hydra), path.join(sourceDir, "skills", "hydra"));
 });
 
-// --- version upgrade: skill removed ---
-
 test("version upgrade removes skills dropped from bundle", () => {
   const { home, sourceDir, dir } = makeTempEnv(["hydra", "code-review", "qa", "old-skill"]);
   installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
 
   assert.equal(fs.existsSync(link(home, "claude", "old-skill")), true);
 
-  // Simulate v0.19.0 dropping "old-skill"
   const newSourceDir = path.join(dir, "source-v2");
   for (const name of ["hydra", "code-review", "qa"]) {
     const skillDir = path.join(newSourceDir, "skills", name);
@@ -159,13 +150,10 @@ test("version upgrade removes skills dropped from bundle", () => {
   assert.ok(!m.skills.includes("old-skill"));
 });
 
-// --- version upgrade: skill added ---
-
 test("version upgrade adds new skills from bundle", () => {
   const { home, sourceDir, dir } = makeTempEnv(["hydra", "code-review"]);
   installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
 
-  // Simulate v0.19.0 adding "new-skill"
   const newSourceDir = path.join(dir, "source-v2");
   for (const name of ["hydra", "code-review", "new-skill"]) {
     const skillDir = path.join(newSourceDir, "skills", name);
@@ -182,12 +170,9 @@ test("version upgrade adds new skills from bundle", () => {
   assert.equal(fs.existsSync(link(home, "codex", "new-skill")), true);
 });
 
-// --- edge case: user-managed directory not overwritten ---
-
 test("skips non-symlink entries (user-managed directories)", () => {
   const { home, sourceDir } = makeTempEnv();
 
-  // User created a real "hydra" directory before we install
   const userDir = link(home, "claude", "hydra");
   fs.mkdirSync(userDir, { recursive: true });
   fs.writeFileSync(path.join(userDir, "custom.md"), "user content");
@@ -198,13 +183,10 @@ test("skips non-symlink entries (user-managed directories)", () => {
   assert.equal(fs.existsSync(path.join(userDir, "custom.md")), true);
 });
 
-// --- uninstall covers manifest-tracked skills ---
-
 test("uninstall removes skills tracked in manifest even if missing from current bundle", () => {
   const { home, sourceDir, dir } = makeTempEnv(["hydra", "code-review", "qa", "old-skill"]);
   installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
 
-  // Simulate: app updated, bundle no longer has old-skill, but symlink still exists
   const newSourceDir = path.join(dir, "source-v2");
   for (const name of ["hydra", "code-review", "qa"]) {
     const skillDir = path.join(newSourceDir, "skills", name);

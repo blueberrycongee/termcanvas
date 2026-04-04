@@ -162,21 +162,9 @@ async function submitBracketedPaste(
     }
   }
 
-  // "aggregate" strategy (Claude Code): image paths are sent as a single
-  // bracketed paste (so the CLI's paste handler recognises them as file
-  // paths and attaches them as images). Text is then written as raw
-  // characters — NOT bracketed paste — to avoid two problems:
-  //   1. Combining images + text in one paste (with \n) triggers Claude's
-  //      multi-line input mode where \r adds a newline instead of submitting.
-  //   2. Sending text as a separate bracketed paste races with Ink's React
-  //      state updates from the image paste, causing drops or concatenation.
-  // Raw character input goes through Ink's useInput path (not the paste
-  // handler), updating input text state independently of image attachment
-  // state — no race, no multi-line mode.
-  //
-  // "separate" strategy (Codex, etc.): send each image path as its own
-  // bracketed paste, then text as another. These CLIs (crossterm) parse
-  // each paste synchronously from the byte stream without debouncing.
+  // Claude needs raw text after the image-path paste to avoid multiline mode
+  // and attachment-state races; other CLIs can consume separate bracketed
+  // pastes because they parse them synchronously.
   try {
     if (adapter.pasteStrategy === "aggregate") {
       if (stagedImagePaths.length > 0) {
@@ -270,7 +258,7 @@ function cleanupOldComposerRequests(worktreePath: string): void {
     try {
       fs.rmSync(path.join(composerDir, entry), { recursive: true, force: true });
     } catch {
-      // best-effort
+      // Ignore cleanup failures so stale temp directories do not block submit.
     }
   }
 }

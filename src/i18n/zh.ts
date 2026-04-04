@@ -1,14 +1,11 @@
 export const zh = {
-  // Common
   cancel: "取消",
   save: "保存",
   dont_save: "不保存",
 
-  // App – CloseDialog
   save_workspace_title: "保存工作区？",
   save_workspace_desc: "将项目、终端和绘图保存到文件，以便稍后恢复。",
 
-  // Toolbar / Settings modal
   settings: "设置",
   reset: "重置",
   fit: "适合",
@@ -17,7 +14,6 @@ export const zh = {
   language: "语言",
   theme: "主题",
 
-  // Sidebar
   projects: "项目",
   add: "+ 添加",
   open: "打开",
@@ -40,16 +36,13 @@ export const zh = {
   info_added_project: (name: string, count: number) =>
     `已添加 "${name}"，共 ${count} 个工作树。`,
 
-  // WorktreeContainer
   new_terminal: "新建终端",
   lazygit: "Git (lazygit)",
   new_terminal_btn: "+ 新建终端",
 
-  // ProjectContainer
   project_label: "项目",
   project_compact: "紧凑排列",
 
-  // DiffCard
   diff: "变更",
   loading: "加载中...",
   no_changes: "无变更",
@@ -61,7 +54,6 @@ export const zh = {
   binary_changed: "二进制文件已修改",
   file_count: (n: number) => `${n} 个文件`,
 
-  // FileTreeCard / FileCard
   files: "文件",
   file_viewer: "文件",
   file_empty_dir: "空目录",
@@ -69,7 +61,6 @@ export const zh = {
   file_binary: "二进制文件",
   file_read_error: "读取文件失败",
 
-  // File context menu
   ctx_new_file: "新建文件",
   ctx_new_folder: "新建文件夹",
   ctx_rename: "重命名",
@@ -79,7 +70,6 @@ export const zh = {
     platform === "win32" ? "在资源管理器中显示" : platform === "linux" ? "在文件管理器中显示" : "在 Finder 中显示",
   ctx_confirm_delete: (name: string) => `确定删除「${name}」？`,
 
-  // LeftPanel
   left_panel_files: "文件",
   left_panel_diff: "差异",
   left_panel_preview: "预览",
@@ -147,7 +137,6 @@ export const zh = {
   hydra_popup_later: "稍后",
   hydra_popup_dont_remind: "不再提醒",
 
-  // TerminalTile
   terminal_api_unavailable: "终端 API 不可用，未在 Electron 中运行。",
   failed_create_pty: (title: string, err: unknown) =>
     `为 "${title}" 创建 PTY 失败：${err}`,
@@ -160,7 +149,6 @@ export const zh = {
   terminal_star: "剪藏终端",
   terminal_unstar: "取消剪藏",
 
-  // DrawingPanel
   tool_select: "选择",
   tool_pen: "画笔",
   tool_text: "文字",
@@ -169,13 +157,11 @@ export const zh = {
   layout_horizontal: "横向布局",
   layout_vertical: "纵向布局",
 
-  // Toolbar
   tutorial: "教程",
   toolbar_untitled_workspace: "未命名工作区",
   zoom_out: "缩小",
   zoom_in: "放大",
 
-  // ShortcutHints
   shortcut_add_project: "添加项目",
   shortcut_cycle_focus_level: "切换聚焦层级",
   shortcut_compact_focused_project: "整理当前项目",
@@ -200,8 +186,6 @@ export const zh = {
   save_error: (err: string) => `保存失败：${err}`,
   project_compact_focus_required: "请先聚焦一个项目、工作树或终端",
 
-
-  // Settings page
   settings_general: "通用",
   settings_shortcuts: "快捷键",
   settings_version: "版本",
@@ -240,7 +224,6 @@ export const zh = {
   update_ready: "更新已就绪，点击查看",
   update_error: "更新出错",
 
-  // UpdateModal
   update_modal_title_ready: "更新就绪",
   update_modal_title: "更新",
   update_modal_downloading: (percent: number) => `下载中... ${Math.round(percent)}%`,
@@ -249,21 +232,18 @@ export const zh = {
   update_modal_retry: "重试",
   update_modal_restart: "重启并更新",
 
-  // Update check (settings)
   update_check: "检查更新",
   update_checking_short: "检查中…",
   update_downloading_short: (percent: number) => `下载中 ${Math.round(percent)}%`,
   update_up_to_date: "已是最新",
   update_restart_short: "重启并更新",
 
-  // Agent Bubble
   agent_provider: "Agent 提供商",
   agent_model: "Agent 模型",
   agent_format: "格式",
   agent_base_url: "Base URL",
   agent_api_key: "API Key",
 
-  // CLI
   cli_label: "命令行工具",
   cli_registered: "已注册",
   cli_not_registered: "未注册",
@@ -272,7 +252,6 @@ export const zh = {
   cli_register_failed: "启用命令行集成失败",
   cli_unregister_failed: "关闭命令行集成失败",
 
-  // CLI Agent Settings
   settings_agents: "Agent",
   agent_status_found: (version: string) => `已找到 (${version})`,
   agent_status_not_found: "未找到",
@@ -284,7 +263,6 @@ export const zh = {
     `${command} CLI 未配置或无法启动。`,
   cli_launch_error_action: "打开设置",
 
-  // Composer
   composer_label: "Composer",
   composer_target_label: "目标",
   composer_submit: "发送",
@@ -332,12 +310,10 @@ export const zh = {
   ) => `发送到终端 "${title}" 时在${stage}阶段失败：${detail}`,
   composer_submit_failed: (err: string) => `发送失败：${err}`,
 
-  // Hierarchy
   hierarchy_agent_tree: "代理树",
   hierarchy_parent: (type: string) => `父级：${type}`,
   hierarchy_agents: (n: number) => `${n} 个代理`,
 
-  // Usage panel
   usage_title: "用量",
   usage_monthly: "本月累计",
   usage_sessions: "会话",
@@ -377,7 +353,6 @@ export const zh = {
   usage_quota_rate_limited: "请求受限，稍后重试",
   usage_quota_unavailable: "额度不可用",
 
-  // Sessions panel
   sessions_tab: "会话",
   sessions_live: "实时",
   sessions_history: "历史",
@@ -390,7 +365,6 @@ export const zh = {
   sessions_load_error_back: "返回会话列表",
   sessions_back: "返回",
 
-  // Auth
   auth_login_github: "使用 GitHub 登录",
   auth_logout: "退出登录",
   auth_logging_in: "登录中...",
@@ -400,7 +374,6 @@ export const zh = {
   auth_devices: "设备",
   auth_cloud_error: "云端数据不可用",
 
-  // Insights
   insights_generate: "生成洞察报告",
   insights_select_cli: "生成",
   insights_validating: "验证 CLI...",
@@ -413,7 +386,6 @@ export const zh = {
   insights_open: "打开报告",
   insights_error: "洞察报告错误",
 
-  // Stash Box
   stash_box: "暂存",
   stash_empty: "没有暂存的终端",
   stash_restore: "恢复",
@@ -424,7 +396,6 @@ export const zh = {
   stash_terminal: "暂存",
   stash_destroy: "销毁",
 
-  // Canvas empty state
   canvas_empty_title: "还没有项目",
   canvas_empty_action: "添加项目",
 

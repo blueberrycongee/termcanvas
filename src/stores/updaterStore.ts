@@ -31,7 +31,6 @@ export const useUpdaterStore = create<UpdaterStore>((set, get) => ({
   },
 }));
 
-/** Call once at app startup to wire IPC events into the store. */
 export function initUpdaterListeners(): () => void {
   if (!window.termcanvas?.updater) {
     return () => {};

@@ -90,8 +90,7 @@ function runTermcanvasJson(args: string[], timeout: number): any {
       timeout,
     });
   } catch (err: any) {
-    // execFileSync puts stderr in err.stderr — surface it instead of the
-    // generic "Command failed: ..." wrapper from Node.
+    // Prefer stderr over Node's wrapper so Hydra surfaces the real CLI failure.
     const detail = (err.stderr as string)?.trim() || err.message;
     throw new HydraError(`termcanvas ${args.slice(0, 2).join(" ")} failed: ${detail}`, {
       errorCode: "TERMCANVAS_COMMAND_FAILED",

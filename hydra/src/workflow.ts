@@ -83,7 +83,6 @@ export interface WorkflowDependencies {
   sleep?: (ms: number) => Promise<void>;
   syncProject?: (repoPath: string) => void;
   destroyTerminal?: (terminalId: string) => void;
-  /** Returns true if the terminal PTY is alive, false if dead, null if unknown/unavailable. */
   checkTerminalAlive?: (terminalId: string) => boolean | null;
 }
 
@@ -307,9 +306,6 @@ function resetHandoffToPending(
 
   // Remove the done marker so the next tick does not treat stale
   // data as evidence of completion. Keep result.json — downstream
-  // agents may need it (evaluator findings for implementer, old
-  // plan for revised planner). Phantom completion only triggers
-  // when the done file exists.
   if (handoff.artifacts) {
     try { fs.unlinkSync(handoff.artifacts.done_file); } catch {}
   }
@@ -571,7 +567,6 @@ export async function tickWorkflow(
 
     if (challengeDecision.override) {
       // Write challenge findings to the evaluator's result file so
-      // the implementer picks them up via the existing loop mechanism.
       const evaluatorHandoffId = workflow.challenge.evaluator_handoff_id;
       const evaluatorHandoff = manager.load(evaluatorHandoffId);
       if (evaluatorHandoff?.artifacts) {
@@ -596,7 +591,6 @@ export async function tickWorkflow(
         );
       }
 
-      // Loop back: reset implementer and evaluator to pending
       const implementerId = workflow.handoff_ids[1];
       const evaluatorId = workflow.handoff_ids[2];
       for (const requeueId of [implementerId, evaluatorId]) {
@@ -621,7 +615,6 @@ export async function tickWorkflow(
       return buildStatusView(workflow);
     }
 
-    // Challenge confirmed success
     workflow.status = "completed";
     workflow.failure = undefined;
     workflow.challenge = undefined;
@@ -661,7 +654,6 @@ export async function tickWorkflow(
         return buildStatusView(workflow);
       }
       if (decision.outcome === "complete") {
-        // For PIE template, run challenge gate on first evaluator success
         if (
           workflow.template === "planner-implementer-evaluator" &&
           !workflow.challenge_completed &&

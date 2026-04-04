@@ -77,7 +77,6 @@ export function ProjectContainer({ project }: Props) {
         selectProject(project.id);
       }}
     >
-      {/* Title bar */}
       <div
         className="flex items-center gap-2 px-4 py-2 cursor-grab active:cursor-grabbing select-none"
         onMouseDown={handleDrag}
@@ -182,7 +181,6 @@ export function ProjectContainer({ project }: Props) {
         </div>
       </div>
 
-      {/* Worktrees */}
       <div
         className="px-3 pb-3 relative"
         style={{

@@ -69,7 +69,6 @@ export class ApiServer {
     url: URL,
     body: any,
   ): Promise<any> {
-    // Project endpoints
     if (method === "POST" && pathname === "/project/add") {
       return this.projectAdd(body);
     }
@@ -85,7 +84,6 @@ export class ApiServer {
       return this.projectRescan(id);
     }
 
-    // Terminal endpoints
     if (method === "POST" && pathname === "/terminal/create") {
       return this.terminalCreate(body);
     }
@@ -127,20 +125,17 @@ export class ApiServer {
       return this.workflowTelemetry(id, repoPath);
     }
 
-    // Diff
     if (method === "GET" && pathname.startsWith("/diff/")) {
       const worktreePath = decodeURIComponent(pathname.slice("/diff/".length));
       const summary = url.searchParams.has("summary");
       return this.getDiff(worktreePath, summary);
     }
 
-    // Memory index
     if (method === "GET" && pathname === "/api/memory/index") {
       const worktree = url.searchParams.get("worktree");
       return this.memoryIndex(worktree);
     }
 
-    // State
     if (method === "GET" && pathname === "/state") {
       return this.getState();
     }

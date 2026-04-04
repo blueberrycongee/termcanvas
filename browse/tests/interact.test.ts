@@ -213,7 +213,6 @@ test("duplicate role+name refs resolve to distinct elements", async () => {
     let text = await sendCommand(state.port, state.token, "text", []);
     assert.match(text.output, /first/);
 
-    // Reset state
     await sendCommand(state.port, state.token, "goto", [
       `file://${path.join(dir, "index.html")}`,
     ]);

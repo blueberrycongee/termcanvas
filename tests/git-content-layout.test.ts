@@ -131,9 +131,6 @@ test("getVirtualCommitWindow calculates visible range with overscan", () => {
     overscan: 5,
   });
 
-  // scrollTop=200, rowHeight=40 → first visible = 5
-  // startIndex = max(0, 5-5) = 0
-  // endIndex = min(100, ceil((200+400)/40) + 5) = min(100, 15+5) = 20
   assert.equal(result.startIndex, 0);
   assert.equal(result.endIndex, 20);
 });

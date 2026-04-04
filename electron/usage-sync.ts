@@ -14,8 +14,6 @@ import {
   type UsageBucket,
 } from "./usage-collector";
 
-// ── Constants ─────────────────────────────────────────────────────────
-
 const PREFIX = "[UsageSync]";
 const SYNC_QUEUE_FILE = path.join(TERMCANVAS_DIR, "sync-queue.jsonl");
 const BACKFILL_FLAG = path.join(TERMCANVAS_DIR, "sync-backfilled");
@@ -23,8 +21,6 @@ const BATCH_SIZE = 500;
 const RECENT_SYNC_YIELD_EVERY = 32;
 
 let recentSyncInFlight: Promise<void> | null = null;
-
-// ── Types ─────────────────────────────────────────────────────────────
 
 interface SyncRecord extends UsageRecordHashInput {
   record_hash?: string;
@@ -71,8 +67,6 @@ interface RpcSummary {
   models: RpcItem[];
   devices: RpcItem[];
 }
-
-// ── Internal helpers ──────────────────────────────────────────────────
 
 function getLocalTzOffsetMinutes(): number {
   return -new Date().getTimezoneOffset();
@@ -204,8 +198,6 @@ async function appendToQueue(record: SyncRecord): Promise<void> {
   }
 }
 
-// ── Public API ────────────────────────────────────────────────────────
-
 /**
  * Upload a single usage record to Supabase.
  * If not logged in or upload fails, queue to offline sync file.
@@ -284,7 +276,6 @@ export async function backfillHistory(): Promise<void> {
 
   const deviceId = getDeviceId();
 
-  // Wide UTC range to capture all history
   const utcStart = "2020-01-01T00:00:00";
   const utcEnd = new Date().toISOString().replace("Z", "").split(".")[0];
 
@@ -295,7 +286,6 @@ export async function backfillHistory(): Promise<void> {
       const { records } = parseClaudeSession(f, utcStart, utcEnd);
       allRecords.push(...records);
     } catch {
-      // Skip unreadable files
     }
   }
 
@@ -304,7 +294,6 @@ export async function backfillHistory(): Promise<void> {
       const { records } = parseCodexSession(f, utcStart, utcEnd);
       allRecords.push(...records);
     } catch {
-      // Skip unreadable files
     }
   }
 
@@ -358,11 +347,9 @@ export async function syncRecentRecords(): Promise<void> {
 
     const deviceId = getDeviceId();
 
-    // Cover last 2 days to catch timezone edges.
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
     const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    // Scan filter: only files modified since the local window start.
     // This avoids parsing years of immutable history every 5 minutes.
     const scanStartLocalDate = toLocalDateString(start);
     const fmt = (ms: number) => new Date(ms).toISOString().replace("Z", "").split(".")[0];
@@ -382,7 +369,6 @@ export async function syncRecentRecords(): Promise<void> {
         const { records } = parseClaudeSession(filePath, utcStart, utcEnd);
         allRecords.push(...records);
       } catch {
-        // skip unreadable files
       }
     }
 
@@ -397,7 +383,6 @@ export async function syncRecentRecords(): Promise<void> {
         const { records } = parseCodexSession(filePath, utcStart, utcEnd);
         allRecords.push(...records);
       } catch {
-        // skip unreadable files
       }
     }
 

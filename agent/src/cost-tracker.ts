@@ -8,10 +8,6 @@
 import { getModelPricing } from "./model-registry.ts";
 import type { Usage } from "./types.ts";
 
-// ---------------------------------------------------------------------------
-// Types (all JSON-safe for serialization)
-// ---------------------------------------------------------------------------
-
 export interface TurnCost {
   turn: number;
   model: string;
@@ -31,10 +27,6 @@ export interface CostState {
   turnCosts: TurnCost[];
 }
 
-// ---------------------------------------------------------------------------
-// Cost calculation
-// ---------------------------------------------------------------------------
-
 export function calculateTurnCost(usage: Usage, model: string): number {
   const pricing = getModelPricing(model);
   if (!pricing) return 0;
@@ -50,10 +42,6 @@ export function calculateTurnCost(usage: Usage, model: string): number {
 
   return inputCost + outputCost + cacheReadCost + cacheWriteCost;
 }
-
-// ---------------------------------------------------------------------------
-// Tracker
-// ---------------------------------------------------------------------------
 
 export class CostTracker {
   private state: CostState;

@@ -66,8 +66,6 @@ function renderList(items: string[], emptyMessage: string): string[] {
   return items.map((item) => `- ${item}`);
 }
 
-// ── Planner domain audit guides ──
-
 const PLAN_GUIDE_FRONTEND = `# Frontend Audit Guide
 
 Read this guide when the task involves UI components, pages, or user-facing interactions.
@@ -147,8 +145,6 @@ const PLANNER_GUIDES: Record<string, { filename: string; content: string }> = {
   backend: { filename: "plan-backend.md", content: PLAN_GUIDE_BACKEND },
   infra: { filename: "plan-infra.md", content: PLAN_GUIDE_INFRA },
 };
-
-// ── Evaluator domain evaluation guides ──
 
 const EVAL_GUIDE_FRONTEND = `# Frontend Evaluation Guide
 

@@ -22,8 +22,6 @@ import {
 const MONO_STYLE = { fontFamily: '"Geist Mono", monospace' } as const;
 const ROW_HEIGHT = 40;
 
-// ── Tiny icon SVGs (inline to avoid icon library dependency) ──
-
 function IconGitBranch({ size = 14 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
@@ -130,8 +128,6 @@ function IconSearch({ size = 12 }: { size?: number }) {
   );
 }
 
-// ── Helpers ──
-
 function formatRelativeTime(isoDate: string): string {
   const now = Date.now();
   const then = new Date(isoDate).getTime();
@@ -143,8 +139,6 @@ function formatRelativeTime(isoDate: string): string {
   if (diffSec < 2592000) return `${Math.floor(diffSec / 86400)}d`;
   return `${Math.floor(diffSec / 2592000)}mo`;
 }
-
-// ── Small action button ──
 
 function ActionButton({
   title,
@@ -174,8 +168,6 @@ function ActionButton({
     </button>
   );
 }
-
-// ── Collapsible group ──
 
 function CollapsibleGroup({
   title,
@@ -234,8 +226,6 @@ function CollapsibleGroup({
   );
 }
 
-// ── File list item ──
-
 function FileListItem({
   entry,
   actions,
@@ -282,8 +272,6 @@ function FileListItem({
     </div>
   );
 }
-
-// ── Branch Popover ──
 
 function BranchPopover({
   branches,
@@ -373,8 +361,6 @@ function BranchPopover({
     </>
   );
 }
-
-// ── Commit detail inline panel ──
 
 function CommitDetailInline({
   contentInset = 24,
@@ -587,8 +573,6 @@ function GitGraphRail({
   );
 }
 
-// ── Main component ──
-
 export function GitContent({
   worktreePath,
   onEnableHydra,
@@ -709,8 +693,6 @@ export function GitContent({
     await Promise.all([refreshLog(), refreshStatus()]);
   }, [refreshLog, refreshStatus]);
 
-  // -- Actions --
-
   const handleCommit = useCallback(async () => {
     if (!commitMessage.trim()) {
       notify("warn", t.git_empty_commit_message);
@@ -770,8 +752,6 @@ export function GitContent({
     }
   }, [worktreePath, refreshAll, notify, t]);
 
-  // -- Loading / not-a-repo states --
-
   if (loading && !isGitRepo) {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -817,7 +797,6 @@ export function GitContent({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* ── Branch Header ── */}
       <div
         className="relative shrink-0 border-b px-3 py-2"
         style={{ borderColor: "var(--border)" }}
@@ -900,7 +879,6 @@ export function GitContent({
         )}
       </div>
 
-      {/* ── Commit Input ── */}
       <div className="shrink-0 border-b px-3 py-2" style={{ borderColor: "var(--border)" }}>
         <div className="flex gap-1.5">
           <div className="min-w-0 flex-1">
@@ -941,7 +919,6 @@ export function GitContent({
       {/* ── Changes area — shrinkable with cap ── */}
       {totalChanges > 0 ? (
         <div className="shrink-0 overflow-auto" style={{ maxHeight: "40%" }}>
-          {/* ── Staged Changes ── */}
           {stagedFiles.length > 0 && (
             <CollapsibleGroup
               title={t.git_staged_changes}
@@ -986,7 +963,6 @@ export function GitContent({
             </CollapsibleGroup>
           )}
 
-          {/* ── Changes ── */}
           {changedFiles.length > 0 && (
             <CollapsibleGroup
               title={t.git_changes}

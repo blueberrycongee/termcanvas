@@ -8,8 +8,6 @@ import {
   type DispatchCreateOnlyResult,
 } from "./dispatcher.ts";
 
-// ── Types ──
-
 export interface ChallengeWorker {
   id: string;
   methodology: string;
@@ -37,8 +35,6 @@ export interface ChallengeDecision {
   findings: ChallengeFinding[];
   summary: string;
 }
-
-// ── Methodologies ──
 
 const METHODOLOGIES = [
   {
@@ -106,8 +102,6 @@ const METHODOLOGIES = [
     ].join("\n"),
   },
 ] as const;
-
-// ── Helpers ──
 
 function generateWorkerId(): string {
   return `challenge-${crypto.randomBytes(4).toString("hex")}`;
@@ -180,8 +174,6 @@ function renderChallengeTask(
   ].join("\n");
 }
 
-// ── Spawn ──
-
 export async function spawnChallengeWorkers(
   config: {
     workflowId: string;
@@ -252,8 +244,6 @@ export async function spawnChallengeWorkers(
   };
 }
 
-// ── Collect ──
-
 function parseFindings(raw: unknown): ChallengeFinding[] {
   if (!raw || typeof raw !== "object" || !Array.isArray((raw as any).findings)) {
     return [];
@@ -304,8 +294,6 @@ export function collectChallengeResults(state: ChallengeState): ChallengeDecisio
   };
 }
 
-// ── Cleanup ──
-
 export function destroyChallengeTerminals(
   state: ChallengeState,
   destroyTerminal: (id: string) => void,
@@ -314,7 +302,6 @@ export function destroyChallengeTerminals(
     try {
       destroyTerminal(worker.terminal_id);
     } catch {
-      // Terminal may already be dead
     }
   }
 }

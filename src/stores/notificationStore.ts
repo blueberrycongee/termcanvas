@@ -29,7 +29,6 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
       timestamp: Date.now(),
     };
 
-    // Also log to console for developers
     const logFn =
       type === "error"
         ? console.error
@@ -42,7 +41,6 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
       notifications: [...state.notifications, notification],
     }));
 
-    // Auto-dismiss after 5 seconds
     setTimeout(() => {
       set((state) => ({
         notifications: state.notifications.filter((n) => n.id !== id),

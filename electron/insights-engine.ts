@@ -867,7 +867,6 @@ function writeCachedSessionMeta(session: SessionInfo): void {
       "utf-8",
     );
   } catch {
-    // Cache writes are opportunistic.
   }
 }
 
@@ -910,7 +909,6 @@ function writeCachedFacet(
       "utf-8",
     );
   } catch {
-    // Cache writes are opportunistic.
   }
 }
 

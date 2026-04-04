@@ -132,7 +132,6 @@ export class PtyManager {
     try {
       this.instances.get(id)?.resize(cols, rows);
     } catch {
-      // PTY fd may already be invalid after process exit.
       // Kill the process group before removing from map to prevent orphans.
       const inst = this.instances.get(id);
       if (inst && inst.pid > 1) {
@@ -157,7 +156,6 @@ export class PtyManager {
     try {
       process.kill(pid, "SIGWINCH");
     } catch {
-      // Process may already be gone or not accept the signal
     }
   }
 
@@ -205,9 +203,7 @@ export class PtyManager {
     this.outputBuffers.delete(id);
 
     // Send SIGHUP to the entire process group (shell + CLI + MCP servers).
-    // This mirrors what macOS Terminal.app does when closing a window:
     // the master PTY FD close triggers SIGHUP to the session, giving
-    // Claude CLI a chance to save its session before exiting.
     if (pid > 1) {
       try {
         process.kill(-pid, "SIGHUP");

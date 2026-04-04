@@ -12,8 +12,6 @@ import { enrichWorkflowStatusView } from "./telemetry.ts";
 import { isTermCanvasRunning, telemetryTerminal } from "./termcanvas.ts";
 import { watchWorkflow } from "./workflow.ts";
 
-// ── Agent watch types ──
-
 export interface AgentStatusView {
   agent: {
     id: string;
@@ -231,8 +229,6 @@ export async function watchAgent(
   }
 }
 
-// ── CLI interface ──
-
 export interface WatchArgs {
   repo?: string;
   workflow?: string;
@@ -308,7 +304,6 @@ export async function watch(args: string[]): Promise<void> {
     return;
   }
 
-  // Workflow watch (existing path)
   const result = enrichWorkflowStatusView(await watchWorkflow({
     repoPath: path.resolve(parsed.repo!),
     workflowId: parsed.workflow!,

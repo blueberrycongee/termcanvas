@@ -1,8 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useT } from "../../i18n/useT";
 
-// ── Date helpers ──────────────────────────────────────────────────────
-
 function toDateStr(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -28,8 +26,6 @@ function addDays(dateStr: string, offset: number): string {
 function isFutureDate(dateStr: string): boolean {
   return dateStr > todayStr();
 }
-
-// ── MiniCalendar ──────────────────────────────────────────────────────
 
 interface MiniCalendarProps {
   selectedDate: string;
@@ -101,7 +97,6 @@ function MiniCalendar({ selectedDate, cachedDates, onSelect, onClose }: MiniCale
       className="absolute top-full left-0 right-0 mt-1 z-50 rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-lg usage-calendar-enter"
       style={{ fontFamily: '"Geist Sans", sans-serif' }}
     >
-      {/* Month header */}
       <div className="flex items-center justify-between px-2 py-1.5">
         <button
           onClick={prevMonth}
@@ -122,7 +117,6 @@ function MiniCalendar({ selectedDate, cachedDates, onSelect, onClose }: MiniCale
         </button>
       </div>
 
-      {/* Weekday headers */}
       <div className="grid grid-cols-7 px-1.5">
         {t.usage_cal_weekdays.map((day) => (
           <div key={day} className="text-center text-[9px] text-[var(--text-faint)] py-0.5 font-medium">
@@ -131,7 +125,6 @@ function MiniCalendar({ selectedDate, cachedDates, onSelect, onClose }: MiniCale
         ))}
       </div>
 
-      {/* Day grid */}
       <div className="grid grid-cols-7 px-1.5 pb-1.5">
         {cells.map((day, i) => {
           if (day === null) return <div key={`e${i}`} />;
@@ -173,8 +166,6 @@ function MiniCalendar({ selectedDate, cachedDates, onSelect, onClose }: MiniCale
   );
 }
 
-// ── DateNavigator ─────────────────────────────────────────────────────
-
 interface DateNavigatorProps {
   date: string;
   cachedDates: Record<string, boolean>;
@@ -195,7 +186,6 @@ export function DateNavigator({ date, cachedDates, onDateChange, onCollapse }: D
   return (
     <div className="relative px-3 py-2 shrink-0 border-b border-[var(--border)]">
       <div className="flex items-center gap-1">
-        {/* Panel title */}
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none" className="text-[var(--text-muted)] shrink-0">
           <rect x="1.5" y="3" width="3" height="8" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
           <rect x="5.5" y="5" width="3" height="6" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
@@ -208,7 +198,6 @@ export function DateNavigator({ date, cachedDates, onDateChange, onCollapse }: D
           {t.usage_title}
         </span>
 
-        {/* Prev day */}
         <button
           onClick={() => onDateChange(addDays(date, -1))}
           className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
@@ -227,7 +216,6 @@ export function DateNavigator({ date, cachedDates, onDateChange, onCollapse }: D
           {displayDate}
         </button>
 
-        {/* Next day */}
         <button
           onClick={() => !isTomorrow && onDateChange(addDays(date, 1))}
           disabled={isTomorrow}
@@ -242,7 +230,6 @@ export function DateNavigator({ date, cachedDates, onDateChange, onCollapse }: D
           </svg>
         </button>
 
-        {/* Today button */}
         {!isToday && (
           <button
             onClick={() => onDateChange(today)}
@@ -252,7 +239,6 @@ export function DateNavigator({ date, cachedDates, onDateChange, onCollapse }: D
           </button>
         )}
 
-        {/* Collapse button */}
         {onCollapse && (
           <button
             onClick={onCollapse}
@@ -265,7 +251,6 @@ export function DateNavigator({ date, cachedDates, onDateChange, onCollapse }: D
         )}
       </div>
 
-      {/* Mini calendar popup */}
       {calendarOpen && (
         <MiniCalendar
           selectedDate={date}

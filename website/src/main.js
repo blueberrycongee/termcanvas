@@ -3,7 +3,6 @@ import { init } from "./ascii-logo.js";
 const container = document.getElementById("ascii-logo");
 if (container) init(container);
 
-// ── i18n ────────────────────────────────────────────────────────
 const zh = {
   tagline: "你的终端，铺在无限画布上。",
   download: "下载",

@@ -96,7 +96,6 @@ test("reflowSnapshot preserves empty lines", () => {
 
 test("reflowSnapshot handles wide characters at column boundary", () => {
   // "A" (width 1) + "全" (width 2) + "B" (width 1) = 4 cols total
-  // With newCols=3: "A" takes 1, "全" takes 2 but 1+2=3 fits → "A全" on row 1, "B" on row 2
   const snap: BufferSnapshot = {
     lines: [{ text: "A全B", widths: [1, 2, 1] }],
     cols: 80,
@@ -107,7 +106,6 @@ test("reflowSnapshot handles wide characters at column boundary", () => {
 
 test("reflowSnapshot wraps before wide char that would overflow", () => {
   // "AB" (width 1+1=2) + "全" (width 2) = 4 cols total
-  // With newCols=3: "AB" takes 2, "全" would take 2+2=4 > 3 → wrap before "全"
   const snap: BufferSnapshot = {
     lines: [{ text: "AB全", widths: [1, 1, 2] }],
     cols: 80,

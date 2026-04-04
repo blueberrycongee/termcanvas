@@ -4,8 +4,6 @@ import { useUsageStore, type HeatmapEntry } from "../../stores/usageStore";
 import { useT } from "../../i18n/useT";
 import { HEATMAP_LAYOUT } from "./heatmap-layout";
 
-// ── Helpers ──────────────────────────────────────────────────────────
-
 function toDateStr(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -100,7 +98,6 @@ function buildGrid(data: Record<string, HeatmapEntry>): {
     }
   }
 
-  // Compute month labels (like GitHub contribution graph)
   const rawLabels: MonthLabel[] = [];
   let lastMonth = -1;
   for (let week = 0; week < weeks; week++) {
@@ -126,8 +123,6 @@ function formatHeatmapDate(dateStr: string, monthsShort: readonly string[]): str
   const [, m, d] = dateStr.split("-");
   return `${monthsShort[parseInt(m, 10) - 1]} ${parseInt(d, 10)}`;
 }
-
-// ── Tooltip ──────────────────────────────────────────────────────────
 
 interface TooltipProps {
   cell: CellData;
@@ -180,8 +175,6 @@ function HeatmapTooltip({ cell, triggerRect }: TooltipProps) {
     document.body,
   );
 }
-
-// ── Main component ───────────────────────────────────────────────────
 
 interface TokenHeatmapProps {
   animate: boolean;
@@ -268,9 +261,7 @@ export function TokenHeatmap({ animate, data, onVisible }: TokenHeatmapProps): R
       </span>
 
       <div className="mt-2 flex gap-[3px]">
-        {/* Weekday labels column */}
         <div className="flex flex-col gap-[3px] shrink-0 mr-0.5">
-          {/* Spacer for month labels row */}
           <div style={{ height: HEATMAP_LAYOUT.monthLabelRowHeight }} />
           {Array.from({ length: 7 }, (_, row) => (
             <div
@@ -287,9 +278,7 @@ export function TokenHeatmap({ animate, data, onVisible }: TokenHeatmapProps): R
           ))}
         </div>
 
-        {/* Grid column */}
         <div className="flex-1 min-w-0 flex flex-col gap-[3px]">
-          {/* Month labels row */}
           <div
             className="grid"
             style={{
@@ -314,7 +303,6 @@ export function TokenHeatmap({ animate, data, onVisible }: TokenHeatmapProps): R
             ))}
           </div>
 
-          {/* Cell grid */}
           <div
             className="grid"
             style={{
@@ -354,7 +342,6 @@ export function TokenHeatmap({ animate, data, onVisible }: TokenHeatmapProps): R
         </div>
       </div>
 
-      {/* Color legend */}
       <div className="flex items-center justify-end gap-1 mt-1.5">
         <span
           className="text-[8px] text-[var(--text-faint)]"
@@ -377,7 +364,6 @@ export function TokenHeatmap({ animate, data, onVisible }: TokenHeatmapProps): R
         </span>
       </div>
 
-      {/* Tooltip */}
       {hoveredCell && hoveredRect && <HeatmapTooltip cell={hoveredCell} triggerRect={hoveredRect} />}
     </div>
   );

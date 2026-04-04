@@ -157,7 +157,6 @@ test("claude sends text-only via bracketed paste", async () => {
   const result = await submitComposerRequest(request, deps);
 
   assert.equal(result.ok, true);
-  // text-only: still uses bracketed paste (no multi-line mode issue)
   assert.deepEqual(ptyWrites, ["\x1b[200~fix the bug\x1b[201~", "\r"]);
 });
 
@@ -183,7 +182,6 @@ test("claude sends image paths as bracketed paste and text as raw characters", a
     fileWrites[0].filePath.endsWith(path.join("req-123", "image-1.png")),
     true,
   );
-  // aggregate strategy: image path as bracketed paste, text as raw chars, then \r
   assert.equal(ptyWrites.length, 3);
   assert.match(ptyWrites[0], /^\x1b\[200~.*image-1\.png\x1b\[201~$/);
   assert.equal(ptyWrites[1], "Inspect this screenshot");

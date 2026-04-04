@@ -367,7 +367,6 @@ function resolveOverlaps(projects: ProjectData[]): ProjectData[] {
         withResolvedWorktrees.map((p) => [p.id, { ...p.position }]),
       );
 
-      // Sort by x so we sweep left-to-right
       const sorted = [...withResolvedWorktrees].sort(
         (a, b) => positions.get(a.id)!.x - positions.get(b.id)!.x,
       );
@@ -898,7 +897,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           const idx = w.terminals.findIndex((t) => t.id === terminalId);
           if (idx !== -1 && w.terminals[idx].focused) {
             wasFocused = true;
-            // Prefer the terminal after, then before
             if (idx + 1 < w.terminals.length) {
               adjacentTerminalId = w.terminals[idx + 1].id;
             } else if (idx - 1 >= 0) {
@@ -950,7 +948,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         };
       }
 
-      // No adjacent terminal — keep worktree focused so cmd+t still works
       return {
         projects: updatedProjects,
       };
@@ -990,7 +987,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         (t) => ({ ...t, minimized: nextMinimized }),
       );
 
-      // When minimizing the focused terminal, jump focus to next visible
       if (nextMinimized && terminal.focused) {
         const nextTerminalId = findNextVisibleTerminalId(
           state.projects,
@@ -1262,7 +1258,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
 }));
 
-// --- Hierarchy helpers (pure functions, not store actions) ---
 
 export interface TerminalLocation {
   terminal: TerminalData;
@@ -1309,8 +1304,6 @@ useTileDimensionsStore.subscribe((state, prev) => {
     useProjectStore.setState({ projects: resolved });
   }
 });
-
-// --- Stash helpers (single source of truth: projectStore.stashed flag) ---
 
 import { destroyTerminalRuntime } from "../terminal/terminalRuntimeStore.ts";
 

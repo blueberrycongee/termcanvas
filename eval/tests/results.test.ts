@@ -41,7 +41,6 @@ describe("generateRunId", () => {
 
   it("includes date and time components", () => {
     const id = generateRunId();
-    // Format: run-YYYYMMDD-HHMMSS-xxxx
     const parts = id.split("-");
     a.equal(parts[0], "run");
     a.equal(parts[1].length, 8); // YYYYMMDD

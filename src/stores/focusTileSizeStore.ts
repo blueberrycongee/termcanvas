@@ -1,7 +1,6 @@
 import { create } from "zustand";
 
 interface FocusTileSizeStore {
-  /** Override dimensions for the currently focused terminal tile. */
   terminalId: string | null;
   w: number;
   h: number;

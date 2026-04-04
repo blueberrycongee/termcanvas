@@ -1,4 +1,3 @@
-// Threshold beyond which prompts are piped via stdin instead of command-line
 // args, to avoid E2BIG (ARG_MAX) on macOS/Linux.
 const ARG_SAFE_LIMIT = 200_000;
 
@@ -21,7 +20,6 @@ export function buildCliInvocationArgs(
     return { args: [...specArgs, ...cliArgs], stdin: null };
   }
 
-  // Both CLIs accept `-` to read the prompt from stdin.
   const cliArgs =
     cliTool === "claude"
       ? ["-p", "-"]

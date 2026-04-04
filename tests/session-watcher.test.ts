@@ -21,8 +21,6 @@ function withTempFile(content: string, fn: (filePath: string) => void) {
   }
 }
 
-// --- Claude Code tests ---
-
 test("claude: detects end_turn stop_reason", () => {
   const jsonl = [
     JSON.stringify({ type: "user", message: { content: "hello" } }),
@@ -78,8 +76,6 @@ test("claude: not completed when only user messages", () => {
   });
 });
 
-// --- Codex tests ---
-
 test("codex: detects task_complete event", () => {
   const jsonl = [
     JSON.stringify({ type: "event_msg", payload: { type: "task_start" } }),
@@ -103,8 +99,6 @@ test("codex: not completed without task_complete", () => {
     assert.equal(result.completed, false);
   });
 });
-
-// --- Edge cases ---
 
 test("returns false for empty file", () => {
   withTempFile("", (filePath) => {

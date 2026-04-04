@@ -5,10 +5,6 @@
  * tool support, thinking support, pricing, and provider family.
  */
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export interface ModelPricing {
   inputPerMillion: number;
   outputPerMillion: number;
@@ -28,12 +24,7 @@ export interface ModelCapability {
   pricing: ModelPricing;
 }
 
-// ---------------------------------------------------------------------------
-// Registry data
-// ---------------------------------------------------------------------------
-
 const MODELS: ModelCapability[] = [
-  // Anthropic
   {
     id: "claude-opus-4-20250514",
     displayName: "Claude Opus 4",
@@ -79,7 +70,6 @@ const MODELS: ModelCapability[] = [
     pricing: { inputPerMillion: 0.8, outputPerMillion: 4, cacheReadPerMillion: 0.08, cacheWritePerMillion: 1 },
   },
 
-  // OpenAI
   {
     id: "gpt-4o",
     displayName: "GPT-4o",
@@ -170,7 +160,6 @@ const MODELS: ModelCapability[] = [
   },
 ];
 
-// Aliases for convenience names
 const ALIASES: Record<string, string> = {
   "claude-opus-4-latest": "claude-opus-4-20250514",
   "claude-sonnet-4-latest": "claude-sonnet-4-20250514",
@@ -185,10 +174,6 @@ for (const model of MODELS) {
   registry.set(model.id, model);
 }
 
-// ---------------------------------------------------------------------------
-// Exports
-// ---------------------------------------------------------------------------
-
 const DEFAULT_CONTEXT_WINDOW = 128_000;
 const DEFAULT_MAX_OUTPUT_TOKENS = 16_384;
 
@@ -197,7 +182,6 @@ export function getModelCapability(modelId: string): ModelCapability | undefined
   const exact = registry.get(resolved);
   if (exact) return exact;
 
-  // Longest-prefix match for versioned model names
   let best: ModelCapability | undefined;
   let bestLen = 0;
   for (const [id, cap] of registry) {

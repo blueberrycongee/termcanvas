@@ -328,13 +328,10 @@ test("evaluator failure loops back to the implementer handoff", async () => {
     assert.equal(status.handoffs[2].status, "pending");
 
     // The done marker must be removed to prevent phantom completion.
-    // result.json is preserved so downstream agents can read it
-    // (e.g. evaluator findings for the next implementer).
     const implHandoff = manager.load(started.handoffs[1].id)!;
     assert.ok(!fs.existsSync(implHandoff.artifacts!.done_file), "stale implementer done file should be removed");
 
     // A subsequent tick should see the handoff as still in-progress (waiting),
-    // not immediately completed from stale files.
     const afterLoop = await tickWorkflow(
       { repoPath, workflowId: started.workflow.id },
       {

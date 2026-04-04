@@ -114,7 +114,6 @@ describe("ProjectStore", () => {
     it("listTerminals with worktree filter", () => {
       store.addTerminal(projectId, worktreeId, "shell");
 
-      // Add another project with different worktree path
       const p2 = makeProject({
         path: "/tmp/other",
         worktrees: [
@@ -131,10 +130,8 @@ describe("ProjectStore", () => {
       store.addProject(p2);
       store.addTerminal(p2.id, p2.worktrees[0].id, "claude");
 
-      // All terminals
       assert.equal(store.listTerminals().length, 2);
 
-      // Filtered by worktree
       const filtered = store.listTerminals("/tmp/test-project");
       assert.equal(filtered.length, 1);
       assert.equal(filtered[0].worktree, "/tmp/test-project");

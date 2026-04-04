@@ -97,13 +97,11 @@ function cleanupOne(agentId: string, force: boolean): void {
         return;
       }
     } catch {
-      // Terminal may already be gone
     }
 
     try {
       terminalDestroy(record.terminalId);
     } catch {
-      // Already destroyed
     }
   }
 
@@ -114,7 +112,6 @@ function cleanupOne(agentId: string, force: boolean): void {
         stdio: "pipe",
       });
     } catch {
-      // Already removed
     }
 
     if (record.branch) {
@@ -124,7 +121,6 @@ function cleanupOne(agentId: string, force: boolean): void {
           stdio: "pipe",
         });
       } catch {
-        // Already deleted
       }
     }
   }
@@ -143,7 +139,6 @@ function cleanupWorkflow(workflowId: string, repo: string, force: boolean): void
   const manager = new HandoffManager(repo);
 
   if (isTermCanvasRunning()) {
-    // Destroy terminals for ALL handoffs, not just the current one.
     for (const handoffId of workflow.handoff_ids) {
       const handoff = manager.load(handoffId);
       const terminalId = handoff?.dispatch?.active_terminal_id;
@@ -159,14 +154,12 @@ function cleanupWorkflow(workflowId: string, repo: string, force: boolean): void
             return;
           }
         } catch {
-          // terminal already gone
         }
       }
 
       try {
         terminalDestroy(terminalId);
       } catch {
-        // terminal already gone
       }
     }
   }
@@ -178,7 +171,6 @@ function cleanupWorkflow(workflowId: string, repo: string, force: boolean): void
         stdio: "pipe",
       });
     } catch {
-      // worktree already removed
     }
 
     if (workflow.branch) {
@@ -188,7 +180,6 @@ function cleanupWorkflow(workflowId: string, repo: string, force: boolean): void
           stdio: "pipe",
         });
       } catch {
-        // branch already removed
       }
     }
   }

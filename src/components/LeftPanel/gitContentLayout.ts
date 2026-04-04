@@ -385,8 +385,6 @@ export function buildGitGraphRailModel({
   };
 }
 
-// -- Source control utilities --
-
 export function getStatusDisplayPath(filePath: string): { fileName: string; directory: string } {
   const lastSlash = filePath.lastIndexOf("/");
   if (lastSlash === -1) {

@@ -97,7 +97,6 @@ export class ProjectScanner {
     if (isGitRepo) {
       worktrees = await this.listWorktreesAsync(dirPath);
     } else {
-      // For non-git folders, create a single "worktree" entry
       worktrees = [
         {
           path: dirPath,

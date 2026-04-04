@@ -16,7 +16,6 @@ export function AgentBubble({ onSendMessage, messages, activeTaskCount }: AgentB
         <BubbleButton activeTaskCount={activeTaskCount} onExpand={handleExpand} />
       )}
 
-      {/* Expanded chat panel */}
       {expanded && (
         <ChatPanel
           messages={messages}

@@ -123,7 +123,6 @@ export function scanMemoryDir(dirPath: string): MemoryGraph {
         ctime: stat.birthtimeMs,
       });
 
-      // Parse markdown links: [Title](file.md)
       const linkRe = /\[([^\]]+)\]\(([^)]+\.md)\)/g;
       let m: RegExpExecArray | null;
       while ((m = linkRe.exec(raw)) !== null) {

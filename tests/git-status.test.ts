@@ -4,7 +4,6 @@ import assert from "node:assert/strict";
 import { parseGitStatusOutput } from "../electron/git-info.ts";
 
 test("parseGitStatusOutput parses modified staged and unstaged files", () => {
-  // "MM file.ts" → staged M + unstaged M
   const raw = "MM file.ts\0";
   const entries = parseGitStatusOutput(raw);
 

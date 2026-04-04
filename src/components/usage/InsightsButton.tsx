@@ -150,7 +150,6 @@ export function InsightsButton({ compact = false }: { compact?: boolean } = {}) 
         </div>
       )}
 
-      {/* Success banner */}
       {reportPath && !running && (
         <div className="mb-2 p-2 rounded-md bg-green-500/10 border border-green-500/20">
           <div className="flex items-center justify-between">
@@ -171,7 +170,6 @@ export function InsightsButton({ compact = false }: { compact?: boolean } = {}) 
         </div>
       )}
 
-      {/* Running state */}
       {running && (
         <div className="mb-2 flex items-center gap-2">
           <div className="w-3 h-3 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin shrink-0" />
@@ -181,7 +179,6 @@ export function InsightsButton({ compact = false }: { compact?: boolean } = {}) 
         </div>
       )}
 
-      {/* Progress bar */}
       {running && progress && progress.total > 0 && (
         <div className="mb-2 h-1 rounded-full bg-[var(--border)] overflow-hidden">
           <div
@@ -191,7 +188,6 @@ export function InsightsButton({ compact = false }: { compact?: boolean } = {}) 
         </div>
       )}
 
-      {/* Main button + dropdown */}
       <div className="relative">
         {showPicker && (
           <div className="absolute bottom-full left-0 right-0 mb-1 rounded-md border border-[var(--border)] bg-[var(--surface)] shadow-lg overflow-hidden z-10">

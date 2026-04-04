@@ -101,7 +101,6 @@ export async function fetchCodexQuota(): Promise<QuotaFetchResult> {
         return { ok: true, data: quota };
       }
     } catch {
-      // Skip unreadable files and continue scanning older sessions.
     }
   }
 

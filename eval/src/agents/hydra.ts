@@ -11,7 +11,6 @@ import type {
 const DEFAULT_TIMEOUT_S = 1200;
 const POLL_INTERVAL_MS = 15_000;
 
-/** Run a command and return stdout */
 function exec(
   cmd: string,
   args: string[],
@@ -37,7 +36,6 @@ function exec(
   });
 }
 
-/** Run a command with stdin */
 function execWithStdin(
   cmd: string,
   args: string[],
@@ -81,7 +79,6 @@ function execWithStdin(
   });
 }
 
-/** Capture the git diff produced by the agent */
 async function capturePatch(
   workDir: string,
   baseCommit: string,
@@ -116,7 +113,6 @@ export class HydraRunner implements AgentRunner {
     const subAgentTypes = config.sub_agent_types ?? ["claude", "codex"];
 
     try {
-      // Phase 1: Orchestrator analyzes and decomposes the task
       console.log(`    [hydra] Phase 1: Orchestrator analyzing task...`);
       const plan = await this.decompose(task, workDir, config);
 
@@ -128,7 +124,6 @@ export class HydraRunner implements AgentRunner {
 
       console.log(`    [hydra] Decomposed into ${plan.subtasks.length} sub-tasks`);
 
-      // Phase 2: Create worktrees and spawn sub-agents
       console.log(`    [hydra] Phase 2: Spawning ${plan.subtasks.length} sub-agents...`);
       const subResults = await Promise.all(
         plan.subtasks.map((subtask, i) => {
@@ -145,7 +140,6 @@ export class HydraRunner implements AgentRunner {
         }),
       );
 
-      // Phase 3: Merge all sub-agent changes
       console.log(`    [hydra] Phase 3: Merging results...`);
       let mergeFailures = 0;
       for (const sub of subResults) {
@@ -211,7 +205,6 @@ export class HydraRunner implements AgentRunner {
     }
   }
 
-  /** Use orchestrator to decompose the task into sub-tasks */
   private async decompose(
     task: TaskDefinition,
     workDir: string,
@@ -267,7 +260,6 @@ export class HydraRunner implements AgentRunner {
 
   /** Parse the orchestrator's decomposition output */
   private parseDecomposition(output: string): { subtasks: string[] } {
-    // Try to extract JSON array from the output
     const jsonMatch = output.match(/\[[\s\S]*?\]/);
     if (!jsonMatch) return { subtasks: [] };
 
@@ -281,7 +273,6 @@ export class HydraRunner implements AgentRunner {
     return { subtasks: [] };
   }
 
-  /** Run a sub-agent in an isolated worktree */
   private async runSubAgent(
     subtask: string,
     task: TaskDefinition,
@@ -300,7 +291,6 @@ export class HydraRunner implements AgentRunner {
     );
 
     try {
-      // Create worktree
       await exec(
         "git",
         ["worktree", "add", "-b", branchName, worktreePath, "HEAD"],
@@ -402,7 +392,6 @@ export class HydraRunner implements AgentRunner {
   }
 }
 
-/** Original TermCanvas-based Hydra runner (for use within TermCanvas projects) */
 export class TermCanvasHydraRunner implements AgentRunner {
   async run(
     task: TaskDefinition,
@@ -445,7 +434,6 @@ export class TermCanvasHydraRunner implements AgentRunner {
         branch: string;
       };
 
-      // Poll for result file
       const deadline = Date.now() + timeoutS * 1000;
       while (Date.now() < deadline) {
         try {

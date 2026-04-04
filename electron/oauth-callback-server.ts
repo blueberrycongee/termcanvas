@@ -1,13 +1,9 @@
 import http from "http";
 
-// ── Types ──
-
 export type CallbackResult =
   | { type: "success"; code: string }
   | { type: "error"; error: string; description: string }
   | { type: "timeout" };
-
-// ── Constants ──
 
 const OAUTH_CALLBACK_TIMEOUT = 120_000; // 2 minutes — first-time OAuth flows can be slow
 const CALLBACK_PORT = 8914;
@@ -93,8 +89,6 @@ const RELAY_HTML = `<!DOCTYPE html>
 </script>
 </body>
 </html>`;
-
-// ── Server ──
 
 /**
  * Starts a local HTTP server to receive the OAuth callback from Supabase.

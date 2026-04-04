@@ -19,10 +19,6 @@ import type {
 } from "../types.ts";
 import { isOSeriesModel, getModelCapability } from "../model-registry.ts";
 
-// ---------------------------------------------------------------------------
-// Provider
-// ---------------------------------------------------------------------------
-
 export class OpenAIProvider implements LLMProvider {
   readonly name = "openai";
   private apiKey: string;
@@ -32,7 +28,6 @@ export class OpenAIProvider implements LLMProvider {
   constructor(apiKey: string, model: string, baseURL = "https://api.openai.com/v1") {
     this.apiKey = apiKey;
     this.model = model;
-    // Normalize: strip trailing slash, ensure no /chat/completions suffix
     this.baseURL = baseURL.replace(/\/+$/, "").replace(/\/chat\/completions$/, "");
   }
 
@@ -102,7 +97,6 @@ export class OpenAIProvider implements LLMProvider {
     const decoder = new TextDecoder();
     let buffer = "";
 
-    // Accumulate content
     let textContent = "";
     const toolCalls = new Map<number, { id: string; name: string; args: string }>();
     let stopReason: StopReason = null;
@@ -145,13 +139,11 @@ export class OpenAIProvider implements LLMProvider {
           const delta = choice.delta;
           if (!delta) continue;
 
-          // Text content
           if (delta.content) {
             textContent += delta.content;
             yield { type: "text_delta", text: delta.content };
           }
 
-          // Tool calls
           if (delta.tool_calls) {
             for (const tc of delta.tool_calls) {
               const idx = tc.index ?? 0;
@@ -167,7 +159,6 @@ export class OpenAIProvider implements LLMProvider {
             }
           }
 
-          // Finish reason
           if (choice.finish_reason) {
             stopReason = mapFinishReason(choice.finish_reason);
           }
@@ -179,7 +170,6 @@ export class OpenAIProvider implements LLMProvider {
 
     yield { type: "message_delta", stop_reason: stopReason, usage };
 
-    // Assemble final message
     const content: ContentBlock[] = [];
     if (textContent) {
       content.push({ type: "text", text: textContent });
@@ -189,7 +179,6 @@ export class OpenAIProvider implements LLMProvider {
       try {
         input = JSON.parse(tc.args || "{}");
       } catch {
-        // malformed
       }
       content.push({ type: "tool_use", id: tc.id, name: tc.name, input });
     }
@@ -202,10 +191,6 @@ export class OpenAIProvider implements LLMProvider {
     };
   }
 }
-
-// ---------------------------------------------------------------------------
-// Message conversion
-// ---------------------------------------------------------------------------
 
 interface OpenAIMessage {
   role: "system" | "developer" | "user" | "assistant" | "tool";
@@ -251,7 +236,6 @@ function toOpenAIMessages(
       continue;
     }
 
-    // assistant
     const textParts: string[] = [];
     const toolCallsOut: OpenAIMessage["tool_calls"] = [];
 
@@ -279,10 +263,6 @@ function toOpenAIMessages(
 
   return out;
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 interface OpenAIChunk {
   choices?: {

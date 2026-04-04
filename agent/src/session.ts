@@ -13,10 +13,6 @@ import type { Message } from "./types.ts";
 import type { CostState } from "./cost-tracker.ts";
 import type { CompactionState } from "./compaction.ts";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export interface SessionConfig {
   sessionId?: string;
   persistDir: string;
@@ -34,17 +30,9 @@ export interface ResumedSession {
   compactionState: CompactionState;
 }
 
-// ---------------------------------------------------------------------------
-// Session ID
-// ---------------------------------------------------------------------------
-
 export function generateSessionId(): string {
   return randomUUID();
 }
-
-// ---------------------------------------------------------------------------
-// Writer
-// ---------------------------------------------------------------------------
 
 export class SessionWriter {
   private filePath: string;
@@ -88,10 +76,6 @@ export class SessionWriter {
     await appendFile(this.filePath, JSON.stringify(entry) + "\n");
   }
 }
-
-// ---------------------------------------------------------------------------
-// Resume
-// ---------------------------------------------------------------------------
 
 export async function resumeSession(
   sessionId: string,

@@ -73,7 +73,6 @@ export class SessionScanner {
             tokenTotal: parsed.tokenTotal,
           });
         } catch {
-          // skip unreadable files
         }
       }
 
@@ -401,7 +400,6 @@ export class SessionScanner {
           return "claude";
         }
       } catch {
-        // skip malformed lines
       }
     }
 
@@ -432,7 +430,6 @@ export class SessionScanner {
           return payload.cwd;
         }
       } catch {
-        // skip malformed lines
       }
     }
     return null;
@@ -469,7 +466,6 @@ export class SessionScanner {
         const parsed = JSON.parse(payload.arguments);
         return this.getObject(parsed);
       } catch {
-        // fall through
       }
     } else {
       const directArgs = this.getObject(payload.arguments);

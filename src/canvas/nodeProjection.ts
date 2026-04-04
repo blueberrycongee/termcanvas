@@ -7,7 +7,6 @@ import {
 import type { ProjectData } from "../types";
 import { getProjectBounds } from "../stores/projectStore";
 
-
 export interface ProjectNodeData {
   projectId: string;
   [key: string]: unknown;

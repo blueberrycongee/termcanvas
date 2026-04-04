@@ -55,7 +55,6 @@ export function UpdateModal({ onClose }: Props) {
       onClick={handleBackdropClick}
     >
       <div className="w-[480px] max-h-[80vh] flex flex-col rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-2xl">
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
           <div>
             <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
@@ -77,7 +76,6 @@ export function UpdateModal({ onClose }: Props) {
           </button>
         </div>
 
-        {/* Changelog */}
         {changelogHtml && (
           <div className="flex-1 min-h-0 overflow-auto px-5 py-4">
             <div
@@ -88,7 +86,6 @@ export function UpdateModal({ onClose }: Props) {
           </div>
         )}
 
-        {/* Progress bar — only during download */}
         {status === "downloading" && (
           <div className="px-5 py-2">
             <div className="h-1.5 rounded-full bg-[var(--surface)] overflow-hidden">
@@ -112,7 +109,6 @@ export function UpdateModal({ onClose }: Props) {
           </div>
         )}
 
-        {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-[var(--border)]">
           <button
             onClick={onClose}

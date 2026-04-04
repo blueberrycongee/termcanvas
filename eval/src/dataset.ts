@@ -10,7 +10,6 @@ const TASKS_DIR = join(EVAL_ROOT, "tasks");
 const HF_API_BASE = "https://datasets-server.huggingface.co";
 const PAGE_SIZE = 100;
 
-/** Count files changed in a unified diff patch */
 export function countPatchFiles(patch: string): string[] {
   const files: string[] = [];
   for (const line of patch.split("\n")) {
@@ -24,7 +23,6 @@ export function countPatchFiles(patch: string): string[] {
   return files;
 }
 
-/** Count total lines changed in a patch */
 export function countPatchLines(patch: string): number {
   let lines = 0;
   for (const line of patch.split("\n")) {
@@ -39,7 +37,6 @@ export function countPatchLines(patch: string): number {
   return lines;
 }
 
-/** Derive task metadata from a task definition */
 export function taskMeta(task: TaskDefinition): TaskMeta {
   const files = countPatchFiles(task.patch);
   return {
@@ -51,7 +48,6 @@ export function taskMeta(task: TaskDefinition): TaskMeta {
   };
 }
 
-/** Load tasks from a local JSON file */
 export async function loadTasksFromFile(
   filePath: string,
 ): Promise<TaskDefinition[]> {
@@ -59,7 +55,6 @@ export async function loadTasksFromFile(
   return JSON.parse(raw) as TaskDefinition[];
 }
 
-/** Fetch SWE-bench dataset from HuggingFace API */
 export async function fetchFromHuggingFace(
   dataset: string,
   split: string,
@@ -96,7 +91,6 @@ export async function fetchFromHuggingFace(
   return tasks;
 }
 
-/** Filter tasks by minimum number of files changed */
 export function filterMultiFile(
   tasks: TaskDefinition[],
   minFiles: number = 2,
@@ -104,7 +98,6 @@ export function filterMultiFile(
   return tasks.filter((t) => countPatchFiles(t.patch).length >= minFiles);
 }
 
-/** Filter tasks by repository */
 export function filterByRepo(
   tasks: TaskDefinition[],
   repo: string,
@@ -112,7 +105,6 @@ export function filterByRepo(
   return tasks.filter((t) => t.repo === repo);
 }
 
-/** Download and cache a filtered task set */
 export async function downloadAndFilter(options: {
   dataset: string;
   split: string;
@@ -155,7 +147,6 @@ export async function downloadAndFilter(options: {
   return filtered;
 }
 
-/** Load the default multi-file task set (download if needed) */
 export async function loadDefaultTasks(): Promise<TaskDefinition[]> {
   const defaultPath = join(TASKS_DIR, "swe-bench-multi-file.json");
   if (existsSync(defaultPath)) {

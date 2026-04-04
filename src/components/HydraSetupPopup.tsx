@@ -35,7 +35,6 @@ export function HydraSetupPopup({ status, projectName, onEnable, onDismiss, onDi
         className="rounded-md bg-[var(--bg)] overflow-hidden flex flex-col border border-[var(--border)] max-w-[400px] w-full mx-4 shadow-2xl"
         style={{ fontFamily: '"Geist Mono", monospace' }}
       >
-        {/* Title bar */}
         <div className="flex items-center gap-2 px-3 py-2 select-none shrink-0">
           <div className="w-[3px] h-3 rounded-full bg-[var(--accent)]/60 shrink-0" />
           <span
@@ -62,7 +61,6 @@ export function HydraSetupPopup({ status, projectName, onEnable, onDismiss, onDi
           </button>
         </div>
 
-        {/* Content */}
         <div className="px-4 pb-4 pt-1">
           <div className="text-[13px] leading-relaxed mb-4">
             <span style={{ color: "var(--text-primary)" }}>

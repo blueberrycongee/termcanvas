@@ -77,9 +77,7 @@ export function useCanvasInteraction() {
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     const isDrawing = useDrawingStore.getState().tool !== "select";
-    // Shift+left-click reserved for box select
     if (e.button === 0 && e.shiftKey) return;
-    // Left-click pan disabled in drawing mode; middle-click always works
     if (e.button === 1 || (e.button === 0 && !isDrawing)) {
       e.preventDefault();
       isPanning.current = true;

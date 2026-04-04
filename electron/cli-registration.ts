@@ -164,7 +164,6 @@ function broadcastWindowsEnvironmentChange(): void {
       { stdio: "ignore" },
     );
   } catch {
-    // Best-effort only. Registry writes are still the source of truth.
   }
 }
 
@@ -239,7 +238,6 @@ function ensureCliArtifacts(
     try {
       deps.ensureCliLauncher(jsFile, deps.platform);
     } catch {
-      // Best-effort only for generated launchers.
     }
   }
 }
@@ -293,7 +291,6 @@ export function registerCli(
       try {
         content = deps.readFileSync(zprofilePath, "utf-8");
       } catch {
-        // File does not exist yet.
       }
 
       if (content.includes(line)) {
@@ -329,7 +326,6 @@ export function registerCli(
         try {
           deps.unlinkSync(target);
         } catch {
-          // Ignore missing stale links.
         }
         deps.symlinkSync(source, target);
       }
@@ -386,7 +382,6 @@ export function unregisterCli(
         try {
           deps.unlinkSync(path.join(dir, name));
         } catch {
-          // Ignore missing links.
         }
       }
     }

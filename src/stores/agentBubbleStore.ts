@@ -24,10 +24,8 @@ interface AgentBubbleStore {
   activeTaskCount: number;
   streaming: boolean;
 
-  /** Messages of the active session (derived) */
   messages: BubbleMessage[];
 
-  /** ID of the assistant message currently being streamed */
   streamingMessageId: string | null;
 
   addMessage: (msg: BubbleMessage) => void;
@@ -38,7 +36,6 @@ interface AgentBubbleStore {
   switchSession: (id: string) => void;
   deleteSession: (id: string) => void;
 
-  /** Handle a stream event from the agent runtime */
   handleAgentEvent: (sessionId: string, event: AgentStreamEvent) => void;
 }
 
@@ -121,7 +118,6 @@ export const useAgentBubbleStore = create<AgentBubbleStore>((set, get) => ({
     const state = get();
 
     if (event.type === "stream_start") {
-      // Create a new assistant message placeholder
       const msgId = crypto.randomUUID();
       const msg: BubbleMessage = {
         id: msgId,
@@ -249,13 +245,9 @@ export const useAgentBubbleStore = create<AgentBubbleStore>((set, get) => ({
       return;
     }
 
-    // turn_start/turn_end, message_start/message_delta — no UI effect for now
   },
 }));
 
-// ---------------------------------------------------------------------------
-// Subscribe to agent IPC events (runs once at module load)
-// ---------------------------------------------------------------------------
 
 if (typeof window !== "undefined" && window.termcanvas?.agent) {
   window.termcanvas.agent.onEvent((sessionId, rawEvent) => {

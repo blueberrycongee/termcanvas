@@ -201,9 +201,6 @@ export async function spawn(args: string[]): Promise<void> {
     parentTerminalId,
   });
 
-  // Unlike workflow handoffs (which are destroyed eagerly after completion),
-  // spawn terminals are intentionally long-lived — the user may interact with
-  // the worker, inspect intermediate state, or issue follow-up instructions.
   // Cleanup is manual via `hydra cleanup <agentId>` or Cmd+D in the app.
   saveAgent({
     id: agentId,
@@ -224,7 +221,6 @@ export async function spawn(args: string[]): Promise<void> {
     createdAt: new Date().toISOString(),
   });
 
-  // resultFile tells the parent where to read the outcome
   const result = {
     agentId,
     workflowId,

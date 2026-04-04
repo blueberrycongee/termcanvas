@@ -48,11 +48,6 @@ interface Rect {
   h: number;
 }
 
-/**
- * Resolve non-overlapping positions for all registered cards.
- *   - Obstacles (project containers): push card RIGHT past the obstacle
- *   - Other cards: push card DOWN below the other card
- */
 export function resolveAllCardPositions(
   cards: Record<string, CardEntry>,
   obstacles: Rect[] = [],

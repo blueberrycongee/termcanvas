@@ -110,8 +110,6 @@ test("shallowest match comes first in results", () => {
 });
 
 test("shallow direct child wins over deeper descendant regardless of PID order", () => {
-  // PID 500 (claude, direct child) was started AFTER PID 300 (codex, grandchild)
-  // so PID 500 > PID 300 in ps output, but claude is shallower and should win.
   const ps = HEADER +
     "  100     1 /bin/zsh\n" +
     "  200   100 bash\n" +

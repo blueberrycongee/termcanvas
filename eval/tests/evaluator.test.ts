@@ -45,7 +45,6 @@ describe("evaluatePatchSimple", () => {
 `;
     const result = evaluatePatchSimple(modelPatch, GOLD_PATCH);
     a.equal(result.applied, true);
-    // 1/2 file overlap (0.5 * 0.4) + some line overlap
     a.ok(result.similarity > 0);
     a.ok(result.similarity < 1);
   });

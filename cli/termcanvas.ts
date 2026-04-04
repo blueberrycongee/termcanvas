@@ -84,7 +84,6 @@ function requestOnce(
   method: string,
   urlPath: string,
   body?: unknown,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<any> {
   const { protocol, hostname, port, basePath } = getConnection();
   return new Promise((resolve, reject) => {
@@ -136,7 +135,6 @@ async function request(
   method: string,
   urlPath: string,
   body?: unknown,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<any> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {

@@ -5,10 +5,6 @@
  * orchestration-only (read-only + dispatch) agent needs.
  */
 
-// ---------------------------------------------------------------------------
-// Content blocks
-// ---------------------------------------------------------------------------
-
 export interface TextBlock {
   type: "text";
   text: string;
@@ -34,10 +30,6 @@ export interface ThinkingBlock {
 }
 
 export type ContentBlock = TextBlock | ToolUseBlock | ThinkingBlock;
-
-// ---------------------------------------------------------------------------
-// Messages
-// ---------------------------------------------------------------------------
 
 export interface UserMessage {
   role: "user";
@@ -66,10 +58,6 @@ export type StopReason =
   | "stop_sequence"
   | null;
 
-// ---------------------------------------------------------------------------
-// Usage & cost
-// ---------------------------------------------------------------------------
-
 export interface Usage {
   input_tokens: number;
   output_tokens: number;
@@ -93,10 +81,6 @@ export function mergeUsage(a: Usage, b: Usage): Usage {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Stream events (yielded by provider and agent loop)
-// ---------------------------------------------------------------------------
-
 export type StreamEvent =
   | { type: "text_delta"; text: string }
   | { type: "thinking_delta"; thinking: string }
@@ -106,10 +90,6 @@ export type StreamEvent =
   | { type: "message_start"; usage?: Usage }
   | { type: "message_delta"; stop_reason: StopReason; usage?: Usage }
   | { type: "error"; error: Error };
-
-// ---------------------------------------------------------------------------
-// Tool result (returned by Tool.call)
-// ---------------------------------------------------------------------------
 
 export interface ToolResult {
   content: string;
@@ -124,9 +104,6 @@ export interface PendingToolResult {
 
 export type ToolCallReturn = ToolResult | PendingToolResult;
 
-// ---------------------------------------------------------------------------
-// Progress (side-channel event, NOT part of Message union)
-// ---------------------------------------------------------------------------
 
 export interface ProgressMessage {
   toolCallId: string;
@@ -135,10 +112,6 @@ export interface ProgressMessage {
 }
 
 export type OnProgress = (data: unknown) => void;
-
-// ---------------------------------------------------------------------------
-// Agent loop control
-// ---------------------------------------------------------------------------
 
 export type LoopExitReason =
   | "completed"
@@ -156,42 +129,27 @@ export interface LoopResult {
   costState?: import("./cost-tracker.ts").CostState;
 }
 
-// ---------------------------------------------------------------------------
-// Agent options
-// ---------------------------------------------------------------------------
-
 export interface AgentOptions {
-  /** System prompt sent to the LLM */
   systemPrompt: string;
 
-  /** Model ID for cost tracking and registry lookups */
   modelId?: string;
 
-  /** Maximum agentic turns before forced stop */
   maxTurns?: number;
 
-  /** Maximum USD spend before forced stop */
   maxBudgetUSD?: number;
 
-  /** AbortSignal for cancellation */
   signal?: AbortSignal;
 
-  /** Callback when a tool starts executing */
   onToolStart?: (name: string, input: Record<string, unknown>) => void;
 
-  /** Callback when a tool finishes */
   onToolEnd?: (name: string, result: ToolResult) => void;
 
-  /** Model to switch to after max_output_tokens recovery exhausts retries */
   fallbackModel?: string;
 
-  /** Pre/post tool execution hooks */
   hooks?: import("./tool-hooks.ts").ToolHooks;
 
-  /** Structured system prompt with static/dynamic split */
   systemPromptConfig?: import("./context-injection.ts").SystemPromptConfig;
 
-  /** Ephemeral context injected as system-reminder each turn */
   ephemeralContext?: import("./context-injection.ts").EphemeralContext | (() => import("./context-injection.ts").EphemeralContext);
 
   /** Session persistence configuration */
@@ -200,7 +158,6 @@ export interface AgentOptions {
   /** Approval bridge for worker permission management */
   approvalBridge?: import("./approval-bridge.ts").ApprovalBridge;
 
-  /** Tracks dispatched terminal workers across turns */
   workerTracker?: import("./worker-state.ts").WorkerTracker;
 
   /** Telemetry check function for worker state polling */

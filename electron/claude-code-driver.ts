@@ -6,11 +6,6 @@
 import { spawn, type ChildProcess } from "child_process";
 import type { AgentStreamEvent } from "../src/types/index.ts";
 
-// ---------------------------------------------------------------------------
-// Types for Claude Code stream-json protocol (stdout NDJSON)
-// ---------------------------------------------------------------------------
-
-/** content_block_delta subtypes inside RawMessageStreamEvent */
 interface ContentBlockDeltaText {
   type: "content_block_delta";
   delta: { type: "text_delta"; text: string };
@@ -38,7 +33,6 @@ type StreamEventInner =
   | ContentBlockStartToolUse
   | { type: string; [key: string]: unknown };
 
-/** Top-level stdout messages (subset we care about) */
 interface CCSystemInit {
   type: "system";
   subtype: "init";
@@ -114,10 +108,6 @@ type CCStdoutMessage =
   | CCToolUseSummary
   | { type: string; [key: string]: unknown };
 
-// ---------------------------------------------------------------------------
-// Driver options
-// ---------------------------------------------------------------------------
-
 export interface ClaudeCodeDriverOptions {
   sessionId: string;
   cwd: string;
@@ -127,10 +117,6 @@ export interface ClaudeCodeDriverOptions {
   allowedTools?: string[];
   resumeSessionId?: string;
 }
-
-// ---------------------------------------------------------------------------
-// Driver
-// ---------------------------------------------------------------------------
 
 export class ClaudeCodeDriver {
   private proc: ChildProcess | null = null;
@@ -146,7 +132,6 @@ export class ClaudeCodeDriver {
     this.options = options;
   }
 
-  /** Start the Claude Code CLI child process. */
   start(): void {
     if (this.proc) return;
 
@@ -212,7 +197,6 @@ export class ClaudeCodeDriver {
     });
   }
 
-  /** Send a user message via stdin NDJSON. */
   send(text: string): void {
     console.log("[ClaudeCodeDriver] send:", text.slice(0, 100), "| proc alive:", !!this.proc, "| stdin writable:", !!this.proc?.stdin?.writable);
     this.writeStdin({
@@ -250,14 +234,12 @@ export class ClaudeCodeDriver {
     });
   }
 
-  /** Kill the child process immediately. */
   abort(): void {
     if (this.proc) {
       this.proc.kill("SIGTERM");
     }
   }
 
-  /** Register an event listener. Returns an unsubscribe function. */
   onEvent(callback: (event: AgentStreamEvent) => void): () => void {
     this.listeners.push(callback);
     return () => {
@@ -302,10 +284,6 @@ export class ClaudeCodeDriver {
     this.listeners = [];
   }
 
-  // -------------------------------------------------------------------------
-  // Private
-  // -------------------------------------------------------------------------
-
   private emit(event: AgentStreamEvent): void {
     for (const cb of this.listeners) {
       cb(event);
@@ -314,7 +292,6 @@ export class ClaudeCodeDriver {
 
   private writeStdin(msg: unknown): void {
     if (!this.proc?.stdin?.writable) return;
-    // NDJSON: one JSON per line. Escape line separators per spec.
     const json = JSON.stringify(msg)
       .replace(/\u2028/g, "\\u2028")
       .replace(/\u2029/g, "\\u2029");
@@ -324,7 +301,6 @@ export class ClaudeCodeDriver {
   private onStdoutData(chunk: string): void {
     this.buffer += chunk;
     const lines = this.buffer.split("\n");
-    // Keep the last incomplete line in the buffer
     this.buffer = lines.pop() ?? "";
 
     for (const line of lines) {
@@ -333,7 +309,6 @@ export class ClaudeCodeDriver {
         const msg = JSON.parse(line) as CCStdoutMessage;
         this.processMessage(msg);
       } catch {
-        // Skip malformed lines
       }
     }
   }
@@ -363,7 +338,6 @@ export class ClaudeCodeDriver {
         this.handleToolUseSummary(msg as CCToolUseSummary);
         break;
       default:
-        // Ignore unknown message types (keep_alive, auth_status, etc.)
         break;
     }
   }
@@ -422,19 +396,15 @@ export class ClaudeCodeDriver {
         const tb = block as { type: "text"; text: string };
         this.emit({ type: "text_delta", text: tb.text });
       } else if (block.type === "thinking") {
-        // Thinking is streamed via thinking_delta, but emit a final
-        // marker so ThinkingBlock knows streaming is done
       } else if (block.type === "tool_use") {
         const tu = block as { type: "tool_use"; id: string; name: string; input: Record<string, unknown> };
         if (!this.emittedToolIds.has(tu.id)) {
           this.emit({ type: "tool_use_start", id: tu.id, name: tu.name });
         }
-        // Emit tool input update
         this.emit({ type: "tool_start", name: tu.name, input: tu.input });
       }
     }
 
-    // Reset streaming flag for next assistant turn
     this.streamedText = false;
   }
 

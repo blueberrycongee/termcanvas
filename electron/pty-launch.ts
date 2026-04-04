@@ -398,7 +398,6 @@ export async function buildLaunchSpec(
 
   const shellEnv = sanitizeEnv(await deps.getShellEnv(), deps);
 
-  // Inject terminal ID so child processes (e.g. Hydra) can identify their parent
   if (options.terminalId) {
     shellEnv.TERMCANVAS_TERMINAL_ID = options.terminalId;
   }
@@ -424,7 +423,6 @@ export async function buildLaunchSpec(
     }
   }
 
-  // Inject extra PATH entries (e.g. CLI dir) at the front
   if (options.extraPathEntries?.length) {
     const entries = shellEnv.PATH.split(deps.pathDelimiter);
     for (const dir of options.extraPathEntries) {

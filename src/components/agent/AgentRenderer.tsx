@@ -265,7 +265,6 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
       }).catch(() => {});
     }
 
-    // Subscribe once, never unsubscribe during Strict Mode remount
     if (!subscribedRef.current) {
       subscribedRef.current = true;
       window.termcanvas.agent.onEvent(
@@ -362,7 +361,6 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
         isDark={isDark}
       />
 
-      {/* Scrollable message area */}
       <div
         ref={scrollRef}
         className="flex-1 min-h-0 overflow-y-auto"
@@ -432,7 +430,6 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
         </div>
       )}
 
-      {/* Scroll to bottom / new messages */}
       {userScrolledUp && (
         <div className="relative shrink-0">
           <button
