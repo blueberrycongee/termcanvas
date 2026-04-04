@@ -2,6 +2,12 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.3] - 2026-04-05
+
+### Fixed
+- Windows app startup no longer fails when the hook receiver tries to bind a Unix `.sock` path; it now uses a Windows named pipe
+- App startup now degrades safely if the hook receiver cannot start, instead of blocking the main window from opening
+
 ## [0.25.2] - 2026-04-05
 
 ### Added
