@@ -352,14 +352,17 @@ export function SettingsModal({ onClose }: Props) {
         ? false
         : cliRegistered;
 
-  const cliStatusText =
+  const cliBusyLabel =
     cliPendingAction === "register"
       ? t.cli_registering
       : cliPendingAction === "unregister"
         ? t.cli_unregistering
-        : cliRegistered
-          ? t.cli_registered
-          : t.cli_not_registered;
+        : null;
+
+  const cliStatusText =
+    effectiveCliRegistered
+      ? t.cli_registered
+      : t.cli_not_registered;
 
   // Close on Escape (when not recording)
   useEffect(() => {
@@ -878,9 +881,21 @@ export function SettingsModal({ onClose }: Props) {
                     <span className="text-[13px] text-[var(--text-secondary)]">
                       {t.cli_label}
                     </span>
-                    <span className="text-[11px] text-[var(--text-muted)]">
-                      {cliStatusText}
-                    </span>
+                    <div
+                      className="flex items-center gap-2 text-[11px]"
+                      aria-live="polite"
+                    >
+                      <span className="text-[var(--text-muted)]">
+                        {cliStatusText}
+                      </span>
+                      <span
+                        className={`inline-flex h-1.5 w-1.5 rounded-full bg-[var(--accent)] transition-opacity duration-150 motion-safe:animate-pulse ${
+                          cliBusyLabel ? "opacity-100" : "opacity-0"
+                        }`}
+                        aria-label={cliBusyLabel ?? undefined}
+                        title={cliBusyLabel ?? undefined}
+                      />
+                    </div>
                   </div>
                   <div className="flex gap-1">
                     <button
