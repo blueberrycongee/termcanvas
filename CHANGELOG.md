@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.5] - 2026-04-05
+
+### Fixed
+- Release builds no longer fail when Codex session discovery imports `node:sqlite`; the SQLite dependency is now loaded lazily in the Electron main process path
+
 ## [0.25.4] - 2026-04-05
 
 ### Changed
