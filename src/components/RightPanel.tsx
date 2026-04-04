@@ -38,11 +38,12 @@ export function RightPanel() {
     <div className="fixed right-0 z-40 flex" style={{ top: 44, height: "calc(100vh - 44px)" }}>
       {/* Collapsed tab strip */}
       <div
-        className="shrink-0 flex flex-col items-center pt-2 gap-1 bg-[var(--sidebar)] overflow-hidden border-l border-[var(--border)]"
+        className="h-full shrink-0 flex flex-col items-center pt-2 gap-1 bg-[var(--sidebar)] overflow-hidden border-l border-[var(--border)] cursor-pointer hover:bg-[var(--sidebar-hover)]"
         style={{
           width: collapsed ? COLLAPSED_TAB_WIDTH : 0,
           transition: "width 0.2s ease",
         }}
+        onClick={() => setCollapsed(false)}
       >
         {TAB_IDS.map((id) => (
           <button
