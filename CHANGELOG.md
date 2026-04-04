@@ -2,6 +2,16 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.4] - 2026-04-05
+
+### Changed
+- Git commit input is now centered for cleaner presentation
+
+### Fixed
+- Global app shortcuts now stop leaking into terminals and use better default mappings on Windows and Linux
+- Codex session attach and discovery are more reliable by using the Codex state database
+- Downloaded terminal fonts now switch correctly on Windows by loading valid `file:///` font URLs
+
 ## [0.25.3] - 2026-04-05
 
 ### Fixed
