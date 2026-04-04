@@ -1,10 +1,11 @@
 import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
-import { useProjectStore, getProjectBounds, generateId } from "../stores/projectStore";
+import { useProjectStore } from "../stores/projectStore";
 import { useDrawingStore } from "../stores/drawingStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { useBrowserCardStore } from "../stores/browserCardStore";
 import { useNotificationStore } from "../stores/notificationStore";
+import { addScannedProjectAndFocus } from "../projects/projectCreation";
 import { useCanvasInteraction } from "./useCanvasInteraction";
 import { useBoxSelect } from "../hooks/useBoxSelect";
 import { useViewportCulling } from "../hooks/useViewportCulling";
@@ -63,30 +64,7 @@ export function Canvas() {
       return;
     }
 
-    const { projects, addProject } = useProjectStore.getState();
-    let placeX = 0;
-    const gap = 80;
-    for (const p of projects) {
-      const bounds = getProjectBounds(p);
-      placeX = Math.max(placeX, bounds.x + bounds.w + gap);
-    }
-
-    addProject({
-      id: generateId(),
-      name: info.name,
-      path: info.path,
-      position: { x: placeX, y: 0 },
-      collapsed: false,
-      zIndex: 0,
-      worktrees: info.worktrees.map((wt, i) => ({
-        id: generateId(),
-        name: wt.branch,
-        path: wt.path,
-        position: { x: 0, y: i * 360 },
-        collapsed: false,
-        terminals: [],
-      })),
-    });
+    addScannedProjectAndFocus(info);
   };
 
   const handleAddProject = async () => {
@@ -114,30 +92,7 @@ export function Canvas() {
       return;
     }
 
-    const { projects, addProject } = useProjectStore.getState();
-    let placeX = 0;
-    const gap = 80;
-    for (const p of projects) {
-      const bounds = getProjectBounds(p);
-      placeX = Math.max(placeX, bounds.x + bounds.w + gap);
-    }
-
-    addProject({
-      id: generateId(),
-      name: info.name,
-      path: info.path,
-      position: { x: placeX, y: 0 },
-      collapsed: false,
-      zIndex: 0,
-      worktrees: info.worktrees.map((wt, i) => ({
-        id: generateId(),
-        name: wt.branch,
-        path: wt.path,
-        position: { x: 0, y: i * 360 },
-        collapsed: false,
-        terminals: [],
-      })),
-    });
+    addScannedProjectAndFocus(info);
   };
 
   const leftOffset = leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth;

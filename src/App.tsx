@@ -19,9 +19,9 @@ import { WelcomePopup } from "./components/WelcomePopup";
 import {
   useProjectStore,
   createTerminal,
-  getProjectBounds,
   generateId,
 } from "./stores/projectStore";
+import { addScannedProjectAndFocus } from "./projects/projectCreation";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useT } from "./i18n/useT";
 import { loadAllDownloadedFonts } from "./terminal/fontLoader";
@@ -415,29 +415,7 @@ export function App() {
           notify("error", "Failed to scan directory");
           return;
         }
-        const { projects, addProject } = useProjectStore.getState();
-        let placeX = 0;
-        const gap = 80;
-        for (const p of projects) {
-          const bounds = getProjectBounds(p);
-          placeX = Math.max(placeX, bounds.x + bounds.w + gap);
-        }
-        addProject({
-          id: generateId(),
-          name: info.name,
-          path: info.path,
-          position: { x: placeX, y: 0 },
-          collapsed: false,
-          zIndex: 0,
-          worktrees: info.worktrees.map((wt, i) => ({
-            id: generateId(),
-            name: wt.branch,
-            path: wt.path,
-            position: { x: 0, y: i * 360 },
-            collapsed: false,
-            terminals: [],
-          })),
-        });
+        addScannedProjectAndFocus(info);
       } catch (err) {
         notify("error", String(err));
       }

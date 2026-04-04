@@ -19,6 +19,7 @@ import { FamilyTreeOverlay } from "../components/FamilyTreeOverlay";
 import { BrowserCard } from "../components/BrowserCard";
 import { BoxSelectOverlay } from "./BoxSelectOverlay";
 import { useBoxSelect } from "../hooks/useBoxSelect";
+import { useNotificationStore } from "../stores/notificationStore";
 import {
   publishTerminalGeometry,
   unpublishTerminalGeometry,
@@ -48,6 +49,7 @@ import {
   PROJ_PAD,
   PROJ_TITLE_H,
 } from "../layout";
+import { addScannedProjectAndFocus } from "../projects/projectCreation";
 
 const EMPTY_EDGES: never[] = [];
 
@@ -259,6 +261,7 @@ function TerminalRuntimeLayer({
 
 function XyFlowCanvasInner() {
   const t = useT();
+  const notify = useNotificationStore((state) => state.notify);
   const viewport = useCanvasStore((state) => state.viewport);
   const rightPanelCollapsed = useCanvasStore((state) => state.rightPanelCollapsed);
   const leftPanelCollapsed = useCanvasStore((state) => state.leftPanelCollapsed);
@@ -330,6 +333,33 @@ function XyFlowCanvasInner() {
     useProjectStore.getState().clearFocus();
     useSelectionStore.getState().clearSelection();
   }, []);
+
+  const handleAddProject = useCallback(async () => {
+    if (!window.termcanvas) return;
+
+    let dirPath: string | null;
+    try {
+      dirPath = await window.termcanvas.project.selectDirectory();
+    } catch (err) {
+      notify("error", t.error_dir_picker(err));
+      return;
+    }
+    if (!dirPath) return;
+
+    let info: Awaited<ReturnType<typeof window.termcanvas.project.scan>>;
+    try {
+      info = await window.termcanvas.project.scan(dirPath);
+    } catch (err) {
+      notify("error", t.error_scan(err));
+      return;
+    }
+    if (!info) {
+      notify("error", t.error_scan("Failed to scan directory"));
+      return;
+    }
+
+    addScannedProjectAndFocus(info);
+  }, [notify, t]);
 
   const handleNodeClick = useCallback<NodeMouseHandler<CanvasFlowNode>>(
     (_event, node) => {
@@ -474,13 +504,16 @@ function XyFlowCanvasInner() {
 
       {projects.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="text-center">
-            <div className="text-[var(--text-muted)] text-lg font-light mb-2">
+          <div className="text-center pointer-events-auto">
+            <div className="text-[var(--text-muted)] text-lg font-light mb-4">
               {t.canvas_empty_title}
             </div>
-            <div className="text-[var(--text-faint)] text-sm">
+            <button
+              onClick={handleAddProject}
+              className="px-6 py-3 bg-[var(--button-bg)] hover:bg-[var(--button-bg-hover)] text-[var(--button-text)] rounded-lg transition-colors"
+            >
               {t.canvas_empty_action}
-            </div>
+            </button>
           </div>
         </div>
       )}

@@ -2,9 +2,9 @@ import { useEffect, useRef } from "react";
 import {
   useProjectStore,
   createTerminal,
-  generateId,
   getProjectBounds,
 } from "../stores/projectStore";
+import { addScannedProjectAndFocus } from "../projects/projectCreation";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { useSelectionStore } from "../stores/selectionStore";
@@ -133,47 +133,17 @@ async function handleAddProject(t: ReturnType<typeof useT>) {
     return;
   }
 
-  const { projects, addProject } = useProjectStore.getState();
-  let placeX = 0;
-  const gap = 80;
-  for (const p of projects) {
-    const bounds = getProjectBounds(p);
-    placeX = Math.max(placeX, bounds.x + bounds.w + gap);
-  }
-
-  addProject({
-    id: generateId(),
-    name: info.name,
-    path: info.path,
-    position: { x: placeX, y: 0 },
-    collapsed: false,
-    zIndex: 0,
-    worktrees: info.worktrees.map((wt, i) => ({
-      id: generateId(),
-      name: wt.branch,
-      path: wt.path,
-      position: { x: 0, y: i * 360 },
-      collapsed: false,
-      terminals: [],
-    })),
-  });
+  const createdProject = addScannedProjectAndFocus(info);
 
   // Compute actual project size (same logic as ProjectContainer).
   const newProject = useProjectStore.getState().projects.find(
-    (p) => p.path === info.path,
+    (p) => p.id === createdProject.id,
   );
-
-  // Auto-focus the first worktree so cmd+t works immediately
-  if (newProject && newProject.worktrees.length > 0) {
-    useProjectStore
-      .getState()
-      .setFocusedWorktree(newProject.id, newProject.worktrees[0].id);
-  }
 
   const newProjectBounds = newProject
     ? getProjectBounds(newProject)
     : {
-        x: placeX,
+        x: createdProject.position.x,
         y: 0,
         w: 340,
         h: PROJ_TITLE_H + PROJ_PAD + 60 + PROJ_PAD,

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { addScannedProjectAndFocus } from "../src/projects/projectCreation.ts";
 import { useProjectStore } from "../src/stores/projectStore.ts";
 import type { ProjectData } from "../src/types/index.ts";
 
@@ -325,6 +326,28 @@ test("toggleWorktreeCollapse moves focus to next visible terminal", () => {
   assert.equal(state.projects[1].worktrees[0].terminals[0].focused, true);
   assert.equal(state.focusedProjectId, "project-2");
   assert.equal(state.focusedWorktreeId, "worktree-2");
+});
+
+test("addScannedProjectAndFocus focuses the first worktree of the created project", () => {
+  useProjectStore.setState({
+    projects: [],
+    focusedProjectId: null,
+    focusedWorktreeId: null,
+  });
+
+  const createdProject = addScannedProjectAndFocus({
+    name: "Project One",
+    path: "/tmp/project-one",
+    worktrees: [
+      { path: "/tmp/project-one", branch: "main", isMain: true },
+      { path: "/tmp/project-one-feature", branch: "feature", isMain: false },
+    ],
+  });
+
+  const state = useProjectStore.getState();
+  assert.equal(state.projects.length, 1);
+  assert.equal(state.focusedProjectId, createdProject.id);
+  assert.equal(state.focusedWorktreeId, createdProject.worktrees[0].id);
 });
 
 test("toggleProjectCollapse clears focus when no visible terminal remains", () => {
