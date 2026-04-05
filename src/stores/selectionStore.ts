@@ -4,7 +4,8 @@ export type SelectedItem =
   | { type: "project"; projectId: string }
   | { type: "worktree"; projectId: string; worktreeId: string }
   | { type: "terminal"; projectId: string; worktreeId: string; terminalId: string }
-  | { type: "card"; cardId: string };
+  | { type: "card"; cardId: string }
+  | { type: "annotation"; annotationId: string };
 
 interface SelectionRect {
   x: number;
@@ -18,6 +19,7 @@ interface SelectionStore {
   selectedItems: SelectedItem[];
   setSelectionRect: (rect: SelectionRect | null) => void;
   setSelectedItems: (items: SelectedItem[]) => void;
+  selectAnnotation: (annotationId: string) => void;
   selectCard: (cardId: string) => void;
   selectProject: (projectId: string) => void;
   selectTerminal: (
@@ -34,6 +36,11 @@ export const useSelectionStore = create<SelectionStore>((set) => ({
   selectedItems: [],
   setSelectionRect: (rect) => set({ selectionRect: rect }),
   setSelectedItems: (items) => set({ selectedItems: items }),
+  selectAnnotation: (annotationId) =>
+    set({
+      selectedItems: [{ type: "annotation", annotationId }],
+      selectionRect: null,
+    }),
   selectCard: (cardId) =>
     set({
       selectedItems: [{ type: "card", cardId }],

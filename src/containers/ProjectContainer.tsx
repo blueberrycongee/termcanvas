@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
 import type { ProjectData } from "../types";
+import { activateProjectInScene } from "../actions/sceneSelectionActions";
 import { useProjectStore } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { WorktreeContainer } from "./WorktreeContainer";
@@ -28,8 +29,6 @@ export function ProjectContainer({ project }: Props) {
       (item) => item.type === "project" && item.projectId === project.id,
     ),
   );
-  const selectProject = useSelectionStore((s) => s.selectProject);
-
   const handleDrag = useDrag(
     project.position.x,
     project.position.y,
@@ -48,7 +47,9 @@ export function ProjectContainer({ project }: Props) {
     let maxW = 300;
     let totalH = 0;
     for (const wt of project.worktrees) {
-      const spans = getVisibleWorktreeSpans(wt);
+      const spans = wt.terminals
+        .filter((terminal) => !terminal.stashed)
+        .map((terminal) => terminal.span);
       const wtSize = getWorktreeSize(spans, wt.collapsed, undefined, tileDims);
       maxW = Math.max(maxW, wt.position.x + wtSize.w);
       totalH = Math.max(totalH, wt.position.y + wtSize.h);
@@ -75,7 +76,7 @@ export function ProjectContainer({ project }: Props) {
       onMouseDown={() => bringToFront(project.id)}
       onClick={(e) => {
         e.stopPropagation();
-        selectProject(project.id);
+        activateProjectInScene(project.id);
       }}
     >
       <div

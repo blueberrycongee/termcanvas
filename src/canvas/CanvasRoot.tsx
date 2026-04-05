@@ -1,9 +1,11 @@
 import { Canvas } from "./Canvas";
 import { XyFlowCanvas } from "./XyFlowCanvas";
-import { isXyflowRendererEnabled } from "./rendererMode";
+import { getCanvasRendererMode } from "./rendererMode";
 
 export function CanvasRoot() {
-  if (isXyflowRendererEnabled()) {
+  const mode = getCanvasRendererMode();
+
+  if (mode === "xyflow") {
     return <XyFlowCanvas />;
   }
 

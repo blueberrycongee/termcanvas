@@ -10,14 +10,20 @@ import {
   type OnNodeDrag,
   type ReactFlowInstance,
 } from "@xyflow/react";
-import { createTerminal, useProjectStore } from "../stores/projectStore";
+import {
+  activateProjectInScene,
+  activateWorktreeInScene,
+  clearSceneFocusAndSelection,
+} from "../actions/sceneSelectionActions";
+import { useProjectStore } from "../stores/projectStore";
 import { useBrowserCardStore } from "../stores/browserCardStore";
-import { useSelectionStore } from "../stores/selectionStore";
 import { useCanvasStore } from "../stores/canvasStore";
+import { usePreferencesStore } from "../stores/preferencesStore";
 import { useT } from "../i18n/useT";
 import { FamilyTreeOverlay } from "../components/FamilyTreeOverlay";
 import { BrowserCard } from "../components/BrowserCard";
 import { BoxSelectOverlay } from "./BoxSelectOverlay";
+import { DrawingLayer } from "./DrawingLayer";
 import { useBoxSelect } from "../hooks/useBoxSelect";
 import { useNotificationStore } from "../stores/notificationStore";
 import {
@@ -82,7 +88,7 @@ function buildProjectLayoutKey(
               getVisibleWorktreeTerminals(worktree)
                 .map(
                   (terminal) =>
-                    `${terminal.id}:${terminal.span.cols}x${terminal.span.rows}`,
+                    `${terminal.id}:${terminal.span.cols}x${terminal.span.rows}:${terminal.stashed ? 1 : 0}`,
                 )
                 .join(","),
             ].join(":"),
@@ -142,8 +148,11 @@ function TerminalRuntimeLayer({
     () =>
       projects.flatMap((project) =>
         project.worktrees.flatMap((worktree) => {
+          const visibleTerminals = worktree.terminals.filter(
+            (terminal) => !terminal.stashed,
+          );
           const packed = packTerminals(
-            getVisibleWorktreeSpans(worktree),
+            visibleTerminals.map((terminal) => terminal.span),
           );
           const projectOffset =
             projectedPositions.projectOffsets.get(project.id) ?? project.position;
@@ -153,7 +162,7 @@ function TerminalRuntimeLayer({
               y: PROJ_TITLE_H + PROJ_PAD + worktree.position.y,
             };
 
-          return getVisibleWorktreeTerminals(worktree).flatMap((terminal, index) => {
+          return visibleTerminals.flatMap((terminal, index) => {
             const item = packed[index];
             if (!item) {
               return [];
@@ -230,6 +239,18 @@ function TerminalRuntimeLayer({
   }, [terminalEntries]);
 
   useEffect(() => {
+    const visibleEntryIds = new Set(terminalEntries.map((entry) => entry.terminal.id));
+
+    for (const project of projects) {
+      for (const worktree of project.worktrees) {
+        for (const terminal of worktree.terminals) {
+          if (!visibleEntryIds.has(terminal.id)) {
+            setTerminalRuntimeMode(terminal.id, "unmounted");
+          }
+        }
+      }
+    }
+
     for (const entry of terminalEntries) {
       const visible =
         !entry.project.collapsed &&
@@ -249,7 +270,7 @@ function TerminalRuntimeLayer({
         }),
       );
     }
-  }, [leftPanelCollapsed, leftPanelWidth, rightPanelCollapsed, terminalEntries, viewport]);
+  }, [leftPanelCollapsed, leftPanelWidth, projects, rightPanelCollapsed, terminalEntries, viewport]);
 
   useEffect(
     () => () => {
@@ -274,6 +295,7 @@ function XyFlowCanvasInner() {
   const rightPanelCollapsed = useCanvasStore((state) => state.rightPanelCollapsed);
   const leftPanelCollapsed = useCanvasStore((state) => state.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((state) => state.leftPanelWidth);
+  const drawingEnabled = usePreferencesStore((state) => state.drawingEnabled);
   const projects = useProjectStore((state) => state.projects);
   const browserCards = useBrowserCardStore((state) => Object.values(state.cards));
   const { handleMouseDown: handleBoxSelectMouseDown } = useBoxSelect();
@@ -337,8 +359,7 @@ function XyFlowCanvasInner() {
   }, []);
 
   const handlePaneClick = useCallback(() => {
-    useProjectStore.getState().clearFocus();
-    useSelectionStore.getState().clearSelection();
+    clearSceneFocusAndSelection();
   }, []);
 
   const stopCanvasMouseDown = useCallback((event: React.MouseEvent) => {
@@ -390,28 +411,13 @@ function XyFlowCanvasInner() {
     (_event, node) => {
       if (node.type === "project") {
         const projectId = node.data.projectId;
-        useProjectStore.getState().bringToFront(projectId);
-        useProjectStore.getState().clearFocus();
-        useSelectionStore.getState().setSelectedItems([
-          {
-            type: "project",
-            projectId,
-          },
-        ]);
+        activateProjectInScene(projectId, { bringToFront: true });
         return;
       }
 
       if (node.type === "worktree") {
         const { projectId, worktreeId } = node.data;
-        useProjectStore.getState().bringToFront(projectId);
-        useProjectStore.getState().setFocusedWorktree(projectId, worktreeId);
-        useSelectionStore.getState().setSelectedItems([
-          {
-            type: "worktree",
-            projectId,
-            worktreeId,
-          },
-        ]);
+        activateWorktreeInScene(projectId, worktreeId, { bringToFront: true });
       }
     },
     [],
@@ -502,6 +508,7 @@ function XyFlowCanvasInner() {
       </ReactFlow>
 
       <BoxSelectOverlay />
+      {drawingEnabled && <DrawingLayer />}
 
       <div
         id="canvas-layer"

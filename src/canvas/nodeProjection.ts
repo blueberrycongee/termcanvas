@@ -63,7 +63,9 @@ export function buildCanvasFlowNodes(projects: ProjectData[]): CanvasFlowNode[] 
     };
 
     const worktreeNodes: CanvasFlowNode[] = project.worktrees.map((worktree) => {
-      const spans = getVisibleWorktreeSpans(worktree);
+      const spans = worktree.terminals
+        .filter((terminal) => !terminal.stashed)
+        .map((terminal) => terminal.span);
       const baseSize = getWorktreeSize(spans, worktree.collapsed);
       return {
         id: worktreeNodeId(worktree.id),

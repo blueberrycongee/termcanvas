@@ -1,13 +1,49 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildSceneDocumentFromLegacyState } from "../src/canvas/sceneProjection.ts";
-import {
-  buildCanvasFlowNodes,
-  projectNodeId,
-  worktreeNodeId,
-} from "../src/canvas/nodeProjection.ts";
 import type { ProjectData } from "../src/types/index.ts";
+
+function installCanvasProjectionGlobals() {
+  const storage = new Map<string, string>();
+  const localStorage = {
+    getItem(key: string) {
+      return storage.get(key) ?? null;
+    },
+    setItem(key: string, value: string) {
+      storage.set(key, value);
+    },
+    removeItem(key: string) {
+      storage.delete(key);
+    },
+    clear() {
+      storage.clear();
+    },
+  };
+  const navigator = {
+    language: "en-US",
+    userAgent: "node-test",
+  };
+  const target = new EventTarget();
+  const mockWindow = Object.assign(target, {
+    navigator,
+    localStorage,
+  }) as Window;
+
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: localStorage,
+  });
+
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: navigator,
+  });
+
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: mockWindow,
+  });
+}
 
 function createProjects(): ProjectData[] {
   return [
@@ -43,7 +79,11 @@ function createProjects(): ProjectData[] {
   ];
 }
 
-test("buildSceneDocumentFromLegacyState maps camera, projects, cards, and annotations", () => {
+test("buildSceneDocumentFromLegacyState maps camera, projects, cards, and annotations", async () => {
+  installCanvasProjectionGlobals();
+  const { buildSceneDocumentFromLegacyState } = await import(
+    "../src/canvas/sceneProjection.ts"
+  );
   const scene = buildSceneDocumentFromLegacyState({
     viewport: { x: 10, y: 20, scale: 0.75 },
     projects: createProjects(),
@@ -91,7 +131,13 @@ test("buildSceneDocumentFromLegacyState maps camera, projects, cards, and annota
   });
 });
 
-test("buildCanvasFlowNodes creates project/worktree nodes with parent-child mapping", () => {
+test("buildCanvasFlowNodes creates project/worktree nodes with parent-child mapping", async () => {
+  installCanvasProjectionGlobals();
+  const {
+    buildCanvasFlowNodes,
+    projectNodeId,
+    worktreeNodeId,
+  } = await import("../src/canvas/nodeProjection.ts");
   const [projectNode, worktreeNode] = buildCanvasFlowNodes(createProjects());
 
   assert.equal(projectNode.id, projectNodeId("project-1"));
@@ -111,27 +157,46 @@ test("buildCanvasFlowNodes creates project/worktree nodes with parent-child mapp
   assert.equal(worktreeNode.hidden, false);
 });
 
-test("buildCanvasFlowNodes ignores stashed terminals when sizing worktrees", () => {
-  const projects = createProjects();
-  projects[0].position = { x: 0, y: 0 };
-  projects[0].worktrees[0].position = { x: 0, y: 0 };
-  projects[0].worktrees[0].terminals = [
-    projects[0].worktrees[0].terminals[0],
-    {
-      ...projects[0].worktrees[0].terminals[0],
-      id: "terminal-2",
-      title: "Terminal 2",
-    },
-    {
-      ...projects[0].worktrees[0].terminals[0],
-      id: "terminal-3",
-      title: "Terminal 3",
-      stashed: true,
-    },
-  ];
+test("buildCanvasFlowNodes ignores stashed terminals when sizing nodes", async () => {
+  installCanvasProjectionGlobals();
+  const { buildCanvasFlowNodes } = await import("../src/canvas/nodeProjection.ts");
 
-  const [projectNode, worktreeNode] = buildCanvasFlowNodes(projects);
+  const visibleOnlyProjects = createProjects();
+  const projectsWithStashed = createProjects();
+  projectsWithStashed[0]!.worktrees[0]!.terminals.push({
+    id: "terminal-stashed",
+    title: "Stashed Terminal",
+    type: "shell",
+    minimized: false,
+    focused: false,
+    ptyId: null,
+    status: "idle",
+    stashed: true,
+    span: { cols: 3, rows: 2 },
+  });
 
-  assert.equal(worktreeNode.width, 1308);
-  assert.equal(projectNode.width, 1332);
+  const visibleOnlyNodes = buildCanvasFlowNodes(visibleOnlyProjects);
+  const nodesWithStashed = buildCanvasFlowNodes(projectsWithStashed);
+  const visibleOnlyProjectNode = visibleOnlyNodes.find((node) => node.type === "project");
+  const visibleOnlyWorktreeNode = visibleOnlyNodes.find((node) => node.type === "worktree");
+  const stashedProjectNode = nodesWithStashed.find((node) => node.type === "project");
+  const stashedWorktreeNode = nodesWithStashed.find((node) => node.type === "worktree");
+
+  assert.equal(stashedProjectNode?.width, visibleOnlyProjectNode?.width);
+  assert.equal(stashedProjectNode?.height, visibleOnlyProjectNode?.height);
+  assert.equal(stashedWorktreeNode?.width, visibleOnlyWorktreeNode?.width);
+  assert.equal(stashedWorktreeNode?.height, visibleOnlyWorktreeNode?.height);
+});
+
+test("getCanvasRendererMode defaults to xyflow and honors explicit legacy override", async () => {
+  installCanvasProjectionGlobals();
+  const { getCanvasRendererMode } = await import("../src/canvas/rendererMode.ts");
+
+  assert.equal(getCanvasRendererMode(), "xyflow");
+
+  localStorage.setItem("termcanvas-canvas-renderer", "legacy");
+  assert.equal(getCanvasRendererMode(), "legacy");
+
+  localStorage.setItem("termcanvas-canvas-renderer", "xyflow");
+  assert.equal(getCanvasRendererMode(), "xyflow");
 });

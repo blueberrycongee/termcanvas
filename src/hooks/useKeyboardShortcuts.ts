@@ -1,7 +1,19 @@
 import { useEffect, useRef } from "react";
+import { deleteSelectedSceneItems } from "../actions/sceneDeleteActions";
+import {
+  activateWorktreeInScene,
+  clearSceneFocusAndSelection,
+} from "../actions/sceneSelectionActions";
+import {
+  closeTerminalInScene,
+  createTerminalInScene,
+  focusTerminalInScene,
+  toggleTerminalStarredInScene,
+  updateTerminalSpanInScene,
+} from "../actions/terminalSceneActions";
 import {
   useProjectStore,
-  createTerminal,
+  generateId,
   getProjectBounds,
 } from "../stores/projectStore";
 import {
@@ -10,7 +22,6 @@ import {
 } from "../projects/projectCreation";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useNotificationStore } from "../stores/notificationStore";
-import { useSelectionStore } from "../stores/selectionStore";
 import {
   useShortcutStore,
   matchesShortcut,
@@ -143,6 +154,11 @@ async function handleAddProject(t: ReturnType<typeof useT>) {
     (p) => p.id === createdProject.id,
   );
 
+  // Auto-focus the first worktree so cmd+t works immediately
+  if (newProject && newProject.worktrees.length > 0) {
+    activateWorktreeInScene(newProject.id, newProject.worktrees[0].id);
+  }
+
   const newProjectBounds = newProject
     ? getProjectBounds(newProject)
     : {
@@ -192,6 +208,11 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      if ((e.key === "Backspace" || e.key === "Delete") && deleteSelectedSceneItems()) {
+        e.preventDefault();
+        return;
+      }
+
       if (matchesShortcut(e, shortcuts.addProject)) {
         consumeShortcut();
         handleAddProject(t);
@@ -210,13 +231,12 @@ export function useKeyboardShortcuts() {
             worktreeId: focused.worktreeId,
             terminalId: focused.terminalId,
           };
-          useProjectStore.getState().clearFocus();
-          useSelectionStore.getState().clearSelection();
+          clearSceneFocusAndSelection();
           zoomToFitAll();
         } else if (lastFocusedRef.current) {
           const { projectId, worktreeId, terminalId } =
             lastFocusedRef.current;
-          useProjectStore.getState().setFocusedTerminal(terminalId);
+          focusTerminalInScene(terminalId);
           zoomToTerminal(terminalId);
         } else if (list.length > 0) {
           const first = list[0];
@@ -225,7 +245,7 @@ export function useKeyboardShortcuts() {
             worktreeId: first.worktreeId,
             terminalId: first.terminalId,
           };
-          useProjectStore.getState().setFocusedTerminal(first.terminalId);
+          focusTerminalInScene(first.terminalId);
           zoomToTerminal(first.terminalId);
         }
         return;
@@ -244,38 +264,24 @@ export function useKeyboardShortcuts() {
         const focusedIdx = getFocusedTerminalIndex(list);
         if (focusedIdx !== -1) {
           const focused = list[focusedIdx];
-          useProjectStore
-            .getState()
-            .toggleTerminalStarred(
-              focused.projectId,
-              focused.worktreeId,
-              focused.terminalId,
-            );
+          toggleTerminalStarredInScene(
+            focused.projectId,
+            focused.worktreeId,
+            focused.terminalId,
+          );
         }
         return;
       }
 
       if (matchesShortcut(e, shortcuts.newTerminal)) {
-        consumeShortcut();
-        const {
-          projects,
-          focusedProjectId,
-          focusedWorktreeId,
-          addTerminal,
-          setFocusedTerminal,
-        } =
-          useProjectStore.getState();
-        const target =
-          focusedProjectId && focusedWorktreeId
-            ? { projectId: focusedProjectId, worktreeId: focusedWorktreeId }
-            : projects.length === 0 && window.termcanvas?.app.homePath
-              ? ensureTerminalCreationTarget(window.termcanvas.app.homePath)
-              : null;
-
-        if (target) {
-          const terminal = createTerminal("shell");
-          addTerminal(target.projectId, target.worktreeId, terminal);
-          setFocusedTerminal(terminal.id);
+        e.preventDefault();
+        const { focusedProjectId, focusedWorktreeId } = useProjectStore.getState();
+        if (focusedProjectId && focusedWorktreeId) {
+          const terminal = createTerminalInScene({
+            projectId: focusedProjectId,
+            worktreeId: focusedWorktreeId,
+          });
+          focusTerminalInScene(terminal.id);
           zoomToTerminal(terminal.id);
         }
         return;
@@ -370,14 +376,12 @@ export function useKeyboardShortcuts() {
 
         const { composerEnabled } = usePreferencesStore.getState();
         if (composerEnabled) {
-          useProjectStore.getState().setFocusedTerminal(terminal.id);
+          focusTerminalInScene(terminal.id);
           useComposerStore
             .getState()
             .enterRenameTerminalTitleMode(terminal.id, terminal.customTitle ?? "");
         } else {
-          useProjectStore
-            .getState()
-            .setFocusedTerminal(terminal.id, { focusComposer: false });
+          focusTerminalInScene(terminal.id, { focusComposer: false });
           window.dispatchEvent(
             new CustomEvent("termcanvas:focus-custom-title", {
               detail: terminal.id,
@@ -393,13 +397,11 @@ export function useKeyboardShortcuts() {
         const focusedIdx = getFocusedTerminalIndex(list);
         if (focusedIdx !== -1) {
           const focused = list[focusedIdx];
-          useProjectStore
-            .getState()
-            .removeTerminal(
-              focused.projectId,
-              focused.worktreeId,
-              focused.terminalId,
-            );
+          closeTerminalInScene(
+            focused.projectId,
+            focused.worktreeId,
+            focused.terminalId,
+          );
         }
         return;
       }
@@ -439,7 +441,6 @@ export function useKeyboardShortcuts() {
           const nextIndex =
             currentIndex === -1 ? 0 : (currentIndex + 1) % list.length;
           const next = list[nextIndex];
-          useProjectStore.getState().setFocusedWorktree(next.projectId, next.worktreeId);
           panToWorktree(next.projectId, next.worktreeId);
           return;
         }
@@ -452,7 +453,7 @@ export function useKeyboardShortcuts() {
         const nextIndex =
           currentIndex === -1 ? 0 : (currentIndex + 1) % terminalList.length;
         const next = terminalList[nextIndex];
-        useProjectStore.getState().setFocusedTerminal(next.terminalId);
+        focusTerminalInScene(next.terminalId);
         zoomToTerminal(next.terminalId);
         return;
       }
@@ -468,7 +469,6 @@ export function useKeyboardShortcuts() {
           const prevIndex =
             currentIndex <= 0 ? list.length - 1 : currentIndex - 1;
           const prev = list[prevIndex];
-          useProjectStore.getState().setFocusedWorktree(prev.projectId, prev.worktreeId);
           panToWorktree(prev.projectId, prev.worktreeId);
           return;
         }
@@ -481,7 +481,7 @@ export function useKeyboardShortcuts() {
         const prevIndex =
           currentIndex <= 0 ? terminalList.length - 1 : currentIndex - 1;
         const prev = terminalList[prevIndex];
-        useProjectStore.getState().setFocusedTerminal(prev.terminalId);
+        focusTerminalInScene(prev.terminalId);
         zoomToTerminal(prev.terminalId);
         return;
       }
@@ -498,13 +498,18 @@ export function useKeyboardShortcuts() {
 
       for (const preset of SPAN_PRESETS) {
         if (matchesShortcut(e, shortcuts[preset.key])) {
-          consumeShortcut();
-          const { projects, updateTerminalSpan } = useProjectStore.getState();
+          e.preventDefault();
+          const { projects } = useProjectStore.getState();
           for (const p of projects) {
             for (const w of p.worktrees) {
               const focused = w.terminals.find((t) => t.focused);
               if (focused) {
-                updateTerminalSpan(p.id, w.id, focused.id, preset.span);
+                updateTerminalSpanInScene(
+                  p.id,
+                  w.id,
+                  focused.id,
+                  preset.span,
+                );
                 return;
               }
             }

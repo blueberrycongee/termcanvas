@@ -1,8 +1,8 @@
+import { clearSceneFocusAndSelection } from "../actions/sceneSelectionActions";
 import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useProjectStore, createTerminal } from "../stores/projectStore";
 import { useDrawingStore } from "../stores/drawingStore";
-import { useSelectionStore } from "../stores/selectionStore";
 import { useBrowserCardStore } from "../stores/browserCardStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import {
@@ -138,8 +138,7 @@ export function Canvas() {
           target === e.currentTarget ||
           target.id === "canvas-layer"
         ) {
-          useProjectStore.getState().clearFocus();
-          useSelectionStore.getState().clearSelection();
+          clearSceneFocusAndSelection();
         }
       }}
     >

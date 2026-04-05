@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  destroyAllStashedTerminals,
-  destroyStashedTerminal,
-  unstashTerminal,
-  useProjectStore,
-} from "../stores/projectStore";
+  destroyAllStashedTerminalsInScene,
+  destroyStashedTerminalInScene,
+  unstashTerminalInScene,
+} from "../actions/terminalSceneActions";
+import { useProjectStore } from "../stores/projectStore";
 import { getTerminalRuntimePreviewAnsi } from "../terminal/terminalRuntimeStore";
 import { TERMINAL_TYPE_CONFIG } from "../terminal/terminalTypeConfig";
 import { useT } from "../i18n/useT";
@@ -68,7 +68,7 @@ function StashCard({ terminalId }: { terminalId: string }) {
         <button
           className="px-2 py-0.5 text-[10px] rounded border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-150"
           style={{ fontFamily: '"Geist Mono", monospace' }}
-          onClick={() => unstashTerminal(terminal.id)}
+          onClick={() => unstashTerminalInScene(terminal.id)}
           title={t.stash_restore}
         >
           {t.stash_restore}
@@ -76,7 +76,7 @@ function StashCard({ terminalId }: { terminalId: string }) {
         <button
           className="px-2 py-0.5 text-[10px] rounded border border-[var(--border)] text-[var(--text-faint)] hover:text-[var(--red)] hover:bg-[var(--surface-hover)] transition-colors duration-150"
           style={{ fontFamily: '"Geist Mono", monospace' }}
-          onClick={() => destroyStashedTerminal(terminal.id)}
+          onClick={() => destroyStashedTerminalInScene(terminal.id)}
         >
           {t.stash_destroy}
         </button>
@@ -176,7 +176,7 @@ export function StashBox() {
                 <button
                   className="text-[10px] text-[var(--text-faint)] hover:text-[var(--red)] transition-colors duration-150 px-1.5 py-0.5 rounded"
                   style={{ fontFamily: '"Geist Mono", monospace' }}
-                  onClick={() => destroyAllStashedTerminals()}
+                  onClick={() => destroyAllStashedTerminalsInScene()}
                 >
                   {t.stash_clear_all}
                 </button>

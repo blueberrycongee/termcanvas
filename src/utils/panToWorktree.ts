@@ -1,7 +1,7 @@
+import { activateWorktreeInScene } from "../actions/sceneSelectionActions";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { getCanvasRightInset, getCanvasLeftInset, clampCenterX } from "../canvas/viewportBounds";
-import { useSelectionStore } from "../stores/selectionStore";
 import {
   getWorktreeSize,
   PROJ_PAD,
@@ -39,5 +39,5 @@ export function panToWorktree(projectId: string, worktreeId: string): void {
   const centerY = -(absY + size.h / 2) * scale + window.innerHeight / 2;
 
   useCanvasStore.getState().animateTo(centerX, centerY, scale);
-  useSelectionStore.getState().selectWorktree(projectId, worktreeId);
+  activateWorktreeInScene(projectId, worktreeId);
 }

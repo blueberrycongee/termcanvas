@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Position, WorktreeData } from "../types";
+import { activateWorktreeInScene } from "../actions/sceneSelectionActions";
+import {
+  createTerminalInScene,
+  stashTerminalInScene,
+  updateTerminalSpanInScene,
+} from "../actions/terminalSceneActions";
 import {
   useProjectStore,
-  createTerminal,
   getProjectBounds,
-  stashTerminal,
 } from "../stores/projectStore";
 import { useCardLayoutStore } from "../stores/cardLayoutStore";
 import { useSelectionStore } from "../stores/selectionStore";
@@ -73,12 +77,9 @@ export function WorktreeContainer({
   >([]);
   const {
     toggleWorktreeCollapse,
-    addTerminal,
     updateWorktreePosition,
     reorderTerminal,
-    setFocusedWorktree,
     focusedWorktreeId,
-    updateTerminalSpan,
   } = useProjectStore();
   const viewport = useCanvasStore((s) => s.viewport);
 
@@ -90,8 +91,7 @@ export function WorktreeContainer({
         item.worktreeId === worktree.id,
     ),
   );
-  const selectWorktree = useSelectionStore((s) => s.selectWorktree);
-
+  // Listen for close-card events (from batch delete)
   useEffect(() => {
     const handler = (e: Event) => {
       const { cardId } = (e as CustomEvent<{ cardId: string }>).detail;
@@ -117,9 +117,11 @@ export function WorktreeContainer({
   );
 
   const handleNewTerminal = useCallback(() => {
-    const terminal = createTerminal("shell");
-    addTerminal(projectId, worktree.id, terminal);
-  }, [projectId, worktree.id, addTerminal]);
+    createTerminalInScene({
+      projectId,
+      worktreeId: worktree.id,
+    });
+  }, [projectId, worktree.id]);
   const stopHeaderButtonMouseDown = useCallback((event: React.MouseEvent) => {
     event.stopPropagation();
   }, []);
@@ -283,6 +285,7 @@ export function WorktreeContainer({
           return;
         }
 
+        // Normal reorder logic
         const currentPacked = packTerminals(visibleTerminals.map((t) => t.span));
         const origItem = currentPacked[origIndex];
         if (!origItem) return;
@@ -319,7 +322,7 @@ export function WorktreeContainer({
 
         setDragState((prev) => {
           if (prev?.outsideWorktree) {
-            stashTerminal(projectId, worktree.id, terminalId);
+            stashTerminalInScene(projectId, worktree.id, terminalId);
             return null;
           }
           if (prev && prev.targetIndex !== origIndex) {
@@ -337,7 +340,7 @@ export function WorktreeContainer({
       window.addEventListener("mousemove", handleMove);
       window.addEventListener("mouseup", handleUp);
     },
-    [projectId, worktree.id, visibleTerminals, reorderTerminal, computedSize],
+    [computedSize, projectId, reorderTerminal, visibleTerminals, worktree.id],
   );
 
   return (
@@ -355,8 +358,7 @@ export function WorktreeContainer({
       }}
       onClick={(e) => {
         e.stopPropagation();
-        setFocusedWorktree(projectId, worktree.id);
-        selectWorktree(projectId, worktree.id);
+        activateWorktreeInScene(projectId, worktree.id);
       }}
     >
       <div
@@ -415,8 +417,12 @@ export function WorktreeContainer({
             onMouseDown={stopHeaderButtonMouseDown}
             onClick={(event) =>
               stopHeaderButtonClick(event, () => {
-                const term = createTerminal("lazygit", "lazygit");
-                addTerminal(projectId, worktree.id, term);
+                createTerminalInScene({
+                  projectId,
+                  worktreeId: worktree.id,
+                  type: "lazygit",
+                  title: "lazygit",
+                });
               })
             }
             title={t.lazygit}
@@ -485,12 +491,17 @@ export function WorktreeContainer({
               dragOffsetY={isDragging ? dragState.offsetY : 0}
               onDoubleClick={() => panToTerminal(terminal.id)}
               onSpanChange={(span) =>
-                updateTerminalSpan(projectId, worktree.id, terminal.id, span)
+                updateTerminalSpanInScene(
+                  projectId,
+                  worktree.id,
+                  terminal.id,
+                  span,
+                )
               }
             />
           );
         })}
-        {worktree.terminals.length === 0 && !worktree.collapsed && (
+        {visibleTerminals.length === 0 && !worktree.collapsed && (
           <button
             className="w-full py-6 rounded-md text-[var(--text-faint)] text-[11px] hover:text-[var(--text-secondary)] hover:bg-[var(--surface)] transition-colors duration-150"
             onClick={handleNewTerminal}
