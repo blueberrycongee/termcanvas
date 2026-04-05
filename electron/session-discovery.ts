@@ -615,7 +615,6 @@ function scanTailForLine(filePath: string, needle: string): string | null {
       // First element may be a partial line — carry it over
       leftover = lines[0];
 
-      // Scan from the end of this chunk
       for (let i = lines.length - 1; i >= 1; i--) {
         if (lines[i].includes(needle)) {
           return lines[i];
@@ -625,7 +624,6 @@ function scanTailForLine(filePath: string, needle: string): string | null {
       scanned += readBytes;
     }
 
-    // Check the very first piece (leftover from the last iteration)
     if (leftover.includes(needle)) {
       return leftover;
     }
@@ -659,7 +657,6 @@ export function readClaudeSessionPermissionMode(
       return entry.permissionMode;
     }
   } catch {
-    // malformed
   }
 
   return null;
@@ -695,7 +692,6 @@ export function readCodexSessionBypassState(
       );
     }
   } catch {
-    // malformed
   }
 
   return false;
