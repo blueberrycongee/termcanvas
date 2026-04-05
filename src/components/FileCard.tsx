@@ -7,6 +7,7 @@ import {
 } from "../stores/cardLayoutStore";
 import { useProjectStore, getProjectBounds } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
+import { useFileCardStore, type FileCardData } from "../stores/fileCardStore";
 import { useT } from "../i18n/useT";
 
 type FileContent =
@@ -18,32 +19,13 @@ type FileContent =
   | { status: "error"; message: string };
 
 interface Props {
-  fileCardId: string;
-  filePath: string;
-  fileName: string;
-  anchorX: number;
-  anchorY: number;
-  onClose: () => void;
+  card: FileCardData;
 }
 
-export function FileCard({
-  fileCardId,
-  filePath,
-  fileName,
-  anchorX,
-  anchorY,
-  onClose,
-}: Props) {
+export function FileCard({ card }: Props) {
   const t = useT();
-  const cardId = `file:${fileCardId}`;
-  const isSelected = useSelectionStore((state) =>
-    state.selectedItems.some(
-      (item) => item.type === "card" && item.cardId === cardId,
-    ),
-  );
+  const cardId = `file:${card.id}`;
   const [fileContent, setFileContent] = useState<FileContent>({ status: "loading" });
-  const [pos, setPos] = useState({ x: anchorX + 16, y: anchorY });
-  const [size, setSize] = useState({ w: 500, h: 400 });
   const dragRef = useRef<{
     startX: number;
     startY: number;
@@ -58,28 +40,38 @@ export function FileCard({
   } | null>(null);
 
   const { register, unregister } = useCardLayoutStore();
-  const cards = useCardLayoutStore((s) => s.cards);
+  const cards = useCardLayoutStore((state) => state.cards);
+  const removeCard = useFileCardStore((state) => state.removeCard);
+  const updateCard = useFileCardStore((state) => state.updateCard);
+  const isSelected = useSelectionStore((state) =>
+    state.selectedItems.some(
+      (item) => item.type === "card" && item.cardId === cardId,
+    ),
+  );
 
   useEffect(() => {
-    register(cardId, { x: pos.x, y: pos.y, w: size.w, h: size.h });
+    register(cardId, { x: card.x, y: card.y, w: card.w, h: card.h });
     return () => unregister(cardId);
-  }, [cardId, pos.x, pos.y, size.w, size.h, register, unregister]);
+  }, [card.h, card.w, card.x, card.y, cardId, register, unregister]);
 
-  const projects = useProjectStore((s) => s.projects);
+  const projects = useProjectStore((state) => state.projects);
   const obstacles = useMemo(
-    () => projects.map((p) => getProjectBounds(p)),
+    () => projects.map((project) => getProjectBounds(project)),
     [projects],
   );
 
   const allResolved = resolveAllCardPositions(cards, obstacles);
-  const resolved = allResolved[cardId] ?? { x: pos.x, y: pos.y };
+  const resolved = allResolved[cardId] ?? { x: card.x, y: card.y };
   const resolvedX = resolved.x;
   const resolvedY = resolved.y;
 
   useEffect(() => {
-    if (!window.termcanvas) return;
+    if (!window.termcanvas) {
+      return;
+    }
+
     setFileContent({ status: "loading" });
-    window.termcanvas.fs.readFile(filePath).then((result) => {
+    window.termcanvas.fs.readFile(card.filePath).then((result) => {
       if ("error" in result) {
         if (result.error === "too-large") {
           setFileContent({
@@ -89,41 +81,50 @@ export function FileCard({
         } else {
           setFileContent({ status: "error", message: t.file_read_error });
         }
+        return;
+      }
+
+      if (result.type === "image") {
+        setFileContent({ status: "image", content: result.content });
+      } else if (result.type === "binary") {
+        setFileContent({ status: "binary" });
+      } else if (result.type === "markdown") {
+        setFileContent({ status: "markdown", content: result.content });
       } else {
-        if (result.type === "image") {
-          setFileContent({ status: "image", content: result.content });
-        } else if (result.type === "binary") {
-          setFileContent({ status: "binary" });
-        } else if (result.type === "markdown") {
-          setFileContent({ status: "markdown", content: result.content });
-        } else {
-          setFileContent({ status: "text", content: result.content });
-        }
+        setFileContent({ status: "text", content: result.content });
       }
     });
-  }, [filePath, t]);
+  }, [card.filePath, t]);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ cardId: string }>).detail;
+      if (detail?.cardId === cardId) {
+        removeCard(card.id);
+      }
+    };
+
+    window.addEventListener("termcanvas:close-card", handler);
+    return () => window.removeEventListener("termcanvas:close-card", handler);
+  }, [card.id, cardId, removeCard]);
 
   const handleDragStart = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.button !== 0) return;
-      e.preventDefault();
-      e.stopPropagation();
+    (event: React.MouseEvent) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
       const scale = useCanvasStore.getState().viewport.scale;
       dragRef.current = {
-        startX: e.clientX,
-        startY: e.clientY,
-        origX: pos.x,
-        origY: pos.y,
+        startX: event.clientX,
+        startY: event.clientY,
+        origX: card.x,
+        origY: card.y,
       };
-      const handleMove = (ev: MouseEvent) => {
+      const handleMove = (moveEvent: MouseEvent) => {
         if (!dragRef.current) return;
-        setPos({
-          x:
-            dragRef.current.origX +
-            (ev.clientX - dragRef.current.startX) / scale,
-          y:
-            dragRef.current.origY +
-            (ev.clientY - dragRef.current.startY) / scale,
+        updateCard(card.id, {
+          x: dragRef.current.origX + (moveEvent.clientX - dragRef.current.startX) / scale,
+          y: dragRef.current.origY + (moveEvent.clientY - dragRef.current.startY) / scale,
         });
       };
       const handleUp = () => {
@@ -134,32 +135,32 @@ export function FileCard({
       window.addEventListener("mousemove", handleMove);
       window.addEventListener("mouseup", handleUp);
     },
-    [pos],
+    [card.id, card.x, card.y, updateCard],
   );
 
   const handleResizeStart = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
+    (event: React.MouseEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
       const scale = useCanvasStore.getState().viewport.scale;
       resizeRef.current = {
-        startX: e.clientX,
-        startY: e.clientY,
-        origW: size.w,
-        origH: size.h,
+        startX: event.clientX,
+        startY: event.clientY,
+        origW: card.w,
+        origH: card.h,
       };
-      const handleMove = (ev: MouseEvent) => {
+      const handleMove = (moveEvent: MouseEvent) => {
         if (!resizeRef.current) return;
-        setSize({
+        updateCard(card.id, {
           w: Math.max(
             280,
             resizeRef.current.origW +
-              (ev.clientX - resizeRef.current.startX) / scale,
+              (moveEvent.clientX - resizeRef.current.startX) / scale,
           ),
           h: Math.max(
             150,
             resizeRef.current.origH +
-              (ev.clientY - resizeRef.current.startY) / scale,
+              (moveEvent.clientY - resizeRef.current.startY) / scale,
           ),
         });
       };
@@ -171,11 +172,11 @@ export function FileCard({
       window.addEventListener("mousemove", handleMove);
       window.addEventListener("mouseup", handleUp);
     },
-    [size],
+    [card.h, card.id, card.w, updateCard],
   );
 
-  const lineX1 = anchorX;
-  const lineY1 = anchorY + 20;
+  const lineX1 = card.anchorX;
+  const lineY1 = card.anchorY + 20;
   const lineX2 = resolvedX;
   const lineY2 = resolvedY + 20;
   const lineSvgLeft = Math.min(lineX1, lineX2);
@@ -206,20 +207,20 @@ export function FileCard({
         />
       </svg>
       <div
-        className="absolute rounded-lg border border-[var(--border)] bg-[var(--surface)] overflow-hidden flex flex-col"
+        className="absolute rounded-lg border bg-[var(--surface)] overflow-hidden flex flex-col"
         style={{
           left: resolvedX,
           top: resolvedY,
-          width: size.w,
-          height: size.h,
+          width: card.w,
+          height: card.h,
           outline: isSelected ? "2px solid var(--accent)" : undefined,
           outlineOffset: isSelected ? -2 : undefined,
         }}
-        onMouseDown={(e) => {
-          e.stopPropagation();
+        onMouseDown={(event) => {
+          event.stopPropagation();
           activateCardInScene(cardId);
         }}
-        onWheel={(e) => e.stopPropagation()}
+        onWheel={(event) => event.stopPropagation()}
       >
         <div
           className="flex items-center gap-2 px-3 py-2 cursor-grab active:cursor-grabbing select-none shrink-0"
@@ -235,12 +236,12 @@ export function FileCard({
             className="text-[11px] text-[var(--text-muted)] truncate"
             style={{ fontFamily: '"Geist Mono", monospace' }}
           >
-            {fileName}
+            {card.fileName}
           </span>
           <div className="flex-1" />
           <button
             className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-0.5"
-            onClick={onClose}
+            onClick={() => removeCard(card.id)}
           >
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
               <path
@@ -271,7 +272,7 @@ export function FileCard({
             <div className="flex items-center justify-center p-4">
               <img
                 src={fileContent.content}
-                alt={fileName}
+                alt={card.fileName}
                 className="max-w-full max-h-full rounded border border-[var(--border)] object-contain"
                 style={{
                   background:

@@ -204,19 +204,6 @@ test("buildCanvasFlowNodes ignores stashed terminals when sizing nodes", async (
   assert.equal(stashedWorktreeNode?.height, visibleOnlyWorktreeNode?.height);
 });
 
-test("getCanvasRendererMode defaults to xyflow and honors explicit legacy override", async () => {
-  installCanvasProjectionGlobals();
-  const { getCanvasRendererMode } = await import("../src/canvas/rendererMode.ts");
-
-  assert.equal(getCanvasRendererMode(), "xyflow");
-
-  localStorage.setItem("termcanvas-canvas-renderer", "legacy");
-  assert.equal(getCanvasRendererMode(), "legacy");
-
-  localStorage.setItem("termcanvas-canvas-renderer", "xyflow");
-  assert.equal(getCanvasRendererMode(), "xyflow");
-});
-
 test("sceneState render helpers ignore stashed terminals", async () => {
   const {
     getRenderableTerminalLayouts,

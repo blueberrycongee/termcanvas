@@ -53,7 +53,9 @@ export const useFileCardStore = create<FileCardStore>((set) => ({
   },
 
   clear: () => {
-    const cardIds = new Set(Object.keys(useFileCardStore.getState().cards));
+    const cardIds = new Set(
+      Object.keys(useFileCardStore.getState().cards).map((id) => `file:${id}`),
+    );
     set({ cards: {} });
     if (cardIds.size > 0) {
       useSelectionStore.setState((state) => ({
@@ -66,6 +68,7 @@ export const useFileCardStore = create<FileCardStore>((set) => ({
 
   removeCard: (id) => {
     let removed = false;
+    const selectedCardId = `file:${id}`;
     set((state) => {
       if (!(id in state.cards)) {
         return state;
@@ -78,7 +81,7 @@ export const useFileCardStore = create<FileCardStore>((set) => ({
     if (removed) {
       useSelectionStore.setState((state) => ({
         selectedItems: state.selectedItems.filter(
-          (item) => item.type !== "card" || item.cardId !== id,
+          (item) => item.type !== "card" || item.cardId !== selectedCardId,
         ),
       }));
     }

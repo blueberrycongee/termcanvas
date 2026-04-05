@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   type Node,
@@ -6,12 +6,7 @@ import {
   type NodeTypes,
 } from "@xyflow/react";
 import type { TerminalData } from "../types";
-import {
-  createTerminalInScene,
-  stashTerminalInScene,
-  updateTerminalSpanInScene,
-} from "../actions/terminalSceneActions";
-import { useProjectStore } from "../stores/projectStore";
+import { useProjectStore, createTerminal, stashTerminal } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { TerminalTile } from "../terminal/TerminalTile";
@@ -23,17 +18,15 @@ import { useTerminalRuntimeStore } from "../terminal/terminalRuntimeStore";
 import { useT } from "../i18n/useT";
 import { TERMINAL_TYPE_CONFIG } from "../terminal/terminalTypeConfig";
 import {
-  packTerminals,
-  getWorktreeSize,
-  WT_PAD,
   WT_TITLE_H,
 } from "../layout";
 import { panToTerminal } from "../utils/panToTerminal";
 import { useTileDimensionsStore } from "../stores/tileDimensionsStore";
 import {
-  getVisibleWorktreeSpans,
-  getVisibleWorktreeTerminals,
-} from "../utils/worktreeLayout";
+  getRenderableTerminalLayouts,
+  getRenderableTerminals,
+  getRenderableWorktreeSize,
+} from "./sceneState";
 import {
   type ProjectNodeData,
   type WorktreeNodeData,
@@ -149,16 +142,20 @@ function ProjectNode({ data }: NodeProps<ProjectFlowNode>) {
     >
       <div className="pointer-events-none absolute inset-0 rounded-[var(--radius)] bg-[var(--surface)]/80" />
       <div className="tc-project-drag-handle relative flex items-center gap-2 px-4 py-2 cursor-grab active:cursor-grabbing select-none">
+        <div
+          className="absolute inset-0"
+          onDoubleClick={() => toggleProjectCollapse(project.id)}
+        />
         <span
-          className="text-[11px] font-medium text-[var(--accent)]"
+          className="relative text-[11px] font-medium text-[var(--accent)]"
           style={{ fontFamily: '"Geist Mono", monospace' }}
         >
           {t.project_label}
         </span>
-        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--text-primary)]">
+        <span className="relative min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--text-primary)]">
           {project.name}
         </span>
-        <div className="flex items-center gap-1">
+        <div className="relative flex items-center gap-1">
           <button
             className="nodrag nopan text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
             onClick={(event) => {
@@ -271,7 +268,11 @@ function WorktreeNode({
   const toggleWorktreeCollapse = useProjectStore(
     (state) => state.toggleWorktreeCollapse,
   );
+  const addTerminal = useProjectStore((state) => state.addTerminal);
   const reorderTerminal = useProjectStore((state) => state.reorderTerminal);
+  const updateTerminalSpan = useProjectStore(
+    (state) => state.updateTerminalSpan,
+  );
   const project = useProjectStore(
     useCallback(
       (state) =>
@@ -299,7 +300,6 @@ function WorktreeNode({
         item.worktreeId === data.worktreeId,
     ),
   );
-  const worktreeRef = useRef<HTMLDivElement>(null);
   const [dragState, setDragState] = useState<{
     terminalId: string;
     offsetX: number;
@@ -314,17 +314,29 @@ function WorktreeNode({
   const tileH = useTileDimensionsStore((s) => s.h);
   const tileDims = useMemo(() => ({ w: tileW, h: tileH }), [tileW, tileH]);
   const visibleTerminals = useMemo(
-    () => worktree?.terminals.filter((terminal) => !terminal.stashed) ?? [],
+    () => (worktree ? getRenderableTerminals(worktree) : []),
     [worktree],
   );
-  const spans = useMemo(
-    () => visibleTerminals.map((terminal) => terminal.span),
-    [visibleTerminals],
+  const packedLayouts = useMemo(
+    () =>
+      worktree
+        ? getRenderableTerminalLayouts(worktree, undefined, tileDims)
+        : [],
+    [tileDims, worktree],
   );
-  const packed = useMemo(() => packTerminals(spans, undefined, tileDims), [spans, tileDims]);
   const computedSize = useMemo(
-    () => getWorktreeSize(spans, worktree?.collapsed ?? false, undefined, tileDims),
-    [spans, worktree?.collapsed, tileDims],
+    () =>
+      worktree
+        ? getRenderableWorktreeSize(worktree, undefined, tileDims)
+        : getRenderableWorktreeSize({
+            collapsed: false,
+            id: "",
+            name: "",
+            path: "",
+            position: { x: 0, y: 0 },
+            terminals: [],
+          }),
+    [tileDims, worktree],
   );
 
   const terminalLayouts = useMemo(() => {
@@ -332,46 +344,16 @@ function WorktreeNode({
       return [];
     }
 
-    return visibleTerminals.map((terminal, index) => {
-      const item = packed[index];
-      if (!item) {
-        return null;
-      }
-
-      const visible =
-        !project?.collapsed &&
-        !worktree.collapsed &&
-        rectIntersectsCanvasViewport(
-          {
-            h: item.h,
-            w: item.w,
-            x: positionAbsoluteX + WT_PAD + item.x,
-            y: positionAbsoluteY + WT_TITLE_H + WT_PAD + item.y,
-          },
-          viewport,
-          rightPanelCollapsed,
-          leftPanelCollapsed,
-          leftPanelWidth,
-        );
-
-      return {
-        item,
-        terminal,
-        visible,
-      };
-    });
-  }, [packed, visibleTerminals, worktree]);
+    return packedLayouts;
+  }, [packedLayouts, worktree]);
 
   const handleNewTerminal = useCallback(() => {
     if (!worktree) {
       return;
     }
 
-    createTerminalInScene({
-      projectId: data.projectId,
-      worktreeId: worktree.id,
-    });
-  }, [data.projectId, worktree]);
+    addTerminal(data.projectId, worktree.id, createTerminal("shell"));
+  }, [addTerminal, data.projectId, worktree]);
 
   const handleTerminalDragStart = useCallback(
     (terminalId: string, event: React.MouseEvent) => {
@@ -391,10 +373,7 @@ function WorktreeNode({
 
       const contentH = computedSize.h - WT_TITLE_H;
       const contentW = computedSize.w;
-      const packed = packTerminals(
-        visibleTerminals.map((terminal) => terminal.span),
-      );
-      const startItem = packed[originalIndex];
+      const startItem = packedLayouts[originalIndex]?.item;
 
       setDragState({
         terminalId,
@@ -435,7 +414,7 @@ function WorktreeNode({
         let targetIndex = originalIndex;
         let minDistance = Infinity;
 
-        for (const item of packed) {
+        for (const { item } of packedLayouts) {
           const itemCenterX = item.x + item.w / 2;
           const itemCenterY = item.y + item.h / 2;
           const distance =
@@ -464,7 +443,7 @@ function WorktreeNode({
 
         setDragState((previous) => {
           if (previous?.outsideWorktree) {
-            stashTerminalInScene(data.projectId, data.worktreeId, terminalId);
+            stashTerminal(data.projectId, data.worktreeId, terminalId);
             return null;
           }
 
@@ -484,7 +463,15 @@ function WorktreeNode({
       window.addEventListener("mousemove", handleMove);
       window.addEventListener("mouseup", handleUp);
     },
-    [computedSize, data.projectId, data.worktreeId, reorderTerminal, visibleTerminals, worktree],
+    [
+      computedSize,
+      data.projectId,
+      data.worktreeId,
+      packedLayouts,
+      reorderTerminal,
+      visibleTerminals,
+      worktree,
+    ],
   );
 
   if (!project || !worktree) {
@@ -493,7 +480,6 @@ function WorktreeNode({
 
   return (
     <div
-      ref={worktreeRef}
       className="panel nopan h-full w-full overflow-hidden"
       style={{
         borderLeft: `2px solid ${
@@ -555,12 +541,11 @@ function WorktreeNode({
             className="nodrag nopan text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
             onClick={(event) => {
               event.stopPropagation();
-              createTerminalInScene({
-                projectId: data.projectId,
-                worktreeId: worktree.id,
-                type: "lazygit",
-                title: "lazygit",
-              });
+              addTerminal(
+                data.projectId,
+                worktree.id,
+                createTerminal("lazygit", "lazygit"),
+              );
             }}
             title={t.lazygit}
           >
@@ -619,12 +604,7 @@ function WorktreeNode({
               dragOffsetY={isDragging ? dragState.offsetY : 0}
               onDoubleClick={() => panToTerminal(terminal.id)}
               onSpanChange={(span) =>
-                updateTerminalSpanInScene(
-                  data.projectId,
-                  worktree.id,
-                  terminal.id,
-                  span,
-                )
+                updateTerminalSpan(data.projectId, worktree.id, terminal.id, span)
               }
             />
           );
