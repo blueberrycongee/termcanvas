@@ -1,4 +1,9 @@
-import type { ProjectData, StashedTerminal, Viewport } from "../types";
+import type {
+  PersistedProjectData,
+  PersistedStashedTerminal,
+  ProjectData,
+  Viewport,
+} from "../types";
 import type { BrowserCardData } from "../stores/browserCardStore";
 import type {
   AnnotationElement,
@@ -10,13 +15,27 @@ import type {
 } from "../types/scene";
 import type { DrawingElement } from "../stores/drawingStore";
 import type { SelectedItem } from "../stores/selectionStore";
+import {
+  restorePersistedProjectData,
+  restorePersistedStashedTerminal,
+} from "./scenePersistence";
 
 interface LegacySceneState {
   viewport?: Viewport | null;
-  projects?: ProjectData[] | null;
+  projects?: PersistedProjectData[] | null;
   drawings?: DrawingElement[] | null;
   browserCards?: Record<string, BrowserCardData> | null;
-  stashedTerminals?: StashedTerminal[] | null;
+  stashedTerminals?: PersistedStashedTerminal[] | null;
+}
+
+interface SceneDocumentState {
+  camera?: SceneCamera | null;
+  viewport?: Viewport | null;
+  projects?: PersistedProjectData[] | null;
+  annotations?: AnnotationElement[] | null;
+  drawings?: DrawingElement[] | null;
+  browserCards?: Record<string, BrowserCardData> | null;
+  stashedTerminals?: PersistedStashedTerminal[] | null;
 }
 
 function worldAnchor(position: { x: number; y: number }): AnnotationAnchor {
@@ -205,6 +224,9 @@ export function selectionToSceneSelection(
       case "card":
         selection.cardIds.push(item.cardId);
         break;
+      case "annotation":
+        selection.annotationIds.push(item.annotationId);
+        break;
     }
   }
 
@@ -224,12 +246,25 @@ export function createSceneRuntime(
 export function buildSceneDocumentFromLegacyState(
   state: LegacySceneState,
 ): SceneDocument {
+  return buildSceneDocument({
+    viewport: state.viewport,
+    projects: state.projects,
+    drawings: state.drawings,
+    browserCards: state.browserCards,
+    stashedTerminals: state.stashedTerminals,
+  });
+}
+
+export function buildSceneDocument(
+  state: SceneDocumentState,
+): SceneDocument {
   return {
     version: 2,
-    camera: viewportToSceneCamera(state.viewport),
+    camera: state.camera ?? viewportToSceneCamera(state.viewport),
     projects: state.projects ?? [],
     browserCards: state.browserCards ?? {},
-    annotations: (state.drawings ?? []).map(drawingToAnnotation),
+    annotations:
+      state.annotations ?? (state.drawings ?? []).map(drawingToAnnotation),
     stashedTerminals: state.stashedTerminals ?? undefined,
   };
 }
@@ -241,13 +276,15 @@ export function sceneDocumentToLegacyState(
   projects: ProjectData[];
   drawings: DrawingElement[];
   browserCards: Record<string, BrowserCardData>;
-  stashedTerminals: StashedTerminal[];
+  stashedTerminals: ReturnType<typeof restorePersistedStashedTerminal>[];
 } {
   return {
     viewport: sceneCameraToViewport(scene.camera),
-    projects: scene.projects,
+    projects: scene.projects.map(restorePersistedProjectData),
     drawings: scene.annotations.map(annotationToDrawing),
     browserCards: scene.browserCards,
-    stashedTerminals: scene.stashedTerminals ?? [],
+    stashedTerminals: (scene.stashedTerminals ?? []).map(
+      restorePersistedStashedTerminal,
+    ),
   };
 }

@@ -47,145 +47,12 @@ function installRuntimeGlobals() {
   return mockWindow;
 }
 
-function createTerminal() {
-  return {
-    id: "terminal-1",
-    title: "Terminal",
-    type: "shell" as const,
-    minimized: false,
-    focused: true,
-    ptyId: 42,
-    status: "running" as const,
-    span: { cols: 1, rows: 1 },
-  };
-}
-
-function seedProjectState(
-  useProjectStore: typeof import("../src/stores/projectStore.ts").useProjectStore,
-  terminal = createTerminal(),
-) {
-  useProjectStore.setState({
-    focusedProjectId: "project-1",
-    focusedWorktreeId: "worktree-1",
-    projects: [
-      {
-        id: "project-1",
-        name: "Project One",
-        path: "/tmp/project-1",
-        position: { x: 0, y: 0 },
-        collapsed: false,
-        zIndex: 0,
-        worktrees: [
-          {
-            id: "worktree-1",
-            name: "main",
-            path: "/tmp/project-1",
-            position: { x: 0, y: 0 },
-            collapsed: false,
-            terminals: [terminal],
-          },
-        ],
-      },
-    ],
-  });
-}
-
-function createFakeContainer() {
-  const node = {
-    children: [] as Array<ReturnType<typeof createFakeContainer>>,
-    parentElement: null as ReturnType<typeof createFakeContainer> | null,
-    addEventListener() {},
-    removeEventListener() {},
-    appendChild(child: ReturnType<typeof createFakeContainer>) {
-      child.parentElement?.removeChild(child);
-      this.children.push(child);
-      child.parentElement = this;
-      return child;
-    },
-    removeChild(child: ReturnType<typeof createFakeContainer>) {
-      this.children = this.children.filter((entry) => entry !== child);
-      if (child.parentElement === this) {
-        child.parentElement = null;
-      }
-      return child;
-    },
-  };
-
-  return node;
-}
-
-function createMockXterm() {
-  const stats = {
-    blurCalls: 0,
-    disposeCalls: 0,
-    fitCalls: 0,
-    inputBindingDisposeCalls: 0,
-    loadAddonCalls: 0,
-    refreshCalls: 0,
-    resizeBindingDisposeCalls: 0,
-    selectionBindingDisposeCalls: 0,
-    selectionPointerCleanupCalls: 0,
-    selectionSubscriptions: 0,
-  };
-
-  const xterm = {
-    cols: 80,
-    rows: 24,
-    options: {},
-    blur() {
-      stats.blurCalls += 1;
-    },
-    dispose() {
-      stats.disposeCalls += 1;
-    },
-    focus() {},
-    getSelection() {
-      return "";
-    },
-    loadAddon() {
-      stats.loadAddonCalls += 1;
-    },
-    onData() {
-      return {
-        dispose() {
-          stats.inputBindingDisposeCalls += 1;
-        },
-      };
-    },
-    onResize() {
-      return {
-        dispose() {
-          stats.resizeBindingDisposeCalls += 1;
-        },
-      };
-    },
-    onSelectionChange() {
-      stats.selectionSubscriptions += 1;
-      return {
-        dispose() {
-          stats.selectionBindingDisposeCalls += 1;
-        },
-      };
-    },
-    refresh() {
-      stats.refreshCalls += 1;
-    },
-    scrollToBottom() {},
-    write() {},
-  };
-
-  const fitAddon = {
-    fit() {
-      stats.fitCalls += 1;
-    },
-  };
-
-  return { fitAddon, stats, xterm };
-}
-
-test("destroyTerminalRuntime clears persisted pty ids from project state", async () => {
+test("destroyTerminalRuntime clears live pty ids from runtime overlay state", async () => {
   const mockWindow = installRuntimeGlobals();
   const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const { useTerminalRuntimeStateStore } = await import(
+    "../src/stores/terminalRuntimeStateStore.ts"
+  );
   const {
     destroyAllTerminalRuntimes,
     destroyTerminalRuntime,
@@ -214,11 +81,92 @@ test("destroyTerminalRuntime clears persisted pty ids from project state", async
     destroyTerminalRuntime("terminal-1");
 
     assert.equal(
-      useProjectStore.getState().projects[0].worktrees[0].terminals[0].ptyId,
+      useTerminalRuntimeStateStore.getState().terminals["terminal-1"]?.ptyId,
       null,
     );
   } finally {
     destroyAllTerminalRuntimes();
+    useTerminalRuntimeStateStore.getState().reset();
+    useProjectStore.setState(previousState);
+  }
+});
+
+test("projectStore runtime actions update overlay state without mutating the scene tree", async () => {
+  installRuntimeGlobals();
+  const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const {
+    resolveTerminalWithRuntimeState,
+    useTerminalRuntimeStateStore,
+  } = await import("../src/stores/terminalRuntimeStateStore.ts");
+  const previousState = useProjectStore.getState();
+
+  try {
+    useProjectStore.setState({
+      focusedProjectId: "project-1",
+      focusedWorktreeId: "worktree-1",
+      projects: [
+        {
+          id: "project-1",
+          name: "Project One",
+          path: "/tmp/project-1",
+          position: { x: 0, y: 0 },
+          collapsed: false,
+          zIndex: 0,
+          worktrees: [
+            {
+              id: "worktree-1",
+              name: "main",
+              path: "/tmp/project-1",
+              position: { x: 0, y: 0 },
+              collapsed: false,
+              terminals: [
+                {
+                  id: "terminal-1",
+                  title: "Terminal",
+                  type: "shell",
+                  minimized: false,
+                  focused: true,
+                  ptyId: null,
+                  status: "idle",
+                  span: { cols: 1, rows: 1 },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const store = useProjectStore.getState();
+    store.updateTerminalPtyId("project-1", "worktree-1", "terminal-1", 42);
+    store.updateTerminalStatus("project-1", "worktree-1", "terminal-1", "running");
+    store.updateTerminalSessionId(
+      "project-1",
+      "worktree-1",
+      "terminal-1",
+      "session-live",
+    );
+
+    const rawTerminal =
+      useProjectStore.getState().projects[0].worktrees[0].terminals[0];
+    const liveTerminal = resolveTerminalWithRuntimeState(rawTerminal);
+
+    assert.equal(rawTerminal.ptyId, null);
+    assert.equal(rawTerminal.status, "idle");
+    assert.equal(rawTerminal.sessionId, undefined);
+    assert.equal(liveTerminal.ptyId, 42);
+    assert.equal(liveTerminal.status, "running");
+    assert.equal(liveTerminal.sessionId, "session-live");
+    assert.deepEqual(
+      useTerminalRuntimeStateStore.getState().terminals["terminal-1"],
+      {
+        ptyId: 42,
+        status: "running",
+        sessionId: "session-live",
+      },
+    );
+  } finally {
+    useTerminalRuntimeStateStore.getState().reset();
     useProjectStore.setState(previousState);
   }
 });

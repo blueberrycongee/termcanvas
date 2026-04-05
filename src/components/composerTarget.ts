@@ -4,6 +4,11 @@ import type {
   TerminalType,
 } from "../types/index.ts";
 import { getTerminalDisplayTitle } from "../stores/terminalState.ts";
+import {
+  resolveTerminalWithRuntimeState,
+  type TerminalRuntimeStateMap,
+  useTerminalRuntimeStateStore,
+} from "../stores/terminalRuntimeStateStore";
 
 export interface SupportedTerminalOption {
   terminalId: string;
@@ -21,25 +26,35 @@ export type ComposerTargetState = "empty" | "no-target" | "ready";
 export function getSupportedTerminals(
   projects: ProjectData[],
   supportsComposer: (terminalType: TerminalType) => boolean,
+  terminalRuntimeStates: TerminalRuntimeStateMap =
+    useTerminalRuntimeStateStore.getState().terminals,
 ): SupportedTerminalOption[] {
   const options: SupportedTerminalOption[] = [];
 
   for (const project of projects) {
     for (const worktree of project.worktrees) {
       for (const terminal of worktree.terminals) {
-        if (terminal.ptyId === null || !supportsComposer(terminal.type)) {
+        const liveTerminal = resolveTerminalWithRuntimeState(
+          terminal,
+          terminalRuntimeStates[terminal.id],
+        );
+
+        if (
+          liveTerminal.ptyId === null ||
+          !supportsComposer(liveTerminal.type)
+        ) {
           continue;
         }
 
         options.push({
-          terminalId: terminal.id,
-          ptyId: terminal.ptyId,
-          title: getTerminalDisplayTitle(terminal),
-          type: terminal.type,
-          status: terminal.status,
+          terminalId: liveTerminal.id,
+          ptyId: liveTerminal.ptyId,
+          title: getTerminalDisplayTitle(liveTerminal),
+          type: liveTerminal.type,
+          status: liveTerminal.status,
           worktreePath: worktree.path,
-          label: `${project.name} / ${worktree.name} / ${getTerminalDisplayTitle(terminal)}`,
-          focused: terminal.focused,
+          label: `${project.name} / ${worktree.name} / ${getTerminalDisplayTitle(liveTerminal)}`,
+          focused: liveTerminal.focused,
         });
       }
     }

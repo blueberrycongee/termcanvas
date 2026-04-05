@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { updateTerminalCustomTitleInScene } from "../actions/terminalSceneActions";
 import {
   findTerminalById,
   useProjectStore,
@@ -6,6 +7,7 @@ import {
 import { useComposerStore } from "../stores/composerStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { useCanvasStore, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
+import { useTerminalRuntimeStateStore } from "../stores/terminalRuntimeStateStore";
 import { getComposerAdapter } from "../terminal/cliConfig";
 import { filterSlashCommands } from "../terminal/slashCommands";
 import { shouldSubmitComposerFromKeyEvent } from "./composerInputBehavior";
@@ -123,9 +125,7 @@ export function ComposerBar() {
     exitRenameTerminalTitleMode,
   } = useComposerStore();
   const projects = useProjectStore((s) => s.projects);
-  const updateTerminalCustomTitle = useProjectStore(
-    (s) => s.updateTerminalCustomTitle,
-  );
+  const terminalRuntimeStates = useTerminalRuntimeStateStore((s) => s.terminals);
   const composerLeft = 0;
   const composerRight = useCanvasStore((s) => s.rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH);
   const isRenameMode = mode === "renameTerminalTitle";
@@ -135,8 +135,9 @@ export function ComposerBar() {
       getSupportedTerminals(
         projects,
         (terminalType) => getComposerAdapter(terminalType) !== null,
+        terminalRuntimeStates,
       ),
-    [projects],
+    [projects, terminalRuntimeStates],
   );
   const targetTerminal = resolveComposerTarget(supportedTerminals);
   const targetState = getComposerTargetState(
@@ -380,7 +381,7 @@ export function ComposerBar() {
         return;
       }
 
-      updateTerminalCustomTitle(
+      updateTerminalCustomTitleInScene(
         renameTarget.projectId,
         renameTarget.worktreeId,
         renameTarget.terminal.id,
@@ -471,7 +472,7 @@ export function ComposerBar() {
     setSubmitting,
     targetTerminal,
     t,
-    updateTerminalCustomTitle,
+    updateTerminalCustomTitleInScene,
   ]);
 
   let placeholder: string = t.composer_empty_state;

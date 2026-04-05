@@ -25,7 +25,7 @@ import { useWorkspaceStore } from "./workspaceStore.ts";
 import { usePreferencesStore } from "./preferencesStore.ts";
 import { logSlowRendererPath, measureRendererSync } from "../utils/devPerf.ts";
 import { setTrackSidebar, useTileDimensionsStore } from "./tileDimensionsStore.ts";
-import { getVisibleWorktreeSpans } from "../utils/worktreeLayout.ts";
+import { useTerminalRuntimeStateStore } from "./terminalRuntimeStateStore.ts";
 
 interface ProjectStore {
   projects: ProjectData[];
@@ -215,7 +215,9 @@ function markDirty() {
 
 function getVisibleWorktreeSize(worktree: WorktreeData) {
   return getWorktreeSize(
-    getVisibleWorktreeSpans(worktree),
+    worktree.terminals
+      .filter((terminal) => !terminal.stashed)
+      .map((terminal) => terminal.span),
     worktree.collapsed,
   );
 }
@@ -701,7 +703,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const updatedProjects = state.projects.map((project) => {
         if (project.id !== projectId) return project;
         const compactedWorktrees = compactWorktreeLayout(project.worktrees);
-        if (compactedWorktrees === project.worktrees && project.autoCompact) {
+        if (compactedWorktrees === project.worktrees) {
           return project;
         }
         return { ...project, autoCompact: true, worktrees: compactedWorktrees };
@@ -957,19 +959,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       thresholdMs: 8,
       details: { terminalId },
     });
+    useTerminalRuntimeStateStore.getState().clearTerminal(terminalId);
     markDirty();
   },
 
-  updateTerminalPtyId: (projectId, worktreeId, terminalId, ptyId) =>
-    set((state) => ({
-      projects: mapTerminals(
-        state.projects,
-        projectId,
-        worktreeId,
-        terminalId,
-        (t) => ({ ...t, ptyId }),
-      ),
-    })),
+  updateTerminalPtyId: (_projectId, _worktreeId, terminalId, ptyId) => {
+    useTerminalRuntimeStateStore.getState().setPtyId(terminalId, ptyId);
+  },
 
   toggleTerminalMinimize: (projectId, worktreeId, terminalId) => {
     set((state) => {
@@ -1012,27 +1008,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     markDirty();
   },
 
-  updateTerminalStatus: (projectId, worktreeId, terminalId, status) =>
-    set((state) => ({
-      projects: mapTerminals(
-        state.projects,
-        projectId,
-        worktreeId,
-        terminalId,
-        (t) => ({ ...t, status }),
-      ),
-    })),
+  updateTerminalStatus: (_projectId, _worktreeId, terminalId, status) => {
+    useTerminalRuntimeStateStore.getState().setStatus(terminalId, status);
+  },
 
-  updateTerminalSessionId: (projectId, worktreeId, terminalId, sessionId) =>
-    set((state) => ({
-      projects: mapTerminals(
-        state.projects,
-        projectId,
-        worktreeId,
-        terminalId,
-        (t) => ({ ...t, sessionId }),
-      ),
-    })),
+  updateTerminalSessionId: (_projectId, _worktreeId, terminalId, sessionId) => {
+    useTerminalRuntimeStateStore.getState().setSessionId(terminalId, sessionId);
+  },
 
   updateTerminalAutoApprove: (projectId, worktreeId, terminalId, autoApprove) =>
     set((state) => ({
@@ -1119,11 +1101,32 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
               worktrees: p.worktrees.map((w) => {
                 if (w.id !== worktreeId) return w;
                 const terminals = [...w.terminals];
-                const oldIndex = terminals.findIndex((t) => t.id === terminalId);
-                if (oldIndex === -1 || oldIndex === newIndex) return w;
-                const [moved] = terminals.splice(oldIndex, 1);
-                terminals.splice(newIndex, 0, moved);
-                return { ...w, terminals };
+                const visibleSlots = terminals.flatMap((terminal, index) =>
+                  terminal.stashed ? [] : [index],
+                );
+                const visibleTerminals = visibleSlots.map((index) => terminals[index]);
+                const oldVisibleIndex = visibleTerminals.findIndex(
+                  (terminal) => terminal.id === terminalId,
+                );
+                if (
+                  oldVisibleIndex === -1 ||
+                  oldVisibleIndex === newIndex ||
+                  newIndex < 0 ||
+                  newIndex >= visibleTerminals.length
+                ) {
+                  return w;
+                }
+
+                const reorderedVisible = [...visibleTerminals];
+                const [moved] = reorderedVisible.splice(oldVisibleIndex, 1);
+                reorderedVisible.splice(newIndex, 0, moved);
+
+                const nextTerminals = [...terminals];
+                visibleSlots.forEach((slot, index) => {
+                  nextTerminals[slot] = reorderedVisible[index];
+                });
+
+                return { ...w, terminals: nextTerminals };
               }),
             },
       ),
@@ -1382,6 +1385,7 @@ export function destroyStashedTerminal(terminalId: string): void {
     useProjectStore.getState().removeTerminal(entry.projectId, entry.worktreeId, terminalId);
   }
   destroyTerminalRuntime(terminalId);
+  useTerminalRuntimeStateStore.getState().clearTerminal(terminalId);
 }
 
 export function destroyAllStashedTerminals(): void {
@@ -1390,5 +1394,6 @@ export function destroyAllStashedTerminals(): void {
   for (const entry of items) {
     store.removeTerminal(entry.projectId, entry.worktreeId, entry.terminal.id);
     destroyTerminalRuntime(entry.terminal.id);
+    useTerminalRuntimeStateStore.getState().clearTerminal(entry.terminal.id);
   }
 }

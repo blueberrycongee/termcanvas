@@ -1,9 +1,11 @@
+import { clearSceneSelection } from "./actions/sceneSelectionActions";
+import { restoreBrowserCardsInScene } from "./actions/sceneCardActions";
 import { useProjectStore } from "./stores/projectStore";
 import { useCanvasStore } from "./stores/canvasStore";
 import { useDrawingStore } from "./stores/drawingStore";
 import { useBrowserCardStore } from "./stores/browserCardStore";
-import { useSelectionStore } from "./stores/selectionStore";
 import { useStashStore } from "./stores/stashStore";
+import { useTerminalRuntimeStateStore } from "./stores/terminalRuntimeStateStore";
 import {
   destroyAllTerminalRuntimes,
   refreshClaudeSessionStates,
@@ -13,7 +15,6 @@ import { clearTerminalGeometryRegistry } from "./terminal/terminalGeometryRegist
 import { logSlowRendererPath } from "./utils/devPerf";
 import { normalizeProjectsFocus } from "./stores/projectFocus";
 import {
-  type LegacyWorkspaceSnapshot,
   readWorkspaceSnapshot,
   type RestoredWorkspaceSnapshot,
   type SkipRestoreSnapshot,
@@ -21,17 +22,23 @@ import {
   type WorkspaceSnapshot,
 } from "./snapshotBridge";
 import {
-  buildSceneDocumentFromLegacyState,
+  buildSceneDocument,
   sceneDocumentToLegacyState,
 } from "./canvas/sceneProjection";
+import {
+  toPersistedProjectData,
+  restorePersistedStashedTerminal,
+  toPersistedStashedTerminal,
+} from "./canvas/scenePersistence";
 
 export function restoreWorkspaceSnapshot(
   snapshot: RestoredWorkspaceSnapshot,
 ) {
   const restoredState = sceneDocumentToLegacyState(snapshot.scene);
   destroyAllTerminalRuntimes();
+  useTerminalRuntimeStateStore.getState().reset();
   clearTerminalGeometryRegistry();
-  useSelectionStore.getState().clearSelection();
+  clearSceneSelection();
   useCanvasStore.getState().restoreViewport(restoredState.viewport);
   useProjectStore.setState(
     normalizeProjectsFocus(restoredState.projects),
@@ -39,10 +46,10 @@ export function restoreWorkspaceSnapshot(
   useDrawingStore.setState({
     elements: restoredState.drawings,
   });
-  useBrowserCardStore.setState({
-    cards: restoredState.browserCards,
-  });
-  useStashStore.getState().setItems(snapshot.scene.stashedTerminals ?? []);
+  restoreBrowserCardsInScene(restoredState.browserCards);
+  useStashStore.getState().setItems(
+    (snapshot.scene.stashedTerminals ?? []).map(restorePersistedStashedTerminal),
+  );
 }
 
 export {
@@ -54,42 +61,24 @@ export {
   type WorkspaceSnapshot,
 } from "./snapshotBridge";
 
-function buildLegacyWorkspaceSnapshot(): LegacyWorkspaceSnapshot {
+function buildSceneWorkspaceSnapshot(): SceneWorkspaceSnapshot {
   const startedAt = performance.now();
   const scrollbacks = serializeAllTerminalRuntimeBuffers();
-  const projects = useProjectStore.getState().projects.map((project) => ({
-    ...project,
-    worktrees: project.worktrees.map((worktree) => ({
-      ...worktree,
-      terminals: worktree.terminals.map((terminal) => ({
-        ...terminal,
-        scrollback:
-          scrollbacks[terminal.id] ?? terminal.scrollback ?? undefined,
-        ptyId: null,
-      })),
-    })),
-  }));
+  const projects = useProjectStore.getState().projects.map((project) =>
+    toPersistedProjectData(project, scrollbacks),
+  );
 
-  const stashedTerminals = useStashStore.getState().items.map((entry) => ({
-    ...entry,
-    terminal: {
-      ...entry.terminal,
-      scrollback:
-        scrollbacks[entry.terminal.id] ??
-        entry.terminal.scrollback ??
-        undefined,
-      ptyId: null,
-    },
-  }));
+  const stashedTerminals = useStashStore.getState().items.map((entry) =>
+    toPersistedStashedTerminal(entry, scrollbacks),
+  );
 
-  const snapshot = {
-    version: 1 as const,
+  const scene = buildSceneDocument({
     viewport: useCanvasStore.getState().viewport,
     projects,
     drawings: useDrawingStore.getState().elements,
     browserCards: useBrowserCardStore.getState().cards,
     stashedTerminals,
-  };
+  });
 
   logSlowRendererPath("snapshotState.build", startedAt, {
     thresholdMs: 20,
@@ -108,15 +97,14 @@ function buildLegacyWorkspaceSnapshot(): LegacyWorkspaceSnapshot {
     },
   });
 
-  return snapshot;
+  return {
+    version: 2,
+    scene,
+  };
 }
 
 export function buildSnapshotState(): SceneWorkspaceSnapshot {
-  const legacySnapshot = buildLegacyWorkspaceSnapshot();
-  return {
-    version: 2,
-    scene: buildSceneDocumentFromLegacyState(legacySnapshot),
-  };
+  return buildSceneWorkspaceSnapshot();
 }
 
 export function snapshotState(): string {

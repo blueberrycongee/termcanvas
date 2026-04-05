@@ -107,8 +107,22 @@ export interface TerminalData {
   stashedAt?: number;
 }
 
+export interface TerminalRuntimeState {
+  ptyId: number | null;
+  status: TerminalStatus;
+}
+
+export type PersistedTerminalData = Omit<TerminalData, keyof TerminalRuntimeState>;
+
 export interface StashedTerminal {
   terminal: TerminalData;
+  projectId: string;
+  worktreeId: string;
+  stashedAt: number;
+}
+
+export interface PersistedStashedTerminal {
+  terminal: PersistedTerminalData;
   projectId: string;
   worktreeId: string;
   stashedAt: number;
@@ -123,6 +137,10 @@ export interface WorktreeData {
   terminals: TerminalData[];
 }
 
+export interface PersistedWorktreeData extends Omit<WorktreeData, "terminals"> {
+  terminals: PersistedTerminalData[];
+}
+
 export interface ProjectData {
   id: string;
   name: string;
@@ -132,6 +150,10 @@ export interface ProjectData {
   zIndex: number;
   autoCompact?: boolean;
   worktrees: WorktreeData[];
+}
+
+export interface PersistedProjectData extends Omit<ProjectData, "worktrees"> {
+  worktrees: PersistedWorktreeData[];
 }
 
 export interface CanvasState {
