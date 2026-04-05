@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.11] - 2026-04-06
+
+### Fixed
+- Stashed terminals no longer affect worktree and project sizing, terminal packing, or drag reordering calculations
+
 ## [0.25.10] - 2026-04-06
 
 ### Changed
