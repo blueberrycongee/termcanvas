@@ -557,7 +557,7 @@ function disposeRendererBindings(runtime: ManagedTerminalRuntime) {
 }
 
 function shouldFitAttachedRuntime(runtime: ManagedTerminalRuntime) {
-  return runtime.mode === "live" && !!runtime.attachedContainer;
+  return !!runtime.attachedContainer;
 }
 
 function ensureRuntimeWebGL(runtime: ManagedTerminalRuntime) {
@@ -727,7 +727,7 @@ function wireRendererBindings(
   host: HTMLDivElement,
 ) {
   wireSelectionBindings(runtime, host);
-  wireLiveBindings(runtime);
+  wireInteractiveBindings(runtime);
 }
 
 function detachTerminalRenderer(runtime: ManagedTerminalRuntime) {
@@ -767,8 +767,8 @@ function parkTerminalRenderer(runtime: ManagedTerminalRuntime) {
   parkTerminalHost(runtime);
 }
 
-function wireLiveBindings(runtime: ManagedTerminalRuntime) {
-  if (!runtime.xterm || runtime.ptyId === null) {
+function wireInteractiveBindings(runtime: ManagedTerminalRuntime) {
+  if (!runtime.xterm || runtime.ptyId === null || !runtime.attachedContainer) {
     return;
   }
 
@@ -788,8 +788,19 @@ function wireLiveBindings(runtime: ManagedTerminalRuntime) {
       }
     },
   );
+}
 
-  runtime.fitAddon?.fit();
+function syncAttachedTerminalGeometry(runtime: ManagedTerminalRuntime) {
+  if (
+    !runtime.xterm ||
+    !runtime.fitAddon ||
+    runtime.ptyId === null ||
+    !shouldFitAttachedRuntime(runtime)
+  ) {
+    return;
+  }
+
+  runtime.fitAddon.fit();
   window.termcanvas.terminal.resize(
     runtime.ptyId,
     runtime.xterm.cols,
@@ -862,7 +873,7 @@ function createTerminalRenderer(
 
   wireRendererBindings(runtime, host);
   scheduleRuntimeRefresh(() => {
-    runtime.fitAddon?.fit();
+    syncAttachedTerminalGeometry(runtime);
     runtime.xterm?.refresh(0, (runtime.xterm?.rows ?? 1) - 1);
   });
 }
@@ -1258,7 +1269,8 @@ async function spawnPty(runtime: ManagedTerminalRuntime, resumeSessionId?: strin
       }
     }
 
-    wireLiveBindings(runtime);
+    wireInteractiveBindings(runtime);
+    syncAttachedTerminalGeometry(runtime);
   } catch (error) {
     if (runtime.hookFallbackTimer) {
       clearTimeout(runtime.hookFallbackTimer);
@@ -1526,7 +1538,7 @@ export function attachTerminalContainer(
   ensureRuntimeWebGL(runtime);
   wireRendererBindings(runtime, host);
   scheduleRuntimeRefresh(() => {
-    runtime.fitAddon?.fit();
+    syncAttachedTerminalGeometry(runtime);
     runtime.xterm?.refresh(0, (runtime.xterm?.rows ?? 1) - 1);
   });
 }

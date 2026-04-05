@@ -329,6 +329,7 @@ test("parked runtimes keep the live xterm, dispose live bindings, reuse the host
 
     setTerminalRuntimeMode("terminal-1", "live");
     attachTerminalContainer("terminal-1", visibleContainer as unknown as HTMLDivElement);
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     assert.equal(runtime.xterm, xterm);
     assert.equal(host.parentElement, visibleContainer);
@@ -425,6 +426,105 @@ test("parked runtimes apply font preference updates without fitting against the 
     destroyAllTerminalRuntimes();
     useProjectStore.setState(previousProjectState);
     usePreferencesStore.setState(previousPreferencesState);
+  }
+});
+
+test("starting a parked runtime does not fit or resize the hidden terminal host", async () => {
+  const mockWindow = installRuntimeGlobals();
+  const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const {
+    destroyAllTerminalRuntimes,
+    ensureTerminalRuntime,
+    getTerminalRuntime,
+    setTerminalRuntimeMode,
+  } = await import("../src/terminal/terminalRuntimeStore.ts");
+  const previousProjectState = useProjectStore.getState();
+  const resizeCalls: Array<{ cols: number; ptyId: number; rows: number }> = [];
+  let createCalls = 0;
+
+  destroyAllTerminalRuntimes();
+
+  try {
+    const terminal = {
+      ...createTerminal(),
+      ptyId: null,
+    };
+    seedProjectState(useProjectStore, terminal);
+
+    ensureTerminalRuntime({
+      projectId: "project-1",
+      terminal,
+      worktreeId: "worktree-1",
+      worktreePath: "/tmp/project-1",
+    });
+
+    const runtime = getTerminalRuntime("terminal-1");
+    assert.ok(runtime);
+    if (!runtime) {
+      return;
+    }
+
+    const host = createFakeContainer();
+    const liveContainer = createFakeContainer();
+    const { fitAddon, stats, xterm } = createMockXterm();
+    liveContainer.appendChild(host);
+    runtime.attachedContainer = liveContainer as unknown as HTMLDivElement;
+    runtime.fitAddon = fitAddon as unknown as typeof runtime.fitAddon;
+    runtime.hostElement = host as unknown as HTMLDivElement;
+    runtime.serializeAddon = {
+      serialize() {
+        return "live buffer";
+      },
+    } as typeof runtime.serializeAddon;
+    runtime.xterm = xterm as unknown as typeof runtime.xterm;
+
+    setTerminalRuntimeMode("terminal-1", "live");
+    setTerminalRuntimeMode("terminal-1", "parked");
+
+    mockWindow.termcanvas = {
+      session: {
+        onTurnComplete() {
+          return () => {};
+        },
+      },
+      terminal: {
+        create: async () => {
+          createCalls += 1;
+          return 100 + createCalls;
+        },
+        destroy: async () => {},
+        input() {},
+        onExit() {
+          return () => {};
+        },
+        onOutput() {
+          return () => {};
+        },
+        resize(ptyId: number, cols: number, rows: number) {
+          resizeCalls.push({ cols, ptyId, rows });
+        },
+      },
+    };
+
+    ensureTerminalRuntime({
+      projectId: "project-1",
+      terminal,
+      worktreeId: "worktree-1",
+      worktreePath: "/tmp/project-1",
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    assert.equal(runtime.mode, "parked");
+    assert.equal(runtime.attachedContainer, null);
+    assert.equal(runtime.ptyId, 101);
+    assert.equal(stats.fitCalls, 0);
+    assert.deepEqual(resizeCalls, []);
+    assert.equal(runtime.inputDisposable, null);
+    assert.equal(runtime.resizeDisposable, null);
+  } finally {
+    destroyAllTerminalRuntimes();
+    useProjectStore.setState(previousProjectState);
   }
 });
 
