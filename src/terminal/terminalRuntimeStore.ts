@@ -556,6 +556,10 @@ function disposeRendererBindings(runtime: ManagedTerminalRuntime) {
   disposeSelectionBindings(runtime);
 }
 
+function shouldFitAttachedRuntime(runtime: ManagedTerminalRuntime) {
+  return runtime.mode === "live" && !!runtime.attachedContainer;
+}
+
 function scheduleRuntimeRefresh(callback: () => void) {
   if (typeof requestAnimationFrame === "function") {
     requestAnimationFrame(callback);
@@ -894,12 +898,16 @@ function setupRuntimeSubscriptions(runtime: ManagedTerminalRuntime) {
     const family = buildFontFamily(state.terminalFontFamily);
     if (runtime.xterm.options.fontFamily !== family) {
       runtime.xterm.options.fontFamily = family;
-      runtime.fitAddon?.fit();
+      if (shouldFitAttachedRuntime(runtime)) {
+        runtime.fitAddon?.fit();
+      }
     }
 
     if (runtime.xterm.options.fontSize !== state.terminalFontSize) {
       runtime.xterm.options.fontSize = state.terminalFontSize;
-      runtime.fitAddon?.fit();
+      if (shouldFitAttachedRuntime(runtime)) {
+        runtime.fitAddon?.fit();
+      }
     }
 
     if (

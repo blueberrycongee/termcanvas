@@ -353,3 +353,73 @@ test("parked runtimes keep the live xterm, dispose live bindings, reuse the host
     useProjectStore.setState(previousState);
   }
 });
+
+test("parked runtimes apply font preference updates without fitting against the parking host", async () => {
+  const mockWindow = installRuntimeGlobals();
+  const { buildFontFamily } = await import("../src/terminal/fontRegistry.ts");
+  const { usePreferencesStore } = await import("../src/stores/preferencesStore.ts");
+  const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const {
+    destroyAllTerminalRuntimes,
+    ensureTerminalRuntime,
+    getTerminalRuntime,
+    setTerminalRuntimeMode,
+  } = await import("../src/terminal/terminalRuntimeStore.ts");
+  const previousProjectState = useProjectStore.getState();
+  const previousPreferencesState = usePreferencesStore.getState();
+
+  destroyAllTerminalRuntimes();
+
+  try {
+    seedProjectState(useProjectStore);
+    mockWindow.termcanvas = {
+      terminal: {
+        create: async () => 42,
+        destroy: async () => {},
+        input() {},
+        onExit() {
+          return () => {};
+        },
+        onOutput() {
+          return () => {};
+        },
+        resize() {},
+      },
+      session: {
+        onTurnComplete() {
+          return () => {};
+        },
+      },
+    };
+
+    ensureTerminalRuntime({
+      projectId: "project-1",
+      terminal: useProjectStore.getState().projects[0].worktrees[0].terminals[0],
+      worktreeId: "worktree-1",
+      worktreePath: "/tmp/project-1",
+    });
+
+    const runtime = getTerminalRuntime("terminal-1");
+    assert.ok(runtime);
+    if (!runtime) {
+      return;
+    }
+
+    const { fitAddon, stats, xterm } = createMockXterm();
+    runtime.fitAddon = fitAddon as unknown as typeof runtime.fitAddon;
+    runtime.xterm = xterm as unknown as typeof runtime.xterm;
+
+    setTerminalRuntimeMode("terminal-1", "parked");
+    usePreferencesStore.getState().setTerminalFontSize(18);
+    usePreferencesStore.getState().setTerminalFontFamily("jetbrains-mono");
+
+    assert.equal(runtime.mode, "parked");
+    assert.equal(stats.fitCalls, 0);
+    assert.equal(runtime.xterm?.options.fontSize, 18);
+    assert.equal(runtime.xterm?.options.fontFamily, buildFontFamily("jetbrains-mono"));
+  } finally {
+    destroyAllTerminalRuntimes();
+    useProjectStore.setState(previousProjectState);
+    usePreferencesStore.setState(previousPreferencesState);
+  }
+});
