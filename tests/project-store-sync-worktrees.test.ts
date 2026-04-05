@@ -560,3 +560,27 @@ test("compactProjectWorktrees no-op keeps references and does not notify subscri
   assert.strictEqual(afterProjects[0].worktrees[2], beforeProject.worktrees[2]);
   assert.strictEqual(afterProjects[0].worktrees[3], beforeProject.worktrees[3]);
 });
+
+test("getProjectBounds ignores stashed terminals when sizing worktrees", () => {
+  const project = createProject();
+  project.worktrees[0] = {
+    ...project.worktrees[0],
+    position: { x: 0, y: 0 },
+    terminals: [
+      project.worktrees[0].terminals[0],
+      {
+        ...project.worktrees[0].terminals[0],
+        id: "terminal-2",
+        title: "Terminal 2",
+      },
+      {
+        ...project.worktrees[0].terminals[0],
+        id: "terminal-3",
+        title: "Terminal 3",
+        stashed: true,
+      },
+    ],
+  };
+
+  assert.equal(getProjectBounds(project).w, 1332);
+});

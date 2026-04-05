@@ -7,6 +7,7 @@ import { useDrag } from "../hooks/useDrag";
 import { getWorktreeSize, PROJ_PAD, PROJ_TITLE_H } from "../layout";
 import { useTileDimensionsStore } from "../stores/tileDimensionsStore";
 import { useT } from "../i18n/useT";
+import { getVisibleWorktreeSpans } from "../utils/worktreeLayout";
 
 interface Props {
   project: ProjectData;
@@ -47,7 +48,7 @@ export function ProjectContainer({ project }: Props) {
     let maxW = 300;
     let totalH = 0;
     for (const wt of project.worktrees) {
-      const spans = wt.terminals.map((t) => t.span);
+      const spans = getVisibleWorktreeSpans(wt);
       const wtSize = getWorktreeSize(spans, wt.collapsed, undefined, tileDims);
       maxW = Math.max(maxW, wt.position.x + wtSize.w);
       totalH = Math.max(totalH, wt.position.y + wtSize.h);

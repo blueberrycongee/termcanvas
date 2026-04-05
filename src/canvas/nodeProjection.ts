@@ -6,6 +6,7 @@ import {
 } from "../layout";
 import type { ProjectData } from "../types";
 import { getProjectBounds } from "../stores/projectStore";
+import { getVisibleWorktreeSpans } from "../utils/worktreeLayout";
 
 export interface ProjectNodeData {
   projectId: string;
@@ -62,7 +63,7 @@ export function buildCanvasFlowNodes(projects: ProjectData[]): CanvasFlowNode[] 
     };
 
     const worktreeNodes: CanvasFlowNode[] = project.worktrees.map((worktree) => {
-      const spans = worktree.terminals.map((terminal) => terminal.span);
+      const spans = getVisibleWorktreeSpans(worktree);
       const baseSize = getWorktreeSize(spans, worktree.collapsed);
       return {
         id: worktreeNodeId(worktree.id),

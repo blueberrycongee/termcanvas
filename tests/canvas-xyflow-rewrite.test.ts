@@ -110,3 +110,28 @@ test("buildCanvasFlowNodes creates project/worktree nodes with parent-child mapp
   assert.equal(worktreeNode.dragHandle, ".tc-worktree-drag-handle");
   assert.equal(worktreeNode.hidden, false);
 });
+
+test("buildCanvasFlowNodes ignores stashed terminals when sizing worktrees", () => {
+  const projects = createProjects();
+  projects[0].position = { x: 0, y: 0 };
+  projects[0].worktrees[0].position = { x: 0, y: 0 };
+  projects[0].worktrees[0].terminals = [
+    projects[0].worktrees[0].terminals[0],
+    {
+      ...projects[0].worktrees[0].terminals[0],
+      id: "terminal-2",
+      title: "Terminal 2",
+    },
+    {
+      ...projects[0].worktrees[0].terminals[0],
+      id: "terminal-3",
+      title: "Terminal 3",
+      stashed: true,
+    },
+  ];
+
+  const [projectNode, worktreeNode] = buildCanvasFlowNodes(projects);
+
+  assert.equal(worktreeNode.width, 1308);
+  assert.equal(projectNode.width, 1332);
+});

@@ -54,6 +54,10 @@ import {
   ensureTerminalCreationTarget,
 } from "../projects/projectCreation";
 import { panToTerminal } from "../utils/panToTerminal";
+import {
+  getVisibleWorktreeSpans,
+  getVisibleWorktreeTerminals,
+} from "../utils/worktreeLayout";
 
 const EMPTY_EDGES: never[] = [];
 
@@ -75,7 +79,7 @@ function buildProjectLayoutKey(
               worktree.position.x,
               worktree.position.y,
               worktree.collapsed ? 1 : 0,
-              worktree.terminals
+              getVisibleWorktreeTerminals(worktree)
                 .map(
                   (terminal) =>
                     `${terminal.id}:${terminal.span.cols}x${terminal.span.rows}`,
@@ -139,7 +143,7 @@ function TerminalRuntimeLayer({
       projects.flatMap((project) =>
         project.worktrees.flatMap((worktree) => {
           const packed = packTerminals(
-            worktree.terminals.map((terminal) => terminal.span),
+            getVisibleWorktreeSpans(worktree),
           );
           const projectOffset =
             projectedPositions.projectOffsets.get(project.id) ?? project.position;
@@ -149,7 +153,7 @@ function TerminalRuntimeLayer({
               y: PROJ_TITLE_H + PROJ_PAD + worktree.position.y,
             };
 
-          return worktree.terminals.flatMap((terminal, index) => {
+          return getVisibleWorktreeTerminals(worktree).flatMap((terminal, index) => {
             const item = packed[index];
             if (!item) {
               return [];

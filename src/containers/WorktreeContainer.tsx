@@ -235,7 +235,7 @@ export function WorktreeContainer({
 
   const handleTerminalDragStart = useCallback(
     (terminalId: string, e: React.MouseEvent) => {
-      const origIndex = worktree.terminals.findIndex(
+      const origIndex = visibleTerminals.findIndex(
         (t) => t.id === terminalId,
       );
       if (origIndex === -1) return;
@@ -247,7 +247,7 @@ export function WorktreeContainer({
 
       const contentH = computedSize.h - WT_TITLE_H;
       const contentW = computedSize.w;
-      const packed = packTerminals(worktree.terminals.map((t) => t.span));
+      const packed = packTerminals(visibleTerminals.map((t) => t.span));
       const startItem = packed[origIndex];
 
       setDragState({
@@ -283,7 +283,7 @@ export function WorktreeContainer({
           return;
         }
 
-        const currentPacked = packTerminals(worktree.terminals.map((t) => t.span));
+        const currentPacked = packTerminals(visibleTerminals.map((t) => t.span));
         const origItem = currentPacked[origIndex];
         if (!origItem) return;
 
@@ -337,7 +337,7 @@ export function WorktreeContainer({
       window.addEventListener("mousemove", handleMove);
       window.addEventListener("mouseup", handleUp);
     },
-    [projectId, worktree.id, worktree.terminals, reorderTerminal, computedSize],
+    [projectId, worktree.id, visibleTerminals, reorderTerminal, computedSize],
   );
 
   return (

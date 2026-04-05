@@ -26,6 +26,10 @@ import {
 import { panToTerminal } from "../utils/panToTerminal";
 import { useTileDimensionsStore } from "../stores/tileDimensionsStore";
 import {
+  getVisibleWorktreeSpans,
+  getVisibleWorktreeTerminals,
+} from "../utils/worktreeLayout";
+import {
   type ProjectNodeData,
   type WorktreeNodeData,
 } from "./nodeProjection";
@@ -308,8 +312,12 @@ function WorktreeNode({
   const tileW = useTileDimensionsStore((s) => s.w);
   const tileH = useTileDimensionsStore((s) => s.h);
   const tileDims = useMemo(() => ({ w: tileW, h: tileH }), [tileW, tileH]);
+  const visibleTerminals = useMemo(
+    () => (worktree ? getVisibleWorktreeTerminals(worktree) : []),
+    [worktree],
+  );
   const spans = useMemo(
-    () => worktree?.terminals.map((terminal) => terminal.span) ?? [],
+    () => (worktree ? getVisibleWorktreeSpans(worktree) : []),
     [worktree],
   );
   const packed = useMemo(() => packTerminals(spans, undefined, tileDims), [spans, tileDims]);
@@ -323,7 +331,7 @@ function WorktreeNode({
       return [];
     }
 
-    return worktree.terminals.map((terminal, index) => {
+    return visibleTerminals.map((terminal, index) => {
       const item = packed[index];
       if (!item) {
         return null;
@@ -359,6 +367,7 @@ function WorktreeNode({
     positionAbsoluteY,
     project?.collapsed,
     rightPanelCollapsed,
+    visibleTerminals,
     viewport,
     worktree,
   ]);
@@ -375,7 +384,7 @@ function WorktreeNode({
     (terminalId: string, event: React.MouseEvent) => {
       if (!worktree) return;
 
-      const originalIndex = worktree.terminals.findIndex(
+      const originalIndex = visibleTerminals.findIndex(
         (terminal) => terminal.id === terminalId,
       );
       if (originalIndex === -1) return;
@@ -390,7 +399,7 @@ function WorktreeNode({
       const contentH = computedSize.h - WT_TITLE_H;
       const contentW = computedSize.w;
       const packed = packTerminals(
-        worktree.terminals.map((terminal) => terminal.span),
+        visibleTerminals.map((terminal) => terminal.span),
       );
       const startItem = packed[originalIndex];
 
@@ -482,7 +491,7 @@ function WorktreeNode({
       window.addEventListener("mousemove", handleMove);
       window.addEventListener("mouseup", handleUp);
     },
-    [data.projectId, data.worktreeId, reorderTerminal, worktree, computedSize],
+    [data.projectId, data.worktreeId, reorderTerminal, worktree, computedSize, visibleTerminals],
   );
 
   if (!project || !worktree) {

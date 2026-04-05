@@ -25,6 +25,7 @@ import { useWorkspaceStore } from "./workspaceStore.ts";
 import { usePreferencesStore } from "./preferencesStore.ts";
 import { logSlowRendererPath, measureRendererSync } from "../utils/devPerf.ts";
 import { setTrackSidebar, useTileDimensionsStore } from "./tileDimensionsStore.ts";
+import { getVisibleWorktreeSpans } from "../utils/worktreeLayout.ts";
 
 interface ProjectStore {
   projects: ProjectData[];
@@ -214,7 +215,7 @@ function markDirty() {
 
 function getVisibleWorktreeSize(worktree: WorktreeData) {
   return getWorktreeSize(
-    worktree.terminals.map((terminal) => terminal.span),
+    getVisibleWorktreeSpans(worktree),
     worktree.collapsed,
   );
 }
