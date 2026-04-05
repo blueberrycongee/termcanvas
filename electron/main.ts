@@ -65,6 +65,7 @@ import { HookReceiver } from "./hook-receiver";
 import { findBestClaudeSession, findBestCodexSession, readClaudeSessionPermissionMode, readCodexSessionBypassState, readLatestCodexSessionId } from "./session-discovery";
 import { AgentService, type AgentConfig } from "./agent-service";
 import { SessionScanner } from "./session-scanner.ts";
+import { mergeAndDedupeSessions } from "./session-list.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1295,11 +1296,7 @@ app.whenReady().then(async () => {
   }
   sessionScanner.start((sessions) => {
     const managed = telemetryService.getManagedSessions();
-    const managedIds = new Set(managed.map((s) => s.sessionId));
-    const external = sessions.filter((s) => !managedIds.has(s.sessionId));
-    const merged = [...managed, ...external].sort(
-      (a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt),
-    );
+    const merged = mergeAndDedupeSessions(managed, sessions);
     sendToWindow(mainWindow, "sessions:list-changed", merged);
   });
   ensureCliLinks();
