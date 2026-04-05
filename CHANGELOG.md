@@ -2,6 +2,15 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.10] - 2026-04-06
+
+### Changed
+- Offscreen unfocused terminals now park their live runtime while tile rendering stays tied to actual viewport visibility
+
+### Fixed
+- Parked terminal previews no longer break on ANSI escape boundaries and resumed terminals now recover more reliably without unnecessary resize, font, or WebGL churn
+- PTY login shell environment seeding now strips host-session variables like `TERM_PROGRAM`, `CODEX_*`, and `P9K_*` before spawning the shell
+
 ## [0.25.9] - 2026-04-05
 
 ### Fixed
