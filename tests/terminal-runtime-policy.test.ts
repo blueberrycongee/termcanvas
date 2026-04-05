@@ -54,3 +54,12 @@ test("serialized ANSI preview is capped to a bounded tail", () => {
   assert.equal(capped.length, 200_000);
   assert.equal(capped, oversized.slice(50_000));
 });
+
+test("serialized ANSI preview does not start mid escape sequence", () => {
+  const oversized = "x" + "\u001b[0m" + "y".repeat(199_997);
+  const capped = clampPreviewAnsi(oversized);
+
+  assert.equal(capped.startsWith("[0m"), false);
+  assert.equal(capped.startsWith("y"), true);
+  assert.equal(capped.length <= 200_000, true);
+});
