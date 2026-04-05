@@ -28,6 +28,7 @@ interface SelectionStore {
     terminalId: string,
   ) => void;
   selectWorktree: (projectId: string, worktreeId: string) => void;
+  selectAnnotation: (annotationId: string) => void;
   clearSelection: () => void;
 }
 
@@ -59,6 +60,11 @@ export const useSelectionStore = create<SelectionStore>((set) => ({
   selectWorktree: (projectId, worktreeId) =>
     set({
       selectedItems: [{ type: "worktree", projectId, worktreeId }],
+      selectionRect: null,
+    }),
+  selectAnnotation: (annotationId) =>
+    set({
+      selectedItems: [{ type: "annotation", annotationId }],
       selectionRect: null,
     }),
   clearSelection: () => set({ selectionRect: null, selectedItems: [] }),
