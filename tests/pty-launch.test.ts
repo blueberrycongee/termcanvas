@@ -7,6 +7,7 @@ import {
   buildLaunchSpec,
   PtyLaunchError,
   sanitizeEnv,
+  sanitizeLoginShellSeedEnv,
   type LaunchResolverDeps,
 } from "../electron/pty-launch.ts";
 
@@ -107,6 +108,33 @@ test("sanitizeEnv reads Windows Path variables case-insensitively and appends co
   assert.ok(entries.includes("C:\\Users\\test\\AppData\\Roaming\\npm"));
 });
 
+test("sanitizeLoginShellSeedEnv strips host session noise before login shell capture", () => {
+  const env = sanitizeLoginShellSeedEnv(
+    {
+      HOME: "/Users/test",
+      PATH: "/custom/bin:/usr/bin",
+      NO_COLOR: "1",
+      TERM_PROGRAM: "Apple_Terminal",
+      TERM_PROGRAM_VERSION: "464",
+      TERM_SESSION_ID: "session-123",
+      CODEX_CI: "1",
+      CODEX_THREAD_ID: "thread-123",
+      P9K_TTY: "/dev/ttys001",
+    },
+    createDeps(),
+  );
+
+  assert.equal(env.HOME, "/Users/test");
+  assert.equal(env.PATH, "/custom/bin:/usr/bin:/opt/homebrew/bin:/usr/local/bin:/bin:/usr/sbin:/sbin");
+  assert.ok(!("NO_COLOR" in env));
+  assert.ok(!("TERM_PROGRAM" in env));
+  assert.ok(!("TERM_PROGRAM_VERSION" in env));
+  assert.ok(!("TERM_SESSION_ID" in env));
+  assert.ok(!("CODEX_CI" in env));
+  assert.ok(!("CODEX_THREAD_ID" in env));
+  assert.ok(!("P9K_TTY" in env));
+});
+
 test("buildLaunchSpec falls back to a real login shell when SHELL is invalid", async () => {
   const launch = await buildLaunchSpec(
     {
@@ -186,6 +214,26 @@ test("buildLaunchSpec injects light theme hints into the PTY environment", async
 
   assert.equal(launch.env.TERMCANVAS_THEME, "light");
   assert.equal(launch.env.COLORFGBG, "0;15");
+});
+
+test("buildLaunchSpec keeps login shell NO_COLOR when the shell explicitly exports it", async () => {
+  const launch = await buildLaunchSpec(
+    {
+      cwd: "/repo",
+    },
+    createDeps({
+      existsSync: (file) => ["/bin/zsh", "/repo"].includes(file),
+      isExecutable: (file) => ["/bin/zsh"].includes(file),
+      getShellEnv: async () => ({
+        HOME: "/Users/test",
+        PATH: "/opt/homebrew/bin:/usr/bin:/bin",
+        SHELL: "/bin/zsh",
+        NO_COLOR: "1",
+      }),
+    }),
+  );
+
+  assert.equal(launch.env.NO_COLOR, "1");
 });
 
 test("buildLaunchSpec injects TermCanvas instance routing into the PTY environment", async () => {

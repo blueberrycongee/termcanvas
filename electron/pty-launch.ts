@@ -43,6 +43,18 @@ export interface LaunchResolverDeps {
   getShellEnv: () => Promise<Record<string, string | undefined>>;
 }
 
+const LOGIN_SHELL_ENV_BLOCKLIST = new Set([
+  "NO_COLOR",
+  "TERM_PROGRAM",
+  "TERM_PROGRAM_VERSION",
+  "TERM_SESSION_ID",
+]);
+
+const LOGIN_SHELL_ENV_BLOCKED_PREFIXES = [
+  "CODEX_",
+  "P9K_",
+] as const;
+
 function getEnvVarCaseInsensitive(
   env: Record<string, string | undefined>,
   key: string,
@@ -161,6 +173,29 @@ export function sanitizeEnv(
     deps.pathDelimiter,
     env,
   );
+  return cleaned;
+}
+
+function shouldStripFromLoginShellSeed(key: string): boolean {
+  if (LOGIN_SHELL_ENV_BLOCKLIST.has(key)) {
+    return true;
+  }
+
+  return LOGIN_SHELL_ENV_BLOCKED_PREFIXES.some((prefix) =>
+    key.startsWith(prefix)
+  );
+}
+
+export function sanitizeLoginShellSeedEnv(
+  env: Record<string, string | undefined>,
+  deps: Pick<LaunchResolverDeps, "platform" | "pathDelimiter">,
+): Record<string, string> {
+  const cleaned = sanitizeEnv(env, deps);
+  for (const key of Object.keys(cleaned)) {
+    if (shouldStripFromLoginShellSeed(key)) {
+      delete cleaned[key];
+    }
+  }
   return cleaned;
 }
 
@@ -334,7 +369,7 @@ const defaultDeps: LaunchResolverDeps = {
       return cachedShellEnvPromise;
     }
 
-    const baseEnv = sanitizeEnv(process.env, {
+    const baseEnv = sanitizeLoginShellSeedEnv(process.env, {
       platform: process.platform,
       pathDelimiter: path.delimiter,
     });
