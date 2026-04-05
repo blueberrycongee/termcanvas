@@ -112,7 +112,7 @@ test("TerminalTile gives the worktree branch label layout priority over truncati
     terminals: {
       [terminal.id]: {
         copiedNonce: 0,
-        mode: "preview",
+        mode: "parked",
         previewText: "",
         telemetry: null,
       },
@@ -121,7 +121,7 @@ test("TerminalTile gives the worktree branch label layout priority over truncati
 
   const html = renderToStaticMarkup(
     createElement(TerminalTile, {
-      lodMode: "preview",
+      lodMode: "parked",
       projectId: "project-1",
       worktreeId: "worktree-1",
       worktreeName: "feature/very-long-branch-name",

@@ -113,13 +113,13 @@ function PreviewPane({
   lodMode: TerminalMountMode;
   previewText: string;
 }) {
-  const label = lodMode === "preview" ? "Preview" : "Dormant";
+  const label = lodMode === "evicted" ? "Fallback" : "Parked";
   const body =
     previewText.trim().length > 0
       ? previewText
-      : lodMode === "preview"
-        ? "No buffered output yet."
-        : "Renderer detached while the PTY stays alive.";
+      : lodMode === "evicted"
+        ? "Live renderer evicted. Showing buffered fallback only."
+        : "Live terminal parked offscreen. The real xterm resumes when this tile becomes visible again.";
 
   return (
     <div
@@ -135,7 +135,7 @@ function PreviewPane({
             {label}
           </span>
           <span style={{ fontFamily: '"Geist Mono", monospace' }}>
-            xterm detached
+            {lodMode === "evicted" ? "preview fallback" : "live xterm preserved"}
           </span>
         </div>
         <pre

@@ -47,54 +47,152 @@ function installRuntimeGlobals() {
   return mockWindow;
 }
 
+function createTerminal() {
+  return {
+    id: "terminal-1",
+    title: "Terminal",
+    type: "shell" as const,
+    minimized: false,
+    focused: true,
+    ptyId: 42,
+    status: "running" as const,
+    span: { cols: 1, rows: 1 },
+  };
+}
+
+function seedProjectState(
+  useProjectStore: typeof import("../src/stores/projectStore.ts").useProjectStore,
+  terminal = createTerminal(),
+) {
+  useProjectStore.setState({
+    focusedProjectId: "project-1",
+    focusedWorktreeId: "worktree-1",
+    projects: [
+      {
+        id: "project-1",
+        name: "Project One",
+        path: "/tmp/project-1",
+        position: { x: 0, y: 0 },
+        collapsed: false,
+        zIndex: 0,
+        worktrees: [
+          {
+            id: "worktree-1",
+            name: "main",
+            path: "/tmp/project-1",
+            position: { x: 0, y: 0 },
+            collapsed: false,
+            terminals: [terminal],
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function createFakeContainer() {
+  const node = {
+    children: [] as Array<ReturnType<typeof createFakeContainer>>,
+    parentElement: null as ReturnType<typeof createFakeContainer> | null,
+    addEventListener() {},
+    removeEventListener() {},
+    appendChild(child: ReturnType<typeof createFakeContainer>) {
+      child.parentElement?.removeChild(child);
+      this.children.push(child);
+      child.parentElement = this;
+      return child;
+    },
+    removeChild(child: ReturnType<typeof createFakeContainer>) {
+      this.children = this.children.filter((entry) => entry !== child);
+      if (child.parentElement === this) {
+        child.parentElement = null;
+      }
+      return child;
+    },
+  };
+
+  return node;
+}
+
+function createMockXterm() {
+  const stats = {
+    blurCalls: 0,
+    disposeCalls: 0,
+    fitCalls: 0,
+    inputBindingDisposeCalls: 0,
+    refreshCalls: 0,
+    resizeBindingDisposeCalls: 0,
+    selectionBindingDisposeCalls: 0,
+    selectionPointerCleanupCalls: 0,
+    selectionSubscriptions: 0,
+  };
+
+  const xterm = {
+    cols: 80,
+    rows: 24,
+    options: {},
+    blur() {
+      stats.blurCalls += 1;
+    },
+    dispose() {
+      stats.disposeCalls += 1;
+    },
+    focus() {},
+    getSelection() {
+      return "";
+    },
+    onData() {
+      return {
+        dispose() {
+          stats.inputBindingDisposeCalls += 1;
+        },
+      };
+    },
+    onResize() {
+      return {
+        dispose() {
+          stats.resizeBindingDisposeCalls += 1;
+        },
+      };
+    },
+    onSelectionChange() {
+      stats.selectionSubscriptions += 1;
+      return {
+        dispose() {
+          stats.selectionBindingDisposeCalls += 1;
+        },
+      };
+    },
+    refresh() {
+      stats.refreshCalls += 1;
+    },
+    scrollToBottom() {},
+    write() {},
+  };
+
+  const fitAddon = {
+    fit() {
+      stats.fitCalls += 1;
+    },
+  };
+
+  return { fitAddon, stats, xterm };
+}
+
 test("destroyTerminalRuntime clears persisted pty ids from project state", async () => {
   const mockWindow = installRuntimeGlobals();
   const { useProjectStore } = await import("../src/stores/projectStore.ts");
   const {
     destroyAllTerminalRuntimes,
-    ensureTerminalRuntime,
     destroyTerminalRuntime,
+    ensureTerminalRuntime,
   } = await import("../src/terminal/terminalRuntimeStore.ts");
   const previousState = useProjectStore.getState();
 
   destroyAllTerminalRuntimes();
 
   try {
-    useProjectStore.setState({
-      focusedProjectId: "project-1",
-      focusedWorktreeId: "worktree-1",
-      projects: [
-        {
-          id: "project-1",
-          name: "Project One",
-          path: "/tmp/project-1",
-          position: { x: 0, y: 0 },
-          collapsed: false,
-          zIndex: 0,
-          worktrees: [
-            {
-              id: "worktree-1",
-              name: "main",
-              path: "/tmp/project-1",
-              position: { x: 0, y: 0 },
-              collapsed: false,
-              terminals: [
-                {
-                  id: "terminal-1",
-                  title: "Terminal",
-                  type: "shell",
-                  minimized: false,
-                  focused: true,
-                  ptyId: 42,
-                  status: "running",
-                  span: { cols: 1, rows: 1 },
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    });
+    seedProjectState(useProjectStore);
 
     ensureTerminalRuntime({
       projectId: "project-1",
@@ -115,6 +213,141 @@ test("destroyTerminalRuntime clears persisted pty ids from project state", async
       useProjectStore.getState().projects[0].worktrees[0].terminals[0].ptyId,
       null,
     );
+  } finally {
+    destroyAllTerminalRuntimes();
+    useProjectStore.setState(previousState);
+  }
+});
+
+test("parked runtimes keep the live xterm, dispose live bindings, reuse the host, and clear parked hosts on destroy", async () => {
+  const mockWindow = installRuntimeGlobals();
+  const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const { registerTerminal } = await import("../src/terminal/terminalRegistry.ts");
+  const {
+    attachTerminalContainer,
+    destroyAllTerminalRuntimes,
+    destroyTerminalRuntime,
+    detachTerminalContainer,
+    ensureTerminalRuntime,
+    getTerminalRuntime,
+    serializeAllTerminalRuntimeBuffers,
+    setTerminalRuntimeMode,
+    useTerminalRuntimeStore,
+  } = await import("../src/terminal/terminalRuntimeStore.ts");
+  const previousState = useProjectStore.getState();
+  const resizeCalls: Array<{ cols: number; ptyId: number; rows: number }> = [];
+
+  destroyAllTerminalRuntimes();
+
+  try {
+    seedProjectState(useProjectStore);
+
+    ensureTerminalRuntime({
+      projectId: "project-1",
+      terminal: useProjectStore.getState().projects[0].worktrees[0].terminals[0],
+      worktreeId: "worktree-1",
+      worktreePath: "/tmp/project-1",
+    });
+
+    mockWindow.termcanvas = {
+      terminal: {
+        destroy: async () => {},
+        input() {},
+        resize(ptyId: number, cols: number, rows: number) {
+          resizeCalls.push({ cols, ptyId, rows });
+        },
+      },
+    };
+
+    const runtime = getTerminalRuntime("terminal-1");
+    assert.ok(runtime);
+    if (!runtime) {
+      return;
+    }
+
+    const host = createFakeContainer();
+    const liveContainer = createFakeContainer();
+    const parkedContainer = createFakeContainer();
+    const visibleContainer = createFakeContainer();
+    const { fitAddon, stats, xterm } = createMockXterm();
+    const serializeAddon = {
+      serialize() {
+        return "live buffer";
+      },
+    };
+
+    liveContainer.appendChild(host);
+    runtime.attachedContainer = liveContainer as unknown as HTMLDivElement;
+    runtime.fitAddon = fitAddon as unknown as typeof runtime.fitAddon;
+    runtime.hostElement = host as unknown as HTMLDivElement;
+    runtime.inputDisposable = {
+      dispose() {
+        stats.inputBindingDisposeCalls += 1;
+      },
+    };
+    runtime.previewAnsi = "preview fallback";
+    runtime.resizeDisposable = {
+      dispose() {
+        stats.resizeBindingDisposeCalls += 1;
+      },
+    };
+    runtime.selectionDisposable = {
+      dispose() {
+        stats.selectionBindingDisposeCalls += 1;
+      },
+    } as typeof runtime.selectionDisposable;
+    runtime.selectionPointerCleanup = () => {
+      stats.selectionPointerCleanupCalls += 1;
+    };
+    runtime.serializeAddon = serializeAddon as typeof runtime.serializeAddon;
+    runtime.xterm = xterm as unknown as typeof runtime.xterm;
+
+    registerTerminal(
+      "terminal-1",
+      runtime.xterm as NonNullable<typeof runtime.xterm>,
+      serializeAddon as NonNullable<typeof runtime.serializeAddon>,
+    );
+
+    setTerminalRuntimeMode("terminal-1", "parked");
+
+    assert.equal(useTerminalRuntimeStore.getState().terminals["terminal-1"]?.mode, "parked");
+    assert.equal(runtime.xterm, xterm);
+    assert.equal(stats.blurCalls, 1);
+    assert.equal(stats.disposeCalls, 0);
+    assert.equal(stats.inputBindingDisposeCalls, 1);
+    assert.equal(stats.resizeBindingDisposeCalls, 1);
+    assert.equal(stats.selectionBindingDisposeCalls, 1);
+    assert.equal(stats.selectionPointerCleanupCalls, 1);
+    assert.equal(runtime.selectionDisposable, null);
+    assert.equal(runtime.selectionPointerCleanup, null);
+    assert.equal(host.parentElement, null);
+    assert.equal(serializeAllTerminalRuntimeBuffers()["terminal-1"], "live buffer");
+
+    setTerminalRuntimeMode("terminal-1", "live");
+    attachTerminalContainer("terminal-1", visibleContainer as unknown as HTMLDivElement);
+
+    assert.equal(runtime.xterm, xterm);
+    assert.equal(host.parentElement, visibleContainer);
+    assert.equal(stats.disposeCalls, 0);
+    assert.equal(stats.selectionSubscriptions, 1);
+    assert.ok(runtime.selectionDisposable);
+    assert.equal(typeof runtime.selectionPointerCleanup, "function");
+    assert.equal(stats.fitCalls >= 1, true);
+    assert.deepEqual(resizeCalls.at(-1), {
+      cols: 80,
+      ptyId: 42,
+      rows: 24,
+    });
+
+    detachTerminalContainer("terminal-1");
+    assert.equal(host.parentElement, null);
+
+    parkedContainer.appendChild(host);
+    destroyTerminalRuntime("terminal-1");
+
+    assert.equal(stats.disposeCalls, 1);
+    assert.equal(host.parentElement, null);
+    assert.equal(runtime.hostElement, null);
   } finally {
     destroyAllTerminalRuntimes();
     useProjectStore.setState(previousState);

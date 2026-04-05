@@ -10,7 +10,10 @@ import { useProjectStore, createTerminal, stashTerminal } from "../stores/projec
 import { useSelectionStore } from "../stores/selectionStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { TerminalTile } from "../terminal/TerminalTile";
-import { resolveTerminalMountMode } from "../terminal/terminalRuntimePolicy";
+import {
+  resolveTerminalMountMode,
+  shouldRenderTerminalTile,
+} from "../terminal/terminalRuntimePolicy";
 import { useTerminalRuntimeStore } from "../terminal/terminalRuntimeStore";
 import { useT } from "../i18n/useT";
 import { TERMINAL_TYPE_CONFIG } from "../terminal/terminalTypeConfig";
@@ -71,7 +74,7 @@ function WorktreeTerminalItem({
     ),
   );
 
-  if (lodMode === "unmounted") {
+  if (!shouldRenderTerminalTile(lodMode)) {
     return null;
   }
 

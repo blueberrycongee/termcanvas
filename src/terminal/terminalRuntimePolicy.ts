@@ -1,4 +1,4 @@
-export type TerminalMountMode = "live" | "preview" | "unmounted";
+export type TerminalMountMode = "live" | "parked" | "evicted";
 
 const ANSI_ESCAPE_PATTERN =
   /\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g;
@@ -18,7 +18,11 @@ export function resolveTerminalMountMode({
     return "live";
   }
 
-  return "unmounted";
+  return "parked";
+}
+
+export function shouldRenderTerminalTile(mode: TerminalMountMode): boolean {
+  return mode !== "evicted";
 }
 
 export function clampPreviewAnsi(serialized: string): string {

@@ -16,7 +16,11 @@ import {
   publishTerminalGeometry,
   unpublishTerminalGeometry,
 } from "../terminal/terminalGeometryRegistry";
-import { resolveTerminalMountMode } from "../terminal/terminalRuntimePolicy";
+import {
+  resolveTerminalMountMode,
+  shouldRenderTerminalTile,
+} from "../terminal/terminalRuntimePolicy";
+import { setTerminalRuntimeMode } from "../terminal/terminalRuntimeStore";
 import { panToTerminal } from "../utils/panToTerminal";
 import { useDrag } from "../hooks/useDrag";
 import { FileCard } from "../components/FileCard";
@@ -193,6 +197,16 @@ export function WorktreeContainer({
     worktree.position.y,
     visibleTerminals,
   ]);
+
+  useEffect(() => {
+    for (const layout of terminalLayouts) {
+      if (!layout || layout.terminal.stashed) {
+        continue;
+      }
+
+      setTerminalRuntimeMode(layout.terminal.id, layout.lodMode);
+    }
+  }, [terminalLayouts]);
 
   useEffect(() => {
     for (const layout of terminalLayouts) {
@@ -437,7 +451,7 @@ export function WorktreeContainer({
           />
         ))}
         {terminalLayouts.map((layout, index) => {
-          if (!layout || layout.lodMode === "unmounted" || layout.terminal.stashed) return null;
+          if (!layout || !shouldRenderTerminalTile(layout.lodMode) || layout.terminal.stashed) return null;
           const { item, terminal } = layout;
           const isDragging = dragState?.terminalId === terminal.id;
 

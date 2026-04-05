@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   clampPreviewAnsi,
   resolveTerminalMountMode,
+  shouldRenderTerminalTile,
   toPreviewText,
 } from "../src/terminal/terminalRuntimePolicy.ts";
 
@@ -27,14 +28,20 @@ test("visible non-focused terminals stay live", () => {
   );
 });
 
-test("offscreen non-focused terminals detach their renderer", () => {
+test("offscreen non-focused terminals are parked instead of unmounted", () => {
   assert.equal(
     resolveTerminalMountMode({
       focused: false,
       visible: false,
     }),
-    "unmounted",
+    "parked",
   );
+});
+
+test("legacy and xyflow share the same tile render gate", () => {
+  assert.equal(shouldRenderTerminalTile("live"), true);
+  assert.equal(shouldRenderTerminalTile("parked"), true);
+  assert.equal(shouldRenderTerminalTile("evicted"), false);
 });
 
 test("preview text strips ANSI escapes and keeps the tail", () => {

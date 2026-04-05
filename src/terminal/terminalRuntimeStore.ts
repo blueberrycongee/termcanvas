@@ -64,6 +64,7 @@ interface ManagedTerminalRuntime {
   activityPending: boolean;
   activityTimer: ReturnType<typeof setTimeout> | null;
   activityThrottled: boolean;
+  attachedContainer: HTMLDivElement | null;
   attachOptions: AttachOptions | null;
   cliOverride: ReturnType<typeof usePreferencesStore.getState>["cliCommands"][TerminalType];
   currentStatus: TerminalStatus;
@@ -73,6 +74,7 @@ interface ManagedTerminalRuntime {
   fitAddon: FitAddon | null;
   globalDisposers: Array<() => void>;
   hasRespawned: boolean;
+  hostElement: HTMLDivElement | null;
   inputDisposable: { dispose(): void } | null;
   meta: TerminalRuntimeMeta;
   mode: TerminalMountMode;
@@ -113,6 +115,7 @@ const dictionaries = { en, zh } as const;
 const WAITING_THRESHOLD = 30_000;
 const ACTIVITY_THROTTLE_MS = 3_000;
 const SPAWN_STAGGER_MS = 150;
+const TERMINAL_PARKING_ROOT_ID = "tc-terminal-runtime-parking-root";
 
 let spawnStaggerCount = 0;
 let spawnStaggerResetTimer: ReturnType<typeof setTimeout> | null = null;
@@ -148,7 +151,7 @@ function updateRuntimeSnapshot(
   useTerminalRuntimeStore.setState((state) => {
     const current = state.terminals[terminalId] ?? {
       copiedNonce: 0,
-      mode: "unmounted" as TerminalMountMode,
+      mode: "parked" as TerminalMountMode,
       previewText: "",
       telemetry: null,
     };
@@ -223,7 +226,7 @@ function bumpCopiedNonce(terminalId: string) {
   useTerminalRuntimeStore.setState((state) => {
     const current = state.terminals[terminalId] ?? {
       copiedNonce: 0,
-      mode: "unmounted" as TerminalMountMode,
+      mode: "parked" as TerminalMountMode,
       previewText: "",
       telemetry: null,
     };
@@ -533,19 +536,191 @@ function lookupCurrentTerminal(runtime: ManagedTerminalRuntime) {
   return worktree?.terminals.find((entry) => entry.id === runtime.meta.terminal.id);
 }
 
-function disposeLiveBindings(runtime: ManagedTerminalRuntime) {
-  runtime.selectionDisposable?.dispose();
-  runtime.selectionDisposable = null;
-  runtime.selectionPointerCleanup?.();
-  runtime.selectionPointerCleanup = null;
+function disposeInteractiveBindings(runtime: ManagedTerminalRuntime) {
   runtime.inputDisposable?.dispose();
   runtime.inputDisposable = null;
   runtime.resizeDisposable?.dispose();
   runtime.resizeDisposable = null;
 }
 
+function disposeSelectionBindings(runtime: ManagedTerminalRuntime) {
+  runtime.selectionDisposable?.dispose();
+  runtime.selectionDisposable = null;
+  runtime.selectionPointerCleanup?.();
+  runtime.selectionPointerCleanup = null;
+  runtime.selectionAutoCopy = createTerminalSelectionAutoCopyState();
+}
+
+function disposeRendererBindings(runtime: ManagedTerminalRuntime) {
+  disposeInteractiveBindings(runtime);
+  disposeSelectionBindings(runtime);
+}
+
+function scheduleRuntimeRefresh(callback: () => void) {
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(callback);
+    return;
+  }
+
+  setTimeout(callback, 0);
+}
+
+function ensureParkingRoot(): HTMLDivElement | null {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  let root = document.getElementById(TERMINAL_PARKING_ROOT_ID) as HTMLDivElement | null;
+  if (root) {
+    return root;
+  }
+
+  root = document.createElement("div");
+  root.id = TERMINAL_PARKING_ROOT_ID;
+  root.setAttribute("aria-hidden", "true");
+  root.style.position = "fixed";
+  root.style.left = "-10000px";
+  root.style.top = "0";
+  root.style.width = "1px";
+  root.style.height = "1px";
+  root.style.opacity = "0";
+  root.style.pointerEvents = "none";
+  root.style.overflow = "hidden";
+
+  document.body?.appendChild(root);
+  return root.parentElement ? root : null;
+}
+
+function ensureRuntimeHost(runtime: ManagedTerminalRuntime): HTMLDivElement | null {
+  if (runtime.hostElement || typeof document === "undefined") {
+    return runtime.hostElement;
+  }
+
+  const host = document.createElement("div");
+  host.className = "tc-xterm-host nopan nodrag";
+  host.style.position = "absolute";
+  host.style.inset = "0";
+  host.style.width = "100%";
+  host.style.height = "100%";
+  host.style.overflow = "hidden";
+  runtime.hostElement = host;
+  return host;
+}
+
+function attachTerminalHost(
+  runtime: ManagedTerminalRuntime,
+  container: HTMLDivElement,
+): HTMLDivElement | null {
+  const host = ensureRuntimeHost(runtime);
+  if (!host) {
+    return null;
+  }
+
+  if (host.parentElement !== container) {
+    container.appendChild(host);
+  }
+  runtime.attachedContainer = container;
+  return host;
+}
+
+function parkTerminalHost(runtime: ManagedTerminalRuntime) {
+  runtime.attachedContainer = null;
+
+  const host = runtime.hostElement;
+  if (!host) {
+    return;
+  }
+
+  const parkingRoot = ensureParkingRoot();
+  if (parkingRoot) {
+    if (host.parentElement !== parkingRoot) {
+      parkingRoot.appendChild(host);
+    }
+    return;
+  }
+
+  host.parentElement?.removeChild(host);
+}
+
+function removeTerminalHost(runtime: ManagedTerminalRuntime) {
+  runtime.attachedContainer = null;
+
+  const host = runtime.hostElement;
+  if (!host) {
+    return;
+  }
+
+  host.parentElement?.removeChild(host);
+  runtime.hostElement = null;
+}
+
+function wireSelectionBindings(
+  runtime: ManagedTerminalRuntime,
+  host: HTMLDivElement,
+) {
+  const xterm = runtime.xterm;
+  if (!xterm) {
+    return;
+  }
+
+  disposeSelectionBindings(runtime);
+
+  const maybeAutoCopySelection = () => {
+    const text = xterm.getSelection();
+    if (
+      !shouldAutoCopyTerminalSelection(
+        runtime.selectionAutoCopy,
+        text,
+        "mouseup",
+      )
+    ) {
+      return;
+    }
+
+    runtime.selectionAutoCopy = markTerminalSelectionCopied(
+      runtime.selectionAutoCopy,
+    );
+    void navigator.clipboard.writeText(text).catch(() => {});
+    bumpCopiedNonce(runtime.meta.terminal.id);
+    runtime.attachOptions?.onCopy?.();
+  };
+
+  const handleSelectionMouseUp = () => {
+    maybeAutoCopySelection();
+    runtime.selectionAutoCopy = markTerminalSelectionPointerEnded(
+      runtime.selectionAutoCopy,
+    );
+  };
+  const handleSelectionMouseDown = () => {
+    runtime.selectionAutoCopy = markTerminalSelectionPointerStarted(
+      runtime.selectionAutoCopy,
+    );
+  };
+  host.addEventListener("mousedown", handleSelectionMouseDown);
+  window.addEventListener("mouseup", handleSelectionMouseUp);
+  runtime.selectionPointerCleanup = () => {
+    host.removeEventListener("mousedown", handleSelectionMouseDown);
+    window.removeEventListener("mouseup", handleSelectionMouseUp);
+  };
+
+  runtime.selectionDisposable = xterm.onSelectionChange(() => {
+    runtime.selectionAutoCopy = markTerminalSelectionChanged(
+      runtime.selectionAutoCopy,
+    );
+  });
+}
+
+function wireRendererBindings(
+  runtime: ManagedTerminalRuntime,
+  host: HTMLDivElement,
+) {
+  wireSelectionBindings(runtime, host);
+  wireLiveBindings(runtime);
+}
+
 function detachTerminalRenderer(runtime: ManagedTerminalRuntime) {
   if (!runtime.xterm) {
+    removeTerminalHost(runtime);
     return;
   }
 
@@ -554,13 +729,30 @@ function detachTerminalRenderer(runtime: ManagedTerminalRuntime) {
     pushPreview(runtime, serialized);
   }
 
-  disposeLiveBindings(runtime);
+  disposeRendererBindings(runtime);
   unregisterTerminal(runtime.meta.terminal.id);
   releaseWebGL(runtime.meta.terminal.id);
   runtime.xterm.dispose();
   runtime.xterm = null;
   runtime.fitAddon = null;
   runtime.serializeAddon = null;
+  removeTerminalHost(runtime);
+}
+
+function parkTerminalRenderer(runtime: ManagedTerminalRuntime) {
+  if (!runtime.xterm) {
+    parkTerminalHost(runtime);
+    return;
+  }
+
+  runtime.xterm.blur();
+  const serialized = runtime.serializeAddon?.serialize();
+  if (serialized) {
+    pushPreview(runtime, serialized);
+  }
+
+  disposeRendererBindings(runtime);
+  parkTerminalHost(runtime);
 }
 
 function wireLiveBindings(runtime: ManagedTerminalRuntime) {
@@ -613,10 +805,14 @@ function createTerminalRenderer(
   });
   const fitAddon = new FitAddon();
   const serializeAddon = new SerializeAddon();
+  const host = attachTerminalHost(runtime, container);
+  if (!host) {
+    return;
+  }
 
   xterm.loadAddon(fitAddon);
   xterm.loadAddon(serializeAddon);
-  xterm.open(container);
+  xterm.open(host);
 
   try {
     xterm.loadAddon(new ImageAddon());
@@ -638,50 +834,6 @@ function createTerminalRenderer(
     return true;
   });
 
-  const maybeAutoCopySelection = () => {
-    const text = xterm.getSelection();
-    if (
-      !shouldAutoCopyTerminalSelection(
-        runtime.selectionAutoCopy,
-        text,
-        "mouseup",
-      )
-    ) {
-      return;
-    }
-
-    runtime.selectionAutoCopy = markTerminalSelectionCopied(
-      runtime.selectionAutoCopy,
-    );
-    void navigator.clipboard.writeText(text).catch(() => {});
-    bumpCopiedNonce(runtime.meta.terminal.id);
-    runtime.attachOptions?.onCopy?.();
-  };
-
-  const handleSelectionMouseUp = () => {
-    maybeAutoCopySelection();
-    runtime.selectionAutoCopy = markTerminalSelectionPointerEnded(
-      runtime.selectionAutoCopy,
-    );
-  };
-  const handleSelectionMouseDown = () => {
-    runtime.selectionAutoCopy = markTerminalSelectionPointerStarted(
-      runtime.selectionAutoCopy,
-    );
-  };
-  container.addEventListener("mousedown", handleSelectionMouseDown);
-  window.addEventListener("mouseup", handleSelectionMouseUp);
-  runtime.selectionPointerCleanup = () => {
-    container.removeEventListener("mousedown", handleSelectionMouseDown);
-    window.removeEventListener("mouseup", handleSelectionMouseUp);
-  };
-
-  runtime.selectionDisposable = xterm.onSelectionChange(() => {
-    runtime.selectionAutoCopy = markTerminalSelectionChanged(
-      runtime.selectionAutoCopy,
-    );
-  });
-
   acquireWebGL(runtime.meta.terminal.id, xterm);
   runtime.xterm = xterm;
   runtime.fitAddon = fitAddon;
@@ -696,8 +848,8 @@ function createTerminalRenderer(
     });
   }
 
-  wireLiveBindings(runtime);
-  requestAnimationFrame(() => {
+  wireRendererBindings(runtime, host);
+  scheduleRuntimeRefresh(() => {
     runtime.fitAddon?.fit();
     runtime.xterm?.refresh(0, (runtime.xterm?.rows ?? 1) - 1);
   });
@@ -925,6 +1077,7 @@ function buildTerminalRuntime(
     activityPending: false,
     activityTimer: null,
     activityThrottled: false,
+    attachedContainer: null,
     attachOptions: null,
     cliOverride:
       usePreferencesStore.getState().cliCommands[meta.terminal.type] ?? undefined,
@@ -935,6 +1088,7 @@ function buildTerminalRuntime(
     fitAddon: null,
     globalDisposers: [],
     hasRespawned: false,
+    hostElement: null,
     inputDisposable: null,
     meta,
     mode,
@@ -1315,10 +1469,17 @@ export function setTerminalRuntimeMode(
   runtime.mode = mode;
   updateRuntimeSnapshot(terminalId, { mode });
 
-  if (mode !== "live") {
+  if (mode === "live") {
+    return;
+  }
+
+  if (mode === "evicted") {
     runtime.xterm?.blur();
     detachTerminalRenderer(runtime);
+    return;
   }
+
+  parkTerminalRenderer(runtime);
 }
 
 export function attachTerminalContainer(
@@ -1332,14 +1493,25 @@ export function attachTerminalContainer(
   }
 
   runtime.attachOptions = options;
-  if (runtime.xterm) {
-    return;
-  }
   if (runtime.usesAgentRenderer) {
     return;
   }
 
-  createTerminalRenderer(runtime, container);
+  if (!runtime.xterm) {
+    createTerminalRenderer(runtime, container);
+    return;
+  }
+
+  const host = attachTerminalHost(runtime, container);
+  if (!host) {
+    return;
+  }
+
+  wireRendererBindings(runtime, host);
+  scheduleRuntimeRefresh(() => {
+    runtime.fitAddon?.fit();
+    runtime.xterm?.refresh(0, (runtime.xterm?.rows ?? 1) - 1);
+  });
 }
 
 export function detachTerminalContainer(terminalId: string) {
@@ -1348,7 +1520,7 @@ export function detachTerminalContainer(terminalId: string) {
     return;
   }
 
-  detachTerminalRenderer(runtime);
+  parkTerminalRenderer(runtime);
 }
 
 export function fitTerminalRuntime(terminalId: string) {
