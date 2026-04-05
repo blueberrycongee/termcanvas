@@ -120,6 +120,7 @@ function createMockXterm() {
     disposeCalls: 0,
     fitCalls: 0,
     inputBindingDisposeCalls: 0,
+    loadAddonCalls: 0,
     refreshCalls: 0,
     resizeBindingDisposeCalls: 0,
     selectionBindingDisposeCalls: 0,
@@ -140,6 +141,9 @@ function createMockXterm() {
     focus() {},
     getSelection() {
       return "";
+    },
+    loadAddon() {
+      stats.loadAddonCalls += 1;
     },
     onData() {
       return {
@@ -421,5 +425,87 @@ test("parked runtimes apply font preference updates without fitting against the 
     destroyAllTerminalRuntimes();
     useProjectStore.setState(previousProjectState);
     usePreferencesStore.setState(previousPreferencesState);
+  }
+});
+
+test("reattaching a parked runtime reacquires WebGL after the pool evicts it", async () => {
+  const mockWindow = installRuntimeGlobals();
+  const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const { acquireWebGL, releaseWebGL } = await import("../src/terminal/webglContextPool.ts");
+  const {
+    attachTerminalContainer,
+    destroyAllTerminalRuntimes,
+    destroyTerminalRuntime,
+    ensureTerminalRuntime,
+    getTerminalRuntime,
+    setTerminalRuntimeMode,
+  } = await import("../src/terminal/terminalRuntimeStore.ts");
+  const previousState = useProjectStore.getState();
+
+  destroyAllTerminalRuntimes();
+
+  try {
+    seedProjectState(useProjectStore);
+
+    ensureTerminalRuntime({
+      projectId: "project-1",
+      terminal: useProjectStore.getState().projects[0].worktrees[0].terminals[0],
+      worktreeId: "worktree-1",
+      worktreePath: "/tmp/project-1",
+    });
+
+    mockWindow.termcanvas = {
+      terminal: {
+        destroy: async () => {},
+        input() {},
+        resize() {},
+      },
+    };
+
+    const runtime = getTerminalRuntime("terminal-1");
+    assert.ok(runtime);
+    if (!runtime) {
+      return;
+    }
+
+    const host = createFakeContainer();
+    const liveContainer = createFakeContainer();
+    const visibleContainer = createFakeContainer();
+    const { fitAddon, stats, xterm } = createMockXterm();
+    const serializeAddon = {
+      serialize() {
+        return "live buffer";
+      },
+    };
+
+    liveContainer.appendChild(host);
+    runtime.attachedContainer = liveContainer as unknown as HTMLDivElement;
+    runtime.fitAddon = fitAddon as unknown as typeof runtime.fitAddon;
+    runtime.hostElement = host as unknown as HTMLDivElement;
+    runtime.serializeAddon = serializeAddon as typeof runtime.serializeAddon;
+    runtime.xterm = xterm as unknown as typeof runtime.xterm;
+
+    assert.equal(
+      acquireWebGL(
+        "terminal-1",
+        runtime.xterm as NonNullable<typeof runtime.xterm>,
+      ),
+      true,
+    );
+    assert.equal(stats.loadAddonCalls, 1);
+
+    setTerminalRuntimeMode("terminal-1", "parked");
+    releaseWebGL("terminal-1");
+    setTerminalRuntimeMode("terminal-1", "live");
+    attachTerminalContainer("terminal-1", visibleContainer as unknown as HTMLDivElement);
+
+    assert.equal(host.parentElement, visibleContainer);
+    assert.equal(stats.loadAddonCalls, 2);
+
+    destroyTerminalRuntime("terminal-1");
+  } finally {
+    destroyAllTerminalRuntimes();
+    useProjectStore.setState(previousState);
+    releaseWebGL("terminal-1");
   }
 });

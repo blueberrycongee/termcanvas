@@ -560,6 +560,14 @@ function shouldFitAttachedRuntime(runtime: ManagedTerminalRuntime) {
   return runtime.mode === "live" && !!runtime.attachedContainer;
 }
 
+function ensureRuntimeWebGL(runtime: ManagedTerminalRuntime) {
+  if (!runtime.xterm) {
+    return false;
+  }
+
+  return acquireWebGL(runtime.meta.terminal.id, runtime.xterm);
+}
+
 function scheduleRuntimeRefresh(callback: () => void) {
   if (typeof requestAnimationFrame === "function") {
     requestAnimationFrame(callback);
@@ -838,10 +846,10 @@ function createTerminalRenderer(
     return true;
   });
 
-  acquireWebGL(runtime.meta.terminal.id, xterm);
   runtime.xterm = xterm;
   runtime.fitAddon = fitAddon;
   runtime.serializeAddon = serializeAddon;
+  ensureRuntimeWebGL(runtime);
 
   registerTerminal(runtime.meta.terminal.id, xterm, serializeAddon);
   if (runtime.previewAnsi) {
@@ -1515,6 +1523,7 @@ export function attachTerminalContainer(
     return;
   }
 
+  ensureRuntimeWebGL(runtime);
   wireRendererBindings(runtime, host);
   scheduleRuntimeRefresh(() => {
     runtime.fitAddon?.fit();
