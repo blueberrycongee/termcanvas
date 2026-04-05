@@ -29,6 +29,7 @@ import {
   type ProjectNodeData,
   type WorktreeNodeData,
 } from "./nodeProjection";
+import { rectIntersectsCanvasViewport } from "./viewportBounds";
 
 type ProjectFlowNode = Node<ProjectNodeData, "project">;
 type WorktreeFlowNode = Node<WorktreeNodeData, "worktree">;
@@ -44,6 +45,7 @@ function WorktreeTerminalItem({
   onSpanChange,
   projectId,
   terminal,
+  visible,
   worktreeId,
   worktreeName,
   worktreePath,
@@ -58,6 +60,7 @@ function WorktreeTerminalItem({
   onSpanChange: (span: { cols: number; rows: number }) => void;
   projectId: string;
   terminal: TerminalData;
+  visible: boolean;
   worktreeId: string;
   worktreeName: string;
   worktreePath: string;
@@ -68,13 +71,13 @@ function WorktreeTerminalItem({
         state.terminals[terminal.id]?.mode ??
         resolveTerminalMountMode({
           focused: terminal.focused,
-          visible: true,
+          visible,
         }),
-      [terminal.focused, terminal.id],
+      [terminal.focused, terminal.id, visible],
     ),
   );
 
-  if (!shouldRenderTerminalTile(lodMode)) {
+  if (!shouldRenderTerminalTile({ focused: terminal.focused, visible })) {
     return null;
   }
 
@@ -245,9 +248,17 @@ function ProjectNode({ data }: NodeProps<ProjectFlowNode>) {
   );
 }
 
-function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
+function WorktreeNode({
+  data,
+  positionAbsoluteX,
+  positionAbsoluteY,
+}: NodeProps<WorktreeFlowNode>) {
   const t = useT();
   const focusedWorktreeId = useProjectStore((state) => state.focusedWorktreeId);
+  const viewport = useCanvasStore((state) => state.viewport);
+  const rightPanelCollapsed = useCanvasStore((state) => state.rightPanelCollapsed);
+  const leftPanelCollapsed = useCanvasStore((state) => state.leftPanelCollapsed);
+  const leftPanelWidth = useCanvasStore((state) => state.leftPanelWidth);
   const toggleWorktreeCollapse = useProjectStore(
     (state) => state.toggleWorktreeCollapse,
   );
@@ -318,12 +329,39 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
         return null;
       }
 
+      const visible =
+        !project?.collapsed &&
+        !worktree.collapsed &&
+        rectIntersectsCanvasViewport(
+          {
+            h: item.h,
+            w: item.w,
+            x: positionAbsoluteX + WT_PAD + item.x,
+            y: positionAbsoluteY + WT_TITLE_H + WT_PAD + item.y,
+          },
+          viewport,
+          rightPanelCollapsed,
+          leftPanelCollapsed,
+          leftPanelWidth,
+        );
+
       return {
         item,
         terminal,
+        visible,
       };
     });
-  }, [packed, worktree]);
+  }, [
+    leftPanelCollapsed,
+    leftPanelWidth,
+    packed,
+    positionAbsoluteX,
+    positionAbsoluteY,
+    project?.collapsed,
+    rightPanelCollapsed,
+    viewport,
+    worktree,
+  ]);
 
   const handleNewTerminal = useCallback(() => {
     if (!worktree) {
@@ -549,6 +587,15 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
             return null;
           }
 
+          if (
+            !shouldRenderTerminalTile({
+              focused: layout.terminal.focused,
+              visible: layout.visible,
+            })
+          ) {
+            return null;
+          }
+
           const { item, terminal } = layout;
           const isDragging = dragState?.terminalId === terminal.id;
 
@@ -560,6 +607,7 @@ function WorktreeNode({ data }: NodeProps<WorktreeFlowNode>) {
               worktreeName={worktree.name}
               worktreePath={worktree.path}
               terminal={terminal}
+              visible={layout.visible}
               item={item}
               onDragStart={handleTerminalDragStart}
               isDragging={isDragging}

@@ -21,8 +21,14 @@ export function resolveTerminalMountMode({
   return "parked";
 }
 
-export function shouldRenderTerminalTile(mode: TerminalMountMode): boolean {
-  return mode !== "evicted";
+export function shouldRenderTerminalTile({
+  focused,
+  visible,
+}: {
+  focused: boolean;
+  visible: boolean;
+}): boolean {
+  return focused || visible;
 }
 
 export function clampPreviewAnsi(serialized: string): string {

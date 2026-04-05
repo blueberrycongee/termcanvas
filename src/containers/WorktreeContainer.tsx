@@ -184,6 +184,7 @@ export function WorktreeContainer({
           visible,
         }),
         terminal,
+        visible,
       };
     });
   }, [
@@ -451,7 +452,16 @@ export function WorktreeContainer({
           />
         ))}
         {terminalLayouts.map((layout, index) => {
-          if (!layout || !shouldRenderTerminalTile(layout.lodMode) || layout.terminal.stashed) return null;
+          if (
+            !layout ||
+            !shouldRenderTerminalTile({
+              focused: layout.terminal.focused,
+              visible: layout.visible,
+            }) ||
+            layout.terminal.stashed
+          ) {
+            return null;
+          }
           const { item, terminal } = layout;
           const isDragging = dragState?.terminalId === terminal.id;
 

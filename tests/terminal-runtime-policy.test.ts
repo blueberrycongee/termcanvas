@@ -38,10 +38,28 @@ test("offscreen non-focused terminals are parked instead of unmounted", () => {
   );
 });
 
-test("legacy and xyflow share the same tile render gate", () => {
-  assert.equal(shouldRenderTerminalTile("live"), true);
-  assert.equal(shouldRenderTerminalTile("parked"), true);
-  assert.equal(shouldRenderTerminalTile("evicted"), false);
+test("tile rendering follows viewport and focus instead of mount mode", () => {
+  assert.equal(
+    shouldRenderTerminalTile({
+      focused: false,
+      visible: false,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldRenderTerminalTile({
+      focused: false,
+      visible: true,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldRenderTerminalTile({
+      focused: true,
+      visible: false,
+    }),
+    true,
+  );
 });
 
 test("preview text strips ANSI escapes and keeps the tail", () => {
