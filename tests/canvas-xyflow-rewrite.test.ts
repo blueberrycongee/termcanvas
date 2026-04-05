@@ -25,8 +25,11 @@ function installCanvasProjectionGlobals() {
   };
   const target = new EventTarget();
   const mockWindow = Object.assign(target, {
+    innerHeight: 900,
+    innerWidth: 1440,
     navigator,
     localStorage,
+    termcanvas: undefined,
   }) as Window;
 
   Object.defineProperty(globalThis, "localStorage", {
@@ -45,6 +48,19 @@ function installCanvasProjectionGlobals() {
   });
 }
 
+async function loadCanvasModules(tag: string) {
+  installCanvasProjectionGlobals();
+
+  const sceneProjection = await import(`../src/canvas/sceneProjection.ts?${tag}`);
+  const nodeProjection = await import(`../src/canvas/nodeProjection.ts?${tag}`);
+  const sceneState = await import(`../src/canvas/sceneState.ts?${tag}`);
+
+  return {
+    ...sceneProjection,
+    ...nodeProjection,
+    ...sceneState,
+  };
+}
 function createProjects(): ProjectData[] {
   return [
     {
@@ -199,4 +215,164 @@ test("getCanvasRendererMode defaults to xyflow and honors explicit legacy overri
 
   localStorage.setItem("termcanvas-canvas-renderer", "xyflow");
   assert.equal(getCanvasRendererMode(), "xyflow");
+});
+
+test("sceneState render helpers ignore stashed terminals", async () => {
+  const {
+    getRenderableTerminalLayouts,
+    getRenderableWorktreeSize,
+  } = await loadCanvasModules("renderable-terminals");
+  const worktree = {
+    id: "worktree-1",
+    name: "main",
+    path: "/tmp/project-1",
+    position: { x: 0, y: 0 },
+    collapsed: false,
+    terminals: [
+      {
+        id: "terminal-visible-1",
+        title: "Visible 1",
+        type: "shell" as const,
+        minimized: false,
+        focused: false,
+        ptyId: null,
+        status: "idle" as const,
+        span: { cols: 1, rows: 1 },
+      },
+      {
+        id: "terminal-stashed",
+        title: "Stashed",
+        type: "shell" as const,
+        minimized: false,
+        focused: false,
+        ptyId: null,
+        status: "idle" as const,
+        span: { cols: 2, rows: 1 },
+        stashed: true,
+      },
+      {
+        id: "terminal-visible-2",
+        title: "Visible 2",
+        type: "shell" as const,
+        minimized: false,
+        focused: false,
+        ptyId: null,
+        status: "idle" as const,
+        span: { cols: 1, rows: 1 },
+      },
+    ],
+  };
+
+  const layouts = getRenderableTerminalLayouts(worktree);
+  assert.deepEqual(
+    layouts.map(({ terminal }) => terminal.id),
+    ["terminal-visible-1", "terminal-visible-2"],
+  );
+
+  const size = getRenderableWorktreeSize(worktree);
+  assert.equal(size.w >= 300, true);
+  assert.equal(size.h > 36, true);
+});
+
+test("filterValidSelectedItems drops removed and stashed scene selections", async () => {
+  const { filterValidSelectedItems } = await loadCanvasModules("selection-filter");
+  const projects: ProjectData[] = [
+    {
+      id: "project-1",
+      name: "Project One",
+      path: "/tmp/project-1",
+      position: { x: 0, y: 0 },
+      collapsed: false,
+      zIndex: 0,
+      worktrees: [
+        {
+          id: "worktree-1",
+          name: "main",
+          path: "/tmp/project-1",
+          position: { x: 0, y: 0 },
+          collapsed: false,
+          terminals: [
+            {
+              id: "terminal-visible",
+              title: "Visible",
+              type: "shell",
+              minimized: false,
+              focused: false,
+              ptyId: null,
+              status: "idle",
+              span: { cols: 1, rows: 1 },
+            },
+            {
+              id: "terminal-stashed",
+              title: "Stashed",
+              type: "shell",
+              minimized: false,
+              focused: false,
+              ptyId: null,
+              status: "idle",
+              span: { cols: 1, rows: 1 },
+              stashed: true,
+            },
+          ],
+        },
+      ],
+    },
+  ];
+
+  const selectedItems = filterValidSelectedItems(
+    [
+      { type: "project", projectId: "project-1" },
+      {
+        type: "terminal",
+        projectId: "project-1",
+        worktreeId: "worktree-1",
+        terminalId: "terminal-visible",
+      },
+      {
+        type: "terminal",
+        projectId: "project-1",
+        worktreeId: "worktree-1",
+        terminalId: "terminal-stashed",
+      },
+      { type: "card", cardId: "browser-1" },
+      { type: "annotation", annotationId: "annotation-1" },
+    ],
+    {
+      annotations: [
+        {
+          id: "annotation-1",
+          type: "text",
+          x: 10,
+          y: 20,
+          content: "hello",
+          color: "#fff",
+          fontSize: 14,
+        },
+      ],
+      cards: {
+        "browser-1": {
+          id: "browser-1",
+          url: "https://example.com",
+          title: "Example",
+          x: 0,
+          y: 0,
+          w: 320,
+          h: 240,
+        },
+      },
+      projects,
+    },
+  );
+
+  assert.deepEqual(selectedItems, [
+    { type: "project", projectId: "project-1" },
+    {
+      type: "terminal",
+      projectId: "project-1",
+      worktreeId: "worktree-1",
+      terminalId: "terminal-visible",
+    },
+    { type: "card", cardId: "browser-1" },
+    { type: "annotation", annotationId: "annotation-1" },
+  ]);
 });

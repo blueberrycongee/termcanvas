@@ -235,7 +235,7 @@ export function selectionToSceneSelection(
 
 export function createSceneRuntime(
   selection: SelectedItem[] = [],
-  renderer: SceneRuntime["renderer"] = "legacy",
+  renderer: SceneRuntime["renderer"] = "xyflow",
 ): SceneRuntime {
   return {
     renderer,

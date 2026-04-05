@@ -13,12 +13,14 @@ import {
 import { useCanvasStore } from "../stores/canvasStore";
 import { useProjectStore, getProjectBounds } from "../stores/projectStore";
 import { useCardLayoutStore, resolveAllCardPositions } from "../stores/cardLayoutStore";
+import {
+  getRenderableTerminalLayouts,
+  getRenderableWorktreeSize,
+} from "../canvas/sceneState";
 import { useDrawingStore } from "../stores/drawingStore";
 import { type SelectedItem } from "../stores/selectionStore";
 import { screenPointToCanvasPoint } from "../canvas/viewportBounds";
 import {
-  packTerminals,
-  getWorktreeSize,
   WT_PAD,
   WT_TITLE_H,
   PROJ_PAD,
@@ -69,10 +71,7 @@ function getItemsInRect(rect: { x: number; y: number; w: number; h: number }): S
   for (const p of projects) {
     if (selectedProjectIds.has(p.id)) continue;
     for (const wt of p.worktrees) {
-      const wtSize = getWorktreeSize(
-        wt.terminals.map((terminal) => terminal.span),
-        wt.collapsed,
-      );
+      const wtSize = getRenderableWorktreeSize(wt);
       const wtAbsX = p.position.x + PROJ_PAD + wt.position.x;
       const wtAbsY = p.position.y + PROJ_TITLE_H + PROJ_PAD + wt.position.y;
       if (rectsIntersect(nr, { x: wtAbsX, y: wtAbsY, w: wtSize.w, h: wtSize.h })) {
@@ -87,12 +86,9 @@ function getItemsInRect(rect: { x: number; y: number; w: number; h: number }): S
     for (const wt of p.worktrees) {
       if (selectedWorktreeKeys.has(`${p.id}:${wt.id}`)) continue;
       if (wt.collapsed) continue;
-      const packed = packTerminals(wt.terminals.map((t) => t.span));
       const wtAbsX = p.position.x + PROJ_PAD + wt.position.x + WT_PAD;
       const wtAbsY = p.position.y + PROJ_TITLE_H + PROJ_PAD + wt.position.y + WT_TITLE_H + WT_PAD;
-      for (let i = 0; i < wt.terminals.length; i++) {
-        const item = packed[i];
-        if (!item) continue;
+      for (const { item, terminal } of getRenderableTerminalLayouts(wt)) {
         const termRect = {
           x: wtAbsX + item.x,
           y: wtAbsY + item.y,
@@ -104,7 +100,7 @@ function getItemsInRect(rect: { x: number; y: number; w: number; h: number }): S
             type: "terminal",
             projectId: p.id,
             worktreeId: wt.id,
-            terminalId: wt.terminals[i].id,
+            terminalId: terminal.id,
           });
         }
       }

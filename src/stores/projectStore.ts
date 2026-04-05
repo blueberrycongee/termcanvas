@@ -9,6 +9,11 @@ import type {
   StashedTerminal,
 } from "../types/index.ts";
 import {
+  filterValidSelectedItems,
+  getRenderableTerminalSpans,
+  sameSelectedItems,
+} from "../canvas/sceneState.ts";
+import {
   getStandardWorktreeWidth,
   getWorktreeSize,
   PROJ_PAD,
@@ -24,6 +29,7 @@ import { normalizeProjectsFocus, findNextVisibleTerminalId } from "./projectFocu
 import { useWorkspaceStore } from "./workspaceStore.ts";
 import { usePreferencesStore } from "./preferencesStore.ts";
 import { logSlowRendererPath, measureRendererSync } from "../utils/devPerf.ts";
+import { useSelectionStore } from "./selectionStore.ts";
 import { setTrackSidebar, useTileDimensionsStore } from "./tileDimensionsStore.ts";
 import { useTerminalRuntimeStateStore } from "./terminalRuntimeStateStore.ts";
 
@@ -215,9 +221,7 @@ function markDirty() {
 
 function getVisibleWorktreeSize(worktree: WorktreeData) {
   return getWorktreeSize(
-    worktree.terminals
-      .filter((terminal) => !terminal.stashed)
-      .map((terminal) => terminal.span),
+    getRenderableTerminalSpans(worktree),
     worktree.collapsed,
   );
 }
@@ -1309,6 +1313,24 @@ useTileDimensionsStore.subscribe((state, prev) => {
   }
 });
 
+useProjectStore.subscribe((state, prev) => {
+  if (state.projects === prev.projects) {
+    return;
+  }
+
+  const selectionState = useSelectionStore.getState();
+  const nextSelectedItems = filterValidSelectedItems(
+    selectionState.selectedItems,
+    { projects: state.projects },
+  );
+
+  if (!sameSelectedItems(selectionState.selectedItems, nextSelectedItems)) {
+    useSelectionStore.setState({ selectedItems: nextSelectedItems });
+  }
+});
+
+// --- Stash helpers (single source of truth: projectStore.stashed flag) ---
+
 import { destroyTerminalRuntime } from "../terminal/terminalRuntimeStore.ts";
 
 export function stashTerminal(
@@ -1363,14 +1385,25 @@ export function getStashedTerminals(): Array<{
   terminal: TerminalData;
   projectId: string;
   worktreeId: string;
+  stashedAt: number;
 }> {
   const { projects } = useProjectStore.getState();
-  const result: Array<{ terminal: TerminalData; projectId: string; worktreeId: string }> = [];
+  const result: Array<{
+    terminal: TerminalData;
+    projectId: string;
+    stashedAt: number;
+    worktreeId: string;
+  }> = [];
   for (const p of projects) {
     for (const w of p.worktrees) {
       for (const t of w.terminals) {
         if (t.stashed) {
-          result.push({ terminal: t, projectId: p.id, worktreeId: w.id });
+          result.push({
+            terminal: t,
+            projectId: p.id,
+            stashedAt: t.stashedAt ?? 0,
+            worktreeId: w.id,
+          });
         }
       }
     }

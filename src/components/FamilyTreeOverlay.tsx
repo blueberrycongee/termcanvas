@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import type { ProjectData, TerminalData } from "../types";
+import { getRenderableTerminalLayouts } from "../canvas/sceneState";
 import { useProjectStore, findTerminalById, getChildTerminals } from "../stores/projectStore";
 import {
   useCanvasStore,
@@ -8,7 +9,6 @@ import {
   COLLAPSED_TAB_WIDTH,
 } from "../stores/canvasStore";
 import {
-  packTerminals,
   PROJ_PAD,
   PROJ_TITLE_H,
   WT_PAD,
@@ -144,12 +144,11 @@ function getTerminalAbsolutePosition(
 ): { x: number; y: number; w: number; h: number } | null {
   for (const p of projects) {
     for (const w of p.worktrees) {
-      const index = w.terminals.findIndex((t) => t.id === terminalId);
-      if (index === -1) continue;
-
-      const packed = packTerminals(w.terminals.map((t) => t.span));
-      const item = packed[index];
-      if (!item) continue;
+      const layout = getRenderableTerminalLayouts(w).find(
+        ({ terminal }) => terminal.id === terminalId,
+      );
+      if (!layout) continue;
+      const { item } = layout;
 
       return {
         x: p.position.x + PROJ_PAD + w.position.x + WT_PAD + item.x,

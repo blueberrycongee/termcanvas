@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { CanvasRoot } from "./canvas/CanvasRoot";
+import { addProjectFromDirectoryPath } from "./canvas/sceneCommands";
 import { Toolbar } from "./toolbar/Toolbar";
 import { NotificationToast } from "./components/NotificationToast";
 import { Hub } from "./components/Hub";
@@ -21,7 +22,6 @@ import {
 } from "./actions/terminalSceneActions";
 import {
   useProjectStore,
-  getProjectBounds,
   generateId,
 } from "./stores/projectStore";
 import { addScannedProjectAndFocus } from "./projects/projectCreation";
@@ -386,19 +386,10 @@ export function App() {
   useEffect(() => {
     if (!window.termcanvas?.menu) return;
     return window.termcanvas.menu.onOpenFolder(async (dirPath: string) => {
-      const { notify } = useNotificationStore.getState();
-      try {
-        const info = await window.termcanvas.project.scan(dirPath);
-        if (!info) {
-          notify("error", "Failed to scan directory");
-          return;
-        }
-        addScannedProjectAndFocus(info);
-      } catch (err) {
-        notify("error", String(err));
-      }
+      await addProjectFromDirectoryPath(dirPath, t);
     });
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t]);
 
   useEffect(() => {
     loadAllDownloadedFonts();

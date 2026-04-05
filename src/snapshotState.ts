@@ -1,9 +1,10 @@
 import { clearSceneSelection } from "./actions/sceneSelectionActions";
 import { restoreBrowserCardsInScene } from "./actions/sceneCardActions";
-import { useProjectStore } from "./stores/projectStore";
+import { getStashedTerminals, useProjectStore } from "./stores/projectStore";
 import { useCanvasStore } from "./stores/canvasStore";
 import { useDrawingStore } from "./stores/drawingStore";
 import { useBrowserCardStore } from "./stores/browserCardStore";
+import { useFileCardStore } from "./stores/fileCardStore";
 import { useStashStore } from "./stores/stashStore";
 import { useTerminalRuntimeStateStore } from "./stores/terminalRuntimeStateStore";
 import {
@@ -47,6 +48,7 @@ export function restoreWorkspaceSnapshot(
     elements: restoredState.drawings,
   });
   restoreBrowserCardsInScene(restoredState.browserCards);
+  useFileCardStore.getState().clear();
   useStashStore.getState().setItems(
     (snapshot.scene.stashedTerminals ?? []).map(restorePersistedStashedTerminal),
   );
@@ -68,7 +70,7 @@ function buildSceneWorkspaceSnapshot(): SceneWorkspaceSnapshot {
     toPersistedProjectData(project, scrollbacks),
   );
 
-  const stashedTerminals = useStashStore.getState().items.map((entry) =>
+  const stashedTerminals = getStashedTerminals().map((entry) =>
     toPersistedStashedTerminal(entry, scrollbacks),
   );
 

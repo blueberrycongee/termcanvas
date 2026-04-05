@@ -13,7 +13,6 @@ import {
 } from "../actions/terminalSceneActions";
 import {
   useProjectStore,
-  generateId,
   getProjectBounds,
 } from "../stores/projectStore";
 import {
@@ -22,6 +21,9 @@ import {
 } from "../projects/projectCreation";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useNotificationStore } from "../stores/notificationStore";
+import {
+  promptAndAddProjectToScene,
+} from "../canvas/sceneCommands";
 import {
   useShortcutStore,
   matchesShortcut,
@@ -124,32 +126,12 @@ function zoomToFitAll() {
 }
 
 async function handleAddProject(t: ReturnType<typeof useT>) {
-  if (!window.termcanvas) return;
-  const { notify } = useNotificationStore.getState();
+  const createdProject = await promptAndAddProjectToScene(t, {
+    notifyAdded: true,
+  });
+  if (!createdProject) return;
 
-  let dirPath: string | null;
-  try {
-    dirPath = await window.termcanvas.project.selectDirectory();
-  } catch (err) {
-    notify("error", t.error_dir_picker(err));
-    return;
-  }
-  if (!dirPath) return;
-
-  let info: Awaited<ReturnType<typeof window.termcanvas.project.scan>>;
-  try {
-    info = await window.termcanvas.project.scan(dirPath);
-  } catch (err) {
-    notify("error", t.error_scan(err));
-    return;
-  }
-  if (!info) {
-    notify("error", t.error_scan("Failed to scan directory"));
-    return;
-  }
-
-  const createdProject = addScannedProjectAndFocus(info);
-
+  // Compute actual project size (same logic as ProjectContainer).
   const newProject = useProjectStore.getState().projects.find(
     (p) => p.id === createdProject.id,
   );
@@ -178,8 +160,6 @@ async function handleAddProject(t: ReturnType<typeof useT>) {
   const targetY =
     -(newProjectBounds.y + newProjectBounds.h / 2) * scale + screenCenterY;
   useCanvasStore.getState().animateTo(targetX, targetY, scale);
-
-  notify("info", t.info_added_project(info.name, info.worktrees.length));
 }
 
 interface TerminalRef {
