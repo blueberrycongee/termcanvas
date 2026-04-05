@@ -18,6 +18,7 @@ import { registerDispatchAttempt, retryTimedOutHandoff } from "./retry.ts";
 import { buildTaskPackageContext, writeTaskPackage } from "./task-package.ts";
 import {
   buildWorkflowTemplatePlan,
+  plannerControlPlanFile,
   resolveTemplateAdvance,
   type WorkflowTemplateName,
 } from "./workflow-template.ts";
@@ -44,6 +45,7 @@ import {
 import { buildGitWorktreeAddArgs, validateWorktreePath } from "./spawn.ts";
 
 const SPAWN_GRACE_PERIOD_MS = 15_000;
+const DEFAULT_MAX_SATISFACTION_ITERATIONS = 3;
 
 export interface RunWorkflowOptions {
   task: string;
@@ -235,6 +237,54 @@ function loadHandoffOrThrow(manager: HandoffManager, workflow: WorkflowRecord): 
   return handoff;
 }
 
+function getPieHandoffIds(workflow: WorkflowRecord): [string, string, string] {
+  if (workflow.template !== "planner-implementer-evaluator" || workflow.handoff_ids.length !== 3) {
+    throw new HydraError(`Workflow ${workflow.id} is not a planner-implementer-evaluator workflow`, {
+      errorCode: "WORKFLOW_TEMPLATE_INVALID",
+      stage: "workflow.template_state",
+      ids: { workflow_id: workflow.id },
+    });
+  }
+  return workflow.handoff_ids as [string, string, string];
+}
+
+function loadHandoffByIdOrThrow(
+  manager: HandoffManager,
+  workflow: WorkflowRecord,
+  handoffId: string,
+): Handoff {
+  const handoff = manager.load(handoffId);
+  if (!handoff) {
+    throw new HydraError(`Handoff not found: ${handoffId}`, {
+      errorCode: "WORKFLOW_HANDOFF_NOT_FOUND",
+      stage: "workflow.load_handoff",
+      ids: {
+        workflow_id: workflow.id,
+        handoff_id: handoffId,
+      },
+    });
+  }
+  return handoff;
+}
+
+function buildPieTemplatePlan(workflow: WorkflowRecord, manager: HandoffManager) {
+  const [plannerId, implementerId, evaluatorId] = getPieHandoffIds(workflow);
+  const plannerHandoff = loadHandoffByIdOrThrow(manager, workflow, plannerId);
+  const implementerHandoff = loadHandoffByIdOrThrow(manager, workflow, implementerId);
+  const evaluatorHandoff = loadHandoffByIdOrThrow(manager, workflow, evaluatorId);
+
+  return buildWorkflowTemplatePlan({
+    template: "planner-implementer-evaluator",
+    workflowId: workflow.id,
+    task: workflow.task,
+    plannerAgentType: plannerHandoff.to.agent_type as AgentType,
+    implementerAgentType: implementerHandoff.to.agent_type as AgentType,
+    evaluatorAgentType: evaluatorHandoff.to.agent_type as AgentType,
+    repoPath: workflow.repo_path,
+    handoffIds: workflow.handoff_ids,
+  });
+}
+
 function destroyHandoffTerminal(
   handoff: Handoff,
   dependencies: WorkflowDependencies | undefined,
@@ -284,10 +334,264 @@ function mapResultContract(result: ResultContract): NonNullable<Handoff["result"
     summary: result.summary,
     outputs: result.outputs,
     evidence: result.evidence,
+    verification: result.verification,
+    satisfaction: result.satisfaction,
+    replan: result.replan,
     next_action: result.next_action,
     message: result.summary,
     output_files: result.outputs.map((output) => output.path),
   };
+}
+
+function rewriteHandoffTaskPackage(
+  workflow: WorkflowRecord,
+  handoff: Handoff,
+): Handoff {
+  if (!handoff.artifacts) {
+    throw new HydraError(`Handoff ${handoff.id} is missing artifacts`, {
+      errorCode: "WORKFLOW_HANDOFF_MISSING_ARTIFACTS",
+      stage: "workflow.write_task_package",
+      ids: {
+        workflow_id: workflow.id,
+        handoff_id: handoff.id,
+      },
+    });
+  }
+
+  const taskPackage = buildTaskPackageContext({
+    workspaceRoot: workflow.repo_path,
+    workflowId: workflow.id,
+    handoffId: handoff.id,
+    createdAt: handoff.created_at,
+    from: handoff.from,
+    to: handoff.to,
+    task: handoff.task,
+    context: handoff.context,
+  });
+  handoff.task = taskPackage.contract.task;
+  handoff.context = taskPackage.contract.context;
+  handoff.artifacts = writeTaskPackage(taskPackage.contract);
+  return handoff;
+}
+
+function getPlannerControlPlanPath(workflow: WorkflowRecord): string {
+  const [plannerId] = getPieHandoffIds(workflow);
+  return plannerControlPlanFile(workflow.repo_path, workflow.id, plannerId);
+}
+
+function persistPlannerControlPlan(
+  workflow: WorkflowRecord,
+  plannerHandoff: Handoff,
+): string {
+  if (!plannerHandoff.artifacts) {
+    throw new HydraError(`Planner handoff ${plannerHandoff.id} is missing artifacts`, {
+      errorCode: "WORKFLOW_HANDOFF_MISSING_ARTIFACTS",
+      stage: "workflow.persist_control_plan",
+      ids: {
+        workflow_id: workflow.id,
+        handoff_id: plannerHandoff.id,
+      },
+    });
+  }
+
+  const controlPlanPath = getPlannerControlPlanPath(workflow);
+  fs.copyFileSync(plannerHandoff.artifacts.result_file, controlPlanPath);
+  return controlPlanPath;
+}
+
+function preparePlannerSatisfactionCheck(
+  workflow: WorkflowRecord,
+  manager: HandoffManager,
+  iteration: number,
+): Handoff {
+  const [plannerId, implementerId, evaluatorId] = getPieHandoffIds(workflow);
+  const plannerHandoff = loadHandoffByIdOrThrow(manager, workflow, plannerId);
+  const implementerHandoff = loadHandoffByIdOrThrow(manager, workflow, implementerId);
+  const evaluatorHandoff = loadHandoffByIdOrThrow(manager, workflow, evaluatorId);
+  const templatePlanner = buildPieTemplatePlan(workflow, manager).handoffs[0];
+
+  if (!plannerHandoff.artifacts || !implementerHandoff.artifacts || !evaluatorHandoff.artifacts) {
+    throw new HydraError("Planner satisfaction check requires task package artifacts for all PIE handoffs", {
+      errorCode: "WORKFLOW_HANDOFF_MISSING_ARTIFACTS",
+      stage: "workflow.satisfaction_check",
+      ids: { workflow_id: workflow.id },
+    });
+  }
+
+  const plannerResultFile = getPlannerControlPlanPath(workflow);
+  const implementerResultFile = implementerHandoff.artifacts.result_file;
+  const evaluatorResultFile = evaluatorHandoff.artifacts.result_file;
+  const maxIterations = workflow.max_satisfaction_iterations ?? DEFAULT_MAX_SATISFACTION_ITERATIONS;
+  const satisfactionContextFile = path.join(
+    plannerHandoff.artifacts.package_dir,
+    "satisfaction-context.md",
+  );
+
+  fs.writeFileSync(
+    satisfactionContextFile,
+    [
+      "# Planner Satisfaction Check",
+      "",
+      "You are now performing a satisfaction check, not initial planning.",
+      "",
+      "## Read First",
+      `- Current controlling plan: ${plannerResultFile}`,
+      `- Implementer result: ${implementerResultFile}`,
+      `- Evaluator result: ${evaluatorResultFile}`,
+      "",
+      "## Decision Modes",
+      "1. Satisfied: set `satisfaction: true` only when the existing controlling plan still matches the shipped state.",
+      "2. Replan required: set `satisfaction: false`, `replan: true`, and write a revised plan from scratch.",
+      "3. Same plan, more implementation required: set `satisfaction: false`, `replan: false`, and preserve the controlling plan while directing the implementer to continue.",
+      "",
+      "## Output Requirements",
+      "- Your result.json must include a boolean `satisfaction` field.",
+      "- If `satisfaction` is false, your result.json must also include a boolean `replan` field.",
+      "- Use `success=true` whenever you reached a satisfaction decision, even when `satisfaction=false`.",
+      "- Use `success=false` only when you could not complete the satisfaction check itself.",
+      "- If satisfied, use `next_action.type=complete`.",
+      `- If replanning is required, use next_action.type=handoff and next_action.handoff_id=${plannerId}.`,
+      `- If the same plan should continue, use next_action.type=handoff and next_action.handoff_id=${implementerId}.`,
+      "",
+      `This is satisfaction iteration ${iteration} of ${maxIterations}.`,
+    ].join("\n"),
+    "utf-8",
+  );
+
+  plannerHandoff.task = {
+    ...templatePlanner.task,
+    type: "workflow-plan-satisfaction-check",
+    title: `Satisfaction Check: ${workflow.task.slice(0, 60)}`,
+    description: [
+      "You are now performing a planner satisfaction check after implementation and evaluation completed.",
+      `Primary task: ${workflow.task}`,
+      `Read the current plan at ${plannerResultFile}, the implementer result at ${implementerResultFile}, the evaluator result at ${evaluatorResultFile}, and ${satisfactionContextFile}.`,
+      `Complete when you can either accept the work, replan via ${plannerId}, or send the same plan back to ${implementerId}.`,
+    ].join("\n"),
+    acceptance_criteria: [
+      "Read the current plan, implementer result, evaluator result, and satisfaction-context.md before deciding",
+      "Include `satisfaction` as a boolean in result.json",
+      "If `satisfaction` is false, include `replan` as a boolean in result.json",
+      "Use `success=true` whenever you reached a satisfaction decision",
+      "Use next_action.type=complete when satisfaction=true",
+      `Use next_action.handoff_id=${plannerId} when replan=true`,
+      `Use next_action.handoff_id=${implementerId} when replan=false`,
+    ],
+  };
+  plannerHandoff.context = {
+    files: [
+      plannerResultFile,
+      implementerResultFile,
+      evaluatorResultFile,
+      satisfactionContextFile,
+    ],
+    previous_handoffs: [implementerId, evaluatorId],
+    shared_state: {
+      ...templatePlanner.context.shared_state,
+      worktree_path: workflow.worktree_path,
+      branch: workflow.branch,
+      base_branch: workflow.base_branch,
+      planner_result_file: plannerResultFile,
+      implementer_result_file: implementerResultFile,
+      evaluator_result_file: evaluatorResultFile,
+      satisfaction_context_file: satisfactionContextFile,
+      satisfaction_iteration: iteration,
+      max_satisfaction_iterations: maxIterations,
+      downstream_handoff_id: implementerId,
+    },
+  };
+  rewriteHandoffTaskPackage(workflow, plannerHandoff);
+  manager.save(plannerHandoff);
+  return plannerHandoff;
+}
+
+function preparePlannerReplan(
+  workflow: WorkflowRecord,
+  manager: HandoffManager,
+): Handoff {
+  const [plannerId, implementerId, evaluatorId] = getPieHandoffIds(workflow);
+  const plannerHandoff = loadHandoffByIdOrThrow(manager, workflow, plannerId);
+  const implementerHandoff = loadHandoffByIdOrThrow(manager, workflow, implementerId);
+  const evaluatorHandoff = loadHandoffByIdOrThrow(manager, workflow, evaluatorId);
+  const templatePlanner = buildPieTemplatePlan(workflow, manager).handoffs[0];
+
+  if (!plannerHandoff.artifacts || !implementerHandoff.artifacts || !evaluatorHandoff.artifacts) {
+    throw new HydraError("Planner replan requires task package artifacts for all PIE handoffs", {
+      errorCode: "WORKFLOW_HANDOFF_MISSING_ARTIFACTS",
+      stage: "workflow.replan",
+      ids: { workflow_id: workflow.id },
+    });
+  }
+
+  const controlPlanFile = getPlannerControlPlanPath(workflow);
+  const satisfactionDecisionFile = plannerHandoff.artifacts.result_file;
+  const replanContextFile = path.join(
+    plannerHandoff.artifacts.package_dir,
+    "replan-context.md",
+  );
+
+  fs.writeFileSync(
+    replanContextFile,
+    [
+      "# Planner Replan Request",
+      "",
+      "The previous plan was not satisfactory after implementation and evaluation.",
+      "",
+      "## Read First",
+      `- Previous controlling plan: ${controlPlanFile}`,
+      `- Implementer result: ${implementerHandoff.artifacts.result_file}`,
+      `- Evaluator result: ${evaluatorHandoff.artifacts.result_file}`,
+      `- Satisfaction decision: ${satisfactionDecisionFile}`,
+      "",
+      "## Instructions",
+      "Produce a fresh three-section plan that addresses why the previous plan failed.",
+      "Do not simply restate the previous plan. Use the implementation outcome and evaluator findings as first-class planning input.",
+    ].join("\n"),
+    "utf-8",
+  );
+
+  plannerHandoff.task = {
+    ...templatePlanner.task,
+    type: "workflow-replan",
+    title: `Replan: ${workflow.task.slice(0, 64)}`,
+    description: [
+      "You are replanning from scratch because the previous plan did not lead to a satisfactory implementation.",
+      `Primary task: ${workflow.task}`,
+      `Read the previous controlling plan at ${controlPlanFile}, the implementer result at ${implementerHandoff.artifacts.result_file}, the evaluator result at ${evaluatorHandoff.artifacts.result_file}, the previous satisfaction decision at ${satisfactionDecisionFile}, and ${replanContextFile}.`,
+      `Hand off to ${implementerId} once the new plan is concrete and actionable.`,
+    ].join("\n"),
+    acceptance_criteria: [
+      "Read the previous plan, implementer result, evaluator result, and replan-context.md before replanning",
+      "Keep the planner output in the three required sections: Problems Found, Constraints, Implementation Plan",
+      "Explain how the new plan addresses the failure modes discovered after implementation",
+      `Use next_action.handoff_id=${implementerId} when implementation should restart`,
+    ],
+  };
+  plannerHandoff.context = {
+    files: [
+      controlPlanFile,
+      implementerHandoff.artifacts.result_file,
+      evaluatorHandoff.artifacts.result_file,
+      satisfactionDecisionFile,
+      replanContextFile,
+    ],
+    previous_handoffs: [implementerId, evaluatorId],
+    shared_state: {
+      ...templatePlanner.context.shared_state,
+      worktree_path: workflow.worktree_path,
+      branch: workflow.branch,
+      base_branch: workflow.base_branch,
+      planner_result_file: controlPlanFile,
+      implementer_result_file: implementerHandoff.artifacts.result_file,
+      evaluator_result_file: evaluatorHandoff.artifacts.result_file,
+      replan_context_file: replanContextFile,
+      previous_satisfaction_result_file: satisfactionDecisionFile,
+      downstream_handoff_id: implementerId,
+    },
+  };
+  rewriteHandoffTaskPackage(workflow, plannerHandoff);
+  manager.save(plannerHandoff);
+  return plannerHandoff;
 }
 
 function resetHandoffToPending(
@@ -525,6 +829,8 @@ export async function runWorkflow(
     handoff_ids: createdHandoffs.map((handoff) => handoff.id),
     timeout_minutes: options.timeoutMinutes,
     max_retries: options.maxRetries,
+    satisfaction_iteration: 0,
+    max_satisfaction_iterations: DEFAULT_MAX_SATISFACTION_ITERATIONS,
     auto_approve: options.autoApprove,
     approve_plan: options.approvePlan,
   };
@@ -640,12 +946,23 @@ export async function tickWorkflow(
       await stateMachine.markCompleted(handoff.id, mapResultContract(collected.result));
       destroyHandoffTerminal(handoff, dependencies);
       workflow.updated_at = now();
+      if (
+        workflow.template === "planner-implementer-evaluator" &&
+        handoff.id === workflow.handoff_ids[0] &&
+        handoff.task.type !== "workflow-plan-satisfaction-check" &&
+        collected.result.success
+      ) {
+        persistPlannerControlPlan(workflow, handoff);
+      }
       const decision = resolveTemplateAdvance(
         workflow.template as WorkflowTemplateName,
         workflow.handoff_ids,
         handoff.id,
         collected.result,
-        { approvePlan: workflow.approve_plan },
+        {
+          approvePlan: workflow.approve_plan,
+          isSatisfactionCheck: handoff.task.type === "workflow-plan-satisfaction-check",
+        },
       );
       if (decision.outcome === "await_approval") {
         workflow.status = "waiting_for_approval";
@@ -653,19 +970,56 @@ export async function tickWorkflow(
         saveWorkflow(workflow);
         return buildStatusView(workflow);
       }
+      if (decision.outcome === "satisfaction_check" && decision.nextHandoffId && decision.requeueHandoffIds) {
+        const nextIteration = (workflow.satisfaction_iteration ?? 0) + 1;
+        const maxIterations = workflow.max_satisfaction_iterations ?? DEFAULT_MAX_SATISFACTION_ITERATIONS;
+        if (nextIteration > maxIterations) {
+          saveWorkflowFailure(
+            workflow,
+            {
+              code: "WORKFLOW_MAX_SATISFACTION_ITERATIONS_REACHED",
+              message: `Planner satisfaction check exceeded the iteration cap (${maxIterations}).`,
+              stage: "workflow.satisfaction_check",
+            },
+            now(),
+          );
+          return buildStatusView(workflow);
+        }
+
+        for (const requeueHandoffId of decision.requeueHandoffIds) {
+          const requeueHandoff = manager.load(requeueHandoffId);
+          if (requeueHandoff) destroyHandoffTerminal(requeueHandoff, dependencies);
+          resetHandoffToPending(manager, requeueHandoffId, now());
+        }
+        preparePlannerSatisfactionCheck(workflow, manager, nextIteration);
+
+        workflow.current_handoff_id = decision.nextHandoffId;
+        workflow.status = "running";
+        workflow.failure = undefined;
+        workflow.result = undefined;
+        workflow.satisfaction_iteration = nextIteration;
+        workflow.updated_at = now();
+        saveWorkflow(workflow);
+        const nextHandoff = loadHandoffOrThrow(manager, workflow);
+        await dispatchPendingHandoff(workflow, nextHandoff, dependencies);
+        workflow.updated_at = now();
+        saveWorkflow(workflow);
+        return buildStatusView(workflow);
+      }
       if (decision.outcome === "complete") {
+        // For PIE template, run challenge gate after the planner confirms satisfaction.
         if (
           workflow.template === "planner-implementer-evaluator" &&
           !workflow.challenge_completed &&
-          handoff.id === workflow.handoff_ids[2]
+          handoff.id === workflow.handoff_ids[0] &&
+          (workflow.satisfaction_iteration ?? 0) > 0
         ) {
-          const plannerResultFile = path.join(
-            repoPath, ".hydra", "workflows", workflow.id,
-            workflow.handoff_ids[0], "result.json",
-          );
+          const [, , evaluatorHandoffId] = getPieHandoffIds(workflow);
+          const evaluatorHandoff = loadHandoffByIdOrThrow(manager, workflow, evaluatorHandoffId);
+          const plannerResultFile = getPlannerControlPlanPath(workflow);
           const evaluatorResultFile = path.join(
             repoPath, ".hydra", "workflows", workflow.id,
-            handoff.id, "result.json",
+            evaluatorHandoffId, "result.json",
           );
           const challenge = await spawnChallengeWorkers(
             {
@@ -674,9 +1028,9 @@ export async function tickWorkflow(
               worktreePath: workflow.worktree_path,
               evaluatorResultFile,
               plannerResultFile,
-              evaluatorHandoffId: handoff.id,
+              evaluatorHandoffId,
               autoApprove: workflow.auto_approve,
-              agentType: handoff.to.agent_type as AgentType,
+              agentType: evaluatorHandoff.to.agent_type as AgentType,
               parentTerminalId:
                 workflow.parent_terminal_id ?? process.env.TERMCANVAS_TERMINAL_ID,
             },
@@ -712,6 +1066,13 @@ export async function tickWorkflow(
           const requeueHandoff = manager.load(requeueHandoffId);
           if (requeueHandoff) destroyHandoffTerminal(requeueHandoff, dependencies);
           resetHandoffToPending(manager, requeueHandoffId, now());
+        }
+        if (
+          workflow.template === "planner-implementer-evaluator" &&
+          decision.requeueHandoffIds.includes(workflow.handoff_ids[0]) &&
+          decision.nextHandoffId === workflow.handoff_ids[0]
+        ) {
+          preparePlannerReplan(workflow, manager);
         }
         workflow.current_handoff_id = decision.nextHandoffId;
         workflow.status = "running";
@@ -981,7 +1342,7 @@ export async function reviseWorkflow(
   }
 
   const revisionFile = path.join(plannerHandoff.artifacts!.package_dir, "revision.md");
-  const previousPlanFile = plannerHandoff.artifacts!.result_file;
+  const previousPlanFile = getPlannerControlPlanPath(workflow);
   fs.writeFileSync(
     revisionFile,
     [
@@ -1009,6 +1370,9 @@ export async function reviseWorkflow(
   manager.save(plannerHandoff);
 
   resetHandoffToPending(manager, plannerId, now());
+  const resetPlannerHandoff = loadHandoffByIdOrThrow(manager, workflow, plannerId);
+  rewriteHandoffTaskPackage(workflow, resetPlannerHandoff);
+  manager.save(resetPlannerHandoff);
   workflow.current_handoff_id = plannerId;
   workflow.status = "running";
   workflow.updated_at = now();

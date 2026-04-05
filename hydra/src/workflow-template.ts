@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { WorkflowFailure } from "./workflow-store.ts";
 import type { AgentType, Handoff } from "./handoff/types.ts";
+import type { ResultContract } from "./protocol.ts";
 import { buildTaskPackageDir } from "./task-package.ts";
 
 export type WorkflowTemplateName = "single-step" | "planner-implementer-evaluator";
@@ -31,7 +32,7 @@ export interface BuildWorkflowTemplatePlanInput {
 }
 
 export interface TemplateAdvanceDecision {
-  outcome: "complete" | "advance" | "loop" | "fail" | "await_approval";
+  outcome: "complete" | "advance" | "loop" | "fail" | "await_approval" | "satisfaction_check";
   nextHandoffId?: string;
   requeueHandoffIds?: string[];
   failure?: WorkflowFailure;
@@ -39,6 +40,14 @@ export interface TemplateAdvanceDecision {
 
 function resultFile(repoPath: string, workflowId: string, handoffId: string): string {
   return path.join(buildTaskPackageDir(repoPath, workflowId, handoffId), "result.json");
+}
+
+export function plannerControlPlanFile(
+  repoPath: string,
+  workflowId: string,
+  handoffId: string,
+): string {
+  return path.join(buildTaskPackageDir(repoPath, workflowId, handoffId), "current-plan.json");
 }
 
 export function buildWorkflowTemplatePlan(
@@ -82,7 +91,7 @@ export function buildWorkflowTemplatePlan(
   }
 
   const [plannerId, implementerId, evaluatorId] = input.handoffIds;
-  const plannerResult = resultFile(input.repoPath, input.workflowId, plannerId);
+  const plannerResult = plannerControlPlanFile(input.repoPath, input.workflowId, plannerId);
   const implementerResult = resultFile(input.repoPath, input.workflowId, implementerId);
   const evaluatorResult = resultFile(input.repoPath, input.workflowId, evaluatorId);
 
@@ -248,8 +257,8 @@ export function resolveTemplateAdvance(
   template: WorkflowTemplateName,
   handoffIds: string[],
   currentHandoffId: string,
-  result: { success: boolean; summary: string; next_action: { type: string; handoff_id?: string } },
-  options?: { approvePlan?: boolean },
+  result: Pick<ResultContract, "success" | "summary" | "next_action" | "satisfaction" | "replan">,
+  options?: { approvePlan?: boolean; isSatisfactionCheck?: boolean },
 ): TemplateAdvanceDecision {
   if (template === "single-step") {
     if (result.success) {
@@ -277,6 +286,47 @@ export function resolveTemplateAdvance(
     };
   }
 
+  if (currentIndex === 0) {
+    const isSatisfactionCheck = options?.isSatisfactionCheck ?? false;
+    if (isSatisfactionCheck) {
+      if (typeof result.satisfaction !== "boolean") {
+        return {
+          outcome: "fail",
+          failure: {
+            code: "WORKFLOW_INVALID_PLANNER_SATISFACTION",
+            message: "Planner satisfaction check must include a boolean satisfaction field.",
+            stage: "workflow.template",
+          },
+        };
+      }
+      if (result.satisfaction) {
+        return { outcome: "complete" };
+      }
+      if (typeof result.replan !== "boolean") {
+        return {
+          outcome: "fail",
+          failure: {
+            code: "WORKFLOW_INVALID_PLANNER_SATISFACTION",
+            message: "Planner satisfaction check must include a boolean replan field when satisfaction=false.",
+            stage: "workflow.template",
+          },
+        };
+      }
+      if (result.replan) {
+        return {
+          outcome: "loop",
+          nextHandoffId: handoffIds[0],
+          requeueHandoffIds: [...handoffIds],
+        };
+      }
+      return {
+        outcome: "loop",
+        nextHandoffId: handoffIds[1],
+        requeueHandoffIds: [handoffIds[1], handoffIds[2]],
+      };
+    }
+  }
+
   if (currentIndex < 2) {
     if (!result.success) {
       return {
@@ -301,7 +351,11 @@ export function resolveTemplateAdvance(
   }
 
   if (result.success) {
-    return { outcome: "complete" };
+    return {
+      outcome: "satisfaction_check",
+      nextHandoffId: handoffIds[0],
+      requeueHandoffIds: [handoffIds[0]],
+    };
   }
 
   const implementerId = handoffIds[1];
