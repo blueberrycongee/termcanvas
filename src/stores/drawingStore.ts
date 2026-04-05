@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useSelectionStore } from "./selectionStore";
 import { useWorkspaceStore } from "./workspaceStore";
 import type { AnnotationAnchor } from "../types/scene";
 
@@ -114,12 +115,22 @@ export const useDrawingStore = create<DrawingStore>((set) => ({
     set((state) => ({
       elements: state.elements.filter((el) => el.id !== id),
     }));
+    useSelectionStore.setState((state) => ({
+      selectedItems: state.selectedItems.filter(
+        (item) => item.type !== "annotation" || item.annotationId !== id,
+      ),
+    }));
     markDirty();
   },
 
   setActiveElement: (element) => set({ activeElement: element }),
   clearAll: () => {
     set({ elements: [], activeElement: null });
+    useSelectionStore.setState((state) => ({
+      selectedItems: state.selectedItems.filter(
+        (item) => item.type !== "annotation",
+      ),
+    }));
     markDirty();
   },
 }));

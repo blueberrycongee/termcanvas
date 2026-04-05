@@ -57,11 +57,10 @@ export function BrowserCard({ card }: Props) {
     ),
   );
 
-  // Register card dimensions for collision avoidance
   useEffect(() => {
     register(cardId, { x: card.x, y: card.y, w: card.w, h: card.h });
     return () => unregister(cardId);
-  }, [cardId, card.x, card.y, card.w, card.h, register, unregister]);
+  }, [card.h, card.w, card.x, card.y, cardId, register, unregister]);
 
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -75,7 +74,11 @@ export function BrowserCard({ card }: Props) {
       setUrlInput(e.url);
       setLoadError(null);
     }) as EventListener;
-    const onFailLoad = ((e: Event & { errorCode: number; errorDescription: string; isMainFrame: boolean }) => {
+    const onFailLoad = ((e: Event & {
+      errorCode: number;
+      errorDescription: string;
+      isMainFrame: boolean;
+    }) => {
       if (!e.isMainFrame || e.errorCode === -3) return;
       setLoadError(e.errorDescription);
     }) as EventListener;
@@ -166,7 +169,7 @@ export function BrowserCard({ card }: Props) {
     };
     window.addEventListener("termcanvas:close-card", handler);
     return () => window.removeEventListener("termcanvas:close-card", handler);
-  }, [cardId, card.id]);
+  }, [card.id, cardId]);
 
   return (
     <div

@@ -1,4 +1,4 @@
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect, useMemo } from "react";
 import getStroke from "perfect-freehand";
 import {
   addAnnotationToScene,
@@ -6,7 +6,10 @@ import {
   setDraftAnnotationInScene,
   updateAnnotationInScene,
 } from "../actions/annotationSceneActions";
-import { activateAnnotationInScene } from "../actions/sceneSelectionActions";
+import {
+  activateAnnotationInScene,
+  clearSceneSelection,
+} from "../actions/sceneSelectionActions";
 import {
   getDrawingElementBounds,
   resolveDrawingElementForRender,
@@ -23,6 +26,7 @@ import { useProjectStore } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import {
   getCanvasLeftInset,
+  getCanvasRightInset,
   screenPointToCanvasPoint,
 } from "./viewportBounds";
 
@@ -50,12 +54,11 @@ function renderElement(el: DrawingElement) {
         streamline: 0.5,
       });
       const pathData = getSvgPathFromStroke(outlinePoints);
-      return <path key={el.id} d={pathData} fill={el.color} stroke="none" />;
+      return <path d={pathData} fill={el.color} stroke="none" />;
     }
     case "text":
       return (
         <text
-          key={el.id}
           x={el.x}
           y={el.y}
           fill={el.color}
@@ -70,7 +73,6 @@ function renderElement(el: DrawingElement) {
     case "rect":
       return (
         <rect
-          key={el.id}
           x={el.x}
           y={el.y}
           width={el.w}
@@ -85,7 +87,7 @@ function renderElement(el: DrawingElement) {
       const angle = Math.atan2(el.y2 - el.y1, el.x2 - el.x1);
       const headLen = 12;
       return (
-        <g key={el.id}>
+        <g>
           <line
             x1={el.x1}
             y1={el.y1}
@@ -113,8 +115,9 @@ function renderElement(el: DrawingElement) {
   }
 }
 
-function renderSelectionOutline(el: DrawingElement) {
-  const bounds = getDrawingElementBounds(el);
+function renderSelectionOutline(element: DrawingElement) {
+  const bounds = getDrawingElementBounds(element);
+
   return (
     <rect
       x={bounds.x - 6}
@@ -132,8 +135,9 @@ function renderSelectionOutline(el: DrawingElement) {
   );
 }
 
-function renderHitArea(el: DrawingElement) {
-  const bounds = getDrawingElementBounds(el);
+function renderHitArea(element: DrawingElement) {
+  const bounds = getDrawingElementBounds(element);
+
   return (
     <rect
       x={bounds.x}
@@ -148,42 +152,44 @@ function renderHitArea(el: DrawingElement) {
 
 export function DrawingLayer() {
   const { tool, color, elements, activeElement } = useDrawingStore();
+  const viewport = useCanvasStore((state) => state.viewport);
+  const leftPanelCollapsed = useCanvasStore((state) => state.leftPanelCollapsed);
+  const leftPanelWidth = useCanvasStore((state) => state.leftPanelWidth);
+  const rightPanelCollapsed = useCanvasStore((state) => state.rightPanelCollapsed);
   const projects = useProjectStore((state) => state.projects);
-  const selectedAnnotationIds = useSelectionStore((state) =>
-    state.selectedItems.flatMap((item) =>
-      item.type === "annotation" ? [item.annotationId] : [],
-    ),
+  const selectedItems = useSelectionStore((state) => state.selectedItems);
+  const selectedAnnotationIds = useMemo(
+    () =>
+      new Set(
+        selectedItems.flatMap((item) =>
+          item.type === "annotation" ? [item.annotationId] : [],
+        ),
+      ),
+    [selectedItems],
   );
   const pointsRef = useRef<StrokePoint[]>([]);
   const startRef = useRef<{ x: number; y: number } | null>(null);
-  const dragRef = useRef<{
-    element: DrawingElement;
-    startX: number;
-    startY: number;
-  } | null>(null);
-  const leftPanelCollapsed = useCanvasStore((state) => state.leftPanelCollapsed);
-  const leftPanelWidth = useCanvasStore((state) => state.leftPanelWidth);
-  const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
 
-  const toCanvas = useCallback((e: React.MouseEvent) => {
-    const { viewport, leftPanelCollapsed, leftPanelWidth } =
-      useCanvasStore.getState();
-    return screenPointToCanvasPoint(
-      e.clientX,
-      e.clientY,
-      viewport,
-      leftPanelCollapsed,
-      leftPanelWidth,
-    );
-  }, []);
+  const toCanvas = useCallback(
+    (event: MouseEvent | React.MouseEvent) =>
+      screenPointToCanvasPoint(
+        event.clientX,
+        event.clientY,
+        useCanvasStore.getState().viewport,
+        useCanvasStore.getState().leftPanelCollapsed,
+        useCanvasStore.getState().leftPanelWidth,
+      ),
+    [],
+  );
 
   const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+    (event: React.MouseEvent) => {
       if (tool === "select") return;
-      e.stopPropagation();
-      e.preventDefault();
 
-      const pos = toCanvas(e);
+      event.stopPropagation();
+      event.preventDefault();
+
+      const pos = toCanvas(event);
 
       if (tool === "pen") {
         pointsRef.current = [{ x: pos.x, y: pos.y, pressure: 0.5 }];
@@ -194,10 +200,13 @@ export function DrawingLayer() {
           color,
           size: 3,
         });
-      } else if (tool === "text") {
+        return;
+      }
+
+      if (tool === "text") {
         const content = window.prompt("Enter text:");
         if (content) {
-          addAnnotationToScene({
+          const element: DrawingElement = {
             id: drawingId(),
             type: "text",
             x: pos.x,
@@ -205,44 +214,50 @@ export function DrawingLayer() {
             content,
             color,
             fontSize: 16,
-          });
+          };
+          addAnnotationToScene(element);
+          activateAnnotationInScene(element.id);
         }
         setAnnotationToolInScene("select");
-      } else if (tool === "rect" || tool === "arrow") {
-        startRef.current = pos;
-        if (tool === "rect") {
-          setDraftAnnotationInScene({
-            id: drawingId(),
-            type: "rect",
-            x: pos.x,
-            y: pos.y,
-            w: 0,
-            h: 0,
-            color,
-            strokeWidth: 2,
-          });
-        } else {
-          setDraftAnnotationInScene({
-            id: drawingId(),
-            type: "arrow",
-            x1: pos.x,
-            y1: pos.y,
-            x2: pos.x,
-            y2: pos.y,
-            color,
-            strokeWidth: 2,
-          });
-        }
+        return;
+      }
+
+      startRef.current = pos;
+      if (tool === "rect") {
+        setDraftAnnotationInScene({
+          id: drawingId(),
+          type: "rect",
+          x: pos.x,
+          y: pos.y,
+          w: 0,
+          h: 0,
+          color,
+          strokeWidth: 2,
+        });
+        return;
+      }
+
+      if (tool === "arrow") {
+        setDraftAnnotationInScene({
+          id: drawingId(),
+          type: "arrow",
+          x1: pos.x,
+          y1: pos.y,
+          x2: pos.x,
+          y2: pos.y,
+          color,
+          strokeWidth: 2,
+        });
       }
     },
     [color, toCanvas, tool],
   );
 
   const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
+    (event: React.MouseEvent) => {
       if (!activeElement) return;
 
-      const pos = toCanvas(e);
+      const pos = toCanvas(event);
 
       if (activeElement.type === "pen") {
         pointsRef.current = [
@@ -253,7 +268,10 @@ export function DrawingLayer() {
           ...activeElement,
           points: pointsRef.current,
         });
-      } else if (activeElement.type === "rect" && startRef.current) {
+        return;
+      }
+
+      if (activeElement.type === "rect" && startRef.current) {
         setDraftAnnotationInScene({
           ...activeElement,
           x: Math.min(startRef.current.x, pos.x),
@@ -261,7 +279,10 @@ export function DrawingLayer() {
           w: Math.abs(pos.x - startRef.current.x),
           h: Math.abs(pos.y - startRef.current.y),
         });
-      } else if (activeElement.type === "arrow") {
+        return;
+      }
+
+      if (activeElement.type === "arrow") {
         setDraftAnnotationInScene({
           ...activeElement,
           x2: pos.x,
@@ -274,51 +295,39 @@ export function DrawingLayer() {
 
   const handleMouseUp = useCallback(() => {
     if (!activeElement) return;
+
     addAnnotationToScene(activeElement);
+    activateAnnotationInScene(activeElement.id);
     pointsRef.current = [];
     startRef.current = null;
   }, [activeElement]);
 
   const handleElementMouseDown = useCallback(
-    (element: DrawingElement, e: React.MouseEvent) => {
+    (element: DrawingElement, event: React.MouseEvent) => {
       if (tool !== "select") {
         return;
       }
 
-      e.preventDefault();
-      e.stopPropagation();
-
+      event.preventDefault();
+      event.stopPropagation();
       activateAnnotationInScene(element.id);
-      const start = toCanvas(e);
-      dragRef.current = {
-        element,
-        startX: start.x,
-        startY: start.y,
-      };
 
-      const handleMove = (event: MouseEvent) => {
-        if (!dragRef.current) {
-          return;
-        }
-        const point = screenPointToCanvasPoint(
-          event.clientX,
-          event.clientY,
-          useCanvasStore.getState().viewport,
-          useCanvasStore.getState().leftPanelCollapsed,
-          useCanvasStore.getState().leftPanelWidth,
+      const start = toCanvas(event);
+      const initialElement = element;
+
+      const handleMove = (moveEvent: MouseEvent) => {
+        const current = toCanvas(moveEvent);
+        updateAnnotationInScene(
+          initialElement.id,
+          translateDrawingElement(
+            initialElement,
+            current.x - start.x,
+            current.y - start.y,
+          ),
         );
-        const dx = point.x - dragRef.current.startX;
-        const dy = point.y - dragRef.current.startY;
-        const translated = translateDrawingElement(
-          dragRef.current.element,
-          dx,
-          dy,
-        );
-        updateAnnotationInScene(element.id, translated);
       };
 
       const handleUp = () => {
-        dragRef.current = null;
         window.removeEventListener("mousemove", handleMove);
         window.removeEventListener("mouseup", handleUp);
       };
@@ -329,14 +338,40 @@ export function DrawingLayer() {
     [toCanvas, tool],
   );
 
+  useEffect(() => {
+    if (tool !== "select") {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement ||
+        event.target instanceof HTMLSelectElement ||
+        (event.target instanceof HTMLElement && event.target.isContentEditable)
+      ) {
+        return;
+      }
+
+      if (event.key === "Escape" && selectedAnnotationIds.size > 0) {
+        clearSceneSelection();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedAnnotationIds, tool]);
+
   const isDrawing = tool !== "select";
-  const { viewport } = useCanvasStore();
+  const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  const rightInset = getCanvasRightInset(rightPanelCollapsed);
 
   return (
     <svg
-      className="fixed top-0 right-0 bottom-0"
+      className="fixed top-0 bottom-0"
       style={{
-        left: leftOffset,
+        left: leftInset,
+        right: rightInset,
         pointerEvents: isDrawing ? "auto" : "none",
         cursor: isDrawing ? "crosshair" : "default",
         zIndex: isDrawing ? 30 : 20,
@@ -346,16 +381,17 @@ export function DrawingLayer() {
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      <g
-        transform={`translate(${viewport.x}, ${viewport.y}) scale(${viewport.scale})`}
-      >
+      <g transform={`translate(${viewport.x}, ${viewport.y}) scale(${viewport.scale})`}>
         {elements.map((element) => {
           const renderedElement = resolveDrawingElementForRender(element, projects);
-          const isSelected = selectedAnnotationIds.includes(element.id);
+          const isSelected = selectedAnnotationIds.has(element.id);
           return (
             <g
               key={element.id}
-              style={{ pointerEvents: tool === "select" ? "auto" : "none" }}
+              style={{
+                cursor: tool === "select" ? "move" : undefined,
+                pointerEvents: tool === "select" ? "auto" : "none",
+              }}
               onMouseDown={(event) => handleElementMouseDown(element, event)}
             >
               {renderHitArea(renderedElement)}

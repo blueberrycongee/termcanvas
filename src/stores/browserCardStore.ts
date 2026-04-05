@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useSelectionStore } from "./selectionStore";
 import { useWorkspaceStore } from "./workspaceStore";
 
 export interface BrowserCardData {
@@ -52,6 +53,11 @@ export const useBrowserCardStore = create<BrowserCardStore>((set) => ({
       return { cards: rest };
     });
     if (removed) {
+      useSelectionStore.setState((state) => ({
+        selectedItems: state.selectedItems.filter(
+          (item) => item.type !== "card" || item.cardId !== id,
+        ),
+      }));
       markDirty();
     }
   },
