@@ -3,9 +3,6 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
-  type Dispatch,
-  type SetStateAction,
 } from "react";
 
 import type { GitBranchInfo, GitLogEntry } from "../types";
@@ -14,6 +11,10 @@ import {
   type GraphCommit,
   type GraphEdge,
 } from "../utils/gitGraph";
+import {
+  EMPTY_GIT_LOG_CACHE,
+  useLeftPanelRepoStore,
+} from "../stores/leftPanelRepoStore";
 
 const PAGE_SIZE = 200;
 
@@ -31,52 +32,36 @@ interface UseGitLogResult {
 }
 
 function clearGitData(
-  setBranches: Dispatch<SetStateAction<GitBranchInfo[]>>,
-  setLogEntries: Dispatch<SetStateAction<GitLogEntry[]>>,
-  setIsGitRepo: Dispatch<SetStateAction<boolean>>,
+  worktreePath: string,
 ) {
-  setBranches([]);
-  setLogEntries([]);
-  setIsGitRepo(false);
+  useLeftPanelRepoStore.getState().resolveGitLogLoad(worktreePath, {
+    branches: [],
+    count: PAGE_SIZE,
+    isGitRepo: false,
+    logEntries: [],
+  });
 }
 
 export function useGitLog(worktreePath: string | null): UseGitLogResult {
-  const [branches, setBranches] = useState<GitBranchInfo[]>([]);
-  const [logEntries, setLogEntries] = useState<GitLogEntry[]>([]);
-  const [isGitRepo, setIsGitRepo] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [count, setCount] = useState(PAGE_SIZE);
+  const snapshot = useLeftPanelRepoStore((state) =>
+    worktreePath
+      ? state.gitLogByPath[worktreePath] ?? EMPTY_GIT_LOG_CACHE
+      : EMPTY_GIT_LOG_CACHE,
+  );
   const requestSeqRef = useRef(0);
-  const countRef = useRef(PAGE_SIZE);
-  const logLengthRef = useRef(0);
-
-  useEffect(() => {
-    logLengthRef.current = logEntries.length;
-  }, [logEntries.length]);
 
   const fetchData = useCallback(
     async (mode: "initial" | "refresh" | "load-more" = "refresh", requestedCount?: number) => {
       if (!worktreePath || !window.termcanvas) {
-        clearGitData(setBranches, setLogEntries, setIsGitRepo);
-        setLoading(false);
-        setRefreshing(false);
-        setLoadingMore(false);
         return;
       }
 
-      const countToLoad = requestedCount ?? countRef.current;
-      const hasVisibleData = logLengthRef.current > 0;
+      const current = useLeftPanelRepoStore.getState().gitLogByPath[worktreePath];
+      const countToLoad = requestedCount ?? current?.count ?? PAGE_SIZE;
       const requestSeq = ++requestSeqRef.current;
-
-      if (mode === "load-more") {
-        setLoadingMore(true);
-      } else if (mode === "refresh" && hasVisibleData) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+      useLeftPanelRepoStore
+        .getState()
+        .beginGitLogLoad(worktreePath, mode, countToLoad);
 
       try {
         const repoState = await window.termcanvas.git.isRepo(worktreePath);
@@ -84,9 +69,8 @@ export function useGitLog(worktreePath: string | null): UseGitLogResult {
           return;
         }
 
-        setIsGitRepo(repoState);
         if (!repoState) {
-          clearGitData(setBranches, setLogEntries, setIsGitRepo);
+          clearGitData(worktreePath);
           return;
         }
 
@@ -99,37 +83,29 @@ export function useGitLog(worktreePath: string | null): UseGitLogResult {
           return;
         }
 
-        setBranches(nextBranches);
-        setLogEntries(nextLog);
-      } finally {
-        if (requestSeq === requestSeqRef.current) {
-          setLoading(false);
-          setRefreshing(false);
-          setLoadingMore(false);
+        useLeftPanelRepoStore.getState().resolveGitLogLoad(worktreePath, {
+          branches: nextBranches,
+          count: countToLoad,
+          isGitRepo: true,
+          logEntries: nextLog,
+        });
+      } catch {
+        if (requestSeq !== requestSeqRef.current) {
+          return;
         }
+        useLeftPanelRepoStore.getState().failGitLogLoad(worktreePath);
       }
     },
     [worktreePath],
   );
 
   useEffect(() => {
-    countRef.current = PAGE_SIZE;
-    setCount(PAGE_SIZE);
-
     if (!worktreePath || !window.termcanvas) {
-      clearGitData(setBranches, setLogEntries, setIsGitRepo);
-      setLoading(false);
-      setRefreshing(false);
-      setLoadingMore(false);
       return;
     }
 
-    clearGitData(setBranches, setLogEntries, setIsGitRepo);
-    setLoading(true);
-    setRefreshing(false);
-    setLoadingMore(false);
-
-    void fetchData("initial", PAGE_SIZE);
+    const current = useLeftPanelRepoStore.getState().gitLogByPath[worktreePath];
+    void fetchData("initial", current?.loaded ? current.count : PAGE_SIZE);
   }, [fetchData, worktreePath]);
 
   useEffect(() => {
@@ -157,10 +133,7 @@ export function useGitLog(worktreePath: string | null): UseGitLogResult {
 
         if (!payload.isGitRepo) {
           requestSeqRef.current += 1;
-          clearGitData(setBranches, setLogEntries, setIsGitRepo);
-          setLoading(false);
-          setRefreshing(false);
-          setLoadingMore(false);
+          clearGitData(worktreePath);
           return;
         }
 
@@ -179,28 +152,36 @@ export function useGitLog(worktreePath: string | null): UseGitLogResult {
     };
   }, [fetchData, worktreePath]);
 
-  const graph = useMemo(() => buildGitGraph(logEntries), [logEntries]);
+  const graph = useMemo(
+    () => buildGitGraph(snapshot.logEntries),
+    [snapshot.logEntries],
+  );
 
   return {
     commits: graph.commits,
-    branches,
+    branches: snapshot.branches,
     edges: graph.edges,
-    isGitRepo,
-    loading,
-    refreshing,
-    loadingMore,
-    hasMore: isGitRepo && logEntries.length >= count,
+    isGitRepo: snapshot.isGitRepo,
+    loading: snapshot.loading,
+    refreshing: snapshot.refreshing,
+    loadingMore: snapshot.loadingMore,
+    hasMore:
+      snapshot.isGitRepo && snapshot.logEntries.length >= snapshot.count,
     refresh: async () => {
       await fetchData("refresh");
     },
     loadMore: () => {
-      if (loading || loadingMore) {
+      if (!worktreePath) {
         return;
       }
 
-      const nextCount = countRef.current + PAGE_SIZE;
-      countRef.current = nextCount;
-      setCount(nextCount);
+      const current = useLeftPanelRepoStore.getState().gitLogByPath[worktreePath]
+        ?? EMPTY_GIT_LOG_CACHE;
+      if (current.loading || current.loadingMore) {
+        return;
+      }
+
+      const nextCount = current.count + PAGE_SIZE;
       void fetchData("load-more", nextCount);
     },
   };

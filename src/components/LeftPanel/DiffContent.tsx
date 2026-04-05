@@ -27,7 +27,7 @@ function ChangeBar({ additions, deletions }: { additions: number; deletions: num
 
 export function DiffContent({ worktreePath }: Props) {
   const t = useT();
-  const { fileDiffs, loading } = useWorktreeDiff(worktreePath);
+  const { fileDiffs, loading, refreshing } = useWorktreeDiff(worktreePath);
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
 
   if (!worktreePath) {
@@ -59,12 +59,19 @@ export function DiffContent({ worktreePath }: Props) {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="px-3 py-2.5 border-b border-[var(--border)] shrink-0">
+      <div className="px-3 py-2.5 border-b border-[var(--border)] shrink-0 flex items-center justify-between gap-2">
         <span className="text-[11px] font-medium text-[var(--text-secondary)]">
           {t.file_count(fileDiffs.length)}
           <span className="ml-1.5" style={{ color: "var(--cyan)" }}>+{totalAdd}</span>
           <span className="ml-1" style={{ color: "var(--red)" }}>-{totalDel}</span>
         </span>
+        {refreshing && (
+          <span
+            className="shrink-0 h-2 w-2 rounded-full animate-pulse"
+            style={{ backgroundColor: "var(--accent)" }}
+            title={t.loading}
+          />
+        )}
       </div>
       <div className="flex-1 overflow-auto min-h-0" style={{ fontFamily: '"Geist Mono", monospace', fontSize: 11 }}>
         {fileDiffs.map((fd) => (

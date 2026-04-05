@@ -95,10 +95,21 @@ export function LeftPanel() {
   const [directoryIsGitRepo, setDirectoryIsGitRepo] = useState(false);
   const [childRepos, setChildRepos] = useState<RepoContextOption[]>([]);
   const [selectedChildRepoPath, setSelectedChildRepoPath] = useState<string | null>(null);
+  const [repoContextReadyPath, setRepoContextReadyPath] = useState<string | null>(null);
   const [repoMenuOpen, setRepoMenuOpen] = useState(false);
   const checkedProjectRef = useRef<Set<string>>(new Set());
   const dismissedHydraRef = useRef<Set<string>>(new Set());
   const preferredRepoPathRef = useRef<Map<string, string>>(new Map());
+  const repoContextCacheRef = useRef<
+    Map<
+      string,
+      {
+        childRepos: RepoContextOption[];
+        directoryIsGitRepo: boolean;
+        selectedRepoPath: string | null;
+      }
+    >
+  >(new Map());
   const repoMenuRef = useRef<HTMLDivElement>(null);
 
   const prevCollapsedRef = useRef(collapsed);
@@ -143,12 +154,26 @@ export function LeftPanel() {
       setDirectoryIsGitRepo(false);
       setChildRepos([]);
       setSelectedChildRepoPath(null);
+      setRepoContextReadyPath(null);
       return;
     }
 
     let cancelled = false;
     const preferredRepoPath =
       preferredRepoPathRef.current.get(effectiveWorktreePath) ?? null;
+    const cached = repoContextCacheRef.current.get(effectiveWorktreePath);
+
+    if (cached) {
+      setDirectoryIsGitRepo(cached.directoryIsGitRepo);
+      setChildRepos(cached.childRepos);
+      setSelectedChildRepoPath(cached.selectedRepoPath);
+      setRepoContextReadyPath(effectiveWorktreePath);
+    } else {
+      setDirectoryIsGitRepo(false);
+      setChildRepos([]);
+      setSelectedChildRepoPath(null);
+      setRepoContextReadyPath(null);
+    }
 
     Promise.all([
       window.termcanvas.git.isRepo(effectiveWorktreePath),
@@ -166,12 +191,24 @@ export function LeftPanel() {
           preferredRepoPath,
         });
         setSelectedChildRepoPath(resolution.selectedRepoPath);
+        repoContextCacheRef.current.set(effectiveWorktreePath, {
+          childRepos: repos,
+          directoryIsGitRepo: isGitRepo,
+          selectedRepoPath: resolution.selectedRepoPath,
+        });
+        setRepoContextReadyPath(effectiveWorktreePath);
       })
       .catch(() => {
         if (cancelled) return;
         setDirectoryIsGitRepo(false);
         setChildRepos([]);
         setSelectedChildRepoPath(null);
+        repoContextCacheRef.current.set(effectiveWorktreePath, {
+          childRepos: [],
+          directoryIsGitRepo: false,
+          selectedRepoPath: null,
+        });
+        setRepoContextReadyPath(effectiveWorktreePath);
       });
 
     return () => {
@@ -192,15 +229,25 @@ export function LeftPanel() {
   const repoContextPath = repoScopedTabs
     ? repoContext.targetPath
     : effectiveWorktreePath;
+  const repoContextResolved =
+    !repoScopedTabs ||
+    !effectiveWorktreePath ||
+    repoContextReadyPath === effectiveWorktreePath;
+  const showRepoContextPlaceholder = repoScopedTabs && !repoContextResolved;
 
   const handleSelectChildRepo = useCallback(
     (repoPath: string) => {
       if (!effectiveWorktreePath) return;
       preferredRepoPathRef.current.set(effectiveWorktreePath, repoPath);
+      repoContextCacheRef.current.set(effectiveWorktreePath, {
+        childRepos,
+        directoryIsGitRepo,
+        selectedRepoPath: repoPath,
+      });
       setSelectedChildRepoPath(repoPath);
       setRepoMenuOpen(false);
     },
-    [effectiveWorktreePath],
+    [childRepos, directoryIsGitRepo, effectiveWorktreePath],
   );
 
   useEffect(() => {
@@ -543,17 +590,29 @@ export function LeftPanel() {
           </div>
         )}
         {activeTab === "files" && <FilesContent worktreePath={effectiveWorktreePath} onFileClick={handleFileClick} />}
-        {activeTab === "diff" && <DiffContent worktreePath={repoContextPath} />}
         {activeTab === "preview" && <PreviewContent filePath={previewFile} onClose={handlePreviewClose} onNavigate={handleFileClick} />}
-        {activeTab === "git" && (
-          <GitContent
-            worktreePath={repoContextPath}
-            onEnableHydra={focusedProject ? handleEnableHydra : undefined}
-            hydraEnabling={hydraEnabling}
-          />
-        )}
-        {activeTab === "memory" && (
-          <MemoryContent worktreePath={repoContextPath} onFileClick={handleFileClick} />
+        {showRepoContextPlaceholder ? (
+          <div className="flex flex-1 items-center justify-center">
+            <div
+              className="h-4 w-4 animate-pulse rounded-full"
+              style={{ backgroundColor: "var(--accent)" }}
+              title={t.loading}
+            />
+          </div>
+        ) : (
+          <>
+            {activeTab === "diff" && <DiffContent worktreePath={repoContextPath} />}
+            {activeTab === "git" && (
+              <GitContent
+                worktreePath={repoContextPath}
+                onEnableHydra={focusedProject ? handleEnableHydra : undefined}
+                hydraEnabling={hydraEnabling}
+              />
+            )}
+            {activeTab === "memory" && (
+              <MemoryContent worktreePath={repoContextPath} onFileClick={handleFileClick} />
+            )}
+          </>
         )}
       </div>
 

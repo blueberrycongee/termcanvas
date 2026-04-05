@@ -1,11 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import type { GitStatusEntry } from "../types";
+import {
+  EMPTY_GIT_STATUS_CACHE,
+  useLeftPanelRepoStore,
+} from "../stores/leftPanelRepoStore";
 
 export interface UseGitStatusResult {
   stagedFiles: GitStatusEntry[];
   changedFiles: GitStatusEntry[];
   isLoading: boolean;
+  refreshing: boolean;
   refresh: () => Promise<void>;
   stageFiles: (paths: string[]) => Promise<void>;
   stageAll: () => Promise<void>;
@@ -19,31 +24,34 @@ export interface UseGitStatusResult {
 }
 
 export function useGitStatus(worktreePath: string | null): UseGitStatusResult {
-  const [stagedFiles, setStagedFiles] = useState<GitStatusEntry[]>([]);
-  const [changedFiles, setChangedFiles] = useState<GitStatusEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const snapshot = useLeftPanelRepoStore((state) =>
+    worktreePath
+      ? state.gitStatusByPath[worktreePath] ?? EMPTY_GIT_STATUS_CACHE
+      : EMPTY_GIT_STATUS_CACHE,
+  );
   const mountedRef = useRef(true);
 
   const refresh = useCallback(async () => {
     if (!worktreePath) return;
-    setIsLoading(true);
+    useLeftPanelRepoStore.getState().beginGitStatusLoad(worktreePath);
     try {
       const entries = await window.termcanvas.git.status(worktreePath);
       if (!mountedRef.current) return;
-      setStagedFiles(entries.filter((e) => e.staged));
-      setChangedFiles(entries.filter((e) => !e.staged));
+      useLeftPanelRepoStore.getState().resolveGitStatusLoad(worktreePath, {
+        changedFiles: entries.filter((entry) => !entry.staged),
+        stagedFiles: entries.filter((entry) => entry.staged),
+      });
     } catch {
       // silently fail — watcher will retry
+      if (!mountedRef.current) return;
+      useLeftPanelRepoStore.getState().failGitStatusLoad(worktreePath);
     } finally {
-      if (mountedRef.current) setIsLoading(false);
     }
   }, [worktreePath]);
 
   useEffect(() => {
     mountedRef.current = true;
     if (!worktreePath) {
-      setStagedFiles([]);
-      setChangedFiles([]);
       return;
     }
 
@@ -72,11 +80,11 @@ export function useGitStatus(worktreePath: string | null): UseGitStatusResult {
 
   const stageAll = useCallback(async () => {
     if (!worktreePath) return;
-    const allPaths = changedFiles.map((e) => e.path);
+    const allPaths = snapshot.changedFiles.map((e) => e.path);
     if (allPaths.length === 0) return;
     await window.termcanvas.git.stage(worktreePath, allPaths);
     await refresh();
-  }, [worktreePath, changedFiles, refresh]);
+  }, [worktreePath, snapshot.changedFiles, refresh]);
 
   const unstageFiles = useCallback(
     async (paths: string[]) => {
@@ -89,11 +97,11 @@ export function useGitStatus(worktreePath: string | null): UseGitStatusResult {
 
   const unstageAll = useCallback(async () => {
     if (!worktreePath) return;
-    const allPaths = stagedFiles.map((e) => e.path);
+    const allPaths = snapshot.stagedFiles.map((e) => e.path);
     if (allPaths.length === 0) return;
     await window.termcanvas.git.unstage(worktreePath, allPaths);
     await refresh();
-  }, [worktreePath, stagedFiles, refresh]);
+  }, [worktreePath, snapshot.stagedFiles, refresh]);
 
   const discardFiles = useCallback(
     async (entries: GitStatusEntry[]) => {
@@ -107,9 +115,9 @@ export function useGitStatus(worktreePath: string | null): UseGitStatusResult {
   );
 
   const discardAll = useCallback(async () => {
-    if (!worktreePath || changedFiles.length === 0) return;
-    await discardFiles(changedFiles);
-  }, [worktreePath, changedFiles, discardFiles]);
+    if (!worktreePath || snapshot.changedFiles.length === 0) return;
+    await discardFiles(snapshot.changedFiles);
+  }, [worktreePath, snapshot.changedFiles, discardFiles]);
 
   const commit = useCallback(
     async (message: string): Promise<string> => {
@@ -136,9 +144,10 @@ export function useGitStatus(worktreePath: string | null): UseGitStatusResult {
   }, [worktreePath, refresh]);
 
   return {
-    stagedFiles,
-    changedFiles,
-    isLoading,
+    stagedFiles: snapshot.stagedFiles,
+    changedFiles: snapshot.changedFiles,
+    isLoading: snapshot.loading,
+    refreshing: snapshot.refreshing,
     refresh,
     stageFiles,
     stageAll,

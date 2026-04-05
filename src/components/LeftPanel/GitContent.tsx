@@ -585,11 +585,23 @@ export function GitContent({
   const t = useT();
   const { notify } = useNotificationStore();
 
-  const { commits, branches, edges, isGitRepo, loading, refresh: refreshLog, loadMore, hasMore } = useGitLog(worktreePath);
+  const {
+    commits,
+    branches,
+    edges,
+    isGitRepo,
+    loading,
+    refreshing,
+    loadingMore,
+    refresh: refreshLog,
+    loadMore,
+    hasMore,
+  } = useGitLog(worktreePath);
   const {
     stagedFiles,
     changedFiles,
     isLoading: statusLoading,
+    refreshing: statusRefreshing,
     refresh: refreshStatus,
     stageFiles,
     stageAll,
@@ -607,6 +619,7 @@ export function GitContent({
   const aheadBehind = currentBranch
     ? buildAheadBehindLabel(currentBranch.ahead, currentBranch.behind)
     : null;
+  const syncing = refreshing || statusRefreshing || loadingMore;
 
   const [commitMessage, setCommitMessage] = useState("");
   const [committing, setCommitting] = useState(false);
@@ -852,7 +865,9 @@ export function GitContent({
               className="flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-[var(--surface-hover)]"
               style={{ color: "var(--text-secondary)" }}
             >
-              <IconRefresh size={14} />
+              <span className={syncing ? "animate-spin" : undefined}>
+                <IconRefresh size={14} />
+              </span>
             </button>
             {onEnableHydra && (
               <button
