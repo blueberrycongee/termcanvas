@@ -2,6 +2,13 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.9] - 2026-04-05
+
+### Fixed
+- Bundled skills are now available to Codex after app startup, including `challenge`, `hydra`, `investigate`, and `using-termcanvas`
+- Skill discovery now scans both Codex and Claude skill directories and supports both `SKILL.md` and `skill.md`
+- Bundled skill installation no longer depends on CLI registration succeeding first
+
 ## [0.25.8] - 2026-04-05
 
 ### Changed
