@@ -118,6 +118,20 @@ test("validateResultContract rejects incorrect field types", () => {
   );
 });
 
+test("validateResultContract preserves satisfaction loop fields", () => {
+  const result = validateResultContract(
+    {
+      ...buildValidResult(),
+      satisfaction: false,
+      replan: true,
+    },
+    buildValidHandoff(),
+  );
+
+  assert.equal(result.satisfaction, false);
+  assert.equal(result.replan, true);
+});
+
 test("validateHandoffContract rejects artifact path mismatches", () => {
   const invalid = buildValidHandoff();
   invalid.artifacts.result_file = "/tmp/hydra/other/result.json";

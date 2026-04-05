@@ -30,6 +30,8 @@ export interface WorkflowRecord {
   handoff_ids: string[];
   timeout_minutes: number;
   max_retries: number;
+  satisfaction_iteration?: number;
+  max_satisfaction_iterations?: number;
   auto_approve: boolean;
   approve_plan?: boolean;
   challenge?: ChallengeState;

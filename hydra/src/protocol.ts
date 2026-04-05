@@ -108,6 +108,8 @@ export interface ResultContract {
   evidence: string[];
   next_action: ResultNextAction;
   verification?: ResultVerification;
+  satisfaction?: boolean;
+  replan?: boolean;
 }
 
 export interface DoneMarker {
@@ -182,6 +184,23 @@ function expectBoolean(
   root: unknown,
 ): boolean {
   const value = record[field];
+  if (typeof value !== "boolean") {
+    failProtocolValidation(errorCode, stage, `Invalid ${field}: expected a boolean`, root);
+  }
+  return value;
+}
+
+function expectOptionalBoolean(
+  record: Record<string, unknown>,
+  field: string,
+  errorCode: "PROTOCOL_INVALID_RESULT",
+  stage: "protocol.validate_result",
+  root: unknown,
+): boolean | undefined {
+  const value = record[field];
+  if (value === undefined) {
+    return undefined;
+  }
   if (typeof value !== "boolean") {
     failProtocolValidation(errorCode, stage, `Invalid ${field}: expected a boolean`, root);
   }
@@ -478,6 +497,26 @@ export function validateResultContract(
   };
   const verification = validateVerification(record);
   if (verification) validated.verification = verification;
+  const satisfaction = expectOptionalBoolean(
+    record,
+    "satisfaction",
+    "PROTOCOL_INVALID_RESULT",
+    "protocol.validate_result",
+    value,
+  );
+  if (satisfaction !== undefined) {
+    validated.satisfaction = satisfaction;
+  }
+  const replan = expectOptionalBoolean(
+    record,
+    "replan",
+    "PROTOCOL_INVALID_RESULT",
+    "protocol.validate_result",
+    value,
+  );
+  if (replan !== undefined) {
+    validated.replan = replan;
+  }
 
   if (validated.handoff_id !== handoff.handoff_id) {
     failProtocolValidation("PROTOCOL_INVALID_RESULT", "protocol.validate_result", "Invalid handoff_id: result does not match handoff", value);

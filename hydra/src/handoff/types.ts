@@ -4,7 +4,7 @@
  * Based on Anthropic's file-based agent communication pattern
  */
 
-import type { TaskPackagePaths } from "../protocol.ts";
+import type { ResultVerification, TaskPackagePaths } from "../protocol.ts";
 
 export type AgentRole =
   | "planner"
@@ -133,6 +133,9 @@ export interface Handoff {
       description: string;
     }>;
     evidence?: string[];
+    verification?: ResultVerification;
+    satisfaction?: boolean;
+    replan?: boolean;
     next_action?: {
       type: "complete" | "retry" | "handoff";
       reason: string;
