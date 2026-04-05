@@ -28,7 +28,7 @@ function scanSkillDir(dirPath: string): SlashCommand[] {
     const entries = readdirSync(dirPath, { withFileTypes: true });
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
-      const skillFile = join(dirPath, entry.name, "skill.md");
+      const skillFile = resolveSkillFile(dirPath, entry.name);
       if (!existsSync(skillFile)) continue;
       try {
         const content = readFileSync(skillFile, "utf-8");
@@ -46,6 +46,14 @@ function scanSkillDir(dirPath: string): SlashCommand[] {
   return commands;
 }
 
+function resolveSkillFile(dirPath: string, skillName: string): string {
+  for (const fileName of ["SKILL.md", "skill.md"]) {
+    const candidate = join(dirPath, skillName, fileName);
+    if (existsSync(candidate)) return candidate;
+  }
+  return join(dirPath, skillName, "SKILL.md");
+}
+
 const BUILTIN_COMMANDS: SlashCommand[] = [
   { name: "compact", description: "Compact conversation context" },
   { name: "cost", description: "Show token usage and cost" },
@@ -58,40 +66,50 @@ const BUILTIN_COMMANDS: SlashCommand[] = [
   { name: "help", description: "Show help" },
 ];
 
-export function getSlashCommands(projectCwd?: string): SlashCommand[] {
-  const globalSkillDir = join(homedir(), ".claude", "skills");
-  const commands = [...BUILTIN_COMMANDS];
-  const seen = new Set(commands.map((c) => c.name));
-
-  for (const cmd of scanSkillDir(globalSkillDir)) {
+function appendCommands(
+  commands: SlashCommand[],
+  seen: Set<string>,
+  nextCommands: SlashCommand[],
+): void {
+  for (const cmd of nextCommands) {
     if (!seen.has(cmd.name)) {
       seen.add(cmd.name);
       commands.push(cmd);
     }
   }
+}
+
+function skillRoots(homeDir: string, projectCwd?: string): string[] {
+  const roots = [
+    join(homeDir, ".claude", "skills"),
+    join(homeDir, ".codex", "skills"),
+  ];
 
   if (projectCwd) {
-    const projectSkillDir = join(projectCwd, ".claude", "skills");
-    for (const cmd of scanSkillDir(projectSkillDir)) {
-      if (!seen.has(cmd.name)) {
-        seen.add(cmd.name);
-        commands.push(cmd);
-      }
-    }
+    roots.push(
+      join(projectCwd, ".claude", "skills"),
+      join(projectCwd, ".codex", "skills"),
+    );
   }
 
-  const pluginDir = join(homedir(), ".claude", "plugins", "marketplaces");
+  return roots;
+}
+
+export function getSlashCommands(projectCwd?: string, homeDir = homedir()): SlashCommand[] {
+  const commands = [...BUILTIN_COMMANDS];
+  const seen = new Set(commands.map((c) => c.name));
+
+  for (const dirPath of skillRoots(homeDir, projectCwd)) {
+    appendCommands(commands, seen, scanSkillDir(dirPath));
+  }
+
+  const pluginDir = join(homeDir, ".claude", "plugins", "marketplaces");
   if (existsSync(pluginDir)) {
     try {
       for (const marketplace of readdirSync(pluginDir, { withFileTypes: true })) {
         if (!marketplace.isDirectory()) continue;
         const mDir = join(pluginDir, marketplace.name);
-        for (const cmd of scanSkillDir(join(mDir, "skills"))) {
-          if (!seen.has(cmd.name)) {
-            seen.add(cmd.name);
-            commands.push(cmd);
-          }
-        }
+        appendCommands(commands, seen, scanSkillDir(join(mDir, "skills")));
         for (const cmd of scanSkillDir(mDir)) {
           const prefixed = `${marketplace.name}:${cmd.name}`;
           if (!seen.has(prefixed) && !seen.has(cmd.name)) {
@@ -107,6 +125,6 @@ export function getSlashCommands(projectCwd?: string): SlashCommand[] {
   return commands;
 }
 
-export function getSlashCommandNames(projectCwd?: string): string[] {
-  return getSlashCommands(projectCwd).map((c) => c.name);
+export function getSlashCommandNames(projectCwd?: string, homeDir = homedir()): string[] {
+  return getSlashCommands(projectCwd, homeDir).map((c) => c.name);
 }

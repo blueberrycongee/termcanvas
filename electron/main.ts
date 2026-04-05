@@ -24,7 +24,6 @@ import {
   ensureSkillLinks,
   getSkillsSourceDir,
   installSkillLinks,
-  uninstallSkillLinks,
 } from "./skill-manager";
 import {
   readCliIntegrationState,
@@ -835,7 +834,6 @@ function setupIpc() {
     const ok = unregisterCli(getCliDir());
     if (ok) {
       writeCliIntegrationState({ autoRegister: false });
-      uninstallSkill();
     }
     return ok;
   });
@@ -1261,10 +1259,6 @@ function ensureSkillInstalled(): boolean {
   });
 }
 
-function uninstallSkill(): boolean {
-  return uninstallSkillLinks({ sourceDir: getSkillSourceDir() });
-}
-
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
     app.setAsDefaultProtocolClient("termcanvas", process.execPath, [path.resolve(process.argv[1])]);
@@ -1304,7 +1298,6 @@ app.whenReady().then(async () => {
     autoRegisterEnabled: readCliIntegrationState().autoRegister,
     cliRegistered: isCliRegistered(getCliDir()),
     registerCli: () => registerCli(getCliDir()),
-    installSkills: installSkill,
     ensureSkills: ensureSkillInstalled,
     persistAutoRegisterEnabled: (enabled) => {
       writeCliIntegrationState({ autoRegister: enabled });

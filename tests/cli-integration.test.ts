@@ -24,7 +24,7 @@ test("writeCliIntegrationState persists the explicit autoRegister choice", () =>
   assert.deepEqual(readCliIntegrationState(filePath), { autoRegister: false });
 });
 
-test("syncCliIntegrationOnStartup auto-registers and installs skills when enabled", () => {
+test("syncCliIntegrationOnStartup ensures skills before auto-registering CLI", () => {
   const calls: string[] = [];
 
   syncCliIntegrationOnStartup({
@@ -32,10 +32,6 @@ test("syncCliIntegrationOnStartup auto-registers and installs skills when enable
     cliRegistered: false,
     registerCli: () => {
       calls.push("register");
-      return true;
-    },
-    installSkills: () => {
-      calls.push("install");
       return true;
     },
     ensureSkills: () => {
@@ -47,7 +43,7 @@ test("syncCliIntegrationOnStartup auto-registers and installs skills when enable
     },
   });
 
-  assert.deepEqual(calls, ["register", "persist:true", "install"]);
+  assert.deepEqual(calls, ["ensure", "register", "persist:true"]);
 });
 
 test("syncCliIntegrationOnStartup only ensures skills when CLI is already registered", () => {
@@ -58,10 +54,6 @@ test("syncCliIntegrationOnStartup only ensures skills when CLI is already regist
     cliRegistered: true,
     registerCli: () => {
       calls.push("register");
-      return true;
-    },
-    installSkills: () => {
-      calls.push("install");
       return true;
     },
     ensureSkills: () => {
@@ -86,10 +78,6 @@ test("syncCliIntegrationOnStartup respects an explicit user opt-out", () => {
       calls.push("register");
       return true;
     },
-    installSkills: () => {
-      calls.push("install");
-      return true;
-    },
     ensureSkills: () => {
       calls.push("ensure");
       return true;
@@ -99,5 +87,5 @@ test("syncCliIntegrationOnStartup respects an explicit user opt-out", () => {
     },
   });
 
-  assert.deepEqual(calls, []);
+  assert.deepEqual(calls, ["ensure"]);
 });

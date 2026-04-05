@@ -13,7 +13,6 @@ interface SyncCliIntegrationOnStartupOptions {
   autoRegisterEnabled: boolean;
   cliRegistered: boolean;
   registerCli: () => boolean;
-  installSkills: () => boolean;
   ensureSkills: () => boolean;
   persistAutoRegisterEnabled: (enabled: boolean) => void;
 }
@@ -46,16 +45,16 @@ export function syncCliIntegrationOnStartup({
   autoRegisterEnabled,
   cliRegistered,
   registerCli,
-  installSkills,
   ensureSkills,
   persistAutoRegisterEnabled,
 }: SyncCliIntegrationOnStartupOptions): void {
+  ensureSkills();
+
   if (!autoRegisterEnabled) {
     return;
   }
 
   if (cliRegistered) {
-    ensureSkills();
     return;
   }
 
@@ -65,5 +64,4 @@ export function syncCliIntegrationOnStartup({
   }
 
   persistAutoRegisterEnabled(true);
-  installSkills();
 }
