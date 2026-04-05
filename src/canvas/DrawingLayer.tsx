@@ -1,12 +1,30 @@
 import { useRef, useCallback } from "react";
 import getStroke from "perfect-freehand";
 import {
+  addAnnotationToScene,
+  setAnnotationToolInScene,
+  setDraftAnnotationInScene,
+  updateAnnotationInScene,
+} from "../actions/annotationSceneActions";
+import { activateAnnotationInScene } from "../actions/sceneSelectionActions";
+import {
+  getDrawingElementBounds,
+  resolveDrawingElementForRender,
+  translateDrawingElement,
+} from "./annotationGeometry";
+import {
   useDrawingStore,
   drawingId,
   type DrawingElement,
   type StrokePoint,
 } from "../stores/drawingStore";
 import { useCanvasStore } from "../stores/canvasStore";
+import { useProjectStore } from "../stores/projectStore";
+import { useSelectionStore } from "../stores/selectionStore";
+import {
+  getCanvasLeftInset,
+  screenPointToCanvasPoint,
+} from "./viewportBounds";
 
 function getSvgPathFromStroke(stroke: number[][]) {
   if (stroke.length === 0) return "";
@@ -95,19 +113,68 @@ function renderElement(el: DrawingElement) {
   }
 }
 
+function renderSelectionOutline(el: DrawingElement) {
+  const bounds = getDrawingElementBounds(el);
+  return (
+    <rect
+      x={bounds.x - 6}
+      y={bounds.y - 6}
+      width={bounds.w + 12}
+      height={bounds.h + 12}
+      rx={8}
+      fill="none"
+      stroke="var(--accent)"
+      strokeWidth={1.5}
+      strokeDasharray="6 4"
+      vectorEffect="non-scaling-stroke"
+      pointerEvents="none"
+    />
+  );
+}
+
+function renderHitArea(el: DrawingElement) {
+  const bounds = getDrawingElementBounds(el);
+  return (
+    <rect
+      x={bounds.x}
+      y={bounds.y}
+      width={Math.max(bounds.w, 12)}
+      height={Math.max(bounds.h, 12)}
+      fill="rgba(0,0,0,0.001)"
+      stroke="none"
+    />
+  );
+}
+
 export function DrawingLayer() {
-  const { tool, color, elements, activeElement, addElement, setActiveElement } =
-    useDrawingStore();
-  const svgRef = useRef<SVGSVGElement>(null);
+  const { tool, color, elements, activeElement } = useDrawingStore();
+  const projects = useProjectStore((state) => state.projects);
+  const selectedAnnotationIds = useSelectionStore((state) =>
+    state.selectedItems.flatMap((item) =>
+      item.type === "annotation" ? [item.annotationId] : [],
+    ),
+  );
   const pointsRef = useRef<StrokePoint[]>([]);
   const startRef = useRef<{ x: number; y: number } | null>(null);
+  const dragRef = useRef<{
+    element: DrawingElement;
+    startX: number;
+    startY: number;
+  } | null>(null);
+  const leftPanelCollapsed = useCanvasStore((state) => state.leftPanelCollapsed);
+  const leftPanelWidth = useCanvasStore((state) => state.leftPanelWidth);
+  const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
 
   const toCanvas = useCallback((e: React.MouseEvent) => {
-    const { viewport } = useCanvasStore.getState();
-    return {
-      x: (e.clientX - viewport.x) / viewport.scale,
-      y: (e.clientY - viewport.y) / viewport.scale,
-    };
+    const { viewport, leftPanelCollapsed, leftPanelWidth } =
+      useCanvasStore.getState();
+    return screenPointToCanvasPoint(
+      e.clientX,
+      e.clientY,
+      viewport,
+      leftPanelCollapsed,
+      leftPanelWidth,
+    );
   }, []);
 
   const handleMouseDown = useCallback(
@@ -120,7 +187,7 @@ export function DrawingLayer() {
 
       if (tool === "pen") {
         pointsRef.current = [{ x: pos.x, y: pos.y, pressure: 0.5 }];
-        setActiveElement({
+        setDraftAnnotationInScene({
           id: drawingId(),
           type: "pen",
           points: pointsRef.current,
@@ -130,7 +197,7 @@ export function DrawingLayer() {
       } else if (tool === "text") {
         const content = window.prompt("Enter text:");
         if (content) {
-          addElement({
+          addAnnotationToScene({
             id: drawingId(),
             type: "text",
             x: pos.x,
@@ -140,11 +207,11 @@ export function DrawingLayer() {
             fontSize: 16,
           });
         }
-        useDrawingStore.getState().setTool("select");
+        setAnnotationToolInScene("select");
       } else if (tool === "rect" || tool === "arrow") {
         startRef.current = pos;
         if (tool === "rect") {
-          setActiveElement({
+          setDraftAnnotationInScene({
             id: drawingId(),
             type: "rect",
             x: pos.x,
@@ -155,7 +222,7 @@ export function DrawingLayer() {
             strokeWidth: 2,
           });
         } else {
-          setActiveElement({
+          setDraftAnnotationInScene({
             id: drawingId(),
             type: "arrow",
             x1: pos.x,
@@ -168,7 +235,7 @@ export function DrawingLayer() {
         }
       }
     },
-    [tool, color, toCanvas, addElement, setActiveElement],
+    [color, toCanvas, tool],
   );
 
   const handleMouseMove = useCallback(
@@ -182,12 +249,12 @@ export function DrawingLayer() {
           ...pointsRef.current,
           { x: pos.x, y: pos.y, pressure: 0.5 },
         ];
-        setActiveElement({
+        setDraftAnnotationInScene({
           ...activeElement,
           points: pointsRef.current,
         });
       } else if (activeElement.type === "rect" && startRef.current) {
-        setActiveElement({
+        setDraftAnnotationInScene({
           ...activeElement,
           x: Math.min(startRef.current.x, pos.x),
           y: Math.min(startRef.current.y, pos.y),
@@ -195,34 +262,84 @@ export function DrawingLayer() {
           h: Math.abs(pos.y - startRef.current.y),
         });
       } else if (activeElement.type === "arrow") {
-        setActiveElement({
+        setDraftAnnotationInScene({
           ...activeElement,
           x2: pos.x,
           y2: pos.y,
         });
       }
     },
-    [activeElement, toCanvas, setActiveElement],
+    [activeElement, toCanvas],
   );
 
   const handleMouseUp = useCallback(() => {
     if (!activeElement) return;
-    addElement(activeElement);
+    addAnnotationToScene(activeElement);
     pointsRef.current = [];
     startRef.current = null;
-  }, [activeElement, addElement]);
+  }, [activeElement]);
+
+  const handleElementMouseDown = useCallback(
+    (element: DrawingElement, e: React.MouseEvent) => {
+      if (tool !== "select") {
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      activateAnnotationInScene(element.id);
+      const start = toCanvas(e);
+      dragRef.current = {
+        element,
+        startX: start.x,
+        startY: start.y,
+      };
+
+      const handleMove = (event: MouseEvent) => {
+        if (!dragRef.current) {
+          return;
+        }
+        const point = screenPointToCanvasPoint(
+          event.clientX,
+          event.clientY,
+          useCanvasStore.getState().viewport,
+          useCanvasStore.getState().leftPanelCollapsed,
+          useCanvasStore.getState().leftPanelWidth,
+        );
+        const dx = point.x - dragRef.current.startX;
+        const dy = point.y - dragRef.current.startY;
+        const translated = translateDrawingElement(
+          dragRef.current.element,
+          dx,
+          dy,
+        );
+        updateAnnotationInScene(element.id, translated);
+      };
+
+      const handleUp = () => {
+        dragRef.current = null;
+        window.removeEventListener("mousemove", handleMove);
+        window.removeEventListener("mouseup", handleUp);
+      };
+
+      window.addEventListener("mousemove", handleMove);
+      window.addEventListener("mouseup", handleUp);
+    },
+    [toCanvas, tool],
+  );
 
   const isDrawing = tool !== "select";
   const { viewport } = useCanvasStore();
 
   return (
     <svg
-      ref={svgRef}
-      className="fixed inset-0 w-screen h-screen"
+      className="fixed top-0 right-0 bottom-0"
       style={{
+        left: leftOffset,
         pointerEvents: isDrawing ? "auto" : "none",
         cursor: isDrawing ? "crosshair" : "default",
-        zIndex: isDrawing ? 30 : 0,
+        zIndex: isDrawing ? 30 : 20,
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -232,7 +349,21 @@ export function DrawingLayer() {
       <g
         transform={`translate(${viewport.x}, ${viewport.y}) scale(${viewport.scale})`}
       >
-        {elements.map(renderElement)}
+        {elements.map((element) => {
+          const renderedElement = resolveDrawingElementForRender(element, projects);
+          const isSelected = selectedAnnotationIds.includes(element.id);
+          return (
+            <g
+              key={element.id}
+              style={{ pointerEvents: tool === "select" ? "auto" : "none" }}
+              onMouseDown={(event) => handleElementMouseDown(element, event)}
+            >
+              {renderHitArea(renderedElement)}
+              {renderElement(renderedElement)}
+              {isSelected && renderSelectionOutline(renderedElement)}
+            </g>
+          );
+        })}
         {activeElement && renderElement(activeElement)}
       </g>
     </svg>

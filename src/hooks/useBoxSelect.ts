@@ -1,12 +1,20 @@
 import { useCallback } from "react";
+import {
+  activateAnnotationInScene,
+  activateTerminalInScene,
+  activateWorktreeInScene,
+  setSceneSelection,
+  setSceneSelectionRect,
+} from "../actions/sceneSelectionActions";
+import {
+  getDrawingElementBounds,
+  resolveDrawingElementForRender,
+} from "../canvas/annotationGeometry";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useProjectStore, getProjectBounds } from "../stores/projectStore";
 import { useCardLayoutStore, resolveAllCardPositions } from "../stores/cardLayoutStore";
 import { useDrawingStore } from "../stores/drawingStore";
-import {
-  useSelectionStore,
-  type SelectedItem,
-} from "../stores/selectionStore";
+import { type SelectedItem } from "../stores/selectionStore";
 import { screenPointToCanvasPoint } from "../canvas/viewportBounds";
 import {
   packTerminals,
@@ -114,6 +122,13 @@ function getItemsInRect(rect: { x: number; y: number; w: number; h: number }): S
     }
   }
 
+  for (const element of useDrawingStore.getState().elements) {
+    const renderedElement = resolveDrawingElementForRender(element, projects);
+    if (rectsIntersect(nr, getDrawingElementBounds(renderedElement))) {
+      items.push({ type: "annotation", annotationId: element.id });
+    }
+  }
+
   return items;
 }
 
@@ -128,13 +143,11 @@ export function useBoxSelect() {
     e.stopPropagation();
 
     const start = screenToCanvas(e.clientX, e.clientY);
-    const { setSelectionRect, setSelectedItems } = useSelectionStore.getState();
-
-    setSelectionRect({ x: start.x, y: start.y, w: 0, h: 0 });
+    setSceneSelectionRect({ x: start.x, y: start.y, w: 0, h: 0 });
 
     const handleMove = (ev: MouseEvent) => {
       const current = screenToCanvas(ev.clientX, ev.clientY);
-      setSelectionRect({
+      setSceneSelectionRect({
         x: start.x,
         y: start.y,
         w: current.x - start.x,
@@ -152,20 +165,23 @@ export function useBoxSelect() {
       };
 
       const items = getItemsInRect(rect);
-      setSelectedItems(items);
+      setSceneSelection(items);
       if (items.length === 1) {
         const [item] = items;
         if (item.type === "terminal") {
-          useProjectStore
-            .getState()
-            .setFocusedTerminal(item.terminalId, { focusComposer: false });
+          activateTerminalInScene(
+            item.projectId,
+            item.worktreeId,
+            item.terminalId,
+            { focusComposer: false },
+          );
         } else if (item.type === "worktree") {
-          useProjectStore
-            .getState()
-            .setFocusedWorktree(item.projectId, item.worktreeId);
+          activateWorktreeInScene(item.projectId, item.worktreeId);
+        } else if (item.type === "annotation") {
+          activateAnnotationInScene(item.annotationId);
         }
       }
-      setSelectionRect(null);
+      setSceneSelectionRect(null);
 
       window.removeEventListener("mousemove", handleMove);
       window.removeEventListener("mouseup", handleUp);

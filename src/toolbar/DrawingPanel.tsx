@@ -1,5 +1,12 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
+import {
+  clearAnnotationsInScene,
+  deleteSelectedAnnotationsInScene,
+  setAnnotationColorInScene,
+  setAnnotationToolInScene,
+} from "../actions/annotationSceneActions";
 import { useDrawingStore, type DrawingTool } from "../stores/drawingStore";
+import { useSelectionStore } from "../stores/selectionStore";
 import { useT } from "../i18n/useT";
 
 const colors = [
@@ -23,8 +30,10 @@ export function DrawingPanel() {
     { id: "rect", label: t.tool_rect, icon: "□" },
     { id: "arrow", label: t.tool_arrow, icon: "→" },
   ];
-  const { tool, color, setTool, setColor, clearAll, elements } =
-    useDrawingStore();
+  const { tool, color, elements } = useDrawingStore();
+  const selectedAnnotationCount = useSelectionStore((state) =>
+    state.selectedItems.filter((item) => item.type === "annotation").length,
+  );
   const [vertical, setVertical] = useState(true);
   const [pos, setPos] = useState({ x: window.innerWidth - 60, y: 60 });
   const panelRef = useRef<HTMLDivElement>(null);
@@ -185,7 +194,7 @@ export function DrawingPanel() {
                 ? "bg-[var(--border)] text-[var(--text-primary)]"
                 : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"
             }`}
-            onClick={() => setTool(toolItem.id)}
+            onClick={() => setAnnotationToolInScene(toolItem.id)}
             title={toolItem.label}
           >
             {toolItem.icon}
@@ -213,7 +222,7 @@ export function DrawingPanel() {
                     : "1.5px solid transparent",
                 outlineOffset: 1,
               }}
-              onClick={() => setColor(c)}
+              onClick={() => setAnnotationColorInScene(c)}
             />
           ))}
         </div>
@@ -221,7 +230,18 @@ export function DrawingPanel() {
         {elements.length > 0 && (
           <button
             className={`${btnBase} text-[var(--text-muted)] hover:text-[var(--red)]`}
-            onClick={clearAll}
+            onClick={deleteSelectedAnnotationsInScene}
+            title={t.ctx_delete}
+            disabled={selectedAnnotationCount === 0}
+          >
+            ⌫
+          </button>
+        )}
+
+        {elements.length > 0 && (
+          <button
+            className={`${btnBase} text-[var(--text-muted)] hover:text-[var(--red)]`}
+            onClick={clearAnnotationsInScene}
           >
             ✕
           </button>

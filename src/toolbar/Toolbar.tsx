@@ -1,8 +1,8 @@
 import { useCallback, useState } from "react";
+import { createBrowserCardInScene } from "../actions/sceneCardActions";
 import { useCanvasStore } from "../stores/canvasStore";
 import { getProjectBounds, useProjectStore } from "../stores/projectStore";
 import { useThemeStore } from "../stores/themeStore";
-import { useBrowserCardStore } from "../stores/browserCardStore";
 import { useUpdaterStore } from "../stores/updaterStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useSettingsModalStore } from "../stores/settingsModalStore";
@@ -37,7 +37,6 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
   const t = useT();
   const workspacePath = useWorkspaceStore((s) => s.workspacePath);
   const dirty = useWorkspaceStore((s) => s.dirty);
-  const addBrowserCard = useBrowserCardStore((s) => s.addCard);
   const updateStatus = useUpdaterStore((s) => s.status);
   const showSettings = useSettingsModalStore((s) => s.open);
   const openSettings = useSettingsModalStore((s) => s.openSettings);
@@ -253,7 +252,7 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
                   const scale = viewport.scale;
                   const x = (-viewport.x + window.innerWidth / 2) / scale - 400;
                   const y = (-viewport.y + window.innerHeight / 2) / scale - 300;
-                  addBrowserCard("https://google.com", { x, y });
+                  createBrowserCardInScene("https://google.com", { x, y });
                 }}
                 title={t.add_browser}
                 aria-label={t.add_browser}

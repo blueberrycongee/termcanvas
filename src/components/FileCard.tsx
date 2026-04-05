@@ -1,10 +1,12 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { activateCardInScene } from "../actions/sceneSelectionActions";
 import { useCanvasStore } from "../stores/canvasStore";
 import {
   useCardLayoutStore,
   resolveAllCardPositions,
 } from "../stores/cardLayoutStore";
 import { useProjectStore, getProjectBounds } from "../stores/projectStore";
+import { useSelectionStore } from "../stores/selectionStore";
 import { useT } from "../i18n/useT";
 
 type FileContent =
@@ -34,6 +36,11 @@ export function FileCard({
 }: Props) {
   const t = useT();
   const cardId = `file:${fileCardId}`;
+  const isSelected = useSelectionStore((state) =>
+    state.selectedItems.some(
+      (item) => item.type === "card" && item.cardId === cardId,
+    ),
+  );
   const [fileContent, setFileContent] = useState<FileContent>({ status: "loading" });
   const [pos, setPos] = useState({ x: anchorX + 16, y: anchorY });
   const [size, setSize] = useState({ w: 500, h: 400 });
@@ -205,8 +212,13 @@ export function FileCard({
           top: resolvedY,
           width: size.w,
           height: size.h,
+          outline: isSelected ? "2px solid var(--accent)" : undefined,
+          outlineOffset: isSelected ? -2 : undefined,
         }}
-        onMouseDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          activateCardInScene(cardId);
+        }}
         onWheel={(e) => e.stopPropagation()}
       >
         <div
