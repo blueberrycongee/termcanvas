@@ -2,6 +2,15 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.8] - 2026-04-05
+
+### Changed
+- Sessions in the right sidebar are now grouped by current canvas visibility, recent activity, and history, with on-canvas sessions prioritized ahead of off-canvas sessions
+- Session cards now show shorter activity labels instead of raw long command paths
+
+### Fixed
+- Duplicate session entries are now deduplicated before the sessions panel updates
+
 ## [0.25.6] - 2026-04-05
 
 ### Changed
