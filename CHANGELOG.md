@@ -2,6 +2,26 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.13] - 2026-04-07
+
+### Added
+- Inject Codex CLI lifecycle hooks (PreToolUse, PostToolUse, SessionStart, Stop, UserPromptSubmit) for real-time telemetry via Unix socket
+- Auto-enable `codex_hooks` feature flag in `~/.codex/config.toml` on skill install
+- Parse additional Codex JSONL events (exec_command, patch_apply, web_search, mcp_tool_call, turn_started, turn_complete, error) as telemetry fallback layer
+- Surface `task_status` and `active_tool_calls` in telemetry UI
+
+### Fixed
+- `deriveTelemetryStatus` no longer falsely reports `stall_candidate` when Codex is doing long inference or has active tool calls
+- Hook-driven session attachment now preserves the registered terminal provider instead of hardcoding to "claude"
+
+### Changed
+- Simplified main-brain telemetry polling instructions to trust `derived_status` and `task_status` as primary decision signals
+
+## [0.25.12] - 2026-04-06
+
+### Fixed
+- Pan viewport after closing focused terminal
+
 ## [0.25.11] - 2026-04-06
 
 ### Fixed
