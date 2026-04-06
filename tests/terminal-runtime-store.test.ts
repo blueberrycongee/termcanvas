@@ -528,6 +528,67 @@ test("starting a parked runtime does not fit or resize the hidden terminal host"
   }
 });
 
+test("fitTerminalRuntime forces a repaint after fitting a live terminal", async () => {
+  const mockWindow = installRuntimeGlobals();
+  const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const {
+    destroyAllTerminalRuntimes,
+    ensureTerminalRuntime,
+    fitTerminalRuntime,
+    getTerminalRuntime,
+  } = await import("../src/terminal/terminalRuntimeStore.ts");
+  const previousProjectState = useProjectStore.getState();
+  const resizeCalls: Array<{ cols: number; ptyId: number; rows: number }> = [];
+
+  destroyAllTerminalRuntimes();
+
+  try {
+    seedProjectState(useProjectStore);
+    ensureTerminalRuntime({
+      projectId: "project-1",
+      terminal: useProjectStore.getState().projects[0].worktrees[0].terminals[0],
+      worktreeId: "worktree-1",
+      worktreePath: "/tmp/project-1",
+    });
+
+    const runtime = getTerminalRuntime("terminal-1");
+    assert.ok(runtime);
+    if (!runtime) {
+      return;
+    }
+
+    const host = createFakeContainer();
+    const liveContainer = createFakeContainer();
+    const { fitAddon, stats, xterm } = createMockXterm();
+    liveContainer.appendChild(host);
+    runtime.attachedContainer = liveContainer as unknown as HTMLDivElement;
+    runtime.fitAddon = fitAddon as unknown as typeof runtime.fitAddon;
+    runtime.hostElement = host as unknown as HTMLDivElement;
+    runtime.xterm = xterm as unknown as typeof runtime.xterm;
+    mockWindow.termcanvas = {
+      terminal: {
+        destroy: async () => {},
+        resize(ptyId: number, cols: number, rows: number) {
+          resizeCalls.push({ cols, ptyId, rows });
+        },
+      },
+    };
+
+    fitTerminalRuntime("terminal-1");
+
+    assert.equal(stats.fitCalls, 1);
+    assert.equal(stats.refreshCalls, 1);
+    assert.deepEqual(resizeCalls.at(-1), {
+      cols: 80,
+      ptyId: 42,
+      rows: 24,
+    });
+  } finally {
+    destroyAllTerminalRuntimes();
+    useProjectStore.setState(previousProjectState);
+  }
+});
+
 test("reattaching a parked runtime reacquires WebGL after the pool evicts it", async () => {
   const mockWindow = installRuntimeGlobals();
   const { useProjectStore } = await import("../src/stores/projectStore.ts");

@@ -806,6 +806,9 @@ function syncAttachedTerminalGeometry(runtime: ManagedTerminalRuntime) {
     runtime.xterm.cols,
     runtime.xterm.rows,
   );
+  // WebGL can leave stale rows behind after fit-driven size changes inside the
+  // canvas. Force a synchronous repaint once geometry has settled.
+  runtime.xterm.refresh(0, runtime.xterm.rows - 1);
 }
 
 function createTerminalRenderer(
@@ -1564,6 +1567,7 @@ export function fitTerminalRuntime(terminalId: string) {
     runtime.xterm.cols,
     runtime.xterm.rows,
   );
+  runtime.xterm.refresh(0, runtime.xterm.rows - 1);
 }
 
 export function focusTerminalRuntime(terminalId: string): boolean {
