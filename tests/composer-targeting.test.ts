@@ -94,3 +94,25 @@ test("composer enters ready state when a focused terminal exists", () => {
 
   assert.equal(targetState, "ready");
 });
+
+test("composer targeting resolves live runtime fields from the overlay state", () => {
+  const projects = createProjects();
+  projects[0].worktrees[0].terminals[0].ptyId = null;
+  projects[0].worktrees[0].terminals[0].status = "idle";
+  projects[0].worktrees[0].terminals[0].focused = true;
+
+  const supportedTerminals = getSupportedTerminals(
+    projects,
+    () => true,
+    {
+      "terminal-1": {
+        ptyId: 501,
+        status: "running",
+      },
+    },
+  );
+
+  assert.equal(supportedTerminals.length, 2);
+  assert.equal(supportedTerminals[0]?.ptyId, 501);
+  assert.equal(supportedTerminals[0]?.status, "running");
+});

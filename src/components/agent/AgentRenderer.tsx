@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AgentStreamEvent } from "../../types";
 import { useThemeStore } from "../../stores/themeStore";
-import { useProjectStore } from "../../stores/projectStore";
+import { useTerminalRuntimeStateStore } from "../../stores/terminalRuntimeStateStore";
 import { MessageBubble } from "./MessageBubble";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { ToolCard } from "./ToolCard";
@@ -216,9 +216,9 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
           setSlashCommands(event.slash_commands);
         }
         if (event.session_id) {
-          useProjectStore.getState().updateTerminalSessionId(
-            projectId, worktreeId, terminalId, event.session_id,
-          );
+          useTerminalRuntimeStateStore
+            .getState()
+            .setSessionId(terminalId, event.session_id);
         }
         break;
 

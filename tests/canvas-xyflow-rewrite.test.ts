@@ -1,14 +1,66 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildSceneDocumentFromLegacyState } from "../src/canvas/sceneProjection.ts";
-import {
-  buildCanvasFlowNodes,
-  projectNodeId,
-  worktreeNodeId,
-} from "../src/canvas/nodeProjection.ts";
 import type { ProjectData } from "../src/types/index.ts";
 
+function installCanvasProjectionGlobals() {
+  const storage = new Map<string, string>();
+  const localStorage = {
+    getItem(key: string) {
+      return storage.get(key) ?? null;
+    },
+    setItem(key: string, value: string) {
+      storage.set(key, value);
+    },
+    removeItem(key: string) {
+      storage.delete(key);
+    },
+    clear() {
+      storage.clear();
+    },
+  };
+  const navigator = {
+    language: "en-US",
+    userAgent: "node-test",
+  };
+  const target = new EventTarget();
+  const mockWindow = Object.assign(target, {
+    innerHeight: 900,
+    innerWidth: 1440,
+    navigator,
+    localStorage,
+    termcanvas: undefined,
+  }) as Window;
+
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: localStorage,
+  });
+
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: navigator,
+  });
+
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: mockWindow,
+  });
+}
+
+async function loadCanvasModules(tag: string) {
+  installCanvasProjectionGlobals();
+
+  const sceneProjection = await import(`../src/canvas/sceneProjection.ts?${tag}`);
+  const nodeProjection = await import(`../src/canvas/nodeProjection.ts?${tag}`);
+  const sceneState = await import(`../src/canvas/sceneState.ts?${tag}`);
+
+  return {
+    ...sceneProjection,
+    ...nodeProjection,
+    ...sceneState,
+  };
+}
 function createProjects(): ProjectData[] {
   return [
     {
@@ -43,7 +95,11 @@ function createProjects(): ProjectData[] {
   ];
 }
 
-test("buildSceneDocumentFromLegacyState maps camera, projects, cards, and annotations", () => {
+test("buildSceneDocumentFromLegacyState maps camera, projects, cards, and annotations", async () => {
+  installCanvasProjectionGlobals();
+  const { buildSceneDocumentFromLegacyState } = await import(
+    "../src/canvas/sceneProjection.ts"
+  );
   const scene = buildSceneDocumentFromLegacyState({
     viewport: { x: 10, y: 20, scale: 0.75 },
     projects: createProjects(),
@@ -91,7 +147,13 @@ test("buildSceneDocumentFromLegacyState maps camera, projects, cards, and annota
   });
 });
 
-test("buildCanvasFlowNodes creates project/worktree nodes with parent-child mapping", () => {
+test("buildCanvasFlowNodes creates project/worktree nodes with parent-child mapping", async () => {
+  installCanvasProjectionGlobals();
+  const {
+    buildCanvasFlowNodes,
+    projectNodeId,
+    worktreeNodeId,
+  } = await import("../src/canvas/nodeProjection.ts");
   const [projectNode, worktreeNode] = buildCanvasFlowNodes(createProjects());
 
   assert.equal(projectNode.id, projectNodeId("project-1"));
@@ -111,27 +173,193 @@ test("buildCanvasFlowNodes creates project/worktree nodes with parent-child mapp
   assert.equal(worktreeNode.hidden, false);
 });
 
-test("buildCanvasFlowNodes ignores stashed terminals when sizing worktrees", () => {
-  const projects = createProjects();
-  projects[0].position = { x: 0, y: 0 };
-  projects[0].worktrees[0].position = { x: 0, y: 0 };
-  projects[0].worktrees[0].terminals = [
-    projects[0].worktrees[0].terminals[0],
+test("buildCanvasFlowNodes ignores stashed terminals when sizing nodes", async () => {
+  installCanvasProjectionGlobals();
+  const { buildCanvasFlowNodes } = await import("../src/canvas/nodeProjection.ts");
+
+  const visibleOnlyProjects = createProjects();
+  const projectsWithStashed = createProjects();
+  projectsWithStashed[0]!.worktrees[0]!.terminals.push({
+    id: "terminal-stashed",
+    title: "Stashed Terminal",
+    type: "shell",
+    minimized: false,
+    focused: false,
+    ptyId: null,
+    status: "idle",
+    stashed: true,
+    span: { cols: 3, rows: 2 },
+  });
+
+  const visibleOnlyNodes = buildCanvasFlowNodes(visibleOnlyProjects);
+  const nodesWithStashed = buildCanvasFlowNodes(projectsWithStashed);
+  const visibleOnlyProjectNode = visibleOnlyNodes.find((node) => node.type === "project");
+  const visibleOnlyWorktreeNode = visibleOnlyNodes.find((node) => node.type === "worktree");
+  const stashedProjectNode = nodesWithStashed.find((node) => node.type === "project");
+  const stashedWorktreeNode = nodesWithStashed.find((node) => node.type === "worktree");
+
+  assert.equal(stashedProjectNode?.width, visibleOnlyProjectNode?.width);
+  assert.equal(stashedProjectNode?.height, visibleOnlyProjectNode?.height);
+  assert.equal(stashedWorktreeNode?.width, visibleOnlyWorktreeNode?.width);
+  assert.equal(stashedWorktreeNode?.height, visibleOnlyWorktreeNode?.height);
+});
+
+test("sceneState render helpers ignore stashed terminals", async () => {
+  const {
+    getRenderableTerminalLayouts,
+    getRenderableWorktreeSize,
+  } = await loadCanvasModules("renderable-terminals");
+  const worktree = {
+    id: "worktree-1",
+    name: "main",
+    path: "/tmp/project-1",
+    position: { x: 0, y: 0 },
+    collapsed: false,
+    terminals: [
+      {
+        id: "terminal-visible-1",
+        title: "Visible 1",
+        type: "shell" as const,
+        minimized: false,
+        focused: false,
+        ptyId: null,
+        status: "idle" as const,
+        span: { cols: 1, rows: 1 },
+      },
+      {
+        id: "terminal-stashed",
+        title: "Stashed",
+        type: "shell" as const,
+        minimized: false,
+        focused: false,
+        ptyId: null,
+        status: "idle" as const,
+        span: { cols: 2, rows: 1 },
+        stashed: true,
+      },
+      {
+        id: "terminal-visible-2",
+        title: "Visible 2",
+        type: "shell" as const,
+        minimized: false,
+        focused: false,
+        ptyId: null,
+        status: "idle" as const,
+        span: { cols: 1, rows: 1 },
+      },
+    ],
+  };
+
+  const layouts = getRenderableTerminalLayouts(worktree);
+  assert.deepEqual(
+    layouts.map(({ terminal }) => terminal.id),
+    ["terminal-visible-1", "terminal-visible-2"],
+  );
+
+  const size = getRenderableWorktreeSize(worktree);
+  assert.equal(size.w >= 300, true);
+  assert.equal(size.h > 36, true);
+});
+
+test("filterValidSelectedItems drops removed and stashed scene selections", async () => {
+  const { filterValidSelectedItems } = await loadCanvasModules("selection-filter");
+  const projects: ProjectData[] = [
     {
-      ...projects[0].worktrees[0].terminals[0],
-      id: "terminal-2",
-      title: "Terminal 2",
-    },
-    {
-      ...projects[0].worktrees[0].terminals[0],
-      id: "terminal-3",
-      title: "Terminal 3",
-      stashed: true,
+      id: "project-1",
+      name: "Project One",
+      path: "/tmp/project-1",
+      position: { x: 0, y: 0 },
+      collapsed: false,
+      zIndex: 0,
+      worktrees: [
+        {
+          id: "worktree-1",
+          name: "main",
+          path: "/tmp/project-1",
+          position: { x: 0, y: 0 },
+          collapsed: false,
+          terminals: [
+            {
+              id: "terminal-visible",
+              title: "Visible",
+              type: "shell",
+              minimized: false,
+              focused: false,
+              ptyId: null,
+              status: "idle",
+              span: { cols: 1, rows: 1 },
+            },
+            {
+              id: "terminal-stashed",
+              title: "Stashed",
+              type: "shell",
+              minimized: false,
+              focused: false,
+              ptyId: null,
+              status: "idle",
+              span: { cols: 1, rows: 1 },
+              stashed: true,
+            },
+          ],
+        },
+      ],
     },
   ];
 
-  const [projectNode, worktreeNode] = buildCanvasFlowNodes(projects);
+  const selectedItems = filterValidSelectedItems(
+    [
+      { type: "project", projectId: "project-1" },
+      {
+        type: "terminal",
+        projectId: "project-1",
+        worktreeId: "worktree-1",
+        terminalId: "terminal-visible",
+      },
+      {
+        type: "terminal",
+        projectId: "project-1",
+        worktreeId: "worktree-1",
+        terminalId: "terminal-stashed",
+      },
+      { type: "card", cardId: "browser:browser-1" },
+      { type: "annotation", annotationId: "annotation-1" },
+    ],
+    {
+      annotations: [
+        {
+          id: "annotation-1",
+          type: "text",
+          x: 10,
+          y: 20,
+          content: "hello",
+          color: "#fff",
+          fontSize: 14,
+        },
+      ],
+      browserCards: {
+        "browser-1": {
+          id: "browser-1",
+          url: "https://example.com",
+          title: "Example",
+          x: 0,
+          y: 0,
+          w: 320,
+          h: 240,
+        },
+      },
+      projects,
+    },
+  );
 
-  assert.equal(worktreeNode.width, 1308);
-  assert.equal(projectNode.width, 1332);
+  assert.deepEqual(selectedItems, [
+    { type: "project", projectId: "project-1" },
+    {
+      type: "terminal",
+      projectId: "project-1",
+      worktreeId: "worktree-1",
+      terminalId: "terminal-visible",
+    },
+    { type: "card", cardId: "browser:browser-1" },
+    { type: "annotation", annotationId: "annotation-1" },
+  ]);
 });

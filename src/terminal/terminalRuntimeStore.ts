@@ -10,6 +10,10 @@ import { useNotificationStore } from "../stores/notificationStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useProjectStore } from "../stores/projectStore";
 import { getTerminalDisplayTitle } from "../stores/terminalState";
+import {
+  resolveTerminalWithRuntimeState,
+  useTerminalRuntimeStateStore,
+} from "../stores/terminalRuntimeStateStore";
 import { useQuotaStore } from "../stores/quotaStore";
 import { useCodexQuotaStore } from "../stores/codexQuotaStore";
 import { useThemeStore, XTERM_THEMES } from "../stores/themeStore";
@@ -336,19 +340,19 @@ function updateTerminalInStore(
   };
 }
 
+function withResolvedRuntimeMeta(meta: TerminalRuntimeMeta): TerminalRuntimeMeta {
+  return {
+    ...meta,
+    terminal: resolveTerminalWithRuntimeState(meta.terminal),
+  };
+}
+
 function setPtyId(
   runtime: ManagedTerminalRuntime,
   ptyId: number | null,
 ) {
   runtime.ptyId = ptyId;
-  useProjectStore
-    .getState()
-    .updateTerminalPtyId(
-      runtime.meta.projectId,
-      runtime.meta.worktreeId,
-      runtime.meta.terminal.id,
-      ptyId,
-    );
+  useTerminalRuntimeStateStore.getState().setPtyId(runtime.meta.terminal.id, ptyId);
   updateTerminalInStore(runtime, (terminal) => ({ ...terminal, ptyId }));
 }
 
@@ -361,14 +365,9 @@ function setStatus(
   }
 
   runtime.currentStatus = status;
-  useProjectStore
+  useTerminalRuntimeStateStore
     .getState()
-    .updateTerminalStatus(
-      runtime.meta.projectId,
-      runtime.meta.worktreeId,
-      runtime.meta.terminal.id,
-      status,
-    );
+    .setStatus(runtime.meta.terminal.id, status);
   updateTerminalInStore(runtime, (terminal) => ({ ...terminal, status }));
 }
 
@@ -379,12 +378,9 @@ function setSessionId(
   const prev = runtime.meta.terminal.sessionId;
   const store = useProjectStore.getState();
 
-  store.updateTerminalSessionId(
-    runtime.meta.projectId,
-    runtime.meta.worktreeId,
-    runtime.meta.terminal.id,
-    sessionId,
-  );
+  useTerminalRuntimeStateStore
+    .getState()
+    .setSessionId(runtime.meta.terminal.id, sessionId);
 
   if (prev && prev !== sessionId && runtime.meta.terminal.customTitle) {
     store.updateTerminalCustomTitle(
@@ -533,7 +529,12 @@ function lookupCurrentTerminal(runtime: ManagedTerminalRuntime) {
   const worktree = project?.worktrees.find(
     (entry) => entry.id === runtime.meta.worktreeId,
   );
-  return worktree?.terminals.find((entry) => entry.id === runtime.meta.terminal.id);
+  const terminal = worktree?.terminals.find(
+    (entry) => entry.id === runtime.meta.terminal.id,
+  );
+  return terminal
+    ? resolveTerminalWithRuntimeState(terminal)
+    : resolveTerminalWithRuntimeState(runtime.meta.terminal);
 }
 
 function disposeInteractiveBindings(runtime: ManagedTerminalRuntime) {
@@ -1096,8 +1097,9 @@ function handleRuntimeOutput(runtime: ManagedTerminalRuntime, data: string) {
 function buildTerminalRuntime(
   meta: TerminalRuntimeMeta,
 ): ManagedTerminalRuntime {
+  const resolvedMeta = withResolvedRuntimeMeta(meta);
   const mode = resolveTerminalMountMode({
-    focused: meta.terminal.focused,
+    focused: resolvedMeta.terminal.focused,
     visible: false,
   });
   const runtime: ManagedTerminalRuntime = {
@@ -1107,8 +1109,8 @@ function buildTerminalRuntime(
     attachedContainer: null,
     attachOptions: null,
     cliOverride:
-      usePreferencesStore.getState().cliCommands[meta.terminal.type] ?? undefined,
-    currentStatus: meta.terminal.status,
+      usePreferencesStore.getState().cliCommands[resolvedMeta.terminal.type] ?? undefined,
+    currentStatus: resolvedMeta.terminal.status,
     detectAttempts: 0,
     detectTimer: null,
     disposed: false,
@@ -1117,12 +1119,12 @@ function buildTerminalRuntime(
     hasRespawned: false,
     hostElement: null,
     inputDisposable: null,
-    meta,
+    meta: resolvedMeta,
     mode,
     outputUnsubscribe: null,
-    ptyId: meta.terminal.ptyId,
+    ptyId: resolvedMeta.terminal.ptyId,
     ptyPromise: null,
-    previewAnsi: clampPreviewAnsi(meta.terminal.scrollback ?? ""),
+    previewAnsi: clampPreviewAnsi(resolvedMeta.terminal.scrollback ?? ""),
     hookFallbackTimer: null,
     lastPushAt: 0,
     lastTurnCompletedAt: 0,
@@ -1141,19 +1143,19 @@ function buildTerminalRuntime(
     usesAgentRenderer: false,
     waitingTimer: null,
     wasResumeAttempt:
-      !!meta.terminal.sessionId &&
+      !!resolvedMeta.terminal.sessionId &&
       !!getTerminalLaunchOptions(
-        meta.terminal.type,
-        meta.terminal.sessionId,
-        meta.terminal.autoApprove,
-        usePreferencesStore.getState().cliCommands[meta.terminal.type] ??
+        resolvedMeta.terminal.type,
+        resolvedMeta.terminal.sessionId,
+        resolvedMeta.terminal.autoApprove,
+        usePreferencesStore.getState().cliCommands[resolvedMeta.terminal.type] ??
           undefined,
       ),
     watchedSessionId: null,
     xterm: null,
   };
 
-  updateRuntimeSnapshot(meta.terminal.id, {
+  updateRuntimeSnapshot(resolvedMeta.terminal.id, {
     mode,
     previewText: toPreviewText(runtime.previewAnsi),
     telemetry: null,
@@ -1455,32 +1457,34 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
 }
 
 export function ensureTerminalRuntime(meta: TerminalRuntimeMeta) {
+  const resolvedMeta = withResolvedRuntimeMeta(meta);
   const existing = runtimeRegistry.get(meta.terminal.id);
   if (existing) {
-    existing.meta = meta;
+    existing.meta = resolvedMeta;
     existing.cliOverride =
-      usePreferencesStore.getState().cliCommands[meta.terminal.type] ?? undefined;
-    if (!existing.previewAnsi && meta.terminal.scrollback) {
-      pushPreview(existing, meta.terminal.scrollback);
+      usePreferencesStore.getState().cliCommands[resolvedMeta.terminal.type] ?? undefined;
+    if (!existing.previewAnsi && resolvedMeta.terminal.scrollback) {
+      pushPreview(existing, resolvedMeta.terminal.scrollback);
     }
     startTerminalRuntime(existing);
     return existing;
   }
 
-  const runtime = buildTerminalRuntime(meta);
+  const runtime = buildTerminalRuntime(resolvedMeta);
   runtimeRegistry.set(meta.terminal.id, runtime);
   startTerminalRuntime(runtime);
   return runtime;
 }
 
 export function updateTerminalRuntime(meta: TerminalRuntimeMeta) {
-  const runtime = ensureTerminalRuntime(meta);
-  runtime.meta = meta;
+  const resolvedMeta = withResolvedRuntimeMeta(meta);
+  const runtime = ensureTerminalRuntime(resolvedMeta);
+  runtime.meta = resolvedMeta;
   runtime.cliOverride =
-    usePreferencesStore.getState().cliCommands[meta.terminal.type] ?? undefined;
+    usePreferencesStore.getState().cliCommands[resolvedMeta.terminal.type] ?? undefined;
 
-  if (!runtime.previewAnsi && meta.terminal.scrollback) {
-    pushPreview(runtime, meta.terminal.scrollback);
+  if (!runtime.previewAnsi && resolvedMeta.terminal.scrollback) {
+    pushPreview(runtime, resolvedMeta.terminal.scrollback);
   }
 }
 

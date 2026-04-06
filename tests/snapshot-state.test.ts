@@ -320,6 +320,10 @@ test("restoreWorkspaceSnapshot clears existing terminal runtimes before applying
     "../src/terminal/terminalRuntimeStore.ts"
   );
   const { useSelectionStore } = await import("../src/stores/selectionStore.ts");
+  const { useTerminalRuntimeStateStore } = await import(
+    "../src/stores/terminalRuntimeStateStore.ts"
+  );
+  const { useBrowserCardStore } = await import("../src/stores/browserCardStore.ts");
 
   ensureTerminalRuntime({
     projectId: "project-live",
@@ -338,6 +342,7 @@ test("restoreWorkspaceSnapshot clears existing terminal runtimes before applying
   });
 
   assert.ok(useTerminalRuntimeStore.getState().terminals["terminal-1"]);
+  useTerminalRuntimeStateStore.getState().setSessionId("terminal-1", "session-live");
   useSelectionStore.getState().setSelectedItems([
     {
       type: "terminal",
@@ -359,12 +364,268 @@ test("restoreWorkspaceSnapshot clears existing terminal runtimes before applying
     scene: {
       version: 2,
       annotations: [],
-      browserCards: {},
+      browserCards: {
+        "card-1": {
+          id: "card-1",
+          title: "Example",
+          url: "https://example.com",
+          x: 10,
+          y: 20,
+          w: 320,
+          h: 240,
+        },
+      },
       camera: { x: 0, y: 0, zoom: 1 },
       projects: [],
     },
   });
 
   assert.deepEqual(useTerminalRuntimeStore.getState().terminals, {});
+  assert.deepEqual(useTerminalRuntimeStateStore.getState().terminals, {});
   assert.deepEqual(useSelectionStore.getState().selectedItems, []);
+  assert.deepEqual(useBrowserCardStore.getState().cards, {
+    "card-1": {
+      id: "card-1",
+      title: "Example",
+      url: "https://example.com",
+      x: 10,
+      y: 20,
+      w: 320,
+      h: 240,
+    },
+  });
+});
+
+test("restoreWorkspaceSnapshot merges legacy scene stashed terminals back into projectStore", async () => {
+  const { restoreWorkspaceSnapshot } = await loadSnapshotRuntimeState("restore-stashed");
+  const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const { useStashStore } = await import("../src/stores/stashStore.ts");
+
+  restoreWorkspaceSnapshot({
+    sourceVersion: 2,
+    legacy: {
+      version: 1,
+      viewport: { x: 0, y: 0, scale: 1 },
+      projects: [],
+      drawings: [],
+      browserCards: {},
+      stashedTerminals: [
+        {
+          projectId: "project-1",
+          worktreeId: "worktree-1",
+          stashedAt: 123,
+          terminal: {
+            id: "terminal-stashed",
+            title: "Stashed",
+            type: "shell",
+            minimized: false,
+            focused: false,
+            span: { cols: 1, rows: 1 },
+            starred: false,
+          },
+        },
+      ],
+    },
+    scene: {
+      version: 2,
+      annotations: [],
+      browserCards: {},
+      camera: { x: 0, y: 0, zoom: 1 },
+      projects: [
+        {
+          id: "project-1",
+          name: "Project One",
+          path: "/tmp/project-1",
+          position: { x: 0, y: 0 },
+          collapsed: false,
+          zIndex: 0,
+          worktrees: [
+            {
+              id: "worktree-1",
+              name: "main",
+              path: "/tmp/project-1",
+              position: { x: 0, y: 0 },
+              collapsed: false,
+              terminals: [],
+            },
+          ],
+        },
+      ],
+      stashedTerminals: [
+        {
+          projectId: "project-1",
+          worktreeId: "worktree-1",
+          stashedAt: 123,
+          terminal: {
+            id: "terminal-stashed",
+            title: "Stashed",
+            type: "shell",
+            minimized: false,
+            focused: false,
+            span: { cols: 1, rows: 1 },
+            starred: false,
+          },
+        },
+      ],
+    },
+  });
+
+  assert.equal(
+    useProjectStore.getState().projects[0]?.worktrees[0]?.terminals[0]?.stashed,
+    true,
+  );
+  assert.equal(
+    useProjectStore.getState().projects[0]?.worktrees[0]?.terminals[0]?.stashedAt,
+    123,
+  );
+  assert.equal(useStashStore.getState().items.length, 1);
+  assert.equal(useStashStore.getState().items[0]?.terminal.id, "terminal-stashed");
+});
+
+test("buildSnapshotState persists overlay session ids without leaking runtime-only terminal fields", async () => {
+  const { buildSnapshotState } = await loadSnapshotRuntimeState("snapshot-overlay");
+  const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const { useBrowserCardStore } = await import("../src/stores/browserCardStore.ts");
+  const { useTerminalRuntimeStateStore } = await import(
+    "../src/stores/terminalRuntimeStateStore.ts"
+  );
+  const previousState = useProjectStore.getState();
+  const previousBrowserState = useBrowserCardStore.getState();
+
+  try {
+    useProjectStore.setState({
+      focusedProjectId: "project-1",
+      focusedWorktreeId: "worktree-1",
+      projects: [
+        {
+          id: "project-1",
+          name: "Project One",
+          path: "/tmp/project-1",
+          position: { x: 0, y: 0 },
+          collapsed: false,
+          zIndex: 0,
+          worktrees: [
+            {
+              id: "worktree-1",
+              name: "main",
+              path: "/tmp/project-1",
+              position: { x: 0, y: 0 },
+              collapsed: false,
+              terminals: [
+                {
+                  id: "terminal-1",
+                  title: "Terminal",
+                  type: "claude",
+                  minimized: false,
+                  focused: true,
+                  ptyId: 41,
+                  status: "running",
+                  span: { cols: 1, rows: 1 },
+                  sessionId: "stale-session",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    useBrowserCardStore.setState({
+      cards: {
+        "card-live": {
+          id: "card-live",
+          title: "Live Card",
+          url: "https://example.com/live",
+          x: 40,
+          y: 60,
+          w: 500,
+          h: 320,
+        },
+      },
+    });
+    useTerminalRuntimeStateStore
+      .getState()
+      .setSessionId("terminal-1", "live-session");
+    useTerminalRuntimeStateStore.getState().setPtyId("terminal-1", 99);
+    useTerminalRuntimeStateStore.getState().setStatus("terminal-1", "active");
+
+    const snapshot = buildSnapshotState();
+    const terminal = snapshot.scene.projects[0].worktrees[0].terminals[0];
+
+    assert.equal(terminal.sessionId, "live-session");
+    assert.equal("ptyId" in terminal, false);
+    assert.equal("status" in terminal, false);
+    assert.deepEqual(snapshot.scene.browserCards, {
+      "card-live": {
+        id: "card-live",
+        title: "Live Card",
+        url: "https://example.com/live",
+        x: 40,
+        y: 60,
+        w: 500,
+        h: 320,
+      },
+    });
+  } finally {
+    useBrowserCardStore.setState(previousBrowserState);
+    useTerminalRuntimeStateStore.getState().reset();
+    useProjectStore.setState(previousState);
+  }
+});
+
+test("buildSnapshotState keeps stashed terminals in the project tree without duplicating scene metadata", async () => {
+  const { buildSnapshotState } = await loadSnapshotRuntimeState("snapshot-stashed");
+  const { useBrowserCardStore } = await import("../src/stores/browserCardStore.ts");
+  const { useCanvasStore } = await import("../src/stores/canvasStore.ts");
+  const { useDrawingStore } = await import("../src/stores/drawingStore.ts");
+  const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const { useStashStore } = await import("../src/stores/stashStore.ts");
+
+  useCanvasStore.setState({ viewport: { x: 0, y: 0, scale: 1 } });
+  useDrawingStore.setState({ activeElement: null, elements: [] });
+  useBrowserCardStore.setState({ cards: {} });
+  useStashStore.getState().setItems([]);
+  useProjectStore.setState({
+    focusedProjectId: null,
+    focusedWorktreeId: null,
+    projects: [
+      {
+        id: "project-1",
+        name: "Project One",
+        path: "/tmp/project-1",
+        position: { x: 0, y: 0 },
+        collapsed: false,
+        zIndex: 0,
+        worktrees: [
+          {
+            id: "worktree-1",
+            name: "main",
+            path: "/tmp/project-1",
+            position: { x: 0, y: 0 },
+            collapsed: false,
+            terminals: [
+              {
+                id: "terminal-stashed",
+                title: "Stashed",
+                type: "shell",
+                minimized: false,
+                focused: false,
+                ptyId: null,
+                status: "idle",
+                span: { cols: 1, rows: 1 },
+                stashed: true,
+                stashedAt: 123,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  const snapshot = buildSnapshotState();
+  const terminal = snapshot.scene.projects[0]?.worktrees[0]?.terminals[0];
+  assert.equal(snapshot.scene.stashedTerminals, undefined);
+  assert.equal(terminal?.id, "terminal-stashed");
+  assert.equal(terminal?.stashed, true);
+  assert.equal(terminal?.stashedAt, 123);
 });

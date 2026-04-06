@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { CanvasRoot } from "./canvas/CanvasRoot";
+import { addProjectFromDirectoryPath } from "./canvas/sceneCommands";
 import { Toolbar } from "./toolbar/Toolbar";
 import { NotificationToast } from "./components/NotificationToast";
 import { Hub } from "./components/Hub";
@@ -15,8 +16,13 @@ import { initSessionStoreIPC } from "./stores/sessionStore";
 import { StashBox } from "./components/StashBox";
 import { WelcomePopup } from "./components/WelcomePopup";
 import {
+  closeTerminalInScene,
+  createTerminalInScene,
+  updateTerminalCustomTitleInScene,
+} from "./actions/terminalSceneActions";
+import {
   useProjectStore,
-  createTerminal,
+  generateId,
 } from "./stores/projectStore";
 import { addScannedProjectAndFocus } from "./projects/projectCreation";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
@@ -33,6 +39,7 @@ import {
 } from "./snapshotState";
 import { updateWindowTitle } from "./titleHelper";
 import { useNotificationStore } from "./stores/notificationStore";
+import { resolveTerminalWithRuntimeState } from "./stores/terminalRuntimeStateStore";
 import { logSlowRendererPath } from "./utils/devPerf";
 import { getCloseAction } from "./closeFlow";
 
@@ -379,19 +386,10 @@ export function App() {
   useEffect(() => {
     if (!window.termcanvas?.menu) return;
     return window.termcanvas.menu.onOpenFolder(async (dirPath: string) => {
-      const { notify } = useNotificationStore.getState();
-      try {
-        const info = await window.termcanvas.project.scan(dirPath);
-        if (!info) {
-          notify("error", "Failed to scan directory");
-          return;
-        }
-        addScannedProjectAndFocus(info);
-      } catch (err) {
-        notify("error", String(err));
-      }
+      await addProjectFromDirectoryPath(dirPath, t);
     });
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t]);
 
   useEffect(() => {
     loadAllDownloadedFonts();
@@ -418,17 +416,20 @@ export function App() {
                 id: w.id,
                 name: w.name,
                 path: w.path,
-                terminals: w.terminals.map((t: any) => ({
-                  id: t.id,
-                  title: t.title,
-                  customTitle: t.customTitle,
-                  starred: t.starred,
-                  type: t.type,
-                  status: t.status,
-                  ptyId: t.ptyId,
-                  span: t.span,
-                  parentTerminalId: t.parentTerminalId,
-                })),
+                terminals: w.terminals.map((t: any) => {
+                  const liveTerminal = resolveTerminalWithRuntimeState(t);
+                  return {
+                    id: liveTerminal.id,
+                    title: liveTerminal.title,
+                    customTitle: liveTerminal.customTitle,
+                    starred: liveTerminal.starred,
+                    type: liveTerminal.type,
+                    status: liveTerminal.status,
+                    ptyId: liveTerminal.ptyId,
+                    span: liveTerminal.span,
+                    parentTerminalId: liveTerminal.parentTerminalId,
+                  };
+                }),
               })),
             })),
           ),
@@ -446,8 +447,15 @@ export function App() {
       },
 
       addTerminal: (projectId: string, worktreeId: string, type: string, prompt?: string, autoApprove?: boolean, parentTerminalId?: string | null) => {
-        const terminal = createTerminal(type as any, undefined, prompt, autoApprove, "agent", parentTerminalId ?? undefined);
-        useProjectStore.getState().addTerminal(projectId, worktreeId, terminal);
+        const terminal = createTerminalInScene({
+          projectId,
+          worktreeId,
+          type: type as any,
+          initialPrompt: prompt,
+          autoApprove,
+          origin: "agent",
+          parentTerminalId: parentTerminalId ?? undefined,
+        });
         return JSON.parse(JSON.stringify(terminal));
       },
 
@@ -456,9 +464,7 @@ export function App() {
         worktreeId: string,
         terminalId: string,
       ) => {
-        useProjectStore
-          .getState()
-          .removeTerminal(projectId, worktreeId, terminalId);
+        closeTerminalInScene(projectId, worktreeId, terminalId);
         return true;
       },
 
@@ -472,23 +478,25 @@ export function App() {
         for (const p of projects) {
           for (const w of p.worktrees) {
             const t = w.terminals.find((t: any) => t.id === terminalId);
-            if (t)
+            if (t) {
+              const liveTerminal = resolveTerminalWithRuntimeState(t);
               return JSON.parse(
                 JSON.stringify({
-                  id: t.id,
-                  title: t.title,
-                  customTitle: t.customTitle,
-                  starred: t.starred,
-                  type: t.type,
-                  status: t.status,
-                  ptyId: t.ptyId,
-                  span: t.span,
-                  parentTerminalId: t.parentTerminalId,
+                  id: liveTerminal.id,
+                  title: liveTerminal.title,
+                  customTitle: liveTerminal.customTitle,
+                  starred: liveTerminal.starred,
+                  type: liveTerminal.type,
+                  status: liveTerminal.status,
+                  ptyId: liveTerminal.ptyId,
+                  span: liveTerminal.span,
+                  parentTerminalId: liveTerminal.parentTerminalId,
                   projectId: p.id,
                   worktreeId: w.id,
                   worktreePath: w.path,
                 }),
               );
+            }
           }
         }
         return null;
@@ -500,7 +508,7 @@ export function App() {
           for (const w of p.worktrees) {
             const t = w.terminals.find((t) => t.id === terminalId);
             if (t) {
-              useProjectStore.getState().updateTerminalCustomTitle(
+              updateTerminalCustomTitleInScene(
                 p.id,
                 w.id,
                 terminalId,

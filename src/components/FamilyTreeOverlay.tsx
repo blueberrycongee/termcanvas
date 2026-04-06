@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import type { ProjectData, TerminalData } from "../types";
+import { getRenderableTerminalLayouts } from "../canvas/sceneState";
 import { useProjectStore, findTerminalById, getChildTerminals } from "../stores/projectStore";
 import {
   useCanvasStore,
@@ -8,7 +9,6 @@ import {
   COLLAPSED_TAB_WIDTH,
 } from "../stores/canvasStore";
 import {
-  packTerminals,
   PROJ_PAD,
   PROJ_TITLE_H,
   WT_PAD,
@@ -20,6 +20,9 @@ import {
   canvasPointToScreenPoint,
   getCanvasLeftInset,
 } from "../canvas/viewportBounds";
+import {
+  useResolvedTerminalRuntimeState,
+} from "../stores/terminalRuntimeStateStore";
 
 const TYPE_COLORS: Record<string, string> = {
   shell: "#888",
@@ -52,6 +55,57 @@ const OVERLAY_MARGIN = 8;
 const OVERLAY_MAX_WIDTH = 260;
 const OVERLAY_FALLBACK_HEIGHT = 240;
 const TOOLBAR_HEIGHT = 44;
+
+function FamilyTreeNodeRow({
+  node,
+  visibleId,
+  onSelect,
+}: {
+  node: TreeNode;
+  visibleId: string;
+  onSelect: (terminalId: string) => void;
+}) {
+  const liveRuntimeState = useResolvedTerminalRuntimeState(node.terminal);
+  const liveTerminal = {
+    ...node.terminal,
+    ...liveRuntimeState,
+  };
+  const color = TYPE_COLORS[liveTerminal.type] ?? "#888";
+  const statusColor = STATUS_DOTS[liveTerminal.status] ?? "#9ca3af";
+  const isHovered = liveTerminal.id === visibleId;
+
+  return (
+    <button
+      key={liveTerminal.id}
+      className={`w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-[var(--border)] transition-colors duration-100 ${
+        isHovered ? "bg-[var(--border)]" : ""
+      }`}
+      onClick={() => {
+        onSelect(liveTerminal.id);
+      }}
+    >
+      {!node.isRoot && (
+        <span className="text-[var(--text-faint)] text-[10px] ml-1">└</span>
+      )}
+      <span
+        className="w-1.5 h-1.5 rounded-full shrink-0"
+        style={{ backgroundColor: statusColor }}
+      />
+      <span
+        className="text-[10px] font-medium shrink-0"
+        style={{ color, fontFamily: '"Geist Mono", monospace' }}
+      >
+        {liveTerminal.type}
+      </span>
+      <span
+        className="text-[10px] text-[var(--text-muted)] truncate"
+        style={{ fontFamily: '"Geist Mono", monospace' }}
+      >
+        {liveTerminal.title}
+      </span>
+    </button>
+  );
+}
 
 function buildFamilyTree(projects: ProjectData[], terminalId: string): TreeNode[] {
   const nodes: TreeNode[] = [];
@@ -90,12 +144,11 @@ function getTerminalAbsolutePosition(
 ): { x: number; y: number; w: number; h: number } | null {
   for (const p of projects) {
     for (const w of p.worktrees) {
-      const index = w.terminals.findIndex((t) => t.id === terminalId);
-      if (index === -1) continue;
-
-      const packed = packTerminals(w.terminals.map((t) => t.span));
-      const item = packed[index];
-      if (!item) continue;
+      const layout = getRenderableTerminalLayouts(w).find(
+        ({ terminal }) => terminal.id === terminalId,
+      );
+      if (!layout) continue;
+      const { item } = layout;
 
       return {
         x: p.position.x + PROJ_PAD + w.position.x + WT_PAD + item.x,
@@ -248,44 +301,17 @@ export function FamilyTreeOverlay() {
         </span>
       </div>
       <div className="py-1">
-        {tree.map((node) => {
-          const color = TYPE_COLORS[node.terminal.type] ?? "#888";
-          const statusColor = STATUS_DOTS[node.terminal.status] ?? "#9ca3af";
-          const isHovered = node.terminal.id === visibleId;
-
-          return (
-            <button
-              key={node.terminal.id}
-              className={`w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-[var(--border)] transition-colors duration-100 ${
-                isHovered ? "bg-[var(--border)]" : ""
-              }`}
-              onClick={() => {
-                panToTerminal(node.terminal.id);
-                setVisibleId(null);
-              }}
-            >
-              {!node.isRoot && (
-                <span className="text-[var(--text-faint)] text-[10px] ml-1">└</span>
-              )}
-              <span
-                className="w-1.5 h-1.5 rounded-full shrink-0"
-                style={{ backgroundColor: statusColor }}
-              />
-              <span
-                className="text-[10px] font-medium shrink-0"
-                style={{ color, fontFamily: '"Geist Mono", monospace' }}
-              >
-                {node.terminal.type}
-              </span>
-              <span
-                className="text-[10px] text-[var(--text-muted)] truncate"
-                style={{ fontFamily: '"Geist Mono", monospace' }}
-              >
-                {node.terminal.title}
-              </span>
-            </button>
-          );
-        })}
+        {tree.map((node) => (
+          <FamilyTreeNodeRow
+            key={node.terminal.id}
+            node={node}
+            visibleId={visibleId}
+            onSelect={(terminalId) => {
+              panToTerminal(terminalId);
+              setVisibleId(null);
+            }}
+          />
+        ))}
       </div>
     </div>,
     portalTarget,

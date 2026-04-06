@@ -2,8 +2,8 @@ import type { Node } from "@xyflow/react";
 import {
   PROJ_PAD,
   PROJ_TITLE_H,
-  getWorktreeSize,
 } from "../layout";
+import { getRenderableWorktreeSize } from "./sceneState";
 import type { ProjectData } from "../types";
 import { getProjectBounds } from "../stores/projectStore";
 import { getVisibleWorktreeSpans } from "../utils/worktreeLayout";
@@ -63,8 +63,7 @@ export function buildCanvasFlowNodes(projects: ProjectData[]): CanvasFlowNode[] 
     };
 
     const worktreeNodes: CanvasFlowNode[] = project.worktrees.map((worktree) => {
-      const spans = getVisibleWorktreeSpans(worktree);
-      const baseSize = getWorktreeSize(spans, worktree.collapsed);
+      const baseSize = getRenderableWorktreeSize(worktree);
       return {
         id: worktreeNodeId(worktree.id),
         type: "worktree",

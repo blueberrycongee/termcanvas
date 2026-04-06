@@ -10,16 +10,27 @@ import {
   type OnNodeDrag,
   type ReactFlowInstance,
 } from "@xyflow/react";
-import { createTerminal, useProjectStore } from "../stores/projectStore";
-import { useBrowserCardStore } from "../stores/browserCardStore";
-import { useSelectionStore } from "../stores/selectionStore";
+import {
+  addProjectFromDirectoryPath,
+  activateProjectInScene,
+  activateWorktreeInScene,
+  clearSceneFocusAndSelection,
+  promptAndAddProjectToScene,
+} from "./sceneCommands";
+import {
+  getRenderableTerminalLayouts,
+  getStashedTerminalIds,
+} from "./sceneState";
+import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
+import { useDrawingStore } from "../stores/drawingStore";
+import { usePreferencesStore } from "../stores/preferencesStore";
 import { useT } from "../i18n/useT";
 import { FamilyTreeOverlay } from "../components/FamilyTreeOverlay";
-import { BrowserCard } from "../components/BrowserCard";
 import { BoxSelectOverlay } from "./BoxSelectOverlay";
+import { CanvasCardLayer } from "./CanvasCardLayer";
+import { DrawingLayer } from "./DrawingLayer";
 import { useBoxSelect } from "../hooks/useBoxSelect";
-import { useNotificationStore } from "../stores/notificationStore";
 import {
   publishTerminalGeometry,
   unpublishTerminalGeometry,
@@ -30,7 +41,6 @@ import {
   setTerminalRuntimeMode,
   updateTerminalRuntime,
 } from "../terminal/terminalRuntimeStore";
-import { useStashStore } from "../stores/stashStore";
 import { fromFlowViewport, toFlowViewport } from "./viewportAdapter";
 import { buildCanvasFlowNodes } from "./nodeProjection";
 import { useTileDimensionsStore } from "../stores/tileDimensionsStore";
@@ -42,24 +52,28 @@ import {
   getCanvasLeftInset,
   rectIntersectsCanvasViewport,
 } from "./viewportBounds";
+import { clampScale, zoomAtClientPoint } from "./viewportZoom";
 import {
   WT_PAD,
   WT_TITLE_H,
-  packTerminals,
   PROJ_PAD,
   PROJ_TITLE_H,
 } from "../layout";
-import {
-  addScannedProjectAndFocus,
-  ensureTerminalCreationTarget,
-} from "../projects/projectCreation";
-import { panToTerminal } from "../utils/panToTerminal";
-import {
-  getVisibleWorktreeSpans,
-  getVisibleWorktreeTerminals,
-} from "../utils/worktreeLayout";
+import { getVisibleWorktreeTerminals } from "../utils/worktreeLayout";
 
 const EMPTY_EDGES: never[] = [];
+const WHEEL_ZOOM_SENSITIVITY = 0.002;
+
+function normalizeWheelDelta(event: React.WheelEvent): number {
+  switch (event.deltaMode) {
+    case WheelEvent.DOM_DELTA_LINE:
+      return event.deltaY * 16;
+    case WheelEvent.DOM_DELTA_PAGE:
+      return event.deltaY * window.innerHeight;
+    default:
+      return event.deltaY;
+  }
+}
 
 function buildProjectLayoutKey(
   projects: ReturnType<typeof useProjectStore.getState>["projects"],
@@ -82,7 +96,7 @@ function buildProjectLayoutKey(
               getVisibleWorktreeTerminals(worktree)
                 .map(
                   (terminal) =>
-                    `${terminal.id}:${terminal.span.cols}x${terminal.span.rows}`,
+                    `${terminal.id}:${terminal.span.cols}x${terminal.span.rows}:${terminal.stashed ? 1 : 0}`,
                 )
                 .join(","),
             ].join(":"),
@@ -142,9 +156,7 @@ function TerminalRuntimeLayer({
     () =>
       projects.flatMap((project) =>
         project.worktrees.flatMap((worktree) => {
-          const packed = packTerminals(
-            getVisibleWorktreeSpans(worktree),
-          );
+          const layouts = getRenderableTerminalLayouts(worktree);
           const projectOffset =
             projectedPositions.projectOffsets.get(project.id) ?? project.position;
           const worktreeOffset =
@@ -153,12 +165,7 @@ function TerminalRuntimeLayer({
               y: PROJ_TITLE_H + PROJ_PAD + worktree.position.y,
             };
 
-          return getVisibleWorktreeTerminals(worktree).flatMap((terminal, index) => {
-            const item = packed[index];
-            if (!item) {
-              return [];
-            }
-
+          return layouts.map(({ item, terminal }) => {
             const absoluteRect = {
               h: item.h,
               w: item.w,
@@ -166,14 +173,12 @@ function TerminalRuntimeLayer({
               y: projectOffset.y + worktreeOffset.y + WT_TITLE_H + WT_PAD + item.y,
             };
 
-            return [
-              {
-                absoluteRect,
-                project,
-                terminal,
-                worktree,
-              },
-            ];
+            return {
+              absoluteRect,
+              project,
+              terminal,
+              worktree,
+            };
           });
         }),
       ),
@@ -188,9 +193,7 @@ function TerminalRuntimeLayer({
       updateTerminalRuntime(meta);
     }
 
-    const stashedIds = new Set(
-      useStashStore.getState().items.map((item) => item.terminal.id),
-    );
+    const stashedIds = getStashedTerminalIds(projects);
     for (const terminalId of managedTerminalIdsRef.current) {
       if (!nextTerminalIds.has(terminalId) && !stashedIds.has(terminalId)) {
         destroyTerminalRuntime(terminalId);
@@ -230,6 +233,20 @@ function TerminalRuntimeLayer({
   }, [terminalEntries]);
 
   useEffect(() => {
+    const visibleEntryIds = new Set(
+      terminalEntries.map((entry) => entry.terminal.id),
+    );
+
+    for (const project of projects) {
+      for (const worktree of project.worktrees) {
+        for (const terminal of worktree.terminals) {
+          if (!visibleEntryIds.has(terminal.id)) {
+            setTerminalRuntimeMode(terminal.id, "parked");
+          }
+        }
+      }
+    }
+
     for (const entry of terminalEntries) {
       const visible =
         !entry.project.collapsed &&
@@ -249,7 +266,7 @@ function TerminalRuntimeLayer({
         }),
       );
     }
-  }, [leftPanelCollapsed, leftPanelWidth, rightPanelCollapsed, terminalEntries, viewport]);
+  }, [leftPanelCollapsed, leftPanelWidth, projects, rightPanelCollapsed, terminalEntries, viewport]);
 
   useEffect(
     () => () => {
@@ -269,18 +286,22 @@ function TerminalRuntimeLayer({
 
 function XyFlowCanvasInner() {
   const t = useT();
-  const notify = useNotificationStore((state) => state.notify);
   const viewport = useCanvasStore((state) => state.viewport);
+  const isAnimating = useCanvasStore((state) => state.isAnimating);
   const rightPanelCollapsed = useCanvasStore((state) => state.rightPanelCollapsed);
   const leftPanelCollapsed = useCanvasStore((state) => state.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((state) => state.leftPanelWidth);
   const projects = useProjectStore((state) => state.projects);
-  const browserCards = useBrowserCardStore((state) => Object.values(state.cards));
+  const drawingEnabled = usePreferencesStore((state) => state.drawingEnabled);
+  const animationBlur = usePreferencesStore((state) => state.animationBlur);
+  const drawingTool = useDrawingStore((state) => state.tool);
   const { handleMouseDown: handleBoxSelectMouseDown } = useBoxSelect();
   const projectLayoutKey = useMemo(() => buildProjectLayoutKey(projects), [projects]);
   const tileW = useTileDimensionsStore((s) => s.w);
   const tileH = useTileDimensionsStore((s) => s.h);
   const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  const isDrawing = drawingEnabled && drawingTool !== "select";
+  // Keep local drag state stable across focus/status/session churn in projectStore.
   const projectedNodes = useMemo(
     () => buildCanvasFlowNodes(projects),
     [projectLayoutKey, tileW, tileH],
@@ -337,81 +358,19 @@ function XyFlowCanvasInner() {
   }, []);
 
   const handlePaneClick = useCallback(() => {
-    useProjectStore.getState().clearFocus();
-    useSelectionStore.getState().clearSelection();
-  }, []);
-
-  const stopCanvasMouseDown = useCallback((event: React.MouseEvent) => {
-    event.stopPropagation();
-  }, []);
-
-  const handleAddProject = useCallback(async () => {
-    if (!window.termcanvas) return;
-
-    let dirPath: string | null;
-    try {
-      dirPath = await window.termcanvas.project.selectDirectory();
-    } catch (err) {
-      notify("error", t.error_dir_picker(err));
-      return;
-    }
-    if (!dirPath) return;
-
-    let info: Awaited<ReturnType<typeof window.termcanvas.project.scan>>;
-    try {
-      info = await window.termcanvas.project.scan(dirPath);
-    } catch (err) {
-      notify("error", t.error_scan(err));
-      return;
-    }
-    if (!info) {
-      notify("error", t.error_scan("Failed to scan directory"));
-      return;
-    }
-
-    addScannedProjectAndFocus(info);
-  }, [notify, t]);
-
-  const handleNewTerminal = useCallback(() => {
-    const homePath = window.termcanvas?.app.homePath;
-    if (!homePath) return;
-
-    const target = ensureTerminalCreationTarget(homePath);
-    if (!target) return;
-
-    const terminal = createTerminal("shell");
-    const { addTerminal, setFocusedTerminal } = useProjectStore.getState();
-    addTerminal(target.projectId, target.worktreeId, terminal);
-    setFocusedTerminal(terminal.id);
-    panToTerminal(terminal.id);
+    clearSceneFocusAndSelection();
   }, []);
 
   const handleNodeClick = useCallback<NodeMouseHandler<CanvasFlowNode>>(
     (_event, node) => {
       if (node.type === "project") {
-        const projectId = node.data.projectId;
-        useProjectStore.getState().bringToFront(projectId);
-        useProjectStore.getState().clearFocus();
-        useSelectionStore.getState().setSelectedItems([
-          {
-            type: "project",
-            projectId,
-          },
-        ]);
+        activateProjectInScene(node.data.projectId, { bringToFront: true });
         return;
       }
 
       if (node.type === "worktree") {
         const { projectId, worktreeId } = node.data;
-        useProjectStore.getState().bringToFront(projectId);
-        useProjectStore.getState().setFocusedWorktree(projectId, worktreeId);
-        useSelectionStore.getState().setSelectedItems([
-          {
-            type: "worktree",
-            projectId,
-            worktreeId,
-          },
-        ]);
+        activateWorktreeInScene(projectId, worktreeId, { bringToFront: true });
       }
     },
     [],
@@ -455,11 +414,73 @@ function XyFlowCanvasInner() {
     [],
   );
 
+  const handleDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(
+    async (event: React.DragEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const files = Array.from(event.dataTransfer.files);
+      if (files.length === 0) {
+        return;
+      }
+
+      const file = files[0];
+      const dirPath = window.termcanvas.fs.getFilePath(file);
+      if (!dirPath) {
+        return;
+      }
+
+      await addProjectFromDirectoryPath(dirPath, t);
+    },
+    [t],
+  );
+
+  const handleAddProject = useCallback(async () => {
+    await promptAndAddProjectToScene(t);
+  }, [t]);
+
+  const handleWheelCapture = useCallback(
+    (event: React.WheelEvent<HTMLDivElement>) => {
+      if (!(event.ctrlKey || event.metaKey)) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const delta = normalizeWheelDelta(event);
+      if (Math.abs(delta) < 0.001) {
+        return;
+      }
+
+      const scaleFactor = Math.exp(-delta * WHEEL_ZOOM_SENSITIVITY);
+      const nextViewport = zoomAtClientPoint({
+        clientX: event.clientX,
+        clientY: event.clientY,
+        leftPanelCollapsed,
+        leftPanelWidth,
+        nextScale: clampScale(viewport.scale * scaleFactor),
+        viewport,
+      });
+
+      useCanvasStore.getState().setViewport(nextViewport);
+    },
+    [leftPanelCollapsed, leftPanelWidth, viewport],
+  );
+
   return (
     <div
-      className="fixed top-0 right-0 bottom-0 overflow-hidden canvas-bg"
+      className={`fixed top-0 right-0 bottom-0 overflow-hidden canvas-bg ${isDrawing ? "cursor-crosshair" : ""}`}
       style={{ left: leftOffset }}
       onMouseDownCapture={handleBoxSelectMouseDown}
+      onWheelCapture={handleWheelCapture}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
     >
       <TerminalRuntimeLayer
         nodes={nodes}
@@ -471,6 +492,11 @@ function XyFlowCanvasInner() {
       />
       <ReactFlow
         className="tc-xyflow"
+        style={{
+          willChange: isAnimating ? "transform" : undefined,
+          filter: animationBlur > 0 && isAnimating ? `blur(${animationBlur}px)` : "none",
+          transition: animationBlur > 0 ? "filter 0.15s ease" : "none",
+        }}
         defaultViewport={toFlowViewport(viewport)}
         nodes={nodes}
         edges={EMPTY_EDGES}
@@ -492,7 +518,7 @@ function XyFlowCanvasInner() {
         panOnScroll
         panOnScrollMode={PanOnScrollMode.Free}
         zoomOnScroll={false}
-        zoomOnPinch
+        zoomOnPinch={false}
         minZoom={0.1}
         maxZoom={2}
         onlyRenderVisibleElements
@@ -502,28 +528,8 @@ function XyFlowCanvasInner() {
       </ReactFlow>
 
       <BoxSelectOverlay />
-
-      <div
-        id="canvas-layer"
-        className="absolute inset-0"
-        style={{ pointerEvents: "none" }}
-      >
-        <div
-          style={{
-            transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`,
-            transformOrigin: "0 0",
-          }}
-        >
-          {browserCards.map((card) => (
-            <div
-              key={card.id}
-              style={{ pointerEvents: "auto" }}
-            >
-              <BrowserCard card={card} />
-            </div>
-          ))}
-        </div>
-      </div>
+      <CanvasCardLayer />
+      {drawingEnabled && <DrawingLayer />}
 
       <FamilyTreeOverlay />
 
@@ -533,23 +539,12 @@ function XyFlowCanvasInner() {
             <div className="text-[var(--text-muted)] text-lg font-light mb-4">
               {t.canvas_empty_title}
             </div>
-            <div
-              className="flex items-center justify-center gap-3"
-              onMouseDown={stopCanvasMouseDown}
+            <button
+              onClick={handleAddProject}
+              className="px-6 py-3 bg-[var(--button-bg)] hover:bg-[var(--button-bg-hover)] text-[var(--button-text)] rounded-lg transition-colors"
             >
-              <button
-                onClick={handleNewTerminal}
-                className="px-6 py-3 bg-[var(--accent)] hover:brightness-110 text-white rounded-lg transition-all"
-              >
-                {t.shortcut_new_terminal}
-              </button>
-              <button
-                onClick={handleAddProject}
-                className="px-6 py-3 bg-[var(--button-bg)] hover:bg-[var(--button-bg-hover)] text-[var(--button-text)] rounded-lg transition-colors"
-              >
-                {t.canvas_empty_action}
-              </button>
-            </div>
+              {t.canvas_empty_action}
+            </button>
           </div>
         </div>
       )}

@@ -1,8 +1,8 @@
 import { useCallback, useState } from "react";
+import { createBrowserCardInScene } from "../actions/sceneCardActions";
 import { useCanvasStore } from "../stores/canvasStore";
 import { getProjectBounds, useProjectStore } from "../stores/projectStore";
 import { useThemeStore } from "../stores/themeStore";
-import { useBrowserCardStore } from "../stores/browserCardStore";
 import { useUpdaterStore } from "../stores/updaterStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useSettingsModalStore } from "../stores/settingsModalStore";
@@ -11,12 +11,21 @@ import { SettingsModal } from "../components/SettingsModal";
 import { UpdateModal } from "../components/UpdateModal";
 import { useT } from "../i18n/useT";
 import { getWorkspaceBaseName } from "../titleHelper";
-import { getCanvasRightInset } from "../canvas/viewportBounds";
+import {
+  getCanvasLeftInset,
+  getCanvasRightInset,
+} from "../canvas/viewportBounds";
+import {
+  getNextZoomStep,
+  getViewportCenterClientPoint,
+  zoomAtClientPoint,
+} from "../canvas/viewportZoom";
 
 const noDrag = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
 const platform = window.termcanvas?.app.platform ?? "darwin";
 const isMac = platform === "darwin";
 const isWin = platform === "win32";
+const TOOLBAR_HEIGHT = 44;
 
 const controlRow = "relative z-10 flex items-center gap-2 text-[var(--text-secondary)]";
 const controlSection = "flex items-center gap-0.5";
@@ -30,14 +39,20 @@ const zoomReadout =
   "min-w-[3.25rem] text-center text-[11px] text-[var(--text-faint)] tabular-nums";
 
 export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
-  const { viewport, setViewport, resetViewport, animateTo } = useCanvasStore();
+  const {
+    viewport,
+    setViewport,
+    resetViewport,
+    rightPanelCollapsed,
+    leftPanelCollapsed,
+    leftPanelWidth,
+  } = useCanvasStore();
   const { projects } = useProjectStore();
   const { theme, toggleTheme } = useThemeStore();
   const browserEnabled = usePreferencesStore((s) => s.browserEnabled);
   const t = useT();
   const workspacePath = useWorkspaceStore((s) => s.workspacePath);
   const dirty = useWorkspaceStore((s) => s.dirty);
-  const addBrowserCard = useBrowserCardStore((s) => s.addCard);
   const updateStatus = useUpdaterStore((s) => s.status);
   const showSettings = useSettingsModalStore((s) => s.open);
   const openSettings = useSettingsModalStore((s) => s.openSettings);
@@ -46,9 +61,7 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
 
   const handleFitAll = useCallback(() => {
     if (projects.length === 0) return;
-    const { rightPanelCollapsed } = useCanvasStore.getState();
     const padding = 80;
-    const toolbarH = 44;
     let minX = Infinity,
       minY = Infinity,
       maxX = -Infinity,
@@ -64,12 +77,42 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
     const contentH = maxY - minY;
     const rightOffset = getCanvasRightInset(rightPanelCollapsed);
     const viewW = window.innerWidth - rightOffset - padding * 2;
-    const viewH = window.innerHeight - toolbarH - padding * 2;
+    const viewH = window.innerHeight - TOOLBAR_HEIGHT - padding * 2;
     const scale = Math.min(1, viewW / contentW, viewH / contentH);
     const x = -minX * scale + padding;
-    const y = -minY * scale + padding + toolbarH;
-    animateTo(x, y, scale);
-  }, [projects, animateTo]);
+    const y = -minY * scale + padding + TOOLBAR_HEIGHT;
+    setViewport({ x, y, scale });
+  }, [projects, rightPanelCollapsed, setViewport]);
+
+  const applyStepZoom = useCallback(
+    (direction: "in" | "out") => {
+      const nextScale = getNextZoomStep(viewport.scale, direction);
+      const centerPoint = getViewportCenterClientPoint({
+        leftPanelCollapsed,
+        leftPanelWidth,
+        rightPanelCollapsed,
+        topInset: TOOLBAR_HEIGHT,
+      });
+
+      setViewport(
+        zoomAtClientPoint({
+          clientX: centerPoint.x,
+          clientY: centerPoint.y,
+          leftPanelCollapsed,
+          leftPanelWidth,
+          nextScale,
+          viewport,
+        }),
+      );
+    },
+    [
+      leftPanelCollapsed,
+      leftPanelWidth,
+      rightPanelCollapsed,
+      setViewport,
+      viewport,
+    ],
+  );
 
   const zoomPercent = Math.round(viewport.scale * 100);
   const workspaceName =
@@ -251,9 +294,15 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
                 className={iconButton}
                 onClick={() => {
                   const scale = viewport.scale;
-                  const x = (-viewport.x + window.innerWidth / 2) / scale - 400;
+                  const canvasCenterX =
+                    getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth) +
+                    (window.innerWidth -
+                      getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth) -
+                      getCanvasRightInset(rightPanelCollapsed)) /
+                      2;
+                  const x = (-viewport.x + canvasCenterX) / scale - 400;
                   const y = (-viewport.y + window.innerHeight / 2) / scale - 300;
-                  addBrowserCard("https://google.com", { x, y });
+                  createBrowserCardInScene("https://google.com", { x, y });
                 }}
                 title={t.add_browser}
                 aria-label={t.add_browser}
@@ -271,9 +320,7 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
           <div className={controlSection}>
             <button
               className={iconButton}
-              onClick={() =>
-                setViewport({ scale: Math.max(0.1, viewport.scale * 0.9) })
-              }
+              onClick={() => applyStepZoom("out")}
               title={t.zoom_out}
               aria-label={t.zoom_out}
             >
@@ -287,9 +334,7 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
             </span>
             <button
               className={iconButton}
-              onClick={() =>
-                setViewport({ scale: Math.min(2, viewport.scale * 1.1) })
-              }
+              onClick={() => applyStepZoom("in")}
               title={t.zoom_in}
               aria-label={t.zoom_in}
             >

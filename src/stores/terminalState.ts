@@ -1,4 +1,8 @@
-import type { TerminalData, TerminalType } from "../types/index.ts";
+import type {
+  PersistedTerminalData,
+  TerminalData,
+  TerminalType,
+} from "../types/index.ts";
 
 export const DEFAULT_SPAN: Record<TerminalType, { cols: number; rows: number }> = {
   shell: { cols: 1, rows: 1 },
@@ -58,4 +62,33 @@ export function getTerminalHeaderContextLabel(
   return normalizedWorktreeName && normalizedWorktreeName.length > 0
     ? normalizedWorktreeName
     : terminalTitle;
+}
+
+export function stripTerminalRuntimeState(
+  terminal: TerminalData,
+  overrides?: Partial<Pick<PersistedTerminalData, "scrollback">>,
+): PersistedTerminalData {
+  const { ptyId: _ptyId, status: _status, ...persisted } = terminal;
+  return {
+    ...persisted,
+    ...overrides,
+  };
+}
+
+export function restorePersistedTerminal(
+  terminal: PersistedTerminalData | (PersistedTerminalData & {
+    ptyId?: number | null;
+    status?: TerminalData["status"];
+  }),
+): TerminalData {
+  const status =
+    "status" in terminal && terminal.status !== undefined
+      ? terminal.status
+      : "idle";
+
+  return {
+    ...terminal,
+    ptyId: null,
+    status,
+  };
 }

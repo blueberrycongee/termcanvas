@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { getProjectBounds, useProjectStore } from "../src/stores/projectStore.ts";
+import { useTerminalRuntimeStateStore } from "../src/stores/terminalRuntimeStateStore.ts";
+import { useWorkspaceStore } from "../src/stores/workspaceStore.ts";
 import type { ProjectData } from "../src/types/index.ts";
 
 function createProject(): ProjectData {
@@ -37,10 +39,17 @@ function createProject(): ProjectData {
 }
 
 function resetStore(projects: ProjectData[]) {
+  useTerminalRuntimeStateStore.getState().reset();
   useProjectStore.setState({
     projects,
     focusedProjectId: null,
     focusedWorktreeId: null,
+  });
+  useWorkspaceStore.setState({
+    workspacePath: null,
+    dirty: false,
+    lastSavedAt: null,
+    lastDirtyAt: null,
   });
 }
 
@@ -84,6 +93,7 @@ test("syncWorktrees no-op keeps references and does not notify subscribers", () 
   assert.strictEqual(afterProjects, beforeProjects);
   assert.strictEqual(afterProjects[0], beforeProject);
   assert.strictEqual(afterProjects[0].worktrees[0], beforeWorktree);
+  assert.equal(useWorkspaceStore.getState().dirty, false);
 });
 
 test("syncWorktrees still updates renamed branches", () => {
@@ -126,6 +136,48 @@ test("syncWorktrees still adds and removes worktrees", () => {
   assert.equal(state.projects[0].worktrees.length, 1);
   assert.equal(state.projects[0].worktrees[0].path, "/tmp/project-1-feature");
   assert.equal(state.projects[0].worktrees[0].name, "feature");
+});
+
+test("syncWorktrees clears removed runtime state and normalizes focused worktree ids", () => {
+  const project = createProject();
+  project.worktrees.push({
+    id: "worktree-feature",
+    name: "feature",
+    path: "/tmp/project-1-feature",
+    position: { x: 0, y: 80 },
+    collapsed: false,
+    terminals: [
+      {
+        id: "terminal-feature",
+        title: "Feature Terminal",
+        type: "shell",
+        minimized: false,
+        focused: false,
+        ptyId: null,
+        status: "idle",
+        span: { cols: 1, rows: 1 },
+      },
+    ],
+  });
+
+  resetStore([project]);
+  useProjectStore.setState({
+    focusedProjectId: project.id,
+    focusedWorktreeId: "worktree-feature",
+  });
+  useTerminalRuntimeStateStore
+    .getState()
+    .setSessionId("terminal-feature", "session-feature");
+
+  useProjectStore.getState().syncWorktrees("/tmp/project-1", [
+    { path: "/tmp/project-1", branch: "main", isMain: true },
+  ]);
+
+  const state = useProjectStore.getState();
+  assert.equal(state.focusedProjectId, "project-1");
+  assert.equal(state.focusedWorktreeId, null);
+  assert.equal(state.projects[0].worktrees.length, 1);
+  assert.deepEqual(useTerminalRuntimeStateStore.getState().terminals, {});
 });
 
 test("syncWorktrees resolves cascaded overlaps when many worktrees are added at once", () => {

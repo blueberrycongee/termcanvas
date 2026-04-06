@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import type { TerminalData } from "../types";
-import { useStashStore } from "../stores/stashStore";
+import { useProjectStore } from "../stores/projectStore";
 import {
   destroyTerminalRuntime,
   ensureTerminalRuntime,
@@ -29,9 +29,16 @@ export function TerminalRuntimeHandle({
     });
 
     return () => {
-      const isStashed = useStashStore.getState().items.some(
-        (item) => item.terminal.id === terminal.id,
-      );
+      const isStashed = useProjectStore
+        .getState()
+        .projects.some((project) =>
+          project.worktrees.some((worktree) =>
+            worktree.terminals.some(
+              (candidate) =>
+                candidate.id === terminal.id && candidate.stashed,
+            ),
+          ),
+        );
       if (!isStashed) {
         destroyTerminalRuntime(terminal.id);
       }

@@ -1,9 +1,11 @@
 import { create } from "zustand";
 import type { TerminalData } from "../types/index.ts";
+import { updateTerminalCustomTitleInScene } from "../actions/terminalSceneActions";
 import { useProjectStore } from "../stores/projectStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { useLocaleStore } from "../stores/localeStore";
+import { resolveTerminalWithRuntimeState } from "../stores/terminalRuntimeStateStore";
 
 type SummaryCli = "claude" | "codex";
 
@@ -43,50 +45,50 @@ export function requestSummary(
   terminal: TerminalData,
   summaryCli: SummaryCli,
 ): void {
-  if (!SUMMARY_ELIGIBLE_TYPES.has(terminal.type)) return;
-  if (!terminal.sessionId) return;
-  if (!window.termcanvas?.summary) return;
-  if (useSummaryFlightStore.getState().ids.has(terminal.id)) return;
+  const liveTerminal = resolveTerminalWithRuntimeState(terminal);
 
-  addInFlight(terminal.id);
-  console.log(`[SummaryScheduler] requesting summary for ${terminal.id.slice(0, 8)} (${terminal.type})`);
+  if (!SUMMARY_ELIGIBLE_TYPES.has(liveTerminal.type)) return;
+  if (!liveTerminal.sessionId) return;
+  if (!window.termcanvas?.summary) return;
+  if (useSummaryFlightStore.getState().ids.has(liveTerminal.id)) return;
+
+  addInFlight(liveTerminal.id);
+  console.log(`[SummaryScheduler] requesting summary for ${liveTerminal.id.slice(0, 8)} (${liveTerminal.type})`);
 
   const locale = useLocaleStore.getState().locale;
 
   window.termcanvas.summary
     .generate({
-      terminalId: terminal.id,
-      sessionId: terminal.sessionId,
-      sessionType: terminal.type as "claude" | "codex",
+      terminalId: liveTerminal.id,
+      sessionId: liveTerminal.sessionId,
+      sessionType: liveTerminal.type as "claude" | "codex",
       cwd: worktreePath,
       summaryCli,
       locale,
     })
     .then((result) => {
       if (result.ok && result.summary) {
-        console.log(`[SummaryScheduler] success for ${terminal.id.slice(0, 8)}: "${result.summary}"`);
-        useProjectStore
-          .getState()
-          .updateTerminalCustomTitle(
-            projectId,
-            worktreeId,
-            terminal.id,
-            result.summary,
-          );
+        console.log(`[SummaryScheduler] success for ${liveTerminal.id.slice(0, 8)}: "${result.summary}"`);
+        updateTerminalCustomTitleInScene(
+          projectId,
+          worktreeId,
+          liveTerminal.id,
+          result.summary,
+        );
         if (result.sessionFileSize != null) {
-          lastSummarySessionSize.set(terminal.id, result.sessionFileSize);
+          lastSummarySessionSize.set(liveTerminal.id, result.sessionFileSize);
         }
       } else {
-        console.warn(`[SummaryScheduler] failed for ${terminal.id.slice(0, 8)}: ${result.error}`);
+        console.warn(`[SummaryScheduler] failed for ${liveTerminal.id.slice(0, 8)}: ${result.error}`);
         useNotificationStore.getState().notify("warn", `Summary failed: ${result.error}`);
       }
     })
     .catch((err) => {
-      console.error(`[SummaryScheduler] IPC error for ${terminal.id.slice(0, 8)}:`, err);
+      console.error(`[SummaryScheduler] IPC error for ${liveTerminal.id.slice(0, 8)}:`, err);
       useNotificationStore.getState().notify("error", `Summary error: ${String(err)}`);
     })
     .finally(() => {
-      removeInFlight(terminal.id);
+      removeInFlight(liveTerminal.id);
     });
 }
 
@@ -107,13 +109,25 @@ export function onTerminalTurnCompleted(terminalId: string): void {
       for (const worktree of project.worktrees) {
         const terminal = worktree.terminals.find((t) => t.id === terminalId);
         if (!terminal) continue;
-        if (!SUMMARY_ELIGIBLE_TYPES.has(terminal.type)) return;
-        if (!terminal.sessionId) return;
-        if (terminal.origin === "agent") return;
-        if (terminal.focused) return;
-        if (terminal.customTitle && lastSummarySessionSize.has(terminal.id)) return;
+        const liveTerminal = resolveTerminalWithRuntimeState(terminal);
+        if (!SUMMARY_ELIGIBLE_TYPES.has(liveTerminal.type)) return;
+        if (!liveTerminal.sessionId) return;
+        if (liveTerminal.origin === "agent") return;
+        if (liveTerminal.focused) return;
+        if (
+          liveTerminal.customTitle &&
+          lastSummarySessionSize.has(liveTerminal.id)
+        ) {
+          return;
+        }
 
-        requestSummary(project.id, worktree.id, worktree.path, terminal, summaryCli);
+        requestSummary(
+          project.id,
+          worktree.id,
+          worktree.path,
+          liveTerminal,
+          summaryCli,
+        );
         return;
       }
     }
@@ -134,20 +148,31 @@ export function startAutoSummaryWatcher(): () => void {
     for (const project of projects) {
       for (const worktree of project.worktrees) {
         for (const terminal of worktree.terminals) {
-          if (!SUMMARY_ELIGIBLE_TYPES.has(terminal.type)) continue;
-          if (!terminal.sessionId) continue;
-          if (terminal.origin === "agent") continue;
-          if (terminal.focused) continue;
-          if (terminal.status === "running" || terminal.status === "active") continue;
+          const liveTerminal = resolveTerminalWithRuntimeState(terminal);
+          if (!SUMMARY_ELIGIBLE_TYPES.has(liveTerminal.type)) continue;
+          if (!liveTerminal.sessionId) continue;
+          if (liveTerminal.origin === "agent") continue;
+          if (liveTerminal.focused) continue;
+          if (
+            liveTerminal.status === "running" ||
+            liveTerminal.status === "active"
+          ) {
+            continue;
+          }
 
           // Skip if already summarized and no known new content
-          if (terminal.customTitle && lastSummarySessionSize.has(terminal.id)) continue;
+          if (
+            liveTerminal.customTitle &&
+            lastSummarySessionSize.has(liveTerminal.id)
+          ) {
+            continue;
+          }
 
           requestSummary(
             project.id,
             worktree.id,
             worktree.path,
-            terminal,
+            liveTerminal,
             summaryCli,
           );
           return; // one at a time

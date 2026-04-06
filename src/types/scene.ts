@@ -1,4 +1,4 @@
-import type { ProjectData, StashedTerminal } from "./index";
+import type { PersistedProjectData, PersistedStashedTerminal } from "./index";
 import type { BrowserCardData } from "../stores/browserCardStore";
 
 export interface ScenePoint {
@@ -100,10 +100,10 @@ export type AnnotationElement =
 export interface SceneDocument {
   version: 2;
   camera: SceneCamera;
-  projects: ProjectData[];
+  projects: PersistedProjectData[];
   browserCards: Record<string, BrowserCardData>;
   annotations: AnnotationElement[];
-  stashedTerminals?: StashedTerminal[];
+  stashedTerminals?: PersistedStashedTerminal[];
 }
 
 export interface SceneRuntime {

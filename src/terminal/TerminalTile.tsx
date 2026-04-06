@@ -1,12 +1,21 @@
 ﻿import { useEffect, useRef, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import type { TerminalData } from "../types";
-import { useProjectStore, findTerminalById, getChildTerminals, stashTerminal } from "../stores/projectStore";
+import { activateTerminalInScene } from "../actions/sceneSelectionActions";
+import {
+  closeTerminalInScene,
+  stashTerminalInScene,
+  toggleTerminalMinimizeInScene,
+  toggleTerminalStarredInScene,
+  updateTerminalCustomTitleInScene,
+} from "../actions/terminalSceneActions";
+import { useProjectStore, findTerminalById, getChildTerminals } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { ContextMenu } from "../components/ContextMenu";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { getTerminalHeaderContextLabel } from "../stores/terminalState";
+import { useResolvedTerminalRuntimeState } from "../stores/terminalRuntimeStateStore";
 import { useT } from "../i18n/useT";
 import { getComposerAdapter } from "./cliConfig";
 import { panToTerminal } from "../utils/panToTerminal";
@@ -14,7 +23,6 @@ import { requestSummary, useIsSummarizing } from "./summaryScheduler";
 import {
   attachTerminalContainer,
   blurTerminalRuntime,
-  destroyTerminalRuntime,
   detachTerminalContainer,
   fitTerminalRuntime,
   focusTerminalRuntime,
@@ -222,16 +230,13 @@ export function TerminalTile({
   const useAgentRenderer = false; // TODO: re-enable when agent renderer is ready
   const isSummarizing = useIsSummarizing(terminal.id);
   const sidebarDragActive = useSidebarDragStore((s) => s.active);
+  const liveRuntimeState = useResolvedTerminalRuntimeState(terminal);
+  const liveTerminal = {
+    ...terminal,
+    ...liveRuntimeState,
+  };
 
   const [frozenDims, setFrozenDims] = useState<{ width: number; height: number; bgColor: string } | null>(null);
-
-  const {
-    removeTerminal,
-    toggleTerminalMinimize,
-    toggleTerminalStarred,
-    updateTerminalCustomTitle,
-    setFocusedTerminal,
-  } = useProjectStore();
 
   const t = useT();
   const config = TYPE_CONFIG[terminal.type] ?? {
@@ -259,7 +264,7 @@ export function TerminalTile({
   }, []);
 
   const saveCustomTitleEdit = useCallback(() => {
-    updateTerminalCustomTitle(
+    updateTerminalCustomTitleInScene(
       projectId,
       worktreeId,
       terminal.id,
@@ -270,7 +275,6 @@ export function TerminalTile({
     customTitleDraft,
     projectId,
     terminal.id,
-    updateTerminalCustomTitle,
     worktreeId,
   ]);
 
@@ -288,7 +292,6 @@ export function TerminalTile({
       (item) => item.type === "terminal" && item.terminalId === terminal.id,
     ),
   );
-  const selectTerminal = useSelectionStore((s) => s.selectTerminal);
 
   useEffect(() => {
     if (copiedNonce === 0) {
@@ -628,8 +631,7 @@ export function TerminalTile({
 
       const escaped = shellEscapePath(filePath);
       window.termcanvas.terminal.input(ptyId, " " + escaped);
-      setFocusedTerminal(terminal.id);
-      selectTerminal(projectId, worktreeId, terminal.id);
+      activateTerminalInScene(projectId, worktreeId, terminal.id);
     };
 
     container.addEventListener("dragover", onDragOver, true);
@@ -641,12 +643,11 @@ export function TerminalTile({
       container.removeEventListener("dragleave", onDragLeave, true);
       container.removeEventListener("drop", onDrop, true);
     };
-  }, [lodMode, terminal.id, setFocusedTerminal, selectTerminal, projectId, worktreeId, containerEl]);
+  }, [containerEl, lodMode, projectId, terminal.id, worktreeId]);
 
   const handleClose = useCallback(() => {
-    destroyTerminalRuntime(terminal.id);
-    removeTerminal(projectId, worktreeId, terminal.id);
-  }, [projectId, removeTerminal, terminal.id, worktreeId]);
+    closeTerminalInScene(projectId, worktreeId, terminal.id);
+  }, [projectId, terminal.id, worktreeId]);
 
   const handleTileDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -674,10 +675,9 @@ export function TerminalTile({
 
       const escaped = shellEscapePath(filePath);
       window.termcanvas.terminal.input(ptyId, " " + escaped);
-      setFocusedTerminal(terminal.id);
-      selectTerminal(projectId, worktreeId, terminal.id);
+      activateTerminalInScene(projectId, worktreeId, terminal.id);
     },
-    [terminal.id, setFocusedTerminal, selectTerminal, projectId, worktreeId],
+    [projectId, terminal.id, worktreeId],
   );
 
   return (
@@ -710,8 +710,7 @@ export function TerminalTile({
       }}
       onClick={(e) => {
         e.stopPropagation();
-        setFocusedTerminal(terminal.id);
-        selectTerminal(projectId, worktreeId, terminal.id);
+        activateTerminalInScene(projectId, worktreeId, terminal.id);
       }}
       onMouseEnter={() => {
         window.dispatchEvent(
@@ -778,7 +777,7 @@ export function TerminalTile({
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
-                toggleTerminalStarred(projectId, worktreeId, terminal.id);
+                toggleTerminalStarredInScene(projectId, worktreeId, terminal.id);
               }}
             >
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
@@ -827,7 +826,7 @@ export function TerminalTile({
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
-              toggleTerminalMinimize(projectId, worktreeId, terminal.id);
+              toggleTerminalMinimizeInScene(projectId, worktreeId, terminal.id);
             }}
           >
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -884,7 +883,7 @@ export function TerminalTile({
             <AgentRenderer
               terminalId={terminal.id}
               sessionId={terminal.id}
-              resumeSessionId={terminal.sessionId}
+              resumeSessionId={liveTerminal.sessionId}
               projectId={projectId}
               worktreeId={worktreeId}
               cwd={worktreePath}
@@ -973,9 +972,9 @@ export function TerminalTile({
               { type: "separator" as const },
               {
                 label: t.stash_terminal,
-                onClick: () => stashTerminal(projectId, worktreeId, terminal.id),
+                onClick: () => stashTerminalInScene(projectId, worktreeId, terminal.id),
               },
-              ...((terminal.type === "claude" || terminal.type === "codex") && terminal.sessionId
+              ...((terminal.type === "claude" || terminal.type === "codex") && liveTerminal.sessionId
                 ? [{
                     label: t.summarize_terminal,
                     onClick: () =>
@@ -983,7 +982,7 @@ export function TerminalTile({
                         projectId,
                         worktreeId,
                         worktreePath,
-                        terminal,
+                        liveTerminal,
                         usePreferencesStore.getState().summaryCli,
                       ),
                   }]

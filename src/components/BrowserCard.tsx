@@ -2,11 +2,16 @@
 
 import { useEffect, useRef, useCallback, useState } from "react";
 import {
-  useBrowserCardStore,
+  removeBrowserCardFromScene,
+  updateBrowserCardInScene,
+} from "../actions/sceneCardActions";
+import { activateCardInScene } from "../actions/sceneSelectionActions";
+import {
   type BrowserCardData,
 } from "../stores/browserCardStore";
 import { useCardLayoutStore } from "../stores/cardLayoutStore";
 import { useCanvasStore } from "../stores/canvasStore";
+import { useSelectionStore } from "../stores/selectionStore";
 
 declare global {
   namespace JSX {
@@ -29,7 +34,6 @@ interface Props {
 }
 
 export function BrowserCard({ card }: Props) {
-  const { removeCard, updateCard } = useBrowserCardStore();
   const { register, unregister } = useCardLayoutStore();
   const [urlInput, setUrlInput] = useState(card.url);
   const webviewRef = useRef<Electron.WebviewTag | null>(null);
@@ -47,12 +51,16 @@ export function BrowserCard({ card }: Props) {
   } | null>(null);
 
   const cardId = `browser:${card.id}`;
+  const isSelected = useSelectionStore((state) =>
+    state.selectedItems.some(
+      (item) => item.type === "card" && item.cardId === cardId,
+    ),
+  );
 
-  // Register card dimensions for collision avoidance
   useEffect(() => {
     register(cardId, { x: card.x, y: card.y, w: card.w, h: card.h });
     return () => unregister(cardId);
-  }, [cardId, card.x, card.y, card.w, card.h, register, unregister]);
+  }, [card.h, card.w, card.x, card.y, cardId, register, unregister]);
 
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -60,13 +68,17 @@ export function BrowserCard({ card }: Props) {
     const wv = webviewRef.current;
     if (!wv) return;
     const onTitle = (e: Electron.PageTitleUpdatedEvent) => {
-      updateCard(card.id, { title: e.title });
+      updateBrowserCardInScene(card.id, { title: e.title });
     };
     const onNavigate = ((e: Event & { url: string }) => {
       setUrlInput(e.url);
       setLoadError(null);
     }) as EventListener;
-    const onFailLoad = ((e: Event & { errorCode: number; errorDescription: string; isMainFrame: boolean }) => {
+    const onFailLoad = ((e: Event & {
+      errorCode: number;
+      errorDescription: string;
+      isMainFrame: boolean;
+    }) => {
       if (!e.isMainFrame || e.errorCode === -3) return;
       setLoadError(e.errorDescription);
     }) as EventListener;
@@ -80,7 +92,7 @@ export function BrowserCard({ card }: Props) {
       wv.removeEventListener("did-navigate-in-page", onNavigate);
       wv.removeEventListener("did-fail-load", onFailLoad);
     };
-  }, [card.id, updateCard]);
+  }, [card.id]);
 
   const handleDragStart = useCallback(
     (e: React.MouseEvent) => {
@@ -96,7 +108,7 @@ export function BrowserCard({ card }: Props) {
       };
       const handleMove = (ev: MouseEvent) => {
         if (!dragRef.current) return;
-        updateCard(card.id, {
+        updateBrowserCardInScene(card.id, {
           x: dragRef.current.origX + (ev.clientX - dragRef.current.startX) / scale,
           y: dragRef.current.origY + (ev.clientY - dragRef.current.startY) / scale,
         });
@@ -109,7 +121,7 @@ export function BrowserCard({ card }: Props) {
       window.addEventListener("mousemove", handleMove);
       window.addEventListener("mouseup", handleUp);
     },
-    [card.id, card.x, card.y, updateCard],
+    [card.id, card.x, card.y],
   );
 
   const handleResizeStart = useCallback(
@@ -126,7 +138,7 @@ export function BrowserCard({ card }: Props) {
       };
       const handleMove = (ev: MouseEvent) => {
         if (!resizeRef.current) return;
-        updateCard(card.id, {
+        updateBrowserCardInScene(card.id, {
           w: Math.max(400, resizeRef.current.origW + (ev.clientX - resizeRef.current.startX) / scale),
           h: Math.max(200, resizeRef.current.origH + (ev.clientY - resizeRef.current.startY) / scale),
         });
@@ -139,34 +151,32 @@ export function BrowserCard({ card }: Props) {
       window.addEventListener("mousemove", handleMove);
       window.addEventListener("mouseup", handleUp);
     },
-    [card.id, card.w, card.h, updateCard],
+    [card.id, card.w, card.h],
   );
 
   const handleUrlSubmit = () => {
     let url = urlInput.trim();
     if (!url) return;
     if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-    updateCard(card.id, { url });
+    updateBrowserCardInScene(card.id, { url });
     setUrlInput(url);
   };
 
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.cardId === cardId) removeCard(card.id);
-    };
-    window.addEventListener("termcanvas:close-card", handler);
-    return () => window.removeEventListener("termcanvas:close-card", handler);
-  }, [cardId, card.id, removeCard]);
-
   return (
     <div
+      data-scene-box-select-block
       className="absolute rounded-lg border border-[var(--border)] bg-[var(--surface)] flex flex-col overflow-hidden shadow-lg"
       style={{
         left: card.x,
         top: card.y,
         width: card.w,
         height: card.h,
+        outline: isSelected ? "2px solid var(--accent)" : undefined,
+        outlineOffset: isSelected ? -2 : undefined,
+      }}
+      onMouseDownCapture={(e) => {
+        e.stopPropagation();
+        activateCardInScene(cardId);
       }}
     >
       <div
@@ -212,7 +222,7 @@ export function BrowserCard({ card }: Props) {
 
         <button
           className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-          onClick={() => removeCard(card.id)}
+          onClick={() => removeBrowserCardFromScene(card.id)}
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path d="M3 3L9 9M9 3L3 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />

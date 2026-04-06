@@ -27,8 +27,7 @@ interface FocusTarget {
 
 export function Hub() {
   const { focusLevel, leftPanelCollapsed, leftPanelWidth } = useCanvasStore();
-  const { projects, focusedWorktreeId, setFocusedWorktree } =
-    useProjectStore();
+  const { projects, focusedWorktreeId } = useProjectStore();
   const { shortcuts } = useShortcutStore();
   const t = useT();
   const [expanded, setExpanded] = useState(false);
@@ -101,11 +100,10 @@ export function Hub() {
       if (target.terminalId) {
         panToTerminal(target.terminalId);
       } else {
-        setFocusedWorktree(target.projectId, target.worktreeId);
         panToWorktree(target.projectId, target.worktreeId);
       }
     },
-    [setFocusedWorktree],
+    [],
   );
 
   useEffect(() => {

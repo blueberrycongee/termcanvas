@@ -1,5 +1,7 @@
 import type { DrawingElement } from "./stores/drawingStore";
 import type {
+  PersistedProjectData,
+  PersistedStashedTerminal,
   ProjectData,
   StashedTerminal,
   TerminalOrigin,
@@ -21,10 +23,10 @@ import {
 export interface LegacyWorkspaceSnapshot {
   version: 1;
   viewport: ReturnType<typeof useCanvasStore.getState>["viewport"];
-  projects: ReturnType<typeof useProjectStore.getState>["projects"];
+  projects: PersistedProjectData[];
   drawings: ReturnType<typeof useDrawingStore.getState>["elements"];
   browserCards: ReturnType<typeof useBrowserCardStore.getState>["cards"];
-  stashedTerminals?: StashedTerminal[];
+  stashedTerminals?: PersistedStashedTerminal[];
 }
 
 export interface SceneWorkspaceSnapshot {

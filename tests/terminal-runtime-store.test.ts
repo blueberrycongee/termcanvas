@@ -183,9 +183,12 @@ function createMockXterm() {
   return { fitAddon, stats, xterm };
 }
 
-test("destroyTerminalRuntime clears persisted pty ids from project state", async () => {
+test("destroyTerminalRuntime clears live pty ids from runtime overlay state", async () => {
   const mockWindow = installRuntimeGlobals();
   const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const { useTerminalRuntimeStateStore } = await import(
+    "../src/stores/terminalRuntimeStateStore.ts"
+  );
   const {
     destroyAllTerminalRuntimes,
     destroyTerminalRuntime,
@@ -214,11 +217,92 @@ test("destroyTerminalRuntime clears persisted pty ids from project state", async
     destroyTerminalRuntime("terminal-1");
 
     assert.equal(
-      useProjectStore.getState().projects[0].worktrees[0].terminals[0].ptyId,
+      useTerminalRuntimeStateStore.getState().terminals["terminal-1"]?.ptyId,
       null,
     );
   } finally {
     destroyAllTerminalRuntimes();
+    useTerminalRuntimeStateStore.getState().reset();
+    useProjectStore.setState(previousState);
+  }
+});
+
+test("projectStore runtime actions update overlay state without mutating the scene tree", async () => {
+  installRuntimeGlobals();
+  const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const {
+    resolveTerminalWithRuntimeState,
+    useTerminalRuntimeStateStore,
+  } = await import("../src/stores/terminalRuntimeStateStore.ts");
+  const previousState = useProjectStore.getState();
+
+  try {
+    useProjectStore.setState({
+      focusedProjectId: "project-1",
+      focusedWorktreeId: "worktree-1",
+      projects: [
+        {
+          id: "project-1",
+          name: "Project One",
+          path: "/tmp/project-1",
+          position: { x: 0, y: 0 },
+          collapsed: false,
+          zIndex: 0,
+          worktrees: [
+            {
+              id: "worktree-1",
+              name: "main",
+              path: "/tmp/project-1",
+              position: { x: 0, y: 0 },
+              collapsed: false,
+              terminals: [
+                {
+                  id: "terminal-1",
+                  title: "Terminal",
+                  type: "shell",
+                  minimized: false,
+                  focused: true,
+                  ptyId: null,
+                  status: "idle",
+                  span: { cols: 1, rows: 1 },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const store = useProjectStore.getState();
+    store.updateTerminalPtyId("project-1", "worktree-1", "terminal-1", 42);
+    store.updateTerminalStatus("project-1", "worktree-1", "terminal-1", "running");
+    store.updateTerminalSessionId(
+      "project-1",
+      "worktree-1",
+      "terminal-1",
+      "session-live",
+    );
+
+    const rawTerminal =
+      useProjectStore.getState().projects[0].worktrees[0].terminals[0];
+    const liveTerminal = resolveTerminalWithRuntimeState(rawTerminal);
+
+    assert.equal(rawTerminal.ptyId, null);
+    assert.equal(rawTerminal.status, "idle");
+    assert.equal(rawTerminal.sessionId, undefined);
+    assert.equal(liveTerminal.ptyId, 42);
+    assert.equal(liveTerminal.status, "running");
+    assert.equal(liveTerminal.sessionId, "session-live");
+    assert.deepEqual(
+      useTerminalRuntimeStateStore.getState().terminals["terminal-1"],
+      {
+        ptyId: 42,
+        status: "running",
+        sessionId: "session-live",
+      },
+    );
+  } finally {
+    useTerminalRuntimeStateStore.getState().reset();
     useProjectStore.setState(previousState);
   }
 });

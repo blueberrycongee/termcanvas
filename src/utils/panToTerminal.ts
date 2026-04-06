@@ -1,6 +1,10 @@
+import {
+  activateTerminalInScene,
+  selectTerminalInScene,
+} from "../actions/sceneSelectionActions";
+import { focusTerminalInScene } from "../actions/terminalSceneActions";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
-import { useSelectionStore } from "../stores/selectionStore";
 import { getTerminalGeometry } from "../terminal/terminalGeometryRegistry";
 import { getCanvasRightInset, getCanvasLeftInset, clampCenterX } from "../canvas/viewportBounds";
 import {
@@ -102,16 +106,19 @@ export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): 
     } else {
       useCanvasStore.getState().animateTo(centerX, centerY, scale);
     }
-    if (!isAlreadyFocused(terminalId)) {
-      useProjectStore.getState().setFocusedTerminal(terminalId);
-    }
-    useSelectionStore
-      .getState()
-      .selectTerminal(
+    if (isAlreadyFocused(terminalId)) {
+      selectTerminalInScene(
         publishedGeometry.projectId,
         publishedGeometry.worktreeId,
         terminalId,
       );
+    } else {
+      activateTerminalInScene(
+        publishedGeometry.projectId,
+        publishedGeometry.worktreeId,
+        terminalId,
+      );
+    }
     return;
   }
 
@@ -122,8 +129,9 @@ export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): 
       const index = w.terminals.findIndex((t) => t.id === terminalId);
       if (index === -1) continue;
 
-      if (!isAlreadyFocused(terminalId)) {
-        useProjectStore.getState().setFocusedTerminal(terminalId);
+      const shouldFocusTerminal = !isAlreadyFocused(terminalId);
+      if (shouldFocusTerminal) {
+        focusTerminalInScene(terminalId);
       }
       const { projects: focusedProjects } = useProjectStore.getState();
       const focusedProject = focusedProjects.find((candidate) => candidate.id === p.id);
@@ -185,9 +193,11 @@ export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): 
       } else {
         useCanvasStore.getState().animateTo(centerX, centerY, scale);
       }
-      useSelectionStore
-        .getState()
-        .selectTerminal(focusedProject.id, focusedWorktree.id, terminalId);
+      if (shouldFocusTerminal) {
+        activateTerminalInScene(focusedProject.id, focusedWorktree.id, terminalId);
+      } else {
+        selectTerminalInScene(focusedProject.id, focusedWorktree.id, terminalId);
+      }
       return;
     }
   }
