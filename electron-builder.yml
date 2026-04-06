@@ -1,10 +1,10 @@
-appId: com.blueberrycongee.termcanvas
+appId: com.doanbactam.termcanvas
 productName: TermCanvas
-copyright: Copyright © 2026 blueberrycongee
+copyright: Copyright © 2026 Doan Bac Tam
 
 publish:
   provider: github
-  owner: blueberrycongee
+  owner: doanbactam
   repo: termcanvas
 
 directories:

@@ -17,9 +17,9 @@ This plan narrows the first phase to a conservative goal: restore terminal rende
 
 Today, an offscreen terminal is treated as disposable:
 
-- `resolveTerminalMountMode()` returns `"unmounted"` for non-focused, non-visible terminals in [src/terminal/terminalRuntimePolicy.ts](/Users/blueberrycongee/termcanvas/src/terminal/terminalRuntimePolicy.ts).
-- `setTerminalRuntimeMode()` tears down the renderer for every non-`"live"` mode in [src/terminal/terminalRuntimeStore.ts](/Users/blueberrycongee/termcanvas/src/terminal/terminalRuntimeStore.ts).
-- `detachTerminalRenderer()` serializes a bounded ANSI tail, releases WebGL, and disposes the live xterm instance in [src/terminal/terminalRuntimeStore.ts](/Users/blueberrycongee/termcanvas/src/terminal/terminalRuntimeStore.ts).
+- `resolveTerminalMountMode()` returns `"unmounted"` for non-focused, non-visible terminals in [src/terminal/terminalRuntimePolicy.ts](/Users/doanbactam/termcanvas/src/terminal/terminalRuntimePolicy.ts).
+- `setTerminalRuntimeMode()` tears down the renderer for every non-`"live"` mode in [src/terminal/terminalRuntimeStore.ts](/Users/doanbactam/termcanvas/src/terminal/terminalRuntimeStore.ts).
+- `detachTerminalRenderer()` serializes a bounded ANSI tail, releases WebGL, and disposes the live xterm instance in [src/terminal/terminalRuntimeStore.ts](/Users/doanbactam/termcanvas/src/terminal/terminalRuntimeStore.ts).
 - When the terminal becomes visible again, the app creates a new xterm and replays `previewAnsi`, which is only a best-effort tail buffer rather than the original terminal state.
 
 This is why the PTY can still be alive while the user sees blank areas, broken repaint, or output that no longer matches the terminal they left.
@@ -28,7 +28,7 @@ This is why the PTY can still be alive while the user sees blank areas, broken r
 
 ### 1. This must cover both renderers
 
-The default renderer is still legacy, not xyflow, via [src/canvas/rendererMode.ts](/Users/blueberrycongee/termcanvas/src/canvas/rendererMode.ts) and [src/canvas/CanvasRoot.tsx](/Users/blueberrycongee/termcanvas/src/canvas/CanvasRoot.tsx). Fixing only xyflow would leave the default user path broken.
+The default renderer is still legacy, not xyflow, via [src/canvas/rendererMode.ts](/Users/doanbactam/termcanvas/src/canvas/rendererMode.ts) and [src/canvas/CanvasRoot.tsx](/Users/doanbactam/termcanvas/src/canvas/CanvasRoot.tsx). Fixing only xyflow would leave the default user path broken.
 
 ### 2. A persistent host is required
 
@@ -63,13 +63,13 @@ If parked terminals stop being considered "live" by serialization paths, workspa
 
 ### 1. Define the new runtime semantics
 
-- Change the offscreen result in [src/terminal/terminalRuntimePolicy.ts](/Users/blueberrycongee/termcanvas/src/terminal/terminalRuntimePolicy.ts) from `"unmounted"` to a real parked state.
+- Change the offscreen result in [src/terminal/terminalRuntimePolicy.ts](/Users/doanbactam/termcanvas/src/terminal/terminalRuntimePolicy.ts) from `"unmounted"` to a real parked state.
 - Keep `"live"` as the interactive visible state.
 - Reserve `"evicted"` as a future explicit state for true teardown and snapshot-only recovery.
 
 ### 2. Split detach from destroy
 
-- Refactor [src/terminal/terminalRuntimeStore.ts](/Users/blueberrycongee/termcanvas/src/terminal/terminalRuntimeStore.ts) so "leave visible rendering" no longer implies:
+- Refactor [src/terminal/terminalRuntimeStore.ts](/Users/doanbactam/termcanvas/src/terminal/terminalRuntimeStore.ts) so "leave visible rendering" no longer implies:
   - serializing and discarding the live terminal
   - unregistering it from live serialization
   - releasing WebGL
@@ -84,26 +84,26 @@ If parked terminals stop being considered "live" by serialization paths, workspa
 
 ### 4. Rework tile attach behavior around the host layer
 
-- Update [src/terminal/TerminalTile.tsx](/Users/blueberrycongee/termcanvas/src/terminal/TerminalTile.tsx) so entering `live` reconnects the tile UI to the existing host and performs one stable `fit + resize`.
+- Update [src/terminal/TerminalTile.tsx](/Users/doanbactam/termcanvas/src/terminal/TerminalTile.tsx) so entering `live` reconnects the tile UI to the existing host and performs one stable `fit + resize`.
 - When leaving `live`, only detach or hide the visible association; do not destroy runtime state.
 - Move host-bound pointer and selection wiring out of one-time container creation so host migration does not break copy/selection behavior.
 
 ### 5. Keep both canvas paths consistent
 
-- Update legacy canvas flow in [src/containers/WorktreeContainer.tsx](/Users/blueberrycongee/termcanvas/src/containers/WorktreeContainer.tsx).
-- Update xyflow runtime mode flow in [src/canvas/XyFlowCanvas.tsx](/Users/blueberrycongee/termcanvas/src/canvas/XyFlowCanvas.tsx) and [src/canvas/xyflowNodes.tsx](/Users/blueberrycongee/termcanvas/src/canvas/xyflowNodes.tsx).
+- Update legacy canvas flow in [src/containers/WorktreeContainer.tsx](/Users/doanbactam/termcanvas/src/containers/WorktreeContainer.tsx).
+- Update xyflow runtime mode flow in [src/canvas/XyFlowCanvas.tsx](/Users/doanbactam/termcanvas/src/canvas/XyFlowCanvas.tsx) and [src/canvas/xyflowNodes.tsx](/Users/doanbactam/termcanvas/src/canvas/xyflowNodes.tsx).
 - Make sure parked terminals remain recoverable in both paths and do not disappear only because one renderer still treats them as `"unmounted"`.
 
 ### 6. Downgrade preview to fallback status
 
 - Keep `previewAnsi` and `previewText`, but stop using them as the normal offscreen recovery path.
 - Continue updating preview data for snapshot safety and future eviction support.
-- Ensure parked terminals still serialize from the real live runtime buffer in snapshot paths such as [src/snapshotState.ts](/Users/blueberrycongee/termcanvas/src/snapshotState.ts).
+- Ensure parked terminals still serialize from the real live runtime buffer in snapshot paths such as [src/snapshotState.ts](/Users/doanbactam/termcanvas/src/snapshotState.ts).
 
 ### 7. Add targeted regression coverage
 
-- Update [tests/terminal-runtime-policy.test.ts](/Users/blueberrycongee/termcanvas/tests/terminal-runtime-policy.test.ts) for the new parked semantics.
-- Extend [tests/terminal-runtime-store.test.ts](/Users/blueberrycongee/termcanvas/tests/terminal-runtime-store.test.ts) to verify:
+- Update [tests/terminal-runtime-policy.test.ts](/Users/doanbactam/termcanvas/tests/terminal-runtime-policy.test.ts) for the new parked semantics.
+- Extend [tests/terminal-runtime-store.test.ts](/Users/doanbactam/termcanvas/tests/terminal-runtime-store.test.ts) to verify:
   - parked mode does not dispose xterm
   - re-entering live reuses the existing runtime
   - buffer continuity survives park and reattach

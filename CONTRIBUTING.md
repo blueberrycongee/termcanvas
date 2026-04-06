@@ -5,7 +5,7 @@ Thank you for your interest in contributing! Here's how to get started.
 ## Development Setup
 
 ```bash
-git clone https://github.com/blueberrycongee/termcanvas.git
+git clone https://github.com/doanbactam/termcanvas.git
 cd termcanvas
 npm install
 npm run dev
@@ -45,7 +45,7 @@ refactor: restructure code without behavior change
 
 ## Reporting Issues
 
-Open an issue at [github.com/blueberrycongee/termcanvas/issues](https://github.com/blueberrycongee/termcanvas/issues) with:
+Open an issue at [github.com/doanbactam/termcanvas/issues](https://github.com/doanbactam/termcanvas/issues) with:
 
 - Steps to reproduce
 - Expected vs actual behavior

@@ -6,7 +6,7 @@
 
 **Your terminals, on an infinite canvas.**
 
-[![GitHub release](https://img.shields.io/github/v/release/blueberrycongee/termcanvas)](https://github.com/blueberrycongee/termcanvas/releases)
+[![GitHub release](https://img.shields.io/github/v/release/doanbactam/termcanvas)](https://github.com/doanbactam/termcanvas/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)]()
 [![Website](https://img.shields.io/badge/website-termcanvas-e8b840)](https://website-ten-mu-37.vercel.app)
@@ -35,7 +35,7 @@ It organizes everything in a **Project → Worktree → Terminal** hierarchy tha
 
 ## Quick Start
 
-**Download** — grab the latest build from [GitHub Releases](https://github.com/blueberrycongee/termcanvas/releases).
+**Download** — grab the latest build from [GitHub Releases](https://github.com/doanbactam/termcanvas/releases).
 
 > [!WARNING]
 > **macOS note for unsigned builds**
@@ -50,7 +50,7 @@ It organizes everything in a **Project → Worktree → Terminal** hierarchy tha
 **Build from source:**
 
 ```bash
-git clone https://github.com/blueberrycongee/termcanvas.git
+git clone https://github.com/doanbactam/termcanvas.git
 cd termcanvas
 npm install
 npm run dev
@@ -330,6 +330,6 @@ The goal is simple: **you describe intent, TermCanvas handles the rest.** Your c
 
 <img src="docs/QQ.jpg" width="240" alt="QQ Group" />
 
-[![Star History Chart](https://api.star-history.com/svg?repos=blueberrycongee/termcanvas&type=Date)](https://star-history.com/#blueberrycongee/termcanvas&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=doanbactam/termcanvas&type=Date)](https://star-history.com/#doanbactam/termcanvas&Date)
 
 </div>

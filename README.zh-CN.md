@@ -6,7 +6,7 @@
 
 **你的终端，铺在无限画布上。**
 
-[![GitHub release](https://img.shields.io/github/v/release/blueberrycongee/termcanvas)](https://github.com/blueberrycongee/termcanvas/releases)
+[![GitHub release](https://img.shields.io/github/v/release/doanbactam/termcanvas)](https://github.com/doanbactam/termcanvas/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)]()
 [![Website](https://img.shields.io/badge/website-termcanvas-e8b840)](https://website-ten-mu-37.vercel.app)
@@ -33,7 +33,7 @@ TermCanvas 把你所有的终端铺在一张无限空间画布上——不再有
 
 ## 快速开始
 
-**下载** —— 从 [GitHub Releases](https://github.com/blueberrycongee/termcanvas/releases) 获取最新构建。
+**下载** —— 从 [GitHub Releases](https://github.com/doanbactam/termcanvas/releases) 获取最新构建。
 
 > [!WARNING]
 > **macOS 未签名应用提示**
@@ -48,7 +48,7 @@ TermCanvas 把你所有的终端铺在一张无限空间画布上——不再有
 **从源码构建：**
 
 ```bash
-git clone https://github.com/blueberrycongee/termcanvas.git
+git clone https://github.com/doanbactam/termcanvas.git
 cd termcanvas
 npm install
 npm run dev

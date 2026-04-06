@@ -17,7 +17,7 @@ import { spawn, execFile } from "child_process";
 import type { BrowserWindow } from "electron";
 import { sendToWindow } from "./window-events";
 
-const GITHUB_OWNER = "blueberrycongee";
+const GITHUB_OWNER = "doanbactam";
 const GITHUB_REPO = "termcanvas";
 const MAX_DOWNLOAD_RETRIES = 3;
 const INITIAL_RETRY_DELAY_MS = 2000;

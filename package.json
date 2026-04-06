@@ -34,16 +34,16 @@
     "developer-tools"
   ],
   "author": {
-    "name": "blueberrycongee",
-    "email": "blueberrycongee@users.noreply.github.com"
+    "name": "Doan Bac Tam",
+    "email": "doanbactam@users.noreply.github.com"
   },
-  "homepage": "https://github.com/blueberrycongee/termcanvas",
+  "homepage": "https://github.com/doanbactam/termcanvas",
   "repository": {
     "type": "git",
-    "url": "https://github.com/blueberrycongee/termcanvas.git"
+    "url": "https://github.com/doanbactam/termcanvas.git"
   },
   "bugs": {
-    "url": "https://github.com/blueberrycongee/termcanvas/issues"
+    "url": "https://github.com/doanbactam/termcanvas/issues"
   },
   "license": "MIT",
   "type": "module",
