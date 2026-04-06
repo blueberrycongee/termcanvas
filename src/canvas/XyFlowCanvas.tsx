@@ -31,7 +31,6 @@ import { BoxSelectOverlay } from "./BoxSelectOverlay";
 import { CanvasCardLayer } from "./CanvasCardLayer";
 import { DrawingLayer } from "./DrawingLayer";
 import { useBoxSelect } from "../hooks/useBoxSelect";
-import { useNotificationStore } from "../stores/notificationStore";
 import {
   publishTerminalGeometry,
   unpublishTerminalGeometry,
@@ -53,23 +52,28 @@ import {
   getCanvasLeftInset,
   rectIntersectsCanvasViewport,
 } from "./viewportBounds";
+import { clampScale, zoomAtClientPoint } from "./viewportZoom";
 import {
   WT_PAD,
   WT_TITLE_H,
   PROJ_PAD,
   PROJ_TITLE_H,
 } from "../layout";
-import {
-  addScannedProjectAndFocus,
-  ensureTerminalCreationTarget,
-} from "../projects/projectCreation";
-import { panToTerminal } from "../utils/panToTerminal";
-import {
-  getVisibleWorktreeSpans,
-  getVisibleWorktreeTerminals,
-} from "../utils/worktreeLayout";
+import { getVisibleWorktreeTerminals } from "../utils/worktreeLayout";
 
 const EMPTY_EDGES: never[] = [];
+const WHEEL_ZOOM_SENSITIVITY = 0.002;
+
+function normalizeWheelDelta(event: React.WheelEvent): number {
+  switch (event.deltaMode) {
+    case WheelEvent.DOM_DELTA_LINE:
+      return event.deltaY * 16;
+    case WheelEvent.DOM_DELTA_PAGE:
+      return event.deltaY * window.innerHeight;
+    default:
+      return event.deltaY;
+  }
+}
 
 function buildProjectLayoutKey(
   projects: ReturnType<typeof useProjectStore.getState>["projects"],
@@ -237,7 +241,7 @@ function TerminalRuntimeLayer({
       for (const worktree of project.worktrees) {
         for (const terminal of worktree.terminals) {
           if (!visibleEntryIds.has(terminal.id)) {
-            setTerminalRuntimeMode(terminal.id, "unmounted");
+            setTerminalRuntimeMode(terminal.id, "parked");
           }
         }
       }
@@ -282,7 +286,6 @@ function TerminalRuntimeLayer({
 
 function XyFlowCanvasInner() {
   const t = useT();
-  const notify = useNotificationStore((state) => state.notify);
   const viewport = useCanvasStore((state) => state.viewport);
   const isAnimating = useCanvasStore((state) => state.isAnimating);
   const rightPanelCollapsed = useCanvasStore((state) => state.rightPanelCollapsed);
@@ -356,51 +359,6 @@ function XyFlowCanvasInner() {
 
   const handlePaneClick = useCallback(() => {
     clearSceneFocusAndSelection();
-  }, []);
-
-  const stopCanvasMouseDown = useCallback((event: React.MouseEvent) => {
-    event.stopPropagation();
-  }, []);
-
-  const handleAddProject = useCallback(async () => {
-    if (!window.termcanvas) return;
-
-    let dirPath: string | null;
-    try {
-      dirPath = await window.termcanvas.project.selectDirectory();
-    } catch (err) {
-      notify("error", t.error_dir_picker(err));
-      return;
-    }
-    if (!dirPath) return;
-
-    let info: Awaited<ReturnType<typeof window.termcanvas.project.scan>>;
-    try {
-      info = await window.termcanvas.project.scan(dirPath);
-    } catch (err) {
-      notify("error", t.error_scan(err));
-      return;
-    }
-    if (!info) {
-      notify("error", t.error_scan("Failed to scan directory"));
-      return;
-    }
-
-    addScannedProjectAndFocus(info);
-  }, [notify, t]);
-
-  const handleNewTerminal = useCallback(() => {
-    const homePath = window.termcanvas?.app.homePath;
-    if (!homePath) return;
-
-    const target = ensureTerminalCreationTarget(homePath);
-    if (!target) return;
-
-    const terminal = createTerminal("shell");
-    const { addTerminal, setFocusedTerminal } = useProjectStore.getState();
-    addTerminal(target.projectId, target.worktreeId, terminal);
-    setFocusedTerminal(terminal.id);
-    panToTerminal(terminal.id);
   }, []);
 
   const handleNodeClick = useCallback<NodeMouseHandler<CanvasFlowNode>>(
@@ -486,11 +444,41 @@ function XyFlowCanvasInner() {
     await promptAndAddProjectToScene(t);
   }, [t]);
 
+  const handleWheelCapture = useCallback(
+    (event: React.WheelEvent<HTMLDivElement>) => {
+      if (!(event.ctrlKey || event.metaKey)) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const delta = normalizeWheelDelta(event);
+      if (Math.abs(delta) < 0.001) {
+        return;
+      }
+
+      const scaleFactor = Math.exp(-delta * WHEEL_ZOOM_SENSITIVITY);
+      const nextViewport = zoomAtClientPoint({
+        clientX: event.clientX,
+        clientY: event.clientY,
+        leftPanelCollapsed,
+        leftPanelWidth,
+        nextScale: clampScale(viewport.scale * scaleFactor),
+        viewport,
+      });
+
+      useCanvasStore.getState().setViewport(nextViewport);
+    },
+    [leftPanelCollapsed, leftPanelWidth, viewport],
+  );
+
   return (
     <div
       className={`fixed top-0 right-0 bottom-0 overflow-hidden canvas-bg ${isDrawing ? "cursor-crosshair" : ""}`}
       style={{ left: leftOffset }}
       onMouseDownCapture={handleBoxSelectMouseDown}
+      onWheelCapture={handleWheelCapture}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
@@ -529,9 +517,8 @@ function XyFlowCanvasInner() {
         panOnDrag={[0, 1]}
         panOnScroll
         panOnScrollMode={PanOnScrollMode.Free}
-        zoomOnScroll
-        zoomActivationKeyCode={["Meta", "Control"]}
-        zoomOnPinch
+        zoomOnScroll={false}
+        zoomOnPinch={false}
         minZoom={0.1}
         maxZoom={2}
         onlyRenderVisibleElements

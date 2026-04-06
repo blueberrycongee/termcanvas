@@ -18,6 +18,7 @@ import { useTerminalRuntimeStore } from "../terminal/terminalRuntimeStore";
 import { useT } from "../i18n/useT";
 import { TERMINAL_TYPE_CONFIG } from "../terminal/terminalTypeConfig";
 import {
+  WT_PAD,
   WT_TITLE_H,
 } from "../layout";
 import { panToTerminal } from "../utils/panToTerminal";
@@ -344,8 +345,40 @@ function WorktreeNode({
       return [];
     }
 
-    return packedLayouts;
-  }, [packedLayouts, worktree]);
+    return packedLayouts.map((layout) => {
+      const absoluteRect = {
+        h: layout.item.h,
+        w: layout.item.w,
+        x: positionAbsoluteX + WT_PAD + layout.item.x,
+        y: positionAbsoluteY + WT_TITLE_H + WT_PAD + layout.item.y,
+      };
+      const visible =
+        !project?.collapsed &&
+        !worktree.collapsed &&
+        rectIntersectsCanvasViewport(
+          absoluteRect,
+          viewport,
+          rightPanelCollapsed,
+          leftPanelCollapsed,
+          leftPanelWidth,
+        );
+
+      return {
+        ...layout,
+        visible,
+      };
+    });
+  }, [
+    leftPanelCollapsed,
+    leftPanelWidth,
+    packedLayouts,
+    positionAbsoluteX,
+    positionAbsoluteY,
+    project?.collapsed,
+    rightPanelCollapsed,
+    viewport,
+    worktree,
+  ]);
 
   const handleNewTerminal = useCallback(() => {
     if (!worktree) {
