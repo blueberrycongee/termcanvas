@@ -1,10 +1,12 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useWorktreeFiles } from "../../hooks/useWorktreeFiles";
+import { useGitStatus } from "../../hooks/useGitStatus";
 import { useT } from "../../i18n/useT";
 import { useCanvasStore } from "../../stores/canvasStore";
 import { useNotificationStore } from "../../stores/notificationStore";
 import { ContextMenu, type MenuItem } from "../ContextMenu";
+import type { GitFileStatus } from "../../types";
 
 interface Props {
   worktreePath: string | null;
@@ -13,22 +15,107 @@ interface Props {
 
 const MONO_STYLE = { fontFamily: '"Geist Mono", monospace' } as const;
 
-function FileIcon({ isDirectory, expanded }: { isDirectory: boolean; expanded?: boolean }) {
+const GIT_STATUS_CONFIG: Record<
+  GitFileStatus,
+  { label: string; color: string }
+> = {
+  M: { label: "M", color: "#e2b93d" },
+  A: { label: "A", color: "#73c991" },
+  D: { label: "D", color: "#e06c75" },
+  R: { label: "R", color: "#73c991" },
+  C: { label: "C", color: "#73c991" },
+  U: { label: "U", color: "#e06c75" },
+  "?": { label: "U", color: "#73c991" },
+};
+
+const STATUS_PRIORITY: Record<GitFileStatus, number> = {
+  U: 0,
+  D: 1,
+  M: 2,
+  A: 3,
+  R: 4,
+  C: 5,
+  "?": 6,
+};
+
+function GitBadge({ status }: { status: GitFileStatus }) {
+  const cfg = GIT_STATUS_CONFIG[status];
+  if (!cfg) return null;
+  return (
+    <span
+      className="ml-auto shrink-0 text-[10px] font-semibold leading-none"
+      style={{ color: cfg.color, ...MONO_STYLE }}
+    >
+      {cfg.label}
+    </span>
+  );
+}
+
+function GitDirDot({ color }: { color: string }) {
+  return (
+    <span className="ml-auto shrink-0 flex items-center justify-center w-[10px]">
+      <span
+        className="block w-[5px] h-[5px] rounded-full"
+        style={{ backgroundColor: color }}
+      />
+    </span>
+  );
+}
+
+function FileIcon({
+  isDirectory,
+  expanded,
+}: {
+  isDirectory: boolean;
+  expanded?: boolean;
+}) {
   if (isDirectory) {
     return (
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className="shrink-0">
+      <svg
+        width="12"
+        height="12"
+        viewBox="0 0 16 16"
+        fill="none"
+        className="shrink-0"
+      >
         {expanded ? (
-          <path d="M1.5 3.5h4l1.5 1.5h7.5v8h-13z" stroke="var(--accent)" strokeWidth="1.2" fill="rgba(80,227,194,0.1)" />
+          <path
+            d="M1.5 3.5h4l1.5 1.5h7.5v8h-13z"
+            stroke="var(--accent)"
+            strokeWidth="1.2"
+            fill="rgba(80,227,194,0.1)"
+          />
         ) : (
-          <path d="M1.5 3.5h4l1.5 1.5h7.5v8h-13z" stroke="var(--text-muted)" strokeWidth="1.2" fill="none" />
+          <path
+            d="M1.5 3.5h4l1.5 1.5h7.5v8h-13z"
+            stroke="var(--text-muted)"
+            strokeWidth="1.2"
+            fill="none"
+          />
         )}
       </svg>
     );
   }
   return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className="shrink-0">
-      <path d="M4 1.5h5l3.5 3.5v9.5h-8.5z" stroke="var(--text-muted)" strokeWidth="1.2" fill="none" />
-      <path d="M9 1.5v3.5h3.5" stroke="var(--text-muted)" strokeWidth="1.2" fill="none" />
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 16 16"
+      fill="none"
+      className="shrink-0"
+    >
+      <path
+        d="M4 1.5h5l3.5 3.5v9.5h-8.5z"
+        stroke="var(--text-muted)"
+        strokeWidth="1.2"
+        fill="none"
+      />
+      <path
+        d="M9 1.5v3.5h3.5"
+        stroke="var(--text-muted)"
+        strokeWidth="1.2"
+        fill="none"
+      />
     </svg>
   );
 }
@@ -83,7 +170,10 @@ function InlineInput({
         }}
         onKeyDown={(e) => {
           if (e.key === "Enter") commit();
-          if (e.key === "Escape") { submitted.current = true; onCancel(); }
+          if (e.key === "Escape") {
+            submitted.current = true;
+            onCancel();
+          }
         }}
         onBlur={commit}
       />
@@ -93,8 +183,43 @@ function InlineInput({
 
 export function FilesContent({ worktreePath, onFileClick }: Props) {
   const t = useT();
-  const { entries, expandedDirs, toggleDir, refreshDir, loading } = useWorktreeFiles(worktreePath);
+  const { entries, expandedDirs, toggleDir, refreshDir, loading } =
+    useWorktreeFiles(worktreePath);
   const previewFile = useCanvasStore((s) => s.leftPanelPreviewFile);
+
+  const { changedFiles, stagedFiles } = useGitStatus(worktreePath);
+
+  // Build a map of relative path → highest-priority git status
+  const gitStatusMap = useMemo(() => {
+    const map = new Map<string, GitFileStatus>();
+    for (const entry of [...changedFiles, ...stagedFiles]) {
+      const existing = map.get(entry.path);
+      if (
+        !existing ||
+        STATUS_PRIORITY[entry.status] < STATUS_PRIORITY[existing]
+      ) {
+        map.set(entry.path, entry.status);
+      }
+    }
+    return map;
+  }, [changedFiles, stagedFiles]);
+
+  // For a directory relative path, find the highest-priority status among descendants
+  const getDirStatus = useCallback(
+    (dirRelPath: string): GitFileStatus | null => {
+      let best: GitFileStatus | null = null;
+      const prefix = dirRelPath ? dirRelPath + "/" : "";
+      for (const [filePath, status] of gitStatusMap) {
+        if (filePath.startsWith(prefix)) {
+          if (!best || STATUS_PRIORITY[status] < STATUS_PRIORITY[best]) {
+            best = status;
+          }
+        }
+      }
+      return best;
+    },
+    [gitStatusMap],
+  );
 
   const [dropTargetDir, setDropTargetDir] = useState<string | null>(null);
   const autoExpandTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -120,7 +245,10 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
 
   const isOsDrag = useCallback((e: React.DragEvent) => {
     const types = Array.from(e.dataTransfer.types);
-    return types.includes("Files") && !types.includes("application/x-termcanvas-file");
+    return (
+      types.includes("Files") &&
+      !types.includes("application/x-termcanvas-file")
+    );
   }, []);
 
   const handleDirDragOver = useCallback(
@@ -130,7 +258,11 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
       e.dataTransfer.dropEffect = "copy";
       if (isOsDrag(e)) {
         setDropTargetDir(dirPath);
-        if (isDir && !expandedDirs.has(dirPath) && autoExpandDir.current !== dirPath) {
+        if (
+          isDir &&
+          !expandedDirs.has(dirPath) &&
+          autoExpandDir.current !== dirPath
+        ) {
           if (autoExpandTimer.current) clearTimeout(autoExpandTimer.current);
           autoExpandDir.current = dirPath;
           autoExpandTimer.current = setTimeout(() => {
@@ -181,7 +313,10 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
 
         if (result.skipped.length > 0) {
           const { notify } = useNotificationStore.getState();
-          notify("warn", `Skipped (already exist): ${result.skipped.join(", ")}`);
+          notify(
+            "warn",
+            `Skipped (already exist): ${result.skipped.join(", ")}`,
+          );
         }
       } catch (err) {
         console.error("[FilesContent] copy failed", err);
@@ -193,10 +328,23 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
   );
 
   const handleContextMenu = useCallback(
-    (e: React.MouseEvent, fullPath: string, isDir: boolean, parentDir: string, name: string) => {
+    (
+      e: React.MouseEvent,
+      fullPath: string,
+      isDir: boolean,
+      parentDir: string,
+      name: string,
+    ) => {
       e.preventDefault();
       e.stopPropagation();
-      setCtxMenu({ x: e.clientX, y: e.clientY, path: fullPath, isDir, parentDir, name });
+      setCtxMenu({
+        x: e.clientX,
+        y: e.clientY,
+        path: fullPath,
+        isDir,
+        parentDir,
+        name,
+      });
     },
     [],
   );
@@ -263,14 +411,24 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
         label: t.ctx_new_file,
         onClick: () => {
           if (isDir && !expandedDirs.has(filePath)) toggleDir(filePath);
-          setEditing({ type: "newFile", parentDir: targetDir, path: targetDir, name: "" });
+          setEditing({
+            type: "newFile",
+            parentDir: targetDir,
+            path: targetDir,
+            name: "",
+          });
         },
       },
       {
         label: t.ctx_new_folder,
         onClick: () => {
           if (isDir && !expandedDirs.has(filePath)) toggleDir(filePath);
-          setEditing({ type: "newFolder", parentDir: targetDir, path: targetDir, name: "" });
+          setEditing({
+            type: "newFolder",
+            parentDir: targetDir,
+            path: targetDir,
+            name: "",
+          });
         },
       },
     ];
@@ -321,7 +479,11 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
 
     const nodes: React.ReactNode[] = [];
 
-    if (editing && (editing.type === "newFile" || editing.type === "newFolder") && editing.parentDir === dirPath) {
+    if (
+      editing &&
+      (editing.type === "newFile" || editing.type === "newFolder") &&
+      editing.parentDir === dirPath
+    ) {
       nodes.push(
         <InlineInput
           key="__new__"
@@ -346,7 +508,7 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
           style={{ ...MONO_STYLE, paddingLeft: depth * 16 + 16 }}
         >
           {t.file_empty_dir}
-        </div>
+        </div>,
       ];
     }
 
@@ -354,7 +516,14 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
       const fullPath = `${dirPath}/${entry.name}`;
       const isExpanded = expandedDirs.has(fullPath);
       const isSelected = !entry.isDirectory && fullPath === previewFile;
-      const isRenaming = editing?.type === "rename" && editing.path === fullPath;
+      const isRenaming =
+        editing?.type === "rename" && editing.path === fullPath;
+
+      const relPath = worktreePath
+        ? fullPath.slice(worktreePath.length + 1)
+        : "";
+      const fileStatus = entry.isDirectory ? null : gitStatusMap.get(relPath);
+      const dirStatus = entry.isDirectory ? getDirStatus(relPath) : null;
 
       nodes.push(
         <div key={fullPath}>
@@ -371,13 +540,32 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
               draggable
               onDragStart={(e) => {
                 e.dataTransfer.setData("text/plain", fullPath);
-                e.dataTransfer.setData("application/x-termcanvas-file", fullPath);
+                e.dataTransfer.setData(
+                  "application/x-termcanvas-file",
+                  fullPath,
+                );
                 e.dataTransfer.effectAllowed = "copy";
               }}
-              onDragOver={(e) => handleDirDragOver(e, entry.isDirectory ? fullPath : dirPath, entry.isDirectory)}
+              onDragOver={(e) =>
+                handleDirDragOver(
+                  e,
+                  entry.isDirectory ? fullPath : dirPath,
+                  entry.isDirectory,
+                )
+              }
               onDragLeave={handleDirDragLeave}
-              onDrop={(e) => handleDirDrop(e, entry.isDirectory ? fullPath : dirPath)}
-              onContextMenu={(e) => handleContextMenu(e, fullPath, entry.isDirectory, dirPath, entry.name)}
+              onDrop={(e) =>
+                handleDirDrop(e, entry.isDirectory ? fullPath : dirPath)
+              }
+              onContextMenu={(e) =>
+                handleContextMenu(
+                  e,
+                  fullPath,
+                  entry.isDirectory,
+                  dirPath,
+                  entry.name,
+                )
+              }
               className={`w-full flex items-center gap-1.5 py-1 transition-colors duration-150 text-left ${
                 dropTargetDir === fullPath
                   ? "bg-[rgba(80,227,194,0.15)] border-l-2 border-[var(--accent)]"
@@ -420,9 +608,17 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
               >
                 {entry.name}
               </span>
+              {fileStatus && <GitBadge status={fileStatus} />}
+              {dirStatus && (
+                <GitDirDot
+                  color={GIT_STATUS_CONFIG[dirStatus]?.color ?? "#7a7773"}
+                />
+              )}
             </button>
           )}
-          {entry.isDirectory && isExpanded && renderEntries(fullPath, depth + 1)}
+          {entry.isDirectory &&
+            isExpanded &&
+            renderEntries(fullPath, depth + 1)}
         </div>,
       );
     }
@@ -443,7 +639,9 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <span className="text-[var(--text-muted)] text-[11px]">{t.loading}</span>
+        <span className="text-[var(--text-muted)] text-[11px]">
+          {t.loading}
+        </span>
       </div>
     );
   }
