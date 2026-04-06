@@ -177,12 +177,23 @@ export function deriveTelemetryStatus(
     return "starting";
   }
 
+  // Hard evidence from hooks: tool calls are actively running
+  if (snapshot.active_tool_calls > 0) {
+    return "progressing";
+  }
+
   if (
     snapshot.turn_state === "thinking" ||
     snapshot.turn_state === "tool_running" ||
     snapshot.turn_state === "tool_pending" ||
     !!snapshot.foreground_tool
   ) {
+    return "progressing";
+  }
+
+  // Codex doesn't emit "thinking" — in_turn with an attached session
+  // means the model is reasoning between tool calls
+  if (snapshot.turn_state === "in_turn" && snapshot.session_attached) {
     return "progressing";
   }
 

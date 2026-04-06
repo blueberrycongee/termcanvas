@@ -493,3 +493,56 @@ test("recordHookEvent SessionStart uses registered provider instead of hardcoded
   assert.equal(snap.session_id, "sess-codex-1");
   service.dispose();
 });
+
+test("deriveTelemetryStatus returns progressing when active_tool_calls > 0", () => {
+  const status = deriveTelemetryStatus(
+    {
+      terminal_id: "terminal-1",
+      worktree_path: "/tmp/project",
+      provider: "codex",
+      session_attached: true,
+      session_attach_confidence: "medium",
+      turn_state: "in_turn",
+      pty_alive: true,
+      descendant_processes: [],
+      active_tool_calls: 2,
+      done_exists: false,
+      result_exists: false,
+      last_output_at: "2026-03-26T00:00:01.000Z",
+      last_meaningful_progress_at: "2026-03-26T00:00:01.000Z",
+      derived_status: "starting",
+    },
+    Date.parse("2026-03-26T01:00:00.000Z"),
+  ); // 1 hour later — well past all thresholds
+
+  assert.equal(status, "progressing");
+});
+
+test("deriveTelemetryStatus returns progressing for Codex in_turn with session attached", () => {
+  const now = Date.parse("2026-03-26T00:10:00.000Z");
+  const status = deriveTelemetryStatus(
+    {
+      terminal_id: "terminal-1",
+      worktree_path: "/tmp/project",
+      provider: "codex",
+      session_attached: true,
+      session_attach_confidence: "medium",
+      turn_state: "in_turn",
+      pty_alive: true,
+      descendant_processes: [],
+      active_tool_calls: 0,
+      done_exists: false,
+      result_exists: false,
+      // session event 4 min ago (stale beyond 90s heartbeat)
+      last_session_event_at: "2026-03-26T00:06:00.000Z",
+      // meaningful progress 5 min ago (stale beyond 180s Codex threshold)
+      last_meaningful_progress_at: "2026-03-26T00:05:00.000Z",
+      last_output_at: "2026-03-26T00:05:00.000Z",
+      derived_status: "starting",
+    },
+    now,
+  );
+
+  // in_turn + session_attached should be progressing, not stall_candidate
+  assert.equal(status, "progressing");
+});
