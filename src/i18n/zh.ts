@@ -374,6 +374,7 @@ export const zh = {
   sessions_needs_attention: "需要处理",
   sessions_in_progress: "进行中",
   sessions_done: "已完成",
+  sessions_fresh_results: "新结果",
   sessions_background: "后台",
   sessions_no_canvas_items: "画布上暂无终端",
   sessions_inspector: "详情",

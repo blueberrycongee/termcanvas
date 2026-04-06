@@ -1,10 +1,12 @@
-import { useRef, useState, useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useProjectStore } from "../stores/projectStore";
+import { useCompletionSeenStore } from "../stores/completionSeenStore";
 
 export function CompletionGlow() {
   const projects = useProjectStore((s) => s.projects);
-  const seenRef = useRef(new Set<string>());
-  const [, forceUpdate] = useState(0);
+  const seenTerminalIds = useCompletionSeenStore((s) => s.seenTerminalIds);
+  const markSeen = useCompletionSeenStore((s) => s.markSeen);
+  const syncActiveDoneIds = useCompletionSeenStore((s) => s.syncActiveDoneIds);
 
   const terminals: { id: string; status: string; focused: boolean }[] = [];
   for (const p of projects) {
@@ -16,34 +18,28 @@ export function CompletionGlow() {
   }
 
   const focusedIdx = terminals.findIndex((t) => t.focused);
+  const activeDoneIds = useMemo(
+    () => terminals.filter((terminal) => terminal.status === "completed").map((terminal) => terminal.id),
+    [terminals],
+  );
+
+  useEffect(() => {
+    syncActiveDoneIds(activeDoneIds);
+  }, [activeDoneIds, syncActiveDoneIds]);
 
   useEffect(() => {
     if (focusedIdx === -1) return;
     const focused = terminals[focusedIdx];
-    if (focused.status === "completed" && !seenRef.current.has(focused.id)) {
-      seenRef.current.add(focused.id);
-      forceUpdate((n) => n + 1);
+    if (focused.status === "completed") {
+      markSeen(focused.id);
     }
-  });
-
-  useEffect(() => {
-    const seen = seenRef.current;
-    let changed = false;
-    for (const id of seen) {
-      const t = terminals.find((t) => t.id === id);
-      if (!t || t.status !== "completed") {
-        seen.delete(id);
-        changed = true;
-      }
-    }
-    if (changed) forceUpdate((n) => n + 1);
-  });
+  }, [focusedIdx, markSeen, terminals]);
 
   // Navigation is circular (nextTerminal wraps around), so the glow
   // direction must account for wrap-around.  "Left" means prevTerminal
   // would reach an unseen completed terminal; "right" means nextTerminal
   const unseen = (t: { id: string; status: string }) =>
-    t.status === "completed" && !seenRef.current.has(t.id);
+    t.status === "completed" && !seenTerminalIds.has(t.id);
 
   let showLeft = false;
   let showRight = false;

@@ -6,6 +6,7 @@ import { useProjectStore } from "../stores/projectStore";
 import { useTerminalRuntimeStore } from "../terminal/terminalRuntimeStore";
 import { panToTerminal } from "../utils/panToTerminal";
 import {
+  buildCanvasTerminalDisplayGroups,
   buildCanvasTerminalSections,
   type CanvasTerminalItem,
   type CanvasTerminalState,
@@ -15,6 +16,7 @@ import {
   pickInspectedTerminal,
   type InspectorTraceItem,
 } from "./sessionInspectorModel";
+import { useCompletionSeenStore } from "../stores/completionSeenStore";
 
 const STATUS_COLORS: Record<CanvasTerminalState, string> = {
   attention: "#ef4444",
@@ -286,6 +288,9 @@ export function SessionsPanel() {
   const loadReplay = useSessionStore((s) => s.loadReplay);
   const projects = useProjectStore((s) => s.projects);
   const runtimeTerminals = useTerminalRuntimeStore((s) => s.terminals);
+  const seenDoneTerminalIds = useCompletionSeenStore((s) => s.seenTerminalIds);
+  const markCompletionSeen = useCompletionSeenStore((s) => s.markSeen);
+  const syncActiveDoneIds = useCompletionSeenStore((s) => s.syncActiveDoneIds);
   const t = useT();
   const [traceItems, setTraceItems] = useState<InspectorTraceItem[]>([]);
   const [traceLoading, setTraceLoading] = useState(false);
@@ -310,14 +315,35 @@ export function SessionsPanel() {
     () => buildCanvasTerminalSections(projects, telemetryByTerminalId, sessionsById),
     [projects, sessionsById, telemetryByTerminalId],
   );
+  const displayGroups = useMemo(
+    () => buildCanvasTerminalDisplayGroups(sections, seenDoneTerminalIds),
+    [sections, seenDoneTerminalIds],
+  );
   const inspectedItem = useMemo(() => pickInspectedTerminal(sections), [sections]);
+  const activeDoneIds = useMemo(() => {
+    const ids = sections.done.map((item) => item.terminalId);
+    if (sections.focused?.state === "done") {
+      ids.push(sections.focused.terminalId);
+    }
+    return ids;
+  }, [sections.done, sections.focused]);
 
   const hasAnyTerminals =
     !!sections.focused ||
     sections.attention.length > 0 ||
     sections.progress.length > 0 ||
-    sections.done.length > 0 ||
-    sections.idle.length > 0;
+    displayGroups.freshDone.length > 0 ||
+    displayGroups.background.length > 0;
+
+  useEffect(() => {
+    syncActiveDoneIds(activeDoneIds);
+  }, [activeDoneIds, syncActiveDoneIds]);
+
+  useEffect(() => {
+    if (sections.focused?.state === "done") {
+      markCompletionSeen(sections.focused.terminalId);
+    }
+  }, [markCompletionSeen, sections.focused]);
 
   useEffect(() => {
     if (panelView === "replay" || !inspectedItem || !window.termcanvas?.telemetry) {
@@ -368,8 +394,8 @@ export function SessionsPanel() {
 
         <Section title={t.sessions_needs_attention} items={sections.attention} t={t} />
         <Section title={t.sessions_in_progress} items={sections.progress} t={t} />
-        <Section title={t.sessions_done} items={sections.done} t={t} />
-        <Section title={t.sessions_background} items={sections.idle} t={t} />
+        <Section title={t.sessions_fresh_results} items={displayGroups.freshDone} t={t} />
+        <Section title={t.sessions_background} items={displayGroups.background} t={t} />
 
         {!hasAnyTerminals && (
           <div className="flex-1 px-4 py-6 text-[11px] text-[var(--text-faint)] text-center">

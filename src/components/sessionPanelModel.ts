@@ -33,6 +33,11 @@ export interface CanvasTerminalSections {
   idle: CanvasTerminalItem[];
 }
 
+export interface CanvasTerminalDisplayGroups {
+  freshDone: CanvasTerminalItem[];
+  background: CanvasTerminalItem[];
+}
+
 const GENERIC_TERMINAL_TITLES =
   /^(terminal|shell|claude|codex|kimi|gemini|opencode|lazygit|tmux)$/i;
 
@@ -319,5 +324,23 @@ export function buildCanvasTerminalSections(
     progress,
     done,
     idle,
+  };
+}
+
+export function buildCanvasTerminalDisplayGroups(
+  sections: CanvasTerminalSections,
+  seenDoneTerminalIds: Set<string>,
+): CanvasTerminalDisplayGroups {
+  const freshDone = sections.done.filter(
+    (item) => !seenDoneTerminalIds.has(item.terminalId),
+  );
+  const quietDone = sections.done.filter((item) =>
+    seenDoneTerminalIds.has(item.terminalId)
+  );
+  const background = [...quietDone, ...sections.idle].sort(compareItemsByActivity);
+
+  return {
+    freshDone,
+    background,
   };
 }

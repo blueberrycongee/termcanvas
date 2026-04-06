@@ -377,6 +377,7 @@ export const en = {
   sessions_needs_attention: "Needs Attention",
   sessions_in_progress: "In Progress",
   sessions_done: "Done",
+  sessions_fresh_results: "Fresh Results",
   sessions_background: "Background",
   sessions_no_canvas_items: "No canvas terminals",
   sessions_inspector: "Inspector",
