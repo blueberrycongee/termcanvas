@@ -85,7 +85,8 @@ uninstall (user may have their own hooks).
 
 ### 4. `electron/main.ts` — env var injection
 
-Add `TERMCANVAS_TERMINAL_ID` to `envOverrides` alongside `TERMCANVAS_SOCKET`.
+Already handled: `pty-launch.ts:437` injects `TERMCANVAS_TERMINAL_ID` when
+`options.terminalId` is set. No changes needed.
 
 ### 5. `electron/telemetry-service.ts` — provider detection
 
