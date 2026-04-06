@@ -277,6 +277,38 @@ test("uninstallSkillLinks removes termcanvas entries from codex hooks.json", () 
   }
 });
 
+test("installSkillLinks enables codex_hooks feature flag in config.toml", () => {
+  const { home, sourceDir } = makeTempEnv();
+  installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+
+  const configFile = path.join(home, ".codex", "config.toml");
+  assert.equal(fs.existsSync(configFile), true, "config.toml not created");
+
+  const content = fs.readFileSync(configFile, "utf-8");
+  assert.ok(content.includes("codex_hooks = true"), "codex_hooks flag not set");
+});
+
+test("ensureCodexFeatureFlag preserves existing config.toml content", () => {
+  const { home, sourceDir } = makeTempEnv();
+
+  const codexDir = path.join(home, ".codex");
+  fs.mkdirSync(codexDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(codexDir, "config.toml"),
+    'model = "gpt-4"\n\n[features]\napply_patch = true\n',
+  );
+
+  installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+
+  const content = fs.readFileSync(path.join(codexDir, "config.toml"), "utf-8");
+  assert.ok(content.includes('model = "gpt-4"'), "existing model setting lost");
+  assert.ok(
+    content.includes("apply_patch = true"),
+    "existing feature flag lost",
+  );
+  assert.ok(content.includes("codex_hooks = true"), "codex_hooks not added");
+});
+
 test("installSkillLinks creates codex hooks.json with all 5 events", () => {
   const { home, sourceDir } = makeTempEnv();
   installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });

@@ -569,6 +569,39 @@ function removeCodexHooks(home: string): void {
   fs.renameSync(tmp, hooksFile);
 }
 
+function ensureCodexFeatureFlag(home: string): void {
+  const configFile = path.join(getCodexConfigDir(home), "config.toml");
+  fs.mkdirSync(path.dirname(configFile), { recursive: true });
+
+  let content = "";
+  try {
+    content = fs.readFileSync(configFile, "utf-8");
+  } catch {}
+
+  // Already enabled — nothing to do
+  if (/^\s*codex_hooks\s*=\s*true\s*$/m.test(content)) return;
+
+  // Remove any existing codex_hooks line (might be set to false)
+  content = content
+    .replace(/^\s*codex_hooks\s*=.*$/m, "")
+    .replace(/\n{3,}/g, "\n\n");
+
+  const featuresMatch = content.match(/^\[features\]\s*$/m);
+  if (featuresMatch) {
+    // Insert after [features] header
+    const idx = featuresMatch.index! + featuresMatch[0].length;
+    content =
+      content.slice(0, idx) + "\ncodex_hooks = true" + content.slice(idx);
+  } else {
+    // Append new [features] section
+    content = content.trimEnd() + "\n\n[features]\ncodex_hooks = true\n";
+  }
+
+  const tmp = configFile + ".tmp." + process.pid;
+  fs.writeFileSync(tmp, content, "utf-8");
+  fs.renameSync(tmp, configFile);
+}
+
 /**
  * Full install: register Claude plugin + create skill symlinks.
  * Called when user registers the CLI.
@@ -593,6 +626,7 @@ export function installSkillLinks({
       path.join(sourceDir, "scripts", "termcanvas-hook.mjs"),
       home,
     );
+    ensureCodexFeatureFlag(home);
     installAllSkillLinks(sourceDir, home, appVersion);
     return true;
   } catch (err) {
@@ -630,6 +664,7 @@ export function ensureSkillLinks({
       path.join(sourceDir, "scripts", "termcanvas-hook.mjs"),
       home,
     );
+    ensureCodexFeatureFlag(home);
     installAllSkillLinks(sourceDir, home, appVersion);
 
     return true;
