@@ -25,7 +25,11 @@ function makeTempEnv(skillNames = ["hydra", "code-review", "qa"]) {
 
   const scriptsDir = path.join(sourceDir, "scripts");
   fs.mkdirSync(scriptsDir, { recursive: true });
-  fs.writeFileSync(path.join(scriptsDir, "memory-session-start.sh"), "#!/bin/bash\n");
+  fs.writeFileSync(
+    path.join(scriptsDir, "memory-session-start.sh"),
+    "#!/bin/bash\n",
+  );
+  fs.writeFileSync(path.join(scriptsDir, "termcanvas-hook.mjs"), "// hook\n");
 
   return { dir, home, sourceDir };
 }
@@ -45,13 +49,24 @@ function readManifest(home: string, provider: string) {
 
 test("installSkillLinks creates symlinks for all skills including hydra", () => {
   const { home, sourceDir } = makeTempEnv();
-  assert.equal(installSkillLinks({ home, sourceDir, appVersion: "0.18.0" }), true);
+  assert.equal(
+    installSkillLinks({ home, sourceDir, appVersion: "0.18.0" }),
+    true,
+  );
 
   for (const name of ["hydra", "code-review", "qa"]) {
     const claude = link(home, "claude", name);
     const codex = link(home, "codex", name);
-    assert.equal(fs.existsSync(claude), true, `${name} missing in .claude/skills`);
-    assert.equal(fs.existsSync(codex), true, `${name} missing in .codex/skills`);
+    assert.equal(
+      fs.existsSync(claude),
+      true,
+      `${name} missing in .claude/skills`,
+    );
+    assert.equal(
+      fs.existsSync(codex),
+      true,
+      `${name} missing in .codex/skills`,
+    );
     assert.equal(fs.readlinkSync(claude), path.join(sourceDir, "skills", name));
   }
 });
@@ -86,7 +101,11 @@ test("ensureSkillLinks preserves hydra symlink across repeated calls", () => {
   ensureSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
 
   const hydra = link(home, "claude", "hydra");
-  assert.equal(fs.existsSync(hydra), true, "hydra symlink deleted by ensureSkillLinks");
+  assert.equal(
+    fs.existsSync(hydra),
+    true,
+    "hydra symlink deleted by ensureSkillLinks",
+  );
   assert.equal(fs.readlinkSync(hydra), path.join(sourceDir, "skills", "hydra"));
 });
 
@@ -124,7 +143,12 @@ test("ensureSkillLinks updates stale symlinks", () => {
 });
 
 test("version upgrade removes skills dropped from bundle", () => {
-  const { home, sourceDir, dir } = makeTempEnv(["hydra", "code-review", "qa", "old-skill"]);
+  const { home, sourceDir, dir } = makeTempEnv([
+    "hydra",
+    "code-review",
+    "qa",
+    "old-skill",
+  ]);
   installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
 
   assert.equal(fs.existsSync(link(home, "claude", "old-skill")), true);
@@ -137,12 +161,23 @@ test("version upgrade removes skills dropped from bundle", () => {
   }
   const scriptsDir = path.join(newSourceDir, "scripts");
   fs.mkdirSync(scriptsDir, { recursive: true });
-  fs.writeFileSync(path.join(scriptsDir, "memory-session-start.sh"), "#!/bin/bash\n");
+  fs.writeFileSync(
+    path.join(scriptsDir, "memory-session-start.sh"),
+    "#!/bin/bash\n",
+  );
 
   ensureSkillLinks({ home, sourceDir: newSourceDir, appVersion: "0.19.0" });
 
-  assert.equal(fs.existsSync(link(home, "claude", "old-skill")), false, "stale skill not removed");
-  assert.equal(fs.existsSync(link(home, "codex", "old-skill")), false, "stale skill not removed from codex");
+  assert.equal(
+    fs.existsSync(link(home, "claude", "old-skill")),
+    false,
+    "stale skill not removed",
+  );
+  assert.equal(
+    fs.existsSync(link(home, "codex", "old-skill")),
+    false,
+    "stale skill not removed from codex",
+  );
   assert.equal(fs.existsSync(link(home, "claude", "hydra")), true);
 
   const m = readManifest(home, "claude");
@@ -162,7 +197,10 @@ test("version upgrade adds new skills from bundle", () => {
   }
   const scriptsDir = path.join(newSourceDir, "scripts");
   fs.mkdirSync(scriptsDir, { recursive: true });
-  fs.writeFileSync(path.join(scriptsDir, "memory-session-start.sh"), "#!/bin/bash\n");
+  fs.writeFileSync(
+    path.join(scriptsDir, "memory-session-start.sh"),
+    "#!/bin/bash\n",
+  );
 
   ensureSkillLinks({ home, sourceDir: newSourceDir, appVersion: "0.19.0" });
 
@@ -179,12 +217,21 @@ test("skips non-symlink entries (user-managed directories)", () => {
 
   installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
 
-  assert.equal(fs.lstatSync(userDir).isDirectory(), true, "user dir was replaced");
+  assert.equal(
+    fs.lstatSync(userDir).isDirectory(),
+    true,
+    "user dir was replaced",
+  );
   assert.equal(fs.existsSync(path.join(userDir, "custom.md")), true);
 });
 
 test("uninstall removes skills tracked in manifest even if missing from current bundle", () => {
-  const { home, sourceDir, dir } = makeTempEnv(["hydra", "code-review", "qa", "old-skill"]);
+  const { home, sourceDir, dir } = makeTempEnv([
+    "hydra",
+    "code-review",
+    "qa",
+    "old-skill",
+  ]);
   installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
 
   const newSourceDir = path.join(dir, "source-v2");
@@ -198,4 +245,28 @@ test("uninstall removes skills tracked in manifest even if missing from current 
 
   assert.equal(fs.existsSync(link(home, "claude", "old-skill")), false);
   assert.equal(readManifest(home, "claude"), null);
+});
+
+test("installSkillLinks creates codex hooks.json with all 5 events", () => {
+  const { home, sourceDir } = makeTempEnv();
+  installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+
+  const hooksFile = path.join(home, ".codex", "hooks.json");
+  assert.equal(fs.existsSync(hooksFile), true, "hooks.json not created");
+
+  const hooks = JSON.parse(fs.readFileSync(hooksFile, "utf-8"));
+  for (const event of [
+    "PreToolUse",
+    "PostToolUse",
+    "SessionStart",
+    "Stop",
+    "UserPromptSubmit",
+  ]) {
+    assert.ok(hooks.hooks[event], `missing hook event: ${event}`);
+    assert.equal(hooks.hooks[event].length, 1);
+    assert.ok(
+      hooks.hooks[event][0].hooks[0].command.includes("termcanvas-hook.mjs"),
+      `${event} hook command missing termcanvas-hook.mjs`,
+    );
+  }
 });

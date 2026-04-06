@@ -19,6 +19,10 @@ function getCodexSkillsDir(home: string): string {
   return path.join(home, ".codex", "skills");
 }
 
+function getCodexConfigDir(home: string): string {
+  return path.join(home, ".codex");
+}
+
 function getClaudeSkillsDir(home: string): string {
   return path.join(home, ".claude", "skills");
 }
@@ -389,11 +393,17 @@ function ensureLifecycleHooks(settingsFile: string, scriptPath: string): void {
   for (const eventName of LIFECYCLE_HOOK_EVENTS) {
     const existing = (hooks[eventName] ?? []) as Array<{
       matcher?: string;
-      hooks?: Array<{ type: string; command: string; timeout?: number; async?: boolean }>;
+      hooks?: Array<{
+        type: string;
+        command: string;
+        timeout?: number;
+        async?: boolean;
+      }>;
     }>;
 
     const filtered = existing.filter(
-      (entry) => !entry.hooks?.some((h) => h.command.includes(LIFECYCLE_MARKER)),
+      (entry) =>
+        !entry.hooks?.some((h) => h.command.includes(LIFECYCLE_MARKER)),
     );
 
     // SessionStart blocks briefly to capture session_id; all others are async
@@ -440,7 +450,8 @@ function removeLifecycleHooks(settingsFile: string): void {
     }>;
 
     const filtered = existing.filter(
-      (entry) => !entry.hooks?.some((h) => h.command.includes(LIFECYCLE_MARKER)),
+      (entry) =>
+        !entry.hooks?.some((h) => h.command.includes(LIFECYCLE_MARKER)),
     );
 
     if (filtered.length !== existing.length) {
@@ -466,6 +477,52 @@ function removeLifecycleHooks(settingsFile: string): void {
   fs.renameSync(tmp, settingsFile);
 }
 
+const CODEX_HOOK_EVENTS = [
+  "PreToolUse",
+  "PostToolUse",
+  "SessionStart",
+  "Stop",
+  "UserPromptSubmit",
+] as const;
+
+function ensureCodexHooks(scriptPath: string, home: string): void {
+  const hooksFile = path.join(getCodexConfigDir(home), "hooks.json");
+  let data: { hooks?: Record<string, unknown[]> } = {};
+  try {
+    data = JSON.parse(fs.readFileSync(hooksFile, "utf-8"));
+  } catch {}
+
+  const hooks = (data.hooks ?? {}) as Record<string, unknown[]>;
+  const hookCommand = `node '${scriptPath}'`;
+
+  for (const eventName of CODEX_HOOK_EVENTS) {
+    const existing = (hooks[eventName] ?? []) as Array<{
+      matcher?: string;
+      hooks?: Array<{ type: string; command: string; timeout?: number }>;
+    }>;
+
+    const filtered = existing.filter(
+      (entry) =>
+        !entry.hooks?.some((h) => h.command.includes(LIFECYCLE_MARKER)),
+    );
+
+    filtered.push({
+      matcher: "",
+      hooks: [{ type: "command", command: hookCommand, timeout: 5 }],
+    });
+
+    hooks[eventName] = filtered;
+  }
+
+  data.hooks = hooks;
+
+  const dir = path.dirname(hooksFile);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmp = hooksFile + ".tmp." + process.pid;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
+  fs.renameSync(tmp, hooksFile);
+}
+
 /**
  * Full install: register Claude plugin + create skill symlinks.
  * Called when user registers the CLI.
@@ -485,6 +542,10 @@ export function installSkillLinks({
     ensureLifecycleHooks(
       getClaudeSettingsFile(home),
       path.join(sourceDir, "scripts", "termcanvas-hook.mjs"),
+    );
+    ensureCodexHooks(
+      path.join(sourceDir, "scripts", "termcanvas-hook.mjs"),
+      home,
     );
     installAllSkillLinks(sourceDir, home, appVersion);
     return true;
@@ -518,6 +579,10 @@ export function ensureSkillLinks({
     ensureLifecycleHooks(
       getClaudeSettingsFile(home),
       path.join(sourceDir, "scripts", "termcanvas-hook.mjs"),
+    );
+    ensureCodexHooks(
+      path.join(sourceDir, "scripts", "termcanvas-hook.mjs"),
+      home,
     );
     installAllSkillLinks(sourceDir, home, appVersion);
 
