@@ -28,7 +28,7 @@ Route first. Choose the lightest path that preserves correctness.
   - one implementer with `result.json` + `done` gates
   - use for clear implementation tasks that still need Hydra evidence
 - `hydra run --task "..." --repo .`
-  - default planner -> implementer -> evaluator loop
+  - default researcher -> implementer -> tester loop, with research approval before implementation
   - use for ambiguous, risky, PRD-driven, or long-running tasks
 
 ## Hydra worker primitive

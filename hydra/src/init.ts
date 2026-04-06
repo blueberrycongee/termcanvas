@@ -22,11 +22,12 @@ Workflow patterns:
 1. Do the task directly when it is simple, local, or clearly faster without workflow overhead.
 2. Use a single implementer workflow when you still want Hydra evidence and retry control:
    \`hydra run --task "<specific task>" --repo . --template single-step [--worktree .]\`
-3. Use the default planner -> implementer -> evaluator workflow for ambiguous, risky, or PRD-driven work:
+3. Use the default researcher -> implementer -> tester workflow for ambiguous, risky, or PRD-driven work:
    \`hydra run --task "<specific task>" --repo . [--worktree .]\`
    - If the user says all roles should use one provider, pass \`--all-type <provider>\`.
-   - If the user wants a mix, pass \`--planner-type\`, \`--implementer-type\`, and \`--evaluator-type\`.
+   - If the user wants a mix, pass \`--planner-type\`, \`--implementer-type\`, and \`--evaluator-type\` (legacy flag names retained for researcher / implementer / tester).
    - If the user does not specify providers, Hydra should prefer the current terminal's provider when available.
+   - Full workflows pause after each successful research pass for user approval before implementation starts or resumes.
 4. Use a direct isolated worker primitive when the split is already known and you do not need a full workflow:
    \`hydra spawn --task "<specific task>" --repo . [--worktree .]\`
 
@@ -39,8 +40,13 @@ Workflow control:
 1. Inspect one-shot progress: \`hydra tick --repo . --workflow <workflowId>\`
 2. Watch until terminal state: \`hydra watch --repo . --workflow <workflowId>\`
 3. Inspect structured state and failures: \`hydra status --repo . --workflow <workflowId>\`
-4. Retry a failed/timed-out workflow when allowed: \`hydra retry --repo . --workflow <workflowId>\`
-5. Clean up runtime state or worktrees: \`hydra cleanup --workflow <workflowId> --repo .\`
+4. Request an explicit challenge at the current workflow boundary when you want an independent read-only review:
+   \`hydra challenge --repo . --workflow <workflowId>\`
+5. Resolve a completed challenge:
+   - continue the proposed path: \`hydra resolve-challenge --repo . --workflow <workflowId> --decision continue\`
+   - send work back: \`hydra resolve-challenge --repo . --workflow <workflowId> --decision send_back --to <researcher|implementer|tester>\`
+6. Retry a failed/timed-out workflow when allowed: \`hydra retry --repo . --workflow <workflowId>\`
+7. Clean up runtime state or worktrees: \`hydra cleanup --workflow <workflowId> --repo .\`
 
 Telemetry polling:
 1. Treat \`hydra watch\` as the main-brain polling loop; do not infer progress from terminal prose alone.

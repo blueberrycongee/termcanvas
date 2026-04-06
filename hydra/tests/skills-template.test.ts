@@ -16,7 +16,7 @@ test("Hydra skill copy documents root-cause-first, no test hacking, and result g
   assert.match(skill, /hydra spawn/i);
   assert.match(skill, /not a full workflow run/i);
   assert.match(skill, /hydra list/i);
-  assert.match(skill, /planner -> implementer -> evaluator/i);
+  assert.match(skill, /researcher -> implementer -> tester/i);
   assert.match(skill, /root cause/i);
   assert.match(skill, /Do not hack tests|test hacking/i);
   assert.match(skill, /silent fallback|swallow/i);
@@ -42,7 +42,7 @@ test("router skill stays always-on and classifies TermCanvas work before Hydra",
   assert.match(skill, /do it directly/i);
   assert.match(skill, /hydra init/i);
   assert.match(skill, /single-step/i);
-  assert.match(skill, /planner -> implementer -> evaluator/i);
+  assert.match(skill, /researcher -> implementer -> tester/i);
   assert.match(skill, /hydra spawn/i);
   assert.match(skill, /hydra list/i);
   assert.match(skill, /termcanvas terminal create --prompt/i);
@@ -58,8 +58,8 @@ test("challenge skill defines four orthogonal attack methodologies", () => {
   assert.match(skill, /hydra watch --agent/i);
   assert.match(skill, /Counterexample/i);
   assert.match(skill, /Hidden Assumptions/i);
-  assert.match(skill, /Causal Challenge/i);
-  assert.match(skill, /Boundary Test/i);
+  assert.match(skill, /Mechanism & Second-Order Effects/i);
+  assert.match(skill, /Boundary & Context Shift/i);
   assert.match(skill, /result\.json/i);
   assert.match(skill, /severity/i);
   assert.match(skill, /critical/i);

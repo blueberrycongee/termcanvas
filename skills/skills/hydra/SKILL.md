@@ -17,11 +17,11 @@ Terminal conversation is not a source of truth.
   - use for clear implementation work that still needs worktree isolation and
     `result.json` / `done` evidence
 - `hydra run --task "..." --repo .`
-  - default planner -> implementer -> evaluator workflow
+  - default researcher -> implementer -> tester workflow, with research approval before implementation
   - use for ambiguous, risky, PRD-driven, or long-running tasks
   - if the user wants one provider for all roles, pass `--all-type <provider>`
   - if the user wants a mix, pass `--planner-type`, `--implementer-type`, and
-    `--evaluator-type`
+    `--evaluator-type` (legacy flag names retained for researcher / implementer / tester)
   - if the user does not specify providers, inherit the current terminal type
     when available rather than hard-coding Claude or Codex
 
@@ -29,8 +29,8 @@ Terminal conversation is not a source of truth.
 
 When choosing providers for each role, consider these observed tendencies:
 
-**Claude** — stronger at reasoning, planning, and architectural judgment.
-- Good fit for: planner, evaluator
+**Claude** — stronger at reasoning, research, and architectural judgment.
+- Good fit for: researcher, tester
 - Watch out for: stub implementations (code that looks complete but doesn't work),
   context-window anxiety (rushing to finish when context fills up)
 
@@ -79,6 +79,9 @@ default is `--planner-type claude --implementer-type codex --evaluator-type clau
    - `hydra tick --repo . --workflow <workflowId>`
    - `hydra watch --repo . --workflow <workflowId>`
    - `hydra status --repo . --workflow <workflowId>`
+   - `hydra challenge --repo . --workflow <workflowId>` to request an explicit challenge at the current workflow boundary
+   - `hydra resolve-challenge --repo . --workflow <workflowId> --decision continue`
+   - `hydra resolve-challenge --repo . --workflow <workflowId> --decision send_back --to <researcher|implementer|tester>`
    - `hydra retry --repo . --workflow <workflowId>`
 4. For direct workers created by `hydra spawn`:
    - `hydra watch --agent <agentId>` to poll until completion
