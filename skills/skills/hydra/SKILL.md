@@ -88,13 +88,14 @@ default is `--planner-type claude --implementer-type codex --evaluator-type clau
 6. Before deciding to keep waiting, retry, or take over a live workflow, query telemetry first:
    - `termcanvas telemetry get --workflow <workflowId> --repo .`
    - `termcanvas telemetry get --terminal <terminalId>`
-   - check `last_meaningful_progress_at`, `turn_state`, `foreground_tool`, and contract presence
+   - check `last_meaningful_progress_at`, `last_session_event_at`, `turn_state`, `foreground_tool`, `active_tool_calls`, and contract presence
 7. Treat telemetry as advisory truth before completion:
    - `awaiting_contract` means the agent turn ended but `result.json` / `done` is still missing
    - `stall_candidate` means "needs attention", not automatic failure
 8. Treat `hydra watch` as the polling loop for the main brain:
    - each poll should prefer telemetry over PTY prose
-   - if telemetry shows `thinking`, `tool_running`, `tool_pending`, recent meaningful progress, or a foreground tool, keep waiting
+   - if telemetry shows `thinking`, `tool_running`, `tool_pending`, recent meaningful progress, fresh session events, active tool calls, or a foreground tool, keep waiting
+   - for Codex, do not take over only because of one `stall_candidate`; confirm no fresh session events and no active tool calls first
    - if telemetry shows `awaiting_contract`, the model turn is done but the file contract is still pending
    - if telemetry shows `stall_candidate`, inspect recent telemetry events before retry/takeover
 9. Clean up after completion:

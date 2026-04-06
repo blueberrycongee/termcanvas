@@ -72,6 +72,7 @@ Telemetry polling:
 3. Keep waiting when telemetry shows recent meaningful progress, `thinking`, `tool_running`, `tool_pending`, or a foreground tool.
 4. Treat `awaiting_contract` as "turn complete, file contract still pending".
 5. Treat `stall_candidate` as "investigate before retry", not automatic failure.
+6. Treat `error` as "agent hit an API error". Check `last_hook_error`: `rate_limit`/`server_error` → wait and retry; `billing_error`/`authentication_failed` → stop; `max_output_tokens` → retry with compact; `invalid_request` → stop and investigate.
 
 Worker control:
 1. List direct workers: `hydra list --repo .`
