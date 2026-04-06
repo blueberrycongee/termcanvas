@@ -13,6 +13,7 @@ const AGENT_ROLES = new Set([
   "planner",
   "implementer",
   "evaluator",
+  "tester",
   "reviewer",
   "integrator",
   "researcher",

@@ -4,7 +4,7 @@ const args = process.argv.slice(2);
 const [command, ...rest] = args;
 
 function printUsage() {
-  console.log("Usage: hydra <run|tick|watch|status|retry|approve|revise|spawn|list|cleanup|init> [options]");
+  console.log("Usage: hydra <run|tick|watch|status|retry|approve|revise|challenge|resolve-challenge|spawn|list|cleanup|init> [options]");
   console.log("");
   console.log("Commands:");
   console.log("  run      Create and start a file-contract workflow");
@@ -12,8 +12,10 @@ function printUsage() {
   console.log("  watch    Poll a workflow or spawned agent until it reaches a terminal state");
   console.log("  status   Show structured workflow status");
   console.log("  retry    Retry a failed or timed-out workflow");
-  console.log("  approve  Approve a plan and continue to implementation");
-  console.log("  revise   Revise a plan with feedback and re-run planner");
+  console.log("  approve  Approve the current research output and continue");
+  console.log("  revise   Revise the current research output and re-run researcher");
+  console.log("  challenge         Request an explicit challenge at the current workflow boundary");
+  console.log("  resolve-challenge Continue or send back after a completed challenge");
   console.log("  spawn    Create one direct isolated worker terminal");
   console.log("  list     List all spawned agents");
   console.log("  cleanup  Clean up agent worktrees and terminals");
@@ -21,7 +23,7 @@ function printUsage() {
   console.log("");
   console.log("Execution modes:");
   console.log("  direct   stay in the current agent for simple/local tasks");
-  console.log("  run      use single-step or planner -> implementer -> evaluator");
+  console.log("  run      use single-step or researcher -> implementer -> tester");
   console.log("  spawn    use one isolated worker when the split is already known");
 }
 
@@ -65,6 +67,16 @@ async function main() {
     case "revise": {
       const { revise } = await import("./revise.js");
       await revise(rest);
+      break;
+    }
+    case "challenge": {
+      const { challenge } = await import("./challenge-command.js");
+      await challenge(rest);
+      break;
+    }
+    case "resolve-challenge": {
+      const { resolveChallenge } = await import("./resolve-challenge.js");
+      await resolveChallenge(rest);
       break;
     }
     case "list": {

@@ -10,7 +10,7 @@ export interface ReviseArgs {
 function printReviseUsage(): never {
   console.log("Usage: hydra revise --repo <path> --workflow <id> --feedback <text>");
   console.log("");
-  console.log("Revise the planner's plan with feedback and re-run the planner.");
+  console.log("Revise the current research output with feedback and re-run the researcher.");
   process.exit(0);
 }
 

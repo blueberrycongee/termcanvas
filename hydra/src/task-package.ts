@@ -42,11 +42,7 @@ export function buildTaskPackageDir(
 export function buildTaskPackageContext(
   input: BuildTaskPackageContextInput,
 ): TaskPackageContext {
-  const packageDir = buildTaskPackageDir(
-    input.workspaceRoot,
-    input.workflowId,
-    input.handoffId,
-  );
+  const packageDir = buildTaskPackageDir(input.workspaceRoot, input.workflowId, input.handoffId);
 
   return {
     contract: {
@@ -69,6 +65,8 @@ function renderList(items: string[], emptyMessage: string): string[] {
   }
   return items.map((item) => `- ${item}`);
 }
+
+// ── Researcher domain investigation guides ──
 
 const PLAN_GUIDE_FRONTEND = `# Frontend Audit Guide
 
@@ -144,11 +142,13 @@ Read this guide when the task involves deployment, configuration, CI/CD, or oper
 - Are key metrics instrumented (latency, error rate, throughput)?
 `;
 
-const PLANNER_GUIDES: Record<string, { filename: string; content: string }> = {
-  frontend: { filename: "plan-frontend.md", content: PLAN_GUIDE_FRONTEND },
-  backend: { filename: "plan-backend.md", content: PLAN_GUIDE_BACKEND },
-  infra: { filename: "plan-infra.md", content: PLAN_GUIDE_INFRA },
+const RESEARCHER_GUIDES: Record<string, { filename: string; content: string }> = {
+  frontend: { filename: "research-frontend.md", content: PLAN_GUIDE_FRONTEND },
+  backend: { filename: "research-backend.md", content: PLAN_GUIDE_BACKEND },
+  infra: { filename: "research-infra.md", content: PLAN_GUIDE_INFRA },
 };
+
+// ── Tester domain evaluation guides ──
 
 const EVAL_GUIDE_FRONTEND = `# Frontend Evaluation Guide
 
@@ -246,39 +246,40 @@ Read this guide when the task involves deployment, configuration, CI/CD, or oper
 - Are build artifacts reproducible — same input produces same output?
 `;
 
-const EVALUATOR_GUIDES: Record<string, { filename: string; content: string }> =
-  {
-    frontend: { filename: "eval-frontend.md", content: EVAL_GUIDE_FRONTEND },
-    backend: { filename: "eval-backend.md", content: EVAL_GUIDE_BACKEND },
-    infra: { filename: "eval-infra.md", content: EVAL_GUIDE_INFRA },
-  };
+const TESTER_GUIDES: Record<string, { filename: string; content: string }> = {
+  frontend: { filename: "verify-frontend.md", content: EVAL_GUIDE_FRONTEND },
+  backend: { filename: "verify-backend.md", content: EVAL_GUIDE_BACKEND },
+  infra: { filename: "verify-infra.md", content: EVAL_GUIDE_INFRA },
+};
 
-function renderPlannerDomainGuideReference(
+function renderResearcherDomainGuideReference(
   role: string,
   packageDir: string,
 ): string[] {
-  if (role !== "planner") {
+  if (role !== "researcher") {
     return [];
   }
   const lines = [
-    "## Domain-Specific Audit Guides",
+    "## Domain-Specific Research Guides",
     "",
-    "The following guides contain audit checklists for specific task types.",
-    "Read the ones relevant to this task to guide your investigation — skip the rest:",
+    "The following guides contain investigation checklists for specific task types.",
+    "Read the ones relevant to this task to guide your research pass — skip the rest:",
     "",
   ];
-  for (const [domain, guide] of Object.entries(PLANNER_GUIDES)) {
-    lines.push(`- **${domain}**: ${path.join(packageDir, guide.filename)}`);
+  for (const [domain, guide] of Object.entries(RESEARCHER_GUIDES)) {
+    lines.push(
+      `- **${domain}**: ${path.join(packageDir, guide.filename)}`,
+    );
   }
   lines.push("");
   return lines;
 }
 
-function writePlannerGuides(contract: HandoffContract): void {
-  if (contract.to.role !== "planner") {
+function writeResearcherGuides(contract: HandoffContract): void {
+  if (contract.to.role !== "researcher") {
     return;
   }
-  for (const guide of Object.values(PLANNER_GUIDES)) {
+  for (const guide of Object.values(RESEARCHER_GUIDES)) {
     fs.writeFileSync(
       path.join(contract.artifacts.package_dir, guide.filename),
       guide.content,
@@ -287,11 +288,11 @@ function writePlannerGuides(contract: HandoffContract): void {
   }
 }
 
-function renderEvaluatorDomainGuideReference(
+function renderTesterDomainGuideReference(
   role: string,
   packageDir: string,
 ): string[] {
-  if (role !== "evaluator") {
+  if (role !== "tester") {
     return [];
   }
   const lines = [
@@ -301,18 +302,20 @@ function renderEvaluatorDomainGuideReference(
     "Read the ones relevant to this task — skip the rest:",
     "",
   ];
-  for (const [domain, guide] of Object.entries(EVALUATOR_GUIDES)) {
-    lines.push(`- **${domain}**: ${path.join(packageDir, guide.filename)}`);
+  for (const [domain, guide] of Object.entries(TESTER_GUIDES)) {
+    lines.push(
+      `- **${domain}**: ${path.join(packageDir, guide.filename)}`,
+    );
   }
   lines.push("");
   return lines;
 }
 
-function writeEvaluatorGuides(contract: HandoffContract): void {
-  if (contract.to.role !== "evaluator") {
+function writeTesterGuides(contract: HandoffContract): void {
+  if (contract.to.role !== "tester") {
     return;
   }
-  for (const guide of Object.values(EVALUATOR_GUIDES)) {
+  for (const guide of Object.values(TESTER_GUIDES)) {
     fs.writeFileSync(
       path.join(contract.artifacts.package_dir, guide.filename),
       guide.content,
@@ -321,8 +324,8 @@ function writeEvaluatorGuides(contract: HandoffContract): void {
   }
 }
 
-function renderEvaluatorVerificationStrategy(role: string): string[] {
-  if (role !== "evaluator") {
+function renderTesterVerificationStrategy(role: string): string[] {
+  if (role !== "tester") {
     return [];
   }
   return [
@@ -336,7 +339,7 @@ function renderEvaluatorVerificationStrategy(role: string): string[] {
     "",
     "CI passing is table stakes. Focus on what automated checks cannot catch:",
     "",
-    "- **Intent vs. implementation gap** — Read the planner spec, then read the code. Does the code actually deliver what was asked? A function that compiles but returns hardcoded data is a CI pass and a real failure.",
+    "- **Intent vs. implementation gap** — Read the approved research brief, then read the code. Does the code actually deliver what was approved? A function that compiles but returns hardcoded data is a CI pass and a real failure.",
     "- **Stub and mock detection** — Search for empty function bodies, `// TODO` standing in for logic, placeholder return values, and test mocks that leaked into production code.",
     "- **Over/under-engineering** — Unnecessary abstractions, premature generalization, and god objects are defects. So is copy-paste duplication and magic numbers.",
     "- **Test honesty** — A test that asserts `expect(true).toBe(true)` or only validates a mock's return value is worse than no test — it creates false confidence. Flag dead tests, tautological assertions, and tests brittle to implementation details.",
@@ -358,6 +361,39 @@ function renderEvaluatorVerificationStrategy(role: string): string[] {
     "If your highest completed tier is static analysis, explain why higher tiers were unavailable and apply stricter judgment before claiming success.",
     "",
   ];
+}
+
+function renderRoleSpecificBriefRules(contract: HandoffContract): string[] {
+  switch (contract.task.type) {
+    case "workflow-research":
+    case "workflow-research-replan":
+      return [
+        "## Research Output",
+        "",
+        `- You MUST write \`${path.join(contract.artifacts.package_dir, "research-brief.md")}\` before finishing.`,
+        "- The research brief should carry the structured handoff for downstream implementation and verification.",
+        `- If this research pass discovers a strategy-changing blocker that needs user confirmation, also write \`${path.join(contract.artifacts.package_dir, "approval-request.md")}\`.`,
+        "",
+      ];
+    case "workflow-implementation":
+      return [
+        "## Implementation Output",
+        "",
+        `- You MUST write \`${path.join(contract.artifacts.package_dir, "implementation-brief.md")}\` before finishing.`,
+        "- The implementation brief is the structured handoff for the tester.",
+        "",
+      ];
+    case "workflow-verification":
+      return [
+        "## Verification Output",
+        "",
+        `- You MUST write \`${path.join(contract.artifacts.package_dir, "verification-brief.md")}\` before finishing.`,
+        "- The verification brief is the structured handoff for the researcher intent-confirmation stage or the next implementation loop.",
+        "",
+      ];
+    default:
+      return [];
+  }
 }
 
 export function renderTaskPackageTemplate(contract: HandoffContract): string {
@@ -384,10 +420,7 @@ export function renderTaskPackageTemplate(contract: HandoffContract): string {
     "",
     "## Acceptance Criteria",
     "",
-    ...renderList(
-      contract.task.acceptance_criteria,
-      "No acceptance criteria provided.",
-    ),
+    ...renderList(contract.task.acceptance_criteria, "No acceptance criteria provided."),
     "",
     "## Skills",
     "",
@@ -398,6 +431,7 @@ export function renderTaskPackageTemplate(contract: HandoffContract): string {
     `- Handoff file: ${contract.artifacts.handoff_file}`,
     ...renderList(contract.context.files, "No input files provided."),
     "",
+    ...renderRoleSpecificBriefRules(contract),
     "## Output Contract",
     "",
     `- Result file: ${contract.artifacts.result_file}`,
@@ -437,10 +471,9 @@ export function renderTaskPackageTemplate(contract: HandoffContract): string {
     `- Workflow snapshot: termcanvas telemetry get --workflow ${contract.workflow_id} --repo .`,
     "- Terminal snapshot when you know the active terminal ID: termcanvas telemetry get --terminal <terminalId>",
     "- Recent events when you need more detail: termcanvas telemetry events --terminal <terminalId> --limit 20",
-    "- Trust `derived_status` and `task_status` as the primary decision signals. Only investigate further when both indicate a problem.",
-    "- Keep waiting when `derived_status=progressing` or `task_status=running`.",
+    "- Keep waiting when telemetry shows recent meaningful progress, `thinking`, `tool_running`, `tool_pending`, or a foreground tool.",
     "- `awaiting_contract` means the model turn finished but `result.json` / `done` is still pending.",
-    "- `stall_candidate` means investigate before retrying or taking over. Query recent telemetry events to confirm the agent is truly stuck.",
+    "- `stall_candidate` means investigate before retrying or taking over.",
     "- `error` means the agent hit an API error. Check `last_hook_error`: `rate_limit`/`server_error` → wait and retry; `billing_error`/`authentication_failed` → stop, retries won't help; `max_output_tokens` → context too long, retry with compact; `invalid_request` → stop and investigate.",
     "",
     "## Rules",
@@ -454,15 +487,9 @@ export function renderTaskPackageTemplate(contract: HandoffContract): string {
     "- You must write both `result.json` and `done` before finishing.",
     `- Write the done marker JSON to ${contract.artifacts.done_file}; do not write a plain-text path.`,
     "",
-    ...renderPlannerDomainGuideReference(
-      contract.to.role,
-      contract.artifacts.package_dir,
-    ),
-    ...renderEvaluatorVerificationStrategy(contract.to.role),
-    ...renderEvaluatorDomainGuideReference(
-      contract.to.role,
-      contract.artifacts.package_dir,
-    ),
+    ...renderResearcherDomainGuideReference(contract.to.role, contract.artifacts.package_dir),
+    ...renderTesterVerificationStrategy(contract.to.role),
+    ...renderTesterDomainGuideReference(contract.to.role, contract.artifacts.package_dir),
   ];
 
   return lines.join("\n");
@@ -480,7 +507,7 @@ export function writeTaskPackage(contract: HandoffContract): TaskPackagePaths {
     renderTaskPackageTemplate(contract),
     "utf-8",
   );
-  writePlannerGuides(contract);
-  writeEvaluatorGuides(contract);
+  writeResearcherGuides(contract);
+  writeTesterGuides(contract);
   return contract.artifacts;
 }

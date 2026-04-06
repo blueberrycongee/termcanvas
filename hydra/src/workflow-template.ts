@@ -3,6 +3,7 @@ import type { WorkflowFailure } from "./workflow-store.ts";
 import type { AgentType, Handoff } from "./handoff/types.ts";
 import type { ResultContract } from "./protocol.ts";
 import { buildTaskPackageDir } from "./task-package.ts";
+import { getWorkflowDir } from "./workflow-store.ts";
 
 export type WorkflowTemplateName = "single-step" | "planner-implementer-evaluator";
 
@@ -32,7 +33,7 @@ export interface BuildWorkflowTemplatePlanInput {
 }
 
 export interface TemplateAdvanceDecision {
-  outcome: "complete" | "advance" | "loop" | "fail" | "await_approval" | "satisfaction_check";
+  outcome: "complete" | "advance" | "loop" | "fail" | "await_approval" | "intent_confirmation";
   nextHandoffId?: string;
   requeueHandoffIds?: string[];
   failure?: WorkflowFailure;
@@ -42,12 +43,50 @@ function resultFile(repoPath: string, workflowId: string, handoffId: string): st
   return path.join(buildTaskPackageDir(repoPath, workflowId, handoffId), "result.json");
 }
 
-export function plannerControlPlanFile(
+export function researchBriefFile(
   repoPath: string,
   workflowId: string,
   handoffId: string,
 ): string {
-  return path.join(buildTaskPackageDir(repoPath, workflowId, handoffId), "current-plan.json");
+  return path.join(buildTaskPackageDir(repoPath, workflowId, handoffId), "research-brief.md");
+}
+
+export function implementationBriefFile(
+  repoPath: string,
+  workflowId: string,
+  handoffId: string,
+): string {
+  return path.join(buildTaskPackageDir(repoPath, workflowId, handoffId), "implementation-brief.md");
+}
+
+export function verificationBriefFile(
+  repoPath: string,
+  workflowId: string,
+  handoffId: string,
+): string {
+  return path.join(buildTaskPackageDir(repoPath, workflowId, handoffId), "verification-brief.md");
+}
+
+export function approvalRequestFile(
+  repoPath: string,
+  workflowId: string,
+  handoffId: string,
+): string {
+  return path.join(buildTaskPackageDir(repoPath, workflowId, handoffId), "approval-request.md");
+}
+
+export function approvedResearchResultFile(
+  repoPath: string,
+  workflowId: string,
+): string {
+  return path.join(getWorkflowDir(repoPath, workflowId), "approved-research.json");
+}
+
+export function approvedResearchBriefFile(
+  repoPath: string,
+  workflowId: string,
+): string {
+  return path.join(getWorkflowDir(repoPath, workflowId), "approved-research-brief.md");
 }
 
 export function buildWorkflowTemplatePlan(
@@ -90,58 +129,53 @@ export function buildWorkflowTemplatePlan(
     };
   }
 
-  const [plannerId, implementerId, evaluatorId] = input.handoffIds;
-  const plannerResult = plannerControlPlanFile(input.repoPath, input.workflowId, plannerId);
+  const [researcherId, implementerId, testerId] = input.handoffIds;
+  const approvedResearchResult = approvedResearchResultFile(input.repoPath, input.workflowId);
+  const approvedResearchBrief = approvedResearchBriefFile(input.repoPath, input.workflowId);
   const implementerResult = resultFile(input.repoPath, input.workflowId, implementerId);
-  const evaluatorResult = resultFile(input.repoPath, input.workflowId, evaluatorId);
+  const implementationBrief = implementationBriefFile(input.repoPath, input.workflowId, implementerId);
+  const testerResult = resultFile(input.repoPath, input.workflowId, testerId);
+  const testerBrief = verificationBriefFile(input.repoPath, input.workflowId, testerId);
+  const researcherBrief = researchBriefFile(input.repoPath, input.workflowId, researcherId);
+  const researcherApprovalRequest = approvalRequestFile(input.repoPath, input.workflowId, researcherId);
 
   return {
     template: input.template,
-    startHandoffId: plannerId,
+    startHandoffId: researcherId,
     handoffs: [
       {
-        id: plannerId,
+        id: researcherId,
         from: {
-          role: "planner",
+          role: "researcher",
           agent_type: input.plannerAgentType,
           agent_id: "hydra-run",
         },
         to: {
-          role: "planner",
+          role: "researcher",
           agent_type: input.plannerAgentType,
           agent_id: null,
         },
         task: {
-          type: "workflow-plan",
-          title: `Plan: ${input.task.slice(0, 72)}`,
+          type: "workflow-research",
+          title: `Research: ${input.task.slice(0, 68)}`,
           description: [
-            "You are a senior architect. Before proposing any solution, you must first understand the problem space. Users often give vague or incomplete descriptions — your job is to discover what actually needs to change.",
+            "You are the workflow researcher. Your job is to define the real problem before implementation begins.",
             "",
             `Task: ${input.task}`,
             "",
-            "Your output MUST contain these three sections in order:",
+            "Investigate the current codebase, architecture, and affected components. Determine whether the system can support this work directly or whether structural technical debt changes the strategy.",
             "",
-            "## Problems Found",
-            "Investigate the current codebase and list concrete problems you discover — not just what the user described, but what you find through systematic examination. Look for:",
-            "- Anti-patterns (dead code paths, unreachable states, misleading interfaces)",
-            "- Inconsistencies (naming, structure, behavior that contradicts conventions)",
-            "- Regression risks (fragile dependencies, broken invariants)",
-            "- Missing functionality the user likely expects but didn't explicitly request",
-            "",
-            "## Constraints",
-            "Convert your findings into verifiable rules that the implementer must follow and the evaluator can check. Each constraint should be a concrete, testable statement — not a vague guideline. Examples: 'no UI element may lead to an empty state', 'every state transition must have a visual indicator ≥150ms', 'existing API contracts must not change'.",
-            "",
-            "## Implementation Plan",
-            "List the concrete steps to execute under the above constraints. Each step should reference which problems it solves and which constraints it must satisfy.",
-            "",
-            `Hand off to ${implementerId} once the plan is concrete and actionable.`,
+            `Write your structured handoff brief to ${researcherBrief}.`,
+            `If you discover a blocker that would require a user-approved strategy change, also write ${researcherApprovalRequest}.`,
+            `When the research handoff is complete, point next_action.handoff_id to ${implementerId}; Hydra will pause for user approval before implementation starts.`,
           ].join("\n"),
           acceptance_criteria: [
-            "List specific problems discovered through investigation, not just restated from the task",
-            "Define verifiable constraints derived from the problems found",
-            "Provide implementation steps that reference which problems and constraints they address",
-            "Call out regression risks and how to mitigate them",
-            `Use next_action.handoff_id=${implementerId} when implementation should start`,
+            "Produce research-brief.md with Intent, Success Criteria, Current Reality, Problems Found, Architecture & Component Impact, Structural Risks / Technical Debt, Constraints, Unknowns / Assumptions, Verification Focus, Recommended Direction, and Decision",
+            "Investigate the impacted architecture and component boundaries instead of restating the task",
+            "Call out structural blockers that would require user confirmation before implementation",
+            "Keep the result actionable for the implementer and tester",
+            `Write ${path.basename(researcherBrief)} before finishing`,
+            `Use next_action.handoff_id=${implementerId} when the research handoff is complete`,
           ],
           skills: ["writing-plans"],
         },
@@ -150,15 +184,19 @@ export function buildWorkflowTemplatePlan(
           previous_handoffs: [],
           shared_state: {
             downstream_handoff_id: implementerId,
+            approved_research_result_file: approvedResearchResult,
+            approved_research_brief_file: approvedResearchBrief,
+            research_brief_file: researcherBrief,
+            approval_request_file: researcherApprovalRequest,
           },
         },
       },
       {
         id: implementerId,
         from: {
-          role: "planner",
+          role: "researcher",
           agent_type: input.plannerAgentType,
-          agent_id: plannerId,
+          agent_id: researcherId,
         },
         to: {
           role: "implementer",
@@ -167,85 +205,97 @@ export function buildWorkflowTemplatePlan(
         },
         task: {
           type: "workflow-implementation",
-          title: `Implement: ${input.task.slice(0, 68)}`,
+          title: `Implement: ${input.task.slice(0, 66)}`,
           description: [
-            "Implement the requested task using the planner output as the controlling plan.",
+            "Implement the task using only the approved research snapshot as the controlling input.",
             `Primary task: ${input.task}`,
-            `The evaluator findings file may appear at ${evaluatorResult}; if it exists, treat it as mandatory remediation input.`,
-            `Hand off to ${evaluatorId} when the implementation and evidence are ready.`,
+            `Read the approved research result at ${approvedResearchResult} and the approved research brief at ${approvedResearchBrief}.`,
+            `Write your implementation handoff brief to ${implementationBrief}.`,
+            `If the approved research assumptions fail in the real code, set success=true, replan=true, and hand off back to ${researcherId}.`,
+            `When implementation is ready for verification, hand off to ${testerId}.`,
           ].join("\n"),
           acceptance_criteria: [
-            "Implement the planned changes without test hacking",
-            "Leave concrete evidence for the evaluator",
-            `Use next_action.handoff_id=${evaluatorId} when evaluation should start`,
+            "Implement the requested change without test hacking",
+            "Use the approved research snapshot as the controlling brief",
+            "If research assumptions fail, surface a replan instead of forcing a broken implementation",
+            `Write ${path.basename(implementationBrief)} before finishing`,
+            `Use next_action.handoff_id=${testerId} when verification should start`,
+            `Use next_action.handoff_id=${researcherId} with replan=true when the approved research is no longer valid`,
           ],
           skills: ["test-driven-development", "verification-before-completion"],
         },
         context: {
-          files: [plannerResult, evaluatorResult],
-          previous_handoffs: [plannerId, evaluatorId],
+          files: [
+            approvedResearchResult,
+            approvedResearchBrief,
+            testerResult,
+            testerBrief,
+          ],
+          previous_handoffs: [researcherId, testerId],
           shared_state: {
-            downstream_handoff_id: evaluatorId,
-            planner_result_file: plannerResult,
-            evaluator_result_file: evaluatorResult,
+            downstream_handoff_id: testerId,
+            approved_research_result_file: approvedResearchResult,
+            approved_research_brief_file: approvedResearchBrief,
+            tester_result_file: testerResult,
+            verification_brief_file: testerBrief,
+            implementation_brief_file: implementationBrief,
+            replan_handoff_id: researcherId,
           },
         },
       },
       {
-        id: evaluatorId,
+        id: testerId,
         from: {
           role: "implementer",
           agent_type: input.implementerAgentType,
           agent_id: implementerId,
         },
         to: {
-          role: "evaluator",
+          role: "tester",
           agent_type: input.evaluatorAgentType,
           agent_id: null,
         },
         task: {
-          type: "workflow-evaluation",
-          title: `Evaluate: ${input.task.slice(0, 70)}`,
+          type: "workflow-verification",
+          title: `Verify: ${input.task.slice(0, 68)}`,
           description: [
-            "You are a senior engineer performing a thorough evaluation. Passing CI is the bare minimum — the implementer should have already ensured that. Your job is to catch what CI cannot.",
+            "You are the workflow tester. Validate the implementation against the approved research snapshot and the actual code changes.",
             "",
-            "Start by running the test suite and build to establish a baseline. If either fails, stop and report immediately. But when CI passes, your real work begins:",
+            "Start with the baseline checks (tests/build/runtime). Then verify the approved constraints, regression risks, and the implementer's claims with concrete evidence.",
             "",
-            "1. **Constraint verification** — Read the planner's Constraints section. Verify each constraint with concrete evidence. A constraint without a verification result is an incomplete evaluation.",
-            "2. **Problem resolution** — Read the planner's Problems Found section. Verify each problem was actually addressed by the implementation, not just worked around or ignored.",
-            "3. **Regression check** — Review the git diff. For each changed file, verify that existing functionality in that area still works. Regressions in unchanged behavior are blocking defects.",
-            "4. **Implementation honesty** — Look for stub functions, empty catch blocks, hardcoded values standing in for real logic, TODO/FIXME left as actual behavior, and mock implementations disguised as production code.",
-            "5. **Code health** — Is the code maintainable and easy to reason about? Flag over-engineering (unnecessary abstractions, premature generalization), under-engineering (copy-paste duplication, magic numbers), and poor naming that obscures intent.",
-            "6. **New anti-patterns** — Did the implementation introduce problems that didn't exist before? An improvement that creates new issues is not an improvement.",
-            "",
-            "## Evaluation Rules",
-            "",
-            "- **Form your own assessment first.** Examine the code and run verifications BEFORE reading the implementer's result.json summary. The implementer's narrative will bias your judgment toward confirming their claims. Read code, run tests, check the browser — then compare your findings with the implementer's claims. Discrepancies are red flags.",
-            "- **No evidence, no pass.** Every check above must cite concrete evidence (test output, command output, file paths with line numbers, screenshots). If you cannot produce evidence that a check passes, it does not pass. An unverified check is a failed check.",
-            "- **Default to skepticism.** A false pass is strictly worse than a false fail. A false fail loops back for another attempt — the implementer gets to fix it. A false pass ships broken work. When in doubt, fail.",
-            "",
-            `If blocking issues remain, set success=false and hand off back to ${implementerId}.`,
-            `If the work passes evaluation, set success=true and next_action.type=complete.`,
-            "Include a `verification` object in result.json reporting what you checked at each tier so the implementer can act on specific findings.",
+            `Read the approved research result at ${approvedResearchResult}, the approved research brief at ${approvedResearchBrief}, the implementer result at ${implementerResult}, and the implementation brief at ${implementationBrief}.`,
+            `Write your verification handoff brief to ${testerBrief}.`,
+            `If blocking issues remain, set success=true and hand off to ${implementerId}.`,
+            `If the work passes verification, set success=true and hand off to ${researcherId} for intent confirmation.`,
           ].join("\n"),
           acceptance_criteria: [
-            "Run the test suite and build as a baseline — report immediately if either fails",
-            "Verify every constraint from the planner's Constraints section with evidence",
-            "Verify every problem from the planner's Problems Found section was addressed",
-            "Check git diff for regressions in each changed file's existing functionality",
-            "Flag any new anti-patterns introduced by the changes",
-            "Report issues with concrete evidence (file paths, code snippets, command output)",
+            "Run baseline verification before declaring success",
+            "Check the implementation against the approved constraints and verification focus",
+            "Verify regressions in the changed areas with evidence",
+            "Compare implementer claims with code/runtime reality",
+            `Write ${path.basename(testerBrief)} before finishing`,
+            "Include a verification object in result.json",
             `Use next_action.handoff_id=${implementerId} when issues must go back to implementation`,
+            `Use next_action.handoff_id=${researcherId} when verification passes and intent confirmation should start`,
           ],
           skills: ["qa", "requesting-code-review", "verification-before-completion"],
         },
         context: {
-          files: [plannerResult, implementerResult],
-          previous_handoffs: [plannerId, implementerId],
+          files: [
+            approvedResearchResult,
+            approvedResearchBrief,
+            implementerResult,
+            implementationBrief,
+          ],
+          previous_handoffs: [researcherId, implementerId],
           shared_state: {
             remediation_handoff_id: implementerId,
-            planner_result_file: plannerResult,
+            intent_confirmation_handoff_id: researcherId,
+            approved_research_result_file: approvedResearchResult,
+            approved_research_brief_file: approvedResearchBrief,
             implementer_result_file: implementerResult,
+            implementation_brief_file: implementationBrief,
+            verification_brief_file: testerBrief,
           },
         },
       },
@@ -257,8 +307,8 @@ export function resolveTemplateAdvance(
   template: WorkflowTemplateName,
   handoffIds: string[],
   currentHandoffId: string,
-  result: Pick<ResultContract, "success" | "summary" | "next_action" | "satisfaction" | "replan">,
-  options?: { approvePlan?: boolean; isSatisfactionCheck?: boolean },
+  result: Pick<ResultContract, "success" | "summary" | "next_action" | "replan">,
+  options?: { currentTaskType?: string },
 ): TemplateAdvanceDecision {
   if (template === "single-step") {
     if (result.success) {
@@ -286,48 +336,84 @@ export function resolveTemplateAdvance(
     };
   }
 
+  const [researcherId, implementerId, testerId] = handoffIds;
+  const currentTaskType = options?.currentTaskType;
+
   if (currentIndex === 0) {
-    const isSatisfactionCheck = options?.isSatisfactionCheck ?? false;
-    if (isSatisfactionCheck) {
-      if (typeof result.satisfaction !== "boolean") {
+    if (currentTaskType === "workflow-intent-confirmation") {
+      if (!result.success) {
         return {
           outcome: "fail",
           failure: {
-            code: "WORKFLOW_INVALID_PLANNER_SATISFACTION",
-            message: "Planner satisfaction check must include a boolean satisfaction field.",
+            code: "WORKFLOW_INTENT_CONFIRMATION_FAILED",
+            message: result.summary,
             stage: "workflow.template",
           },
         };
       }
-      if (result.satisfaction) {
+
+      if (result.next_action.type === "complete") {
         return { outcome: "complete" };
       }
-      if (typeof result.replan !== "boolean") {
+
+      const requested = result.next_action.handoff_id;
+      if (result.next_action.type !== "handoff" || !requested) {
         return {
           outcome: "fail",
           failure: {
-            code: "WORKFLOW_INVALID_PLANNER_SATISFACTION",
-            message: "Planner satisfaction check must include a boolean replan field when satisfaction=false.",
+            code: "WORKFLOW_INVALID_INTENT_CONFIRMATION_ACTION",
+            message: "Intent confirmation must either complete or hand off to implementer/researcher.",
             stage: "workflow.template",
           },
         };
       }
-      if (result.replan) {
+
+      if (requested === researcherId) {
+        if (result.replan !== true) {
+          return {
+            outcome: "fail",
+            failure: {
+              code: "WORKFLOW_INVALID_REPLAN_SIGNAL",
+              message: "Intent confirmation may only hand off back to researcher when replan=true.",
+              stage: "workflow.template",
+            },
+          };
+        }
         return {
           outcome: "loop",
-          nextHandoffId: handoffIds[0],
-          requeueHandoffIds: [...handoffIds],
+          nextHandoffId: researcherId,
+          requeueHandoffIds: [researcherId, implementerId, testerId],
         };
       }
+
+      if (requested === implementerId) {
+        if (result.replan === true) {
+          return {
+            outcome: "fail",
+            failure: {
+              code: "WORKFLOW_INVALID_REPLAN_SIGNAL",
+              message: "Intent confirmation cannot send work back to implementer with replan=true.",
+              stage: "workflow.template",
+            },
+          };
+        }
+        return {
+          outcome: "loop",
+          nextHandoffId: implementerId,
+          requeueHandoffIds: [implementerId, testerId],
+        };
+      }
+
       return {
-        outcome: "loop",
-        nextHandoffId: handoffIds[1],
-        requeueHandoffIds: [handoffIds[1], handoffIds[2]],
+        outcome: "fail",
+        failure: {
+          code: "WORKFLOW_INVALID_INTENT_CONFIRMATION_TARGET",
+          message: `Intent confirmation attempted to hand off to unexpected target: ${requested}`,
+          stage: "workflow.template",
+        },
       };
     }
-  }
 
-  if (currentIndex < 2) {
     if (!result.success) {
       return {
         outcome: "fail",
@@ -338,42 +424,151 @@ export function resolveTemplateAdvance(
         },
       };
     }
-    if (currentIndex === 0 && options?.approvePlan) {
+
+    if (result.next_action.type !== "handoff") {
       return {
-        outcome: "await_approval",
-        nextHandoffId: handoffIds[1],
+        outcome: "fail",
+        failure: {
+          code: "WORKFLOW_INVALID_RESEARCHER_ACTION",
+          message: "Researcher must hand off to implementer before approval.",
+          stage: "workflow.template",
+        },
       };
     }
+
+    const researcherTarget = result.next_action.handoff_id;
+    if (researcherTarget !== implementerId) {
+      return {
+        outcome: "fail",
+        failure: {
+          code: "WORKFLOW_INVALID_RESEARCHER_TARGET",
+          message: `Researcher attempted to hand off to unexpected target: ${researcherTarget ?? "<none>"}`,
+          stage: "workflow.template",
+        },
+      };
+    }
+
+    return {
+      outcome: "await_approval",
+      nextHandoffId: implementerId,
+    };
+  }
+
+  if (currentIndex === 1) {
+    if (!result.success) {
+      return {
+        outcome: "fail",
+        failure: {
+          code: "WORKFLOW_TEMPLATE_STAGE_FAILED",
+          message: result.summary,
+          stage: "workflow.template",
+        },
+      };
+    }
+
+    const requested = result.next_action.handoff_id;
+    if (requested === researcherId) {
+      if (result.replan !== true) {
+        return {
+          outcome: "fail",
+          failure: {
+            code: "WORKFLOW_INVALID_REPLAN_SIGNAL",
+            message: "Implementer may only hand off to researcher when replan=true.",
+            stage: "workflow.template",
+          },
+        };
+      }
+      return {
+        outcome: "loop",
+        nextHandoffId: researcherId,
+        requeueHandoffIds: [researcherId, implementerId],
+      };
+    }
+
+    if (result.next_action.type !== "handoff") {
+      return {
+        outcome: "fail",
+        failure: {
+          code: "WORKFLOW_INVALID_IMPLEMENTER_ACTION",
+          message: "Implementer must hand off either to tester or back to researcher.",
+          stage: "workflow.template",
+        },
+      };
+    }
+
+    const implementerTarget = requested ?? testerId;
+    if (implementerTarget !== testerId) {
+      return {
+        outcome: "fail",
+        failure: {
+          code: "WORKFLOW_INVALID_IMPLEMENTER_TARGET",
+          message: `Implementer attempted to hand off to unexpected target: ${implementerTarget}`,
+          stage: "workflow.template",
+        },
+      };
+    }
+
     return {
       outcome: "advance",
-      nextHandoffId: handoffIds[currentIndex + 1],
+      nextHandoffId: testerId,
     };
   }
 
-  if (result.success) {
-    return {
-      outcome: "satisfaction_check",
-      nextHandoffId: handoffIds[0],
-      requeueHandoffIds: [handoffIds[0]],
-    };
-  }
-
-  const implementerId = handoffIds[1];
-  const requested = result.next_action.handoff_id ?? implementerId;
-  if (requested !== implementerId) {
+  if (!result.success) {
     return {
       outcome: "fail",
       failure: {
-        code: "WORKFLOW_INVALID_EVALUATOR_LOOP",
-        message: `Evaluator attempted to hand off to unexpected target: ${requested}`,
+        code: "WORKFLOW_TEMPLATE_STAGE_FAILED",
+        message: result.summary,
         stage: "workflow.template",
       },
     };
   }
 
+  if (result.next_action.type !== "handoff") {
+    return {
+      outcome: "fail",
+      failure: {
+        code: "WORKFLOW_INVALID_TESTER_ACTION",
+        message: "Tester must hand off either to implementer or back to researcher for intent confirmation.",
+        stage: "workflow.template",
+      },
+    };
+  }
+
+  const testerTarget = result.next_action.handoff_id;
+  if (testerTarget === implementerId) {
+    return {
+      outcome: "loop",
+      nextHandoffId: implementerId,
+      requeueHandoffIds: [implementerId, testerId],
+    };
+  }
+
+  if (testerTarget === researcherId) {
+    if (result.replan === true) {
+      return {
+        outcome: "fail",
+        failure: {
+          code: "WORKFLOW_INVALID_TESTER_REPLAN",
+          message: "Tester cannot trigger a replan directly; it must hand off to researcher for intent confirmation.",
+          stage: "workflow.template",
+        },
+      };
+    }
+    return {
+      outcome: "intent_confirmation",
+      nextHandoffId: researcherId,
+      requeueHandoffIds: [researcherId],
+    };
+  }
+
   return {
-    outcome: "loop",
-    nextHandoffId: implementerId,
-    requeueHandoffIds: [implementerId, handoffIds[2]],
+    outcome: "fail",
+    failure: {
+      code: "WORKFLOW_INVALID_TESTER_TARGET",
+      message: `Tester attempted to hand off to unexpected target: ${testerTarget}`,
+      stage: "workflow.template",
+    },
   };
 }

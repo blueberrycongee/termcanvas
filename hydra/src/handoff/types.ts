@@ -10,6 +10,7 @@ export type AgentRole =
   | "planner"
   | "implementer"
   | "evaluator"
+  | "tester"
   | "reviewer"
   | "integrator"
   | "researcher";

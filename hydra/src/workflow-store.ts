@@ -4,7 +4,14 @@ import type { AgentType } from "./handoff/types.ts";
 import type { ChallengeState } from "./challenge.ts";
 import type { ResultContract } from "./protocol.ts";
 
-export type WorkflowStatus = "pending" | "running" | "challenging" | "waiting_for_approval" | "completed" | "failed";
+export type WorkflowStatus =
+  | "pending"
+  | "running"
+  | "challenging"
+  | "waiting_for_approval"
+  | "waiting_for_challenge_decision"
+  | "completed"
+  | "failed";
 
 export interface WorkflowFailure {
   code: string;
@@ -30,12 +37,15 @@ export interface WorkflowRecord {
   handoff_ids: string[];
   timeout_minutes: number;
   max_retries: number;
-  satisfaction_iteration?: number;
-  max_satisfaction_iterations?: number;
+  confirmation_iteration?: number;
+  max_confirmation_iterations?: number;
   auto_approve: boolean;
   approve_plan?: boolean;
+  challenge_request?: {
+    source_handoff_id: string;
+    requested_at: string;
+  };
   challenge?: ChallengeState;
-  challenge_completed?: boolean;
   result?: ResultContract;
   failure?: WorkflowFailure;
 }

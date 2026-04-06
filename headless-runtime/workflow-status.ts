@@ -8,7 +8,9 @@ import {
 const ACTIVE_WORKFLOW_STATUSES = new Set<WorkflowStatus>([
   "pending",
   "running",
+  "challenging",
   "waiting_for_approval",
+  "waiting_for_challenge_decision",
 ]);
 
 export interface ActiveWorkflowSummary {

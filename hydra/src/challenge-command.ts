@@ -1,24 +1,24 @@
 import path from "node:path";
-import { approveWorkflow } from "./workflow.ts";
+import { requestWorkflowChallenge } from "./workflow.ts";
 
-export interface ApproveArgs {
+export interface ChallengeArgs {
   repo: string;
   workflow: string;
 }
 
-function printApproveUsage(): never {
-  console.log("Usage: hydra approve --repo <path> --workflow <id>");
+function printChallengeUsage(): never {
+  console.log("Usage: hydra challenge --repo <path> --workflow <id>");
   console.log("");
-  console.log("Approve the current research output and continue to implementation.");
+  console.log("Request an explicit challenge at the current workflow boundary.");
   process.exit(0);
 }
 
-export function parseApproveArgs(args: string[]): ApproveArgs {
+export function parseChallengeArgs(args: string[]): ChallengeArgs {
   if (args.includes("--help") || args.includes("-h")) {
-    printApproveUsage();
+    printChallengeUsage();
   }
 
-  const result: Partial<ApproveArgs> = {};
+  const result: Partial<ChallengeArgs> = {};
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--repo" && i + 1 < args.length) {
@@ -30,12 +30,12 @@ export function parseApproveArgs(args: string[]): ApproveArgs {
 
   if (!result.repo) throw new Error("Missing required flag: --repo");
   if (!result.workflow) throw new Error("Missing required flag: --workflow");
-  return result as ApproveArgs;
+  return result as ChallengeArgs;
 }
 
-export async function approve(args: string[]): Promise<void> {
-  const parsed = parseApproveArgs(args);
-  const result = await approveWorkflow({
+export async function challenge(args: string[]): Promise<void> {
+  const parsed = parseChallengeArgs(args);
+  const result = await requestWorkflowChallenge({
     repoPath: path.resolve(parsed.repo),
     workflowId: parsed.workflow,
   });

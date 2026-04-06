@@ -86,6 +86,17 @@ test("validateHandoffContract accepts a valid v2 contract", () => {
   assert.equal(handoff.artifacts.done_file, "/tmp/hydra/workflow-xyz/handoff-abc123/done");
 });
 
+test("validateHandoffContract accepts the new researcher/tester roles", () => {
+  const handoff = buildValidHandoff();
+  handoff.from.role = "researcher";
+  handoff.to.role = "tester";
+
+  const validated = validateHandoffContract(handoff);
+
+  assert.equal(validated.from.role, "researcher");
+  assert.equal(validated.to.role, "tester");
+});
+
 test("validateHandoffContract rejects missing required fields", () => {
   const invalid = buildValidHandoff();
   delete (invalid as Partial<typeof invalid>).workflow_id;

@@ -10,6 +10,8 @@ import {
   tickWorkflow,
   watchWorkflow,
 } from "../src/workflow.ts";
+import { parseChallengeArgs } from "../src/challenge-command.ts";
+import { parseResolveChallengeArgs } from "../src/resolve-challenge.ts";
 import { parseRunArgs } from "../src/run.ts";
 import { parseWatchArgs } from "../src/watch.ts";
 import { writeDoneMarker, writeResultContract } from "../src/collector.ts";
@@ -24,7 +26,7 @@ function createRepoFixture() {
   };
 }
 
-test("parseRunArgs and parseWatchArgs read the orchestration CLI flags", () => {
+test("parseRunArgs, parseWatchArgs, and challenge commands read orchestration CLI flags", () => {
   assert.deepEqual(
     parseRunArgs([
       "--task", "Implement the workflow",
@@ -63,6 +65,32 @@ test("parseRunArgs and parseWatchArgs read the orchestration CLI flags", () => {
       workflow: "workflow-123",
       intervalMs: 250,
       timeoutMs: 2000,
+    },
+  );
+
+  assert.deepEqual(
+    parseChallengeArgs([
+      "--repo", "/repo/project",
+      "--workflow", "workflow-123",
+    ]),
+    {
+      repo: "/repo/project",
+      workflow: "workflow-123",
+    },
+  );
+
+  assert.deepEqual(
+    parseResolveChallengeArgs([
+      "--repo", "/repo/project",
+      "--workflow", "workflow-123",
+      "--decision", "send_back",
+      "--to", "implementer",
+    ]),
+    {
+      repo: "/repo/project",
+      workflow: "workflow-123",
+      decision: "send_back",
+      to: "implementer",
     },
   );
 });

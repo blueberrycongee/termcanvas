@@ -23,7 +23,7 @@ test("resolveDefaultAgentType inherits the current terminal type before falling 
     resolveDefaultAgentType({ TERMCANVAS_TERMINAL_TYPE: "claude" }),
     "claude",
   );
-  assert.equal(resolveDefaultAgentType({}), "codex");
+  assert.equal(resolveDefaultAgentType({}), "claude");
 });
 
 test("resolveWorkflowAgentTypes supports all-type defaults with per-role overrides", () => {
@@ -48,5 +48,5 @@ test("resolveWorkerAgentType inherits the current terminal type when unset", () 
     resolveWorkerAgentType({}, { TERMCANVAS_TERMINAL_TYPE: "gemini" }),
     "gemini",
   );
-  assert.equal(resolveWorkerAgentType({}, {}), "codex");
+  assert.equal(resolveWorkerAgentType({}, {}), "claude");
 });

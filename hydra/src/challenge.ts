@@ -8,6 +8,8 @@ import {
   type DispatchCreateOnlyResult,
 } from "./dispatcher.ts";
 
+// ── Types ──
+
 export interface ChallengeWorker {
   id: string;
   methodology: string;
@@ -18,10 +20,42 @@ export interface ChallengeWorker {
   done_file: string;
 }
 
+export type ChallengeStage =
+  | "researcher"
+  | "implementer"
+  | "tester"
+  | "intent_confirmation";
+
+export interface ChallengeContextFile {
+  label: string;
+  path: string;
+}
+
+export interface ChallengeContinueTarget {
+  outcome: "await_approval" | "advance" | "loop" | "intent_confirmation" | "complete";
+  next_handoff_id?: string;
+  requeue_handoff_ids?: string[];
+}
+
+export interface ChallengeReturnTarget {
+  role: "researcher" | "implementer" | "tester";
+  handoff_id: string;
+  requeue_handoff_ids: string[];
+  mode: "reuse" | "replan";
+  description: string;
+}
+
 export interface ChallengeState {
   workers: ChallengeWorker[];
   started_at: string;
-  evaluator_handoff_id: string;
+  source_handoff_id: string;
+  source_stage: ChallengeStage;
+  continue_target: ChallengeContinueTarget;
+  return_targets: ChallengeReturnTarget[];
+  context_files: ChallengeContextFile[];
+  decision?: ChallengeDecision;
+  report_file?: string;
+  completed_at?: string;
 }
 
 export interface ChallengeFinding {
@@ -36,91 +70,192 @@ export interface ChallengeDecision {
   summary: string;
 }
 
-const METHODOLOGIES = [
-  {
-    id: "missed-failures",
-    name: "Missed Failures",
-    prompt: [
-      "You are an adversarial code reviewer. Your sole task: find specific, concrete scenarios where the implementation FAILS that the evaluator did not catch.",
-      "",
-      "Do not review abstractly. For each finding:",
-      "1. Describe the exact scenario (input, state, sequence of actions)",
-      "2. Explain what goes wrong (crash, wrong output, data corruption, UI break)",
-      "3. Verify by reading the code path or testing in the browser with `browse`",
-      "",
-      "Focus on: error paths, concurrent operations, empty/null/boundary inputs, permission edge cases, and interactions between changed and unchanged code.",
-      "",
-      "If you cannot find real failures, say so honestly. Do not invent problems.",
-    ].join("\n"),
-  },
-  {
-    id: "assumption-audit",
-    name: "Assumption Audit",
-    prompt: [
-      "You are an adversarial code reviewer. Your sole task: identify every assumption the evaluator made when declaring success, then assess which are UNJUSTIFIED.",
-      "",
-      "Read the evaluator's verification results carefully. For each check they claim passed, ask:",
-      "1. Did they actually test this, or did they assume it from reading code?",
-      "2. Did they test the right thing, or a superficial proxy?",
-      "3. Did they test with realistic data, or trivial/empty inputs?",
-      "4. Did they verify the negative case (what happens when it should fail)?",
-      "",
-      "An assumption is unjustified if the evaluator's evidence does not support it. Rank from most dangerous to least dangerous.",
-    ].join("\n"),
-  },
-  {
-    id: "edge-cases",
-    name: "Edge Cases",
-    prompt: [
-      "You are an adversarial code reviewer. Your sole task: push every changed code path to its boundary conditions and see what breaks.",
-      "",
-      "For each significant change in the implementation:",
-      "1. What happens with zero items? One item? Thousands of items?",
-      "2. What happens with the longest possible string? Empty string? Unicode/emoji?",
-      "3. What happens when the network is slow, the disk is full, or a dependency throws?",
-      "4. What happens when two users do the same thing simultaneously?",
-      "5. What happens at the exact boundary of any conditional (off-by-one, fence-post)?",
-      "",
-      "Use `browse` to test UI edge cases in a real browser. Use the test suite to verify backend edge cases. Do not speculate — verify.",
-    ].join("\n"),
-  },
-  {
-    id: "regression-hunter",
-    name: "Regression Hunter",
-    prompt: [
-      "You are an adversarial code reviewer. Your sole task: find regressions — things that USED TO WORK but are now broken because of the implementation changes.",
-      "",
-      "Strategy:",
-      "1. Run `git diff` to see every file that changed",
-      "2. For each changed file, identify the EXISTING functionality (not the new feature)",
-      "3. Verify that existing functionality still works by testing it",
-      "4. Pay special attention to: shared utilities that got modified, CSS changes that affect other components, API changes that have other callers, state management changes that affect other flows",
-      "",
-      "Use `browse` to test any UI regression visually. Check the test suite for existing tests that might now be subtly wrong.",
-      "",
-      "Regressions in unchanged behavior are the most critical findings.",
-    ].join("\n"),
-  },
-] as const;
+// ── Methodologies ──
+
+interface ChallengeMethodology {
+  id: string;
+  name: string;
+  prompt: string;
+}
+
+function buildMethodologies(stage: ChallengeStage): ChallengeMethodology[] {
+  if (stage === "researcher") {
+    return [
+      {
+        id: "scope-blindspots",
+        name: "Scope Blindspots",
+        prompt: [
+          "You are an adversarial reviewer of the current research conclusion.",
+          "Find scope, requirement, or impact gaps that could make the proposed transition unsafe.",
+          "",
+          "For each finding:",
+          "1. State the exact assumption or omission",
+          "2. Explain what downstream work would break because of it",
+          "3. Cite the relevant code, spec, or brief evidence",
+        ].join("\n"),
+      },
+      {
+        id: "assumption-audit",
+        name: "Assumption Audit",
+        prompt: [
+          "Identify the assumptions behind the current research conclusion and rank the ones that are least supported.",
+          "Focus on architecture support, technical-debt blockers, compatibility assumptions, and non-goals that may actually be required.",
+        ].join("\n"),
+      },
+      {
+        id: "architecture-stress",
+        name: "Architecture Stress",
+        prompt: [
+          "Stress-test the claimed architecture/component impact.",
+          "Find subsystems, ownership boundaries, migrations, or shared abstractions that the current research underestimates.",
+        ].join("\n"),
+      },
+      {
+        id: "downstream-risk",
+        name: "Downstream Risk",
+        prompt: [
+          "Look one step ahead.",
+          "Ask what is most likely to surprise the next role if the workflow continues on the proposed path.",
+          "Surface hidden blockers, missing verification focus, and places where implementation would likely force a replan.",
+        ].join("\n"),
+      },
+    ];
+  }
+
+  if (stage === "implementer") {
+    return [
+      {
+        id: "implementation-failures",
+        name: "Implementation Failures",
+        prompt: [
+          "Find concrete scenarios where the implementation path or changed code is likely to fail before verification should begin.",
+          "Verify with code paths, tests, or runtime evidence whenever possible.",
+        ].join("\n"),
+      },
+      {
+        id: "assumption-audit",
+        name: "Assumption Audit",
+        prompt: [
+          "Identify assumptions in the implementation approach that may not hold in the real codebase.",
+          "Focus on coupling, ownership, data flow, and hidden prerequisites.",
+        ].join("\n"),
+      },
+      {
+        id: "edge-pressure",
+        name: "Edge Pressure",
+        prompt: [
+          "Push the changed paths toward boundary conditions and find what the implementer may have missed.",
+          "Check empty states, large inputs, concurrency, latency, and failure paths.",
+        ].join("\n"),
+      },
+      {
+        id: "regression-hunter",
+        name: "Regression Hunter",
+        prompt: [
+          "Find unchanged behaviors most likely to regress because of the implementation changes.",
+          "Prioritize shared code, reused abstractions, and side effects outside the feature path.",
+        ].join("\n"),
+      },
+    ];
+  }
+
+  if (stage === "tester") {
+    return [
+      {
+        id: "missed-failures",
+        name: "Missed Failures",
+        prompt: [
+          "Find specific, concrete scenarios where the implementation fails that the current verification conclusion may have missed.",
+          "Do not speculate without evidence.",
+        ].join("\n"),
+      },
+      {
+        id: "assumption-audit",
+        name: "Assumption Audit",
+        prompt: [
+          "Identify assumptions behind the current verification conclusion and assess which are unjustified.",
+          "Distinguish tested evidence from inferred confidence.",
+        ].join("\n"),
+      },
+      {
+        id: "edge-cases",
+        name: "Edge Cases",
+        prompt: [
+          "Push the changed paths to their boundary conditions and look for failures or missing checks.",
+          "Use browse or tests when they are available.",
+        ].join("\n"),
+      },
+      {
+        id: "regression-hunter",
+        name: "Regression Hunter",
+        prompt: [
+          "Find regressions in existing behavior that the workflow should know about before moving on.",
+          "Shared utilities, styling, APIs, and state changes are high-value targets.",
+        ].join("\n"),
+      },
+    ];
+  }
+
+  return [
+    {
+      id: "intent-gaps",
+      name: "Intent Gaps",
+      prompt: [
+        "Challenge whether the current final conclusion is truly ready to stand.",
+        "Find places where the approved intent, implementation evidence, and verification evidence still do not line up.",
+      ].join("\n"),
+    },
+    {
+      id: "assumption-audit",
+      name: "Assumption Audit",
+      prompt: [
+        "Identify assumptions in the current completion judgment and rank the least supported ones.",
+        "Focus on sign-off confidence, not style.",
+      ].join("\n"),
+    },
+    {
+      id: "edge-pressure",
+      name: "Edge Pressure",
+      prompt: [
+        "Look for high-risk boundary cases that could still invalidate the current completion judgment.",
+      ].join("\n"),
+    },
+    {
+      id: "regression-hunter",
+      name: "Regression Hunter",
+      prompt: [
+        "Search for regressions or second-order effects that would make the current workflow conclusion premature.",
+      ].join("\n"),
+    },
+  ];
+}
+
+// ── Helpers ──
 
 function generateWorkerId(): string {
   return `challenge-${crypto.randomBytes(4).toString("hex")}`;
 }
 
 function renderChallengeTask(
-  methodology: typeof METHODOLOGIES[number],
+  methodology: ChallengeMethodology,
   workflowId: string,
   workerId: string,
-  evaluatorResultFile: string,
-  plannerResultFile: string,
+  stage: ChallengeStage,
+  contextFiles: ChallengeContextFile[],
   resultFile: string,
   doneFile: string,
 ): string {
+  const stageLabel =
+    stage === "intent_confirmation"
+      ? "intent confirmation"
+      : stage;
+
   return [
     "# Challenge Review Task",
     "",
     `Workflow: ${workflowId}`,
     `Worker: ${workerId} (${methodology.name})`,
+    `Stage Boundary: ${stageLabel}`,
     "",
     "## Your Role",
     "",
@@ -128,15 +263,14 @@ function renderChallengeTask(
     "",
     "## Context Files",
     "",
-    `- Evaluator's verification results: ${evaluatorResultFile}`,
-    `- Planner's requirements: ${plannerResultFile}`,
-    "- Run `git diff` to see implementation changes",
+    ...contextFiles.map((file) => `- ${file.label}: ${file.path}`),
+    "- Read the relevant briefs/results before making claims",
     "",
     "## Rules",
     "",
     "- You are READ-ONLY. Do NOT modify any source code.",
     "- You MAY run tests, use `browse`, and read any file.",
-    "- Focus on REAL problems, not style or hypotheticals.",
+    "- Focus on REAL risks in the current proposed transition, not style or hypotheticals.",
     "- Each finding must include concrete evidence (file:line, test output, screenshot).",
     "",
     "## Output Contract",
@@ -174,27 +308,29 @@ function renderChallengeTask(
   ].join("\n");
 }
 
+// ── Spawn ──
+
 export async function spawnChallengeWorkers(
   config: {
     workflowId: string;
     repoPath: string;
     worktreePath: string;
-    evaluatorResultFile: string;
-    plannerResultFile: string;
-    evaluatorHandoffId: string;
+    stage: ChallengeStage;
+    contextFiles: ChallengeContextFile[];
     autoApprove: boolean;
     agentType: AgentType;
     parentTerminalId?: string;
   },
   dispatchCreateOnly: (req: DispatchCreateOnlyRequest) => Promise<DispatchCreateOnlyResult> = defaultDispatchCreateOnly,
-): Promise<ChallengeState> {
+): Promise<ChallengeWorker[]> {
   const challengeDir = path.join(
     path.resolve(config.repoPath),
     ".hydra", "workflows", config.workflowId, "challenge",
   );
   const workers: ChallengeWorker[] = [];
+  const methodologies = buildMethodologies(config.stage);
 
-  for (const methodology of METHODOLOGIES) {
+  for (const methodology of methodologies) {
     const workerId = generateWorkerId();
     const workerDir = path.join(challengeDir, workerId);
     fs.mkdirSync(workerDir, { recursive: true });
@@ -207,8 +343,8 @@ export async function spawnChallengeWorkers(
       methodology,
       config.workflowId,
       workerId,
-      config.evaluatorResultFile,
-      config.plannerResultFile,
+      config.stage,
+      config.contextFiles,
       resultFile,
       doneFile,
     ), "utf-8");
@@ -237,12 +373,10 @@ export async function spawnChallengeWorkers(
     });
   }
 
-  return {
-    workers,
-    started_at: new Date().toISOString(),
-    evaluator_handoff_id: config.evaluatorHandoffId,
-  };
+  return workers;
 }
+
+// ── Collect ──
 
 function parseFindings(raw: unknown): ChallengeFinding[] {
   if (!raw || typeof raw !== "object" || !Array.isArray((raw as any).findings)) {
@@ -289,10 +423,12 @@ export function collectChallengeResults(state: ChallengeState): ChallengeDecisio
     override,
     findings: [...critical, ...significant],
     summary: override
-      ? `Challenge gate OVERRIDE (${countsStr}). Issues the evaluator missed:\n\n${[...critical, ...significant].map((f) => `- [${f.severity}] ${f.point}: ${f.reasoning}`).join("\n")}`
-      : `Challenge gate CONFIRMED (${countsStr}).`,
+      ? `Challenge review recommends SEND BACK (${countsStr}). Independent findings:\n\n${[...critical, ...significant].map((f) => `- [${f.severity}] ${f.point}: ${f.reasoning}`).join("\n")}`
+      : `Challenge review found no send-back reason (${countsStr}).`,
   };
 }
+
+// ── Cleanup ──
 
 export function destroyChallengeTerminals(
   state: ChallengeState,
@@ -302,6 +438,7 @@ export function destroyChallengeTerminals(
     try {
       destroyTerminal(worker.terminal_id);
     } catch {
+      // Terminal may already be dead
     }
   }
 }

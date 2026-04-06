@@ -28,7 +28,7 @@ function createContext(rootDir: string) {
       agent_id: null,
     },
     task: {
-      type: "implement-feature",
+      type: "workflow-implementation",
       title: "Implement the auth workflow",
       description: "Build the new file-contract-driven auth workflow.",
       acceptance_criteria: [
@@ -64,6 +64,8 @@ test("renderTaskPackageTemplate includes skills and output contract rules", () =
   assert.match(content, /test-driven-development/);
   assert.match(content, /verification-before-completion/);
   assert.match(content, /## Input Contract/);
+  assert.match(content, /## Implementation Output/);
+  assert.match(content, /implementation-brief\.md/);
   assert.match(content, /## Output Contract/);
   assert.match(content, /result\.json/);
   assert.match(content, /done/);

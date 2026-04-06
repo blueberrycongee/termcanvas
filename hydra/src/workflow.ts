@@ -17,18 +17,30 @@ import { validateHandoffContract, type ResultContract } from "./protocol.ts";
 import { registerDispatchAttempt, retryTimedOutHandoff } from "./retry.ts";
 import { buildTaskPackageContext, writeTaskPackage } from "./task-package.ts";
 import {
+  approvalRequestFile,
+  approvedResearchBriefFile,
+  approvedResearchResultFile,
   buildWorkflowTemplatePlan,
-  plannerControlPlanFile,
+  implementationBriefFile,
+  researchBriefFile,
   resolveTemplateAdvance,
+  verificationBriefFile,
+  type TemplateAdvanceDecision,
   type WorkflowTemplateName,
 } from "./workflow-template.ts";
 import {
   spawnChallengeWorkers,
   collectChallengeResults,
   destroyChallengeTerminals,
+  type ChallengeContextFile,
+  type ChallengeContinueTarget,
+  type ChallengeReturnTarget,
+  type ChallengeStage,
+  type ChallengeState,
 } from "./challenge.ts";
 import {
   deleteWorkflow,
+  getWorkflowDir,
   loadWorkflow,
   saveWorkflow,
   type WorkflowFailure,
@@ -45,7 +57,7 @@ import {
 import { buildGitWorktreeAddArgs, validateWorktreePath } from "./spawn.ts";
 
 const SPAWN_GRACE_PERIOD_MS = 15_000;
-const DEFAULT_MAX_SATISFACTION_ITERATIONS = 3;
+const DEFAULT_MAX_CONFIRMATION_ITERATIONS = 3;
 
 export interface RunWorkflowOptions {
   task: string;
@@ -74,6 +86,13 @@ export interface WatchWorkflowOptions extends TickWorkflowOptions {
 
 export interface RetryWorkflowOptions extends TickWorkflowOptions {}
 
+export interface RequestWorkflowChallengeOptions extends TickWorkflowOptions {}
+
+export interface ResolveWorkflowChallengeOptions extends TickWorkflowOptions {
+  decision: "continue" | "send_back";
+  to?: "researcher" | "implementer" | "tester";
+}
+
 export interface WorkflowStatusView {
   workflow: WorkflowRecord;
   handoffs: Handoff[];
@@ -85,6 +104,7 @@ export interface WorkflowDependencies {
   sleep?: (ms: number) => Promise<void>;
   syncProject?: (repoPath: string) => void;
   destroyTerminal?: (terminalId: string) => void;
+  /** Returns true if the terminal PTY is alive, false if dead, null if unknown/unavailable. */
   checkTerminalAlive?: (terminalId: string) => boolean | null;
 }
 
@@ -374,224 +394,683 @@ function rewriteHandoffTaskPackage(
   return handoff;
 }
 
-function getPlannerControlPlanPath(workflow: WorkflowRecord): string {
-  const [plannerId] = getPieHandoffIds(workflow);
-  return plannerControlPlanFile(workflow.repo_path, workflow.id, plannerId);
+function getApprovedResearchResultPath(workflow: WorkflowRecord): string {
+  return approvedResearchResultFile(workflow.repo_path, workflow.id);
 }
 
-function persistPlannerControlPlan(
+function getApprovedResearchBriefPath(workflow: WorkflowRecord): string {
+  return approvedResearchBriefFile(workflow.repo_path, workflow.id);
+}
+
+function getResearchBriefPath(workflow: WorkflowRecord): string {
+  const [researcherId] = getPieHandoffIds(workflow);
+  return researchBriefFile(workflow.repo_path, workflow.id, researcherId);
+}
+
+function getApprovalRequestPath(workflow: WorkflowRecord): string {
+  const [researcherId] = getPieHandoffIds(workflow);
+  return approvalRequestFile(workflow.repo_path, workflow.id, researcherId);
+}
+
+function getImplementationBriefPath(workflow: WorkflowRecord): string {
+  const [, implementerId] = getPieHandoffIds(workflow);
+  return implementationBriefFile(workflow.repo_path, workflow.id, implementerId);
+}
+
+function getVerificationBriefPath(workflow: WorkflowRecord): string {
+  const [, , testerId] = getPieHandoffIds(workflow);
+  return verificationBriefFile(workflow.repo_path, workflow.id, testerId);
+}
+
+function persistApprovedResearchSnapshot(
   workflow: WorkflowRecord,
-  plannerHandoff: Handoff,
-): string {
-  if (!plannerHandoff.artifacts) {
-    throw new HydraError(`Planner handoff ${plannerHandoff.id} is missing artifacts`, {
+  researcherHandoff: Handoff,
+): void {
+  if (!researcherHandoff.artifacts) {
+    throw new HydraError(`Researcher handoff ${researcherHandoff.id} is missing artifacts`, {
       errorCode: "WORKFLOW_HANDOFF_MISSING_ARTIFACTS",
-      stage: "workflow.persist_control_plan",
+      stage: "workflow.persist_approved_research",
       ids: {
         workflow_id: workflow.id,
-        handoff_id: plannerHandoff.id,
+        handoff_id: researcherHandoff.id,
       },
     });
   }
 
-  const controlPlanPath = getPlannerControlPlanPath(workflow);
-  fs.copyFileSync(plannerHandoff.artifacts.result_file, controlPlanPath);
-  return controlPlanPath;
+  fs.mkdirSync(getWorkflowDir(workflow.repo_path, workflow.id), { recursive: true });
+  fs.copyFileSync(researcherHandoff.artifacts.result_file, getApprovedResearchResultPath(workflow));
+  fs.copyFileSync(getResearchBriefPath(workflow), getApprovedResearchBriefPath(workflow));
 }
 
-function preparePlannerSatisfactionCheck(
+function existingFiles(...files: string[]): string[] {
+  return files.filter((filePath) => fs.existsSync(filePath));
+}
+
+function labelledExistingFiles(
+  entries: ChallengeContextFile[],
+): ChallengeContextFile[] {
+  return entries.filter((entry) => fs.existsSync(entry.path));
+}
+
+function buildChallengeReportPath(workflow: WorkflowRecord): string {
+  return path.join(getWorkflowDir(workflow.repo_path, workflow.id), "challenge-report.md");
+}
+
+function toChallengeContinueTarget(
+  decision: TemplateAdvanceDecision,
+): ChallengeContinueTarget {
+  return {
+    outcome: decision.outcome,
+    next_handoff_id: decision.nextHandoffId,
+    requeue_handoff_ids: decision.requeueHandoffIds,
+  };
+}
+
+function resolveChallengeStage(
+  workflow: WorkflowRecord,
+  handoff: Handoff,
+): ChallengeStage {
+  if (
+    workflow.template === "planner-implementer-evaluator" &&
+    handoff.id === workflow.handoff_ids[0] &&
+    handoff.task.type === "workflow-intent-confirmation"
+  ) {
+    return "intent_confirmation";
+  }
+
+  if (handoff.id === workflow.handoff_ids[0]) {
+    return "researcher";
+  }
+  if (handoff.id === workflow.handoff_ids[1]) {
+    return "implementer";
+  }
+  return "tester";
+}
+
+function buildChallengeReturnTargets(
+  workflow: WorkflowRecord,
+  handoff: Handoff,
+): ChallengeReturnTarget[] {
+  const [researcherId, implementerId, testerId] = getPieHandoffIds(workflow);
+  const stage = resolveChallengeStage(workflow, handoff);
+
+  if (stage === "researcher") {
+    return [
+      {
+        role: "researcher",
+        handoff_id: researcherId,
+        requeue_handoff_ids: [researcherId],
+        mode: "reuse",
+        description: "Rerun the research pass before approval.",
+      },
+    ];
+  }
+
+  if (stage === "implementer") {
+    return [
+      {
+        role: "implementer",
+        handoff_id: implementerId,
+        requeue_handoff_ids: [implementerId, testerId],
+        mode: "reuse",
+        description: "Send the work back to implementation and re-verification.",
+      },
+      {
+        role: "researcher",
+        handoff_id: researcherId,
+        requeue_handoff_ids: [researcherId, implementerId],
+        mode: "replan",
+        description: "Escalate to a new research/replan pass before implementation continues.",
+      },
+    ];
+  }
+
+  if (stage === "tester") {
+    return [
+      {
+        role: "tester",
+        handoff_id: testerId,
+        requeue_handoff_ids: [testerId],
+        mode: "reuse",
+        description: "Rerun verification with the challenge findings in mind.",
+      },
+      {
+        role: "implementer",
+        handoff_id: implementerId,
+        requeue_handoff_ids: [implementerId, testerId],
+        mode: "reuse",
+        description: "Send the work back to implementation and re-verification.",
+      },
+    ];
+  }
+
+  return [
+    {
+      role: "implementer",
+      handoff_id: implementerId,
+      requeue_handoff_ids: [implementerId, testerId],
+      mode: "reuse",
+      description: "Send the workflow back to implementation under the existing approved research.",
+    },
+    {
+      role: "researcher",
+      handoff_id: researcherId,
+      requeue_handoff_ids: [researcherId, implementerId, testerId],
+      mode: "replan",
+      description: "Escalate to a new research/replan pass before the workflow can complete.",
+    },
+  ];
+}
+
+function buildChallengeContextFiles(
+  workflow: WorkflowRecord,
+  manager: HandoffManager,
+  handoff: Handoff,
+): ChallengeContextFile[] {
+  const [researcherId, implementerId, testerId] = getPieHandoffIds(workflow);
+  const researcher = loadHandoffByIdOrThrow(manager, workflow, researcherId);
+  const implementer = loadHandoffByIdOrThrow(manager, workflow, implementerId);
+  const tester = loadHandoffByIdOrThrow(manager, workflow, testerId);
+  const stage = resolveChallengeStage(workflow, handoff);
+
+  if (stage === "researcher") {
+    return labelledExistingFiles([
+      { label: "Research result", path: researcher.artifacts!.result_file },
+      { label: "Research brief", path: getResearchBriefPath(workflow) },
+      { label: "Approval request", path: getApprovalRequestPath(workflow) },
+    ]);
+  }
+
+  if (stage === "implementer") {
+    return labelledExistingFiles([
+      { label: "Approved research result", path: getApprovedResearchResultPath(workflow) },
+      { label: "Approved research brief", path: getApprovedResearchBriefPath(workflow) },
+      { label: "Implementation result", path: implementer.artifacts!.result_file },
+      { label: "Implementation brief", path: getImplementationBriefPath(workflow) },
+    ]);
+  }
+
+  if (stage === "tester") {
+    return labelledExistingFiles([
+      { label: "Approved research result", path: getApprovedResearchResultPath(workflow) },
+      { label: "Approved research brief", path: getApprovedResearchBriefPath(workflow) },
+      { label: "Implementation result", path: implementer.artifacts!.result_file },
+      { label: "Implementation brief", path: getImplementationBriefPath(workflow) },
+      { label: "Tester result", path: tester.artifacts!.result_file },
+      { label: "Verification brief", path: getVerificationBriefPath(workflow) },
+    ]);
+  }
+
+  return labelledExistingFiles([
+    { label: "Approved research result", path: getApprovedResearchResultPath(workflow) },
+    { label: "Approved research brief", path: getApprovedResearchBriefPath(workflow) },
+    { label: "Implementation result", path: implementer.artifacts!.result_file },
+    { label: "Implementation brief", path: getImplementationBriefPath(workflow) },
+    { label: "Tester result", path: tester.artifacts!.result_file },
+    { label: "Verification brief", path: getVerificationBriefPath(workflow) },
+    { label: "Intent confirmation result", path: researcher.artifacts!.result_file },
+  ]);
+}
+
+function writeChallengeDecisionReport(
+  workflow: WorkflowRecord,
+  challenge: ChallengeState,
+  decision: ReturnType<typeof collectChallengeResults>,
+  at: string,
+): string {
+  const reportPath = buildChallengeReportPath(workflow);
+  const findings = decision?.findings ?? [];
+  const continueTarget =
+    challenge.continue_target.outcome === "complete"
+      ? "complete the workflow"
+      : challenge.continue_target.outcome === "await_approval"
+        ? "return to the approval gate"
+        : `continue with ${challenge.continue_target.next_handoff_id ?? "the proposed next handoff"}`;
+
+  const lines = [
+    "# Challenge Report",
+    "",
+    `Completed At: ${at}`,
+    `Source Stage: ${challenge.source_stage}`,
+    `Source Handoff: ${challenge.source_handoff_id}`,
+    "",
+    "## Summary",
+    "",
+    decision?.summary ?? "Challenge completed.",
+    "",
+    "## Proposed Continue Path",
+    "",
+    `- ${continueTarget}`,
+    "",
+    "## Available Send-Back Targets",
+    "",
+    ...challenge.return_targets.map((target) => `- ${target.role}: ${target.description}`),
+    "",
+    "## Findings",
+    "",
+    ...(findings.length === 0
+      ? ["- No significant findings."]
+      : findings.map((finding) => `- [${finding.severity}] ${finding.point}: ${finding.reasoning}`)),
+  ];
+
+  fs.writeFileSync(reportPath, lines.join("\n"), "utf-8");
+  return reportPath;
+}
+
+async function startChallengeForBoundary(
+  workflow: WorkflowRecord,
+  manager: HandoffManager,
+  handoff: Handoff,
+  continueDecision: TemplateAdvanceDecision,
+  dependencies: WorkflowDependencies | undefined,
+): Promise<WorkflowStatusView> {
+  const now = nowFn(dependencies)();
+  const stage = resolveChallengeStage(workflow, handoff);
+  const contextFiles = buildChallengeContextFiles(workflow, manager, handoff);
+  const workers = await spawnChallengeWorkers(
+    {
+      workflowId: workflow.id,
+      repoPath: workflow.repo_path,
+      worktreePath: workflow.worktree_path,
+      stage,
+      contextFiles,
+      autoApprove: workflow.auto_approve,
+      agentType: handoff.to.agent_type as AgentType,
+      parentTerminalId:
+        workflow.parent_terminal_id ?? process.env.TERMCANVAS_TERMINAL_ID,
+    },
+    dispatchFn(dependencies),
+  );
+
+  workflow.challenge_request = undefined;
+  workflow.challenge = {
+    workers,
+    started_at: now,
+    source_handoff_id: handoff.id,
+    source_stage: stage,
+    continue_target: toChallengeContinueTarget(continueDecision),
+    return_targets: buildChallengeReturnTargets(workflow, handoff),
+    context_files: contextFiles,
+  };
+  workflow.status = "challenging";
+  workflow.failure = undefined;
+  workflow.updated_at = now;
+  saveWorkflow(workflow);
+  return buildStatusView(workflow);
+}
+
+async function applyContinueDecision(
+  workflow: WorkflowRecord,
+  manager: HandoffManager,
+  continueTarget: ChallengeContinueTarget,
+  dependencies: WorkflowDependencies | undefined,
+): Promise<WorkflowStatusView> {
+  const now = nowFn(dependencies);
+
+  if (continueTarget.outcome === "await_approval") {
+    workflow.status = "waiting_for_approval";
+    workflow.updated_at = now();
+    saveWorkflow(workflow);
+    return buildStatusView(workflow);
+  }
+
+  if (continueTarget.outcome === "complete") {
+    workflow.status = "completed";
+    workflow.failure = undefined;
+    workflow.updated_at = now();
+    saveWorkflow(workflow);
+    return buildStatusView(workflow);
+  }
+
+  if (
+    continueTarget.outcome === "intent_confirmation" &&
+    continueTarget.next_handoff_id &&
+    continueTarget.requeue_handoff_ids
+  ) {
+    const nextIteration = (workflow.confirmation_iteration ?? 0) + 1;
+    const maxIterations = workflow.max_confirmation_iterations ?? DEFAULT_MAX_CONFIRMATION_ITERATIONS;
+    if (nextIteration > maxIterations) {
+      saveWorkflowFailure(
+        workflow,
+        {
+          code: "WORKFLOW_MAX_CONFIRMATION_ITERATIONS_REACHED",
+          message: `Researcher intent confirmation exceeded the iteration cap (${maxIterations}).`,
+          stage: "workflow.intent_confirmation",
+        },
+        now(),
+      );
+      return buildStatusView(workflow);
+    }
+
+    for (const requeueHandoffId of continueTarget.requeue_handoff_ids) {
+      const requeueHandoff = manager.load(requeueHandoffId);
+      if (requeueHandoff) destroyHandoffTerminal(requeueHandoff, dependencies);
+      resetHandoffToPending(manager, requeueHandoffId, now());
+    }
+    prepareResearcherIntentConfirmation(workflow, manager, nextIteration);
+
+    workflow.current_handoff_id = continueTarget.next_handoff_id;
+    workflow.status = "running";
+    workflow.failure = undefined;
+    workflow.result = undefined;
+    workflow.confirmation_iteration = nextIteration;
+    workflow.updated_at = now();
+    saveWorkflow(workflow);
+    const nextHandoff = loadHandoffOrThrow(manager, workflow);
+    await dispatchPendingHandoff(workflow, nextHandoff, dependencies);
+    workflow.updated_at = now();
+    saveWorkflow(workflow);
+    return buildStatusView(workflow);
+  }
+
+  if (continueTarget.outcome === "advance" && continueTarget.next_handoff_id) {
+    workflow.current_handoff_id = continueTarget.next_handoff_id;
+    workflow.status = "running";
+    workflow.failure = undefined;
+    workflow.updated_at = now();
+    saveWorkflow(workflow);
+    const nextHandoff = loadHandoffOrThrow(manager, workflow);
+    await dispatchPendingHandoff(workflow, nextHandoff, dependencies);
+    workflow.updated_at = now();
+    saveWorkflow(workflow);
+    return buildStatusView(workflow);
+  }
+
+  if (
+    continueTarget.outcome === "loop" &&
+    continueTarget.next_handoff_id &&
+    continueTarget.requeue_handoff_ids
+  ) {
+    for (const requeueHandoffId of continueTarget.requeue_handoff_ids) {
+      const requeueHandoff = manager.load(requeueHandoffId);
+      if (requeueHandoff) destroyHandoffTerminal(requeueHandoff, dependencies);
+      resetHandoffToPending(manager, requeueHandoffId, now());
+    }
+    if (
+      workflow.template === "planner-implementer-evaluator" &&
+      continueTarget.next_handoff_id === workflow.handoff_ids[0]
+    ) {
+      prepareResearcherReplan(workflow, manager);
+      workflow.confirmation_iteration = 0;
+    }
+    workflow.current_handoff_id = continueTarget.next_handoff_id;
+    workflow.status = "running";
+    workflow.failure = undefined;
+    workflow.result = undefined;
+    workflow.updated_at = now();
+    saveWorkflow(workflow);
+    const nextHandoff = loadHandoffOrThrow(manager, workflow);
+    await dispatchPendingHandoff(workflow, nextHandoff, dependencies);
+    workflow.updated_at = now();
+    saveWorkflow(workflow);
+    return buildStatusView(workflow);
+  }
+
+  saveWorkflowFailure(
+    workflow,
+    {
+      code: "WORKFLOW_INVALID_CHALLENGE_CONTINUE",
+      message: "Challenge continue target could not be applied.",
+      stage: "workflow.challenge_continue",
+    },
+    now(),
+  );
+  return buildStatusView(workflow);
+}
+
+function prepareResearcherIntentConfirmation(
   workflow: WorkflowRecord,
   manager: HandoffManager,
   iteration: number,
 ): Handoff {
-  const [plannerId, implementerId, evaluatorId] = getPieHandoffIds(workflow);
-  const plannerHandoff = loadHandoffByIdOrThrow(manager, workflow, plannerId);
+  const [researcherId, implementerId, testerId] = getPieHandoffIds(workflow);
+  const researcherHandoff = loadHandoffByIdOrThrow(manager, workflow, researcherId);
   const implementerHandoff = loadHandoffByIdOrThrow(manager, workflow, implementerId);
-  const evaluatorHandoff = loadHandoffByIdOrThrow(manager, workflow, evaluatorId);
-  const templatePlanner = buildPieTemplatePlan(workflow, manager).handoffs[0];
+  const testerHandoff = loadHandoffByIdOrThrow(manager, workflow, testerId);
+  const templateResearcher = buildPieTemplatePlan(workflow, manager).handoffs[0];
 
-  if (!plannerHandoff.artifacts || !implementerHandoff.artifacts || !evaluatorHandoff.artifacts) {
-    throw new HydraError("Planner satisfaction check requires task package artifacts for all PIE handoffs", {
+  if (!researcherHandoff.artifacts || !implementerHandoff.artifacts || !testerHandoff.artifacts) {
+    throw new HydraError("Intent confirmation requires task package artifacts for all full-workflow handoffs", {
       errorCode: "WORKFLOW_HANDOFF_MISSING_ARTIFACTS",
-      stage: "workflow.satisfaction_check",
+      stage: "workflow.intent_confirmation",
       ids: { workflow_id: workflow.id },
     });
   }
 
-  const plannerResultFile = getPlannerControlPlanPath(workflow);
+  const approvedResearchResult = getApprovedResearchResultPath(workflow);
+  const approvedResearchBrief = getApprovedResearchBriefPath(workflow);
   const implementerResultFile = implementerHandoff.artifacts.result_file;
-  const evaluatorResultFile = evaluatorHandoff.artifacts.result_file;
-  const maxIterations = workflow.max_satisfaction_iterations ?? DEFAULT_MAX_SATISFACTION_ITERATIONS;
-  const satisfactionContextFile = path.join(
-    plannerHandoff.artifacts.package_dir,
-    "satisfaction-context.md",
+  const implementationBrief = getImplementationBriefPath(workflow);
+  const testerResultFile = testerHandoff.artifacts.result_file;
+  const testerBrief = getVerificationBriefPath(workflow);
+  const maxIterations = workflow.max_confirmation_iterations ?? DEFAULT_MAX_CONFIRMATION_ITERATIONS;
+  const intentContextFile = path.join(
+    researcherHandoff.artifacts.package_dir,
+    "intent-confirmation-context.md",
   );
 
   fs.writeFileSync(
-    satisfactionContextFile,
+    intentContextFile,
     [
-      "# Planner Satisfaction Check",
+      "# Researcher Intent Confirmation",
       "",
-      "You are now performing a satisfaction check, not initial planning.",
+      "You are now in the final intent-confirmation stage. Do not redo the whole research pass. Decide whether the tested implementation still matches the approved intent and strategy.",
       "",
       "## Read First",
-      `- Current controlling plan: ${plannerResultFile}`,
+      `- Approved research result: ${approvedResearchResult}`,
+      `- Approved research brief: ${approvedResearchBrief}`,
       `- Implementer result: ${implementerResultFile}`,
-      `- Evaluator result: ${evaluatorResultFile}`,
+      `- Implementation brief: ${implementationBrief}`,
+      `- Tester result: ${testerResultFile}`,
+      `- Verification brief: ${testerBrief}`,
       "",
       "## Decision Modes",
-      "1. Satisfied: set `satisfaction: true` only when the existing controlling plan still matches the shipped state.",
-      "2. Replan required: set `satisfaction: false`, `replan: true`, and write a revised plan from scratch.",
-      "3. Same plan, more implementation required: set `satisfaction: false`, `replan: false`, and preserve the controlling plan while directing the implementer to continue.",
+      "1. Complete: the shipped work matches the approved intent and strategy.",
+      "2. More implementation: the approved research still holds, but the implementation is not done yet.",
+      "3. Replan: the approved research frame is no longer sufficient and the workflow must return to research.",
       "",
       "## Output Requirements",
-      "- Your result.json must include a boolean `satisfaction` field.",
-      "- If `satisfaction` is false, your result.json must also include a boolean `replan` field.",
-      "- Use `success=true` whenever you reached a satisfaction decision, even when `satisfaction=false`.",
-      "- Use `success=false` only when you could not complete the satisfaction check itself.",
-      "- If satisfied, use `next_action.type=complete`.",
-      `- If replanning is required, use next_action.type=handoff and next_action.handoff_id=${plannerId}.`,
-      `- If the same plan should continue, use next_action.type=handoff and next_action.handoff_id=${implementerId}.`,
+      "- Use success=true whenever you completed the intent-confirmation decision.",
+      "- Use next_action.type=complete when the workflow is done.",
+      `- Use next_action.type=handoff and next_action.handoff_id=${implementerId} when more implementation is needed under the same approved research.`,
+      `- Use next_action.type=handoff and next_action.handoff_id=${researcherId} with replan=true when the research frame must be rebuilt.`,
       "",
-      `This is satisfaction iteration ${iteration} of ${maxIterations}.`,
+      `This is intent-confirmation iteration ${iteration} of ${maxIterations}.`,
     ].join("\n"),
     "utf-8",
   );
 
-  plannerHandoff.task = {
-    ...templatePlanner.task,
-    type: "workflow-plan-satisfaction-check",
-    title: `Satisfaction Check: ${workflow.task.slice(0, 60)}`,
+  researcherHandoff.task = {
+    ...templateResearcher.task,
+    type: "workflow-intent-confirmation",
+    title: `Intent Confirmation: ${workflow.task.slice(0, 58)}`,
     description: [
-      "You are now performing a planner satisfaction check after implementation and evaluation completed.",
+      "Confirm whether the current implementation still matches the approved research intent after verification completed.",
       `Primary task: ${workflow.task}`,
-      `Read the current plan at ${plannerResultFile}, the implementer result at ${implementerResultFile}, the evaluator result at ${evaluatorResultFile}, and ${satisfactionContextFile}.`,
-      `Complete when you can either accept the work, replan via ${plannerId}, or send the same plan back to ${implementerId}.`,
+      `Read ${intentContextFile} plus the approved research and verification artifacts before deciding.`,
+      `Complete when you can either accept the work, send it back to ${implementerId}, or replan via ${researcherId}.`,
     ].join("\n"),
     acceptance_criteria: [
-      "Read the current plan, implementer result, evaluator result, and satisfaction-context.md before deciding",
-      "Include `satisfaction` as a boolean in result.json",
-      "If `satisfaction` is false, include `replan` as a boolean in result.json",
-      "Use `success=true` whenever you reached a satisfaction decision",
-      "Use next_action.type=complete when satisfaction=true",
-      `Use next_action.handoff_id=${plannerId} when replan=true`,
-      `Use next_action.handoff_id=${implementerId} when replan=false`,
+      "Read the approved research snapshot, implementation brief, verification brief, and intent-confirmation-context.md before deciding",
+      "Use success=true when you reached a final intent-confirmation decision",
+      "Use next_action.type=complete when the workflow is done",
+      `Use next_action.handoff_id=${implementerId} when the same research should continue with more implementation`,
+      `Use next_action.handoff_id=${researcherId} with replan=true when the workflow must return to research`,
     ],
   };
-  plannerHandoff.context = {
+  researcherHandoff.context = {
     files: [
-      plannerResultFile,
+      approvedResearchResult,
+      approvedResearchBrief,
       implementerResultFile,
-      evaluatorResultFile,
-      satisfactionContextFile,
+      implementationBrief,
+      testerResultFile,
+      testerBrief,
+      intentContextFile,
     ],
-    previous_handoffs: [implementerId, evaluatorId],
+    previous_handoffs: [implementerId, testerId],
     shared_state: {
-      ...templatePlanner.context.shared_state,
+      ...templateResearcher.context.shared_state,
       worktree_path: workflow.worktree_path,
       branch: workflow.branch,
       base_branch: workflow.base_branch,
-      planner_result_file: plannerResultFile,
+      approved_research_result_file: approvedResearchResult,
+      approved_research_brief_file: approvedResearchBrief,
       implementer_result_file: implementerResultFile,
-      evaluator_result_file: evaluatorResultFile,
-      satisfaction_context_file: satisfactionContextFile,
-      satisfaction_iteration: iteration,
-      max_satisfaction_iterations: maxIterations,
+      implementation_brief_file: implementationBrief,
+      tester_result_file: testerResultFile,
+      verification_brief_file: testerBrief,
+      intent_confirmation_context_file: intentContextFile,
+      confirmation_iteration: iteration,
+      max_confirmation_iterations: maxIterations,
       downstream_handoff_id: implementerId,
+      replan_handoff_id: researcherId,
     },
   };
-  rewriteHandoffTaskPackage(workflow, plannerHandoff);
-  manager.save(plannerHandoff);
-  return plannerHandoff;
+  rewriteHandoffTaskPackage(workflow, researcherHandoff);
+  manager.save(researcherHandoff);
+  return researcherHandoff;
 }
 
-function preparePlannerReplan(
+function prepareResearcherReplan(
   workflow: WorkflowRecord,
   manager: HandoffManager,
 ): Handoff {
-  const [plannerId, implementerId, evaluatorId] = getPieHandoffIds(workflow);
-  const plannerHandoff = loadHandoffByIdOrThrow(manager, workflow, plannerId);
+  const [researcherId, implementerId, testerId] = getPieHandoffIds(workflow);
+  const researcherHandoff = loadHandoffByIdOrThrow(manager, workflow, researcherId);
   const implementerHandoff = loadHandoffByIdOrThrow(manager, workflow, implementerId);
-  const evaluatorHandoff = loadHandoffByIdOrThrow(manager, workflow, evaluatorId);
-  const templatePlanner = buildPieTemplatePlan(workflow, manager).handoffs[0];
+  const testerHandoff = loadHandoffByIdOrThrow(manager, workflow, testerId);
+  const templateResearcher = buildPieTemplatePlan(workflow, manager).handoffs[0];
 
-  if (!plannerHandoff.artifacts || !implementerHandoff.artifacts || !evaluatorHandoff.artifacts) {
-    throw new HydraError("Planner replan requires task package artifacts for all PIE handoffs", {
+  if (!researcherHandoff.artifacts || !implementerHandoff.artifacts || !testerHandoff.artifacts) {
+    throw new HydraError("Research replan requires task package artifacts for all full-workflow handoffs", {
       errorCode: "WORKFLOW_HANDOFF_MISSING_ARTIFACTS",
       stage: "workflow.replan",
       ids: { workflow_id: workflow.id },
     });
   }
 
-  const controlPlanFile = getPlannerControlPlanPath(workflow);
-  const satisfactionDecisionFile = plannerHandoff.artifacts.result_file;
+  const approvedResearchResult = getApprovedResearchResultPath(workflow);
+  const approvedResearchBrief = getApprovedResearchBriefPath(workflow);
+  const implementerResultFile = implementerHandoff.artifacts.result_file;
+  const implementationBrief = getImplementationBriefPath(workflow);
+  const testerResultFile = testerHandoff.artifacts.result_file;
+  const testerBrief = getVerificationBriefPath(workflow);
   const replanContextFile = path.join(
-    plannerHandoff.artifacts.package_dir,
+    researcherHandoff.artifacts.package_dir,
     "replan-context.md",
   );
 
   fs.writeFileSync(
     replanContextFile,
     [
-      "# Planner Replan Request",
+      "# Research Replan Request",
       "",
-      "The previous plan was not satisfactory after implementation and evaluation.",
+      "The workflow needs a new research pass because the approved strategy no longer holds.",
       "",
       "## Read First",
-      `- Previous controlling plan: ${controlPlanFile}`,
-      `- Implementer result: ${implementerHandoff.artifacts.result_file}`,
-      `- Evaluator result: ${evaluatorHandoff.artifacts.result_file}`,
-      `- Satisfaction decision: ${satisfactionDecisionFile}`,
+      `- Last approved research result: ${approvedResearchResult}`,
+      `- Last approved research brief: ${approvedResearchBrief}`,
+      `- Implementer result: ${implementerResultFile}`,
+      `- Implementation brief: ${implementationBrief}`,
+      `- Tester result (if present): ${testerResultFile}`,
+      `- Verification brief (if present): ${testerBrief}`,
       "",
       "## Instructions",
-      "Produce a fresh three-section plan that addresses why the previous plan failed.",
-      "Do not simply restate the previous plan. Use the implementation outcome and evaluator findings as first-class planning input.",
+      "Produce a fresh research brief that explains how the approved frame broke down and what the next approved implementation path should be.",
+      "Do not silently carry the old assumptions forward.",
+      "If the new strategy changes user-approved scope or prerequisites, write approval-request.md so the user can confirm before implementation resumes.",
     ].join("\n"),
     "utf-8",
   );
 
-  plannerHandoff.task = {
-    ...templatePlanner.task,
-    type: "workflow-replan",
-    title: `Replan: ${workflow.task.slice(0, 64)}`,
+  researcherHandoff.task = {
+    ...templateResearcher.task,
+    type: "workflow-research-replan",
+    title: `Replan Research: ${workflow.task.slice(0, 58)}`,
     description: [
-      "You are replanning from scratch because the previous plan did not lead to a satisfactory implementation.",
+      "Run a new research pass because the previously approved strategy is no longer sufficient.",
       `Primary task: ${workflow.task}`,
-      `Read the previous controlling plan at ${controlPlanFile}, the implementer result at ${implementerHandoff.artifacts.result_file}, the evaluator result at ${evaluatorHandoff.artifacts.result_file}, the previous satisfaction decision at ${satisfactionDecisionFile}, and ${replanContextFile}.`,
-      `Hand off to ${implementerId} once the new plan is concrete and actionable.`,
+      `Read ${replanContextFile} plus the last approved research and the latest implementation/verification artifacts.`,
+      `Hydra will pause for approval again before implementation resumes.`,
     ].join("\n"),
     acceptance_criteria: [
-      "Read the previous plan, implementer result, evaluator result, and replan-context.md before replanning",
-      "Keep the planner output in the three required sections: Problems Found, Constraints, Implementation Plan",
-      "Explain how the new plan addresses the failure modes discovered after implementation",
-      `Use next_action.handoff_id=${implementerId} when implementation should restart`,
+      "Read the last approved research snapshot and the latest implementation evidence before replanning",
+      "Produce a fresh research-brief.md rather than silently reusing the old frame",
+      "Explain why the prior approved strategy no longer holds",
+      "Write approval-request.md if the new direction changes scope, prerequisites, or task strategy",
+      `Use next_action.handoff_id=${implementerId} when the replanned research handoff is complete`,
     ],
   };
-  plannerHandoff.context = {
-    files: [
-      controlPlanFile,
-      implementerHandoff.artifacts.result_file,
-      evaluatorHandoff.artifacts.result_file,
-      satisfactionDecisionFile,
+  researcherHandoff.context = {
+    files: existingFiles(
+      approvedResearchResult,
+      approvedResearchBrief,
+      implementerResultFile,
+      implementationBrief,
+      testerResultFile,
+      testerBrief,
       replanContextFile,
-    ],
-    previous_handoffs: [implementerId, evaluatorId],
+    ),
+    previous_handoffs: [implementerId, testerId],
     shared_state: {
-      ...templatePlanner.context.shared_state,
+      ...templateResearcher.context.shared_state,
       worktree_path: workflow.worktree_path,
       branch: workflow.branch,
       base_branch: workflow.base_branch,
-      planner_result_file: controlPlanFile,
-      implementer_result_file: implementerHandoff.artifacts.result_file,
-      evaluator_result_file: evaluatorHandoff.artifacts.result_file,
+      approved_research_result_file: approvedResearchResult,
+      approved_research_brief_file: approvedResearchBrief,
+      implementer_result_file: implementerResultFile,
+      implementation_brief_file: implementationBrief,
+      tester_result_file: testerResultFile,
+      verification_brief_file: testerBrief,
       replan_context_file: replanContextFile,
-      previous_satisfaction_result_file: satisfactionDecisionFile,
       downstream_handoff_id: implementerId,
+      approval_request_file: getApprovalRequestPath(workflow),
     },
   };
-  rewriteHandoffTaskPackage(workflow, plannerHandoff);
-  manager.save(plannerHandoff);
-  return plannerHandoff;
+  rewriteHandoffTaskPackage(workflow, researcherHandoff);
+  manager.save(researcherHandoff);
+  return researcherHandoff;
+}
+
+function validateRequiredWorkflowArtifacts(
+  workflow: WorkflowRecord,
+  handoff: Handoff,
+): WorkflowFailure | null {
+  if (workflow.template !== "planner-implementer-evaluator") {
+    return null;
+  }
+
+  let requiredPath: string | null = null;
+  let label = "";
+  switch (handoff.task.type) {
+    case "workflow-research":
+    case "workflow-research-replan":
+      requiredPath = getResearchBriefPath(workflow);
+      label = "research brief";
+      break;
+    case "workflow-implementation":
+      requiredPath = getImplementationBriefPath(workflow);
+      label = "implementation brief";
+      break;
+    case "workflow-verification":
+      requiredPath = getVerificationBriefPath(workflow);
+      label = "verification brief";
+      break;
+    default:
+      return null;
+  }
+
+  if (!requiredPath || fs.existsSync(requiredPath)) {
+    return null;
+  }
+
+  return {
+    code: "WORKFLOW_REQUIRED_ARTIFACT_MISSING",
+    message: `Expected ${label} at ${requiredPath} before completing ${handoff.task.type}.`,
+    stage: "workflow.required_artifact",
+  };
 }
 
 function resetHandoffToPending(
@@ -610,6 +1089,9 @@ function resetHandoffToPending(
 
   // Remove the done marker so the next tick does not treat stale
   // data as evidence of completion. Keep result.json — downstream
+  // agents may need it (tester findings for implementer, or the
+  // last approved research snapshot for replanning). Phantom
+  // completion only triggers when the done file exists.
   if (handoff.artifacts) {
     try { fs.unlinkSync(handoff.artifacts.done_file); } catch {}
   }
@@ -829,8 +1311,8 @@ export async function runWorkflow(
     handoff_ids: createdHandoffs.map((handoff) => handoff.id),
     timeout_minutes: options.timeoutMinutes,
     max_retries: options.maxRetries,
-    satisfaction_iteration: 0,
-    max_satisfaction_iterations: DEFAULT_MAX_SATISFACTION_ITERATIONS,
+    confirmation_iteration: 0,
+    max_confirmation_iterations: DEFAULT_MAX_CONFIRMATION_ITERATIONS,
     auto_approve: options.autoApprove,
     approve_plan: options.approvePlan,
   };
@@ -856,7 +1338,10 @@ export async function tickWorkflow(
   const workflow = loadWorkflowOrThrow(repoPath, options.workflowId);
   const handoff = loadHandoffOrThrow(manager, workflow);
 
-  if (workflow.status === "waiting_for_approval") {
+  if (
+    workflow.status === "waiting_for_approval" ||
+    workflow.status === "waiting_for_challenge_decision"
+  ) {
     return buildStatusView(workflow);
   }
 
@@ -870,62 +1355,22 @@ export async function tickWorkflow(
       workflow.challenge,
       destroyTerminalFn(dependencies),
     );
-
-    if (challengeDecision.override) {
-      // Write challenge findings to the evaluator's result file so
-      const evaluatorHandoffId = workflow.challenge.evaluator_handoff_id;
-      const evaluatorHandoff = manager.load(evaluatorHandoffId);
-      if (evaluatorHandoff?.artifacts) {
-        const syntheticResult = {
-          version: "hydra/v2",
-          handoff_id: evaluatorHandoffId,
-          workflow_id: workflow.id,
-          success: false,
-          summary: challengeDecision.summary,
-          outputs: [],
-          evidence: workflow.challenge.workers.map((w) => `challenge:${w.methodology}`),
-          next_action: {
-            type: "handoff",
-            reason: "Challenge workers found issues the evaluator missed",
-            handoff_id: workflow.handoff_ids[1],
-          },
-        };
-        fs.writeFileSync(
-          evaluatorHandoff.artifacts.result_file,
-          JSON.stringify(syntheticResult, null, 2),
-          "utf-8",
-        );
-      }
-
-      const implementerId = workflow.handoff_ids[1];
-      const evaluatorId = workflow.handoff_ids[2];
-      for (const requeueId of [implementerId, evaluatorId]) {
-        const requeueHandoff = manager.load(requeueId);
-        if (requeueHandoff) destroyHandoffTerminal(requeueHandoff, dependencies);
-        resetHandoffToPending(manager, requeueId, now());
-      }
-
-      workflow.current_handoff_id = implementerId;
-      workflow.status = "running";
-      workflow.failure = undefined;
-      workflow.result = undefined;
-      workflow.challenge = undefined;
-      workflow.challenge_completed = true;
-      workflow.updated_at = now();
-      saveWorkflow(workflow);
-
-      const nextHandoff = loadHandoffOrThrow(manager, workflow);
-      await dispatchPendingHandoff(workflow, nextHandoff, dependencies);
-      workflow.updated_at = now();
-      saveWorkflow(workflow);
-      return buildStatusView(workflow);
-    }
-
-    workflow.status = "completed";
+    const completedAt = now();
+    const reportFile = writeChallengeDecisionReport(
+      workflow,
+      workflow.challenge,
+      challengeDecision,
+      completedAt,
+    );
+    workflow.challenge = {
+      ...workflow.challenge,
+      decision: challengeDecision,
+      report_file: reportFile,
+      completed_at: completedAt,
+    };
+    workflow.status = "waiting_for_challenge_decision";
     workflow.failure = undefined;
-    workflow.challenge = undefined;
-    workflow.challenge_completed = true;
-    workflow.updated_at = now();
+    workflow.updated_at = completedAt;
     saveWorkflow(workflow);
     return buildStatusView(workflow);
   }
@@ -943,147 +1388,53 @@ export async function tickWorkflow(
     const collected = collectTaskPackage(contract);
 
     if (collected.status === "completed") {
+      const artifactFailure = validateRequiredWorkflowArtifacts(workflow, handoff);
+      if (artifactFailure) {
+        await stateMachine.markFailed(handoff.id, {
+          ...artifactFailure,
+          retryable: false,
+          at: now(),
+        });
+        saveWorkflowFailure(workflow, artifactFailure, now());
+        return buildStatusView(workflow);
+      }
+
       await stateMachine.markCompleted(handoff.id, mapResultContract(collected.result));
       destroyHandoffTerminal(handoff, dependencies);
       workflow.updated_at = now();
-      if (
-        workflow.template === "planner-implementer-evaluator" &&
-        handoff.id === workflow.handoff_ids[0] &&
-        handoff.task.type !== "workflow-plan-satisfaction-check" &&
-        collected.result.success
-      ) {
-        persistPlannerControlPlan(workflow, handoff);
-      }
       const decision = resolveTemplateAdvance(
         workflow.template as WorkflowTemplateName,
         workflow.handoff_ids,
         handoff.id,
         collected.result,
-        {
-          approvePlan: workflow.approve_plan,
-          isSatisfactionCheck: handoff.task.type === "workflow-plan-satisfaction-check",
-        },
+        { currentTaskType: handoff.task.type },
       );
-      if (decision.outcome === "await_approval") {
-        workflow.status = "waiting_for_approval";
-        workflow.updated_at = now();
-        saveWorkflow(workflow);
-        return buildStatusView(workflow);
-      }
-      if (decision.outcome === "satisfaction_check" && decision.nextHandoffId && decision.requeueHandoffIds) {
-        const nextIteration = (workflow.satisfaction_iteration ?? 0) + 1;
-        const maxIterations = workflow.max_satisfaction_iterations ?? DEFAULT_MAX_SATISFACTION_ITERATIONS;
-        if (nextIteration > maxIterations) {
-          saveWorkflowFailure(
-            workflow,
-            {
-              code: "WORKFLOW_MAX_SATISFACTION_ITERATIONS_REACHED",
-              message: `Planner satisfaction check exceeded the iteration cap (${maxIterations}).`,
-              stage: "workflow.satisfaction_check",
-            },
-            now(),
-          );
-          return buildStatusView(workflow);
-        }
-
-        for (const requeueHandoffId of decision.requeueHandoffIds) {
-          const requeueHandoff = manager.load(requeueHandoffId);
-          if (requeueHandoff) destroyHandoffTerminal(requeueHandoff, dependencies);
-          resetHandoffToPending(manager, requeueHandoffId, now());
-        }
-        preparePlannerSatisfactionCheck(workflow, manager, nextIteration);
-
-        workflow.current_handoff_id = decision.nextHandoffId;
-        workflow.status = "running";
-        workflow.failure = undefined;
-        workflow.result = undefined;
-        workflow.satisfaction_iteration = nextIteration;
-        workflow.updated_at = now();
-        saveWorkflow(workflow);
-        const nextHandoff = loadHandoffOrThrow(manager, workflow);
-        await dispatchPendingHandoff(workflow, nextHandoff, dependencies);
-        workflow.updated_at = now();
-        saveWorkflow(workflow);
-        return buildStatusView(workflow);
-      }
-      if (decision.outcome === "complete") {
-        // For PIE template, run challenge gate after the planner confirms satisfaction.
-        if (
-          workflow.template === "planner-implementer-evaluator" &&
-          !workflow.challenge_completed &&
-          handoff.id === workflow.handoff_ids[0] &&
-          (workflow.satisfaction_iteration ?? 0) > 0
-        ) {
-          const [, , evaluatorHandoffId] = getPieHandoffIds(workflow);
-          const evaluatorHandoff = loadHandoffByIdOrThrow(manager, workflow, evaluatorHandoffId);
-          const plannerResultFile = getPlannerControlPlanPath(workflow);
-          const evaluatorResultFile = path.join(
-            repoPath, ".hydra", "workflows", workflow.id,
-            evaluatorHandoffId, "result.json",
-          );
-          const challenge = await spawnChallengeWorkers(
-            {
-              workflowId: workflow.id,
-              repoPath,
-              worktreePath: workflow.worktree_path,
-              evaluatorResultFile,
-              plannerResultFile,
-              evaluatorHandoffId,
-              autoApprove: workflow.auto_approve,
-              agentType: evaluatorHandoff.to.agent_type as AgentType,
-              parentTerminalId:
-                workflow.parent_terminal_id ?? process.env.TERMCANVAS_TERMINAL_ID,
-            },
-            dispatchFn(dependencies),
-          );
-          workflow.challenge = challenge;
+      if (
+        workflow.challenge_request?.source_handoff_id === handoff.id &&
+        decision.outcome !== "fail"
+      ) {
+        if (decision.outcome === "complete") {
           workflow.result = collected.result;
-          workflow.status = "challenging";
-          workflow.updated_at = now();
-          saveWorkflow(workflow);
-          return buildStatusView(workflow);
         }
+        return startChallengeForBoundary(
+          workflow,
+          manager,
+          handoff,
+          decision,
+          dependencies,
+        );
+      }
 
-        workflow.result = collected.result;
-        workflow.status = "completed";
-        workflow.failure = undefined;
-        saveWorkflow(workflow);
-        return buildStatusView(workflow);
-      }
-      if (decision.outcome === "advance" && decision.nextHandoffId) {
-        workflow.current_handoff_id = decision.nextHandoffId;
-        workflow.status = "running";
-        workflow.failure = undefined;
-        saveWorkflow(workflow);
-        const nextHandoff = loadHandoffOrThrow(manager, workflow);
-        await dispatchPendingHandoff(workflow, nextHandoff, dependencies);
-        workflow.updated_at = now();
-        saveWorkflow(workflow);
-        return buildStatusView(workflow);
-      }
-      if (decision.outcome === "loop" && decision.nextHandoffId && decision.requeueHandoffIds) {
-        for (const requeueHandoffId of decision.requeueHandoffIds) {
-          const requeueHandoff = manager.load(requeueHandoffId);
-          if (requeueHandoff) destroyHandoffTerminal(requeueHandoff, dependencies);
-          resetHandoffToPending(manager, requeueHandoffId, now());
+      if (decision.outcome !== "fail") {
+        if (decision.outcome === "complete") {
+          workflow.result = collected.result;
         }
-        if (
-          workflow.template === "planner-implementer-evaluator" &&
-          decision.requeueHandoffIds.includes(workflow.handoff_ids[0]) &&
-          decision.nextHandoffId === workflow.handoff_ids[0]
-        ) {
-          preparePlannerReplan(workflow, manager);
-        }
-        workflow.current_handoff_id = decision.nextHandoffId;
-        workflow.status = "running";
-        workflow.failure = undefined;
-        workflow.result = undefined;
-        saveWorkflow(workflow);
-        const nextHandoff = loadHandoffOrThrow(manager, workflow);
-        await dispatchPendingHandoff(workflow, nextHandoff, dependencies);
-        workflow.updated_at = now();
-        saveWorkflow(workflow);
-        return buildStatusView(workflow);
+        return applyContinueDecision(
+          workflow,
+          manager,
+          toChallengeContinueTarget(decision),
+          dependencies,
+        );
       }
 
       saveWorkflowFailure(
@@ -1235,7 +1586,8 @@ export async function watchWorkflow(
     if (
       view.workflow.status === "completed" ||
       view.workflow.status === "failed" ||
-      view.workflow.status === "waiting_for_approval"
+      view.workflow.status === "waiting_for_approval" ||
+      view.workflow.status === "waiting_for_challenge_decision"
     ) {
       return view;
     }
@@ -1283,6 +1635,133 @@ export interface ReviseWorkflowOptions extends TickWorkflowOptions {
   feedback: string;
 }
 
+export async function requestWorkflowChallenge(
+  options: RequestWorkflowChallengeOptions,
+  dependencies: WorkflowDependencies = {},
+): Promise<WorkflowStatusView> {
+  const now = nowFn(dependencies);
+  const repoPath = path.resolve(options.repoPath);
+  const workflow = loadWorkflowOrThrow(repoPath, options.workflowId);
+  const manager = new HandoffManager(repoPath);
+
+  if (workflow.challenge || workflow.status === "challenging" || workflow.status === "waiting_for_challenge_decision") {
+    throw new HydraError("Workflow already has an active challenge run or pending challenge decision", {
+      errorCode: "WORKFLOW_CHALLENGE_ALREADY_ACTIVE",
+      stage: "workflow.challenge_request",
+      ids: { workflow_id: workflow.id },
+    });
+  }
+
+  if (workflow.template !== "planner-implementer-evaluator") {
+    throw new HydraError("Explicit challenge is currently only supported for full researcher/implementer/tester workflows", {
+      errorCode: "WORKFLOW_CHALLENGE_UNSUPPORTED_TEMPLATE",
+      stage: "workflow.challenge_request",
+      ids: { workflow_id: workflow.id },
+    });
+  }
+
+  if (workflow.status === "waiting_for_approval") {
+    const handoff = loadHandoffOrThrow(manager, workflow);
+    return startChallengeForBoundary(
+      workflow,
+      manager,
+      handoff,
+      { outcome: "await_approval" },
+      dependencies,
+    );
+  }
+
+  if (workflow.status !== "running" && workflow.status !== "pending") {
+    throw new HydraError(`Workflow is not in a challengeable state: ${workflow.status}`, {
+      errorCode: "WORKFLOW_CHALLENGE_INVALID_STATE",
+      stage: "workflow.challenge_request",
+      ids: { workflow_id: workflow.id },
+    });
+  }
+
+  workflow.challenge_request = {
+    source_handoff_id: workflow.current_handoff_id,
+    requested_at: now(),
+  };
+  workflow.updated_at = now();
+  saveWorkflow(workflow);
+  return buildStatusView(workflow);
+}
+
+export async function resolveWorkflowChallenge(
+  options: ResolveWorkflowChallengeOptions,
+  dependencies: WorkflowDependencies = {},
+): Promise<WorkflowStatusView> {
+  const now = nowFn(dependencies);
+  const repoPath = path.resolve(options.repoPath);
+  const workflow = loadWorkflowOrThrow(repoPath, options.workflowId);
+  const manager = new HandoffManager(repoPath);
+
+  if (workflow.status !== "waiting_for_challenge_decision" || !workflow.challenge?.decision) {
+    throw new HydraError("Workflow is not waiting for a challenge decision", {
+      errorCode: "WORKFLOW_NOT_AWAITING_CHALLENGE_DECISION",
+      stage: "workflow.challenge_resolve",
+      ids: { workflow_id: workflow.id },
+    });
+  }
+
+  const challenge = workflow.challenge;
+  workflow.challenge = undefined;
+  workflow.updated_at = now();
+
+  if (options.decision === "continue") {
+    saveWorkflow(workflow);
+    return applyContinueDecision(
+      workflow,
+      manager,
+      challenge.continue_target,
+      dependencies,
+    );
+  }
+
+  const targetRole = options.to;
+  if (!targetRole) {
+    throw new HydraError("Missing challenge send-back target", {
+      errorCode: "WORKFLOW_CHALLENGE_TARGET_REQUIRED",
+      stage: "workflow.challenge_resolve",
+      ids: { workflow_id: workflow.id },
+    });
+  }
+
+  const target = challenge.return_targets.find((entry) => entry.role === targetRole);
+  if (!target) {
+    throw new HydraError(`Challenge cannot send back to ${targetRole} from this stage`, {
+      errorCode: "WORKFLOW_CHALLENGE_INVALID_TARGET",
+      stage: "workflow.challenge_resolve",
+      ids: { workflow_id: workflow.id },
+    });
+  }
+
+  for (const requeueHandoffId of target.requeue_handoff_ids) {
+    const requeueHandoff = manager.load(requeueHandoffId);
+    if (requeueHandoff) destroyHandoffTerminal(requeueHandoff, dependencies);
+    resetHandoffToPending(manager, requeueHandoffId, now());
+  }
+
+  if (target.mode === "replan" && target.role === "researcher") {
+    prepareResearcherReplan(workflow, manager);
+    workflow.confirmation_iteration = 0;
+  }
+
+  workflow.current_handoff_id = target.handoff_id;
+  workflow.status = "running";
+  workflow.failure = undefined;
+  workflow.result = undefined;
+  workflow.updated_at = now();
+  saveWorkflow(workflow);
+
+  const nextHandoff = loadHandoffOrThrow(manager, workflow);
+  await dispatchPendingHandoff(workflow, nextHandoff, dependencies);
+  workflow.updated_at = now();
+  saveWorkflow(workflow);
+  return buildStatusView(workflow);
+}
+
 export async function approveWorkflow(
   options: ApproveWorkflowOptions,
   dependencies: WorkflowDependencies = {},
@@ -1300,6 +1779,9 @@ export async function approveWorkflow(
   }
 
   const manager = new HandoffManager(repoPath);
+  const researcherId = workflow.handoff_ids[0];
+  const researcherHandoff = loadHandoffByIdOrThrow(manager, workflow, researcherId);
+  persistApprovedResearchSnapshot(workflow, researcherHandoff);
   const implementerId = workflow.handoff_ids[1];
   workflow.current_handoff_id = implementerId;
   workflow.status = "running";
@@ -1331,49 +1813,52 @@ export async function reviseWorkflow(
   }
 
   const manager = new HandoffManager(repoPath);
-  const plannerId = workflow.handoff_ids[0];
-  const plannerHandoff = manager.load(plannerId);
-  if (!plannerHandoff) {
-    throw new HydraError(`Planner handoff not found: ${plannerId}`, {
+  const researcherId = workflow.handoff_ids[0];
+  const researcherHandoff = manager.load(researcherId);
+  if (!researcherHandoff) {
+    throw new HydraError(`Researcher handoff not found: ${researcherId}`, {
       errorCode: "WORKFLOW_HANDOFF_NOT_FOUND",
       stage: "workflow.revise",
-      ids: { workflow_id: workflow.id, handoff_id: plannerId },
+      ids: { workflow_id: workflow.id, handoff_id: researcherId },
     });
   }
 
-  const revisionFile = path.join(plannerHandoff.artifacts!.package_dir, "revision.md");
-  const previousPlanFile = getPlannerControlPlanPath(workflow);
+  const revisionFile = path.join(researcherHandoff.artifacts!.package_dir, "revision.md");
+  const previousResearchResultFile = researcherHandoff.artifacts!.result_file;
+  const previousResearchBriefFile = getResearchBriefPath(workflow);
   fs.writeFileSync(
     revisionFile,
     [
-      "# Plan Revision Request",
+      "# Research Revision Request",
       "",
-      "The previous plan was reviewed and needs revision.",
+      "The previous research pass was reviewed and needs revision.",
       "",
-      "## Previous Plan",
-      `Read the previous plan at: ${previousPlanFile}`,
+      "## Previous Research",
+      `Read the previous research result at: ${previousResearchResultFile}`,
+      `Read the previous research brief at: ${previousResearchBriefFile}`,
       "",
       "## Feedback",
       options.feedback,
       "",
       "## Instructions",
-      "Revise the plan to address the feedback above. Keep the three-section structure (Problems Found, Constraints, Implementation Plan). You may add, remove, or modify any section based on the feedback.",
+      "Revise the research output to address the feedback above. Update the problem framing, constraints, architecture impact, structural blockers, and verification focus as needed.",
     ].join("\n"),
     "utf-8",
   );
 
-  plannerHandoff.context.files = [
-    ...plannerHandoff.context.files.filter((f) => !f.endsWith("revision.md")),
-    previousPlanFile,
+  researcherHandoff.context.files = [
+    ...researcherHandoff.context.files.filter((f) => !f.endsWith("revision.md")),
+    previousResearchResultFile,
+    previousResearchBriefFile,
     revisionFile,
   ];
-  manager.save(plannerHandoff);
+  manager.save(researcherHandoff);
 
-  resetHandoffToPending(manager, plannerId, now());
-  const resetPlannerHandoff = loadHandoffByIdOrThrow(manager, workflow, plannerId);
-  rewriteHandoffTaskPackage(workflow, resetPlannerHandoff);
-  manager.save(resetPlannerHandoff);
-  workflow.current_handoff_id = plannerId;
+  resetHandoffToPending(manager, researcherId, now());
+  const resetResearcherHandoff = loadHandoffByIdOrThrow(manager, workflow, researcherId);
+  rewriteHandoffTaskPackage(workflow, resetResearcherHandoff);
+  manager.save(resetResearcherHandoff);
+  workflow.current_handoff_id = researcherId;
   workflow.status = "running";
   workflow.updated_at = now();
   saveWorkflow(workflow);
