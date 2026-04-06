@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import { execSync } from "node:child_process";
 
 const DIFF_SIGNAL_FILES = new Set(["HEAD", "index"]);
 const LOG_SIGNAL_FILES = new Set([
@@ -60,10 +59,10 @@ export class GitFileWatcher {
       callbacks.onPresenceChanged?.(isGitRepo);
     });
 
-    const initialIsRepo = this.resolveGitDir(worktreePath) !== null;
-    if (initialIsRepo) {
+    const gitDir = this.resolveGitDir(worktreePath);
+    if (gitDir) {
       state.isGitRepo = true;
-      this.startGitDirectoryWatch(worktreePath);
+      this.startGitDirectoryWatch(worktreePath, gitDir);
     }
   }
 
@@ -125,12 +124,11 @@ export class GitFileWatcher {
     state.gitDir = null;
   }
 
-  private startGitDirectoryWatch(worktreePath: string, resolvedGitDir?: string) {
+  private startGitDirectoryWatch(worktreePath: string, resolvedGitDir: string) {
     const state = this.states.get(worktreePath);
     if (!state) return;
 
-    const gitDir = resolvedGitDir ?? this.resolveGitDir(worktreePath);
-    if (!gitDir) return;
+    const gitDir = resolvedGitDir;
 
     state.gitDirWatcher?.close();
     state.gitDir = gitDir;
@@ -183,11 +181,18 @@ export class GitFileWatcher {
 
   private resolveGitDir(worktreePath: string): string | null {
     try {
-      let gitDir = execSync("git rev-parse --git-dir", {
-        cwd: worktreePath,
-        encoding: "utf-8",
-        stdio: ["pipe", "pipe", "pipe"],
-      }).trim();
+      const dotGitPath = path.join(worktreePath, ".git");
+      const stat = fs.statSync(dotGitPath);
+      if (stat.isDirectory()) {
+        return dotGitPath;
+      }
+
+      const raw = fs.readFileSync(dotGitPath, "utf-8").trim();
+      const match = raw.match(/^gitdir:\s*(.+)$/i);
+      if (!match) {
+        return null;
+      }
+      let gitDir = match[1].trim();
       if (!path.isAbsolute(gitDir)) {
         gitDir = path.resolve(worktreePath, gitDir);
       }

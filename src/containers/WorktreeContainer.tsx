@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Position, WorktreeData } from "../types";
 import {
@@ -61,7 +61,7 @@ function rectIntersectsViewport(
   );
 }
 
-export function WorktreeContainer({
+export const WorktreeContainer = memo(function WorktreeContainer({
   projectId,
   projectCollapsed,
   worktree,
@@ -566,4 +566,4 @@ export function WorktreeContainer({
       })()}
     </div>
   );
-}
+});

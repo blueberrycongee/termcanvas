@@ -17,6 +17,7 @@ export function parseDiff(raw: string, files: FileInfo[]): FileDiff[] {
   const fileMap = new Map(files.map((f) => [f.name, f]));
   const result: FileDiff[] = [];
   const sections = raw.split(/^diff --git /m).filter(Boolean);
+  const seen = new Set<string>();
 
   for (const section of sections) {
     const lines = section.split("\n");
@@ -33,11 +34,12 @@ export function parseDiff(raw: string, files: FileInfo[]): FileDiff[] {
       imageNew: null,
     };
     const content = lines.slice(1).join("\n");
+    seen.add(file.name);
     result.push({ file, hunks: [content] });
   }
 
   for (const f of files) {
-    if (f.binary && !result.find((r) => r.file.name === f.name)) {
+    if (!seen.has(f.name)) {
       result.push({ file: f, hunks: [] });
     }
   }

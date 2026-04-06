@@ -701,7 +701,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const updatedProjects = state.projects.map((project) => {
         if (project.id !== projectId) return project;
         const compactedWorktrees = compactWorktreeLayout(project.worktrees);
-        if (compactedWorktrees === project.worktrees && project.autoCompact) {
+        if (compactedWorktrees === project.worktrees) {
           return project;
         }
         return { ...project, autoCompact: true, worktrees: compactedWorktrees };

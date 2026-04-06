@@ -4,38 +4,34 @@ import type {
   TerminalTelemetrySnapshot,
   WorkflowTelemetrySnapshot,
 } from "../../shared/telemetry";
+import type {
+  Position,
+  ProjectData,
+  StashedTerminal,
+  TerminalData,
+  TerminalOrigin,
+  TerminalStatus,
+  TerminalType,
+  WorktreeData,
+} from "../../shared/runtime-types";
 
 export * from "./scene";
-
-export type TerminalType =
-  | "shell"
-  | "claude"
-  | "codex"
-  | "kimi"
-  | "gemini"
-  | "opencode"
-  | "lazygit"
-  | "tmux";
-
-export interface Position {
-  x: number;
-  y: number;
-}
+export type {
+  Position,
+  ProjectData,
+  StashedTerminal,
+  TerminalData,
+  TerminalOrigin,
+  TerminalStatus,
+  TerminalType,
+  WorktreeData,
+} from "../../shared/runtime-types";
 
 export interface Viewport {
   x: number;
   y: number;
   scale: number;
 }
-
-export type TerminalStatus =
-  | "running"
-  | "active"
-  | "waiting"
-  | "completed"
-  | "success"
-  | "error"
-  | "idle";
 
 export type ComposerSupportedTerminalType = TerminalType;
 
@@ -84,55 +80,6 @@ export interface ComposerSubmitResult {
   stage?: ComposerSubmitIssueStage;
 }
 
-export type TerminalOrigin = "user" | "agent";
-
-export interface TerminalData {
-  id: string;
-  title: string;
-  customTitle?: string;
-  starred?: boolean;
-  type: TerminalType;
-  minimized: boolean;
-  focused: boolean;
-  ptyId: number | null;
-  status: TerminalStatus;
-  span: { cols: number; rows: number };
-  origin?: TerminalOrigin;
-  parentTerminalId?: string;
-  scrollback?: string;
-  sessionId?: string;
-  initialPrompt?: string;
-  autoApprove?: boolean;
-  stashed?: boolean;
-  stashedAt?: number;
-}
-
-export interface StashedTerminal {
-  terminal: TerminalData;
-  projectId: string;
-  worktreeId: string;
-  stashedAt: number;
-}
-
-export interface WorktreeData {
-  id: string;
-  name: string;
-  path: string;
-  position: Position;
-  collapsed: boolean;
-  terminals: TerminalData[];
-}
-
-export interface ProjectData {
-  id: string;
-  name: string;
-  path: string;
-  position: Position;
-  collapsed: boolean;
-  zIndex: number;
-  autoCompact?: boolean;
-  worktrees: WorktreeData[];
-}
 
 export interface CanvasState {
   version?: 1;
@@ -241,6 +188,15 @@ export interface DeviceUsage {
 export interface CloudUsageSummary extends UsageSummary {
   devices: DeviceUsage[];
 }
+
+export interface AuthUser {
+  id: string;
+  username: string;
+  avatarUrl: string;
+  email: string;
+}
+
+export type AuthLoginResult = { ok: true } | { ok: false; url?: string; error?: string };
 
 export interface InsightsProgressEvent {
   jobId: string;
@@ -533,6 +489,15 @@ export interface TermCanvasAPI {
   usage: {
     query: (dateStr: string) => Promise<UsageSummary>;
     heatmap: () => Promise<Record<string, { tokens: number; cost: number }>>;
+    queryCloud: (dateStr: string) => Promise<CloudUsageSummary | null>;
+    heatmapCloud: () => Promise<Record<string, { tokens: number; cost: number }> | null>;
+  };
+  auth: {
+    login: () => Promise<AuthLoginResult>;
+    logout: () => Promise<void>;
+    getUser: () => Promise<AuthUser | null>;
+    getDeviceId: () => Promise<string>;
+    onAuthStateChange: (callback: (user: AuthUser | null) => void) => () => void;
   };
   quota: {
     fetch: () => Promise<QuotaFetchResult>;
@@ -547,7 +512,7 @@ export interface TermCanvasAPI {
       sessionType: "claude" | "codex";
       cwd: string;
       summaryCli: "claude" | "codex";
-      locale: "en" | "zh";
+      locale?: "en" | "zh";
     }) => Promise<{ ok: boolean; summary?: string; error?: string; sessionFileSize?: number }>;
   };
   insights: {

@@ -5,6 +5,8 @@ import { promisify } from "util";
 
 const execFileAsync = promisify(execFile);
 const MAX_FILE_CONCURRENCY = 5;
+const MAX_DIFF_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGE_PREVIEW_BYTES = 5 * 1024 * 1024;
 const IMAGE_EXTS = new Set([
   ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".bmp", ".ico",
 ]);
@@ -42,6 +44,44 @@ function listLines(raw: string): string[] {
 
 function toDataUrl(mime: string, data: Buffer): string {
   return `data:${mime};base64,${data.toString("base64")}`;
+}
+
+function buildDiffLimitNotice(limitBytes: number): string {
+  return `\n[termcanvas] diff truncated because it exceeded ${Math.round(limitBytes / (1024 * 1024))} MiB.\n`;
+}
+
+async function readDiffWithBudget(
+  worktreePath: string,
+  args: string[],
+  maxBuffer = MAX_DIFF_BYTES,
+): Promise<string> {
+  try {
+    return await execGitText(worktreePath, args, maxBuffer);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("maxBuffer")) {
+      return buildDiffLimitNotice(maxBuffer);
+    }
+    throw error;
+  }
+}
+
+async function readImagePreview(filePath: string): Promise<Buffer | null> {
+  try {
+    const stat = await open(filePath, "r").then(async (handle) => {
+      try {
+        return await handle.stat();
+      } finally {
+        await handle.close();
+      }
+    });
+    if (stat.size > MAX_IMAGE_PREVIEW_BYTES) {
+      return null;
+    }
+    return await readFile(filePath);
+  } catch {
+    return null;
+  }
 }
 
 function countLines(content: string): number {
@@ -146,13 +186,17 @@ async function buildTrackedProjectDiffFile(
       const oldBuf = await execGitBuffer(
         worktreePath,
         ["show", `HEAD:${name}`],
-        5 * 1024 * 1024,
+        MAX_IMAGE_PREVIEW_BYTES,
       );
-      imageOld = toDataUrl(mime, oldBuf);
+      if (oldBuf.length <= MAX_IMAGE_PREVIEW_BYTES) {
+        imageOld = toDataUrl(mime, oldBuf);
+      }
     } catch {}
     try {
-      const newBuf = await readFile(path.join(worktreePath, name));
-      imageNew = toDataUrl(mime, newBuf);
+      const newBuf = await readImagePreview(path.join(worktreePath, name));
+      if (newBuf) {
+        imageNew = toDataUrl(mime, newBuf);
+      }
     } catch {}
   }
 
@@ -185,8 +229,10 @@ async function buildUntrackedProjectDiffEntry(
     let imageNew: string | null = null;
     if (isImage) {
       try {
-        const newBuf = await readFile(filePath);
-        imageNew = toDataUrl(mime, newBuf);
+        const newBuf = await readImagePreview(filePath);
+        if (newBuf) {
+          imageNew = toDataUrl(mime, newBuf);
+        }
       } catch {}
     }
 
@@ -261,7 +307,7 @@ export async function getProjectDiff(
   worktreePath: string,
 ): Promise<{ diff: string; files: ProjectDiffFile[] }> {
   const [diff, numstat, untrackedRaw] = await Promise.all([
-    execGitText(worktreePath, ["diff", "HEAD"], 10 * 1024 * 1024),
+    readDiffWithBudget(worktreePath, ["diff", "HEAD"]),
     execGitText(worktreePath, ["diff", "HEAD", "--numstat"]),
     execGitText(worktreePath, ["ls-files", "--others", "--exclude-standard"]),
   ]);
@@ -336,11 +382,6 @@ export async function getApiDiff(
     };
   }
 
-  const diff = await execGitText(
-    worktreePath,
-    ["diff", "HEAD"],
-    10 * 1024 * 1024,
-  );
   const untrackedDiffs = await mapWithConcurrency(
     untrackedNames,
     MAX_FILE_CONCURRENCY,
@@ -349,6 +390,6 @@ export async function getApiDiff(
 
   return {
     worktree: worktreePath,
-    diff: diff + untrackedDiffs.join(""),
+    diff: (await readDiffWithBudget(worktreePath, ["diff", "HEAD"])) + untrackedDiffs.join(""),
   };
 }

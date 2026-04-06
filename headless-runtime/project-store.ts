@@ -3,64 +3,20 @@
  * Provides the same data model and operations for the headless runtime.
  */
 
-export type TerminalType =
-  | "shell"
-  | "claude"
-  | "codex"
-  | "kimi"
-  | "gemini"
-  | "opencode"
-  | "lazygit"
-  | "tmux";
-
-export type TerminalStatus =
-  | "running"
-  | "active"
-  | "waiting"
-  | "completed"
-  | "success"
-  | "error"
-  | "idle";
-
-export type TerminalOrigin = "user" | "agent";
-
-export interface TerminalData {
-  id: string;
-  title: string;
-  customTitle?: string;
-  starred?: boolean;
-  type: TerminalType;
-  minimized: boolean;
-  focused: boolean;
-  ptyId: number | null;
-  status: TerminalStatus;
-  span: { cols: number; rows: number };
-  origin?: TerminalOrigin;
-  parentTerminalId?: string;
-  scrollback?: string;
-  sessionId?: string;
-  initialPrompt?: string;
-  autoApprove?: boolean;
-}
-
-export interface WorktreeData {
-  id: string;
-  name: string;
-  path: string;
-  position: { x: number; y: number };
-  collapsed: boolean;
-  terminals: TerminalData[];
-}
-
-export interface ProjectData {
-  id: string;
-  name: string;
-  path: string;
-  position: { x: number; y: number };
-  collapsed: boolean;
-  zIndex: number;
-  worktrees: WorktreeData[];
-}
+export type {
+  ProjectData,
+  TerminalData,
+  TerminalOrigin,
+  TerminalStatus,
+  TerminalType,
+  WorktreeData,
+} from "../shared/runtime-types.ts";
+import type {
+  ProjectData,
+  TerminalData,
+  TerminalStatus,
+  TerminalType,
+} from "../shared/runtime-types.ts";
 
 export interface EnrichedTerminal {
   id: string;

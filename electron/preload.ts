@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
+import type { TermCanvasAPI } from "../src/types";
 
-contextBridge.exposeInMainWorld("termcanvas", {
+export const termcanvasBridge: TermCanvasAPI = {
   terminal: {
     create: (options: { cwd: string; shell?: string; args?: string[]; terminalId?: string; terminalType?: string; theme?: "dark" | "light" }) =>
       ipcRenderer.invoke("terminal:create", options),
@@ -327,11 +328,13 @@ contextBridge.exposeInMainWorld("termcanvas", {
       sessionType: "claude" | "codex";
       cwd: string;
       summaryCli: "claude" | "codex";
+      locale?: "en" | "zh";
     }) =>
       ipcRenderer.invoke("summary:generate", input) as Promise<{
         ok: boolean;
         summary?: string;
         error?: string;
+        sessionFileSize?: number;
       }>,
   },
   insights: {
@@ -485,4 +488,6 @@ contextBridge.exposeInMainWorld("termcanvas", {
       return () => ipcRenderer.removeListener("menu:open-folder", listener);
     },
   },
-});
+};
+
+contextBridge.exposeInMainWorld("termcanvas", termcanvasBridge);

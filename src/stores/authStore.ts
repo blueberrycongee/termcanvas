@@ -1,11 +1,5 @@
 import { create } from "zustand";
-
-interface AuthUser {
-  id: string;
-  username: string;
-  avatarUrl: string;
-  email: string;
-}
+import type { AuthUser } from "../types";
 
 interface AuthStore {
   user: AuthUser | null;
@@ -20,8 +14,6 @@ interface AuthStore {
   clearLoginError: () => void;
 }
 
-// All auth property accesses use @ts-expect-error until the type declaration is merged.
-
 export const useAuthStore = create<AuthStore>((set) => ({
   user: null,
   loading: true,
@@ -31,21 +23,17 @@ export const useAuthStore = create<AuthStore>((set) => ({
   loginFallbackUrl: null,
 
   init: async () => {
-    // @ts-expect-error -- auth API added by preload agent
     if (!window.termcanvas?.auth) {
       set({ loading: false });
       return;
     }
     try {
       const [user, deviceId] = await Promise.all([
-        // @ts-expect-error -- auth API added by preload agent
         window.termcanvas.auth.getUser(),
-        // @ts-expect-error -- auth API added by preload agent
         window.termcanvas.auth.getDeviceId(),
       ]);
       set({ user, deviceId, loading: false });
 
-      // @ts-expect-error -- auth API added by preload agent
       window.termcanvas.auth.onAuthStateChange((user: AuthUser | null) => {
         set({ user });
       });
@@ -55,16 +43,14 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   login: async () => {
-    // @ts-expect-error -- auth API added by preload agent
     if (!window.termcanvas?.auth) return;
     set({ loginPending: true });
     try {
-      // @ts-expect-error -- auth API added by preload agent
       const result = await window.termcanvas.auth.login();
       set({
         loginPending: false,
         loginError: result.ok ? null : (result.error ?? null),
-        loginFallbackUrl: result.url ?? null,
+        loginFallbackUrl: result.ok ? null : (result.url ?? null),
       });
     } catch {
       set({ loginPending: false, loginError: "Login failed", loginFallbackUrl: null });
@@ -72,9 +58,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   logout: async () => {
-    // @ts-expect-error -- auth API added by preload agent
     if (!window.termcanvas?.auth) return;
-    // @ts-expect-error -- auth API added by preload agent
     await window.termcanvas.auth.logout();
     set({ user: null });
   },

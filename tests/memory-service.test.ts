@@ -140,8 +140,9 @@ test("getMemoryDirForWorktree derives correct Claude Code memory path", async ()
     `../electron/memory-service.ts?derive-${Date.now()}`
   );
   const result = getMemoryDirForWorktree("/Users/zzzz/termcanvas");
-  assert.ok(result.endsWith("/-Users-zzzz-termcanvas/memory"));
-  assert.ok(result.includes(".claude/projects"));
+  const normalized = result.replace(/\\/g, "/");
+  assert.ok(normalized.endsWith("/-Users-zzzz-termcanvas/memory"));
+  assert.ok(normalized.includes(".claude/projects"));
 });
 
 test("getMemoryDirForWorktree handles Windows paths", async () => {

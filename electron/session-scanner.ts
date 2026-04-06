@@ -12,17 +12,55 @@ const SCAN_INTERVAL = 10_000;
 const LIVE_THRESHOLD_MS = 60_000;
 const HISTORY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const FIND_TIMEOUT_MS = 5_000;
+const CLAUDE_SCAN_MAX_DEPTH = 2;
 const TAIL_BYTES = 65536;
+
+async function collectClaudeJsonlFilesLimited(
+  dirPath: string,
+  maxDepth = CLAUDE_SCAN_MAX_DEPTH,
+): Promise<string[]> {
+  const results: string[] = [];
+  const queue: Array<{ dir: string; depth: number }> = [{ dir: dirPath, depth: 0 }];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) break;
+
+    let entries: fs.Dirent[];
+    try {
+      entries = await fsp.readdir(current.dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      const fullPath = path.join(current.dir, entry.name);
+      if (entry.isFile() && fullPath.endsWith(".jsonl")) {
+        results.push(fullPath);
+        continue;
+      }
+      if (entry.isDirectory() && current.depth < maxDepth) {
+        queue.push({ dir: fullPath, depth: current.depth + 1 });
+      }
+    }
+  }
+
+  return results;
+}
 
 export class SessionScanner {
   private timer: ReturnType<typeof setInterval> | null = null;
   private sessions: SessionInfo[] = [];
   private onChange: ((sessions: SessionInfo[]) => void) | null = null;
+  private scanInFlight = false;
+  private rescanRequested = false;
 
   start(onChange: (sessions: SessionInfo[]) => void): void {
     this.onChange = onChange;
-    this.scan();
-    this.timer = setInterval(() => this.scan(), SCAN_INTERVAL);
+    void this.scan();
+    this.timer = setInterval(() => {
+      void this.scan();
+    }, SCAN_INTERVAL);
   }
 
   stop(): void {
@@ -36,7 +74,13 @@ export class SessionScanner {
     return this.sessions;
   }
 
-  private scan(): void {
+  private async scan(): Promise<void> {
+    if (this.scanInFlight) {
+      this.rescanRequested = true;
+      return;
+    }
+    this.scanInFlight = true;
+
     const claudeDir = path.join(os.homedir(), ".claude", "projects");
     const finalize = (claudeFiles: string[]) => {
       const now = Date.now();
@@ -81,23 +125,39 @@ export class SessionScanner {
       this.onChange?.(results);
     };
 
-    if (!fs.existsSync(claudeDir)) {
-      finalize([]);
-      return;
-    }
+    try {
+      if (!fs.existsSync(claudeDir)) {
+        finalize([]);
+        return;
+      }
 
-    execFile(
-      "find",
-      [claudeDir, "-maxdepth", "2", "-name", "*.jsonl", "-mmin", "-1440"],
-      { timeout: FIND_TIMEOUT_MS },
-      (err, stdout) => {
-        if (err) {
-          finalize([]);
-          return;
-        }
-        finalize(stdout.trim().split("\n").filter(Boolean));
-      },
-    );
+      if (process.platform === "win32") {
+        finalize(await collectClaudeJsonlFilesLimited(claudeDir));
+        return;
+      }
+
+      const claudeFiles = await new Promise<string[]>((resolve) => {
+        execFile(
+          "find",
+          [claudeDir, "-maxdepth", "2", "-name", "*.jsonl", "-mmin", "-1440"],
+          { timeout: FIND_TIMEOUT_MS },
+          async (err, stdout) => {
+            if (err) {
+              resolve(await collectClaudeJsonlFilesLimited(claudeDir));
+              return;
+            }
+            resolve(stdout.trim().split("\n").filter(Boolean));
+          },
+        );
+      });
+      finalize(claudeFiles);
+    } finally {
+      this.scanInFlight = false;
+      if (this.rescanRequested) {
+        this.rescanRequested = false;
+        void this.scan();
+      }
+    }
   }
 
   private readTail(filePath: string, fileSize: number): string {

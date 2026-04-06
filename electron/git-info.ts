@@ -325,14 +325,12 @@ export async function discardFiles(
   trackedPaths: string[],
   untrackedPaths: string[],
 ): Promise<void> {
-  const ops: Promise<string>[] = [];
   if (trackedPaths.length > 0) {
-    ops.push(execGitText(worktreePath, ["checkout", "--", ...trackedPaths]));
+    await execGitText(worktreePath, ["checkout", "--", ...trackedPaths]);
   }
   if (untrackedPaths.length > 0) {
-    ops.push(execGitText(worktreePath, ["clean", "-f", "--", ...untrackedPaths]));
+    await execGitText(worktreePath, ["clean", "-f", "--", ...untrackedPaths]);
   }
-  await Promise.all(ops);
 }
 
 export async function createCommit(worktreePath: string, message: string): Promise<string> {

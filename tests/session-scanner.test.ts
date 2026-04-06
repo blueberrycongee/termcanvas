@@ -9,7 +9,9 @@ import { SessionScanner } from "../electron/session-scanner.ts";
 async function withTempHome(fn: (homeDir: string) => Promise<void>) {
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-session-scanner-home-"));
   const previousHome = process.env.HOME;
+  const previousUserProfile = process.env.USERPROFILE;
   process.env.HOME = homeDir;
+  process.env.USERPROFILE = homeDir;
   try {
     await fn(homeDir);
   } finally {
@@ -17,6 +19,11 @@ async function withTempHome(fn: (homeDir: string) => Promise<void>) {
       delete process.env.HOME;
     } else {
       process.env.HOME = previousHome;
+    }
+    if (previousUserProfile === undefined) {
+      delete process.env.USERPROFILE;
+    } else {
+      process.env.USERPROFILE = previousUserProfile;
     }
     fs.rmSync(homeDir, { recursive: true, force: true });
   }

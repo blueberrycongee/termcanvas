@@ -65,6 +65,7 @@ import { findBestClaudeSession, findBestCodexSession, readClaudeSessionPermissio
 import { AgentService, type AgentConfig } from "./agent-service";
 import { SessionScanner } from "./session-scanner.ts";
 import { mergeAndDedupeSessions } from "./session-list.ts";
+import { createAppCloseCleanup } from "./app-lifecycle";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -122,6 +123,15 @@ const telemetryService = new TelemetryService({
 });
 const agentService = new AgentService();
 const sessionScanner = new SessionScanner();
+const runAppCloseCleanup = createAppCloseCleanup({
+  outputBatcher,
+  ptyManager,
+  gitWatcher,
+  fileTreeWatcher,
+  sessionWatcher,
+  telemetryService,
+  agentService,
+});
 let hookSocketPath: string | null = null;
 const hookReceiver = new HookReceiver((event) => {
   telemetryService.recordHookEvent(event.terminal_id, event);
@@ -1146,11 +1156,7 @@ function setupIpc() {
   });
 
   ipcMain.on("app:close-confirmed", async (_event, options?: { installUpdate?: boolean }) => {
-    outputBatcher.dispose();
-    await ptyManager.destroyAll();
-    gitWatcher.unwatchAll();
-    fileTreeWatcher.unwatchAll();
-    sessionWatcher.unwatchAll();
+    await runAppCloseCleanup();
     forceClose = true;
     if (mainWindow) {
       mainWindow.close();
@@ -1348,6 +1354,7 @@ app.whenReady().then(async () => {
 });
 
 app.on("will-quit", () => {
+  void runAppCloseCleanup();
   hookReceiver.stop();
   stopAutoUpdater();
   apiServer.stop();

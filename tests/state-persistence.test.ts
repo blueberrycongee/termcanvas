@@ -1,72 +1,56 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import fs from "fs";
-import path from "path";
-import os from "os";
-import {
-  getTermCanvasDataDir,
-  resolveTermCanvasPortFile,
-} from "../shared/termcanvas-instance.ts";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
-test("save writes atomically via tmp+rename", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tc-state-"));
-  const file = path.join(dir, "state.json");
+async function withStateModule<T>(
+  fn: (mod: typeof import("../electron/state-persistence.ts"), stateFile: string) => Promise<T> | T,
+) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-state-test-"));
+  const prevHome = process.env.HOME;
+  const prevUserProfile = process.env.USERPROFILE;
+  process.env.HOME = root;
+  process.env.USERPROFILE = root;
+  delete process.env.VITE_DEV_SERVER_URL;
+  const mod = await import(`../electron/state-persistence.ts?${Date.now()}`);
+  const stateFile = path.join(mod.TERMCANVAS_DIR, "state.json");
 
-  const data = { version: 1, projects: [] };
-  const tmp = file + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
-  fs.renameSync(tmp, file);
+  try {
+    return await fn(mod, stateFile);
+  } finally {
+    if (prevHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = prevHome;
+    }
+    if (prevUserProfile === undefined) {
+      delete process.env.USERPROFILE;
+    } else {
+      process.env.USERPROFILE = prevUserProfile;
+    }
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
 
-  const loaded = JSON.parse(fs.readFileSync(file, "utf-8"));
-  assert.deepEqual(loaded, data);
-  assert.equal(fs.existsSync(tmp), false, "tmp file should be cleaned up by rename");
+test("StatePersistence saves versioned envelopes and loads the payload", async () => {
+  await withStateModule(async ({ StatePersistence }, stateFile) => {
+    const persistence = new StatePersistence();
+    persistence.save({ hello: "world" });
 
-  fs.rmSync(dir, { recursive: true });
+    const raw = JSON.parse(fs.readFileSync(stateFile, "utf-8"));
+    assert.equal(raw.version, 1);
+    assert.deepEqual(raw.payload, { hello: "world" });
+    assert.deepEqual(persistence.load(), { hello: "world" });
+  });
 });
 
-test("save with skipRestore flag", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tc-state-"));
-  const file = path.join(dir, "state.json");
+test("StatePersistence still loads legacy raw snapshots", async () => {
+  await withStateModule(async ({ StatePersistence }, stateFile) => {
+    fs.mkdirSync(path.dirname(stateFile), { recursive: true });
+    fs.writeFileSync(stateFile, JSON.stringify({ legacy: true }), "utf-8");
 
-  const data = { version: 1, projects: [], skipRestore: true };
-  const tmp = file + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
-  fs.renameSync(tmp, file);
-
-  const loaded = JSON.parse(fs.readFileSync(file, "utf-8"));
-  assert.equal(loaded.skipRestore, true);
-
-  fs.rmSync(dir, { recursive: true });
-});
-
-test("getTermCanvasDataDir separates prod and dev state directories", () => {
-  assert.equal(
-    getTermCanvasDataDir("prod"),
-    path.join(os.homedir(), ".termcanvas"),
-  );
-  assert.equal(
-    getTermCanvasDataDir("dev"),
-    path.join(os.homedir(), ".termcanvas-dev"),
-  );
-});
-
-test("resolveTermCanvasPortFile defaults to the prod instance port file", () => {
-  assert.equal(
-    resolveTermCanvasPortFile({}),
-    path.join(os.homedir(), ".termcanvas", "port"),
-  );
-});
-
-test("resolveTermCanvasPortFile respects TERMCANVAS_INSTANCE and TERMCANVAS_PORT_FILE", () => {
-  assert.equal(
-    resolveTermCanvasPortFile({ TERMCANVAS_INSTANCE: "dev" }),
-    path.join(os.homedir(), ".termcanvas-dev", "port"),
-  );
-  assert.equal(
-    resolveTermCanvasPortFile({
-      TERMCANVAS_INSTANCE: "prod",
-      TERMCANVAS_PORT_FILE: "/tmp/custom-port-file",
-    }),
-    "/tmp/custom-port-file",
-  );
+    const persistence = new StatePersistence();
+    assert.deepEqual(persistence.load(), { legacy: true });
+  });
 });

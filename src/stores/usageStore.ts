@@ -142,13 +142,11 @@ export const useUsageStore = create<UsageStore>((set, get) => ({
     ) {
       return;
     }
-    // @ts-expect-error -- queryCloud will be added by the preload agent
     if (!window.termcanvas?.usage?.queryCloud) {
       set({ cloudSummary: null });
       return;
     }
     try {
-      // @ts-expect-error -- queryCloud will be added by the preload agent
       const data = await window.termcanvas.usage.queryCloud(target);
       set({ cloudSummary: data ?? null, cloudSummaryFetchedAt: Date.now() });
     } catch {
@@ -163,13 +161,11 @@ export const useUsageStore = create<UsageStore>((set, get) => ({
     ) {
       return;
     }
-    // @ts-expect-error -- heatmapCloud will be added by the preload agent
     if (!window.termcanvas?.usage?.heatmapCloud) {
       set({ cloudHeatmapData: null });
       return;
     }
     try {
-      // @ts-expect-error -- heatmapCloud will be added by the preload agent
       const data = await window.termcanvas.usage.heatmapCloud();
       set({ cloudHeatmapData: data ?? null, cloudHeatmapFetchedAt: Date.now() });
     } catch {

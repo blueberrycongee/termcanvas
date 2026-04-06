@@ -7,6 +7,7 @@ import { execSync } from "node:child_process";
 
 import {
   checkoutGitRef,
+  discardFiles,
   getGitBranches,
   getGitCommitDetail,
   getGitLog,
@@ -138,5 +139,22 @@ test("getGitCommitDetail returns null for a missing commit hash", async () => {
     );
 
     assert.equal(detail, null);
+  });
+});
+
+test("discardFiles stops before cleaning untracked files when tracked checkout fails", async () => {
+  await withTempRepo(async (repoPath) => {
+    fs.writeFileSync(path.join(repoPath, "tracked.txt"), "root\n");
+    execSync("git add tracked.txt", { cwd: repoPath, stdio: "pipe" });
+    execSync('git commit -m "root commit"', { cwd: repoPath, stdio: "pipe" });
+
+    const untrackedPath = path.join(repoPath, "keep-me.txt");
+    fs.writeFileSync(untrackedPath, "local\n");
+
+    await assert.rejects(
+      discardFiles(repoPath, ["missing-tracked.txt"], ["keep-me.txt"]),
+    );
+
+    assert.equal(fs.existsSync(untrackedPath), true);
   });
 });

@@ -229,4 +229,18 @@ export class AgentService {
     if (session?.abortController) session.abortController.abort();
     this.sessions.delete(sessionId);
   }
+
+  async dispose(): Promise<void> {
+    for (const session of this.sessions.values()) {
+      session.abortController?.abort();
+      session.running = false;
+      session.abortController = null;
+      session.messages = [];
+    }
+    this.sessions.clear();
+
+    const drivers = [...this.drivers.values()];
+    this.drivers.clear();
+    await Promise.all(drivers.map((driver) => driver.destroy()));
+  }
 }

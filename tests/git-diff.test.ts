@@ -10,6 +10,22 @@ import {
   getProjectDiff,
 } from "../electron/git-diff.ts";
 
+function removeDirWithRetry(dir: string): void {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "EBUSY" && code !== "ENOTEMPTY") {
+        throw error;
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+    }
+  }
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
 async function withTempRepo(fn: (repoPath: string) => Promise<void> | void) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "git-diff-test-"));
   try {
@@ -27,7 +43,7 @@ async function withTempRepo(fn: (repoPath: string) => Promise<void> | void) {
     });
     await fn(dir);
   } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
+    removeDirWithRetry(dir);
   }
 }
 
@@ -186,5 +202,44 @@ test("getApiDiff preserves existing full diff shape", async () => {
     assert.match(result.diff, /diff --git a\/tracked\.txt b\/tracked\.txt/);
     assert.match(result.diff, /diff --git a\/notes\.txt b\/notes\.txt/);
     assert.doesNotMatch(result.diff, /Binary file/);
+  });
+});
+
+test("getProjectDiff returns a truncation notice instead of failing on oversized diffs", async () => {
+  await withTempRepo(async (repoPath) => {
+    const largePath = path.join(repoPath, "large.txt");
+    fs.writeFileSync(largePath, "start\n");
+    execSync('git add large.txt && git commit -m "init"', {
+      cwd: repoPath,
+      stdio: "pipe",
+    });
+
+    fs.writeFileSync(largePath, `${"x".repeat(1024)}\n`.repeat(12_000));
+
+    const result = await getProjectDiff(repoPath);
+    assert.match(result.diff, /\[termcanvas\] diff truncated because it exceeded 10 MiB\./);
+  });
+});
+
+test("getProjectDiff skips large image previews to avoid loading them into memory", async () => {
+  await withTempRepo(async (repoPath) => {
+    const trackedImagePath = path.join(repoPath, "tracked.png");
+    const tinyPng = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00,
+    ]);
+
+    fs.writeFileSync(trackedImagePath, tinyPng);
+    execSync('git add tracked.png && git commit -m "init"', {
+      cwd: repoPath,
+      stdio: "pipe",
+    });
+
+    fs.writeFileSync(trackedImagePath, Buffer.alloc(6 * 1024 * 1024, 1));
+
+    const result = await getProjectDiff(repoPath);
+    const file = result.files.find((entry) => entry.name === "tracked.png");
+    assert.ok(file);
+    assert.equal(file.imageOld, `data:image/png;base64,${tinyPng.toString("base64")}`);
+    assert.equal(file.imageNew, null);
   });
 });

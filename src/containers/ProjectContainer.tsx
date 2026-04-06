@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo } from "react";
 import type { ProjectData } from "../types";
 import { useProjectStore } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
@@ -13,7 +13,7 @@ interface Props {
   project: ProjectData;
 }
 
-export function ProjectContainer({ project }: Props) {
+export const ProjectContainer = memo(function ProjectContainer({ project }: Props) {
   const t = useT();
   const {
     updateProjectPosition,
@@ -202,4 +202,4 @@ export function ProjectContainer({ project }: Props) {
       </div>
     </div>
   );
-}
+});
