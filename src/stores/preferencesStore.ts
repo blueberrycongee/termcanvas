@@ -2,11 +2,7 @@ import { create } from "zustand";
 import type { TerminalType } from "../types/index.ts";
 import type { AgentProviderConfig } from "../agentProviders";
 import { defaultProviderConfig, getPreset, PROVIDER_PRESETS } from "../agentProviders";
-
-const DEFAULT_BLUR = 0;
-const DEFAULT_FONT_SIZE = 13;
-const DEFAULT_MIN_CONTRAST = 1;
-const LEGACY_ENABLED_BLUR = 1.5;
+import { preferencesSchema } from "./preferencesSchema.ts";
 
 export interface CliCommandConfig {
   command: string;
@@ -76,102 +72,51 @@ function migrateOldAgentFields(parsed: Record<string, unknown>): AgentProviderCo
   };
 }
 
-function loadAgentConfig(parsed: Record<string, unknown>): AgentProviderConfig {
-  const raw = parsed.agentConfig;
-  if (raw && typeof raw === "object" && "id" in (raw as object) && "type" in (raw as object)) {
-    const cfg = raw as Record<string, unknown>;
-    return {
-      id: (cfg.id as string) ?? "anthropic",
-      name: (cfg.name as string) ?? "Anthropic",
-      type: (cfg.type as "anthropic" | "openai") ?? "anthropic",
-      baseURL: (cfg.baseURL as string) ?? "",
-      apiKey: "",
-      model: (cfg.model as string) ?? "",
-    };
-  }
-  // Old format — migrate (apiKey decrypted later by hydrateApiKey)
-  const migrated = migrateOldAgentFields(parsed);
-  return { ...migrated, apiKey: "" };
-}
-
 function loadPreferences(): SavedPrefs {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw);
-      let blur = DEFAULT_BLUR;
-      const v = parsed.animationBlur;
-      if (v === true) blur = LEGACY_ENABLED_BLUR;
-      else if (v === false) blur = 0;
-      else if (typeof v === "number" && v >= 0 && v <= 3) blur = v;
+      const rawParsed = JSON.parse(raw);
 
-      let fontSize = DEFAULT_FONT_SIZE;
-      const f = parsed.terminalFontSize;
-      if (typeof f === "number" && f >= 6 && f <= 24) fontSize = f;
-
-      let fontFamily = "geist-mono";
-      const ff = parsed.terminalFontFamily;
-      if (typeof ff === "string" && ff.length > 0) fontFamily = ff;
-
-      let composerEnabled = false;
-      if (parsed.composerEnabled === true) composerEnabled = true;
-
-      let drawingEnabled = false;
-      if (parsed.drawingEnabled === true) drawingEnabled = true;
-
-      let browserEnabled = false;
-      if (parsed.browserEnabled === true) browserEnabled = true;
-
-      let summaryEnabled = false;
-      if (parsed.summaryEnabled === true) summaryEnabled = true;
-
-      let summaryCli: "claude" | "codex" = "claude";
-      if (parsed.summaryCli === "codex") summaryCli = "codex";
-
-      let minimumContrastRatio = DEFAULT_MIN_CONTRAST;
-      const mcr = parsed.minimumContrastRatio;
-      if (typeof mcr === "number" && mcr >= 1 && mcr <= 7) minimumContrastRatio = mcr;
-
-      const cliCommands: Partial<Record<TerminalType, CliCommandConfig>> = {};
-      if (parsed.cliCommands && typeof parsed.cliCommands === "object") {
-        for (const [key, val] of Object.entries(parsed.cliCommands)) {
-          if (val && typeof val === "object" && typeof (val as CliCommandConfig).command === "string") {
-            cliCommands[key as TerminalType] = val as CliCommandConfig;
-          }
-        }
+      // Migrate legacy agent fields before schema parse
+      if (
+        !rawParsed.agentConfig ||
+        typeof rawParsed.agentConfig !== "object" ||
+        !("id" in rawParsed.agentConfig) ||
+        !("type" in rawParsed.agentConfig)
+      ) {
+        rawParsed.agentConfig = migrateOldAgentFields(rawParsed);
       }
 
-      const agentConfig = loadAgentConfig(parsed);
+      // Validate field-by-field: valid values are kept, invalid ones fall back to defaults.
+      // This preserves partially valid persisted data (matching the original behavior).
+      const defaults = preferencesSchema.parse({});
+      const result: Record<string, unknown> = {};
+
+      for (const [key, fieldSchema] of Object.entries(
+        preferencesSchema.shape as Record<string, import("zod").ZodTypeAny>,
+      )) {
+        const fieldValue = rawParsed[key];
+        if (fieldValue === undefined) {
+          result[key] = defaults[key as keyof typeof defaults];
+          continue;
+        }
+        const fieldResult = (fieldSchema as import("zod").ZodTypeAny).safeParse(fieldValue);
+        result[key] = fieldResult.success ? fieldResult.data : defaults[key as keyof typeof defaults];
+      }
 
       return {
-        animationBlur: blur,
-        terminalFontSize: fontSize,
-        terminalFontFamily: fontFamily,
-        composerEnabled,
-        drawingEnabled,
-        browserEnabled,
-        summaryEnabled,
-        summaryCli,
-        minimumContrastRatio,
-        cliCommands,
-        agentConfig,
-      };
+        ...result,
+        agentConfig: {
+          ...(result.agentConfig as AgentProviderConfig),
+          apiKey: "",
+        },
+      } as SavedPrefs;
     }
-  } catch {
+  } catch (e) {
+    console.error("Failed to load preferences:", e);
   }
-  return {
-    animationBlur: DEFAULT_BLUR,
-    terminalFontSize: DEFAULT_FONT_SIZE,
-    terminalFontFamily: "geist-mono",
-    composerEnabled: false,
-    drawingEnabled: false,
-    browserEnabled: false,
-    summaryEnabled: false,
-    summaryCli: "claude",
-    minimumContrastRatio: DEFAULT_MIN_CONTRAST,
-    cliCommands: {},
-    agentConfig: defaultProviderConfig(),
-  };
+  return preferencesSchema.parse({});
 }
 
 function savePreferences(state: SavedPrefs) {

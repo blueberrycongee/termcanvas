@@ -88,3 +88,58 @@ test("preferences ignore removed smart render settings while preserving supporte
   assert.equal("smartRenderEnabled" in raw, false);
   assert.equal(raw.animationBlur, 0);
 });
+
+test("preferences fall back to defaults for invalid persisted values", async () => {
+  installLocalStorage(JSON.stringify({
+    animationBlur: 9,
+    terminalFontSize: 99,
+    terminalFontFamily: "",
+    composerEnabled: "yes",
+    drawingEnabled: true,
+    browserEnabled: false,
+    summaryEnabled: true,
+    summaryCli: "kimi",
+    minimumContrastRatio: 10,
+    cliCommands: {
+      claude: { command: "/usr/local/bin/claude" },
+      invalid: { command: "/tmp/nope", args: ["--bad"] },
+      codex: { command: 123, args: ["--model", "gpt-5.4"] },
+    },
+  }));
+
+  const { usePreferencesStore } = await loadPreferencesStoreModule("invalid-values");
+  const store = usePreferencesStore.getState();
+
+  assert.equal(store.animationBlur, 0);
+  assert.equal(store.terminalFontSize, 13);
+  assert.equal(store.terminalFontFamily, "geist-mono");
+  assert.equal(store.composerEnabled, false);
+  assert.equal(store.drawingEnabled, true);
+  assert.equal(store.browserEnabled, false);
+  assert.equal(store.summaryEnabled, true);
+  assert.equal(store.summaryCli, "claude");
+  assert.equal(store.minimumContrastRatio, 1);
+  assert.deepEqual(store.cliCommands, {
+    claude: { command: "/usr/local/bin/claude", args: [] },
+  });
+});
+
+test("preferences migrate legacy agent fields into agentConfig", async () => {
+  installLocalStorage(JSON.stringify({
+    agentProvider: "openai",
+    agentApiKey: "sk-legacy-secret",
+    agentModel: "gpt-5.4",
+  }));
+
+  const { usePreferencesStore } = await loadPreferencesStoreModule("legacy-agent-config");
+  const store = usePreferencesStore.getState();
+
+  assert.deepEqual(store.agentConfig, {
+    id: "openai",
+    name: "OpenAI",
+    type: "openai",
+    baseURL: "https://api.openai.com/v1",
+    apiKey: "",
+    model: "gpt-5.4",
+  });
+});
