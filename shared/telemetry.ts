@@ -27,6 +27,13 @@ export type TelemetryDerivedStatus =
   | "error"
   | "exited";
 
+export type TelemetryTaskStatus = "running" | "idle" | "unknown";
+export type TelemetryTaskStatusSource =
+  | "active_tool_calls"
+  | "turn_state"
+  | "session_heartbeat"
+  | "none";
+
 export interface TelemetryProcessInfo {
   pid: number;
   command: string;
@@ -50,6 +57,8 @@ export interface NormalizedSessionTelemetryEvent {
   event_subtype?: string;
   role?: string;
   tool_name?: string;
+  call_id?: string;
+  lifecycle?: "start" | "end";
   token_total?: number;
   turn_state?: TelemetryTurnState;
   meaningful_progress?: boolean;
@@ -77,6 +86,10 @@ export interface TerminalTelemetrySnapshot {
   process_snapshot_at?: string;
   descendant_processes: TelemetryProcessInfo[];
   foreground_tool?: string;
+  active_tool_calls: number;
+  last_tool_event_at?: string;
+  task_status?: TelemetryTaskStatus;
+  task_status_source?: TelemetryTaskStatusSource;
   git_activity_at?: string;
   worktree_activity_at?: string;
   contract_activity_at?: string;

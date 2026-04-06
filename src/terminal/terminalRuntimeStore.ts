@@ -190,8 +190,13 @@ function sameTelemetrySnapshot(
     left.provider === right.provider &&
     left.session_attached === right.session_attached &&
     left.last_meaningful_progress_at === right.last_meaningful_progress_at &&
+    left.last_session_event_at === right.last_session_event_at &&
     left.last_session_event_kind === right.last_session_event_kind &&
     left.foreground_tool === right.foreground_tool &&
+    left.active_tool_calls === right.active_tool_calls &&
+    left.last_tool_event_at === right.last_tool_event_at &&
+    left.task_status === right.task_status &&
+    left.task_status_source === right.task_status_source &&
     left.result_exists === right.result_exists &&
     left.done_exists === right.done_exists &&
     left.turn_state === right.turn_state
