@@ -204,22 +204,22 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
     return map;
   }, [changedFiles, stagedFiles]);
 
-  // For a directory relative path, find the highest-priority status among descendants
-  const getDirStatus = useCallback(
-    (dirRelPath: string): GitFileStatus | null => {
-      let best: GitFileStatus | null = null;
-      const prefix = dirRelPath ? dirRelPath + "/" : "";
-      for (const [filePath, status] of gitStatusMap) {
-        if (filePath.startsWith(prefix)) {
-          if (!best || STATUS_PRIORITY[status] < STATUS_PRIORITY[best]) {
-            best = status;
-          }
+  // Precompute folder → highest-priority status among descendants
+  const dirStatusMap = useMemo(() => {
+    const map = new Map<string, GitFileStatus>();
+    for (const [filePath, status] of gitStatusMap) {
+      const parts = filePath.split("/");
+      // Walk each ancestor directory
+      for (let i = 1; i < parts.length; i++) {
+        const dir = parts.slice(0, i).join("/");
+        const existing = map.get(dir);
+        if (!existing || STATUS_PRIORITY[status] < STATUS_PRIORITY[existing]) {
+          map.set(dir, status);
         }
       }
-      return best;
-    },
-    [gitStatusMap],
-  );
+    }
+    return map;
+  }, [gitStatusMap]);
 
   const [dropTargetDir, setDropTargetDir] = useState<string | null>(null);
   const autoExpandTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -523,7 +523,12 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
         ? fullPath.slice(worktreePath.length + 1)
         : "";
       const fileStatus = entry.isDirectory ? null : gitStatusMap.get(relPath);
-      const dirStatus = entry.isDirectory ? getDirStatus(relPath) : null;
+      const dirStatus = entry.isDirectory
+        ? (dirStatusMap.get(relPath) ?? null)
+        : null;
+      const nameColor = fileStatus
+        ? GIT_STATUS_CONFIG[fileStatus]?.color
+        : undefined;
 
       nodes.push(
         <div key={fullPath}>
@@ -604,7 +609,10 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
               <FileIcon isDirectory={entry.isDirectory} expanded={isExpanded} />
               <span
                 className={`truncate text-[11px] ${entry.isDirectory ? "font-medium text-[var(--text-primary)]" : "text-[var(--text-primary)]"}`}
-                style={MONO_STYLE}
+                style={{
+                  ...MONO_STYLE,
+                  ...(nameColor ? { color: nameColor } : undefined),
+                }}
               >
                 {entry.name}
               </span>
