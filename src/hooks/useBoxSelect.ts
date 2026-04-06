@@ -27,11 +27,34 @@ import {
   PROJ_TITLE_H,
 } from "../layout";
 
+const BOX_SELECT_BLOCK_SELECTOR = "[data-scene-box-select-block]";
+
 function rectsIntersect(
   a: { x: number; y: number; w: number; h: number },
   b: { x: number; y: number; w: number; h: number },
 ): boolean {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+export function shouldIgnoreBoxSelectTarget(target: EventTarget | null): boolean {
+  if (typeof Element === "undefined") {
+    return false;
+  }
+  return target instanceof Element && !!target.closest(BOX_SELECT_BLOCK_SELECTOR);
+}
+
+export function prioritizeBoxSelectionItems(items: SelectedItem[]): SelectedItem[] {
+  const annotationItems = items.filter((item) => item.type === "annotation");
+  if (annotationItems.length > 0) {
+    return annotationItems;
+  }
+
+  const cardItems = items.filter((item) => item.type === "card");
+  if (cardItems.length > 0) {
+    return cardItems;
+  }
+
+  return items;
 }
 
 function screenToCanvas(clientX: number, clientY: number) {
@@ -125,12 +148,13 @@ function getItemsInRect(rect: { x: number; y: number; w: number; h: number }): S
     }
   }
 
-  return items;
+  return prioritizeBoxSelectionItems(items);
 }
 
 export function useBoxSelect() {
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0 || !e.shiftKey) return;
+    if (shouldIgnoreBoxSelectTarget(e.target)) return;
 
     // Don't activate in drawing mode
     if (useDrawingStore.getState().tool !== "select") return;

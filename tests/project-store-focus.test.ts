@@ -6,6 +6,7 @@ import {
   ensureTerminalCreationTarget,
 } from "../src/projects/projectCreation.ts";
 import { useProjectStore } from "../src/stores/projectStore.ts";
+import { useTerminalRuntimeStateStore } from "../src/stores/terminalRuntimeStateStore.ts";
 import type { ProjectData } from "../src/types/index.ts";
 
 function createProjects(): ProjectData[] {
@@ -92,6 +93,7 @@ function createProjects(): ProjectData[] {
 }
 
 function resetStore(projects = createProjects()) {
+  useTerminalRuntimeStateStore.getState().reset();
   useProjectStore.setState({
     projects,
     focusedProjectId: "project-1",
@@ -292,6 +294,16 @@ test("removeProject clears focus when the focused project is deleted", () => {
   assert.equal(state.projects.some((project) => project.id === "project-1"), false);
 });
 
+test("removeProject clears descendant terminal runtime state", () => {
+  resetStore();
+  useTerminalRuntimeStateStore.getState().setSessionId("terminal-1", "session-1");
+  useTerminalRuntimeStateStore.getState().setStatus("terminal-2", "running");
+
+  useProjectStore.getState().removeProject("project-1");
+
+  assert.deepEqual(useTerminalRuntimeStateStore.getState().terminals, {});
+});
+
 test("removeWorktree clears only the deleted worktree focus", () => {
   resetStore();
 
@@ -301,6 +313,16 @@ test("removeWorktree clears only the deleted worktree focus", () => {
   assert.equal(state.focusedProjectId, "project-1");
   assert.equal(state.focusedWorktreeId, null);
   assert.equal(state.projects[0].worktrees.length, 0);
+});
+
+test("removeWorktree clears runtime state for removed terminals", () => {
+  resetStore();
+  useTerminalRuntimeStateStore.getState().setSessionId("terminal-1", "session-1");
+  useTerminalRuntimeStateStore.getState().setStatus("terminal-2", "running");
+
+  useProjectStore.getState().removeWorktree("project-1", "worktree-1");
+
+  assert.deepEqual(useTerminalRuntimeStateStore.getState().terminals, {});
 });
 
 test("toggleProjectCollapse moves focus to next visible terminal", () => {

@@ -162,17 +162,9 @@ export function BrowserCard({ card }: Props) {
     setUrlInput(url);
   };
 
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.cardId === cardId) removeBrowserCardFromScene(card.id);
-    };
-    window.addEventListener("termcanvas:close-card", handler);
-    return () => window.removeEventListener("termcanvas:close-card", handler);
-  }, [card.id, cardId]);
-
   return (
     <div
+      data-scene-box-select-block
       className="absolute rounded-lg border border-[var(--border)] bg-[var(--surface)] flex flex-col overflow-hidden shadow-lg"
       style={{
         left: card.x,

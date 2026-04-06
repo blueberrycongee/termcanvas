@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { deleteSelectedSceneItems } from "../actions/sceneDeleteActions";
 import {
+  activateTerminalInScene,
   activateWorktreeInScene,
   clearSceneFocusAndSelection,
 } from "../actions/sceneSelectionActions";
@@ -214,10 +215,20 @@ export function useKeyboardShortcuts() {
           clearSceneFocusAndSelection();
           zoomToFitAll();
         } else if (lastFocusedRef.current) {
-          const { projectId, worktreeId, terminalId } =
-            lastFocusedRef.current;
-          focusTerminalInScene(terminalId);
-          zoomToTerminal(terminalId);
+          // Not focused, has history → restore last focused terminal
+          const restored = list.find(
+            (item) => item.terminalId === lastFocusedRef.current?.terminalId,
+          );
+          if (restored) {
+            activateTerminalInScene(
+              restored.projectId,
+              restored.worktreeId,
+              restored.terminalId,
+            );
+            zoomToTerminal(restored.terminalId);
+          } else {
+            lastFocusedRef.current = null;
+          }
         } else if (list.length > 0) {
           const first = list[0];
           lastFocusedRef.current = {
@@ -225,7 +236,11 @@ export function useKeyboardShortcuts() {
             worktreeId: first.worktreeId,
             terminalId: first.terminalId,
           };
-          focusTerminalInScene(first.terminalId);
+          activateTerminalInScene(
+            first.projectId,
+            first.worktreeId,
+            first.terminalId,
+          );
           zoomToTerminal(first.terminalId);
         }
         return;

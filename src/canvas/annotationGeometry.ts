@@ -166,6 +166,25 @@ function resolveEntityAnchorWorldPoint(
   return null;
 }
 
+export function resolveSceneAnchorWorldPoint(
+  anchor: AnnotationAnchor | undefined,
+  projects: ProjectData[],
+): { x: number; y: number } | null {
+  if (!anchor) {
+    return null;
+  }
+
+  if (anchor.kind === "world") {
+    return anchor.position;
+  }
+
+  return resolveEntityAnchorWorldPoint(
+    anchor.entityId,
+    anchor.offset,
+    projects,
+  );
+}
+
 export function getDrawingElementBounds(element: DrawingElement): Rect {
   switch (element.type) {
     case "pen": {
@@ -256,11 +275,7 @@ export function resolveDrawingElementForRender(
     return element;
   }
 
-  const anchorPoint = resolveEntityAnchorWorldPoint(
-    element.anchor.entityId,
-    element.anchor.offset,
-    projects,
-  );
+  const anchorPoint = resolveSceneAnchorWorldPoint(element.anchor, projects);
   if (!anchorPoint) {
     return element;
   }

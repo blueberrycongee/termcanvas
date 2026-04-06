@@ -16,6 +16,7 @@ export interface RenderableTerminalLayout {
 
 export interface SceneSelectionEntities {
   annotations?: DrawingElement[];
+  browserCards?: Record<string, BrowserCardData>;
   cards?: Record<string, BrowserCardData>;
   projects: ProjectData[];
 }
@@ -101,7 +102,13 @@ export function filterValidSelectedItems(
     }
   }
 
-  const cardIds = entities.cards ? new Set(Object.keys(entities.cards)) : null;
+  const cardIds = new Set<string>();
+  for (const cardId of Object.keys(entities.cards ?? {})) {
+    cardIds.add(`browser:${cardId}`);
+  }
+  for (const cardId of Object.keys(entities.browserCards ?? {})) {
+    cardIds.add(`browser:${cardId}`);
+  }
   const annotationIds = entities.annotations
     ? new Set(entities.annotations.map((annotation) => annotation.id))
     : null;
@@ -117,7 +124,7 @@ export function filterValidSelectedItems(
           `${item.projectId}:${item.worktreeId}:${item.terminalId}`,
         );
       case "card":
-        return cardIds ? cardIds.has(item.cardId) : true;
+        return cardIds.size > 0 ? cardIds.has(item.cardId) : true;
       case "annotation":
         return annotationIds ? annotationIds.has(item.annotationId) : true;
     }

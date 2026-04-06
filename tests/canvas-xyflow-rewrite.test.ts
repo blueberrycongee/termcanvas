@@ -321,7 +321,7 @@ test("filterValidSelectedItems drops removed and stashed scene selections", asyn
         worktreeId: "worktree-1",
         terminalId: "terminal-stashed",
       },
-      { type: "card", cardId: "browser-1" },
+      { type: "card", cardId: "browser:browser-1" },
       { type: "annotation", annotationId: "annotation-1" },
     ],
     {
@@ -336,7 +336,7 @@ test("filterValidSelectedItems drops removed and stashed scene selections", asyn
           fontSize: 14,
         },
       ],
-      cards: {
+      browserCards: {
         "browser-1": {
           id: "browser-1",
           url: "https://example.com",
@@ -359,7 +359,7 @@ test("filterValidSelectedItems drops removed and stashed scene selections", asyn
       worktreeId: "worktree-1",
       terminalId: "terminal-visible",
     },
-    { type: "card", cardId: "browser-1" },
+    { type: "card", cardId: "browser:browser-1" },
     { type: "annotation", annotationId: "annotation-1" },
   ]);
 });

@@ -16,14 +16,10 @@ export function deleteSelectedSceneItems(): boolean {
     if (item.type === "card") {
       if (item.cardId.startsWith("browser:")) {
         removeBrowserCardFromScene(item.cardId.slice("browser:".length));
+        deleted = true;
       } else {
-        window.dispatchEvent(
-          new CustomEvent("termcanvas:close-card", {
-            detail: { cardId: item.cardId },
-          }),
-        );
+        continue;
       }
-      deleted = true;
     }
   }
 

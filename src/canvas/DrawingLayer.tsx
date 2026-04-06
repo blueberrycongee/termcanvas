@@ -44,16 +44,20 @@ function getSvgPathFromStroke(stroke: number[][]) {
   return d.join(" ");
 }
 
+function getPenPathData(element: Extract<DrawingElement, { type: "pen" }>) {
+  const outlinePoints = getStroke(element.points, {
+    size: element.size,
+    thinning: 0.5,
+    smoothing: 0.5,
+    streamline: 0.5,
+  });
+  return getSvgPathFromStroke(outlinePoints);
+}
+
 function renderElement(el: DrawingElement) {
   switch (el.type) {
     case "pen": {
-      const outlinePoints = getStroke(el.points, {
-        size: el.size,
-        thinning: 0.5,
-        smoothing: 0.5,
-        streamline: 0.5,
-      });
-      const pathData = getSvgPathFromStroke(outlinePoints);
+      const pathData = getPenPathData(el);
       return <path d={pathData} fill={el.color} stroke="none" />;
     }
     case "text":
@@ -136,6 +140,44 @@ function renderSelectionOutline(element: DrawingElement) {
 }
 
 function renderHitArea(element: DrawingElement) {
+  if (element.type === "pen") {
+    const pathData = getPenPathData(element);
+    if (pathData) {
+      return <path d={pathData} fill="rgba(0,0,0,0.001)" stroke="none" />;
+    }
+  }
+
+  if (element.type === "arrow") {
+    const hitStrokeWidth = Math.max(12, element.strokeWidth + 8);
+    const angle = Math.atan2(element.y2 - element.y1, element.x2 - element.x1);
+    const headLen = 12;
+    return (
+      <g>
+        <line
+          x1={element.x1}
+          y1={element.y1}
+          x2={element.x2}
+          y2={element.y2}
+          stroke="rgba(0,0,0,0.001)"
+          strokeWidth={hitStrokeWidth}
+          strokeLinecap="round"
+        />
+        <polyline
+          points={`
+            ${element.x2 - headLen * Math.cos(angle - Math.PI / 6)},${element.y2 - headLen * Math.sin(angle - Math.PI / 6)}
+            ${element.x2},${element.y2}
+            ${element.x2 - headLen * Math.cos(angle + Math.PI / 6)},${element.y2 - headLen * Math.sin(angle + Math.PI / 6)}
+          `}
+          fill="none"
+          stroke="rgba(0,0,0,0.001)"
+          strokeWidth={hitStrokeWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </g>
+    );
+  }
+
   const bounds = getDrawingElementBounds(element);
 
   return (

@@ -102,3 +102,40 @@ test("scene card actions create, update, remove, and clear stale card selection"
     useBrowserCardStore.setState(previousBrowserState);
   }
 });
+
+test("browserCardStore.removeCard clears prefixed card selections", async () => {
+  installBrowserGlobals();
+  const { useBrowserCardStore } = await import("../src/stores/browserCardStore.ts");
+  const { useSelectionStore } = await import("../src/stores/selectionStore.ts");
+
+  const previousBrowserState = useBrowserCardStore.getState();
+  const previousSelectionState = useSelectionStore.getState();
+
+  try {
+    useBrowserCardStore.setState({
+      cards: {
+        "browser-card-1": {
+          id: "browser-card-1",
+          title: "Example",
+          url: "https://example.com",
+          x: 0,
+          y: 0,
+          w: 320,
+          h: 240,
+        },
+      },
+    });
+    useSelectionStore.setState({
+      selectedItems: [{ type: "card", cardId: "browser:browser-card-1" }],
+      selectionRect: null,
+    });
+
+    useBrowserCardStore.getState().removeCard("browser-card-1");
+
+    assert.deepEqual(useBrowserCardStore.getState().cards, {});
+    assert.deepEqual(useSelectionStore.getState().selectedItems, []);
+  } finally {
+    useSelectionStore.setState(previousSelectionState);
+    useBrowserCardStore.setState(previousBrowserState);
+  }
+});
