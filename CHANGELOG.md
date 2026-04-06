@@ -2,6 +2,16 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.12] - 2026-04-06
+
+### Changed
+- The sessions panel now focuses on canvas terminals, groups them by attention and progress state, and keeps only unread completions highlighted as fresh results
+- The sessions panel now includes a focused terminal inspector with recent trace, jump-to-terminal, and history actions
+
+### Fixed
+- Git status and diff panels now stay stable while refreshes are in flight
+- Live terminals now refresh xterm after fit so the canvas redraws correctly after layout changes
+
 ## [0.25.11] - 2026-04-06
 
 ### Fixed
