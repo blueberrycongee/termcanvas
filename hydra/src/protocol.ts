@@ -96,6 +96,7 @@ export interface ResultVerification {
   build?: VerificationTier;
   probing?: VerificationTier;
   static?: VerificationTier;
+  quality_score?: number;
 }
 
 export interface ResultContract {
@@ -458,6 +459,9 @@ function validateVerification(record: Record<string, unknown>): ResultVerificati
   if (build) v.build = build;
   if (probing) v.probing = probing;
   if (staticTier) v.static = staticTier;
+  if (typeof value.quality_score === "number" && value.quality_score >= 0 && value.quality_score <= 10) {
+    v.quality_score = value.quality_score;
+  }
   return Object.keys(v).length > 0 ? v : undefined;
 }
 

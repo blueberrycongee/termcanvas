@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useCallback, useState } from "react";
+﻿import { useEffect, useRef, useCallback, useState, memo } from "react";
 import { createPortal } from "react-dom";
 import type { TerminalData } from "../types";
 import { useProjectStore, findTerminalById, getChildTerminals, stashTerminal } from "../stores/projectStore";
@@ -57,15 +57,17 @@ interface Props {
 
 const TYPE_CONFIG = TERMINAL_TYPE_CONFIG;
 
-function HierarchyBadges({ terminal }: { terminal: TerminalData }) {
-  const projects = useProjectStore((s) => s.projects);
+const HierarchyBadges = memo(function HierarchyBadges({ terminal }: { terminal: TerminalData }) {
+  const parentInfo = useProjectStore((s) =>
+    terminal.parentTerminalId
+      ? findTerminalById(s.projects, terminal.parentTerminalId)
+      : null,
+  );
+  const childCount = useProjectStore(
+    (s) => getChildTerminals(s.projects, terminal.id).length,
+  );
 
-  const parentInfo = terminal.parentTerminalId
-    ? findTerminalById(projects, terminal.parentTerminalId)
-    : null;
-  const children = getChildTerminals(projects, terminal.id);
-
-  if (!parentInfo && children.length === 0) return null;
+  if (!parentInfo && childCount === 0) return null;
 
   return (
     <>
@@ -86,26 +88,27 @@ function HierarchyBadges({ terminal }: { terminal: TerminalData }) {
           {parentInfo.terminal.type}
         </button>
       )}
-      {children.length > 0 && (
+      {childCount > 0 && (
         <button
           className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] text-[var(--text-faint)] hover:text-[var(--text-secondary)] hover:bg-[var(--border)] transition-colors duration-150 shrink-0"
-          title={`${children.length} agent${children.length > 1 ? "s" : ""}`}
+          title={`${childCount} agent${childCount > 1 ? "s" : ""}`}
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
-            panToTerminal(children[0].terminal.id);
+            const firstChild = getChildTerminals(useProjectStore.getState().projects, terminal.id)[0];
+            if (firstChild) panToTerminal(firstChild.terminal.id);
           }}
           style={{ fontFamily: '"Geist Mono", monospace' }}
         >
           <svg width="8" height="8" viewBox="0 0 12 12" fill="none">
             <path d="M6 2v4M3 4v4M9 4v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
-          {children.length}
+          {childCount}
         </button>
       )}
     </>
   );
-}
+});
 
 function PreviewPane({
   lodMode,
@@ -172,7 +175,7 @@ function TelemetrySummary({ terminalId }: { terminalId: string }) {
   );
 }
 
-export function TerminalTile({
+function TerminalTileInner({
   lodMode,
   projectId,
   worktreeId,
@@ -990,3 +993,52 @@ export function TerminalTile({
     </div>
   );
 }
+
+
+const terminalPropsEqual = (a: Props, b: Props): boolean => {
+  if (
+    a.lodMode !== b.lodMode ||
+    a.projectId !== b.projectId ||
+    a.worktreeId !== b.worktreeId ||
+    a.worktreeName !== b.worktreeName ||
+    a.worktreePath !== b.worktreePath ||
+    a.gridX !== b.gridX ||
+    a.gridY !== b.gridY ||
+    a.width !== b.width ||
+    a.height !== b.height ||
+    a.isDragging !== b.isDragging ||
+    a.isStashing !== b.isStashing ||
+    a.dragOffsetX !== b.dragOffsetX ||
+    a.dragOffsetY !== b.dragOffsetY ||
+    a.onDoubleClick !== b.onDoubleClick ||
+    a.onSpanChange !== b.onSpanChange ||
+    a.onDragStart !== b.onDragStart
+  ) {
+    return false;
+  }
+
+  const ta = a.terminal;
+  const tb = b.terminal;
+  if (ta === tb) return true;
+
+  return (
+    ta.id === tb.id &&
+    ta.status === tb.status &&
+    ta.focused === tb.focused &&
+    ta.minimized === tb.minimized &&
+    ta.span.cols === tb.span.cols &&
+    ta.span.rows === tb.span.rows &&
+    ta.type === tb.type &&
+    ta.customTitle === tb.customTitle &&
+    ta.starred === tb.starred &&
+    ta.origin === tb.origin &&
+    ta.sessionId === tb.sessionId &&
+    ta.stashed === tb.stashed &&
+    ta.title === tb.title &&
+    ta.ptyId === tb.ptyId &&
+    ta.parentTerminalId === tb.parentTerminalId &&
+    ta.autoApprove === tb.autoApprove
+  );
+};
+
+export const TerminalTile = memo(TerminalTileInner, terminalPropsEqual);

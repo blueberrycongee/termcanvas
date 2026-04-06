@@ -8,7 +8,7 @@ import type { SessionInfo, TimelineEvent, ReplayTimeline } from "../shared/sessi
 import type { NormalizedSessionTelemetryEvent } from "../shared/telemetry.ts";
 import { findCodexJsonlFiles } from "./usage-collector.ts";
 
-const SCAN_INTERVAL = 10_000;
+const SCAN_INTERVAL = 30_000;
 const LIVE_THRESHOLD_MS = 60_000;
 const HISTORY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const FIND_TIMEOUT_MS = 5_000;
@@ -48,12 +48,19 @@ async function collectClaudeJsonlFilesLimited(
   return results;
 }
 
+interface CachedFile {
+  mtimeMs: number;
+  size: number;
+  session: SessionInfo;
+}
+
 export class SessionScanner {
   private timer: ReturnType<typeof setInterval> | null = null;
   private sessions: SessionInfo[] = [];
   private onChange: ((sessions: SessionInfo[]) => void) | null = null;
   private scanInFlight = false;
   private rescanRequested = false;
+  private fileCache = new Map<string, CachedFile>();
 
   start(onChange: (sessions: SessionInfo[]) => void): void {
     this.onChange = onChange;
@@ -90,10 +97,21 @@ export class SessionScanner {
         ...findCodexJsonlFiles().map((filePath) => ({ filePath, type: "codex" as const })),
       ];
 
+      const activeFiles = new Set<string>();
+
       for (const { filePath, type } of files) {
         try {
           const stat = fs.statSync(filePath);
           if (now - stat.mtimeMs > HISTORY_WINDOW_MS) {
+            continue;
+          }
+
+          activeFiles.add(filePath);
+
+          const cached = this.fileCache.get(filePath);
+          if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+            const isLive = now - stat.mtimeMs < LIVE_THRESHOLD_MS;
+            results.push({ ...cached.session, isLive });
             continue;
           }
 
@@ -103,7 +121,7 @@ export class SessionScanner {
           const tail = this.readTail(filePath, stat.size);
           const parsed = this.parseTail(tail, type);
 
-          results.push({
+          const session: SessionInfo = {
             sessionId,
             projectDir,
             filePath,
@@ -115,8 +133,17 @@ export class SessionScanner {
             lastActivityAt: new Date(stat.mtimeMs).toISOString(),
             messageCount: parsed.messageCount,
             tokenTotal: parsed.tokenTotal,
-          });
+          };
+
+          this.fileCache.set(filePath, { mtimeMs: stat.mtimeMs, size: stat.size, session });
+          results.push(session);
         } catch {
+        }
+      }
+
+      for (const cachedPath of this.fileCache.keys()) {
+        if (!activeFiles.has(cachedPath)) {
+          this.fileCache.delete(cachedPath);
         }
       }
 

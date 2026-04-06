@@ -1,4 +1,5 @@
 import http from "http";
+import crypto from "crypto";
 import type { BrowserWindow } from "electron";
 import type { PtyManager } from "./pty-manager";
 import type { ProjectScanner } from "./project-scanner";
@@ -15,9 +16,15 @@ interface ApiServerDeps {
 export class ApiServer {
   private server: http.Server | null = null;
   private deps: ApiServerDeps;
+  private apiToken: string;
 
   constructor(deps: ApiServerDeps) {
     this.deps = deps;
+    this.apiToken = process.env.TERMCANVAS_API_TOKEN?.trim() || crypto.randomUUID();
+  }
+
+  getToken(): string {
+    return this.apiToken;
   }
 
   start(): Promise<number> {
@@ -47,6 +54,14 @@ export class ApiServer {
     const pathname = url.pathname;
 
     res.setHeader("Content-Type", "application/json");
+
+    // Bearer token authentication — all requests require valid token
+    const authHeader = req.headers["authorization"];
+    if (authHeader !== `Bearer ${this.apiToken}`) {
+      res.writeHead(401);
+      res.end(JSON.stringify({ error: "Unauthorized" }));
+      return;
+    }
 
     try {
       const body =

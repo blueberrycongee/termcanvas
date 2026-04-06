@@ -257,15 +257,33 @@ function parseFindings(raw: unknown): ChallengeFinding[] {
   );
 }
 
+const CHALLENGE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
 export function collectChallengeResults(state: ChallengeState): ChallengeDecision | null {
-  for (const worker of state.workers) {
-    if (!fs.existsSync(worker.done_file)) {
-      return null;
-    }
+  const completedWorkers = state.workers.filter((w) => fs.existsSync(w.done_file));
+  const allDone = completedWorkers.length === state.workers.length;
+
+  // All workers finished — normal collection
+  if (allDone) {
+    return collectFindings(state.workers, false);
   }
 
+  // Check timeout — use partial results from completed workers
+  const elapsed = Date.now() - Date.parse(state.started_at);
+  if (elapsed > CHALLENGE_TIMEOUT_MS) {
+    return collectFindings(completedWorkers, true);
+  }
+
+  // Still waiting, no timeout yet
+  return null;
+}
+
+function collectFindings(
+  workers: ChallengeWorker[],
+  timedOut: boolean,
+): ChallengeDecision {
   const allFindings: ChallengeFinding[] = [];
-  for (const worker of state.workers) {
+  for (const worker of workers) {
     try {
       const raw = JSON.parse(fs.readFileSync(worker.result_file, "utf-8"));
       allFindings.push(...parseFindings(raw));
@@ -284,14 +302,25 @@ export function collectChallengeResults(state: ChallengeState): ChallengeDecisio
   if (significant.length > 0) counts.push(`${significant.length} significant`);
   if (minor.length > 0) counts.push(`${minor.length} minor`);
   const countsStr = counts.length > 0 ? counts.join(", ") : "no issues found";
+  const prefix = timedOut
+    ? `Challenge gate TIMED OUT with partial results (${workers.length} workers, ${countsStr})`
+    : override
+      ? `Challenge gate OVERRIDE (${countsStr}). Issues the evaluator missed:\n\n${[...critical, ...significant].map((f) => `- [${f.severity}] ${f.point}: ${f.reasoning}`).join("\n")}`
+      : `Challenge gate CONFIRMED (${countsStr}).`;
 
   return {
     override,
     findings: [...critical, ...significant],
-    summary: override
-      ? `Challenge gate OVERRIDE (${countsStr}). Issues the evaluator missed:\n\n${[...critical, ...significant].map((f) => `- [${f.severity}] ${f.point}: ${f.reasoning}`).join("\n")}`
-      : `Challenge gate CONFIRMED (${countsStr}).`,
+    summary: prefix,
   };
+}
+
+export function getStuckWorkerIds(state: ChallengeState): string[] {
+  const elapsed = Date.now() - Date.parse(state.started_at);
+  if (elapsed <= CHALLENGE_TIMEOUT_MS) return [];
+  return state.workers
+    .filter((w) => !fs.existsSync(w.done_file))
+    .map((w) => w.id);
 }
 
 export function destroyChallengeTerminals(

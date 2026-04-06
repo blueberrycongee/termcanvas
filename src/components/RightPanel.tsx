@@ -2,6 +2,7 @@ import { useCanvasStore, COLLAPSED_TAB_WIDTH, RIGHT_PANEL_WIDTH } from "../store
 import type { RightPanelTab } from "../stores/canvasStore";
 import { UsagePanel } from "./UsagePanel";
 import { SessionsPanel } from "./SessionsPanel";
+import { HydraPanel } from "./HydraPanel";
 import { useT } from "../i18n/useT";
 
 const TAB_ICONS: Record<RightPanelTab, React.ReactNode> = {
@@ -18,9 +19,16 @@ const TAB_ICONS: Record<RightPanelTab, React.ReactNode> = {
       <rect x="9.5" y="1" width="3" height="10" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
     </svg>
   ),
+  hydra: (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <circle cx="7" cy="7" r="3" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M7 4.5V2M7 12v-2.5M4.5 7H2M12 7H9.5" stroke="currentColor" strokeWidth="0.8" />
+      <path d="M5.5 7L4 8.5M8.5 7L10 8.5" stroke="currentColor" strokeWidth="0.8" />
+    </svg>
+  ),
 };
 
-const TAB_IDS: RightPanelTab[] = ["sessions", "usage"];
+const TAB_IDS: RightPanelTab[] = ["sessions", "usage", "hydra"];
 
 export function RightPanel() {
   const collapsed = useCanvasStore((s) => s.rightPanelCollapsed);
@@ -32,6 +40,7 @@ export function RightPanel() {
   const tabLabels: Record<RightPanelTab, string> = {
     sessions: t.sessions_tab,
     usage: t.usage_title,
+    hydra: t.hydra_tab,
   };
 
   return (
@@ -97,6 +106,7 @@ export function RightPanel() {
         <div className="flex-1 min-h-0">
           {activeTab === "usage" && <UsagePanel />}
           {activeTab === "sessions" && <SessionsPanel />}
+          {activeTab === "hydra" && <HydraPanel />}
         </div>
       </div>
     </div>

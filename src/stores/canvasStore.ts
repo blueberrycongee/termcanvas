@@ -4,7 +4,7 @@ import { useWorkspaceStore } from "./workspaceStore";
 
 export type FocusLevel = "terminal" | "starred" | "worktree";
 export type LeftPanelTab = "files" | "diff" | "preview" | "git" | "memory";
-export type RightPanelTab = "usage" | "sessions";
+export type RightPanelTab = "usage" | "sessions" | "hydra";
 export interface CanvasViewportAdapter {
   setViewport: (viewport: Viewport, options?: { duration?: number }) => void;
   getViewport: () => Viewport;

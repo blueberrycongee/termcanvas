@@ -65,11 +65,22 @@ function getConnection(): ConnectionTarget {
 
   const portFile = resolveTermCanvasPortFile(process.env);
   try {
-    const port = parseInt(fs.readFileSync(portFile, "utf-8").trim(), 10);
+    const raw = fs.readFileSync(portFile, "utf-8").trim();
+    // Port file may be JSON with { port, token } or legacy plain port number
+    let parsedPort: number;
+    try {
+      const data = JSON.parse(raw);
+      parsedPort = data.port;
+      if (data.token && !resolvedApiToken) {
+        resolvedApiToken = data.token;
+      }
+    } catch {
+      parsedPort = parseInt(raw, 10);
+    }
     return {
       protocol: "http:",
       hostname: "127.0.0.1",
-      port,
+      port: parsedPort,
       basePath: "",
     };
   } catch {
@@ -78,7 +89,7 @@ function getConnection(): ConnectionTarget {
   }
 }
 
-const apiToken = process.env.TERMCANVAS_API_TOKEN?.trim();
+let resolvedApiToken = process.env.TERMCANVAS_API_TOKEN?.trim();
 
 function requestOnce(
   method: string,
@@ -92,7 +103,7 @@ function requestOnce(
       "Content-Type": "application/json",
     };
     if (data) headers["Content-Length"] = String(Buffer.byteLength(data));
-    if (apiToken) headers["Authorization"] = `Bearer ${apiToken}`;
+    if (resolvedApiToken) headers["Authorization"] = `Bearer ${resolvedApiToken}`;
 
     const transport = protocol === "https:" ? https : http;
     const req = transport.request(

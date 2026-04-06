@@ -36,6 +36,8 @@ function resolvePortFile(env: Record<string, string | undefined>): string {
   return path.join(dataDir, "port");
 }
 
+let cachedToken: string | undefined;
+
 function resolveConnection(env: Record<string, string | undefined>): ConnectionTarget {
   const envUrl = env.TERMCANVAS_URL?.trim();
   if (envUrl) {
@@ -62,8 +64,17 @@ function resolveConnection(env: Record<string, string | undefined>): ConnectionT
 
   const portFile = resolvePortFile(env);
   try {
-    const port = parseInt(fs.readFileSync(portFile, "utf-8").trim(), 10);
-    return { protocol: "http:", hostname: "127.0.0.1", port, basePath: "" };
+    const raw = fs.readFileSync(portFile, "utf-8").trim();
+    // Port file may be JSON with { port, token } or legacy plain port number
+    let parsedPort: number;
+    try {
+      const data = JSON.parse(raw);
+      parsedPort = data.port;
+      if (data.token) cachedToken = data.token;
+    } catch {
+      parsedPort = parseInt(raw, 10);
+    }
+    return { protocol: "http:", hostname: "127.0.0.1", port: parsedPort, basePath: "" };
   } catch {
     throw new Error(`TermCanvas is not running (no port file at ${portFile})`);
   }
@@ -159,7 +170,7 @@ export class TermCanvasClient {
   }
 
   private getToken(): string | undefined {
-    return process.env.TERMCANVAS_API_TOKEN?.trim() || undefined;
+    return process.env.TERMCANVAS_API_TOKEN?.trim() || cachedToken || undefined;
   }
 
   async request(method: string, urlPath: string, body?: unknown): Promise<unknown> {

@@ -25,6 +25,7 @@ import {
   spawnChallengeWorkers,
   collectChallengeResults,
   destroyChallengeTerminals,
+  getStuckWorkerIds,
 } from "./challenge.ts";
 import {
   deleteWorkflow,
@@ -619,6 +620,7 @@ export async function tickWorkflow(
     workflow.failure = undefined;
     workflow.challenge = undefined;
     workflow.challenge_completed = true;
+    workflow.quality_score = workflow.result?.verification?.quality_score;
     workflow.updated_at = now();
     saveWorkflow(workflow);
     return buildStatusView(workflow);
@@ -691,6 +693,7 @@ export async function tickWorkflow(
         }
 
         workflow.result = collected.result;
+        workflow.quality_score = collected.result.verification?.quality_score;
         workflow.status = "completed";
         workflow.failure = undefined;
         saveWorkflow(workflow);

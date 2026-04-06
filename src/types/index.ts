@@ -143,6 +143,67 @@ export type ProjectEnableHydraResult =
   | ProjectEnableHydraSuccess
   | ProjectEnableHydraFailure;
 
+// ── Hydra Workflow types (mirrors hydra/src/workflow-store.ts + handoff/types.ts) ──
+
+export type HydraWorkflowStatus = "pending" | "running" | "challenging" | "waiting_for_approval" | "completed" | "failed";
+
+export type HydraHandoffStatus = "pending" | "claimed" | "in_progress" | "completed" | "timed_out" | "failed";
+
+export type HydraAgentRole = "planner" | "implementer" | "evaluator" | "reviewer" | "integrator" | "researcher";
+
+export type HydraAgentType = "claude" | "codex" | "kimi" | "gemini";
+
+export interface HydraWorkflowFailure {
+  code: string;
+  message: string;
+  stage: string;
+}
+
+export interface HydraWorkflowRecord {
+  id: string;
+  template: string;
+  task: string;
+  repo_path: string;
+  worktree_path: string;
+  branch: string | null;
+  base_branch: string;
+  agent_type: HydraAgentType;
+  created_at: string;
+  updated_at: string;
+  status: HydraWorkflowStatus;
+  current_handoff_id: string;
+  handoff_ids: string[];
+  timeout_minutes: number;
+  max_retries: number;
+  auto_approve: boolean;
+  quality_score?: number;
+  failure?: HydraWorkflowFailure;
+}
+
+export interface HydraHandoffRecord {
+  id: string;
+  created_at: string;
+  workflow_id: string;
+  from: { role: HydraAgentRole; agent_type: HydraAgentType; agent_id: string | null };
+  to: { role: HydraAgentRole; agent_type: HydraAgentType; agent_id: string | null };
+  task: { type: string; title: string; description: string };
+  status: HydraHandoffStatus;
+  status_updated_at?: string;
+  retry_count: number;
+  max_retries: number;
+  last_error?: { code: string; message: string; stage: string };
+  result?: {
+    success: boolean;
+    summary?: string;
+    message?: string;
+  };
+}
+
+export interface HydraWorkflowDetailView {
+  workflow: HydraWorkflowRecord;
+  handoffs: HydraHandoffRecord[];
+}
+
 export interface ModelUsage {
   model: string;
   input: number;
@@ -577,6 +638,10 @@ export interface TermCanvasAPI {
   };
   menu: {
     onOpenFolder: (callback: (dirPath: string) => void) => () => void;
+  };
+  hydra: {
+    listWorkflows: (repoPath: string) => Promise<HydraWorkflowRecord[]>;
+    getWorkflow: (repoPath: string, workflowId: string) => Promise<HydraWorkflowDetailView | null>;
   };
   updater: {
     check: () => Promise<unknown>;

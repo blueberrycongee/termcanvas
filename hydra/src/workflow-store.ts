@@ -35,6 +35,7 @@ export interface WorkflowRecord {
   challenge?: ChallengeState;
   challenge_completed?: boolean;
   result?: ResultContract;
+  quality_score?: number;
   failure?: WorkflowFailure;
 }
 

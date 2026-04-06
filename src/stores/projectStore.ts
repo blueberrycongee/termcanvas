@@ -357,14 +357,24 @@ function rectsOverlap(
 }
 
 function resolveOverlaps(projects: ProjectData[]): ProjectData[] {
+
   return measureRendererSync(
     "projectStore.resolveOverlaps",
     () => {
-      const withResolvedWorktrees = projects.map((p) => ({
-        ...p,
-        worktrees: resolveWorktreeOverlaps(p.worktrees),
-      }));
+      // Step 1: resolve worktree overlaps within each project
+      const withResolvedWorktrees: ProjectData[] = [];
+      let worktreeChanged = false;
+      for (const p of projects) {
+        const resolved = resolveWorktreeOverlaps(p.worktrees);
+        if (resolved !== p.worktrees) {
+          worktreeChanged = true;
+          withResolvedWorktrees.push({ ...p, worktrees: resolved });
+        } else {
+          withResolvedWorktrees.push(p);
+        }
+      }
 
+      // Step 2: resolve project overlaps
       const positions = new Map(
         withResolvedWorktrees.map((p) => [p.id, { ...p.position }]),
       );
@@ -373,6 +383,7 @@ function resolveOverlaps(projects: ProjectData[]): ProjectData[] {
         (a, b) => positions.get(a.id)!.x - positions.get(b.id)!.x,
       );
 
+      let projectMoved = false;
       for (let i = 1; i < sorted.length; i++) {
         const prev = sorted[i - 1];
         const curr = sorted[i];
@@ -384,13 +395,25 @@ function resolveOverlaps(projects: ProjectData[]): ProjectData[] {
 
         if (rectsOverlap(prevBounds, currBounds, OVERLAP_GAP)) {
           currPos.x = prevBounds.x + prevBounds.w + OVERLAP_GAP;
+          projectMoved = true;
         }
       }
 
-      return withResolvedWorktrees.map((p) => ({
-        ...p,
-        position: positions.get(p.id)!,
-      }));
+      // Fast path: nothing changed, return original reference
+      if (!worktreeChanged && !projectMoved) {
+        return projects;
+      }
+
+      // Only spread projects that actually changed
+      if (!projectMoved) {
+        return withResolvedWorktrees;
+      }
+
+      return withResolvedWorktrees.map((p) => {
+        const pos = positions.get(p.id)!;
+        if (pos.x === p.position.x && pos.y === p.position.y) return p;
+        return { ...p, position: pos };
+      });
     },
     {
       thresholdMs: 12,
@@ -1048,14 +1071,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   updateTerminalType: (projectId, worktreeId, terminalId, type) =>
     set((state) => ({
-      projects: resolveOverlaps(
-        mapTerminals(
-          state.projects,
-          projectId,
-          worktreeId,
-          terminalId,
-          (t) => withUpdatedTerminalType(t, type),
-        ),
+      projects: mapTerminals(
+        state.projects,
+        projectId,
+        worktreeId,
+        terminalId,
+        (t) => withUpdatedTerminalType(t, type),
       ),
     })),
 

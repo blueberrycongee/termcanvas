@@ -488,6 +488,12 @@ export const termcanvasBridge: TermCanvasAPI = {
       return () => ipcRenderer.removeListener("menu:open-folder", listener);
     },
   },
+  hydra: {
+    listWorkflows: (repoPath: string) =>
+      ipcRenderer.invoke("hydra:list-workflows", repoPath),
+    getWorkflow: (repoPath: string, workflowId: string) =>
+      ipcRenderer.invoke("hydra:get-workflow", repoPath, workflowId),
+  },
 };
 
 contextBridge.exposeInMainWorld("termcanvas", termcanvasBridge);

@@ -7,6 +7,15 @@ import os from "os";
 import { TERMCANVAS_DIR } from "./state-persistence";
 import { startOAuthCallbackServer, type CallbackResult } from "./oauth-callback-server";
 
+function isSafeUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
 interface AuthUser {
   id: string;
   username: string;
@@ -234,6 +243,10 @@ export async function login(): Promise<LoginResult> {
     );
 
     try {
+      if (!isSafeUrl(data.url)) {
+        shutdown();
+        return { ok: false, url: data.url, error: "Invalid OAuth URL" };
+      }
       await shell.openExternal(data.url);
     } catch (err) {
       console.error("[Auth] Failed to open browser:", err);

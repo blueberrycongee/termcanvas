@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, nativeImage, shell, safeStorage } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, nativeImage, session, shell, safeStorage } from "electron";
 import https from "https";
 import path from "path";
 import fs from "fs";
@@ -39,7 +39,6 @@ import {
 import { collectUsage, collectHeatmapData } from "./usage-collector";
 import { installDownloadedUpdate, setupAutoUpdater, stopAutoUpdater } from "./auto-updater";
 import { initAuth, login, logout, getAuthUser, getDeviceId, handleAuthCallback, onAuthStateChange, isLoggedIn } from "./auth";
-import { toFileUrl } from "./file-url";
 import { queryCloudUsage, queryCloudHeatmap, backfillHistory, flushSyncQueue, syncRecentRecords } from "./usage-sync";
 import type { ComposerSubmitRequest } from "../src/types";
 import { getProjectDiff } from "./git-diff";
@@ -66,6 +65,17 @@ import { AgentService, type AgentConfig } from "./agent-service";
 import { SessionScanner } from "./session-scanner.ts";
 import { mergeAndDedupeSessions } from "./session-list.ts";
 import { createAppCloseCleanup } from "./app-lifecycle";
+import { listWorkflows, loadWorkflow } from "../hydra/src/workflow-store";
+import { HandoffManager } from "../hydra/src/handoff/manager";
+
+function isSafeUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -91,8 +101,8 @@ function perfLog(label: string, details: Record<string, unknown>) {
   console.log(`[Perf] ${label}`, details);
 }
 
-function writePortFile(port: number) {
-  fs.writeFileSync(PORT_FILE, String(port), "utf-8");
+function writePortFile(port: number, token: string) {
+  fs.writeFileSync(PORT_FILE, JSON.stringify({ port, token }), "utf-8");
 }
 
 function cleanupPortFile() {
@@ -102,6 +112,36 @@ function cleanupPortFile() {
 }
 
 const HIDDEN_DIRS = new Set(["node_modules", ".git", "dist", "build", "out"]);
+
+const BLOCKED_PATH_PREFIXES: string[] = (() => {
+  const prefixes: string[] = [];
+  if (process.platform === "win32") {
+    prefixes.push(
+      path.resolve("C:\\Windows"),
+      path.resolve("C:\\Program Files"),
+      path.resolve("C:\\Program Files (x86)"),
+    );
+  } else {
+    prefixes.push("/etc", "/usr", "/System", "/Library");
+  }
+  return prefixes;
+})();
+
+function isPathAllowed(targetPath: string): boolean {
+  const resolved = path.resolve(targetPath);
+  for (const blocked of BLOCKED_PATH_PREFIXES) {
+    if (resolved === blocked || resolved.startsWith(blocked + path.sep)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function validatePath(targetPath: string): void {
+  if (!isPathAllowed(targetPath)) {
+    throw new Error(`Path not allowed: ${targetPath}`);
+  }
+}
 
 let mainWindow: BrowserWindow | null = null;
 let forceClose = false;
@@ -199,7 +239,7 @@ function createWindow() {
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    if (isSafeUrl(url)) shell.openExternal(url);
     return { action: "deny" };
   });
 
@@ -240,7 +280,7 @@ function createWindow() {
     rendererReady = true;
     try {
       const port = await apiServer.start();
-      writePortFile(port);
+      writePortFile(port, apiServer.getToken());
       console.log(`[TermCanvas API] http://127.0.0.1:${port}`);
     } catch (err) {
       console.error("[TermCanvas API] Failed to start:", err);
@@ -470,6 +510,24 @@ function setupIpc() {
     return checkHydraProjectStatus(dirPath);
   });
 
+  // ── Hydra workflow IPC handlers ──
+  ipcMain.handle("hydra:list-workflows", (_event, repoPath: string) => {
+    const { listWorkflows } = require("../hydra/src/workflow-store") as typeof import("../hydra/src/workflow-store");
+    return listWorkflows(repoPath);
+  });
+
+  ipcMain.handle("hydra:get-workflow", (_event, repoPath: string, workflowId: string) => {
+    const { loadWorkflow } = require("../hydra/src/workflow-store") as typeof import("../hydra/src/workflow-store");
+    const { HandoffManager } = require("../hydra/src/handoff/manager") as typeof import("../hydra/src/handoff/manager");
+    const workflow = loadWorkflow(repoPath, workflowId);
+    if (!workflow) return null;
+    const manager = new HandoffManager(repoPath);
+    const handoffs = workflow.handoff_ids
+      .map((hid: string) => manager.load(hid))
+      .filter((h: unknown): h is NonNullable<typeof h> => h !== null);
+    return { workflow, handoffs };
+  });
+
   ipcMain.handle("git:watch", (_event, worktreePath: string) => {
     gitWatcher.watch(worktreePath, {
       onChanged: () => {
@@ -683,6 +741,7 @@ function setupIpc() {
   ipcMain.handle(
     "workspace:save-to-path",
     (_event, filePath: string, data: string) => {
+      validatePath(filePath);
       fs.writeFileSync(filePath, data, "utf-8");
     },
   );
@@ -711,6 +770,7 @@ function setupIpc() {
   const MAX_FILE_SIZE = 512 * 1024;
 
   ipcMain.handle("fs:list-dir", (_event, dirPath: string) => {
+    validatePath(dirPath);
     try {
       const entries = fs.readdirSync(dirPath, { withFileTypes: true });
       const filtered = entries
@@ -727,6 +787,7 @@ function setupIpc() {
   });
 
   ipcMain.handle("fs:read-file", (_event, filePath: string) => {
+    validatePath(filePath);
     try {
       const stat = fs.statSync(filePath);
       if (stat.size > MAX_FILE_SIZE) {
@@ -760,6 +821,7 @@ function setupIpc() {
   ipcMain.handle(
     "fs:write-file",
     (_event, filePath: string, content: string) => {
+      validatePath(filePath);
       try {
         const existing = fs.readFileSync(filePath, "utf-8");
         if (existing === content) return { changed: false };
@@ -772,6 +834,8 @@ function setupIpc() {
   ipcMain.handle(
     "fs:copy",
     async (_event, sources: string[], destDir: string) => {
+      validatePath(destDir);
+      for (const src of sources) validatePath(src);
       const { copyFiles } = await import("./fs-copy.js");
       return copyFiles(sources, destDir);
     },
@@ -780,6 +844,7 @@ function setupIpc() {
   ipcMain.handle(
     "fs:rename",
     (_event, oldPath: string, newName: string) => {
+      validatePath(oldPath);
       const basename = path.basename(newName);
       if (basename !== newName || !newName) throw new Error("Invalid name");
       const newPath = path.join(path.dirname(oldPath), newName);
@@ -790,6 +855,7 @@ function setupIpc() {
   ipcMain.handle(
     "fs:delete",
     (_event, targetPath: string) => {
+      validatePath(targetPath);
       fs.rmSync(targetPath, { recursive: true, force: true });
     },
   );
@@ -797,6 +863,7 @@ function setupIpc() {
   ipcMain.handle(
     "fs:mkdir",
     (_event, dirPath: string, name: string) => {
+      validatePath(dirPath);
       const basename = path.basename(name);
       if (basename !== name || !name) throw new Error("Invalid name");
       fs.mkdirSync(path.join(dirPath, name), { recursive: true });
@@ -806,6 +873,7 @@ function setupIpc() {
   ipcMain.handle(
     "fs:create-file",
     (_event, dirPath: string, name: string) => {
+      validatePath(dirPath);
       const basename = path.basename(name);
       if (basename !== name || !name) throw new Error("Invalid name");
       const filePath = path.join(dirPath, name);
@@ -1033,7 +1101,7 @@ function setupIpc() {
   );
 
   ipcMain.handle("insights:open-report", async (_event, filePath: string) => {
-    await shell.openExternal(toFileUrl(filePath));
+    await shell.openPath(filePath);
   });
 
   ipcMain.handle("insights:get-last-report", async () => {
@@ -1277,7 +1345,7 @@ app.whenReady().then(async () => {
   app.on("web-contents-created", (_event, contents) => {
     if (contents.getType() === "webview") {
       contents.setWindowOpenHandler(({ url }) => {
-        shell.openExternal(url);
+        if (isSafeUrl(url)) shell.openExternal(url);
         return { action: "deny" };
       });
       // Strip Electron/app identifiers from UA to avoid being blocked by sites
@@ -1311,6 +1379,20 @@ app.whenReady().then(async () => {
   });
   setupIpc();
   await initAuth();
+
+  // ── Content Security Policy ──
+  const csp = isDev
+    ? "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https: ws:; font-src 'self' data:; worker-src 'self' blob:"
+    : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https:; font-src 'self' data:";
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        "Content-Security-Policy": [csp],
+      },
+    });
+  });
+
   createWindow();
   if (mainWindow) setupAutoUpdater(mainWindow);
 
