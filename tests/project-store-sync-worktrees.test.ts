@@ -494,7 +494,7 @@ test("compactProjectWorktrees treats expanded empty worktrees as visible cards",
   assert.equal(getProjectBounds(compactedProject).h, 180);
 });
 
-test("compactProjectWorktrees no-op keeps references and does not notify subscribers", () => {
+test("compactProjectWorktrees enables auto-compact without moving an already compact layout", () => {
   const project = createProject();
   const mainWorktree = {
     ...project.worktrees[0],
@@ -552,9 +552,14 @@ test("compactProjectWorktrees no-op keeps references and does not notify subscri
   unsubscribe();
 
   const afterProjects = useProjectStore.getState().projects;
-  assert.equal(notifications, 0);
-  assert.strictEqual(afterProjects, beforeProjects);
-  assert.strictEqual(afterProjects[0], beforeProject);
+  assert.equal(notifications, 1);
+  assert.notStrictEqual(afterProjects, beforeProjects);
+  assert.notStrictEqual(afterProjects[0], beforeProject);
+  assert.equal(afterProjects[0].autoCompact, true);
+  assert.deepEqual(
+    afterProjects[0].worktrees.map((worktree) => worktree.position),
+    beforeProject.worktrees.map((worktree) => worktree.position),
+  );
   assert.strictEqual(afterProjects[0].worktrees[0], beforeProject.worktrees[0]);
   assert.strictEqual(afterProjects[0].worktrees[1], beforeProject.worktrees[1]);
   assert.strictEqual(afterProjects[0].worktrees[2], beforeProject.worktrees[2]);

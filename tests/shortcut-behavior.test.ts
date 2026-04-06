@@ -101,20 +101,28 @@ test("matchesShortcut uses ctrl as mod on Windows", () => {
 });
 
 test("registered app shortcuts are recognized on Windows", () => {
-  withPlatform("win32", () => {
-    assert.equal(
-      isRegisteredAppShortcutEvent(
-        createKeyboardEvent({ key: "t", altKey: true }),
-      ),
-      true,
-    );
-    assert.equal(
-      isRegisteredAppShortcutEvent(
-        createKeyboardEvent({ key: "c", ctrlKey: true }),
-      ),
-      false,
-    );
-  });
+  const previousShortcuts = useShortcutStore.getState().shortcuts;
+
+  try {
+    withPlatform("win32", () => {
+      useShortcutStore.setState({ shortcuts: getDefaultShortcuts() });
+
+      assert.equal(
+        isRegisteredAppShortcutEvent(
+          createKeyboardEvent({ key: "t", altKey: true }),
+        ),
+        true,
+      );
+      assert.equal(
+        isRegisteredAppShortcutEvent(
+          createKeyboardEvent({ key: "c", ctrlKey: true }),
+        ),
+        false,
+      );
+    });
+  } finally {
+    useShortcutStore.setState({ shortcuts: previousShortcuts });
+  }
 });
 
 test("customized shortcuts are recognized as app shortcuts", () => {
