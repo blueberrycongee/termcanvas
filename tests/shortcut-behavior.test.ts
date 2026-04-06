@@ -105,6 +105,7 @@ test("registered app shortcuts are recognized on Windows", () => {
     assert.equal(
       isRegisteredAppShortcutEvent(
         createKeyboardEvent({ key: "t", altKey: true }),
+        getDefaultShortcuts("win32"),
       ),
       true,
     );
