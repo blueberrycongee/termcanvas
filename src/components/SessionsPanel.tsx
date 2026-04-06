@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSessionStore } from "../stores/sessionStore";
 import { SessionReplayView } from "./SessionReplayView";
 import { useT } from "../i18n/useT";
@@ -10,6 +10,11 @@ import {
   type CanvasTerminalItem,
   type CanvasTerminalState,
 } from "./sessionPanelModel";
+import {
+  buildInspectorTrace,
+  pickInspectedTerminal,
+  type InspectorTraceItem,
+} from "./sessionInspectorModel";
 
 const STATUS_COLORS: Record<CanvasTerminalState, string> = {
   attention: "#ef4444",
@@ -135,13 +140,155 @@ function Section({
   );
 }
 
+function traceToneClass(item: InspectorTraceItem): string {
+  switch (item.tone) {
+    case "success":
+      return "text-[#22c55e]";
+    case "warning":
+      return "text-[#f59e0b]";
+    case "danger":
+      return "text-[#ef4444]";
+    default:
+      return "text-[var(--text-muted)]";
+  }
+}
+
+function formatTraceLabel(
+  item: InspectorTraceItem,
+  t: ReturnType<typeof useT>,
+): string {
+  switch (item.kind) {
+    case "session_attached":
+      return t.sessions_trace_session_attached;
+    case "session_attach_failed":
+      return t.sessions_trace_session_attach_failed;
+    case "running_tool":
+      return t.sessions_trace_running_tool;
+    case "using_tool":
+      return t.sessions_trace_using_tool(item.toolName ?? "");
+    case "thinking":
+      return t.sessions_trace_thinking;
+    case "responding":
+      return t.sessions_trace_responding;
+    case "turn_complete":
+      return t.sessions_trace_turn_complete;
+    case "turn_aborted":
+      return t.sessions_trace_turn_aborted;
+    default:
+      return t.sessions_trace_process_exited(item.exitCode);
+  }
+}
+
+function Inspector({
+  item,
+  traceItems,
+  traceLoading,
+  onOpenHistory,
+  t,
+}: {
+  item: CanvasTerminalItem | null;
+  traceItems: InspectorTraceItem[];
+  traceLoading: boolean;
+  onOpenHistory: (filePath: string) => void;
+  t: ReturnType<typeof useT>;
+}) {
+  if (!item) return null;
+
+  const summaryParts = [
+    item.locationLabel,
+    formatTerminalActivity(item, t),
+    formatShortAge(item.activityAt),
+  ].filter(Boolean);
+  const historyPath = item.sessionFilePath;
+
+  return (
+    <div className="shrink-0 border-t border-[var(--border)] bg-[var(--sidebar)]">
+      <div className="px-3 py-2 border-b border-[var(--border)]">
+        <div
+          className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          {t.sessions_inspector}
+        </div>
+        <div className="mt-1 text-[11px] font-medium truncate">{item.title}</div>
+        <div className="mt-0.5 text-[10px] text-[var(--text-muted)] truncate">
+          {summaryParts.join(" · ")}
+        </div>
+        <div className="mt-2 flex items-center gap-1.5">
+          <button
+            className="px-2 py-1 text-[9px] rounded border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] cursor-pointer"
+            onClick={() => panToTerminal(item.terminalId)}
+          >
+            {t.sessions_jump_to_terminal}
+          </button>
+          {historyPath && (
+            <button
+              className="px-2 py-1 text-[9px] rounded border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] cursor-pointer"
+              onClick={() => onOpenHistory(historyPath)}
+            >
+              {t.sessions_open_history}
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="px-3 py-2 max-h-[220px] overflow-y-auto">
+        <div
+          className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1.5"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          {t.sessions_recent_trace}
+        </div>
+        {traceLoading ? (
+          <div className="text-[10px] text-[var(--text-faint)]">
+            {t.sessions_trace_loading}
+          </div>
+        ) : traceItems.length === 0 ? (
+          <div className="text-[10px] text-[var(--text-faint)]">
+            {t.sessions_trace_empty}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {traceItems.map((traceItem) => (
+              <div
+                key={traceItem.id}
+                className="flex items-start gap-2 rounded bg-[var(--surface)] px-2 py-1.5"
+              >
+                <div
+                  className={`w-1.5 h-1.5 rounded-full shrink-0 mt-1 ${traceToneClass(
+                    traceItem,
+                  )}`}
+                  style={{
+                    backgroundColor: "currentColor",
+                  }}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] truncate">
+                    {formatTraceLabel(traceItem, t)}
+                  </div>
+                  <div className="text-[9px] text-[var(--text-faint)] tabular-nums">
+                    {formatShortAge(traceItem.at)}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function SessionsPanel() {
   const panelView = useSessionStore((s) => s.panelView);
   const liveSessions = useSessionStore((s) => s.liveSessions);
   const historySessions = useSessionStore((s) => s.historySessions);
+  const loadReplay = useSessionStore((s) => s.loadReplay);
   const projects = useProjectStore((s) => s.projects);
   const runtimeTerminals = useTerminalRuntimeStore((s) => s.terminals);
   const t = useT();
+  const [traceItems, setTraceItems] = useState<InspectorTraceItem[]>([]);
+  const [traceLoading, setTraceLoading] = useState(false);
 
   const sessionsById = useMemo(() => {
     const map = new Map<string, (typeof liveSessions)[number]>();
@@ -163,6 +310,7 @@ export function SessionsPanel() {
     () => buildCanvasTerminalSections(projects, telemetryByTerminalId, sessionsById),
     [projects, sessionsById, telemetryByTerminalId],
   );
+  const inspectedItem = useMemo(() => pickInspectedTerminal(sections), [sections]);
 
   const hasAnyTerminals =
     !!sections.focused ||
@@ -171,33 +319,73 @@ export function SessionsPanel() {
     sections.done.length > 0 ||
     sections.idle.length > 0;
 
+  useEffect(() => {
+    if (panelView === "replay" || !inspectedItem || !window.termcanvas?.telemetry) {
+      setTraceItems([]);
+      setTraceLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setTraceLoading(true);
+
+    void window.termcanvas.telemetry
+      .listEvents({ terminalId: inspectedItem.terminalId, limit: 24 })
+      .then((page) => {
+        if (cancelled) return;
+        setTraceItems(buildInspectorTrace(page.events));
+        setTraceLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setTraceItems([]);
+        setTraceLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inspectedItem?.activityAt, inspectedItem?.terminalId, panelView]);
+
   if (panelView === "replay") {
     return <SessionReplayView />;
   }
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
-      {sections.focused && (
-        <div className="shrink-0 px-3 pt-3 pb-2">
-          <div
-            className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1.5"
-            style={{ fontFamily: '"Geist Mono", monospace' }}
-          >
-            {t.sessions_focused}
+    <div className="flex flex-col h-full min-h-0">
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {sections.focused && (
+          <div className="shrink-0 px-3 pt-3 pb-2">
+            <div
+              className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1.5"
+              style={{ fontFamily: '"Geist Mono", monospace' }}
+            >
+              {t.sessions_focused}
+            </div>
+            <TerminalCard item={sections.focused} t={t} />
           </div>
-          <TerminalCard item={sections.focused} t={t} />
-        </div>
-      )}
+        )}
 
-      <Section title={t.sessions_needs_attention} items={sections.attention} t={t} />
-      <Section title={t.sessions_in_progress} items={sections.progress} t={t} />
-      <Section title={t.sessions_done} items={sections.done} t={t} />
-      <Section title={t.sessions_background} items={sections.idle} t={t} />
+        <Section title={t.sessions_needs_attention} items={sections.attention} t={t} />
+        <Section title={t.sessions_in_progress} items={sections.progress} t={t} />
+        <Section title={t.sessions_done} items={sections.done} t={t} />
+        <Section title={t.sessions_background} items={sections.idle} t={t} />
 
-      {!hasAnyTerminals && (
-        <div className="flex-1 px-4 py-6 text-[11px] text-[var(--text-faint)] text-center">
-          {t.sessions_no_canvas_items}
-        </div>
+        {!hasAnyTerminals && (
+          <div className="flex-1 px-4 py-6 text-[11px] text-[var(--text-faint)] text-center">
+            {t.sessions_no_canvas_items}
+          </div>
+        )}
+      </div>
+
+      {inspectedItem && (
+        <Inspector
+          item={inspectedItem}
+          traceItems={traceItems}
+          traceLoading={traceLoading}
+          onOpenHistory={loadReplay}
+          t={t}
+        />
       )}
     </div>
   );
