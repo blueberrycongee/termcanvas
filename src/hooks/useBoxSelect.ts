@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import {
+  activateCardInScene,
   activateAnnotationInScene,
   activateTerminalInScene,
   activateWorktreeInScene,
@@ -151,6 +152,23 @@ function getItemsInRect(rect: { x: number; y: number; w: number; h: number }): S
   return prioritizeBoxSelectionItems(items);
 }
 
+export function activateSingleBoxSelectionItem(item: SelectedItem): void {
+  if (item.type === "terminal") {
+    activateTerminalInScene(
+      item.projectId,
+      item.worktreeId,
+      item.terminalId,
+      { focusComposer: false },
+    );
+  } else if (item.type === "worktree") {
+    activateWorktreeInScene(item.projectId, item.worktreeId);
+  } else if (item.type === "card") {
+    activateCardInScene(item.cardId);
+  } else if (item.type === "annotation") {
+    activateAnnotationInScene(item.annotationId);
+  }
+}
+
 export function useBoxSelect() {
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0 || !e.shiftKey) return;
@@ -187,19 +205,7 @@ export function useBoxSelect() {
       const items = getItemsInRect(rect);
       setSceneSelection(items);
       if (items.length === 1) {
-        const [item] = items;
-        if (item.type === "terminal") {
-          activateTerminalInScene(
-            item.projectId,
-            item.worktreeId,
-            item.terminalId,
-            { focusComposer: false },
-          );
-        } else if (item.type === "worktree") {
-          activateWorktreeInScene(item.projectId, item.worktreeId);
-        } else if (item.type === "annotation") {
-          activateAnnotationInScene(item.annotationId);
-        }
+        activateSingleBoxSelectionItem(items[0]);
       }
       setSceneSelectionRect(null);
 
