@@ -523,6 +523,52 @@ function ensureCodexHooks(scriptPath: string, home: string): void {
   fs.renameSync(tmp, hooksFile);
 }
 
+function removeCodexHooks(home: string): void {
+  const hooksFile = path.join(getCodexConfigDir(home), "hooks.json");
+  let data: { hooks?: Record<string, unknown[]> } = {};
+  try {
+    data = JSON.parse(fs.readFileSync(hooksFile, "utf-8"));
+  } catch {
+    return;
+  }
+
+  const hooks = (data.hooks ?? {}) as Record<string, unknown[]>;
+  let changed = false;
+
+  for (const eventName of CODEX_HOOK_EVENTS) {
+    const existing = (hooks[eventName] ?? []) as Array<{
+      matcher?: string;
+      hooks?: Array<{ type: string; command: string }>;
+    }>;
+
+    const filtered = existing.filter(
+      (entry) =>
+        !entry.hooks?.some((h) => h.command.includes(LIFECYCLE_MARKER)),
+    );
+
+    if (filtered.length !== existing.length) {
+      changed = true;
+      if (filtered.length === 0) {
+        delete hooks[eventName];
+      } else {
+        hooks[eventName] = filtered;
+      }
+    }
+  }
+
+  if (!changed) return;
+
+  if (Object.keys(hooks).length === 0) {
+    delete data.hooks;
+  } else {
+    data.hooks = hooks;
+  }
+
+  const tmp = hooksFile + ".tmp." + process.pid;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
+  fs.renameSync(tmp, hooksFile);
+}
+
 /**
  * Full install: register Claude plugin + create skill symlinks.
  * Called when user registers the CLI.
@@ -603,6 +649,7 @@ export function uninstallSkillLinks({
   try {
     unregisterClaudePlugin(getClaudePluginsFile(home));
     removeLifecycleHooks(getClaudeSettingsFile(home));
+    removeCodexHooks(home);
     removeAllSkillLinks(sourceDir, home);
     return true;
   } catch (err) {

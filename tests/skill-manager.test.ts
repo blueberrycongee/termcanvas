@@ -247,6 +247,36 @@ test("uninstall removes skills tracked in manifest even if missing from current 
   assert.equal(readManifest(home, "claude"), null);
 });
 
+test("uninstallSkillLinks removes termcanvas entries from codex hooks.json", () => {
+  const { home, sourceDir } = makeTempEnv();
+  installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+
+  const hooksFile = path.join(home, ".codex", "hooks.json");
+  assert.equal(fs.existsSync(hooksFile), true);
+
+  uninstallSkillLinks({ home, sourceDir });
+
+  // hooks.json should still exist but with no termcanvas entries
+  const hooks = JSON.parse(fs.readFileSync(hooksFile, "utf-8"));
+  for (const event of [
+    "PreToolUse",
+    "PostToolUse",
+    "SessionStart",
+    "Stop",
+    "UserPromptSubmit",
+  ]) {
+    const entries = hooks.hooks?.[event] ?? [];
+    for (const entry of entries) {
+      for (const h of entry.hooks ?? []) {
+        assert.ok(
+          !h.command.includes("termcanvas-hook.mjs"),
+          `${event} still has termcanvas hook after uninstall`,
+        );
+      }
+    }
+  }
+});
+
 test("installSkillLinks creates codex hooks.json with all 5 events", () => {
   const { home, sourceDir } = makeTempEnv();
   installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
