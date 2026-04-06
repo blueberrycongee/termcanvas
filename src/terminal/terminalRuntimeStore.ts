@@ -29,6 +29,15 @@ import {
   toPreviewText,
 } from "./terminalRuntimePolicy";
 import {
+  canCompleteTerminalTurn,
+  derivePublicTerminalStatus,
+  getLifecycleReactions,
+  hydrateLifecycleFromPublicStatus,
+  transitionLifecycle,
+  type TerminalLifecycleEvent,
+  type TerminalLifecycleState,
+} from "./terminalLifecycle";
+import {
   createTerminalSelectionAutoCopyState,
   markTerminalSelectionChanged,
   markTerminalSelectionCopied,
@@ -76,6 +85,7 @@ interface ManagedTerminalRuntime {
   hasRespawned: boolean;
   hostElement: HTMLDivElement | null;
   inputDisposable: { dispose(): void } | null;
+  lifecycle: TerminalLifecycleState;
   meta: TerminalRuntimeMeta;
   mode: TerminalMountMode;
   outputUnsubscribe: (() => void) | null;
@@ -95,10 +105,12 @@ interface ManagedTerminalRuntime {
   selectionPointerCleanup: (() => void) | null;
   serializeAddon: SerializeAddon | null;
   sessionCancel: (() => void) | null;
+  spawnAttempt: number;
   started: boolean;
   telemetryTimer: ReturnType<typeof setInterval> | null;
   usesAgentRenderer: boolean;
   waitingTimer: ReturnType<typeof setTimeout> | null;
+  waitingDeadlineAt: number | null;
   wasResumeAttempt: boolean;
   watchedSessionId: string | null;
   xterm: XtermTerminal | null;
@@ -370,6 +382,56 @@ function setStatus(
       status,
     );
   updateTerminalInStore(runtime, (terminal) => ({ ...terminal, status }));
+}
+
+function clearWaitingTimer(runtime: ManagedTerminalRuntime) {
+  if (runtime.waitingTimer) {
+    clearTimeout(runtime.waitingTimer);
+    runtime.waitingTimer = null;
+  }
+  runtime.waitingDeadlineAt = null;
+}
+
+function scheduleWaitingTimer(runtime: ManagedTerminalRuntime) {
+  clearWaitingTimer(runtime);
+  runtime.waitingDeadlineAt = Date.now() + WAITING_THRESHOLD;
+  runtime.waitingTimer = setTimeout(() => {
+    runtime.waitingTimer = null;
+    runtime.waitingDeadlineAt = null;
+    const nextStatus = applyLifecycleEvent(runtime, { type: "waiting_timeout" });
+    if (nextStatus === "waiting") {
+      dispatchWorktreeActivity(runtime.meta.worktreePath);
+    }
+  }, WAITING_THRESHOLD);
+}
+
+function applyLifecycleEvent(
+  runtime: ManagedTerminalRuntime,
+  event: TerminalLifecycleEvent,
+): TerminalStatus | null {
+  try {
+    const previous = runtime.lifecycle;
+    const next = transitionLifecycle(previous, event);
+    runtime.lifecycle = next;
+
+    for (const reaction of getLifecycleReactions(previous, next, event)) {
+      if (reaction === "clear_waiting_timeout") {
+        clearWaitingTimer(runtime);
+      } else if (reaction === "schedule_waiting_timeout") {
+        scheduleWaitingTimer(runtime);
+      }
+    }
+
+    const nextStatus = derivePublicTerminalStatus(next);
+    setStatus(runtime, nextStatus);
+    return nextStatus;
+  } catch (error) {
+    console.error(
+      `[terminalRuntime] illegal lifecycle event ${event.type} for terminal=${runtime.meta.terminal.id}:`,
+      error,
+    );
+    return null;
+  }
 }
 
 function setSessionId(
@@ -887,10 +949,7 @@ function clearRuntimeTimers(runtime: ManagedTerminalRuntime) {
     clearTimeout(runtime.detectTimer);
     runtime.detectTimer = null;
   }
-  if (runtime.waitingTimer) {
-    clearTimeout(runtime.waitingTimer);
-    runtime.waitingTimer = null;
-  }
+  clearWaitingTimer(runtime);
   if (runtime.telemetryTimer) {
     clearInterval(runtime.telemetryTimer);
     runtime.telemetryTimer = null;
@@ -1078,19 +1137,7 @@ function handleRuntimeOutput(runtime: ManagedTerminalRuntime, data: string) {
     runtime.activityPending = true;
   }
 
-  if (runtime.currentStatus !== "active") {
-    setStatus(runtime, "active");
-  }
-
-  if (runtime.waitingTimer) {
-    clearTimeout(runtime.waitingTimer);
-  }
-  runtime.waitingTimer = setTimeout(() => {
-    if (runtime.currentStatus === "active") {
-      setStatus(runtime, "waiting");
-      dispatchWorktreeActivity(runtime.meta.worktreePath);
-    }
-  }, WAITING_THRESHOLD);
+  applyLifecycleEvent(runtime, { type: "output_received" });
 }
 
 function buildTerminalRuntime(
@@ -1117,6 +1164,7 @@ function buildTerminalRuntime(
     hasRespawned: false,
     hostElement: null,
     inputDisposable: null,
+    lifecycle: hydrateLifecycleFromPublicStatus(meta.terminal.status),
     meta,
     mode,
     outputUnsubscribe: null,
@@ -1136,10 +1184,12 @@ function buildTerminalRuntime(
     selectionPointerCleanup: null,
     serializeAddon: null,
     sessionCancel: null,
+    spawnAttempt: 0,
     started: false,
     telemetryTimer: null,
     usesAgentRenderer: false,
     waitingTimer: null,
+    waitingDeadlineAt: null,
     wasResumeAttempt:
       !!meta.terminal.sessionId &&
       !!getTerminalLaunchOptions(
@@ -1163,6 +1213,9 @@ function buildTerminalRuntime(
 }
 
 async function spawnPty(runtime: ManagedTerminalRuntime, resumeSessionId?: string) {
+  runtime.spawnAttempt += 1;
+  applyLifecycleEvent(runtime, { type: "spawn_requested" });
+
   const launch = getTerminalLaunchOptions(
     runtime.meta.terminal.type,
     resumeSessionId,
@@ -1242,7 +1295,7 @@ async function spawnPty(runtime: ManagedTerminalRuntime, resumeSessionId?: strin
     }
 
     setPtyId(runtime, ptyId);
-    setStatus(runtime, "running");
+    applyLifecycleEvent(runtime, { type: "spawn_succeeded" });
 
     if (
       resumeSessionId &&
@@ -1282,7 +1335,7 @@ async function spawnPty(runtime: ManagedTerminalRuntime, resumeSessionId?: strin
       "error",
       t.failed_create_pty(getTerminalDisplayTitle(runtime.meta.terminal), message),
     );
-    setStatus(runtime, "error");
+    applyLifecycleEvent(runtime, { type: "spawn_failed" });
     appendPreview(
       runtime,
       `\r\n\x1b[31m[Error] Failed to create terminal: ${message}\x1b[0m\r\n`,
@@ -1348,10 +1401,7 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
       return;
     }
 
-    if (runtime.waitingTimer) {
-      clearTimeout(runtime.waitingTimer);
-      runtime.waitingTimer = null;
-    }
+    clearWaitingTimer(runtime);
 
     if (exitCode !== 0 && runtime.wasResumeAttempt && !runtime.hasRespawned) {
       runtime.hasRespawned = true;
@@ -1365,8 +1415,12 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
       return;
     }
 
-    const nextStatus = exitCode === 0 ? "success" : "error";
-    setStatus(runtime, nextStatus);
+    applyLifecycleEvent(
+      runtime,
+      exitCode === 0
+        ? { type: "process_exited_success" }
+        : { type: "process_exited_error" },
+    );
     appendPreview(runtime, getT().process_exited(exitCode));
     notify(
       exitCode === 0 ? "info" : "warn",
@@ -1379,12 +1433,9 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
   const handleTurnComplete = () => {
     const now = Date.now();
     if (now - runtime.lastTurnCompletedAt < TURN_COMPLETE_DEDUP_MS) return;
-    if (
-      runtime.currentStatus !== "active" &&
-      runtime.currentStatus !== "waiting"
-    ) return;
+    if (!canCompleteTerminalTurn(runtime.lifecycle)) return;
     runtime.lastTurnCompletedAt = now;
-    setStatus(runtime, "completed");
+    applyLifecycleEvent(runtime, { type: "turn_completed" });
   };
 
   runtime.removeTurnComplete = window.termcanvas.session.onTurnComplete(
@@ -1408,7 +1459,7 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
       (payload) => {
         if (payload.terminalId !== runtime.meta.terminal.id) return;
         if (payload.error) {
-          setStatus(runtime, "error");
+          applyLifecycleEvent(runtime, { type: "hook_failed" });
           appendPreview(
             runtime,
             `\r\n\x1b[31m[Hook error: ${payload.error}]\x1b[0m\r\n`,
@@ -1614,6 +1665,17 @@ export function destroyTerminalRuntime(terminalId: string) {
   if (!runtime) {
     removeRuntimeSnapshot(terminalId);
     return;
+  }
+
+  try {
+    runtime.lifecycle = transitionLifecycle(runtime.lifecycle, {
+      type: "destroy_requested",
+    });
+  } catch (error) {
+    console.error(
+      `[terminalRuntime] failed to mark terminal=${terminalId} as destroyed in lifecycle:`,
+      error,
+    );
   }
 
   runtime.disposed = true;
