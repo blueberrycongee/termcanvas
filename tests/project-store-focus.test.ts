@@ -6,7 +6,9 @@ import {
   ensureTerminalCreationTarget,
 } from "../src/projects/projectCreation.ts";
 import { useProjectStore } from "../src/stores/projectStore.ts";
+import { usePreferencesStore } from "../src/stores/preferencesStore.ts";
 import type { ProjectData } from "../src/types/index.ts";
+import { appEvents } from "../src/events.ts";
 
 function createProjects(): ProjectData[] {
   return [
@@ -128,6 +130,42 @@ test("setFocusedTerminal only rewrites the affected terminals", () => {
   assert.equal(afterWorktree1.terminals[1].focused, true);
   assert.equal(state.focusedProjectId, "project-1");
   assert.equal(state.focusedWorktreeId, "worktree-1");
+});
+
+test("setFocusedTerminal emits composer focus when composer mode is enabled", () => {
+  resetStore();
+  const previousPreferences = usePreferencesStore.getState();
+  let emitted = 0;
+  const removeListener = appEvents.on("composer:focus", () => {
+    emitted += 1;
+  });
+
+  try {
+    usePreferencesStore.setState({ composerEnabled: true });
+    useProjectStore.getState().setFocusedTerminal("terminal-2");
+    assert.equal(emitted, 1);
+  } finally {
+    removeListener();
+    usePreferencesStore.setState(previousPreferences);
+  }
+});
+
+test("setFocusedTerminal emits xterm focus payload when composer mode is disabled", () => {
+  resetStore();
+  const previousPreferences = usePreferencesStore.getState();
+  const emitted: string[] = [];
+  const removeListener = appEvents.on("terminal:focus", ({ terminalId }) => {
+    emitted.push(terminalId);
+  });
+
+  try {
+    usePreferencesStore.setState({ composerEnabled: false });
+    useProjectStore.getState().setFocusedTerminal("terminal-2");
+    assert.deepEqual(emitted, ["terminal-2"]);
+  } finally {
+    removeListener();
+    usePreferencesStore.setState(previousPreferences);
+  }
 });
 
 test("clearFocus is a no-op when nothing is focused", () => {

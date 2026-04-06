@@ -28,6 +28,7 @@ import {
   TerminalMountMode,
   toPreviewText,
 } from "./terminalRuntimePolicy";
+import { appEvents } from "../events";
 import {
   canCompleteTerminalTurn,
   derivePublicTerminalStatus,
@@ -256,11 +257,7 @@ function bumpCopiedNonce(terminalId: string) {
 }
 
 function dispatchWorktreeActivity(worktreePath: string) {
-  window.dispatchEvent(
-    new CustomEvent("termcanvas:worktree-activity", {
-      detail: worktreePath,
-    }),
-  );
+  appEvents.emit("worktree:activity", { worktreePath });
 }
 
 async function pollSessionId(

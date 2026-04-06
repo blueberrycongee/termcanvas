@@ -35,6 +35,7 @@ import { updateWindowTitle } from "../titleHelper";
 import { panToTerminal } from "../utils/panToTerminal";
 import { panToWorktree } from "../utils/panToWorktree";
 import { getCanvasRightInset, getCanvasLeftInset } from "../canvas/viewportBounds";
+import { appEvents } from "../events";
 
 function getAllTerminals() {
   const { projects } = useProjectStore.getState();
@@ -378,11 +379,9 @@ export function useKeyboardShortcuts() {
           useProjectStore
             .getState()
             .setFocusedTerminal(terminal.id, { focusComposer: false });
-          window.dispatchEvent(
-            new CustomEvent("termcanvas:focus-custom-title", {
-              detail: terminal.id,
-            }),
-          );
+          appEvents.emit("terminal:title-edit-focus", {
+            terminalId: terminal.id,
+          });
         }
         return;
       }

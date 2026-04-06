@@ -33,6 +33,7 @@ import {
 import { useSidebarDragStore } from "../stores/sidebarDragStore";
 import { TERMINAL_TYPE_CONFIG } from "./terminalTypeConfig";
 import { AgentRenderer } from "../components/agent/AgentRenderer";
+import { appEvents } from "../events";
 
 interface Props {
   lodMode: TerminalMountMode;
@@ -482,14 +483,11 @@ export function TerminalTile({
   ]);
 
   useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail === terminal.id) {
+    return appEvents.on("terminal:focus", ({ terminalId }) => {
+      if (terminalId === terminal.id) {
         scheduleXtermFocus();
       }
-    };
-    window.addEventListener("termcanvas:focus-xterm", handler);
-    return () => window.removeEventListener("termcanvas:focus-xterm", handler);
+    });
   }, [scheduleXtermFocus, terminal.id]);
 
   useEffect(
@@ -500,15 +498,11 @@ export function TerminalTile({
   );
 
   useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail === terminal.id) {
+    return appEvents.on("terminal:title-edit-focus", ({ terminalId }) => {
+      if (terminalId === terminal.id) {
         startCustomTitleEdit();
       }
-    };
-    window.addEventListener("termcanvas:focus-custom-title", handler);
-    return () =>
-      window.removeEventListener("termcanvas:focus-custom-title", handler);
+    });
   }, [startCustomTitleEdit, terminal.id]);
 
   useEffect(() => {

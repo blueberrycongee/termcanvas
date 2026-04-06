@@ -10,6 +10,7 @@ import {
   type PendingFocusFrame,
 } from "../src/terminal/focusScheduler.ts";
 import { getComposerAdapter } from "../src/terminal/cliConfig.ts";
+import { appEvents } from "../src/events.ts";
 
 function createTestProjects(): {
   projects: ProjectData[];
@@ -127,17 +128,15 @@ function attachTerminalFocusHarness(
   };
 
   const unsubscribe = useProjectStore.subscribe(syncFromStore);
-  const onFocusXterm = (event: Event) => {
-    if ((event as CustomEvent).detail === terminalId) {
+  const removeFocusListener = appEvents.on("terminal:focus", ({ terminalId: nextId }) => {
+    if (nextId === terminalId) {
       scheduleTerminalFocus(focus, pending, requestFrame, cancelFrame);
     }
-  };
-
-  window.addEventListener("termcanvas:focus-xterm", onFocusXterm);
+  });
 
   return () => {
     unsubscribe();
-    window.removeEventListener("termcanvas:focus-xterm", onFocusXterm);
+    removeFocusListener();
     cancelScheduledTerminalFocus(pending, cancelFrame);
   };
 }

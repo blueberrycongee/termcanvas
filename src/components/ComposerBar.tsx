@@ -23,6 +23,7 @@ import type {
   ComposerSubmitRequest,
   ComposerSubmitResult,
 } from "../types";
+import { appEvents } from "../events";
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -233,8 +234,7 @@ export function ComposerBar() {
 
   useEffect(() => {
     const handleFocusComposer = () => requestAnimationFrame(() => textareaRef.current?.focus());
-    window.addEventListener("termcanvas:focus-composer", handleFocusComposer);
-    return () => window.removeEventListener("termcanvas:focus-composer", handleFocusComposer);
+    return appEvents.on("composer:focus", handleFocusComposer);
   }, []);
 
   const handleImagePaste = useCallback(

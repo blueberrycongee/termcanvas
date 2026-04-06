@@ -4,6 +4,7 @@ import {
   EMPTY_DIFF_CACHE,
   useLeftPanelRepoStore,
 } from "../stores/leftPanelRepoStore";
+import { appEvents } from "../events";
 
 export function useWorktreeDiff(worktreePath: string | null) {
   const snapshot = useLeftPanelRepoStore((state) =>
@@ -42,12 +43,13 @@ export function useWorktreeDiff(worktreePath: string | null) {
       if (changedPath === worktreePath) fetchDiff();
     });
 
-    const handleActivity = (e: Event) => {
-      if ((e as CustomEvent).detail === worktreePath) fetchDiff();
-    };
+    const removeActivityListener = appEvents.on("worktree:activity", ({
+      worktreePath: changedPath,
+    }) => {
+      if (changedPath === worktreePath) fetchDiff();
+    });
     const handleFocus = () => fetchDiff();
 
-    window.addEventListener("termcanvas:worktree-activity", handleActivity);
     window.addEventListener("focus", handleFocus);
 
     return () => {
@@ -55,7 +57,7 @@ export function useWorktreeDiff(worktreePath: string | null) {
       requestSeq += 1;
       window.termcanvas.git.unwatch(worktreePath);
       removeGitChanged();
-      window.removeEventListener("termcanvas:worktree-activity", handleActivity);
+      removeActivityListener();
       window.removeEventListener("focus", handleFocus);
     };
   }, [worktreePath]);

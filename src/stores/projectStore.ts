@@ -26,6 +26,7 @@ import { usePreferencesStore } from "./preferencesStore.ts";
 import { logSlowRendererPath, measureRendererSync } from "../utils/devPerf.ts";
 import { setTrackSidebar, useTileDimensionsStore } from "./tileDimensionsStore.ts";
 import { getVisibleWorktreeSpans } from "../utils/worktreeLayout.ts";
+import { appEvents } from "../events";
 
 interface ProjectStore {
   projects: ProjectData[];
@@ -1173,9 +1174,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     if (terminalId && options?.focusComposer !== false) {
       const composerEnabled = usePreferencesStore.getState().composerEnabled;
       if (composerEnabled) {
-        window.dispatchEvent(new CustomEvent("termcanvas:focus-composer"));
+        appEvents.emit("composer:focus");
       } else {
-        window.dispatchEvent(new CustomEvent("termcanvas:focus-xterm", { detail: terminalId }));
+        appEvents.emit("terminal:focus", { terminalId });
       }
     }
     logSlowRendererPath("projectStore.setFocusedTerminal", startedAt, {
