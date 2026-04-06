@@ -2,6 +2,12 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.14] - 2026-04-07
+
+### Added
+- Git status badges in file tree: VS Code-style letter badges (M, U, A, D, R, C) with color-coded file names and folder dot indicators
+- File name coloring matches git status (yellow=modified, green=untracked/added, red=deleted)
+
 ## [0.25.13] - 2026-04-07
 
 ### Added
