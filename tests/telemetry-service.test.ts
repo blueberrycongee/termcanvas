@@ -4,16 +4,35 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { TelemetryService, deriveTelemetryStatus } from "../electron/telemetry-service.ts";
+import {
+  TelemetryService,
+  deriveTelemetryStatus,
+  deriveTelemetryTaskStatus,
+} from "../electron/telemetry-service.ts";
 
 function createRepoFixture() {
   const repoPath = fs.mkdtempSync(path.join(os.tmpdir(), "telemetry-repo-"));
-  execFileSync("git", ["init", "-b", "main"], { cwd: repoPath, encoding: "utf-8" });
-  execFileSync("git", ["config", "user.name", "Telemetry Test"], { cwd: repoPath, encoding: "utf-8" });
-  execFileSync("git", ["config", "user.email", "telemetry@example.com"], { cwd: repoPath, encoding: "utf-8" });
+  execFileSync("git", ["init", "-b", "main"], {
+    cwd: repoPath,
+    encoding: "utf-8",
+  });
+  execFileSync("git", ["config", "user.name", "Telemetry Test"], {
+    cwd: repoPath,
+    encoding: "utf-8",
+  });
+  execFileSync("git", ["config", "user.email", "telemetry@example.com"], {
+    cwd: repoPath,
+    encoding: "utf-8",
+  });
   fs.writeFileSync(path.join(repoPath, "README.md"), "hello\n", "utf-8");
-  execFileSync("git", ["add", "README.md"], { cwd: repoPath, encoding: "utf-8" });
-  execFileSync("git", ["commit", "-m", "init"], { cwd: repoPath, encoding: "utf-8" });
+  execFileSync("git", ["add", "README.md"], {
+    cwd: repoPath,
+    encoding: "utf-8",
+  });
+  execFileSync("git", ["commit", "-m", "init"], {
+    cwd: repoPath,
+    encoding: "utf-8",
+  });
   return repoPath;
 }
 
@@ -28,12 +47,142 @@ test("deriveTelemetryStatus marks awaiting_contract after turn completion", () =
     turn_state: "turn_complete",
     pty_alive: true,
     descendant_processes: [],
+    active_tool_calls: 0,
     done_exists: false,
     result_exists: false,
     derived_status: "starting",
   });
 
   assert.equal(status, "awaiting_contract");
+});
+
+test("deriveTelemetryStatus keeps codex as progressing when session events are fresh", () => {
+  const now = Date.parse("2026-03-26T00:10:00.000Z");
+  const status = deriveTelemetryStatus(
+    {
+      terminal_id: "terminal-1",
+      worktree_path: "/tmp/project",
+      provider: "codex",
+      session_attached: true,
+      session_attach_confidence: "medium",
+      turn_state: "in_turn",
+      pty_alive: true,
+      descendant_processes: [],
+      active_tool_calls: 0,
+      done_exists: false,
+      result_exists: false,
+      last_session_event_at: "2026-03-26T00:09:30.000Z",
+      last_meaningful_progress_at: "2026-03-26T00:05:00.000Z",
+      derived_status: "starting",
+    },
+    now,
+  );
+
+  assert.equal(status, "progressing");
+});
+
+test("deriveTelemetryTaskStatus prefers explicit running/idle signals over PTY noise", () => {
+  const runningFromTools = deriveTelemetryTaskStatus({
+    terminal_id: "terminal-1",
+    worktree_path: "/tmp/project",
+    provider: "codex",
+    session_attached: true,
+    session_attach_confidence: "medium",
+    turn_state: "turn_complete",
+    pty_alive: true,
+    descendant_processes: [],
+    active_tool_calls: 1,
+    done_exists: false,
+    result_exists: false,
+    derived_status: "starting",
+  });
+  assert.deepEqual(runningFromTools, {
+    status: "running",
+    source: "active_tool_calls",
+  });
+
+  const idleFromTurnState = deriveTelemetryTaskStatus({
+    terminal_id: "terminal-1",
+    worktree_path: "/tmp/project",
+    provider: "codex",
+    session_attached: true,
+    session_attach_confidence: "medium",
+    turn_state: "turn_complete",
+    pty_alive: true,
+    descendant_processes: [],
+    active_tool_calls: 0,
+    done_exists: false,
+    result_exists: false,
+    derived_status: "starting",
+  });
+  assert.deepEqual(idleFromTurnState, { status: "idle", source: "turn_state" });
+
+  const unknownWithoutSignals = deriveTelemetryTaskStatus({
+    terminal_id: "terminal-1",
+    worktree_path: "/tmp/project",
+    provider: "codex",
+    session_attached: false,
+    session_attach_confidence: "none",
+    turn_state: "unknown",
+    pty_alive: true,
+    descendant_processes: [],
+    active_tool_calls: 0,
+    done_exists: false,
+    result_exists: false,
+    derived_status: "starting",
+  });
+  assert.deepEqual(unknownWithoutSignals, {
+    status: "unknown",
+    source: "none",
+  });
+});
+
+test("telemetry service tracks active tool call lifecycle from session events", () => {
+  const service = new TelemetryService({ processPollIntervalMs: 0 });
+  service.registerTerminal({
+    terminalId: "terminal-1",
+    worktreePath: "/tmp/project",
+    provider: "codex",
+  });
+
+  service.recordSessionTelemetry("terminal-1", [
+    {
+      at: "2026-03-26T00:00:01.000Z",
+      event_type: "function_call",
+      tool_name: "exec_command",
+      call_id: "call-1",
+      lifecycle: "start",
+      turn_state: "tool_running",
+      meaningful_progress: true,
+    },
+  ]);
+
+  let snapshot = service.getTerminalSnapshot("terminal-1");
+  assert.equal(snapshot?.active_tool_calls, 1);
+  assert.equal(snapshot?.foreground_tool, "exec_command");
+  assert.equal(snapshot?.last_tool_event_at, "2026-03-26T00:00:01.000Z");
+  assert.equal(snapshot?.task_status, "running");
+  assert.equal(snapshot?.task_status_source, "active_tool_calls");
+
+  service.recordSessionTelemetry("terminal-1", [
+    {
+      at: "2026-03-26T00:00:02.000Z",
+      event_type: "exec_command_end",
+      event_subtype: "completed",
+      tool_name: "exec_command",
+      call_id: "call-1",
+      lifecycle: "end",
+      turn_state: "in_turn",
+      meaningful_progress: true,
+    },
+  ]);
+
+  snapshot = service.getTerminalSnapshot("terminal-1");
+  assert.equal(snapshot?.active_tool_calls, 0);
+  assert.equal(snapshot?.foreground_tool, undefined);
+  assert.equal(snapshot?.last_tool_event_at, "2026-03-26T00:00:02.000Z");
+  assert.equal(snapshot?.task_status, "running");
+  assert.equal(snapshot?.task_status_source, "turn_state");
 });
 
 test("telemetry service updates meaningful progress from token growth and process changes", () => {
@@ -49,7 +198,11 @@ test("telemetry service updates meaningful progress from token growth and proces
     worktreePath: "/tmp/project",
     provider: "codex",
   });
-  service.recordPtyCreated({ terminalId: "terminal-1", ptyId: 7, shellPid: 100 });
+  service.recordPtyCreated({
+    terminalId: "terminal-1",
+    ptyId: 7,
+    shellPid: 100,
+  });
   service.recordSessionAttached({
     terminalId: "terminal-1",
     provider: "codex",
@@ -66,7 +219,10 @@ test("telemetry service updates meaningful progress from token growth and proces
   ]);
 
   let snapshot = service.getTerminalSnapshot("terminal-1");
-  assert.equal(snapshot?.last_meaningful_progress_at, "2026-03-26T00:00:01.000Z");
+  assert.equal(
+    snapshot?.last_meaningful_progress_at,
+    "2026-03-26T00:00:01.000Z",
+  );
 
   service.recordSessionTelemetry("terminal-1", [
     {
@@ -77,19 +233,29 @@ test("telemetry service updates meaningful progress from token growth and proces
     },
   ]);
   snapshot = service.getTerminalSnapshot("terminal-1");
-  assert.equal(snapshot?.last_meaningful_progress_at, "2026-03-26T00:00:01.000Z");
+  assert.equal(
+    snapshot?.last_meaningful_progress_at,
+    "2026-03-26T00:00:01.000Z",
+  );
 
-  service.recordProcessSnapshot("terminal-1", {
-    descendantProcesses: [
-      { pid: 200, command: "codex", cli_type: "codex" },
-      { pid: 300, command: "npm run build", cli_type: null },
-    ],
-    foregroundTool: "npm run build",
-  }, "2026-03-26T00:00:03.000Z");
+  service.recordProcessSnapshot(
+    "terminal-1",
+    {
+      descendantProcesses: [
+        { pid: 200, command: "codex", cli_type: "codex" },
+        { pid: 300, command: "npm run build", cli_type: null },
+      ],
+      foregroundTool: "npm run build",
+    },
+    "2026-03-26T00:00:03.000Z",
+  );
 
   snapshot = service.getTerminalSnapshot("terminal-1");
   assert.equal(snapshot?.foreground_tool, "npm run build");
-  assert.equal(snapshot?.last_meaningful_progress_at, "2026-03-26T00:00:03.000Z");
+  assert.equal(
+    snapshot?.last_meaningful_progress_at,
+    "2026-03-26T00:00:03.000Z",
+  );
 
   nowMs = Date.parse("2026-03-26T00:00:04.000Z");
   snapshot = service.getTerminalSnapshot("terminal-1");
@@ -108,7 +274,10 @@ test("telemetry service keeps a bounded event ring", () => {
   service.recordPtyOutput("terminal-1", "b", "2026-03-26T00:00:02.000Z");
   service.recordPtyExit("terminal-1", 0, "2026-03-26T00:00:03.000Z");
 
-  const page = service.listTerminalEvents({ terminalId: "terminal-1", limit: 10 });
+  const page = service.listTerminalEvents({
+    terminalId: "terminal-1",
+    limit: 10,
+  });
   assert.equal(page.events.length, 3);
   assert.equal(page.events[0].kind, "pty_input");
   assert.equal(page.events.at(-1)?.kind, "pty_exit");
@@ -122,8 +291,16 @@ test("telemetry service ignores stale PTY exits after a terminal respawns", () =
     provider: "claude",
   });
 
-  service.recordPtyCreated({ terminalId: "terminal-1", ptyId: 1, shellPid: 100 });
-  service.recordPtyCreated({ terminalId: "terminal-1", ptyId: 2, shellPid: 200 });
+  service.recordPtyCreated({
+    terminalId: "terminal-1",
+    ptyId: 1,
+    shellPid: 100,
+  });
+  service.recordPtyCreated({
+    terminalId: "terminal-1",
+    ptyId: 2,
+    shellPid: 200,
+  });
   service.recordPtyExitByPtyId(1, 0, "2026-03-26T00:00:03.000Z");
 
   let snapshot = service.getTerminalSnapshot("terminal-1");
@@ -144,7 +321,9 @@ test("workflow snapshot reads contract truth from Hydra handoff artifacts", () =
     const workflowDir = path.join(repoPath, ".hydra", "workflows", workflowId);
     const artifactsDir = path.join(workflowDir, handoffId);
     fs.mkdirSync(artifactsDir, { recursive: true });
-    fs.mkdirSync(path.join(repoPath, ".hydra", "handoffs"), { recursive: true });
+    fs.mkdirSync(path.join(repoPath, ".hydra", "handoffs"), {
+      recursive: true,
+    });
 
     const resultFile = path.join(artifactsDir, "result.json");
     const doneFile = path.join(artifactsDir, "done");
@@ -182,16 +361,22 @@ test("workflow snapshot reads contract truth from Hydra handoff artifacts", () =
       timeout_minutes: 15,
       dispatch: {
         active_terminal_id: "terminal-1",
-        attempts: [{
-          attempt: 1,
-          terminal_id: "terminal-1",
-          agent_type: "codex",
-          prompt: "prompt",
-          started_at: "2026-03-26T00:00:00.000Z",
-        }],
+        attempts: [
+          {
+            attempt: 1,
+            terminal_id: "terminal-1",
+            agent_type: "codex",
+            prompt: "prompt",
+            started_at: "2026-03-26T00:00:00.000Z",
+          },
+        ],
       },
     };
-    fs.writeFileSync(path.join(repoPath, ".hydra", "handoffs", `${handoffId}.json`), JSON.stringify(handoff, null, 2), "utf-8");
+    fs.writeFileSync(
+      path.join(repoPath, ".hydra", "handoffs", `${handoffId}.json`),
+      JSON.stringify(handoff, null, 2),
+      "utf-8",
+    );
     fs.writeFileSync(handoffFile, JSON.stringify(handoff, null, 2), "utf-8");
 
     const workflow = {
@@ -213,23 +398,43 @@ test("workflow snapshot reads contract truth from Hydra handoff artifacts", () =
       max_retries: 3,
       auto_approve: false,
     };
-    fs.writeFileSync(path.join(workflowDir, "workflow.json"), JSON.stringify(workflow, null, 2), "utf-8");
+    fs.writeFileSync(
+      path.join(workflowDir, "workflow.json"),
+      JSON.stringify(workflow, null, 2),
+      "utf-8",
+    );
 
-    fs.writeFileSync(resultFile, JSON.stringify({
-      success: true,
-      summary: "done",
-      handoff_id: handoffId,
-      workflow_id: workflowId,
-      outputs: [],
-      evidence: [],
-      next_action: { type: "complete", reason: "done" },
-    }, null, 2), "utf-8");
-    fs.writeFileSync(doneFile, JSON.stringify({
-      version: "hydra/v2",
-      handoff_id: handoffId,
-      workflow_id: workflowId,
-      result_file: resultFile,
-    }, null, 2), "utf-8");
+    fs.writeFileSync(
+      resultFile,
+      JSON.stringify(
+        {
+          success: true,
+          summary: "done",
+          handoff_id: handoffId,
+          workflow_id: workflowId,
+          outputs: [],
+          evidence: [],
+          next_action: { type: "complete", reason: "done" },
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
+    fs.writeFileSync(
+      doneFile,
+      JSON.stringify(
+        {
+          version: "hydra/v2",
+          handoff_id: handoffId,
+          workflow_id: workflowId,
+          result_file: resultFile,
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
 
     const service = new TelemetryService();
     service.registerTerminal({
@@ -247,12 +452,14 @@ test("workflow snapshot reads contract truth from Hydra handoff artifacts", () =
       sessionId: "session-1",
       confidence: "medium",
     });
-    service.recordSessionTelemetry("terminal-1", [{
-      at: "2026-03-26T00:00:05.000Z",
-      event_type: "task_complete",
-      turn_state: "turn_complete",
-      meaningful_progress: true,
-    }]);
+    service.recordSessionTelemetry("terminal-1", [
+      {
+        at: "2026-03-26T00:00:05.000Z",
+        event_type: "task_complete",
+        turn_state: "turn_complete",
+        meaningful_progress: true,
+      },
+    ]);
 
     const workflowSnapshot = service.getWorkflowSnapshot(repoPath, workflowId);
     assert.ok(workflowSnapshot);
@@ -265,4 +472,77 @@ test("workflow snapshot reads contract truth from Hydra handoff artifacts", () =
   } finally {
     fs.rmSync(repoPath, { recursive: true, force: true });
   }
+});
+
+test("recordHookEvent SessionStart uses registered provider instead of hardcoded claude", () => {
+  const service = new TelemetryService({ processPollIntervalMs: 0 });
+  service.registerTerminal({
+    terminalId: "t-codex",
+    worktreePath: "/repo",
+    provider: "codex",
+  });
+
+  service.recordHookEvent("t-codex", {
+    hook_event_name: "SessionStart",
+    session_id: "sess-codex-1",
+    transcript_path: "/tmp/codex-session.jsonl",
+  });
+
+  const snap = service.getTerminalSnapshot("t-codex")!;
+  assert.equal(snap.provider, "codex");
+  assert.equal(snap.session_id, "sess-codex-1");
+  service.dispose();
+});
+
+test("deriveTelemetryStatus returns progressing when active_tool_calls > 0", () => {
+  const status = deriveTelemetryStatus(
+    {
+      terminal_id: "terminal-1",
+      worktree_path: "/tmp/project",
+      provider: "codex",
+      session_attached: true,
+      session_attach_confidence: "medium",
+      turn_state: "in_turn",
+      pty_alive: true,
+      descendant_processes: [],
+      active_tool_calls: 2,
+      done_exists: false,
+      result_exists: false,
+      last_output_at: "2026-03-26T00:00:01.000Z",
+      last_meaningful_progress_at: "2026-03-26T00:00:01.000Z",
+      derived_status: "starting",
+    },
+    Date.parse("2026-03-26T01:00:00.000Z"),
+  ); // 1 hour later — well past all thresholds
+
+  assert.equal(status, "progressing");
+});
+
+test("deriveTelemetryStatus returns progressing for Codex in_turn with session attached", () => {
+  const now = Date.parse("2026-03-26T00:10:00.000Z");
+  const status = deriveTelemetryStatus(
+    {
+      terminal_id: "terminal-1",
+      worktree_path: "/tmp/project",
+      provider: "codex",
+      session_attached: true,
+      session_attach_confidence: "medium",
+      turn_state: "in_turn",
+      pty_alive: true,
+      descendant_processes: [],
+      active_tool_calls: 0,
+      done_exists: false,
+      result_exists: false,
+      // session event 4 min ago (stale beyond 90s heartbeat)
+      last_session_event_at: "2026-03-26T00:06:00.000Z",
+      // meaningful progress 5 min ago (stale beyond 180s Codex threshold)
+      last_meaningful_progress_at: "2026-03-26T00:05:00.000Z",
+      last_output_at: "2026-03-26T00:05:00.000Z",
+      derived_status: "starting",
+    },
+    now,
+  );
+
+  // in_turn + session_attached should be progressing, not stall_candidate
+  assert.equal(status, "progressing");
 });

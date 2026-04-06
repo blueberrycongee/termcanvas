@@ -19,6 +19,10 @@ function getCodexSkillsDir(home: string): string {
   return path.join(home, ".codex", "skills");
 }
 
+function getCodexConfigDir(home: string): string {
+  return path.join(home, ".codex");
+}
+
 function getClaudeSkillsDir(home: string): string {
   return path.join(home, ".claude", "skills");
 }
@@ -389,11 +393,17 @@ function ensureLifecycleHooks(settingsFile: string, scriptPath: string): void {
   for (const eventName of LIFECYCLE_HOOK_EVENTS) {
     const existing = (hooks[eventName] ?? []) as Array<{
       matcher?: string;
-      hooks?: Array<{ type: string; command: string; timeout?: number; async?: boolean }>;
+      hooks?: Array<{
+        type: string;
+        command: string;
+        timeout?: number;
+        async?: boolean;
+      }>;
     }>;
 
     const filtered = existing.filter(
-      (entry) => !entry.hooks?.some((h) => h.command.includes(LIFECYCLE_MARKER)),
+      (entry) =>
+        !entry.hooks?.some((h) => h.command.includes(LIFECYCLE_MARKER)),
     );
 
     // SessionStart blocks briefly to capture session_id; all others are async
@@ -440,7 +450,8 @@ function removeLifecycleHooks(settingsFile: string): void {
     }>;
 
     const filtered = existing.filter(
-      (entry) => !entry.hooks?.some((h) => h.command.includes(LIFECYCLE_MARKER)),
+      (entry) =>
+        !entry.hooks?.some((h) => h.command.includes(LIFECYCLE_MARKER)),
     );
 
     if (filtered.length !== existing.length) {
@@ -466,6 +477,131 @@ function removeLifecycleHooks(settingsFile: string): void {
   fs.renameSync(tmp, settingsFile);
 }
 
+const CODEX_HOOK_EVENTS = [
+  "PreToolUse",
+  "PostToolUse",
+  "SessionStart",
+  "Stop",
+  "UserPromptSubmit",
+] as const;
+
+function ensureCodexHooks(scriptPath: string, home: string): void {
+  const hooksFile = path.join(getCodexConfigDir(home), "hooks.json");
+  let data: { hooks?: Record<string, unknown[]> } = {};
+  try {
+    data = JSON.parse(fs.readFileSync(hooksFile, "utf-8"));
+  } catch {}
+
+  const hooks = (data.hooks ?? {}) as Record<string, unknown[]>;
+  const hookCommand = `node '${scriptPath}'`;
+
+  for (const eventName of CODEX_HOOK_EVENTS) {
+    const existing = (hooks[eventName] ?? []) as Array<{
+      matcher?: string;
+      hooks?: Array<{ type: string; command: string; timeout?: number }>;
+    }>;
+
+    const filtered = existing.filter(
+      (entry) =>
+        !entry.hooks?.some((h) => h.command.includes(LIFECYCLE_MARKER)),
+    );
+
+    filtered.push({
+      matcher: "",
+      hooks: [{ type: "command", command: hookCommand, timeout: 5 }],
+    });
+
+    hooks[eventName] = filtered;
+  }
+
+  data.hooks = hooks;
+
+  const dir = path.dirname(hooksFile);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmp = hooksFile + ".tmp." + process.pid;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
+  fs.renameSync(tmp, hooksFile);
+}
+
+function removeCodexHooks(home: string): void {
+  const hooksFile = path.join(getCodexConfigDir(home), "hooks.json");
+  let data: { hooks?: Record<string, unknown[]> } = {};
+  try {
+    data = JSON.parse(fs.readFileSync(hooksFile, "utf-8"));
+  } catch {
+    return;
+  }
+
+  const hooks = (data.hooks ?? {}) as Record<string, unknown[]>;
+  let changed = false;
+
+  for (const eventName of CODEX_HOOK_EVENTS) {
+    const existing = (hooks[eventName] ?? []) as Array<{
+      matcher?: string;
+      hooks?: Array<{ type: string; command: string }>;
+    }>;
+
+    const filtered = existing.filter(
+      (entry) =>
+        !entry.hooks?.some((h) => h.command.includes(LIFECYCLE_MARKER)),
+    );
+
+    if (filtered.length !== existing.length) {
+      changed = true;
+      if (filtered.length === 0) {
+        delete hooks[eventName];
+      } else {
+        hooks[eventName] = filtered;
+      }
+    }
+  }
+
+  if (!changed) return;
+
+  if (Object.keys(hooks).length === 0) {
+    delete data.hooks;
+  } else {
+    data.hooks = hooks;
+  }
+
+  const tmp = hooksFile + ".tmp." + process.pid;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
+  fs.renameSync(tmp, hooksFile);
+}
+
+function ensureCodexFeatureFlag(home: string): void {
+  const configFile = path.join(getCodexConfigDir(home), "config.toml");
+  fs.mkdirSync(path.dirname(configFile), { recursive: true });
+
+  let content = "";
+  try {
+    content = fs.readFileSync(configFile, "utf-8");
+  } catch {}
+
+  // Already enabled — nothing to do
+  if (/^\s*codex_hooks\s*=\s*true\s*$/m.test(content)) return;
+
+  // Remove any existing codex_hooks line (might be set to false)
+  content = content
+    .replace(/^\s*codex_hooks\s*=.*$/m, "")
+    .replace(/\n{3,}/g, "\n\n");
+
+  const featuresMatch = content.match(/^\[features\]\s*$/m);
+  if (featuresMatch) {
+    // Insert after [features] header
+    const idx = featuresMatch.index! + featuresMatch[0].length;
+    content =
+      content.slice(0, idx) + "\ncodex_hooks = true" + content.slice(idx);
+  } else {
+    // Append new [features] section
+    content = content.trimEnd() + "\n\n[features]\ncodex_hooks = true\n";
+  }
+
+  const tmp = configFile + ".tmp." + process.pid;
+  fs.writeFileSync(tmp, content, "utf-8");
+  fs.renameSync(tmp, configFile);
+}
+
 /**
  * Full install: register Claude plugin + create skill symlinks.
  * Called when user registers the CLI.
@@ -486,6 +622,11 @@ export function installSkillLinks({
       getClaudeSettingsFile(home),
       path.join(sourceDir, "scripts", "termcanvas-hook.mjs"),
     );
+    ensureCodexHooks(
+      path.join(sourceDir, "scripts", "termcanvas-hook.mjs"),
+      home,
+    );
+    ensureCodexFeatureFlag(home);
     installAllSkillLinks(sourceDir, home, appVersion);
     return true;
   } catch (err) {
@@ -519,6 +660,11 @@ export function ensureSkillLinks({
       getClaudeSettingsFile(home),
       path.join(sourceDir, "scripts", "termcanvas-hook.mjs"),
     );
+    ensureCodexHooks(
+      path.join(sourceDir, "scripts", "termcanvas-hook.mjs"),
+      home,
+    );
+    ensureCodexFeatureFlag(home);
     installAllSkillLinks(sourceDir, home, appVersion);
 
     return true;
@@ -538,6 +684,7 @@ export function uninstallSkillLinks({
   try {
     unregisterClaudePlugin(getClaudePluginsFile(home));
     removeLifecycleHooks(getClaudeSettingsFile(home));
+    removeCodexHooks(home);
     removeAllSkillLinks(sourceDir, home);
     return true;
   } catch (err) {

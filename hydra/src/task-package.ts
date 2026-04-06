@@ -42,7 +42,11 @@ export function buildTaskPackageDir(
 export function buildTaskPackageContext(
   input: BuildTaskPackageContextInput,
 ): TaskPackageContext {
-  const packageDir = buildTaskPackageDir(input.workspaceRoot, input.workflowId, input.handoffId);
+  const packageDir = buildTaskPackageDir(
+    input.workspaceRoot,
+    input.workflowId,
+    input.handoffId,
+  );
 
   return {
     contract: {
@@ -242,11 +246,12 @@ Read this guide when the task involves deployment, configuration, CI/CD, or oper
 - Are build artifacts reproducible — same input produces same output?
 `;
 
-const EVALUATOR_GUIDES: Record<string, { filename: string; content: string }> = {
-  frontend: { filename: "eval-frontend.md", content: EVAL_GUIDE_FRONTEND },
-  backend: { filename: "eval-backend.md", content: EVAL_GUIDE_BACKEND },
-  infra: { filename: "eval-infra.md", content: EVAL_GUIDE_INFRA },
-};
+const EVALUATOR_GUIDES: Record<string, { filename: string; content: string }> =
+  {
+    frontend: { filename: "eval-frontend.md", content: EVAL_GUIDE_FRONTEND },
+    backend: { filename: "eval-backend.md", content: EVAL_GUIDE_BACKEND },
+    infra: { filename: "eval-infra.md", content: EVAL_GUIDE_INFRA },
+  };
 
 function renderPlannerDomainGuideReference(
   role: string,
@@ -263,9 +268,7 @@ function renderPlannerDomainGuideReference(
     "",
   ];
   for (const [domain, guide] of Object.entries(PLANNER_GUIDES)) {
-    lines.push(
-      `- **${domain}**: ${path.join(packageDir, guide.filename)}`,
-    );
+    lines.push(`- **${domain}**: ${path.join(packageDir, guide.filename)}`);
   }
   lines.push("");
   return lines;
@@ -299,9 +302,7 @@ function renderEvaluatorDomainGuideReference(
     "",
   ];
   for (const [domain, guide] of Object.entries(EVALUATOR_GUIDES)) {
-    lines.push(
-      `- **${domain}**: ${path.join(packageDir, guide.filename)}`,
-    );
+    lines.push(`- **${domain}**: ${path.join(packageDir, guide.filename)}`);
   }
   lines.push("");
   return lines;
@@ -383,7 +384,10 @@ export function renderTaskPackageTemplate(contract: HandoffContract): string {
     "",
     "## Acceptance Criteria",
     "",
-    ...renderList(contract.task.acceptance_criteria, "No acceptance criteria provided."),
+    ...renderList(
+      contract.task.acceptance_criteria,
+      "No acceptance criteria provided.",
+    ),
     "",
     "## Skills",
     "",
@@ -433,9 +437,10 @@ export function renderTaskPackageTemplate(contract: HandoffContract): string {
     `- Workflow snapshot: termcanvas telemetry get --workflow ${contract.workflow_id} --repo .`,
     "- Terminal snapshot when you know the active terminal ID: termcanvas telemetry get --terminal <terminalId>",
     "- Recent events when you need more detail: termcanvas telemetry events --terminal <terminalId> --limit 20",
-    "- Keep waiting when telemetry shows recent meaningful progress, `thinking`, `tool_running`, `tool_pending`, or a foreground tool.",
+    "- Trust `derived_status` and `task_status` as the primary decision signals. Only investigate further when both indicate a problem.",
+    "- Keep waiting when `derived_status=progressing` or `task_status=running`.",
     "- `awaiting_contract` means the model turn finished but `result.json` / `done` is still pending.",
-    "- `stall_candidate` means investigate before retrying or taking over.",
+    "- `stall_candidate` means investigate before retrying or taking over. Query recent telemetry events to confirm the agent is truly stuck.",
     "- `error` means the agent hit an API error. Check `last_hook_error`: `rate_limit`/`server_error` → wait and retry; `billing_error`/`authentication_failed` → stop, retries won't help; `max_output_tokens` → context too long, retry with compact; `invalid_request` → stop and investigate.",
     "",
     "## Rules",
@@ -449,9 +454,15 @@ export function renderTaskPackageTemplate(contract: HandoffContract): string {
     "- You must write both `result.json` and `done` before finishing.",
     `- Write the done marker JSON to ${contract.artifacts.done_file}; do not write a plain-text path.`,
     "",
-    ...renderPlannerDomainGuideReference(contract.to.role, contract.artifacts.package_dir),
+    ...renderPlannerDomainGuideReference(
+      contract.to.role,
+      contract.artifacts.package_dir,
+    ),
     ...renderEvaluatorVerificationStrategy(contract.to.role),
-    ...renderEvaluatorDomainGuideReference(contract.to.role, contract.artifacts.package_dir),
+    ...renderEvaluatorDomainGuideReference(
+      contract.to.role,
+      contract.artifacts.package_dir,
+    ),
   ];
 
   return lines.join("\n");

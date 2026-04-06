@@ -86,26 +86,71 @@ function createSession(
   };
 }
 
+function createTelemetry(
+  terminalId: string,
+  overrides: Partial<TerminalTelemetrySnapshot>,
+): TerminalTelemetrySnapshot {
+  return {
+    terminal_id: terminalId,
+    worktree_path: "/tmp/termcanvas",
+    provider: "codex",
+    session_attached: true,
+    session_attach_confidence: "medium",
+    session_id: `session-${terminalId}`,
+    turn_state: "unknown",
+    pty_alive: true,
+    descendant_processes: [],
+    active_tool_calls: 0,
+    done_exists: false,
+    result_exists: false,
+    derived_status: "starting",
+    ...overrides,
+  };
+}
+
 test("collectCanvasSessionMeta only includes visible canvas terminals", () => {
   const meta = collectCanvasSessionMeta(createProjects());
 
-  assert.deepEqual([...meta.keys()], [
-    "session-canvas-running",
-    "session-canvas-idle",
-  ]);
+  assert.deepEqual(
+    [...meta.keys()],
+    ["session-canvas-running", "session-canvas-idle"],
+  );
   assert.equal(meta.get("session-canvas-running")?.focused, true);
-  assert.equal(meta.get("session-canvas-running")?.title, "fix sessions · codex");
+  assert.equal(
+    meta.get("session-canvas-running")?.title,
+    "fix sessions · codex",
+  );
 });
 
 test("buildSessionSections prioritizes visible canvas sessions before recent and history", () => {
   const meta = collectCanvasSessionMeta(createProjects());
   const liveSessions: SessionInfo[] = [
-    createSession("session-offcanvas-live", "tool_running", "2026-04-05T12:05:00.000Z", true),
-    createSession("session-canvas-idle", "idle", "2026-04-05T12:04:00.000Z", true),
-    createSession("session-canvas-running", "generating", "2026-04-05T12:06:00.000Z", true),
+    createSession(
+      "session-offcanvas-live",
+      "tool_running",
+      "2026-04-05T12:05:00.000Z",
+      true,
+    ),
+    createSession(
+      "session-canvas-idle",
+      "idle",
+      "2026-04-05T12:04:00.000Z",
+      true,
+    ),
+    createSession(
+      "session-canvas-running",
+      "generating",
+      "2026-04-05T12:06:00.000Z",
+      true,
+    ),
   ];
   const historySessions: SessionInfo[] = [
-    createSession("session-old", "turn_complete", "2026-04-05T09:00:00.000Z", false),
+    createSession(
+      "session-old",
+      "turn_complete",
+      "2026-04-05T09:00:00.000Z",
+      false,
+    ),
   ];
 
   const sections = buildSessionSections(liveSessions, historySessions, meta);

@@ -88,6 +88,18 @@ test("codex: detects task_complete event", () => {
   });
 });
 
+test("codex: detects turn_complete alias event", () => {
+  const jsonl = [
+    JSON.stringify({ type: "event_msg", payload: { type: "task_start" } }),
+    JSON.stringify({ type: "event_msg", payload: { type: "turn_complete" } }),
+  ].join("\n");
+
+  withTempFile(jsonl, (filePath) => {
+    const result = checkTurnComplete(filePath, "codex");
+    assert.equal(result.completed, true);
+  });
+});
+
 test("codex: not completed without task_complete", () => {
   const jsonl = [
     JSON.stringify({ type: "event_msg", payload: { type: "task_start" } }),
@@ -225,4 +237,27 @@ test("codex telemetry parser extracts token totals and thinking state", () => {
   assert.equal(tokenEvents[0].token_total, 40);
   assert.equal(reasoningEvents[0].turn_state, "thinking");
   assert.equal(reasoningEvents[0].meaningful_progress, true);
+});
+
+test("codex telemetry parser captures exec_command_end lifecycle and status", () => {
+  const events = parseSessionTelemetryLine(
+    JSON.stringify({
+      type: "event_msg",
+      timestamp: "2026-03-26T00:00:05.000Z",
+      payload: {
+        type: "exec_command_end",
+        call_id: "call-1",
+        status: "completed",
+      },
+    }),
+    "codex",
+  );
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].event_type, "exec_command_end");
+  assert.equal(events[0].tool_name, "exec_command");
+  assert.equal(events[0].call_id, "call-1");
+  assert.equal(events[0].lifecycle, "end");
+  assert.equal(events[0].event_subtype, "completed");
+  assert.equal(events[0].turn_state, "in_turn");
 });

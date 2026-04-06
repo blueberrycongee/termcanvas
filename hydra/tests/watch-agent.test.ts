@@ -202,6 +202,8 @@ test("watchAgent enriches running state with telemetry", async () => {
         turn_state: "tool_running",
         foreground_tool: "Edit",
         last_meaningful_progress_at: "2026-04-01T00:00:00.000Z",
+        task_status: "running",
+        task_status_source: "turn_state",
         pty_alive: true,
       }),
     },
@@ -212,6 +214,8 @@ test("watchAgent enriches running state with telemetry", async () => {
     turn_state: "tool_running",
     foreground_tool: "Edit",
     last_meaningful_progress_at: "2026-04-01T00:00:00.000Z",
+    task_status: "running",
+    task_status_source: "turn_state",
   });
 
   fs.rmSync(dir, { recursive: true, force: true });

@@ -13,6 +13,10 @@ function getObject(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? value as Record<string, unknown> : null;
 }
 
+function getString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
 function extractTextContent(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
@@ -95,11 +99,10 @@ export function checkTurnComplete(
     }
 
     if (type === "codex") {
+      const payload = getObject(parsed.payload);
       if (
         parsed.type === "event_msg" &&
-        typeof parsed.payload === "object" &&
-        parsed.payload !== null &&
-        (parsed.payload as Record<string, unknown>).type === "task_complete"
+        (payload?.type === "task_complete" || payload?.type === "turn_complete")
       ) {
         return { completed: true };
       }
@@ -300,36 +303,39 @@ export function parseSessionTelemetryLine(
   if (!payload) return [];
 
   if (parsed.type === "event_msg") {
-    if (payload.type === "task_started") {
+    const payloadType = getString(payload.type);
+    const payloadCallId = getString(payload.call_id);
+
+    if (payloadType === "task_started" || payloadType === "turn_started") {
       return [
         buildEvent({
           at,
-          event_type: "task_started",
+          event_type: payloadType,
           turn_state: "in_turn",
         }),
       ];
     }
-    if (payload.type === "task_complete") {
+    if (payloadType === "task_complete" || payloadType === "turn_complete") {
       return [
         buildEvent({
           at,
-          event_type: "task_complete",
+          event_type: payloadType,
           turn_state: "turn_complete",
           meaningful_progress: true,
         }),
       ];
     }
-    if (payload.type === "turn_aborted") {
+    if (payloadType === "turn_aborted") {
       return [
         buildEvent({
           at,
           event_type: "turn_aborted",
-          event_subtype: typeof payload.reason === "string" ? payload.reason : undefined,
+          event_subtype: getString(payload.reason),
           turn_state: "turn_aborted",
         }),
       ];
     }
-    if (payload.type === "agent_message") {
+    if (payloadType === "agent_message") {
       return [
         buildEvent({
           at,
@@ -340,7 +346,7 @@ export function parseSessionTelemetryLine(
         }),
       ];
     }
-    if (payload.type === "user_message") {
+    if (payloadType === "user_message") {
       return [
         buildEvent({
           at,
@@ -350,7 +356,7 @@ export function parseSessionTelemetryLine(
         }),
       ];
     }
-    if (payload.type === "token_count") {
+    if (payloadType === "token_count") {
       const info = getObject(payload.info);
       const totals = getObject(info?.total_token_usage);
       const tokenTotal =
@@ -367,7 +373,7 @@ export function parseSessionTelemetryLine(
         }),
       ];
     }
-    if (payload.type === "context_compacted") {
+    if (payloadType === "context_compacted") {
       return [
         buildEvent({
           at,
@@ -375,11 +381,144 @@ export function parseSessionTelemetryLine(
         }),
       ];
     }
+    if (payloadType === "exec_command_begin") {
+      return [
+        buildEvent({
+          at,
+          event_type: "exec_command_begin",
+          event_subtype: getString(payload.status),
+          tool_name: "exec_command",
+          call_id: payloadCallId,
+          lifecycle: "start",
+          turn_state: "tool_running",
+          meaningful_progress: true,
+        }),
+      ];
+    }
+    if (payloadType === "exec_command_end") {
+      const status = getString(payload.status);
+      return [
+        buildEvent({
+          at,
+          event_type: "exec_command_end",
+          event_subtype: status,
+          tool_name: "exec_command",
+          call_id: payloadCallId,
+          lifecycle: "end",
+          turn_state: status === "in_progress" ? "tool_running" : "in_turn",
+          meaningful_progress: true,
+        }),
+      ];
+    }
+    if (payloadType === "patch_apply_begin") {
+      return [
+        buildEvent({
+          at,
+          event_type: "patch_apply_begin",
+          event_subtype: getString(payload.status),
+          tool_name: "apply_patch",
+          call_id: payloadCallId,
+          lifecycle: "start",
+          turn_state: "tool_running",
+          meaningful_progress: true,
+        }),
+      ];
+    }
+    if (payloadType === "patch_apply_end") {
+      return [
+        buildEvent({
+          at,
+          event_type: "patch_apply_end",
+          event_subtype: getString(payload.status),
+          tool_name: "apply_patch",
+          call_id: payloadCallId,
+          lifecycle: "end",
+          turn_state: "in_turn",
+          meaningful_progress: true,
+        }),
+      ];
+    }
+    if (payloadType === "web_search_begin") {
+      return [
+        buildEvent({
+          at,
+          event_type: "web_search_begin",
+          tool_name: "web_search",
+          call_id: payloadCallId,
+          lifecycle: "start",
+          turn_state: "tool_running",
+          meaningful_progress: true,
+        }),
+      ];
+    }
+    if (payloadType === "web_search_end") {
+      return [
+        buildEvent({
+          at,
+          event_type: "web_search_end",
+          tool_name: "web_search",
+          call_id: payloadCallId,
+          lifecycle: "end",
+          turn_state: "in_turn",
+          meaningful_progress: true,
+        }),
+      ];
+    }
+    if (payloadType === "mcp_tool_call_begin") {
+      const invocation = getObject(payload.invocation);
+      const toolName =
+        getString(invocation?.tool)
+        ?? getString(payload.tool_name)
+        ?? "mcp_tool";
+      return [
+        buildEvent({
+          at,
+          event_type: "mcp_tool_call_begin",
+          tool_name: toolName,
+          call_id: payloadCallId,
+          lifecycle: "start",
+          turn_state: "tool_running",
+          meaningful_progress: true,
+        }),
+      ];
+    }
+    if (payloadType === "mcp_tool_call_end") {
+      const invocation = getObject(payload.invocation);
+      const toolName =
+        getString(invocation?.tool)
+        ?? getString(payload.tool_name)
+        ?? "mcp_tool";
+      return [
+        buildEvent({
+          at,
+          event_type: "mcp_tool_call_end",
+          tool_name: toolName,
+          call_id: payloadCallId,
+          lifecycle: "end",
+          turn_state: "in_turn",
+          meaningful_progress: true,
+        }),
+      ];
+    }
+    if (payloadType === "error") {
+      return [
+        buildEvent({
+          at,
+          event_type: "error",
+          event_subtype: getString(payload.codex_error_info),
+          turn_state: "in_turn",
+          meaningful_progress: true,
+        }),
+      ];
+    }
     return [];
   }
 
   if (parsed.type === "response_item") {
-    if (payload.type === "reasoning") {
+    const payloadType = getString(payload.type);
+    const payloadCallId = getString(payload.call_id);
+
+    if (payloadType === "reasoning") {
       return [
         buildEvent({
           at,
@@ -390,31 +529,47 @@ export function parseSessionTelemetryLine(
         }),
       ];
     }
-    if (payload.type === "function_call" || payload.type === "custom_tool_call") {
+    if (payloadType === "function_call" || payloadType === "custom_tool_call") {
       return [
         buildEvent({
           at,
-          event_type: payload.type,
-          tool_name: typeof payload.name === "string" ? payload.name : undefined,
+          event_type: payloadType,
+          tool_name: getString(payload.name),
+          call_id: payloadCallId,
+          lifecycle: "start",
           turn_state: "tool_running",
           meaningful_progress: true,
         }),
       ];
     }
     if (
-      payload.type === "function_call_output" ||
-      payload.type === "custom_tool_call_output"
+      payloadType === "function_call_output" ||
+      payloadType === "custom_tool_call_output"
     ) {
       return [
         buildEvent({
           at,
-          event_type: payload.type,
-          turn_state: "tool_running",
+          event_type: payloadType,
+          call_id: payloadCallId,
+          lifecycle: "end",
+          turn_state: "in_turn",
           meaningful_progress: true,
         }),
       ];
     }
-    if (payload.type === "message") {
+    if (payloadType === "web_search_call") {
+      const status = getString(payload.status);
+      return [
+        buildEvent({
+          at,
+          event_type: "web_search_call",
+          tool_name: "web_search",
+          turn_state: status === "completed" ? "in_turn" : "tool_running",
+          meaningful_progress: true,
+        }),
+      ];
+    }
+    if (payloadType === "message") {
       const role = payload.role === "assistant" || payload.role === "user"
         ? payload.role
         : undefined;

@@ -1,8 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import {
-  HandoffManager,
-} from "../hydra/src/handoff/manager.ts";
+import { HandoffManager } from "../hydra/src/handoff/manager.ts";
 import type { Handoff } from "../hydra/src/handoff/types.ts";
 import {
   validateDoneMarker,
@@ -19,6 +17,8 @@ import type {
   TelemetryEventPage,
   TelemetryProcessInfo,
   TelemetryProvider,
+  TelemetryTaskStatus,
+  TelemetryTaskStatusSource,
   TelemetryTurnState,
   TerminalTelemetrySnapshot,
   WorkflowTelemetrySnapshot,
@@ -27,9 +27,19 @@ import type { SessionInfo } from "../shared/sessions.ts";
 
 const DEFAULT_EVENT_LIMIT = 200;
 const DEFAULT_STALL_THRESHOLD_MS = 45_000;
+const DEFAULT_CODEX_STALL_THRESHOLD_MS = 180_000;
+const DEFAULT_SESSION_HEARTBEAT_MS = 90_000;
+
+interface ActiveToolCall {
+  callId: string;
+  toolName?: string;
+  eventType: string;
+  startedAt: string;
+}
 
 interface TerminalState {
   id: string;
+  activeToolCalls: Map<string, ActiveToolCall>;
   events: TelemetryEvent[];
   nextEventId: number;
   lastContractKey: string | null;
@@ -93,10 +103,14 @@ function isoNow(now: () => number): string {
   return new Date(now()).toISOString();
 }
 
-function cloneSnapshot(snapshot: TerminalTelemetrySnapshot): TerminalTelemetrySnapshot {
+function cloneSnapshot(
+  snapshot: TerminalTelemetrySnapshot,
+): TerminalTelemetrySnapshot {
   return {
     ...snapshot,
-    descendant_processes: snapshot.descendant_processes.map((process) => ({ ...process })),
+    descendant_processes: snapshot.descendant_processes.map((process) => ({
+      ...process,
+    })),
   };
 }
 
@@ -128,8 +142,15 @@ function summarizeProcesses(processes: TelemetryProcessInfo[]): string {
 export function deriveTelemetryStatus(
   snapshot: TerminalTelemetrySnapshot,
   nowMs = Date.now(),
-  stallThresholdMs = DEFAULT_STALL_THRESHOLD_MS,
+  stallThresholdMs?: number,
+  sessionHeartbeatMs = DEFAULT_SESSION_HEARTBEAT_MS,
 ): TelemetryDerivedStatus {
+  const effectiveStallThresholdMs =
+    stallThresholdMs ??
+    (snapshot.provider === "codex"
+      ? DEFAULT_CODEX_STALL_THRESHOLD_MS
+      : DEFAULT_STALL_THRESHOLD_MS);
+
   if (!snapshot.pty_alive) {
     return "exited";
   }
@@ -156,6 +177,11 @@ export function deriveTelemetryStatus(
     return "starting";
   }
 
+  // Hard evidence from hooks: tool calls are actively running
+  if (snapshot.active_tool_calls > 0) {
+    return "progressing";
+  }
+
   if (
     snapshot.turn_state === "thinking" ||
     snapshot.turn_state === "tool_running" ||
@@ -165,9 +191,36 @@ export function deriveTelemetryStatus(
     return "progressing";
   }
 
+  // Codex doesn't emit "thinking" — in_turn with an attached session
+  // means the model is reasoning between tool calls
+  if (snapshot.turn_state === "in_turn" && snapshot.session_attached) {
+    return "progressing";
+  }
+
+  if (
+    snapshot.turn_state !== "turn_complete" &&
+    snapshot.turn_state !== "turn_aborted" &&
+    snapshot.last_session_event_at
+  ) {
+    const lastSessionEventMs = new Date(
+      snapshot.last_session_event_at,
+    ).getTime();
+    if (
+      Number.isFinite(lastSessionEventMs) &&
+      nowMs - lastSessionEventMs <= sessionHeartbeatMs
+    ) {
+      return "progressing";
+    }
+  }
+
   if (snapshot.last_meaningful_progress_at) {
-    const lastProgressMs = new Date(snapshot.last_meaningful_progress_at).getTime();
-    if (Number.isFinite(lastProgressMs) && nowMs - lastProgressMs <= stallThresholdMs) {
+    const lastProgressMs = new Date(
+      snapshot.last_meaningful_progress_at,
+    ).getTime();
+    if (
+      Number.isFinite(lastProgressMs) &&
+      nowMs - lastProgressMs <= effectiveStallThresholdMs
+    ) {
       return "progressing";
     }
   }
@@ -179,7 +232,53 @@ export function deriveTelemetryStatus(
   return "starting";
 }
 
-function buildBaseSnapshot(input: RegisterTerminalInput): TerminalTelemetrySnapshot {
+export function deriveTelemetryTaskStatus(
+  snapshot: TerminalTelemetrySnapshot,
+  nowMs = Date.now(),
+  sessionHeartbeatMs = DEFAULT_SESSION_HEARTBEAT_MS,
+): { status: TelemetryTaskStatus; source: TelemetryTaskStatusSource } {
+  if (snapshot.active_tool_calls > 0) {
+    return { status: "running", source: "active_tool_calls" };
+  }
+
+  if (
+    snapshot.turn_state === "tool_running" ||
+    snapshot.turn_state === "tool_pending" ||
+    snapshot.turn_state === "thinking" ||
+    snapshot.turn_state === "in_turn"
+  ) {
+    return { status: "running", source: "turn_state" };
+  }
+
+  if (
+    snapshot.turn_state === "turn_complete" ||
+    snapshot.turn_state === "turn_aborted"
+  ) {
+    return { status: "idle", source: "turn_state" };
+  }
+
+  if (snapshot.session_attached && snapshot.last_session_event_at) {
+    const lastSessionEventMs = new Date(
+      snapshot.last_session_event_at,
+    ).getTime();
+    if (
+      Number.isFinite(lastSessionEventMs) &&
+      nowMs - lastSessionEventMs <= sessionHeartbeatMs
+    ) {
+      return { status: "running", source: "session_heartbeat" };
+    }
+  }
+
+  if (!snapshot.pty_alive) {
+    return { status: "idle", source: "none" };
+  }
+
+  return { status: "unknown", source: "none" };
+}
+
+function buildBaseSnapshot(
+  input: RegisterTerminalInput,
+): TerminalTelemetrySnapshot {
   return {
     terminal_id: input.terminalId,
     worktree_path: input.worktreePath,
@@ -192,6 +291,9 @@ function buildBaseSnapshot(input: RegisterTerminalInput): TerminalTelemetrySnaps
     turn_state: "unknown",
     pty_alive: false,
     descendant_processes: [],
+    active_tool_calls: 0,
+    task_status: "unknown",
+    task_status_source: "none",
     done_exists: false,
     result_exists: false,
     derived_status: "starting",
@@ -204,10 +306,14 @@ export class TelemetryService {
   private readonly processPollIntervalMs: number;
   private readonly sessionPollIntervalMs: number;
   private readonly sessionPrimeBytes: number;
-  private readonly stallThresholdMs: number;
+  private readonly stallThresholdMs: number | undefined;
+  private readonly sessionHeartbeatMs: number;
   private readonly ptyToTerminal = new Map<number, string>();
   private readonly terminals = new Map<string, TerminalState>();
-  private readonly onSnapshotChanged?: (terminalId: string, snapshot: TerminalTelemetrySnapshot) => void;
+  private readonly onSnapshotChanged?: (
+    terminalId: string,
+    snapshot: TerminalTelemetrySnapshot,
+  ) => void;
 
   constructor(options?: {
     eventLimit?: number;
@@ -216,14 +322,20 @@ export class TelemetryService {
     sessionPollIntervalMs?: number;
     sessionPrimeBytes?: number;
     stallThresholdMs?: number;
-    onSnapshotChanged?: (terminalId: string, snapshot: TerminalTelemetrySnapshot) => void;
+    sessionHeartbeatMs?: number;
+    onSnapshotChanged?: (
+      terminalId: string,
+      snapshot: TerminalTelemetrySnapshot,
+    ) => void;
   }) {
     this.eventLimit = options?.eventLimit ?? DEFAULT_EVENT_LIMIT;
     this.now = options?.now ?? Date.now;
     this.processPollIntervalMs = options?.processPollIntervalMs ?? 15_000;
     this.sessionPollIntervalMs = options?.sessionPollIntervalMs ?? 10_000;
     this.sessionPrimeBytes = options?.sessionPrimeBytes ?? 262_144;
-    this.stallThresholdMs = options?.stallThresholdMs ?? DEFAULT_STALL_THRESHOLD_MS;
+    this.stallThresholdMs = options?.stallThresholdMs;
+    this.sessionHeartbeatMs =
+      options?.sessionHeartbeatMs ?? DEFAULT_SESSION_HEARTBEAT_MS;
     this.onSnapshotChanged = options?.onSnapshotChanged;
   }
 
@@ -290,8 +402,10 @@ export class TelemetryService {
     }
     state.ptyId = input.ptyId;
     state.shellPid = input.shellPid ?? state.shellPid;
+    state.activeToolCalls.clear();
     state.snapshot.pty_alive = true;
     state.snapshot.exit_code = undefined;
+    state.snapshot.active_tool_calls = 0;
     this.ptyToTerminal.set(input.ptyId, input.terminalId);
     this.appendEvent(state, input.at, "pty", "pty_created", {
       pty_id: input.ptyId,
@@ -307,7 +421,9 @@ export class TelemetryService {
     const state = this.ensureState(terminalId);
     const timestamp = at ?? isoNow(this.now);
     state.snapshot.last_input_at = timestamp;
-    this.appendEvent(state, timestamp, "pty", "pty_input", { bytes: data.length });
+    this.appendEvent(state, timestamp, "pty", "pty_input", {
+      bytes: data.length,
+    });
     this.updateDerivedStatus(state);
   }
 
@@ -321,7 +437,9 @@ export class TelemetryService {
     const state = this.ensureState(terminalId);
     const timestamp = at ?? isoNow(this.now);
     state.snapshot.last_output_at = timestamp;
-    this.appendEvent(state, timestamp, "pty", "pty_output", { bytes: data.length });
+    this.appendEvent(state, timestamp, "pty", "pty_output", {
+      bytes: data.length,
+    });
     this.updateDerivedStatus(state);
   }
 
@@ -338,10 +456,15 @@ export class TelemetryService {
       this.ptyToTerminal.delete(state.ptyId);
     }
     state.ptyId = null;
+    state.activeToolCalls.clear();
     state.snapshot.pty_alive = false;
     state.snapshot.exit_code = exitCode;
+    state.snapshot.active_tool_calls = 0;
+    state.snapshot.foreground_tool = undefined;
     this.stopProcessPolling(state);
-    this.appendEvent(state, timestamp, "pty", "pty_exit", { exit_code: exitCode });
+    this.appendEvent(state, timestamp, "pty", "pty_exit", {
+      exit_code: exitCode,
+    });
     this.updateDerivedStatus(state);
   }
 
@@ -394,7 +517,9 @@ export class TelemetryService {
   ): void {
     const state = this.ensureState(terminalId);
     const timestamp = at ?? isoNow(this.now);
-    this.appendEvent(state, timestamp, "session", "session_attach_failed", { reason });
+    this.appendEvent(state, timestamp, "session", "session_attach_failed", {
+      reason,
+    });
     this.updateDerivedStatus(state);
   }
 
@@ -414,13 +539,41 @@ export class TelemetryService {
       const previousTurnState = state.snapshot.turn_state;
       state.snapshot.last_session_event_at = timestamp;
       state.snapshot.last_session_event_kind = event.event_type;
+
+      if (event.call_id && event.lifecycle) {
+        state.snapshot.last_tool_event_at = timestamp;
+        if (event.lifecycle === "start") {
+          state.activeToolCalls.set(event.call_id, {
+            callId: event.call_id,
+            toolName: event.tool_name,
+            eventType: event.event_type,
+            startedAt: timestamp,
+          });
+          if (!state.pendingPreToolUse && event.tool_name) {
+            state.snapshot.foreground_tool = event.tool_name;
+          }
+        } else if (event.lifecycle === "end") {
+          state.activeToolCalls.delete(event.call_id);
+          if (!state.pendingPreToolUse && state.activeToolCalls.size === 0) {
+            state.snapshot.foreground_tool = undefined;
+          }
+        }
+      }
+      state.snapshot.active_tool_calls = state.activeToolCalls.size;
+
       if (event.turn_state) {
         state.snapshot.turn_state = event.turn_state;
       }
 
       let meaningfulProgress = event.meaningful_progress === true;
-      if (event.event_type === "token_count" && typeof event.token_total === "number") {
-        if (state.lastTokenTotal === null || event.token_total > state.lastTokenTotal) {
+      if (
+        event.event_type === "token_count" &&
+        typeof event.token_total === "number"
+      ) {
+        if (
+          state.lastTokenTotal === null ||
+          event.token_total > state.lastTokenTotal
+        ) {
           meaningfulProgress = true;
         }
         state.lastTokenTotal = event.token_total;
@@ -435,15 +588,24 @@ export class TelemetryService {
         event_subtype: event.event_subtype ?? null,
         role: event.role ?? null,
         tool_name: event.tool_name ?? null,
+        call_id: event.call_id ?? null,
+        lifecycle: event.lifecycle ?? null,
+        active_tool_calls: state.snapshot.active_tool_calls,
         token_total: event.token_total ?? null,
         raw_ref: event.raw_ref ?? null,
       });
 
       if (event.turn_state && event.turn_state !== previousTurnState) {
-        this.appendEvent(state, timestamp, "session", "session_turn_state_changed", {
-          from: previousTurnState,
-          to: event.turn_state,
-        });
+        this.appendEvent(
+          state,
+          timestamp,
+          "session",
+          "session_turn_state_changed",
+          {
+            from: previousTurnState,
+            to: event.turn_state,
+          },
+        );
       }
     }
 
@@ -468,9 +630,11 @@ export class TelemetryService {
 
     state.lastProcessKey = processKey;
     state.snapshot.process_snapshot_at = timestamp;
-    state.snapshot.descendant_processes = snapshot.descendantProcesses.map((process) => ({
-      ...process,
-    }));
+    state.snapshot.descendant_processes = snapshot.descendantProcesses.map(
+      (process) => ({
+        ...process,
+      }),
+    );
 
     // Don't let ps data overwrite hook-set foreground_tool while a tool is running
     if (state.pendingPreToolUse) {
@@ -547,7 +711,10 @@ export class TelemetryService {
     };
   }
 
-  getWorkflowSnapshot(repoPath: string, workflowId: string): WorkflowTelemetrySnapshot | null {
+  getWorkflowSnapshot(
+    repoPath: string,
+    workflowId: string,
+  ): WorkflowTelemetrySnapshot | null {
     const workflow = loadWorkflow(repoPath, workflowId);
     if (!workflow) return null;
 
@@ -563,7 +730,8 @@ export class TelemetryService {
       contract.contractActivityAt,
     );
 
-    const startedAt = handoff.dispatch?.attempts.at(-1)?.started_at ?? workflow.updated_at;
+    const startedAt =
+      handoff.dispatch?.attempts.at(-1)?.started_at ?? workflow.updated_at;
     const startedMs = new Date(startedAt).getTime();
     const deadlineMs =
       Number.isFinite(startedMs) && typeof handoff.timeout_minutes === "number"
@@ -593,30 +761,38 @@ export class TelemetryService {
       timeout_budget: {
         minutes: handoff.timeout_minutes ?? workflow.timeout_minutes,
         started_at: startedAt,
-        deadline_at: deadlineMs ? new Date(deadlineMs).toISOString() : undefined,
+        deadline_at: deadlineMs
+          ? new Date(deadlineMs).toISOString()
+          : undefined,
         remaining_ms:
-          deadlineMs !== undefined ? Math.max(0, deadlineMs - this.now()) : undefined,
+          deadlineMs !== undefined
+            ? Math.max(0, deadlineMs - this.now())
+            : undefined,
       },
       advisory_status: terminal?.derived_status ?? "unavailable",
     };
   }
 
-  recordHookEvent(terminalId: string, event: {
-    hook_event_name: string;
-    session_id?: string;
-    transcript_path?: string;
-    cwd?: string;
-    [key: string]: unknown;
-  }): void {
+  recordHookEvent(
+    terminalId: string,
+    event: {
+      hook_event_name: string;
+      session_id?: string;
+      transcript_path?: string;
+      cwd?: string;
+      [key: string]: unknown;
+    },
+  ): void {
     const state = this.ensureState(terminalId);
     const at = isoNow(this.now);
 
     switch (event.hook_event_name) {
       case "SessionStart":
         if (event.session_id) {
+          const provider = state.snapshot.provider || "claude";
           this.recordSessionAttached({
             terminalId,
-            provider: "claude",
+            provider,
             sessionId: event.session_id as string,
             confidence: "strong",
             sessionFile: (event.transcript_path as string) ?? undefined,
@@ -624,7 +800,7 @@ export class TelemetryService {
           if (event.transcript_path) {
             this.attachSessionSource({
               terminalId,
-              provider: "claude",
+              provider,
               sessionId: event.session_id as string,
               confidence: "strong",
               sessionFile: event.transcript_path as string,
@@ -642,6 +818,7 @@ export class TelemetryService {
 
       case "Stop":
         state.pendingPreToolUse = false;
+        state.snapshot.active_tool_calls = 0;
         state.snapshot.last_hook_error = undefined;
         state.snapshot.last_hook_error_details = undefined;
         state.snapshot.turn_state = "turn_complete";
@@ -653,9 +830,14 @@ export class TelemetryService {
 
       case "StopFailure":
         state.pendingPreToolUse = false;
+        state.snapshot.active_tool_calls = 0;
         state.snapshot.turn_state = "turn_complete";
-        state.snapshot.last_hook_error = typeof event.error === "string" ? event.error : "unknown";
-        state.snapshot.last_hook_error_details = typeof event.error_details === "string" ? event.error_details : undefined;
+        state.snapshot.last_hook_error =
+          typeof event.error === "string" ? event.error : "unknown";
+        state.snapshot.last_hook_error_details =
+          typeof event.error_details === "string"
+            ? event.error_details
+            : undefined;
         this.appendEvent(state, at, "session", "hook_stop_failure", {
           error: event.error ?? null,
           error_details: event.error_details ?? null,
@@ -671,6 +853,7 @@ export class TelemetryService {
         }
         state.pendingPreToolUse = true;
         state.pendingPreToolUseAt = this.now();
+        state.snapshot.active_tool_calls = 1;
         state.snapshot.turn_state = "tool_running";
         state.snapshot.last_meaningful_progress_at = at;
         state.snapshot.foreground_tool = event.tool_name as string | undefined;
@@ -682,6 +865,7 @@ export class TelemetryService {
 
       case "PostToolUse":
         state.pendingPreToolUse = false;
+        state.snapshot.active_tool_calls = 0;
         state.snapshot.turn_state = "in_turn";
         state.snapshot.last_meaningful_progress_at = at;
         state.snapshot.foreground_tool = undefined;
@@ -693,6 +877,7 @@ export class TelemetryService {
 
       case "PostToolUseFailure":
         state.pendingPreToolUse = false;
+        state.snapshot.active_tool_calls = 0;
         state.snapshot.turn_state = "in_turn";
         state.snapshot.foreground_tool = undefined;
         this.appendEvent(state, at, "session", "hook_post_tool_failure", {
@@ -711,6 +896,7 @@ export class TelemetryService {
         break;
 
       case "SessionEnd":
+        state.snapshot.active_tool_calls = 0;
         this.appendEvent(state, at, "session", "hook_session_end", {
           reason: event.reason ?? null,
         });
@@ -745,7 +931,13 @@ export class TelemetryService {
         break;
 
       default:
-        this.appendEvent(state, at, "session", `hook_${event.hook_event_name}`, {});
+        this.appendEvent(
+          state,
+          at,
+          "session",
+          `hook_${event.hook_event_name}`,
+          {},
+        );
         break;
     }
 
@@ -767,6 +959,7 @@ export class TelemetryService {
     if (existing) return existing;
     const state: TerminalState = {
       id: terminalId,
+      activeToolCalls: new Map<string, ActiveToolCall>(),
       events: [],
       nextEventId: 1,
       lastContractKey: null,
@@ -788,7 +981,7 @@ export class TelemetryService {
         registration ?? {
           terminalId,
           worktreePath: "",
-        }
+        },
       ),
     };
     this.terminals.set(terminalId, state);
@@ -877,7 +1070,9 @@ export class TelemetryService {
       return;
     }
 
-    const handoff = new HandoffManager(state.snapshot.repo_path).load(state.snapshot.handoff_id);
+    const handoff = new HandoffManager(state.snapshot.repo_path).load(
+      state.snapshot.handoff_id,
+    );
     if (!handoff) {
       return;
     }
@@ -895,27 +1090,55 @@ export class TelemetryService {
     if (contractKey !== state.lastContractKey) {
       state.lastContractKey = contractKey;
       if (contract.contractActivityAt) {
-        state.snapshot.last_meaningful_progress_at = contract.contractActivityAt;
+        state.snapshot.last_meaningful_progress_at =
+          contract.contractActivityAt;
       }
 
       if (contract.resultExists) {
-        this.appendEvent(state, contract.contractActivityAt, "contract", "result_written", {});
+        this.appendEvent(
+          state,
+          contract.contractActivityAt,
+          "contract",
+          "result_written",
+          {},
+        );
       }
       if (contract.doneExists) {
-        this.appendEvent(state, contract.contractActivityAt, "contract", "done_written", {});
+        this.appendEvent(
+          state,
+          contract.contractActivityAt,
+          "contract",
+          "done_written",
+          {},
+        );
       }
       if (contract.resultValid === false || contract.doneValid === false) {
-        this.appendEvent(state, contract.contractActivityAt, "contract", "contract_invalid", {
-          result_valid: contract.resultValid ?? null,
-          done_valid: contract.doneValid ?? null,
-        });
+        this.appendEvent(
+          state,
+          contract.contractActivityAt,
+          "contract",
+          "contract_invalid",
+          {
+            result_valid: contract.resultValid ?? null,
+            done_valid: contract.doneValid ?? null,
+          },
+        );
       } else if (contract.resultValid || contract.doneValid) {
-        this.appendEvent(state, contract.contractActivityAt, "contract", "contract_validated", {
-          result_valid: contract.resultValid ?? null,
-          done_valid: contract.doneValid ?? null,
-        });
+        this.appendEvent(
+          state,
+          contract.contractActivityAt,
+          "contract",
+          "contract_validated",
+          {
+            result_valid: contract.resultValid ?? null,
+            done_valid: contract.doneValid ?? null,
+          },
+        );
       }
-    } else if (contract.contractActivityAt && contract.contractActivityAt !== previousActivityAt) {
+    } else if (
+      contract.contractActivityAt &&
+      contract.contractActivityAt !== previousActivityAt
+    ) {
       state.snapshot.last_meaningful_progress_at = contract.contractActivityAt;
     }
   }
@@ -924,18 +1147,31 @@ export class TelemetryService {
     const prev = state.snapshot.derived_status;
     const prevTurn = state.snapshot.turn_state;
     const prevTool = state.snapshot.foreground_tool;
+    const prevTaskStatus = state.snapshot.task_status;
+    const prevTaskStatusSource = state.snapshot.task_status_source;
+
+    const taskStatus = deriveTelemetryTaskStatus(
+      state.snapshot,
+      this.now(),
+      this.sessionHeartbeatMs,
+    );
+    state.snapshot.task_status = taskStatus.status;
+    state.snapshot.task_status_source = taskStatus.source;
 
     state.snapshot.derived_status = deriveTelemetryStatus(
       state.snapshot,
       this.now(),
       this.stallThresholdMs,
+      this.sessionHeartbeatMs,
     );
 
     if (
       this.onSnapshotChanged &&
       (state.snapshot.derived_status !== prev ||
         state.snapshot.turn_state !== prevTurn ||
-        state.snapshot.foreground_tool !== prevTool)
+        state.snapshot.foreground_tool !== prevTool ||
+        state.snapshot.task_status !== prevTaskStatus ||
+        state.snapshot.task_status_source !== prevTaskStatusSource)
     ) {
       this.onSnapshotChanged(state.id, { ...state.snapshot });
     }
@@ -959,8 +1195,7 @@ export class TelemetryService {
           })),
           foregroundTool: snapshot.foregroundTool,
         });
-      } catch {
-      }
+      } catch {}
     };
     void poll();
     state.processPollTimer = setInterval(() => {
@@ -1029,13 +1264,16 @@ export class TelemetryService {
         if (!line.trim()) continue;
         this.recordSessionTelemetry(
           state.snapshot.terminal_id,
-          parseSessionTelemetryLine(line, state.snapshot.provider === "claude" ? "claude" : "codex"),
+          parseSessionTelemetryLine(
+            line,
+            state.snapshot.provider === "claude" ? "claude" : "codex",
+          ),
         );
       }
       state.sessionRemainder = trailing === "" ? "" : trailing;
-      state.sessionOffset = size - Buffer.byteLength(state.sessionRemainder, "utf-8");
-    } catch {
-    }
+      state.sessionOffset =
+        size - Buffer.byteLength(state.sessionRemainder, "utf-8");
+    } catch {}
   }
 
   private async readSessionDelta(state: TerminalState): Promise<void> {
@@ -1066,13 +1304,17 @@ export class TelemetryService {
       const chunk = `${state.sessionRemainder}${buffer.toString("utf-8")}`;
       const lines = chunk.split("\n");
       state.sessionRemainder = lines.pop() ?? "";
-      state.sessionOffset = stat.size - Buffer.byteLength(state.sessionRemainder, "utf-8");
+      state.sessionOffset =
+        stat.size - Buffer.byteLength(state.sessionRemainder, "utf-8");
 
       for (const line of lines) {
         if (!line.trim()) continue;
         this.recordSessionTelemetry(
           state.snapshot.terminal_id,
-          parseSessionTelemetryLine(line, state.snapshot.provider === "claude" ? "claude" : "codex"),
+          parseSessionTelemetryLine(
+            line,
+            state.snapshot.provider === "claude" ? "claude" : "codex",
+          ),
         );
       }
     } finally {
@@ -1086,8 +1328,11 @@ export class TelemetryService {
       const snap = state.snapshot;
       if (!snap.session_id || !snap.session_file) continue;
 
-      const sessionEvents = state.events.filter(e => e.source === "session");
-      const startedAt = sessionEvents[0]?.at ?? snap.last_meaningful_progress_at ?? new Date().toISOString();
+      const sessionEvents = state.events.filter((e) => e.source === "session");
+      const startedAt =
+        sessionEvents[0]?.at ??
+        snap.last_meaningful_progress_at ??
+        new Date().toISOString();
 
       results.push({
         sessionId: snap.session_id,
@@ -1098,7 +1343,8 @@ export class TelemetryService {
         status: this.mapTurnStateToStatus(snap.turn_state, snap.derived_status),
         currentTool: snap.foreground_tool,
         startedAt,
-        lastActivityAt: snap.last_meaningful_progress_at ?? new Date().toISOString(),
+        lastActivityAt:
+          snap.last_meaningful_progress_at ?? new Date().toISOString(),
         messageCount: sessionEvents.length,
         tokenTotal: state.lastTokenTotal ?? 0,
       });
@@ -1111,7 +1357,8 @@ export class TelemetryService {
     derived: TelemetryDerivedStatus,
   ): SessionInfo["status"] {
     if (derived === "error") return "error";
-    if (turn === "tool_running" || turn === "tool_pending") return "tool_running";
+    if (turn === "tool_running" || turn === "tool_pending")
+      return "tool_running";
     if (turn === "thinking" || turn === "in_turn") return "generating";
     if (turn === "turn_complete") return "turn_complete";
     return "idle";

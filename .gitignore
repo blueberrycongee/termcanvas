@@ -3,6 +3,7 @@ dist/
 dist-electron/
 dist-cli/
 out/
+.claw/
 .vite/
 
 *.log

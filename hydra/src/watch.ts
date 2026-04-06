@@ -27,6 +27,8 @@ export interface AgentStatusView {
     turn_state?: string;
     foreground_tool?: string;
     last_meaningful_progress_at?: string;
+    task_status?: string;
+    task_status_source?: string;
   };
 }
 
@@ -175,6 +177,12 @@ export async function watchAgent(
           foreground_tool: t.foreground_tool,
           last_meaningful_progress_at: t.last_meaningful_progress_at,
         };
+        if (typeof t.task_status === "string") {
+          telemetryData.task_status = t.task_status;
+        }
+        if (typeof t.task_status_source === "string") {
+          telemetryData.task_status_source = t.task_status_source;
+        }
       }
     } catch {
       // Telemetry unavailable — continue without it

@@ -88,15 +88,12 @@ default is `--planner-type claude --implementer-type codex --evaluator-type clau
 6. Before deciding to keep waiting, retry, or take over a live workflow, query telemetry first:
    - `termcanvas telemetry get --workflow <workflowId> --repo .`
    - `termcanvas telemetry get --terminal <terminalId>`
-   - check `last_meaningful_progress_at`, `turn_state`, `foreground_tool`, and contract presence
-7. Treat telemetry as advisory truth before completion:
-   - `awaiting_contract` means the agent turn ended but `result.json` / `done` is still missing
-   - `stall_candidate` means "needs attention", not automatic failure
-8. Treat `hydra watch` as the polling loop for the main brain:
-   - each poll should prefer telemetry over PTY prose
-   - if telemetry shows `thinking`, `tool_running`, `tool_pending`, recent meaningful progress, or a foreground tool, keep waiting
-   - if telemetry shows `awaiting_contract`, the model turn is done but the file contract is still pending
-   - if telemetry shows `stall_candidate`, inspect recent telemetry events before retry/takeover
+7. Trust `derived_status` and `task_status` as the primary decision signals. Only investigate further when both indicate a problem.
+8. Decision rules:
+   - `derived_status=progressing` or `task_status=running` → keep waiting
+   - `awaiting_contract` → turn is done but `result.json` / `done` still pending
+   - `stall_candidate` → investigate with `termcanvas telemetry events --terminal <terminalId> --limit 20` before retry/takeover
+   - `error` → check `last_hook_error` for retry/stop guidance
 9. Clean up after completion:
    - workflow: `hydra cleanup --workflow <workflowId> --repo .`
    - worker: `hydra cleanup <agentId>`
