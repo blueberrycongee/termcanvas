@@ -69,10 +69,11 @@ Telemetry polling:
    - `termcanvas telemetry get --workflow <workflowId> --repo .`
    - `termcanvas telemetry get --terminal <terminalId>`
    - `termcanvas telemetry events --terminal <terminalId> --limit 20`
-3. Keep waiting when telemetry shows recent meaningful progress, `thinking`, `tool_running`, `tool_pending`, or a foreground tool.
-4. Treat `awaiting_contract` as "turn complete, file contract still pending".
-5. Treat `stall_candidate` as "investigate before retry", not automatic failure.
-6. Treat `error` as "agent hit an API error". Check `last_hook_error`: `rate_limit`/`server_error` → wait and retry; `billing_error`/`authentication_failed` → stop; `max_output_tokens` → retry with compact; `invalid_request` → stop and investigate.
+3. Trust `derived_status` and `task_status` as the primary decision signals. Only investigate further when both indicate a problem.
+4. Keep waiting when `derived_status=progressing` or `task_status=running`.
+5. Treat `awaiting_contract` as "turn complete, file contract still pending".
+6. Treat `stall_candidate` as "investigate before retry", not automatic failure. Query recent telemetry events to confirm the agent is truly stuck.
+7. Treat `error` as "agent hit an API error". Check `last_hook_error`: `rate_limit`/`server_error` → wait and retry; `billing_error`/`authentication_failed` → stop; `max_output_tokens` → retry with compact; `invalid_request` → stop and investigate.
 
 Worker control:
 1. List direct workers: `hydra list --repo .`
