@@ -47,6 +47,7 @@ interface TerminalState {
   lastProcessKey: string | null;
   pendingPreToolUse: boolean;
   pendingPreToolUseAt: number;
+  awaitingInputTimer: NodeJS.Timeout | null;
   lastTokenTotal: number | null;
   processPollTimer: NodeJS.Timeout | null;
   ptyId: number | null;
@@ -666,6 +667,10 @@ export class TelemetryService {
         state.snapshot.pending_tool_use_at = undefined;
         state.snapshot.turn_state = "unknown";
         state.snapshot.foreground_tool = snapshot.foregroundTool ?? undefined;
+        if (state.awaitingInputTimer) {
+          clearTimeout(state.awaitingInputTimer);
+          state.awaitingInputTimer = null;
+        }
       }
     } else {
       state.snapshot.foreground_tool = snapshot.foregroundTool ?? undefined;
@@ -837,6 +842,10 @@ export class TelemetryService {
         break;
 
       case "Stop":
+        if (state.awaitingInputTimer) {
+          clearTimeout(state.awaitingInputTimer);
+          state.awaitingInputTimer = null;
+        }
         state.pendingPreToolUse = false;
         state.snapshot.pending_tool_use_at = undefined;
         state.snapshot.active_tool_calls = 0;
@@ -850,6 +859,10 @@ export class TelemetryService {
         break;
 
       case "StopFailure":
+        if (state.awaitingInputTimer) {
+          clearTimeout(state.awaitingInputTimer);
+          state.awaitingInputTimer = null;
+        }
         state.pendingPreToolUse = false;
         state.snapshot.active_tool_calls = 0;
         state.snapshot.turn_state = "turn_complete";
@@ -872,6 +885,9 @@ export class TelemetryService {
             `[Telemetry] Missed PostToolUse for terminal=${terminalId} (new PreToolUse arrived while pending)`,
           );
         }
+        if (state.awaitingInputTimer) {
+          clearTimeout(state.awaitingInputTimer);
+        }
         state.pendingPreToolUse = true;
         state.pendingPreToolUseAt = this.now();
         state.snapshot.pending_tool_use_at = at;
@@ -880,12 +896,23 @@ export class TelemetryService {
         state.snapshot.last_meaningful_progress_at = at;
         state.snapshot.foreground_tool = event.tool_name as string | undefined;
         state.lastHookToolAt = this.now();
+        state.awaitingInputTimer = setTimeout(() => {
+          state.awaitingInputTimer = null;
+          if (state.pendingPreToolUse) {
+            state.snapshot.turn_state = "awaiting_input";
+            this.updateDerivedStatus(state);
+          }
+        }, 5_000);
         this.appendEvent(state, at, "session", "hook_pre_tool", {
           tool_name: event.tool_name ?? null,
         });
         break;
 
       case "PostToolUse":
+        if (state.awaitingInputTimer) {
+          clearTimeout(state.awaitingInputTimer);
+          state.awaitingInputTimer = null;
+        }
         state.pendingPreToolUse = false;
         state.snapshot.pending_tool_use_at = undefined;
         state.snapshot.active_tool_calls = 0;
@@ -899,6 +926,10 @@ export class TelemetryService {
         break;
 
       case "PostToolUseFailure":
+        if (state.awaitingInputTimer) {
+          clearTimeout(state.awaitingInputTimer);
+          state.awaitingInputTimer = null;
+        }
         state.pendingPreToolUse = false;
         state.snapshot.pending_tool_use_at = undefined;
         state.snapshot.active_tool_calls = 0;
@@ -991,6 +1022,7 @@ export class TelemetryService {
       lastProcessKey: null,
       pendingPreToolUse: false,
       pendingPreToolUseAt: 0,
+      awaitingInputTimer: null,
       lastTokenTotal: null,
       processPollTimer: null,
       ptyId: registration?.ptyId ?? null,

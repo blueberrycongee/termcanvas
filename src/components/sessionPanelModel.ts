@@ -2,7 +2,6 @@ import type { SessionInfo } from "../../shared/sessions";
 import type { TerminalTelemetrySnapshot } from "../../shared/telemetry";
 import { resolveTerminalWithRuntimeState } from "../stores/terminalRuntimeStateStore";
 import type { ProjectData, TerminalData } from "../types/index.ts";
-import { detectInteractionPrompt } from "../terminal/interactionDetector";
 
 export type CanvasTerminalState =
   | "attention"
@@ -119,7 +118,6 @@ function compareItemsByActivity(
 
 function deriveStateFromTelemetry(
   telemetry: TerminalTelemetrySnapshot,
-  previewText?: string,
 ): Pick<
   CanvasTerminalItem,
   "state" | "activityAt" | "currentTool" | "sessionFilePath" | "attentionReason"
@@ -155,31 +153,16 @@ function deriveStateFromTelemetry(
     };
   }
 
-  // Detect awaiting user interaction: tool pending for ≥5s with an
-  // interaction prompt visible in the terminal output.
-  if (
-    telemetry.pending_tool_use_at &&
-    (telemetry.turn_state === "tool_running" ||
-      telemetry.turn_state === "tool_pending")
-  ) {
-    const pendingMs =
-      Date.now() - new Date(telemetry.pending_tool_use_at).getTime();
-    if (
-      pendingMs >= 5_000 &&
-      previewText &&
-      detectInteractionPrompt(
-        previewText,
-        telemetry.provider as "claude" | "codex" | "unknown",
-      )
-    ) {
-      return {
-        state: "attention",
-        activityAt,
-        currentTool: telemetry.foreground_tool,
-        sessionFilePath: telemetry.session_file,
-        attentionReason: "awaiting_input",
-      };
-    }
+  // Detect awaiting user interaction: main process sets turn_state
+  // to "awaiting_input" after PreToolUse has been pending for ≥5s.
+  if (telemetry.turn_state === "awaiting_input") {
+    return {
+      state: "attention",
+      activityAt,
+      currentTool: telemetry.foreground_tool,
+      sessionFilePath: telemetry.session_file,
+      attentionReason: "awaiting_input",
+    };
   }
 
   if (
@@ -305,13 +288,12 @@ function deriveTerminalState(
   terminal: Pick<TerminalData, "status" | "sessionId">,
   telemetry: TerminalTelemetrySnapshot | null | undefined,
   session: SessionInfo | undefined,
-  previewText?: string,
 ): Pick<
   CanvasTerminalItem,
   "state" | "activityAt" | "currentTool" | "sessionFilePath" | "attentionReason"
 > {
   if (telemetry) {
-    return deriveStateFromTelemetry(telemetry, previewText);
+    return deriveStateFromTelemetry(telemetry);
   }
 
   if (session) {
@@ -380,7 +362,6 @@ export function buildProjectTree(
     TerminalTelemetrySnapshot | null | undefined
   >,
   sessionsById: Map<string, SessionInfo>,
-  previewTextByTerminalId?: Map<string, string>,
 ): ProjectGroup[] {
   const result: ProjectGroup[] = [];
 
@@ -411,12 +392,10 @@ export function buildProjectTree(
         const session = resolvedTerminal.sessionId
           ? sessionsById.get(resolvedTerminal.sessionId)
           : undefined;
-        const previewText = previewTextByTerminalId?.get(resolvedTerminal.id);
         const derived = deriveTerminalState(
           resolvedTerminal,
           telemetry,
           session,
-          previewText,
         );
         const title = resolveTerminalTitle(
           resolvedTerminal,
@@ -488,7 +467,6 @@ export function buildCanvasTerminalSections(
     TerminalTelemetrySnapshot | null | undefined
   >,
   sessionsById: Map<string, SessionInfo>,
-  previewTextByTerminalId?: Map<string, string>,
 ): CanvasTerminalSections {
   let focused: CanvasTerminalItem | null = null;
   const attention: CanvasTerminalItem[] = [];
@@ -515,12 +493,10 @@ export function buildCanvasTerminalSections(
         const session = resolvedTerminal.sessionId
           ? sessionsById.get(resolvedTerminal.sessionId)
           : undefined;
-        const previewText = previewTextByTerminalId?.get(resolvedTerminal.id);
         const derived = deriveTerminalState(
           resolvedTerminal,
           telemetry,
           session,
-          previewText,
         );
         const title = resolveTerminalTitle(
           resolvedTerminal,
