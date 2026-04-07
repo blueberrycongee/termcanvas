@@ -6,11 +6,12 @@ import { useProjectStore } from "../stores/projectStore";
 import { useTerminalRuntimeStore } from "../terminal/terminalRuntimeStore";
 import { panToTerminal } from "../utils/panToTerminal";
 import {
-  buildCanvasTerminalDisplayGroups,
   buildCanvasTerminalSections,
+  buildProjectTree,
   type CanvasTerminalItem,
   type CanvasTerminalState,
 } from "./sessionPanelModel";
+import { ProjectTree } from "./ProjectTree";
 import {
   buildInspectorTrace,
   pickInspectedTerminal,
@@ -78,13 +79,17 @@ function TerminalCard({
   item,
   t,
   compact = false,
+  hideLocation = false,
 }: {
   item: CanvasTerminalItem;
   t: ReturnType<typeof useT>;
   compact?: boolean;
+  hideLocation?: boolean;
 }) {
   const subtitleParts = [
-    item.locationLabel && item.locationLabel !== item.title ? item.locationLabel : null,
+    !hideLocation && item.locationLabel && item.locationLabel !== item.title
+      ? item.locationLabel
+      : null,
     formatTerminalActivity(item, t),
     formatShortAge(item.activityAt),
   ].filter(Boolean);
@@ -212,7 +217,9 @@ function Inspector({
         >
           {t.sessions_inspector}
         </div>
-        <div className="mt-1 text-[11px] font-medium truncate">{item.title}</div>
+        <div className="mt-1 text-[11px] font-medium truncate">
+          {item.title}
+        </div>
         <div className="mt-0.5 text-[10px] text-[var(--text-muted)] truncate">
           {summaryParts.join(" · ")}
         </div>
@@ -288,9 +295,7 @@ export function SessionsPanel() {
   const loadReplay = useSessionStore((s) => s.loadReplay);
   const projects = useProjectStore((s) => s.projects);
   const runtimeTerminals = useTerminalRuntimeStore((s) => s.terminals);
-  const seenDoneTerminalIds = useCompletionSeenStore((s) => s.seenTerminalIds);
   const markCompletionSeen = useCompletionSeenStore((s) => s.markSeen);
-  const syncActiveDoneIds = useCompletionSeenStore((s) => s.syncActiveDoneIds);
   const t = useT();
   const [traceItems, setTraceItems] = useState<InspectorTraceItem[]>([]);
   const [traceLoading, setTraceLoading] = useState(false);
@@ -304,7 +309,10 @@ export function SessionsPanel() {
   }, [historySessions, liveSessions]);
 
   const telemetryByTerminalId = useMemo(() => {
-    const map = new Map<string, (typeof runtimeTerminals)[string]["telemetry"]>();
+    const map = new Map<
+      string,
+      (typeof runtimeTerminals)[string]["telemetry"]
+    >();
     for (const [terminalId, snapshot] of Object.entries(runtimeTerminals)) {
       map.set(terminalId, snapshot.telemetry);
     }
@@ -312,32 +320,24 @@ export function SessionsPanel() {
   }, [runtimeTerminals]);
 
   const sections = useMemo(
-    () => buildCanvasTerminalSections(projects, telemetryByTerminalId, sessionsById),
+    () =>
+      buildCanvasTerminalSections(
+        projects,
+        telemetryByTerminalId,
+        sessionsById,
+      ),
     [projects, sessionsById, telemetryByTerminalId],
   );
-  const displayGroups = useMemo(
-    () => buildCanvasTerminalDisplayGroups(sections, seenDoneTerminalIds),
-    [sections, seenDoneTerminalIds],
+  const projectTree = useMemo(
+    () => buildProjectTree(projects, telemetryByTerminalId, sessionsById),
+    [projects, telemetryByTerminalId, sessionsById],
   );
-  const inspectedItem = useMemo(() => pickInspectedTerminal(sections), [sections]);
-  const activeDoneIds = useMemo(() => {
-    const ids = sections.done.map((item) => item.terminalId);
-    if (sections.focused?.state === "done") {
-      ids.push(sections.focused.terminalId);
-    }
-    return ids;
-  }, [sections.done, sections.focused]);
+  const inspectedItem = useMemo(
+    () => pickInspectedTerminal(sections),
+    [sections],
+  );
 
-  const hasAnyTerminals =
-    !!sections.focused ||
-    sections.attention.length > 0 ||
-    sections.progress.length > 0 ||
-    displayGroups.freshDone.length > 0 ||
-    displayGroups.background.length > 0;
-
-  useEffect(() => {
-    syncActiveDoneIds(activeDoneIds);
-  }, [activeDoneIds, syncActiveDoneIds]);
+  const hasAnyTerminals = !!sections.focused || projectTree.length > 0;
 
   useEffect(() => {
     if (sections.focused?.state === "done") {
@@ -346,7 +346,11 @@ export function SessionsPanel() {
   }, [markCompletionSeen, sections.focused]);
 
   useEffect(() => {
-    if (panelView === "replay" || !inspectedItem || !window.termcanvas?.telemetry) {
+    if (
+      panelView === "replay" ||
+      !inspectedItem ||
+      !window.termcanvas?.telemetry
+    ) {
       setTraceItems([]);
       setTraceLoading(false);
       return;
@@ -392,10 +396,18 @@ export function SessionsPanel() {
           </div>
         )}
 
-        <Section title={t.sessions_needs_attention} items={sections.attention} t={t} />
-        <Section title={t.sessions_in_progress} items={sections.progress} t={t} />
-        <Section title={t.sessions_fresh_results} items={displayGroups.freshDone} t={t} />
-        <Section title={t.sessions_background} items={displayGroups.background} t={t} />
+        <ProjectTree
+          projects={projectTree}
+          renderTerminal={(item) => (
+            <TerminalCard
+              key={item.terminalId}
+              item={item}
+              t={t}
+              compact
+              hideLocation
+            />
+          )}
+        />
 
         {!hasAnyTerminals && (
           <div className="flex-1 px-4 py-6 text-[11px] text-[var(--text-faint)] text-center">
