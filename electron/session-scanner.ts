@@ -3,8 +3,15 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { parseSessionTelemetryLine, type SessionType } from "./session-watcher.ts";
-import type { SessionInfo, TimelineEvent, ReplayTimeline } from "../shared/sessions.ts";
+import {
+  parseSessionTelemetryLine,
+  type SessionType,
+} from "./session-watcher.ts";
+import type {
+  SessionInfo,
+  TimelineEvent,
+  ReplayTimeline,
+} from "../shared/sessions.ts";
 import type { NormalizedSessionTelemetryEvent } from "../shared/telemetry.ts";
 import { findCodexJsonlFiles } from "./usage-collector.ts";
 
@@ -42,8 +49,14 @@ export class SessionScanner {
       const now = Date.now();
       const results: SessionInfo[] = [];
       const files = [
-        ...claudeFiles.map((filePath) => ({ filePath, type: "claude" as const })),
-        ...findCodexJsonlFiles().map((filePath) => ({ filePath, type: "codex" as const })),
+        ...claudeFiles.map((filePath) => ({
+          filePath,
+          type: "claude" as const,
+        })),
+        ...findCodexJsonlFiles().map((filePath) => ({
+          filePath,
+          type: "codex" as const,
+        })),
       ];
 
       for (const { filePath, type } of files) {
@@ -59,21 +72,31 @@ export class SessionScanner {
           const tail = this.readTail(filePath, stat.size);
           const parsed = this.parseTail(tail, type);
 
+          // If the session file hasn't been modified recently, the agent is no
+          // longer active.  Downgrade in-progress statuses so stale sessions
+          // don't appear as "Thinking" / "Running" in the sidebar.
+          let status = parsed.status;
+          if (
+            !isLive &&
+            (status === "generating" || status === "tool_running")
+          ) {
+            status = "idle";
+          }
+
           results.push({
             sessionId,
             projectDir,
             filePath,
             isLive,
             isManaged: false,
-            status: parsed.status,
-            currentTool: parsed.currentTool,
+            status,
+            currentTool: isLive ? parsed.currentTool : undefined,
             startedAt: new Date(stat.birthtimeMs).toISOString(),
             lastActivityAt: new Date(stat.mtimeMs).toISOString(),
             messageCount: parsed.messageCount,
             tokenTotal: parsed.tokenTotal,
           });
-        } catch {
-        }
+        } catch {}
       }
 
       results.sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
@@ -112,7 +135,10 @@ export class SessionScanner {
     }
   }
 
-  private parseTail(tail: string, type: SessionType): {
+  private parseTail(
+    tail: string,
+    type: SessionType,
+  ): {
     status: SessionInfo["status"];
     currentTool?: string;
     messageCount: number;
@@ -132,7 +158,10 @@ export class SessionScanner {
         if (ev.turn_state === "tool_running") {
           status = "tool_running";
           currentTool = ev.tool_name;
-        } else if (ev.turn_state === "thinking" || ev.turn_state === "in_turn") {
+        } else if (
+          ev.turn_state === "thinking" ||
+          ev.turn_state === "in_turn"
+        ) {
           status = "generating";
         } else if (ev.turn_state === "turn_complete") {
           status = "turn_complete";
@@ -161,7 +190,10 @@ export class SessionScanner {
         continue;
       }
 
-      const timestamp = typeof raw.timestamp === "string" ? raw.timestamp : new Date().toISOString();
+      const timestamp =
+        typeof raw.timestamp === "string"
+          ? raw.timestamp
+          : new Date().toISOString();
       const parsed = parseSessionTelemetryLine(line, type);
 
       const userText = this.extractUserPromptText(raw);
@@ -196,7 +228,9 @@ export class SessionScanner {
 
         if (
           toolFilePath &&
-          (ev.tool_name === "Edit" || ev.tool_name === "Write" || ev.tool_name === "apply_patch")
+          (ev.tool_name === "Edit" ||
+            ev.tool_name === "Write" ||
+            ev.tool_name === "apply_patch")
         ) {
           editIndices.push({ index: idx, filePath: toolFilePath });
         }
@@ -215,44 +249,81 @@ export class SessionScanner {
     };
   }
 
-  private mapEventType(event: NormalizedSessionTelemetryEvent): TimelineEvent["type"] | null {
+  private mapEventType(
+    event: NormalizedSessionTelemetryEvent,
+  ): TimelineEvent["type"] | null {
     switch (event.event_type) {
-      case "thinking": return "thinking";
-      case "reasoning": return "thinking";
-      case "tool_use": return "tool_use";
-      case "function_call": return "tool_use";
-      case "custom_tool_call": return "tool_use";
-      case "exec_command_begin": return "tool_use";
-      case "patch_apply_begin": return "tool_use";
-      case "web_search_begin": return "tool_use";
-      case "mcp_tool_call_begin": return "tool_use";
-      case "tool_result": return "tool_result";
-      case "function_call_output": return "tool_result";
-      case "custom_tool_call_output": return "tool_result";
-      case "exec_command_end": return "tool_result";
-      case "patch_apply_end": return "tool_result";
-      case "web_search_end": return "tool_result";
-      case "mcp_tool_call_end": return "tool_result";
-      case "assistant_message": return "assistant_text";
-      case "agent_message": return "assistant_text";
-      case "message": return event.role === "assistant" ? "assistant_text" : null;
-      case "turn_complete": return "turn_complete";
-      case "task_complete": return "turn_complete";
-      case "turn_aborted": return "error";
-      case "error": return "error";
-      case "user_message": return null;
-      case "assistant_stop": return null;
-      case "task_started": return null;
-      case "token_count": return null;
-      case "context_compacted": return null;
-      case "compacted": return null;
-      case "queue_operation": return null;
-      case "progress": return null;
-      default: return null;
+      case "thinking":
+        return "thinking";
+      case "reasoning":
+        return "thinking";
+      case "tool_use":
+        return "tool_use";
+      case "function_call":
+        return "tool_use";
+      case "custom_tool_call":
+        return "tool_use";
+      case "exec_command_begin":
+        return "tool_use";
+      case "patch_apply_begin":
+        return "tool_use";
+      case "web_search_begin":
+        return "tool_use";
+      case "mcp_tool_call_begin":
+        return "tool_use";
+      case "tool_result":
+        return "tool_result";
+      case "function_call_output":
+        return "tool_result";
+      case "custom_tool_call_output":
+        return "tool_result";
+      case "exec_command_end":
+        return "tool_result";
+      case "patch_apply_end":
+        return "tool_result";
+      case "web_search_end":
+        return "tool_result";
+      case "mcp_tool_call_end":
+        return "tool_result";
+      case "assistant_message":
+        return "assistant_text";
+      case "agent_message":
+        return "assistant_text";
+      case "message":
+        return event.role === "assistant" ? "assistant_text" : null;
+      case "turn_complete":
+        return "turn_complete";
+      case "task_complete":
+        return "turn_complete";
+      case "turn_aborted":
+        return "error";
+      case "error":
+        return "error";
+      case "user_message":
+        return null;
+      case "assistant_stop":
+        return null;
+      case "task_started":
+        return null;
+      case "token_count":
+        return null;
+      case "context_compacted":
+        return null;
+      case "compacted":
+        return null;
+      case "queue_operation":
+        return null;
+      case "progress":
+        return null;
+      default:
+        return null;
     }
   }
 
-  private extractPreview(raw: Record<string, unknown>, event: NormalizedSessionTelemetryEvent): string {
+  private extractPreview(
+    raw: Record<string, unknown>,
+    event: NormalizedSessionTelemetryEvent,
+  ): string {
     const message = raw.message as Record<string, unknown> | undefined;
     if (message) {
       const preview = this.extractTextFromContent(message.content);
@@ -263,7 +334,8 @@ export class SessionScanner {
           const entry = block as Record<string, unknown>;
           if (typeof entry.input === "object" && entry.input) {
             const input = entry.input as Record<string, unknown>;
-            if (typeof input.command === "string") return `$ ${input.command.slice(0, 180)}`;
+            if (typeof input.command === "string")
+              return `$ ${input.command.slice(0, 180)}`;
             if (typeof input.file_path === "string") return input.file_path;
           }
         }
@@ -293,20 +365,29 @@ export class SessionScanner {
       return this.extractTextFromContent(payload.summary);
     }
 
-    if (payload.type === "function_call" || payload.type === "custom_tool_call") {
+    if (
+      payload.type === "function_call" ||
+      payload.type === "custom_tool_call"
+    ) {
       const input = this.extractCodexToolInput(payload);
-      if (typeof input?.command === "string") return `$ ${input.command.slice(0, 180)}`;
+      if (typeof input?.command === "string")
+        return `$ ${input.command.slice(0, 180)}`;
       if (typeof input?.cmd === "string") return `$ ${input.cmd.slice(0, 180)}`;
       if (typeof input?.file_path === "string") return input.file_path;
       if (typeof input?.path === "string") return input.path;
-      if (typeof payload.arguments === "string") return payload.arguments.slice(0, 200);
-      if (typeof payload.input === "string" && event.tool_name !== "apply_patch") {
+      if (typeof payload.arguments === "string")
+        return payload.arguments.slice(0, 200);
+      if (
+        typeof payload.input === "string" &&
+        event.tool_name !== "apply_patch"
+      ) {
         return payload.input.slice(0, 200);
       }
     }
 
     if (
-      (payload.type === "function_call_output" || payload.type === "custom_tool_call_output") &&
+      (payload.type === "function_call_output" ||
+        payload.type === "custom_tool_call_output") &&
       typeof payload.output === "string"
     ) {
       return payload.output.slice(0, 200);
@@ -324,7 +405,8 @@ export class SessionScanner {
         for (const block of content) {
           if (!block || typeof block !== "object") continue;
           const entry = block as Record<string, unknown>;
-          if (entry.type === "text" && typeof entry.text === "string") return entry.text.slice(0, 200);
+          if (entry.type === "text" && typeof entry.text === "string")
+            return entry.text.slice(0, 200);
           if (entry.type === "tool_result") continue;
         }
       }
@@ -349,13 +431,20 @@ export class SessionScanner {
     return "";
   }
 
-  private extractToolFilePath(raw: Record<string, unknown>, toolName?: string): string | undefined {
+  private extractToolFilePath(
+    raw: Record<string, unknown>,
+    toolName?: string,
+  ): string | undefined {
     const message = raw.message as Record<string, unknown> | undefined;
     const content = Array.isArray(message?.content) ? message!.content : [];
     for (const block of content) {
       if (!block || typeof block !== "object") continue;
       const entry = block as Record<string, unknown>;
-      if (entry.type === "tool_use" && typeof entry.input === "object" && entry.input) {
+      if (
+        entry.type === "tool_use" &&
+        typeof entry.input === "object" &&
+        entry.input
+      ) {
         const input = entry.input as Record<string, unknown>;
         if (typeof input.file_path === "string") return input.file_path;
         if (typeof input.path === "string") return input.path;
@@ -371,11 +460,16 @@ export class SessionScanner {
     ) {
       const input = this.extractCodexToolInput(payload);
       const candidate =
-        typeof input?.file_path === "string" ? input.file_path
-          : typeof input?.path === "string" ? input.path
-            : typeof input?.filePath === "string" ? input.filePath
-              : typeof input?.oldPath === "string" ? input.oldPath
-                : typeof input?.newPath === "string" ? input.newPath
+        typeof input?.file_path === "string"
+          ? input.file_path
+          : typeof input?.path === "string"
+            ? input.path
+            : typeof input?.filePath === "string"
+              ? input.filePath
+              : typeof input?.oldPath === "string"
+                ? input.oldPath
+                : typeof input?.newPath === "string"
+                  ? input.newPath
                   : undefined;
       if (candidate) return candidate;
     }
@@ -408,8 +502,7 @@ export class SessionScanner {
         ) {
           return "claude";
         }
-      } catch {
-      }
+      } catch {}
     }
 
     return "claude";
@@ -428,18 +521,24 @@ export class SessionScanner {
     return this.readCodexProjectDir(filePath, lines) ?? sessionId;
   }
 
-  private readCodexProjectDir(filePath: string, lines?: string[]): string | null {
+  private readCodexProjectDir(
+    filePath: string,
+    lines?: string[],
+  ): string | null {
     const sourceLines = lines ?? this.readHeadLines(filePath, 20);
     for (const line of sourceLines) {
       if (!line.trim()) continue;
       try {
         const raw = JSON.parse(line) as Record<string, unknown>;
         const payload = this.getObject(raw.payload);
-        if (raw.type === "session_meta" && typeof payload?.cwd === "string" && payload.cwd) {
+        if (
+          raw.type === "session_meta" &&
+          typeof payload?.cwd === "string" &&
+          payload.cwd
+        ) {
           return payload.cwd;
         }
-      } catch {
-      }
+      } catch {}
     }
     return null;
   }
@@ -453,7 +552,9 @@ export class SessionScanner {
   }
 
   private getObject(value: unknown): Record<string, unknown> | null {
-    return value && typeof value === "object" ? value as Record<string, unknown> : null;
+    return value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : null;
   }
 
   private extractTextFromContent(content: unknown): string {
@@ -463,19 +564,21 @@ export class SessionScanner {
       if (!block || typeof block !== "object") continue;
       const entry = block as Record<string, unknown>;
       if (typeof entry.text === "string") return entry.text.slice(0, 200);
-      if (typeof entry.thinking === "string") return entry.thinking.slice(0, 200);
+      if (typeof entry.thinking === "string")
+        return entry.thinking.slice(0, 200);
       if (typeof entry.content === "string") return entry.content.slice(0, 200);
     }
     return "";
   }
 
-  private extractCodexToolInput(payload: Record<string, unknown>): Record<string, unknown> | null {
+  private extractCodexToolInput(
+    payload: Record<string, unknown>,
+  ): Record<string, unknown> | null {
     if (typeof payload.arguments === "string") {
       try {
         const parsed = JSON.parse(payload.arguments);
         return this.getObject(parsed);
-      } catch {
-      }
+      } catch {}
     } else {
       const directArgs = this.getObject(payload.arguments);
       if (directArgs) return directArgs;

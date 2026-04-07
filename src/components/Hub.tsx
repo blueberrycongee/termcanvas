@@ -2,6 +2,7 @@ import { useCanvasStore, type FocusLevel, COLLAPSED_TAB_WIDTH } from "../stores/
 import { useProjectStore } from "../stores/projectStore";
 import { useShortcutStore, formatShortcut } from "../stores/shortcutStore";
 import { getWorktreeFocusOrder, getTerminalFocusOrder } from "../stores/projectFocus";
+import { focusWorktreeInScene } from "../actions/sceneSelectionActions";
 import { panToTerminal } from "../utils/panToTerminal";
 import { panToWorktree } from "../utils/panToWorktree";
 import { useT } from "../i18n/useT";
@@ -100,6 +101,7 @@ export function Hub() {
       if (target.terminalId) {
         panToTerminal(target.terminalId);
       } else {
+        focusWorktreeInScene(target.projectId, target.worktreeId);
         panToWorktree(target.projectId, target.worktreeId);
       }
     },

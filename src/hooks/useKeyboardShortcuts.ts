@@ -4,6 +4,7 @@ import {
   activateTerminalInScene,
   activateWorktreeInScene,
   clearSceneFocusAndSelection,
+  focusWorktreeInScene,
 } from "../actions/sceneSelectionActions";
 import {
   closeTerminalInScene,
@@ -436,6 +437,7 @@ export function useKeyboardShortcuts() {
           const nextIndex =
             currentIndex === -1 ? 0 : (currentIndex + 1) % list.length;
           const next = list[nextIndex];
+          focusWorktreeInScene(next.projectId, next.worktreeId);
           panToWorktree(next.projectId, next.worktreeId);
           return;
         }
@@ -464,6 +466,7 @@ export function useKeyboardShortcuts() {
           const prevIndex =
             currentIndex <= 0 ? list.length - 1 : currentIndex - 1;
           const prev = list[prevIndex];
+          focusWorktreeInScene(prev.projectId, prev.worktreeId);
           panToWorktree(prev.projectId, prev.worktreeId);
           return;
         }

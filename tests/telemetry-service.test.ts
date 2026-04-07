@@ -518,7 +518,7 @@ test("deriveTelemetryStatus returns progressing when active_tool_calls > 0", () 
   assert.equal(status, "progressing");
 });
 
-test("deriveTelemetryStatus returns progressing for Codex in_turn with session attached", () => {
+test("deriveTelemetryStatus returns stall_candidate for Codex in_turn when session events are stale", () => {
   const now = Date.parse("2026-03-26T00:10:00.000Z");
   const status = deriveTelemetryStatus(
     {
@@ -543,6 +543,34 @@ test("deriveTelemetryStatus returns progressing for Codex in_turn with session a
     now,
   );
 
-  // in_turn + session_attached should be progressing, not stall_candidate
+  // in_turn + session_attached with stale events should NOT be progressing —
+  // the CLI may have exited without a Stop hook.
+  assert.equal(status, "stall_candidate");
+});
+
+test("deriveTelemetryStatus returns progressing for Codex in_turn with recent session events", () => {
+  const now = Date.parse("2026-03-26T00:10:00.000Z");
+  const status = deriveTelemetryStatus(
+    {
+      terminal_id: "terminal-1",
+      worktree_path: "/tmp/project",
+      provider: "codex",
+      session_attached: true,
+      session_attach_confidence: "medium",
+      turn_state: "in_turn",
+      pty_alive: true,
+      descendant_processes: [],
+      active_tool_calls: 0,
+      done_exists: false,
+      result_exists: false,
+      // session event 30s ago (within 90s heartbeat)
+      last_session_event_at: "2026-03-26T00:09:30.000Z",
+      last_meaningful_progress_at: "2026-03-26T00:09:30.000Z",
+      last_output_at: "2026-03-26T00:09:30.000Z",
+      derived_status: "starting",
+    },
+    now,
+  );
+
   assert.equal(status, "progressing");
 });

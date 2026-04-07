@@ -192,9 +192,18 @@ export function deriveTelemetryStatus(
   }
 
   // Codex doesn't emit "thinking" — in_turn with an attached session
-  // means the model is reasoning between tool calls
+  // means the model is reasoning between tool calls.  Guard with a
+  // recency check so stale sessions (e.g. CLI crashed without Stop
+  // hook) don't stay "progressing" forever.
   if (snapshot.turn_state === "in_turn" && snapshot.session_attached) {
-    return "progressing";
+    const anchor =
+      snapshot.last_session_event_at ?? snapshot.last_meaningful_progress_at;
+    if (anchor) {
+      const anchorMs = new Date(anchor).getTime();
+      if (Number.isFinite(anchorMs) && nowMs - anchorMs <= sessionHeartbeatMs) {
+        return "progressing";
+      }
+    }
   }
 
   if (
@@ -1359,7 +1368,12 @@ export class TelemetryService {
     if (derived === "error") return "error";
     if (turn === "tool_running" || turn === "tool_pending")
       return "tool_running";
-    if (turn === "thinking" || turn === "in_turn") return "generating";
+    if (turn === "thinking" || turn === "in_turn") {
+      // Only report "generating" when derived status confirms the agent is
+      // actively progressing.  Stale turn_state (e.g. from a previous session
+      // that didn't fire a Stop hook) should not show as "Thinking".
+      return derived === "progressing" ? "generating" : "idle";
+    }
     if (turn === "turn_complete") return "turn_complete";
     return "idle";
   }
