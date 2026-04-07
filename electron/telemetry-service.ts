@@ -194,6 +194,7 @@ export function deriveTelemetryStatus(
     snapshot.turn_state === "thinking" ||
     snapshot.turn_state === "tool_running" ||
     snapshot.turn_state === "tool_pending" ||
+    snapshot.turn_state === "awaiting_input" ||
     !!snapshot.foreground_tool
   ) {
     return "progressing";
@@ -262,6 +263,7 @@ export function deriveTelemetryTaskStatus(
     snapshot.turn_state === "tool_running" ||
     snapshot.turn_state === "tool_pending" ||
     snapshot.turn_state === "thinking" ||
+    snapshot.turn_state === "awaiting_input" ||
     snapshot.turn_state === "in_turn"
   ) {
     return { status: "running", source: "turn_state" };
@@ -870,6 +872,7 @@ export class TelemetryService {
         }
         state.pendingPreToolUse = true;
         state.pendingPreToolUseAt = this.now();
+        state.snapshot.pending_tool_use_at = at;
         state.snapshot.active_tool_calls = 1;
         state.snapshot.turn_state = "tool_running";
         state.snapshot.last_meaningful_progress_at = at;
@@ -882,6 +885,7 @@ export class TelemetryService {
 
       case "PostToolUse":
         state.pendingPreToolUse = false;
+        state.snapshot.pending_tool_use_at = undefined;
         state.snapshot.active_tool_calls = 0;
         state.snapshot.turn_state = "in_turn";
         state.snapshot.last_meaningful_progress_at = at;
