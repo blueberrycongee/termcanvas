@@ -19,7 +19,7 @@ export class FileTreeWatcher {
     try {
       const watcher = fs.watch(dirPath, (_eventType, filename) => {
         if (typeof filename === "string") {
-          if (filename.startsWith(".") || this.hiddenDirs.has(filename)) return;
+          if (this.hiddenDirs.has(filename)) return;
         }
         this.scheduleChange(dirPath);
       });

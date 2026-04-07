@@ -100,7 +100,7 @@ function cleanupPortFile() {
   } catch {}
 }
 
-const HIDDEN_DIRS = new Set(["node_modules", ".git", "dist", "build", "out"]);
+const HIDDEN_DIRS = new Set([".git"]);
 
 let mainWindow: BrowserWindow | null = null;
 let forceClose = false;
@@ -704,7 +704,7 @@ function setupIpc() {
     try {
       const entries = fs.readdirSync(dirPath, { withFileTypes: true });
       const filtered = entries
-        .filter((e) => !e.name.startsWith(".") && !HIDDEN_DIRS.has(e.name))
+        .filter((e) => !HIDDEN_DIRS.has(e.name))
         .map((e) => ({ name: e.name, isDirectory: e.isDirectory() }))
         .sort((a, b) => {
           if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
