@@ -291,18 +291,35 @@ export function SessionsPanel() {
     return map;
   }, [runtimeTerminals]);
 
+  const previewTextByTerminalId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const [terminalId, snapshot] of Object.entries(runtimeTerminals)) {
+      if (snapshot.previewText) {
+        map.set(terminalId, snapshot.previewText);
+      }
+    }
+    return map;
+  }, [runtimeTerminals]);
+
   const sections = useMemo(
     () =>
       buildCanvasTerminalSections(
         projects,
         telemetryByTerminalId,
         sessionsById,
+        previewTextByTerminalId,
       ),
-    [projects, sessionsById, telemetryByTerminalId],
+    [projects, sessionsById, telemetryByTerminalId, previewTextByTerminalId],
   );
   const projectTree = useMemo(
-    () => buildProjectTree(projects, telemetryByTerminalId, sessionsById),
-    [projects, telemetryByTerminalId, sessionsById],
+    () =>
+      buildProjectTree(
+        projects,
+        telemetryByTerminalId,
+        sessionsById,
+        previewTextByTerminalId,
+      ),
+    [projects, telemetryByTerminalId, sessionsById, previewTextByTerminalId],
   );
   const inspectedItem = useMemo(
     () => pickInspectedTerminal(sections),
