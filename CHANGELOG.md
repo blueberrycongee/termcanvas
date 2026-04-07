@@ -2,6 +2,16 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.15] - 2026-04-07
+
+### Changed
+- Restored the right sidebar Sessions panel interaction model to match v0.25.12 (focused/attention/progress grouping, inspector trace, jump-to-terminal flow)
+- Worktree focus navigation now applies focus before viewport pan so focus-switch animation behavior matches v0.25.12
+
+### Fixed
+- Codex sessions in `in_turn` state are no longer treated as indefinitely progressing when session events are stale
+- Session scanner now downgrades stale `generating`/`tool_running` history entries to `idle` to avoid misleading live-state labels
+
 ## [0.25.14] - 2026-04-07
 
 ### Added
