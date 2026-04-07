@@ -9,7 +9,11 @@ import {
   toggleTerminalStarredInScene,
   updateTerminalCustomTitleInScene,
 } from "../actions/terminalSceneActions";
-import { useProjectStore, findTerminalById, getChildTerminals } from "../stores/projectStore";
+import {
+  useProjectStore,
+  findTerminalById,
+  getChildTerminals,
+} from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { ContextMenu } from "../components/ContextMenu";
 import { usePreferencesStore } from "../stores/preferencesStore";
@@ -33,7 +37,6 @@ import {
 } from "./terminalRuntimeStore";
 import type { TerminalMountMode } from "./terminalRuntimePolicy";
 import { shellEscapePath } from "../utils/shellEscape";
-import { getTelemetryBadgeLabel, getTelemetryFacts } from "./telemetryPresentation";
 import {
   cancelScheduledTerminalFocus,
   scheduleTerminalFocus,
@@ -88,7 +91,13 @@ function HierarchyBadges({ terminal }: { terminal: TerminalData }) {
           style={{ fontFamily: '"Geist Mono", monospace' }}
         >
           <svg width="8" height="8" viewBox="0 0 12 12" fill="none">
-            <path d="M6 9V3M3 5l3-3 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+              d="M6 9V3M3 5l3-3 3 3"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
           {parentInfo.terminal.type}
         </button>
@@ -105,7 +114,12 @@ function HierarchyBadges({ terminal }: { terminal: TerminalData }) {
           style={{ fontFamily: '"Geist Mono", monospace' }}
         >
           <svg width="8" height="8" viewBox="0 0 12 12" fill="none">
-            <path d="M6 2v4M3 4v4M9 4v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <path
+              d="M6 2v4M3 4v4M9 4v4"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
           </svg>
           {children.length}
         </button>
@@ -143,7 +157,9 @@ function PreviewPane({
             {label}
           </span>
           <span style={{ fontFamily: '"Geist Mono", monospace' }}>
-            {lodMode === "evicted" ? "preview fallback" : "live xterm preserved"}
+            {lodMode === "evicted"
+              ? "preview fallback"
+              : "live xterm preserved"}
           </span>
         </div>
         <pre
@@ -153,28 +169,6 @@ function PreviewPane({
           {body}
         </pre>
       </div>
-    </div>
-  );
-}
-
-function TelemetrySummary({ terminalId }: { terminalId: string }) {
-  const telemetry = useTerminalRuntimeStore((s) => s.terminals[terminalId]?.telemetry ?? null);
-  const badge = getTelemetryBadgeLabel(telemetry);
-  const facts = getTelemetryFacts(telemetry);
-
-  if (!telemetry || !badge) {
-    return null;
-  }
-
-  return (
-    <div className="flex shrink-0 items-center gap-2 overflow-hidden">
-      <span
-        className="shrink-0 rounded-full border border-[var(--border)] bg-[var(--surface)] px-1.5 py-0.5 text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]"
-        style={{ fontFamily: '"Geist Mono", monospace' }}
-        title={facts.join(" • ")}
-      >
-        {badge}
-      </span>
     </div>
   );
 }
@@ -224,7 +218,10 @@ export function TerminalTile({
   );
   const [dragOver, setDragOver] = useState(false);
   const agentBodyRef = useRef<HTMLDivElement>(null);
-  const [agentBodySize, setAgentBodySize] = useState<{ width: number; height: number } | null>(null);
+  const [agentBodySize, setAgentBodySize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
 
   const isAgent = terminal.type === "claude" || terminal.type === "codex";
   const useAgentRenderer = false; // TODO: re-enable when agent renderer is ready
@@ -236,7 +233,11 @@ export function TerminalTile({
     ...liveRuntimeState,
   };
 
-  const [frozenDims, setFrozenDims] = useState<{ width: number; height: number; bgColor: string } | null>(null);
+  const [frozenDims, setFrozenDims] = useState<{
+    width: number;
+    height: number;
+    bgColor: string;
+  } | null>(null);
 
   const t = useT();
   const config = TYPE_CONFIG[terminal.type] ?? {
@@ -246,6 +247,12 @@ export function TerminalTile({
   const headerContextLabel = getTerminalHeaderContextLabel(
     worktreeName,
     terminal.title,
+  );
+  const projectName = useProjectStore(
+    useCallback(
+      (s) => s.projects.find((p) => p.id === projectId)?.name ?? "",
+      [projectId],
+    ),
   );
 
   useEffect(() => {
@@ -271,12 +278,7 @@ export function TerminalTile({
       customTitleDraft,
     );
     setIsEditingCustomTitle(false);
-  }, [
-    customTitleDraft,
-    projectId,
-    terminal.id,
-    worktreeId,
-  ]);
+  }, [customTitleDraft, projectId, terminal.id, worktreeId]);
 
   useEffect(() => {
     if (!isEditingCustomTitle) return;
@@ -363,7 +365,16 @@ export function TerminalTile({
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [height, isAgent, lodMode, sidebarDragActive, terminal.id, terminal.minimized, useAgentRenderer, width]);
+  }, [
+    height,
+    isAgent,
+    lodMode,
+    sidebarDragActive,
+    terminal.id,
+    terminal.minimized,
+    useAgentRenderer,
+    width,
+  ]);
 
   useEffect(() => {
     const tile = tileRef.current;
@@ -421,7 +432,14 @@ export function TerminalTile({
         settledFitTimerRef.current = null;
       }
     };
-  }, [containerEl, isAgent, lodMode, terminal.id, terminal.minimized, useAgentRenderer]);
+  }, [
+    containerEl,
+    isAgent,
+    lodMode,
+    terminal.id,
+    terminal.minimized,
+    useAgentRenderer,
+  ]);
 
   useEffect(() => {
     if (!isAgent || !sidebarDragActive) {
@@ -431,7 +449,8 @@ export function TerminalTile({
     if (!containerEl) return;
 
     const bgColor =
-      getTerminalRuntime(terminal.id)?.xterm?.options.theme?.background ?? "#1e1e1e";
+      getTerminalRuntime(terminal.id)?.xterm?.options.theme?.background ??
+      "#1e1e1e";
 
     setFrozenDims({
       width: containerEl.offsetWidth,
@@ -461,9 +480,7 @@ export function TerminalTile({
   useEffect(() => {
     const adapter = getComposerAdapter(terminal.type);
     const shouldFocusXterm =
-      lodMode === "live" &&
-      terminal.focused &&
-      (!adapter || !composerEnabled);
+      lodMode === "live" && terminal.focused && (!adapter || !composerEnabled);
 
     if (terminal.focused && lodMode === "live") {
       touchTerminalRuntime(terminal.id);
@@ -539,7 +556,7 @@ export function TerminalTile({
         xtermRoot instanceof Element &&
         xtermRoot.contains(e.target)
           ? e.target
-          : xtermRoot ?? containerEl;
+          : (xtermRoot ?? containerEl);
       const adjusted = new MouseEvent(e.type, {
         altKey: e.altKey,
         bubbles: e.bubbles,
@@ -705,7 +722,11 @@ export function TerminalTile({
             : terminal.focused
               ? "0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 8px color-mix(in srgb, var(--accent) 15%, transparent)"
               : undefined,
-        transform: isStashing ? "scale(0.95)" : isDragging ? "scale(1.02)" : undefined,
+        transform: isStashing
+          ? "scale(0.95)"
+          : isDragging
+            ? "scale(1.02)"
+            : undefined,
         outline: "none",
       }}
       onClick={(e) => {
@@ -744,6 +765,15 @@ export function TerminalTile({
           {config.label}
         </span>
         <HierarchyBadges terminal={terminal} />
+        {projectName && (
+          <span
+            className="shrink-0 whitespace-nowrap text-[11px] text-[var(--text-muted)]"
+            style={{ fontFamily: '"Geist Mono", monospace' }}
+            title={projectName}
+          >
+            {projectName}
+          </span>
+        )}
         <span
           className="shrink-0 whitespace-nowrap text-[11px] text-[var(--text-muted)]"
           style={{ fontFamily: '"Geist Mono", monospace' }}
@@ -751,7 +781,6 @@ export function TerminalTile({
         >
           {headerContextLabel}
         </span>
-        <TelemetrySummary terminalId={terminal.id} />
         <div
           className={`h-6 min-w-0 flex-1 rounded-md border px-1.5 text-[11px] ${
             terminal.customTitle
@@ -777,10 +806,20 @@ export function TerminalTile({
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
-                toggleTerminalStarredInScene(projectId, worktreeId, terminal.id);
+                toggleTerminalStarredInScene(
+                  projectId,
+                  worktreeId,
+                  terminal.id,
+                );
               }}
             >
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 10 10"
+                fill="none"
+                aria-hidden="true"
+              >
                 <path
                   d="M5 1.2l1.05 2.13 2.35.34-1.7 1.66.4 2.35L5 6.58 2.9 7.68l.4-2.35L1.6 3.67l2.35-.34L5 1.2z"
                   fill={terminal.starred ? "currentColor" : "none"}
@@ -873,7 +912,11 @@ export function TerminalTile({
       {useAgentRenderer ? (
         <div
           ref={agentBodyRef}
-          className={terminal.minimized ? "relative nopan nodrag nowheel" : "flex-1 min-h-0 relative nopan nodrag nowheel"}
+          className={
+            terminal.minimized
+              ? "relative nopan nodrag nowheel"
+              : "flex-1 min-h-0 relative nopan nodrag nowheel"
+          }
           style={{
             height: terminal.minimized ? 0 : undefined,
             overflow: "hidden",
@@ -894,7 +937,11 @@ export function TerminalTile({
         </div>
       ) : lodMode === "live" ? (
         <div
-          className={terminal.minimized ? "relative nopan nodrag nowheel" : "flex-1 min-h-0 relative nopan nodrag nowheel"}
+          className={
+            terminal.minimized
+              ? "relative nopan nodrag nowheel"
+              : "flex-1 min-h-0 relative nopan nodrag nowheel"
+          }
           style={{
             height: terminal.minimized ? 0 : undefined,
             overflow: "hidden",
@@ -912,12 +959,21 @@ export function TerminalTile({
               padding: 0,
               overflow: "hidden",
               ...(frozenDims
-                ? { top: 0, left: 0, width: frozenDims.width, height: frozenDims.height }
+                ? {
+                    top: 0,
+                    left: 0,
+                    width: frozenDims.width,
+                    height: frozenDims.height,
+                  }
                 : undefined),
             }}
             onClick={() => {
               const adapter = getComposerAdapter(terminal.type);
-              if (!adapter || adapter.inputMode === "type" || !composerEnabled) {
+              if (
+                !adapter ||
+                adapter.inputMode === "type" ||
+                !composerEnabled
+              ) {
                 scheduleXtermFocus();
               }
             }}
@@ -972,20 +1028,24 @@ export function TerminalTile({
               { type: "separator" as const },
               {
                 label: t.stash_terminal,
-                onClick: () => stashTerminalInScene(projectId, worktreeId, terminal.id),
+                onClick: () =>
+                  stashTerminalInScene(projectId, worktreeId, terminal.id),
               },
-              ...((terminal.type === "claude" || terminal.type === "codex") && liveTerminal.sessionId
-                ? [{
-                    label: t.summarize_terminal,
-                    onClick: () =>
-                      requestSummary(
-                        projectId,
-                        worktreeId,
-                        worktreePath,
-                        liveTerminal,
-                        usePreferencesStore.getState().summaryCli,
-                      ),
-                  }]
+              ...((terminal.type === "claude" || terminal.type === "codex") &&
+              liveTerminal.sessionId
+                ? [
+                    {
+                      label: t.summarize_terminal,
+                      onClick: () =>
+                        requestSummary(
+                          projectId,
+                          worktreeId,
+                          worktreePath,
+                          liveTerminal,
+                          usePreferencesStore.getState().summaryCli,
+                        ),
+                    },
+                  ]
                 : []),
             ]}
             onClose={() => setContextMenu(null)}
