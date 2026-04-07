@@ -2,6 +2,11 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.17] - 2026-04-07
+
+### Fixed
+- File tree now shows dotfiles and previously hidden directories (node_modules, dist, build, out); only .git is hidden
+
 ## [0.25.16] - 2026-04-07
 
 ### Fixed
