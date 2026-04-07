@@ -393,11 +393,33 @@ export function useKeyboardShortcuts() {
         const focusedIdx = getFocusedTerminalIndex(list);
         if (focusedIdx !== -1) {
           const focused = list[focusedIdx];
+          // Mirror projectStore.removeTerminal's adjacent pick: next sibling
+          // in the same worktree, or the previous one if removing the tail.
+          const { projects } = useProjectStore.getState();
+          const worktree = projects
+            .find((p) => p.id === focused.projectId)
+            ?.worktrees.find((w) => w.id === focused.worktreeId);
+          let adjacentTerminalId: string | null = null;
+          if (worktree) {
+            const idx = worktree.terminals.findIndex(
+              (t) => t.id === focused.terminalId,
+            );
+            if (idx !== -1) {
+              if (idx + 1 < worktree.terminals.length) {
+                adjacentTerminalId = worktree.terminals[idx + 1].id;
+              } else if (idx - 1 >= 0) {
+                adjacentTerminalId = worktree.terminals[idx - 1].id;
+              }
+            }
+          }
           closeTerminalInScene(
             focused.projectId,
             focused.worktreeId,
             focused.terminalId,
           );
+          if (adjacentTerminalId) {
+            panToTerminal(adjacentTerminalId);
+          }
         }
         return;
       }
