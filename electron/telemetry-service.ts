@@ -663,6 +663,7 @@ export class TelemetryService {
           `[Telemetry] Resetting stale pendingPreToolUse for terminal=${terminalId} (>5min without PostToolUse)`,
         );
         state.pendingPreToolUse = false;
+        state.snapshot.pending_tool_use_at = undefined;
         state.snapshot.turn_state = "unknown";
         state.snapshot.foreground_tool = snapshot.foregroundTool ?? undefined;
       }
@@ -837,6 +838,7 @@ export class TelemetryService {
 
       case "Stop":
         state.pendingPreToolUse = false;
+        state.snapshot.pending_tool_use_at = undefined;
         state.snapshot.active_tool_calls = 0;
         state.snapshot.last_hook_error = undefined;
         state.snapshot.last_hook_error_details = undefined;
@@ -898,6 +900,7 @@ export class TelemetryService {
 
       case "PostToolUseFailure":
         state.pendingPreToolUse = false;
+        state.snapshot.pending_tool_use_at = undefined;
         state.snapshot.active_tool_calls = 0;
         state.snapshot.turn_state = "in_turn";
         state.snapshot.foreground_tool = undefined;
