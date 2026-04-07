@@ -2,13 +2,22 @@ import { useCallback, useRef } from "react";
 import { marked } from "marked";
 import { useUpdaterStore } from "../stores/updaterStore";
 import { useT } from "../i18n/useT";
+import { useLocaleStore } from "../stores/localeStore";
 
 interface Props {
   onClose: () => void;
 }
 
+function extractLocalizedNotes(notes: string, locale: string): string {
+  const zhMatch = notes.match(/<!--\s*zh\s*-->([\s\S]*?)<!--\s*\/zh\s*-->/);
+  if (locale === "zh" && zhMatch) return zhMatch[1].trim();
+  // Strip zh block to get English content
+  return notes.replace(/<!--\s*zh\s*-->[\s\S]*?<!--\s*\/zh\s*-->/g, "").trim();
+}
+
 export function UpdateModal({ onClose }: Props) {
   const t = useT();
+  const locale = useLocaleStore((s) => s.locale);
   const { status, info, downloadPercent, errorMessage } = useUpdaterStore();
   const backdropRef = useRef<HTMLDivElement>(null);
 
@@ -43,7 +52,8 @@ export function UpdateModal({ onClose }: Props) {
     [],
   );
 
-  const notes = typeof info?.releaseNotes === "string" ? info.releaseNotes : "";
+  const rawNotes = typeof info?.releaseNotes === "string" ? info.releaseNotes : "";
+  const notes = extractLocalizedNotes(rawNotes, locale);
   const changelogHtml = notes
     ? (marked.parse(notes, { async: false }) as string)
     : "";
