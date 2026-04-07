@@ -1,6 +1,8 @@
 import * as pty from "node-pty";
 import fs from "fs";
 import { buildLaunchSpec, type PtyLaunchOptions } from "./pty-launch.ts";
+import { killProcessEscalated } from "../shared/processKill.ts";
+import { computeBackoff } from "../shared/backoff.ts";
 
 export type PtyCreateOptions = PtyLaunchOptions;
 type PtySpawnFn = typeof pty.spawn;
@@ -75,7 +77,7 @@ export class PtyManager {
         console.warn(
           `[PtyManager] transient PTY spawn failure on attempt ${attempt}/${MAX_PTY_CREATE_ATTEMPTS}: ${String(error)}`,
         );
-        await sleep(attempt * 50);
+        await sleep(computeBackoff(attempt, { baseMs: 50, maxMs: 500, multiplier: 2, jitterFraction: 0.2 }));
       }
     }
 
@@ -135,11 +137,8 @@ export class PtyManager {
       // Kill the process group before removing from map to prevent orphans.
       const inst = this.instances.get(id);
       if (inst && inst.pid > 1) {
-        try {
-          process.kill(-inst.pid, "SIGHUP");
-        } catch {
-          // Process group may already be gone.
-        }
+        killProcessEscalated(inst.pid, { signal: "SIGHUP", termMs: 2000, killMs: 500 })
+          .catch(() => {});
       }
       this.instances.delete(id);
     }
@@ -202,33 +201,16 @@ export class PtyManager {
     this.instances.delete(id);
     this.outputBuffers.delete(id);
 
-    // Send SIGHUP to the entire process group (shell + CLI + MCP servers).
-    // the master PTY FD close triggers SIGHUP to the session, giving
+    // 3-stage kill: SIGHUP → wait → SIGKILL
     if (pid > 1) {
-      try {
-        process.kill(-pid, "SIGHUP");
-      } catch {
-        // Process group may already be gone.
-        return;
-      }
-    }
-
-    const deadline = Date.now() + 5000;
-    while (Date.now() < deadline) {
-      try {
-        process.kill(pid, 0);
-      } catch {
-        return;
-      }
-      await sleep(100);
-    }
-
-    // Last resort: force kill the entire process group.
-    if (pid > 1) {
-      try {
-        process.kill(-pid, "SIGKILL");
-      } catch {
-        // Process group exited while the timeout elapsed.
+      const result = await killProcessEscalated(pid, {
+        signal: "SIGHUP",
+        termMs: 5000,
+        killMs: 2000,
+        processGroup: true,
+      });
+      if (result.method === "unknown") {
+        console.warn(`[PtyManager] process ${pid} may still be alive after kill escalation`);
       }
     }
   }

@@ -8,5 +8,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["electron", "vite.config.ts"]
+  "include": ["electron", "shared", "vite.config.ts"]
 }
