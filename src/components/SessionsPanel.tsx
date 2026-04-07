@@ -119,34 +119,6 @@ function TerminalCard({
   );
 }
 
-function Section({
-  title,
-  items,
-  t,
-}: {
-  title: string;
-  items: CanvasTerminalItem[];
-  t: ReturnType<typeof useT>;
-}) {
-  if (items.length === 0) return null;
-
-  return (
-    <div className="shrink-0 px-3 pt-2 pb-2">
-      <div
-        className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1.5"
-        style={{ fontFamily: '"Geist Mono", monospace' }}
-      >
-        {title}
-      </div>
-      <div className="flex flex-col gap-1">
-        {items.map((item) => (
-          <TerminalCard key={item.terminalId} item={item} t={t} compact />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function traceToneClass(item: InspectorTraceItem): string {
   switch (item.tone) {
     case "success":

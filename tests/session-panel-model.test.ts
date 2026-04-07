@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildCanvasTerminalDisplayGroups,
   buildCanvasTerminalSections,
   buildProjectTree,
 } from "../src/components/sessionPanelModel.ts";
@@ -217,63 +216,6 @@ test("buildCanvasTerminalSections falls back to the initial prompt when terminal
   );
   assert.equal(runningItem?.title, "Run smoke tests on the renderer");
   assert.equal(runningItem?.locationLabel, "termcanvas / main");
-});
-
-test("buildCanvasTerminalDisplayGroups keeps only unread completions in fresh results", () => {
-  const telemetryByTerminalId = new Map<
-    string,
-    TerminalTelemetrySnapshot | null
-  >();
-  const sessionsById = new Map<string, SessionInfo>([
-    [
-      "session-focused",
-      createSession(
-        "session-focused",
-        "turn_complete",
-        "2026-04-05T12:06:00.000Z",
-      ),
-    ],
-    [
-      "session-running",
-      createSession(
-        "session-running",
-        "tool_running",
-        "2026-04-05T12:05:00.000Z",
-      ),
-    ],
-  ]);
-
-  const sections = buildCanvasTerminalSections(
-    createProjects(),
-    telemetryByTerminalId,
-    sessionsById,
-  );
-  const groups = buildCanvasTerminalDisplayGroups(
-    {
-      ...sections,
-      done: [
-        {
-          terminalId: "terminal-running",
-          projectId: "project-1",
-          projectName: "termcanvas",
-          worktreeId: "worktree-1",
-          worktreeName: "main",
-          title: "Run smoke tests on the renderer",
-          locationLabel: "termcanvas / main",
-          focused: false,
-          state: "done",
-          activityAt: "2026-04-05T12:05:00.000Z",
-        },
-      ],
-    },
-    new Set(["terminal-running"]),
-  );
-
-  assert.equal(groups.freshDone.length, 0);
-  assert.deepEqual(
-    groups.background.map((item) => item.terminalId),
-    ["terminal-running", "terminal-idle"],
-  );
 });
 
 test("buildProjectTree sorts projects by highest-priority status and handles multiple worktrees", () => {

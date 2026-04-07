@@ -34,11 +34,6 @@ export interface CanvasTerminalSections {
   idle: CanvasTerminalItem[];
 }
 
-export interface CanvasTerminalDisplayGroups {
-  freshDone: CanvasTerminalItem[];
-  background: CanvasTerminalItem[];
-}
-
 export interface StatusSummary {
   attention: number;
   running: number;
@@ -548,25 +543,5 @@ export function buildCanvasTerminalSections(
     progress,
     done,
     idle,
-  };
-}
-
-export function buildCanvasTerminalDisplayGroups(
-  sections: CanvasTerminalSections,
-  seenDoneTerminalIds: Set<string>,
-): CanvasTerminalDisplayGroups {
-  const freshDone = sections.done.filter(
-    (item) => !seenDoneTerminalIds.has(item.terminalId),
-  );
-  const quietDone = sections.done.filter((item) =>
-    seenDoneTerminalIds.has(item.terminalId),
-  );
-  const background = [...quietDone, ...sections.idle].sort(
-    compareItemsByActivity,
-  );
-
-  return {
-    freshDone,
-    background,
   };
 }
