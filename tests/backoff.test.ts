@@ -73,3 +73,43 @@ test("withRetry throws after max attempts exhausted", async () => {
     assert.equal(attempts, 3);
   }
 });
+
+test("withRetry skips retry when retryIf returns false", async () => {
+  let attempts = 0;
+  try {
+    await withRetry(
+      () => {
+        attempts++;
+        throw new Error("non-retryable");
+      },
+      {
+        maxAttempts: 5,
+        backoff: { baseMs: 10, jitterFraction: 0 },
+        retryIf: (err) => (err as Error).message !== "non-retryable",
+      },
+    );
+    assert.fail("should have thrown");
+  } catch (err: any) {
+    assert.equal(err.message, "non-retryable");
+    // Should only attempt once since retryIf returned false
+    assert.equal(attempts, 1);
+  }
+});
+
+test("withRetry retries only when retryIf returns true", async () => {
+  let attempts = 0;
+  const result = await withRetry(
+    () => {
+      attempts++;
+      if (attempts === 1) throw new Error("retryable");
+      return Promise.resolve("ok");
+    },
+    {
+      maxAttempts: 5,
+      backoff: { baseMs: 10, jitterFraction: 0 },
+      retryIf: (err) => (err as Error).message === "retryable",
+    },
+  );
+  assert.equal(result, "ok");
+  assert.equal(attempts, 2);
+});

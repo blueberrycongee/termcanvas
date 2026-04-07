@@ -2,7 +2,7 @@ import * as pty from "node-pty";
 import fs from "fs";
 import { buildLaunchSpec, type PtyLaunchOptions } from "./pty-launch.ts";
 import { killProcessEscalated } from "../shared/processKill.ts";
-import { computeBackoff } from "../shared/backoff.ts";
+import { withRetry } from "../shared/backoff.ts";
 
 export type PtyCreateOptions = PtyLaunchOptions;
 type PtySpawnFn = typeof pty.spawn;
@@ -18,15 +18,10 @@ const RETRYABLE_PTY_SPAWN_ERRORS = [
   /forkpty\(3\) failed/i,
   /device not configured/i,
 ];
-const MAX_PTY_CREATE_ATTEMPTS = 3;
 
 function isRetryablePtySpawnError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return RETRYABLE_PTY_SPAWN_ERRORS.some((pattern) => pattern.test(message));
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export class PtyManager {
@@ -51,41 +46,32 @@ export class PtyManager {
 
     const launch = await this.deps.buildLaunchSpec(options);
 
-    let ptyProcess: pty.IPty | null = null;
-    let lastError: unknown = null;
-    for (let attempt = 1; attempt <= MAX_PTY_CREATE_ATTEMPTS; attempt += 1) {
-      try {
-        ptyProcess = this.deps.spawn(launch.file, launch.args, {
-          name: "xterm-256color",
-          cols: 80,
-          rows: 24,
-          cwd: launch.cwd,
-          env: launch.env,
-        });
-        break;
-      } catch (error) {
-        lastError = error;
-        if (
-          attempt >= MAX_PTY_CREATE_ATTEMPTS ||
-          !isRetryablePtySpawnError(error)
-        ) {
+    const ptyProcess = await withRetry(
+      () => {
+        try {
+          return this.deps.spawn(launch.file, launch.args, {
+            name: "xterm-256color",
+            cols: 80,
+            rows: 24,
+            cwd: launch.cwd,
+            env: launch.env,
+          });
+        } catch (error) {
           throw new Error(
             `Failed to spawn "${launch.file}" in "${launch.cwd}": ${String(error)}`,
           );
         }
-
-        console.warn(
-          `[PtyManager] transient PTY spawn failure on attempt ${attempt}/${MAX_PTY_CREATE_ATTEMPTS}: ${String(error)}`,
-        );
-        await sleep(computeBackoff(attempt, { baseMs: 50, maxMs: 500, multiplier: 2, jitterFraction: 0.2 }));
-      }
-    }
-
-    if (!ptyProcess) {
-      throw new Error(
-        `Failed to spawn "${launch.file}" in "${launch.cwd}": ${String(lastError)}`,
-      );
-    }
+      },
+      {
+        maxAttempts: MAX_PTY_CREATE_ATTEMPTS,
+        retryIf: (error) => {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          return RETRYABLE_PTY_SPAWN_ERRORS.some((p) => p.test(message));
+        },
+        backoff: { baseMs: 50, maxMs: 500, multiplier: 2, jitterFraction: 0.2 },
+      },
+    );
 
     const id = this.nextId++;
     this.instances.set(id, ptyProcess);

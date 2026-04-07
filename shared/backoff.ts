@@ -22,6 +22,8 @@ export interface RetryOptions {
   maxAttempts?: number;
   /** Backoff configuration. Uses defaults if omitted. */
   backoff?: BackoffOptions;
+  /** Return true for errors that should trigger a retry. Default: always retry. */
+  retryIf?: (error: unknown) => boolean;
 }
 
 /**
@@ -53,7 +55,7 @@ export async function withRetry<T>(
   fn: () => Promise<T>,
   options: RetryOptions = {},
 ): Promise<T> {
-  const { maxAttempts = 3, backoff } = options;
+  const { maxAttempts = 3, backoff, retryIf } = options;
 
   let lastError: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -61,7 +63,7 @@ export async function withRetry<T>(
       return await fn();
     } catch (error) {
       lastError = error;
-      if (attempt >= maxAttempts) break;
+      if (attempt >= maxAttempts || (retryIf && !retryIf(error))) break;
 
       const delay = computeBackoff(attempt, backoff);
       await new Promise((r) => setTimeout(r, delay));
