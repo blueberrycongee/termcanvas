@@ -68,7 +68,11 @@ export const en = {
   ctx_delete: "Delete",
   ctx_copy_path: "Copy Path",
   ctx_reveal: (platform: string) =>
-    platform === "win32" ? "Reveal in Explorer" : platform === "linux" ? "Open in File Manager" : "Reveal in Finder",
+    platform === "win32"
+      ? "Reveal in Explorer"
+      : platform === "linux"
+        ? "Open in File Manager"
+        : "Reveal in Finder",
   ctx_confirm_delete: (name: string) => `Delete "${name}"?`,
 
   left_panel_files: "Files",
@@ -124,18 +128,23 @@ export const en = {
   git_stage_failed: (message: string) => `Stage failed: ${message}`,
   git_unstage_failed: (message: string) => `Unstage failed: ${message}`,
   git_discard_failed: (message: string) => `Discard failed: ${message}`,
-  hydra_enable_missing_target: "Focus a project or worktree before enabling Hydra.",
+  hydra_enable_missing_target:
+    "Focus a project or worktree before enabling Hydra.",
   hydra_enable_success: (name: string) => `Hydra enabled for "${name}".`,
   hydra_enable_already_current: (name: string) =>
     `Hydra instructions are already current for "${name}".`,
-  hydra_enable_failed: (message: string) => `Failed to enable Hydra: ${message}`,
+  hydra_enable_failed: (message: string) =>
+    `Failed to enable Hydra: ${message}`,
   hydra_outdated: "Hydra toolchain is outdated",
   hydra_missing: "Hydra toolchain not set up",
   hydra_update: "Update",
   hydra_enable_action: "Enable",
-  hydra_popup_outdated: "The Hydra toolchain instructions in this project are outdated and may not work correctly with the current version.",
-  hydra_popup_missing: "This project doesn't have Hydra toolchain instructions yet. Enable Hydra to unlock multi-agent workflows.",
-  hydra_popup_desc: "This will add or update the Hydra section in CLAUDE.md and AGENTS.md with the latest workflow commands and telemetry instructions.",
+  hydra_popup_outdated:
+    "The Hydra toolchain instructions in this project are outdated and may not work correctly with the current version.",
+  hydra_popup_missing:
+    "This project doesn't have Hydra toolchain instructions yet. Enable Hydra to unlock multi-agent workflows.",
+  hydra_popup_desc:
+    "This will add or update the Hydra section in CLAUDE.md and AGENTS.md with the latest workflow commands and telemetry instructions.",
   hydra_popup_later: "Later",
   hydra_popup_dont_remind: "Don't remind",
 
@@ -187,7 +196,8 @@ export const en = {
   shortcut_save_workspace_as: "Save As",
   save_as: "Save As",
   save_error: (err: string) => `Save failed: ${err}`,
-  project_compact_focus_required: "Focus a project, worktree, or terminal first",
+  project_compact_focus_required:
+    "Focus a project, worktree, or terminal first",
 
   settings_general: "General",
   settings_shortcuts: "Shortcuts",
@@ -206,13 +216,17 @@ export const en = {
   animation_blur: "Focus animation blur",
   minimum_contrast: "Minimum contrast ratio",
   composer_toggle: "Composer input bar",
-  composer_toggle_desc: "Experimental. Routes input through a bottom bar with image paste support",
+  composer_toggle_desc:
+    "Experimental. Routes input through a bottom bar with image paste support",
   drawing_toggle: "Drawing tools",
-  drawing_toggle_desc: "Experimental. Freehand drawing and annotation on the canvas",
+  drawing_toggle_desc:
+    "Experimental. Freehand drawing and annotation on the canvas",
   browser_toggle: "Built-in browser shortcut",
-  browser_toggle_desc: "Experimental. Shows the open-browser button in the top toolbar when enabled",
+  browser_toggle_desc:
+    "Experimental. Shows the open-browser button in the top toolbar when enabled",
   summary_toggle: "Terminal auto-summary",
-  summary_toggle_desc: "Experimental. AI-generated one-line summaries for CLI terminals. May increase token usage.",
+  summary_toggle_desc:
+    "Experimental. AI-generated one-line summaries for CLI terminals. May increase token usage.",
   summary_cli_label: "Summary CLI",
   summary_cli_desc: "Which CLI to use for generating summaries",
   summarize_terminal: "Summarize",
@@ -229,7 +243,8 @@ export const en = {
 
   update_modal_title_ready: "Update Ready",
   update_modal_title: "Update",
-  update_modal_downloading: (percent: number) => `Downloading... ${Math.round(percent)}%`,
+  update_modal_downloading: (percent: number) =>
+    `Downloading... ${Math.round(percent)}%`,
   update_modal_download_failed: "Download failed",
   update_modal_later: "Later",
   update_modal_retry: "Retry",
@@ -237,7 +252,8 @@ export const en = {
 
   update_check: "Check for Updates",
   update_checking_short: "Checking\u2026",
-  update_downloading_short: (percent: number) => `Downloading ${Math.round(percent)}%`,
+  update_downloading_short: (percent: number) =>
+    `Downloading ${Math.round(percent)}%`,
   update_up_to_date: "Up to date",
   update_restart_short: "Restart & Update",
 
@@ -282,8 +298,7 @@ export const en = {
     "Select or focus a terminal to enable composer sending.",
   composer_placeholder:
     "Send text to the focused terminal. Paste screenshots here for agent terminals.",
-  composer_placeholder_text_only:
-    "Send text directly to the focused terminal.",
+  composer_placeholder_text_only: "Send text directly to the focused terminal.",
   composer_no_target_note:
     "Composer only sends to the focused terminal. Select a terminal to enable sending.",
   composer_note:
@@ -334,14 +349,42 @@ export const en = {
   usage_today: "Today",
   usage_calls: "calls",
   usage_tokens_label: "tokens",
-  usage_cal_weekdays: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] as readonly string[],
+  usage_cal_weekdays: [
+    "Su",
+    "Mo",
+    "Tu",
+    "We",
+    "Th",
+    "Fr",
+    "Sa",
+  ] as readonly string[],
   usage_cal_months: [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
   ] as readonly string[],
   usage_cal_months_short: [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
   ] as readonly string[],
   usage_heatmap: "Activity",
   usage_heatmap_less: "Less",
@@ -372,6 +415,7 @@ export const en = {
   sessions_status_done: "Done",
   sessions_status_error: "Error",
   sessions_status_attention: "Needs attention",
+  sessions_status_awaiting_input: "Awaiting input",
   sessions_status_turn_complete: "Turn complete",
   sessions_focused: "Focused",
   sessions_needs_attention: "Needs Attention",
@@ -433,7 +477,6 @@ export const en = {
 
   canvas_empty_title: "No projects yet",
   canvas_empty_action: "Add Project",
-
 } as const;
 
 export type TranslationKey = keyof typeof en;

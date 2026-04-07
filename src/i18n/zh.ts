@@ -67,7 +67,11 @@ export const zh = {
   ctx_delete: "删除",
   ctx_copy_path: "复制路径",
   ctx_reveal: (platform: string) =>
-    platform === "win32" ? "在资源管理器中显示" : platform === "linux" ? "在文件管理器中显示" : "在 Finder 中显示",
+    platform === "win32"
+      ? "在资源管理器中显示"
+      : platform === "linux"
+        ? "在文件管理器中显示"
+        : "在 Finder 中显示",
   ctx_confirm_delete: (name: string) => `确定删除「${name}」？`,
 
   left_panel_files: "文件",
@@ -131,9 +135,12 @@ export const zh = {
   hydra_missing: "Hydra 工具链未启用",
   hydra_update: "更新",
   hydra_enable_action: "启用",
-  hydra_popup_outdated: "当前项目的 Hydra 工具链指令版本过时，可能无法与当前版本正常配合。",
-  hydra_popup_missing: "当前项目尚未配置 Hydra 工具链指令。启用后可使用多 Agent 协作工作流。",
-  hydra_popup_desc: "将在 CLAUDE.md 和 AGENTS.md 中添加或更新 Hydra 的工作流命令和遥测指令。",
+  hydra_popup_outdated:
+    "当前项目的 Hydra 工具链指令版本过时，可能无法与当前版本正常配合。",
+  hydra_popup_missing:
+    "当前项目尚未配置 Hydra 工具链指令。启用后可使用多 Agent 协作工作流。",
+  hydra_popup_desc:
+    "将在 CLAUDE.md 和 AGENTS.md 中添加或更新 Hydra 的工作流命令和遥测指令。",
   hydra_popup_later: "稍后",
   hydra_popup_dont_remind: "不再提醒",
 
@@ -203,13 +210,15 @@ export const zh = {
   animation_blur: "聚焦动画模糊",
   minimum_contrast: "最低对比度",
   composer_toggle: "Composer 输入栏",
-  composer_toggle_desc: "实验性功能。开启后通过底部输入栏发送内容到终端，支持图片粘贴",
+  composer_toggle_desc:
+    "实验性功能。开启后通过底部输入栏发送内容到终端，支持图片粘贴",
   drawing_toggle: "画板工具",
   drawing_toggle_desc: "实验性功能。在画布上进行自由绘图和标注",
   browser_toggle: "内置浏览器入口",
   browser_toggle_desc: "实验性功能。开启后会在顶部工具栏显示打开浏览器按钮",
   summary_toggle: "终端自动摘要",
-  summary_toggle_desc: "实验性功能。为 CLI 终端自动生成一行 AI 摘要，可能增加 token 用量",
+  summary_toggle_desc:
+    "实验性功能。为 CLI 终端自动生成一行 AI 摘要，可能增加 token 用量",
   summary_cli_label: "摘要 CLI",
   summary_cli_desc: "用于生成摘要的 CLI 工具",
   summarize_terminal: "生成摘要",
@@ -226,7 +235,8 @@ export const zh = {
 
   update_modal_title_ready: "更新就绪",
   update_modal_title: "更新",
-  update_modal_downloading: (percent: number) => `下载中... ${Math.round(percent)}%`,
+  update_modal_downloading: (percent: number) =>
+    `下载中... ${Math.round(percent)}%`,
   update_modal_download_failed: "下载失败",
   update_modal_later: "稍后",
   update_modal_retry: "重试",
@@ -234,7 +244,8 @@ export const zh = {
 
   update_check: "检查更新",
   update_checking_short: "检查中…",
-  update_downloading_short: (percent: number) => `下载中 ${Math.round(percent)}%`,
+  update_downloading_short: (percent: number) =>
+    `下载中 ${Math.round(percent)}%`,
   update_up_to_date: "已是最新",
   update_restart_short: "重启并更新",
 
@@ -279,8 +290,7 @@ export const zh = {
     "请先选择或聚焦一个终端，然后再通过 composer 发送。",
   composer_placeholder:
     "发送到当前聚焦终端。对于 agent 终端，也可以直接粘贴截图。",
-  composer_placeholder_text_only:
-    "直接发送文本到当前聚焦终端。",
+  composer_placeholder_text_only: "直接发送文本到当前聚焦终端。",
   composer_no_target_note:
     "Composer 只会发送到当前聚焦终端。请先选择一个终端以启用发送。",
   composer_note:
@@ -331,14 +341,42 @@ export const zh = {
   usage_today: "今天",
   usage_calls: "次调用",
   usage_tokens_label: "tokens",
-  usage_cal_weekdays: ["日", "一", "二", "三", "四", "五", "六"] as readonly string[],
+  usage_cal_weekdays: [
+    "日",
+    "一",
+    "二",
+    "三",
+    "四",
+    "五",
+    "六",
+  ] as readonly string[],
   usage_cal_months: [
-    "一月", "二月", "三月", "四月", "五月", "六月",
-    "七月", "八月", "九月", "十月", "十一月", "十二月",
+    "一月",
+    "二月",
+    "三月",
+    "四月",
+    "五月",
+    "六月",
+    "七月",
+    "八月",
+    "九月",
+    "十月",
+    "十一月",
+    "十二月",
   ] as readonly string[],
   usage_cal_months_short: [
-    "1月", "2月", "3月", "4月", "5月", "6月",
-    "7月", "8月", "9月", "10月", "11月", "12月",
+    "1月",
+    "2月",
+    "3月",
+    "4月",
+    "5月",
+    "6月",
+    "7月",
+    "8月",
+    "9月",
+    "10月",
+    "11月",
+    "12月",
   ] as readonly string[],
   usage_heatmap: "活跃度",
   usage_heatmap_less: "少",
@@ -369,6 +407,7 @@ export const zh = {
   sessions_status_done: "已完成",
   sessions_status_error: "出错",
   sessions_status_attention: "需要处理",
+  sessions_status_awaiting_input: "等待交互",
   sessions_status_turn_complete: "本轮完成",
   sessions_focused: "当前聚焦",
   sessions_needs_attention: "需要处理",
@@ -430,5 +469,4 @@ export const zh = {
 
   canvas_empty_title: "还没有项目",
   canvas_empty_action: "添加项目",
-
 } as const;

@@ -58,8 +58,17 @@ function formatTerminalActivity(
   t: ReturnType<typeof useT>,
 ): string {
   switch (item.state) {
-    case "attention":
+    case "attention": {
+      if (item.attentionReason === "awaiting_input") {
+        const tool = item.currentTool
+          ? summarizeToolName(item.currentTool)
+          : "";
+        return tool
+          ? `${t.sessions_status_awaiting_input} · ${tool}`
+          : t.sessions_status_awaiting_input;
+      }
       return t.sessions_status_attention;
+    }
     case "running": {
       const tool = item.currentTool ? summarizeToolName(item.currentTool) : "";
       return tool
