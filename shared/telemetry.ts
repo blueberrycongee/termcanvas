@@ -15,7 +15,8 @@ export type TelemetryTurnState =
   | "tool_running"
   | "tool_pending"
   | "turn_complete"
-  | "turn_aborted";
+  | "turn_aborted"
+  | "awaiting_input";
 
 export type SessionAttachConfidence = "strong" | "medium" | "weak" | "none";
 
@@ -88,6 +89,7 @@ export interface TerminalTelemetrySnapshot {
   descendant_processes: TelemetryProcessInfo[];
   foreground_tool?: string;
   active_tool_calls: number;
+  pending_tool_use_at?: string;
   last_tool_event_at?: string;
   task_status?: TelemetryTaskStatus;
   task_status_source?: TelemetryTaskStatusSource;
