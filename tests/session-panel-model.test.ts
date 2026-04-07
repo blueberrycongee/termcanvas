@@ -4,7 +4,9 @@ import assert from "node:assert/strict";
 import {
   buildCanvasTerminalDisplayGroups,
   buildCanvasTerminalSections,
+  buildProjectTree,
 } from "../src/components/sessionPanelModel.ts";
+import type { ProjectGroup } from "../src/components/sessionPanelModel.ts";
 import type { SessionInfo } from "../shared/sessions.ts";
 import type { TerminalTelemetrySnapshot } from "../shared/telemetry.ts";
 import type { ProjectData } from "../src/types/index.ts";
@@ -131,7 +133,10 @@ function createTelemetry(
 }
 
 test("buildCanvasTerminalSections prioritizes focused terminal and groups remaining terminals by attention state", () => {
-  const telemetryByTerminalId = new Map<string, TerminalTelemetrySnapshot | null>([
+  const telemetryByTerminalId = new Map<
+    string,
+    TerminalTelemetrySnapshot | null
+  >([
     [
       "terminal-focused",
       createTelemetry("terminal-focused", {
@@ -153,11 +158,19 @@ test("buildCanvasTerminalSections prioritizes focused terminal and groups remain
   const sessionsById = new Map<string, SessionInfo>([
     [
       "session-running",
-      createSession("session-running", "tool_running", "2026-04-05T12:05:00.000Z"),
+      createSession(
+        "session-running",
+        "tool_running",
+        "2026-04-05T12:05:00.000Z",
+      ),
     ],
     [
       "session-focused",
-      createSession("session-focused", "turn_complete", "2026-04-05T12:06:00.000Z"),
+      createSession(
+        "session-focused",
+        "turn_complete",
+        "2026-04-05T12:06:00.000Z",
+      ),
     ],
   ]);
 
@@ -187,7 +200,10 @@ test("buildCanvasTerminalSections prioritizes focused terminal and groups remain
 });
 
 test("buildCanvasTerminalSections falls back to the initial prompt when terminal titles are too generic", () => {
-  const telemetryByTerminalId = new Map<string, TerminalTelemetrySnapshot | null>();
+  const telemetryByTerminalId = new Map<
+    string,
+    TerminalTelemetrySnapshot | null
+  >();
   const sessionsById = new Map<string, SessionInfo>();
 
   const sections = buildCanvasTerminalSections(
@@ -196,21 +212,34 @@ test("buildCanvasTerminalSections falls back to the initial prompt when terminal
     sessionsById,
   );
 
-  const runningItem = sections.progress.find((item) => item.terminalId === "terminal-running");
+  const runningItem = sections.progress.find(
+    (item) => item.terminalId === "terminal-running",
+  );
   assert.equal(runningItem?.title, "Run smoke tests on the renderer");
   assert.equal(runningItem?.locationLabel, "termcanvas / main");
 });
 
 test("buildCanvasTerminalDisplayGroups keeps only unread completions in fresh results", () => {
-  const telemetryByTerminalId = new Map<string, TerminalTelemetrySnapshot | null>();
+  const telemetryByTerminalId = new Map<
+    string,
+    TerminalTelemetrySnapshot | null
+  >();
   const sessionsById = new Map<string, SessionInfo>([
     [
       "session-focused",
-      createSession("session-focused", "turn_complete", "2026-04-05T12:06:00.000Z"),
+      createSession(
+        "session-focused",
+        "turn_complete",
+        "2026-04-05T12:06:00.000Z",
+      ),
     ],
     [
       "session-running",
-      createSession("session-running", "tool_running", "2026-04-05T12:05:00.000Z"),
+      createSession(
+        "session-running",
+        "tool_running",
+        "2026-04-05T12:05:00.000Z",
+      ),
     ],
   ]);
 
@@ -245,4 +274,69 @@ test("buildCanvasTerminalDisplayGroups keeps only unread completions in fresh re
     groups.background.map((item) => item.terminalId),
     ["terminal-running", "terminal-idle"],
   );
+});
+
+test("buildProjectTree groups terminals under project/worktree with status summaries", () => {
+  const telemetryByTerminalId = new Map<
+    string,
+    TerminalTelemetrySnapshot | null
+  >([
+    [
+      "terminal-focused",
+      createTelemetry("terminal-focused", {
+        turn_state: "turn_complete",
+        derived_status: "progressing",
+        last_meaningful_progress_at: "2026-04-05T12:06:00.000Z",
+      }),
+    ],
+    [
+      "terminal-stalled",
+      createTelemetry("terminal-stalled", {
+        provider: "claude",
+        turn_state: "in_turn",
+        derived_status: "stall_candidate",
+        last_meaningful_progress_at: "2026-04-05T12:04:00.000Z",
+      }),
+    ],
+  ]);
+  const sessionsById = new Map<string, SessionInfo>([
+    [
+      "session-running",
+      createSession(
+        "session-running",
+        "tool_running",
+        "2026-04-05T12:05:00.000Z",
+      ),
+    ],
+    [
+      "session-focused",
+      createSession(
+        "session-focused",
+        "turn_complete",
+        "2026-04-05T12:06:00.000Z",
+      ),
+    ],
+  ]);
+
+  const tree = buildProjectTree(
+    createProjects(),
+    telemetryByTerminalId,
+    sessionsById,
+  );
+
+  assert.equal(tree.length, 1);
+  assert.equal(tree[0].projectName, "termcanvas");
+  assert.equal(tree[0].flat, true);
+  assert.equal(tree[0].worktrees.length, 1);
+
+  const wt = tree[0].worktrees[0];
+  assert.equal(wt.terminals.length, 3);
+  assert.equal(wt.terminals[0].terminalId, "terminal-stalled");
+  assert.equal(wt.terminals[0].state, "attention");
+  assert.equal(wt.terminals[1].terminalId, "terminal-running");
+  assert.equal(wt.terminals[2].terminalId, "terminal-idle");
+
+  assert.equal(tree[0].statusSummary.attention, 1);
+  assert.equal(tree[0].statusSummary.running, 1);
+  assert.equal(tree[0].statusSummary.idle, 1);
 });
