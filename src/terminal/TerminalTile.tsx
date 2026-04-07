@@ -767,8 +767,19 @@ export function TerminalTile({
         <HierarchyBadges terminal={terminal} />
         {projectName && (
           <span
-            className="shrink-0 whitespace-nowrap text-[11px] text-[var(--text-muted)]"
-            style={{ fontFamily: '"Geist Mono", monospace' }}
+            className="shrink-0 whitespace-nowrap text-[11px] font-medium text-[var(--text-primary)]"
+            style={{
+              fontFamily: '"Geist Mono", monospace',
+              position: "relative" as const,
+              padding: "0.1em 0.4em 0.15em 0.3em",
+              backgroundImage: [
+                "linear-gradient(104deg, transparent 0.9%, rgba(255,224,0,0.1) 2.4%, rgba(255,224,0,0.4) 5.8%, rgba(255,224,0,0.32) 40%, rgba(255,224,0,0.45) 55%, rgba(255,224,0,0.28) 80%, rgba(255,224,0,0.1) 96%, transparent 98%)",
+                "linear-gradient(183deg, transparent 10%, rgba(255,224,0,0.15) 30%, rgba(255,224,0,0.2) 50%, transparent 85%)",
+              ].join(", "),
+              borderRadius: "7.5px 12.5px 8px 15.5px",
+              transform: "rotate(-1.2deg) skewX(-1deg)",
+              boxDecorationBreak: "clone" as const,
+            }}
             title={projectName}
           >
             {projectName}
