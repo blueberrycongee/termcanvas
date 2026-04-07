@@ -276,6 +276,118 @@ test("buildCanvasTerminalDisplayGroups keeps only unread completions in fresh re
   );
 });
 
+test("buildProjectTree sorts projects by highest-priority status and handles multiple worktrees", () => {
+  const projects: ProjectData[] = [
+    {
+      id: "proj-idle",
+      name: "idle-project",
+      path: "/tmp/idle-project",
+      position: { x: 0, y: 0 },
+      collapsed: false,
+      zIndex: 1,
+      worktrees: [
+        {
+          id: "wt-idle-main",
+          name: "main",
+          path: "/tmp/idle-project",
+          position: { x: 0, y: 0 },
+          collapsed: false,
+          terminals: [
+            {
+              id: "term-idle-shell",
+              title: "shell",
+              type: "shell",
+              minimized: false,
+              focused: false,
+              ptyId: 200,
+              status: "idle",
+              span: { cols: 1, rows: 1 },
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: "proj-active",
+      name: "active-project",
+      path: "/tmp/active-project",
+      position: { x: 0, y: 0 },
+      collapsed: false,
+      zIndex: 2,
+      worktrees: [
+        {
+          id: "wt-active-main",
+          name: "main",
+          path: "/tmp/active-project",
+          position: { x: 0, y: 0 },
+          collapsed: false,
+          terminals: [
+            {
+              id: "term-active-claude",
+              title: "claude",
+              type: "claude",
+              minimized: false,
+              focused: false,
+              ptyId: 201,
+              status: "running",
+              span: { cols: 1, rows: 1 },
+              sessionId: "session-active-claude",
+            },
+          ],
+        },
+        {
+          id: "wt-active-feature",
+          name: "feature/new-ui",
+          path: "/tmp/active-project-feature",
+          position: { x: 0, y: 0 },
+          collapsed: false,
+          terminals: [
+            {
+              id: "term-active-codex",
+              title: "codex",
+              type: "codex",
+              minimized: false,
+              focused: false,
+              ptyId: 202,
+              status: "idle",
+              span: { cols: 1, rows: 1 },
+            },
+          ],
+        },
+      ],
+    },
+  ];
+
+  const telemetryByTerminalId = new Map<
+    string,
+    TerminalTelemetrySnapshot | null
+  >();
+  const sessionsById = new Map<string, SessionInfo>([
+    [
+      "session-active-claude",
+      createSession(
+        "session-active-claude",
+        "tool_running",
+        "2026-04-05T12:10:00.000Z",
+      ),
+    ],
+  ]);
+
+  const tree = buildProjectTree(projects, telemetryByTerminalId, sessionsById);
+
+  // Two projects in the tree
+  assert.equal(tree.length, 2);
+
+  // active-project sorts first (has a running terminal)
+  assert.equal(tree[0].projectName, "active-project");
+  assert.equal(tree[0].flat, false); // two worktrees
+  assert.equal(tree[0].worktrees.length, 2);
+
+  // idle-project sorts second
+  assert.equal(tree[1].projectName, "idle-project");
+  assert.equal(tree[1].flat, true); // one worktree
+});
+
 test("buildProjectTree groups terminals under project/worktree with status summaries", () => {
   const telemetryByTerminalId = new Map<
     string,
