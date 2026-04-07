@@ -172,26 +172,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       return;
     }
 
-    if (activeViewportAdapter) {
-      const nextViewport = {
-        x: targetX,
-        y: targetY,
-        scale: endScale,
-      };
-
-      clearAnimationResetTimer();
-      set({ isAnimating: true });
-      activeViewportAdapter.setViewport(nextViewport, {
-        duration: ANIM_DURATION,
-      });
-      animationResetTimer = setTimeout(() => {
-        set({ isAnimating: false });
-        animationResetTimer = null;
-      }, ANIM_DURATION);
-      markDirty();
-      return;
-    }
-
+    clearAnimationResetTimer();
     const startTime = performance.now();
     const myId = ++animationId;
 
@@ -206,13 +187,14 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       const progress = Math.min(1, elapsed / ANIM_DURATION);
       const t = easeOutCubic(progress);
 
-      set({
-        viewport: {
-          x: startX + (targetX - startX) * t,
-          y: startY + (targetY - startY) * t,
-          scale: startScale + (endScale - startScale) * t,
-        },
-      });
+      const nextViewport = {
+        x: startX + (targetX - startX) * t,
+        y: startY + (targetY - startY) * t,
+        scale: startScale + (endScale - startScale) * t,
+      };
+
+      set({ viewport: nextViewport });
+      activeViewportAdapter?.setViewport(nextViewport);
 
       if (progress < 1) {
         requestAnimationFrame(tick);
@@ -222,5 +204,6 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     };
 
     requestAnimationFrame(tick);
+    markDirty();
   },
 }));
