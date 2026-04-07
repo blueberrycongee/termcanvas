@@ -2,6 +2,18 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.18] - 2026-04-08
+
+### Added
+- Sessions panel now uses a tree layout grouped by Project → Worktree → Terminal, replacing the flat status-based grouping
+- Terminal tile header shows the project name instead of the telemetry badge
+- Awaiting input detection: when an AI agent (Claude Code / Codex) waits for user interaction (tool approval, answering questions, plan review) for more than 5 seconds, the sessions panel shows a red "Awaiting input" status instead of the orange "Running" status (WIP — detection may not trigger in all cases)
+
+### Added (zh-CN)
+- 会话面板改为按 项目 → Worktree → 终端 的树形结构分组，替代原来的扁平状态分组
+- 终端标题栏显示项目名称，移除遥测徽章
+- 等待交互检测：当 AI 代理（Claude Code / Codex）等待用户交互（工具批准、回答问题、计划审批）超过 5 秒时，会话面板显示红色"等待交互"状态，而非橙色"运行中"（WIP — 部分场景下可能未触发）
+
 ## [0.25.17] - 2026-04-07
 
 ### Fixed
