@@ -1,113 +1,353 @@
 import type { SessionInfo } from "../../shared/sessions";
-import { getTerminalDisplayTitle } from "../stores/terminalState";
-import type { ProjectData } from "../types/index.ts";
+import type { TerminalTelemetrySnapshot } from "../../shared/telemetry";
+import { resolveTerminalWithRuntimeState } from "../stores/terminalRuntimeStateStore";
+import type { ProjectData, TerminalData } from "../types/index.ts";
 
-export interface CanvasSessionMeta {
-  title: string;
+export type CanvasTerminalState =
+  | "attention"
+  | "running"
+  | "thinking"
+  | "done"
+  | "idle";
+
+export interface CanvasTerminalItem {
+  terminalId: string;
+  projectId: string;
+  projectName: string;
+  worktreeId: string;
   worktreeName: string;
-  focused: boolean;
-  initialPrompt?: string;
-}
-
-export interface SessionSections {
-  onCanvas: SessionInfo[];
-  recent: SessionInfo[];
-  history: SessionInfo[];
-}
-
-function isVisibleTerminal(projectCollapsed: boolean, worktreeCollapsed: boolean, terminal: {
-  minimized: boolean;
-  stashed?: boolean;
   sessionId?: string;
-}): boolean {
-  return !projectCollapsed && !worktreeCollapsed && !terminal.minimized && !terminal.stashed && !!terminal.sessionId;
+  sessionFilePath?: string;
+  title: string;
+  locationLabel: string;
+  focused: boolean;
+  state: CanvasTerminalState;
+  activityAt?: string;
+  currentTool?: string;
 }
 
-function statusRank(status: SessionInfo["status"]): number {
-  switch (status) {
-    case "tool_running":
-      return 0;
-    case "generating":
-      return 1;
+export interface CanvasTerminalSections {
+  focused: CanvasTerminalItem | null;
+  attention: CanvasTerminalItem[];
+  progress: CanvasTerminalItem[];
+  done: CanvasTerminalItem[];
+  idle: CanvasTerminalItem[];
+}
+
+export interface CanvasTerminalDisplayGroups {
+  freshDone: CanvasTerminalItem[];
+  background: CanvasTerminalItem[];
+}
+
+const GENERIC_TERMINAL_TITLES =
+  /^(terminal|shell|claude|codex|kimi|gemini|opencode|lazygit|tmux)$/i;
+
+function isCanvasTerminal(
+  projectCollapsed: boolean,
+  worktreeCollapsed: boolean,
+  terminal: Pick<TerminalData, "minimized" | "stashed">,
+): boolean {
+  return !projectCollapsed && !worktreeCollapsed && !terminal.minimized && !terminal.stashed;
+}
+
+function collapseWhitespace(value: string, maxLength: number): string {
+  const normalized = value.trim().replace(/\s+/g, " ");
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+function resolveTerminalTitle(
+  terminal: Pick<TerminalData, "customTitle" | "title" | "initialPrompt">,
+  worktreeName: string,
+  projectName: string,
+): string {
+  const displayTitle = collapseWhitespace(
+    terminal.customTitle ? `${terminal.customTitle} · ${terminal.title}` : terminal.title,
+    64,
+  );
+  const initialPrompt = terminal.initialPrompt
+    ? collapseWhitespace(terminal.initialPrompt, 72)
+    : "";
+
+  if (displayTitle && !GENERIC_TERMINAL_TITLES.test(displayTitle)) {
+    return displayTitle;
+  }
+
+  if (initialPrompt) return initialPrompt;
+  if (displayTitle) return displayTitle;
+  if (worktreeName) return worktreeName;
+  return projectName;
+}
+
+function compareItemsByActivity(a: CanvasTerminalItem, b: CanvasTerminalItem): number {
+  const aActivity = a.activityAt ?? "";
+  const bActivity = b.activityAt ?? "";
+  if (aActivity !== bActivity) {
+    return bActivity.localeCompare(aActivity);
+  }
+  return a.title.localeCompare(b.title);
+}
+
+function deriveStateFromTelemetry(
+  telemetry: TerminalTelemetrySnapshot,
+): Pick<CanvasTerminalItem, "state" | "activityAt" | "currentTool" | "sessionFilePath"> {
+  const activityAt =
+    telemetry.last_meaningful_progress_at ??
+    telemetry.last_session_event_at ??
+    telemetry.last_output_at ??
+    telemetry.last_input_at;
+
+  if (
+    telemetry.derived_status === "error" ||
+    (!telemetry.pty_alive &&
+      telemetry.exit_code !== undefined &&
+      telemetry.exit_code !== 0)
+  ) {
+    return {
+      state: "attention",
+      activityAt,
+      currentTool: telemetry.foreground_tool,
+      sessionFilePath: telemetry.session_file,
+    };
+  }
+
+  if (telemetry.derived_status === "stall_candidate") {
+    return {
+      state: "attention",
+      activityAt,
+      currentTool: telemetry.foreground_tool,
+      sessionFilePath: telemetry.session_file,
+    };
+  }
+
+  if (
+    telemetry.turn_state === "tool_running" ||
+    telemetry.turn_state === "tool_pending"
+  ) {
+    return {
+      state: "running",
+      activityAt,
+      currentTool: telemetry.foreground_tool,
+      sessionFilePath: telemetry.session_file,
+    };
+  }
+
+  if (telemetry.turn_state === "thinking" || telemetry.turn_state === "in_turn") {
+    return {
+      state: telemetry.foreground_tool ? "running" : "thinking",
+      activityAt,
+      currentTool: telemetry.foreground_tool,
+      sessionFilePath: telemetry.session_file,
+    };
+  }
+
+  if (telemetry.turn_state === "turn_complete") {
+    return {
+      state: "done",
+      activityAt,
+      currentTool: telemetry.foreground_tool,
+      sessionFilePath: telemetry.session_file,
+    };
+  }
+
+  if (
+    telemetry.derived_status === "progressing" ||
+    telemetry.derived_status === "awaiting_contract" ||
+    (telemetry.pty_alive && !telemetry.session_attached)
+  ) {
+    return {
+      state: telemetry.foreground_tool ? "running" : "thinking",
+      activityAt,
+      currentTool: telemetry.foreground_tool,
+      sessionFilePath: telemetry.session_file,
+    };
+  }
+
+  return {
+    state: "idle",
+    activityAt,
+    currentTool: telemetry.foreground_tool,
+    sessionFilePath: telemetry.session_file,
+  };
+}
+
+function deriveStateFromSession(
+  session: SessionInfo,
+): Pick<CanvasTerminalItem, "state" | "activityAt" | "currentTool" | "sessionFilePath"> {
+  switch (session.status) {
     case "error":
-      return 2;
-    case "idle":
-      return 3;
+      return {
+        state: "attention",
+        activityAt: session.lastActivityAt,
+        currentTool: session.currentTool,
+        sessionFilePath: session.filePath,
+      };
+    case "tool_running":
+      return {
+        state: "running",
+        activityAt: session.lastActivityAt,
+        currentTool: session.currentTool,
+        sessionFilePath: session.filePath,
+      };
+    case "generating":
+      return {
+        state: "thinking",
+        activityAt: session.lastActivityAt,
+        currentTool: session.currentTool,
+        sessionFilePath: session.filePath,
+      };
     case "turn_complete":
-      return 4;
+      return {
+        state: "done",
+        activityAt: session.lastActivityAt,
+        currentTool: session.currentTool,
+        sessionFilePath: session.filePath,
+      };
     default:
-      return 5;
+      return {
+        state: "idle",
+        activityAt: session.lastActivityAt,
+        currentTool: session.currentTool,
+        sessionFilePath: session.filePath,
+      };
   }
 }
 
-function compareByActivity(a: SessionInfo, b: SessionInfo): number {
-  return b.lastActivityAt.localeCompare(a.lastActivityAt);
+function deriveStateFromTerminal(
+  terminal: Pick<TerminalData, "status">,
+): Pick<CanvasTerminalItem, "state" | "activityAt" | "currentTool" | "sessionFilePath"> {
+  switch (terminal.status) {
+    case "error":
+      return { state: "attention" };
+    case "running":
+    case "active":
+    case "waiting":
+      return { state: "running" };
+    case "completed":
+    case "success":
+      return { state: "done" };
+    default:
+      return { state: "idle" };
+  }
 }
 
-function compareSessions(
-  a: SessionInfo,
-  b: SessionInfo,
-  canvasSessionMeta: Map<string, CanvasSessionMeta>,
-): number {
-  const aMeta = canvasSessionMeta.get(a.sessionId);
-  const bMeta = canvasSessionMeta.get(b.sessionId);
-
-  if (!!aMeta?.focused !== !!bMeta?.focused) {
-    return aMeta?.focused ? -1 : 1;
+function deriveTerminalState(
+  terminal: Pick<TerminalData, "status" | "sessionId">,
+  telemetry: TerminalTelemetrySnapshot | null | undefined,
+  session: SessionInfo | undefined,
+): Pick<CanvasTerminalItem, "state" | "activityAt" | "currentTool" | "sessionFilePath"> {
+  if (telemetry) {
+    return deriveStateFromTelemetry(telemetry);
   }
 
-  const statusDelta = statusRank(a.status) - statusRank(b.status);
-  if (statusDelta !== 0) return statusDelta;
+  if (session) {
+    return deriveStateFromSession(session);
+  }
 
-  return compareByActivity(a, b);
+  return deriveStateFromTerminal(terminal);
 }
 
-export function collectCanvasSessionMeta(
+export function buildCanvasTerminalSections(
   projects: ProjectData[],
-): Map<string, CanvasSessionMeta> {
-  const canvasSessionMeta = new Map<string, CanvasSessionMeta>();
+  telemetryByTerminalId: Map<string, TerminalTelemetrySnapshot | null | undefined>,
+  sessionsById: Map<string, SessionInfo>,
+): CanvasTerminalSections {
+  let focused: CanvasTerminalItem | null = null;
+  const attention: CanvasTerminalItem[] = [];
+  const progress: CanvasTerminalItem[] = [];
+  const done: CanvasTerminalItem[] = [];
+  const idle: CanvasTerminalItem[] = [];
 
   for (const project of projects) {
     for (const worktree of project.worktrees) {
       for (const terminal of worktree.terminals) {
-        if (!isVisibleTerminal(project.collapsed, worktree.collapsed, terminal)) {
+        const resolvedTerminal = resolveTerminalWithRuntimeState(terminal);
+
+        if (!isCanvasTerminal(project.collapsed, worktree.collapsed, resolvedTerminal)) {
           continue;
         }
 
-        const sessionId = terminal.sessionId!;
-        const existing = canvasSessionMeta.get(sessionId);
-        if (existing && !terminal.focused) {
-          continue;
-        }
+        const telemetry = telemetryByTerminalId.get(resolvedTerminal.id);
+        const session = resolvedTerminal.sessionId
+          ? sessionsById.get(resolvedTerminal.sessionId)
+          : undefined;
+        const derived = deriveTerminalState(resolvedTerminal, telemetry, session);
+        const title = resolveTerminalTitle(
+          resolvedTerminal,
+          worktree.name,
+          project.name,
+        );
+        const locationLabel =
+          worktree.name === project.name ? worktree.name : `${project.name} / ${worktree.name}`;
 
-        canvasSessionMeta.set(sessionId, {
-          title: getTerminalDisplayTitle(terminal),
+        const item: CanvasTerminalItem = {
+          terminalId: resolvedTerminal.id,
+          projectId: project.id,
+          projectName: project.name,
+          worktreeId: worktree.id,
           worktreeName: worktree.name,
-          focused: terminal.focused,
-          initialPrompt: terminal.initialPrompt,
-        });
+          sessionId: resolvedTerminal.sessionId,
+          sessionFilePath: derived.sessionFilePath,
+          title,
+          locationLabel,
+          focused: resolvedTerminal.focused,
+          state: derived.state,
+          activityAt: derived.activityAt,
+          currentTool: derived.currentTool,
+        };
+
+        if (resolvedTerminal.focused) {
+          focused = item;
+          continue;
+        }
+
+        switch (item.state) {
+          case "attention":
+            attention.push(item);
+            break;
+          case "running":
+          case "thinking":
+            progress.push(item);
+            break;
+          case "done":
+            done.push(item);
+            break;
+          default:
+            idle.push(item);
+            break;
+        }
       }
     }
   }
 
-  return canvasSessionMeta;
+  attention.sort(compareItemsByActivity);
+  progress.sort(compareItemsByActivity);
+  done.sort(compareItemsByActivity);
+  idle.sort(compareItemsByActivity);
+
+  return {
+    focused,
+    attention,
+    progress,
+    done,
+    idle,
+  };
 }
 
-export function buildSessionSections(
-  liveSessions: SessionInfo[],
-  historySessions: SessionInfo[],
-  canvasSessionMeta: Map<string, CanvasSessionMeta>,
-): SessionSections {
-  const onCanvasIds = new Set(canvasSessionMeta.keys());
-  const onCanvas = [...liveSessions, ...historySessions]
-    .filter((session) => onCanvasIds.has(session.sessionId))
-    .sort((a, b) => compareSessions(a, b, canvasSessionMeta));
-  const recent = liveSessions
-    .filter((session) => !onCanvasIds.has(session.sessionId))
-    .sort((a, b) => compareSessions(a, b, canvasSessionMeta));
-  const history = historySessions
-    .filter((session) => !onCanvasIds.has(session.sessionId))
-    .sort(compareByActivity);
+export function buildCanvasTerminalDisplayGroups(
+  sections: CanvasTerminalSections,
+  seenDoneTerminalIds: Set<string>,
+): CanvasTerminalDisplayGroups {
+  const freshDone = sections.done.filter(
+    (item) => !seenDoneTerminalIds.has(item.terminalId),
+  );
+  const quietDone = sections.done.filter((item) =>
+    seenDoneTerminalIds.has(item.terminalId)
+  );
+  const background = [...quietDone, ...sections.idle].sort(compareItemsByActivity);
 
-  return { onCanvas, recent, history };
+  return {
+    freshDone,
+    background,
+  };
 }

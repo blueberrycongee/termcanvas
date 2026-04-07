@@ -1,27 +1,33 @@
+import { useEffect, useMemo, useState } from "react";
 import { useSessionStore } from "../stores/sessionStore";
 import { SessionReplayView } from "./SessionReplayView";
 import { useT } from "../i18n/useT";
-import type { SessionInfo } from "../../shared/sessions";
 import { useProjectStore } from "../stores/projectStore";
+import { useTerminalRuntimeStore } from "../terminal/terminalRuntimeStore";
+import { panToTerminal } from "../utils/panToTerminal";
 import {
-  buildSessionSections,
-  collectCanvasSessionMeta,
-  type CanvasSessionMeta,
+  buildCanvasTerminalDisplayGroups,
+  buildCanvasTerminalSections,
+  type CanvasTerminalItem,
+  type CanvasTerminalState,
 } from "./sessionPanelModel";
+import {
+  buildInspectorTrace,
+  pickInspectedTerminal,
+  type InspectorTraceItem,
+} from "./sessionInspectorModel";
+import { useCompletionSeenStore } from "../stores/completionSeenStore";
 
-const STATUS_COLORS: Record<SessionInfo["status"], string> = {
-  generating: "#22c55e",
-  tool_running: "#f59e0b",
-  turn_complete: "#6b7280",
-  idle: "#6b7280",
-  error: "#ef4444",
+const STATUS_COLORS: Record<CanvasTerminalState, string> = {
+  attention: "#ef4444",
+  running: "#f59e0b",
+  thinking: "#22c55e",
+  done: "#6b7280",
+  idle: "#94a3b8",
 };
 
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-function formatShortAge(iso: string): string {
+function formatShortAge(iso: string | undefined): string {
+  if (!iso) return "";
   const ms = Date.now() - new Date(iso).getTime();
   const mins = Math.max(0, Math.floor(ms / 60000));
   if (mins < 60) return `${mins}m`;
@@ -29,22 +35,6 @@ function formatShortAge(iso: string): string {
   if (hours < 24) return `${hours}h`;
   const days = Math.floor(hours / 24);
   return `${days}d`;
-}
-
-function projectName(dir: string): string {
-  const normalized = dir.replace(/\\/g, "/");
-  if (normalized.includes("/")) {
-    const parts = normalized.split("/").filter(Boolean);
-    return parts[parts.length - 1] || dir;
-  }
-  const parts = dir.replace(/^-/, "").split("-");
-  return parts[parts.length - 1] || dir;
-}
-
-function collapseWhitespace(value: string, maxLength: number): string {
-  const normalized = value.trim().replace(/\s+/g, " ");
-  if (normalized.length <= maxLength) return normalized;
-  return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
 function summarizeToolName(value: string): string {
@@ -62,91 +52,232 @@ function summarizeToolName(value: string): string {
   return primary;
 }
 
-function resolveSessionTitle(session: SessionInfo, meta?: CanvasSessionMeta): string {
-  const prompt = meta?.initialPrompt ? collapseWhitespace(meta.initialPrompt, 72) : "";
-  if (prompt) return prompt;
-
-  const terminalTitle = meta?.title ? collapseWhitespace(meta.title, 56) : "";
-  if (terminalTitle && !/^(terminal|shell|claude|codex|kimi|gemini|opencode|lazygit|tmux)$/i.test(terminalTitle)) {
-    return terminalTitle;
-  }
-
-  if (meta?.worktreeName) return meta.worktreeName;
-  return projectName(session.projectDir);
-}
-
-function formatSessionActivity(session: SessionInfo, t: ReturnType<typeof useT>): string {
-  switch (session.status) {
-    case "tool_running": {
-      const tool = session.currentTool ? summarizeToolName(session.currentTool) : "";
-      return tool ? `${t.sessions_status_running} · ${tool}` : t.sessions_status_running;
+function formatTerminalActivity(
+  item: CanvasTerminalItem,
+  t: ReturnType<typeof useT>,
+): string {
+  switch (item.state) {
+    case "attention":
+      return t.sessions_status_attention;
+    case "running": {
+      const tool = item.currentTool ? summarizeToolName(item.currentTool) : "";
+      return tool
+        ? `${t.sessions_status_running} · ${tool}`
+        : t.sessions_status_running;
     }
-    case "generating":
+    case "thinking":
       return t.sessions_status_generating;
-    case "error":
-      return t.sessions_status_error;
-    case "turn_complete":
-      return t.sessions_status_done;
+    case "done":
+      return t.sessions_status_turn_complete;
     default:
       return t.sessions_status_idle;
   }
 }
 
-function SessionCard({
-  session,
-  meta,
+function TerminalCard({
+  item,
   t,
+  compact = false,
 }: {
-  session: SessionInfo;
-  meta?: CanvasSessionMeta;
+  item: CanvasTerminalItem;
   t: ReturnType<typeof useT>;
+  compact?: boolean;
 }) {
-  const title = resolveSessionTitle(session, meta);
   const subtitleParts = [
-    meta?.worktreeName && meta.worktreeName !== title ? meta.worktreeName : null,
-    formatSessionActivity(session, t),
-    formatShortAge(session.lastActivityAt),
+    item.locationLabel && item.locationLabel !== item.title ? item.locationLabel : null,
+    formatTerminalActivity(item, t),
+    formatShortAge(item.activityAt),
   ].filter(Boolean);
 
   return (
-    <div
-      className={`px-2 py-1.5 rounded-md flex items-center gap-2 ${
-        meta?.focused ? "bg-[var(--surface-hover)] ring-1 ring-[var(--accent)]/30" : "bg-[var(--surface)]"
+    <button
+      className={`w-full rounded-md flex items-center gap-2 text-left cursor-pointer transition-colors ${
+        compact ? "px-2 py-1.5" : "px-2 py-2"
+      } ${
+        item.focused
+          ? "bg-[var(--surface-hover)] ring-1 ring-[var(--accent)]/35"
+          : "bg-[var(--surface)] hover:bg-[var(--sidebar-hover)]"
       }`}
+      onClick={() => panToTerminal(item.terminalId)}
     >
       <div
         className="w-2 h-2 rounded-full shrink-0"
-        style={{ backgroundColor: STATUS_COLORS[session.status] }}
+        style={{ backgroundColor: STATUS_COLORS[item.state] }}
       />
       <div className="flex-1 min-w-0">
-        <div className="text-[11px] font-medium truncate">{title}</div>
+        <div className="text-[11px] font-medium truncate">{item.title}</div>
         <div className="text-[10px] text-[var(--text-muted)] truncate">
           {subtitleParts.join(" · ")}
         </div>
+      </div>
+    </button>
+  );
+}
+
+function Section({
+  title,
+  items,
+  t,
+}: {
+  title: string;
+  items: CanvasTerminalItem[];
+  t: ReturnType<typeof useT>;
+}) {
+  if (items.length === 0) return null;
+
+  return (
+    <div className="shrink-0 px-3 pt-2 pb-2">
+      <div
+        className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1.5"
+        style={{ fontFamily: '"Geist Mono", monospace' }}
+      >
+        {title}
+      </div>
+      <div className="flex flex-col gap-1">
+        {items.map((item) => (
+          <TerminalCard key={item.terminalId} item={item} t={t} compact />
+        ))}
       </div>
     </div>
   );
 }
 
-function HistoryRow({ session, onClick, msgsLabel }: { session: SessionInfo; onClick: () => void; msgsLabel: string }) {
+function traceToneClass(item: InspectorTraceItem): string {
+  switch (item.tone) {
+    case "success":
+      return "text-[#22c55e]";
+    case "warning":
+      return "text-[#f59e0b]";
+    case "danger":
+      return "text-[#ef4444]";
+    default:
+      return "text-[var(--text-muted)]";
+  }
+}
+
+function formatTraceLabel(
+  item: InspectorTraceItem,
+  t: ReturnType<typeof useT>,
+): string {
+  switch (item.kind) {
+    case "session_attached":
+      return t.sessions_trace_session_attached;
+    case "session_attach_failed":
+      return t.sessions_trace_session_attach_failed;
+    case "running_tool":
+      return t.sessions_trace_running_tool;
+    case "using_tool":
+      return t.sessions_trace_using_tool(item.toolName ?? "");
+    case "thinking":
+      return t.sessions_trace_thinking;
+    case "responding":
+      return t.sessions_trace_responding;
+    case "turn_complete":
+      return t.sessions_trace_turn_complete;
+    case "turn_aborted":
+      return t.sessions_trace_turn_aborted;
+    default:
+      return t.sessions_trace_process_exited(item.exitCode);
+  }
+}
+
+function Inspector({
+  item,
+  traceItems,
+  traceLoading,
+  onOpenHistory,
+  t,
+}: {
+  item: CanvasTerminalItem | null;
+  traceItems: InspectorTraceItem[];
+  traceLoading: boolean;
+  onOpenHistory: (filePath: string) => void;
+  t: ReturnType<typeof useT>;
+}) {
+  if (!item) return null;
+
+  const summaryParts = [
+    item.locationLabel,
+    formatTerminalActivity(item, t),
+    formatShortAge(item.activityAt),
+  ].filter(Boolean);
+  const historyPath = item.sessionFilePath;
+
   return (
-    <button
-      className="w-full px-2 py-1.5 flex items-center gap-2 hover:bg-[var(--sidebar-hover)] rounded cursor-pointer text-left"
-      onClick={onClick}
-    >
-      <div className="flex-1 min-w-0">
-        <div className="text-[11px] truncate">{projectName(session.projectDir)}</div>
-        <div className="text-[10px] text-[var(--text-muted)]">
-          {formatTime(session.lastActivityAt)}
-          {" · "}
-          {session.messageCount} {msgsLabel}
-          {session.tokenTotal > 0 && ` · ${Math.round(session.tokenTotal / 1000)}k tok`}
+    <div className="shrink-0 border-t border-[var(--border)] bg-[var(--sidebar)]">
+      <div className="px-3 py-2 border-b border-[var(--border)]">
+        <div
+          className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          {t.sessions_inspector}
+        </div>
+        <div className="mt-1 text-[11px] font-medium truncate">{item.title}</div>
+        <div className="mt-0.5 text-[10px] text-[var(--text-muted)] truncate">
+          {summaryParts.join(" · ")}
+        </div>
+        <div className="mt-2 flex items-center gap-1.5">
+          <button
+            className="px-2 py-1 text-[9px] rounded border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] cursor-pointer"
+            onClick={() => panToTerminal(item.terminalId)}
+          >
+            {t.sessions_jump_to_terminal}
+          </button>
+          {historyPath && (
+            <button
+              className="px-2 py-1 text-[9px] rounded border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] cursor-pointer"
+              onClick={() => onOpenHistory(historyPath)}
+            >
+              {t.sessions_open_history}
+            </button>
+          )}
         </div>
       </div>
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0 text-[var(--text-faint)]">
-        <path d="M3 1l4 4-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-      </svg>
-    </button>
+
+      <div className="px-3 py-2 max-h-[220px] overflow-y-auto">
+        <div
+          className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1.5"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          {t.sessions_recent_trace}
+        </div>
+        {traceLoading ? (
+          <div className="text-[10px] text-[var(--text-faint)]">
+            {t.sessions_trace_loading}
+          </div>
+        ) : traceItems.length === 0 ? (
+          <div className="text-[10px] text-[var(--text-faint)]">
+            {t.sessions_trace_empty}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {traceItems.map((traceItem) => (
+              <div
+                key={traceItem.id}
+                className="flex items-start gap-2 rounded bg-[var(--surface)] px-2 py-1.5"
+              >
+                <div
+                  className={`w-1.5 h-1.5 rounded-full shrink-0 mt-1 ${traceToneClass(
+                    traceItem,
+                  )}`}
+                  style={{
+                    backgroundColor: "currentColor",
+                  }}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] truncate">
+                    {formatTraceLabel(traceItem, t)}
+                  </div>
+                  <div className="text-[9px] text-[var(--text-faint)] tabular-nums">
+                    {formatShortAge(traceItem.at)}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -156,78 +287,132 @@ export function SessionsPanel() {
   const historySessions = useSessionStore((s) => s.historySessions);
   const loadReplay = useSessionStore((s) => s.loadReplay);
   const projects = useProjectStore((s) => s.projects);
+  const runtimeTerminals = useTerminalRuntimeStore((s) => s.terminals);
+  const seenDoneTerminalIds = useCompletionSeenStore((s) => s.seenTerminalIds);
+  const markCompletionSeen = useCompletionSeenStore((s) => s.markSeen);
+  const syncActiveDoneIds = useCompletionSeenStore((s) => s.syncActiveDoneIds);
   const t = useT();
-  const canvasSessionMeta = collectCanvasSessionMeta(projects);
-  const sections = buildSessionSections(liveSessions, historySessions, canvasSessionMeta);
-  const hasAnySessions =
-    sections.onCanvas.length > 0 ||
-    sections.recent.length > 0 ||
-    sections.history.length > 0;
+  const [traceItems, setTraceItems] = useState<InspectorTraceItem[]>([]);
+  const [traceLoading, setTraceLoading] = useState(false);
+
+  const sessionsById = useMemo(() => {
+    const map = new Map<string, (typeof liveSessions)[number]>();
+    for (const session of [...historySessions, ...liveSessions]) {
+      map.set(session.sessionId, session);
+    }
+    return map;
+  }, [historySessions, liveSessions]);
+
+  const telemetryByTerminalId = useMemo(() => {
+    const map = new Map<string, (typeof runtimeTerminals)[string]["telemetry"]>();
+    for (const [terminalId, snapshot] of Object.entries(runtimeTerminals)) {
+      map.set(terminalId, snapshot.telemetry);
+    }
+    return map;
+  }, [runtimeTerminals]);
+
+  const sections = useMemo(
+    () => buildCanvasTerminalSections(projects, telemetryByTerminalId, sessionsById),
+    [projects, sessionsById, telemetryByTerminalId],
+  );
+  const displayGroups = useMemo(
+    () => buildCanvasTerminalDisplayGroups(sections, seenDoneTerminalIds),
+    [sections, seenDoneTerminalIds],
+  );
+  const inspectedItem = useMemo(() => pickInspectedTerminal(sections), [sections]);
+  const activeDoneIds = useMemo(() => {
+    const ids = sections.done.map((item) => item.terminalId);
+    if (sections.focused?.state === "done") {
+      ids.push(sections.focused.terminalId);
+    }
+    return ids;
+  }, [sections.done, sections.focused]);
+
+  const hasAnyTerminals =
+    !!sections.focused ||
+    sections.attention.length > 0 ||
+    sections.progress.length > 0 ||
+    displayGroups.freshDone.length > 0 ||
+    displayGroups.background.length > 0;
+
+  useEffect(() => {
+    syncActiveDoneIds(activeDoneIds);
+  }, [activeDoneIds, syncActiveDoneIds]);
+
+  useEffect(() => {
+    if (sections.focused?.state === "done") {
+      markCompletionSeen(sections.focused.terminalId);
+    }
+  }, [markCompletionSeen, sections.focused]);
+
+  useEffect(() => {
+    if (panelView === "replay" || !inspectedItem || !window.termcanvas?.telemetry) {
+      setTraceItems([]);
+      setTraceLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setTraceLoading(true);
+
+    void window.termcanvas.telemetry
+      .listEvents({ terminalId: inspectedItem.terminalId, limit: 24 })
+      .then((page) => {
+        if (cancelled) return;
+        setTraceItems(buildInspectorTrace(page.events));
+        setTraceLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setTraceItems([]);
+        setTraceLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inspectedItem?.activityAt, inspectedItem?.terminalId, panelView]);
 
   if (panelView === "replay") {
     return <SessionReplayView />;
   }
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
-      {sections.onCanvas.length > 0 && (
-        <div className="shrink-0 px-3 pt-3 pb-2">
-          <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1.5" style={{ fontFamily: '"Geist Mono", monospace' }}>
-            {t.sessions_on_canvas}
-          </div>
-          <div className="flex flex-col gap-1">
-            {sections.onCanvas.map((session) => (
-              <SessionCard
-                key={session.sessionId}
-                session={session}
-                meta={canvasSessionMeta.get(session.sessionId)}
-                t={t}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {sections.recent.length > 0 && (
-        <div className="shrink-0 px-3 pt-2 pb-2">
-          <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1.5" style={{ fontFamily: '"Geist Mono", monospace' }}>
-            {t.sessions_recent}
-          </div>
-          <div className="flex flex-col gap-1">
-            {sections.recent.map((session) => (
-              <SessionCard key={session.sessionId} session={session} t={t} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="flex-1 min-h-0">
-        <div className="px-3 pt-2 pb-1">
-          <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1" style={{ fontFamily: '"Geist Mono", monospace' }}>
-            {t.sessions_history}
-          </div>
-        </div>
-        <div className="px-1 pb-3">
-          {!hasAnySessions ? (
-            <div className="px-2 py-4 text-[11px] text-[var(--text-faint)] text-center">
-              {t.sessions_no_sessions}
+    <div className="flex flex-col h-full min-h-0">
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {sections.focused && (
+          <div className="shrink-0 px-3 pt-3 pb-2">
+            <div
+              className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1.5"
+              style={{ fontFamily: '"Geist Mono", monospace' }}
+            >
+              {t.sessions_focused}
             </div>
-          ) : sections.history.length === 0 ? (
-            <div className="px-2 py-3 text-[10px] text-[var(--text-faint)] text-center">
-              {t.sessions_no_sessions}
-            </div>
-          ) : (
-            sections.history.map((session) => (
-              <HistoryRow
-                key={session.sessionId}
-                session={session}
-                onClick={() => loadReplay(session.filePath)}
-                msgsLabel={t.sessions_msgs}
-              />
-            ))
-          )}
-        </div>
+            <TerminalCard item={sections.focused} t={t} />
+          </div>
+        )}
+
+        <Section title={t.sessions_needs_attention} items={sections.attention} t={t} />
+        <Section title={t.sessions_in_progress} items={sections.progress} t={t} />
+        <Section title={t.sessions_fresh_results} items={displayGroups.freshDone} t={t} />
+        <Section title={t.sessions_background} items={displayGroups.background} t={t} />
+
+        {!hasAnyTerminals && (
+          <div className="flex-1 px-4 py-6 text-[11px] text-[var(--text-faint)] text-center">
+            {t.sessions_no_canvas_items}
+          </div>
+        )}
       </div>
+
+      {inspectedItem && (
+        <Inspector
+          item={inspectedItem}
+          traceItems={traceItems}
+          traceLoading={traceLoading}
+          onOpenHistory={loadReplay}
+          t={t}
+        />
+      )}
     </div>
   );
 }
