@@ -152,8 +152,7 @@ function deriveStateFromTelemetry(
 
   if (
     telemetry.derived_status === "progressing" ||
-    telemetry.derived_status === "awaiting_contract" ||
-    (telemetry.pty_alive && !telemetry.session_attached)
+    telemetry.derived_status === "awaiting_contract"
   ) {
     return {
       state: telemetry.foreground_tool ? "running" : "thinking",

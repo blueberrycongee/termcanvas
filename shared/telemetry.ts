@@ -20,6 +20,7 @@ export type TelemetryTurnState =
 export type SessionAttachConfidence = "strong" | "medium" | "weak" | "none";
 
 export type TelemetryDerivedStatus =
+  | "idle"
   | "starting"
   | "progressing"
   | "awaiting_contract"

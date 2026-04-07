@@ -1,6 +1,7 @@
 import type { TerminalTelemetrySnapshot } from "../../shared/telemetry";
 
-const BADGE_LABELS: Record<NonNullable<TerminalTelemetrySnapshot["derived_status"]>, string> = {
+const BADGE_LABELS: Record<NonNullable<TerminalTelemetrySnapshot["derived_status"]>, string | null> = {
+  idle: null,
   starting: "Starting",
   progressing: "Progressing",
   awaiting_contract: "Awaiting contract",

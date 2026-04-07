@@ -155,6 +155,14 @@ export function deriveTelemetryStatus(
     return "exited";
   }
 
+  if (
+    snapshot.provider === "unknown" &&
+    !snapshot.workflow_id &&
+    !snapshot.session_attached
+  ) {
+    return "idle";
+  }
+
   if (snapshot.turn_state === "turn_complete" && snapshot.last_hook_error) {
     return "error";
   }
