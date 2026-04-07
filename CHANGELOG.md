@@ -2,6 +2,14 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.16] - 2026-04-07
+
+### Fixed
+- Viewport focus switching no longer produces a zoom bounce effect; animation uses JS frame interpolation instead of xyflow's smoothstep
+- Closing the focused terminal with Cmd+D now pans the viewport to the adjacent terminal
+- Plain shell terminals no longer show as "Thinking" / "PROGRESSING" in the sessions panel and tile badge
+- Live xterm containers no longer capture scroll wheel events intended for the canvas
+
 ## [0.25.15] - 2026-04-07
 
 ### Changed
