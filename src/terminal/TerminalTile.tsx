@@ -894,7 +894,7 @@ export function TerminalTile({
         </div>
       ) : lodMode === "live" ? (
         <div
-          className={terminal.minimized ? "relative" : "flex-1 min-h-0 relative"}
+          className={terminal.minimized ? "relative nopan nodrag nowheel" : "flex-1 min-h-0 relative nopan nodrag nowheel"}
           style={{
             height: terminal.minimized ? 0 : undefined,
             overflow: "hidden",
@@ -905,8 +905,8 @@ export function TerminalTile({
             ref={containerRef}
             className={
               frozenDims
-                ? "absolute tc-xterm-host nopan nodrag"
-                : "absolute inset-0 tc-xterm-host nopan nodrag"
+                ? "absolute tc-xterm-host nopan nodrag nowheel"
+                : "absolute inset-0 tc-xterm-host nopan nodrag nowheel"
             }
             style={{
               padding: 0,

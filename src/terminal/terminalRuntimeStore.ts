@@ -615,7 +615,7 @@ function ensureRuntimeHost(runtime: ManagedTerminalRuntime): HTMLDivElement | nu
   }
 
   const host = document.createElement("div");
-  host.className = "tc-xterm-host nopan nodrag";
+  host.className = "tc-xterm-host nopan nodrag nowheel";
   host.style.position = "absolute";
   host.style.inset = "0";
   host.style.width = "100%";
