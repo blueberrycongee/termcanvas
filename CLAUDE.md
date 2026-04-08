@@ -30,23 +30,23 @@
 
 Classify the task before choosing a mode. Hydra is for file-driven
 orchestration, not the default path for every change.
-Hydra treats `result.json` + `done` as the only completion evidence.
+Hydra treats `result.json` as the only completion evidence.
 Terminal conversation is not a source of truth.
 
 Core rules:
 - Root cause first. Fix the implementation problem before changing tests.
 - Do not hack tests, fixtures, or mocks to force a green result.
 - Do not add silent fallbacks or swallowed errors.
-- A handoff is only complete when both `result.json` and `done` exist and pass schema validation.
+- An assignment run is only complete when `result.json` exists and passes schema validation.
 
 Workflow patterns:
 1. Do the task directly when it is simple, local, or clearly faster without workflow overhead.
 2. Use a single implementer workflow when you still want Hydra evidence and retry control:
    `hydra run --task "<specific task>" --repo . --template single-step [--worktree .]`
-3. Use the default planner -> implementer -> evaluator workflow for ambiguous, risky, or PRD-driven work:
+3. Use the default researcher -> implementer -> tester workflow for ambiguous, risky, or PRD-driven work:
    `hydra run --task "<specific task>" --repo . [--worktree .]`
    - If the user says all roles should use one provider, pass `--all-type <provider>`.
-   - If the user wants a mix, pass `--planner-type`, `--implementer-type`, and `--evaluator-type`.
+   - If the user wants a mix, pass `--researcher-type`, `--implementer-type`, and `--tester-type`.
    - If the user does not specify providers, Hydra should prefer the current terminal's provider when available.
 4. Use a direct isolated worker primitive when the split is already known and you do not need a full workflow:
    `hydra spawn --task "<specific task>" --repo . [--worktree .]`

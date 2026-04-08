@@ -155,9 +155,9 @@ termcanvas diff ~/my-repo --summary
 
 <br>
 
-Hydra 是 TermCanvas 的终端编排框架，用于多 agent 工作流。它将 AI agent（Claude、Codex、Kimi、Gemini）分发到**隔离的 git worktree** 中，通过**文件契约交接**协调它们，并通过 **telemetry 真相层**监控进度——同时不干预每个 agent 会话内部的行为。
+Hydra 是 TermCanvas 的终端编排框架，用于多 agent 工作流。它将 AI agent（Claude、Codex、Kimi、Gemini）分发到**隔离的 git worktree** 中，通过**assignment/run 文件契约**协调它们，并通过 **telemetry 真相层**监控进度——同时不干预每个 agent 会话内部的行为。
 
-**设计理念：** 每个 agent 在自己的终端中运行，拥有全新的上下文和完全的自主权。Agent 之间不共享对话历史——它们共享的是 **worktree**（磁盘上的代码）和**结构化文件契约**（`handoff.json`、`task.md`、`result.json`、`done`）。终端输出不具权威性，经过验证的文件才是唯一的事实来源。如果 workflow 失败，丢弃 worktree 重新开始。
+**设计理念：** 每个 agent 在自己的终端中运行，拥有全新的上下文和完全的自主权。Agent 之间不共享对话历史——它们共享的是 **worktree**（磁盘上的代码）和**结构化工作流文件**（`inputs/user-request.md`、`task.md`、`artifacts/brief.md`、`result.json`）。终端输出不具权威性，经过验证的 `result.json` 才是唯一的事实来源。如果 workflow 失败，丢弃 worktree 重新开始。
 
 这一设计受到 [Anthropic 关于长时间运行 agent 编排的 harness 设计研究](https://www.anthropic.com/engineering/harness-design-long-running-apps)的启发，并针对终端 agent（每个进程天然隔离）做了适配。关于这一设计背后的理论基础，参见[从数据分布视角看 Harness 设计](harness-design-essay.md)。
 
@@ -174,9 +174,9 @@ Agent 会读取项目 `CLAUDE.md` 中的 Hydra 指令，对任务进行分类，
 - **留在当前 agent** —— 简单或局部任务，无编排开销
 - **`hydra spawn`** —— 任务清晰且自包含时，创建一个隔离 worker
 - **`hydra run --template single-step`** —— 单个 implementer + 文件契约门禁和证据
-- **`hydra run`**（默认）—— planner → implementer → evaluator 流水线，支持 evaluator 到 implementer 的回环
+- **`hydra run`**（默认）—— researcher → implementer → tester 流水线，带 approval 和 verification 回环
 
-每个角色可以指定不同的 provider（`--planner-type claude --implementer-type codex`），也可以继承当前终端类型。
+每个角色可以指定不同的 provider（`--researcher-type claude --implementer-type codex`），也可以继承当前终端类型。
 
 ```bash
 hydra init    # 一次性设置：将 Hydra 指令写入 CLAUDE.md 和 AGENTS.md
@@ -192,16 +192,16 @@ Workflow 命令:
   run      创建并启动文件契约 workflow
            --task <desc>              任务描述（必填）
            --repo <path>              仓库路径（必填）
-           --template <name>          single-step | planner-implementer-evaluator（默认）
+           --template <name>          single-step | researcher-implementer-tester（默认）
            --all-type <type>          所有角色使用同一 agent 类型
-           --planner-type <type>      Planner agent 类型
+           --researcher-type <type>      Researcher agent 类型
            --implementer-type <type>  Implementer agent 类型
-           --evaluator-type <type>    Evaluator agent 类型
-           --timeout-minutes <num>    每次 handoff 超时（默认 30）
+           --tester-type <type>    Tester agent 类型
+           --timeout-minutes <num>    每个 assignment 超时（默认 30）
            --max-retries <num>        自动重试上限（默认 1）
            --auto-approve             子 agent 以 auto-approve 模式运行
 
-  tick     推进一个 workflow tick（收集结果、派发下一个 handoff）
+  tick     推进一个 workflow tick（收集结果、派发下一个 assignment）
   watch    轮询 workflow 直到达到终态
   status   显示结构化 workflow 状态 + telemetry 建议
   retry    重试失败或超时的 workflow
@@ -225,12 +225,12 @@ Worker 命令:
 <summary>命令示例</summary>
 
 ```bash
-# 完整 workflow（planner → implementer → evaluator）
+# 完整 workflow（researcher → implementer → tester）
 hydra run --task “fix the login bug” --repo .
 
 # 按角色混合 provider
 hydra run --task “implement auth” --repo . \
-  --planner-type claude --implementer-type codex --evaluator-type claude
+  --researcher-type claude --implementer-type codex --tester-type claude
 
 # 单步（一个 implementer + 文件门禁）
 hydra run --task “implement the API change” --repo . --template single-step
@@ -250,7 +250,7 @@ hydra cleanup <agent-id> --force
 
 </details>
 
-Workflow 在 `.hydra/workflows/` 中通过 `result.json` + `done` 的验证后才会前进。Telemetry 真相层提供实时 `turn_state`、`last_meaningful_progress_at` 和 `derived_status`——同时服务于 UI（徽章、建议视图）和 Hydra 自身（卡顿检测、重试决策）。
+Workflow 在 `.hydra/workflows/` 中通过 `result.json` 的验证后才会前进。Telemetry 真相层提供实时 `turn_state`、`last_meaningful_progress_at` 和 `derived_status`——同时服务于 UI（徽章、建议视图）和 Hydra 自身（卡顿检测、重试决策）。
 
 **典型工作流：** 编写 PRD → 启用 Hydra → 让主脑 agent 自主选择模式并编排执行 → 通过 `hydra watch` 或画布 UI 监控 → 审查 diff 并合并。更多架构、故障排查和反模式，见 [Hydra 编排指南](docs/hydra-orchestration.md)。所有模式、状态机和系统组件的可视化全景，见 [Hydra 全景流程图](docs/hydra-panorama-flow-zh.md)。
 

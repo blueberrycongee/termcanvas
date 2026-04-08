@@ -18,14 +18,14 @@ Route first. Choose the lightest path that preserves correctness.
 - If the task is simple, local, high-certainty, or faster in the current
   agent, do it directly. Do not invoke Hydra by default.
 - If the task needs an isolated worktree, file evidence, retry/status control,
-  or a staged handoff, use `hydra`.
+  or a staged workflow, use `hydra`.
 - Before using Hydra in a repo, ensure the project has current Hydra
   instructions via `hydra init` or the TermCanvas Hydra enable action.
 
 ## Hydra workflow patterns
 
 - `hydra run --task "..." --repo . --template single-step`
-  - one implementer with `result.json` + `done` gates
+  - one implementer assignment run with a `result.json` gate
   - use for clear implementation tasks that still need Hydra evidence
 - `hydra run --task "..." --repo .`
   - default researcher -> implementer -> tester loop, with research approval before implementation

@@ -7,21 +7,21 @@ description: Use when a task should run through Hydra's file-contract workflow i
 
 Use this skill after routing has already determined that Hydra is the right
 execution path. Hydra is a strict file-contract workflow engine:
-`handoff.json`, `task.md`, `result.json`, and `done` are authoritative.
+`task.md`, `artifacts/*.md`, and `result.json` are authoritative.
 Terminal conversation is not a source of truth.
 
 ## Choose the path
 
 - `hydra run --task "..." --repo . --template single-step`
-  - one implementer handoff
+  - one implementer assignment
   - use for clear implementation work that still needs worktree isolation and
-    `result.json` / `done` evidence
+    `result.json` evidence
 - `hydra run --task "..." --repo .`
   - default researcher -> implementer -> tester workflow, with research approval before implementation
   - use for ambiguous, risky, PRD-driven, or long-running tasks
   - if the user wants one provider for all roles, pass `--all-type <provider>`
-  - if the user wants a mix, pass `--planner-type`, `--implementer-type`, and
-    `--evaluator-type` (legacy flag names retained for researcher / implementer / tester)
+  - if the user wants a mix, pass `--researcher-type`, `--implementer-type`, and
+    `--tester-type` (legacy flag names retained for researcher / implementer / tester)
   - if the user does not specify providers, inherit the current terminal type
     when available rather than hard-coding Claude or Codex
 
@@ -41,7 +41,7 @@ When choosing providers for each role, consider these observed tendencies:
 
 These are defaults from experience, not constraints. The user can override freely
 with `--all-type` or per-role flags. When the user does not specify, a reasonable
-default is `--planner-type claude --implementer-type codex --evaluator-type claude`.
+default is `--researcher-type claude --implementer-type codex --tester-type claude`.
 
 ## Direct worker primitive
 
@@ -65,8 +65,7 @@ default is `--planner-type claude --implementer-type codex --evaluator-type clau
 - Do not hack tests, fixtures, snapshots, or mocks to force a green result.
 - Do not add silent fallbacks, swallowed errors, or default-success paths.
 - Tests prove correctness; they do not replace correctness.
-- A handoff only passes when `result.json` and `done` both exist and the schema
-  validates.
+- An assignment run only passes when `result.json` exists and the schema validates.
 
 ## Workflow control
 
@@ -91,12 +90,15 @@ default is `--planner-type claude --implementer-type codex --evaluator-type clau
 6. Before deciding to keep waiting, retry, or take over a live workflow, query telemetry first:
    - `termcanvas telemetry get --workflow <workflowId> --repo .`
    - `termcanvas telemetry get --terminal <terminalId>`
-7. Trust `derived_status` and `task_status` as the primary decision signals. Only investigate further when both indicate a problem.
-8. Decision rules:
-   - `derived_status=progressing` or `task_status=running` → keep waiting
-   - `awaiting_contract` → turn is done but `result.json` / `done` still pending
-   - `stall_candidate` → investigate with `termcanvas telemetry events --terminal <terminalId> --limit 20` before retry/takeover
-   - `error` → check `last_hook_error` for retry/stop guidance
+   - check `last_meaningful_progress_at`, `turn_state`, `foreground_tool`, and result-file presence
+7. Treat telemetry as advisory truth before completion:
+   - `awaiting_contract` means the agent turn ended but `result.json` is still missing
+   - `stall_candidate` means "needs attention", not automatic failure
+8. Treat `hydra watch` as the polling loop for the main brain:
+   - each poll should prefer telemetry over PTY prose
+   - if telemetry shows `thinking`, `tool_running`, `tool_pending`, recent meaningful progress, or a foreground tool, keep waiting
+   - if telemetry shows `awaiting_contract`, the model turn is done but the final `result.json` is still pending
+   - if telemetry shows `stall_candidate`, inspect recent telemetry events with `termcanvas telemetry events --terminal <terminalId> --limit 20` before retry/takeover
 9. Clean up after completion:
    - workflow: `hydra cleanup --workflow <workflowId> --repo .`
    - worker: `hydra cleanup <agentId>`
@@ -110,8 +112,7 @@ default is `--planner-type claude --implementer-type codex --evaluator-type clau
 - `evidence[]`
 - `next_action`
 
-The `done` marker must point at the exact `result.json` path for the handoff.
-If either file is missing or invalid, Hydra must fail the handoff rather than
+If `result.json` is missing or invalid, Hydra must fail the assignment run rather than
 assuming success.
 
 ## Auto-approve inheritance
