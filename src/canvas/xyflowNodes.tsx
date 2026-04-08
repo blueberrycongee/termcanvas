@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   type Node,
@@ -38,6 +38,93 @@ import { ContextMenu } from "../components/ContextMenu";
 
 type ProjectFlowNode = Node<ProjectNodeData, "project">;
 type WorktreeFlowNode = Node<WorktreeNodeData, "worktree">;
+
+function NewWorktreePopover({
+  x,
+  y,
+  onSubmit,
+  onClose,
+}: {
+  x: number;
+  y: number;
+  onSubmit: (branch: string) => Promise<boolean>;
+  onClose: () => void;
+}) {
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const submit = async () => {
+    if (busy) return;
+    const branch = value.trim();
+    if (!branch) {
+      onClose();
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const ok = await onSubmit(branch);
+      if (ok) {
+        onClose();
+        return;
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+    setBusy(false);
+  };
+
+  return createPortal(
+    <div
+      className="fixed z-[130] min-w-[220px] rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg"
+      style={{ left: x, top: y }}
+    >
+      <input
+        ref={inputRef}
+        value={value}
+        disabled={busy}
+        placeholder="branch name"
+        onChange={(event) => setValue(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            void submit();
+          } else if (event.key === "Escape") {
+            event.preventDefault();
+            onClose();
+          }
+        }}
+        className="w-full text-[11px] px-2 py-1 rounded border border-[var(--border)] bg-[var(--bg)] text-[var(--text-primary)] outline-none disabled:opacity-50"
+        style={{ fontFamily: '"Geist Mono", monospace' }}
+      />
+      {error && (
+        <div className="mt-1 text-[10px] text-[var(--red)] truncate">{error}</div>
+      )}
+      <div className="mt-2 flex items-center justify-end gap-1">
+        <button
+          className="px-2 py-1 text-[10px] rounded border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
+          onClick={onClose}
+        >
+          Cancel
+        </button>
+        <button
+          className="px-2 py-1 text-[10px] rounded bg-[var(--accent)] text-[var(--bg)] hover:opacity-90 disabled:opacity-50"
+          disabled={busy}
+          onClick={() => void submit()}
+        >
+          Create
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 function WorktreeTerminalItem({
   dragOffsetX,
@@ -133,18 +220,16 @@ function ProjectNode({ data }: NodeProps<ProjectFlowNode>) {
     ),
   );
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [createPopover, setCreatePopover] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
   if (!project) {
     return null;
   }
 
-  const handleCreateWorktree = async () => {
-    const branchInput = window.prompt("branch name");
-    const branch = branchInput?.trim();
-    if (!branch) {
-      return;
-    }
-
+  const handleCreateWorktree = async (branch: string): Promise<boolean> => {
     try {
       const result = await window.termcanvas.project.createWorktree(
         project.path,
@@ -152,10 +237,11 @@ function ProjectNode({ data }: NodeProps<ProjectFlowNode>) {
       );
       if (!result.ok) {
         notify("error", `Failed to create worktree: ${result.error}`);
-        return;
+        return false;
       }
       syncWorktrees(project.path, result.worktrees);
       notify("info", `Worktree "${branch}" created`);
+      return true;
     } catch (err) {
       notify(
         "error",
@@ -163,6 +249,7 @@ function ProjectNode({ data }: NodeProps<ProjectFlowNode>) {
           err instanceof Error ? err.message : String(err)
         }`,
       );
+      return false;
     }
   };
 
@@ -300,13 +387,25 @@ function ProjectNode({ data }: NodeProps<ProjectFlowNode>) {
             items={[
               {
                 label: "New Worktree...",
-                onClick: () => void handleCreateWorktree(),
+                onClick: () => {
+                  if (!menu) return;
+                  setCreatePopover({ x: menu.x + 4, y: menu.y + 4 });
+                },
               },
             ]}
             onClose={() => setMenu(null)}
           />,
           document.body,
         )}
+
+      {createPopover && (
+        <NewWorktreePopover
+          x={createPopover.x}
+          y={createPopover.y}
+          onSubmit={handleCreateWorktree}
+          onClose={() => setCreatePopover(null)}
+        />
+      )}
     </div>
   );
 }
@@ -369,6 +468,10 @@ function WorktreeNode({
     ghostY?: number;
   } | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [createPopover, setCreatePopover] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
   const tileW = useTileDimensionsStore((s) => s.w);
   const tileH = useTileDimensionsStore((s) => s.h);
@@ -570,13 +673,7 @@ function WorktreeNode({
     return null;
   }
 
-  const handleCreateWorktree = async () => {
-    const branchInput = window.prompt("branch name");
-    const branch = branchInput?.trim();
-    if (!branch) {
-      return;
-    }
-
+  const handleCreateWorktree = async (branch: string): Promise<boolean> => {
     try {
       const result = await window.termcanvas.project.createWorktree(
         project.path,
@@ -584,10 +681,11 @@ function WorktreeNode({
       );
       if (!result.ok) {
         notify("error", `Failed to create worktree: ${result.error}`);
-        return;
+        return false;
       }
       syncWorktrees(project.path, result.worktrees);
       notify("info", `Worktree "${branch}" created`);
+      return true;
     } catch (err) {
       notify(
         "error",
@@ -595,6 +693,7 @@ function WorktreeNode({
           err instanceof Error ? err.message : String(err)
         }`,
       );
+      return false;
     }
   };
 
@@ -697,13 +796,25 @@ function WorktreeNode({
             items={[
               {
                 label: "New Worktree...",
-                onClick: () => void handleCreateWorktree(),
+                onClick: () => {
+                  if (!menu) return;
+                  setCreatePopover({ x: menu.x + 4, y: menu.y + 4 });
+                },
               },
             ]}
             onClose={() => setMenu(null)}
           />,
           document.body,
         )}
+
+      {createPopover && (
+        <NewWorktreePopover
+          x={createPopover.x}
+          y={createPopover.y}
+          onSubmit={handleCreateWorktree}
+          onClose={() => setCreatePopover(null)}
+        />
+      )}
 
       <div
         className="px-2 pb-2 relative"
