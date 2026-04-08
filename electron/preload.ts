@@ -2,8 +2,14 @@ import { contextBridge, ipcRenderer, webUtils } from "electron";
 
 contextBridge.exposeInMainWorld("termcanvas", {
   terminal: {
-    create: (options: { cwd: string; shell?: string; args?: string[]; terminalId?: string; terminalType?: string; theme?: "dark" | "light" }) =>
-      ipcRenderer.invoke("terminal:create", options),
+    create: (options: {
+      cwd: string;
+      shell?: string;
+      args?: string[];
+      terminalId?: string;
+      terminalType?: string;
+      theme?: "dark" | "light";
+    }) => ipcRenderer.invoke("terminal:create", options),
     destroy: (ptyId: number) => ipcRenderer.invoke("terminal:destroy", ptyId),
     getPid: (ptyId: number) =>
       ipcRenderer.invoke("terminal:get-pid", ptyId) as Promise<number | null>,
@@ -38,19 +44,35 @@ contextBridge.exposeInMainWorld("termcanvas", {
     getCodexLatest: () =>
       ipcRenderer.invoke("session:get-codex-latest") as Promise<string | null>,
     findCodex: (cwd: string, startedAt?: string) =>
-      ipcRenderer.invoke("session:find-codex", cwd, startedAt) as Promise<
-        { sessionId: string; filePath: string; confidence: "medium" | "weak" } | null
-      >,
+      ipcRenderer.invoke("session:find-codex", cwd, startedAt) as Promise<{
+        sessionId: string;
+        filePath: string;
+        confidence: "medium" | "weak";
+      } | null>,
     findClaude: (cwd: string, startedAt?: string, pid?: number | null) =>
-      ipcRenderer.invoke("session:find-claude", cwd, startedAt, pid) as Promise<
-        { sessionId: string; filePath: string; confidence: "strong" | "medium" | "weak" } | null
-      >,
+      ipcRenderer.invoke(
+        "session:find-claude",
+        cwd,
+        startedAt,
+        pid,
+      ) as Promise<{
+        sessionId: string;
+        filePath: string;
+        confidence: "strong" | "medium" | "weak";
+      } | null>,
     getPermissionMode: (sessionId: string, cwd: string) =>
-      ipcRenderer.invoke("session:get-permission-mode", sessionId, cwd) as Promise<
-        string | null
-      >,
+      ipcRenderer.invoke(
+        "session:get-permission-mode",
+        sessionId,
+        cwd,
+      ) as Promise<string | null>,
     getBypassState: (type: string, sessionId: string, cwd: string) =>
-      ipcRenderer.invoke("session:get-bypass-state", type, sessionId, cwd) as Promise<boolean>,
+      ipcRenderer.invoke(
+        "session:get-bypass-state",
+        type,
+        sessionId,
+        cwd,
+      ) as Promise<boolean>,
     getClaudeByPid: (pid: number) =>
       ipcRenderer.invoke("session:get-claude-by-pid", pid) as Promise<
         string | null
@@ -60,16 +82,15 @@ contextBridge.exposeInMainWorld("termcanvas", {
         string | null
       >,
     watch: (type: string, sessionId: string, cwd: string) =>
-      ipcRenderer.invoke("session:watch", type, sessionId, cwd) as Promise<
-        { ok: boolean; reason?: string }
-      >,
+      ipcRenderer.invoke("session:watch", type, sessionId, cwd) as Promise<{
+        ok: boolean;
+        reason?: string;
+      }>,
     unwatch: (sessionId: string) =>
       ipcRenderer.invoke("session:unwatch", sessionId),
     onTurnComplete: (callback: (sessionId: string) => void) => {
-      const listener = (
-        _event: Electron.IpcRendererEvent,
-        sessionId: string,
-      ) => callback(sessionId);
+      const listener = (_event: Electron.IpcRendererEvent, sessionId: string) =>
+        callback(sessionId);
       ipcRenderer.on("session:turn-complete", listener);
       return () =>
         ipcRenderer.removeListener("session:turn-complete", listener);
@@ -88,30 +109,39 @@ contextBridge.exposeInMainWorld("termcanvas", {
         sessionFile: string | null;
       }>,
     detachSession: (terminalId: string) =>
-      ipcRenderer.invoke("telemetry:detach-session", terminalId) as Promise<void>,
+      ipcRenderer.invoke(
+        "telemetry:detach-session",
+        terminalId,
+      ) as Promise<void>,
     updateTerminal: (input: {
       terminalId: string;
       worktreePath?: string;
       provider?: "claude" | "codex" | "unknown";
       ptyId?: number | null;
       shellPid?: number | null;
-    }) =>
-      ipcRenderer.invoke("telemetry:update-terminal", input),
+    }) => ipcRenderer.invoke("telemetry:update-terminal", input),
     getTerminal: (terminalId: string) =>
       ipcRenderer.invoke("telemetry:get-terminal", terminalId),
     getWorkflow: (workflowId: string, repoPath: string) =>
       ipcRenderer.invoke("telemetry:get-workflow", workflowId, repoPath),
-    listEvents: (input: { terminalId: string; limit?: number; cursor?: string }) =>
-      ipcRenderer.invoke("telemetry:list-events", input),
+    listEvents: (input: {
+      terminalId: string;
+      limit?: number;
+      cursor?: string;
+    }) => ipcRenderer.invoke("telemetry:list-events", input),
     onSnapshotChanged: (
-      callback: (payload: { terminalId: string; snapshot: Record<string, unknown> }) => void,
+      callback: (payload: {
+        terminalId: string;
+        snapshot: Record<string, unknown>;
+      }) => void,
     ) => {
       const listener = (
         _event: Electron.IpcRendererEvent,
         payload: { terminalId: string; snapshot: Record<string, unknown> },
       ) => callback(payload);
       ipcRenderer.on("telemetry:snapshot-changed", listener);
-      return () => ipcRenderer.removeListener("telemetry:snapshot-changed", listener);
+      return () =>
+        ipcRenderer.removeListener("telemetry:snapshot-changed", listener);
     },
   },
   project: {
@@ -123,10 +153,37 @@ contextBridge.exposeInMainWorld("termcanvas", {
       >,
     rescanWorktrees: (dirPath: string) =>
       ipcRenderer.invoke("project:rescan-worktrees", dirPath),
+    createWorktree: (repoPath: string, branch: string) =>
+      ipcRenderer.invoke(
+        "project:create-worktree",
+        repoPath,
+        branch,
+      ) as Promise<
+        | {
+            ok: true;
+            path: string;
+            worktrees: { path: string; branch: string; isMain: boolean }[];
+          }
+        | { ok: false; error: string }
+      >,
+    removeWorktree: (repoPath: string, worktreePath: string) =>
+      ipcRenderer.invoke(
+        "project:remove-worktree",
+        repoPath,
+        worktreePath,
+      ) as Promise<
+        | {
+            ok: true;
+            worktrees: { path: string; branch: string; isMain: boolean }[];
+          }
+        | { ok: false; error: string }
+      >,
     enableHydra: (dirPath: string) =>
       ipcRenderer.invoke("project:enable-hydra", dirPath),
     checkHydra: (dirPath: string) =>
-      ipcRenderer.invoke("project:check-hydra", dirPath) as Promise<"missing" | "outdated" | "current">,
+      ipcRenderer.invoke("project:check-hydra", dirPath) as Promise<
+        "missing" | "outdated" | "current"
+      >,
     diff: (worktreePath: string) =>
       ipcRenderer.invoke("project:diff", worktreePath) as Promise<{
         diff: string;
@@ -166,10 +223,23 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("git:stage", worktreePath, paths) as Promise<void>,
     unstage: (worktreePath: string, paths: string[]) =>
       ipcRenderer.invoke("git:unstage", worktreePath, paths) as Promise<void>,
-    discard: (worktreePath: string, trackedPaths: string[], untrackedPaths: string[]) =>
-      ipcRenderer.invoke("git:discard", worktreePath, trackedPaths, untrackedPaths) as Promise<void>,
+    discard: (
+      worktreePath: string,
+      trackedPaths: string[],
+      untrackedPaths: string[],
+    ) =>
+      ipcRenderer.invoke(
+        "git:discard",
+        worktreePath,
+        trackedPaths,
+        untrackedPaths,
+      ) as Promise<void>,
     commit: (worktreePath: string, message: string) =>
-      ipcRenderer.invoke("git:commit", worktreePath, message) as Promise<string>,
+      ipcRenderer.invoke(
+        "git:commit",
+        worktreePath,
+        message,
+      ) as Promise<string>,
     push: (worktreePath: string) =>
       ipcRenderer.invoke("git:push", worktreePath) as Promise<string>,
     pull: (worktreePath: string) =>
@@ -211,7 +281,11 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("workspace:save", data) as Promise<string | null>,
     open: () => ipcRenderer.invoke("workspace:open") as Promise<string | null>,
     saveToPath: (filePath: string, data: string) =>
-      ipcRenderer.invoke("workspace:save-to-path", filePath, data) as Promise<void>,
+      ipcRenderer.invoke(
+        "workspace:save-to-path",
+        filePath,
+        data,
+      ) as Promise<void>,
     setTitle: (title: string) =>
       ipcRenderer.invoke("workspace:set-title", title) as Promise<void>,
   },
@@ -222,17 +296,17 @@ contextBridge.exposeInMainWorld("termcanvas", {
       >,
     readFile: (filePath: string) =>
       ipcRenderer.invoke("fs:read-file", filePath) as Promise<
-        | { type: string; content: string }
-        | { error: string; size?: string }
+        { type: string; content: string } | { error: string; size?: string }
       >,
     writeFile: (filePath: string, content: string) =>
-      ipcRenderer.invoke("fs:write-file", filePath, content) as Promise<
-        { changed: boolean }
-      >,
+      ipcRenderer.invoke("fs:write-file", filePath, content) as Promise<{
+        changed: boolean;
+      }>,
     copy: (sources: string[], destDir: string) =>
-      ipcRenderer.invoke("fs:copy", sources, destDir) as Promise<
-        { copied: string[]; skipped: string[] }
-      >,
+      ipcRenderer.invoke("fs:copy", sources, destDir) as Promise<{
+        copied: string[];
+        skipped: string[];
+      }>,
     getFilePath: (file: File) => webUtils.getPathForFile(file),
     rename: (oldPath: string, newName: string) =>
       ipcRenderer.invoke("fs:rename", oldPath, newName) as Promise<void>,
@@ -251,10 +325,8 @@ contextBridge.exposeInMainWorld("termcanvas", {
     unwatchAllDirs: () =>
       ipcRenderer.invoke("fs:unwatch-all-dirs") as Promise<void>,
     onDirChanged: (callback: (dirPath: string) => void) => {
-      const listener = (
-        _event: Electron.IpcRendererEvent,
-        dirPath: string,
-      ) => callback(dirPath);
+      const listener = (_event: Electron.IpcRendererEvent, dirPath: string) =>
+        callback(dirPath);
       ipcRenderer.on("fs:dir-changed", listener);
       return () => ipcRenderer.removeListener("fs:dir-changed", listener);
     },
@@ -276,10 +348,8 @@ contextBridge.exposeInMainWorld("termcanvas", {
   cli: {
     isRegistered: () =>
       ipcRenderer.invoke("cli:is-registered") as Promise<boolean>,
-    register: () =>
-      ipcRenderer.invoke("cli:register") as Promise<boolean>,
-    unregister: () =>
-      ipcRenderer.invoke("cli:unregister") as Promise<boolean>,
+    register: () => ipcRenderer.invoke("cli:register") as Promise<boolean>,
+    unregister: () => ipcRenderer.invoke("cli:unregister") as Promise<boolean>,
     validateCommand: (command: string, args?: string[]) =>
       ipcRenderer.invoke("cli:validate-command", command, args) as Promise<
         | { ok: true; resolvedPath: string; version: string | null }
@@ -287,8 +357,7 @@ contextBridge.exposeInMainWorld("termcanvas", {
       >,
   },
   fonts: {
-    getPath: () =>
-      ipcRenderer.invoke("font:get-path") as Promise<string>,
+    getPath: () => ipcRenderer.invoke("font:get-path") as Promise<string>,
     listDownloaded: () =>
       ipcRenderer.invoke("font:list-downloaded") as Promise<string[]>,
     check: (fileName: string) =>
@@ -305,14 +374,11 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("composer:submit", request),
   },
   usage: {
-    query: (dateStr: string) =>
-      ipcRenderer.invoke("usage:query", dateStr),
-    heatmap: () =>
-      ipcRenderer.invoke("usage:heatmap"),
+    query: (dateStr: string) => ipcRenderer.invoke("usage:query", dateStr),
+    heatmap: () => ipcRenderer.invoke("usage:heatmap"),
     queryCloud: (dateStr: string) =>
       ipcRenderer.invoke("usage:query-cloud", dateStr),
-    heatmapCloud: () =>
-      ipcRenderer.invoke("usage:heatmap-cloud"),
+    heatmapCloud: () => ipcRenderer.invoke("usage:heatmap-cloud"),
   },
   quota: {
     fetch: () => ipcRenderer.invoke("quota:fetch"),
@@ -338,11 +404,31 @@ contextBridge.exposeInMainWorld("termcanvas", {
     generate: (cliTool: "claude" | "codex", jobId: string) =>
       ipcRenderer.invoke("insights:generate", cliTool, jobId) as Promise<
         | { ok: true; jobId: string; reportPath: string }
-        | { ok: false; jobId: string; error: { code: string; message: string; detail?: string } }
+        | {
+            ok: false;
+            jobId: string;
+            error: { code: string; message: string; detail?: string };
+          }
       >,
-    onProgress: (callback: (progress: { jobId: string; stage: string; current: number; total: number; message: string }) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, progress: { jobId: string; stage: string; current: number; total: number; message: string }) =>
-        callback(progress);
+    onProgress: (
+      callback: (progress: {
+        jobId: string;
+        stage: string;
+        current: number;
+        total: number;
+        message: string;
+      }) => void,
+    ) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        progress: {
+          jobId: string;
+          stage: string;
+          current: number;
+          total: number;
+          message: string;
+        },
+      ) => callback(progress);
       ipcRenderer.on("insights:progress", listener);
       return () => ipcRenderer.removeListener("insights:progress", listener);
     },
@@ -363,27 +449,62 @@ contextBridge.exposeInMainWorld("termcanvas", {
       } | null>,
     getDeviceId: () =>
       ipcRenderer.invoke("auth:get-device-id") as Promise<string>,
-    onAuthStateChange: (callback: (user: { id: string; username: string; avatarUrl: string; email: string } | null) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, user: { id: string; username: string; avatarUrl: string; email: string } | null) =>
-        callback(user);
+    onAuthStateChange: (
+      callback: (
+        user: {
+          id: string;
+          username: string;
+          avatarUrl: string;
+          email: string;
+        } | null,
+      ) => void,
+    ) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        user: {
+          id: string;
+          username: string;
+          avatarUrl: string;
+          email: string;
+        } | null,
+      ) => callback(user);
       ipcRenderer.on("auth:state-changed", listener);
       return () => ipcRenderer.removeListener("auth:state-changed", listener);
     },
   },
   secure: {
-    isAvailable: (): Promise<boolean> => ipcRenderer.invoke("secure:is-available"),
-    encrypt: (plaintext: string): Promise<string> => ipcRenderer.invoke("secure:encrypt", plaintext),
-    decrypt: (base64: string): Promise<string> => ipcRenderer.invoke("secure:decrypt", base64),
+    isAvailable: (): Promise<boolean> =>
+      ipcRenderer.invoke("secure:is-available"),
+    encrypt: (plaintext: string): Promise<string> =>
+      ipcRenderer.invoke("secure:encrypt", plaintext),
+    decrypt: (base64: string): Promise<string> =>
+      ipcRenderer.invoke("secure:decrypt", base64),
   },
   agent: {
-    start: (sessionId: string, config: { type: "claude-code"; cwd?: string; resumeSessionId?: string; baseURL: string; apiKey: string; model: string }): Promise<{ slashCommands: string[] }> =>
+    start: (
+      sessionId: string,
+      config: {
+        type: "claude-code";
+        cwd?: string;
+        resumeSessionId?: string;
+        baseURL: string;
+        apiKey: string;
+        model: string;
+      },
+    ): Promise<{ slashCommands: string[] }> =>
       ipcRenderer.invoke("agent:start", sessionId, config),
-    send: (sessionId: string, text: string, config: { type: "anthropic" | "openai" | "claude-code"; baseURL: string; apiKey: string; model: string }) =>
-      ipcRenderer.invoke("agent:send", sessionId, text, config),
-    abort: (sessionId: string) =>
-      ipcRenderer.invoke("agent:abort", sessionId),
-    clear: (sessionId: string) =>
-      ipcRenderer.invoke("agent:clear", sessionId),
+    send: (
+      sessionId: string,
+      text: string,
+      config: {
+        type: "anthropic" | "openai" | "claude-code";
+        baseURL: string;
+        apiKey: string;
+        model: string;
+      },
+    ) => ipcRenderer.invoke("agent:send", sessionId, text, config),
+    abort: (sessionId: string) => ipcRenderer.invoke("agent:abort", sessionId),
+    clear: (sessionId: string) => ipcRenderer.invoke("agent:clear", sessionId),
     delete: (sessionId: string) =>
       ipcRenderer.invoke("agent:delete", sessionId),
     approve: (sessionId: string, requestId: string) =>
@@ -391,8 +512,11 @@ contextBridge.exposeInMainWorld("termcanvas", {
     deny: (sessionId: string, requestId: string, reason?: string) =>
       ipcRenderer.invoke("agent:deny", sessionId, requestId, reason),
     onEvent: (callback: (sessionId: string, event: unknown) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, sessionId: string, agentEvent: unknown) =>
-        callback(sessionId, agentEvent);
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        sessionId: string,
+        agentEvent: unknown,
+      ) => callback(sessionId, agentEvent);
       ipcRenderer.on("agent:event", listener);
       return () => ipcRenderer.removeListener("agent:event", listener);
     },
@@ -412,24 +536,52 @@ contextBridge.exposeInMainWorld("termcanvas", {
   updater: {
     check: () => ipcRenderer.invoke("updater:check"),
     install: () => ipcRenderer.send("updater:install"),
-    getVersion: () => ipcRenderer.invoke("updater:get-version") as Promise<string>,
-    onUpdateAvailable: (callback: (info: { version: string; releaseNotes: string; releaseDate: string }) => void) => {
-      const listener = (_e: Electron.IpcRendererEvent, info: { version: string; releaseNotes: string; releaseDate: string }) => callback(info);
+    getVersion: () =>
+      ipcRenderer.invoke("updater:get-version") as Promise<string>,
+    onUpdateAvailable: (
+      callback: (info: {
+        version: string;
+        releaseNotes: string;
+        releaseDate: string;
+      }) => void,
+    ) => {
+      const listener = (
+        _e: Electron.IpcRendererEvent,
+        info: { version: string; releaseNotes: string; releaseDate: string },
+      ) => callback(info);
       ipcRenderer.on("updater:update-available", listener);
-      return () => ipcRenderer.removeListener("updater:update-available", listener);
+      return () =>
+        ipcRenderer.removeListener("updater:update-available", listener);
     },
     onDownloadProgress: (callback: (progress: { percent: number }) => void) => {
-      const listener = (_e: Electron.IpcRendererEvent, progress: { percent: number }) => callback(progress);
+      const listener = (
+        _e: Electron.IpcRendererEvent,
+        progress: { percent: number },
+      ) => callback(progress);
       ipcRenderer.on("updater:download-progress", listener);
-      return () => ipcRenderer.removeListener("updater:download-progress", listener);
+      return () =>
+        ipcRenderer.removeListener("updater:download-progress", listener);
     },
-    onUpdateDownloaded: (callback: (info: { version: string; releaseNotes: string; releaseDate: string }) => void) => {
-      const listener = (_e: Electron.IpcRendererEvent, info: { version: string; releaseNotes: string; releaseDate: string }) => callback(info);
+    onUpdateDownloaded: (
+      callback: (info: {
+        version: string;
+        releaseNotes: string;
+        releaseDate: string;
+      }) => void,
+    ) => {
+      const listener = (
+        _e: Electron.IpcRendererEvent,
+        info: { version: string; releaseNotes: string; releaseDate: string },
+      ) => callback(info);
       ipcRenderer.on("updater:update-downloaded", listener);
-      return () => ipcRenderer.removeListener("updater:update-downloaded", listener);
+      return () =>
+        ipcRenderer.removeListener("updater:update-downloaded", listener);
     },
     onError: (callback: (error: { message: string }) => void) => {
-      const listener = (_e: Electron.IpcRendererEvent, error: { message: string }) => callback(error);
+      const listener = (
+        _e: Electron.IpcRendererEvent,
+        error: { message: string },
+      ) => callback(error);
       ipcRenderer.on("updater:error", listener);
       return () => ipcRenderer.removeListener("updater:error", listener);
     },
@@ -444,15 +596,32 @@ contextBridge.exposeInMainWorld("termcanvas", {
         eventsReceived: number;
         parseErrors: number;
       }>,
-    onSessionStarted: (callback: (payload: { terminalId: string; sessionId: string; transcriptPath: string | null; cwd: string | null }) => void) => {
+    onSessionStarted: (
+      callback: (payload: {
+        terminalId: string;
+        sessionId: string;
+        transcriptPath: string | null;
+        cwd: string | null;
+      }) => void,
+    ) => {
       const listener = (
         _event: Electron.IpcRendererEvent,
-        payload: { terminalId: string; sessionId: string; transcriptPath: string | null; cwd: string | null },
+        payload: {
+          terminalId: string;
+          sessionId: string;
+          transcriptPath: string | null;
+          cwd: string | null;
+        },
       ) => callback(payload);
       ipcRenderer.on("hook:session-started", listener);
       return () => ipcRenderer.removeListener("hook:session-started", listener);
     },
-    onTurnComplete: (callback: (payload: { terminalId: string; sessionId: string | null }) => void) => {
+    onTurnComplete: (
+      callback: (payload: {
+        terminalId: string;
+        sessionId: string | null;
+      }) => void,
+    ) => {
       const listener = (
         _event: Electron.IpcRendererEvent,
         payload: { terminalId: string; sessionId: string | null },
@@ -460,10 +629,22 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.on("hook:turn-complete", listener);
       return () => ipcRenderer.removeListener("hook:turn-complete", listener);
     },
-    onStopFailure: (callback: (payload: { terminalId: string; sessionId: string | null; error: string | null; errorDetails: string | null }) => void) => {
+    onStopFailure: (
+      callback: (payload: {
+        terminalId: string;
+        sessionId: string | null;
+        error: string | null;
+        errorDetails: string | null;
+      }) => void,
+    ) => {
       const listener = (
         _event: Electron.IpcRendererEvent,
-        payload: { terminalId: string; sessionId: string | null; error: string | null; errorDetails: string | null },
+        payload: {
+          terminalId: string;
+          sessionId: string | null;
+          error: string | null;
+          errorDetails: string | null;
+        },
       ) => callback(payload);
       ipcRenderer.on("hook:stop-failure", listener);
       return () => ipcRenderer.removeListener("hook:stop-failure", listener);
@@ -471,16 +652,21 @@ contextBridge.exposeInMainWorld("termcanvas", {
   },
   sessions: {
     onListChanged: (callback: (sessions: unknown[]) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, sessions: unknown[]) => callback(sessions);
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        sessions: unknown[],
+      ) => callback(sessions);
       ipcRenderer.on("sessions:list-changed", listener);
-      return () => ipcRenderer.removeListener("sessions:list-changed", listener);
+      return () =>
+        ipcRenderer.removeListener("sessions:list-changed", listener);
     },
     loadReplay: (filePath: string) =>
       ipcRenderer.invoke("sessions:load-replay", filePath),
   },
   menu: {
     onOpenFolder: (callback: (dirPath: string) => void) => {
-      const listener = (_e: Electron.IpcRendererEvent, dirPath: string) => callback(dirPath);
+      const listener = (_e: Electron.IpcRendererEvent, dirPath: string) =>
+        callback(dirPath);
       ipcRenderer.on("menu:open-folder", listener);
       return () => ipcRenderer.removeListener("menu:open-folder", listener);
     },
