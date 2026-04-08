@@ -407,10 +407,6 @@ export function buildProjectTree(
           continue;
         }
 
-        if (resolvedTerminal.focused) {
-          continue;
-        }
-
         const telemetry = telemetryByTerminalId.get(resolvedTerminal.id);
         const session = resolvedTerminal.sessionId
           ? sessionsById.get(resolvedTerminal.sessionId)
@@ -441,7 +437,7 @@ export function buildProjectTree(
           sessionFilePath: derived.sessionFilePath,
           title,
           locationLabel,
-          focused: false,
+          focused: resolvedTerminal.focused,
           state: derived.state,
           activityAt: derived.activityAt,
           turnStartedAt: derived.turnStartedAt,

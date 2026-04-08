@@ -329,7 +329,7 @@ export function SessionsPanel() {
     [sections],
   );
 
-  const hasAnyTerminals = !!sections.focused || projectTree.length > 0;
+  const hasAnyTerminals = projectTree.length > 0;
 
   useEffect(() => {
     if (sections.focused?.state === "done") {
@@ -376,18 +376,6 @@ export function SessionsPanel() {
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {sections.focused && (
-          <div className="shrink-0 px-3 pt-3 pb-2">
-            <div
-              className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1.5"
-              style={{ fontFamily: '"Geist Mono", monospace' }}
-            >
-              {t.sessions_focused}
-            </div>
-            <TerminalCard item={sections.focused} t={t} />
-          </div>
-        )}
-
         <ProjectTree
           projects={projectTree}
           renderTerminal={(item) => (
