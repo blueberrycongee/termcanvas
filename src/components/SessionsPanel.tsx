@@ -38,6 +38,17 @@ function formatShortAge(iso: string | undefined): string {
   return `${days}d`;
 }
 
+function formatItemTime(item: CanvasTerminalItem): string {
+  const isActive =
+    item.state === "running" ||
+    item.state === "thinking" ||
+    item.state === "attention";
+  if (isActive && item.turnStartedAt) {
+    return formatShortAge(item.turnStartedAt);
+  }
+  return formatShortAge(item.activityAt);
+}
+
 function summarizeToolName(value: string): string {
   const normalized = value.trim();
   if (!normalized) return "";
@@ -100,7 +111,7 @@ function TerminalCard({
       ? item.locationLabel
       : null,
     formatTerminalActivity(item, t),
-    formatShortAge(item.activityAt),
+    formatItemTime(item),
   ].filter(Boolean);
 
   return (
@@ -185,7 +196,7 @@ function Inspector({
   const summaryParts = [
     item.locationLabel,
     formatTerminalActivity(item, t),
-    formatShortAge(item.activityAt),
+    formatItemTime(item),
   ].filter(Boolean);
   const historyPath = item.sessionFilePath;
 

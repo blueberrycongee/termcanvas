@@ -23,6 +23,7 @@ export interface CanvasTerminalItem {
   focused: boolean;
   state: CanvasTerminalState;
   activityAt?: string;
+  turnStartedAt?: string;
   currentTool?: string;
   attentionReason?: "error" | "stall" | "awaiting_input";
 }
@@ -123,13 +124,19 @@ function deriveStateFromTelemetry(
   telemetry: TerminalTelemetrySnapshot,
 ): Pick<
   CanvasTerminalItem,
-  "state" | "activityAt" | "currentTool" | "sessionFilePath" | "attentionReason"
+  | "state"
+  | "activityAt"
+  | "turnStartedAt"
+  | "currentTool"
+  | "sessionFilePath"
+  | "attentionReason"
 > {
   const activityAt =
     telemetry.last_meaningful_progress_at ??
     telemetry.last_session_event_at ??
     telemetry.last_output_at ??
     telemetry.last_input_at;
+  const turnStartedAt = telemetry.turn_started_at;
 
   if (
     telemetry.derived_status === "error" ||
@@ -140,6 +147,7 @@ function deriveStateFromTelemetry(
     return {
       state: "attention",
       activityAt,
+      turnStartedAt,
       currentTool: telemetry.foreground_tool,
       sessionFilePath: telemetry.session_file,
       attentionReason: "error",
@@ -150,6 +158,7 @@ function deriveStateFromTelemetry(
     return {
       state: "attention",
       activityAt,
+      turnStartedAt,
       currentTool: telemetry.foreground_tool,
       sessionFilePath: telemetry.session_file,
       attentionReason: "stall",
@@ -162,6 +171,7 @@ function deriveStateFromTelemetry(
     return {
       state: "attention",
       activityAt,
+      turnStartedAt,
       currentTool: telemetry.foreground_tool,
       sessionFilePath: telemetry.session_file,
       attentionReason: "awaiting_input",
@@ -175,6 +185,7 @@ function deriveStateFromTelemetry(
     return {
       state: "running",
       activityAt,
+      turnStartedAt,
       currentTool: telemetry.foreground_tool,
       sessionFilePath: telemetry.session_file,
     };
@@ -187,6 +198,7 @@ function deriveStateFromTelemetry(
     return {
       state: telemetry.foreground_tool ? "running" : "thinking",
       activityAt,
+      turnStartedAt,
       currentTool: telemetry.foreground_tool,
       sessionFilePath: telemetry.session_file,
     };
@@ -196,6 +208,7 @@ function deriveStateFromTelemetry(
     return {
       state: "done",
       activityAt,
+      turnStartedAt,
       currentTool: telemetry.foreground_tool,
       sessionFilePath: telemetry.session_file,
     };
@@ -208,6 +221,7 @@ function deriveStateFromTelemetry(
     return {
       state: telemetry.foreground_tool ? "running" : "thinking",
       activityAt,
+      turnStartedAt,
       currentTool: telemetry.foreground_tool,
       sessionFilePath: telemetry.session_file,
     };
@@ -216,6 +230,7 @@ function deriveStateFromTelemetry(
   return {
     state: "idle",
     activityAt,
+    turnStartedAt,
     currentTool: telemetry.foreground_tool,
     sessionFilePath: telemetry.session_file,
   };
@@ -293,7 +308,12 @@ function deriveTerminalState(
   session: SessionInfo | undefined,
 ): Pick<
   CanvasTerminalItem,
-  "state" | "activityAt" | "currentTool" | "sessionFilePath" | "attentionReason"
+  | "state"
+  | "activityAt"
+  | "turnStartedAt"
+  | "currentTool"
+  | "sessionFilePath"
+  | "attentionReason"
 > {
   if (telemetry) {
     return deriveStateFromTelemetry(telemetry);
@@ -424,6 +444,7 @@ export function buildProjectTree(
           focused: false,
           state: derived.state,
           activityAt: derived.activityAt,
+          turnStartedAt: derived.turnStartedAt,
           currentTool: derived.currentTool,
           attentionReason: derived.attentionReason,
         });
@@ -526,6 +547,7 @@ export function buildCanvasTerminalSections(
           focused: resolvedTerminal.focused,
           state: derived.state,
           activityAt: derived.activityAt,
+          turnStartedAt: derived.turnStartedAt,
           currentTool: derived.currentTool,
           attentionReason: derived.attentionReason,
         };

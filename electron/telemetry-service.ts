@@ -616,6 +616,26 @@ export class TelemetryService {
       });
 
       if (event.turn_state && event.turn_state !== previousTurnState) {
+        // Track when a turn begins for elapsed-time display
+        const enteringTurn =
+          event.turn_state === "in_turn" ||
+          event.turn_state === "thinking" ||
+          event.turn_state === "tool_running" ||
+          event.turn_state === "tool_pending";
+        const wasTurnComplete =
+          previousTurnState === "turn_complete" ||
+          previousTurnState === "turn_aborted" ||
+          previousTurnState === "unknown";
+        if (enteringTurn && wasTurnComplete) {
+          state.snapshot.turn_started_at = timestamp;
+        }
+        if (
+          event.turn_state === "turn_complete" ||
+          event.turn_state === "turn_aborted"
+        ) {
+          state.snapshot.turn_started_at = undefined;
+        }
+
         this.appendEvent(
           state,
           timestamp,
@@ -834,6 +854,7 @@ export class TelemetryService {
         }
         state.snapshot.last_hook_error = undefined;
         state.snapshot.last_hook_error_details = undefined;
+        state.snapshot.turn_started_at = at;
         this.appendEvent(state, at, "session", "hook_session_start", {
           session_id: event.session_id ?? null,
           source: event.source ?? null,
@@ -852,6 +873,7 @@ export class TelemetryService {
         state.snapshot.last_hook_error = undefined;
         state.snapshot.last_hook_error_details = undefined;
         state.snapshot.turn_state = "turn_complete";
+        state.snapshot.turn_started_at = undefined;
         state.snapshot.last_meaningful_progress_at = at;
         this.appendEvent(state, at, "session", "hook_stop", {
           last_assistant_message: event.last_assistant_message ?? null,
@@ -866,6 +888,7 @@ export class TelemetryService {
         state.pendingPreToolUse = false;
         state.snapshot.active_tool_calls = 0;
         state.snapshot.turn_state = "turn_complete";
+        state.snapshot.turn_started_at = undefined;
         state.snapshot.last_hook_error =
           typeof event.error === "string" ? event.error : "unknown";
         state.snapshot.last_hook_error_details =
@@ -944,6 +967,7 @@ export class TelemetryService {
 
       case "UserPromptSubmit":
         state.snapshot.turn_state = "in_turn";
+        state.snapshot.turn_started_at = at;
         state.snapshot.last_meaningful_progress_at = at;
         this.appendEvent(state, at, "session", "hook_user_prompt", {
           prompt: event.prompt ?? null,
