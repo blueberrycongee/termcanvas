@@ -2,6 +2,14 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.19] - 2026-04-08
+
+### Fixed
+- Sessions panel now shows the provider name (e.g. "Claude", "Codex") instead of generic "Terminal" when no custom title is set
+
+### Fixed (zh-CN)
+- 会话面板在终端没有自定义标题时，显示 provider 名称（如 "Claude"、"Codex"）而非通用的 "Terminal"
+
 ## [0.25.18] - 2026-04-08
 
 ### Added
