@@ -1,9 +1,16 @@
+import { execFileSync } from "node:child_process";
 import http from "http";
+import path from "node:path";
 import type { BrowserWindow } from "electron";
 import type { PtyManager } from "./pty-manager";
 import type { ProjectScanner } from "./project-scanner";
 import { getApiDiff } from "./git-diff";
 import type { TelemetryService } from "./telemetry-service";
+import { buildGitWorktreeRemoveArgs } from "../hydra/src/cleanup";
+import {
+  buildGitWorktreeAddArgs,
+  validateWorktreePath,
+} from "../hydra/src/spawn";
 
 interface ApiServerDeps {
   getWindow: () => BrowserWindow | null;
@@ -84,6 +91,17 @@ export class ApiServer {
       return this.projectRescan(id);
     }
 
+    if (method === "GET" && pathname === "/worktree/list") {
+      const repoPath = url.searchParams.get("repo");
+      return this.worktreeList(repoPath);
+    }
+    if (method === "POST" && pathname === "/worktree/create") {
+      return this.worktreeCreate(body);
+    }
+    if (method === "DELETE" && pathname === "/worktree") {
+      return this.worktreeRemove(url);
+    }
+
     if (method === "POST" && pathname === "/terminal/create") {
       return this.terminalCreate(body);
     }
@@ -104,7 +122,10 @@ export class ApiServer {
       const id = pathname.split("/")[2];
       return this.terminalDestroy(id);
     }
-    if (method === "PUT" && pathname.match(/^\/terminal\/[^/]+\/custom-title$/)) {
+    if (
+      method === "PUT" &&
+      pathname.match(/^\/terminal\/[^/]+\/custom-title$/)
+    ) {
       const id = pathname.split("/")[2];
       return this.terminalSetCustomTitle(id, body);
     }
@@ -113,7 +134,10 @@ export class ApiServer {
       const id = pathname.split("/")[3];
       return this.terminalTelemetry(id);
     }
-    if (method === "GET" && pathname.match(/^\/telemetry\/terminal\/[^/]+\/events$/)) {
+    if (
+      method === "GET" &&
+      pathname.match(/^\/telemetry\/terminal\/[^/]+\/events$/)
+    ) {
       const id = pathname.split("/")[3];
       const limit = parseInt(url.searchParams.get("limit") ?? "50", 10);
       const cursor = url.searchParams.get("cursor") ?? undefined;
@@ -233,6 +257,104 @@ export class ApiServer {
     return { ok: true, worktrees: worktrees.length };
   }
 
+  private worktreeList(repoPath: string | null) {
+    if (!repoPath) {
+      throw Object.assign(new Error("repo query parameter is required"), {
+        status: 400,
+      });
+    }
+    const repo = path.resolve(repoPath);
+    return this.deps.projectScanner.listWorktrees(repo);
+  }
+
+  private async worktreeCreate(body: any) {
+    const repoInput = body?.repo ?? body?.repoPath;
+    const branch = body?.branch as string | undefined;
+    const requestedPath = body?.path ?? body?.worktreePath;
+    const baseBranch = body?.baseBranch as string | undefined;
+    if (!repoInput) {
+      throw Object.assign(new Error("repo is required"), { status: 400 });
+    }
+    if (!branch) {
+      throw Object.assign(new Error("branch is required"), { status: 400 });
+    }
+
+    const repo = path.resolve(repoInput);
+    const resolvedWorktree = validateWorktreePath(
+      repo,
+      requestedPath
+        ? path.resolve(requestedPath)
+        : path.join(repo, ".worktrees", branch.replace(/[\\/]/g, "-")),
+    );
+    const base = baseBranch?.trim() || this.getCurrentBranch(repo);
+
+    execFileSync(
+      "git",
+      buildGitWorktreeAddArgs(branch, resolvedWorktree, base),
+      { cwd: repo, encoding: "utf-8" },
+    );
+
+    const worktrees = await this.syncRepoWorktrees(repo);
+    return {
+      path: resolvedWorktree,
+      branch,
+      base_branch: base,
+      worktrees,
+    };
+  }
+
+  private async worktreeRemove(url: URL) {
+    const repoInput = url.searchParams.get("repo");
+    const worktreeInput = url.searchParams.get("path");
+    if (!repoInput) {
+      throw Object.assign(new Error("repo query parameter is required"), {
+        status: 400,
+      });
+    }
+    if (!worktreeInput) {
+      throw Object.assign(new Error("path query parameter is required"), {
+        status: 400,
+      });
+    }
+    const forceParam = url.searchParams.get("force");
+    const force = forceParam === "1" || forceParam === "true";
+
+    const repo = path.resolve(repoInput);
+    const resolvedWorktree = validateWorktreePath(repo, worktreeInput);
+    const args = force
+      ? buildGitWorktreeRemoveArgs(resolvedWorktree)
+      : ["worktree", "remove", resolvedWorktree];
+    execFileSync("git", args, { cwd: repo, encoding: "utf-8" });
+
+    const worktrees = await this.syncRepoWorktrees(repo);
+    return { ok: true, path: resolvedWorktree, worktrees };
+  }
+
+  private getCurrentBranch(repoPath: string): string {
+    try {
+      return execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+        cwd: repoPath,
+        encoding: "utf-8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim();
+    } catch {
+      return "main";
+    }
+  }
+
+  private async syncRepoWorktrees(repo: string) {
+    const worktrees = this.deps.projectScanner.listWorktrees(repo);
+    try {
+      await this.execRenderer(
+        `window.__tcApi.syncWorktrees(${JSON.stringify(repo)}, ${JSON.stringify(worktrees)})`,
+      );
+    } catch {
+      // Renderer may not be ready or project may not be tracked in UI; the
+      // git operation already succeeded and the scan reflects on-disk state.
+    }
+    return worktrees;
+  }
+
   private async terminalCreate(body: any) {
     const worktree = body?.worktree;
     const type = body?.type ?? "shell";
@@ -343,7 +465,9 @@ export class ApiServer {
   private async terminalSetCustomTitle(terminalId: string, body: any) {
     const customTitle = body?.customTitle;
     if (typeof customTitle !== "string")
-      throw Object.assign(new Error("customTitle is required"), { status: 400 });
+      throw Object.assign(new Error("customTitle is required"), {
+        status: 400,
+      });
 
     await this.execRenderer(
       `window.__tcApi.setCustomTitle(${JSON.stringify(terminalId)}, ${JSON.stringify(customTitle)})`,
@@ -354,7 +478,9 @@ export class ApiServer {
   private async terminalTelemetry(terminalId: string) {
     const snapshot = this.deps.telemetryService.getTerminalSnapshot(terminalId);
     if (!snapshot) {
-      throw Object.assign(new Error("Telemetry terminal not found"), { status: 404 });
+      throw Object.assign(new Error("Telemetry terminal not found"), {
+        status: 404,
+      });
     }
     return snapshot;
   }
@@ -364,16 +490,27 @@ export class ApiServer {
     limit: number,
     cursor?: string,
   ) {
-    return this.deps.telemetryService.listTerminalEvents({ terminalId, limit, cursor });
+    return this.deps.telemetryService.listTerminalEvents({
+      terminalId,
+      limit,
+      cursor,
+    });
   }
 
   private async workflowTelemetry(workflowId: string, repoPath: string | null) {
     if (!repoPath) {
-      throw Object.assign(new Error("repo query parameter is required"), { status: 400 });
+      throw Object.assign(new Error("repo query parameter is required"), {
+        status: 400,
+      });
     }
-    const snapshot = this.deps.telemetryService.getWorkflowSnapshot(repoPath, workflowId);
+    const snapshot = this.deps.telemetryService.getWorkflowSnapshot(
+      repoPath,
+      workflowId,
+    );
     if (!snapshot) {
-      throw Object.assign(new Error("Workflow telemetry not found"), { status: 404 });
+      throw Object.assign(new Error("Workflow telemetry not found"), {
+        status: 404,
+      });
     }
     return snapshot;
   }
@@ -385,12 +522,10 @@ export class ApiServer {
       });
     }
 
-    const { getMemoryDirForWorktree, scanMemoryDir } = await import(
-      "./memory-service.js"
-    );
-    const { generateEnhancedIndex } = await import(
-      "./memory-index-generator.js"
-    );
+    const { getMemoryDirForWorktree, scanMemoryDir } =
+      await import("./memory-service.js");
+    const { generateEnhancedIndex } =
+      await import("./memory-index-generator.js");
 
     const memDir = getMemoryDirForWorktree(worktree);
     const graph = scanMemoryDir(memDir);
