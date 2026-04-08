@@ -2,6 +2,24 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.21] - 2026-04-09
+
+### Added
+- Worktree management now supports create/remove routes in the Electron API server and IPC bridge
+- Added right-click "New Worktree..." and "Remove Worktree" menus in the sessions project tree and canvas project/worktree headers
+
+### Added (zh-CN)
+- Electron API server 与 IPC bridge 新增工作树创建/删除能力
+- 会话项目树与画布项目/工作树标题支持右键菜单（"New Worktree..."、"Remove Worktree"）
+
+### Fixed
+- New Worktree creation now uses an inline branch-name popover instead of system prompt, keeps the popover onscreen, and closes when clicking outside
+- Summary title updates now respect toggle state and ignore stale async writes
+
+### Fixed (zh-CN)
+- 创建工作树改为内联分支名输入弹层，不再依赖系统 prompt；弹层会保持在可视区内，点击空白处可关闭
+- Summary 标题更新现在遵守开关状态，并忽略过期的异步写入
+
 ## [0.25.20] - 2026-04-09
 
 ### Fixed
