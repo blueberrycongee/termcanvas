@@ -326,10 +326,12 @@ function WorktreeNode({
     (state) => state.toggleWorktreeCollapse,
   );
   const addTerminal = useProjectStore((state) => state.addTerminal);
+  const syncWorktrees = useProjectStore((state) => state.syncWorktrees);
   const reorderTerminal = useProjectStore((state) => state.reorderTerminal);
   const updateTerminalSpan = useProjectStore(
     (state) => state.updateTerminalSpan,
   );
+  const notify = useNotificationStore((state) => state.notify);
   const project = useProjectStore(
     useCallback(
       (state) =>
@@ -366,6 +368,7 @@ function WorktreeNode({
     ghostX?: number;
     ghostY?: number;
   } | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
 
   const tileW = useTileDimensionsStore((s) => s.w);
   const tileH = useTileDimensionsStore((s) => s.h);
@@ -567,6 +570,34 @@ function WorktreeNode({
     return null;
   }
 
+  const handleCreateWorktree = async () => {
+    const branchInput = window.prompt("branch name");
+    const branch = branchInput?.trim();
+    if (!branch) {
+      return;
+    }
+
+    try {
+      const result = await window.termcanvas.project.createWorktree(
+        project.path,
+        branch,
+      );
+      if (!result.ok) {
+        notify("error", `Failed to create worktree: ${result.error}`);
+        return;
+      }
+      syncWorktrees(project.path, result.worktrees);
+      notify("info", `Worktree "${branch}" created`);
+    } catch (err) {
+      notify(
+        "error",
+        `Failed to create worktree: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  };
+
   return (
     <div
       className="panel nopan h-full w-full overflow-hidden"
@@ -578,7 +609,14 @@ function WorktreeNode({
         outlineOffset: isSelected ? -2 : undefined,
       }}
     >
-      <div className="tc-worktree-drag-handle flex items-center gap-2 px-3 py-2 select-none cursor-grab active:cursor-grabbing">
+      <div
+        className="tc-worktree-drag-handle flex items-center gap-2 px-3 py-2 select-none cursor-grab active:cursor-grabbing"
+        onContextMenu={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setMenu({ x: event.clientX, y: event.clientY });
+        }}
+      >
         <span
           className="min-w-0 flex-1 truncate text-[11px] text-[var(--text-secondary)] font-medium"
           style={{ fontFamily: '"Geist Mono", monospace' }}
@@ -650,6 +688,22 @@ function WorktreeNode({
           </button>
         </div>
       </div>
+
+      {menu &&
+        createPortal(
+          <ContextMenu
+            x={menu.x}
+            y={menu.y}
+            items={[
+              {
+                label: "New Worktree...",
+                onClick: () => void handleCreateWorktree(),
+              },
+            ]}
+            onClose={() => setMenu(null)}
+          />,
+          document.body,
+        )}
 
       <div
         className="px-2 pb-2 relative"
