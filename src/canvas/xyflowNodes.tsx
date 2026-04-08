@@ -53,11 +53,23 @@ function NewWorktreePopover({
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    const handleMouseDown = (event: MouseEvent) => {
+      const target = event.target as globalThis.Node | null;
+      if (!target) return;
+      if (containerRef.current?.contains(target)) return;
+      onClose();
+    };
+    window.addEventListener("mousedown", handleMouseDown);
+    return () => window.removeEventListener("mousedown", handleMouseDown);
+  }, [onClose]);
 
   const submit = async () => {
     if (busy) return;
@@ -82,6 +94,7 @@ function NewWorktreePopover({
 
   return createPortal(
     <div
+      ref={containerRef}
       className="fixed z-[130] min-w-[220px] rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg"
       style={{ left: x, top: y }}
     >
