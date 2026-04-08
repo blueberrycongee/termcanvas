@@ -83,6 +83,7 @@ function resolveTerminalTitle(
   terminal: Pick<TerminalData, "customTitle" | "title" | "initialPrompt">,
   worktreeName: string,
   projectName: string,
+  provider?: string,
 ): string {
   const displayTitle = collapseWhitespace(
     terminal.customTitle
@@ -99,7 +100,9 @@ function resolveTerminalTitle(
   }
 
   if (initialPrompt) return initialPrompt;
-  if (displayTitle) return displayTitle;
+  if (provider && provider !== "unknown") {
+    return provider.charAt(0).toUpperCase() + provider.slice(1);
+  }
   if (worktreeName) return worktreeName;
   return projectName;
 }
@@ -401,6 +404,7 @@ export function buildProjectTree(
           resolvedTerminal,
           worktree.name,
           project.name,
+          telemetry?.provider,
         );
         const locationLabel =
           worktree.name === project.name
@@ -502,6 +506,7 @@ export function buildCanvasTerminalSections(
           resolvedTerminal,
           worktree.name,
           project.name,
+          telemetry?.provider,
         );
         const locationLabel =
           worktree.name === project.name
