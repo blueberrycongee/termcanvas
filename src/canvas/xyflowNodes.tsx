@@ -53,23 +53,11 @@ function NewWorktreePopover({
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
-
-  useEffect(() => {
-    const handleMouseDown = (event: MouseEvent) => {
-      const target = event.target as globalThis.Node | null;
-      if (!target) return;
-      if (containerRef.current?.contains(target)) return;
-      onClose();
-    };
-    window.addEventListener("mousedown", handleMouseDown);
-    return () => window.removeEventListener("mousedown", handleMouseDown);
-  }, [onClose]);
 
   const submit = async () => {
     if (busy) return;
@@ -92,47 +80,64 @@ function NewWorktreePopover({
     setBusy(false);
   };
 
+  const viewportWidth =
+    typeof window !== "undefined" ? window.innerWidth : 1024;
+  const viewportHeight =
+    typeof window !== "undefined" ? window.innerHeight : 768;
+  const popupWidth = 240;
+  const popupHeight = 108;
+  const left = Math.max(8, Math.min(x, viewportWidth - popupWidth - 8));
+  const top = Math.max(8, Math.min(y, viewportHeight - popupHeight - 8));
+
   return createPortal(
     <div
-      ref={containerRef}
-      className="fixed z-[130] min-w-[220px] rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg"
-      style={{ left: x, top: y }}
+      className="fixed inset-0 z-[130]"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
     >
-      <input
-        ref={inputRef}
-        value={value}
-        disabled={busy}
-        placeholder="branch name"
-        onChange={(event) => setValue(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            void submit();
-          } else if (event.key === "Escape") {
-            event.preventDefault();
-            onClose();
-          }
-        }}
-        className="w-full text-[11px] px-2 py-1 rounded border border-[var(--border)] bg-[var(--bg)] text-[var(--text-primary)] outline-none disabled:opacity-50"
-        style={{ fontFamily: '"Geist Mono", monospace' }}
-      />
-      {error && (
-        <div className="mt-1 text-[10px] text-[var(--red)] truncate">{error}</div>
-      )}
-      <div className="mt-2 flex items-center justify-end gap-1">
-        <button
-          className="px-2 py-1 text-[10px] rounded border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
-          onClick={onClose}
-        >
-          Cancel
-        </button>
-        <button
-          className="px-2 py-1 text-[10px] rounded bg-[var(--accent)] text-[var(--bg)] hover:opacity-90 disabled:opacity-50"
+      <div
+        className="absolute min-w-[220px] rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg"
+        style={{ left, top }}
+      >
+        <input
+          ref={inputRef}
+          value={value}
           disabled={busy}
-          onClick={() => void submit()}
-        >
-          Create
-        </button>
+          placeholder="branch name"
+          onChange={(event) => setValue(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              void submit();
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              onClose();
+            }
+          }}
+          className="w-full text-[11px] px-2 py-1 rounded border border-[var(--border)] bg-[var(--bg)] text-[var(--text-primary)] outline-none disabled:opacity-50"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        />
+        {error && (
+          <div className="mt-1 text-[10px] text-[var(--red)] truncate">{error}</div>
+        )}
+        <div className="mt-2 flex items-center justify-end gap-1">
+          <button
+            className="px-2 py-1 text-[10px] rounded border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+          <button
+            className="px-2 py-1 text-[10px] rounded bg-[var(--accent)] text-[var(--bg)] hover:opacity-90 disabled:opacity-50"
+            disabled={busy}
+            onClick={() => void submit()}
+          >
+            Create
+          </button>
+        </div>
       </div>
     </div>,
     document.body,
