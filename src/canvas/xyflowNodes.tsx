@@ -9,6 +9,7 @@ import type { TerminalData } from "../types";
 import { useProjectStore, createTerminal, stashTerminal } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { useCanvasStore } from "../stores/canvasStore";
+import { useNotificationStore } from "../stores/notificationStore";
 import { TerminalTile } from "../terminal/TerminalTile";
 import {
   resolveTerminalMountMode,
@@ -33,6 +34,7 @@ import {
   type WorktreeNodeData,
 } from "./nodeProjection";
 import { rectIntersectsCanvasViewport } from "./viewportBounds";
+import { ContextMenu } from "../components/ContextMenu";
 
 type ProjectFlowNode = Node<ProjectNodeData, "project">;
 type WorktreeFlowNode = Node<WorktreeNodeData, "worktree">;
@@ -112,10 +114,12 @@ function ProjectNode({ data }: NodeProps<ProjectFlowNode>) {
   const compactProjectWorktrees = useProjectStore(
     (state) => state.compactProjectWorktrees,
   );
+  const syncWorktrees = useProjectStore((state) => state.syncWorktrees);
   const toggleProjectCollapse = useProjectStore(
     (state) => state.toggleProjectCollapse,
   );
   const removeProject = useProjectStore((state) => state.removeProject);
+  const notify = useNotificationStore((state) => state.notify);
   const project = useProjectStore(
     useCallback(
       (state) =>
@@ -128,10 +132,39 @@ function ProjectNode({ data }: NodeProps<ProjectFlowNode>) {
       (item) => item.type === "project" && item.projectId === data.projectId,
     ),
   );
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
 
   if (!project) {
     return null;
   }
+
+  const handleCreateWorktree = async () => {
+    const branchInput = window.prompt("branch name");
+    const branch = branchInput?.trim();
+    if (!branch) {
+      return;
+    }
+
+    try {
+      const result = await window.termcanvas.project.createWorktree(
+        project.path,
+        branch,
+      );
+      if (!result.ok) {
+        notify("error", `Failed to create worktree: ${result.error}`);
+        return;
+      }
+      syncWorktrees(project.path, result.worktrees);
+      notify("info", `Worktree "${branch}" created`);
+    } catch (err) {
+      notify(
+        "error",
+        `Failed to create worktree: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  };
 
   return (
     <div
@@ -142,7 +175,14 @@ function ProjectNode({ data }: NodeProps<ProjectFlowNode>) {
       }}
     >
       <div className="pointer-events-none absolute inset-0 rounded-[var(--radius)] bg-[var(--surface)]/80" />
-      <div className="tc-project-drag-handle relative flex items-center gap-2 px-4 py-2 cursor-grab active:cursor-grabbing select-none">
+      <div
+        className="tc-project-drag-handle relative flex items-center gap-2 px-4 py-2 cursor-grab active:cursor-grabbing select-none"
+        onContextMenu={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setMenu({ x: event.clientX, y: event.clientY });
+        }}
+      >
         <div
           className="absolute inset-0"
           onDoubleClick={() => toggleProjectCollapse(project.id)}
@@ -251,6 +291,22 @@ function ProjectNode({ data }: NodeProps<ProjectFlowNode>) {
           <div className="h-full rounded-[calc(var(--radius)-2px)] border border-dashed border-[color-mix(in_srgb,var(--border)_70%,transparent)] bg-[color-mix(in_srgb,var(--bg)_82%,transparent)]" />
         </div>
       )}
+
+      {menu &&
+        createPortal(
+          <ContextMenu
+            x={menu.x}
+            y={menu.y}
+            items={[
+              {
+                label: "New Worktree...",
+                onClick: () => void handleCreateWorktree(),
+              },
+            ]}
+            onClose={() => setMenu(null)}
+          />,
+          document.body,
+        )}
     </div>
   );
 }
