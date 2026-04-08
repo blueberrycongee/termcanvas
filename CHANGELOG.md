@@ -2,6 +2,24 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.20] - 2026-04-09
+
+### Fixed
+- Awaiting input detection now works reliably: fixed snapshot push failure when the 5s timer fires, and prevented late JSONL session events from clobbering the awaiting_input state
+- Sessions panel keeps focused terminals visible in the project tree instead of hiding them
+- Panel turn elapsed timer now counts from actual turn start instead of showing zero
+
+### Fixed (zh-CN)
+- 等待交互检测现已可靠工作：修复 5 秒定时器触发后快照未推送的问题，并防止延迟到达的 JSONL 会话事件覆盖 awaiting_input 状态
+- 会话面板的项目树中不再隐藏当前聚焦的终端
+- 面板的 turn 耗时计时器现在从实际 turn 开始时间计算，而非显示为零
+
+### Fixed
+- Pinch-to-zoom no longer triggers on focused terminal tiles
+
+### Fixed (zh-CN)
+- 聚焦终端不再响应双指缩放手势
+
 ## [0.25.19] - 2026-04-08
 
 ### Fixed
