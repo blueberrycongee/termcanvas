@@ -15,15 +15,14 @@ const inputSchema = z.object({
   workflowId: z.string().optional().describe("Workflow ID (required for status, tick, watch, retry, cleanup)"),
   task: z.string().optional().describe("Task description (required for run)"),
   worktree: z.string().optional().describe("Worktree path (for run)"),
-  template: z.string().optional().describe("Workflow template (for run, e.g. single-step)"),
+  template: z.string().optional().describe("Workflow template (for run, e.g. researcher-implementer-tester or single-step)"),
   allType: z.string().optional().describe("Provider type for all roles (for run)"),
-  plannerType: z.string().optional().describe("Provider type for planner (for run)"),
+  researcherType: z.string().optional().describe("Provider type for researcher (for run)"),
   implementerType: z.string().optional().describe("Provider type for implementer (for run)"),
-  evaluatorType: z.string().optional().describe("Provider type for evaluator (for run)"),
+  testerType: z.string().optional().describe("Provider type for tester (for run)"),
   timeoutMinutes: z.number().optional().describe("Timeout in minutes (for run)"),
   maxRetries: z.number().optional().describe("Max retries (for run)"),
   autoApprove: z.boolean().optional().describe("Auto-approve mode (for run, default true)"),
-  approvePlan: z.boolean().optional().describe("Auto-approve plan (for run)"),
   force: z.boolean().optional().describe("Force cleanup (for cleanup)"),
   intervalMs: z.number().optional().describe("Poll interval in ms (for watch, default 30000)"),
   timeoutMs: z.number().optional().describe("Total timeout in ms (for watch, default 3600000)"),
@@ -55,12 +54,11 @@ export const hydraWorkflowTool: Tool<typeof inputSchema.shape> = {
       if (input.worktree) body.worktree = input.worktree;
       if (input.template) body.template = input.template;
       if (input.allType) body.allType = input.allType;
-      if (input.plannerType) body.plannerType = input.plannerType;
+      if (input.researcherType) body.researcherType = input.researcherType;
       if (input.implementerType) body.implementerType = input.implementerType;
-      if (input.evaluatorType) body.evaluatorType = input.evaluatorType;
+      if (input.testerType) body.testerType = input.testerType;
       if (input.timeoutMinutes) body.timeoutMinutes = input.timeoutMinutes;
       if (input.maxRetries !== undefined) body.maxRetries = input.maxRetries;
-      if (input.approvePlan) body.approvePlan = input.approvePlan;
       const result = await client.request("POST", "/workflow/run", body);
       return { content: JSON.stringify(result, null, 2) };
     }

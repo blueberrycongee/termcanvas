@@ -1,15 +1,16 @@
-import fs from "node:fs";
-import path from "node:path";
-import { collectTaskPackage, type CollectTaskPackageResult } from "./collector.ts";
+import crypto from "node:crypto";
 import {
   dispatchCreateOnly as defaultDispatchCreateOnly,
   type DispatchCreateOnlyRequest,
   type DispatchCreateOnlyResult,
 } from "./dispatcher.ts";
-import type { HandoffContract, ResultContract } from "./protocol.ts";
+import { collectRunResult } from "./collector.ts";
+import { getRunResultFile } from "./layout.ts";
+import type { WorkflowResultContract } from "./protocol.ts";
 import { loadAgent, saveAgent as defaultSaveAgent, type AgentRecord } from "./store.ts";
 import { enrichWorkflowStatusView } from "./telemetry.ts";
 import { isTermCanvasRunning, telemetryTerminal } from "./termcanvas.ts";
+import { writeRunTask } from "./run-task.ts";
 import { watchWorkflow } from "./workflow.ts";
 
 export interface AgentStatusView {
@@ -21,14 +22,12 @@ export interface AgentStatusView {
     terminalId: string;
     worktreePath: string;
   };
-  result?: ResultContract;
+  result?: WorkflowResultContract;
   failure?: { code: string; message: string; stage: string };
   telemetry?: {
     turn_state?: string;
     foreground_tool?: string;
     last_meaningful_progress_at?: string;
-    task_status?: string;
-    task_status_source?: string;
   };
 }
 
@@ -51,6 +50,39 @@ export interface WatchAgentDependencies {
 
 const DEFAULT_SLEEP = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+function generateRunId(): string {
+  return `run-${crypto.randomBytes(6).toString("hex")}`;
+}
+
+function writeDirectWorkerRun(agent: AgentRecord, runId: string) {
+  return writeRunTask({
+    repoPath: agent.repo,
+    workflowId: agent.workflowId!,
+    assignmentId: agent.assignmentId!,
+    runId,
+    role: "implementer",
+    agentType: agent.type,
+    sourceRole: "orchestrator",
+    objective: [agent.task],
+    readFiles: [],
+    writeTargets: [
+      {
+        label: "Result JSON",
+        path: getRunResultFile(agent.repo, agent.workflowId!, agent.assignmentId!, runId),
+      },
+    ],
+    decisionRules: [
+      "- Complete the requested task honestly.",
+      "- Use next_action.type=complete when the worker is actually done.",
+    ],
+    acceptanceCriteria: [
+      "Complete the requested task",
+      "Write a valid result.json file",
+    ],
+    skills: [],
+  });
+}
+
 function defaultCheckTerminalAlive(terminalId: string): boolean | null {
   try {
     if (!isTermCanvasRunning()) return null;
@@ -66,17 +98,12 @@ function defaultAgentTelemetry(terminalId: string): any {
   return telemetryTerminal(terminalId);
 }
 
-function readHandoffContract(filePath: string): HandoffContract | null {
-  try {
-    return JSON.parse(fs.readFileSync(filePath, "utf-8")) as HandoffContract;
-  } catch {
-    return null;
-  }
-}
-
 function buildStatusView(
   agent: AgentRecord,
-  collected: CollectTaskPackageResult,
+  status:
+    | { kind: "completed"; result: WorkflowResultContract }
+    | { kind: "failed"; failure: { code: string; message: string; stage: string } }
+    | { kind: "running" },
   telemetryData?: AgentStatusView["telemetry"],
 ): AgentStatusView {
   const base = {
@@ -87,11 +114,11 @@ function buildStatusView(
     worktreePath: agent.worktreePath,
   };
 
-  if (collected.status === "completed") {
-    return { agent: { ...base, status: "completed" }, result: collected.result };
+  if (status.kind === "completed") {
+    return { agent: { ...base, status: "completed" }, result: status.result };
   }
-  if (collected.status === "failed") {
-    return { agent: { ...base, status: "failed" }, failure: collected.failure };
+  if (status.kind === "failed") {
+    return { agent: { ...base, status: "failed" }, failure: status.failure };
   }
   return { agent: { ...base, status: "running" }, telemetry: telemetryData };
 }
@@ -129,31 +156,20 @@ export async function watchAgent(
     };
   }
 
-  if (!agent.handoffFile) {
+  if (!agent.workflowId || !agent.assignmentId || !agent.runId || !agent.taskFile || !agent.resultFile) {
     return {
       agent: {
-        id: agent.id, status: "failed", task: agent.task, type: agent.type,
-        terminalId: agent.terminalId, worktreePath: agent.worktreePath,
+        id: agent.id,
+        status: "failed",
+        task: agent.task,
+        type: agent.type,
+        terminalId: agent.terminalId,
+        worktreePath: agent.worktreePath,
       },
       failure: {
-        code: "AGENT_NO_HANDOFF",
-        message: `Agent ${agent.id} has no handoff file`,
-        stage: "watch.load_handoff",
-      },
-    };
-  }
-
-  const contract = readHandoffContract(agent.handoffFile);
-  if (!contract) {
-    return {
-      agent: {
-        id: agent.id, status: "failed", task: agent.task, type: agent.type,
-        terminalId: agent.terminalId, worktreePath: agent.worktreePath,
-      },
-      failure: {
-        code: "AGENT_HANDOFF_UNREADABLE",
-        message: `Cannot read handoff file: ${agent.handoffFile}`,
-        stage: "watch.read_handoff",
+        code: "AGENT_RUNTIME_METADATA_MISSING",
+        message: `Agent ${agent.id} is missing workflow/assignment/run metadata`,
+        stage: "watch.agent_metadata",
       },
     };
   }
@@ -161,76 +177,71 @@ export async function watchAgent(
   let retryCount = 0;
 
   while (true) {
-    const collected = collectTaskPackage(contract);
+    const collected = collectRunResult({
+      workflow_id: agent.workflowId,
+      assignment_id: agent.assignmentId,
+      run_id: agent.runId,
+      result_file: agent.resultFile,
+    });
 
-    if (collected.status === "completed" || collected.status === "failed") {
-      return buildStatusView(agent, collected);
+    if (collected.status === "completed") {
+      return buildStatusView(agent, { kind: "completed", result: collected.result });
+    }
+    if (collected.status === "failed") {
+      return buildStatusView(agent, { kind: "failed", failure: collected.failure });
     }
 
-    // Enrich running state with telemetry
     let telemetryData: AgentStatusView["telemetry"];
     try {
-      const t = getTelemetry(agent.terminalId);
-      if (t) {
+      const telemetry = getTelemetry(agent.terminalId);
+      if (telemetry) {
         telemetryData = {
-          turn_state: t.turn_state,
-          foreground_tool: t.foreground_tool,
-          last_meaningful_progress_at: t.last_meaningful_progress_at,
+          turn_state: telemetry.turn_state,
+          foreground_tool: telemetry.foreground_tool,
+          last_meaningful_progress_at: telemetry.last_meaningful_progress_at,
         };
-        if (typeof t.task_status === "string") {
-          telemetryData.task_status = t.task_status;
-        }
-        if (typeof t.task_status_source === "string") {
-          telemetryData.task_status_source = t.task_status_source;
-        }
       }
-    } catch {
-      // Telemetry unavailable — continue without it
-    }
+    } catch {}
 
-    // Terminal died without producing result → retry or fail
     const alive = checkAlive(agent.terminalId);
     if (alive === false) {
-      if (
-        retryCount >= maxRetries ||
-        !agent.workflowId || !agent.handoffId ||
-        !agent.taskFile || !agent.doneFile || !agent.resultFile
-      ) {
-        return {
-          agent: {
-            id: agent.id, status: "failed", task: agent.task, type: agent.type,
-            terminalId: agent.terminalId, worktreePath: agent.worktreePath,
-          },
+      if (retryCount >= maxRetries) {
+        return buildStatusView(agent, {
+          kind: "failed",
           failure: {
             code: "AGENT_TERMINAL_DEAD",
             message: `Terminal ${agent.terminalId} is no longer running (retries exhausted: ${retryCount}/${maxRetries})`,
             stage: "watch.check_terminal",
           },
-        };
+        });
       }
 
       retryCount++;
+      const nextRunId = generateRunId();
+      const nextRun = writeDirectWorkerRun(agent, nextRunId);
       const dispatched = await dispatch({
         workflowId: agent.workflowId,
-        handoffId: agent.handoffId,
+        assignmentId: agent.assignmentId,
+        runId: nextRunId,
         repoPath: agent.repo,
         worktreePath: agent.worktreePath,
         agentType: agent.type,
-        taskFile: agent.taskFile,
-        doneFile: agent.doneFile,
-        resultFile: agent.resultFile,
+        taskFile: nextRun.task_file,
+        resultFile: nextRun.result_file,
         autoApprove: true,
         parentTerminalId: process.env.TERMCANVAS_TERMINAL_ID,
       });
+      agent.runId = nextRunId;
+      agent.taskFile = nextRun.task_file;
+      agent.resultFile = nextRun.result_file;
       agent.terminalId = dispatched.terminalId;
       save(agent);
       continue;
     }
 
-    // Timeout check
     const elapsedMs = Date.parse(now()) - startedAtMs;
     if (options.timeoutMs !== undefined && elapsedMs >= options.timeoutMs) {
-      return buildStatusView(agent, collected, telemetryData);
+      return buildStatusView(agent, { kind: "running" }, telemetryData);
     }
 
     await sleep(options.intervalMs);
@@ -283,19 +294,6 @@ export function parseWatchArgs(args: string[]): WatchArgs {
     }
   }
 
-  if (!result.workflow && !result.agent) {
-    throw new Error("Missing required flag: --workflow or --agent");
-  }
-  if (result.workflow && !result.repo) {
-    throw new Error("Missing required flag: --repo (required with --workflow)");
-  }
-  if (!Number.isFinite(result.intervalMs) || (result.intervalMs ?? 0) <= 0) {
-    throw new Error("Expected --interval-ms to be a positive integer");
-  }
-  if (result.timeoutMs !== undefined && (!Number.isFinite(result.timeoutMs) || result.timeoutMs <= 0)) {
-    throw new Error("Expected --timeout-ms to be a positive integer");
-  }
-
   return result as WatchArgs;
 }
 
@@ -312,8 +310,12 @@ export async function watch(args: string[]): Promise<void> {
     return;
   }
 
+  if (!parsed.repo || !parsed.workflow) {
+    printWatchUsage();
+  }
+
   const result = enrichWorkflowStatusView(await watchWorkflow({
-    repoPath: path.resolve(parsed.repo!),
+    repoPath: parsed.repo!,
     workflowId: parsed.workflow!,
     intervalMs: parsed.intervalMs,
     timeoutMs: parsed.timeoutMs,

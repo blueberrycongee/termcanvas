@@ -10,8 +10,8 @@ import {
   type DispatchCreateOnlyRequest,
   type DispatchCreateOnlyResult,
 } from "../hydra/src/dispatcher.ts";
-import { HandoffManager } from "../hydra/src/handoff/manager.ts";
-import type { AgentType } from "../hydra/src/handoff/types.ts";
+import { AssignmentManager } from "../hydra/src/assignment/manager.ts";
+import type { AgentType } from "../hydra/src/assignment/types.ts";
 import {
   getWorkflowStatus,
   retryWorkflow,
@@ -38,15 +38,14 @@ export interface WorkflowRunRequest {
   task: string;
   repoPath: string;
   worktreePath?: string;
-  template?: "single-step" | "planner-implementer-evaluator";
+  template?: "single-step" | "researcher-implementer-tester";
   allType?: AgentType;
-  plannerType?: AgentType;
+  researcherType?: AgentType;
   implementerType?: AgentType;
-  evaluatorType?: AgentType;
+  testerType?: AgentType;
   timeoutMinutes?: number;
   maxRetries?: number;
   autoApprove?: boolean;
-  approvePlan?: boolean;
 }
 
 export interface WorkflowSummary {
@@ -54,7 +53,7 @@ export interface WorkflowSummary {
   status: WorkflowRecord["status"];
   task: string;
   worktree_path: string;
-  current_handoff_id: string;
+  current_assignment_id: string;
   updated_at: string;
 }
 
@@ -86,20 +85,23 @@ function buildWorkflowSummary(record: WorkflowRecord): WorkflowSummary {
     status: record.status,
     task: record.task,
     worktree_path: record.worktree_path,
-    current_handoff_id: record.current_handoff_id,
+    current_assignment_id: record.current_assignment_id,
     updated_at: record.updated_at,
   };
 }
 
 function buildWorkflowEventPayload(view: WorkflowStatusView): Record<string, unknown> {
-  const currentHandoff = view.handoffs.find(
-    (handoff) => handoff.id === view.workflow.current_handoff_id,
+  const currentAssignment = view.assignments.find(
+    (assignment) => assignment.id === view.workflow.current_assignment_id,
   );
+  const activeRun = currentAssignment?.active_run_id
+    ? currentAssignment.runs.find((run) => run.id === currentAssignment.active_run_id)
+    : currentAssignment?.runs[currentAssignment.runs.length - 1];
   return {
     workflowId: view.workflow.id,
-    handoffId: view.workflow.current_handoff_id,
+    assignmentId: view.workflow.current_assignment_id,
     repoPath: view.workflow.repo_path,
-    terminalId: currentHandoff?.dispatch?.active_terminal_id,
+    terminalId: activeRun?.terminal_id,
   };
 }
 
@@ -150,10 +152,12 @@ export function createWorkflowControl(
 
     const prompt = buildCreateOnlyPrompt(
       request.taskFile,
-      request.doneFile,
-      request.handoffId,
       request.workflowId,
       request.resultFile,
+      {
+        assignmentId: request.assignmentId,
+        runId: request.runId,
+      },
     );
 
     const terminal = await launchTrackedTerminal({
@@ -168,7 +172,7 @@ export function createWorkflowControl(
       autoApprove: request.autoApprove,
       parentTerminalId: request.parentTerminalId,
       workflowId: request.workflowId,
-      handoffId: request.handoffId,
+      assignmentId: request.assignmentId,
       repoPath: request.repoPath,
     });
 
@@ -202,13 +206,12 @@ export function createWorkflowControl(
           repoPath: request.repoPath,
           worktreePath: request.worktreePath,
           template: request.template,
-          plannerType: request.allType ?? request.plannerType,
+          researcherType: request.allType ?? request.researcherType,
           implementerType: request.allType ?? request.implementerType,
-          evaluatorType: request.allType ?? request.evaluatorType,
+          testerType: request.allType ?? request.testerType,
           timeoutMinutes: request.timeoutMinutes ?? 30,
           maxRetries: request.maxRetries ?? 1,
           autoApprove: request.autoApprove ?? true,
-          approvePlan: request.approvePlan ?? false,
         },
         workflowDependencies,
       );
@@ -258,10 +261,13 @@ export function createWorkflowControl(
         });
       }
 
-      const manager = new HandoffManager(resolvedRepo);
-      for (const handoffId of workflow.handoff_ids) {
-        const handoff = manager.load(handoffId);
-        const terminalId = handoff?.dispatch?.active_terminal_id;
+      const manager = new AssignmentManager(resolvedRepo, workflowId);
+      for (const assignmentId of workflow.assignment_ids) {
+        const assignment = manager.load(assignmentId);
+        const activeRun = assignment?.active_run_id
+          ? assignment.runs.find((run) => run.id === assignment.active_run_id)
+          : assignment?.runs[assignment.runs.length - 1];
+        const terminalId = activeRun?.terminal_id;
         if (!terminalId) {
           continue;
         }
@@ -296,9 +302,6 @@ export function createWorkflowControl(
         syncProject(workflow.repo_path);
       }
 
-      for (const handoffId of workflow.handoff_ids) {
-        fs.rmSync(manager.getHandoffPath(handoffId), { force: true });
-      }
       deleteWorkflow(resolvedRepo, workflowId);
       return { ok: true };
     },

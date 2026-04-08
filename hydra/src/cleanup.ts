@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import { loadAgent, listAgents, deleteAgent } from "./store.ts";
 import { isTermCanvasRunning, terminalDestroy, terminalStatus } from "./termcanvas.ts";
-import { HandoffManager } from "./handoff/manager.ts";
+import { AssignmentManager } from "./assignment/manager.ts";
 import { deleteWorkflow, loadWorkflow } from "./workflow-store.ts";
 
 export interface CleanupArgs {
@@ -97,11 +97,13 @@ function cleanupOne(agentId: string, force: boolean): void {
         return;
       }
     } catch {
+      // Terminal may already be gone
     }
 
     try {
       terminalDestroy(record.terminalId);
     } catch {
+      // Already destroyed
     }
   }
 
@@ -112,6 +114,7 @@ function cleanupOne(agentId: string, force: boolean): void {
         stdio: "pipe",
       });
     } catch {
+      // Already removed
     }
 
     if (record.branch) {
@@ -121,6 +124,7 @@ function cleanupOne(agentId: string, force: boolean): void {
           stdio: "pipe",
         });
       } catch {
+        // Already deleted
       }
     }
   }
@@ -136,12 +140,15 @@ function cleanupWorkflow(workflowId: string, repo: string, force: boolean): void
     return;
   }
 
-  const manager = new HandoffManager(repo);
+  const manager = new AssignmentManager(repo, workflowId);
 
   if (isTermCanvasRunning()) {
-    for (const handoffId of workflow.handoff_ids) {
-      const handoff = manager.load(handoffId);
-      const terminalId = handoff?.dispatch?.active_terminal_id;
+    for (const assignmentId of workflow.assignment_ids) {
+      const assignment = manager.load(assignmentId);
+      const activeRun = assignment?.active_run_id
+        ? assignment.runs.find((run) => run.id === assignment.active_run_id)
+        : assignment?.runs[assignment.runs.length - 1];
+      const terminalId = activeRun?.terminal_id;
       if (!terminalId) continue;
 
       if (!force) {
@@ -154,12 +161,14 @@ function cleanupWorkflow(workflowId: string, repo: string, force: boolean): void
             return;
           }
         } catch {
+          // terminal already gone
         }
       }
 
       try {
         terminalDestroy(terminalId);
       } catch {
+        // terminal already gone
       }
     }
   }
@@ -171,6 +180,7 @@ function cleanupWorkflow(workflowId: string, repo: string, force: boolean): void
         stdio: "pipe",
       });
     } catch {
+      // worktree already removed
     }
 
     if (workflow.branch) {
@@ -180,13 +190,11 @@ function cleanupWorkflow(workflowId: string, repo: string, force: boolean): void
           stdio: "pipe",
         });
       } catch {
+        // branch already removed
       }
     }
   }
 
-  for (const handoffId of workflow.handoff_ids) {
-    fs.rmSync(manager.getHandoffPath(handoffId), { force: true });
-  }
   deleteWorkflow(repo, workflowId);
   console.log(`Cleaned up workflow ${workflowId}.`);
 }

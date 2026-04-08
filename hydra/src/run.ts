@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { AgentType } from "./handoff/types.ts";
+import type { AgentType } from "./assignment/types.ts";
 import {
   DEFAULT_AGENT_TYPE,
   resolveWorkflowAgentTypes,
@@ -11,15 +11,14 @@ export interface RunArgs {
   task: string;
   repo: string;
   worktree?: string;
-  template: "single-step" | "planner-implementer-evaluator";
+  template: "single-step" | "researcher-implementer-tester";
   allType?: AgentType;
-  plannerType?: AgentType;
+  researcherType?: AgentType;
   implementerType?: AgentType;
-  evaluatorType?: AgentType;
+  testerType?: AgentType;
   timeoutMinutes: number;
   maxRetries: number;
   autoApprove: boolean;
-  approvePlan: boolean;
 }
 
 function printRunUsage(): never {
@@ -29,21 +28,20 @@ function printRunUsage(): never {
   console.log("  --task <desc>            Task description (required)");
   console.log("  --repo <path>            Path to the git repository (required)");
   console.log("  --worktree <path>        Use an existing worktree");
-  console.log("  --template <name>        Workflow template: planner-implementer-evaluator | single-step");
+  console.log("  --template <name>        Workflow template: researcher-implementer-tester | single-step");
   console.log("  --all-type <type>        Use one agent type for researcher/implementer/tester");
-  console.log("  --planner-type <type>    Researcher agent type (legacy flag name retained)");
+  console.log("  --researcher-type <type> Researcher agent type");
   console.log("  --implementer-type <type> Implementer agent type");
-  console.log("  --evaluator-type <type>  Tester agent type (legacy flag name retained)");
+  console.log("  --tester-type <type>     Tester agent type");
   console.log(`  --type <type>            Alias for --implementer-type (fallback default: ${DEFAULT_AGENT_TYPE})`);
-  console.log("  --timeout-minutes <num>  Per-handoff timeout in minutes (default: 30)");
+  console.log("  --timeout-minutes <num>  Per-assignment timeout in minutes (default: 30)");
   console.log("  --max-retries <num>      Automatic retry limit (default: 1)");
   console.log("  --no-auto-approve        Disable auto-approve (sub-agents auto-approve by default)");
-  console.log("  --approve-plan           Legacy compatibility flag; full workflows always pause for research approval");
   console.log("");
   console.log("Mode guide:");
   console.log("  hydra run                          inherit the current terminal type when available");
   console.log("  hydra run --all-type codex         force all workflow roles onto codex");
-  console.log("  hydra run --planner-type claude --implementer-type codex --evaluator-type claude");
+  console.log("  hydra run --researcher-type claude --implementer-type codex --tester-type claude");
   console.log("                                     mix providers explicitly by role (researcher / implementer / tester)");
   console.log("  hydra run --template single-step   one implementer with file gates");
   console.log("  hydra spawn                       one direct isolated worker");
@@ -56,11 +54,10 @@ export function parseRunArgs(args: string[]): RunArgs {
   }
 
   const result: Partial<RunArgs> = {
-    template: "planner-implementer-evaluator",
+    template: "researcher-implementer-tester",
     timeoutMinutes: 30,
     maxRetries: 1,
     autoApprove: true,
-    approvePlan: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -75,12 +72,12 @@ export function parseRunArgs(args: string[]): RunArgs {
       result.template = args[++i] as RunArgs["template"];
     } else if (arg === "--all-type" && i + 1 < args.length) {
       result.allType = parseAgentTypeFlag("--all-type", args[++i]);
-    } else if (arg === "--planner-type" && i + 1 < args.length) {
-      result.plannerType = parseAgentTypeFlag("--planner-type", args[++i]);
+    } else if (arg === "--researcher-type" && i + 1 < args.length) {
+      result.researcherType = parseAgentTypeFlag("--researcher-type", args[++i]);
     } else if ((arg === "--implementer-type" || arg === "--type") && i + 1 < args.length) {
       result.implementerType = parseAgentTypeFlag(arg, args[++i]);
-    } else if (arg === "--evaluator-type" && i + 1 < args.length) {
-      result.evaluatorType = parseAgentTypeFlag("--evaluator-type", args[++i]);
+    } else if (arg === "--tester-type" && i + 1 < args.length) {
+      result.testerType = parseAgentTypeFlag("--tester-type", args[++i]);
     } else if (arg === "--timeout-minutes" && i + 1 < args.length) {
       result.timeoutMinutes = Number.parseInt(args[++i], 10);
     } else if (arg === "--max-retries" && i + 1 < args.length) {
@@ -89,8 +86,6 @@ export function parseRunArgs(args: string[]): RunArgs {
       result.autoApprove = true;
     } else if (arg === "--no-auto-approve") {
       result.autoApprove = false;
-    } else if (arg === "--approve-plan") {
-      result.approvePlan = true;
     }
   }
 
@@ -114,13 +109,12 @@ export async function run(args: string[]): Promise<void> {
     repoPath: path.resolve(parsed.repo),
     worktreePath: parsed.worktree ? path.resolve(parsed.worktree) : undefined,
     template: parsed.template,
-    plannerType: resolvedTypes.plannerType,
+    researcherType: resolvedTypes.researcherType,
     implementerType: resolvedTypes.implementerType,
-    evaluatorType: resolvedTypes.evaluatorType,
+    testerType: resolvedTypes.testerType,
     timeoutMinutes: parsed.timeoutMinutes,
     maxRetries: parsed.maxRetries,
     autoApprove: parsed.autoApprove,
-    approvePlan: parsed.approvePlan,
   });
   console.log(JSON.stringify(result, null, 2));
 }

@@ -19,7 +19,7 @@ export interface ActiveWorkflowSummary {
   task: string;
   repo_path: string;
   worktree_path: string;
-  current_handoff_id: string;
+  current_assignment_id: string;
   updated_at: string;
 }
 
@@ -30,7 +30,7 @@ function summarizeWorkflow(workflow: WorkflowRecord): ActiveWorkflowSummary {
     task: workflow.task,
     repo_path: workflow.repo_path,
     worktree_path: workflow.worktree_path,
-    current_handoff_id: workflow.current_handoff_id,
+    current_assignment_id: workflow.current_assignment_id,
     updated_at: workflow.updated_at,
   };
 }

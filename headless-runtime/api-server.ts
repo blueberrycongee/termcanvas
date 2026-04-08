@@ -561,28 +561,26 @@ export class HeadlessApiServer {
       worktreePath,
       template,
       allType,
-      plannerType,
+      researcherType,
       implementerType,
-      evaluatorType,
+      testerType,
       timeoutMinutes,
       maxRetries,
       autoApprove,
-      approvePlan,
     } = body as {
       task?: string;
       repo?: string;
       repoPath?: string;
       worktree?: string;
       worktreePath?: string;
-      template?: "single-step" | "planner-implementer-evaluator";
+      template?: "single-step" | "researcher-implementer-tester";
       allType?: "claude" | "codex" | "kimi" | "gemini";
-      plannerType?: "claude" | "codex" | "kimi" | "gemini";
+      researcherType?: "claude" | "codex" | "kimi" | "gemini";
       implementerType?: "claude" | "codex" | "kimi" | "gemini";
-      evaluatorType?: "claude" | "codex" | "kimi" | "gemini";
+      testerType?: "claude" | "codex" | "kimi" | "gemini";
       timeoutMinutes?: number;
       maxRetries?: number;
       autoApprove?: boolean;
-      approvePlan?: boolean;
     };
 
     if (!task) {
@@ -599,13 +597,12 @@ export class HeadlessApiServer {
       worktreePath: worktreePath ?? worktree,
       template,
       allType,
-      plannerType,
+      researcherType,
       implementerType,
-      evaluatorType,
+      testerType,
       timeoutMinutes,
       maxRetries,
       autoApprove,
-      approvePlan,
     });
   }
 
@@ -733,7 +730,7 @@ export class HeadlessApiServer {
       autoApprove,
       parentTerminalId,
       workflowId,
-      handoffId,
+      assignmentId,
       repoPath,
     } = body as {
       worktree?: string;
@@ -742,7 +739,7 @@ export class HeadlessApiServer {
       autoApprove?: boolean;
       parentTerminalId?: string;
       workflowId?: string;
-      handoffId?: string;
+      assignmentId?: string;
       repoPath?: string;
     };
 
@@ -764,7 +761,7 @@ export class HeadlessApiServer {
       autoApprove,
       parentTerminalId,
       workflowId,
-      handoffId,
+      assignmentId,
       repoPath,
     });
 
@@ -962,7 +959,7 @@ export class HeadlessApiServer {
       active_workflows: activeWorkflows.map((workflow) => ({
         id: workflow.id,
         status: workflow.status,
-        current_handoff_id: workflow.current_handoff_id,
+        current_assignment_id: workflow.current_assignment_id,
         updated_at: workflow.updated_at,
       })),
       recent_events: recentEvents,

@@ -2,11 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { cleanup } from "../src/cleanup.ts";
-import { writeDoneMarker, writeResultContract } from "../src/collector.ts";
-import { HandoffManager } from "../src/handoff/manager.ts";
+import { AssignmentManager } from "../src/assignment/manager.ts";
 import { terminalDestroy, terminalStatus } from "../src/termcanvas.ts";
-import { getWorkflowStatus, runWorkflow, tickWorkflow } from "../src/workflow.ts";
+import { getWorkflowStatus, runWorkflow, tickWorkflow, approveWorkflow } from "../src/workflow.ts";
 import { loadWorkflow } from "../src/workflow-store.ts";
+import { assignmentRequiresBrief } from "../src/workflow-template.ts";
+import { getRunBriefFile } from "../src/layout.ts";
+import type { AssignmentRecord } from "../src/assignment/types.ts";
 
 interface Args {
   repo: string;
@@ -15,7 +17,7 @@ interface Args {
 
 interface StageRecord {
   stage: string;
-  handoffId: string;
+  assignmentId: string;
   role: string;
   terminalId: string | null;
   terminalStatus: string | null;
@@ -46,24 +48,43 @@ function parseArgs(argv: string[]): Args {
   };
 }
 
+function latestRun(assignment: AssignmentRecord): AssignmentRecord["runs"][number] {
+  const active = assignment.active_run_id
+    ? assignment.runs.find((run) => run.id === assignment.active_run_id)
+    : null;
+  const run = active ?? assignment.runs[assignment.runs.length - 1] ?? null;
+  assert.ok(run, `assignment ${assignment.id} must have a run`);
+  return run;
+}
+
 async function captureStage(
   repoPath: string,
   workflowId: string,
   expectedRole: string,
   summary: string,
   success: boolean,
-  nextAction: { type: "complete" | "retry" | "handoff"; reason: string; handoff_id?: string },
+  nextAction: { type: "complete" | "retry" | "transition"; reason: string; assignment_id?: string },
 ): Promise<StageRecord> {
   const workflow = loadWorkflow(repoPath, workflowId);
   assert.ok(workflow, "workflow must exist");
 
-  const manager = new HandoffManager(repoPath);
-  const handoff = manager.load(workflow.current_handoff_id);
-  assert.ok(handoff, "current handoff must exist");
-  assert.equal(handoff.to.role, expectedRole);
-  assert.ok(handoff.artifacts, "handoff must have artifacts");
+  const manager = new AssignmentManager(repoPath, workflowId);
+  const assignment = manager.load(workflow.current_assignment_id);
+  assert.ok(assignment, "current assignment must exist");
+  assert.equal(assignment.role, expectedRole);
 
-  let terminalId: string | null = handoff.dispatch?.active_terminal_id ?? null;
+  const run = latestRun(assignment);
+  const briefFile = getRunBriefFile(repoPath, workflowId, assignment.id, run.id);
+  if (assignmentRequiresBrief(assignment.kind)) {
+    fs.mkdirSync(path.dirname(briefFile), { recursive: true });
+    fs.writeFileSync(
+      briefFile,
+      `# ${expectedRole} brief\n\n${summary}\n`,
+      "utf-8",
+    );
+  }
+
+  let terminalId: string | null = run.terminal_id ?? null;
   let status: string | null = null;
   if (terminalId) {
     try {
@@ -73,24 +94,21 @@ async function captureStage(
     }
   }
 
-  writeResultContract(
-    { artifacts: handoff.artifacts },
-    {
-      version: "hydra/v2",
-      handoff_id: handoff.id,
-      workflow_id: handoff.workflow_id,
+  fs.writeFileSync(
+    run.result_file,
+    JSON.stringify({
+      schema_version: "hydra/result/v1",
+      workflow_id: workflowId,
+      assignment_id: assignment.id,
+      run_id: run.id,
       success,
       summary,
       outputs: [{ path: `${expectedRole}.md`, description: `${expectedRole} acceptance artifact` }],
       evidence: ["hydra e2e acceptance script"],
       next_action: nextAction,
-    },
+    }, null, 2),
+    "utf-8",
   );
-  writeDoneMarker({
-    artifacts: handoff.artifacts,
-    handoff_id: handoff.id,
-    workflow_id: handoff.workflow_id,
-  });
 
   if (terminalId) {
     try {
@@ -102,8 +120,8 @@ async function captureStage(
 
   return {
     stage: expectedRole,
-    handoffId: handoff.id,
-    role: handoff.to.role,
+    assignmentId: assignment.id,
+    role: assignment.role,
     terminalId,
     terminalStatus: status,
     summary,
@@ -117,7 +135,7 @@ function renderReport(args: Args, workflowId: string, records: StageRecord[]): s
     `- Date: ${new Date().toISOString()}`,
     `- Repo: ${args.repo}`,
     `- Workflow ID: ${workflowId}`,
-    `- Mode: real TermCanvas terminal create + deterministic file evidence injection`,
+    `- Mode: real TermCanvas terminal create + deterministic result injection`,
     "",
     "## Reproduction",
     "",
@@ -130,19 +148,19 @@ function renderReport(args: Args, workflowId: string, records: StageRecord[]): s
     "## Notes",
     "",
     "- Each stage launched a real Claude/Codex terminal via `termcanvas terminal create --prompt`.",
-    "- The acceptance script then wrote deterministic `result.json` + `done` files to exercise the control plane without relying on model nondeterminism.",
-    "- The flow includes an evaluator failure loop and a successful recovery.",
+    "- The acceptance script then wrote deterministic `result.json` files to exercise the control plane without relying on model nondeterminism.",
+    "- The flow includes research approval, a tester loopback, a successful recovery, and a final researcher intent-confirmation pass.",
     "",
     "## Observed Stages",
     "",
-    "| Stage | Handoff ID | Terminal ID | Terminal Status Before Cleanup | Summary |",
-    "|------|------------|-------------|-------------------------------|---------|",
-    ...records.map((record) => `| ${record.stage} | ${record.handoffId} | ${record.terminalId ?? "-"} | ${record.terminalStatus ?? "-"} | ${record.summary} |`),
+    "| Stage | Assignment ID | Terminal ID | Terminal Status Before Cleanup | Summary |",
+    "|------|---------------|-------------|-------------------------------|---------|",
+    ...records.map((record) => `| ${record.stage} | ${record.assignmentId} | ${record.terminalId ?? "-"} | ${record.terminalStatus ?? "-"} | ${record.summary} |`),
     "",
     "## Outcome",
     "",
-    "- Sequence exercised: `planner (Claude) -> implementer (Codex) -> evaluator (Claude) -> implementer retry (Codex) -> evaluator recovery (Claude)`",
-    "- Verified: create-only dispatch, schema gate, evaluator loopback, retry/recovery, workflow completion, and cleanup.",
+    "- Sequence exercised: `researcher (Codex) -> approval -> implementer (Codex) -> tester (Claude) -> implementer retry (Codex) -> tester recovery (Claude) -> researcher intent confirmation (Codex)`",
+    "- Verified: create-only dispatch, result schema gate, approval boundary, tester loopback, retry/recovery, intent confirmation, workflow completion, and cleanup.",
     "",
   ];
 
@@ -156,11 +174,11 @@ async function main() {
 
   try {
     const started = await runWorkflow({
-      task: "Hydra acceptance harness: do not modify repository source files. Only interact with the generated Hydra task package and acceptance artifacts.",
+      task: "Hydra acceptance harness: do not modify repository source files. Only interact with the generated Hydra task files and acceptance artifacts.",
       repoPath: args.repo,
-      template: "planner-implementer-evaluator",
+      template: "researcher-implementer-tester",
       agentType: "codex",
-      evaluatorType: "claude",
+      testerType: "claude",
       timeoutMinutes: 5,
       maxRetries: 1,
       autoApprove: true,
@@ -170,30 +188,32 @@ async function main() {
     records.push(await captureStage(
       args.repo,
       workflowId,
-      "planner",
-      "Planner produced an actionable acceptance plan.",
+      "researcher",
+      "Researcher produced an actionable acceptance brief.",
       true,
-      { type: "handoff", reason: "Implementation can start.", handoff_id: started.handoffs[1].id },
+      { type: "transition", reason: "Implementation can start after approval.", assignment_id: started.workflow.assignment_ids[1] },
     ));
 
     await tickWorkflow({ repoPath: args.repo, workflowId });
+    await approveWorkflow({ repoPath: args.repo, workflowId });
+
     records.push(await captureStage(
       args.repo,
       workflowId,
       "implementer",
       "Implementer completed the first pass.",
       true,
-      { type: "handoff", reason: "Evaluator can start.", handoff_id: started.handoffs[2].id },
+      { type: "transition", reason: "Verification can start.", assignment_id: started.workflow.assignment_ids[2] },
     ));
 
     await tickWorkflow({ repoPath: args.repo, workflowId });
     records.push(await captureStage(
       args.repo,
       workflowId,
-      "evaluator",
-      "Evaluator found an unmet standard and requested another implementation pass.",
-      false,
-      { type: "handoff", reason: "Implementer must address the blocked standard.", handoff_id: started.handoffs[1].id },
+      "tester",
+      "Tester found an unmet standard and requested another implementation pass.",
+      true,
+      { type: "transition", reason: "Implementer must address the blocked standard.", assignment_id: started.workflow.assignment_ids[1] },
     ));
 
     await tickWorkflow({ repoPath: args.repo, workflowId });
@@ -201,17 +221,27 @@ async function main() {
       args.repo,
       workflowId,
       "implementer",
-      "Implementer addressed the evaluator findings.",
+      "Implementer addressed the tester findings.",
       true,
-      { type: "handoff", reason: "Re-run evaluation.", handoff_id: started.handoffs[2].id },
+      { type: "transition", reason: "Re-run verification.", assignment_id: started.workflow.assignment_ids[2] },
     ));
 
     await tickWorkflow({ repoPath: args.repo, workflowId });
     records.push(await captureStage(
       args.repo,
       workflowId,
-      "evaluator",
-      "Evaluator confirmed the recovery pass met the bar.",
+      "tester",
+      "Tester confirmed the recovery pass met the bar and requested intent confirmation.",
+      true,
+      { type: "transition", reason: "Researcher should confirm the final outcome.", assignment_id: started.workflow.assignment_ids[0] },
+    ));
+
+    await tickWorkflow({ repoPath: args.repo, workflowId });
+    records.push(await captureStage(
+      args.repo,
+      workflowId,
+      "researcher",
+      "Researcher confirmed the tested implementation satisfies the approved intent.",
       true,
       { type: "complete", reason: "Workflow is complete." },
     ));

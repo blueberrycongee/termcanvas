@@ -3,18 +3,18 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { HandoffManager } from "../src/handoff/manager.ts";
+import { AssignmentManager } from "../src/assignment/manager.ts";
 import {
   getWorkflowStatus,
   runWorkflow,
   tickWorkflow,
   watchWorkflow,
 } from "../src/workflow.ts";
+import { WORKFLOW_RESULT_SCHEMA_VERSION } from "../src/protocol.ts";
 import { parseChallengeArgs } from "../src/challenge-command.ts";
 import { parseResolveChallengeArgs } from "../src/resolve-challenge.ts";
 import { parseRunArgs } from "../src/run.ts";
 import { parseWatchArgs } from "../src/watch.ts";
-import { writeDoneMarker, writeResultContract } from "../src/collector.ts";
 
 function createRepoFixture() {
   const repoPath = fs.mkdtempSync(path.join(os.tmpdir(), "hydra-workflow-"));
@@ -32,9 +32,9 @@ test("parseRunArgs, parseWatchArgs, and challenge commands read orchestration CL
       "--task", "Implement the workflow",
       "--repo", "/repo/project",
       "--worktree", "/repo/project/.worktrees/hydra-1",
-      "--planner-type", "claude",
+      "--researcher-type", "claude",
       "--implementer-type", "codex",
-      "--evaluator-type", "gemini",
+      "--tester-type", "gemini",
       "--timeout-minutes", "15",
       "--max-retries", "2",
     ]),
@@ -42,14 +42,13 @@ test("parseRunArgs, parseWatchArgs, and challenge commands read orchestration CL
       task: "Implement the workflow",
       repo: "/repo/project",
       worktree: "/repo/project/.worktrees/hydra-1",
-      template: "planner-implementer-evaluator",
-      plannerType: "claude",
+      template: "researcher-implementer-tester",
+      researcherType: "claude",
       implementerType: "codex",
-      evaluatorType: "gemini",
+      testerType: "gemini",
       timeoutMinutes: 15,
       maxRetries: 2,
       autoApprove: true,
-      approvePlan: false,
     },
   );
 
@@ -114,7 +113,7 @@ test("runWorkflow, tickWorkflow, status, and watch orchestrate a single-step wor
       {
         now: () => "2026-03-26T12:00:00.000Z",
         dispatchCreateOnly: async (request) => {
-          dispatchCalls.push(request.handoffId);
+          dispatchCalls.push(request.assignmentId ?? "<unknown>");
           return {
             projectId: "project-1",
             terminalId: "terminal-1",
@@ -129,33 +128,30 @@ test("runWorkflow, tickWorkflow, status, and watch orchestrate a single-step wor
 
     assert.equal(started.workflow.status, "running");
     assert.equal(dispatchCalls.length, 1);
-    assert.equal(started.handoffs.length, 1);
-    assert.equal(started.handoffs[0].status, "in_progress");
+    assert.equal(started.assignments.length, 1);
+    assert.equal(started.assignments[0]?.status, "in_progress");
 
-    const manager = new HandoffManager(repoPath);
-    const activeHandoff = manager.load(started.workflow.current_handoff_id)!;
-    assert.ok(activeHandoff.artifacts, "expected task package artifacts");
+    const manager = new AssignmentManager(repoPath, started.workflow.id);
+    const activeAssignment = manager.load(started.workflow.current_assignment_id);
+    assert.ok(activeAssignment);
+    const activeRun = activeAssignment.runs.find((run) => run.id === activeAssignment.active_run_id);
+    assert.ok(activeRun);
 
-    writeResultContract(
-      {
-        artifacts: activeHandoff.artifacts!,
-      },
-      {
-        version: "hydra/v2",
-        handoff_id: activeHandoff.id,
-        workflow_id: activeHandoff.workflow_id,
+    fs.writeFileSync(
+      activeRun.result_file,
+      JSON.stringify({
+        schema_version: WORKFLOW_RESULT_SCHEMA_VERSION,
+        workflow_id: started.workflow.id,
+        assignment_id: activeAssignment.id,
+        run_id: activeRun.id,
         success: true,
         summary: "Workflow completed successfully.",
         outputs: [{ path: "hydra/src/workflow.ts", description: "Workflow CLI orchestration" }],
         evidence: ["npm test"],
         next_action: { type: "complete", reason: "Workflow is done." },
-      },
+      }),
+      "utf-8",
     );
-    writeDoneMarker({
-      artifacts: activeHandoff.artifacts!,
-      handoff_id: activeHandoff.id,
-      workflow_id: activeHandoff.workflow_id,
-    });
 
     const ticked = await tickWorkflow(
       {
@@ -165,7 +161,7 @@ test("runWorkflow, tickWorkflow, status, and watch orchestrate a single-step wor
       {
         now: () => "2026-03-26T12:00:10.000Z",
         dispatchCreateOnly: async () => {
-          throw new Error("must not redispatch a completed handoff");
+          throw new Error("must not redispatch a completed assignment");
         },
       },
     );
@@ -178,7 +174,7 @@ test("runWorkflow, tickWorkflow, status, and watch orchestrate a single-step wor
       workflowId: started.workflow.id,
     });
     assert.equal(status.workflow.status, "completed");
-    assert.equal(status.handoffs[0].result?.success, true);
+    assert.equal(status.assignments[0]?.result?.success, true);
 
     const watched = await watchWorkflow(
       {
@@ -190,7 +186,7 @@ test("runWorkflow, tickWorkflow, status, and watch orchestrate a single-step wor
       {
         now: () => "2026-03-26T12:00:11.000Z",
         dispatchCreateOnly: async () => {
-          throw new Error("must not redispatch a completed handoff");
+          throw new Error("must not redispatch a completed assignment");
         },
         sleep: async () => {},
       },

@@ -3,8 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { HandoffManager } from "../src/handoff/manager.ts";
-import { writeDoneMarker } from "../src/collector.ts";
+import { AssignmentManager } from "../src/assignment/manager.ts";
 import { runWorkflow, tickWorkflow } from "../src/workflow.ts";
 
 function createRepoFixture() {
@@ -17,7 +16,7 @@ function createRepoFixture() {
   };
 }
 
-test("duplicate tick calls do not dispatch the same handoff twice", async () => {
+test("duplicate tick calls do not dispatch the same assignment twice", async () => {
   const { repoPath, worktreePath } = createRepoFixture();
   const dispatchCalls: string[] = [];
 
@@ -29,7 +28,7 @@ test("duplicate tick calls do not dispatch the same handoff twice", async () => 
         worktreePath,
         template: "single-step",
         agentType: "codex",
-        evaluatorType: "claude",
+        testerType: "claude",
         timeoutMinutes: 5,
         maxRetries: 1,
         autoApprove: false,
@@ -37,7 +36,7 @@ test("duplicate tick calls do not dispatch the same handoff twice", async () => 
       {
         now: () => "2026-03-26T13:00:00.000Z",
         dispatchCreateOnly: async (request) => {
-          dispatchCalls.push(request.handoffId);
+          dispatchCalls.push(request.assignmentId ?? "<unknown>");
           return {
             projectId: "project-1",
             terminalId: `terminal-${dispatchCalls.length}`,
@@ -54,7 +53,7 @@ test("duplicate tick calls do not dispatch the same handoff twice", async () => 
       {
         now: () => "2026-03-26T13:00:10.000Z",
         dispatchCreateOnly: async () => {
-          throw new Error("must not redispatch while handoff is still in progress");
+          throw new Error("must not redispatch while assignment is still in progress");
         },
       },
     );
@@ -63,7 +62,7 @@ test("duplicate tick calls do not dispatch the same handoff twice", async () => 
       {
         now: () => "2026-03-26T13:00:20.000Z",
         dispatchCreateOnly: async () => {
-          throw new Error("must not redispatch while handoff is still in progress");
+          throw new Error("must not redispatch while assignment is still in progress");
         },
       },
     );
@@ -87,7 +86,7 @@ test("half-written result.json fails the workflow instead of optimistic success"
         worktreePath,
         template: "single-step",
         agentType: "codex",
-        evaluatorType: "claude",
+        testerType: "claude",
         timeoutMinutes: 5,
         maxRetries: 1,
         autoApprove: false,
@@ -104,14 +103,12 @@ test("half-written result.json fails the workflow instead of optimistic success"
       },
     );
 
-    const manager = new HandoffManager(repoPath);
-    const handoff = manager.load(started.workflow.current_handoff_id)!;
-    fs.writeFileSync(handoff.artifacts!.result_file, "{\"version\":\"hydra/v2\"", "utf-8");
-    writeDoneMarker({
-      artifacts: handoff.artifacts!,
-      handoff_id: handoff.id,
-      workflow_id: handoff.workflow_id,
-    });
+    const manager = new AssignmentManager(repoPath, started.workflow.id);
+    const assignment = manager.load(started.workflow.current_assignment_id);
+    assert.ok(assignment);
+    const activeRun = assignment.runs.find((run) => run.id === assignment.active_run_id);
+    assert.ok(activeRun);
+    fs.writeFileSync(activeRun.result_file, "{\"schema_version\":\"hydra/result/v1\"", "utf-8");
 
     const failed = await tickWorkflow(
       { repoPath, workflowId: started.workflow.id },
@@ -130,7 +127,44 @@ test("half-written result.json fails the workflow instead of optimistic success"
   }
 });
 
-test("workflow tick triggers timeout retry on the real orchestration path", async () => {
+test("dispatch failure does not leave a claimed assignment without a run", async () => {
+  const { repoPath, worktreePath } = createRepoFixture();
+
+  try {
+    const failed = await runWorkflow(
+      {
+        task: "Fail cleanly during initial dispatch",
+        repoPath,
+        worktreePath,
+        template: "single-step",
+        agentType: "codex",
+        testerType: "claude",
+        timeoutMinutes: 5,
+        maxRetries: 1,
+        autoApprove: false,
+      },
+      {
+        now: () => "2026-03-26T13:15:00.000Z",
+        dispatchCreateOnly: async () => {
+          throw new Error("dispatch exploded");
+        },
+      },
+    );
+
+    const manager = new AssignmentManager(repoPath, failed.workflow.id);
+    const assignment = manager.load(failed.workflow.current_assignment_id);
+    assert.ok(assignment);
+
+    assert.equal(failed.workflow.status, "failed");
+    assert.equal(failed.workflow.failure?.code, "ASSIGNMENT_DISPATCH_FAILED");
+    assert.equal(assignment.status, "failed");
+    assert.equal(assignment.runs.length, 0);
+  } finally {
+    fs.rmSync(repoPath, { recursive: true, force: true });
+  }
+});
+
+test("workflow tick retries timeouts with a fresh run and terminal", async () => {
   const { repoPath, worktreePath } = createRepoFixture();
   const terminalIds: string[] = [];
 
@@ -142,7 +176,7 @@ test("workflow tick triggers timeout retry on the real orchestration path", asyn
         worktreePath,
         template: "single-step",
         agentType: "codex",
-        evaluatorType: "claude",
+        testerType: "claude",
         timeoutMinutes: 1,
         maxRetries: 1,
         autoApprove: false,
@@ -181,13 +215,15 @@ test("workflow tick triggers timeout retry on the real orchestration path", asyn
       },
     );
 
-    const manager = new HandoffManager(repoPath);
-    const handoff = manager.load(started.workflow.current_handoff_id)!;
+    const manager = new AssignmentManager(repoPath, started.workflow.id);
+    const assignment = manager.load(started.workflow.current_assignment_id);
+    assert.ok(assignment);
 
     assert.equal(retried.workflow.status, "running");
     assert.deepEqual(terminalIds, ["terminal-1", "terminal-2"]);
-    assert.equal(handoff.dispatch?.attempts.length, 2);
-    assert.equal(handoff.dispatch?.attempts[1].retry_of, "terminal-1");
+    assert.equal(assignment.runs.length, 2);
+    assert.equal(assignment.runs[1]?.retry_of_run_id, assignment.runs[0]?.id);
+    assert.notEqual(assignment.runs[0]?.id, assignment.runs[1]?.id);
   } finally {
     fs.rmSync(repoPath, { recursive: true, force: true });
   }

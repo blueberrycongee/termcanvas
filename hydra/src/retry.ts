@@ -3,28 +3,37 @@ import type {
   DispatchCreateOnlyRequest,
   DispatchCreateOnlyResult,
 } from "./dispatcher.ts";
-import type { HandoffManager } from "./handoff/manager.ts";
-import type { HandoffStateMachine } from "./handoff/state-machine.ts";
-import type { Handoff, HandoffDispatchAttempt } from "./handoff/types.ts";
+import type { AssignmentManager } from "./assignment/manager.ts";
+import type { AssignmentStateMachine } from "./assignment/state-machine.ts";
+import type { AssignmentRecord, AssignmentRun } from "./assignment/types.ts";
 
 export interface RegisterDispatchAttemptInput {
+  runId: string;
   terminalId: string;
-  agentType: HandoffDispatchAttempt["agent_type"];
+  agentType: AssignmentRun["agent_type"];
   prompt: string;
+  taskFile: string;
+  resultFile: string;
+  artifactDir: string;
   startedAt: string;
-  retryOf?: string;
+  retryOfRunId?: string;
 }
 
-export interface RetryTimedOutHandoffInput {
-  handoffId: string;
+export interface RetryTimedOutAssignmentInput {
+  assignmentId: string;
   timeoutCheckedAt: string;
   dispatchRequest: DispatchCreateOnlyRequest;
+  runId: string;
+  taskFile: string;
+  resultFile: string;
+  artifactDir: string;
 }
 
 export interface RetryDependencies {
-  manager: HandoffManager;
-  stateMachine: HandoffStateMachine;
+  manager: AssignmentManager;
+  stateMachine: AssignmentStateMachine;
   dispatchCreateOnly(request: DispatchCreateOnlyRequest): Promise<DispatchCreateOnlyResult>;
+  destroyTerminal?: (terminalId: string) => void;
   now?: () => string;
 }
 
@@ -33,150 +42,154 @@ export type RetryOutcome =
   | { status: "retried"; terminalId: string }
   | { status: "failed" };
 
-function loadHandoffOrThrow(manager: HandoffManager, handoffId: string): Handoff {
-  const handoff = manager.load(handoffId);
-  if (!handoff) {
-    throw new HydraError(`Handoff not found: ${handoffId}`, {
-      errorCode: "HANDOFF_NOT_FOUND",
-      stage: "retry.load_handoff",
-      ids: { handoff_id: handoffId },
+function loadAssignmentOrThrow(manager: AssignmentManager, assignmentId: string): AssignmentRecord {
+  const assignment = manager.load(assignmentId);
+  if (!assignment) {
+    throw new HydraError(`Assignment not found: ${assignmentId}`, {
+      errorCode: "ASSIGNMENT_NOT_FOUND",
+      stage: "retry.load_assignment",
+      ids: { assignment_id: assignmentId },
     });
   }
-  return handoff;
+  return assignment;
 }
 
-function lastAttempt(handoff: Handoff): HandoffDispatchAttempt | undefined {
-  return handoff.dispatch?.attempts[handoff.dispatch.attempts.length - 1];
-}
-
-function ensureDispatchState(handoff: Handoff): NonNullable<Handoff["dispatch"]> {
-  if (!handoff.dispatch) {
-    handoff.dispatch = {
-      active_terminal_id: null,
-      attempts: [],
-    };
-  }
-  return handoff.dispatch;
+function lastRun(assignment: AssignmentRecord): AssignmentRun | undefined {
+  return assignment.runs[assignment.runs.length - 1];
 }
 
 export function registerDispatchAttempt(
-  manager: HandoffManager,
-  handoffId: string,
+  manager: AssignmentManager,
+  assignmentId: string,
   input: RegisterDispatchAttemptInput,
-): Handoff {
-  const handoff = loadHandoffOrThrow(manager, handoffId);
-  const dispatch = ensureDispatchState(handoff);
-  dispatch.attempts.push({
-    attempt: dispatch.attempts.length + 1,
+): AssignmentRecord {
+  const assignment = loadAssignmentOrThrow(manager, assignmentId);
+  assignment.runs.push({
+    id: input.runId,
     terminal_id: input.terminalId,
     agent_type: input.agentType,
     prompt: input.prompt,
+    task_file: input.taskFile,
+    result_file: input.resultFile,
+    artifact_dir: input.artifactDir,
+    status: "running",
     started_at: input.startedAt,
-    retry_of: input.retryOf,
+    retry_of_run_id: input.retryOfRunId,
   });
-  dispatch.active_terminal_id = input.terminalId;
-  manager.save(handoff);
-  return handoff;
+  assignment.active_run_id = input.runId;
+  assignment.updated_at = input.startedAt;
+  manager.save(assignment);
+  return assignment;
 }
 
-export function hasHandoffTimedOut(
-  handoff: Handoff,
+export function hasAssignmentTimedOut(
+  assignment: AssignmentRecord,
   checkedAt: string,
 ): boolean {
-  if (
-    handoff.status !== "claimed"
-    && handoff.status !== "in_progress"
-  ) {
+  if (assignment.status !== "claimed" && assignment.status !== "in_progress") {
+    return false;
+  }
+  if (!assignment.timeout_minutes || assignment.timeout_minutes <= 0) {
     return false;
   }
 
-  if (!handoff.timeout_minutes || handoff.timeout_minutes <= 0) {
-    return false;
-  }
-
-  const referenceTime = lastAttempt(handoff)?.started_at
-    ?? handoff.status_updated_at
-    ?? handoff.created_at;
+  const referenceTime = lastRun(assignment)?.started_at
+    ?? assignment.status_updated_at
+    ?? assignment.created_at;
   const checkedAtMs = Date.parse(checkedAt);
   const referenceMs = Date.parse(referenceTime);
-
   if (Number.isNaN(checkedAtMs) || Number.isNaN(referenceMs)) {
     return false;
   }
-
-  return checkedAtMs - referenceMs > handoff.timeout_minutes * 60 * 1000;
+  return checkedAtMs - referenceMs > assignment.timeout_minutes * 60 * 1000;
 }
 
-function markLastAttemptTimedOut(
-  manager: HandoffManager,
-  handoffId: string,
+function markLastRunTimedOut(
+  manager: AssignmentManager,
+  assignmentId: string,
   timedOutAt: string,
-): Handoff {
-  const handoff = loadHandoffOrThrow(manager, handoffId);
-  const attempt = lastAttempt(handoff);
-  if (attempt) {
-    attempt.timed_out_at = timedOutAt;
-    manager.save(handoff);
+): AssignmentRecord {
+  const assignment = loadAssignmentOrThrow(manager, assignmentId);
+  const run = lastRun(assignment);
+  if (run) {
+    run.status = "timed_out";
+    run.ended_at = timedOutAt;
+    assignment.updated_at = timedOutAt;
+    manager.save(assignment);
   }
-  return handoff;
+  return assignment;
 }
 
-// Note: timeout and manual retries intentionally do NOT destroy the old
-// user may want to inspect it for diagnostics. Terminal cleanup happens
-// via Cmd+D (SIGHUP to process group) or `hydra cleanup`.
-export async function retryTimedOutHandoff(
-  input: RetryTimedOutHandoffInput,
+// Timeout and manual retries intentionally do NOT destroy the old terminal.
+// Retry means "start a fresh run in a new terminal", not "kill the old one".
+export async function retryTimedOutAssignment(
+  input: RetryTimedOutAssignmentInput,
   dependencies: RetryDependencies,
 ): Promise<RetryOutcome> {
   const now = dependencies.now ?? (() => new Date().toISOString());
-  const handoff = loadHandoffOrThrow(dependencies.manager, input.handoffId);
+  const assignment = loadAssignmentOrThrow(dependencies.manager, input.assignmentId);
 
-  if (!hasHandoffTimedOut(handoff, input.timeoutCheckedAt)) {
+  if (!hasAssignmentTimedOut(assignment, input.timeoutCheckedAt)) {
     return { status: "noop" };
   }
 
-  markLastAttemptTimedOut(dependencies.manager, input.handoffId, input.timeoutCheckedAt);
-  await dependencies.stateMachine.markTimedOut(input.handoffId, {
-    code: "HANDOFF_TIMEOUT",
-    message: `Handoff timed out after ${handoff.timeout_minutes} minute(s)`,
+  markLastRunTimedOut(dependencies.manager, input.assignmentId, input.timeoutCheckedAt);
+  await dependencies.stateMachine.markTimedOut(input.assignmentId, {
+    code: "ASSIGNMENT_TIMEOUT",
+    message: `Assignment timed out after ${assignment.timeout_minutes} minute(s)`,
     stage: "retry.timeout_check",
   });
 
-  const retryDecision = await dependencies.stateMachine.scheduleRetry(input.handoffId);
-  if (retryDecision.handoff.status === "failed") {
+  const retryDecision = await dependencies.stateMachine.scheduleRetry(input.assignmentId);
+  if (retryDecision.assignment.status === "failed") {
     return { status: "failed" };
   }
 
   const dispatchStartedAt = now();
-  const previousTerminalId = handoff.dispatch?.active_terminal_id ?? lastAttempt(handoff)?.terminal_id;
+  const retryTickId = `retry:${input.assignmentId}:${dispatchStartedAt}`;
+  const previousRunId = lastRun(assignment)?.id;
+  const claim = await dependencies.stateMachine.claimPending(
+    input.assignmentId,
+    retryTickId,
+  );
+  if (!claim.changed) {
+    return { status: "noop" };
+  }
+
+  let dispatchedTerminalId: string | undefined;
   try {
     const dispatch = await dependencies.dispatchCreateOnly(input.dispatchRequest);
-    await dependencies.stateMachine.claimPending(
-      input.handoffId,
-      `retry:${input.handoffId}:${dispatchStartedAt}`,
-    );
-    await dependencies.stateMachine.markInProgress(input.handoffId, {
-      tickId: `retry:${input.handoffId}:${dispatchStartedAt}`,
-    });
-    registerDispatchAttempt(dependencies.manager, input.handoffId, {
+    dispatchedTerminalId = dispatch.terminalId;
+    registerDispatchAttempt(dependencies.manager, input.assignmentId, {
+      runId: input.runId,
       terminalId: dispatch.terminalId,
-      agentType: dispatch.terminalType as HandoffDispatchAttempt["agent_type"],
+      agentType: dispatch.terminalType as AssignmentRun["agent_type"],
       prompt: dispatch.prompt,
+      taskFile: input.taskFile,
+      resultFile: input.resultFile,
+      artifactDir: input.artifactDir,
       startedAt: dispatchStartedAt,
-      retryOf: previousTerminalId ?? undefined,
+      retryOfRunId: previousRunId ?? undefined,
+    });
+    await dependencies.stateMachine.markInProgress(input.assignmentId, {
+      tickId: retryTickId,
+      runId: input.runId,
     });
     return {
       status: "retried",
       terminalId: dispatch.terminalId,
     };
   } catch (error) {
-    await dependencies.stateMachine.markFailed(input.handoffId, {
-      code: "HANDOFF_RETRY_DISPATCH_FAILED",
+    if (dispatchedTerminalId) {
+      try {
+        dependencies.destroyTerminal?.(dispatchedTerminalId);
+      } catch {}
+    }
+    await dependencies.stateMachine.markFailed(input.assignmentId, {
+      code: "ASSIGNMENT_RETRY_DISPATCH_FAILED",
       message: error instanceof Error ? error.message : String(error),
       stage: "retry.dispatch",
     });
-    return {
-      status: "failed",
-    };
+    return { status: "failed" };
   }
 }

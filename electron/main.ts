@@ -252,7 +252,7 @@ function dbg(msg: string) {
 function setupIpc() {
   ipcMain.handle(
     "terminal:create",
-    async (_event, options: { cwd: string; shell?: string; args?: string[]; terminalId?: string; terminalType?: string; theme?: "dark" | "light"; workflowId?: string; handoffId?: string; repoPath?: string }) => {
+    async (_event, options: { cwd: string; shell?: string; args?: string[]; terminalId?: string; terminalType?: string; theme?: "dark" | "light"; workflowId?: string; assignmentId?: string; repoPath?: string }) => {
       dbg(`terminal:create shell=${options.shell ?? "(default)"} args=${JSON.stringify(options.args)} cwd=${options.cwd}`);
       const ptyId = await ptyManager.create({
         ...options,
@@ -270,7 +270,7 @@ function setupIpc() {
             ? options.terminalType
             : "unknown",
         workflowId: options.workflowId,
-        handoffId: options.handoffId,
+        assignmentId: options.assignmentId,
         repoPath: options.repoPath,
         ptyId,
         shellPid: pid ?? null,

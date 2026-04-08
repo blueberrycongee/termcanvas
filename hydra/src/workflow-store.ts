@@ -1,8 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { AgentType } from "./handoff/types.ts";
 import type { ChallengeState } from "./challenge.ts";
-import type { ResultContract } from "./protocol.ts";
+import type { WorkflowResultContract } from "./protocol.ts";
+import {
+  getWorkflowDir,
+  getWorkflowStatePath,
+} from "./layout.ts";
+
+export const WORKFLOW_STATE_SCHEMA_VERSION = "hydra/workflow-state/v2";
 
 export type WorkflowStatus =
   | "pending"
@@ -19,7 +24,16 @@ export interface WorkflowFailure {
   stage: string;
 }
 
+export interface ApprovedArtifactRef {
+  assignment_id: string;
+  run_id: string;
+  brief_file: string;
+  result_file: string;
+  approved_at: string;
+}
+
 export interface WorkflowRecord {
+  schema_version: typeof WORKFLOW_STATE_SCHEMA_VERSION;
   id: string;
   template: string;
   task: string;
@@ -28,35 +42,30 @@ export interface WorkflowRecord {
   branch: string | null;
   base_branch: string;
   own_worktree: boolean;
-  agent_type: AgentType;
   parent_terminal_id?: string;
   created_at: string;
   updated_at: string;
   status: WorkflowStatus;
-  current_handoff_id: string;
-  handoff_ids: string[];
+  current_assignment_id: string;
+  assignment_ids: string[];
   timeout_minutes: number;
   max_retries: number;
   confirmation_iteration?: number;
   max_confirmation_iterations?: number;
   auto_approve: boolean;
-  approve_plan?: boolean;
+  approved_refs?: {
+    research?: ApprovedArtifactRef;
+  };
   challenge_request?: {
-    source_handoff_id: string;
+    source_assignment_id: string;
     requested_at: string;
   };
   challenge?: ChallengeState;
-  result?: ResultContract;
+  result?: WorkflowResultContract;
   failure?: WorkflowFailure;
 }
 
-export function getWorkflowDir(repoPath: string, workflowId: string): string {
-  return path.join(path.resolve(repoPath), ".hydra", "workflows", workflowId);
-}
-
-export function getWorkflowStatePath(repoPath: string, workflowId: string): string {
-  return path.join(getWorkflowDir(repoPath, workflowId), "workflow.json");
-}
+export { getWorkflowDir, getWorkflowStatePath };
 
 export function saveWorkflow(workflow: WorkflowRecord): void {
   const filePath = getWorkflowStatePath(workflow.repo_path, workflow.id);
@@ -65,13 +74,20 @@ export function saveWorkflow(workflow: WorkflowRecord): void {
 }
 
 export function loadWorkflow(repoPath: string, workflowId: string): WorkflowRecord | null {
-  try {
-    return JSON.parse(
-      fs.readFileSync(getWorkflowStatePath(repoPath, workflowId), "utf-8"),
-    ) as WorkflowRecord;
-  } catch {
+  const filePath = getWorkflowStatePath(repoPath, workflowId);
+  if (!fs.existsSync(filePath)) {
     return null;
   }
+
+  const workflow = JSON.parse(
+    fs.readFileSync(filePath, "utf-8"),
+  ) as WorkflowRecord;
+  if (workflow.schema_version !== WORKFLOW_STATE_SCHEMA_VERSION) {
+    throw new Error(
+      `Unsupported workflow state schema in ${filePath}: expected ${WORKFLOW_STATE_SCHEMA_VERSION}, received ${String(workflow.schema_version ?? "<missing>")}`,
+    );
+  }
+  return workflow;
 }
 
 export function listWorkflows(repoPath: string): WorkflowRecord[] {

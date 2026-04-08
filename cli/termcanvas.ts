@@ -212,9 +212,9 @@ async function main() {
         const worktreeIdx = rest.indexOf("--worktree");
         const templateIdx = rest.indexOf("--template");
         const allTypeIdx = rest.indexOf("--all-type");
-        const plannerTypeIdx = rest.indexOf("--planner-type");
+        const researcherTypeIdx = rest.indexOf("--researcher-type");
         const implementerTypeIdx = rest.indexOf("--implementer-type");
-        const evaluatorTypeIdx = rest.indexOf("--evaluator-type");
+        const testerTypeIdx = rest.indexOf("--tester-type");
         const timeoutIdx = rest.indexOf("--timeout-minutes");
         const retriesIdx = rest.indexOf("--max-retries");
         const task = taskIdx >= 0 ? rest[taskIdx + 1] : undefined;
@@ -222,13 +222,12 @@ async function main() {
         const worktree = worktreeIdx >= 0 ? rest[worktreeIdx + 1] : undefined;
         const template = templateIdx >= 0 ? rest[templateIdx + 1] : undefined;
         const allType = allTypeIdx >= 0 ? rest[allTypeIdx + 1] : undefined;
-        const plannerType = plannerTypeIdx >= 0 ? rest[plannerTypeIdx + 1] : undefined;
+        const researcherType = researcherTypeIdx >= 0 ? rest[researcherTypeIdx + 1] : undefined;
         const implementerType = implementerTypeIdx >= 0 ? rest[implementerTypeIdx + 1] : undefined;
-        const evaluatorType = evaluatorTypeIdx >= 0 ? rest[evaluatorTypeIdx + 1] : undefined;
+        const testerType = testerTypeIdx >= 0 ? rest[testerTypeIdx + 1] : undefined;
         const timeoutMinutes = timeoutIdx >= 0 ? parseInt(rest[timeoutIdx + 1], 10) : undefined;
         const maxRetries = retriesIdx >= 0 ? parseInt(rest[retriesIdx + 1], 10) : undefined;
         const autoApprove = !rest.includes("--no-auto-approve");
-        const approvePlan = rest.includes("--approve-plan");
 
         if (!task) {
           console.error("--task is required");
@@ -245,13 +244,12 @@ async function main() {
           ...(worktree ? { worktree } : {}),
           ...(template ? { template } : {}),
           ...(allType ? { allType } : {}),
-          ...(plannerType ? { plannerType } : {}),
+          ...(researcherType ? { researcherType } : {}),
           ...(implementerType ? { implementerType } : {}),
-          ...(evaluatorType ? { evaluatorType } : {}),
+          ...(testerType ? { testerType } : {}),
           ...(timeoutMinutes ? { timeoutMinutes } : {}),
           ...(maxRetries !== undefined ? { maxRetries } : {}),
           autoApprove,
-          approvePlan,
         });
         if (jsonFlag) console.log(JSON.stringify(result, null, 2));
         else console.log(`Started workflow ${result.workflow.id}.`);
@@ -276,7 +274,7 @@ async function main() {
         }
         for (const workflow of result) {
           console.log(
-            `${workflow.id}  ${workflow.status}  ${workflow.current_handoff_id}  ${workflow.updated_at}`,
+            `${workflow.id}  ${workflow.status}  ${workflow.current_assignment_id}  ${workflow.updated_at}`,
           );
         }
       } else if (
@@ -297,7 +295,7 @@ async function main() {
             `/workflow/${encodeURIComponent(workflowId)}?repo=${encodeURIComponent(repo)}`,
           );
           if (jsonFlag) console.log(JSON.stringify(result, null, 2));
-          else console.log(`${result.workflow.status}  ${result.workflow.current_handoff_id}`);
+          else console.log(`${result.workflow.status}  ${result.workflow.current_assignment_id}`);
         } else if (command === "tick") {
           const result = await request(
             "POST",
@@ -305,7 +303,7 @@ async function main() {
             { repo },
           );
           if (jsonFlag) console.log(JSON.stringify(result, null, 2));
-          else console.log(`${result.workflow.status}  ${result.workflow.current_handoff_id}`);
+          else console.log(`${result.workflow.status}  ${result.workflow.current_assignment_id}`);
         } else if (command === "retry") {
           const result = await request(
             "POST",
@@ -313,7 +311,7 @@ async function main() {
             { repo },
           );
           if (jsonFlag) console.log(JSON.stringify(result, null, 2));
-          else console.log(`${result.workflow.status}  ${result.workflow.current_handoff_id}`);
+          else console.log(`${result.workflow.status}  ${result.workflow.current_assignment_id}`);
         } else if (command === "cleanup") {
           const force = rest.includes("--force");
           const query = new URLSearchParams({ repo });
@@ -349,7 +347,7 @@ async function main() {
             );
           }
           if (jsonFlag) console.log(JSON.stringify(result, null, 2));
-          else console.log(`${result.workflow.status}  ${result.workflow.current_handoff_id}`);
+          else console.log(`${result.workflow.status}  ${result.workflow.current_assignment_id}`);
         }
       } else {
         console.log(
@@ -436,7 +434,7 @@ async function main() {
         const promptIdx = rest.indexOf("--prompt");
         const parentIdx = rest.indexOf("--parent-terminal");
         const workflowIdx = rest.indexOf("--workflow-id");
-        const handoffIdx = rest.indexOf("--handoff-id");
+        const assignmentIdx = rest.indexOf("--assignment-id");
         const repoIdx = rest.indexOf("--repo");
         const autoApprove = rest.includes("--auto-approve");
         const worktree = wtIdx >= 0 ? rest[wtIdx + 1] : undefined;
@@ -444,7 +442,7 @@ async function main() {
         const prompt = promptIdx >= 0 ? rest[promptIdx + 1] : undefined;
         const parentTerminalId = parentIdx >= 0 ? rest[parentIdx + 1] : undefined;
         const workflowId = workflowIdx >= 0 ? rest[workflowIdx + 1] : undefined;
-        const handoffId = handoffIdx >= 0 ? rest[handoffIdx + 1] : undefined;
+        const assignmentId = assignmentIdx >= 0 ? rest[assignmentIdx + 1] : undefined;
         const repoPath = repoIdx >= 0 ? rest[repoIdx + 1] : undefined;
         if (!worktree) {
           console.error("--worktree is required");
@@ -457,7 +455,7 @@ async function main() {
           ...(autoApprove ? { autoApprove: true } : {}),
           ...(parentTerminalId ? { parentTerminalId } : {}),
           ...(workflowId ? { workflowId } : {}),
-          ...(handoffId ? { handoffId } : {}),
+          ...(assignmentId ? { assignmentId } : {}),
           ...(repoPath ? { repoPath } : {}),
         });
         if (jsonFlag) console.log(JSON.stringify(result, null, 2));

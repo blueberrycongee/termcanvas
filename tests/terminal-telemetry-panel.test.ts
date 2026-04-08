@@ -19,10 +19,6 @@ const SNAPSHOT = {
   pty_alive: true,
   descendant_processes: [],
   foreground_tool: "npm run build",
-  active_tool_calls: 1,
-  task_status: "running",
-  task_status_source: "turn_state",
-  done_exists: false,
   result_exists: true,
   last_meaningful_progress_at: "2026-03-26T00:00:10.000Z",
   derived_status: "progressing",
@@ -58,12 +54,10 @@ test("getTelemetryFacts surfaces progress, event, tool, and contract facts", () 
   assert.deepEqual(facts, [
     "Provider codex",
     "Session attached",
-    "Task running",
     "Progress 1m ago",
     "Event function_call_output",
     "Tool npm run build",
-    "Active tools 1",
-    "Contract result / no done",
+    "Contract result",
   ]);
 });
 
@@ -82,11 +76,9 @@ test("getTelemetryFacts clarifies exited snapshots as recorded history", () => {
     "Provider codex",
     "Process exited (0)",
     "Session recorded",
-    "Task running",
     "Progress 1m ago",
     "Event function_call_output",
     "Tool npm run build",
-    "Active tools 1",
-    "Contract result / no done",
+    "Contract result",
   ]);
 });

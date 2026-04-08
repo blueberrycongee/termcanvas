@@ -43,7 +43,7 @@ export interface LaunchTrackedTerminalOptions extends TerminalLaunchDeps {
   autoApprove?: boolean;
   parentTerminalId?: string;
   workflowId?: string;
-  handoffId?: string;
+  assignmentId?: string;
   repoPath?: string;
 }
 
@@ -125,7 +125,7 @@ export async function launchTrackedTerminal(
         ? options.type
         : "unknown",
     workflowId: options.workflowId,
-    handoffId: options.handoffId,
+    assignmentId: options.assignmentId,
     repoPath: options.repoPath,
     ptyId,
     shellPid: pid ?? null,

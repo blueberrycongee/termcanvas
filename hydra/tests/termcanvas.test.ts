@@ -74,7 +74,7 @@ test("buildTerminalCreateArgs includes workflow telemetry metadata when provided
     true,
     "parent-1",
     "workflow-1",
-    "handoff-1",
+    "assignment-1",
     "/repo/project",
   );
   assert.deepStrictEqual(args, [
@@ -91,8 +91,8 @@ test("buildTerminalCreateArgs includes workflow telemetry metadata when provided
     "parent-1",
     "--workflow-id",
     "workflow-1",
-    "--handoff-id",
-    "handoff-1",
+    "--assignment-id",
+    "assignment-1",
     "--repo",
     "/repo/project",
     "--json",

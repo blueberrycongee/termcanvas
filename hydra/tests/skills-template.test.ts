@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildTaskPackageContext, renderTaskPackageTemplate } from "../src/task-package.ts";
+import { renderRunTask } from "../src/run-task.ts";
 
 test("Hydra skill copy documents root-cause-first, no test hacking, and result gate rules", () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
@@ -23,7 +23,7 @@ test("Hydra skill copy documents root-cause-first, no test hacking, and result g
   assert.match(skill, /termcanvas terminal create --prompt/i);
   assert.match(skill, /Do not use `termcanvas terminal input`|not a supported automation path/i);
   assert.match(skill, /result\.json/i);
-  assert.match(skill, /done/i);
+  assert.doesNotMatch(skill, /result\.json\s*\+\s*`done`|result\.json.*done/i);
   assert.match(skill, /hydra run|hydra tick|hydra watch|hydra status|hydra retry/i);
   assert.match(skill, /termcanvas telemetry get --workflow/i);
   assert.match(skill, /termcanvas telemetry get --terminal/i);
@@ -66,49 +66,55 @@ test("challenge skill defines four orthogonal attack methodologies", () => {
   assert.match(skill, /neutral/i);
 });
 
-test("task package template links skills and hard gate requirements", () => {
-  const context = buildTaskPackageContext({
-    workspaceRoot: "/repo/project",
+test("task template links role guidance and result-only completion rules", () => {
+  const rendered = renderRunTask({
+    repoPath: "/repo/project",
     workflowId: "workflow-auth",
-    handoffId: "handoff-abc123",
-    createdAt: "2026-03-26T12:00:00.000Z",
-    from: {
-      role: "planner",
-      agent_type: "claude",
-      agent_id: "claude-session-1",
-    },
-    to: {
-      role: "implementer",
-      agent_type: "codex",
-      agent_id: null,
-    },
-    task: {
-      type: "implement-feature",
-      title: "Implement workflow gate",
-      description: "Build the workflow gate.",
-      acceptance_criteria: ["Write valid result and done"],
-      skills: ["test-driven-development"],
-    },
-    context: {
-      files: [],
-      previous_handoffs: [],
-    },
+    assignmentId: "assignment-abc123",
+    runId: "run-0001",
+    role: "tester",
+    agentType: "claude",
+    sourceRole: "implementer",
+    objective: ["Verify the implementation honestly."],
+    readFiles: [
+      { label: "User request", path: "/repo/project/.hydra/workflows/workflow-auth/inputs/user-request.md" },
+    ],
+    writeTargets: [
+      {
+        label: "Brief",
+        path: "/repo/project/.hydra/workflows/workflow-auth/assignments/assignment-abc123/runs/run-0001/artifacts/brief.md",
+      },
+      {
+        label: "Result JSON",
+        path: "/repo/project/.hydra/workflows/workflow-auth/assignments/assignment-abc123/runs/run-0001/result.json",
+      },
+    ],
+    decisionRules: ["- Form an independent judgment before trusting the implementer's summary."],
+    acceptanceCriteria: ["Write a valid result.json file"],
+    skills: ["qa", "code-review"],
+    extraSections: [
+      {
+        title: "Verification Strategy",
+        lines: ["- Start with baseline checks first and stop early if they fail."],
+      },
+    ],
   });
-  const rendered = renderTaskPackageTemplate(context.contract);
 
+  assert.match(rendered, /## Role/);
+  assert.match(rendered, /You are the tester/);
+  assert.match(rendered, /## Objective/);
+  assert.match(rendered, /## Read First/);
+  assert.match(rendered, /## Write Targets/);
+  assert.match(rendered, /## Decision Rules/);
   assert.match(rendered, /## Skills/);
-  assert.match(rendered, /test-driven-development/);
+  assert.match(rendered, /qa/);
+  assert.match(rendered, /code-review/);
   assert.match(rendered, /Root cause first/i);
-  assert.match(rendered, /Do not hack tests/i);
+  assert.match(rendered, /Do not fake outputs/i);
   assert.match(rendered, /silent fallbacks/i);
-  assert.match(rendered, /"success": true/);
-  assert.match(rendered, /"summary": "Explain what changed and whether the handoff passed\."/);
-  assert.match(rendered, /"outputs": \[/);
-  assert.match(rendered, /"evidence": \[/);
-  assert.match(rendered, /next_action/);
-  assert.match(rendered, /## Telemetry Checks/);
-  assert.match(rendered, /termcanvas telemetry get --workflow workflow-auth --repo \./);
-  assert.match(rendered, /termcanvas telemetry events --terminal <terminalId> --limit 20/);
-  assert.match(rendered, /awaiting_contract/i);
-  assert.match(rendered, /stall_candidate/i);
+  assert.match(rendered, /result\.json/);
+  assert.match(rendered, /## Operational Notes/);
+  assert.match(rendered, /terminal prose/i);
+  assert.match(rendered, /## Completion/);
+  assert.doesNotMatch(rendered, /\bdone\b/i);
 });

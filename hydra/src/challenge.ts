@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type { AgentType } from "./handoff/types.ts";
+import type { AgentType } from "./assignment/types.ts";
 import {
   dispatchCreateOnly as defaultDispatchCreateOnly,
   type DispatchCreateOnlyRequest,
@@ -17,7 +17,6 @@ export interface ChallengeWorker {
   dir: string;
   task_file: string;
   result_file: string;
-  done_file: string;
 }
 
 export type ChallengeStage =
@@ -33,14 +32,14 @@ export interface ChallengeContextFile {
 
 export interface ChallengeContinueTarget {
   outcome: "await_approval" | "advance" | "loop" | "intent_confirmation" | "complete";
-  next_handoff_id?: string;
-  requeue_handoff_ids?: string[];
+  next_assignment_id?: string;
+  requeue_assignment_ids?: string[];
 }
 
 export interface ChallengeReturnTarget {
   role: "researcher" | "implementer" | "tester";
-  handoff_id: string;
-  requeue_handoff_ids: string[];
+  assignment_id: string;
+  requeue_assignment_ids: string[];
   mode: "reuse" | "replan";
   description: string;
 }
@@ -48,7 +47,7 @@ export interface ChallengeReturnTarget {
 export interface ChallengeState {
   workers: ChallengeWorker[];
   started_at: string;
-  source_handoff_id: string;
+  source_assignment_id: string;
   source_stage: ChallengeStage;
   continue_target: ChallengeContinueTarget;
   return_targets: ChallengeReturnTarget[];
@@ -69,6 +68,18 @@ export interface ChallengeDecision {
   findings: ChallengeFinding[];
   summary: string;
 }
+
+export type ChallengeCollectionResult =
+  | { status: "pending" }
+  | {
+      status: "invalid";
+      failure: {
+        code: string;
+        message: string;
+        stage: string;
+      };
+    }
+  | { status: "completed"; decision: ChallengeDecision };
 
 // ── Methodologies ──
 
@@ -243,7 +254,6 @@ function renderChallengeTask(
   stage: ChallengeStage,
   contextFiles: ChallengeContextFile[],
   resultFile: string,
-  doneFile: string,
 ): string {
   const stageLabel =
     stage === "intent_confirmation"
@@ -276,9 +286,14 @@ function renderChallengeTask(
     "## Output Contract",
     "",
     `Write your result to: ${resultFile}`,
+    `Write to ${resultFile}.tmp first, then atomically rename it to ${resultFile} once the JSON is complete.`,
     "",
     "```json",
     "{",
+    `  "schema_version": "hydra/result/v1",`,
+    `  "workflow_id": "${workflowId}",`,
+    `  "assignment_id": "${workerId}",`,
+    `  "run_id": "${workerId}",`,
     '  "success": true,',
     '  "summary": "One-paragraph synthesis of findings",',
     '  "findings": [',
@@ -296,15 +311,6 @@ function renderChallengeTask(
     "",
     "Set success=false ONLY if you found critical or significant issues.",
     "Minor-only findings = success=true.",
-    "",
-    `Then write the done marker to: ${doneFile}`,
-    "```json",
-    "{",
-    `  "workflow_id": "${workflowId}",`,
-    `  "worker_id": "${workerId}",`,
-    `  "result_file": "${resultFile}"`,
-    "}",
-    "```",
   ].join("\n");
 }
 
@@ -337,7 +343,6 @@ export async function spawnChallengeWorkers(
 
     const taskFile = path.join(workerDir, "task.md");
     const resultFile = path.join(workerDir, "result.json");
-    const doneFile = path.join(workerDir, "done");
 
     fs.writeFileSync(taskFile, renderChallengeTask(
       methodology,
@@ -346,17 +351,16 @@ export async function spawnChallengeWorkers(
       config.stage,
       config.contextFiles,
       resultFile,
-      doneFile,
     ), "utf-8");
 
     const dispatch = await dispatchCreateOnly({
       workflowId: config.workflowId,
-      handoffId: workerId,
+      assignmentId: workerId,
+      runId: workerId,
       repoPath: config.repoPath,
       worktreePath: config.worktreePath,
       agentType: config.agentType,
       taskFile,
-      doneFile,
       resultFile,
       autoApprove: config.autoApprove,
       parentTerminalId: config.parentTerminalId,
@@ -369,7 +373,6 @@ export async function spawnChallengeWorkers(
       dir: workerDir,
       task_file: taskFile,
       result_file: resultFile,
-      done_file: doneFile,
     });
   }
 
@@ -391,21 +394,33 @@ function parseFindings(raw: unknown): ChallengeFinding[] {
   );
 }
 
-export function collectChallengeResults(state: ChallengeState): ChallengeDecision | null {
+export function collectChallengeResults(state: ChallengeState): ChallengeCollectionResult {
   for (const worker of state.workers) {
-    if (!fs.existsSync(worker.done_file)) {
-      return null;
+    if (!fs.existsSync(worker.result_file)) {
+      return { status: "pending" };
     }
   }
 
   const allFindings: ChallengeFinding[] = [];
+  const invalidWorkers: string[] = [];
   for (const worker of state.workers) {
     try {
       const raw = JSON.parse(fs.readFileSync(worker.result_file, "utf-8"));
       allFindings.push(...parseFindings(raw));
     } catch {
-      // Worker wrote invalid result — skip silently
+      invalidWorkers.push(worker.id);
     }
+  }
+
+  if (invalidWorkers.length > 0) {
+    return {
+      status: "invalid",
+      failure: {
+        code: "WORKFLOW_CHALLENGE_RESULT_INVALID",
+        message: `Challenge worker results were invalid for ${invalidWorkers.join(", ")}`,
+        stage: "challenge.collect",
+      },
+    };
   }
 
   const critical = allFindings.filter((f) => f.severity === "critical");
@@ -420,11 +435,14 @@ export function collectChallengeResults(state: ChallengeState): ChallengeDecisio
   const countsStr = counts.length > 0 ? counts.join(", ") : "no issues found";
 
   return {
-    override,
-    findings: [...critical, ...significant],
-    summary: override
-      ? `Challenge review recommends SEND BACK (${countsStr}). Independent findings:\n\n${[...critical, ...significant].map((f) => `- [${f.severity}] ${f.point}: ${f.reasoning}`).join("\n")}`
-      : `Challenge review found no send-back reason (${countsStr}).`,
+    status: "completed",
+    decision: {
+      override,
+      findings: [...critical, ...significant],
+      summary: override
+        ? `Challenge review recommends SEND BACK (${countsStr}). Independent findings:\n\n${[...critical, ...significant].map((f) => `- [${f.severity}] ${f.point}: ${f.reasoning}`).join("\n")}`
+        : `Challenge review found no send-back reason (${countsStr}).`,
+    },
   };
 }
 

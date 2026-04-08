@@ -1,7 +1,6 @@
 import type { TerminalTelemetrySnapshot } from "../../shared/telemetry";
 
-const BADGE_LABELS: Record<NonNullable<TerminalTelemetrySnapshot["derived_status"]>, string | null> = {
-  idle: null,
+const BADGE_LABELS: Record<NonNullable<TerminalTelemetrySnapshot["derived_status"]>, string> = {
   starting: "Starting",
   progressing: "Progressing",
   awaiting_contract: "Awaiting contract",
@@ -51,28 +50,18 @@ export function getTelemetryFacts(
     : snapshot.exit_code === undefined
       ? "Process exited"
       : `Process exited (${snapshot.exit_code})`;
-  const taskFact =
-    snapshot.task_status === "running"
-      ? "Task running"
-      : snapshot.task_status === "idle"
-        ? "Task idle"
-        : "Task unknown";
 
   const facts = [
     `Provider ${snapshot.provider}`,
     processFact,
     sessionFact,
-    taskFact,
     `Progress ${formatTelemetryAge(snapshot.last_meaningful_progress_at, nowMs)}`,
     snapshot.last_session_event_kind
       ? `Event ${snapshot.last_session_event_kind}`
       : "Event unknown",
     snapshot.foreground_tool ? `Tool ${snapshot.foreground_tool}` : null,
-    snapshot.active_tool_calls > 0
-      ? `Active tools ${snapshot.active_tool_calls}`
-      : null,
-    snapshot.result_exists || snapshot.done_exists
-      ? `Contract ${snapshot.result_exists ? "result" : "no result"} / ${snapshot.done_exists ? "done" : "no done"}`
+    snapshot.result_exists
+      ? "Contract result"
       : "Contract pending",
   ];
 

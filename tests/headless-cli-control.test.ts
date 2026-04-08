@@ -159,15 +159,17 @@ test("termcanvas workflow CLI runs, watches, and cleans up headless workflows", 
       ], cliEnv),
     );
     assert.equal(status.workflow.status, "running");
-    assert.equal(status.workflow.current_handoff_id, started.handoffs[0].id);
+    assert.equal(status.workflow.current_assignment_id, started.workflow.current_assignment_id);
 
-    const handoff = started.handoffs[0];
+    const assignment = started.assignments[0];
+    const run = assignment.runs[0];
     fs.writeFileSync(
-      handoff.artifacts.result_file,
+      run.result_file,
       JSON.stringify({
-        version: "hydra/v2",
-        handoff_id: handoff.id,
-        workflow_id: handoff.workflow_id,
+        schema_version: "hydra/result/v1",
+        assignment_id: assignment.id,
+        workflow_id: started.workflow.id,
+        run_id: run.id,
         success: true,
         summary: "Completed workflow control implementation.",
         outputs: [
@@ -178,16 +180,6 @@ test("termcanvas workflow CLI runs, watches, and cleans up headless workflows", 
         ],
         evidence: ["cli workflow test"],
         next_action: { type: "complete", reason: "Workflow is complete." },
-      }, null, 2),
-      "utf-8",
-    );
-    fs.writeFileSync(
-      handoff.artifacts.done_file,
-      JSON.stringify({
-        version: "hydra/v2",
-        handoff_id: handoff.id,
-        workflow_id: handoff.workflow_id,
-        result_file: handoff.artifacts.result_file,
       }, null, 2),
       "utf-8",
     );

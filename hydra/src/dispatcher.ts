@@ -7,12 +7,12 @@ import {
 
 export interface DispatchCreateOnlyRequest {
   workflowId: string;
-  handoffId: string;
+  assignmentId: string;
+  runId: string;
   repoPath: string;
   worktreePath: string;
   agentType: string;
   taskFile: string;
-  doneFile: string;
   resultFile: string;
   autoApprove?: boolean;
   parentTerminalId?: string;
@@ -36,7 +36,7 @@ export interface DispatcherDependencies {
     autoApprove?: boolean,
     parentTerminalId?: string,
     workflowId?: string,
-    handoffId?: string,
+    assignmentId?: string,
     repoPath?: string,
   ): { id: string; type: string; title: string };
 }
@@ -49,12 +49,14 @@ const DEFAULT_DEPENDENCIES: DispatcherDependencies = {
 
 export function buildCreateOnlyPrompt(
   taskFile: string,
-  doneFile: string,
-  handoffId: string,
   workflowId: string,
   resultFile: string,
+  options: {
+    assignmentId: string;
+    runId: string;
+  },
 ): string {
-  return `Read ${taskFile} for the full task contract. Write a valid hydra/v2 result JSON to ${resultFile}. Then write a JSON done marker to ${doneFile} with version=hydra/v2, handoff_id=${handoffId}, workflow_id=${workflowId}, and result_file=${resultFile}.`;
+  return `Read ${taskFile} for the full task instructions. Finish every required artifact first, then publish a valid hydra/result/v1 result JSON to ${resultFile} with workflow_id=${workflowId}, assignment_id=${options.assignmentId}, and run_id=${options.runId}. Publish result.json atomically as the final commit for this run.`;
 }
 
 export async function dispatchCreateOnly(
@@ -67,7 +69,7 @@ export async function dispatchCreateOnly(
       stage: "dispatcher.preflight",
       ids: {
         workflow_id: request.workflowId,
-        handoff_id: request.handoffId,
+        assignment_id: request.assignmentId,
       },
     });
   }
@@ -79,17 +81,19 @@ export async function dispatchCreateOnly(
       stage: "dispatcher.preflight",
       ids: {
         workflow_id: request.workflowId,
-        handoff_id: request.handoffId,
+        assignment_id: request.assignmentId,
       },
     });
   }
 
   const prompt = buildCreateOnlyPrompt(
     request.taskFile,
-    request.doneFile,
-    request.handoffId,
     request.workflowId,
     request.resultFile,
+    {
+      assignmentId: request.assignmentId,
+      runId: request.runId,
+    },
   );
   const terminal = dependencies.terminalCreate(
     request.worktreePath,
@@ -98,7 +102,7 @@ export async function dispatchCreateOnly(
     request.autoApprove,
     request.parentTerminalId,
     request.workflowId,
-    request.handoffId,
+    request.assignmentId,
     request.repoPath,
   );
 

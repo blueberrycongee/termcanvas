@@ -9,14 +9,14 @@ const HYDRA_SECTION = `
 
 Classify the task before choosing a mode. Hydra is for file-driven
 orchestration, not the default path for every change.
-Hydra treats \`result.json\` + \`done\` as the only completion evidence.
+Hydra treats \`result.json\` as the only completion evidence.
 Terminal conversation is not a source of truth.
 
 Core rules:
 - Root cause first. Fix the implementation problem before changing tests.
 - Do not hack tests, fixtures, or mocks to force a green result.
 - Do not add silent fallbacks or swallowed errors.
-- A handoff is only complete when both \`result.json\` and \`done\` exist and pass schema validation.
+- An assignment run is only complete when the active \`result.json\` exists and passes schema validation.
 
 Workflow patterns:
 1. Do the task directly when it is simple, local, or clearly faster without workflow overhead.
@@ -25,7 +25,7 @@ Workflow patterns:
 3. Use the default researcher -> implementer -> tester workflow for ambiguous, risky, or PRD-driven work:
    \`hydra run --task "<specific task>" --repo . [--worktree .]\`
    - If the user says all roles should use one provider, pass \`--all-type <provider>\`.
-   - If the user wants a mix, pass \`--planner-type\`, \`--implementer-type\`, and \`--evaluator-type\` (legacy flag names retained for researcher / implementer / tester).
+   - If the user wants a mix, pass \`--researcher-type\`, \`--implementer-type\`, and \`--tester-type\`.
    - If the user does not specify providers, Hydra should prefer the current terminal's provider when available.
    - Full workflows pause after each successful research pass for user approval before implementation starts or resumes.
 4. Use a direct isolated worker primitive when the split is already known and you do not need a full workflow:
@@ -54,11 +54,10 @@ Telemetry polling:
    - \`termcanvas telemetry get --workflow <workflowId> --repo .\`
    - \`termcanvas telemetry get --terminal <terminalId>\`
    - \`termcanvas telemetry events --terminal <terminalId> --limit 20\`
-3. Trust \`derived_status\` and \`task_status\` as the primary decision signals. Only investigate further when both indicate a problem.
-4. Keep waiting when \`derived_status=progressing\` or \`task_status=running\`.
-5. Treat \`awaiting_contract\` as "turn complete, file contract still pending".
-6. Treat \`stall_candidate\` as "investigate before retry", not automatic failure. Query recent telemetry events to confirm the agent is truly stuck.
-7. Treat \`error\` as "agent hit an API error". Check \`last_hook_error\`: \`rate_limit\`/\`server_error\` → wait and retry; \`billing_error\`/\`authentication_failed\` → stop; \`max_output_tokens\` → retry with compact; \`invalid_request\` → stop and investigate.
+3. Keep waiting when telemetry shows recent meaningful progress, \`thinking\`, \`tool_running\`, \`tool_pending\`, or a foreground tool.
+4. Treat \`awaiting_contract\` as "turn complete, final result file still pending".
+5. Treat \`stall_candidate\` as "investigate before retry", not automatic failure.
+6. Treat \`error\` as "agent hit an API error". Check \`last_hook_error\`: \`rate_limit\`/\`server_error\` → wait and retry; \`billing_error\`/\`authentication_failed\` → stop; \`max_output_tokens\` → retry with compact; \`invalid_request\` → stop and investigate.
 
 Worker control:
 1. List direct workers: \`hydra list --repo .\`
@@ -74,11 +73,7 @@ Worker control:
 When NOT to use: simple fixes, high-certainty tasks, or work that is faster to do directly in the current agent.
 `;
 
-export type InitInstructionStatus =
-  | "created"
-  | "appended"
-  | "updated"
-  | "unchanged";
+export type InitInstructionStatus = "created" | "appended" | "updated" | "unchanged";
 
 export interface InitInstructionResult {
   fileName: (typeof INSTRUCTION_FILES)[number];
@@ -123,13 +118,11 @@ export function syncHydraInstructions(
   targetDir: string,
 ): InitInstructionResult[] {
   return INSTRUCTION_FILES.map((fileName) =>
-    upsertHydraInstructions(path.join(targetDir, fileName), fileName),
+    upsertHydraInstructions(path.join(targetDir, fileName), fileName)
   );
 }
 
-export async function init(
-  targetDir = process.cwd(),
-): Promise<InitInstructionResult[]> {
+export async function init(targetDir = process.cwd()): Promise<InitInstructionResult[]> {
   const results = syncHydraInstructions(targetDir);
   for (const result of results) {
     console.log(formatInitLog(result));
@@ -182,11 +175,7 @@ function replaceHydraSection(content: string): string {
   if (!range) {
     return content;
   }
-  return (
-    content.slice(0, range.start) +
-    HYDRA_SECTION.trim() +
-    content.slice(range.end)
-  );
+  return content.slice(0, range.start) + HYDRA_SECTION.trim() + content.slice(range.end);
 }
 
 function buildAppendedContent(existing: string): string {
@@ -218,9 +207,7 @@ function upsertHydraInstructions(
     content = replaceHydraSection(existing);
     status = "updated";
   } else {
-    content = existing
-      ? buildAppendedContent(existing)
-      : HYDRA_SECTION.trimStart();
+    content = existing ? buildAppendedContent(existing) : HYDRA_SECTION.trimStart();
     status = existing ? "appended" : "created";
   }
   fs.writeFileSync(filePath, content);

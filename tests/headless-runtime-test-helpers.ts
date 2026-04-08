@@ -6,7 +6,10 @@ import { ServerEventBus } from "../headless-runtime/event-bus.ts";
 import { ProjectStore, generateId, type ProjectData } from "../headless-runtime/project-store.ts";
 import type { ProjectScanner } from "../electron/project-scanner.ts";
 import { TelemetryService } from "../electron/telemetry-service.ts";
-import type { WorkflowRecord } from "../hydra/src/workflow-store.ts";
+import {
+  WORKFLOW_STATE_SCHEMA_VERSION,
+  type WorkflowRecord,
+} from "../hydra/src/workflow-store.ts";
 
 type PtyDataListener = (data: string) => void;
 type PtyExitListener = (exitCode: number) => void;
@@ -177,6 +180,7 @@ export function writeWorkflowFixture(
   fs.mkdirSync(workflowDir, { recursive: true });
 
   const workflow: WorkflowRecord = {
+    schema_version: WORKFLOW_STATE_SCHEMA_VERSION,
     id: workflowId,
     template: "test",
     task: "Observability test workflow",
@@ -185,12 +189,11 @@ export function writeWorkflowFixture(
     branch: null,
     base_branch: "main",
     own_worktree: false,
-    agent_type: "codex",
     created_at: "2026-03-31T00:00:00.000Z",
     updated_at: "2026-03-31T00:00:00.000Z",
     status: "running",
-    current_handoff_id: "handoff-test",
-    handoff_ids: ["handoff-test"],
+    current_assignment_id: "assignment-test",
+    assignment_ids: ["assignment-test"],
     timeout_minutes: 15,
     max_retries: 3,
     auto_approve: false,

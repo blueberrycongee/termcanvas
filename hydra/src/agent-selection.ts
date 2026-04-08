@@ -1,4 +1,4 @@
-import type { AgentType } from "./handoff/types.ts";
+import type { AgentType } from "./assignment/types.ts";
 
 export const SUPPORTED_AGENT_TYPES = [
   "claude",
@@ -16,15 +16,15 @@ const AGENT_TYPES = new Set<AgentType>(SUPPORTED_AGENT_TYPES);
 
 export interface WorkflowAgentTypeSelection {
   allType?: AgentType;
-  plannerType?: AgentType;
+  researcherType?: AgentType;
   implementerType?: AgentType;
-  evaluatorType?: AgentType;
+  testerType?: AgentType;
 }
 
 export interface ResolvedWorkflowAgentTypes {
-  plannerType: AgentType;
+  researcherType: AgentType;
   implementerType: AgentType;
-  evaluatorType: AgentType;
+  testerType: AgentType;
 }
 
 export interface WorkerAgentTypeSelection {
@@ -67,9 +67,9 @@ export function resolveWorkflowAgentTypes(
 ): ResolvedWorkflowAgentTypes {
   const baseType = selection.allType ?? resolveDefaultAgentType(env);
   return {
-    plannerType: selection.plannerType ?? baseType,
+    researcherType: selection.researcherType ?? baseType,
     implementerType: selection.implementerType ?? selection.allType ?? baseType,
-    evaluatorType: selection.evaluatorType ?? selection.allType ?? baseType,
+    testerType: selection.testerType ?? selection.allType ?? baseType,
   };
 }
 

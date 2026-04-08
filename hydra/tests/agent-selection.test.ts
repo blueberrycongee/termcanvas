@@ -31,14 +31,14 @@ test("resolveWorkflowAgentTypes supports all-type defaults with per-role overrid
     resolveWorkflowAgentTypes(
       {
         allType: "codex",
-        evaluatorType: "claude",
+        testerType: "claude",
       },
       {},
     ),
     {
-      plannerType: "codex",
+      researcherType: "codex",
       implementerType: "codex",
-      evaluatorType: "claude",
+      testerType: "claude",
     },
   );
 });

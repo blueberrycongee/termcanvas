@@ -1,10 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { enrichWorkflowStatusView } from "../src/telemetry.ts";
+import { WORKFLOW_STATE_SCHEMA_VERSION } from "../src/workflow-store.ts";
 import type { WorkflowStatusView } from "../src/workflow.ts";
 
 const VIEW: WorkflowStatusView = {
   workflow: {
+    schema_version: WORKFLOW_STATE_SCHEMA_VERSION,
     id: "workflow-1",
     template: "single-step",
     task: "Implement telemetry",
@@ -13,17 +15,16 @@ const VIEW: WorkflowStatusView = {
     branch: null,
     base_branch: "main",
     own_worktree: false,
-    agent_type: "codex",
     created_at: "2026-03-26T00:00:00.000Z",
     updated_at: "2026-03-26T00:00:00.000Z",
     status: "running",
-    current_handoff_id: "handoff-1",
-    handoff_ids: ["handoff-1"],
+    current_assignment_id: "assignment-1",
+    assignment_ids: ["assignment-1"],
     timeout_minutes: 30,
     max_retries: 2,
     auto_approve: false,
   },
-  handoffs: [],
+  assignments: [],
 };
 
 test("enrichWorkflowStatusView returns telemetry when TermCanvas is running", () => {

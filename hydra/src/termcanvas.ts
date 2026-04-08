@@ -51,7 +51,7 @@ export function buildTerminalCreateArgs(
   autoApprove?: boolean,
   parentTerminalId?: string,
   workflowId?: string,
-  handoffId?: string,
+  assignmentId?: string,
   repoPath?: string,
 ): string[] {
   const args = ["--worktree", worktreePath, "--type", type];
@@ -59,7 +59,7 @@ export function buildTerminalCreateArgs(
   if (autoApprove) args.push("--auto-approve");
   if (parentTerminalId) args.push("--parent-terminal", parentTerminalId);
   if (workflowId) args.push("--workflow-id", workflowId);
-  if (handoffId) args.push("--handoff-id", handoffId);
+  if (assignmentId) args.push("--assignment-id", assignmentId);
   if (repoPath) args.push("--repo", repoPath);
   return buildTermcanvasArgs("terminal", "create", args);
 }
@@ -126,7 +126,7 @@ export function terminalCreate(
   autoApprove?: boolean,
   parentTerminalId?: string,
   workflowId?: string,
-  handoffId?: string,
+  assignmentId?: string,
   repoPath?: string,
 ): { id: string; type: string; title: string } {
   return runTermcanvasJson(
@@ -137,7 +137,7 @@ export function terminalCreate(
       autoApprove,
       parentTerminalId,
       workflowId,
-      handoffId,
+      assignmentId,
       repoPath,
     ),
     10_000,

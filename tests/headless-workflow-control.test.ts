@@ -62,7 +62,7 @@ test("workflow-linked terminal exits do not emit workflow completion before the 
       worktree: workspaceDir,
       type: "codex",
       workflowId: "workflow-test",
-      handoffId: "handoff-test",
+      assignmentId: "assignment-test",
       repoPath: workspaceDir,
     });
 
@@ -138,13 +138,15 @@ test("workflow control emits workflow_completed only after Hydra marks the workf
       false,
     );
 
-    const handoff = started.handoffs[0];
+    const assignment = started.assignments[0];
+    const run = assignment.runs[0];
     fs.writeFileSync(
-      handoff.artifacts!.result_file,
+      run.result_file,
       JSON.stringify({
-        version: "hydra/v2",
-        handoff_id: handoff.id,
-        workflow_id: handoff.workflow_id,
+        schema_version: "hydra/result/v1",
+        assignment_id: assignment.id,
+        workflow_id: started.workflow.id,
+        run_id: run.id,
         success: true,
         summary: "Completed workflow control implementation.",
         outputs: [
@@ -155,16 +157,6 @@ test("workflow control emits workflow_completed only after Hydra marks the workf
         ],
         evidence: ["workflow event test"],
         next_action: { type: "complete", reason: "Workflow is complete." },
-      }, null, 2),
-      "utf-8",
-    );
-    fs.writeFileSync(
-      handoff.artifacts!.done_file,
-      JSON.stringify({
-        version: "hydra/v2",
-        handoff_id: handoff.id,
-        workflow_id: handoff.workflow_id,
-        result_file: handoff.artifacts!.result_file,
       }, null, 2),
       "utf-8",
     );
@@ -241,13 +233,15 @@ test("workflow routes auto-track the repo and can complete a single-step run", a
     assert.equal(listed.body.length, 1);
     assert.equal(listed.body[0].id, started.body.workflow.id);
 
-    const handoff = started.body.handoffs[0];
+    const assignment = started.body.assignments[0];
+    const run = assignment.runs[0];
     fs.writeFileSync(
-      handoff.artifacts.result_file,
+      run.result_file,
       JSON.stringify({
-        version: "hydra/v2",
-        handoff_id: handoff.id,
-        workflow_id: handoff.workflow_id,
+        schema_version: "hydra/result/v1",
+        assignment_id: assignment.id,
+        workflow_id: started.body.workflow.id,
+        run_id: run.id,
         success: true,
         summary: "Completed workflow control implementation.",
         outputs: [
@@ -258,16 +252,6 @@ test("workflow routes auto-track the repo and can complete a single-step run", a
         ],
         evidence: ["manual test"],
         next_action: { type: "complete", reason: "Workflow is complete." },
-      }, null, 2),
-      "utf-8",
-    );
-    fs.writeFileSync(
-      handoff.artifacts.done_file,
-      JSON.stringify({
-        version: "hydra/v2",
-        handoff_id: handoff.id,
-        workflow_id: handoff.workflow_id,
-        result_file: handoff.artifacts.result_file,
       }, null, 2),
       "utf-8",
     );
