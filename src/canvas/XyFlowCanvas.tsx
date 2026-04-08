@@ -44,21 +44,13 @@ import {
 import { fromFlowViewport, toFlowViewport } from "./viewportAdapter";
 import { buildCanvasFlowNodes } from "./nodeProjection";
 import { useTileDimensionsStore } from "../stores/tileDimensionsStore";
-import {
-  xyflowNodeTypes,
-  type CanvasFlowNode,
-} from "./xyflowNodes";
+import { xyflowNodeTypes, type CanvasFlowNode } from "./xyflowNodes";
 import {
   getCanvasLeftInset,
   rectIntersectsCanvasViewport,
 } from "./viewportBounds";
 import { clampScale, zoomAtClientPoint } from "./viewportZoom";
-import {
-  WT_PAD,
-  WT_TITLE_H,
-  PROJ_PAD,
-  PROJ_TITLE_H,
-} from "../layout";
+import { WT_PAD, WT_TITLE_H, PROJ_PAD, PROJ_TITLE_H } from "../layout";
 import { getVisibleWorktreeTerminals } from "../utils/worktreeLayout";
 
 const EMPTY_EDGES: never[] = [];
@@ -158,19 +150,26 @@ function TerminalRuntimeLayer({
         project.worktrees.flatMap((worktree) => {
           const layouts = getRenderableTerminalLayouts(worktree);
           const projectOffset =
-            projectedPositions.projectOffsets.get(project.id) ?? project.position;
-          const worktreeOffset =
-            projectedPositions.worktreeOffsets.get(worktree.id) ?? {
-              x: PROJ_PAD + worktree.position.x,
-              y: PROJ_TITLE_H + PROJ_PAD + worktree.position.y,
-            };
+            projectedPositions.projectOffsets.get(project.id) ??
+            project.position;
+          const worktreeOffset = projectedPositions.worktreeOffsets.get(
+            worktree.id,
+          ) ?? {
+            x: PROJ_PAD + worktree.position.x,
+            y: PROJ_TITLE_H + PROJ_PAD + worktree.position.y,
+          };
 
           return layouts.map(({ item, terminal }) => {
             const absoluteRect = {
               h: item.h,
               w: item.w,
               x: projectOffset.x + worktreeOffset.x + WT_PAD + item.x,
-              y: projectOffset.y + worktreeOffset.y + WT_TITLE_H + WT_PAD + item.y,
+              y:
+                projectOffset.y +
+                worktreeOffset.y +
+                WT_TITLE_H +
+                WT_PAD +
+                item.y,
             };
 
             return {
@@ -182,7 +181,11 @@ function TerminalRuntimeLayer({
           });
         }),
       ),
-    [projects, projectedPositions.projectOffsets, projectedPositions.worktreeOffsets],
+    [
+      projects,
+      projectedPositions.projectOffsets,
+      projectedPositions.worktreeOffsets,
+    ],
   );
 
   useEffect(() => {
@@ -266,7 +269,14 @@ function TerminalRuntimeLayer({
         }),
       );
     }
-  }, [leftPanelCollapsed, leftPanelWidth, projects, rightPanelCollapsed, terminalEntries, viewport]);
+  }, [
+    leftPanelCollapsed,
+    leftPanelWidth,
+    projects,
+    rightPanelCollapsed,
+    terminalEntries,
+    viewport,
+  ]);
 
   useEffect(
     () => () => {
@@ -288,15 +298,22 @@ function XyFlowCanvasInner() {
   const t = useT();
   const viewport = useCanvasStore((state) => state.viewport);
   const isAnimating = useCanvasStore((state) => state.isAnimating);
-  const rightPanelCollapsed = useCanvasStore((state) => state.rightPanelCollapsed);
-  const leftPanelCollapsed = useCanvasStore((state) => state.leftPanelCollapsed);
+  const rightPanelCollapsed = useCanvasStore(
+    (state) => state.rightPanelCollapsed,
+  );
+  const leftPanelCollapsed = useCanvasStore(
+    (state) => state.leftPanelCollapsed,
+  );
   const leftPanelWidth = useCanvasStore((state) => state.leftPanelWidth);
   const projects = useProjectStore((state) => state.projects);
   const drawingEnabled = usePreferencesStore((state) => state.drawingEnabled);
   const animationBlur = usePreferencesStore((state) => state.animationBlur);
   const drawingTool = useDrawingStore((state) => state.tool);
   const { handleMouseDown: handleBoxSelectMouseDown } = useBoxSelect();
-  const projectLayoutKey = useMemo(() => buildProjectLayoutKey(projects), [projects]);
+  const projectLayoutKey = useMemo(
+    () => buildProjectLayoutKey(projects),
+    [projects],
+  );
   const tileW = useTileDimensionsStore((s) => s.w);
   const tileH = useTileDimensionsStore((s) => s.h);
   const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
@@ -393,22 +410,26 @@ function XyFlowCanvasInner() {
   const handleNodeDragStop = useCallback<OnNodeDrag<CanvasFlowNode>>(
     (_event, node) => {
       if (node.type === "project") {
-        useProjectStore.getState().updateProjectPosition(
-          node.data.projectId,
-          node.position.x,
-          node.position.y,
-        );
+        useProjectStore
+          .getState()
+          .updateProjectPosition(
+            node.data.projectId,
+            node.position.x,
+            node.position.y,
+          );
         return;
       }
 
       if (node.type === "worktree") {
         const { projectId, worktreeId } = node.data;
-        useProjectStore.getState().updateWorktreePosition(
-          projectId,
-          worktreeId,
-          Math.max(0, node.position.x - PROJ_PAD),
-          Math.max(0, node.position.y - (PROJ_TITLE_H + PROJ_PAD)),
-        );
+        useProjectStore
+          .getState()
+          .updateWorktreePosition(
+            projectId,
+            worktreeId,
+            Math.max(0, node.position.x - PROJ_PAD),
+            Math.max(0, node.position.y - (PROJ_TITLE_H + PROJ_PAD)),
+          );
       }
     },
     [],
@@ -447,6 +468,16 @@ function XyFlowCanvasInner() {
   const handleWheelCapture = useCallback(
     (event: React.WheelEvent<HTMLDivElement>) => {
       if (!(event.ctrlKey || event.metaKey)) {
+        return;
+      }
+
+      // Don't zoom the canvas when the pinch/wheel originates inside a
+      // terminal tile (marked with the "nowheel" class).  Without this,
+      // two-finger pinch on a focused terminal still scales the canvas
+      // because the capture-phase handler fires before the event reaches
+      // the terminal's own scroll handling.
+      const target = event.target;
+      if (target instanceof Element && target.closest(".nowheel")) {
         return;
       }
 
@@ -494,7 +525,10 @@ function XyFlowCanvasInner() {
         className="tc-xyflow"
         style={{
           willChange: isAnimating ? "transform" : undefined,
-          filter: animationBlur > 0 && isAnimating ? `blur(${animationBlur}px)` : "none",
+          filter:
+            animationBlur > 0 && isAnimating
+              ? `blur(${animationBlur}px)`
+              : "none",
           transition: animationBlur > 0 ? "filter 0.15s ease" : "none",
         }}
         defaultViewport={toFlowViewport(viewport)}
