@@ -46,6 +46,8 @@ export interface StatusSummary {
 export interface WorktreeGroup {
   worktreeId: string;
   worktreeName: string;
+  worktreePath: string;
+  isMain: boolean;
   statusSummary: StatusSummary;
   terminals: CanvasTerminalItem[];
 }
@@ -53,6 +55,7 @@ export interface WorktreeGroup {
 export interface ProjectGroup {
   projectId: string;
   projectName: string;
+  projectPath: string;
   statusSummary: StatusSummary;
   worktrees: WorktreeGroup[];
   flat: boolean;
@@ -453,6 +456,8 @@ export function buildProjectTree(
       worktreeGroups.push({
         worktreeId: worktree.id,
         worktreeName: worktree.name,
+        worktreePath: worktree.path,
+        isMain: worktree.path === project.path,
         statusSummary: computeStatusSummary(terminals),
         terminals,
       });
@@ -465,6 +470,7 @@ export function buildProjectTree(
     result.push({
       projectId: project.id,
       projectName: project.name,
+      projectPath: project.path,
       statusSummary: computeStatusSummary(allTerminals),
       worktrees: worktreeGroups,
       flat: worktreeGroups.length === 1,
