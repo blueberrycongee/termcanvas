@@ -582,7 +582,15 @@ export class TelemetryService {
       state.snapshot.active_tool_calls = state.activeToolCalls.size;
 
       if (event.turn_state) {
-        state.snapshot.turn_state = event.turn_state;
+        // Preserve awaiting_input set by the 5s timer — JSONL events
+        // written before the permission dialog can arrive late via the
+        // session poller and would otherwise clobber the state.
+        const preserveAwaitingInput =
+          state.pendingPreToolUse &&
+          state.snapshot.turn_state === "awaiting_input";
+        if (!preserveAwaitingInput) {
+          state.snapshot.turn_state = event.turn_state;
+        }
       }
 
       let meaningfulProgress = event.meaningful_progress === true;
