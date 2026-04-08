@@ -923,7 +923,7 @@ export class TelemetryService {
           state.awaitingInputTimer = null;
           if (state.pendingPreToolUse) {
             state.snapshot.turn_state = "awaiting_input";
-            this.updateDerivedStatus(state);
+            this.updateDerivedStatus(state, { force: true });
           }
         }, 5_000);
         this.appendEvent(state, at, "session", "hook_pre_tool", {
@@ -1223,7 +1223,10 @@ export class TelemetryService {
     }
   }
 
-  private updateDerivedStatus(state: TerminalState): void {
+  private updateDerivedStatus(
+    state: TerminalState,
+    options?: { force?: boolean },
+  ): void {
     const prev = state.snapshot.derived_status;
     const prevTurn = state.snapshot.turn_state;
     const prevTool = state.snapshot.foreground_tool;
@@ -1247,7 +1250,8 @@ export class TelemetryService {
 
     if (
       this.onSnapshotChanged &&
-      (state.snapshot.derived_status !== prev ||
+      (options?.force ||
+        state.snapshot.derived_status !== prev ||
         state.snapshot.turn_state !== prevTurn ||
         state.snapshot.foreground_tool !== prevTool ||
         state.snapshot.task_status !== prevTaskStatus ||
