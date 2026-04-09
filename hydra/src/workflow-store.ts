@@ -1,20 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { ChallengeState } from "./challenge.ts";
-import type { WorkflowResultContract } from "./protocol.ts";
+import type { AgentType } from "./assignment/types.ts";
+import type { NodeStatus } from "./decision.ts";
 import {
   getWorkflowDir,
   getWorkflowStatePath,
 } from "./layout.ts";
 
-export const WORKFLOW_STATE_SCHEMA_VERSION = "hydra/workflow-state/v2";
+export const WORKFLOW_STATE_SCHEMA_VERSION = "hydra/workflow-state/v4";
 
 export type WorkflowStatus =
-  | "pending"
-  | "running"
-  | "challenging"
-  | "waiting_for_approval"
-  | "waiting_for_challenge_decision"
+  | "active"
   | "completed"
   | "failed";
 
@@ -32,11 +28,30 @@ export interface ApprovedArtifactRef {
   approved_at: string;
 }
 
+export interface ContextRef {
+  label: string;
+  path: string;
+}
+
+export interface WorkflowNode {
+  id: string;
+  role: string;
+  depends_on: string[];
+  agent_type: AgentType;
+  assignment_id?: string;
+  intent: string;
+  context_refs?: ContextRef[];
+  feedback?: string;
+  worktree_path?: string;
+  worktree_branch?: string;
+  timeout_minutes?: number;
+  max_retries?: number;
+}
+
 export interface WorkflowRecord {
   schema_version: typeof WORKFLOW_STATE_SCHEMA_VERSION;
   id: string;
-  template: string;
-  task: string;
+  intent: string;
   repo_path: string;
   worktree_path: string;
   branch: string | null;
@@ -46,22 +61,15 @@ export interface WorkflowRecord {
   created_at: string;
   updated_at: string;
   status: WorkflowStatus;
-  current_assignment_id: string;
+  nodes: Record<string, WorkflowNode>;
+  node_statuses: Record<string, NodeStatus>;
   assignment_ids: string[];
-  timeout_minutes: number;
-  max_retries: number;
-  confirmation_iteration?: number;
-  max_confirmation_iterations?: number;
+  default_timeout_minutes: number;
+  default_max_retries: number;
+  default_agent_type: AgentType;
   auto_approve: boolean;
-  approved_refs?: {
-    research?: ApprovedArtifactRef;
-  };
-  challenge_request?: {
-    source_assignment_id: string;
-    requested_at: string;
-  };
-  challenge?: ChallengeState;
-  result?: WorkflowResultContract;
+  approved_refs?: Record<string, ApprovedArtifactRef>;
+  result_summary?: string;
   failure?: WorkflowFailure;
 }
 
@@ -75,16 +83,11 @@ export function saveWorkflow(workflow: WorkflowRecord): void {
 
 export function loadWorkflow(repoPath: string, workflowId: string): WorkflowRecord | null {
   const filePath = getWorkflowStatePath(repoPath, workflowId);
-  if (!fs.existsSync(filePath)) {
-    return null;
-  }
-
-  const workflow = JSON.parse(
-    fs.readFileSync(filePath, "utf-8"),
-  ) as WorkflowRecord;
+  if (!fs.existsSync(filePath)) return null;
+  const workflow = JSON.parse(fs.readFileSync(filePath, "utf-8")) as WorkflowRecord;
   if (workflow.schema_version !== WORKFLOW_STATE_SCHEMA_VERSION) {
     throw new Error(
-      `Unsupported workflow state schema in ${filePath}: expected ${WORKFLOW_STATE_SCHEMA_VERSION}, received ${String(workflow.schema_version ?? "<missing>")}`,
+      `Unsupported workflow state schema in ${filePath}: expected ${WORKFLOW_STATE_SCHEMA_VERSION}, received ${String((workflow as unknown as Record<string, unknown>).schema_version ?? "<missing>")}`,
     );
   }
   return workflow;
@@ -100,7 +103,6 @@ export function listWorkflows(repoPath: string): WorkflowRecord[] {
   } catch {
     return [];
   }
-
   return entries
     .map((workflowId) => loadWorkflow(repoPath, workflowId))
     .filter((workflow): workflow is WorkflowRecord => workflow !== null);

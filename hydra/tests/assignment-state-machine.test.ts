@@ -17,7 +17,6 @@ function createFixture() {
   const assignment = manager.create({
     workflow_id: workflowId,
     role: "implementer",
-    kind: "implementation",
     from_assignment_id: "assignment-research",
     requested_agent_type: "codex",
     max_retries: 1,
@@ -84,7 +83,7 @@ test("markCompleted records the result and closes the active run", async (t) => 
     summary: "Implemented the change.",
     outputs: [{ path: "src/index.ts" }],
     evidence: ["npm test"],
-    next_action: { type: "complete", reason: "Done" },
+    intent: { type: "done", confidence: "high" },
   });
 
   const persisted = manager.load(assignment.id);

@@ -1,18 +1,10 @@
-import type { ResultVerification } from "../protocol.ts";
+import type { ResultVerification, SubAgentIntent, SubAgentReflection } from "../protocol.ts";
 
-export const ASSIGNMENT_STATE_SCHEMA_VERSION = "hydra/assignment-state/v2";
+export const ASSIGNMENT_STATE_SCHEMA_VERSION = "hydra/assignment-state/v3";
 
 export type AgentType = "claude" | "codex" | "kimi" | "gemini";
 
-export type AssignmentRole = "researcher" | "implementer" | "tester";
-
-export type AssignmentKind =
-  | "single_step"
-  | "research"
-  | "research_replan"
-  | "implementation"
-  | "verification"
-  | "intent_confirmation";
+export type AssignmentRole = string;
 
 export type AssignmentStatus =
   | "pending"
@@ -67,6 +59,17 @@ export interface AssignmentRun {
   retry_of_run_id?: string;
 }
 
+export interface AssignmentResult {
+  success: boolean;
+  summary: string;
+  outputs?: Array<{ kind?: string; path: string; description?: string }>;
+  evidence?: string[];
+  verification?: ResultVerification;
+  intent?: SubAgentIntent;
+  reflection?: SubAgentReflection;
+  completed_at?: string;
+}
+
 export interface AssignmentRecord {
   schema_version: typeof ASSIGNMENT_STATE_SCHEMA_VERSION;
   id: string;
@@ -76,7 +79,6 @@ export interface AssignmentRecord {
   workspace_root?: string;
   worktree_path?: string;
   role: AssignmentRole;
-  kind: AssignmentKind;
   from_assignment_id: string | null;
   requested_agent_type: AgentType;
   status: AssignmentStatus;
@@ -89,23 +91,5 @@ export interface AssignmentRecord {
   claim?: AssignmentClaim;
   transitions?: AssignmentTransition[];
   last_error?: AssignmentError;
-  result?: {
-    success: boolean;
-    summary?: string;
-    outputs?: Array<{
-      kind?: string;
-      path: string;
-      description?: string;
-    }>;
-    evidence?: string[];
-    verification?: ResultVerification;
-    satisfaction?: boolean;
-    replan?: boolean;
-    next_action?: {
-      type: "complete" | "retry" | "transition";
-      reason: string;
-      assignment_id?: string;
-    };
-    completed_at?: string;
-  };
+  result?: AssignmentResult;
 }

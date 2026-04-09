@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { collectRunResult } from "../src/collector.ts";
-import { WORKFLOW_RESULT_SCHEMA_VERSION } from "../src/protocol.ts";
+import { RESULT_SCHEMA_VERSION } from "../src/protocol.ts";
 
 function createRunResultPath(): string {
   const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "hydra-collector-"));
@@ -43,7 +43,7 @@ test("collectRunResult returns completed when result.json is valid", () => {
     fs.writeFileSync(
       resultFile,
       JSON.stringify({
-        schema_version: WORKFLOW_RESULT_SCHEMA_VERSION,
+        schema_version: RESULT_SCHEMA_VERSION,
         workflow_id: "workflow-auth",
         assignment_id: "assignment-abc123",
         run_id: "run-0001",
@@ -51,7 +51,7 @@ test("collectRunResult returns completed when result.json is valid", () => {
         summary: "Implemented the collector flow.",
         outputs: [{ path: "hydra/src/collector.ts", description: "Collector implementation" }],
         evidence: ["npm test"],
-        next_action: { type: "complete", reason: "No more work required." },
+        intent: { type: "done", confidence: "high" },
       }, null, 2),
       "utf-8",
     );
@@ -73,7 +73,7 @@ test("collectRunResult fails when result.json does not satisfy the schema", () =
     fs.writeFileSync(
       resultFile,
       JSON.stringify({
-        schema_version: WORKFLOW_RESULT_SCHEMA_VERSION,
+        schema_version: RESULT_SCHEMA_VERSION,
         workflow_id: "workflow-auth",
         assignment_id: "assignment-abc123",
         run_id: "run-0001",

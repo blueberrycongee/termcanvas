@@ -1,13 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  WORKFLOW_RESULT_SCHEMA_VERSION,
-  validateWorkflowResultContract,
+  RESULT_SCHEMA_VERSION,
+  validateSubAgentResult,
 } from "../src/protocol.ts";
 
 function buildValidResult() {
   return {
-    schema_version: WORKFLOW_RESULT_SCHEMA_VERSION,
+    schema_version: RESULT_SCHEMA_VERSION,
     workflow_id: "workflow-xyz",
     assignment_id: "assignment-abc123",
     run_id: "run-0001",
@@ -24,9 +24,9 @@ function buildValidResult() {
       "npm run typecheck",
       "npm test",
     ],
-    next_action: {
-      type: "complete",
-      reason: "The assignment run is ready to finish.",
+    intent: {
+      type: "done",
+      confidence: "high",
     },
     verification: {
       build: { ran: true, pass: true, detail: "tsc clean" },
@@ -40,57 +40,74 @@ const EXPECTED_IDS = {
   run_id: "run-0001",
 } as const;
 
-test("validateWorkflowResultContract accepts a valid v1 result", () => {
-  const result = validateWorkflowResultContract(buildValidResult(), EXPECTED_IDS);
+test("validateSubAgentResult accepts a valid v2 result", () => {
+  const result = validateSubAgentResult(buildValidResult(), EXPECTED_IDS);
 
-  assert.equal(result.schema_version, WORKFLOW_RESULT_SCHEMA_VERSION);
+  assert.equal(result.schema_version, RESULT_SCHEMA_VERSION);
   assert.equal(result.assignment_id, EXPECTED_IDS.assignment_id);
   assert.equal(result.outputs[0]?.kind, "source");
   assert.equal(result.verification?.build?.pass, true);
+  assert.equal(result.intent.type, "done");
 });
 
-test("validateWorkflowResultContract rejects transition actions without assignment_id", () => {
+test("validateSubAgentResult rejects invalid intent type", () => {
   const invalid = {
     ...buildValidResult(),
-    next_action: {
-      type: "transition",
-      reason: "Move to the next assignment.",
-    },
+    intent: { type: "invalid_type" },
   };
 
   assert.throws(
-    () => validateWorkflowResultContract(invalid, EXPECTED_IDS),
+    () => validateSubAgentResult(invalid, EXPECTED_IDS),
     (error: unknown) => {
       assert.ok(error instanceof Error);
       assert.equal((error as Error & { errorCode?: string }).errorCode, "PROTOCOL_INVALID_RESULT");
-      assert.match(error.message, /assignment_id/);
+      assert.match(error.message, /intent\.type/);
       return true;
     },
   );
 });
 
-test("validateWorkflowResultContract preserves satisfaction and replan fields", () => {
-  const result = validateWorkflowResultContract(
+test("validateSubAgentResult validates needs_rework requires reason", () => {
+  const invalid = {
+    ...buildValidResult(),
+    intent: { type: "needs_rework" },
+  };
+
+  assert.throws(
+    () => validateSubAgentResult(invalid, EXPECTED_IDS),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /reason/);
+      return true;
+    },
+  );
+});
+
+test("validateSubAgentResult preserves reflection", () => {
+  const result = validateSubAgentResult(
     {
       ...buildValidResult(),
-      satisfaction: false,
-      replan: true,
+      reflection: {
+        approach: "Grep-first strategy",
+        blockers_encountered: ["Missing types"],
+        confidence_factors: ["All tests pass"],
+      },
     },
     EXPECTED_IDS,
   );
 
-  assert.equal(result.satisfaction, false);
-  assert.equal(result.replan, true);
+  assert.equal(result.reflection?.approach, "Grep-first strategy");
+  assert.deepEqual(result.reflection?.blockers_encountered, ["Missing types"]);
 });
 
-test("validateWorkflowResultContract rejects mismatched run identity", () => {
+test("validateSubAgentResult rejects mismatched run identity", () => {
   const invalid = {
     ...buildValidResult(),
     run_id: "run-other",
   };
 
   assert.throws(
-    () => validateWorkflowResultContract(invalid, EXPECTED_IDS),
+    () => validateSubAgentResult(invalid, EXPECTED_IDS),
     (error: unknown) => {
       assert.ok(error instanceof Error);
       assert.equal((error as Error & { errorCode?: string }).errorCode, "PROTOCOL_INVALID_RESULT");

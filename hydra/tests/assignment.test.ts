@@ -35,7 +35,6 @@ test("AssignmentManager creates an assignment", (t) => {
   const assignment = manager.create({
     workflow_id: workflowId,
     role: "implementer",
-    kind: "implementation",
     from_assignment_id: null,
     requested_agent_type: "codex",
     max_retries: 2,
@@ -56,7 +55,6 @@ test("AssignmentManager loads an assignment", (t) => {
   const created = manager.create({
     workflow_id: workflowId,
     role: "researcher",
-    kind: "research",
     from_assignment_id: null,
     requested_agent_type: "claude",
     max_retries: 1,
@@ -75,7 +73,6 @@ test("AssignmentManager updates assignment status", (t) => {
   const assignment = manager.create({
     workflow_id: workflowId,
     role: "tester",
-    kind: "verification",
     from_assignment_id: "assignment-previous",
     requested_agent_type: "claude",
     max_retries: 1,

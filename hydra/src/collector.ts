@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import {
-  validateWorkflowResultContract,
-  type WorkflowResultContract,
+  validateSubAgentResult,
+  type SubAgentResult,
 } from "./protocol.ts";
 
 export interface CollectorFailure {
@@ -24,7 +24,7 @@ export type CollectRunResult =
   | {
       status: "completed";
       advance: true;
-      result: WorkflowResultContract;
+      result: SubAgentResult;
     };
 
 export interface RunResultExpectation {
@@ -48,7 +48,7 @@ export function collectRunResult(expectation: RunResultExpectation): CollectRunR
   }
 
   try {
-    const result = validateWorkflowResultContract(readJsonFile(expectation.result_file), expectation);
+    const result = validateSubAgentResult(readJsonFile(expectation.result_file), expectation);
     return {
       status: "completed",
       advance: true,

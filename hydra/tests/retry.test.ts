@@ -23,7 +23,6 @@ function createFixture() {
     id: "assignment-123",
     workflow_id: workflowId,
     role: "implementer",
-    kind: "implementation",
     from_assignment_id: null,
     requested_agent_type: "codex",
     timeout_minutes: 1,
