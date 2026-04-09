@@ -42,6 +42,7 @@ interface TerminalState {
   activeToolCalls: Map<string, ActiveToolCall>;
   events: TelemetryEvent[];
   nextEventId: number;
+  lastTerminalTurnAtMs: number | null;
   lastContractKey: string | null;
   lastHookToolAt: number;
   lastProcessKey: string | null;
@@ -137,6 +138,19 @@ function summarizeProcesses(processes: TelemetryProcessInfo[]): string {
       command: process.command,
       cli_type: process.cli_type ?? null,
     })),
+  );
+}
+
+function isTerminalTurnState(state: TelemetryTurnState): boolean {
+  return state === "turn_complete" || state === "turn_aborted";
+}
+
+function isActiveTurnState(state: TelemetryTurnState): boolean {
+  return (
+    state === "thinking" ||
+    state === "in_turn" ||
+    state === "tool_running" ||
+    state === "tool_pending"
   );
 }
 
@@ -423,6 +437,7 @@ export class TelemetryService {
     state.ptyId = input.ptyId;
     state.shellPid = input.shellPid ?? state.shellPid;
     state.activeToolCalls.clear();
+    state.lastTerminalTurnAtMs = null;
     state.snapshot.pty_alive = true;
     state.snapshot.exit_code = undefined;
     state.snapshot.active_tool_calls = 0;
@@ -477,6 +492,7 @@ export class TelemetryService {
     }
     state.ptyId = null;
     state.activeToolCalls.clear();
+    state.lastTerminalTurnAtMs = null;
     state.snapshot.pty_alive = false;
     state.snapshot.exit_code = exitCode;
     state.snapshot.active_tool_calls = 0;
@@ -556,6 +572,7 @@ export class TelemetryService {
     const state = this.ensureState(terminalId);
     for (const event of events) {
       const timestamp = event.at ?? isoNow(this.now);
+      const eventAtMs = new Date(timestamp).getTime();
       const previousTurnState = state.snapshot.turn_state;
       state.snapshot.last_session_event_at = timestamp;
       state.snapshot.last_session_event_kind = event.event_type;
@@ -588,8 +605,20 @@ export class TelemetryService {
         const preserveAwaitingInput =
           state.pendingPreToolUse &&
           state.snapshot.turn_state === "awaiting_input";
-        if (!preserveAwaitingInput) {
+        const preserveTerminalTurnState =
+          isTerminalTurnState(state.snapshot.turn_state) &&
+          isActiveTurnState(event.turn_state) &&
+          state.lastTerminalTurnAtMs !== null &&
+          Number.isFinite(eventAtMs) &&
+          eventAtMs <= state.lastTerminalTurnAtMs;
+        if (!preserveAwaitingInput && !preserveTerminalTurnState) {
           state.snapshot.turn_state = event.turn_state;
+          if (
+            isTerminalTurnState(event.turn_state) &&
+            Number.isFinite(eventAtMs)
+          ) {
+            state.lastTerminalTurnAtMs = eventAtMs;
+          }
         }
       }
 
@@ -623,13 +652,13 @@ export class TelemetryService {
         raw_ref: event.raw_ref ?? null,
       });
 
-      if (event.turn_state && event.turn_state !== previousTurnState) {
+      if (
+        event.turn_state &&
+        state.snapshot.turn_state === event.turn_state &&
+        event.turn_state !== previousTurnState
+      ) {
         // Track when a turn begins for elapsed-time display
-        const enteringTurn =
-          event.turn_state === "in_turn" ||
-          event.turn_state === "thinking" ||
-          event.turn_state === "tool_running" ||
-          event.turn_state === "tool_pending";
+        const enteringTurn = isActiveTurnState(event.turn_state);
         const wasTurnComplete =
           previousTurnState === "turn_complete" ||
           previousTurnState === "turn_aborted" ||
@@ -877,7 +906,10 @@ export class TelemetryService {
         }
         state.pendingPreToolUse = false;
         state.snapshot.pending_tool_use_at = undefined;
+        state.activeToolCalls.clear();
+        state.lastTerminalTurnAtMs = this.now();
         state.snapshot.active_tool_calls = 0;
+        state.snapshot.foreground_tool = undefined;
         state.snapshot.last_hook_error = undefined;
         state.snapshot.last_hook_error_details = undefined;
         state.snapshot.turn_state = "turn_complete";
@@ -894,7 +926,11 @@ export class TelemetryService {
           state.awaitingInputTimer = null;
         }
         state.pendingPreToolUse = false;
+        state.snapshot.pending_tool_use_at = undefined;
+        state.activeToolCalls.clear();
+        state.lastTerminalTurnAtMs = this.now();
         state.snapshot.active_tool_calls = 0;
+        state.snapshot.foreground_tool = undefined;
         state.snapshot.turn_state = "turn_complete";
         state.snapshot.turn_started_at = undefined;
         state.snapshot.last_hook_error =
@@ -983,7 +1019,11 @@ export class TelemetryService {
         break;
 
       case "SessionEnd":
+        state.pendingPreToolUse = false;
+        state.snapshot.pending_tool_use_at = undefined;
+        state.activeToolCalls.clear();
         state.snapshot.active_tool_calls = 0;
+        state.snapshot.foreground_tool = undefined;
         this.appendEvent(state, at, "session", "hook_session_end", {
           reason: event.reason ?? null,
         });
@@ -1049,6 +1089,7 @@ export class TelemetryService {
       activeToolCalls: new Map<string, ActiveToolCall>(),
       events: [],
       nextEventId: 1,
+      lastTerminalTurnAtMs: null,
       lastContractKey: null,
       lastHookToolAt: 0,
       lastProcessKey: null,

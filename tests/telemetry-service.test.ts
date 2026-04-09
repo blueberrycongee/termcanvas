@@ -185,6 +185,56 @@ test("telemetry service tracks active tool call lifecycle from session events", 
   assert.equal(snapshot?.task_status_source, "turn_state");
 });
 
+test("telemetry service preserves completed turn after Stop when stale session events arrive late", () => {
+  let nowMs = Date.parse("2026-03-26T00:00:00.000Z");
+  const service = new TelemetryService({
+    now: () => nowMs,
+    processPollIntervalMs: 0,
+  });
+  service.registerTerminal({
+    terminalId: "terminal-1",
+    worktreePath: "/tmp/project",
+    provider: "codex",
+  });
+  service.recordPtyCreated({
+    terminalId: "terminal-1",
+    ptyId: 7,
+  });
+  service.recordSessionTelemetry("terminal-1", [
+    {
+      at: "2026-03-26T00:00:01.000Z",
+      event_type: "mcp_tool_call_begin",
+      tool_name: "playwright-mcp",
+      call_id: "call-playwright-1",
+      lifecycle: "start",
+      turn_state: "tool_running",
+      meaningful_progress: true,
+    },
+  ]);
+
+  nowMs = Date.parse("2026-03-26T00:00:02.000Z");
+  service.recordHookEvent("terminal-1", { hook_event_name: "Stop" });
+
+  let snapshot = service.getTerminalSnapshot("terminal-1");
+  assert.equal(snapshot?.turn_state, "turn_complete");
+  assert.equal(snapshot?.active_tool_calls, 0);
+  assert.equal(snapshot?.foreground_tool, undefined);
+
+  service.recordSessionTelemetry("terminal-1", [
+    {
+      at: "2026-03-26T00:00:01.500Z",
+      event_type: "agent_message",
+      turn_state: "in_turn",
+      meaningful_progress: true,
+    },
+  ]);
+
+  snapshot = service.getTerminalSnapshot("terminal-1");
+  assert.equal(snapshot?.turn_state, "turn_complete");
+  assert.equal(snapshot?.active_tool_calls, 0);
+  assert.equal(snapshot?.foreground_tool, undefined);
+});
+
 test("telemetry service updates meaningful progress from token growth and process changes", () => {
   let nowMs = Date.parse("2026-03-26T00:00:00.000Z");
   const service = new TelemetryService({
