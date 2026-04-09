@@ -66,14 +66,23 @@ hydra merge --workflow W --nodes dev-frontend,dev-backend --repo .
 
 ## Handling agent results
 
-When `watchUntilDecision` returns, read the agent's `intent`:
+When `watchUntilDecision` returns a `node_completed` DecisionPoint:
 
-- **`done`** — agent finished successfully. Dispatch next step or complete.
-- **`needs_rework`** — something needs fixing. Reset the relevant node:
-  `hydra reset --workflow W --node dev --feedback "Tests fail on edge case X" --repo .`
-- **`replan`** — the approach is wrong. Reset back to researcher:
-  `hydra reset --workflow W --node researcher --feedback "Architecture assumption invalid" --repo .`
-- **`blocked`** — agent cannot proceed. Read the reason and decide.
+1. Check `outcome`:
+   - **`completed`** — agent finished. Read `summary` to decide next step.
+   - **`stuck`** — agent can't proceed. Read `summary` for what's needed.
+   - **`error`** — Hydra already retried; if still failing, it reports to you.
+
+2. Read the `summary` field (or the brief file) to decide:
+   - Dispatch next node → `hydra dispatch ...`
+   - Reset for rework → `hydra reset --workflow W --node dev --feedback "..." --repo .`
+   - Reset for replan → `hydra reset --workflow W --node researcher --feedback "..." --repo .`
+   - Re-dispatch after reset → `hydra redispatch --workflow W --node dev --repo .`
+   - Complete workflow → `hydra complete --workflow W --repo .`
+
+Hydra promotes blocked nodes to eligible automatically, but **you decide
+when to dispatch**. Check `newly_eligible` in the DecisionPoint to see
+what's ready.
 
 ## Agent role guidance
 
@@ -110,19 +119,22 @@ decision point. Do not poll manually with tick.
 ## Result contract
 
 Sub-agents write `result.json` with `schema_version: "hydra/result/v2"`.
-The `intent` field expresses semantic outcome:
+
+- `outcome`: `"completed"` / `"stuck"` / `"error"` — Hydra uses this for routing
+- `summary`: free text — Lead reads this to decide what to do next
+- `outputs`, `evidence`: structured artifact references
+- `reflection` (optional): approach, blockers, confidence — Hydra retains for optimization
 
 ```json
 {
-  "intent": { "type": "done", "confidence": "high" },
+  "outcome": "completed",
+  "summary": "OAuth middleware implemented with passport.js. All tests pass.",
   "reflection": {
     "approach": "Grep-first strategy to find auth endpoints",
     "blockers_encountered": ["Missing types for session store"]
   }
 }
 ```
-
-Agents do NOT include assignment IDs or routing. The Lead decides routing.
 
 ## Ledger
 

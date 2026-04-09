@@ -74,11 +74,10 @@ Telemetry polling:
 3. Trust `derived_status` and `task_status` as the primary decision signals.
 
 `result.json` must contain (v2):
-- `success`
-- `summary`
+- `outcome` (completed/stuck/error — Hydra routes on this)
+- `summary` (Lead reads this to decide next step)
 - `outputs[]`
 - `evidence[]`
-- `intent` (type: done/needs_rework/replan/blocked)
 - `reflection` (optional: approach, blockers, confidence)
 
 When NOT to use: simple fixes, high-certainty tasks, or work that is faster to do directly in the current agent.

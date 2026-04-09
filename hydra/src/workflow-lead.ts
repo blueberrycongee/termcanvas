@@ -571,7 +571,7 @@ export async function watchUntilDecision(
       const assignment = manager.load(node.assignment_id);
       if (!assignment) continue;
 
-      // Try dispatching pending assignments (e.g. after auto-dispatch of eligible)
+      // Handle pending assignments that were promoted to eligible but not yet dispatched by Lead
       if (assignment.status === "pending") {
         const runId = generateRunId();
         const result = await dispatchAssignment(workflow, assignment, node, runId, deps);
@@ -655,19 +655,8 @@ export async function watchUntilDecision(
           reflection: collected.result.reflection,
         });
 
-        // Promote blocked nodes
+        // Promote blocked → eligible (Lead decides whether to dispatch)
         const promoted = promoteEligibleNodes(workflow);
-
-        // Auto-dispatch newly eligible nodes
-        for (const eligibleId of promoted) {
-          const eligibleNode = workflow.nodes[eligibleId];
-          if (!eligibleNode?.assignment_id) continue;
-          const eligibleAssignment = manager.load(eligibleNode.assignment_id);
-          if (!eligibleAssignment || eligibleAssignment.status !== "pending") continue;
-          const eRunId = generateRunId();
-          const eResult = await dispatchAssignment(workflow, eligibleAssignment, eligibleNode, eRunId, deps);
-          if (eResult.status === "dispatched") workflow.node_statuses[eligibleId] = "dispatched";
-        }
 
         saveWorkflow(workflow);
         return {
@@ -784,11 +773,10 @@ export async function watchUntilDecision(
       }
     }
 
-    // Phase 2: Check if all nodes done and nothing eligible
+    // Phase 2: Check if no dispatched nodes remain (Lead needs to decide next)
     const statuses = Object.values(workflow.node_statuses);
     const anyDispatched = statuses.includes("dispatched");
-    const anyEligible = statuses.includes("eligible");
-    if (!anyDispatched && !anyEligible && statuses.length > 0 && !changed) {
+    if (!anyDispatched && statuses.length > 0 && !changed) {
       saveWorkflow(workflow);
       return { type: "batch_completed", workflow_id: workflow.id, timestamp: now(), nodes: buildNodesSummary(workflow) };
     }
