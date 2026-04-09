@@ -217,11 +217,10 @@ test("watchUntilDecision returns node_completed when result.json appears", async
       workflow_id: init.workflow_id,
       assignment_id: dispatched.assignment_id,
       run_id: run.id,
-      success: true,
+      outcome: "completed",
       summary: "Feature implemented.",
       outputs: [{ path: "src/feature.ts" }],
       evidence: ["tests pass"],
-      intent: { type: "done", confidence: "high" },
     }, null, 2), "utf-8");
 
     const decision = await watchUntilDecision({
@@ -230,7 +229,7 @@ test("watchUntilDecision returns node_completed when result.json appears", async
 
     assert.equal(decision.type, "node_completed");
     assert.equal(decision.completed?.node_id, "dev");
-    assert.equal(decision.completed?.result.intent.type, "done");
+    assert.equal(decision.completed?.result.outcome, "completed");
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }

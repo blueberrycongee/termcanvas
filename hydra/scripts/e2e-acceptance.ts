@@ -62,8 +62,7 @@ function writeResult(
   assignmentId: string,
   run: AssignmentRecord["runs"][number],
   summary: string,
-  success: boolean,
-  intentType: "done" | "needs_rework" | "replan",
+  outcome: "completed" | "stuck" | "error",
 ): void {
   const briefFile = getRunBriefFile(repoPath, workflowId, assignmentId, run.id);
   fs.mkdirSync(path.dirname(briefFile), { recursive: true });
@@ -76,15 +75,11 @@ function writeResult(
       workflow_id: workflowId,
       assignment_id: assignmentId,
       run_id: run.id,
-      success,
+      outcome,
       summary,
       outputs: [{ path: briefFile, description: "acceptance artifact" }],
       evidence: ["hydra e2e acceptance script"],
-      intent: intentType === "done"
-        ? { type: "done", confidence: "high" }
-        : intentType === "needs_rework"
-          ? { type: "needs_rework", reason: summary, scope: "minor" }
-          : { type: "replan", reason: summary },
+      outcome,
     }, null, 2),
     "utf-8",
   );
@@ -152,7 +147,7 @@ async function main() {
     const manager = new AssignmentManager(args.repo, workflowId);
     let assignment = manager.load(researcher.assignment_id)!;
     let run = latestRun(assignment);
-    writeResult(args.repo, workflowId, assignment.id, run, "Research brief produced.", true, "done");
+    writeResult(args.repo, workflowId, assignment.id, run, "Research brief produced.", "completed");
     records.push(captureStage("researcher", assignment.id, "researcher", researcher.terminal_id ?? null, "Research brief produced."));
 
     // 3. Watch → researcher completes
@@ -171,7 +166,7 @@ async function main() {
 
     assignment = manager.load(dev.assignment_id)!;
     run = latestRun(assignment);
-    writeResult(args.repo, workflowId, assignment.id, run, "First implementation pass done.", true, "done");
+    writeResult(args.repo, workflowId, assignment.id, run, "First implementation pass done.", "completed");
     records.push(captureStage("dev", assignment.id, "implementer", dev.terminal_id ?? null, "First pass done."));
 
     decision = await watchUntilDecision({ repoPath: args.repo, workflowId, timeoutMs: 10_000 });
@@ -187,12 +182,12 @@ async function main() {
 
     assignment = manager.load(tester.assignment_id)!;
     run = latestRun(assignment);
-    writeResult(args.repo, workflowId, assignment.id, run, "Found issues, needs rework.", true, "needs_rework");
+    writeResult(args.repo, workflowId, assignment.id, run, "Found issues, needs rework.", "completed");
     records.push(captureStage("tester", assignment.id, "tester", tester.terminal_id ?? null, "Found issues."));
 
     decision = await watchUntilDecision({ repoPath: args.repo, workflowId, timeoutMs: 10_000 });
     assert.equal(decision.type, "node_completed");
-    assert.equal(decision.completed?.result.intent.type, "needs_rework");
+    assert.equal(decision.completed?.result.outcome, "completed");
 
     // 7. Reset dev based on tester feedback
     await resetNode({ repoPath: args.repo, workflowId, nodeId: "dev", feedback: "Fix the issues found by tester." });
@@ -205,7 +200,7 @@ async function main() {
 
     assignment = manager.load(dev2.assignment_id)!;
     run = latestRun(assignment);
-    writeResult(args.repo, workflowId, assignment.id, run, "Fixed all tester findings.", true, "done");
+    writeResult(args.repo, workflowId, assignment.id, run, "Fixed all tester findings.", "completed");
     records.push(captureStage("dev", assignment.id, "implementer", dev2.terminal_id ?? null, "Fixed findings."));
 
     decision = await watchUntilDecision({ repoPath: args.repo, workflowId, timeoutMs: 10_000 });

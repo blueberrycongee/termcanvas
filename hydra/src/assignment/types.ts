@@ -1,4 +1,4 @@
-import type { ResultVerification, SubAgentIntent, SubAgentReflection } from "../protocol.ts";
+import type { ResultVerification, SubAgentOutcome, SubAgentReflection } from "../protocol.ts";
 
 export const ASSIGNMENT_STATE_SCHEMA_VERSION = "hydra/assignment-state/v3";
 
@@ -60,12 +60,11 @@ export interface AssignmentRun {
 }
 
 export interface AssignmentResult {
-  success: boolean;
+  outcome: SubAgentOutcome;
   summary: string;
   outputs?: Array<{ kind?: string; path: string; description?: string }>;
   evidence?: string[];
   verification?: ResultVerification;
-  intent?: SubAgentIntent;
   reflection?: SubAgentReflection;
   completed_at?: string;
 }

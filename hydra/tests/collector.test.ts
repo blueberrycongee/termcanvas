@@ -47,11 +47,10 @@ test("collectRunResult returns completed when result.json is valid", () => {
         workflow_id: "workflow-auth",
         assignment_id: "assignment-abc123",
         run_id: "run-0001",
-        success: true,
         summary: "Implemented the collector flow.",
         outputs: [{ path: "hydra/src/collector.ts", description: "Collector implementation" }],
         evidence: ["npm test"],
-        intent: { type: "done", confidence: "high" },
+        outcome: "completed",
       }, null, 2),
       "utf-8",
     );

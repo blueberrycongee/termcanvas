@@ -598,13 +598,48 @@ export async function watchUntilDecision(
       });
 
       if (collected.status === "completed") {
+        // Route by outcome: error → Hydra retries automatically, completed/stuck → report to Lead
+        if (collected.result.outcome === "error") {
+          // Agent reported an error — treat as failure for retry purposes
+          await stateMachine.markFailed(assignment.id, {
+            code: "AGENT_REPORTED_ERROR", message: collected.result.summary, stage: "workflow.agent_error",
+          });
+          const retryResult = await stateMachine.scheduleRetry(assignment.id);
+          if (retryResult.assignment.status === "failed") {
+            workflow.node_statuses[nodeId] = "failed";
+            const durationMs = run.started_at ? Date.parse(now()) - Date.parse(run.started_at) : 0;
+            appendLedger(repoPath, workflow.id, {
+              type: "node_failed", node_id: nodeId, role: node.role, agent_type: node.agent_type,
+              duration_ms: durationMs, retries_used: assignment.retry_count + 1,
+              failure_code: "AGENT_REPORTED_ERROR",
+            });
+            saveWorkflow(workflow);
+            return {
+              type: "node_failed_final", workflow_id: workflow.id, timestamp: now(),
+              failed: {
+                node_id: nodeId, role: node.role, code: "AGENT_REPORTED_ERROR",
+                message: collected.result.summary,
+                retries_used: assignment.retry_count + 1, max_retries: assignment.max_retries,
+              },
+              nodes: buildNodesSummary(workflow),
+            };
+          }
+          // Retry scheduled — re-dispatch
+          destroyAssignmentTerminal(assignment, deps);
+          const retryRunId = generateRunId();
+          const freshAssignment = loadAssignmentByIdOrThrow(manager, workflow, assignment.id);
+          await dispatchAssignment(workflow, freshAssignment, node, retryRunId, deps);
+          saveWorkflow(workflow);
+          continue;
+        }
+
+        // outcome is "completed" or "stuck" — report to Lead
         const mappedResult = {
-          success: collected.result.success,
+          outcome: collected.result.outcome,
           summary: collected.result.summary,
           outputs: collected.result.outputs,
           evidence: collected.result.evidence,
           verification: collected.result.verification,
-          intent: collected.result.intent,
           reflection: collected.result.reflection,
           completed_at: now(),
         };
@@ -616,7 +651,7 @@ export async function watchUntilDecision(
         appendLedger(repoPath, workflow.id, {
           type: "node_completed", node_id: nodeId, role: node.role, agent_type: node.agent_type,
           duration_ms: durationMs, retries_used: assignment.retry_count,
-          intent_type: collected.result.intent.type, success: collected.result.success,
+          outcome: collected.result.outcome,
           reflection: collected.result.reflection,
         });
 

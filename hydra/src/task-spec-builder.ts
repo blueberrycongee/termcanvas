@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { AssignmentManager } from "./assignment/manager.ts";
 import type { AssignmentRecord } from "./assignment/types.ts";
 import {
   getRunBriefFile,
@@ -132,14 +133,17 @@ const RESULT_CONTRACT_SECTION = {
   lines: [
     `Write result.json with schema_version="${RESULT_SCHEMA_VERSION}".`,
     "",
-    "Your result.json must include an `intent` field expressing your semantic outcome:",
-    '- `{ "type": "done", "confidence": "high"|"medium"|"low" }` — work is complete.',
-    '- `{ "type": "needs_rework", "reason": "...", "scope": "minor"|"major" }` — something upstream or in the current work needs fixing.',
-    '- `{ "type": "blocked", "reason": "...", "needs": "..." }` — cannot proceed without something.',
-    '- `{ "type": "replan", "reason": "..." }` — the approach itself is wrong and needs rethinking.',
+    "Required fields: workflow_id, assignment_id, run_id (from the Role section above),",
+    "outcome, summary, outputs[], evidence[].",
     "",
-    "Do NOT include routing information (which node to run next). The orchestrator handles routing.",
-    "You MUST include workflow_id, assignment_id, and run_id — these are provided in the Role section above.",
+    "The `outcome` field tells the orchestrator what happened:",
+    '- `"completed"` — you finished your work (regardless of what you found).',
+    '- `"stuck"` — you cannot proceed and need external help.',
+    '- `"error"` — you hit a technical error (the orchestrator may retry you).',
+    "",
+    "The `summary` field is the primary information channel to the Lead agent.",
+    "Write what you did, what you found, and what you recommend.",
+    "The Lead reads this to decide the next step — be specific and actionable.",
     "",
     "Optionally include a `reflection` object with:",
     "- `approach`: what strategy you chose",
@@ -174,7 +178,39 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
     { label: "User request", path: getWorkflowUserRequestPath(workflow.repo_path, workflow.id) },
   ];
 
-  // Add context refs provided by Lead
+  // Auto-inject outputs from depends_on nodes
+  const manager = new AssignmentManager(workflow.repo_path, workflow.id);
+  for (const depId of node.depends_on) {
+    const depNode = workflow.nodes[depId];
+    if (!depNode?.assignment_id) continue;
+    const depAssignment = manager.load(depNode.assignment_id);
+    if (!depAssignment) continue;
+    const depRun = depAssignment.active_run_id
+      ? depAssignment.runs.find((r) => r.id === depAssignment.active_run_id)
+      : depAssignment.runs[depAssignment.runs.length - 1];
+    if (!depRun) continue;
+    const briefPath = getRunBriefFile(workflow.repo_path, workflow.id, depAssignment.id, depRun.id);
+    if (fs.existsSync(briefPath)) {
+      readFiles.push({ label: `${depNode.role} brief (${depId})`, path: briefPath });
+    }
+    if (fs.existsSync(depRun.result_file)) {
+      readFiles.push({ label: `${depNode.role} result (${depId})`, path: depRun.result_file });
+    }
+  }
+
+  // Auto-inject approved refs
+  if (workflow.approved_refs) {
+    for (const [refNodeId, ref] of Object.entries(workflow.approved_refs)) {
+      if (fs.existsSync(ref.brief_file)) {
+        readFiles.push({ label: `Approved brief (${refNodeId})`, path: ref.brief_file });
+      }
+      if (fs.existsSync(ref.result_file)) {
+        readFiles.push({ label: `Approved result (${refNodeId})`, path: ref.result_file });
+      }
+    }
+  }
+
+  // Add extra context refs provided by Lead (supplements)
   if (node.context_refs) {
     for (const ref of node.context_refs) {
       if (fs.existsSync(ref.path)) {

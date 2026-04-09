@@ -170,7 +170,6 @@ test("termcanvas workflow CLI runs, watches, and cleans up headless workflows", 
         assignment_id: assignment.id,
         workflow_id: started.workflow.id,
         run_id: run.id,
-        success: true,
         summary: "Completed workflow control implementation.",
         outputs: [
           {
@@ -179,7 +178,7 @@ test("termcanvas workflow CLI runs, watches, and cleans up headless workflows", 
           },
         ],
         evidence: ["cli workflow test"],
-        intent: { type: "done", confidence: "high" },
+        outcome: "completed",
       }, null, 2),
       "utf-8",
     );

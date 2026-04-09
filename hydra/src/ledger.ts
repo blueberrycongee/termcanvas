@@ -15,8 +15,7 @@ export type LedgerEvent =
       agent_type: AgentType;
       duration_ms: number;
       retries_used: number;
-      intent_type: string;
-      success: boolean;
+      outcome: string;
       reflection?: SubAgentReflection;
     }
   | {

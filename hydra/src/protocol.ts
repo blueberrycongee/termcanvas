@@ -2,7 +2,7 @@ import { HydraError } from "./errors.ts";
 
 export const RESULT_SCHEMA_VERSION = "hydra/result/v2";
 
-// --- Shared types (unchanged) ---
+// --- Shared types ---
 
 export interface VerificationTier {
   ran: boolean;
@@ -24,15 +24,11 @@ export interface WorkflowResultOutput {
   kind?: string;
 }
 
-// --- Sub-agent intent (replaces next_action routing) ---
+// --- Outcome: machine-readable routing signal for Hydra ---
 
-export type SubAgentIntent =
-  | { type: "done"; confidence?: "high" | "medium" | "low" }
-  | { type: "needs_rework"; reason: string; scope?: "minor" | "major" }
-  | { type: "blocked"; reason: string; needs?: string }
-  | { type: "replan"; reason: string };
+export type SubAgentOutcome = "completed" | "stuck" | "error";
 
-// --- Sub-agent reflection (structured self-assessment for Hydra to retain) ---
+// --- Reflection: structured self-assessment for Hydra to retain ---
 
 export interface SubAgentReflection {
   approach: string;
@@ -48,11 +44,16 @@ export interface SubAgentResult {
   workflow_id: string;
   assignment_id: string;
   run_id: string;
-  success: boolean;
+
+  // Machine-consumed: Hydra uses this for routing
+  outcome: SubAgentOutcome;
+
+  // Human/Lead-consumed: summary is the primary decision input for Lead
   summary: string;
   outputs: WorkflowResultOutput[];
   evidence: string[];
-  intent: SubAgentIntent;
+
+  // Optional structured data
   verification?: ResultVerification;
   reflection?: SubAgentReflection;
 }
@@ -93,12 +94,6 @@ function expectString(record: Record<string, unknown>, field: string, root: unkn
   return value;
 }
 
-function expectBoolean(record: Record<string, unknown>, field: string, root: unknown): boolean {
-  const value = record[field];
-  if (typeof value !== "boolean") failValidation(`Invalid ${field}: expected a boolean`, root);
-  return value;
-}
-
 function expectStringArray(record: Record<string, unknown>, field: string, root: unknown): string[] {
   const value = record[field];
   if (!Array.isArray(value) || value.some((e) => typeof e !== "string" || e.trim() === "")) {
@@ -119,55 +114,14 @@ function validateOutputs(record: Record<string, unknown>, root: unknown): Workfl
   });
 }
 
-const VALID_INTENT_TYPES = new Set(["done", "needs_rework", "blocked", "replan"]);
-const VALID_CONFIDENCE = new Set(["high", "medium", "low"]);
-const VALID_SCOPE = new Set(["minor", "major"]);
+const VALID_OUTCOMES = new Set<SubAgentOutcome>(["completed", "stuck", "error"]);
 
-function validateIntent(record: Record<string, unknown>, root: unknown): SubAgentIntent {
-  const raw = expectRecord(record.intent, "intent", root);
-  const type = expectString(raw, "type", root);
-  if (!VALID_INTENT_TYPES.has(type)) {
-    failValidation(`Invalid intent.type: ${type}. Expected one of: ${[...VALID_INTENT_TYPES].join(", ")}`, root);
+function validateOutcome(record: Record<string, unknown>, root: unknown): SubAgentOutcome {
+  const value = expectString(record, "outcome", root);
+  if (!VALID_OUTCOMES.has(value as SubAgentOutcome)) {
+    failValidation(`Invalid outcome: ${value}. Expected one of: ${[...VALID_OUTCOMES].join(", ")}`, root);
   }
-
-  switch (type) {
-    case "done": {
-      const intent: SubAgentIntent = { type: "done" };
-      if (typeof raw.confidence === "string") {
-        if (!VALID_CONFIDENCE.has(raw.confidence)) {
-          failValidation(`Invalid intent.confidence: ${raw.confidence}`, root);
-        }
-        intent.confidence = raw.confidence as "high" | "medium" | "low";
-      }
-      return intent;
-    }
-    case "needs_rework": {
-      const intent: SubAgentIntent = {
-        type: "needs_rework",
-        reason: expectString(raw, "reason", root),
-      };
-      if (typeof raw.scope === "string") {
-        if (!VALID_SCOPE.has(raw.scope)) {
-          failValidation(`Invalid intent.scope: ${raw.scope}`, root);
-        }
-        intent.scope = raw.scope as "minor" | "major";
-      }
-      return intent;
-    }
-    case "blocked":
-      return {
-        type: "blocked",
-        reason: expectString(raw, "reason", root),
-        ...(typeof raw.needs === "string" ? { needs: raw.needs } : {}),
-      };
-    case "replan":
-      return {
-        type: "replan",
-        reason: expectString(raw, "reason", root),
-      };
-    default:
-      failValidation(`Unexpected intent type: ${type}`, root);
-  }
+  return value as SubAgentOutcome;
 }
 
 function validateVerificationTier(value: unknown): VerificationTier | undefined {
@@ -235,11 +189,10 @@ export function validateSubAgentResult(
     workflow_id: expectString(record, "workflow_id", value),
     assignment_id: expectString(record, "assignment_id", value),
     run_id: expectString(record, "run_id", value),
-    success: expectBoolean(record, "success", value),
+    outcome: validateOutcome(record, value),
     summary: expectString(record, "summary", value),
     outputs: validateOutputs(record, value),
     evidence: expectStringArray(record, "evidence", value),
-    intent: validateIntent(record, value),
   };
 
   const verification = validateVerification(record);

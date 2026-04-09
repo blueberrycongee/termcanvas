@@ -79,11 +79,10 @@ test("markCompleted records the result and closes the active run", async (t) => 
   await stateMachine.claimPending(assignment.id, "tick-1");
   await stateMachine.markInProgress(assignment.id, { tickId: "tick-1", runId: "run-1" });
   const completed = await stateMachine.markCompleted(assignment.id, {
-    success: true,
+    outcome: "completed",
     summary: "Implemented the change.",
     outputs: [{ path: "src/index.ts" }],
     evidence: ["npm test"],
-    intent: { type: "done", confidence: "high" },
   });
 
   const persisted = manager.load(assignment.id);

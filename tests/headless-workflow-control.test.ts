@@ -147,7 +147,6 @@ test("workflow control emits workflow_completed only after Hydra marks the workf
         assignment_id: assignment.id,
         workflow_id: started.workflow.id,
         run_id: run.id,
-        success: true,
         summary: "Completed workflow control implementation.",
         outputs: [
           {
@@ -156,7 +155,7 @@ test("workflow control emits workflow_completed only after Hydra marks the workf
           },
         ],
         evidence: ["workflow event test"],
-        intent: { type: "done", confidence: "high" },
+        outcome: "completed",
       }, null, 2),
       "utf-8",
     );
@@ -242,7 +241,6 @@ test("workflow routes auto-track the repo and can complete a single-step run", a
         assignment_id: assignment.id,
         workflow_id: started.body.workflow.id,
         run_id: run.id,
-        success: true,
         summary: "Completed workflow control implementation.",
         outputs: [
           {
@@ -251,7 +249,7 @@ test("workflow routes auto-track the repo and can complete a single-step run", a
           },
         ],
         evidence: ["manual test"],
-        intent: { type: "done", confidence: "high" },
+        outcome: "completed",
       }, null, 2),
       "utf-8",
     );

@@ -24,10 +24,7 @@ function buildValidResult() {
       "npm run typecheck",
       "npm test",
     ],
-    intent: {
-      type: "done",
-      confidence: "high",
-    },
+    outcome: "completed",
     verification: {
       build: { ran: true, pass: true, detail: "tsc clean" },
     },
@@ -47,13 +44,13 @@ test("validateSubAgentResult accepts a valid v2 result", () => {
   assert.equal(result.assignment_id, EXPECTED_IDS.assignment_id);
   assert.equal(result.outputs[0]?.kind, "source");
   assert.equal(result.verification?.build?.pass, true);
-  assert.equal(result.intent.type, "done");
+  assert.equal(result.outcome, "completed");
 });
 
-test("validateSubAgentResult rejects invalid intent type", () => {
+test("validateSubAgentResult rejects invalid outcome", () => {
   const invalid = {
     ...buildValidResult(),
-    intent: { type: "invalid_type" },
+    outcome: "invalid_value",
   };
 
   assert.throws(
@@ -61,26 +58,26 @@ test("validateSubAgentResult rejects invalid intent type", () => {
     (error: unknown) => {
       assert.ok(error instanceof Error);
       assert.equal((error as Error & { errorCode?: string }).errorCode, "PROTOCOL_INVALID_RESULT");
-      assert.match(error.message, /intent\.type/);
+      assert.match(error.message, /outcome/);
       return true;
     },
   );
 });
 
-test("validateSubAgentResult validates needs_rework requires reason", () => {
-  const invalid = {
-    ...buildValidResult(),
-    intent: { type: "needs_rework" },
-  };
-
-  assert.throws(
-    () => validateSubAgentResult(invalid, EXPECTED_IDS),
-    (error: unknown) => {
-      assert.ok(error instanceof Error);
-      assert.match(error.message, /reason/);
-      return true;
-    },
+test("validateSubAgentResult accepts stuck outcome", () => {
+  const result = validateSubAgentResult(
+    { ...buildValidResult(), outcome: "stuck" },
+    EXPECTED_IDS,
   );
+  assert.equal(result.outcome, "stuck");
+});
+
+test("validateSubAgentResult accepts error outcome", () => {
+  const result = validateSubAgentResult(
+    { ...buildValidResult(), outcome: "error" },
+    EXPECTED_IDS,
+  );
+  assert.equal(result.outcome, "error");
 });
 
 test("validateSubAgentResult preserves reflection", () => {
