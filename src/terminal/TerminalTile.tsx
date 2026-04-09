@@ -731,7 +731,9 @@ export function TerminalTile({
       }}
       onClick={(e) => {
         e.stopPropagation();
-        activateTerminalInScene(projectId, worktreeId, terminal.id);
+        activateTerminalInScene(projectId, worktreeId, terminal.id, {
+          focusInput: false,
+        });
       }}
       onMouseEnter={() => {
         window.dispatchEvent(
@@ -986,6 +988,8 @@ export function TerminalTile({
                 !composerEnabled
               ) {
                 scheduleXtermFocus();
+              } else {
+                window.dispatchEvent(new CustomEvent("termcanvas:focus-composer"));
               }
             }}
           />

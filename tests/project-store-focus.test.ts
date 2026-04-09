@@ -6,6 +6,7 @@ import {
   ensureTerminalCreationTarget,
 } from "../src/projects/projectCreation.ts";
 import { useProjectStore } from "../src/stores/projectStore.ts";
+import { usePreferencesStore } from "../src/stores/preferencesStore.ts";
 import { useTerminalRuntimeStateStore } from "../src/stores/terminalRuntimeStateStore.ts";
 import type { ProjectData } from "../src/types/index.ts";
 
@@ -101,6 +102,20 @@ function resetStore(projects = createProjects()) {
   });
 }
 
+function installWindowMock() {
+  const target = new EventTarget();
+  const previousWindow = (globalThis as { window?: Window }).window;
+  (globalThis as { window?: Window }).window = target as Window;
+
+  return () => {
+    if (previousWindow === undefined) {
+      delete (globalThis as { window?: Window }).window;
+      return;
+    }
+    (globalThis as { window?: Window }).window = previousWindow;
+  };
+}
+
 test("setFocusedTerminal only rewrites the affected terminals", () => {
   resetStore();
 
@@ -130,6 +145,39 @@ test("setFocusedTerminal only rewrites the affected terminals", () => {
   assert.equal(afterWorktree1.terminals[1].focused, true);
   assert.equal(state.focusedProjectId, "project-1");
   assert.equal(state.focusedWorktreeId, "worktree-1");
+});
+
+test("setFocusedTerminal can skip input focus side effects", () => {
+  resetStore();
+  const restoreWindow = installWindowMock();
+  const previousPreferences = usePreferencesStore.getState();
+  const focusedComposerEvents: string[] = [];
+  const focusedXtermEvents: string[] = [];
+
+  const onFocusComposer = () => focusedComposerEvents.push("composer");
+  const onFocusXterm = (event: Event) => {
+    focusedXtermEvents.push(String((event as CustomEvent).detail ?? ""));
+  };
+
+  try {
+    usePreferencesStore.setState({ composerEnabled: true });
+    window.addEventListener("termcanvas:focus-composer", onFocusComposer);
+    window.addEventListener("termcanvas:focus-xterm", onFocusXterm);
+
+    useProjectStore.getState().setFocusedTerminal("terminal-2", {
+      focusInput: false,
+    });
+
+    const state = useProjectStore.getState();
+    assert.equal(state.projects[0].worktrees[0].terminals[1].focused, true);
+    assert.deepEqual(focusedComposerEvents, []);
+    assert.deepEqual(focusedXtermEvents, []);
+  } finally {
+    window.removeEventListener("termcanvas:focus-composer", onFocusComposer);
+    window.removeEventListener("termcanvas:focus-xterm", onFocusXterm);
+    usePreferencesStore.setState(previousPreferences);
+    restoreWindow();
+  }
 });
 
 test("clearFocus is a no-op when nothing is focused", () => {

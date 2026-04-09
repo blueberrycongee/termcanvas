@@ -129,7 +129,7 @@ interface ProjectStore {
   ) => void;
   setFocusedTerminal: (
     terminalId: string | null,
-    options?: { focusComposer?: boolean },
+    options?: { focusComposer?: boolean; focusInput?: boolean },
   ) => void;
   setFocusedWorktree: (
     projectId: string | null,
@@ -1315,7 +1315,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         projects,
       };
     });
-    if (terminalId && options?.focusComposer !== false) {
+    if (terminalId && options?.focusInput !== false && options?.focusComposer !== false) {
       const composerEnabled = usePreferencesStore.getState().composerEnabled;
       if (composerEnabled) {
         window.dispatchEvent(new CustomEvent("termcanvas:focus-composer"));

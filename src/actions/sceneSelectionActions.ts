@@ -23,6 +23,7 @@ interface WorktreeInteractionOptions extends SceneInteractionOptions {
 interface TerminalInteractionOptions {
   focus?: boolean;
   focusComposer?: boolean;
+  focusInput?: boolean;
 }
 
 export function setSceneSelectionRect(rect: SelectionRect | null): void {
@@ -126,6 +127,7 @@ export function activateTerminalInScene(
   if (options?.focus ?? true) {
     focusTerminalInScene(terminalId, {
       focusComposer: options?.focusComposer,
+      focusInput: options?.focusInput,
     });
   }
   selectTerminalInScene(projectId, worktreeId, terminalId);
