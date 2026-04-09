@@ -362,6 +362,10 @@ export class HeadlessApiServer {
       const id = pathname.split("/")[2];
       return this.workflowWatchDecision(id, body);
     }
+    if (method === "POST" && pathname.match(/^\/workflow\/[^/]+\/node\/[^/]+\/redispatch$/)) {
+      const parts = pathname.split("/");
+      return this.workflowRedispatchNode(parts[2], parts[4], body);
+    }
     if (method === "POST" && pathname.match(/^\/workflow\/[^/]+\/node\/[^/]+\/approve$/)) {
       const parts = pathname.split("/");
       return this.workflowApproveNode(parts[2], parts[4], body);
@@ -620,6 +624,11 @@ export class HeadlessApiServer {
 
   private async workflowWatchDecision(workflowId: string, body: unknown): Promise<unknown> {
     return this.workflowControl.watchDecision(this.requireRepo(body), workflowId);
+  }
+
+  private async workflowRedispatchNode(workflowId: string, nodeId: string, body: unknown): Promise<unknown> {
+    const { intent } = body as { intent?: string };
+    return this.workflowControl.redispatch(this.requireRepo(body), workflowId, nodeId, intent);
   }
 
   private async workflowApproveNode(workflowId: string, nodeId: string, body: unknown): Promise<unknown> {

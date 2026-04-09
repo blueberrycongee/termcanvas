@@ -157,37 +157,35 @@ test("dispatchNode rejects duplicate node IDs", async () => {
   }
 });
 
-test("dispatchNode rejects cycles", async () => {
+test("dispatchNode allows linear chains", async () => {
   const repo = makeTestRepo();
   const deps = mockDeps();
   try {
     const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
-    await dispatchNode({
-      repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "a", role: "implementer", intent: "A",
-    }, deps);
-    await dispatchNode({
-      repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "b", role: "implementer", intent: "B", dependsOn: ["a"],
-    }, deps);
+    await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "a", role: "implementer", intent: "A" }, deps);
+    await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "b", role: "implementer", intent: "B", dependsOn: ["a"] }, deps);
+    const result = await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "c", role: "implementer", intent: "C", dependsOn: ["b"] }, deps);
+    assert.equal(result.status, "blocked"); // b is blocked, so c is also blocked
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
 
+test("dispatchNode rejects unknown dependency", async () => {
+  const repo = makeTestRepo();
+  const deps = mockDeps();
+  try {
+    const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
     await assert.rejects(
       () => dispatchNode({
         repoPath: repo, workflowId: init.workflow_id,
-        nodeId: "c", role: "implementer", intent: "C", dependsOn: ["b"],
+        nodeId: "x", role: "implementer", intent: "X", dependsOn: ["nonexistent"],
       }, deps),
-      // c depends on b depends on a — no cycle, should succeed
-    ).catch(() => {
-      // Actually this should NOT reject — a→b→c is not a cycle.
-      // Let's verify it succeeds instead.
-    });
-
-    // a→b→c is fine (linear chain)
-    const result = await dispatchNode({
-      repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "c", role: "implementer", intent: "C", dependsOn: ["b"],
-    }, deps);
-    assert.equal(result.status, "blocked"); // blocked because b is blocked
+      (err: Error) => {
+        assert.match(err.message, /not found/i);
+        return true;
+      },
+    );
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }

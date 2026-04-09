@@ -5,7 +5,7 @@ import { getClient } from "./client.ts";
 
 const inputSchema = z.object({
   action: z.enum([
-    "init", "dispatch", "watch", "approve", "reset", "merge",
+    "init", "dispatch", "redispatch", "watch", "approve", "reset", "merge",
     "complete", "fail", "status", "list", "cleanup",
   ]).describe(
     "Workflow action.",
@@ -98,6 +98,15 @@ export const hydraWorkflowTool: Tool<typeof inputSchema.shape> = {
       if (input.timeoutMinutes) body.timeoutMinutes = input.timeoutMinutes;
       if (input.maxRetries !== undefined) body.maxRetries = input.maxRetries;
       const result = await client.request("POST", `/workflow/${wfId}/dispatch`, body);
+      return { content: JSON.stringify(result, null, 2) };
+    }
+
+    if (action === "redispatch") {
+      if (!input.nodeId) return { content: "nodeId is required for redispatch", is_error: true };
+      const nodeId = encodeURIComponent(input.nodeId);
+      const body: Record<string, unknown> = { repo };
+      if (input.intent) body.intent = input.intent;
+      const result = await client.request("POST", `/workflow/${wfId}/node/${nodeId}/redispatch`, body);
       return { content: JSON.stringify(result, null, 2) };
     }
 

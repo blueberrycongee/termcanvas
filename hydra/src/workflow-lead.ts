@@ -475,6 +475,66 @@ export async function dispatchNode(
   return { node_id: options.nodeId, assignment_id: assignmentId, status: "blocked" };
 }
 
+// --- redispatchNode ---
+
+export interface RedispatchNodeOptions {
+  repoPath: string;
+  workflowId: string;
+  nodeId: string;
+  intent?: string;
+}
+
+export async function redispatchNode(
+  options: RedispatchNodeOptions, deps?: WorkflowDependencies,
+): Promise<DispatchNodeResult> {
+  const repoPath = path.resolve(options.repoPath);
+  const workflow = loadWorkflowOrThrow(repoPath, options.workflowId);
+  const node = workflow.nodes[options.nodeId];
+
+  if (!node) {
+    throw new HydraError(`Node not found: ${options.nodeId}`, {
+      errorCode: "WORKFLOW_NODE_NOT_FOUND", stage: "workflow.redispatch_node", ids: { workflow_id: workflow.id },
+    });
+  }
+
+  const currentStatus = workflow.node_statuses[options.nodeId];
+  if (currentStatus !== "eligible" && currentStatus !== "reset") {
+    throw new HydraError(`Node "${options.nodeId}" is not eligible for redispatch (status: ${currentStatus})`, {
+      errorCode: "WORKFLOW_NODE_NOT_ELIGIBLE", stage: "workflow.redispatch_node", ids: { workflow_id: workflow.id },
+    });
+  }
+
+  if (!node.assignment_id) {
+    throw new HydraError(`Node "${options.nodeId}" has no assignment`, {
+      errorCode: "WORKFLOW_NODE_NO_ASSIGNMENT", stage: "workflow.redispatch_node", ids: { workflow_id: workflow.id },
+    });
+  }
+
+  // Update intent if provided
+  if (options.intent) node.intent = options.intent;
+
+  const manager = managerForWorkflow(workflow);
+  const assignment = loadAssignmentByIdOrThrow(manager, workflow, node.assignment_id);
+  const runId = generateRunId();
+
+  appendLedger(repoPath, workflow.id, {
+    type: "node_dispatched", node_id: options.nodeId, role: node.role,
+    agent_type: node.agent_type, intent: node.intent,
+  });
+
+  const result = await dispatchAssignment(workflow, assignment, node, runId, deps);
+  if (result.status === "dispatched") {
+    workflow.node_statuses[options.nodeId] = "dispatched";
+    saveWorkflow(workflow);
+    return { node_id: options.nodeId, assignment_id: node.assignment_id, status: "dispatched", terminal_id: result.terminalId };
+  }
+
+  workflow.node_statuses[options.nodeId] = "failed";
+  workflow.failure = result.failure;
+  saveWorkflow(workflow);
+  return { node_id: options.nodeId, assignment_id: node.assignment_id, status: "failed", failure: result.failure };
+}
+
 // --- watchUntilDecision ---
 
 export interface WatchOptions {
@@ -740,7 +800,8 @@ export async function resetNode(
   }
 
   const resetNodeIds = options.cascade !== false
-    ? cascadeReset(workflow, options.nodeId) : [options.nodeId];
+    ? cascadeReset(workflow, options.nodeId)
+    : (() => { workflow.node_statuses[options.nodeId] = "eligible"; return [options.nodeId]; })();
 
   // Reset assignments and destroy terminals
   for (const id of resetNodeIds) {

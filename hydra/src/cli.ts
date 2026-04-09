@@ -45,6 +45,11 @@ async function main() {
       await cliWatch(rest);
       break;
     }
+    case "redispatch": {
+      const { cliRedispatch } = await import("./cli-commands.js");
+      await cliRedispatch(rest);
+      break;
+    }
     case "approve": {
       const { cliApprove } = await import("./cli-commands.js");
       await cliApprove(rest);

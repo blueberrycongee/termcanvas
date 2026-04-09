@@ -7,6 +7,7 @@ import { terminalDestroy, terminalStatus } from "../src/termcanvas.ts";
 import {
   initWorkflow,
   dispatchNode,
+  redispatchNode,
   watchUntilDecision,
   approveNode,
   resetNode,
@@ -196,17 +197,16 @@ async function main() {
     // 7. Reset dev based on tester feedback
     await resetNode({ repoPath: args.repo, workflowId, nodeId: "dev", feedback: "Fix the issues found by tester." });
 
-    // 8. Re-dispatch dev (reset made it eligible)
-    const dev2 = await dispatchNode({
-      repoPath: args.repo, workflowId, nodeId: "dev2",
-      role: "implementer", intent: "Fix tester findings.", dependsOn: ["researcher"],
+    // 8. Re-dispatch the same dev node (reset made it eligible)
+    const dev2 = await redispatchNode({
+      repoPath: args.repo, workflowId, nodeId: "dev", intent: "Fix tester findings.",
     });
     assert.equal(dev2.status, "dispatched");
 
     assignment = manager.load(dev2.assignment_id)!;
     run = latestRun(assignment);
     writeResult(args.repo, workflowId, assignment.id, run, "Fixed all tester findings.", true, "done");
-    records.push(captureStage("dev2", assignment.id, "implementer", dev2.terminal_id ?? null, "Fixed findings."));
+    records.push(captureStage("dev", assignment.id, "implementer", dev2.terminal_id ?? null, "Fixed findings."));
 
     decision = await watchUntilDecision({ repoPath: args.repo, workflowId, timeoutMs: 10_000 });
     assert.equal(decision.type, "node_completed");

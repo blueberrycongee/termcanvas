@@ -14,6 +14,7 @@ import type { AgentType } from "../hydra/src/assignment/types.ts";
 import {
   initWorkflow,
   dispatchNode,
+  redispatchNode,
   watchUntilDecision,
   approveNode,
   resetNode,
@@ -57,6 +58,7 @@ export interface WorkflowSummary {
 export interface WorkflowControl {
   init(input: Omit<InitWorkflowOptions, "repoPath"> & { repoPath: string }): Promise<InitWorkflowResult>;
   dispatch(input: Omit<DispatchNodeOptions, "repoPath"> & { repoPath: string }): Promise<DispatchNodeResult>;
+  redispatch(repoPath: string, workflowId: string, nodeId: string, intent?: string): Promise<DispatchNodeResult>;
   watchDecision(repoPath: string, workflowId: string): Promise<DecisionPoint>;
   resetNode(repoPath: string, workflowId: string, nodeId: string, feedback?: string): Promise<ResetNodeResult>;
   mergeNodes(repoPath: string, workflowId: string, nodeIds: string[]): Promise<MergeOutcome>;
@@ -167,6 +169,12 @@ export function createWorkflowControl(
     },
     async dispatch(request) {
       return dispatchNode(request, workflowDependencies);
+    },
+    async redispatch(repoPath, workflowId, nodeId, intent) {
+      return redispatchNode(
+        { repoPath: path.resolve(repoPath), workflowId, nodeId, intent },
+        workflowDependencies,
+      );
     },
     async watchDecision(repoPath, workflowId) {
       return watchUntilDecision(

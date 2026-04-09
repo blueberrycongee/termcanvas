@@ -4,6 +4,7 @@ import { readLedger } from "./ledger.ts";
 import {
   initWorkflow,
   dispatchNode,
+  redispatchNode,
   watchUntilDecision,
   approveNode,
   resetNode,
@@ -121,6 +122,23 @@ export async function cliDispatch(args: string[]): Promise<void> {
     worktreeBranch: optionalFlag(args, "--worktree-branch"),
     timeoutMinutes: optionalNumber(args, "--timeout-minutes"),
     maxRetries: optionalNumber(args, "--max-retries"),
+  });
+  console.log(JSON.stringify(result, null, 2));
+}
+
+// --- redispatch ---
+
+export async function cliRedispatch(args: string[]): Promise<void> {
+  if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
+    console.log("Usage: hydra redispatch --workflow <id> --node <id> --repo <path> [--intent <desc>]");
+    process.exit(0);
+  }
+
+  const result = await redispatchNode({
+    repoPath: requireFlag(args, "--repo"),
+    workflowId: requireFlag(args, "--workflow"),
+    nodeId: requireFlag(args, "--node"),
+    intent: optionalFlag(args, "--intent"),
   });
   console.log(JSON.stringify(result, null, 2));
 }
