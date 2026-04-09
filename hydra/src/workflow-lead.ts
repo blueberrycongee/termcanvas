@@ -600,8 +600,8 @@ export async function watchUntilDecision(
       if (collected.status === "completed") {
         // Route by outcome: error → Hydra retries automatically, completed/stuck → report to Lead
         if (collected.result.outcome === "error") {
-          // Agent reported an error — treat as failure for retry purposes
-          await stateMachine.markFailed(assignment.id, {
+          // Agent reported an error — mark timed_out so scheduleRetry can process it
+          await stateMachine.markTimedOut(assignment.id, {
             code: "AGENT_REPORTED_ERROR", message: collected.result.summary, stage: "workflow.agent_error",
           });
           const retryResult = await stateMachine.scheduleRetry(assignment.id);

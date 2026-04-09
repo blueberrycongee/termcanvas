@@ -219,6 +219,18 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
     }
   }
 
+  // Deduplicate readFiles by path
+  const seenPaths = new Set<string>();
+  const dedupedReadFiles: TaskFileRef[] = [];
+  for (const ref of readFiles) {
+    if (!seenPaths.has(ref.path)) {
+      seenPaths.add(ref.path);
+      dedupedReadFiles.push(ref);
+    }
+  }
+  readFiles.length = 0;
+  readFiles.push(...dedupedReadFiles);
+
   // Add feedback file if present (from reset)
   if (node.feedback) {
     const feedbackPath = path.join(

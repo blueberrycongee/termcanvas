@@ -11,7 +11,6 @@ function buildValidResult() {
     workflow_id: "workflow-xyz",
     assignment_id: "assignment-abc123",
     run_id: "run-0001",
-    success: true,
     summary: "Validated the assignment run result.",
     outputs: [
       {
