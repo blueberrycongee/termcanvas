@@ -4,9 +4,17 @@ import assert from "node:assert/strict";
 import { cleanup } from "../src/cleanup.ts";
 import { AssignmentManager } from "../src/assignment/manager.ts";
 import { terminalDestroy, terminalStatus } from "../src/termcanvas.ts";
-import { getWorkflowStatus, runWorkflow, tickWorkflow, approveWorkflow } from "../src/workflow.ts";
+import {
+  initWorkflow,
+  dispatchNode,
+  watchUntilDecision,
+  approveNode,
+  resetNode,
+  completeWorkflow,
+  getWorkflowStatus,
+} from "../src/workflow-lead.ts";
 import { loadWorkflow } from "../src/workflow-store.ts";
-import { assignmentRequiresBrief } from "../src/workflow-template.ts";
+import { RESULT_SCHEMA_VERSION } from "../src/protocol.ts";
 import { getRunBriefFile } from "../src/layout.ts";
 import type { AssignmentRecord } from "../src/assignment/types.ts";
 
@@ -17,6 +25,7 @@ interface Args {
 
 interface StageRecord {
   stage: string;
+  nodeId: string;
   assignmentId: string;
   role: string;
   terminalId: string | null;
@@ -26,148 +35,94 @@ interface StageRecord {
 
 function parseArgs(argv: string[]): Args {
   const result: Partial<Args> = {};
-
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === "--repo" && i + 1 < argv.length) {
-      result.repo = argv[++i];
-    } else if (arg === "--report" && i + 1 < argv.length) {
-      result.report = argv[++i];
-    }
+    if (arg === "--repo" && i + 1 < argv.length) result.repo = argv[++i];
+    else if (arg === "--report" && i + 1 < argv.length) result.report = argv[++i];
   }
-
-  if (!result.repo) {
-    throw new Error("Missing required flag: --repo");
-  }
-
+  if (!result.repo) throw new Error("Missing required flag: --repo");
   return {
     repo: path.resolve(result.repo),
-    report: path.resolve(
-      result.report ?? path.join(result.repo, "docs", "hydra-acceptance-report.md"),
-    ),
+    report: path.resolve(result.report ?? path.join(result.repo, "docs", "hydra-acceptance-report.md")),
   };
 }
 
 function latestRun(assignment: AssignmentRecord): AssignmentRecord["runs"][number] {
   const active = assignment.active_run_id
-    ? assignment.runs.find((run) => run.id === assignment.active_run_id)
-    : null;
+    ? assignment.runs.find((run) => run.id === assignment.active_run_id) : null;
   const run = active ?? assignment.runs[assignment.runs.length - 1] ?? null;
   assert.ok(run, `assignment ${assignment.id} must have a run`);
   return run;
 }
 
-async function captureStage(
+function writeResult(
   repoPath: string,
   workflowId: string,
-  expectedRole: string,
+  assignmentId: string,
+  run: AssignmentRecord["runs"][number],
   summary: string,
   success: boolean,
-  intent: { type: "done" | "needs_rework" | "replan" | "blocked"; reason?: string; confidence?: string },
-): Promise<StageRecord> {
-  const workflow = loadWorkflow(repoPath, workflowId);
-  assert.ok(workflow, "workflow must exist");
-
-  const manager = new AssignmentManager(repoPath, workflowId);
-  // Find first dispatched node's assignment
-  const dispatchedNodeId = Object.entries(workflow.node_statuses ?? {}).find(([, s]) => s === "dispatched")?.[0];
-  const assignmentId = dispatchedNodeId ? workflow.nodes?.[dispatchedNodeId]?.assignment_id : workflow.assignment_ids?.[0];
-  const assignment = assignmentId ? manager.load(assignmentId) : null;
-  assert.ok(assignment, "current assignment must exist");
-  assert.equal(assignment.role, expectedRole);
-
-  const run = latestRun(assignment);
-  const briefFile = getRunBriefFile(repoPath, workflowId, assignment.id, run.id);
-  if (assignmentRequiresBrief(assignment.kind)) {
-    fs.mkdirSync(path.dirname(briefFile), { recursive: true });
-    fs.writeFileSync(
-      briefFile,
-      `# ${expectedRole} brief\n\n${summary}\n`,
-      "utf-8",
-    );
-  }
-
-  let terminalId: string | null = run.terminal_id ?? null;
-  let status: string | null = null;
-  if (terminalId) {
-    try {
-      status = terminalStatus(terminalId).status;
-    } catch {
-      status = "missing";
-    }
-  }
+  intentType: "done" | "needs_rework" | "replan",
+): void {
+  const briefFile = getRunBriefFile(repoPath, workflowId, assignmentId, run.id);
+  fs.mkdirSync(path.dirname(briefFile), { recursive: true });
+  fs.writeFileSync(briefFile, `# Brief\n\n${summary}\n`, "utf-8");
 
   fs.writeFileSync(
     run.result_file,
     JSON.stringify({
-      schema_version: "hydra/result/v2",
+      schema_version: RESULT_SCHEMA_VERSION,
       workflow_id: workflowId,
-      assignment_id: assignment.id,
+      assignment_id: assignmentId,
       run_id: run.id,
       success,
       summary,
-      outputs: [{ path: `${expectedRole}.md`, description: `${expectedRole} acceptance artifact` }],
+      outputs: [{ path: briefFile, description: "acceptance artifact" }],
       evidence: ["hydra e2e acceptance script"],
-      intent,
+      intent: intentType === "done"
+        ? { type: "done", confidence: "high" }
+        : intentType === "needs_rework"
+          ? { type: "needs_rework", reason: summary, scope: "minor" }
+          : { type: "replan", reason: summary },
     }, null, 2),
     "utf-8",
   );
+}
 
+function captureStage(
+  nodeId: string,
+  assignmentId: string,
+  role: string,
+  terminalId: string | null,
+  summary: string,
+): StageRecord {
+  let status: string | null = null;
   if (terminalId) {
-    try {
-      terminalDestroy(terminalId);
-    } catch {
-      // best-effort cleanup; report still records the original terminal
-    }
+    try { status = terminalStatus(terminalId).status; } catch { status = "missing"; }
   }
-
-  return {
-    stage: expectedRole,
-    assignmentId: assignment.id,
-    role: assignment.role,
-    terminalId,
-    terminalStatus: status,
-    summary,
-  };
+  return { stage: role, nodeId, assignmentId, role, terminalId, terminalStatus: status, summary };
 }
 
 function renderReport(args: Args, workflowId: string, records: StageRecord[]): string {
-  const lines = [
+  return [
     "# Hydra Acceptance Report",
     "",
     `- Date: ${new Date().toISOString()}`,
     `- Repo: ${args.repo}`,
     `- Workflow ID: ${workflowId}`,
-    `- Mode: real TermCanvas terminal create + deterministic result injection`,
-    "",
-    "## Reproduction",
-    "",
-    "```bash",
-    `cd ${args.repo}`,
-    "cd hydra",
-    `npm run e2e:acceptance -- --repo ${args.repo} --report ${args.report}`,
-    "```",
-    "",
-    "## Notes",
-    "",
-    "- Each stage launched a real Claude/Codex terminal via `termcanvas terminal create --prompt`.",
-    "- The acceptance script then wrote deterministic `result.json` files to exercise the control plane without relying on model nondeterminism.",
-    "- The flow includes research approval, a tester loopback, a successful recovery, and a final researcher intent-confirmation pass.",
+    `- Mode: Lead-driven dispatch + deterministic result injection`,
     "",
     "## Observed Stages",
     "",
-    "| Stage | Assignment ID | Terminal ID | Terminal Status Before Cleanup | Summary |",
-    "|------|---------------|-------------|-------------------------------|---------|",
-    ...records.map((record) => `| ${record.stage} | ${record.assignmentId} | ${record.terminalId ?? "-"} | ${record.terminalStatus ?? "-"} | ${record.summary} |`),
+    "| Stage | Node ID | Assignment ID | Terminal ID | Summary |",
+    "|-------|---------|---------------|-------------|---------|",
+    ...records.map((r) => `| ${r.stage} | ${r.nodeId} | ${r.assignmentId} | ${r.terminalId ?? "-"} | ${r.summary} |`),
     "",
     "## Outcome",
     "",
-    "- Sequence exercised: `researcher (Codex) -> approval -> implementer (Codex) -> tester (Claude) -> implementer retry (Codex) -> tester recovery (Claude) -> researcher intent confirmation (Codex)`",
-    "- Verified: create-only dispatch, result schema gate, approval boundary, tester loopback, retry/recovery, intent confirmation, workflow completion, and cleanup.",
+    "- Verified: init, dispatch, watch, approve, reset (tester loopback), complete, cleanup.",
     "",
-  ];
-
-  return lines.join("\n");
+  ].join("\n");
 }
 
 async function main() {
@@ -176,98 +131,98 @@ async function main() {
   let workflowId: string | null = null;
 
   try {
-    const started = await runWorkflow({
-      task: "Hydra acceptance harness: do not modify repository source files. Only interact with the generated Hydra task files and acceptance artifacts.",
+    // 1. Init workflow
+    const init = await initWorkflow({
+      intent: "Hydra acceptance harness: exercise the Lead-driven control plane.",
       repoPath: args.repo,
-      template: "researcher-implementer-tester",
-      agentType: "codex",
-      testerType: "claude",
-      timeoutMinutes: 5,
-      maxRetries: 1,
-      autoApprove: true,
+      worktreePath: args.repo,
+      defaultAgentType: "codex",
     });
-    workflowId = started.workflow.id;
+    workflowId = init.workflow_id;
 
-    records.push(await captureStage(
-      args.repo,
-      workflowId,
-      "researcher",
-      "Researcher produced an actionable acceptance brief.",
-      true,
-      { type: "transition", reason: "Implementation can start after approval.", assignment_id: started.workflow.assignment_ids[1] },
-    ));
+    // 2. Dispatch researcher
+    const researcher = await dispatchNode({
+      repoPath: args.repo, workflowId, nodeId: "researcher",
+      role: "researcher", intent: "Produce acceptance research brief.",
+    });
+    assert.equal(researcher.status, "dispatched");
 
-    await tickWorkflow({ repoPath: args.repo, workflowId });
-    await approveWorkflow({ repoPath: args.repo, workflowId });
+    // Write researcher result
+    const manager = new AssignmentManager(args.repo, workflowId);
+    let assignment = manager.load(researcher.assignment_id)!;
+    let run = latestRun(assignment);
+    writeResult(args.repo, workflowId, assignment.id, run, "Research brief produced.", true, "done");
+    records.push(captureStage("researcher", assignment.id, "researcher", researcher.terminal_id ?? null, "Research brief produced."));
 
-    records.push(await captureStage(
-      args.repo,
-      workflowId,
-      "implementer",
-      "Implementer completed the first pass.",
-      true,
-      { type: "transition", reason: "Verification can start.", assignment_id: started.workflow.assignment_ids[2] },
-    ));
+    // 3. Watch → researcher completes
+    let decision = await watchUntilDecision({ repoPath: args.repo, workflowId, timeoutMs: 10_000 });
+    assert.equal(decision.type, "node_completed");
 
-    await tickWorkflow({ repoPath: args.repo, workflowId });
-    records.push(await captureStage(
-      args.repo,
-      workflowId,
-      "tester",
-      "Tester found an unmet standard and requested another implementation pass.",
-      true,
-      { type: "transition", reason: "Implementer must address the blocked standard.", assignment_id: started.workflow.assignment_ids[1] },
-    ));
+    // 4. Approve researcher
+    await approveNode({ repoPath: args.repo, workflowId, nodeId: "researcher" });
 
-    await tickWorkflow({ repoPath: args.repo, workflowId });
-    records.push(await captureStage(
-      args.repo,
-      workflowId,
-      "implementer",
-      "Implementer addressed the tester findings.",
-      true,
-      { type: "transition", reason: "Re-run verification.", assignment_id: started.workflow.assignment_ids[2] },
-    ));
+    // 5. Dispatch implementer
+    const dev = await dispatchNode({
+      repoPath: args.repo, workflowId, nodeId: "dev",
+      role: "implementer", intent: "Implement first pass.", dependsOn: ["researcher"],
+    });
+    assert.equal(dev.status, "dispatched");
 
-    await tickWorkflow({ repoPath: args.repo, workflowId });
-    records.push(await captureStage(
-      args.repo,
-      workflowId,
-      "tester",
-      "Tester confirmed the recovery pass met the bar and requested intent confirmation.",
-      true,
-      { type: "transition", reason: "Researcher should confirm the final outcome.", assignment_id: started.workflow.assignment_ids[0] },
-    ));
+    assignment = manager.load(dev.assignment_id)!;
+    run = latestRun(assignment);
+    writeResult(args.repo, workflowId, assignment.id, run, "First implementation pass done.", true, "done");
+    records.push(captureStage("dev", assignment.id, "implementer", dev.terminal_id ?? null, "First pass done."));
 
-    await tickWorkflow({ repoPath: args.repo, workflowId });
-    records.push(await captureStage(
-      args.repo,
-      workflowId,
-      "researcher",
-      "Researcher confirmed the tested implementation satisfies the approved intent.",
-      true,
-      { type: "complete", reason: "Workflow is complete." },
-    ));
+    decision = await watchUntilDecision({ repoPath: args.repo, workflowId, timeoutMs: 10_000 });
+    assert.equal(decision.type, "node_completed");
 
-    await tickWorkflow({ repoPath: args.repo, workflowId });
-    const completed = getWorkflowStatus({ repoPath: args.repo, workflowId });
-    assert.equal(completed.workflow.status, "completed");
+    // 6. Dispatch tester
+    const tester = await dispatchNode({
+      repoPath: args.repo, workflowId, nodeId: "tester",
+      role: "tester", intent: "Verify implementation.", dependsOn: ["dev"],
+      agentType: "claude",
+    });
+    assert.equal(tester.status, "dispatched");
 
+    assignment = manager.load(tester.assignment_id)!;
+    run = latestRun(assignment);
+    writeResult(args.repo, workflowId, assignment.id, run, "Found issues, needs rework.", true, "needs_rework");
+    records.push(captureStage("tester", assignment.id, "tester", tester.terminal_id ?? null, "Found issues."));
+
+    decision = await watchUntilDecision({ repoPath: args.repo, workflowId, timeoutMs: 10_000 });
+    assert.equal(decision.type, "node_completed");
+    assert.equal(decision.completed?.result.intent.type, "needs_rework");
+
+    // 7. Reset dev based on tester feedback
+    await resetNode({ repoPath: args.repo, workflowId, nodeId: "dev", feedback: "Fix the issues found by tester." });
+
+    // 8. Re-dispatch dev (reset made it eligible)
+    const dev2 = await dispatchNode({
+      repoPath: args.repo, workflowId, nodeId: "dev2",
+      role: "implementer", intent: "Fix tester findings.", dependsOn: ["researcher"],
+    });
+    assert.equal(dev2.status, "dispatched");
+
+    assignment = manager.load(dev2.assignment_id)!;
+    run = latestRun(assignment);
+    writeResult(args.repo, workflowId, assignment.id, run, "Fixed all tester findings.", true, "done");
+    records.push(captureStage("dev2", assignment.id, "implementer", dev2.terminal_id ?? null, "Fixed findings."));
+
+    decision = await watchUntilDecision({ repoPath: args.repo, workflowId, timeoutMs: 10_000 });
+    assert.equal(decision.type, "node_completed");
+
+    // 9. Complete
+    await completeWorkflow({ repoPath: args.repo, workflowId, summary: "Acceptance test passed." });
+    const final = getWorkflowStatus(args.repo, workflowId);
+    assert.equal(final.workflow.status, "completed");
+
+    // Write report
     fs.mkdirSync(path.dirname(args.report), { recursive: true });
     fs.writeFileSync(args.report, renderReport(args, workflowId, records), "utf-8");
-    console.log(JSON.stringify({
-      workflowId,
-      report: args.report,
-      stages: records,
-      finalStatus: completed.workflow.status,
-    }, null, 2));
+    console.log(JSON.stringify({ workflowId, report: args.report, stages: records, finalStatus: "completed" }, null, 2));
   } finally {
     if (workflowId) {
-      try {
-        await cleanup(["--workflow", workflowId, "--repo", args.repo, "--force"]);
-      } catch {
-        // best-effort cleanup
-      }
+      try { await cleanup(["--workflow", workflowId, "--repo", args.repo, "--force"]); } catch {}
     }
   }
 }
