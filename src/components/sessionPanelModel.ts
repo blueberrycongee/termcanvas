@@ -39,6 +39,7 @@ export interface CanvasTerminalSections {
 export interface StatusSummary {
   attention: number;
   running: number;
+  freshDone: number;
   done: number;
   idle: number;
 }
@@ -317,10 +318,14 @@ function deriveTerminalState(
   return deriveStateFromTerminal(terminal);
 }
 
-function computeStatusSummary(items: CanvasTerminalItem[]): StatusSummary {
+function computeStatusSummary(
+  items: CanvasTerminalItem[],
+  seenTerminalIds?: Set<string>,
+): StatusSummary {
   const summary: StatusSummary = {
     attention: 0,
     running: 0,
+    freshDone: 0,
     done: 0,
     idle: 0,
   };
@@ -334,7 +339,11 @@ function computeStatusSummary(items: CanvasTerminalItem[]): StatusSummary {
         summary.running++;
         break;
       case "done":
-        summary.done++;
+        if (seenTerminalIds && seenTerminalIds.has(item.terminalId)) {
+          summary.done++;
+        } else {
+          summary.freshDone++;
+        }
         break;
       default:
         summary.idle++;
@@ -351,6 +360,7 @@ export function buildProjectTree(
     TerminalTelemetrySnapshot | null | undefined
   >,
   sessionsById: Map<string, SessionInfo>,
+  seenTerminalIds?: Set<string>,
 ): ProjectGroup[] {
   const result: ProjectGroup[] = [];
 
@@ -419,7 +429,7 @@ export function buildProjectTree(
         worktreeName: worktree.name,
         worktreePath: worktree.path,
         isMain: worktree.path === project.path,
-        statusSummary: computeStatusSummary(terminals),
+        statusSummary: computeStatusSummary(terminals, seenTerminalIds),
         terminals,
       });
     }
@@ -432,7 +442,7 @@ export function buildProjectTree(
       projectId: project.id,
       projectName: project.name,
       projectPath: project.path,
-      statusSummary: computeStatusSummary(allTerminals),
+      statusSummary: computeStatusSummary(allTerminals, seenTerminalIds),
       worktrees: worktreeGroups,
       flat: worktreeGroups.length === 1,
     });

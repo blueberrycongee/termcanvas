@@ -100,11 +100,13 @@ function TerminalCard({
   t,
   compact = false,
   hideLocation = false,
+  unseenDone = false,
 }: {
   item: CanvasTerminalItem;
   t: ReturnType<typeof useT>;
   compact?: boolean;
   hideLocation?: boolean;
+  unseenDone?: boolean;
 }) {
   const subtitleParts = [
     !hideLocation && item.locationLabel && item.locationLabel !== item.title
@@ -127,7 +129,9 @@ function TerminalCard({
     >
       <div
         className="w-2 h-2 rounded-full shrink-0"
-        style={{ backgroundColor: STATUS_COLORS[item.state] }}
+        style={{
+          backgroundColor: unseenDone ? "#3b82f6" : STATUS_COLORS[item.state],
+        }}
       />
       <div className="flex-1 min-w-0">
         <div className="text-[11px] font-medium truncate">{item.title}</div>
@@ -287,6 +291,7 @@ export function SessionsPanel() {
   const loadReplay = useSessionStore((s) => s.loadReplay);
   const projects = useProjectStore((s) => s.projects);
   const runtimeTerminals = useTerminalRuntimeStore((s) => s.terminals);
+  const seenTerminalIds = useCompletionSeenStore((s) => s.seenTerminalIds);
   const markCompletionSeen = useCompletionSeenStore((s) => s.markSeen);
   const t = useT();
   const [traceItems, setTraceItems] = useState<InspectorTraceItem[]>([]);
@@ -321,8 +326,14 @@ export function SessionsPanel() {
     [projects, sessionsById, telemetryByTerminalId],
   );
   const projectTree = useMemo(
-    () => buildProjectTree(projects, telemetryByTerminalId, sessionsById),
-    [projects, telemetryByTerminalId, sessionsById],
+    () =>
+      buildProjectTree(
+        projects,
+        telemetryByTerminalId,
+        sessionsById,
+        seenTerminalIds,
+      ),
+    [projects, telemetryByTerminalId, sessionsById, seenTerminalIds],
   );
   const inspectedItem = useMemo(
     () => pickInspectedTerminal(sections),
@@ -385,6 +396,9 @@ export function SessionsPanel() {
               t={t}
               compact
               hideLocation
+              unseenDone={
+                item.state === "done" && !seenTerminalIds.has(item.terminalId)
+              }
             />
           )}
         />
