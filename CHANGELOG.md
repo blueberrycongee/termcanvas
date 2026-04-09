@@ -2,6 +2,14 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.22] - 2026-04-09
+
+### Fixed
+- Sessions panel terminal ordering is now stable within project/worktree groups instead of dynamically reordering by activity updates
+
+### Fixed (zh-CN)
+- 会话面板在项目/工作树分组内的终端顺序改为稳定顺序，不再随活动更新动态重排
+
 ## [0.25.21] - 2026-04-09
 
 ### Added
