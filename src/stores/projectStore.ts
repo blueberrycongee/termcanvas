@@ -129,7 +129,7 @@ interface ProjectStore {
   ) => void;
   setFocusedTerminal: (
     terminalId: string | null,
-    options?: { focusComposer?: boolean },
+    options?: { focusComposer?: boolean; focusInput?: boolean },
   ) => void;
   setFocusedWorktree: (
     projectId: string | null,
@@ -357,8 +357,8 @@ function rectsOverlap(
   return (
     a.x < b.x + b.w + gap &&
     a.x + a.w + gap > b.x &&
-    a.y < b.y + b.h &&
-    a.y + a.h > b.y
+    a.y < b.y + b.h + gap &&
+    a.y + a.h + gap > b.y
   );
 }
 
@@ -375,21 +375,42 @@ function resolveOverlaps(projects: ProjectData[]): ProjectData[] {
         withResolvedWorktrees.map((p) => [p.id, { ...p.position }]),
       );
 
-      const sorted = [...withResolvedWorktrees].sort(
-        (a, b) => positions.get(a.id)!.x - positions.get(b.id)!.x,
-      );
+      const sorted = [...withResolvedWorktrees].sort((a, b) => {
+        const posA = positions.get(a.id)!;
+        const posB = positions.get(b.id)!;
+        return posA.x - posB.x || posA.y - posB.y;
+      });
 
       for (let i = 1; i < sorted.length; i++) {
-        const prev = sorted[i - 1];
         const curr = sorted[i];
-        const prevPos = positions.get(prev.id)!;
         const currPos = positions.get(curr.id)!;
 
-        const prevBounds = getProjectBounds({ ...prev, position: prevPos });
-        const currBounds = getProjectBounds({ ...curr, position: currPos });
+        for (let j = 0; j < i; j++) {
+          const prev = sorted[j];
+          const prevPos = positions.get(prev.id)!;
 
-        if (rectsOverlap(prevBounds, currBounds, OVERLAP_GAP)) {
-          currPos.x = prevBounds.x + prevBounds.w + OVERLAP_GAP;
+          const prevBounds = getProjectBounds({ ...prev, position: prevPos });
+          const currBounds = getProjectBounds({ ...curr, position: currPos });
+
+          if (rectsOverlap(prevBounds, currBounds, OVERLAP_GAP)) {
+            const prevCx = prevBounds.x + prevBounds.w / 2;
+            const prevCy = prevBounds.y + prevBounds.h / 2;
+            const currCx = currBounds.x + currBounds.w / 2;
+            const currCy = currBounds.y + currBounds.h / 2;
+
+            const dx = currCx - prevCx;
+            const dy = currCy - prevCy;
+            const overlapX =
+              (prevBounds.w + currBounds.w) / 2 + OVERLAP_GAP - Math.abs(dx);
+            const overlapY =
+              (prevBounds.h + currBounds.h) / 2 + OVERLAP_GAP - Math.abs(dy);
+
+            if (overlapX <= overlapY) {
+              currPos.x += dx >= 0 ? overlapX : -overlapX;
+            } else {
+              currPos.y += dy >= 0 ? overlapY : -overlapY;
+            }
+          }
         }
       }
 
@@ -1294,7 +1315,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         projects,
       };
     });
-    if (terminalId && options?.focusComposer !== false) {
+    if (terminalId && options?.focusInput !== false && options?.focusComposer !== false) {
       const composerEnabled = usePreferencesStore.getState().composerEnabled;
       if (composerEnabled) {
         window.dispatchEvent(new CustomEvent("termcanvas:focus-composer"));

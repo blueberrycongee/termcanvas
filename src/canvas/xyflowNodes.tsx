@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   type Node,
@@ -9,6 +9,7 @@ import type { TerminalData } from "../types";
 import { useProjectStore, createTerminal, stashTerminal } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { useCanvasStore } from "../stores/canvasStore";
+import { useNotificationStore } from "../stores/notificationStore";
 import { TerminalTile } from "../terminal/TerminalTile";
 import {
   resolveTerminalMountMode,
@@ -33,9 +34,115 @@ import {
   type WorktreeNodeData,
 } from "./nodeProjection";
 import { rectIntersectsCanvasViewport } from "./viewportBounds";
+import { ContextMenu } from "../components/ContextMenu";
 
 type ProjectFlowNode = Node<ProjectNodeData, "project">;
 type WorktreeFlowNode = Node<WorktreeNodeData, "worktree">;
+
+function NewWorktreePopover({
+  x,
+  y,
+  onSubmit,
+  onClose,
+}: {
+  x: number;
+  y: number;
+  onSubmit: (branch: string) => Promise<boolean>;
+  onClose: () => void;
+}) {
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const submit = async () => {
+    if (busy) return;
+    const branch = value.trim();
+    if (!branch) {
+      onClose();
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const ok = await onSubmit(branch);
+      if (ok) {
+        onClose();
+        return;
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+    setBusy(false);
+  };
+
+  const viewportWidth =
+    typeof window !== "undefined" ? window.innerWidth : 1024;
+  const viewportHeight =
+    typeof window !== "undefined" ? window.innerHeight : 768;
+  const popupWidth = 240;
+  const popupHeight = 108;
+  const left = Math.max(8, Math.min(x, viewportWidth - popupWidth - 8));
+  const top = Math.max(8, Math.min(y, viewportHeight - popupHeight - 8));
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[130]"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        className="absolute min-w-[220px] rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg"
+        style={{ left, top }}
+      >
+        <input
+          ref={inputRef}
+          value={value}
+          disabled={busy}
+          placeholder="branch name"
+          onChange={(event) => setValue(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              void submit();
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              onClose();
+            }
+          }}
+          className="w-full text-[11px] px-2 py-1 rounded border border-[var(--border)] bg-[var(--bg)] text-[var(--text-primary)] outline-none disabled:opacity-50"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        />
+        {error && (
+          <div className="mt-1 text-[10px] text-[var(--red)] truncate">{error}</div>
+        )}
+        <div className="mt-2 flex items-center justify-end gap-1">
+          <button
+            className="px-2 py-1 text-[10px] rounded border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+          <button
+            className="px-2 py-1 text-[10px] rounded bg-[var(--accent)] text-[var(--bg)] hover:opacity-90 disabled:opacity-50"
+            disabled={busy}
+            onClick={() => void submit()}
+          >
+            Create
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 function WorktreeTerminalItem({
   dragOffsetX,
@@ -112,10 +219,12 @@ function ProjectNode({ data }: NodeProps<ProjectFlowNode>) {
   const compactProjectWorktrees = useProjectStore(
     (state) => state.compactProjectWorktrees,
   );
+  const syncWorktrees = useProjectStore((state) => state.syncWorktrees);
   const toggleProjectCollapse = useProjectStore(
     (state) => state.toggleProjectCollapse,
   );
   const removeProject = useProjectStore((state) => state.removeProject);
+  const notify = useNotificationStore((state) => state.notify);
   const project = useProjectStore(
     useCallback(
       (state) =>
@@ -128,10 +237,39 @@ function ProjectNode({ data }: NodeProps<ProjectFlowNode>) {
       (item) => item.type === "project" && item.projectId === data.projectId,
     ),
   );
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [createPopover, setCreatePopover] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
   if (!project) {
     return null;
   }
+
+  const handleCreateWorktree = async (branch: string): Promise<boolean> => {
+    try {
+      const result = await window.termcanvas.project.createWorktree(
+        project.path,
+        branch,
+      );
+      if (!result.ok) {
+        notify("error", `Failed to create worktree: ${result.error}`);
+        return false;
+      }
+      syncWorktrees(project.path, result.worktrees);
+      notify("info", `Worktree "${branch}" created`);
+      return true;
+    } catch (err) {
+      notify(
+        "error",
+        `Failed to create worktree: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return false;
+    }
+  };
 
   return (
     <div
@@ -142,7 +280,14 @@ function ProjectNode({ data }: NodeProps<ProjectFlowNode>) {
       }}
     >
       <div className="pointer-events-none absolute inset-0 rounded-[var(--radius)] bg-[var(--surface)]/80" />
-      <div className="tc-project-drag-handle relative flex items-center gap-2 px-4 py-2 cursor-grab active:cursor-grabbing select-none">
+      <div
+        className="tc-project-drag-handle relative flex items-center gap-2 px-4 py-2 cursor-grab active:cursor-grabbing select-none"
+        onContextMenu={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setMenu({ x: event.clientX, y: event.clientY });
+        }}
+      >
         <div
           className="absolute inset-0"
           onDoubleClick={() => toggleProjectCollapse(project.id)}
@@ -251,6 +396,34 @@ function ProjectNode({ data }: NodeProps<ProjectFlowNode>) {
           <div className="h-full rounded-[calc(var(--radius)-2px)] border border-dashed border-[color-mix(in_srgb,var(--border)_70%,transparent)] bg-[color-mix(in_srgb,var(--bg)_82%,transparent)]" />
         </div>
       )}
+
+      {menu &&
+        createPortal(
+          <ContextMenu
+            x={menu.x}
+            y={menu.y}
+            items={[
+              {
+                label: "New Worktree...",
+                onClick: () => {
+                  if (!menu) return;
+                  setCreatePopover({ x: menu.x + 4, y: menu.y + 4 });
+                },
+              },
+            ]}
+            onClose={() => setMenu(null)}
+          />,
+          document.body,
+        )}
+
+      {createPopover && (
+        <NewWorktreePopover
+          x={createPopover.x}
+          y={createPopover.y}
+          onSubmit={handleCreateWorktree}
+          onClose={() => setCreatePopover(null)}
+        />
+      )}
     </div>
   );
 }
@@ -270,10 +443,12 @@ function WorktreeNode({
     (state) => state.toggleWorktreeCollapse,
   );
   const addTerminal = useProjectStore((state) => state.addTerminal);
+  const syncWorktrees = useProjectStore((state) => state.syncWorktrees);
   const reorderTerminal = useProjectStore((state) => state.reorderTerminal);
   const updateTerminalSpan = useProjectStore(
     (state) => state.updateTerminalSpan,
   );
+  const notify = useNotificationStore((state) => state.notify);
   const project = useProjectStore(
     useCallback(
       (state) =>
@@ -309,6 +484,11 @@ function WorktreeNode({
     outsideWorktree?: boolean;
     ghostX?: number;
     ghostY?: number;
+  } | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [createPopover, setCreatePopover] = useState<{
+    x: number;
+    y: number;
   } | null>(null);
 
   const tileW = useTileDimensionsStore((s) => s.w);
@@ -511,6 +691,30 @@ function WorktreeNode({
     return null;
   }
 
+  const handleCreateWorktree = async (branch: string): Promise<boolean> => {
+    try {
+      const result = await window.termcanvas.project.createWorktree(
+        project.path,
+        branch,
+      );
+      if (!result.ok) {
+        notify("error", `Failed to create worktree: ${result.error}`);
+        return false;
+      }
+      syncWorktrees(project.path, result.worktrees);
+      notify("info", `Worktree "${branch}" created`);
+      return true;
+    } catch (err) {
+      notify(
+        "error",
+        `Failed to create worktree: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return false;
+    }
+  };
+
   return (
     <div
       className="panel nopan h-full w-full overflow-hidden"
@@ -522,7 +726,14 @@ function WorktreeNode({
         outlineOffset: isSelected ? -2 : undefined,
       }}
     >
-      <div className="tc-worktree-drag-handle flex items-center gap-2 px-3 py-2 select-none cursor-grab active:cursor-grabbing">
+      <div
+        className="tc-worktree-drag-handle flex items-center gap-2 px-3 py-2 select-none cursor-grab active:cursor-grabbing"
+        onContextMenu={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setMenu({ x: event.clientX, y: event.clientY });
+        }}
+      >
         <span
           className="min-w-0 flex-1 truncate text-[11px] text-[var(--text-secondary)] font-medium"
           style={{ fontFamily: '"Geist Mono", monospace' }}
@@ -594,6 +805,34 @@ function WorktreeNode({
           </button>
         </div>
       </div>
+
+      {menu &&
+        createPortal(
+          <ContextMenu
+            x={menu.x}
+            y={menu.y}
+            items={[
+              {
+                label: "New Worktree...",
+                onClick: () => {
+                  if (!menu) return;
+                  setCreatePopover({ x: menu.x + 4, y: menu.y + 4 });
+                },
+              },
+            ]}
+            onClose={() => setMenu(null)}
+          />,
+          document.body,
+        )}
+
+      {createPopover && (
+        <NewWorktreePopover
+          x={createPopover.x}
+          y={createPopover.y}
+          onSubmit={handleCreateWorktree}
+          onClose={() => setCreatePopover(null)}
+        />
+      )}
 
       <div
         className="px-2 pb-2 relative"

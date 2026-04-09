@@ -23,6 +23,7 @@ export interface CanvasTerminalItem {
   focused: boolean;
   state: CanvasTerminalState;
   activityAt?: string;
+  turnStartedAt?: string;
   currentTool?: string;
   attentionReason?: "error" | "stall" | "awaiting_input";
 }
@@ -38,6 +39,7 @@ export interface CanvasTerminalSections {
 export interface StatusSummary {
   attention: number;
   running: number;
+  freshDone: number;
   done: number;
   idle: number;
 }
@@ -45,6 +47,8 @@ export interface StatusSummary {
 export interface WorktreeGroup {
   worktreeId: string;
   worktreeName: string;
+  worktreePath: string;
+  isMain: boolean;
   statusSummary: StatusSummary;
   terminals: CanvasTerminalItem[];
 }
@@ -52,6 +56,7 @@ export interface WorktreeGroup {
 export interface ProjectGroup {
   projectId: string;
   projectName: string;
+  projectPath: string;
   statusSummary: StatusSummary;
   worktrees: WorktreeGroup[];
   flat: boolean;
@@ -107,29 +112,23 @@ function resolveTerminalTitle(
   return projectName;
 }
 
-function compareItemsByActivity(
-  a: CanvasTerminalItem,
-  b: CanvasTerminalItem,
-): number {
-  const aActivity = a.activityAt ?? "";
-  const bActivity = b.activityAt ?? "";
-  if (aActivity !== bActivity) {
-    return bActivity.localeCompare(aActivity);
-  }
-  return a.title.localeCompare(b.title);
-}
-
 function deriveStateFromTelemetry(
   telemetry: TerminalTelemetrySnapshot,
 ): Pick<
   CanvasTerminalItem,
-  "state" | "activityAt" | "currentTool" | "sessionFilePath" | "attentionReason"
+  | "state"
+  | "activityAt"
+  | "turnStartedAt"
+  | "currentTool"
+  | "sessionFilePath"
+  | "attentionReason"
 > {
   const activityAt =
     telemetry.last_meaningful_progress_at ??
     telemetry.last_session_event_at ??
     telemetry.last_output_at ??
     telemetry.last_input_at;
+  const turnStartedAt = telemetry.turn_started_at;
 
   if (
     telemetry.derived_status === "error" ||
@@ -140,6 +139,7 @@ function deriveStateFromTelemetry(
     return {
       state: "attention",
       activityAt,
+      turnStartedAt,
       currentTool: telemetry.foreground_tool,
       sessionFilePath: telemetry.session_file,
       attentionReason: "error",
@@ -150,6 +150,7 @@ function deriveStateFromTelemetry(
     return {
       state: "attention",
       activityAt,
+      turnStartedAt,
       currentTool: telemetry.foreground_tool,
       sessionFilePath: telemetry.session_file,
       attentionReason: "stall",
@@ -162,6 +163,7 @@ function deriveStateFromTelemetry(
     return {
       state: "attention",
       activityAt,
+      turnStartedAt,
       currentTool: telemetry.foreground_tool,
       sessionFilePath: telemetry.session_file,
       attentionReason: "awaiting_input",
@@ -175,6 +177,7 @@ function deriveStateFromTelemetry(
     return {
       state: "running",
       activityAt,
+      turnStartedAt,
       currentTool: telemetry.foreground_tool,
       sessionFilePath: telemetry.session_file,
     };
@@ -187,6 +190,7 @@ function deriveStateFromTelemetry(
     return {
       state: telemetry.foreground_tool ? "running" : "thinking",
       activityAt,
+      turnStartedAt,
       currentTool: telemetry.foreground_tool,
       sessionFilePath: telemetry.session_file,
     };
@@ -196,6 +200,7 @@ function deriveStateFromTelemetry(
     return {
       state: "done",
       activityAt,
+      turnStartedAt,
       currentTool: telemetry.foreground_tool,
       sessionFilePath: telemetry.session_file,
     };
@@ -208,6 +213,7 @@ function deriveStateFromTelemetry(
     return {
       state: telemetry.foreground_tool ? "running" : "thinking",
       activityAt,
+      turnStartedAt,
       currentTool: telemetry.foreground_tool,
       sessionFilePath: telemetry.session_file,
     };
@@ -216,6 +222,7 @@ function deriveStateFromTelemetry(
   return {
     state: "idle",
     activityAt,
+    turnStartedAt,
     currentTool: telemetry.foreground_tool,
     sessionFilePath: telemetry.session_file,
   };
@@ -293,7 +300,12 @@ function deriveTerminalState(
   session: SessionInfo | undefined,
 ): Pick<
   CanvasTerminalItem,
-  "state" | "activityAt" | "currentTool" | "sessionFilePath" | "attentionReason"
+  | "state"
+  | "activityAt"
+  | "turnStartedAt"
+  | "currentTool"
+  | "sessionFilePath"
+  | "attentionReason"
 > {
   if (telemetry) {
     return deriveStateFromTelemetry(telemetry);
@@ -306,18 +318,14 @@ function deriveTerminalState(
   return deriveStateFromTerminal(terminal);
 }
 
-const STATE_PRIORITY: Record<CanvasTerminalState, number> = {
-  attention: 0,
-  running: 1,
-  thinking: 2,
-  done: 3,
-  idle: 4,
-};
-
-function computeStatusSummary(items: CanvasTerminalItem[]): StatusSummary {
+function computeStatusSummary(
+  items: CanvasTerminalItem[],
+  seenTerminalIds?: Set<string>,
+): StatusSummary {
   const summary: StatusSummary = {
     attention: 0,
     running: 0,
+    freshDone: 0,
     done: 0,
     idle: 0,
   };
@@ -331,7 +339,11 @@ function computeStatusSummary(items: CanvasTerminalItem[]): StatusSummary {
         summary.running++;
         break;
       case "done":
-        summary.done++;
+        if (seenTerminalIds && seenTerminalIds.has(item.terminalId)) {
+          summary.done++;
+        } else {
+          summary.freshDone++;
+        }
         break;
       default:
         summary.idle++;
@@ -341,23 +353,6 @@ function computeStatusSummary(items: CanvasTerminalItem[]): StatusSummary {
   return summary;
 }
 
-function compareByStateThenActivity(
-  a: CanvasTerminalItem,
-  b: CanvasTerminalItem,
-): number {
-  const pa = STATE_PRIORITY[a.state];
-  const pb = STATE_PRIORITY[b.state];
-  if (pa !== pb) return pa - pb;
-  return compareItemsByActivity(a, b);
-}
-
-function highestPriority(summary: StatusSummary): number {
-  if (summary.attention > 0) return 0;
-  if (summary.running > 0) return 1;
-  if (summary.done > 0) return 3;
-  return 4;
-}
-
 export function buildProjectTree(
   projects: ProjectData[],
   telemetryByTerminalId: Map<
@@ -365,6 +360,7 @@ export function buildProjectTree(
     TerminalTelemetrySnapshot | null | undefined
   >,
   sessionsById: Map<string, SessionInfo>,
+  seenTerminalIds?: Set<string>,
 ): ProjectGroup[] {
   const result: ProjectGroup[] = [];
 
@@ -384,10 +380,6 @@ export function buildProjectTree(
             resolvedTerminal,
           )
         ) {
-          continue;
-        }
-
-        if (resolvedTerminal.focused) {
           continue;
         }
 
@@ -421,9 +413,10 @@ export function buildProjectTree(
           sessionFilePath: derived.sessionFilePath,
           title,
           locationLabel,
-          focused: false,
+          focused: resolvedTerminal.focused,
           state: derived.state,
           activityAt: derived.activityAt,
+          turnStartedAt: derived.turnStartedAt,
           currentTool: derived.currentTool,
           attentionReason: derived.attentionReason,
         });
@@ -431,12 +424,12 @@ export function buildProjectTree(
 
       if (terminals.length === 0) continue;
 
-      terminals.sort(compareByStateThenActivity);
-
       worktreeGroups.push({
         worktreeId: worktree.id,
         worktreeName: worktree.name,
-        statusSummary: computeStatusSummary(terminals),
+        worktreePath: worktree.path,
+        isMain: worktree.path === project.path,
+        statusSummary: computeStatusSummary(terminals, seenTerminalIds),
         terminals,
       });
     }
@@ -448,18 +441,12 @@ export function buildProjectTree(
     result.push({
       projectId: project.id,
       projectName: project.name,
-      statusSummary: computeStatusSummary(allTerminals),
+      projectPath: project.path,
+      statusSummary: computeStatusSummary(allTerminals, seenTerminalIds),
       worktrees: worktreeGroups,
       flat: worktreeGroups.length === 1,
     });
   }
-
-  result.sort((a, b) => {
-    const pa = highestPriority(a.statusSummary);
-    const pb = highestPriority(b.statusSummary);
-    if (pa !== pb) return pa - pb;
-    return a.projectName.localeCompare(b.projectName);
-  });
 
   return result;
 }
@@ -526,6 +513,7 @@ export function buildCanvasTerminalSections(
           focused: resolvedTerminal.focused,
           state: derived.state,
           activityAt: derived.activityAt,
+          turnStartedAt: derived.turnStartedAt,
           currentTool: derived.currentTool,
           attentionReason: derived.attentionReason,
         };
@@ -553,11 +541,6 @@ export function buildCanvasTerminalSections(
       }
     }
   }
-
-  attention.sort(compareItemsByActivity);
-  progress.sort(compareItemsByActivity);
-  done.sort(compareItemsByActivity);
-  idle.sort(compareItemsByActivity);
 
   return {
     focused,

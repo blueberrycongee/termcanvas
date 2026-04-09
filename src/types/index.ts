@@ -112,7 +112,10 @@ export interface TerminalRuntimeState {
   status: TerminalStatus;
 }
 
-export type PersistedTerminalData = Omit<TerminalData, keyof TerminalRuntimeState>;
+export type PersistedTerminalData = Omit<
+  TerminalData,
+  keyof TerminalRuntimeState
+>;
 
 export interface StashedTerminal {
   terminal: TerminalData;
@@ -194,7 +197,11 @@ export interface ProjectUsage {
 }
 
 export type HydraInstructionFileName = "CLAUDE.md" | "AGENTS.md";
-export type HydraInstructionStatus = "created" | "appended" | "updated" | "unchanged";
+export type HydraInstructionStatus =
+  | "created"
+  | "appended"
+  | "updated"
+  | "unchanged";
 
 export interface ProjectEnableHydraFileResult {
   fileName: HydraInstructionFileName;
@@ -341,11 +348,32 @@ export type AgentStreamEvent =
   | { type: "turn_start"; turn: number }
   | { type: "turn_end"; turn: number }
   | { type: "error"; error: { message: string } }
-  | { type: "message_start"; usage?: { input_tokens: number; output_tokens: number } }
+  | {
+      type: "message_start";
+      usage?: { input_tokens: number; output_tokens: number };
+    }
   | { type: "message_delta"; stop_reason: string | null }
-  | { type: "approval_request"; request_id: string; tool_name: string; tool_input: Record<string, unknown> }
-  | { type: "system_init"; model?: string; tools_count?: number; session_id?: string; slash_commands?: string[] }
-  | { type: "result_info"; cost_usd?: number; input_tokens?: number; output_tokens?: number; duration_ms?: number; num_turns?: number };
+  | {
+      type: "approval_request";
+      request_id: string;
+      tool_name: string;
+      tool_input: Record<string, unknown>;
+    }
+  | {
+      type: "system_init";
+      model?: string;
+      tools_count?: number;
+      session_id?: string;
+      slash_commands?: string[];
+    }
+  | {
+      type: "result_info";
+      cost_usd?: number;
+      input_tokens?: number;
+      output_tokens?: number;
+      duration_ms?: number;
+      num_turns?: number;
+    };
 
 export interface TermCanvasAPI {
   terminal: {
@@ -364,24 +392,50 @@ export interface TermCanvasAPI {
     notifyThemeChanged: (ptyId: number) => void;
     onOutput: (callback: (ptyId: number, data: string) => void) => () => void;
     onExit: (callback: (ptyId: number, exitCode: number) => void) => () => void;
-    detectCli: (ptyId: number) => Promise<{ cliType: TerminalType; pid?: number; sessionName?: string; autoApprove?: boolean } | null>;
+    detectCli: (
+      ptyId: number,
+    ) => Promise<{
+      cliType: TerminalType;
+      pid?: number;
+      sessionName?: string;
+      autoApprove?: boolean;
+    } | null>;
   };
   session: {
     getCodexLatest: () => Promise<string | null>;
     findCodex: (
       cwd: string,
       startedAt?: string,
-    ) => Promise<{ sessionId: string; filePath: string; confidence: "medium" | "weak" } | null>;
+    ) => Promise<{
+      sessionId: string;
+      filePath: string;
+      confidence: "medium" | "weak";
+    } | null>;
     findClaude: (
       cwd: string,
       startedAt?: string,
       pid?: number | null,
-    ) => Promise<{ sessionId: string; filePath: string; confidence: "strong" | "medium" | "weak" } | null>;
-    getPermissionMode: (sessionId: string, cwd: string) => Promise<string | null>;
-    getBypassState: (type: string, sessionId: string, cwd: string) => Promise<boolean>;
+    ) => Promise<{
+      sessionId: string;
+      filePath: string;
+      confidence: "strong" | "medium" | "weak";
+    } | null>;
+    getPermissionMode: (
+      sessionId: string,
+      cwd: string,
+    ) => Promise<string | null>;
+    getBypassState: (
+      type: string,
+      sessionId: string,
+      cwd: string,
+    ) => Promise<boolean>;
     getClaudeByPid: (pid: number) => Promise<string | null>;
     getKimiLatest: (cwd: string) => Promise<string | null>;
-    watch: (type: string, sessionId: string, cwd: string) => Promise<{ ok: boolean; reason?: string }>;
+    watch: (
+      type: string,
+      sessionId: string,
+      cwd: string,
+    ) => Promise<{ ok: boolean; reason?: string }>;
     unwatch: (sessionId: string) => Promise<void>;
     onTurnComplete: (callback: (sessionId: string) => void) => () => void;
   };
@@ -401,11 +455,23 @@ export interface TermCanvasAPI {
       ptyId?: number | null;
       shellPid?: number | null;
     }) => Promise<TerminalTelemetrySnapshot>;
-    getTerminal: (terminalId: string) => Promise<TerminalTelemetrySnapshot | null>;
-    getWorkflow: (workflowId: string, repoPath: string) => Promise<WorkflowTelemetrySnapshot | null>;
-    listEvents: (input: { terminalId: string; limit?: number; cursor?: string }) => Promise<TelemetryEventPage>;
+    getTerminal: (
+      terminalId: string,
+    ) => Promise<TerminalTelemetrySnapshot | null>;
+    getWorkflow: (
+      workflowId: string,
+      repoPath: string,
+    ) => Promise<WorkflowTelemetrySnapshot | null>;
+    listEvents: (input: {
+      terminalId: string;
+      limit?: number;
+      cursor?: string;
+    }) => Promise<TelemetryEventPage>;
     onSnapshotChanged: (
-      callback: (payload: { terminalId: string; snapshot: TerminalTelemetrySnapshot }) => void,
+      callback: (payload: {
+        terminalId: string;
+        snapshot: TerminalTelemetrySnapshot;
+      }) => void,
     ) => () => void;
   };
   project: {
@@ -415,14 +481,37 @@ export interface TermCanvasAPI {
       path: string;
       worktrees: { path: string; branch: string; isMain: boolean }[];
     } | null>;
-    listChildGitRepos: (dirPath: string) => Promise<
-      { name: string; path: string }[]
-    >;
+    listChildGitRepos: (
+      dirPath: string,
+    ) => Promise<{ name: string; path: string }[]>;
     rescanWorktrees: (
       dirPath: string,
     ) => Promise<{ path: string; branch: string; isMain: boolean }[]>;
+    createWorktree: (
+      repoPath: string,
+      branch: string,
+    ) => Promise<
+      | {
+          ok: true;
+          path: string;
+          worktrees: { path: string; branch: string; isMain: boolean }[];
+        }
+      | { ok: false; error: string }
+    >;
+    removeWorktree: (
+      repoPath: string,
+      worktreePath: string,
+    ) => Promise<
+      | {
+          ok: true;
+          worktrees: { path: string; branch: string; isMain: boolean }[];
+        }
+      | { ok: false; error: string }
+    >;
     enableHydra: (dirPath: string) => Promise<ProjectEnableHydraResult>;
-    checkHydra: (dirPath: string) => Promise<"missing" | "outdated" | "current">;
+    checkHydra: (
+      dirPath: string,
+    ) => Promise<"missing" | "outdated" | "current">;
     diff: (worktreePath: string) => Promise<{
       diff: string;
       files: {
@@ -442,13 +531,20 @@ export interface TermCanvasAPI {
     branches: (worktreePath: string) => Promise<GitBranchInfo[]>;
     log: (worktreePath: string, count?: number) => Promise<GitLogEntry[]>;
     isRepo: (dirPath: string) => Promise<boolean>;
-    commitDetail: (worktreePath: string, hash: string) => Promise<GitCommitDetail | null>;
+    commitDetail: (
+      worktreePath: string,
+      hash: string,
+    ) => Promise<GitCommitDetail | null>;
     checkout: (worktreePath: string, ref: string) => Promise<void>;
     init: (worktreePath: string) => Promise<void>;
     status: (worktreePath: string) => Promise<GitStatusEntry[]>;
     stage: (worktreePath: string, paths: string[]) => Promise<void>;
     unstage: (worktreePath: string, paths: string[]) => Promise<void>;
-    discard: (worktreePath: string, trackedPaths: string[], untrackedPaths: string[]) => Promise<void>;
+    discard: (
+      worktreePath: string,
+      trackedPaths: string[],
+      untrackedPaths: string[],
+    ) => Promise<void>;
     commit: (worktreePath: string, message: string) => Promise<string>;
     push: (worktreePath: string) => Promise<string>;
     pull: (worktreePath: string) => Promise<string>;
@@ -469,13 +565,22 @@ export interface TermCanvasAPI {
     setTitle: (title: string) => Promise<void>;
   };
   fs: {
-    listDir: (dirPath: string) => Promise<{ name: string; isDirectory: boolean }[]>;
-    readFile: (filePath: string) => Promise<
-      | { type: string; content: string }
-      | { error: string; size?: string }
+    listDir: (
+      dirPath: string,
+    ) => Promise<{ name: string; isDirectory: boolean }[]>;
+    readFile: (
+      filePath: string,
+    ) => Promise<
+      { type: string; content: string } | { error: string; size?: string }
     >;
-    writeFile: (filePath: string, content: string) => Promise<{ changed: boolean }>;
-    copy: (sources: string[], destDir: string) => Promise<{
+    writeFile: (
+      filePath: string,
+      content: string,
+    ) => Promise<{ changed: boolean }>;
+    copy: (
+      sources: string[],
+      destDir: string,
+    ) => Promise<{
       copied: string[];
       skipped: string[];
     }>;
@@ -511,30 +616,35 @@ export interface TermCanvasAPI {
     }>;
     watch: (worktreePath: string) => Promise<void>;
     unwatch: (worktreePath: string) => Promise<void>;
-    onChanged: (callback: (graph: {
-      nodes: Array<{
-        fileName: string;
-        filePath: string;
-        name: string;
-        description: string;
-        type: string;
-        body: string;
-        mtime: number;
-        ctime: number;
-      }>;
-      edges: Array<{
-        source: string;
-        target: string;
-        label: string;
-      }>;
-      dirPath: string;
-    }) => void) => () => void;
+    onChanged: (
+      callback: (graph: {
+        nodes: Array<{
+          fileName: string;
+          filePath: string;
+          name: string;
+          description: string;
+          type: string;
+          body: string;
+          mtime: number;
+          ctime: number;
+        }>;
+        edges: Array<{
+          source: string;
+          target: string;
+          label: string;
+        }>;
+        dirPath: string;
+      }) => void,
+    ) => () => void;
   };
   fonts: {
     getPath: () => Promise<string>;
     listDownloaded: () => Promise<string[]>;
     check: (fileName: string) => Promise<boolean>;
-    download: (url: string, fileName: string) => Promise<{
+    download: (
+      url: string,
+      fileName: string,
+    ) => Promise<{
       ok: boolean;
       path?: string;
       error?: string;
@@ -544,7 +654,10 @@ export interface TermCanvasAPI {
     isRegistered: () => Promise<boolean>;
     register: () => Promise<boolean>;
     unregister: () => Promise<boolean>;
-    validateCommand: (command: string, args?: string[]) => Promise<
+    validateCommand: (
+      command: string,
+      args?: string[],
+    ) => Promise<
       | { ok: true; resolvedPath: string; version: string | null }
       | { ok: false; error: string }
     >;
@@ -570,14 +683,21 @@ export interface TermCanvasAPI {
       cwd: string;
       summaryCli: "claude" | "codex";
       locale: "en" | "zh";
-    }) => Promise<{ ok: boolean; summary?: string; error?: string; sessionFileSize?: number }>;
+    }) => Promise<{
+      ok: boolean;
+      summary?: string;
+      error?: string;
+      sessionFileSize?: number;
+    }>;
   };
   insights: {
     generate: (
       cliTool: "claude" | "codex",
       jobId: string,
     ) => Promise<InsightsGenerateResult>;
-    onProgress: (callback: (progress: InsightsProgressEvent) => void) => () => void;
+    onProgress: (
+      callback: (progress: InsightsProgressEvent) => void,
+    ) => () => void;
     openReport: (filePath: string) => Promise<void>;
     getLastReport: () => Promise<string | null>;
   };
@@ -587,14 +707,41 @@ export interface TermCanvasAPI {
     decrypt: (base64: string) => Promise<string>;
   };
   agent: {
-    start: (sessionId: string, config: { type: "claude-code"; cwd?: string; resumeSessionId?: string; baseURL: string; apiKey: string; model: string }) => Promise<{ slashCommands: string[] }>;
-    send: (sessionId: string, text: string, config: { type: "anthropic" | "openai" | "claude-code"; baseURL: string; apiKey: string; model: string; cwd?: string; resumeSessionId?: string }) => Promise<void>;
+    start: (
+      sessionId: string,
+      config: {
+        type: "claude-code";
+        cwd?: string;
+        resumeSessionId?: string;
+        baseURL: string;
+        apiKey: string;
+        model: string;
+      },
+    ) => Promise<{ slashCommands: string[] }>;
+    send: (
+      sessionId: string,
+      text: string,
+      config: {
+        type: "anthropic" | "openai" | "claude-code";
+        baseURL: string;
+        apiKey: string;
+        model: string;
+        cwd?: string;
+        resumeSessionId?: string;
+      },
+    ) => Promise<void>;
     abort: (sessionId: string) => Promise<void>;
     clear: (sessionId: string) => Promise<void>;
     delete: (sessionId: string) => Promise<void>;
     approve: (sessionId: string, requestId: string) => Promise<void>;
-    deny: (sessionId: string, requestId: string, reason?: string) => Promise<void>;
-    onEvent: (callback: (sessionId: string, event: AgentStreamEvent) => void) => () => void;
+    deny: (
+      sessionId: string,
+      requestId: string,
+      reason?: string,
+    ) => Promise<void>;
+    onEvent: (
+      callback: (sessionId: string, event: AgentStreamEvent) => void,
+    ) => () => void;
   };
   app: {
     homePath: string;
@@ -611,26 +758,38 @@ export interface TermCanvasAPI {
       eventsReceived: number;
       parseErrors: number;
     }>;
-    onSessionStarted: (callback: (payload: {
-      terminalId: string;
-      sessionId: string;
-      transcriptPath: string | null;
-      cwd: string | null;
-    }) => void) => () => void;
-    onTurnComplete: (callback: (payload: {
-      terminalId: string;
-      sessionId: string | null;
-    }) => void) => () => void;
-    onStopFailure: (callback: (payload: {
-      terminalId: string;
-      sessionId: string | null;
-      error: string | null;
-      errorDetails: string | null;
-    }) => void) => () => void;
+    onSessionStarted: (
+      callback: (payload: {
+        terminalId: string;
+        sessionId: string;
+        transcriptPath: string | null;
+        cwd: string | null;
+      }) => void,
+    ) => () => void;
+    onTurnComplete: (
+      callback: (payload: {
+        terminalId: string;
+        sessionId: string | null;
+      }) => void,
+    ) => () => void;
+    onStopFailure: (
+      callback: (payload: {
+        terminalId: string;
+        sessionId: string | null;
+        error: string | null;
+        errorDetails: string | null;
+      }) => void,
+    ) => () => void;
   };
   sessions: {
-    onListChanged: (callback: (sessions: import("../../shared/sessions").SessionInfo[]) => void) => () => void;
-    loadReplay: (filePath: string) => Promise<import("../../shared/sessions").ReplayTimeline>;
+    onListChanged: (
+      callback: (
+        sessions: import("../../shared/sessions").SessionInfo[],
+      ) => void,
+    ) => () => void;
+    loadReplay: (
+      filePath: string,
+    ) => Promise<import("../../shared/sessions").ReplayTimeline>;
   };
   menu: {
     onOpenFolder: (callback: (dirPath: string) => void) => () => void;
@@ -639,9 +798,15 @@ export interface TermCanvasAPI {
     check: () => Promise<unknown>;
     install: () => void;
     getVersion: () => Promise<string>;
-    onUpdateAvailable: (callback: (info: UpdateEventInfo) => void) => () => void;
-    onDownloadProgress: (callback: (progress: { percent: number }) => void) => () => void;
-    onUpdateDownloaded: (callback: (info: UpdateEventInfo) => void) => () => void;
+    onUpdateAvailable: (
+      callback: (info: UpdateEventInfo) => void,
+    ) => () => void;
+    onDownloadProgress: (
+      callback: (progress: { percent: number }) => void,
+    ) => () => void;
+    onUpdateDownloaded: (
+      callback: (info: UpdateEventInfo) => void,
+    ) => () => void;
     onError: (callback: (error: { message: string }) => void) => () => void;
   };
 }

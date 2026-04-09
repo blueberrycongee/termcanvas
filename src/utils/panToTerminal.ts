@@ -18,6 +18,7 @@ import { useTileDimensionsStore, setTrackSidebar, recomputeTileDimensions } from
 
 interface PanToTerminalOptions {
   immediate?: boolean;
+  preserveScale?: boolean;
 }
 
 function isAlreadyFocused(terminalId: string): boolean {
@@ -41,8 +42,13 @@ export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): 
 
   const publishedGeometry = getTerminalGeometry(terminalId);
   if (publishedGeometry) {
-    const { rightPanelCollapsed, leftPanelCollapsed, leftPanelWidth } =
-      useCanvasStore.getState();
+    const canvasState = useCanvasStore.getState();
+    const {
+      rightPanelCollapsed,
+      leftPanelCollapsed,
+      leftPanelWidth,
+      viewport,
+    } = canvasState;
     const rightOffset = getCanvasRightInset(rightPanelCollapsed);
     const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
     const padding = 40;
@@ -51,8 +57,9 @@ export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): 
     const viewH = window.innerHeight - padding * 2;
 
     const tileDims = useTileDimensionsStore.getState();
-    const scale =
-      Math.min(viewW / tileDims.w, viewH / tileDims.h) * 0.90;
+    const scale = opts?.preserveScale
+      ? viewport.scale
+      : Math.min(viewW / tileDims.w, viewH / tileDims.h) * 0.90;
 
     let absX = publishedGeometry.x;
     let absY = publishedGeometry.y;
@@ -173,8 +180,13 @@ export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): 
         WT_PAD +
         item.y;
 
-      const { rightPanelCollapsed, leftPanelCollapsed, leftPanelWidth } =
-        useCanvasStore.getState();
+      const canvasState = useCanvasStore.getState();
+      const {
+        rightPanelCollapsed,
+        leftPanelCollapsed,
+        leftPanelWidth,
+        viewport,
+      } = canvasState;
       const rightOffset = getCanvasRightInset(rightPanelCollapsed);
       const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
       const padding = 40;
@@ -183,7 +195,9 @@ export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): 
       const viewH = window.innerHeight - padding * 2;
 
       const tileDims = useTileDimensionsStore.getState();
-      const scale = Math.min(viewW / tileDims.w, viewH / tileDims.h) * 0.90;
+      const scale = opts?.preserveScale
+        ? viewport.scale
+        : Math.min(viewW / tileDims.w, viewH / tileDims.h) * 0.90;
 
       const centerX = clampCenterX(absX, tileDims.w, scale, leftOffset, rightOffset);
       const centerY = -(absY + item.h / 2) * scale + (topInset + window.innerHeight) / 2;

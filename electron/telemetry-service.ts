@@ -1,12 +1,27 @@
 import fs from "node:fs";
 import path from "node:path";
-import {
-  AssignmentManager,
-} from "../hydra/src/assignment/manager.ts";
-import type { AssignmentRecord } from "../hydra/src/assignment/types.ts";
+import { HandoffManager } from "../hydra/src/handoff/manager.ts";
+import type { Handoff } from "../hydra/src/handoff/types.ts";
 import {
   validateSubAgentResult,
 } from "../hydra/src/protocol.ts";
+
+// Compatibility: main's telemetry uses validateResultContract/validateDoneMarker
+// which mapped to the old protocol. Provide thin wrappers.
+function validateResultContract(raw: unknown, handoff: { handoff_id: string; workflow_id: string; artifacts: { result_file: string } }): void {
+  // Best-effort: validate as SubAgentResult if it has the v2 schema, otherwise just check it parses
+  if (typeof raw === "object" && raw !== null && (raw as Record<string, unknown>).schema_version === "hydra/result/v2") {
+    validateSubAgentResult(raw, {
+      workflow_id: handoff.workflow_id,
+      assignment_id: handoff.handoff_id,
+      run_id: ((raw as Record<string, unknown>).run_id as string) ?? "",
+    });
+  }
+}
+
+function validateDoneMarker(_raw: unknown, _handoff: unknown): void {
+  // done markers are not part of the v2 protocol — accept any valid JSON
+}
 import { loadWorkflow } from "../hydra/src/workflow-store.ts";
 import { getProcessSnapshot } from "./process-detector.ts";
 import { parseSessionTelemetryLine } from "./session-watcher.ts";
@@ -18,6 +33,8 @@ import type {
   TelemetryEventPage,
   TelemetryProcessInfo,
   TelemetryProvider,
+  TelemetryTaskStatus,
+  TelemetryTaskStatusSource,
   TelemetryTurnState,
   TerminalTelemetrySnapshot,
   WorkflowTelemetrySnapshot,
@@ -26,16 +43,28 @@ import type { SessionInfo } from "../shared/sessions.ts";
 
 const DEFAULT_EVENT_LIMIT = 200;
 const DEFAULT_STALL_THRESHOLD_MS = 45_000;
+const DEFAULT_CODEX_STALL_THRESHOLD_MS = 180_000;
+const DEFAULT_SESSION_HEARTBEAT_MS = 90_000;
+
+interface ActiveToolCall {
+  callId: string;
+  toolName?: string;
+  eventType: string;
+  startedAt: string;
+}
 
 interface TerminalState {
   id: string;
+  activeToolCalls: Map<string, ActiveToolCall>;
   events: TelemetryEvent[];
   nextEventId: number;
+  lastTerminalTurnAtMs: number | null;
   lastContractKey: string | null;
   lastHookToolAt: number;
   lastProcessKey: string | null;
   pendingPreToolUse: boolean;
   pendingPreToolUseAt: number;
+  awaitingInputTimer: NodeJS.Timeout | null;
   lastTokenTotal: number | null;
   processPollTimer: NodeJS.Timeout | null;
   ptyId: number | null;
@@ -54,7 +83,7 @@ interface RegisterTerminalInput {
   worktreePath: string;
   provider?: TelemetryProvider;
   workflowId?: string;
-  assignmentId?: string;
+  handoffId?: string;
   repoPath?: string;
   ptyId?: number | null;
   shellPid?: number | null;
@@ -65,7 +94,7 @@ interface UpdateTerminalInput {
   worktreePath?: string;
   provider?: TelemetryProvider;
   workflowId?: string;
-  assignmentId?: string;
+  handoffId?: string;
   repoPath?: string;
   ptyId?: number | null;
   shellPid?: number | null;
@@ -82,7 +111,9 @@ interface SessionAttachInput {
 
 interface ContractState {
   resultExists: boolean;
+  doneExists: boolean;
   resultValid?: boolean;
+  doneValid?: boolean;
   contractActivityAt?: string;
 }
 
@@ -90,10 +121,14 @@ function isoNow(now: () => number): string {
   return new Date(now()).toISOString();
 }
 
-function cloneSnapshot(snapshot: TerminalTelemetrySnapshot): TerminalTelemetrySnapshot {
+function cloneSnapshot(
+  snapshot: TerminalTelemetrySnapshot,
+): TerminalTelemetrySnapshot {
   return {
     ...snapshot,
-    descendant_processes: snapshot.descendant_processes.map((process) => ({ ...process })),
+    descendant_processes: snapshot.descendant_processes.map((process) => ({
+      ...process,
+    })),
   };
 }
 
@@ -112,14 +147,6 @@ function safeMtime(filePath: string): string | undefined {
   }
 }
 
-function latestRun(assignment: AssignmentRecord): AssignmentRecord["runs"][number] | null {
-  if (assignment.runs.length === 0) return null;
-  const active = assignment.active_run_id
-    ? assignment.runs.find((run) => run.id === assignment.active_run_id)
-    : null;
-  return active ?? assignment.runs[assignment.runs.length - 1] ?? null;
-}
-
 function summarizeProcesses(processes: TelemetryProcessInfo[]): string {
   return JSON.stringify(
     processes.map((process) => ({
@@ -130,13 +157,41 @@ function summarizeProcesses(processes: TelemetryProcessInfo[]): string {
   );
 }
 
+function isTerminalTurnState(state: TelemetryTurnState): boolean {
+  return state === "turn_complete" || state === "turn_aborted";
+}
+
+function isActiveTurnState(state: TelemetryTurnState): boolean {
+  return (
+    state === "thinking" ||
+    state === "in_turn" ||
+    state === "tool_running" ||
+    state === "tool_pending"
+  );
+}
+
 export function deriveTelemetryStatus(
   snapshot: TerminalTelemetrySnapshot,
   nowMs = Date.now(),
-  stallThresholdMs = DEFAULT_STALL_THRESHOLD_MS,
+  stallThresholdMs?: number,
+  sessionHeartbeatMs = DEFAULT_SESSION_HEARTBEAT_MS,
 ): TelemetryDerivedStatus {
+  const effectiveStallThresholdMs =
+    stallThresholdMs ??
+    (snapshot.provider === "codex"
+      ? DEFAULT_CODEX_STALL_THRESHOLD_MS
+      : DEFAULT_STALL_THRESHOLD_MS);
+
   if (!snapshot.pty_alive) {
     return "exited";
+  }
+
+  if (
+    snapshot.provider === "unknown" &&
+    !snapshot.workflow_id &&
+    !snapshot.session_attached
+  ) {
+    return "idle";
   }
 
   if (snapshot.turn_state === "turn_complete" && snapshot.last_hook_error) {
@@ -145,7 +200,8 @@ export function deriveTelemetryStatus(
 
   if (
     snapshot.turn_state === "turn_complete" &&
-    snapshot.assignment_id &&
+    snapshot.handoff_id &&
+    !snapshot.done_exists &&
     !snapshot.result_exists
   ) {
     return "awaiting_contract";
@@ -160,18 +216,60 @@ export function deriveTelemetryStatus(
     return "starting";
   }
 
+  // Hard evidence from hooks: tool calls are actively running
+  if (snapshot.active_tool_calls > 0) {
+    return "progressing";
+  }
+
   if (
     snapshot.turn_state === "thinking" ||
     snapshot.turn_state === "tool_running" ||
     snapshot.turn_state === "tool_pending" ||
+    snapshot.turn_state === "awaiting_input" ||
     !!snapshot.foreground_tool
   ) {
     return "progressing";
   }
 
+  // Codex doesn't emit "thinking" — in_turn with an attached session
+  // means the model is reasoning between tool calls.  Guard with a
+  // recency check so stale sessions (e.g. CLI crashed without Stop
+  // hook) don't stay "progressing" forever.
+  if (snapshot.turn_state === "in_turn" && snapshot.session_attached) {
+    const anchor =
+      snapshot.last_session_event_at ?? snapshot.last_meaningful_progress_at;
+    if (anchor) {
+      const anchorMs = new Date(anchor).getTime();
+      if (Number.isFinite(anchorMs) && nowMs - anchorMs <= sessionHeartbeatMs) {
+        return "progressing";
+      }
+    }
+  }
+
+  if (
+    snapshot.turn_state !== "turn_complete" &&
+    snapshot.turn_state !== "turn_aborted" &&
+    snapshot.last_session_event_at
+  ) {
+    const lastSessionEventMs = new Date(
+      snapshot.last_session_event_at,
+    ).getTime();
+    if (
+      Number.isFinite(lastSessionEventMs) &&
+      nowMs - lastSessionEventMs <= sessionHeartbeatMs
+    ) {
+      return "progressing";
+    }
+  }
+
   if (snapshot.last_meaningful_progress_at) {
-    const lastProgressMs = new Date(snapshot.last_meaningful_progress_at).getTime();
-    if (Number.isFinite(lastProgressMs) && nowMs - lastProgressMs <= stallThresholdMs) {
+    const lastProgressMs = new Date(
+      snapshot.last_meaningful_progress_at,
+    ).getTime();
+    if (
+      Number.isFinite(lastProgressMs) &&
+      nowMs - lastProgressMs <= effectiveStallThresholdMs
+    ) {
       return "progressing";
     }
   }
@@ -183,19 +281,70 @@ export function deriveTelemetryStatus(
   return "starting";
 }
 
-function buildBaseSnapshot(input: RegisterTerminalInput): TerminalTelemetrySnapshot {
+export function deriveTelemetryTaskStatus(
+  snapshot: TerminalTelemetrySnapshot,
+  nowMs = Date.now(),
+  sessionHeartbeatMs = DEFAULT_SESSION_HEARTBEAT_MS,
+): { status: TelemetryTaskStatus; source: TelemetryTaskStatusSource } {
+  if (snapshot.active_tool_calls > 0) {
+    return { status: "running", source: "active_tool_calls" };
+  }
+
+  if (
+    snapshot.turn_state === "tool_running" ||
+    snapshot.turn_state === "tool_pending" ||
+    snapshot.turn_state === "thinking" ||
+    snapshot.turn_state === "awaiting_input" ||
+    snapshot.turn_state === "in_turn"
+  ) {
+    return { status: "running", source: "turn_state" };
+  }
+
+  if (
+    snapshot.turn_state === "turn_complete" ||
+    snapshot.turn_state === "turn_aborted"
+  ) {
+    return { status: "idle", source: "turn_state" };
+  }
+
+  if (snapshot.session_attached && snapshot.last_session_event_at) {
+    const lastSessionEventMs = new Date(
+      snapshot.last_session_event_at,
+    ).getTime();
+    if (
+      Number.isFinite(lastSessionEventMs) &&
+      nowMs - lastSessionEventMs <= sessionHeartbeatMs
+    ) {
+      return { status: "running", source: "session_heartbeat" };
+    }
+  }
+
+  if (!snapshot.pty_alive) {
+    return { status: "idle", source: "none" };
+  }
+
+  return { status: "unknown", source: "none" };
+}
+
+function buildBaseSnapshot(
+  input: RegisterTerminalInput,
+): TerminalTelemetrySnapshot {
   return {
     terminal_id: input.terminalId,
     worktree_path: input.worktreePath,
     provider: input.provider ?? "unknown",
     workflow_id: input.workflowId,
-    assignment_id: input.assignmentId,
+    handoff_id: input.handoffId,
     repo_path: input.repoPath,
     session_attached: false,
     session_attach_confidence: "none",
     turn_state: "unknown",
     pty_alive: false,
     descendant_processes: [],
+    active_tool_calls: 0,
+    task_status: "unknown",
+    task_status_source: "none",
+    done_exists: false,
     result_exists: false,
     derived_status: "starting",
   };
@@ -207,10 +356,14 @@ export class TelemetryService {
   private readonly processPollIntervalMs: number;
   private readonly sessionPollIntervalMs: number;
   private readonly sessionPrimeBytes: number;
-  private readonly stallThresholdMs: number;
+  private readonly stallThresholdMs: number | undefined;
+  private readonly sessionHeartbeatMs: number;
   private readonly ptyToTerminal = new Map<number, string>();
   private readonly terminals = new Map<string, TerminalState>();
-  private readonly onSnapshotChanged?: (terminalId: string, snapshot: TerminalTelemetrySnapshot) => void;
+  private readonly onSnapshotChanged?: (
+    terminalId: string,
+    snapshot: TerminalTelemetrySnapshot,
+  ) => void;
 
   constructor(options?: {
     eventLimit?: number;
@@ -219,14 +372,20 @@ export class TelemetryService {
     sessionPollIntervalMs?: number;
     sessionPrimeBytes?: number;
     stallThresholdMs?: number;
-    onSnapshotChanged?: (terminalId: string, snapshot: TerminalTelemetrySnapshot) => void;
+    sessionHeartbeatMs?: number;
+    onSnapshotChanged?: (
+      terminalId: string,
+      snapshot: TerminalTelemetrySnapshot,
+    ) => void;
   }) {
     this.eventLimit = options?.eventLimit ?? DEFAULT_EVENT_LIMIT;
     this.now = options?.now ?? Date.now;
     this.processPollIntervalMs = options?.processPollIntervalMs ?? 15_000;
     this.sessionPollIntervalMs = options?.sessionPollIntervalMs ?? 10_000;
     this.sessionPrimeBytes = options?.sessionPrimeBytes ?? 262_144;
-    this.stallThresholdMs = options?.stallThresholdMs ?? DEFAULT_STALL_THRESHOLD_MS;
+    this.stallThresholdMs = options?.stallThresholdMs;
+    this.sessionHeartbeatMs =
+      options?.sessionHeartbeatMs ?? DEFAULT_SESSION_HEARTBEAT_MS;
     this.onSnapshotChanged = options?.onSnapshotChanged;
   }
 
@@ -235,7 +394,7 @@ export class TelemetryService {
     state.snapshot.worktree_path = input.worktreePath;
     state.snapshot.provider = input.provider ?? state.snapshot.provider;
     state.snapshot.workflow_id = input.workflowId ?? state.snapshot.workflow_id;
-    state.snapshot.assignment_id = input.assignmentId ?? state.snapshot.assignment_id;
+    state.snapshot.handoff_id = input.handoffId ?? state.snapshot.handoff_id;
     state.snapshot.repo_path = input.repoPath ?? state.snapshot.repo_path;
     if (input.ptyId !== undefined) {
       if (state.ptyId !== null && state.ptyId !== input.ptyId) {
@@ -262,7 +421,7 @@ export class TelemetryService {
       state.snapshot.provider = input.provider;
     }
     state.snapshot.workflow_id = input.workflowId ?? state.snapshot.workflow_id;
-    state.snapshot.assignment_id = input.assignmentId ?? state.snapshot.assignment_id;
+    state.snapshot.handoff_id = input.handoffId ?? state.snapshot.handoff_id;
     state.snapshot.repo_path = input.repoPath ?? state.snapshot.repo_path;
     if (input.ptyId !== undefined) {
       if (state.ptyId !== null && state.ptyId !== input.ptyId) {
@@ -293,8 +452,11 @@ export class TelemetryService {
     }
     state.ptyId = input.ptyId;
     state.shellPid = input.shellPid ?? state.shellPid;
+    state.activeToolCalls.clear();
+    state.lastTerminalTurnAtMs = null;
     state.snapshot.pty_alive = true;
     state.snapshot.exit_code = undefined;
+    state.snapshot.active_tool_calls = 0;
     this.ptyToTerminal.set(input.ptyId, input.terminalId);
     this.appendEvent(state, input.at, "pty", "pty_created", {
       pty_id: input.ptyId,
@@ -310,7 +472,9 @@ export class TelemetryService {
     const state = this.ensureState(terminalId);
     const timestamp = at ?? isoNow(this.now);
     state.snapshot.last_input_at = timestamp;
-    this.appendEvent(state, timestamp, "pty", "pty_input", { bytes: data.length });
+    this.appendEvent(state, timestamp, "pty", "pty_input", {
+      bytes: data.length,
+    });
     this.updateDerivedStatus(state);
   }
 
@@ -324,7 +488,9 @@ export class TelemetryService {
     const state = this.ensureState(terminalId);
     const timestamp = at ?? isoNow(this.now);
     state.snapshot.last_output_at = timestamp;
-    this.appendEvent(state, timestamp, "pty", "pty_output", { bytes: data.length });
+    this.appendEvent(state, timestamp, "pty", "pty_output", {
+      bytes: data.length,
+    });
     this.updateDerivedStatus(state);
   }
 
@@ -341,10 +507,16 @@ export class TelemetryService {
       this.ptyToTerminal.delete(state.ptyId);
     }
     state.ptyId = null;
+    state.activeToolCalls.clear();
+    state.lastTerminalTurnAtMs = null;
     state.snapshot.pty_alive = false;
     state.snapshot.exit_code = exitCode;
+    state.snapshot.active_tool_calls = 0;
+    state.snapshot.foreground_tool = undefined;
     this.stopProcessPolling(state);
-    this.appendEvent(state, timestamp, "pty", "pty_exit", { exit_code: exitCode });
+    this.appendEvent(state, timestamp, "pty", "pty_exit", {
+      exit_code: exitCode,
+    });
     this.updateDerivedStatus(state);
   }
 
@@ -397,7 +569,9 @@ export class TelemetryService {
   ): void {
     const state = this.ensureState(terminalId);
     const timestamp = at ?? isoNow(this.now);
-    this.appendEvent(state, timestamp, "session", "session_attach_failed", { reason });
+    this.appendEvent(state, timestamp, "session", "session_attach_failed", {
+      reason,
+    });
     this.updateDerivedStatus(state);
   }
 
@@ -414,16 +588,65 @@ export class TelemetryService {
     const state = this.ensureState(terminalId);
     for (const event of events) {
       const timestamp = event.at ?? isoNow(this.now);
+      const eventAtMs = new Date(timestamp).getTime();
       const previousTurnState = state.snapshot.turn_state;
       state.snapshot.last_session_event_at = timestamp;
       state.snapshot.last_session_event_kind = event.event_type;
+
+      if (event.call_id && event.lifecycle) {
+        state.snapshot.last_tool_event_at = timestamp;
+        if (event.lifecycle === "start") {
+          state.activeToolCalls.set(event.call_id, {
+            callId: event.call_id,
+            toolName: event.tool_name,
+            eventType: event.event_type,
+            startedAt: timestamp,
+          });
+          if (!state.pendingPreToolUse && event.tool_name) {
+            state.snapshot.foreground_tool = event.tool_name;
+          }
+        } else if (event.lifecycle === "end") {
+          state.activeToolCalls.delete(event.call_id);
+          if (!state.pendingPreToolUse && state.activeToolCalls.size === 0) {
+            state.snapshot.foreground_tool = undefined;
+          }
+        }
+      }
+      state.snapshot.active_tool_calls = state.activeToolCalls.size;
+
       if (event.turn_state) {
-        state.snapshot.turn_state = event.turn_state;
+        // Preserve awaiting_input set by the 5s timer — JSONL events
+        // written before the permission dialog can arrive late via the
+        // session poller and would otherwise clobber the state.
+        const preserveAwaitingInput =
+          state.pendingPreToolUse &&
+          state.snapshot.turn_state === "awaiting_input";
+        const preserveTerminalTurnState =
+          isTerminalTurnState(state.snapshot.turn_state) &&
+          isActiveTurnState(event.turn_state) &&
+          state.lastTerminalTurnAtMs !== null &&
+          Number.isFinite(eventAtMs) &&
+          eventAtMs <= state.lastTerminalTurnAtMs;
+        if (!preserveAwaitingInput && !preserveTerminalTurnState) {
+          state.snapshot.turn_state = event.turn_state;
+          if (
+            isTerminalTurnState(event.turn_state) &&
+            Number.isFinite(eventAtMs)
+          ) {
+            state.lastTerminalTurnAtMs = eventAtMs;
+          }
+        }
       }
 
       let meaningfulProgress = event.meaningful_progress === true;
-      if (event.event_type === "token_count" && typeof event.token_total === "number") {
-        if (state.lastTokenTotal === null || event.token_total > state.lastTokenTotal) {
+      if (
+        event.event_type === "token_count" &&
+        typeof event.token_total === "number"
+      ) {
+        if (
+          state.lastTokenTotal === null ||
+          event.token_total > state.lastTokenTotal
+        ) {
           meaningfulProgress = true;
         }
         state.lastTokenTotal = event.token_total;
@@ -438,15 +661,44 @@ export class TelemetryService {
         event_subtype: event.event_subtype ?? null,
         role: event.role ?? null,
         tool_name: event.tool_name ?? null,
+        call_id: event.call_id ?? null,
+        lifecycle: event.lifecycle ?? null,
+        active_tool_calls: state.snapshot.active_tool_calls,
         token_total: event.token_total ?? null,
         raw_ref: event.raw_ref ?? null,
       });
 
-      if (event.turn_state && event.turn_state !== previousTurnState) {
-        this.appendEvent(state, timestamp, "session", "session_turn_state_changed", {
-          from: previousTurnState,
-          to: event.turn_state,
-        });
+      if (
+        event.turn_state &&
+        state.snapshot.turn_state === event.turn_state &&
+        event.turn_state !== previousTurnState
+      ) {
+        // Track when a turn begins for elapsed-time display
+        const enteringTurn = isActiveTurnState(event.turn_state);
+        const wasTurnComplete =
+          previousTurnState === "turn_complete" ||
+          previousTurnState === "turn_aborted" ||
+          previousTurnState === "unknown";
+        if (enteringTurn && wasTurnComplete) {
+          state.snapshot.turn_started_at = timestamp;
+        }
+        if (
+          event.turn_state === "turn_complete" ||
+          event.turn_state === "turn_aborted"
+        ) {
+          state.snapshot.turn_started_at = undefined;
+        }
+
+        this.appendEvent(
+          state,
+          timestamp,
+          "session",
+          "session_turn_state_changed",
+          {
+            from: previousTurnState,
+            to: event.turn_state,
+          },
+        );
       }
     }
 
@@ -471,9 +723,11 @@ export class TelemetryService {
 
     state.lastProcessKey = processKey;
     state.snapshot.process_snapshot_at = timestamp;
-    state.snapshot.descendant_processes = snapshot.descendantProcesses.map((process) => ({
-      ...process,
-    }));
+    state.snapshot.descendant_processes = snapshot.descendantProcesses.map(
+      (process) => ({
+        ...process,
+      }),
+    );
 
     // Don't let ps data overwrite hook-set foreground_tool while a tool is running
     if (state.pendingPreToolUse) {
@@ -483,8 +737,13 @@ export class TelemetryService {
           `[Telemetry] Resetting stale pendingPreToolUse for terminal=${terminalId} (>5min without PostToolUse)`,
         );
         state.pendingPreToolUse = false;
+        state.snapshot.pending_tool_use_at = undefined;
         state.snapshot.turn_state = "unknown";
         state.snapshot.foreground_tool = snapshot.foregroundTool ?? undefined;
+        if (state.awaitingInputTimer) {
+          clearTimeout(state.awaitingInputTimer);
+          state.awaitingInputTimer = null;
+        }
       }
     } else {
       state.snapshot.foreground_tool = snapshot.foregroundTool ?? undefined;
@@ -550,81 +809,88 @@ export class TelemetryService {
     };
   }
 
-  getWorkflowSnapshot(repoPath: string, workflowId: string): WorkflowTelemetrySnapshot | null {
+  getWorkflowSnapshot(
+    repoPath: string,
+    workflowId: string,
+  ): WorkflowTelemetrySnapshot | null {
     const workflow = loadWorkflow(repoPath, workflowId);
     if (!workflow) return null;
 
-    const assignmentManager = new AssignmentManager(repoPath, workflowId);
-    // Find the first dispatched node's assignment
-    const dispatchedNodeId = Object.entries(workflow.node_statuses ?? {})
-      .find(([, s]) => s === "dispatched")?.[0];
-    const dispatchedNode = dispatchedNodeId ? workflow.nodes?.[dispatchedNodeId] : undefined;
-    const assignmentId = dispatchedNode?.assignment_id ?? workflow.assignment_ids?.[workflow.assignment_ids.length - 1];
-    if (!assignmentId) return null;
-    const assignment = assignmentManager.load(assignmentId);
-    if (!assignment) return null;
+    const handoffManager = new HandoffManager(repoPath);
+    const handoff = handoffManager.load(workflow.current_handoff_id);
+    if (!handoff) return null;
 
-    const run = latestRun(assignment);
-    const terminalId = run?.terminal_id ?? null;
+    const terminalId = handoff.dispatch?.active_terminal_id ?? null;
     const terminal = terminalId ? this.getTerminalSnapshot(terminalId) : null;
-    const contract = this.probeContractState(workflow, assignment);
+    const contract = this.probeContractState(handoff);
     const lastMeaningfulProgressAt = latestIso(
       terminal?.last_meaningful_progress_at,
       contract.contractActivityAt,
     );
 
-    const startedAt = run?.started_at ?? workflow.updated_at;
+    const startedAt =
+      handoff.dispatch?.attempts.at(-1)?.started_at ?? workflow.updated_at;
     const startedMs = new Date(startedAt).getTime();
     const deadlineMs =
-      Number.isFinite(startedMs) && typeof assignment.timeout_minutes === "number"
-        ? startedMs + assignment.timeout_minutes * 60_000
+      Number.isFinite(startedMs) && typeof handoff.timeout_minutes === "number"
+        ? startedMs + handoff.timeout_minutes * 60_000
         : undefined;
 
     return {
       workflow_id: workflow.id,
       repo_path: workflow.repo_path,
       workflow_status: workflow.status,
-      current_assignment_id: assignment.id,  // populated from first dispatched node
+      current_handoff_id: handoff.id,
       terminal_id: terminalId,
       terminal,
       contract: {
         result_exists: contract.resultExists,
+        done_exists: contract.doneExists,
         result_valid: contract.resultValid,
+        done_valid: contract.doneValid,
         contract_activity_at: contract.contractActivityAt,
       },
       last_meaningful_progress_at: lastMeaningfulProgressAt,
       retry_budget: {
-        used: assignment.retry_count,
-        max: assignment.max_retries,
-        remaining: Math.max(0, assignment.max_retries - assignment.retry_count),
+        used: handoff.retry_count,
+        max: handoff.max_retries,
+        remaining: Math.max(0, handoff.max_retries - handoff.retry_count),
       },
       timeout_budget: {
-        minutes: assignment.timeout_minutes ?? workflow.timeout_minutes,
+        minutes: handoff.timeout_minutes ?? workflow.timeout_minutes,
         started_at: startedAt,
-        deadline_at: deadlineMs ? new Date(deadlineMs).toISOString() : undefined,
+        deadline_at: deadlineMs
+          ? new Date(deadlineMs).toISOString()
+          : undefined,
         remaining_ms:
-          deadlineMs !== undefined ? Math.max(0, deadlineMs - this.now()) : undefined,
+          deadlineMs !== undefined
+            ? Math.max(0, deadlineMs - this.now())
+            : undefined,
       },
       advisory_status: terminal?.derived_status ?? "unavailable",
     };
   }
 
-  recordHookEvent(terminalId: string, event: {
-    hook_event_name: string;
-    session_id?: string;
-    transcript_path?: string;
-    cwd?: string;
-    [key: string]: unknown;
-  }): void {
+  recordHookEvent(
+    terminalId: string,
+    event: {
+      hook_event_name: string;
+      session_id?: string;
+      transcript_path?: string;
+      cwd?: string;
+      [key: string]: unknown;
+    },
+  ): void {
     const state = this.ensureState(terminalId);
     const at = isoNow(this.now);
 
     switch (event.hook_event_name) {
       case "SessionStart":
         if (event.session_id) {
+          const provider = state.snapshot.provider || "claude";
           this.recordSessionAttached({
             terminalId,
-            provider: "claude",
+            provider,
             sessionId: event.session_id as string,
             confidence: "strong",
             sessionFile: (event.transcript_path as string) ?? undefined,
@@ -632,7 +898,7 @@ export class TelemetryService {
           if (event.transcript_path) {
             this.attachSessionSource({
               terminalId,
-              provider: "claude",
+              provider,
               sessionId: event.session_id as string,
               confidence: "strong",
               sessionFile: event.transcript_path as string,
@@ -641,6 +907,7 @@ export class TelemetryService {
         }
         state.snapshot.last_hook_error = undefined;
         state.snapshot.last_hook_error_details = undefined;
+        state.snapshot.turn_started_at = at;
         this.appendEvent(state, at, "session", "hook_session_start", {
           session_id: event.session_id ?? null,
           source: event.source ?? null,
@@ -649,10 +916,20 @@ export class TelemetryService {
         break;
 
       case "Stop":
+        if (state.awaitingInputTimer) {
+          clearTimeout(state.awaitingInputTimer);
+          state.awaitingInputTimer = null;
+        }
         state.pendingPreToolUse = false;
+        state.snapshot.pending_tool_use_at = undefined;
+        state.activeToolCalls.clear();
+        state.lastTerminalTurnAtMs = this.now();
+        state.snapshot.active_tool_calls = 0;
+        state.snapshot.foreground_tool = undefined;
         state.snapshot.last_hook_error = undefined;
         state.snapshot.last_hook_error_details = undefined;
         state.snapshot.turn_state = "turn_complete";
+        state.snapshot.turn_started_at = undefined;
         state.snapshot.last_meaningful_progress_at = at;
         this.appendEvent(state, at, "session", "hook_stop", {
           last_assistant_message: event.last_assistant_message ?? null,
@@ -660,10 +937,24 @@ export class TelemetryService {
         break;
 
       case "StopFailure":
+        if (state.awaitingInputTimer) {
+          clearTimeout(state.awaitingInputTimer);
+          state.awaitingInputTimer = null;
+        }
         state.pendingPreToolUse = false;
+        state.snapshot.pending_tool_use_at = undefined;
+        state.activeToolCalls.clear();
+        state.lastTerminalTurnAtMs = this.now();
+        state.snapshot.active_tool_calls = 0;
+        state.snapshot.foreground_tool = undefined;
         state.snapshot.turn_state = "turn_complete";
-        state.snapshot.last_hook_error = typeof event.error === "string" ? event.error : "unknown";
-        state.snapshot.last_hook_error_details = typeof event.error_details === "string" ? event.error_details : undefined;
+        state.snapshot.turn_started_at = undefined;
+        state.snapshot.last_hook_error =
+          typeof event.error === "string" ? event.error : "unknown";
+        state.snapshot.last_hook_error_details =
+          typeof event.error_details === "string"
+            ? event.error_details
+            : undefined;
         this.appendEvent(state, at, "session", "hook_stop_failure", {
           error: event.error ?? null,
           error_details: event.error_details ?? null,
@@ -677,19 +968,37 @@ export class TelemetryService {
             `[Telemetry] Missed PostToolUse for terminal=${terminalId} (new PreToolUse arrived while pending)`,
           );
         }
+        if (state.awaitingInputTimer) {
+          clearTimeout(state.awaitingInputTimer);
+        }
         state.pendingPreToolUse = true;
         state.pendingPreToolUseAt = this.now();
+        state.snapshot.pending_tool_use_at = at;
+        state.snapshot.active_tool_calls = 1;
         state.snapshot.turn_state = "tool_running";
         state.snapshot.last_meaningful_progress_at = at;
         state.snapshot.foreground_tool = event.tool_name as string | undefined;
         state.lastHookToolAt = this.now();
+        state.awaitingInputTimer = setTimeout(() => {
+          state.awaitingInputTimer = null;
+          if (state.pendingPreToolUse) {
+            state.snapshot.turn_state = "awaiting_input";
+            this.updateDerivedStatus(state, { force: true });
+          }
+        }, 5_000);
         this.appendEvent(state, at, "session", "hook_pre_tool", {
           tool_name: event.tool_name ?? null,
         });
         break;
 
       case "PostToolUse":
+        if (state.awaitingInputTimer) {
+          clearTimeout(state.awaitingInputTimer);
+          state.awaitingInputTimer = null;
+        }
         state.pendingPreToolUse = false;
+        state.snapshot.pending_tool_use_at = undefined;
+        state.snapshot.active_tool_calls = 0;
         state.snapshot.turn_state = "in_turn";
         state.snapshot.last_meaningful_progress_at = at;
         state.snapshot.foreground_tool = undefined;
@@ -700,7 +1009,13 @@ export class TelemetryService {
         break;
 
       case "PostToolUseFailure":
+        if (state.awaitingInputTimer) {
+          clearTimeout(state.awaitingInputTimer);
+          state.awaitingInputTimer = null;
+        }
         state.pendingPreToolUse = false;
+        state.snapshot.pending_tool_use_at = undefined;
+        state.snapshot.active_tool_calls = 0;
         state.snapshot.turn_state = "in_turn";
         state.snapshot.foreground_tool = undefined;
         this.appendEvent(state, at, "session", "hook_post_tool_failure", {
@@ -712,6 +1027,7 @@ export class TelemetryService {
 
       case "UserPromptSubmit":
         state.snapshot.turn_state = "in_turn";
+        state.snapshot.turn_started_at = at;
         state.snapshot.last_meaningful_progress_at = at;
         this.appendEvent(state, at, "session", "hook_user_prompt", {
           prompt: event.prompt ?? null,
@@ -719,6 +1035,11 @@ export class TelemetryService {
         break;
 
       case "SessionEnd":
+        state.pendingPreToolUse = false;
+        state.snapshot.pending_tool_use_at = undefined;
+        state.activeToolCalls.clear();
+        state.snapshot.active_tool_calls = 0;
+        state.snapshot.foreground_tool = undefined;
         this.appendEvent(state, at, "session", "hook_session_end", {
           reason: event.reason ?? null,
         });
@@ -753,7 +1074,13 @@ export class TelemetryService {
         break;
 
       default:
-        this.appendEvent(state, at, "session", `hook_${event.hook_event_name}`, {});
+        this.appendEvent(
+          state,
+          at,
+          "session",
+          `hook_${event.hook_event_name}`,
+          {},
+        );
         break;
     }
 
@@ -775,13 +1102,16 @@ export class TelemetryService {
     if (existing) return existing;
     const state: TerminalState = {
       id: terminalId,
+      activeToolCalls: new Map<string, ActiveToolCall>(),
       events: [],
       nextEventId: 1,
+      lastTerminalTurnAtMs: null,
       lastContractKey: null,
       lastHookToolAt: 0,
       lastProcessKey: null,
       pendingPreToolUse: false,
       pendingPreToolUseAt: 0,
+      awaitingInputTimer: null,
       lastTokenTotal: null,
       processPollTimer: null,
       ptyId: registration?.ptyId ?? null,
@@ -796,7 +1126,7 @@ export class TelemetryService {
         registration ?? {
           terminalId,
           worktreePath: "",
-        }
+        },
       ),
     };
     this.terminals.set(terminalId, state);
@@ -818,7 +1148,7 @@ export class TelemetryService {
       at: at ?? isoNow(this.now),
       terminal_id: state.snapshot.terminal_id,
       workflow_id: state.snapshot.workflow_id,
-      assignment_id: state.snapshot.assignment_id,
+      handoff_id: state.snapshot.handoff_id,
       source,
       kind,
       data,
@@ -829,101 +1159,168 @@ export class TelemetryService {
     }
   }
 
-  private probeContractState(workflow: NonNullable<ReturnType<typeof loadWorkflow>>, assignment: AssignmentRecord): ContractState {
-    const run = latestRun(assignment);
-    if (!run) {
+  private probeContractState(handoff: Handoff): ContractState {
+    const artifacts = handoff.artifacts;
+    if (!artifacts) {
       return {
         resultExists: false,
+        doneExists: false,
       };
     }
 
-    const resultExists = fs.existsSync(run.result_file);
+    const resultExists = fs.existsSync(artifacts.result_file);
+    const doneExists = fs.existsSync(artifacts.done_file);
     let resultValid: boolean | undefined;
+    let doneValid: boolean | undefined;
+    const handoffContract = {
+      handoff_id: handoff.id,
+      workflow_id: handoff.workflow_id,
+      artifacts,
+    };
 
     if (resultExists) {
       try {
-        const raw = JSON.parse(fs.readFileSync(run.result_file, "utf-8"));
-        validateSubAgentResult(raw, {
-          workflow_id: workflow.id,
-          assignment_id: assignment.id,
-          run_id: run.id,
-        });
+        const raw = JSON.parse(fs.readFileSync(artifacts.result_file, "utf-8"));
+        validateResultContract(raw, handoffContract);
         resultValid = true;
       } catch {
         resultValid = false;
       }
     }
 
+    if (doneExists) {
+      try {
+        const raw = JSON.parse(fs.readFileSync(artifacts.done_file, "utf-8"));
+        validateDoneMarker(raw, handoffContract);
+        doneValid = true;
+      } catch {
+        doneValid = false;
+      }
+    }
+
     return {
       resultExists,
+      doneExists,
       resultValid,
-      contractActivityAt: safeMtime(run.result_file),
+      doneValid,
+      contractActivityAt: latestIso(
+        safeMtime(artifacts.result_file),
+        safeMtime(artifacts.done_file),
+      ),
     };
   }
 
   private syncContractState(state: TerminalState): void {
-    if (!state.snapshot.repo_path || !state.snapshot.assignment_id || !state.snapshot.workflow_id) {
+    if (!state.snapshot.repo_path || !state.snapshot.handoff_id) {
       return;
     }
 
-    const workflow = loadWorkflow(state.snapshot.repo_path, state.snapshot.workflow_id);
-    if (!workflow) {
+    const handoff = new HandoffManager(state.snapshot.repo_path).load(
+      state.snapshot.handoff_id,
+    );
+    if (!handoff) {
       return;
     }
 
-    const assignment = new AssignmentManager(state.snapshot.repo_path, state.snapshot.workflow_id)
-      .load(state.snapshot.assignment_id);
-    if (!assignment) {
-      return;
-    }
-
-    const contract = this.probeContractState(workflow, assignment);
+    const contract = this.probeContractState(handoff);
     const contractKey = JSON.stringify(contract);
     const previousActivityAt = state.snapshot.contract_activity_at;
 
     state.snapshot.result_exists = contract.resultExists;
+    state.snapshot.done_exists = contract.doneExists;
     state.snapshot.result_valid = contract.resultValid;
+    state.snapshot.done_valid = contract.doneValid;
     state.snapshot.contract_activity_at = contract.contractActivityAt;
 
     if (contractKey !== state.lastContractKey) {
       state.lastContractKey = contractKey;
       if (contract.contractActivityAt) {
-        state.snapshot.last_meaningful_progress_at = contract.contractActivityAt;
+        state.snapshot.last_meaningful_progress_at =
+          contract.contractActivityAt;
       }
 
       if (contract.resultExists) {
-        this.appendEvent(state, contract.contractActivityAt, "contract", "result_written", {});
+        this.appendEvent(
+          state,
+          contract.contractActivityAt,
+          "contract",
+          "result_written",
+          {},
+        );
       }
-      if (contract.resultValid === false) {
-        this.appendEvent(state, contract.contractActivityAt, "contract", "contract_invalid", {
-          result_valid: contract.resultValid ?? null,
-        });
-      } else if (contract.resultValid) {
-        this.appendEvent(state, contract.contractActivityAt, "contract", "contract_validated", {
-          result_valid: contract.resultValid ?? null,
-        });
+      if (contract.doneExists) {
+        this.appendEvent(
+          state,
+          contract.contractActivityAt,
+          "contract",
+          "done_written",
+          {},
+        );
       }
-    } else if (contract.contractActivityAt && contract.contractActivityAt !== previousActivityAt) {
+      if (contract.resultValid === false || contract.doneValid === false) {
+        this.appendEvent(
+          state,
+          contract.contractActivityAt,
+          "contract",
+          "contract_invalid",
+          {
+            result_valid: contract.resultValid ?? null,
+            done_valid: contract.doneValid ?? null,
+          },
+        );
+      } else if (contract.resultValid || contract.doneValid) {
+        this.appendEvent(
+          state,
+          contract.contractActivityAt,
+          "contract",
+          "contract_validated",
+          {
+            result_valid: contract.resultValid ?? null,
+            done_valid: contract.doneValid ?? null,
+          },
+        );
+      }
+    } else if (
+      contract.contractActivityAt &&
+      contract.contractActivityAt !== previousActivityAt
+    ) {
       state.snapshot.last_meaningful_progress_at = contract.contractActivityAt;
     }
   }
 
-  private updateDerivedStatus(state: TerminalState): void {
+  private updateDerivedStatus(
+    state: TerminalState,
+    options?: { force?: boolean },
+  ): void {
     const prev = state.snapshot.derived_status;
     const prevTurn = state.snapshot.turn_state;
     const prevTool = state.snapshot.foreground_tool;
+    const prevTaskStatus = state.snapshot.task_status;
+    const prevTaskStatusSource = state.snapshot.task_status_source;
+
+    const taskStatus = deriveTelemetryTaskStatus(
+      state.snapshot,
+      this.now(),
+      this.sessionHeartbeatMs,
+    );
+    state.snapshot.task_status = taskStatus.status;
+    state.snapshot.task_status_source = taskStatus.source;
 
     state.snapshot.derived_status = deriveTelemetryStatus(
       state.snapshot,
       this.now(),
       this.stallThresholdMs,
+      this.sessionHeartbeatMs,
     );
 
     if (
       this.onSnapshotChanged &&
-      (state.snapshot.derived_status !== prev ||
+      (options?.force ||
+        state.snapshot.derived_status !== prev ||
         state.snapshot.turn_state !== prevTurn ||
-        state.snapshot.foreground_tool !== prevTool)
+        state.snapshot.foreground_tool !== prevTool ||
+        state.snapshot.task_status !== prevTaskStatus ||
+        state.snapshot.task_status_source !== prevTaskStatusSource)
     ) {
       this.onSnapshotChanged(state.id, { ...state.snapshot });
     }
@@ -947,9 +1344,7 @@ export class TelemetryService {
           })),
           foregroundTool: snapshot.foregroundTool,
         });
-      } catch {
-        // Process tree sampling is advisory only.
-      }
+      } catch {}
     };
     void poll();
     state.processPollTimer = setInterval(() => {
@@ -1018,19 +1413,20 @@ export class TelemetryService {
         if (!line.trim()) continue;
         this.recordSessionTelemetry(
           state.snapshot.terminal_id,
-          parseSessionTelemetryLine(line, state.snapshot.provider === "claude" ? "claude" : "codex"),
+          parseSessionTelemetryLine(
+            line,
+            state.snapshot.provider === "claude" ? "claude" : "codex",
+          ),
         );
       }
       state.sessionRemainder = trailing === "" ? "" : trailing;
-      state.sessionOffset = size - Buffer.byteLength(state.sessionRemainder, "utf-8");
-    } catch {
-      // Session file might not exist yet.
-    }
+      state.sessionOffset =
+        size - Buffer.byteLength(state.sessionRemainder, "utf-8");
+    } catch {}
   }
 
   private async readSessionDelta(state: TerminalState): Promise<void> {
     if (!state.sessionFile || state.sessionReadInFlight) return;
-    // Skip if hook events already provided recent state
     if (this.now() - state.lastHookToolAt < 2_000) return;
     state.sessionReadInFlight = true;
     try {
@@ -1057,13 +1453,17 @@ export class TelemetryService {
       const chunk = `${state.sessionRemainder}${buffer.toString("utf-8")}`;
       const lines = chunk.split("\n");
       state.sessionRemainder = lines.pop() ?? "";
-      state.sessionOffset = stat.size - Buffer.byteLength(state.sessionRemainder, "utf-8");
+      state.sessionOffset =
+        stat.size - Buffer.byteLength(state.sessionRemainder, "utf-8");
 
       for (const line of lines) {
         if (!line.trim()) continue;
         this.recordSessionTelemetry(
           state.snapshot.terminal_id,
-          parseSessionTelemetryLine(line, state.snapshot.provider === "claude" ? "claude" : "codex"),
+          parseSessionTelemetryLine(
+            line,
+            state.snapshot.provider === "claude" ? "claude" : "codex",
+          ),
         );
       }
     } finally {
@@ -1077,8 +1477,11 @@ export class TelemetryService {
       const snap = state.snapshot;
       if (!snap.session_id || !snap.session_file) continue;
 
-      const sessionEvents = state.events.filter(e => e.source === "session");
-      const startedAt = sessionEvents[0]?.at ?? snap.last_meaningful_progress_at ?? new Date().toISOString();
+      const sessionEvents = state.events.filter((e) => e.source === "session");
+      const startedAt =
+        sessionEvents[0]?.at ??
+        snap.last_meaningful_progress_at ??
+        new Date().toISOString();
 
       results.push({
         sessionId: snap.session_id,
@@ -1089,7 +1492,8 @@ export class TelemetryService {
         status: this.mapTurnStateToStatus(snap.turn_state, snap.derived_status),
         currentTool: snap.foreground_tool,
         startedAt,
-        lastActivityAt: snap.last_meaningful_progress_at ?? new Date().toISOString(),
+        lastActivityAt:
+          snap.last_meaningful_progress_at ?? new Date().toISOString(),
         messageCount: sessionEvents.length,
         tokenTotal: state.lastTokenTotal ?? 0,
       });
@@ -1102,8 +1506,14 @@ export class TelemetryService {
     derived: TelemetryDerivedStatus,
   ): SessionInfo["status"] {
     if (derived === "error") return "error";
-    if (turn === "tool_running" || turn === "tool_pending") return "tool_running";
-    if (turn === "thinking" || turn === "in_turn") return "generating";
+    if (turn === "tool_running" || turn === "tool_pending")
+      return "tool_running";
+    if (turn === "thinking" || turn === "in_turn") {
+      // Only report "generating" when derived status confirms the agent is
+      // actively progressing.  Stale turn_state (e.g. from a previous session
+      // that didn't fire a Stop hook) should not show as "Thinking".
+      return derived === "progressing" ? "generating" : "idle";
+    }
     if (turn === "turn_complete") return "turn_complete";
     return "idle";
   }

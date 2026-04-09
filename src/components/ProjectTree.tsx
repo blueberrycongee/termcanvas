@@ -1,5 +1,10 @@
 import type React from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useSessionPanelCollapseStore } from "../stores/sessionPanelCollapseStore";
+import { useProjectStore } from "../stores/projectStore";
+import { useNotificationStore } from "../stores/notificationStore";
+import { ContextMenu } from "./ContextMenu";
 import { StatusBadges } from "./StatusBadges";
 import type {
   ProjectGroup,
@@ -21,23 +26,147 @@ function ChevronIcon({ open }: { open: boolean }) {
   );
 }
 
+function NewWorktreeInput({
+  projectPath,
+  onDone,
+}: {
+  projectPath: string;
+  onDone: () => void;
+}) {
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const submit = async () => {
+    const branch = value.trim();
+    if (!branch || busy) {
+      if (!branch) onDone();
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await window.termcanvas.project.createWorktree(
+        projectPath,
+        branch,
+      );
+      if (result.ok) {
+        useProjectStore.getState().syncWorktrees(projectPath, result.worktrees);
+        useNotificationStore
+          .getState()
+          .notify("info", `Worktree "${branch}" created`);
+        onDone();
+      } else {
+        useNotificationStore
+          .getState()
+          .notify("error", `Failed to create worktree: ${result.error}`);
+        setBusy(false);
+      }
+    } catch (err) {
+      useNotificationStore
+        .getState()
+        .notify(
+          "error",
+          `Failed to create worktree: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="pl-6 pr-2 py-1">
+      <input
+        ref={inputRef}
+        value={value}
+        disabled={busy}
+        placeholder="branch name"
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            void submit();
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            onDone();
+          }
+        }}
+        onBlur={() => {
+          if (!busy) onDone();
+        }}
+        className="w-full text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface)] border border-[var(--accent)] text-[var(--text-primary)] outline-none disabled:opacity-50"
+        style={{ fontFamily: '"Geist Mono", monospace' }}
+      />
+    </div>
+  );
+}
+
 function WorktreeRow({
   group,
+  projectPath,
   renderTerminal,
 }: {
   group: WorktreeGroup;
+  projectPath: string;
   renderTerminal: (item: CanvasTerminalItem) => React.ReactNode;
 }) {
   const toggle = useSessionPanelCollapseStore((s) => s.toggle);
   const collapsed = useSessionPanelCollapseStore((s) =>
     s.isCollapsed(group.worktreeId),
   );
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+
+  const handleRemove = async () => {
+    if (group.isMain) return;
+    const runningCount = group.terminals.length;
+    const warning =
+      runningCount > 0
+        ? `This worktree has ${runningCount} terminal${runningCount === 1 ? "" : "s"}. Remove anyway?`
+        : `Remove worktree "${group.worktreeName}"?`;
+    if (!window.confirm(warning)) return;
+
+    try {
+      const result = await window.termcanvas.project.removeWorktree(
+        projectPath,
+        group.worktreePath,
+      );
+      if (result.ok) {
+        useProjectStore.getState().syncWorktrees(projectPath, result.worktrees);
+        useNotificationStore
+          .getState()
+          .notify("info", `Worktree "${group.worktreeName}" removed`);
+      } else {
+        useNotificationStore
+          .getState()
+          .notify("error", `Failed to remove worktree: ${result.error}`);
+      }
+    } catch (err) {
+      useNotificationStore
+        .getState()
+        .notify(
+          "error",
+          `Failed to remove worktree: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+    }
+  };
 
   return (
     <div>
       <button
         className="w-full flex items-center gap-1.5 pl-4 pr-2 py-1 text-left cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors"
         onClick={() => toggle(group.worktreeId)}
+        onContextMenu={(e) => {
+          if (group.isMain) return;
+          e.preventDefault();
+          e.stopPropagation();
+          setMenu({ x: e.clientX, y: e.clientY });
+        }}
       >
         <ChevronIcon open={!collapsed} />
         <span className="text-[10px] text-[var(--text-muted)] truncate flex-1 min-w-0">
@@ -52,6 +181,22 @@ function WorktreeRow({
           ))}
         </div>
       )}
+      {menu &&
+        createPortal(
+          <ContextMenu
+            x={menu.x}
+            y={menu.y}
+            items={[
+              {
+                label: "Remove Worktree",
+                danger: true,
+                onClick: () => void handleRemove(),
+              },
+            ]}
+            onClose={() => setMenu(null)}
+          />,
+          document.body,
+        )}
     </div>
   );
 }
@@ -67,12 +212,19 @@ function ProjectRow({
   const collapsed = useSessionPanelCollapseStore((s) =>
     s.isCollapsed(project.projectId),
   );
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [creating, setCreating] = useState(false);
 
   return (
     <div>
       <button
         className="w-full flex items-center gap-1.5 px-3 py-1 text-left cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors"
         onClick={() => toggle(project.projectId)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setMenu({ x: e.clientX, y: e.clientY });
+        }}
       >
         <ChevronIcon open={!collapsed} />
         <span className="text-[11px] font-medium truncate flex-1 min-w-0">
@@ -80,6 +232,12 @@ function ProjectRow({
         </span>
         <StatusBadges summary={project.statusSummary} />
       </button>
+      {!collapsed && creating && (
+        <NewWorktreeInput
+          projectPath={project.projectPath}
+          onDone={() => setCreating(false)}
+        />
+      )}
       {!collapsed && (
         <div className="flex flex-col gap-0.5">
           {project.flat
@@ -92,11 +250,33 @@ function ProjectRow({
                 <WorktreeRow
                   key={wt.worktreeId}
                   group={wt}
+                  projectPath={project.projectPath}
                   renderTerminal={renderTerminal}
                 />
               ))}
         </div>
       )}
+      {menu &&
+        createPortal(
+          <ContextMenu
+            x={menu.x}
+            y={menu.y}
+            items={[
+              {
+                label: "New Worktree...",
+                onClick: () => {
+                  const store = useSessionPanelCollapseStore.getState();
+                  if (store.isCollapsed(project.projectId)) {
+                    store.toggle(project.projectId);
+                  }
+                  setCreating(true);
+                },
+              },
+            ]}
+            onClose={() => setMenu(null)}
+          />,
+          document.body,
+        )}
     </div>
   );
 }

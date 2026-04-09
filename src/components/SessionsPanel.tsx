@@ -38,6 +38,17 @@ function formatShortAge(iso: string | undefined): string {
   return `${days}d`;
 }
 
+function formatItemTime(item: CanvasTerminalItem): string {
+  const isActive =
+    item.state === "running" ||
+    item.state === "thinking" ||
+    item.state === "attention";
+  if (isActive && item.turnStartedAt) {
+    return formatShortAge(item.turnStartedAt);
+  }
+  return formatShortAge(item.activityAt);
+}
+
 function summarizeToolName(value: string): string {
   const normalized = value.trim();
   if (!normalized) return "";
@@ -89,18 +100,20 @@ function TerminalCard({
   t,
   compact = false,
   hideLocation = false,
+  unseenDone = false,
 }: {
   item: CanvasTerminalItem;
   t: ReturnType<typeof useT>;
   compact?: boolean;
   hideLocation?: boolean;
+  unseenDone?: boolean;
 }) {
   const subtitleParts = [
     !hideLocation && item.locationLabel && item.locationLabel !== item.title
       ? item.locationLabel
       : null,
     formatTerminalActivity(item, t),
-    formatShortAge(item.activityAt),
+    formatItemTime(item),
   ].filter(Boolean);
 
   return (
@@ -116,7 +129,9 @@ function TerminalCard({
     >
       <div
         className="w-2 h-2 rounded-full shrink-0"
-        style={{ backgroundColor: STATUS_COLORS[item.state] }}
+        style={{
+          backgroundColor: unseenDone ? "#3b82f6" : STATUS_COLORS[item.state],
+        }}
       />
       <div className="flex-1 min-w-0">
         <div className="text-[11px] font-medium truncate">{item.title}</div>
@@ -185,7 +200,7 @@ function Inspector({
   const summaryParts = [
     item.locationLabel,
     formatTerminalActivity(item, t),
-    formatShortAge(item.activityAt),
+    formatItemTime(item),
   ].filter(Boolean);
   const historyPath = item.sessionFilePath;
 
@@ -276,6 +291,7 @@ export function SessionsPanel() {
   const loadReplay = useSessionStore((s) => s.loadReplay);
   const projects = useProjectStore((s) => s.projects);
   const runtimeTerminals = useTerminalRuntimeStore((s) => s.terminals);
+  const seenTerminalIds = useCompletionSeenStore((s) => s.seenTerminalIds);
   const markCompletionSeen = useCompletionSeenStore((s) => s.markSeen);
   const t = useT();
   const [traceItems, setTraceItems] = useState<InspectorTraceItem[]>([]);
@@ -310,15 +326,21 @@ export function SessionsPanel() {
     [projects, sessionsById, telemetryByTerminalId],
   );
   const projectTree = useMemo(
-    () => buildProjectTree(projects, telemetryByTerminalId, sessionsById),
-    [projects, telemetryByTerminalId, sessionsById],
+    () =>
+      buildProjectTree(
+        projects,
+        telemetryByTerminalId,
+        sessionsById,
+        seenTerminalIds,
+      ),
+    [projects, telemetryByTerminalId, sessionsById, seenTerminalIds],
   );
   const inspectedItem = useMemo(
     () => pickInspectedTerminal(sections),
     [sections],
   );
 
-  const hasAnyTerminals = !!sections.focused || projectTree.length > 0;
+  const hasAnyTerminals = projectTree.length > 0;
 
   useEffect(() => {
     if (sections.focused?.state === "done") {
@@ -365,18 +387,6 @@ export function SessionsPanel() {
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {sections.focused && (
-          <div className="shrink-0 px-3 pt-3 pb-2">
-            <div
-              className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1.5"
-              style={{ fontFamily: '"Geist Mono", monospace' }}
-            >
-              {t.sessions_focused}
-            </div>
-            <TerminalCard item={sections.focused} t={t} />
-          </div>
-        )}
-
         <ProjectTree
           projects={projectTree}
           renderTerminal={(item) => (
@@ -386,6 +396,9 @@ export function SessionsPanel() {
               t={t}
               compact
               hideLocation
+              unseenDone={
+                item.state === "done" && !seenTerminalIds.has(item.terminalId)
+              }
             />
           )}
         />

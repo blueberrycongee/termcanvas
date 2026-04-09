@@ -2,6 +2,66 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.23] - 2026-04-09
+
+### Changed
+- Separated terminal focus semantics from viewport zoom semantics:
+  - Clicking a terminal now keeps focus highlight without forcing viewport zoom.
+  - Cmd+E now toggles zoom state while keeping terminal focus highlight.
+- Cmd+T and Cmd+D now preserve current zoom scale and only pan the viewport.
+- In non-zoomed mode, Cmd+[ and Cmd+] now preserve scale and only pan to the previous/next focused terminal.
+
+### Changed (zh-CN)
+- 终端聚焦语义与视口缩放语义已拆分：
+  - 点击终端仅保留聚焦高亮，不再强制缩放视口。
+  - Cmd+E 改为切换缩放状态，同时保留终端聚焦高亮。
+- Cmd+T 与 Cmd+D 现在保持当前缩放比例，仅平移视口。
+- 在非放大模式下，Cmd+[ 与 Cmd+] 现在保持缩放比例，仅平移到上一个/下一个聚焦终端。
+
+## [0.25.22] - 2026-04-09
+
+### Fixed
+- Sessions panel terminal ordering is now stable within project/worktree groups instead of dynamically reordering by activity updates
+
+### Fixed (zh-CN)
+- 会话面板在项目/工作树分组内的终端顺序改为稳定顺序，不再随活动更新动态重排
+
+## [0.25.21] - 2026-04-09
+
+### Added
+- Worktree management now supports create/remove routes in the Electron API server and IPC bridge
+- Added right-click "New Worktree..." and "Remove Worktree" menus in the sessions project tree and canvas project/worktree headers
+
+### Added (zh-CN)
+- Electron API server 与 IPC bridge 新增工作树创建/删除能力
+- 会话项目树与画布项目/工作树标题支持右键菜单（"New Worktree..."、"Remove Worktree"）
+
+### Fixed
+- New Worktree creation now uses an inline branch-name popover instead of system prompt, keeps the popover onscreen, and closes when clicking outside
+- Summary title updates now respect toggle state and ignore stale async writes
+
+### Fixed (zh-CN)
+- 创建工作树改为内联分支名输入弹层，不再依赖系统 prompt；弹层会保持在可视区内，点击空白处可关闭
+- Summary 标题更新现在遵守开关状态，并忽略过期的异步写入
+
+## [0.25.20] - 2026-04-09
+
+### Fixed
+- Awaiting input detection now works reliably: fixed snapshot push failure when the 5s timer fires, and prevented late JSONL session events from clobbering the awaiting_input state
+- Sessions panel keeps focused terminals visible in the project tree instead of hiding them
+- Panel turn elapsed timer now counts from actual turn start instead of showing zero
+
+### Fixed (zh-CN)
+- 等待交互检测现已可靠工作：修复 5 秒定时器触发后快照未推送的问题，并防止延迟到达的 JSONL 会话事件覆盖 awaiting_input 状态
+- 会话面板的项目树中不再隐藏当前聚焦的终端
+- 面板的 turn 耗时计时器现在从实际 turn 开始时间计算，而非显示为零
+
+### Fixed
+- Pinch-to-zoom no longer triggers on focused terminal tiles
+
+### Fixed (zh-CN)
+- 聚焦终端不再响应双指缩放手势
+
 ## [0.25.19] - 2026-04-08
 
 ### Fixed

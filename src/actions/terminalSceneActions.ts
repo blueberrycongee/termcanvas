@@ -58,7 +58,7 @@ export function createTerminalInScene({
 
 export function focusTerminalInScene(
   terminalId: string | null,
-  options?: { focusComposer?: boolean },
+  options?: { focusComposer?: boolean; focusInput?: boolean },
 ): void {
   useProjectStore.getState().setFocusedTerminal(terminalId, options);
 }

@@ -81,6 +81,7 @@ export interface TerminalTelemetrySnapshot {
   last_session_event_at?: string;
   last_session_event_kind?: string;
   turn_state: TelemetryTurnState;
+  turn_started_at?: string;
   pty_alive: boolean;
   exit_code?: number;
   last_output_at?: string;

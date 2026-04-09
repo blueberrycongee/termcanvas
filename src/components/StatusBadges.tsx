@@ -3,6 +3,7 @@ import type { StatusSummary } from "./sessionPanelModel";
 const BADGE_COLORS: { key: keyof StatusSummary; color: string }[] = [
   { key: "attention", color: "#ef4444" },
   { key: "running", color: "#f59e0b" },
+  { key: "freshDone", color: "#3b82f6" },
   { key: "done", color: "#6b7280" },
   { key: "idle", color: "#94a3b8" },
 ];

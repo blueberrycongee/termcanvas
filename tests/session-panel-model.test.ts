@@ -218,7 +218,7 @@ test("buildCanvasTerminalSections falls back to the initial prompt when terminal
   assert.equal(runningItem?.locationLabel, "termcanvas / main");
 });
 
-test("buildProjectTree sorts projects by highest-priority status and handles multiple worktrees", () => {
+test("buildProjectTree preserves project order and handles multiple worktrees", () => {
   const projects: ProjectData[] = [
     {
       id: "proj-idle",
@@ -320,14 +320,14 @@ test("buildProjectTree sorts projects by highest-priority status and handles mul
   // Two projects in the tree
   assert.equal(tree.length, 2);
 
-  // active-project sorts first (has a running terminal)
-  assert.equal(tree[0].projectName, "active-project");
-  assert.equal(tree[0].flat, false); // two worktrees
-  assert.equal(tree[0].worktrees.length, 2);
+  // Preserve source order from project store
+  assert.equal(tree[0].projectName, "idle-project");
+  assert.equal(tree[0].flat, true); // one worktree
 
-  // idle-project sorts second
-  assert.equal(tree[1].projectName, "idle-project");
-  assert.equal(tree[1].flat, true); // one worktree
+  // active-project remains second
+  assert.equal(tree[1].projectName, "active-project");
+  assert.equal(tree[1].flat, false); // two worktrees
+  assert.equal(tree[1].worktrees.length, 2);
 });
 
 test("buildProjectTree groups terminals under project/worktree with status summaries", () => {
@@ -384,11 +384,13 @@ test("buildProjectTree groups terminals under project/worktree with status summa
   assert.equal(tree[0].worktrees.length, 1);
 
   const wt = tree[0].worktrees[0];
-  assert.equal(wt.terminals.length, 3);
-  assert.equal(wt.terminals[0].terminalId, "terminal-stalled");
-  assert.equal(wt.terminals[0].state, "attention");
+  assert.equal(wt.terminals.length, 4);
+  assert.equal(wt.terminals[0].terminalId, "terminal-focused");
+  assert.equal(wt.terminals[0].state, "done");
   assert.equal(wt.terminals[1].terminalId, "terminal-running");
-  assert.equal(wt.terminals[2].terminalId, "terminal-idle");
+  assert.equal(wt.terminals[2].terminalId, "terminal-stalled");
+  assert.equal(wt.terminals[2].state, "attention");
+  assert.equal(wt.terminals[3].terminalId, "terminal-idle");
 
   assert.equal(tree[0].statusSummary.attention, 1);
   assert.equal(tree[0].statusSummary.running, 1);

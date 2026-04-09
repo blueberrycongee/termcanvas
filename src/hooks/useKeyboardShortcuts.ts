@@ -3,7 +3,6 @@ import { deleteSelectedSceneItems } from "../actions/sceneDeleteActions";
 import {
   activateTerminalInScene,
   activateWorktreeInScene,
-  clearSceneFocusAndSelection,
   focusWorktreeInScene,
 } from "../actions/sceneSelectionActions";
 import {
@@ -100,14 +99,15 @@ function zoomToTerminal(terminalId: string) {
 
 function zoomToFitAll() {
   const { projects } = useProjectStore.getState();
-  const { rightPanelCollapsed, leftPanelCollapsed, leftPanelWidth } = useCanvasStore.getState();
+  const { rightPanelCollapsed, leftPanelCollapsed, leftPanelWidth } =
+    useCanvasStore.getState();
   if (projects.length === 0) return;
   const padding = 80;
   const toolbarH = 44;
-  let minX = Infinity,
-    minY = Infinity,
-    maxX = -Infinity,
-    maxY = -Infinity;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
   for (const p of projects) {
     const bounds = getProjectBounds(p);
     minX = Math.min(minX, bounds.x);
@@ -174,6 +174,7 @@ export function useKeyboardShortcuts() {
   const shortcuts = useShortcutStore((s) => s.shortcuts);
   const t = useT();
   const lastFocusedRef = useRef<TerminalRef | null>(null);
+  const zoomedOutTerminalIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -213,8 +214,13 @@ export function useKeyboardShortcuts() {
             worktreeId: focused.worktreeId,
             terminalId: focused.terminalId,
           };
-          clearSceneFocusAndSelection();
-          zoomToFitAll();
+          if (zoomedOutTerminalIdRef.current === focused.terminalId) {
+            zoomToTerminal(focused.terminalId);
+            zoomedOutTerminalIdRef.current = null;
+          } else {
+            zoomToFitAll();
+            zoomedOutTerminalIdRef.current = focused.terminalId;
+          }
         } else if (lastFocusedRef.current) {
           // Not focused, has history → restore last focused terminal
           const restored = list.find(
@@ -227,8 +233,10 @@ export function useKeyboardShortcuts() {
               restored.terminalId,
             );
             zoomToTerminal(restored.terminalId);
+            zoomedOutTerminalIdRef.current = null;
           } else {
             lastFocusedRef.current = null;
+            zoomedOutTerminalIdRef.current = null;
           }
         } else if (list.length > 0) {
           const first = list[0];
@@ -243,6 +251,7 @@ export function useKeyboardShortcuts() {
             first.terminalId,
           );
           zoomToTerminal(first.terminalId);
+          zoomedOutTerminalIdRef.current = null;
         }
         return;
       }
@@ -278,7 +287,10 @@ export function useKeyboardShortcuts() {
             worktreeId: focusedWorktreeId,
           });
           focusTerminalInScene(terminal.id);
-          zoomToTerminal(terminal.id);
+          panToTerminal(terminal.id, { preserveScale: true });
+          if (zoomedOutTerminalIdRef.current !== null) {
+            zoomedOutTerminalIdRef.current = terminal.id;
+          }
         }
         return;
       }
@@ -393,32 +405,23 @@ export function useKeyboardShortcuts() {
         const focusedIdx = getFocusedTerminalIndex(list);
         if (focusedIdx !== -1) {
           const focused = list[focusedIdx];
-          // Mirror projectStore.removeTerminal's adjacent pick: next sibling
-          // in the same worktree, or the previous one if removing the tail.
-          const { projects } = useProjectStore.getState();
-          const worktree = projects
-            .find((p) => p.id === focused.projectId)
-            ?.worktrees.find((w) => w.id === focused.worktreeId);
-          let adjacentTerminalId: string | null = null;
-          if (worktree) {
-            const idx = worktree.terminals.findIndex(
-              (t) => t.id === focused.terminalId,
-            );
-            if (idx !== -1) {
-              if (idx + 1 < worktree.terminals.length) {
-                adjacentTerminalId = worktree.terminals[idx + 1].id;
-              } else if (idx - 1 >= 0) {
-                adjacentTerminalId = worktree.terminals[idx - 1].id;
-              }
-            }
-          }
           closeTerminalInScene(
             focused.projectId,
             focused.worktreeId,
             focused.terminalId,
           );
-          if (adjacentTerminalId) {
-            panToTerminal(adjacentTerminalId);
+          const nextList = getAllTerminals();
+          const nextFocusedIdx = getFocusedTerminalIndex(nextList);
+          if (nextFocusedIdx !== -1) {
+            const nextFocusedTerminalId = nextList[nextFocusedIdx].terminalId;
+            panToTerminal(nextFocusedTerminalId, {
+              preserveScale: true,
+            });
+            if (zoomedOutTerminalIdRef.current !== null) {
+              zoomedOutTerminalIdRef.current = nextFocusedTerminalId;
+            }
+          } else {
+            zoomedOutTerminalIdRef.current = null;
           }
         }
         return;
@@ -473,7 +476,12 @@ export function useKeyboardShortcuts() {
           currentIndex === -1 ? 0 : (currentIndex + 1) % terminalList.length;
         const next = terminalList[nextIndex];
         focusTerminalInScene(next.terminalId);
-        zoomToTerminal(next.terminalId);
+        if (zoomedOutTerminalIdRef.current !== null) {
+          panToTerminal(next.terminalId, { preserveScale: true });
+          zoomedOutTerminalIdRef.current = next.terminalId;
+        } else {
+          zoomToTerminal(next.terminalId);
+        }
         return;
       }
 
@@ -502,7 +510,12 @@ export function useKeyboardShortcuts() {
           currentIndex <= 0 ? terminalList.length - 1 : currentIndex - 1;
         const prev = terminalList[prevIndex];
         focusTerminalInScene(prev.terminalId);
-        zoomToTerminal(prev.terminalId);
+        if (zoomedOutTerminalIdRef.current !== null) {
+          panToTerminal(prev.terminalId, { preserveScale: true });
+          zoomedOutTerminalIdRef.current = prev.terminalId;
+        } else {
+          zoomToTerminal(prev.terminalId);
+        }
         return;
       }
 
