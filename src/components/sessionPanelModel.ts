@@ -111,18 +111,6 @@ function resolveTerminalTitle(
   return projectName;
 }
 
-function compareItemsByActivity(
-  a: CanvasTerminalItem,
-  b: CanvasTerminalItem,
-): number {
-  const aActivity = a.activityAt ?? "";
-  const bActivity = b.activityAt ?? "";
-  if (aActivity !== bActivity) {
-    return bActivity.localeCompare(aActivity);
-  }
-  return a.title.localeCompare(b.title);
-}
-
 function deriveStateFromTelemetry(
   telemetry: TerminalTelemetrySnapshot,
 ): Pick<
@@ -329,14 +317,6 @@ function deriveTerminalState(
   return deriveStateFromTerminal(terminal);
 }
 
-const STATE_PRIORITY: Record<CanvasTerminalState, number> = {
-  attention: 0,
-  running: 1,
-  thinking: 2,
-  done: 3,
-  idle: 4,
-};
-
 function computeStatusSummary(items: CanvasTerminalItem[]): StatusSummary {
   const summary: StatusSummary = {
     attention: 0,
@@ -362,23 +342,6 @@ function computeStatusSummary(items: CanvasTerminalItem[]): StatusSummary {
     }
   }
   return summary;
-}
-
-function compareByStateThenActivity(
-  a: CanvasTerminalItem,
-  b: CanvasTerminalItem,
-): number {
-  const pa = STATE_PRIORITY[a.state];
-  const pb = STATE_PRIORITY[b.state];
-  if (pa !== pb) return pa - pb;
-  return compareItemsByActivity(a, b);
-}
-
-function highestPriority(summary: StatusSummary): number {
-  if (summary.attention > 0) return 0;
-  if (summary.running > 0) return 1;
-  if (summary.done > 0) return 3;
-  return 4;
 }
 
 export function buildProjectTree(
@@ -451,8 +414,6 @@ export function buildProjectTree(
 
       if (terminals.length === 0) continue;
 
-      terminals.sort(compareByStateThenActivity);
-
       worktreeGroups.push({
         worktreeId: worktree.id,
         worktreeName: worktree.name,
@@ -476,13 +437,6 @@ export function buildProjectTree(
       flat: worktreeGroups.length === 1,
     });
   }
-
-  result.sort((a, b) => {
-    const pa = highestPriority(a.statusSummary);
-    const pb = highestPriority(b.statusSummary);
-    if (pa !== pb) return pa - pb;
-    return a.projectName.localeCompare(b.projectName);
-  });
 
   return result;
 }
@@ -577,11 +531,6 @@ export function buildCanvasTerminalSections(
       }
     }
   }
-
-  attention.sort(compareItemsByActivity);
-  progress.sort(compareItemsByActivity);
-  done.sort(compareItemsByActivity);
-  idle.sort(compareItemsByActivity);
 
   return {
     focused,
