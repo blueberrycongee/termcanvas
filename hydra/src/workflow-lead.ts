@@ -801,7 +801,11 @@ export async function resetNode(
 
   const resetNodeIds = options.cascade !== false
     ? cascadeReset(workflow, options.nodeId)
-    : (() => { workflow.node_statuses[options.nodeId] = "eligible"; return [options.nodeId]; })();
+    : (() => {
+        const node = workflow.nodes[options.nodeId];
+        workflow.node_statuses[options.nodeId] = node && allDepsCompleted(workflow, node) ? "eligible" : "blocked";
+        return [options.nodeId];
+      })();
 
   // Reset assignments and destroy terminals
   for (const id of resetNodeIds) {
@@ -883,7 +887,11 @@ export async function mergeWorktrees(
   for (const nodeId of options.sourceNodeIds) {
     const node = workflow.nodes[nodeId];
     const branch = node?.worktree_branch;
-    if (!branch) continue;
+    if (!branch) {
+      throw new HydraError(`Node "${nodeId}" has no worktree_branch — cannot merge`, {
+        errorCode: "WORKFLOW_MERGE_NO_BRANCH", stage: "workflow.merge", ids: { workflow_id: workflow.id },
+      });
+    }
 
     try {
       execFileSync("git", ["merge", "--no-ff", branch, "-m", `Merge ${nodeId} (${node.role})`], { cwd, encoding: "utf-8", stdio: "pipe" });

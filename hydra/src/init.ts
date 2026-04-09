@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const MARKER = "## Hydra Orchestration Toolkit";
+const LEGACY_MARKER = "## Hydra Sub-Agent Tool";
 const INSTRUCTION_FILES = ["CLAUDE.md", "AGENTS.md"] as const;
 
 const HYDRA_SECTION = `
@@ -126,12 +127,17 @@ function normalizeSection(section: string): string {
 function findHydraSectionRange(
   content: string,
 ): { start: number; end: number } | null {
-  const start = content.indexOf(MARKER);
+  let start = content.indexOf(MARKER);
+  let markerLen = MARKER.length;
+  if (start === -1) {
+    start = content.indexOf(LEGACY_MARKER);
+    markerLen = LEGACY_MARKER.length;
+  }
   if (start === -1) {
     return null;
   }
 
-  const nextHeadingStart = content.indexOf("\n## ", start + MARKER.length);
+  const nextHeadingStart = content.indexOf("\n## ", start + markerLen);
   return {
     start,
     end: nextHeadingStart === -1 ? content.length : nextHeadingStart,
