@@ -26,12 +26,11 @@
 - Run the build and check for CI prerequisites before pushing.
 - Ensure old processes are killed before verifying a new version.
 
-## Hydra Sub-Agent Tool
+## Hydra Orchestration Toolkit
 
-Classify the task before choosing a mode. Hydra is for file-driven
-orchestration, not the default path for every change.
-Hydra treats `result.json` as the only completion evidence.
-Terminal conversation is not a source of truth.
+Hydra is a Lead-driven orchestration toolkit. You (the Lead) make strategic
+decisions at decision points; Hydra handles operational management.
+`result.json` is the only completion evidence.
 
 Core rules:
 - Root cause first. Fix the implementation problem before changing tests.
@@ -41,14 +40,15 @@ Core rules:
 
 Workflow patterns:
 1. Do the task directly when it is simple, local, or clearly faster without workflow overhead.
-2. Use a single implementer workflow when you still want Hydra evidence and retry control:
-   `hydra run --task "<specific task>" --repo . --template single-step [--worktree .]`
-3. Use the default researcher -> implementer -> tester workflow for ambiguous, risky, or PRD-driven work:
-   `hydra run --task "<specific task>" --repo . [--worktree .]`
-   - If the user says all roles should use one provider, pass `--all-type <provider>`.
-   - If the user wants a mix, pass `--researcher-type`, `--implementer-type`, and `--tester-type`.
-   - If the user does not specify providers, Hydra should prefer the current terminal's provider when available.
-4. Use a direct isolated worker primitive when the split is already known and you do not need a full workflow:
+2. Use Hydra for ambiguous, risky, parallel, or multi-step work:
+   ```
+   hydra init --intent "<task>" --repo .
+   hydra dispatch --workflow W --node <id> --role <role> --intent "<desc>" --repo .
+   hydra watch --workflow W --repo .
+   # → DecisionPoint returned, decide next step
+   hydra complete --workflow W --repo .
+   ```
+3. Use a direct isolated worker when only a separate worker is needed:
    `hydra spawn --task "<specific task>" --repo . [--worktree .]`
 
 Agent launch rule:
@@ -56,34 +56,29 @@ Agent launch rule:
 - Do not use `termcanvas terminal input` for task dispatch; it is not a supported automation path
 
 Workflow control:
-- After `hydra run` or `hydra spawn`, immediately start polling with `hydra watch`. Do not ask whether to watch — always watch.
-1. Inspect one-shot progress: `hydra tick --repo . --workflow <workflowId>`
-2. Watch until terminal state: `hydra watch --repo . --workflow <workflowId>`
-3. Inspect structured state and failures: `hydra status --repo . --workflow <workflowId>`
-4. Retry a failed/timed-out workflow when allowed: `hydra retry --repo . --workflow <workflowId>`
-5. Clean up runtime state or worktrees: `hydra cleanup --workflow <workflowId> --repo .`
+- After dispatching nodes, always call `hydra watch`. It returns at decision points.
+1. Watch until decision point: `hydra watch --workflow <workflowId> --repo .`
+2. Inspect structured state: `hydra status --workflow <workflowId> --repo .`
+3. Reset a node for rework: `hydra reset --workflow W --node N --feedback "..." --repo .`
+4. Approve a node's output: `hydra approve --workflow W --node N --repo .`
+5. Merge parallel branches: `hydra merge --workflow W --nodes A,B --repo .`
+6. View event log: `hydra ledger --workflow <workflowId> --repo .`
+7. Clean up: `hydra cleanup --workflow <workflowId> --repo .`
 
 Telemetry polling:
-1. Treat `hydra watch` as the main-brain polling loop; do not infer progress from terminal prose alone.
+1. Treat `hydra watch` as the main polling loop; do not infer progress from terminal prose alone.
 2. Before deciding wait / retry / takeover, query:
    - `termcanvas telemetry get --workflow <workflowId> --repo .`
    - `termcanvas telemetry get --terminal <terminalId>`
    - `termcanvas telemetry events --terminal <terminalId> --limit 20`
-3. Trust `derived_status` and `task_status` as the primary decision signals. Only investigate further when both indicate a problem.
-4. Keep waiting when `derived_status=progressing` or `task_status=running`.
-5. Treat `awaiting_contract` as "turn complete, file contract still pending".
-6. Treat `stall_candidate` as "investigate before retry", not automatic failure. Query recent telemetry events to confirm the agent is truly stuck.
-7. Treat `error` as "agent hit an API error". Check `last_hook_error`: `rate_limit`/`server_error` → wait and retry; `billing_error`/`authentication_failed` → stop; `max_output_tokens` → retry with compact; `invalid_request` → stop and investigate.
+3. Trust `derived_status` and `task_status` as the primary decision signals.
 
-Worker control:
-1. List direct workers: `hydra list --repo .`
-2. Clean up a direct worker: `hydra cleanup <agentId>`
-
-`result.json` must contain:
+`result.json` must contain (v2):
 - `success`
 - `summary`
 - `outputs[]`
 - `evidence[]`
-- `next_action`
+- `intent` (type: done/needs_rework/replan/blocked)
+- `reflection` (optional: approach, blockers, confidence)
 
 When NOT to use: simple fixes, high-certainty tasks, or work that is faster to do directly in the current agent.

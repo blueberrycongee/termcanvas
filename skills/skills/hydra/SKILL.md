@@ -1,122 +1,130 @@
 ---
 name: hydra
-description: Use when a task should run through Hydra's file-contract workflow in an isolated worktree, or when an existing Hydra workflow must be inspected, retried, or cleaned up.
+description: Use when a task should run through Hydra's Lead-driven workflow for multi-agent orchestration, or when an existing workflow must be inspected or cleaned up.
 ---
 
-# Hydra Sub-Agent Tool
+# Hydra Orchestration Toolkit
 
-Use this skill after routing has already determined that Hydra is the right
-execution path. Hydra is a strict file-contract workflow engine:
-`task.md`, `artifacts/*.md`, and `result.json` are authoritative.
-Terminal conversation is not a source of truth.
+Hydra is a Lead-driven orchestration toolkit. You (the Lead agent) make strategic
+decisions; Hydra handles operational management (dispatch, retry, health checks,
+result collection).
 
-## Choose the path
+Sub-agents output semantic intent (`done`/`needs_rework`/`replan`), not routing
+information. Hydra manages the lifecycle; you decide what happens next.
 
-- `hydra run --task "..." --repo . --template single-step`
-  - one implementer assignment
-  - use for clear implementation work that still needs worktree isolation and
-    `result.json` evidence
-- `hydra run --task "..." --repo .`
-  - default researcher -> implementer -> tester workflow, with research approval before implementation
-  - use for ambiguous, risky, PRD-driven, or long-running tasks
-  - if the user wants one provider for all roles, pass `--all-type <provider>`
-  - if the user wants a mix, pass `--researcher-type`, `--implementer-type`, and
-    `--tester-type` (legacy flag names retained for researcher / implementer / tester)
-  - if the user does not specify providers, inherit the current terminal type
-    when available rather than hard-coding Claude or Codex
+## Core workflow
 
-## Agent characteristics (soft guidance, not hard rules)
+```
+hydra init --intent "Add OAuth login" --repo .
+# → { workflow_id, worktree_path }
 
-When choosing providers for each role, consider these observed tendencies:
+hydra dispatch --workflow W --node researcher --role researcher \
+  --intent "Analyze OAuth integration approach" --repo .
+# → { node_id, assignment_id, status: "dispatched" }
 
-**Claude** — stronger at reasoning, research, and architectural judgment.
-- Good fit for: researcher, tester
-- Watch out for: stub implementations (code that looks complete but doesn't work),
-  context-window anxiety (rushing to finish when context fills up)
+hydra watch --workflow W --repo .
+# → DecisionPoint: researcher completed with result
 
-**Codex** — stronger at code generation, tends to complete the full task.
-- Good fit for: implementer
-- Watch out for: over-engineering (excessive try-catch, unnecessary boundary checks),
-  test hacking (over-mocking, tests that pass without exercising real code)
+hydra approve --workflow W --node researcher --repo .
 
-These are defaults from experience, not constraints. The user can override freely
-with `--all-type` or per-role flags. When the user does not specify, a reasonable
-default is `--researcher-type claude --implementer-type codex --tester-type claude`.
+hydra dispatch --workflow W --node dev --role implementer \
+  --intent "Implement OAuth middleware" \
+  --depends-on researcher --repo .
 
-## Direct worker primitive
+hydra watch --workflow W --repo .
+# → DecisionPoint: dev completed
 
-- `hydra spawn --task "..." --repo .`
-  - one direct isolated worker terminal
-  - use when the split is already known and only a separate worker is needed
-  - this is not a full workflow run
-  - use `--worker-type <provider>` when the user explicitly names the worker
-    provider
+hydra dispatch --workflow W --node tester --role tester \
+  --intent "Verify OAuth flow" \
+  --depends-on dev --repo .
 
-## Agent launch rule
+hydra watch --workflow W --repo .
+# → DecisionPoint: tester completed
 
-- When dispatching Claude/Codex through TermCanvas CLI, start a fresh agent
-  terminal with `termcanvas terminal create --prompt "..."`
-- Do not use `termcanvas terminal input` for task dispatch; it does not
-  reliably submit prompts and is not a supported automation path
+hydra complete --workflow W --repo .
+```
 
-## Quality bar
+## Parallel dev
 
-- Root cause first. Fix the real implementation problem before changing tests.
-- Do not hack tests, fixtures, snapshots, or mocks to force a green result.
-- Do not add silent fallbacks, swallowed errors, or default-success paths.
-- Tests prove correctness; they do not replace correctness.
-- An assignment run only passes when `result.json` exists and the schema validates.
+When the research identifies independent work streams, dispatch multiple devs
+with isolated worktrees:
 
-## Workflow control
+```
+hydra dispatch --workflow W --node dev-frontend --role implementer \
+  --intent "Frontend OAuth components" \
+  --depends-on researcher --worktree .worktrees/frontend --repo .
 
-1. Investigate first and write a concrete task description.
-2. Start the chosen workflow or worker path:
-   - Existing worktree / read-only workflow: `hydra run --task "..." --repo . --worktree .`
-   - Existing worktree / read-only worker: `hydra spawn --task "..." --repo . --worktree .`
-3. After `hydra run` or `hydra spawn`, immediately start polling with `hydra watch`. Do not ask whether to watch — always watch.
-4. For workflow runs created by `hydra run`, advance or inspect with:
-   - `hydra tick --repo . --workflow <workflowId>`
-   - `hydra watch --repo . --workflow <workflowId>`
-   - `hydra status --repo . --workflow <workflowId>`
-   - `hydra challenge --repo . --workflow <workflowId>` to request an explicit challenge at the current workflow boundary
-   - `hydra resolve-challenge --repo . --workflow <workflowId> --decision continue`
-   - `hydra resolve-challenge --repo . --workflow <workflowId> --decision send_back --to <researcher|implementer|tester>`
-   - `hydra retry --repo . --workflow <workflowId>`
-4. For direct workers created by `hydra spawn`:
-   - `hydra watch --agent <agentId>` to poll until completion
-   - `hydra list --repo .` to list all agents
-   - `hydra cleanup <agentId>` to clean up
-5. Read failures from structured Hydra state; do not parse terminal prose.
-6. Before deciding to keep waiting, retry, or take over a live workflow, query telemetry first:
-   - `termcanvas telemetry get --workflow <workflowId> --repo .`
-   - `termcanvas telemetry get --terminal <terminalId>`
-   - check `last_meaningful_progress_at`, `turn_state`, `foreground_tool`, and result-file presence
-7. Treat telemetry as advisory truth before completion:
-   - `awaiting_contract` means the agent turn ended but `result.json` is still missing
-   - `stall_candidate` means "needs attention", not automatic failure
-8. Treat `hydra watch` as the polling loop for the main brain:
-   - each poll should prefer telemetry over PTY prose
-   - if telemetry shows `thinking`, `tool_running`, `tool_pending`, recent meaningful progress, or a foreground tool, keep waiting
-   - if telemetry shows `awaiting_contract`, the model turn is done but the final `result.json` is still pending
-   - if telemetry shows `stall_candidate`, inspect recent telemetry events with `termcanvas telemetry events --terminal <terminalId> --limit 20` before retry/takeover
-9. Clean up after completion:
-   - workflow: `hydra cleanup --workflow <workflowId> --repo .`
-   - worker: `hydra cleanup <agentId>`
+hydra dispatch --workflow W --node dev-backend --role implementer \
+  --intent "Backend OAuth middleware" \
+  --depends-on researcher --worktree .worktrees/backend --repo .
+
+hydra watch --workflow W --repo .
+# → DecisionPoint: both completed
+
+hydra merge --workflow W --nodes dev-frontend,dev-backend --repo .
+```
+
+## Handling agent results
+
+When `watchUntilDecision` returns, read the agent's `intent`:
+
+- **`done`** — agent finished successfully. Dispatch next step or complete.
+- **`needs_rework`** — something needs fixing. Reset the relevant node:
+  `hydra reset --workflow W --node dev --feedback "Tests fail on edge case X" --repo .`
+- **`replan`** — the approach is wrong. Reset back to researcher:
+  `hydra reset --workflow W --node researcher --feedback "Architecture assumption invalid" --repo .`
+- **`blocked`** — agent cannot proceed. Read the reason and decide.
+
+## Agent role guidance
+
+**researcher** — Investigate, plan, produce a brief. Good for Claude.
+**implementer** — Write code. Good for Codex.
+**tester** — Verify independently. Good for Claude.
+**reviewer** — Second opinion on work. Replaces the old challenge mechanism.
+
+Use `--agent-type` to override per node. Default inherits from workflow.
+
+## Commands
+
+| Command | Purpose |
+|---------|---------|
+| `hydra init` | Create workflow context |
+| `hydra dispatch` | Dispatch an agent node |
+| `hydra watch` | Wait for next decision point |
+| `hydra approve` | Mark a node's output as approved |
+| `hydra reset` | Reset a node and downstream |
+| `hydra merge` | Merge parallel worktree branches |
+| `hydra complete` | Mark workflow completed |
+| `hydra fail` | Mark workflow failed |
+| `hydra status` | Show workflow state |
+| `hydra list` | List workflows |
+| `hydra ledger` | Show workflow event log |
+| `hydra cleanup` | Clean up workflow state |
+| `hydra spawn` | Direct isolated worker (not a full workflow) |
+
+## After `hydra dispatch` or `hydra watch`, always watch
+
+After dispatching nodes, always call `hydra watch` to wait for the next
+decision point. Do not poll manually with tick.
 
 ## Result contract
 
-`result.json` must contain:
-- `success`
-- `summary`
-- `outputs[]`
-- `evidence[]`
-- `next_action`
+Sub-agents write `result.json` with `schema_version: "hydra/result/v2"`.
+The `intent` field expresses semantic outcome:
 
-If `result.json` is missing or invalid, Hydra must fail the assignment run rather than
-assuming success.
+```json
+{
+  "intent": { "type": "done", "confidence": "high" },
+  "reflection": {
+    "approach": "Grep-first strategy to find auth endpoints",
+    "blockers_encountered": ["Missing types for session store"]
+  }
+}
+```
 
-## Auto-approve inheritance
+Agents do NOT include assignment IDs or routing. The Lead decides routing.
 
-When you are already running in auto-approve/full-access mode, pass
-`--auto-approve` so Claude/Codex sub-agents inherit the same autonomy.
-Do not pass it in restricted approval modes.
+## Ledger
+
+Every workflow action is recorded in `.hydra/workflows/{id}/ledger.jsonl`.
+Use `hydra ledger --workflow W --repo .` to inspect the event log.
