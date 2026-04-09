@@ -96,7 +96,11 @@ export interface TerminalData {
   focused: boolean;
   ptyId: number | null;
   status: TerminalStatus;
-  span: { cols: number; rows: number };
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  tags: string[];
   origin?: TerminalOrigin;
   parentTerminalId?: string;
   scrollback?: string;
@@ -135,8 +139,6 @@ export interface WorktreeData {
   id: string;
   name: string;
   path: string;
-  position: Position;
-  collapsed: boolean;
   terminals: TerminalData[];
 }
 
@@ -148,10 +150,6 @@ export interface ProjectData {
   id: string;
   name: string;
   path: string;
-  position: Position;
-  collapsed: boolean;
-  zIndex: number;
-  autoCompact?: boolean;
   worktrees: WorktreeData[];
 }
 
