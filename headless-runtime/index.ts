@@ -161,7 +161,7 @@ async function main(): Promise<void> {
         const primaryWorkflow = activeWorkflows[0];
         return {
           workflow_status: primaryWorkflow?.status ?? "idle",
-          current_assignment: primaryWorkflow?.current_assignment_id ?? null,
+          current_assignment: primaryWorkflow?.active_node_ids?.[0] ?? null,
           telemetry_snapshot: {
             active_terminals: terminals.length,
             active_workflows: activeWorkflows.length,

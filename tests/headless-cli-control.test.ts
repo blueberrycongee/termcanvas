@@ -159,14 +159,14 @@ test("termcanvas workflow CLI runs, watches, and cleans up headless workflows", 
       ], cliEnv),
     );
     assert.equal(status.workflow.status, "running");
-    assert.equal(status.workflow.current_assignment_id, started.workflow.current_assignment_id);
+    assert.equal(status.workflow.id, started.workflow.id);
 
     const assignment = started.assignments[0];
     const run = assignment.runs[0];
     fs.writeFileSync(
       run.result_file,
       JSON.stringify({
-        schema_version: "hydra/result/v1",
+        schema_version: "hydra/result/v2",
         assignment_id: assignment.id,
         workflow_id: started.workflow.id,
         run_id: run.id,
@@ -179,7 +179,7 @@ test("termcanvas workflow CLI runs, watches, and cleans up headless workflows", 
           },
         ],
         evidence: ["cli workflow test"],
-        next_action: { type: "complete", reason: "Workflow is complete." },
+        intent: { type: "done", confidence: "high" },
       }, null, 2),
       "utf-8",
     );

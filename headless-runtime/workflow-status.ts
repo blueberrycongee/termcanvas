@@ -6,31 +6,30 @@ import {
 } from "../hydra/src/workflow-store.ts";
 
 const ACTIVE_WORKFLOW_STATUSES = new Set<WorkflowStatus>([
-  "pending",
-  "running",
-  "challenging",
-  "waiting_for_approval",
-  "waiting_for_challenge_decision",
+  "active",
 ]);
 
 export interface ActiveWorkflowSummary {
   id: string;
   status: WorkflowStatus;
-  task: string;
+  intent: string;
   repo_path: string;
   worktree_path: string;
-  current_assignment_id: string;
+  active_node_ids: string[];
   updated_at: string;
 }
 
 function summarizeWorkflow(workflow: WorkflowRecord): ActiveWorkflowSummary {
+  const activeNodeIds = Object.entries(workflow.node_statuses ?? {})
+    .filter(([, s]) => s === "dispatched" || s === "eligible")
+    .map(([id]) => id);
   return {
     id: workflow.id,
     status: workflow.status,
-    task: workflow.task,
+    intent: workflow.intent,
     repo_path: workflow.repo_path,
     worktree_path: workflow.worktree_path,
-    current_assignment_id: workflow.current_assignment_id,
+    active_node_ids: activeNodeIds,
     updated_at: workflow.updated_at,
   };
 }

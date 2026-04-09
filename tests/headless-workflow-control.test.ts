@@ -143,7 +143,7 @@ test("workflow control emits workflow_completed only after Hydra marks the workf
     fs.writeFileSync(
       run.result_file,
       JSON.stringify({
-        schema_version: "hydra/result/v1",
+        schema_version: "hydra/result/v2",
         assignment_id: assignment.id,
         workflow_id: started.workflow.id,
         run_id: run.id,
@@ -156,7 +156,7 @@ test("workflow control emits workflow_completed only after Hydra marks the workf
           },
         ],
         evidence: ["workflow event test"],
-        next_action: { type: "complete", reason: "Workflow is complete." },
+        intent: { type: "done", confidence: "high" },
       }, null, 2),
       "utf-8",
     );
@@ -238,7 +238,7 @@ test("workflow routes auto-track the repo and can complete a single-step run", a
     fs.writeFileSync(
       run.result_file,
       JSON.stringify({
-        schema_version: "hydra/result/v1",
+        schema_version: "hydra/result/v2",
         assignment_id: assignment.id,
         workflow_id: started.body.workflow.id,
         run_id: run.id,
@@ -251,7 +251,7 @@ test("workflow routes auto-track the repo and can complete a single-step run", a
           },
         ],
         evidence: ["manual test"],
-        next_action: { type: "complete", reason: "Workflow is complete." },
+        intent: { type: "done", confidence: "high" },
       }, null, 2),
       "utf-8",
     );

@@ -4,79 +4,82 @@ const args = process.argv.slice(2);
 const [command, ...rest] = args;
 
 function printUsage() {
-  console.log("Usage: hydra <run|tick|watch|status|retry|approve|revise|challenge|resolve-challenge|spawn|list|cleanup|init> [options]");
+  console.log("Usage: hydra <command> [options]");
   console.log("");
-  console.log("Commands:");
-  console.log("  run      Create and start a file-contract workflow");
-  console.log("  tick     Advance one workflow tick");
-  console.log("  watch    Poll a workflow or spawned agent until it reaches a terminal state");
-  console.log("  status   Show structured workflow status");
-  console.log("  retry    Retry a failed or timed-out workflow");
-  console.log("  approve  Approve the current research output and continue");
-  console.log("  revise   Revise the current research output and re-run researcher");
-  console.log("  challenge         Request an explicit challenge at the current workflow boundary");
-  console.log("  resolve-challenge Continue or send back after a completed challenge");
-  console.log("  spawn    Create one direct isolated worker terminal");
-  console.log("  list     List all spawned agents");
-  console.log("  cleanup  Clean up agent worktrees and terminals");
-  console.log("  init     Add hydra instructions to project CLAUDE.md and AGENTS.md");
+  console.log("Lead-driven workflow commands:");
+  console.log("  init       Create a new workflow context");
+  console.log("  dispatch   Dispatch an agent node into a workflow");
+  console.log("  watch      Wait until a decision point is reached");
+  console.log("  approve    Mark a node's output as approved");
+  console.log("  reset      Reset a node (and downstream) for re-run");
+  console.log("  merge      Merge parallel worktree branches");
+  console.log("  complete   Mark a workflow as completed");
+  console.log("  fail       Mark a workflow as failed");
   console.log("");
-  console.log("Execution modes:");
-  console.log("  direct   stay in the current agent for simple/local tasks");
-  console.log("  run      use single-step or researcher -> implementer -> tester");
-  console.log("  spawn    use one isolated worker when the split is already known");
+  console.log("Inspection:");
+  console.log("  status     Show structured workflow status");
+  console.log("  list       List workflows or spawned agents");
+  console.log("  ledger     Show workflow event log");
+  console.log("");
+  console.log("Housekeeping:");
+  console.log("  spawn      Create one direct isolated worker terminal");
+  console.log("  cleanup    Clean up workflow state and worktrees");
+  console.log("  init-repo  Add hydra instructions to project CLAUDE.md");
 }
 
 async function main() {
   switch (command) {
-    case "spawn": {
-      const { spawn } = await import("./spawn.js");
-      await spawn(rest);
+    // --- Lead-driven workflow ---
+    case "init": {
+      const { cliInit } = await import("./cli-commands.js");
+      await cliInit(rest);
       break;
     }
-    case "run": {
-      const { run } = await import("./run.js");
-      await run(rest);
-      break;
-    }
-    case "tick": {
-      const { tick } = await import("./tick.js");
-      await tick(rest);
+    case "dispatch": {
+      const { cliDispatch } = await import("./cli-commands.js");
+      await cliDispatch(rest);
       break;
     }
     case "watch": {
-      const { watch } = await import("./watch.js");
-      await watch(rest);
-      break;
-    }
-    case "status": {
-      const { status } = await import("./status.js");
-      await status(rest);
-      break;
-    }
-    case "retry": {
-      const { retry } = await import("./retry-command.js");
-      await retry(rest);
+      const { cliWatch } = await import("./cli-commands.js");
+      await cliWatch(rest);
       break;
     }
     case "approve": {
-      const { approve } = await import("./approve.js");
-      await approve(rest);
+      const { cliApprove } = await import("./cli-commands.js");
+      await cliApprove(rest);
       break;
     }
-    case "revise": {
-      const { revise } = await import("./revise.js");
-      await revise(rest);
+    case "reset": {
+      const { cliReset } = await import("./cli-commands.js");
+      await cliReset(rest);
       break;
     }
-    case "challenge": {
-      const { challenge } = await import("./challenge-command.js");
-      await challenge(rest);
+    case "merge": {
+      const { cliMerge } = await import("./cli-commands.js");
+      await cliMerge(rest);
       break;
     }
-    case "resolve-challenge": {
-      const { resolveChallenge } = await import("./resolve-challenge.js");
-      await resolveChallenge(rest);
+    case "complete": {
+      const { cliComplete } = await import("./cli-commands.js");
+      await cliComplete(rest);
+      break;
+    }
+    case "fail": {
+      const { cliFail } = await import("./cli-commands.js");
+      await cliFail(rest);
+      break;
+    }
+
+    // --- Inspection ---
+    case "status": {
+      const { cliStatus } = await import("./cli-commands.js");
+      await cliStatus(rest);
+      break;
+    }
+    case "ledger": {
+      const { cliLedger } = await import("./cli-commands.js");
+      await cliLedger(rest);
       break;
     }
     case "list": {
@@ -84,16 +87,24 @@ async function main() {
       await list(rest);
       break;
     }
+
+    // --- Housekeeping ---
+    case "spawn": {
+      const { spawn } = await import("./spawn.js");
+      await spawn(rest);
+      break;
+    }
     case "cleanup": {
       const { cleanup } = await import("./cleanup.js");
       await cleanup(rest);
       break;
     }
-    case "init": {
+    case "init-repo": {
       const { init } = await import("./init.js");
       await init();
       break;
     }
+
     case "--help":
     case "-h":
     case undefined:
@@ -102,15 +113,9 @@ async function main() {
     default:
       writeFailureLog(
         new HydraError(`Unknown command: ${command}`, {
-          errorCode: "CLI_UNKNOWN_COMMAND",
-          stage: "cli.dispatch",
-          ids: { command },
+          errorCode: "CLI_UNKNOWN_COMMAND", stage: "cli.dispatch", ids: { command },
         }),
-        {
-          errorCode: "CLI_UNKNOWN_COMMAND",
-          stage: "cli.dispatch",
-          ids: { command },
-        },
+        { errorCode: "CLI_UNKNOWN_COMMAND", stage: "cli.dispatch", ids: { command } },
       );
       printUsage();
       process.exit(1);
@@ -121,9 +126,7 @@ main().catch((err) => {
   writeFailureLog(err, {
     errorCode: "CLI_COMMAND_FAILED",
     stage: command ? `cli.${command}` : "cli.entrypoint",
-    ids: {
-      command,
-    },
+    ids: { command },
   });
   process.exit(1);
 });

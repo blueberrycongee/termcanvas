@@ -177,7 +177,7 @@ export async function spawn(args: string[]): Promise<void> {
     ],
     decisionRules: [
       "- Complete the requested task honestly.",
-      "- Use next_action.type=complete when the worker is actually done.",
+      "- Use intent.type=done when the worker is actually done.",
     ],
     acceptanceCriteria: [
       "Complete the requested task",

@@ -108,7 +108,7 @@ export interface WorkflowTelemetrySnapshot {
   workflow_id: string;
   repo_path: string;
   workflow_status: string;
-  current_assignment_id: string;
+  current_assignment_id?: string;
   terminal_id?: string | null;
   terminal: TerminalTelemetrySnapshot | null;
   contract: {

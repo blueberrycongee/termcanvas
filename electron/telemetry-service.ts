@@ -5,7 +5,7 @@ import {
 } from "../hydra/src/assignment/manager.ts";
 import type { AssignmentRecord } from "../hydra/src/assignment/types.ts";
 import {
-  validateWorkflowResultContract,
+  validateSubAgentResult,
 } from "../hydra/src/protocol.ts";
 import { loadWorkflow } from "../hydra/src/workflow-store.ts";
 import { getProcessSnapshot } from "./process-detector.ts";
@@ -555,7 +555,13 @@ export class TelemetryService {
     if (!workflow) return null;
 
     const assignmentManager = new AssignmentManager(repoPath, workflowId);
-    const assignment = assignmentManager.load(workflow.current_assignment_id);
+    // Find the first dispatched node's assignment
+    const dispatchedNodeId = Object.entries(workflow.node_statuses ?? {})
+      .find(([, s]) => s === "dispatched")?.[0];
+    const dispatchedNode = dispatchedNodeId ? workflow.nodes?.[dispatchedNodeId] : undefined;
+    const assignmentId = dispatchedNode?.assignment_id ?? workflow.assignment_ids?.[workflow.assignment_ids.length - 1];
+    if (!assignmentId) return null;
+    const assignment = assignmentManager.load(assignmentId);
     if (!assignment) return null;
 
     const run = latestRun(assignment);
@@ -578,7 +584,7 @@ export class TelemetryService {
       workflow_id: workflow.id,
       repo_path: workflow.repo_path,
       workflow_status: workflow.status,
-      current_assignment_id: assignment.id,
+      current_assignment_id: assignment.id,  // populated from first dispatched node
       terminal_id: terminalId,
       terminal,
       contract: {
@@ -837,7 +843,7 @@ export class TelemetryService {
     if (resultExists) {
       try {
         const raw = JSON.parse(fs.readFileSync(run.result_file, "utf-8"));
-        validateWorkflowResultContract(raw, {
+        validateSubAgentResult(raw, {
           workflow_id: workflow.id,
           assignment_id: assignment.id,
           run_id: run.id,

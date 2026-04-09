@@ -179,8 +179,7 @@ test("workflow snapshot reads contract truth from Hydra assignment run artifacts
     saveWorkflow({
       schema_version: WORKFLOW_STATE_SCHEMA_VERSION,
       id: workflowId,
-      template: "single-step",
-      task: "Implement telemetry",
+      intent: "Implement telemetry",
       repo_path: repoPath,
       worktree_path: repoPath,
       branch: null,
@@ -188,24 +187,26 @@ test("workflow snapshot reads contract truth from Hydra assignment run artifacts
       own_worktree: false,
       created_at: "2026-03-26T00:00:00.000Z",
       updated_at: "2026-03-26T00:00:00.000Z",
-      status: "running",
-      current_assignment_id: assignmentId,
+      status: "active",
+      nodes: { dev: { id: "dev", role: "implementer", depends_on: [], agent_type: "codex", assignment_id: assignmentId, intent: "Implement telemetry" } },
+      node_statuses: { dev: "dispatched" },
       assignment_ids: [assignmentId],
-      timeout_minutes: 15,
-      max_retries: 3,
+      default_timeout_minutes: 15,
+      default_max_retries: 3,
+      default_agent_type: "codex",
       auto_approve: false,
     });
 
     fs.writeFileSync(resultFile, JSON.stringify({
-      schema_version: "hydra/result/v1",
+      schema_version: "hydra/result/v2",
       success: true,
       summary: "done",
       workflow_id: workflowId,
       assignment_id: assignmentId,
       run_id: runId,
       outputs: [],
-      evidence: [],
-      next_action: { type: "complete", reason: "done" },
+      evidence: ["tests pass"],
+      intent: { type: "done", confidence: "high" },
     }, null, 2), "utf-8");
 
     const service = new TelemetryService();

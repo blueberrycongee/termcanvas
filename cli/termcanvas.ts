@@ -274,7 +274,7 @@ async function main() {
         }
         for (const workflow of result) {
           console.log(
-            `${workflow.id}  ${workflow.status}  ${workflow.current_assignment_id}  ${workflow.updated_at}`,
+            `${workflow.id}  ${workflow.status}  ${workflow.updated_at}`,
           );
         }
       } else if (
@@ -295,7 +295,7 @@ async function main() {
             `/workflow/${encodeURIComponent(workflowId)}?repo=${encodeURIComponent(repo)}`,
           );
           if (jsonFlag) console.log(JSON.stringify(result, null, 2));
-          else console.log(`${result.workflow.status}  ${result.workflow.current_assignment_id}`);
+          else console.log(`${result.workflow.status}  ${result.workflow.id}`);
         } else if (command === "tick") {
           const result = await request(
             "POST",
@@ -303,7 +303,7 @@ async function main() {
             { repo },
           );
           if (jsonFlag) console.log(JSON.stringify(result, null, 2));
-          else console.log(`${result.workflow.status}  ${result.workflow.current_assignment_id}`);
+          else console.log(`${result.workflow.status}  ${result.workflow.id}`);
         } else if (command === "retry") {
           const result = await request(
             "POST",
@@ -311,7 +311,7 @@ async function main() {
             { repo },
           );
           if (jsonFlag) console.log(JSON.stringify(result, null, 2));
-          else console.log(`${result.workflow.status}  ${result.workflow.current_assignment_id}`);
+          else console.log(`${result.workflow.status}  ${result.workflow.id}`);
         } else if (command === "cleanup") {
           const force = rest.includes("--force");
           const query = new URLSearchParams({ repo });
@@ -347,7 +347,7 @@ async function main() {
             );
           }
           if (jsonFlag) console.log(JSON.stringify(result, null, 2));
-          else console.log(`${result.workflow.status}  ${result.workflow.current_assignment_id}`);
+          else console.log(`${result.workflow.status}  ${result.workflow.id}`);
         }
       } else {
         console.log(

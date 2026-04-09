@@ -63,13 +63,16 @@ async function captureStage(
   expectedRole: string,
   summary: string,
   success: boolean,
-  nextAction: { type: "complete" | "retry" | "transition"; reason: string; assignment_id?: string },
+  intent: { type: "done" | "needs_rework" | "replan" | "blocked"; reason?: string; confidence?: string },
 ): Promise<StageRecord> {
   const workflow = loadWorkflow(repoPath, workflowId);
   assert.ok(workflow, "workflow must exist");
 
   const manager = new AssignmentManager(repoPath, workflowId);
-  const assignment = manager.load(workflow.current_assignment_id);
+  // Find first dispatched node's assignment
+  const dispatchedNodeId = Object.entries(workflow.node_statuses ?? {}).find(([, s]) => s === "dispatched")?.[0];
+  const assignmentId = dispatchedNodeId ? workflow.nodes?.[dispatchedNodeId]?.assignment_id : workflow.assignment_ids?.[0];
+  const assignment = assignmentId ? manager.load(assignmentId) : null;
   assert.ok(assignment, "current assignment must exist");
   assert.equal(assignment.role, expectedRole);
 
@@ -97,7 +100,7 @@ async function captureStage(
   fs.writeFileSync(
     run.result_file,
     JSON.stringify({
-      schema_version: "hydra/result/v1",
+      schema_version: "hydra/result/v2",
       workflow_id: workflowId,
       assignment_id: assignment.id,
       run_id: run.id,
@@ -105,7 +108,7 @@ async function captureStage(
       summary,
       outputs: [{ path: `${expectedRole}.md`, description: `${expectedRole} acceptance artifact` }],
       evidence: ["hydra e2e acceptance script"],
-      next_action: nextAction,
+      intent,
     }, null, 2),
     "utf-8",
   );
