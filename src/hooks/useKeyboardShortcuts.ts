@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useViewportFocusStore } from "../stores/viewportFocusStore";
 import { deleteSelectedSceneItems } from "../actions/sceneDeleteActions";
 import {
   activateTerminalInScene,
@@ -92,6 +93,14 @@ function getFocusedWorktreeIndex(
 
 function zoomToTerminal(terminalId: string) {
   panToTerminal(terminalId);
+}
+
+function getZoomedOutTerminalId(): string | null {
+  return useViewportFocusStore.getState().zoomedOutTerminalId;
+}
+
+function setZoomedOutTerminalId(terminalId: string | null): void {
+  useViewportFocusStore.getState().setZoomedOutTerminalId(terminalId);
 }
 
 export function navigateToTerminalWithViewport(
@@ -216,7 +225,6 @@ export function useKeyboardShortcuts() {
   const shortcuts = useShortcutStore((s) => s.shortcuts);
   const t = useT();
   const lastFocusedRef = useRef<TerminalRef | null>(null);
-  const zoomedOutTerminalIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -259,12 +267,12 @@ export function useKeyboardShortcuts() {
             worktreeId: focused.worktreeId,
             terminalId: focused.terminalId,
           };
-          if (zoomedOutTerminalIdRef.current === focused.terminalId) {
+          if (getZoomedOutTerminalId() === focused.terminalId) {
             zoomToTerminal(focused.terminalId);
-            zoomedOutTerminalIdRef.current = null;
+            setZoomedOutTerminalId(null);
           } else {
             zoomToFitAll();
-            zoomedOutTerminalIdRef.current = focused.terminalId;
+            setZoomedOutTerminalId(focused.terminalId);
           }
         } else if (lastFocusedRef.current) {
           // Not focused, has history → restore last focused terminal
@@ -278,10 +286,10 @@ export function useKeyboardShortcuts() {
               restored.terminalId,
             );
             zoomToTerminal(restored.terminalId);
-            zoomedOutTerminalIdRef.current = null;
+            setZoomedOutTerminalId(null);
           } else {
             lastFocusedRef.current = null;
-            zoomedOutTerminalIdRef.current = null;
+            setZoomedOutTerminalId(null);
           }
         } else if (list.length > 0) {
           const first = list[0];
@@ -296,7 +304,7 @@ export function useKeyboardShortcuts() {
             first.terminalId,
           );
           zoomToTerminal(first.terminalId);
-          zoomedOutTerminalIdRef.current = null;
+          setZoomedOutTerminalId(null);
         }
         return;
       }
@@ -334,8 +342,8 @@ export function useKeyboardShortcuts() {
           });
           focusTerminalInScene(terminal.id);
           panToTerminal(terminal.id, { preserveScale: true });
-          if (zoomedOutTerminalIdRef.current !== null) {
-            zoomedOutTerminalIdRef.current = terminal.id;
+          if (getZoomedOutTerminalId() !== null) {
+            setZoomedOutTerminalId(terminal.id);
           }
         }
         return;
@@ -475,14 +483,13 @@ export function useKeyboardShortcuts() {
           );
 
           if (nextFocusedTerminalId) {
-            zoomedOutTerminalIdRef.current = navigateToTerminalWithViewport(
-              nextFocusedTerminalId,
-              {
-                zoomedOutTerminalId: zoomedOutTerminalIdRef.current,
-              },
+            setZoomedOutTerminalId(
+              navigateToTerminalWithViewport(nextFocusedTerminalId, {
+                zoomedOutTerminalId: getZoomedOutTerminalId(),
+              }),
             );
           } else {
-            zoomedOutTerminalIdRef.current = null;
+            setZoomedOutTerminalId(null);
           }
         }
         return;
@@ -521,11 +528,10 @@ export function useKeyboardShortcuts() {
           currentIndex === -1 ? 0 : (currentIndex + 1) % terminalList.length;
         const next = terminalList[nextIndex];
         focusTerminalInScene(next.terminalId);
-        zoomedOutTerminalIdRef.current = navigateToTerminalWithViewport(
-          next.terminalId,
-          {
-            zoomedOutTerminalId: zoomedOutTerminalIdRef.current,
-          },
+        setZoomedOutTerminalId(
+          navigateToTerminalWithViewport(next.terminalId, {
+            zoomedOutTerminalId: getZoomedOutTerminalId(),
+          }),
         );
         return;
       }
@@ -557,11 +563,10 @@ export function useKeyboardShortcuts() {
           currentIndex <= 0 ? terminalList.length - 1 : currentIndex - 1;
         const prev = terminalList[prevIndex];
         focusTerminalInScene(prev.terminalId);
-        zoomedOutTerminalIdRef.current = navigateToTerminalWithViewport(
-          prev.terminalId,
-          {
-            zoomedOutTerminalId: zoomedOutTerminalIdRef.current,
-          },
+        setZoomedOutTerminalId(
+          navigateToTerminalWithViewport(prev.terminalId, {
+            zoomedOutTerminalId: getZoomedOutTerminalId(),
+          }),
         );
         return;
       }
