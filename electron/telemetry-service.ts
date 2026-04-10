@@ -314,6 +314,14 @@ const HEAD_LINES_FOR_FIRST_PROMPT = 40;
 const FIRST_PROMPT_MAX_LENGTH = 100;
 
 /**
+ * Pattern that matches auto-injected context messages from both Claude Code
+ * and Codex (AGENTS.md, environment context, skills, etc.).  These are sent
+ * as role:"user" but are not actual user input.
+ */
+const INJECTED_CONTEXT_PATTERN =
+  /^(?:\s*#\s*AGENTS\.md\s|<(?:environment_context|skill|user_instructions|apps_instructions|skills_instructions|plugins_instructions|collaboration_mode|realtime_conversation|system-reminder)[>\s]|\s*<[a-z][\w-]*[\s>]|\[Request interrupted by user)/;
+
+/**
  * Read the head of a session JSONL file and return the first meaningful
  * user prompt text.  Handles both Claude (`{type:"user",message:…}`) and
  * Codex (`{type:"response_item",payload:{type:"message",role:"user",…}}`)
@@ -344,7 +352,8 @@ function extractFirstUserPrompt(filePath: string): string | undefined {
       const message = raw.message as Record<string, unknown> | undefined;
       if (!message) continue;
       const text = extractTextFromMessageContent(message.content);
-      if (text) return collapseAndTruncate(text, FIRST_PROMPT_MAX_LENGTH);
+      if (!text || INJECTED_CONTEXT_PATTERN.test(text)) continue;
+      return collapseAndTruncate(text, FIRST_PROMPT_MAX_LENGTH);
     }
 
     // Codex event_msg format: { type: "event_msg", payload: { type: "user_message", message: "..." } }
@@ -355,6 +364,7 @@ function extractFirstUserPrompt(filePath: string): string | undefined {
         typeof payload.message === "string" &&
         payload.message.trim()
       ) {
+        if (INJECTED_CONTEXT_PATTERN.test(payload.message)) continue;
         return collapseAndTruncate(payload.message, FIRST_PROMPT_MAX_LENGTH);
       }
     }
@@ -364,7 +374,8 @@ function extractFirstUserPrompt(filePath: string): string | undefined {
       const payload = raw.payload as Record<string, unknown> | undefined;
       if (payload?.type === "message" && payload.role === "user") {
         const text = extractTextFromMessageContent(payload.content);
-        if (text) return collapseAndTruncate(text, FIRST_PROMPT_MAX_LENGTH);
+        if (!text || INJECTED_CONTEXT_PATTERN.test(text)) continue;
+        return collapseAndTruncate(text, FIRST_PROMPT_MAX_LENGTH);
       }
     }
   }
