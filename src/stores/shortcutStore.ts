@@ -14,10 +14,10 @@ export interface ShortcutMap {
   closeFocused: string;
   toggleRightPanel: string;
   toggleStarFocused: string;
-  spanDefault: string;
-  spanWide: string;
-  spanTall: string;
-  spanLarge: string;
+  tileSizeDefault: string;
+  tileSizeWide: string;
+  tileSizeTall: string;
+  tileSizeLarge: string;
 }
 
 const LEGACY_DEFAULT_SHORTCUTS: ShortcutMap = {
@@ -33,10 +33,10 @@ const LEGACY_DEFAULT_SHORTCUTS: ShortcutMap = {
   closeFocused: "mod+d",
   toggleRightPanel: "mod+/",
   toggleStarFocused: "mod+f",
-  spanDefault: "mod+1",
-  spanWide: "mod+2",
-  spanTall: "mod+3",
-  spanLarge: "mod+4",
+  tileSizeDefault: "mod+1",
+  tileSizeWide: "mod+2",
+  tileSizeTall: "mod+3",
+  tileSizeLarge: "mod+4",
 };
 
 const ALT_DEFAULT_SHORTCUTS: ShortcutMap = {
@@ -52,10 +52,10 @@ const ALT_DEFAULT_SHORTCUTS: ShortcutMap = {
   closeFocused: "alt+d",
   toggleRightPanel: "alt+/",
   toggleStarFocused: "alt+f",
-  spanDefault: "alt+1",
-  spanWide: "alt+2",
-  spanTall: "alt+3",
-  spanLarge: "alt+4",
+  tileSizeDefault: "alt+1",
+  tileSizeWide: "alt+2",
+  tileSizeTall: "alt+3",
+  tileSizeLarge: "alt+4",
 };
 
 export const DEFAULT_SHORTCUTS: ShortcutMap = { ...LEGACY_DEFAULT_SHORTCUTS };
@@ -102,20 +102,47 @@ function isLegacyDefaultShortcutMap(shortcuts: ShortcutMap): boolean {
   ).every(([key, value]) => shortcuts[key] === value);
 }
 
+// Renamed shortcut keys: existing localStorage payloads from before the
+// rename still hold spanDefault/spanWide/spanTall/spanLarge. Migrate them
+// in place so users keep any custom binding they had.
+const RENAMED_SHORTCUT_KEYS: Record<string, keyof ShortcutMap> = {
+  spanDefault: "tileSizeDefault",
+  spanWide: "tileSizeWide",
+  spanTall: "tileSizeTall",
+  spanLarge: "tileSizeLarge",
+};
+
+function migrateLegacyShortcutKeys(
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  const migrated: Record<string, unknown> = { ...raw };
+  for (const [oldKey, newKey] of Object.entries(RENAMED_SHORTCUT_KEYS)) {
+    if (oldKey in migrated && !(newKey in migrated)) {
+      migrated[newKey] = migrated[oldKey];
+    }
+    delete migrated[oldKey];
+  }
+  return migrated;
+}
+
 function loadShortcuts(): ShortcutMap {
   const platform = getShortcutPlatform();
   const defaults = getDefaultShortcuts(platform);
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
+      const rawParsed = JSON.parse(saved) as Record<string, unknown>;
+      const migrated = migrateLegacyShortcutKeys(rawParsed);
       const parsed = {
         ...defaults,
-        ...JSON.parse(saved),
+        ...migrated,
       } as ShortcutMap;
       if (platform !== "darwin" && isLegacyDefaultShortcutMap(parsed)) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(defaults));
         return defaults;
       }
+      // Persist the migrated form so subsequent reads don't replay it.
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
       return parsed;
     }
   } catch {

@@ -39,10 +39,10 @@ const SHORTCUT_KEYS: { key: keyof ShortcutMap; labelKey: string }[] = [
   { key: "nextTerminal", labelKey: "shortcut_next_terminal" },
   { key: "prevTerminal", labelKey: "shortcut_prev_terminal" },
   { key: "clearFocus", labelKey: "shortcut_clear_focus" },
-  { key: "spanDefault", labelKey: "shortcut_span_default" },
-  { key: "spanWide", labelKey: "shortcut_span_wide" },
-  { key: "spanTall", labelKey: "shortcut_span_tall" },
-  { key: "spanLarge", labelKey: "shortcut_span_large" },
+  { key: "tileSizeDefault", labelKey: "shortcut_tile_size_default" },
+  { key: "tileSizeWide", labelKey: "shortcut_tile_size_wide" },
+  { key: "tileSizeTall", labelKey: "shortcut_tile_size_tall" },
+  { key: "tileSizeLarge", labelKey: "shortcut_tile_size_large" },
 ];
 
 function ShortcutRow({

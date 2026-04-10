@@ -536,10 +536,10 @@ export function useKeyboardShortcuts() {
         width: number;
         height: number;
       }[] = [
-        { key: "spanDefault", width: 640, height: 480 },
-        { key: "spanWide", width: 1288, height: 480 },
-        { key: "spanTall", width: 640, height: 968 },
-        { key: "spanLarge", width: 1288, height: 968 },
+        { key: "tileSizeDefault", width: 640, height: 480 },
+        { key: "tileSizeWide", width: 1288, height: 480 },
+        { key: "tileSizeTall", width: 640, height: 968 },
+        { key: "tileSizeLarge", width: 1288, height: 968 },
       ];
 
       for (const preset of SIZE_PRESETS) {
