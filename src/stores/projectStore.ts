@@ -30,6 +30,7 @@ import {
 } from "./tileDimensionsStore.ts";
 import { useTerminalRuntimeStateStore } from "./terminalRuntimeStateStore.ts";
 import { destroyTerminalRuntime } from "../terminal/terminalRuntimeStore.ts";
+import { resolveCollisions } from "../canvas/collisionResolver.ts";
 
 interface ProjectStore {
   projects: ProjectData[];
@@ -1095,6 +1096,7 @@ export function stashTerminal(
 }
 
 export function unstashTerminal(terminalId: string): void {
+  // First, restore the stashed flag using the existing position.
   useProjectStore.setState((state) => ({
     projects: state.projects.map((p) => ({
       ...p,
@@ -1108,6 +1110,49 @@ export function unstashTerminal(terminalId: string): void {
       })),
     })),
   }));
+
+  // Resolve any collision between the unstashed tile and currently visible
+  // tiles. This both detects whether the original (x, y) is still free and
+  // nudges the unstashed tile out of the way if not.
+  const projects = useProjectStore.getState().projects;
+  const allRects: Array<{
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }> = [];
+  for (const project of projects) {
+    for (const worktree of project.worktrees) {
+      for (const terminal of worktree.terminals) {
+        if (terminal.stashed) continue;
+        allRects.push({
+          id: terminal.id,
+          x: terminal.x,
+          y: terminal.y,
+          width: terminal.width,
+          height: terminal.height,
+        });
+      }
+    }
+  }
+  // Anchor remains the unstashed terminal — collision resolver will only
+  // move it when forced and otherwise nudge other tiles.
+  const resolved = resolveCollisions(allRects, 8, terminalId);
+  const updatePos = useProjectStore.getState().updateTerminalPosition;
+  for (const rect of resolved) {
+    const original = allRects.find((r) => r.id === rect.id);
+    if (!original) continue;
+    if (original.x === rect.x && original.y === rect.y) continue;
+    for (const project of projects) {
+      for (const worktree of project.worktrees) {
+        if (worktree.terminals.some((t) => t.id === rect.id)) {
+          updatePos(project.id, worktree.id, rect.id, rect.x, rect.y);
+        }
+      }
+    }
+  }
+
   useProjectStore.getState().setFocusedTerminal(terminalId);
   markDirty();
 }
