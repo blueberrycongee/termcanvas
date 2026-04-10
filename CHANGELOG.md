@@ -2,6 +2,22 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.25.23] - 2026-04-09
+
+### Changed
+- Separated terminal focus semantics from viewport zoom semantics:
+  - Clicking a terminal now keeps focus highlight without forcing viewport zoom.
+  - Cmd+E now toggles zoom state while keeping terminal focus highlight.
+- Cmd+T and Cmd+D now preserve current zoom scale and only pan the viewport.
+- In non-zoomed mode, Cmd+[ and Cmd+] now preserve scale and only pan to the previous/next focused terminal.
+
+### Changed (zh-CN)
+- 终端聚焦语义与视口缩放语义已拆分：
+  - 点击终端仅保留聚焦高亮，不再强制缩放视口。
+  - Cmd+E 改为切换缩放状态，同时保留终端聚焦高亮。
+- Cmd+T 与 Cmd+D 现在保持当前缩放比例，仅平移视口。
+- 在非放大模式下，Cmd+[ 与 Cmd+] 现在保持缩放比例，仅平移到上一个/下一个聚焦终端。
+
 ## [0.25.22] - 2026-04-09
 
 ### Fixed
