@@ -8,6 +8,7 @@ import { ServerEventBus } from "../headless-runtime/event-bus.ts";
 import { launchTrackedTerminal } from "../headless-runtime/terminal-launch.ts";
 import { ProjectStore } from "../headless-runtime/project-store.ts";
 import { createWorkflowControl } from "../headless-runtime/workflow-control.ts";
+import { AssignmentManager } from "../hydra/src/assignment/manager.ts";
 import {
   FakePtyManager,
   addProjectWithMainWorktree,
@@ -40,6 +41,62 @@ function initRepo(repoPath: string): void {
   fs.writeFileSync(path.join(repoPath, "README.md"), "hello\n", "utf-8");
   execFileSync("git", ["add", "README.md"], { cwd: repoPath, stdio: "pipe" });
   execFileSync("git", ["commit", "-m", "init"], { cwd: repoPath, stdio: "pipe" });
+}
+
+function withLeadTerminal<T>(terminalId: string, fn: () => Promise<T> | T): Promise<T> {
+  const previous = process.env.TERMCANVAS_TERMINAL_ID;
+  process.env.TERMCANVAS_TERMINAL_ID = terminalId;
+  return Promise.resolve()
+    .then(fn)
+    .finally(() => {
+      if (previous === undefined) {
+        delete process.env.TERMCANVAS_TERMINAL_ID;
+      } else {
+        process.env.TERMCANVAS_TERMINAL_ID = previous;
+      }
+    });
+}
+
+function writeSlimResult(
+  resultFile: string,
+  payload: {
+    workflowId: string;
+    assignmentId: string;
+    runId: string;
+    summary: string;
+    outcome?: "completed" | "stuck" | "error";
+  },
+): string {
+  const reportFile = path.join(path.dirname(resultFile), "report.md");
+  fs.writeFileSync(
+    reportFile,
+    [
+      "# Run Report",
+      "",
+      "## Summary",
+      "",
+      payload.summary,
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+  fs.writeFileSync(
+    resultFile,
+    JSON.stringify(
+      {
+        schema_version: "hydra/result/v0.1",
+        workflow_id: payload.workflowId,
+        assignment_id: payload.assignmentId,
+        run_id: payload.runId,
+        outcome: payload.outcome ?? "completed",
+        report_file: reportFile,
+      },
+      null,
+      2,
+    ),
+    "utf-8",
+  );
+  return reportFile;
 }
 
 test("workflow-linked terminal exits do not emit workflow completion before the Hydra contract exists", async () => {
@@ -77,15 +134,13 @@ test("workflow-linked terminal exits do not emit workflow completion before the 
   }
 });
 
-test("workflow control emits workflow_completed only after Hydra marks the workflow complete", async () => {
+test("createWorkflowControl drives a Lead-driven workflow end-to-end (in-process)", async () => {
   const workspaceDir = createWorkspaceFixture({});
   const repoPath = path.join(workspaceDir, "repo");
   fs.mkdirSync(repoPath, { recursive: true });
   initRepo(repoPath);
 
-  const worktrees = [
-    { path: repoPath, branch: "main", isMain: true },
-  ];
+  const worktrees = [{ path: repoPath, branch: "main", isMain: true }];
   const projectStore = new ProjectStore();
   const ptyManager = new FakePtyManager();
   const telemetryService = new TelemetryService({
@@ -101,19 +156,11 @@ test("workflow control emits workflow_completed only after Hydra marks the workf
     telemetryService,
     projectScanner: {
       scan(dirPath: string) {
-        if (path.resolve(dirPath) !== repoPath) {
-          return null;
-        }
-        return {
-          name: "repo",
-          path: repoPath,
-          worktrees,
-        };
+        if (path.resolve(dirPath) !== repoPath) return null;
+        return { name: "repo", path: repoPath, worktrees };
       },
       listWorktrees(dirPath: string) {
-        if (path.resolve(dirPath) !== repoPath) {
-          return [];
-        }
+        if (path.resolve(dirPath) !== repoPath) return [];
         return worktrees;
       },
     },
@@ -121,163 +168,171 @@ test("workflow control emits workflow_completed only after Hydra marks the workf
   });
 
   try {
-    const started = await workflowControl.run({
-      task: "Implement headless workflow control",
-      repoPath,
-      worktreePath: repoPath,
-      template: "single-step",
-      allType: "codex",
-    });
+    await withLeadTerminal("terminal-lead-inproc", async () => {
+      const init = await workflowControl.init({
+        intent: "Implement headless workflow control",
+        repoPath,
+        worktreePath: repoPath,
+        defaultAgentType: "codex",
+      });
+      assert.ok(init.workflow_id);
 
-    assert.equal(
-      eventBus.getRecentEvents(10).some((event) => event.type === "workflow_started"),
-      true,
-    );
-    assert.equal(
-      eventBus.getRecentEvents(10).some((event) => event.type === "workflow_completed"),
-      false,
-    );
+      const dispatch = await workflowControl.dispatch({
+        repoPath,
+        workflowId: init.workflow_id,
+        nodeId: "dev",
+        role: "implementer",
+        intent: "Implement workflow control",
+      });
+      assert.equal(dispatch.status, "dispatched");
+      assert.equal(ptyManager.creates.length, 1);
+      assert.equal(ptyManager.creates[0].shell, "codex");
 
-    const assignment = started.assignments[0];
-    const run = assignment.runs[0];
-    fs.writeFileSync(
-      run.result_file,
-      JSON.stringify({
-        schema_version: "hydra/result/v0.1",
-        assignment_id: assignment.id,
-        workflow_id: started.workflow.id,
-        run_id: run.id,
+      const manager = new AssignmentManager(repoPath, init.workflow_id);
+      const assignment = manager.load(dispatch.assignment_id);
+      assert.ok(assignment);
+      const run = assignment.runs[assignment.runs.length - 1];
+      assert.ok(run);
+      writeSlimResult(run.result_file, {
+        workflowId: init.workflow_id,
+        assignmentId: assignment.id,
+        runId: run.id,
         summary: "Completed workflow control implementation.",
-        outputs: [
-          {
-            path: "headless-runtime/workflow-control.ts",
-            description: "Workflow control implementation",
-          },
-        ],
-        evidence: ["workflow event test"],
-        outcome: "completed",
-      }, null, 2),
-      "utf-8",
-    );
+      });
 
-    const ticked = await workflowControl.tick(repoPath, started.workflow.id);
+      const decision = await workflowControl.watchDecision(repoPath, init.workflow_id);
+      assert.equal(decision.type, "node_completed");
+      assert.equal(decision.completed?.outcome, "completed");
+      assert.equal(decision.completed?.node_id, "dev");
 
-    assert.equal(ticked.workflow.status, "completed");
-    assert.equal(
-      eventBus.getRecentEvents(10).some((event) => event.type === "workflow_completed"),
-      true,
-    );
+      await workflowControl.approveNode(repoPath, init.workflow_id, "dev");
+      await workflowControl.complete(repoPath, init.workflow_id, "All done.");
+
+      const final = workflowControl.status(repoPath, init.workflow_id);
+      assert.equal(final.workflow.status, "completed");
+    });
   } finally {
     telemetryService.dispose();
   }
 });
 
-test("workflow routes auto-track the repo and can complete a single-step run", async () => {
+test("Lead-driven workflow HTTP routes init, dispatch, watch, approve, complete, and clean up", async () => {
   const workspaceDir = createWorkspaceFixture({});
   const repoPath = path.join(workspaceDir, "repo");
   fs.mkdirSync(repoPath, { recursive: true });
   initRepo(repoPath);
 
-  const worktrees = [
-    { path: repoPath, branch: "main", isMain: true },
-  ];
+  const worktrees = [{ path: repoPath, branch: "main", isMain: true }];
 
   const harness = await startHeadlessServer({
     workspaceDir,
     projectScanner: {
       scan(dirPath: string) {
-        if (path.resolve(dirPath) !== repoPath) {
-          return null;
-        }
-        return {
-          name: "repo",
-          path: repoPath,
-          worktrees,
-        };
+        if (path.resolve(dirPath) !== repoPath) return null;
+        return { name: "repo", path: repoPath, worktrees };
       },
       listWorktrees(dirPath: string) {
-        if (path.resolve(dirPath) !== repoPath) {
-          return [];
-        }
+        if (path.resolve(dirPath) !== repoPath) return [];
         return worktrees;
       },
     },
   });
 
   try {
-    const started = await fetchJson(`${harness.baseUrl}/workflow/run`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        task: "Implement headless workflow control",
-        repo: repoPath,
-        worktree: repoPath,
-        template: "single-step",
-        allType: "codex",
-      }),
-    });
-
-    assert.equal(started.status, 200);
-    assert.equal(started.body.workflow.status, "running");
-    assert.equal(harness.projectStore.getProjects().length, 1);
-    assert.equal(harness.projectStore.getProjects()[0].path, repoPath);
-    assert.equal(harness.ptyManager.creates.length, 1);
-    assert.equal(harness.ptyManager.creates[0].cwd, repoPath);
-    assert.equal(harness.ptyManager.creates[0].shell, "codex");
-
-    const listed = await fetchJson(
-      `${harness.baseUrl}/workflow/list?repo=${encodeURIComponent(repoPath)}`,
-    );
-    assert.equal(listed.status, 200);
-    assert.equal(listed.body.length, 1);
-    assert.equal(listed.body[0].id, started.body.workflow.id);
-
-    const assignment = started.body.assignments[0];
-    const run = assignment.runs[0];
-    fs.writeFileSync(
-      run.result_file,
-      JSON.stringify({
-        schema_version: "hydra/result/v0.1",
-        assignment_id: assignment.id,
-        workflow_id: started.body.workflow.id,
-        run_id: run.id,
-        summary: "Completed workflow control implementation.",
-        outputs: [
-          {
-            path: "headless-runtime/workflow-control.ts",
-            description: "Workflow control implementation",
-          },
-        ],
-        evidence: ["manual test"],
-        outcome: "completed",
-      }, null, 2),
-      "utf-8",
-    );
-
-    const ticked = await fetchJson(
-      `${harness.baseUrl}/workflow/${encodeURIComponent(started.body.workflow.id)}/tick`,
-      {
+    await withLeadTerminal("terminal-lead-http", async () => {
+      const init = await fetchJson(`${harness.baseUrl}/workflow/init`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repo: repoPath }),
-      },
-    );
+        body: JSON.stringify({
+          intent: "Implement headless workflow control",
+          repoPath,
+          worktreePath: repoPath,
+          defaultAgentType: "codex",
+        }),
+      });
+      assert.equal(init.status, 200);
+      assert.ok(init.body.workflow_id);
+      const workflowId = init.body.workflow_id;
 
-    assert.equal(ticked.status, 200);
-    assert.equal(ticked.body.workflow.status, "completed");
-    assert.equal(harness.projectStore.listTerminals().length, 0);
+      const dispatch = await fetchJson(
+        `${harness.baseUrl}/workflow/${encodeURIComponent(workflowId)}/dispatch`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            repoPath,
+            nodeId: "dev",
+            role: "implementer",
+            intent: "Implement workflow control",
+          }),
+        },
+      );
+      assert.equal(dispatch.status, 200);
+      assert.equal(dispatch.body.status, "dispatched");
+      assert.equal(harness.ptyManager.creates.length, 1);
+      assert.equal(harness.ptyManager.creates[0].shell, "codex");
 
-    const cleaned = await fetchJson(
-      `${harness.baseUrl}/workflow/${encodeURIComponent(started.body.workflow.id)}?repo=${encodeURIComponent(repoPath)}`,
-      {
-        method: "DELETE",
-      },
-    );
-    assert.equal(cleaned.status, 200);
-    assert.equal(
-      fs.existsSync(path.join(repoPath, ".hydra", "workflows", started.body.workflow.id)),
-      false,
-    );
+      const listed = await fetchJson(
+        `${harness.baseUrl}/workflow/list?repo=${encodeURIComponent(repoPath)}`,
+      );
+      assert.equal(listed.status, 200);
+      assert.equal(listed.body.length, 1);
+      assert.equal(listed.body[0].id, workflowId);
+
+      const manager = new AssignmentManager(repoPath, workflowId);
+      const assignment = manager.load(dispatch.body.assignment_id);
+      assert.ok(assignment);
+      const run = assignment.runs[assignment.runs.length - 1];
+      assert.ok(run);
+      writeSlimResult(run.result_file, {
+        workflowId,
+        assignmentId: assignment.id,
+        runId: run.id,
+        summary: "Completed workflow control implementation.",
+      });
+
+      const watched = await fetchJson(
+        `${harness.baseUrl}/workflow/${encodeURIComponent(workflowId)}/watch-decision`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ repoPath }),
+        },
+      );
+      assert.equal(watched.status, 200);
+      assert.equal(watched.body.type, "node_completed");
+      assert.equal(watched.body.completed?.outcome, "completed");
+
+      const approved = await fetchJson(
+        `${harness.baseUrl}/workflow/${encodeURIComponent(workflowId)}/node/dev/approve`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ repoPath }),
+        },
+      );
+      assert.equal(approved.status, 200);
+
+      const completed = await fetchJson(
+        `${harness.baseUrl}/workflow/${encodeURIComponent(workflowId)}/complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ repoPath, summary: "All done." }),
+        },
+      );
+      assert.equal(completed.status, 200);
+
+      const cleaned = await fetchJson(
+        `${harness.baseUrl}/workflow/${encodeURIComponent(workflowId)}?repo=${encodeURIComponent(repoPath)}`,
+        { method: "DELETE" },
+      );
+      assert.equal(cleaned.status, 200);
+      assert.equal(
+        fs.existsSync(path.join(repoPath, ".hydra", "workflows", workflowId)),
+        false,
+      );
+    });
   } finally {
     await stopHeadlessServer(harness);
   }
