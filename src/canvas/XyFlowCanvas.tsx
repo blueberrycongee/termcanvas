@@ -45,6 +45,7 @@ import {
 } from "./viewportBounds";
 import { clampScale, zoomAtClientPoint } from "./viewportZoom";
 import { resolveCollisions } from "./collisionResolver";
+import { ClusterToolbar } from "./ClusterToolbar";
 
 const EMPTY_EDGES: never[] = [];
 const WHEEL_ZOOM_SENSITIVITY = 0.002;
@@ -509,6 +510,8 @@ function XyFlowCanvasInner() {
       >
         <Background gap={20} size={1} color="var(--border)" />
       </ReactFlow>
+
+      <ClusterToolbar />
 
       <BoxSelectOverlay />
       <CanvasCardLayer />
