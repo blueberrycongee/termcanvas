@@ -141,7 +141,6 @@ function WorktreeRow({
   const collapsed = useSessionPanelCollapseStore((s) =>
     s.isCollapsed(group.worktreeId),
   );
-  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
 
   const handleNewTerminal = (type: "shell" | "claude" | "codex") => {
     const projects = useProjectStore.getState().projects;
@@ -208,11 +207,6 @@ function WorktreeRow({
             toggle(group.worktreeId);
           }
         }}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setMenu({ x: e.clientX, y: e.clientY });
-        }}
       >
         <ChevronIcon open={!collapsed} />
         <span className="text-[10px] text-[var(--text-muted)] truncate flex-1 min-w-0">
@@ -231,6 +225,27 @@ function WorktreeRow({
         >
           <PlusIcon />
         </button>
+        {!group.isMain && (
+          <button
+            type="button"
+            title={t.panel_remove_worktree}
+            aria-label={t.panel_remove_worktree}
+            onClick={(e) => {
+              e.stopPropagation();
+              void handleRemove();
+            }}
+            className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-[var(--text-muted)] hover:text-red-400 hover:bg-[var(--border)] shrink-0"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path
+                d="M2 2L8 8M8 2L2 8"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        )}
       </div>
       {!collapsed && (
         <div className="pl-4 pr-2 flex flex-col gap-0.5">
@@ -239,39 +254,6 @@ function WorktreeRow({
           ))}
         </div>
       )}
-      {menu &&
-        createPortal(
-          <ContextMenu
-            x={menu.x}
-            y={menu.y}
-            items={[
-              {
-                label: t.panel_new_terminal_shell,
-                onClick: () => handleNewTerminal("shell"),
-              },
-              {
-                label: t.panel_new_terminal_claude,
-                onClick: () => handleNewTerminal("claude"),
-              },
-              {
-                label: t.panel_new_terminal_codex,
-                onClick: () => handleNewTerminal("codex"),
-              },
-              ...(group.isMain
-                ? []
-                : [
-                    { type: "separator" as const },
-                    {
-                      label: t.panel_remove_worktree,
-                      danger: true,
-                      onClick: () => void handleRemove(),
-                    },
-                  ]),
-            ]}
-            onClose={() => setMenu(null)}
-          />,
-          document.body,
-        )}
     </div>
   );
 }
