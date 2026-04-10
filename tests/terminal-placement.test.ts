@@ -69,7 +69,7 @@ test("pickPlacement honors preferred position from right-click", () => {
   assert.equal(result.y, 570);
 });
 
-test("pickPlacement places below sibling tiles when no parent given", () => {
+test("pickPlacement places to the right of sibling tiles when no parent given", () => {
   const projects = makeProjects();
   const result = pickPlacement({
     projects,
@@ -79,9 +79,9 @@ test("pickPlacement places below sibling tiles when no parent given", () => {
     height: 300,
   });
 
-  // sibling minY=200, bottom=500 → y = 500 + 8 = 508 → snapped 510
-  assert.equal(result.x, 100);
-  assert.equal(result.y, 510);
+  // sibling x=100,w=400 → right=500 → x = 500 + 8 = 508 → snapped 510, y stays at sibling top
+  assert.equal(result.x, 510);
+  assert.equal(result.y, 200);
 });
 
 test("pickPlacement falls back to provided fallback when worktree empty", () => {

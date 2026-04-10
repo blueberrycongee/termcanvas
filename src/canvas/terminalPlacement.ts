@@ -93,18 +93,22 @@ function worktreeAnchor(
     return null;
   }
 
-  let minX = Number.POSITIVE_INFINITY;
-  let minY = Number.POSITIVE_INFINITY;
-  let maxX = Number.NEGATIVE_INFINITY;
-  let maxY = Number.NEGATIVE_INFINITY;
+  // Anchor off the rightmost sibling so new terminals flow horizontally
+  // (matching the parent-terminal branch below). Keep the new tile aligned
+  // with the rightmost sibling's top edge.
+  let rightmost = tiles[0];
   for (const tile of tiles) {
-    minX = Math.min(minX, tile.x);
-    minY = Math.min(minY, tile.y);
-    maxX = Math.max(maxX, tile.x + tile.width);
-    maxY = Math.max(maxY, tile.y + tile.height);
+    if (tile.x + tile.width > rightmost.x + rightmost.width) {
+      rightmost = tile;
+    }
   }
 
-  return { x: minX, y: minY, right: maxX, bottom: maxY };
+  return {
+    x: rightmost.x,
+    y: rightmost.y,
+    right: rightmost.x + rightmost.width,
+    bottom: rightmost.y + rightmost.height,
+  };
 }
 
 export interface PlacementResult {
@@ -135,8 +139,8 @@ export function pickPlacement(input: PlacementInput): PlacementResult {
     const sibling = worktreeAnchor(projects, input.projectId, input.worktreeId);
     if (sibling) {
       anchor = {
-        x: sibling.x,
-        y: sibling.bottom + ADJACENCY_GAP,
+        x: sibling.right + ADJACENCY_GAP,
+        y: sibling.y,
       };
     } else {
       anchor = input.fallback ?? { x: 0, y: 0 };
