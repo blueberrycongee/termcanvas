@@ -69,11 +69,11 @@ hydra merge --workflow W --nodes dev-frontend,dev-backend --repo .
 When `watchUntilDecision` returns a `node_completed` DecisionPoint:
 
 1. Check `outcome`:
-   - **`completed`** — agent finished. Read `summary` to decide next step.
-   - **`stuck`** — agent can't proceed. Read `summary` for what's needed.
+   - **`completed`** — agent finished. Read `report_file` to decide next step.
+   - **`stuck`** — agent can't proceed. Read `report_file` for what's needed.
    - **`error`** — Hydra already retried; if still failing, it reports to you.
 
-2. Read the `summary` field (or the brief file) to decide:
+2. Read the `report.md` referenced by `report_file` to decide:
    - Dispatch next node → `hydra dispatch ...`
    - Reset for rework → `hydra reset --workflow W --node dev --feedback "..." --repo .`
    - Reset for replan → `hydra reset --workflow W --node researcher --feedback "..." --repo .`
@@ -118,23 +118,32 @@ decision point. Do not poll manually with tick.
 
 ## Result contract
 
-Sub-agents write `result.json` with `schema_version: "hydra/result/v2"`.
+Sub-agents write a slim `result.json` with `schema_version: "hydra/result/v0.1"`
+plus a sidecar `report.md`. The JSON holds only what Hydra needs for routing;
+all human-readable content lives in `report.md`.
 
+`result.json` fields:
+- `schema_version`, `workflow_id`, `assignment_id`, `run_id` — passthrough IDs
 - `outcome`: `"completed"` / `"stuck"` / `"error"` — Hydra uses this for routing
-- `summary`: free text — Lead reads this to decide what to do next
-- `outputs`, `evidence`: structured artifact references
-- `reflection` (optional): approach, blockers, confidence — Hydra retains for optimization
+- `report_file`: relative or absolute path to the `report.md` written alongside
+
+Hydra rejects any extra fields. Write `report.md` first, then publish
+`result.json` atomically as the final artifact of the run.
 
 ```json
 {
+  "schema_version": "hydra/result/v0.1",
+  "workflow_id": "wf-...",
+  "assignment_id": "asg-...",
+  "run_id": "run-...",
   "outcome": "completed",
-  "summary": "OAuth middleware implemented with passport.js. All tests pass.",
-  "reflection": {
-    "approach": "Grep-first strategy to find auth endpoints",
-    "blockers_encountered": ["Missing types for session store"]
-  }
+  "report_file": "report.md"
 }
 ```
+
+`report.md` is free-form markdown. Recommended sections: summary of what was
+done, outputs (file paths + descriptions), evidence (test runs, manual checks),
+and a reflection on approach / blockers / confidence.
 
 ## Ledger
 

@@ -73,11 +73,13 @@ Telemetry polling:
    - `termcanvas telemetry events --terminal <terminalId> --limit 20`
 3. Trust `derived_status` and `task_status` as the primary decision signals.
 
-`result.json` must contain (v2):
+`result.json` must contain (slim, schema_version `hydra/result/v0.1`):
+- `schema_version`, `workflow_id`, `assignment_id`, `run_id` (passthrough IDs)
 - `outcome` (completed/stuck/error — Hydra routes on this)
-- `summary` (Lead reads this to decide next step)
-- `outputs[]`
-- `evidence[]`
-- `reflection` (optional: approach, blockers, confidence)
+- `report_file` (path to a `report.md` written alongside `result.json`)
+
+All human-readable content (summary, outputs, evidence, reflection) lives in
+`report.md`. Hydra rejects any extra fields in `result.json`. Write `report.md`
+first, then publish `result.json` atomically as the final artifact of the run.
 
 When NOT to use: simple fixes, high-certainty tasks, or work that is faster to do directly in the current agent.
