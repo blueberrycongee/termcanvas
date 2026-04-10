@@ -506,6 +506,9 @@ export interface TermCanvasAPI {
         }
       | { ok: false; error: string }
     >;
+    deleteFolder: (
+      projectPath: string,
+    ) => Promise<{ ok: true } | { ok: false; error: string }>;
     enableHydra: (dirPath: string) => Promise<ProjectEnableHydraResult>;
     checkHydra: (
       dirPath: string,

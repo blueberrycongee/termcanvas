@@ -603,6 +603,36 @@ function setupIpc() {
     },
   );
 
+  ipcMain.handle(
+    "project:delete-folder",
+    async (_event, projectPath: string) => {
+      try {
+        const resolved = path.resolve(projectPath);
+        const home = os.homedir();
+        const root = path.parse(resolved).root;
+        // Safety: refuse to delete obviously dangerous paths.
+        if (
+          !path.isAbsolute(resolved) ||
+          resolved === root ||
+          resolved === home ||
+          home.startsWith(resolved + path.sep) ||
+          resolved.split(path.sep).filter(Boolean).length < 2
+        ) {
+          return {
+            ok: false as const,
+            error: `Refusing to delete unsafe path: ${resolved}`,
+          };
+        }
+        const { rm } = await import("fs/promises");
+        await rm(resolved, { recursive: true, force: true });
+        return { ok: true as const };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false as const, error: message };
+      }
+    },
+  );
+
   ipcMain.handle("project:enable-hydra", (_event, dirPath: string) => {
     return enableHydraForProject(dirPath);
   });

@@ -283,6 +283,9 @@ function ProjectRow({
   );
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [creating, setCreating] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteInput, setDeleteInput] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const handleNewTerminal = () => {
     const projects = useProjectStore.getState().projects;
@@ -294,6 +297,63 @@ function ProjectRow({
       worktreeId: firstWorktree.id,
       type: "shell",
     });
+  };
+
+  const handleRemoveProject = () => {
+    const terminalCount = project.worktrees.reduce(
+      (acc, wt) => acc + wt.terminals.length,
+      0,
+    );
+    const warning =
+      terminalCount > 0
+        ? `Remove project "${project.projectName}"? This will close ${terminalCount} terminal${terminalCount === 1 ? "" : "s"}. Files on disk will not be deleted.`
+        : `Remove project "${project.projectName}"? Files on disk will not be deleted.`;
+    if (!window.confirm(warning)) return;
+    useProjectStore.getState().removeProject(project.projectId);
+    useNotificationStore
+      .getState()
+      .notify("info", `Project "${project.projectName}" removed`);
+  };
+
+  const openDeleteFromDisk = () => {
+    setDeleteInput("");
+    setConfirmingDelete(true);
+  };
+
+  const performDeleteFromDisk = async () => {
+    if (deleting) return;
+    if (deleteInput !== project.projectName) return;
+    setDeleting(true);
+    try {
+      const result = await window.termcanvas.project.deleteFolder(
+        project.projectPath,
+      );
+      if (result.ok) {
+        useProjectStore.getState().removeProject(project.projectId);
+        useNotificationStore
+          .getState()
+          .notify(
+            "info",
+            `Project "${project.projectName}" deleted from disk`,
+          );
+        setConfirmingDelete(false);
+      } else {
+        useNotificationStore
+          .getState()
+          .notify("error", `Failed to delete project: ${result.error}`);
+      }
+    } catch (err) {
+      useNotificationStore
+        .getState()
+        .notify(
+          "error",
+          `Failed to delete project: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -377,9 +437,99 @@ function ProjectRow({
                   setCreating(true);
                 },
               },
+              { type: "separator" as const },
+              {
+                label: "Remove Project",
+                danger: true,
+                onClick: handleRemoveProject,
+              },
+              {
+                label: "Delete Project from Disk...",
+                danger: true,
+                onClick: openDeleteFromDisk,
+              },
             ]}
             onClose={() => setMenu(null)}
           />,
+          document.body,
+        )}
+      {confirmingDelete &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60"
+            onClick={() => {
+              if (!deleting) setConfirmingDelete(false);
+            }}
+          >
+            <div
+              className="w-[420px] max-w-[90vw] rounded-md border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-[12px] font-semibold text-[var(--text-primary)] mb-2">
+                Delete project from disk?
+              </div>
+              <div className="text-[11px] text-[var(--text-muted)] mb-3 leading-relaxed">
+                This will permanently delete the folder
+                <div className="mt-1 font-mono text-[10px] break-all text-[var(--text-primary)]">
+                  {project.projectPath}
+                </div>
+                <div className="mt-2">
+                  All worktrees, terminals, and uncommitted changes will be
+                  lost. This cannot be undone.
+                </div>
+                <div className="mt-2">
+                  Type{" "}
+                  <span className="font-mono text-[var(--text-primary)]">
+                    {project.projectName}
+                  </span>{" "}
+                  to confirm.
+                </div>
+              </div>
+              <input
+                autoFocus
+                value={deleteInput}
+                disabled={deleting}
+                onChange={(e) => setDeleteInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (
+                    e.key === "Enter" &&
+                    deleteInput === project.projectName
+                  ) {
+                    e.preventDefault();
+                    void performDeleteFromDisk();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    if (!deleting) setConfirmingDelete(false);
+                  }
+                }}
+                placeholder={project.projectName}
+                className="w-full text-[11px] px-2 py-1 rounded bg-[var(--background)] border border-[var(--border)] text-[var(--text-primary)] outline-none focus:border-[var(--accent)] disabled:opacity-50"
+                style={{ fontFamily: '"Geist Mono", monospace' }}
+              />
+              <div className="mt-3 flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={() => setConfirmingDelete(false)}
+                  className="text-[11px] px-2 py-1 rounded border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    deleting || deleteInput !== project.projectName
+                  }
+                  onClick={() => void performDeleteFromDisk()}
+                  className="text-[11px] px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {deleting ? "Deleting..." : "Delete from disk"}
+                </button>
+              </div>
+            </div>
+          </div>,
           document.body,
         )}
     </div>
