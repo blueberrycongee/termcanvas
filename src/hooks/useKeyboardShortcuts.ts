@@ -34,13 +34,6 @@ import {
   getTerminalFocusOrder,
   getWorktreeFocusOrder,
 } from "../stores/projectFocus";
-import {
-  packTerminals,
-  WT_PAD,
-  WT_TITLE_H,
-  PROJ_PAD,
-  PROJ_TITLE_H,
-} from "../layout";
 import { shouldIgnoreShortcutTarget } from "./shortcutTarget";
 import { snapshotStateWithRefresh } from "../snapshotState";
 import { updateWindowTitle } from "../titleHelper";
