@@ -85,7 +85,13 @@ test("pickPlacement places to the right of sibling tiles when no parent given", 
 });
 
 function makeWorktreeWithTiles(
-  tiles: Array<{ id: string; x: number; y: number; width: number; height: number }>,
+  tiles: Array<{
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }>,
 ): ProjectData[] {
   return [
     {
@@ -117,13 +123,17 @@ function makeWorktreeWithTiles(
   ];
 }
 
-test("pickPlacement fills viewport row-major when viewportRect provided", () => {
-  // One existing tile in the top-left of the viewport. The next cmd+t
-  // should drop the new tile immediately to its right (same row), not
-  // beyond the rightmost sibling's right edge.
+test("pickPlacement anchors to focused terminal in target worktree", () => {
+  // When a terminal in the target worktree has focused=true, the new
+  // terminal should be placed to its right, not at the viewport top-left.
   const projects = makeWorktreeWithTiles([
     { id: "t1", x: 0, y: 0, width: 400, height: 300 },
+    { id: "t2", x: 410, y: 0, width: 400, height: 300 },
+    { id: "t3", x: 820, y: 0, width: 400, height: 300 },
   ]);
+  // Mark t2 (the middle one) as focused.
+  projects[0].worktrees[0].terminals[1].focused = true;
+
   const result = pickPlacement({
     projects,
     projectId: "p1",
@@ -132,77 +142,16 @@ test("pickPlacement fills viewport row-major when viewportRect provided", () => 
     height: 300,
     viewportRect: { x: 0, y: 0, w: 1600, h: 900 },
   });
-  // collider right = 400, next x = snap(400 + 8) = 410
-  assert.equal(result.x, 410);
+  // t2: right = 410 + 400 = 810 → anchor x = 810 + 8 = 818 → snap 820, y = 0
+  assert.equal(result.x, 820);
   assert.equal(result.y, 0);
 });
 
-test("pickPlacement wraps to next row when the current row is full", () => {
-  // Row 0 is fully occupied across the viewport width. The scan should
-  // wrap to row 1 (y = height + gap snapped).
-  const projects = makeWorktreeWithTiles([
-    { id: "t1", x: 0, y: 0, width: 800, height: 300 },
-    { id: "t2", x: 810, y: 0, width: 800, height: 300 },
-  ]);
-  const result = pickPlacement({
-    projects,
-    projectId: "p1",
-    worktreeId: "w1",
-    width: 400,
-    height: 300,
-    viewportRect: { x: 0, y: 0, w: 1600, h: 900 },
-  });
-  // next row y = snap(300 + 8) = 310
-  assert.equal(result.x, 0);
-  assert.equal(result.y, 310);
-});
-
-test("pickPlacement skips past a wide resized tile without losing the row", () => {
-  // A user-resized wide tile blocks most of the row but leaves room at
-  // its right. Scan should jump past the wide tile and place the new
-  // tile in the remaining gap, still in row 0.
-  const projects = makeWorktreeWithTiles([
-    { id: "wide", x: 0, y: 0, width: 1100, height: 300 },
-  ]);
-  const result = pickPlacement({
-    projects,
-    projectId: "p1",
-    worktreeId: "w1",
-    width: 400,
-    height: 300,
-    viewportRect: { x: 0, y: 0, w: 1600, h: 900 },
-  });
-  // skip past wide tile: x = snap(1100 + 8) = 1110, still fits (1110 + 400 = 1510 <= 1600)
-  assert.equal(result.x, 1110);
-  assert.equal(result.y, 0);
-});
-
-test("pickPlacement falls back to rightmost sibling when viewport is full", () => {
-  // Every row in the viewport is saturated → grid scan returns null → fall
-  // back to the rightmost-sibling anchor (which can extend outside the
-  // viewport).
-  const projects = makeWorktreeWithTiles([
-    { id: "t1", x: 0, y: 0, width: 800, height: 900 },
-    { id: "t2", x: 810, y: 0, width: 800, height: 900 },
-  ]);
-  const result = pickPlacement({
-    projects,
-    projectId: "p1",
-    worktreeId: "w1",
-    width: 400,
-    height: 300,
-    viewportRect: { x: 0, y: 0, w: 1600, h: 900 },
-  });
-  // rightmost sibling: t2 (x=810, w=800, right=1610) → x = 1618 → snap 1620, y = 0
-  assert.equal(result.x, 1620);
-  assert.equal(result.y, 0);
-});
-
-test("pickPlacement falls back to rightmost when viewport smaller than tile", () => {
-  // Viewport is too tight to fit even one default tile → grid scan skipped,
-  // fall back to rightmost-sibling anchor.
+test("pickPlacement falls back to rightmost sibling when no terminal focused", () => {
+  // No terminal has focused=true → use the rightmost sibling anchor.
   const projects = makeWorktreeWithTiles([
     { id: "t1", x: 100, y: 200, width: 400, height: 300 },
+    { id: "t2", x: 600, y: 200, width: 400, height: 300 },
   ]);
   const result = pickPlacement({
     projects,
@@ -210,21 +159,93 @@ test("pickPlacement falls back to rightmost when viewport smaller than tile", ()
     worktreeId: "w1",
     width: 400,
     height: 300,
-    viewportRect: { x: 0, y: 0, w: 200, h: 200 },
+    viewportRect: { x: 0, y: 0, w: 1600, h: 900 },
   });
-  assert.equal(result.x, 510);
+  // rightmost t2: right = 1000 → x = 1000 + 8 = 1008 → snap 1010, y = 200
+  assert.equal(result.x, 1010);
   assert.equal(result.y, 200);
 });
 
-test("pickPlacement falls back to provided fallback when worktree empty", () => {
+test("pickPlacement falls back to project relative when target worktree empty", () => {
+  // Target worktree w2 has no terminals. Another worktree w1 in the same
+  // project has a terminal → anchor off that terminal.
   const projects: ProjectData[] = [
     {
       id: "p1",
       name: "App",
       path: "/app",
       worktrees: [
-        { id: "w1", name: "main", path: "/app", terminals: [] },
+        {
+          id: "w1",
+          name: "main",
+          path: "/app",
+          terminals: [
+            {
+              id: "t1",
+              title: "t1",
+              type: "shell",
+              minimized: false,
+              focused: false,
+              ptyId: null,
+              status: "idle",
+              x: 200,
+              y: 100,
+              width: 400,
+              height: 300,
+              tags: [],
+            },
+          ],
+        },
+        {
+          id: "w2",
+          name: "feature",
+          path: "/app-feature",
+          terminals: [],
+        },
       ],
+    },
+  ];
+  const result = pickPlacement({
+    projects,
+    projectId: "p1",
+    worktreeId: "w2",
+    width: 400,
+    height: 300,
+  });
+  // t1 right = 200 + 400 = 600 → anchor x = 600 + 8 = 608 → snap 610, y = 100
+  assert.equal(result.x, 610);
+  assert.equal(result.y, 100);
+});
+
+test("pickPlacement falls back to viewport center when project completely empty", () => {
+  const projects: ProjectData[] = [
+    {
+      id: "p1",
+      name: "App",
+      path: "/app",
+      worktrees: [{ id: "w1", name: "main", path: "/app", terminals: [] }],
+    },
+  ];
+  const result = pickPlacement({
+    projects,
+    projectId: "p1",
+    worktreeId: "w1",
+    width: 400,
+    height: 300,
+    viewportRect: { x: 0, y: 0, w: 1600, h: 900 },
+  });
+  // center: x = (1600 - 400) / 2 = 600, y = (900 - 300) / 2 = 300
+  assert.equal(result.x, 600);
+  assert.equal(result.y, 300);
+});
+
+test("pickPlacement falls back to provided fallback when worktree empty and no viewport", () => {
+  const projects: ProjectData[] = [
+    {
+      id: "p1",
+      name: "App",
+      path: "/app",
+      worktrees: [{ id: "w1", name: "main", path: "/app", terminals: [] }],
     },
   ];
   const result = pickPlacement({

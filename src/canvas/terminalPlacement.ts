@@ -21,10 +21,9 @@ export interface PlacementInput {
   fallback?: { x: number; y: number };
   /**
    * Current visible canvas area in world space. When provided and the
-   * no-parent/no-preferredPosition path is taken, pickPlacement tries to
-   * find a free row-major slot inside this rect before falling back to the
-   * rightmost-sibling anchor. This is what makes cmd+t fill the visible
-   * screen instead of marching indefinitely off to the right.
+   * placement falls through to the "no anchor" case (target project has no
+   * terminals anywhere), the new tile is centred inside this rect so it
+   * lands where the user is actually looking instead of at the origin.
    */
   viewportRect?: { x: number; y: number; w: number; h: number };
 }
@@ -85,61 +84,30 @@ function findTerminal(
   return null;
 }
 
-function rectsIntersect(
-  a: { x: number; y: number; width: number; height: number },
-  b: { x: number; y: number; width: number; height: number },
-): boolean {
-  return (
-    a.x < b.x + b.width &&
-    a.x + a.width > b.x &&
-    a.y < b.y + b.height &&
-    a.y + a.height > b.y
-  );
-}
-
 /**
- * Row-major scan inside `viewportRect` for the first free slot that can
- * hold a (width x height) tile without colliding with any existing tile.
- *
- * When a candidate intersects an existing tile, x advances to the smallest
- * right edge among colliders rather than stepping by a fixed column so that
- * a single wide (user-resized) tile only skips its own width, not an entire
- * grid column. Returns null if the viewport cannot fit the tile anywhere.
+ * Anchor off the focused terminal in the target worktree, if any. This is
+ * the primary cmd+t path: "give me a new terminal next to what I'm working
+ * on", mirroring the parent-terminal branch.
  */
-function scanViewportGrid(
-  viewportRect: { x: number; y: number; w: number; h: number },
-  rects: RectInput[],
-  width: number,
-  height: number,
-): { x: number; y: number } | null {
-  if (viewportRect.w < width || viewportRect.h < height) {
+function focusedTerminalAnchor(
+  projects: ProjectData[],
+  projectId: string,
+  worktreeId: string,
+): { x: number; y: number; right: number } | null {
+  const project = projects.find((entry) => entry.id === projectId);
+  const worktree = project?.worktrees.find((entry) => entry.id === worktreeId);
+  if (!worktree) {
     return null;
   }
-  const xMax = viewportRect.x + viewportRect.w;
-  const yMax = viewportRect.y + viewportRect.h;
-
-  let y = snap(viewportRect.y);
-  // Row loop — step by height + gap so same-row tiles align on y.
-  while (y + height <= yMax) {
-    let x = snap(viewportRect.x);
-    let guard = 0;
-    while (x + width <= xMax && guard < 1000) {
-      guard += 1;
-      const candidate = { x, y, width, height };
-      const colliders = rects.filter((r) => rectsIntersect(candidate, r));
-      if (colliders.length === 0) {
-        return { x, y };
-      }
-      const minRight = Math.min(
-        ...colliders.map((r) => r.x + r.width),
-      );
-      const nextX = snap(minRight + ADJACENCY_GAP);
-      if (nextX <= x) break; // safety — should never regress
-      x = nextX;
-    }
-    y = snap(y + height + ADJACENCY_GAP);
+  const focused = worktree.terminals.find((t) => t.focused && !t.stashed);
+  if (!focused) {
+    return null;
   }
-  return null;
+  return {
+    x: focused.x,
+    y: focused.y,
+    right: focused.x + focused.width,
+  };
 }
 
 function worktreeAnchor(
@@ -176,6 +144,53 @@ function worktreeAnchor(
   };
 }
 
+/**
+ * Fallback anchor when the target worktree is empty but other worktrees in
+ * the same project still have terminals. Picks the project-wide rightmost
+ * tile so the new terminal clusters with its "relatives" instead of landing
+ * at the origin.
+ */
+function projectAnchor(
+  projects: ProjectData[],
+  projectId: string,
+  excludeWorktreeId: string,
+): { x: number; y: number; right: number } | null {
+  const project = projects.find((entry) => entry.id === projectId);
+  if (!project) {
+    return null;
+  }
+
+  let rightmost: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null = null;
+  for (const worktree of project.worktrees) {
+    if (worktree.id === excludeWorktreeId) continue;
+    for (const tile of worktree.terminals) {
+      if (tile.stashed) continue;
+      if (!rightmost || tile.x + tile.width > rightmost.x + rightmost.width) {
+        rightmost = {
+          x: tile.x,
+          y: tile.y,
+          width: tile.width,
+          height: tile.height,
+        };
+      }
+    }
+  }
+
+  if (!rightmost) {
+    return null;
+  }
+  return {
+    x: rightmost.x,
+    y: rightmost.y,
+    right: rightmost.x + rightmost.width,
+  };
+}
+
 export interface PlacementResult {
   x: number;
   y: number;
@@ -201,15 +216,25 @@ export function pickPlacement(input: PlacementInput): PlacementResult {
       anchor = input.fallback ?? { x: 0, y: 0 };
     }
   } else {
-    // Prefer a free slot inside the visible viewport so cmd+t fills the
-    // screen instead of marching off to the right. Only fall back to the
-    // rightmost-sibling anchor when the viewport has no room.
-    const existingRects = collectRects(projects);
-    const viewportSlot = input.viewportRect
-      ? scanViewportGrid(input.viewportRect, existingRects, width, height)
-      : null;
-    if (viewportSlot) {
-      anchor = viewportSlot;
+    // Anchor priority when neither preferredPosition nor parent is given:
+    //   1. focused terminal in the target worktree (cmd+t "new tab next
+    //      to what I'm working on")
+    //   2. rightmost sibling in the target worktree
+    //   3. rightmost terminal in another worktree of the same project
+    //      ("climb up to find relatives")
+    //   4. viewport centre (so an empty project drops the tile in front
+    //      of the user, not at the origin)
+    //   5. provided fallback or {0, 0}
+    const focused = focusedTerminalAnchor(
+      projects,
+      input.projectId,
+      input.worktreeId,
+    );
+    if (focused) {
+      anchor = {
+        x: focused.right + ADJACENCY_GAP,
+        y: focused.y,
+      };
     } else {
       const sibling = worktreeAnchor(
         projects,
@@ -222,7 +247,24 @@ export function pickPlacement(input: PlacementInput): PlacementResult {
           y: sibling.y,
         };
       } else {
-        anchor = input.fallback ?? { x: 0, y: 0 };
+        const relative = projectAnchor(
+          projects,
+          input.projectId,
+          input.worktreeId,
+        );
+        if (relative) {
+          anchor = {
+            x: relative.right + ADJACENCY_GAP,
+            y: relative.y,
+          };
+        } else if (input.viewportRect) {
+          anchor = {
+            x: input.viewportRect.x + (input.viewportRect.w - width) / 2,
+            y: input.viewportRect.y + (input.viewportRect.h - height) / 2,
+          };
+        } else {
+          anchor = input.fallback ?? { x: 0, y: 0 };
+        }
       }
     }
   }
