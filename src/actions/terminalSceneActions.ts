@@ -142,18 +142,6 @@ export function toggleTerminalMinimizeInScene(
     .toggleTerminalMinimize(projectId, worktreeId, terminalId);
 }
 
-export function updateTerminalSizeInScene(
-  projectId: string,
-  worktreeId: string,
-  terminalId: string,
-  width: number,
-  height: number,
-): void {
-  useProjectStore
-    .getState()
-    .updateTerminalSize(projectId, worktreeId, terminalId, width, height);
-}
-
 export function stashTerminalInScene(
   projectId: string,
   worktreeId: string,

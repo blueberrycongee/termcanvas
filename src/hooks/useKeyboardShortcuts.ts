@@ -10,7 +10,6 @@ import {
   createTerminalInScene,
   focusTerminalInScene,
   toggleTerminalStarredInScene,
-  updateTerminalSizeInScene,
 } from "../actions/terminalSceneActions";
 import { useProjectStore } from "../stores/projectStore";
 import {
@@ -20,11 +19,7 @@ import {
 import { useCanvasStore } from "../stores/canvasStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { promptAndAddProjectToScene } from "../canvas/sceneCommands";
-import {
-  useShortcutStore,
-  matchesShortcut,
-  type ShortcutMap,
-} from "../stores/shortcutStore";
+import { useShortcutStore, matchesShortcut } from "../stores/shortcutStore";
 import { useT } from "../i18n/useT";
 import { useComposerStore } from "../stores/composerStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
@@ -531,39 +526,6 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      const SIZE_PRESETS: {
-        key: keyof ShortcutMap;
-        width: number;
-        height: number;
-      }[] = [
-        { key: "tileSizeDefault", width: 640, height: 480 },
-        { key: "tileSizeWide", width: 1288, height: 480 },
-        { key: "tileSizeTall", width: 640, height: 968 },
-        { key: "tileSizeLarge", width: 1288, height: 968 },
-      ];
-
-      for (const preset of SIZE_PRESETS) {
-        if (matchesShortcut(e, shortcuts[preset.key])) {
-          e.preventDefault();
-          const { projects } = useProjectStore.getState();
-          for (const p of projects) {
-            for (const w of p.worktrees) {
-              const focused = w.terminals.find((t) => t.focused);
-              if (focused) {
-                updateTerminalSizeInScene(
-                  p.id,
-                  w.id,
-                  focused.id,
-                  preset.width,
-                  preset.height,
-                );
-                return;
-              }
-            }
-          }
-          return;
-        }
-      }
     };
 
     window.addEventListener("keydown", handler, true);

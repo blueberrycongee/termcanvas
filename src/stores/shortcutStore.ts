@@ -14,10 +14,6 @@ export interface ShortcutMap {
   closeFocused: string;
   toggleRightPanel: string;
   toggleStarFocused: string;
-  tileSizeDefault: string;
-  tileSizeWide: string;
-  tileSizeTall: string;
-  tileSizeLarge: string;
 }
 
 const LEGACY_DEFAULT_SHORTCUTS: ShortcutMap = {
@@ -33,10 +29,6 @@ const LEGACY_DEFAULT_SHORTCUTS: ShortcutMap = {
   closeFocused: "mod+d",
   toggleRightPanel: "mod+/",
   toggleStarFocused: "mod+f",
-  tileSizeDefault: "mod+1",
-  tileSizeWide: "mod+2",
-  tileSizeTall: "mod+3",
-  tileSizeLarge: "mod+4",
 };
 
 const ALT_DEFAULT_SHORTCUTS: ShortcutMap = {
@@ -52,10 +44,6 @@ const ALT_DEFAULT_SHORTCUTS: ShortcutMap = {
   closeFocused: "alt+d",
   toggleRightPanel: "alt+/",
   toggleStarFocused: "alt+f",
-  tileSizeDefault: "alt+1",
-  tileSizeWide: "alt+2",
-  tileSizeTall: "alt+3",
-  tileSizeLarge: "alt+4",
 };
 
 export const DEFAULT_SHORTCUTS: ShortcutMap = { ...LEGACY_DEFAULT_SHORTCUTS };
@@ -102,25 +90,25 @@ function isLegacyDefaultShortcutMap(shortcuts: ShortcutMap): boolean {
   ).every(([key, value]) => shortcuts[key] === value);
 }
 
-// Renamed shortcut keys: existing localStorage payloads from before the
-// rename still hold spanDefault/spanWide/spanTall/spanLarge. Migrate them
-// in place so users keep any custom binding they had.
-const RENAMED_SHORTCUT_KEYS: Record<string, keyof ShortcutMap> = {
-  spanDefault: "tileSizeDefault",
-  spanWide: "tileSizeWide",
-  spanTall: "tileSizeTall",
-  spanLarge: "tileSizeLarge",
-};
+// Drop any legacy tile-size / span shortcut keys that may still live in
+// localStorage from older builds. The feature has been removed.
+const REMOVED_SHORTCUT_KEYS = [
+  "spanDefault",
+  "spanWide",
+  "spanTall",
+  "spanLarge",
+  "tileSizeDefault",
+  "tileSizeWide",
+  "tileSizeTall",
+  "tileSizeLarge",
+];
 
 function migrateLegacyShortcutKeys(
   raw: Record<string, unknown>,
 ): Record<string, unknown> {
   const migrated: Record<string, unknown> = { ...raw };
-  for (const [oldKey, newKey] of Object.entries(RENAMED_SHORTCUT_KEYS)) {
-    if (oldKey in migrated && !(newKey in migrated)) {
-      migrated[newKey] = migrated[oldKey];
-    }
-    delete migrated[oldKey];
+  for (const key of REMOVED_SHORTCUT_KEYS) {
+    delete migrated[key];
   }
   return migrated;
 }
