@@ -12,7 +12,10 @@ import {
   resolveTerminalMountMode,
   shouldRenderTerminalTile,
 } from "../terminal/terminalRuntimePolicy";
-import { useTerminalRuntimeStore } from "../terminal/terminalRuntimeStore";
+import {
+  fitTerminalRuntime,
+  useTerminalRuntimeStore,
+} from "../terminal/terminalRuntimeStore";
 import { type TerminalNodeData, type CanvasFlowNode } from "./nodeProjection";
 import { rectIntersectsCanvasViewport } from "./viewportBounds";
 import { resolveCollisions } from "./collisionResolver";
@@ -25,7 +28,7 @@ function snapTo(value: number, grid: number): number {
 
 type TerminalFlowNode = Node<TerminalNodeData, "terminal">;
 
-function TerminalNode({ data, selected }: NodeProps<TerminalFlowNode>) {
+function TerminalNode({ data }: NodeProps<TerminalFlowNode>) {
   const viewport = useCanvasStore((state) => state.viewport);
   const rightPanelCollapsed = useCanvasStore(
     (state) => state.rightPanelCollapsed,
@@ -94,6 +97,21 @@ function TerminalNode({ data, selected }: NodeProps<TerminalFlowNode>) {
     ),
   );
 
+  // Live resize: update the store on every frame so the inner TerminalTile
+  // follows the React Flow wrapper while the user drags a handle.
+  const handleResize = useCallback(
+    (_event: unknown, params: { width: number; height: number }) => {
+      updateTerminalSize(
+        data.projectId,
+        data.worktreeId,
+        data.terminalId,
+        params.width,
+        params.height,
+      );
+    },
+    [data.projectId, data.worktreeId, data.terminalId, updateTerminalSize],
+  );
+
   const handleResizeEnd = useCallback(
     (_event: unknown, params: { width: number; height: number }) => {
       const snappedW = snapTo(params.width, SNAP_GRID);
@@ -137,6 +155,14 @@ function TerminalNode({ data, selected }: NodeProps<TerminalFlowNode>) {
           }
         }
       }
+
+      // Explicitly refit xterm once the drag settles. TerminalTile also has a
+      // width/height effect that refits, but calling it here guarantees fit
+      // runs against the final DOM size even if the effect races with the
+      // React Flow dimension sync.
+      requestAnimationFrame(() => {
+        fitTerminalRuntime(data.terminalId);
+      });
     },
     [data.projectId, data.worktreeId, data.terminalId, updateTerminalSize],
   );
@@ -152,11 +178,12 @@ function TerminalNode({ data, selected }: NodeProps<TerminalFlowNode>) {
   return (
     <div className="h-full w-full">
       <NodeResizer
-        isVisible={selected ?? false}
+        isVisible
         minWidth={300}
         minHeight={200}
         handleStyle={{ width: 8, height: 8 }}
         lineStyle={{ borderWidth: 1 }}
+        onResize={handleResize}
         onResizeEnd={handleResizeEnd}
       />
       <TerminalTile

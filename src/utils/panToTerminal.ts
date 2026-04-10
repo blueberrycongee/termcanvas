@@ -11,7 +11,6 @@ import {
   clampCenterX,
 } from "../canvas/viewportBounds";
 import {
-  useTileDimensionsStore,
   setTrackSidebar,
   recomputeTileDimensions,
 } from "../stores/tileDimensionsStore";
@@ -79,7 +78,6 @@ export function panToTerminal(
   const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
   const viewH = window.innerHeight - padding * 2;
 
-  const tileDims = useTileDimensionsStore.getState();
   const scale = opts?.preserveScale
     ? viewport.scale
     : Math.min(viewW / absW, viewH / absH) * 0.9;
