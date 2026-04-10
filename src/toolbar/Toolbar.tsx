@@ -25,7 +25,7 @@ const noDrag = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
 const platform = window.termcanvas?.app.platform ?? "darwin";
 const isMac = platform === "darwin";
 const isWin = platform === "win32";
-const TOOLBAR_HEIGHT = 44;
+export const TOOLBAR_HEIGHT = 44;
 
 const controlRow =
   "relative z-10 flex items-center gap-2 text-[var(--text-secondary)]";

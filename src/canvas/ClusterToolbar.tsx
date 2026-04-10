@@ -1,5 +1,8 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useClusterStore } from "../stores/clusterStore";
+import { useCanvasStore } from "../stores/canvasStore";
+import { TOOLBAR_HEIGHT } from "../toolbar/Toolbar";
+import { getCanvasRightInset } from "./viewportBounds";
 import type { ClusterRule } from "../clustering";
 
 interface RuleOption {
@@ -15,12 +18,18 @@ const RULE_OPTIONS: RuleOption[] = [
   { rule: "by-custom", label: "By Custom Tag" },
 ];
 
+const TOP_OFFSET = TOOLBAR_HEIGHT + 8;
+
 export function ClusterToolbar() {
   const [open, setOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const applyCluster = useClusterStore((state) => state.applyCluster);
   const undoCluster = useClusterStore((state) => state.undoCluster);
   const canUndo = useClusterStore((state) => state.positionSnapshot !== null);
   const lastRule = useClusterStore((state) => state.lastRule);
+  const rightPanelCollapsed = useCanvasStore(
+    (state) => state.rightPanelCollapsed,
+  );
 
   const handlePick = useCallback(
     (rule: ClusterRule) => {
@@ -30,23 +39,44 @@ export function ClusterToolbar() {
     [applyCluster],
   );
 
+  useEffect(() => {
+    if (!open) return;
+    const handler = (event: MouseEvent) => {
+      if (!dropdownRef.current) return;
+      if (!dropdownRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener("mousedown", handler);
+    return () => window.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const rightInset = getCanvasRightInset(rightPanelCollapsed) + 16;
+
   return (
-    <div className="absolute top-4 right-4 z-30 flex items-center gap-2 nowheel">
-      <div className="relative">
+    <div
+      className="fixed z-40 flex items-center gap-2 nowheel"
+      style={{ top: TOP_OFFSET, right: rightInset }}
+    >
+      <div ref={dropdownRef} className="relative">
         <button
           type="button"
-          className="px-3 py-1.5 rounded-md bg-[var(--button-bg)] hover:bg-[var(--button-bg-hover)] text-[var(--button-text)] text-sm shadow-md"
+          className="px-3 py-1 rounded-md border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-hover)] text-[11px] text-[var(--text-primary)] shadow-sm transition-colors"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
           onClick={() => setOpen((value) => !value)}
         >
           Cluster{lastRule ? ` · ${formatRule(lastRule)}` : ""}
         </button>
         {open && (
-          <div className="absolute right-0 mt-1 min-w-[180px] rounded-md border border-[var(--border)] bg-[var(--panel-bg)] shadow-lg overflow-hidden">
+          <div
+            className="absolute right-0 mt-1 min-w-[180px] rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg overflow-hidden py-1"
+            style={{ fontFamily: '"Geist Mono", monospace' }}
+          >
             {RULE_OPTIONS.map((option) => (
               <button
                 key={option.rule}
                 type="button"
-                className="w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--button-bg-hover)] text-[var(--text)]"
+                className="w-full text-left px-3 py-1.5 text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border)] transition-colors"
                 onClick={() => handlePick(option.rule)}
               >
                 {option.label}
@@ -55,14 +85,17 @@ export function ClusterToolbar() {
           </div>
         )}
       </div>
-      <button
-        type="button"
-        disabled={!canUndo}
-        onClick={() => undoCluster()}
-        className="px-3 py-1.5 rounded-md bg-[var(--button-bg)] hover:bg-[var(--button-bg-hover)] text-[var(--button-text)] text-sm shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
-      >
-        Undo
-      </button>
+      {canUndo && (
+        <button
+          type="button"
+          onClick={() => undoCluster()}
+          title="Undo last cluster"
+          className="px-3 py-1 rounded-md border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-hover)] text-[11px] text-[var(--text-primary)] shadow-sm transition-colors"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          Undo
+        </button>
+      )}
     </div>
   );
 }
