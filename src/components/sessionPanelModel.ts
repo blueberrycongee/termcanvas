@@ -82,6 +82,7 @@ function resolveTerminalTitle(
   worktreeName: string,
   projectName: string,
   provider?: string,
+  firstUserPrompt?: string,
 ): string {
   const displayTitle = collapseWhitespace(
     terminal.customTitle
@@ -92,12 +93,16 @@ function resolveTerminalTitle(
   const initialPrompt = terminal.initialPrompt
     ? collapseWhitespace(terminal.initialPrompt, 72)
     : "";
+  const telemetryPrompt = firstUserPrompt
+    ? collapseWhitespace(firstUserPrompt, 72)
+    : "";
 
   if (displayTitle && !GENERIC_TERMINAL_TITLES.test(displayTitle)) {
     return displayTitle;
   }
 
   if (initialPrompt) return initialPrompt;
+  if (telemetryPrompt) return telemetryPrompt;
   if (provider && provider !== "unknown") {
     return provider.charAt(0).toUpperCase() + provider.slice(1);
   }
@@ -384,6 +389,7 @@ export function buildProjectTree(
           worktree.name,
           project.name,
           telemetry?.provider,
+          telemetry?.first_user_prompt,
         );
         const locationLabel =
           worktree.name === project.name
@@ -471,6 +477,7 @@ export function buildCanvasTerminalSections(
           worktree.name,
           project.name,
           telemetry?.provider,
+          telemetry?.first_user_prompt,
         );
         const locationLabel =
           worktree.name === project.name
