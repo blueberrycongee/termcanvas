@@ -2,6 +2,46 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.27.0] - 2026-04-10
+
+### Added
+- Free resize of terminal tiles: drag any corner or edge of a terminal node to reshape it live; the inner xterm refits cols/rows on release
+- Double-click the terminal header to zoom-to-fit that terminal (restored after the flat-canvas refactor, now respects the tile's current freely-resized dimensions)
+- Clicking a worktree or project row in the session panel activates it, so a subsequent cmd+t targets that row without having to click back on the canvas first
+- Right-clicking a session panel row also activates it before opening the context menu so cmd+t after dismissing the menu still lands on the right row
+- Viewport-aware grid placement for cmd+t: new terminals now fill the visible canvas row-major (top-left → bottom-right), stepping past user-resized wide tiles instead of getting stuck behind them; the old rightmost-sibling anchor is kept as a fallback only when the viewport is saturated or smaller than a default tile
+- Spatial (y asc, x asc, id) navigation order shared between cmd+] / cmd+[ and cmd+d's "next focus after close", so prev/next and post-close focus both follow what the user sees on screen instead of the array insertion order that only made sense on the old grid layout
+
+### Changed
+- cmd+t no longer stacks new terminals vertically below the worktree's bounding box; the no-parent placement path anchors off the rightmost sibling first (when the viewport grid is unavailable) instead of its bottom
+- Session panel row click only activates the row; collapse/expand is now a dedicated chevron button so the two gestures don't stomp on each other
+
+### Fixed
+- cmd+d lands focus on the spatial next terminal to match cmd+] / cmd+[, instead of whichever terminal happened to be array-adjacent inside the same worktree
+- Restored CLI tiles fall back to a default shell when the original CLI process is already gone during session rehydration, instead of leaving a dead tile behind
+
+### Removed
+- cmd+1 / cmd+2 / cmd+3 / cmd+4 tile-size presets (tileSizeDefault / tileSizeWide / tileSizeTall / tileSizeLarge): the hardcoded 640x480 / 1288x480 / 640x968 / 1288x968 dimensions ignored the adaptive tileDimensionsStore and interacted badly with focus zoom. Free NodeResizer drag-resize replaces them end-to-end. Removed shortcut definitions on both mac and win/linux defaults, the handler loop, the SettingsModal / ShortcutHints rows, the en/zh i18n strings, and the now-unused updateTerminalSizeInScene action. The localStorage migration helper strips any leftover span* / tileSize* keys on load
+
+### Added (zh-CN)
+- 终端瓦片支持鼠标自由调整尺寸：拖动节点四角或四边即时改变大小,释放后 xterm cols/rows 自动重新适配
+- 双击终端顶部标题栏聚焦放大该终端（在自由画布重构之后补回,现在会按照 tile 当前的自由尺寸计算缩放）
+- 在右侧会话面板点击某个 worktree 或 project 行会把它激活,接着按 cmd+t 就会在对应行下建新终端,不用再切回 canvas 点一下
+- 右键会话面板的行时也会先激活所在行再弹出菜单,避免关闭菜单后 cmd+t 还落到之前那一行
+- cmd+t 的新终端放置改为感知视口的行优先网格填充（左上 → 右下）：遇到用户自由 resize 出来的宽胖 tile 会跳过它继续在同一行放置,视口塞满或太小时才回退到 rightmost-sibling 锚点
+- cmd+] / cmd+[ 和 cmd+d 关闭后的"下一个焦点"统一改成空间顺序（按 y 升序再按 x 升序,同位置用 id 做稳定 tiebreaker）,和屏幕上看到的前后关系一致,不再跟随数组创建顺序
+
+### Changed (zh-CN)
+- cmd+t 不再把新终端堆到 worktree 包围盒下方;没有 parent 的情况在视口网格不可用时会锚到 rightmost sibling 的右边,而不是底部
+- 会话面板的行点击只触发激活,折叠/展开归还给独立的 chevron 图标,两个动作不再互相干扰
+
+### Fixed (zh-CN)
+- cmd+d 关闭焦点终端后的新焦点改为空间顺序上的下一个,和 cmd+] / cmd+[ 的语义对齐,不再跳到数组里的创建顺序邻居
+- 恢复会话时如果原来的 CLI 进程已经退出,现在会自动落回一个默认 shell,而不是留下一个死 tile
+
+### Removed (zh-CN)
+- 删除 cmd+1/2/3/4 的 tile-size 预设快捷键（tileSizeDefault / tileSizeWide / tileSizeTall / tileSizeLarge）：硬编码的 640x480 / 1288x480 / 640x968 / 1288x968 完全忽略自适应的 tileDimensionsStore,并且和聚焦缩放有互相干扰。自由拖拽节点手柄调整尺寸已经完整替代这套快捷键。相关的 mac 和 win/linux 键位定义、handler 循环、SettingsModal / ShortcutHints 显示行、en/zh i18n 字符串、以及无人引用的 updateTerminalSizeInScene action 全部一并删除;localStorage 里遗留的 span* / tileSize* 键会在加载时自动清理
+
 ## [0.26.0] - 2026-04-10
 
 ### Added
