@@ -53,6 +53,7 @@ export function buildTerminalCreateArgs(
   workflowId?: string,
   assignmentId?: string,
   repoPath?: string,
+  resumeSessionId?: string,
 ): string[] {
   const args = ["--worktree", worktreePath, "--type", type];
   if (prompt) args.push("--prompt", prompt);
@@ -61,6 +62,7 @@ export function buildTerminalCreateArgs(
   if (workflowId) args.push("--workflow-id", workflowId);
   if (assignmentId) args.push("--assignment-id", assignmentId);
   if (repoPath) args.push("--repo", repoPath);
+  if (resumeSessionId) args.push("--resume-session-id", resumeSessionId);
   return buildTermcanvasArgs("terminal", "create", args);
 }
 
@@ -128,6 +130,7 @@ export function terminalCreate(
   workflowId?: string,
   assignmentId?: string,
   repoPath?: string,
+  resumeSessionId?: string,
 ): { id: string; type: string; title: string } {
   return runTermcanvasJson(
     buildTerminalCreateArgs(
@@ -139,6 +142,7 @@ export function terminalCreate(
       workflowId,
       assignmentId,
       repoPath,
+      resumeSessionId,
     ),
     10_000,
   );

@@ -16,7 +16,7 @@ import {
 } from "../src/workflow-lead.ts";
 import { loadWorkflow } from "../src/workflow-store.ts";
 import { RESULT_SCHEMA_VERSION } from "../src/protocol.ts";
-import { getRunBriefFile } from "../src/layout.ts";
+import { getReportFilePath } from "../src/artifacts.ts";
 import type { AssignmentRecord } from "../src/assignment/types.ts";
 
 interface Args {
@@ -64,9 +64,28 @@ function writeResult(
   summary: string,
   outcome: "completed" | "stuck" | "error",
 ): void {
-  const briefFile = getRunBriefFile(repoPath, workflowId, assignmentId, run.id);
-  fs.mkdirSync(path.dirname(briefFile), { recursive: true });
-  fs.writeFileSync(briefFile, `# Brief\n\n${summary}\n`, "utf-8");
+  const reportFile = getReportFilePath(repoPath, workflowId, assignmentId, run.id);
+  fs.mkdirSync(path.dirname(reportFile), { recursive: true });
+  fs.writeFileSync(
+    reportFile,
+    [
+      "# Acceptance Run Report",
+      "",
+      "## Summary",
+      "",
+      summary,
+      "",
+      "## Outputs",
+      "",
+      "- hydra e2e acceptance script artifact",
+      "",
+      "## Evidence",
+      "",
+      "- hydra e2e acceptance script",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
 
   fs.writeFileSync(
     run.result_file,
@@ -76,10 +95,7 @@ function writeResult(
       assignment_id: assignmentId,
       run_id: run.id,
       outcome,
-      summary,
-      outputs: [{ path: briefFile, description: "acceptance artifact" }],
-      evidence: ["hydra e2e acceptance script"],
-      outcome,
+      report_file: reportFile,
     }, null, 2),
     "utf-8",
   );

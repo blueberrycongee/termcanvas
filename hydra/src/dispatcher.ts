@@ -16,6 +16,9 @@ export interface DispatchCreateOnlyRequest {
   resultFile: string;
   autoApprove?: boolean;
   parentTerminalId?: string;
+  // Resume the agent's prior session (e.g., for redispatch after reset).
+  // Only consumed by agents that support session resumption (currently claude).
+  resumeSessionId?: string;
 }
 
 export interface DispatchCreateOnlyResult {
@@ -38,6 +41,7 @@ export interface DispatcherDependencies {
     workflowId?: string,
     assignmentId?: string,
     repoPath?: string,
+    resumeSessionId?: string,
   ): { id: string; type: string; title: string };
 }
 
@@ -56,7 +60,7 @@ export function buildCreateOnlyPrompt(
     runId: string;
   },
 ): string {
-  return `Read ${taskFile} for the full task instructions. Finish every required artifact first, then publish a valid hydra/result/v0.1 result JSON to ${resultFile} with workflow_id=${workflowId}, assignment_id=${options.assignmentId}, and run_id=${options.runId}. Publish result.json atomically as the final commit for this run.`;
+  return `Read ${taskFile} for the full task instructions. Finish every required artifact first, then write a human-readable report.md alongside ${resultFile} (summary, outputs, evidence, reflection — free-form markdown). Finally, publish a slim hydra/result/v0.1 result JSON to ${resultFile} with workflow_id=${workflowId}, assignment_id=${options.assignmentId}, run_id=${options.runId}, outcome (completed/stuck/error), and report_file pointing at the report.md you wrote. result.json must contain only those fields; Hydra rejects extras. Publish result.json atomically as the final artifact for this run.`;
 }
 
 export async function dispatchCreateOnly(
@@ -104,6 +108,7 @@ export async function dispatchCreateOnly(
     request.workflowId,
     request.assignmentId,
     request.repoPath,
+    request.resumeSessionId,
   );
 
   return {

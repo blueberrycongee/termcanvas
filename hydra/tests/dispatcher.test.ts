@@ -5,7 +5,7 @@ import {
   dispatchCreateOnly,
 } from "../src/dispatcher.ts";
 
-test("buildCreateOnlyPrompt emits a result-only assignment/run contract", () => {
+test("buildCreateOnlyPrompt emits a slim result + report contract", () => {
   const prompt = buildCreateOnlyPrompt(
     "/repo/.hydra/workflows/wf-1/assignments/asg-1/runs/run-1/task.md",
     "wf-1",
@@ -19,7 +19,9 @@ test("buildCreateOnlyPrompt emits a result-only assignment/run contract", () => 
   assert.ok(!prompt.includes("\n"), "prompt must stay single-line");
   assert.match(prompt, /task\.md/);
   assert.match(prompt, /result\.json/);
-  assert.match(prompt, /hydra\/result\/v1/);
+  assert.match(prompt, /report\.md/);
+  assert.match(prompt, /report_file/);
+  assert.match(prompt, /hydra\/result\/v0\.1/);
   assert.match(prompt, /assignment_id=asg-1/);
   assert.match(prompt, /run_id=run-1/);
   assert.match(prompt, /atomically/i);
@@ -88,9 +90,42 @@ test("dispatchCreateOnly launches a terminal with the create-only prompt", async
         "workflow-auth",
         "assignment-abc123",
         "/repo/project",
+        undefined,
       ],
     },
   ]);
+});
+
+test("dispatchCreateOnly forwards resumeSessionId to terminalCreate", async () => {
+  const calls: Array<{ type: string; args: unknown[] }> = [];
+
+  await dispatchCreateOnly(
+    {
+      workflowId: "workflow-resume",
+      assignmentId: "assignment-resume",
+      runId: "run-2",
+      repoPath: "/repo/project",
+      worktreePath: "/repo/project",
+      agentType: "claude",
+      taskFile: "/repo/project/task.md",
+      resultFile: "/repo/project/result.json",
+      autoApprove: false,
+      resumeSessionId: "claude-session-xyz",
+    },
+    {
+      isTermCanvasRunning: () => true,
+      findProjectByPath: (repoPath) => ({ id: "project-1", path: repoPath }),
+      terminalCreate: (...args) => {
+        calls.push({ type: "terminalCreate", args });
+        return { id: "terminal-2", type: "claude", title: "Claude" };
+      },
+    },
+  );
+
+  const terminalCall = calls.find((c) => c.type === "terminalCreate");
+  assert.ok(terminalCall);
+  // resumeSessionId is the 9th positional argument
+  assert.equal(terminalCall.args[8], "claude-session-xyz");
 });
 
 test("dispatchCreateOnly fails when TermCanvas is not running", async () => {

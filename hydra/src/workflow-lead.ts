@@ -259,6 +259,20 @@ function hasCycle(workflow: WorkflowRecord, newNodeId: string, dependsOn: string
 
 // --- Dispatch helper ---
 
+// Find the most recent prior run that captured a session_id, so a redispatch
+// can resume the same agent context. Only applies to claude (the only agent
+// type that currently supports session resumption).
+function findResumableSessionId(
+  assignment: AssignmentRecord,
+): string | undefined {
+  if (assignment.requested_agent_type !== "claude") return undefined;
+  for (let i = assignment.runs.length - 1; i >= 0; i--) {
+    const candidate = assignment.runs[i];
+    if (candidate?.session_id) return candidate.session_id;
+  }
+  return undefined;
+}
+
 function buildDispatchRequest(
   workflow: WorkflowRecord, assignment: AssignmentRecord, node: WorkflowNode, runId: string,
 ): DispatchCreateOnlyRequest {
@@ -271,6 +285,7 @@ function buildDispatchRequest(
     resultFile: getRunResultFile(workflow.repo_path, workflow.id, assignment.id, runId),
     autoApprove: workflow.auto_approve,
     parentTerminalId: workflow.lead_terminal_id,
+    resumeSessionId: findResumableSessionId(assignment),
   };
 }
 

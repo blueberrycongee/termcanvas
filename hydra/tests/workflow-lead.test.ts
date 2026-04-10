@@ -7,6 +7,7 @@ import { execFileSync } from "node:child_process";
 import {
   initWorkflow,
   dispatchNode,
+  redispatchNode,
   watchUntilDecision,
   resetNode,
   approveNode,
@@ -18,6 +19,7 @@ import {
 import { loadWorkflow, WORKFLOW_STATE_SCHEMA_VERSION } from "../src/workflow-store.ts";
 import { RESULT_SCHEMA_VERSION } from "../src/protocol.ts";
 import { readLedger } from "../src/ledger.ts";
+import { AssignmentManager } from "../src/assignment/manager.ts";
 
 // Set TERMCANVAS_TERMINAL_ID so initWorkflow + lead-guard accept the test as Lead
 process.env.TERMCANVAS_TERMINAL_ID = "terminal-test-lead";
@@ -372,6 +374,182 @@ test("getWorkflowStatus returns workflow and assignments", async () => {
     assert.equal(view.workflow.id, init.workflow_id);
     assert.equal(view.assignments.length, 1);
     assert.equal(view.assignments[0].role, "implementer");
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("redispatch on a claude assignment passes the captured session_id as resumeSessionId", async () => {
+  const repo = makeTestRepo();
+  const dispatchedRequests: Array<{ assignmentId: string; resumeSessionId?: string }> = [];
+  let time = Date.parse("2026-04-09T00:00:00.000Z");
+  const deps: WorkflowDependencies = {
+    now: () => {
+      time += 1000;
+      return new Date(time).toISOString();
+    },
+    dispatchCreateOnly: async (request) => {
+      dispatchedRequests.push({
+        assignmentId: request.assignmentId,
+        resumeSessionId: request.resumeSessionId,
+      });
+      return {
+        projectId: "project-1",
+        terminalId: `terminal-${request.assignmentId}-${dispatchedRequests.length}`,
+        terminalType: request.agentType,
+        terminalTitle: `Agent ${request.assignmentId}`,
+        prompt: "test prompt",
+      };
+    },
+    sleep: async () => {},
+    syncProject: () => {},
+    destroyTerminal: () => {},
+    checkTerminalAlive: () => null,
+  };
+  try {
+    const init = await initWorkflow({
+      intent: "Test resume",
+      repoPath: repo,
+      worktreePath: repo,
+      defaultAgentType: "claude",
+    }, deps);
+    const dispatched = await dispatchNode({
+      repoPath: repo, workflowId: init.workflow_id,
+      nodeId: "dev", role: "implementer", intent: "First pass",
+    }, deps);
+
+    // First dispatch should have no resume session
+    assert.equal(dispatchedRequests.length, 1);
+    assert.equal(dispatchedRequests[0].resumeSessionId, undefined);
+
+    // Pre-populate session_id on the prior run, simulating what
+    // destroyAssignmentTerminal would have captured from telemetry.
+    const manager = new AssignmentManager(repo, init.workflow_id);
+    const assignment = manager.load(dispatched.assignment_id)!;
+    const firstRun = assignment.runs[0]!;
+    firstRun.session_id = "claude-session-resume-test";
+    firstRun.session_provider = "claude";
+    manager.save(assignment);
+
+    // Reset + redispatch the node — the new run should pick up the prior session
+    await resetNode({
+      repoPath: repo, workflowId: init.workflow_id, nodeId: "dev", feedback: "Try again",
+    }, deps);
+    await redispatchNode({
+      repoPath: repo, workflowId: init.workflow_id, nodeId: "dev",
+    }, deps);
+
+    assert.equal(dispatchedRequests.length, 2);
+    assert.equal(dispatchedRequests[1].resumeSessionId, "claude-session-resume-test");
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("redispatch on a non-claude assignment does not pass resumeSessionId", async () => {
+  const repo = makeTestRepo();
+  const dispatchedRequests: Array<{ resumeSessionId?: string }> = [];
+  let time = Date.parse("2026-04-09T00:00:00.000Z");
+  const deps: WorkflowDependencies = {
+    now: () => {
+      time += 1000;
+      return new Date(time).toISOString();
+    },
+    dispatchCreateOnly: async (request) => {
+      dispatchedRequests.push({ resumeSessionId: request.resumeSessionId });
+      return {
+        projectId: "project-1",
+        terminalId: `terminal-${request.assignmentId}-${dispatchedRequests.length}`,
+        terminalType: request.agentType,
+        terminalTitle: `Agent ${request.assignmentId}`,
+        prompt: "test prompt",
+      };
+    },
+    sleep: async () => {},
+    syncProject: () => {},
+    destroyTerminal: () => {},
+    checkTerminalAlive: () => null,
+  };
+  try {
+    const init = await initWorkflow({
+      intent: "Test no-resume on codex",
+      repoPath: repo,
+      worktreePath: repo,
+      defaultAgentType: "codex",
+    }, deps);
+    const dispatched = await dispatchNode({
+      repoPath: repo, workflowId: init.workflow_id,
+      nodeId: "dev", role: "implementer", intent: "First pass",
+    }, deps);
+
+    // Pre-populate a session_id on the prior run anyway — codex shouldn't resume
+    const manager = new AssignmentManager(repo, init.workflow_id);
+    const assignment = manager.load(dispatched.assignment_id)!;
+    assignment.runs[0]!.session_id = "codex-session-should-be-ignored";
+    manager.save(assignment);
+
+    await resetNode({
+      repoPath: repo, workflowId: init.workflow_id, nodeId: "dev",
+    }, deps);
+    await redispatchNode({
+      repoPath: repo, workflowId: init.workflow_id, nodeId: "dev",
+    }, deps);
+
+    assert.equal(dispatchedRequests.length, 2);
+    // Both dispatches must NOT carry a resume session for non-claude agents
+    assert.equal(dispatchedRequests[0].resumeSessionId, undefined);
+    assert.equal(dispatchedRequests[1].resumeSessionId, undefined);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("watchUntilDecision exposes pre-captured session info on the completed DecisionPoint", async () => {
+  const repo = makeTestRepo();
+  const deps = mockDeps();
+  try {
+    const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
+    const dispatched = await dispatchNode({
+      repoPath: repo, workflowId: init.workflow_id,
+      nodeId: "dev", role: "implementer", intent: "Implement feature",
+    }, deps);
+
+    // Pre-populate session info on the run, simulating capture from telemetry
+    // before the terminal was destroyed. This bypasses the live telemetry call
+    // path so the test can run without TermCanvas being available.
+    const manager = new AssignmentManager(repo, init.workflow_id);
+    const assignment = manager.load(dispatched.assignment_id)!;
+    const run = assignment.runs[0]!;
+    run.session_id = "claude-session-abc123";
+    run.session_provider = "claude";
+    run.session_file = "/tmp/claude-sessions/claude-session-abc123.json";
+    manager.save(assignment);
+
+    // Write the slim result so watchUntilDecision treats the node as completed
+    fs.writeFileSync(run.result_file, JSON.stringify({
+      schema_version: RESULT_SCHEMA_VERSION,
+      workflow_id: init.workflow_id,
+      assignment_id: dispatched.assignment_id,
+      run_id: run.id,
+      outcome: "completed",
+      report_file: "report.md",
+    }, null, 2), "utf-8");
+
+    const decision = await watchUntilDecision({
+      repoPath: repo, workflowId: init.workflow_id, timeoutMs: 5000,
+    }, deps);
+
+    assert.equal(decision.type, "node_completed");
+    assert.ok(decision.completed?.session, "session info should be exposed");
+    assert.equal(decision.completed.session.id, "claude-session-abc123");
+    assert.equal(decision.completed.session.provider, "claude");
+    assert.equal(decision.completed.session.file, "/tmp/claude-sessions/claude-session-abc123.json");
+
+    // Ledger should also record the session_id for the completed node event
+    const ledger = readLedger(repo, init.workflow_id);
+    const completed = ledger.find((entry) => entry.event.type === "node_completed");
+    assert.ok(completed);
+    assert.equal((completed.event as { session_id?: string }).session_id, "claude-session-abc123");
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }

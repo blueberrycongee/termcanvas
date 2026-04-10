@@ -99,6 +99,33 @@ test("buildTerminalCreateArgs includes workflow telemetry metadata when provided
   ]);
 });
 
+test("buildTerminalCreateArgs appends --resume-session-id when provided", () => {
+  const args = buildTerminalCreateArgs(
+    "/tmp/wt",
+    "claude",
+    "Continue the task",
+    false,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    "claude-session-xyz",
+  );
+  assert.deepStrictEqual(args, [
+    "terminal",
+    "create",
+    "--worktree",
+    "/tmp/wt",
+    "--type",
+    "claude",
+    "--prompt",
+    "Continue the task",
+    "--resume-session-id",
+    "claude-session-xyz",
+    "--json",
+  ]);
+});
+
 test("buildTelemetryTerminalArgs targets telemetry terminal get", () => {
   assert.deepStrictEqual(
     buildTelemetryTerminalArgs("tc-001"),
