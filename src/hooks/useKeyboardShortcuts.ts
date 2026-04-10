@@ -434,19 +434,28 @@ export function useKeyboardShortcuts() {
 
       if (matchesShortcut(e, shortcuts.closeFocused)) {
         consumeShortcut();
-        const list = getAllTerminals();
-        const focusedIdx = getFocusedTerminalIndex(list);
+        // Walk in spatial order so cmd+d's "where does focus land next?"
+        // matches cmd+] / cmd+[ semantics. projectStore.removeTerminal will
+        // still auto-pick its own array-adjacent neighbor, but we override
+        // focus to the spatial next right after so the landing spot is
+        // consistent with the rest of the navigation keys.
+        const spatial = getAllTerminalsSpatial();
+        const focusedIdx = getFocusedTerminalIndex(spatial);
         if (focusedIdx !== -1) {
-          const focused = list[focusedIdx];
+          const focused = spatial[focusedIdx];
+          const nextFocusedTerminalId =
+            spatial.length > 1
+              ? spatial[(focusedIdx + 1) % spatial.length].terminalId
+              : null;
+
           closeTerminalInScene(
             focused.projectId,
             focused.worktreeId,
             focused.terminalId,
           );
-          const nextList = getAllTerminals();
-          const nextFocusedIdx = getFocusedTerminalIndex(nextList);
-          if (nextFocusedIdx !== -1) {
-            const nextFocusedTerminalId = nextList[nextFocusedIdx].terminalId;
+
+          if (nextFocusedTerminalId) {
+            focusTerminalInScene(nextFocusedTerminalId);
             panToTerminal(nextFocusedTerminalId, {
               preserveScale: true,
             });
