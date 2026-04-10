@@ -19,6 +19,7 @@ import {
 } from "./sessionInspectorModel";
 import { useCompletionSeenStore } from "../stores/completionSeenStore";
 import { promptAndAddProjectToScene } from "../canvas/sceneCommands";
+import { closeTerminalInScene } from "../actions/terminalSceneActions";
 
 const STATUS_COLORS: Record<CanvasTerminalState, string> = {
   attention: "#ef4444",
@@ -118,8 +119,10 @@ function TerminalCard({
   ].filter(Boolean);
 
   return (
-    <button
-      className={`w-full rounded-md flex items-center gap-2 text-left cursor-pointer transition-colors ${
+    <div
+      role="button"
+      tabIndex={0}
+      className={`group w-full rounded-md flex items-center gap-2 text-left cursor-pointer transition-colors ${
         compact ? "px-2 py-1.5" : "px-2 py-2"
       } ${
         item.focused
@@ -127,6 +130,12 @@ function TerminalCard({
           : "bg-[var(--surface)] hover:bg-[var(--sidebar-hover)]"
       }`}
       onClick={() => panToTerminal(item.terminalId)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          panToTerminal(item.terminalId);
+        }
+      }}
     >
       <div
         className="w-2 h-2 rounded-full shrink-0"
@@ -140,7 +149,26 @@ function TerminalCard({
           {subtitleParts.join(" · ")}
         </div>
       </div>
-    </button>
+      <button
+        type="button"
+        title={t.panel_close_terminal}
+        aria-label={t.panel_close_terminal}
+        onClick={(e) => {
+          e.stopPropagation();
+          closeTerminalInScene(item.projectId, item.worktreeId, item.terminalId);
+        }}
+        className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-[var(--text-muted)] hover:text-red-400 hover:bg-[var(--border)] shrink-0"
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path
+            d="M2 2L8 8M8 2L2 8"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+        </svg>
+      </button>
+    </div>
   );
 }
 

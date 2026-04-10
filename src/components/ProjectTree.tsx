@@ -7,6 +7,7 @@ import { useNotificationStore } from "../stores/notificationStore";
 import { ContextMenu } from "./ContextMenu";
 import { createTerminalInScene } from "../actions/terminalSceneActions";
 import { StatusBadges } from "./StatusBadges";
+import { useT } from "../i18n/useT";
 import type {
   ProjectGroup,
   WorktreeGroup,
@@ -53,6 +54,7 @@ function NewWorktreeInput({
   projectPath: string;
   onDone: () => void;
 }) {
+  const t = useT();
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -77,12 +79,12 @@ function NewWorktreeInput({
         useProjectStore.getState().syncWorktrees(projectPath, result.worktrees);
         useNotificationStore
           .getState()
-          .notify("info", `Worktree "${branch}" created`);
+          .notify("info", t.panel_worktree_created(branch));
         onDone();
       } else {
         useNotificationStore
           .getState()
-          .notify("error", `Failed to create worktree: ${result.error}`);
+          .notify("error", t.panel_worktree_create_failed(result.error));
         setBusy(false);
       }
     } catch (err) {
@@ -90,9 +92,9 @@ function NewWorktreeInput({
         .getState()
         .notify(
           "error",
-          `Failed to create worktree: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
+          t.panel_worktree_create_failed(
+            err instanceof Error ? err.message : String(err),
+          ),
         );
       setBusy(false);
     }
@@ -104,7 +106,7 @@ function NewWorktreeInput({
         ref={inputRef}
         value={value}
         disabled={busy}
-        placeholder="branch name"
+        placeholder={t.panel_branch_name_placeholder}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -134,6 +136,7 @@ function WorktreeRow({
   projectPath: string;
   renderTerminal: (item: CanvasTerminalItem) => React.ReactNode;
 }) {
+  const t = useT();
   const toggle = useSessionPanelCollapseStore((s) => s.toggle);
   const collapsed = useSessionPanelCollapseStore((s) =>
     s.isCollapsed(group.worktreeId),
@@ -158,8 +161,11 @@ function WorktreeRow({
     const runningCount = group.terminals.length;
     const warning =
       runningCount > 0
-        ? `This worktree has ${runningCount} terminal${runningCount === 1 ? "" : "s"}. Remove anyway?`
-        : `Remove worktree "${group.worktreeName}"?`;
+        ? t.panel_worktree_remove_confirm_with_terminals(
+            group.worktreeName,
+            runningCount,
+          )
+        : t.panel_worktree_remove_confirm(group.worktreeName);
     if (!window.confirm(warning)) return;
 
     try {
@@ -171,20 +177,20 @@ function WorktreeRow({
         useProjectStore.getState().syncWorktrees(projectPath, result.worktrees);
         useNotificationStore
           .getState()
-          .notify("info", `Worktree "${group.worktreeName}" removed`);
+          .notify("info", t.panel_worktree_removed(group.worktreeName));
       } else {
         useNotificationStore
           .getState()
-          .notify("error", `Failed to remove worktree: ${result.error}`);
+          .notify("error", t.panel_worktree_remove_failed(result.error));
       }
     } catch (err) {
       useNotificationStore
         .getState()
         .notify(
           "error",
-          `Failed to remove worktree: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
+          t.panel_worktree_remove_failed(
+            err instanceof Error ? err.message : String(err),
+          ),
         );
     }
   };
@@ -215,8 +221,8 @@ function WorktreeRow({
         {collapsed && <StatusBadges summary={group.statusSummary} />}
         <button
           type="button"
-          title="New shell terminal"
-          aria-label="New shell terminal"
+          title={t.panel_new_terminal_shell}
+          aria-label={t.panel_new_terminal_shell}
           onClick={(e) => {
             e.stopPropagation();
             handleNewTerminal("shell");
@@ -240,15 +246,15 @@ function WorktreeRow({
             y={menu.y}
             items={[
               {
-                label: "New Terminal (Shell)",
+                label: t.panel_new_terminal_shell,
                 onClick: () => handleNewTerminal("shell"),
               },
               {
-                label: "New Terminal (Claude)",
+                label: t.panel_new_terminal_claude,
                 onClick: () => handleNewTerminal("claude"),
               },
               {
-                label: "New Terminal (Codex)",
+                label: t.panel_new_terminal_codex,
                 onClick: () => handleNewTerminal("codex"),
               },
               ...(group.isMain
@@ -256,7 +262,7 @@ function WorktreeRow({
                 : [
                     { type: "separator" as const },
                     {
-                      label: "Remove Worktree",
+                      label: t.panel_remove_worktree,
                       danger: true,
                       onClick: () => void handleRemove(),
                     },
@@ -277,6 +283,7 @@ function ProjectRow({
   project: ProjectGroup;
   renderTerminal: (item: CanvasTerminalItem) => React.ReactNode;
 }) {
+  const t = useT();
   const toggle = useSessionPanelCollapseStore((s) => s.toggle);
   const collapsed = useSessionPanelCollapseStore((s) =>
     s.isCollapsed(project.projectId),
@@ -306,13 +313,16 @@ function ProjectRow({
     );
     const warning =
       terminalCount > 0
-        ? `Remove project "${project.projectName}"? This will close ${terminalCount} terminal${terminalCount === 1 ? "" : "s"}. Files on disk will not be deleted.`
-        : `Remove project "${project.projectName}"? Files on disk will not be deleted.`;
+        ? t.panel_project_remove_confirm_with_terminals(
+            project.projectName,
+            terminalCount,
+          )
+        : t.panel_project_remove_confirm(project.projectName);
     if (!window.confirm(warning)) return;
     useProjectStore.getState().removeProject(project.projectId);
     useNotificationStore
       .getState()
-      .notify("info", `Project "${project.projectName}" removed`);
+      .notify("info", t.panel_project_removed(project.projectName));
   };
 
   const openDeleteFromDisk = () => {
@@ -332,24 +342,21 @@ function ProjectRow({
         useProjectStore.getState().removeProject(project.projectId);
         useNotificationStore
           .getState()
-          .notify(
-            "info",
-            `Project "${project.projectName}" deleted from disk`,
-          );
+          .notify("info", t.panel_project_deleted(project.projectName));
         setConfirmingDelete(false);
       } else {
         useNotificationStore
           .getState()
-          .notify("error", `Failed to delete project: ${result.error}`);
+          .notify("error", t.panel_project_delete_failed(result.error));
       }
     } catch (err) {
       useNotificationStore
         .getState()
         .notify(
           "error",
-          `Failed to delete project: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
+          t.panel_project_delete_failed(
+            err instanceof Error ? err.message : String(err),
+          ),
         );
     } finally {
       setDeleting(false);
@@ -382,8 +389,8 @@ function ProjectRow({
         <StatusBadges summary={project.statusSummary} />
         <button
           type="button"
-          title="New shell terminal"
-          aria-label="New shell terminal"
+          title={t.panel_new_terminal}
+          aria-label={t.panel_new_terminal}
           onClick={(e) => {
             e.stopPropagation();
             handleNewTerminal();
@@ -424,11 +431,11 @@ function ProjectRow({
             y={menu.y}
             items={[
               {
-                label: "New Terminal",
+                label: t.panel_new_terminal,
                 onClick: handleNewTerminal,
               },
               {
-                label: "New Worktree...",
+                label: t.panel_new_worktree,
                 onClick: () => {
                   const store = useSessionPanelCollapseStore.getState();
                   if (store.isCollapsed(project.projectId)) {
@@ -439,12 +446,12 @@ function ProjectRow({
               },
               { type: "separator" as const },
               {
-                label: "Remove Project",
+                label: t.panel_remove_project,
                 danger: true,
                 onClick: handleRemoveProject,
               },
               {
-                label: "Delete Project from Disk...",
+                label: t.panel_delete_project_disk,
                 danger: true,
                 onClick: openDeleteFromDisk,
               },
@@ -468,23 +475,21 @@ function ProjectRow({
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-[12px] font-semibold text-[var(--text-primary)] mb-2">
-                Delete project from disk?
+                {t.panel_project_delete_title}
               </div>
               <div className="text-[11px] text-[var(--text-muted)] mb-3 leading-relaxed">
-                This will permanently delete the folder
+                {t.panel_project_delete_intro}
                 <div className="mt-1 font-mono text-[10px] break-all text-[var(--text-primary)]">
                   {project.projectPath}
                 </div>
                 <div className="mt-2">
-                  All worktrees, terminals, and uncommitted changes will be
-                  lost. This cannot be undone.
+                  {t.panel_project_delete_warning}
                 </div>
                 <div className="mt-2">
-                  Type{" "}
+                  {t.panel_project_delete_type_to_confirm}{" "}
                   <span className="font-mono text-[var(--text-primary)]">
                     {project.projectName}
-                  </span>{" "}
-                  to confirm.
+                  </span>
                 </div>
               </div>
               <input
@@ -515,7 +520,7 @@ function ProjectRow({
                   onClick={() => setConfirmingDelete(false)}
                   className="text-[11px] px-2 py-1 rounded border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] disabled:opacity-50"
                 >
-                  Cancel
+                  {t.cancel}
                 </button>
                 <button
                   type="button"
@@ -525,7 +530,9 @@ function ProjectRow({
                   onClick={() => void performDeleteFromDisk()}
                   className="text-[11px] px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  {deleting ? "Deleting..." : "Delete from disk"}
+                  {deleting
+                    ? t.panel_project_delete_button_busy
+                    : t.panel_project_delete_button}
                 </button>
               </div>
             </div>

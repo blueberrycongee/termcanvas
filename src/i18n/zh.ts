@@ -469,4 +469,36 @@ export const zh = {
 
   canvas_empty_title: "还没有项目",
   canvas_empty_action: "添加项目目录…",
+
+  panel_new_terminal: "新建终端",
+  panel_new_terminal_shell: "新建终端(Shell)",
+  panel_new_terminal_claude: "新建终端(Claude)",
+  panel_new_terminal_codex: "新建终端(Codex)",
+  panel_new_worktree: "新建 Worktree…",
+  panel_remove_worktree: "移除 Worktree",
+  panel_remove_project: "移除项目",
+  panel_delete_project_disk: "从磁盘删除项目…",
+  panel_close_terminal: "关闭终端",
+  panel_branch_name_placeholder: "分支名",
+  panel_worktree_created: (name: string) => `已创建 Worktree "${name}"`,
+  panel_worktree_create_failed: (err: string) => `创建 Worktree 失败:${err}`,
+  panel_worktree_remove_confirm: (name: string) => `要移除 Worktree "${name}" 吗?`,
+  panel_worktree_remove_confirm_with_terminals: (name: string, count: number) =>
+    `这个 Worktree 还有 ${count} 个终端,仍要移除 "${name}" 吗?`,
+  panel_worktree_removed: (name: string) => `已移除 Worktree "${name}"`,
+  panel_worktree_remove_failed: (err: string) => `移除 Worktree 失败:${err}`,
+  panel_project_remove_confirm: (name: string) =>
+    `要从面板移除项目 "${name}" 吗?磁盘上的文件不会被删除。`,
+  panel_project_remove_confirm_with_terminals: (name: string, count: number) =>
+    `要从面板移除项目 "${name}" 吗?这会关闭 ${count} 个终端。磁盘上的文件不会被删除。`,
+  panel_project_removed: (name: string) => `已移除项目 "${name}"`,
+  panel_project_delete_title: "要从磁盘删除项目吗?",
+  panel_project_delete_intro: "将永久删除以下目录",
+  panel_project_delete_warning:
+    "所有 worktree、终端和未提交的修改都会丢失。此操作无法撤销。",
+  panel_project_delete_type_to_confirm: "请输入项目名称以确认。",
+  panel_project_delete_button: "从磁盘删除",
+  panel_project_delete_button_busy: "删除中…",
+  panel_project_deleted: (name: string) => `已从磁盘删除项目 "${name}"`,
+  panel_project_delete_failed: (err: string) => `删除项目失败:${err}`,
 } as const;
