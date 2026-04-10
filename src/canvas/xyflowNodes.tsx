@@ -28,7 +28,7 @@ function snapTo(value: number, grid: number): number {
 
 type TerminalFlowNode = Node<TerminalNodeData, "terminal">;
 
-function TerminalNode({ data }: NodeProps<TerminalFlowNode>) {
+function TerminalNode({ data, selected = false }: NodeProps<TerminalFlowNode>) {
   const viewport = useCanvasStore((state) => state.viewport);
   const rightPanelCollapsed = useCanvasStore(
     (state) => state.rightPanelCollapsed,
@@ -178,11 +178,19 @@ function TerminalNode({ data }: NodeProps<TerminalFlowNode>) {
   return (
     <div className="h-full w-full">
       <NodeResizer
-        isVisible
+        isVisible={selected}
         minWidth={300}
         minHeight={200}
-        handleStyle={{ width: 8, height: 8 }}
-        lineStyle={{ borderWidth: 1 }}
+        handleStyle={{
+          width: 8,
+          height: 8,
+          background: "var(--surface)",
+          borderColor: "var(--border-hover)",
+        }}
+        lineStyle={{
+          borderWidth: 1,
+          borderColor: "var(--border-hover)",
+        }}
         onResize={handleResize}
         onResizeEnd={handleResizeEnd}
       />
