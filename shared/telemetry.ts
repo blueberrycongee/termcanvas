@@ -104,6 +104,7 @@ export interface TerminalTelemetrySnapshot {
   last_meaningful_progress_at?: string;
   last_hook_error?: string;
   last_hook_error_details?: string;
+  first_user_prompt?: string;
   derived_status: TelemetryDerivedStatus;
 }
 
