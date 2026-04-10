@@ -94,6 +94,26 @@ function zoomToTerminal(terminalId: string) {
   panToTerminal(terminalId);
 }
 
+export function navigateToTerminalWithViewport(
+  terminalId: string,
+  options: {
+    zoomedOutTerminalId: string | null;
+    pan?: typeof panToTerminal;
+    zoom?: typeof zoomToTerminal;
+  },
+): string | null {
+  const pan = options.pan ?? panToTerminal;
+  const zoom = options.zoom ?? zoomToTerminal;
+
+  if (options.zoomedOutTerminalId !== null) {
+    pan(terminalId, { preserveScale: true });
+    return terminalId;
+  }
+
+  zoom(terminalId);
+  return null;
+}
+
 function zoomToFitAll() {
   const { projects } = useProjectStore.getState();
   const { rightPanelCollapsed, leftPanelCollapsed, leftPanelWidth } =
@@ -455,13 +475,12 @@ export function useKeyboardShortcuts() {
           );
 
           if (nextFocusedTerminalId) {
-            focusTerminalInScene(nextFocusedTerminalId);
-            panToTerminal(nextFocusedTerminalId, {
-              preserveScale: true,
-            });
-            if (zoomedOutTerminalIdRef.current !== null) {
-              zoomedOutTerminalIdRef.current = nextFocusedTerminalId;
-            }
+            zoomedOutTerminalIdRef.current = navigateToTerminalWithViewport(
+              nextFocusedTerminalId,
+              {
+                zoomedOutTerminalId: zoomedOutTerminalIdRef.current,
+              },
+            );
           } else {
             zoomedOutTerminalIdRef.current = null;
           }
@@ -502,12 +521,12 @@ export function useKeyboardShortcuts() {
           currentIndex === -1 ? 0 : (currentIndex + 1) % terminalList.length;
         const next = terminalList[nextIndex];
         focusTerminalInScene(next.terminalId);
-        if (zoomedOutTerminalIdRef.current !== null) {
-          panToTerminal(next.terminalId, { preserveScale: true });
-          zoomedOutTerminalIdRef.current = next.terminalId;
-        } else {
-          zoomToTerminal(next.terminalId);
-        }
+        zoomedOutTerminalIdRef.current = navigateToTerminalWithViewport(
+          next.terminalId,
+          {
+            zoomedOutTerminalId: zoomedOutTerminalIdRef.current,
+          },
+        );
         return;
       }
 
@@ -538,12 +557,12 @@ export function useKeyboardShortcuts() {
           currentIndex <= 0 ? terminalList.length - 1 : currentIndex - 1;
         const prev = terminalList[prevIndex];
         focusTerminalInScene(prev.terminalId);
-        if (zoomedOutTerminalIdRef.current !== null) {
-          panToTerminal(prev.terminalId, { preserveScale: true });
-          zoomedOutTerminalIdRef.current = prev.terminalId;
-        } else {
-          zoomToTerminal(prev.terminalId);
-        }
+        zoomedOutTerminalIdRef.current = navigateToTerminalWithViewport(
+          prev.terminalId,
+          {
+            zoomedOutTerminalId: zoomedOutTerminalIdRef.current,
+          },
+        );
         return;
       }
 
