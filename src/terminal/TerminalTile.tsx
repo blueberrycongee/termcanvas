@@ -726,6 +726,10 @@ export function TerminalTile({
           e.stopPropagation();
           setContextMenu({ x: e.clientX, y: e.clientY });
         }}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          panToTerminal(terminal.id);
+        }}
       >
         {terminal.origin !== "agent" && (
           <div className="w-[3px] h-3 rounded-full bg-amber-500/60 shrink-0" />
