@@ -19,6 +19,7 @@ import {
   drawingToAnnotation,
   sceneDocumentToLegacyState,
 } from "./canvas/sceneProjection";
+import { clusterByTag } from "./clustering";
 
 export interface LegacyWorkspaceSnapshot {
   version: 1;
@@ -270,8 +271,29 @@ function normalizeSceneCamera(value: unknown): SceneDocument["camera"] {
   return { x: 0, y: 0, zoom: 1 };
 }
 
+interface LegacySpan {
+  cols?: unknown;
+  rows?: unknown;
+}
+
+function widthFromSpan(span: LegacySpan, baseW: number): number {
+  const cols = Math.max(1, Number(span?.cols ?? 1));
+  return cols * baseW + Math.max(0, cols - 1) * 8;
+}
+
+function heightFromSpan(span: LegacySpan, baseH: number): number {
+  const rows = Math.max(1, Number(span?.rows ?? 1));
+  return rows * baseH + Math.max(0, rows - 1) * 8;
+}
+
+const FREE_CANVAS_DEFAULT_TILE = { w: 640, h: 480 };
+
 function migrateProjects(projects: Record<string, unknown>[]): ProjectData[] {
-  return projects.flatMap((project) => {
+  // Track terminal IDs that need cluster placement (legacy v1 records that
+  // lack x/y/tags). After we project everything, we run clusterByTag to
+  // assign positions for these.
+  const pendingClusterIds = new Set<string>();
+  const result = projects.flatMap((project) => {
     if (
       typeof project.id !== "string" ||
       typeof project.name !== "string" ||
@@ -299,17 +321,46 @@ function migrateProjects(projects: Record<string, unknown>[]): ProjectData[] {
                   return [];
                 }
 
-                const width =
-                  typeof terminal.width === "number" ? terminal.width : 640;
-                const height =
-                  typeof terminal.height === "number" ? terminal.height : 480;
-                const x = typeof terminal.x === "number" ? terminal.x : 0;
-                const y = typeof terminal.y === "number" ? terminal.y : 0;
-                const tags = Array.isArray(terminal.tags)
+                const hasNumericWidth = typeof terminal.width === "number";
+                const hasNumericHeight = typeof terminal.height === "number";
+                const hasNumericX = typeof terminal.x === "number";
+                const hasNumericY = typeof terminal.y === "number";
+                const span =
+                  isRecord(terminal.span)
+                    ? (terminal.span as LegacySpan)
+                    : undefined;
+
+                const width = hasNumericWidth
+                  ? (terminal.width as number)
+                  : span
+                    ? widthFromSpan(span, FREE_CANVAS_DEFAULT_TILE.w)
+                    : FREE_CANVAS_DEFAULT_TILE.w;
+                const height = hasNumericHeight
+                  ? (terminal.height as number)
+                  : span
+                    ? heightFromSpan(span, FREE_CANVAS_DEFAULT_TILE.h)
+                    : FREE_CANVAS_DEFAULT_TILE.h;
+                const x = hasNumericX ? (terminal.x as number) : 0;
+                const y = hasNumericY ? (terminal.y as number) : 0;
+                const existingTags = Array.isArray(terminal.tags)
                   ? (terminal.tags as string[])
                   : [];
+                const needsAutoTags =
+                  existingTags.length === 0 || (!hasNumericX && !hasNumericY);
+                const tags = needsAutoTags
+                  ? [
+                      `project:${project.name as string}`,
+                      `worktree:${worktree.name as string}`,
+                      `type:${normalizeTerminalType(terminal.type)}`,
+                      ...existingTags.filter((tag) => tag.startsWith("custom:")),
+                    ]
+                  : existingTags;
                 const origin: TerminalOrigin =
                   terminal.origin === "agent" ? "agent" : "user";
+
+                if (!hasNumericX && !hasNumericY) {
+                  pendingClusterIds.add(terminal.id as string);
+                }
 
                 return [
                   {
@@ -376,6 +427,35 @@ function migrateProjects(projects: Record<string, unknown>[]): ProjectData[] {
       },
     ];
   });
+
+  if (pendingClusterIds.size > 0) {
+    const tilesForCluster = result.flatMap((project) =>
+      project.worktrees.flatMap((worktree) =>
+        worktree.terminals
+          .filter((terminal) => pendingClusterIds.has(terminal.id))
+          .map((terminal) => ({
+            id: terminal.id,
+            width: terminal.width,
+            height: terminal.height,
+            tags: terminal.tags,
+          })),
+      ),
+    );
+    const positions = clusterByTag(tilesForCluster, "project");
+    for (const project of result) {
+      for (const worktree of project.worktrees) {
+        for (const terminal of worktree.terminals) {
+          const position = positions.get(terminal.id);
+          if (position) {
+            terminal.x = position.x;
+            terminal.y = position.y;
+          }
+        }
+      }
+    }
+  }
+
+  return result;
 }
 
 function migrateLegacySnapshot(
