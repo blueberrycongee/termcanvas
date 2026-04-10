@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   PanOnScrollMode,
   ReactFlow,
   ReactFlowProvider,
   useNodesState,
+  useReactFlow,
   type OnMove,
   type NodeMouseHandler,
   type OnNodeDrag,
@@ -46,6 +47,9 @@ import {
 import { clampScale, zoomAtClientPoint } from "./viewportZoom";
 import { resolveCollisions } from "./collisionResolver";
 import { ClusterToolbar } from "./ClusterToolbar";
+import { CanvasContextMenu } from "./CanvasContextMenu";
+import { createTerminalInScene } from "../actions/terminalSceneActions";
+import type { TerminalType } from "../types";
 
 const EMPTY_EDGES: never[] = [];
 const WHEEL_ZOOM_SENSITIVITY = 0.002;
@@ -264,6 +268,57 @@ function XyFlowCanvasInner() {
   const layoutKey = useMemo(() => buildLayoutKey(projects), [projects]);
   const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
   const isDrawing = drawingEnabled && drawingTool !== "select";
+
+  const reactFlow = useReactFlow();
+  const [contextMenu, setContextMenu] = useState<{
+    clientX: number;
+    clientY: number;
+    flowX: number;
+    flowY: number;
+  } | null>(null);
+
+  const handlePaneContextMenu = useCallback(
+    (event: React.MouseEvent | MouseEvent) => {
+      event.preventDefault();
+      const flow = reactFlow.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+      setContextMenu({
+        clientX: event.clientX,
+        clientY: event.clientY,
+        flowX: flow.x,
+        flowY: flow.y,
+      });
+    },
+    [reactFlow],
+  );
+
+  const handleContextMenuPick = useCallback(
+    (type: TerminalType) => {
+      if (!contextMenu) return;
+      const { focusedProjectId, focusedWorktreeId, projects: currentProjects } =
+        useProjectStore.getState();
+      let projectId = focusedProjectId;
+      let worktreeId = focusedWorktreeId;
+      if (!projectId || !worktreeId) {
+        const fallbackProject = currentProjects[0];
+        const fallbackWorktree = fallbackProject?.worktrees[0];
+        if (!fallbackProject || !fallbackWorktree) {
+          return;
+        }
+        projectId = fallbackProject.id;
+        worktreeId = fallbackWorktree.id;
+      }
+      createTerminalInScene({
+        projectId,
+        worktreeId,
+        type,
+        position: { x: contextMenu.flowX, y: contextMenu.flowY },
+      });
+    },
+    [contextMenu],
+  );
 
   const projectedNodes = useMemo(
     () => buildCanvasFlowNodes(projects),
@@ -488,6 +543,7 @@ function XyFlowCanvasInner() {
         onMove={handleMove}
         onMoveEnd={handleMoveEnd}
         onPaneClick={handlePaneClick}
+        onPaneContextMenu={handlePaneContextMenu}
         onNodeClick={handleNodeClick}
         onNodeDragStart={handleNodeDragStart}
         onNodeDragStop={handleNodeDragStop}
@@ -512,6 +568,15 @@ function XyFlowCanvasInner() {
       </ReactFlow>
 
       <ClusterToolbar />
+
+      {contextMenu && (
+        <CanvasContextMenu
+          clientX={contextMenu.clientX}
+          clientY={contextMenu.clientY}
+          onPick={handleContextMenuPick}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
 
       <BoxSelectOverlay />
       <CanvasCardLayer />

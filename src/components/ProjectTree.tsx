@@ -5,6 +5,7 @@ import { useSessionPanelCollapseStore } from "../stores/sessionPanelCollapseStor
 import { useProjectStore } from "../stores/projectStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { ContextMenu } from "./ContextMenu";
+import { createTerminalInScene } from "../actions/terminalSceneActions";
 import { StatusBadges } from "./StatusBadges";
 import type {
   ProjectGroup,
@@ -120,6 +121,19 @@ function WorktreeRow({
   );
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
 
+  const handleNewTerminal = (type: "shell" | "claude" | "codex") => {
+    const projects = useProjectStore.getState().projects;
+    const project = projects.find((p) =>
+      p.worktrees.some((w) => w.id === group.worktreeId),
+    );
+    if (!project) return;
+    createTerminalInScene({
+      projectId: project.id,
+      worktreeId: group.worktreeId,
+      type,
+    });
+  };
+
   const handleRemove = async () => {
     if (group.isMain) return;
     const runningCount = group.terminals.length;
@@ -162,7 +176,6 @@ function WorktreeRow({
         className="w-full flex items-center gap-1.5 pl-4 pr-2 py-1 text-left cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors"
         onClick={() => toggle(group.worktreeId)}
         onContextMenu={(e) => {
-          if (group.isMain) return;
           e.preventDefault();
           e.stopPropagation();
           setMenu({ x: e.clientX, y: e.clientY });
@@ -188,10 +201,27 @@ function WorktreeRow({
             y={menu.y}
             items={[
               {
-                label: "Remove Worktree",
-                danger: true,
-                onClick: () => void handleRemove(),
+                label: "New Terminal (Shell)",
+                onClick: () => handleNewTerminal("shell"),
               },
+              {
+                label: "New Terminal (Claude)",
+                onClick: () => handleNewTerminal("claude"),
+              },
+              {
+                label: "New Terminal (Codex)",
+                onClick: () => handleNewTerminal("codex"),
+              },
+              ...(group.isMain
+                ? []
+                : [
+                    { type: "separator" as const },
+                    {
+                      label: "Remove Worktree",
+                      danger: true,
+                      onClick: () => void handleRemove(),
+                    },
+                  ]),
             ]}
             onClose={() => setMenu(null)}
           />,
