@@ -47,7 +47,7 @@ import {
 import { clampScale, zoomAtClientPoint } from "./viewportZoom";
 import { resolveCollisions } from "./collisionResolver";
 import { ClusterToolbar } from "./ClusterToolbar";
-import { CanvasContextMenu } from "./CanvasContextMenu";
+import { ContextMenu } from "../components/ContextMenu";
 import { createTerminalInScene } from "../actions/terminalSceneActions";
 import type { TerminalType } from "../types";
 
@@ -570,10 +570,31 @@ function XyFlowCanvasInner() {
       <ClusterToolbar />
 
       {contextMenu && (
-        <CanvasContextMenu
-          clientX={contextMenu.clientX}
-          clientY={contextMenu.clientY}
-          onPick={handleContextMenuPick}
+        <ContextMenu
+          x={contextMenu.clientX}
+          y={contextMenu.clientY}
+          items={[
+            {
+              label: "New Shell",
+              onClick: () => handleContextMenuPick("shell"),
+            },
+            {
+              label: "New Claude",
+              onClick: () => handleContextMenuPick("claude"),
+            },
+            {
+              label: "New Codex",
+              onClick: () => handleContextMenuPick("codex"),
+            },
+            {
+              label: "New Gemini",
+              onClick: () => handleContextMenuPick("gemini"),
+            },
+            {
+              label: "New Lazygit",
+              onClick: () => handleContextMenuPick("lazygit"),
+            },
+          ]}
           onClose={() => setContextMenu(null)}
         />
       )}
