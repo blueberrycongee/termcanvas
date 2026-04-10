@@ -6,6 +6,7 @@ import { useProjectStore } from "../stores/projectStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { ContextMenu } from "./ContextMenu";
 import { createTerminalInScene } from "../actions/terminalSceneActions";
+import { activateWorktreeInScene } from "../actions/sceneSelectionActions";
 import { StatusBadges } from "./StatusBadges";
 import { useT } from "../i18n/useT";
 import type {
@@ -155,6 +156,18 @@ function WorktreeRow({
     });
   };
 
+  // Activate the worktree so subsequent actions like cmd+t (which reads
+  // focusedProjectId/focusedWorktreeId from projectStore) target this
+  // worktree.
+  const handleActivate = () => {
+    const projects = useProjectStore.getState().projects;
+    const project = projects.find((p) =>
+      p.worktrees.some((w) => w.id === group.worktreeId),
+    );
+    if (!project) return;
+    activateWorktreeInScene(project.id, group.worktreeId);
+  };
+
   const handleRemove = async () => {
     if (group.isMain) return;
     const runningCount = group.terminals.length;
@@ -200,10 +213,14 @@ function WorktreeRow({
         role="button"
         tabIndex={0}
         className="group w-full flex items-center gap-1.5 pl-4 pr-1 py-1 text-left cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors"
-        onClick={() => toggle(group.worktreeId)}
+        onClick={() => {
+          handleActivate();
+          toggle(group.worktreeId);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
+            handleActivate();
             toggle(group.worktreeId);
           }
         }}
@@ -288,6 +305,15 @@ function ProjectRow({
     });
   };
 
+  // Activate the project's first worktree so cmd+t targets it.
+  const handleActivate = () => {
+    const projects = useProjectStore.getState().projects;
+    const liveProject = projects.find((p) => p.id === project.projectId);
+    const firstWorktree = liveProject?.worktrees[0];
+    if (!liveProject || !firstWorktree) return;
+    activateWorktreeInScene(liveProject.id, firstWorktree.id);
+  };
+
   const handleRemoveProject = () => {
     const terminalCount = project.worktrees.reduce(
       (acc, wt) => acc + wt.terminals.length,
@@ -351,10 +377,14 @@ function ProjectRow({
         role="button"
         tabIndex={0}
         className="group w-full flex items-center gap-1.5 px-3 py-1 text-left cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors"
-        onClick={() => toggle(project.projectId)}
+        onClick={() => {
+          handleActivate();
+          toggle(project.projectId);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
+            handleActivate();
             toggle(project.projectId);
           }
         }}
