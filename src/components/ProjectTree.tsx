@@ -13,6 +13,25 @@ import type {
   CanvasTerminalItem,
 } from "./sessionPanelModel";
 
+function PlusIcon() {
+  return (
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 12 12"
+      fill="none"
+      className="shrink-0"
+    >
+      <path
+        d="M6 2V10M2 6H10"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function ChevronIcon({ open }: { open: boolean }) {
   return (
     <svg
@@ -172,9 +191,17 @@ function WorktreeRow({
 
   return (
     <div>
-      <button
-        className="w-full flex items-center gap-1.5 pl-4 pr-2 py-1 text-left cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors"
+      <div
+        role="button"
+        tabIndex={0}
+        className="group w-full flex items-center gap-1.5 pl-4 pr-1 py-1 text-left cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors"
         onClick={() => toggle(group.worktreeId)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggle(group.worktreeId);
+          }
+        }}
         onContextMenu={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -186,7 +213,19 @@ function WorktreeRow({
           {group.worktreeName}
         </span>
         {collapsed && <StatusBadges summary={group.statusSummary} />}
-      </button>
+        <button
+          type="button"
+          title="New shell terminal"
+          aria-label="New shell terminal"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleNewTerminal("shell");
+          }}
+          className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--border)]"
+        >
+          <PlusIcon />
+        </button>
+      </div>
       {!collapsed && (
         <div className="pl-4 pr-2 flex flex-col gap-0.5">
           {group.terminals.map((item) => (
@@ -245,11 +284,31 @@ function ProjectRow({
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [creating, setCreating] = useState(false);
 
+  const handleNewTerminal = () => {
+    const projects = useProjectStore.getState().projects;
+    const liveProject = projects.find((p) => p.id === project.projectId);
+    const firstWorktree = liveProject?.worktrees[0];
+    if (!liveProject || !firstWorktree) return;
+    createTerminalInScene({
+      projectId: liveProject.id,
+      worktreeId: firstWorktree.id,
+      type: "shell",
+    });
+  };
+
   return (
     <div>
-      <button
-        className="w-full flex items-center gap-1.5 px-3 py-1 text-left cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors"
+      <div
+        role="button"
+        tabIndex={0}
+        className="group w-full flex items-center gap-1.5 px-3 py-1 text-left cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors"
         onClick={() => toggle(project.projectId)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggle(project.projectId);
+          }
+        }}
         onContextMenu={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -261,7 +320,19 @@ function ProjectRow({
           {project.projectName}
         </span>
         <StatusBadges summary={project.statusSummary} />
-      </button>
+        <button
+          type="button"
+          title="New shell terminal"
+          aria-label="New shell terminal"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleNewTerminal();
+          }}
+          className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--border)]"
+        >
+          <PlusIcon />
+        </button>
+      </div>
       {!collapsed && creating && (
         <NewWorktreeInput
           projectPath={project.projectPath}
@@ -292,6 +363,10 @@ function ProjectRow({
             x={menu.x}
             y={menu.y}
             items={[
+              {
+                label: "New Terminal",
+                onClick: handleNewTerminal,
+              },
               {
                 label: "New Worktree...",
                 onClick: () => {
