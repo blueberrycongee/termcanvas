@@ -1364,10 +1364,43 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
       runtime.hasRespawned = true;
       clearWatchedSession(runtime);
       setSessionId(runtime, undefined);
-      appendPreview(
-        runtime,
-        "\r\n\x1b[33m[Session expired, starting fresh...]\x1b[0m\r\n",
-      );
+      const expiredNotice =
+        "\r\n\x1b[33m[Session expired, starting fresh...]\x1b[0m\r\n";
+      appendPreview(runtime, expiredNotice);
+      runtime.xterm?.write(expiredNotice);
+      void spawnPty(runtime);
+      return;
+    }
+
+    // When a CLI tile's PTY exits (graceful or otherwise), keep the tile alive
+    // by demoting it to a plain user shell in the same xterm. This fixes the
+    // long-standing "restored CLI dies on Ctrl+C with no fallback shell" bug:
+    // restored CLI tiles spawn the CLI as PID 1 (no parent shell), so killing
+    // the CLI used to leave the tile dead. Now we transparently fall back.
+    if (runtime.meta.terminal.type !== "shell") {
+      const previousType = runtime.meta.terminal.type;
+      clearWatchedSession(runtime);
+      setSessionId(runtime, undefined);
+      runtime.removeHookSessionStarted?.();
+      runtime.removeHookSessionStarted = null;
+      if (runtime.hookFallbackTimer) {
+        clearTimeout(runtime.hookFallbackTimer);
+        runtime.hookFallbackTimer = null;
+      }
+      runtime.sessionCancel?.();
+      runtime.sessionCancel = null;
+      runtime.wasResumeAttempt = false;
+      runtime.hasRespawned = false;
+      setTerminalType(runtime, "shell");
+      // Note: we intentionally do not call telemetry.updateTerminal here.
+      // `clearWatchedSession` already invoked `detachSession`, which flips
+      // `session_attached` to false — that is the canonical signal that this
+      // terminal no longer has a live CLI session. The cached `provider`
+      // field is left untouched (telemetry-service.updateTerminal has no way
+      // to clear it; passing `undefined` is a silent no-op).
+      const fallbackNotice = `\r\n\x1b[2m[${previousType} exited with code ${exitCode}; dropped to shell]\x1b[0m\r\n`;
+      appendPreview(runtime, fallbackNotice);
+      runtime.xterm?.write(fallbackNotice);
       void spawnPty(runtime);
       return;
     }
@@ -1407,6 +1440,16 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
     runtime.removeHookTurnComplete = window.termcanvas.hooks.onTurnComplete(
       (payload) => {
         if (payload.terminalId !== runtime.meta.terminal.id) return;
+        // Reject events from a stale CLI session: after a fallback-shell
+        // demotion the terminal id is reused, so a delayed hook event from
+        // the dead claude/codex run could otherwise corrupt the new shell's
+        // status. The terminal's current sessionId is the source of truth.
+        if (
+          payload.sessionId &&
+          payload.sessionId !== runtime.meta.terminal.sessionId
+        ) {
+          return;
+        }
         handleTurnComplete();
       },
     );
@@ -1414,6 +1457,12 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
     runtime.removeHookStopFailure = window.termcanvas.hooks.onStopFailure(
       (payload) => {
         if (payload.terminalId !== runtime.meta.terminal.id) return;
+        if (
+          payload.sessionId &&
+          payload.sessionId !== runtime.meta.terminal.sessionId
+        ) {
+          return;
+        }
         if (payload.error) {
           setStatus(runtime, "error");
           appendPreview(
