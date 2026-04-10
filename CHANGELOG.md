@@ -2,6 +2,72 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.26.0] - 2026-04-10
+
+### Added
+- Free canvas layout: terminals are now flat top-level ReactFlow nodes that can be freely positioned, replacing the nested project/worktree containers
+- Clustering toolbar with rule picker (by project / worktree / type / status / custom tag) and an undo for the last cluster
+- Custom Tags… popover on each terminal for managing user tags
+- Auto-placement for newly created terminals so they land in a free spot on the canvas
+- Collision resolver to nudge tiles apart when they overlap (also applied when unstashing)
+- Add Project Folder entry in the canvas right-click menu and a + button in the session panel header
+- Inline + button on session panel rows for creating a new terminal in that project/worktree
+- Hover × button to remove a non-main worktree directly from the session panel
+- Hover × button to close a single terminal directly from its session panel card
+- Remove Project entry in the project context menu (panel-only removal, files untouched)
+- Delete Project from Disk… entry with a typed-name confirmation modal that calls a guarded `project:delete-folder` IPC
+- Auto-migration from legacy v1 (nested) snapshots into the free canvas layout on load
+- End-to-end integration test suite for the free canvas
+
+### Changed
+- Session panel strings (context menus, notifications, delete-project modal) are fully internationalized; added panel_* keys to en/zh dictionaries
+- Worktree row now exposes Remove via the hover × button instead of a right-click menu
+- Canvas right-click menu uses the shared ContextMenu component for consistency
+- Shortcut identifiers renamed from span* to tileSize* (existing keybinds preserved)
+
+### Fixed
+- Popovers (canvas right-click menu, cluster dropdown) no longer stay stuck open: dismiss listeners now run in the capture phase so React Flow's stopPropagation can't swallow them
+- Cluster toolbar now positions itself below the toolbar and respects the right-panel inset
+- Terminal tile border restored after the free-canvas flatten refactor
+- Session panel now shows projects and worktrees that have no terminals
+- Cluster toolbar gained Escape-to-close support
+
+### Removed
+- Dead grid-pack helpers superseded by the free canvas layout
+- Orphaned compactFocusedProject shortcut
+
+### Added (zh-CN)
+- 自由画布布局：终端改为 ReactFlow 顶层节点，可在画布任意位置自由摆放，不再使用嵌套的项目/工作树容器
+- 集群工具栏，支持按项目 / 工作树 / 类型 / 状态 / 自定义标签聚类，并可撤销上一次聚类
+- 终端 Tags… 弹层，用于管理自定义标签
+- 新建终端时自动放置到空闲位置
+- 终端瓦片重叠时的碰撞偏移（取出暂存时也会应用）
+- 画布右键菜单新增 "Add Project Folder" 入口；会话面板顶部新增 + 按钮
+- 会话面板各行增加内联 + 按钮，可在该项目 / 工作树下快速新建终端
+- 会话面板支持 hover 时显示 × 按钮直接移除非 main worktree
+- 会话面板的终端卡片支持 hover 时显示 × 按钮直接关闭终端
+- 项目右键菜单新增 "Remove Project"（仅从面板移除，磁盘文件不动）
+- 项目右键菜单新增 "Delete Project from Disk…"，需在弹窗中输入项目名确认，主进程 `project:delete-folder` IPC 已加路径安全护栏
+- 加载旧版 v1（嵌套）快照时自动迁移到自由画布布局
+- 自由画布的端到端集成测试套件
+
+### Changed (zh-CN)
+- 会话面板的所有文案（右键菜单、通知、删除项目弹窗等）已完成国际化，新增 panel_* 键到 en/zh 字典
+- Worktree 移除入口从右键菜单改为 hover 时的 × 按钮
+- 画布右键菜单改为复用共享的 ContextMenu 组件
+- 快捷键标识符从 span* 重命名为 tileSize*（已有键位保持不变）
+
+### Fixed (zh-CN)
+- 画布右键菜单和集群下拉菜单不再卡住打不掉：dismiss 监听器改在 capture 阶段触发，避免被 React Flow 的 stopPropagation 吞掉
+- 集群工具栏现在放在工具栏下方，并尊重右侧面板的内边距
+- 修复自由画布扁平化重构后丢失的终端瓦片边框
+- 会话面板现在会显示没有终端的项目和工作树
+- 集群工具栏新增 Escape 关闭
+
+### Removed (zh-CN)
+- 删除自由画布之后已无用的 grid-pack 辅助代码
+- 删除已无引用的 compactFocusedProject 快捷键
+
 ## [0.25.23] - 2026-04-09
 
 ### Changed
