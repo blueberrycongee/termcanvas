@@ -182,7 +182,8 @@ export function writeWorkflowFixture(
   const workflow: WorkflowRecord = {
     schema_version: WORKFLOW_STATE_SCHEMA_VERSION,
     id: workflowId,
-    intent: "Observability test workflow",
+    lead_terminal_id: "terminal-test-helper",
+    intent_file: "inputs/intent.md",
     repo_path: repoPath,
     worktree_path: repoPath,
     branch: null,

@@ -80,9 +80,7 @@ test("markCompleted records the result and closes the active run", async (t) => 
   await stateMachine.markInProgress(assignment.id, { tickId: "tick-1", runId: "run-1" });
   const completed = await stateMachine.markCompleted(assignment.id, {
     outcome: "completed",
-    summary: "Implemented the change.",
-    outputs: [{ path: "src/index.ts" }],
-    evidence: ["npm test"],
+    report_file: "report.md",
   });
 
   const persisted = manager.load(assignment.id);
@@ -90,7 +88,8 @@ test("markCompleted records the result and closes the active run", async (t) => 
 
   assert.equal(completed.changed, true);
   assert.equal(persisted?.status, "completed");
-  assert.equal(persisted?.result?.summary, "Implemented the change.");
+  assert.equal(persisted?.result?.outcome, "completed");
+  assert.equal(persisted?.result?.report_file, "report.md");
   assert.equal(run?.status, "completed");
   assert.equal(run?.ended_at, "2026-03-26T12:00:00.000Z");
 });

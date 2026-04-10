@@ -1,4 +1,4 @@
-import type { SubAgentResult } from "./protocol.ts";
+import type { SubAgentOutcome } from "./protocol.ts";
 
 export type NodeStatus =
   | "blocked"
@@ -18,12 +18,18 @@ export type DecisionPointType =
 export interface CompletedNodeInfo {
   node_id: string;
   role: string;
-  result: SubAgentResult;
-  brief_file?: string;
-  result_file: string;
-  artifact_dir: string;
+  outcome: SubAgentOutcome;
+  report_file: string;          // path to report.md (Lead reads for details)
   duration_ms: number;
   retries_used: number;
+
+  // Optional: session info captured before terminal destruction
+  // Lead can use this for `--resume-from` on a future dispatch
+  session?: {
+    provider: string;
+    id: string;
+    file?: string;
+  };
 }
 
 export interface FailedNodeInfo {

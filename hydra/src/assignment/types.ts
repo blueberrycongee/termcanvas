@@ -1,6 +1,6 @@
-import type { ResultVerification, SubAgentOutcome, SubAgentReflection } from "../protocol.ts";
+import type { SubAgentOutcome } from "../protocol.ts";
 
-export const ASSIGNMENT_STATE_SCHEMA_VERSION = "hydra/assignment-state/v3";
+export const ASSIGNMENT_STATE_SCHEMA_VERSION = "hydra/assignment-state/v0.1";
 
 export type AgentType = "claude" | "codex" | "kimi" | "gemini";
 
@@ -57,15 +57,18 @@ export interface AssignmentRun {
   started_at: string;
   ended_at?: string;
   retry_of_run_id?: string;
+
+  // Session fields — captured from telemetry before terminal destruction.
+  // Used for resume: a future dispatch can `claude --resume <session_id>`
+  // to reuse the same agent context.
+  session_id?: string;
+  session_file?: string;
+  session_provider?: string;
 }
 
 export interface AssignmentResult {
   outcome: SubAgentOutcome;
-  summary: string;
-  outputs?: Array<{ kind?: string; path: string; description?: string }>;
-  evidence?: string[];
-  verification?: ResultVerification;
-  reflection?: SubAgentReflection;
+  report_file: string;
   completed_at?: string;
 }
 

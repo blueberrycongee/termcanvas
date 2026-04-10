@@ -374,7 +374,7 @@ test("workflow snapshot reads contract truth from Hydra assignment run", () => {
     fs.writeFileSync(taskFile, "# Task\n", "utf-8");
 
     const assignment = {
-      schema_version: "hydra/assignment-state/v3",
+      schema_version: "hydra/assignment-state/v0.1",
       id: assignmentId,
       workflow_id: workflowId,
       created_at: "2026-03-26T00:00:00.000Z",
@@ -408,9 +408,10 @@ test("workflow snapshot reads contract truth from Hydra assignment run", () => {
     );
 
     const workflow = {
-      schema_version: "hydra/workflow-state/v4",
+      schema_version: "hydra/workflow-state/v0.1",
       id: workflowId,
-      intent: "Implement telemetry",
+      lead_terminal_id: "terminal-telemetry-test",
+      intent_file: "inputs/intent.md",
       repo_path: repoPath,
       worktree_path: repoPath,
       branch: null,
@@ -422,7 +423,7 @@ test("workflow snapshot reads contract truth from Hydra assignment run", () => {
       nodes: {
         dev: {
           id: "dev", role: "implementer", depends_on: [], agent_type: "codex",
-          assignment_id: assignmentId, intent: "Implement telemetry",
+          assignment_id: assignmentId, intent_file: "nodes/dev/intent.md",
         },
       },
       node_statuses: { dev: "dispatched" },
@@ -441,7 +442,7 @@ test("workflow snapshot reads contract truth from Hydra assignment run", () => {
     fs.writeFileSync(
       resultFile,
       JSON.stringify({
-        schema_version: "hydra/result/v2",
+        schema_version: "hydra/result/v0.1",
         workflow_id: workflowId,
         assignment_id: assignmentId,
         run_id: runId,

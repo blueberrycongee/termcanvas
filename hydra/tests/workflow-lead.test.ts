@@ -19,6 +19,9 @@ import { loadWorkflow, WORKFLOW_STATE_SCHEMA_VERSION } from "../src/workflow-sto
 import { RESULT_SCHEMA_VERSION } from "../src/protocol.ts";
 import { readLedger } from "../src/ledger.ts";
 
+// Set TERMCANVAS_TERMINAL_ID so initWorkflow + lead-guard accept the test as Lead
+process.env.TERMCANVAS_TERMINAL_ID = "terminal-test-lead";
+
 function makeTestRepo(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hydra-lead-test-"));
   execFileSync("git", ["init", "--initial-branch", "main"], { cwd: dir, stdio: "pipe" });
@@ -63,14 +66,16 @@ test("initWorkflow creates workflow directory and record", async () => {
     const workflow = loadWorkflow(repo, result.workflow_id);
     assert.ok(workflow);
     assert.equal(workflow.schema_version, WORKFLOW_STATE_SCHEMA_VERSION);
-    assert.equal(workflow.intent, "Add OAuth login");
+    assert.equal(workflow.lead_terminal_id, "terminal-test-lead");
     assert.equal(workflow.status, "active");
     assert.deepEqual(workflow.nodes, {});
     assert.deepEqual(workflow.node_statuses, {});
 
-    // Check user-request.md exists
-    const userRequest = path.join(repo, ".hydra", "workflows", result.workflow_id, "inputs", "user-request.md");
-    assert.ok(fs.existsSync(userRequest));
+    // Check intent.md exists with the actual intent text
+    const intentPath = path.join(repo, ".hydra", "workflows", result.workflow_id, "inputs", "intent.md");
+    assert.ok(fs.existsSync(intentPath));
+    const intentContent = fs.readFileSync(intentPath, "utf-8");
+    assert.ok(intentContent.includes("Add OAuth login"));
 
     // Check ledger
     const ledger = readLedger(repo, result.workflow_id);
@@ -218,9 +223,7 @@ test("watchUntilDecision returns node_completed when result.json appears", async
       assignment_id: dispatched.assignment_id,
       run_id: run.id,
       outcome: "completed",
-      summary: "Feature implemented.",
-      outputs: [{ path: "src/feature.ts" }],
-      evidence: ["tests pass"],
+      report_file: "report.md",
     }, null, 2), "utf-8");
 
     const decision = await watchUntilDecision({
@@ -229,7 +232,8 @@ test("watchUntilDecision returns node_completed when result.json appears", async
 
     assert.equal(decision.type, "node_completed");
     assert.equal(decision.completed?.node_id, "dev");
-    assert.equal(decision.completed?.result.outcome, "completed");
+    assert.equal(decision.completed?.outcome, "completed");
+    assert.equal(decision.completed?.report_file, "report.md");
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -275,7 +279,9 @@ test("resetNode cascades downstream and sets correct statuses", async () => {
     assert.equal(workflow.node_statuses.a, "eligible"); // target: eligible
     assert.equal(workflow.node_statuses.b, "blocked");  // downstream: blocked
     assert.equal(workflow.node_statuses.c, "blocked");  // downstream: blocked
-    assert.equal(workflow.nodes.a.feedback, "Redo this");
+    assert.ok(workflow.nodes.a.feedback_file);  // feedback written to file
+    const feedbackContent = fs.readFileSync(path.join(repo, workflow.nodes.a.feedback_file!), "utf-8");
+    assert.ok(feedbackContent.includes("Redo this"));
 
     // Check ledger
     const ledger = readLedger(repo, init.workflow_id);
@@ -319,7 +325,9 @@ test("completeWorkflow sets status and writes ledger", async () => {
 
     const workflow = loadWorkflow(repo, init.workflow_id)!;
     assert.equal(workflow.status, "completed");
-    assert.equal(workflow.result_summary, "All done");
+    assert.ok(workflow.result_file);
+    const summaryContent = fs.readFileSync(path.join(repo, workflow.result_file!), "utf-8");
+    assert.ok(summaryContent.includes("All done"));
 
     const ledger = readLedger(repo, init.workflow_id);
     assert.ok(ledger.some((e) => e.event.type === "workflow_completed"));

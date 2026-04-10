@@ -7,7 +7,7 @@ import {
   getWorkflowStatePath,
 } from "./layout.ts";
 
-export const WORKFLOW_STATE_SCHEMA_VERSION = "hydra/workflow-state/v4";
+export const WORKFLOW_STATE_SCHEMA_VERSION = "hydra/workflow-state/v0.1";
 
 export type WorkflowStatus =
   | "active"
@@ -39,11 +39,19 @@ export interface WorkflowNode {
   depends_on: string[];
   agent_type: AgentType;
   assignment_id?: string;
-  intent: string;
+
+  // Content references — actual text lives in MD files under nodes/{id}/
+  intent_file: string;       // → nodes/{id}/intent.md
+  feedback_file?: string;    // → nodes/{id}/feedback.md (set by reset)
+
+  // Lead-provided extra context (supplements depends_on auto-injection)
   context_refs?: ContextRef[];
-  feedback?: string;
+
+  // Parallel isolation
   worktree_path?: string;
   worktree_branch?: string;
+
+  // Per-node overrides
   timeout_minutes?: number;
   max_retries?: number;
 }
@@ -51,25 +59,41 @@ export interface WorkflowNode {
 export interface WorkflowRecord {
   schema_version: typeof WORKFLOW_STATE_SCHEMA_VERSION;
   id: string;
-  intent: string;
+
+  // Lead identity — workflow has exactly one Lead terminal
+  lead_terminal_id: string;
+
+  // Content reference — workflow intent lives in inputs/intent.md
+  intent_file: string;
+
+  // Workspace
   repo_path: string;
   worktree_path: string;
   branch: string | null;
   base_branch: string;
   own_worktree: boolean;
-  parent_terminal_id?: string;
+
+  // Lifecycle
   created_at: string;
   updated_at: string;
   status: WorkflowStatus;
+
+  // DAG
   nodes: Record<string, WorkflowNode>;
   node_statuses: Record<string, NodeStatus>;
   assignment_ids: string[];
+
+  // Defaults
   default_timeout_minutes: number;
   default_max_retries: number;
   default_agent_type: AgentType;
   auto_approve: boolean;
+
+  // Approval refs
   approved_refs?: Record<string, ApprovedArtifactRef>;
-  result_summary?: string;
+
+  // Final outcome
+  result_file?: string;      // → outputs/summary.md (set on completion)
   failure?: WorkflowFailure;
 }
 

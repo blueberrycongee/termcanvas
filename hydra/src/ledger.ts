@@ -1,13 +1,20 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { AgentType } from "./assignment/types.ts";
-import type { SubAgentReflection } from "./protocol.ts";
+import type { SubAgentOutcome } from "./protocol.ts";
 
 // --- Ledger event types ---
 
 export type LedgerEvent =
-  | { type: "workflow_created"; intent: string }
-  | { type: "node_dispatched"; node_id: string; role: string; agent_type: AgentType; intent: string }
+  | { type: "workflow_created"; intent_file: string; lead_terminal_id: string }
+  | {
+      type: "node_dispatched";
+      node_id: string;
+      role: string;
+      agent_type: AgentType;
+      intent_file: string;
+      resumed_from_session?: string;
+    }
   | {
       type: "node_completed";
       node_id: string;
@@ -15,8 +22,9 @@ export type LedgerEvent =
       agent_type: AgentType;
       duration_ms: number;
       retries_used: number;
-      outcome: string;
-      reflection?: SubAgentReflection;
+      outcome: SubAgentOutcome;
+      report_file: string;
+      session_id?: string;
     }
   | {
       type: "node_failed";
@@ -27,13 +35,18 @@ export type LedgerEvent =
       retries_used: number;
       failure_code: string;
     }
-  | { type: "node_reset"; node_id: string; role: string; feedback?: string; cascade_targets: string[] }
+  | {
+      type: "node_reset";
+      node_id: string;
+      role: string;
+      feedback_file?: string;
+      cascade_targets: string[];
+    }
   | { type: "node_approved"; node_id: string; role: string }
-  | { type: "lead_decision"; decision_point_type: string; lead_action: string; reasoning?: string }
   | { type: "merge_attempted"; source_nodes: string[]; outcome: "merged" | "conflict" }
   | {
       type: "workflow_completed";
-      summary: string;
+      result_file?: string;
       total_duration_ms: number;
       total_nodes: number;
       total_retries: number;

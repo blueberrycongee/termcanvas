@@ -12,7 +12,7 @@ const ACTIVE_WORKFLOW_STATUSES = new Set<WorkflowStatus>([
 export interface ActiveWorkflowSummary {
   id: string;
   status: WorkflowStatus;
-  intent: string;
+  intent_file: string;
   repo_path: string;
   worktree_path: string;
   active_node_ids: string[];
@@ -26,7 +26,7 @@ function summarizeWorkflow(workflow: WorkflowRecord): ActiveWorkflowSummary {
   return {
     id: workflow.id,
     status: workflow.status,
-    intent: workflow.intent,
+    intent_file: workflow.intent_file,
     repo_path: workflow.repo_path,
     worktree_path: workflow.worktree_path,
     active_node_ids: activeNodeIds,

@@ -20,12 +20,37 @@ export function getWorkflowInputsDir(repoPath: string, workflowId: string): stri
   return path.join(getWorkflowDir(repoPath, workflowId), "inputs");
 }
 
-export function getWorkflowUserRequestPath(repoPath: string, workflowId: string): string {
-  return path.join(getWorkflowInputsDir(repoPath, workflowId), "user-request.md");
+export function getWorkflowIntentFile(repoPath: string, workflowId: string): string {
+  return path.join(getWorkflowInputsDir(repoPath, workflowId), "intent.md");
 }
 
-export function getWorkflowRevisionRequestPath(repoPath: string, workflowId: string): string {
-  return path.join(getWorkflowInputsDir(repoPath, workflowId), "revision-request.md");
+/** @deprecated use getWorkflowIntentFile */
+export function getWorkflowUserRequestPath(repoPath: string, workflowId: string): string {
+  return getWorkflowIntentFile(repoPath, workflowId);
+}
+
+export function getWorkflowOutputsDir(repoPath: string, workflowId: string): string {
+  return path.join(getWorkflowDir(repoPath, workflowId), "outputs");
+}
+
+export function getWorkflowSummaryFile(repoPath: string, workflowId: string): string {
+  return path.join(getWorkflowOutputsDir(repoPath, workflowId), "summary.md");
+}
+
+export function getWorkflowNodesDir(repoPath: string, workflowId: string): string {
+  return path.join(getWorkflowDir(repoPath, workflowId), "nodes");
+}
+
+export function getNodeDir(repoPath: string, workflowId: string, nodeId: string): string {
+  return path.join(getWorkflowNodesDir(repoPath, workflowId), nodeId);
+}
+
+export function getNodeIntentFile(repoPath: string, workflowId: string, nodeId: string): string {
+  return path.join(getNodeDir(repoPath, workflowId, nodeId), "intent.md");
+}
+
+export function getNodeFeedbackFile(repoPath: string, workflowId: string, nodeId: string): string {
+  return path.join(getNodeDir(repoPath, workflowId, nodeId), "feedback.md");
 }
 
 export function getWorkflowAssignmentsDir(repoPath: string, workflowId: string): string {
@@ -92,13 +117,23 @@ export function getRunArtifactsDir(
   return path.join(getRunDir(repoPath, workflowId, assignmentId, runId), "artifacts");
 }
 
+export function getRunReportFile(
+  repoPath: string,
+  workflowId: string,
+  assignmentId: string,
+  runId: string,
+): string {
+  return path.join(getRunDir(repoPath, workflowId, assignmentId, runId), "report.md");
+}
+
+/** @deprecated use getRunReportFile */
 export function getRunBriefFile(
   repoPath: string,
   workflowId: string,
   assignmentId: string,
   runId: string,
 ): string {
-  return path.join(getRunArtifactsDir(repoPath, workflowId, assignmentId, runId), "brief.md");
+  return getRunReportFile(repoPath, workflowId, assignmentId, runId);
 }
 
 export function getRunApprovalRequestFile(

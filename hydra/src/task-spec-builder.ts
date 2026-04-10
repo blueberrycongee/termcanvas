@@ -3,13 +3,21 @@ import path from "node:path";
 import { AssignmentManager } from "./assignment/manager.ts";
 import type { AssignmentRecord } from "./assignment/types.ts";
 import {
-  getRunBriefFile,
+  getRunReportFile,
   getRunResultFile,
-  getWorkflowUserRequestPath,
+  getWorkflowIntentFile,
 } from "./layout.ts";
 import { RESULT_SCHEMA_VERSION } from "./protocol.ts";
 import type { RunTaskSpec, TaskFileRef, TaskWriteTarget } from "./run-task.ts";
 import type { WorkflowRecord, WorkflowNode } from "./workflow-store.ts";
+
+function readFileOrEmpty(filePath: string): string {
+  try { return fs.readFileSync(filePath, "utf-8"); } catch { return ""; }
+}
+
+function resolvePath(repoPath: string, relativeOrAbsolute: string): string {
+  return path.isAbsolute(relativeOrAbsolute) ? relativeOrAbsolute : path.join(repoPath, relativeOrAbsolute);
+}
 
 // --- Role defaults ---
 
@@ -131,24 +139,25 @@ function getRoleDefaults(role: string): RoleDefaults {
 const RESULT_CONTRACT_SECTION = {
   title: "Result Contract",
   lines: [
-    `Write result.json with schema_version="${RESULT_SCHEMA_VERSION}".`,
-    "",
-    "Required fields: workflow_id, assignment_id, run_id (from the Role section above),",
-    "outcome, summary, outputs[], evidence[].",
+    `result.json must contain ONLY these fields:`,
+    `- schema_version: "${RESULT_SCHEMA_VERSION}"`,
+    "- workflow_id, assignment_id, run_id (from the Role section above)",
+    "- outcome: \"completed\" | \"stuck\" | \"error\"",
+    "- report_file: relative path to your report.md (typically just \"report.md\")",
     "",
     "The `outcome` field tells the orchestrator what happened:",
     '- `"completed"` — you finished your work (regardless of what you found).',
     '- `"stuck"` — you cannot proceed and need external help.',
     '- `"error"` — you hit a technical error (the orchestrator may retry you).',
     "",
-    "The `summary` field is the primary information channel to the Lead agent.",
-    "Write what you did, what you found, and what you recommend.",
-    "The Lead reads this to decide the next step — be specific and actionable.",
+    "All human-readable content goes in report.md, NOT in result.json:",
+    "- Summary of what you did and found",
+    "- Output file references with descriptions",
+    "- Evidence (test runs, file inspections, etc.)",
+    "- Optional reflection on approach, blockers, confidence",
     "",
-    "Optionally include a `reflection` object with:",
-    "- `approach`: what strategy you chose",
-    "- `blockers_encountered`: what got in the way",
-    "- `confidence_factors`: what gives you confidence (or not)",
+    "The Lead agent reads report.md to decide the next step.",
+    "Be specific and actionable in the report.",
   ],
 };
 
@@ -164,22 +173,24 @@ export interface BuildTaskSpecInput {
 export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec {
   const { workflow, node, assignment, runId } = input;
   const roleDefaults = getRoleDefaults(node.role);
+  const repoPath = workflow.repo_path;
 
-  // --- Objective ---
+  // --- Objective: read intent file content ---
+  const intentText = readFileOrEmpty(resolvePath(repoPath, node.intent_file));
   const objectiveLines: string[] = [];
   if (roleDefaults.objectivePrefix) {
     objectiveLines.push(roleDefaults.objectivePrefix);
     objectiveLines.push("");
   }
-  objectiveLines.push(node.intent);
+  objectiveLines.push(intentText.trim() || `(intent_file is empty: ${node.intent_file})`);
 
   // --- Read files ---
   const readFiles: TaskFileRef[] = [
-    { label: "User request", path: getWorkflowUserRequestPath(workflow.repo_path, workflow.id) },
+    { label: "Workflow intent", path: getWorkflowIntentFile(repoPath, workflow.id) },
   ];
 
-  // Auto-inject outputs from depends_on nodes
-  const manager = new AssignmentManager(workflow.repo_path, workflow.id);
+  // Auto-inject outputs from depends_on nodes (their report.md + result.json)
+  const manager = new AssignmentManager(repoPath, workflow.id);
   for (const depId of node.depends_on) {
     const depNode = workflow.nodes[depId];
     if (!depNode?.assignment_id) continue;
@@ -189,9 +200,9 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
       ? depAssignment.runs.find((r) => r.id === depAssignment.active_run_id)
       : depAssignment.runs[depAssignment.runs.length - 1];
     if (!depRun) continue;
-    const briefPath = getRunBriefFile(workflow.repo_path, workflow.id, depAssignment.id, depRun.id);
-    if (fs.existsSync(briefPath)) {
-      readFiles.push({ label: `${depNode.role} brief (${depId})`, path: briefPath });
+    const reportPath = getRunReportFile(repoPath, workflow.id, depAssignment.id, depRun.id);
+    if (fs.existsSync(reportPath)) {
+      readFiles.push({ label: `${depNode.role} report (${depId})`, path: reportPath });
     }
     if (fs.existsSync(depRun.result_file)) {
       readFiles.push({ label: `${depNode.role} result (${depId})`, path: depRun.result_file });
@@ -202,7 +213,7 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
   if (workflow.approved_refs) {
     for (const [refNodeId, ref] of Object.entries(workflow.approved_refs)) {
       if (fs.existsSync(ref.brief_file)) {
-        readFiles.push({ label: `Approved brief (${refNodeId})`, path: ref.brief_file });
+        readFiles.push({ label: `Approved report (${refNodeId})`, path: ref.brief_file });
       }
       if (fs.existsSync(ref.result_file)) {
         readFiles.push({ label: `Approved result (${refNodeId})`, path: ref.result_file });
@@ -219,6 +230,14 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
     }
   }
 
+  // Add feedback file if present (from reset)
+  if (node.feedback_file) {
+    const feedbackAbs = resolvePath(repoPath, node.feedback_file);
+    if (fs.existsSync(feedbackAbs)) {
+      readFiles.push({ label: "Feedback from Lead", path: feedbackAbs });
+    }
+  }
+
   // Deduplicate readFiles by path
   const seenPaths = new Set<string>();
   const dedupedReadFiles: TaskFileRef[] = [];
@@ -231,53 +250,34 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
   readFiles.length = 0;
   readFiles.push(...dedupedReadFiles);
 
-  // Add feedback file if present (from reset)
-  if (node.feedback) {
-    const feedbackPath = path.join(
-      path.resolve(workflow.repo_path), ".hydra", "workflows", workflow.id,
-      "feedback", `${node.id}.md`,
-    );
-    fs.mkdirSync(path.dirname(feedbackPath), { recursive: true });
-    fs.writeFileSync(feedbackPath, [
-      "# Feedback",
-      "",
-      "This task was sent back with the following feedback. Address it directly.",
-      "",
-      node.feedback,
-      "",
-    ].join("\n"), "utf-8");
-    readFiles.push({ label: "Feedback from Lead", path: feedbackPath });
-  }
-
   // --- Write targets ---
-  const briefFile = getRunBriefFile(workflow.repo_path, workflow.id, assignment.id, runId);
-  const resultFile = getRunResultFile(workflow.repo_path, workflow.id, assignment.id, runId);
+  const reportFile = getRunReportFile(repoPath, workflow.id, assignment.id, runId);
+  const resultFile = getRunResultFile(repoPath, workflow.id, assignment.id, runId);
 
-  const writeTargets: TaskWriteTarget[] = [];
-  if (BRIEF_ROLES.has(node.role)) {
-    writeTargets.push({
-      label: "Brief",
-      path: briefFile,
-      note: "Human-readable brief summarizing your work and findings.",
-    });
-  }
-  writeTargets.push({
-    label: "Result JSON",
-    path: resultFile,
-    note: "Write this atomically after every required artifact is complete. Hydra advances only from this file.",
-  });
+  const writeTargets: TaskWriteTarget[] = [
+    {
+      label: "Report",
+      path: reportFile,
+      note: "Human-readable report. Include your summary, evidence, output descriptions, and reflection here.",
+    },
+    {
+      label: "Result JSON",
+      path: resultFile,
+      note: "Slim machine record. Hydra advances only from this file. Reference the report file by path.",
+    },
+  ];
 
   // --- Decision rules ---
   const decisionRules = [
     ...roleDefaults.decisionRules,
-    "- Use intent.type to express your semantic outcome. Do not include routing information.",
+    "- Use outcome=completed when your work is done (regardless of findings).",
+    "- Use outcome=stuck when you cannot proceed without external help.",
+    "- Use outcome=error only for technical failures (Hydra may retry you).",
   ];
 
   // --- Acceptance criteria ---
   const commonCompletion = [
-    BRIEF_ROLES.has(node.role)
-      ? `Write ${path.basename(briefFile)} before publishing the result.`
-      : "Publish the machine result only after you have finished the requested work.",
+    `Write ${path.basename(reportFile)} before publishing the result.`,
     `Write ${path.basename(resultFile)} last, atomically, with schema_version=${RESULT_SCHEMA_VERSION}.`,
   ];
   const acceptanceCriteria = [

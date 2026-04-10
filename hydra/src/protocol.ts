@@ -1,43 +1,16 @@
 import { HydraError } from "./errors.ts";
 
-export const RESULT_SCHEMA_VERSION = "hydra/result/v2";
-
-// --- Shared types ---
-
-export interface VerificationTier {
-  ran: boolean;
-  pass?: boolean;
-  detail?: string;
-  reason?: string;
-}
-
-export interface ResultVerification {
-  runtime?: VerificationTier;
-  build?: VerificationTier;
-  probing?: VerificationTier;
-  static?: VerificationTier;
-}
-
-export interface WorkflowResultOutput {
-  path: string;
-  description?: string;
-  kind?: string;
-}
+export const RESULT_SCHEMA_VERSION = "hydra/result/v0.1";
 
 // --- Outcome: machine-readable routing signal for Hydra ---
 
 export type SubAgentOutcome = "completed" | "stuck" | "error";
 
-// --- Reflection: structured self-assessment for Hydra to retain ---
-
-export interface SubAgentReflection {
-  approach: string;
-  blockers_encountered?: string[];
-  confidence_factors?: string[];
-  time_spent_reasoning?: string;
-}
-
-// --- Sub-agent result contract (v2) ---
+// --- Sub-agent result contract ---
+//
+// JSON keeps only what Hydra needs to drive routing.
+// All human-readable content (summary, evidence, reflection, output
+// descriptions) lives in the `report.md` file referenced by `report_file`.
 
 export interface SubAgentResult {
   schema_version: typeof RESULT_SCHEMA_VERSION;
@@ -45,17 +18,8 @@ export interface SubAgentResult {
   assignment_id: string;
   run_id: string;
 
-  // Machine-consumed: Hydra uses this for routing
   outcome: SubAgentOutcome;
-
-  // Human/Lead-consumed: summary is the primary decision input for Lead
-  summary: string;
-  outputs: WorkflowResultOutput[];
-  evidence: string[];
-
-  // Optional structured data
-  verification?: ResultVerification;
-  reflection?: SubAgentReflection;
+  report_file: string;       // path to report.md (relative to result.json's dir or absolute)
 }
 
 // --- Validation helpers ---
@@ -94,26 +58,6 @@ function expectString(record: Record<string, unknown>, field: string, root: unkn
   return value;
 }
 
-function expectStringArray(record: Record<string, unknown>, field: string, root: unknown): string[] {
-  const value = record[field];
-  if (!Array.isArray(value) || value.some((e) => typeof e !== "string" || e.trim() === "")) {
-    failValidation(`Invalid ${field}: expected an array of non-empty strings`, root);
-  }
-  return value;
-}
-
-function validateOutputs(record: Record<string, unknown>, root: unknown): WorkflowResultOutput[] {
-  const value = record.outputs;
-  if (!Array.isArray(value)) failValidation("Invalid outputs: expected an array", root);
-  return value.map((entry) => {
-    const output = expectRecord(entry, "outputs[]", root);
-    const validated: WorkflowResultOutput = { path: expectString(output, "path", root) };
-    if (typeof output.description === "string" && output.description.trim() !== "") validated.description = output.description;
-    if (typeof output.kind === "string" && output.kind.trim() !== "") validated.kind = output.kind;
-    return validated;
-  });
-}
-
 const VALID_OUTCOMES = new Set<SubAgentOutcome>(["completed", "stuck", "error"]);
 
 function validateOutcome(record: Record<string, unknown>, root: unknown): SubAgentOutcome {
@@ -124,52 +68,7 @@ function validateOutcome(record: Record<string, unknown>, root: unknown): SubAge
   return value as SubAgentOutcome;
 }
 
-function validateVerificationTier(value: unknown): VerificationTier | undefined {
-  if (!isRecord(value) || typeof value.ran !== "boolean") return undefined;
-  const tier: VerificationTier = { ran: value.ran };
-  if (typeof value.pass === "boolean") tier.pass = value.pass;
-  if (typeof value.detail === "string") tier.detail = value.detail;
-  if (typeof value.reason === "string") tier.reason = value.reason;
-  return tier;
-}
-
-function validateVerification(record: Record<string, unknown>): ResultVerification | undefined {
-  const value = record.verification;
-  if (value === undefined || !isRecord(value)) return undefined;
-  const verification: ResultVerification = {};
-  const runtime = validateVerificationTier(value.runtime);
-  const build = validateVerificationTier(value.build);
-  const probing = validateVerificationTier(value.probing);
-  const staticTier = validateVerificationTier(value.static);
-  if (runtime) verification.runtime = runtime;
-  if (build) verification.build = build;
-  if (probing) verification.probing = probing;
-  if (staticTier) verification.static = staticTier;
-  return Object.keys(verification).length > 0 ? verification : undefined;
-}
-
-function validateReflection(record: Record<string, unknown>): SubAgentReflection | undefined {
-  const value = record.reflection;
-  if (value === undefined || !isRecord(value)) return undefined;
-  if (typeof value.approach !== "string" || value.approach.trim() === "") return undefined;
-  const reflection: SubAgentReflection = { approach: value.approach };
-  if (Array.isArray(value.blockers_encountered)) {
-    reflection.blockers_encountered = value.blockers_encountered.filter(
-      (e): e is string => typeof e === "string" && e.trim() !== "",
-    );
-  }
-  if (Array.isArray(value.confidence_factors)) {
-    reflection.confidence_factors = value.confidence_factors.filter(
-      (e): e is string => typeof e === "string" && e.trim() !== "",
-    );
-  }
-  if (typeof value.time_spent_reasoning === "string") {
-    reflection.time_spent_reasoning = value.time_spent_reasoning;
-  }
-  return reflection;
-}
-
-// --- Main validation function ---
+// --- Main validation ---
 
 export function validateSubAgentResult(
   value: unknown,
@@ -190,16 +89,8 @@ export function validateSubAgentResult(
     assignment_id: expectString(record, "assignment_id", value),
     run_id: expectString(record, "run_id", value),
     outcome: validateOutcome(record, value),
-    summary: expectString(record, "summary", value),
-    outputs: validateOutputs(record, value),
-    evidence: expectStringArray(record, "evidence", value),
+    report_file: expectString(record, "report_file", value),
   };
-
-  const verification = validateVerification(record);
-  if (verification) validated.verification = verification;
-
-  const reflection = validateReflection(record);
-  if (reflection) validated.reflection = reflection;
 
   if (validated.workflow_id !== expected.workflow_id) {
     failValidation("Invalid workflow_id: result does not match workflow", value);

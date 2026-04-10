@@ -166,7 +166,7 @@ test("termcanvas workflow CLI runs, watches, and cleans up headless workflows", 
     fs.writeFileSync(
       run.result_file,
       JSON.stringify({
-        schema_version: "hydra/result/v2",
+        schema_version: "hydra/result/v0.1",
         assignment_id: assignment.id,
         workflow_id: started.workflow.id,
         run_id: run.id,

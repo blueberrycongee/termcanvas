@@ -50,7 +50,7 @@ import type { ProjectStore } from "./project-store.ts";
 export interface WorkflowSummary {
   id: string;
   status: WorkflowRecord["status"];
-  intent: string;
+  intent_file: string;
   worktree_path: string;
   updated_at: string;
 }
@@ -82,7 +82,7 @@ function buildWorkflowSummary(record: WorkflowRecord): WorkflowSummary {
   return {
     id: record.id,
     status: record.status,
-    intent: record.intent,
+    intent_file: record.intent_file,
     worktree_path: record.worktree_path,
     updated_at: record.updated_at,
   };

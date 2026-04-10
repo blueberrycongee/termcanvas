@@ -21,6 +21,13 @@ import {
 import { writeRunTask } from "./run-task.ts";
 import { buildTaskSpecFromIntent } from "./task-spec-builder.ts";
 import {
+  clearNodeFeedback,
+  writeNodeFeedback,
+  writeNodeIntent,
+  writeWorkflowIntent,
+  writeWorkflowSummary,
+} from "./artifacts.ts";
+import {
   deleteWorkflow,
   loadWorkflow,
   saveWorkflow,
@@ -34,17 +41,21 @@ import {
   findProjectByPath,
   isTermCanvasRunning,
   projectRescan,
+  telemetryTerminal,
   terminalDestroy,
 } from "./termcanvas.ts";
 import { buildGitWorktreeAddArgs, validateWorktreePath } from "./spawn.ts";
 import {
-  getRunArtifactsDir,
-  getRunBriefFile,
+  getNodeFeedbackFile,
+  getNodeIntentFile,
+  getRunReportFile,
   getRunResultFile,
   getRunTaskFile,
-  getWorkflowUserRequestPath,
+  getWorkflowIntentFile,
+  getWorkflowSummaryFile,
 } from "./layout.ts";
 import { appendLedger } from "./ledger.ts";
+import { ensureLeadCaller } from "./lead-guard.ts";
 import type { DecisionPoint, NodeStatus } from "./decision.ts";
 
 // --- Constants ---
@@ -137,16 +148,6 @@ function prepareWorkflowWorkspace(
   return { worktreePath, branch, baseBranch, ownWorktree: true };
 }
 
-function writeWorkflowUserRequest(repoPath: string, workflowId: string, intent: string): string {
-  const filePath = getWorkflowUserRequestPath(repoPath, workflowId);
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, [
-    "# User Request", "", "This file is the canonical workflow-level statement of the user's request.",
-    "Read it before relying on downstream briefs or results.", "", intent, "",
-  ].join("\n"), "utf-8");
-  return filePath;
-}
-
 // --- Loading helpers ---
 
 function loadWorkflowOrThrow(repoPath: string, workflowId: string): WorkflowRecord {
@@ -181,9 +182,29 @@ function latestRun(assignment: AssignmentRecord): AssignmentRecord["runs"][numbe
   return active ?? assignment.runs[assignment.runs.length - 1] ?? null;
 }
 
-function destroyAssignmentTerminal(assignment: AssignmentRecord, deps?: WorkflowDependencies): void {
+async function destroyAssignmentTerminal(
+  assignment: AssignmentRecord,
+  deps?: WorkflowDependencies,
+): Promise<void> {
   const run = latestRun(assignment);
   if (!run?.terminal_id) return;
+
+  // Capture session info from telemetry BEFORE destroying — the terminal
+  // process dies but the Claude/Codex session file persists on disk.
+  // Storing the session_id lets a future dispatch resume the same context.
+  if (!run.session_id) {
+    try {
+      const telemetry = telemetryTerminal(run.terminal_id);
+      if (telemetry?.session_id) {
+        run.session_id = telemetry.session_id;
+        run.session_file = telemetry.session_file;
+        run.session_provider = telemetry.provider;
+        const manager = new AssignmentManager(assignment.workspace_root ?? "", assignment.workflow_id);
+        manager.save(assignment);
+      }
+    } catch {}
+  }
+
   try { destroyTerminalFn(deps)(run.terminal_id); } catch {}
 }
 
@@ -249,7 +270,7 @@ function buildDispatchRequest(
     taskFile: getRunTaskFile(workflow.repo_path, workflow.id, assignment.id, runId),
     resultFile: getRunResultFile(workflow.repo_path, workflow.id, assignment.id, runId),
     autoApprove: workflow.auto_approve,
-    parentTerminalId: workflow.parent_terminal_id ?? process.env.TERMCANVAS_TERMINAL_ID,
+    parentTerminalId: workflow.lead_terminal_id,
   };
 }
 
@@ -328,19 +349,30 @@ export async function initWorkflow(
   const now = nowFn(deps);
   const repoPath = path.resolve(options.repoPath);
   const workflowId = generateWorkflowId();
+
+  // Lead identity comes from the calling terminal. Without it, the workflow
+  // has no owner and lead-guard cannot enforce single-Lead semantics.
+  const leadTerminalId = process.env.TERMCANVAS_TERMINAL_ID;
+  if (!leadTerminalId) {
+    throw new HydraError(
+      "Cannot init workflow: TERMCANVAS_TERMINAL_ID is not set. The Lead must be a TermCanvas terminal.",
+      { errorCode: "WORKFLOW_NO_LEAD", stage: "workflow.init" },
+    );
+  }
+
   const workspace = prepareWorkflowWorkspace(repoPath, workflowId, options.worktreePath, deps);
-  writeWorkflowUserRequest(repoPath, workflowId, options.intent);
+  const intentFile = writeWorkflowIntent(repoPath, workflowId, options.intent);
 
   const workflow: WorkflowRecord = {
     schema_version: WORKFLOW_STATE_SCHEMA_VERSION,
     id: workflowId,
-    intent: options.intent,
+    lead_terminal_id: leadTerminalId,
+    intent_file: path.relative(repoPath, intentFile),
     repo_path: repoPath,
     worktree_path: workspace.worktreePath,
     branch: workspace.branch,
     base_branch: workspace.baseBranch,
     own_worktree: workspace.ownWorktree,
-    parent_terminal_id: process.env.TERMCANVAS_TERMINAL_ID,
     created_at: now(), updated_at: now(),
     status: "active",
     nodes: {}, node_statuses: {},
@@ -351,7 +383,11 @@ export async function initWorkflow(
     auto_approve: options.autoApprove ?? true,
   };
   saveWorkflow(workflow);
-  appendLedger(repoPath, workflowId, { type: "workflow_created", intent: options.intent });
+  appendLedger(repoPath, workflowId, {
+    type: "workflow_created",
+    intent_file: workflow.intent_file,
+    lead_terminal_id: leadTerminalId,
+  });
 
   return {
     workflow_id: workflowId,
@@ -392,6 +428,7 @@ export async function dispatchNode(
 ): Promise<DispatchNodeResult> {
   const repoPath = path.resolve(options.repoPath);
   const workflow = loadWorkflowOrThrow(repoPath, options.workflowId);
+  ensureLeadCaller(workflow);
 
   if (workflow.status !== "active") {
     throw new HydraError(`Workflow is not active: ${workflow.status}`, {
@@ -418,12 +455,20 @@ export async function dispatchNode(
     });
   }
 
-  // Create node
+  // Create node — write intent to nodes/{id}/intent.md
   const agentType = options.agentType ?? workflow.default_agent_type;
+  const intentFileAbs = writeNodeIntent(repoPath, workflow.id, options.nodeId, options.role, options.intent);
+  let feedbackFileRel: string | undefined;
+  if (options.feedback) {
+    const feedbackAbs = writeNodeFeedback(repoPath, workflow.id, options.nodeId, options.feedback);
+    feedbackFileRel = path.relative(repoPath, feedbackAbs);
+  }
+
   const node: WorkflowNode = {
     id: options.nodeId, role: options.role, depends_on: dependsOn, agent_type: agentType,
-    intent: options.intent,
-    context_refs: options.contextRefs, feedback: options.feedback,
+    intent_file: path.relative(repoPath, intentFileAbs),
+    feedback_file: feedbackFileRel,
+    context_refs: options.contextRefs,
     worktree_path: options.worktreePath, worktree_branch: options.worktreeBranch,
     timeout_minutes: options.timeoutMinutes ?? workflow.default_timeout_minutes,
     max_retries: options.maxRetries ?? workflow.default_max_retries,
@@ -453,7 +498,7 @@ export async function dispatchNode(
 
   appendLedger(repoPath, workflow.id, {
     type: "node_dispatched", node_id: options.nodeId, role: options.role,
-    agent_type: agentType, intent: options.intent,
+    agent_type: agentType, intent_file: node.intent_file,
   });
 
   if (eligible) {
@@ -489,6 +534,7 @@ export async function redispatchNode(
 ): Promise<DispatchNodeResult> {
   const repoPath = path.resolve(options.repoPath);
   const workflow = loadWorkflowOrThrow(repoPath, options.workflowId);
+  ensureLeadCaller(workflow);
   const node = workflow.nodes[options.nodeId];
 
   if (!node) {
@@ -510,8 +556,11 @@ export async function redispatchNode(
     });
   }
 
-  // Update intent if provided
-  if (options.intent) node.intent = options.intent;
+  // Update intent if provided — overwrite the intent file
+  if (options.intent) {
+    const intentAbs = writeNodeIntent(repoPath, workflow.id, options.nodeId, node.role, options.intent);
+    node.intent_file = path.relative(repoPath, intentAbs);
+  }
 
   const manager = managerForWorkflow(workflow);
   const assignment = loadAssignmentByIdOrThrow(manager, workflow, node.assignment_id);
@@ -519,7 +568,7 @@ export async function redispatchNode(
 
   appendLedger(repoPath, workflow.id, {
     type: "node_dispatched", node_id: options.nodeId, role: node.role,
-    agent_type: node.agent_type, intent: node.intent,
+    agent_type: node.agent_type, intent_file: node.intent_file,
   });
 
   const result = await dispatchAssignment(workflow, assignment, node, runId, deps);
@@ -552,6 +601,9 @@ export async function watchUntilDecision(
   const intervalMs = options.intervalMs ?? 5000;
   const startedAt = Date.parse(now());
   const repoPath = path.resolve(options.repoPath);
+
+  // Guard once outside the loop — Lead identity doesn't change mid-watch
+  ensureLeadCaller(loadWorkflowOrThrow(repoPath, options.workflowId));
 
   while (true) {
     const workflow = loadWorkflowOrThrow(repoPath, options.workflowId);
@@ -600,9 +652,10 @@ export async function watchUntilDecision(
       if (collected.status === "completed") {
         // Route by outcome: error → Hydra retries automatically, completed/stuck → report to Lead
         if (collected.result.outcome === "error") {
-          // Agent reported an error — mark timed_out so scheduleRetry can process it
           await stateMachine.markTimedOut(assignment.id, {
-            code: "AGENT_REPORTED_ERROR", message: collected.result.summary, stage: "workflow.agent_error",
+            code: "AGENT_REPORTED_ERROR",
+            message: `Agent reported error in ${collected.result.report_file}`,
+            stage: "workflow.agent_error",
           });
           const retryResult = await stateMachine.scheduleRetry(assignment.id);
           if (retryResult.assignment.status === "failed") {
@@ -618,14 +671,14 @@ export async function watchUntilDecision(
               type: "node_failed_final", workflow_id: workflow.id, timestamp: now(),
               failed: {
                 node_id: nodeId, role: node.role, code: "AGENT_REPORTED_ERROR",
-                message: collected.result.summary,
+                message: `Agent reported error in ${collected.result.report_file}`,
                 retries_used: assignment.retry_count + 1, max_retries: assignment.max_retries,
               },
               nodes: buildNodesSummary(workflow),
             };
           }
           // Retry scheduled — re-dispatch
-          destroyAssignmentTerminal(assignment, deps);
+          await destroyAssignmentTerminal(assignment, deps);
           const retryRunId = generateRunId();
           const freshAssignment = loadAssignmentByIdOrThrow(manager, workflow, assignment.id);
           await dispatchAssignment(workflow, freshAssignment, node, retryRunId, deps);
@@ -636,23 +689,25 @@ export async function watchUntilDecision(
         // outcome is "completed" or "stuck" — report to Lead
         const mappedResult = {
           outcome: collected.result.outcome,
-          summary: collected.result.summary,
-          outputs: collected.result.outputs,
-          evidence: collected.result.evidence,
-          verification: collected.result.verification,
-          reflection: collected.result.reflection,
+          report_file: collected.result.report_file,
           completed_at: now(),
         };
         await stateMachine.markCompleted(assignment.id, mappedResult);
-        destroyAssignmentTerminal(assignment, deps);
+        await destroyAssignmentTerminal(assignment, deps);
         workflow.node_statuses[nodeId] = "completed";
+
+        // Reload assignment to get the captured session_id (set by destroyAssignmentTerminal)
+        const reloadedAssignment = manager.load(assignment.id);
+        const reloadedRun = reloadedAssignment?.runs.find((r) => r.id === run.id);
+        const sessionId = reloadedRun?.session_id;
 
         const durationMs = run.started_at ? Date.parse(now()) - Date.parse(run.started_at) : 0;
         appendLedger(repoPath, workflow.id, {
           type: "node_completed", node_id: nodeId, role: node.role, agent_type: node.agent_type,
           duration_ms: durationMs, retries_used: assignment.retry_count,
           outcome: collected.result.outcome,
-          reflection: collected.result.reflection,
+          report_file: collected.result.report_file,
+          session_id: sessionId,
         });
 
         // Promote blocked → eligible (Lead decides whether to dispatch)
@@ -662,12 +717,14 @@ export async function watchUntilDecision(
         return {
           type: "node_completed", workflow_id: workflow.id, timestamp: now(),
           completed: {
-            node_id: nodeId, role: node.role, result: collected.result,
-            brief_file: fs.existsSync(getRunBriefFile(repoPath, workflow.id, assignment.id, run.id))
-              ? getRunBriefFile(repoPath, workflow.id, assignment.id, run.id) : undefined,
-            result_file: run.result_file,
-            artifact_dir: getRunArtifactsDir(repoPath, workflow.id, assignment.id, run.id),
-            duration_ms: durationMs, retries_used: assignment.retry_count,
+            node_id: nodeId, role: node.role,
+            outcome: collected.result.outcome,
+            report_file: collected.result.report_file,
+            duration_ms: durationMs,
+            retries_used: assignment.retry_count,
+            session: sessionId && reloadedRun?.session_provider
+              ? { provider: reloadedRun.session_provider, id: sessionId, file: reloadedRun.session_file }
+              : undefined,
           },
           nodes: buildNodesSummary(workflow),
           newly_eligible: promoted.length > 0 ? promoted : undefined,
@@ -700,7 +757,7 @@ export async function watchUntilDecision(
       if (alive === false) {
         const elapsedMs = run.started_at ? Date.parse(now()) - Date.parse(run.started_at) : 0;
         if (elapsedMs > SPAWN_GRACE_PERIOD_MS) {
-          destroyAssignmentTerminal(assignment, deps);
+          await destroyAssignmentTerminal(assignment, deps);
           await stateMachine.markTimedOut(assignment.id, {
             code: "ASSIGNMENT_PROCESS_EXITED",
             message: `Agent process exited without writing result (${Math.round(elapsedMs / 1000)}s)`,
@@ -814,6 +871,7 @@ export async function resetNode(
   const now = nowFn(deps);
   const repoPath = path.resolve(options.repoPath);
   const workflow = loadWorkflowOrThrow(repoPath, options.workflowId);
+  ensureLeadCaller(workflow);
   const manager = managerForWorkflow(workflow);
 
   if (!workflow.nodes[options.nodeId]) {
@@ -836,7 +894,7 @@ export async function resetNode(
     if (!node?.assignment_id) continue;
     const assignment = manager.load(node.assignment_id);
     if (assignment) {
-      destroyAssignmentTerminal(assignment, deps);
+      await destroyAssignmentTerminal(assignment, deps);
       // Reset assignment to pending
       const previousStatus = assignment.status;
       assignment.status = "pending";
@@ -852,9 +910,16 @@ export async function resetNode(
     // node_statuses already set by cascadeReset (target=eligible, downstream=blocked)
   }
 
-  // Store feedback on target node
+  // Store feedback on target node — write feedback.md, store path
+  let feedbackFileRel: string | undefined;
   if (options.feedback) {
-    workflow.nodes[options.nodeId].feedback = options.feedback;
+    const feedbackAbs = writeNodeFeedback(repoPath, workflow.id, options.nodeId, options.feedback);
+    feedbackFileRel = path.relative(repoPath, feedbackAbs);
+    workflow.nodes[options.nodeId].feedback_file = feedbackFileRel;
+  } else {
+    // Reset clears any prior feedback file
+    clearNodeFeedback(repoPath, workflow.id, options.nodeId);
+    workflow.nodes[options.nodeId].feedback_file = undefined;
   }
 
   // Find re-eligible nodes
@@ -865,7 +930,7 @@ export async function resetNode(
 
   appendLedger(repoPath, workflow.id, {
     type: "node_reset", node_id: options.nodeId, role: workflow.nodes[options.nodeId].role,
-    feedback: options.feedback, cascade_targets: resetNodeIds.filter((id) => id !== options.nodeId),
+    feedback_file: feedbackFileRel, cascade_targets: resetNodeIds.filter((id) => id !== options.nodeId),
   });
 
   workflow.updated_at = now();
@@ -891,6 +956,7 @@ export async function mergeWorktrees(
 ): Promise<MergeOutcome> {
   const repoPath = path.resolve(options.repoPath);
   const workflow = loadWorkflowOrThrow(repoPath, options.workflowId);
+  ensureLeadCaller(workflow);
 
   for (const nodeId of options.sourceNodeIds) {
     if (workflow.node_statuses[nodeId] !== "completed") {
@@ -950,6 +1016,7 @@ export async function approveNode(options: ApproveNodeOptions, deps?: WorkflowDe
   const now = nowFn(deps);
   const repoPath = path.resolve(options.repoPath);
   const workflow = loadWorkflowOrThrow(repoPath, options.workflowId);
+  ensureLeadCaller(workflow);
   const manager = managerForWorkflow(workflow);
   const node = workflow.nodes[options.nodeId];
   if (!node?.assignment_id) {
@@ -968,7 +1035,7 @@ export async function approveNode(options: ApproveNodeOptions, deps?: WorkflowDe
   if (!workflow.approved_refs) workflow.approved_refs = {};
   workflow.approved_refs[options.nodeId] = {
     assignment_id: assignment.id, run_id: run.id,
-    brief_file: getRunBriefFile(repoPath, workflow.id, assignment.id, run.id),
+    brief_file: getRunReportFile(repoPath, workflow.id, assignment.id, run.id),
     result_file: run.result_file, approved_at: now(),
   };
 
@@ -985,13 +1052,14 @@ export async function completeWorkflow(
   const now = nowFn(deps);
   const repoPath = path.resolve(options.repoPath);
   const workflow = loadWorkflowOrThrow(repoPath, options.workflowId);
+  ensureLeadCaller(workflow);
   const manager = managerForWorkflow(workflow);
 
-  // Destroy any running terminals
+  // Destroy any running terminals (captures session_id before destroy)
   for (const assignmentId of workflow.assignment_ids) {
     const a = manager.load(assignmentId);
     if (a && (a.status === "claimed" || a.status === "in_progress")) {
-      destroyAssignmentTerminal(a, deps);
+      await destroyAssignmentTerminal(a, deps);
     }
   }
 
@@ -1001,15 +1069,24 @@ export async function completeWorkflow(
     return sum + (a?.retry_count ?? 0);
   }, 0);
 
+  // Write summary file if Lead provided a summary
+  let resultFileRel: string | undefined;
+  if (options.summary) {
+    const summaryAbs = writeWorkflowSummary(repoPath, workflow.id, options.summary);
+    resultFileRel = path.relative(repoPath, summaryAbs);
+    workflow.result_file = resultFileRel;
+  }
+
   workflow.status = "completed";
-  workflow.result_summary = options.summary ?? "Workflow completed.";
   workflow.failure = undefined;
   workflow.updated_at = now();
   saveWorkflow(workflow);
 
   appendLedger(repoPath, workflow.id, {
-    type: "workflow_completed", summary: workflow.result_summary,
-    total_duration_ms: totalDuration, total_nodes: Object.keys(workflow.nodes).length,
+    type: "workflow_completed",
+    result_file: resultFileRel,
+    total_duration_ms: totalDuration,
+    total_nodes: Object.keys(workflow.nodes).length,
     total_retries: totalRetries,
   });
 }
@@ -1022,12 +1099,13 @@ export async function failWorkflow(
   const now = nowFn(deps);
   const repoPath = path.resolve(options.repoPath);
   const workflow = loadWorkflowOrThrow(repoPath, options.workflowId);
+  ensureLeadCaller(workflow);
   const manager = managerForWorkflow(workflow);
 
   for (const assignmentId of workflow.assignment_ids) {
     const a = manager.load(assignmentId);
     if (a && (a.status === "claimed" || a.status === "in_progress")) {
-      destroyAssignmentTerminal(a, deps);
+      await destroyAssignmentTerminal(a, deps);
     }
   }
 

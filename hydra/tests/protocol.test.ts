@@ -11,22 +11,8 @@ function buildValidResult() {
     workflow_id: "workflow-xyz",
     assignment_id: "assignment-abc123",
     run_id: "run-0001",
-    summary: "Validated the assignment run result.",
-    outputs: [
-      {
-        path: "hydra/src/protocol.ts",
-        description: "Workflow result protocol",
-        kind: "source",
-      },
-    ],
-    evidence: [
-      "npm run typecheck",
-      "npm test",
-    ],
     outcome: "completed",
-    verification: {
-      build: { ran: true, pass: true, detail: "tsc clean" },
-    },
+    report_file: "report.md",
   };
 }
 
@@ -36,14 +22,13 @@ const EXPECTED_IDS = {
   run_id: "run-0001",
 } as const;
 
-test("validateSubAgentResult accepts a valid v2 result", () => {
+test("validateSubAgentResult accepts a valid result", () => {
   const result = validateSubAgentResult(buildValidResult(), EXPECTED_IDS);
 
   assert.equal(result.schema_version, RESULT_SCHEMA_VERSION);
   assert.equal(result.assignment_id, EXPECTED_IDS.assignment_id);
-  assert.equal(result.outputs[0]?.kind, "source");
-  assert.equal(result.verification?.build?.pass, true);
   assert.equal(result.outcome, "completed");
+  assert.equal(result.report_file, "report.md");
 });
 
 test("validateSubAgentResult rejects invalid outcome", () => {
@@ -79,21 +64,18 @@ test("validateSubAgentResult accepts error outcome", () => {
   assert.equal(result.outcome, "error");
 });
 
-test("validateSubAgentResult preserves reflection", () => {
-  const result = validateSubAgentResult(
-    {
-      ...buildValidResult(),
-      reflection: {
-        approach: "Grep-first strategy",
-        blockers_encountered: ["Missing types"],
-        confidence_factors: ["All tests pass"],
-      },
-    },
-    EXPECTED_IDS,
-  );
+test("validateSubAgentResult requires report_file", () => {
+  const invalid: Record<string, unknown> = { ...buildValidResult() };
+  delete invalid.report_file;
 
-  assert.equal(result.reflection?.approach, "Grep-first strategy");
-  assert.deepEqual(result.reflection?.blockers_encountered, ["Missing types"]);
+  assert.throws(
+    () => validateSubAgentResult(invalid, EXPECTED_IDS),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /report_file/);
+      return true;
+    },
+  );
 });
 
 test("validateSubAgentResult rejects mismatched run identity", () => {

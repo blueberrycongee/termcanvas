@@ -47,10 +47,8 @@ test("collectRunResult returns completed when result.json is valid", () => {
         workflow_id: "workflow-auth",
         assignment_id: "assignment-abc123",
         run_id: "run-0001",
-        summary: "Implemented the collector flow.",
-        outputs: [{ path: "hydra/src/collector.ts", description: "Collector implementation" }],
-        evidence: ["npm test"],
         outcome: "completed",
+        report_file: "report.md",
       }, null, 2),
       "utf-8",
     );
@@ -59,7 +57,8 @@ test("collectRunResult returns completed when result.json is valid", () => {
 
     assert.equal(collected.status, "completed");
     assert.equal(collected.advance, true);
-    assert.equal(collected.result.summary, "Implemented the collector flow.");
+    assert.equal(collected.result.outcome, "completed");
+    assert.equal(collected.result.report_file, "report.md");
   } finally {
     fs.rmSync(path.dirname(resultFile), { recursive: true, force: true });
   }

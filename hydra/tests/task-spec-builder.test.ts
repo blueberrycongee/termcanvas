@@ -8,16 +8,23 @@ import { WORKFLOW_STATE_SCHEMA_VERSION } from "../src/workflow-store.ts";
 import type { WorkflowRecord, WorkflowNode } from "../src/workflow-store.ts";
 import type { AssignmentRecord } from "../src/assignment/types.ts";
 import { RESULT_SCHEMA_VERSION } from "../src/protocol.ts";
+import { writeNodeFeedback, writeNodeIntent, writeWorkflowIntent } from "../src/artifacts.ts";
 
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "hydra-taskspec-"));
+}
+
+function setupWorkflow(repoPath: string, intent: string): string {
+  const intentAbs = writeWorkflowIntent(repoPath, "workflow-test", intent);
+  return path.relative(repoPath, intentAbs);
 }
 
 function makeWorkflow(repoPath: string, overrides: Partial<WorkflowRecord> = {}): WorkflowRecord {
   return {
     schema_version: WORKFLOW_STATE_SCHEMA_VERSION,
     id: "workflow-test",
-    intent: "Test task",
+    lead_terminal_id: "terminal-lead",
+    intent_file: "inputs/intent.md",
     repo_path: repoPath,
     worktree_path: repoPath,
     branch: null,
@@ -37,20 +44,28 @@ function makeWorkflow(repoPath: string, overrides: Partial<WorkflowRecord> = {})
   };
 }
 
-function makeNode(overrides: Partial<WorkflowNode> = {}): WorkflowNode {
+function setupNode(repoPath: string, nodeId: string, role: string, intent: string): string {
+  const abs = writeNodeIntent(repoPath, "workflow-test", nodeId, role, intent);
+  return path.relative(repoPath, abs);
+}
+
+function makeNode(repoPath: string, overrides: Partial<WorkflowNode> = {}): WorkflowNode {
+  const id = overrides.id ?? "test-node";
+  const role = overrides.role ?? "implementer";
+  const intentFile = overrides.intent_file ?? setupNode(repoPath, id, role, "Implement feature X");
   return {
-    id: "test-node",
-    role: "implementer",
-    depends_on: [],
-    agent_type: "claude",
-    intent: "Implement feature X",
+    id,
+    role,
+    depends_on: overrides.depends_on ?? [],
+    agent_type: overrides.agent_type ?? "claude",
+    intent_file: intentFile,
     ...overrides,
   };
 }
 
 function makeAssignment(overrides: Partial<AssignmentRecord> = {}): AssignmentRecord {
   return {
-    schema_version: "hydra/assignment-state/v3",
+    schema_version: "hydra/assignment-state/v0.1",
     id: "assignment-test",
     workflow_id: "workflow-test",
     created_at: "2026-04-09T00:00:00.000Z",
@@ -70,14 +85,11 @@ function makeAssignment(overrides: Partial<AssignmentRecord> = {}): AssignmentRe
 test("buildTaskSpecFromIntent produces valid RunTaskSpec for implementer", () => {
   const repoPath = makeTmpDir();
   try {
-    // Create user-request.md so readFiles resolves
-    const inputsDir = path.join(repoPath, ".hydra", "workflows", "workflow-test", "inputs");
-    fs.mkdirSync(inputsDir, { recursive: true });
-    fs.writeFileSync(path.join(inputsDir, "user-request.md"), "# Test request\n", "utf-8");
+    setupWorkflow(repoPath, "Test workflow intent");
 
     const spec = buildTaskSpecFromIntent({
       workflow: makeWorkflow(repoPath),
-      node: makeNode({ role: "implementer", intent: "Add OAuth login" }),
+      node: makeNode(repoPath, { role: "implementer" }),
       assignment: makeAssignment({ role: "implementer" }),
       runId: "run-001",
     });
@@ -86,11 +98,10 @@ test("buildTaskSpecFromIntent produces valid RunTaskSpec for implementer", () =>
     assert.equal(spec.workflowId, "workflow-test");
     assert.equal(spec.assignmentId, "assignment-test");
     assert.equal(spec.runId, "run-001");
-    assert.ok(spec.objective.some((line) => line.includes("Add OAuth login")));
     assert.ok(spec.objective.some((line) => line.includes("Implement")));
-    assert.ok(spec.readFiles.some((f) => f.label === "User request"));
+    assert.ok(spec.readFiles.some((f) => f.label === "Workflow intent"));
     assert.ok(spec.writeTargets.some((t) => t.label === "Result JSON"));
-    assert.ok(spec.writeTargets.some((t) => t.label === "Brief"));
+    assert.ok(spec.writeTargets.some((t) => t.label === "Report"));
   } finally {
     fs.rmSync(repoPath, { recursive: true, force: true });
   }
@@ -99,13 +110,16 @@ test("buildTaskSpecFromIntent produces valid RunTaskSpec for implementer", () =>
 test("buildTaskSpecFromIntent uses researcher framing for researcher role", () => {
   const repoPath = makeTmpDir();
   try {
-    const inputsDir = path.join(repoPath, ".hydra", "workflows", "workflow-test", "inputs");
-    fs.mkdirSync(inputsDir, { recursive: true });
-    fs.writeFileSync(path.join(inputsDir, "user-request.md"), "# Test\n", "utf-8");
+    setupWorkflow(repoPath, "Test");
+    const node = makeNode(repoPath, {
+      id: "researcher",
+      role: "researcher",
+      intent_file: setupNode(repoPath, "researcher", "researcher", "Analyze auth options"),
+    });
 
     const spec = buildTaskSpecFromIntent({
       workflow: makeWorkflow(repoPath),
-      node: makeNode({ role: "researcher", intent: "Analyze auth options" }),
+      node,
       assignment: makeAssignment({ role: "researcher" }),
       runId: "run-001",
     });
@@ -121,16 +135,13 @@ test("buildTaskSpecFromIntent uses researcher framing for researcher role", () =
 test("buildTaskSpecFromIntent includes context_refs in readFiles", () => {
   const repoPath = makeTmpDir();
   try {
-    const inputsDir = path.join(repoPath, ".hydra", "workflows", "workflow-test", "inputs");
-    fs.mkdirSync(inputsDir, { recursive: true });
-    fs.writeFileSync(path.join(inputsDir, "user-request.md"), "# Test\n", "utf-8");
-
+    setupWorkflow(repoPath, "Test");
     const contextFile = path.join(repoPath, "context.md");
     fs.writeFileSync(contextFile, "# Context\n", "utf-8");
 
     const spec = buildTaskSpecFromIntent({
       workflow: makeWorkflow(repoPath),
-      node: makeNode({ context_refs: [{ label: "Research brief", path: contextFile }] }),
+      node: makeNode(repoPath, { context_refs: [{ label: "Research brief", path: contextFile }] }),
       assignment: makeAssignment(),
       runId: "run-001",
     });
@@ -141,16 +152,16 @@ test("buildTaskSpecFromIntent includes context_refs in readFiles", () => {
   }
 });
 
-test("buildTaskSpecFromIntent writes feedback file when feedback is set", () => {
+test("buildTaskSpecFromIntent reads feedback file when feedback_file is set", () => {
   const repoPath = makeTmpDir();
   try {
-    const inputsDir = path.join(repoPath, ".hydra", "workflows", "workflow-test", "inputs");
-    fs.mkdirSync(inputsDir, { recursive: true });
-    fs.writeFileSync(path.join(inputsDir, "user-request.md"), "# Test\n", "utf-8");
+    setupWorkflow(repoPath, "Test");
+    const feedbackAbs = writeNodeFeedback(repoPath, "workflow-test", "test-node", "Tests fail on edge case X");
+    const feedbackRel = path.relative(repoPath, feedbackAbs);
 
     const spec = buildTaskSpecFromIntent({
       workflow: makeWorkflow(repoPath),
-      node: makeNode({ feedback: "Tests fail on edge case X" }),
+      node: makeNode(repoPath, { feedback_file: feedbackRel }),
       assignment: makeAssignment(),
       runId: "run-001",
     });
@@ -165,16 +176,14 @@ test("buildTaskSpecFromIntent writes feedback file when feedback is set", () => 
   }
 });
 
-test("buildTaskSpecFromIntent includes result contract section mentioning v2", () => {
+test("buildTaskSpecFromIntent includes result contract section with schema version", () => {
   const repoPath = makeTmpDir();
   try {
-    const inputsDir = path.join(repoPath, ".hydra", "workflows", "workflow-test", "inputs");
-    fs.mkdirSync(inputsDir, { recursive: true });
-    fs.writeFileSync(path.join(inputsDir, "user-request.md"), "# Test\n", "utf-8");
+    setupWorkflow(repoPath, "Test");
 
     const spec = buildTaskSpecFromIntent({
       workflow: makeWorkflow(repoPath),
-      node: makeNode(),
+      node: makeNode(repoPath),
       assignment: makeAssignment(),
       runId: "run-001",
     });
@@ -182,28 +191,27 @@ test("buildTaskSpecFromIntent includes result contract section mentioning v2", (
     const contractSection = spec.extraSections?.find((s) => s.title === "Result Contract");
     assert.ok(contractSection, "should include Result Contract section");
     assert.ok(contractSection!.lines.some((l) => l.includes(RESULT_SCHEMA_VERSION)));
-    assert.ok(contractSection!.lines.some((l) => l.includes("intent")));
-    assert.ok(contractSection!.lines.some((l) => l.includes("reflection")));
+    assert.ok(contractSection!.lines.some((l) => l.includes("outcome")));
+    assert.ok(contractSection!.lines.some((l) => l.includes("report_file")));
   } finally {
     fs.rmSync(repoPath, { recursive: true, force: true });
   }
 });
 
-test("buildTaskSpecFromIntent omits brief for unknown roles", () => {
+test("buildTaskSpecFromIntent always includes Report write target", () => {
   const repoPath = makeTmpDir();
   try {
-    const inputsDir = path.join(repoPath, ".hydra", "workflows", "workflow-test", "inputs");
-    fs.mkdirSync(inputsDir, { recursive: true });
-    fs.writeFileSync(path.join(inputsDir, "user-request.md"), "# Test\n", "utf-8");
+    setupWorkflow(repoPath, "Test");
 
     const spec = buildTaskSpecFromIntent({
       workflow: makeWorkflow(repoPath),
-      node: makeNode({ role: "custom-checker" }),
+      node: makeNode(repoPath, { role: "custom-checker" }),
       assignment: makeAssignment({ role: "custom-checker" }),
       runId: "run-001",
     });
 
-    assert.ok(!spec.writeTargets.some((t) => t.label === "Brief"));
+    // Both report and result are always required regardless of role
+    assert.ok(spec.writeTargets.some((t) => t.label === "Report"));
     assert.ok(spec.writeTargets.some((t) => t.label === "Result JSON"));
   } finally {
     fs.rmSync(repoPath, { recursive: true, force: true });

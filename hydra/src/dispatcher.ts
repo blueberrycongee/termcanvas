@@ -56,7 +56,7 @@ export function buildCreateOnlyPrompt(
     runId: string;
   },
 ): string {
-  return `Read ${taskFile} for the full task instructions. Finish every required artifact first, then publish a valid hydra/result/v2 result JSON to ${resultFile} with workflow_id=${workflowId}, assignment_id=${options.assignmentId}, and run_id=${options.runId}. Publish result.json atomically as the final commit for this run.`;
+  return `Read ${taskFile} for the full task instructions. Finish every required artifact first, then publish a valid hydra/result/v0.1 result JSON to ${resultFile} with workflow_id=${workflowId}, assignment_id=${options.assignmentId}, and run_id=${options.runId}. Publish result.json atomically as the final commit for this run.`;
 }
 
 export async function dispatchCreateOnly(
