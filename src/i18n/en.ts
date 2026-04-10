@@ -423,6 +423,7 @@ export const en = {
   sessions_fresh_results: "Fresh Results",
   sessions_background: "Background",
   sessions_no_canvas_items: "No canvas terminals",
+  sessions_panel_title: "Projects",
   sessions_inspector: "Inspector",
   sessions_recent_trace: "Recent Trace",
   sessions_trace_loading: "Loading trace…",

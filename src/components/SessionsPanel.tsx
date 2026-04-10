@@ -18,6 +18,7 @@ import {
   type InspectorTraceItem,
 } from "./sessionInspectorModel";
 import { useCompletionSeenStore } from "../stores/completionSeenStore";
+import { promptAndAddProjectToScene } from "../canvas/sceneCommands";
 
 const STATUS_COLORS: Record<CanvasTerminalState, string> = {
   attention: "#ef4444",
@@ -384,8 +385,42 @@ export function SessionsPanel() {
     return <SessionReplayView />;
   }
 
+  const handleAddProject = async () => {
+    await promptAndAddProjectToScene(t);
+  };
+
   return (
     <div className="flex flex-col h-full min-h-0">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] shrink-0">
+        <span
+          className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          {t.sessions_panel_title}
+        </span>
+        <button
+          type="button"
+          onClick={handleAddProject}
+          title={t.shortcut_add_project}
+          aria-label={t.shortcut_add_project}
+          className="p-0.5 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--border)] transition-colors"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            className="shrink-0"
+          >
+            <path
+              d="M6 2V10M2 6H10"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      </div>
       <div className="flex-1 min-h-0 overflow-y-auto">
         <ProjectTree
           projects={projectTree}

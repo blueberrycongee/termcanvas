@@ -415,6 +415,7 @@ export const zh = {
   sessions_fresh_results: "新结果",
   sessions_background: "后台",
   sessions_no_canvas_items: "画布上暂无终端",
+  sessions_panel_title: "项目",
   sessions_inspector: "详情",
   sessions_recent_trace: "最近 Trace",
   sessions_trace_loading: "加载 Trace…",
