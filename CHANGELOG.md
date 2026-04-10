@@ -2,6 +2,20 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.27.3] - 2026-04-10
+
+### Fixed
+- Dragging the left sidebar width no longer force-zooms the focused terminal back to fit-scale when the canvas is in plain (non zoom-focus) focus mode; the resize cleanup now consults the shared viewport focus state and only re-fits the viewport when the user is actually in zoom-focus mode
+
+### Changed
+- The "zoomed out vs zoom-focused" flag previously kept as a local ref inside the keyboard shortcut hook is now lifted into a shared `viewportFocusStore`, so any surface that mutates the viewport (sidebar resize today, future panels tomorrow) reads the same source of truth instead of guessing the mode
+
+### Fixed (zh-CN)
+- 在“仅聚焦”（非放大聚焦）模式下拖动左侧栏宽度，不再强制把当前聚焦终端重新放大充满视口；拖动结束后的清理逻辑会读取共享的视口聚焦状态，只有在真正处于放大聚焦模式时才会重新 fit 视口
+
+### Changed (zh-CN)
+- 原本只活在键盘快捷键 hook 里的 `zoomedOutTerminalIdRef` 已提升为共享的 `viewportFocusStore`，让所有会改动视口的入口（当前是侧栏拖动，未来其它面板）都从同一份状态读取焦点模式，而不是各自猜测
+
 ## [0.27.2] - 2026-04-11
 
 ### Added
