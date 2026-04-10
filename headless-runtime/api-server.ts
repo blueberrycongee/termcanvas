@@ -761,6 +761,7 @@ export class HeadlessApiServer {
       workflowId,
       assignmentId,
       repoPath,
+      resumeSessionId,
     } = body as {
       worktree?: string;
       type?: string;
@@ -770,6 +771,7 @@ export class HeadlessApiServer {
       workflowId?: string;
       assignmentId?: string;
       repoPath?: string;
+      resumeSessionId?: string;
     };
 
     if (!worktree) {
@@ -792,6 +794,7 @@ export class HeadlessApiServer {
       workflowId,
       assignmentId,
       repoPath,
+      resumeSessionId,
     });
 
     return { id: terminal.id, type: terminal.type, title: terminal.title };

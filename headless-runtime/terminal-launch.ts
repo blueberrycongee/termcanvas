@@ -7,12 +7,14 @@ interface CliLaunchConfig {
   shell: string;
   autoApproveArgs?: string[];
   promptArgs?: (prompt: string) => string[];
+  resumeArgs?: (sessionId: string) => string[];
 }
 
 export const CLI_LAUNCH: Partial<Record<TerminalType, CliLaunchConfig>> = {
   claude: {
     shell: "claude",
     autoApproveArgs: ["--dangerously-skip-permissions"],
+    resumeArgs: (sessionId) => ["--resume", sessionId],
   },
   codex: {
     shell: "codex",
@@ -45,6 +47,9 @@ export interface LaunchTrackedTerminalOptions extends TerminalLaunchDeps {
   workflowId?: string;
   assignmentId?: string;
   repoPath?: string;
+  // Resume the agent's prior session — only honored by agent types whose
+  // CLI_LAUNCH config sets resumeArgs (currently claude).
+  resumeSessionId?: string;
 }
 
 export async function launchTrackedTerminal(
@@ -89,6 +94,9 @@ export async function launchTrackedTerminal(
     const args: string[] = [];
     if (options.autoApprove && launchConfig.autoApproveArgs) {
       args.push(...launchConfig.autoApproveArgs);
+    }
+    if (options.resumeSessionId && launchConfig.resumeArgs) {
+      args.push(...launchConfig.resumeArgs(options.resumeSessionId));
     }
     if (options.prompt) {
       if (launchConfig.promptArgs) {

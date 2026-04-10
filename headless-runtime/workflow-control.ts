@@ -141,6 +141,7 @@ export function createWorkflowControl(
       workflowId: request.workflowId,
       assignmentId: request.assignmentId,
       repoPath: request.repoPath,
+      resumeSessionId: request.resumeSessionId,
     });
 
     return {
