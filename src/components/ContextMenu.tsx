@@ -20,8 +20,10 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
         onClose();
       }
     };
-    window.addEventListener("mousedown", handler);
-    return () => window.removeEventListener("mousedown", handler);
+    // Use capture so the listener fires before React Flow's pane handlers
+    // call stopPropagation, which would otherwise leave the menu stuck open.
+    window.addEventListener("mousedown", handler, true);
+    return () => window.removeEventListener("mousedown", handler, true);
   }, [onClose]);
 
   useEffect(() => {

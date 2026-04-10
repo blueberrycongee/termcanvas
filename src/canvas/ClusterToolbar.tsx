@@ -47,8 +47,18 @@ export function ClusterToolbar() {
         setOpen(false);
       }
     };
-    window.addEventListener("mousedown", handler);
-    return () => window.removeEventListener("mousedown", handler);
+    const keyHandler = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    // Use capture so the listener fires before React Flow's pane handlers
+    // call stopPropagation on the canvas, which would otherwise swallow the
+    // event and leave the dropdown stuck open.
+    window.addEventListener("mousedown", handler, true);
+    window.addEventListener("keydown", keyHandler);
+    return () => {
+      window.removeEventListener("mousedown", handler, true);
+      window.removeEventListener("keydown", keyHandler);
+    };
   }, [open]);
 
   const rightInset = getCanvasRightInset(rightPanelCollapsed) + 16;
