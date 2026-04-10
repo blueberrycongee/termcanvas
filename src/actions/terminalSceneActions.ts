@@ -103,15 +103,16 @@ export function toggleTerminalMinimizeInScene(
     .toggleTerminalMinimize(projectId, worktreeId, terminalId);
 }
 
-export function updateTerminalSpanInScene(
+export function updateTerminalSizeInScene(
   projectId: string,
   worktreeId: string,
   terminalId: string,
-  span: { cols: number; rows: number },
+  width: number,
+  height: number,
 ): void {
   useProjectStore
     .getState()
-    .updateTerminalSpan(projectId, worktreeId, terminalId, span);
+    .updateTerminalSize(projectId, worktreeId, terminalId, width, height);
 }
 
 export function stashTerminalInScene(

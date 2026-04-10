@@ -12,15 +12,10 @@ import {
 } from "@xyflow/react";
 import {
   addProjectFromDirectoryPath,
-  activateProjectInScene,
-  activateWorktreeInScene,
   clearSceneFocusAndSelection,
   promptAndAddProjectToScene,
 } from "./sceneCommands";
-import {
-  getRenderableTerminalLayouts,
-  getStashedTerminalIds,
-} from "./sceneState";
+import { getStashedTerminalIds } from "./sceneState";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useDrawingStore } from "../stores/drawingStore";
@@ -43,18 +38,17 @@ import {
 } from "../terminal/terminalRuntimeStore";
 import { fromFlowViewport, toFlowViewport } from "./viewportAdapter";
 import { buildCanvasFlowNodes } from "./nodeProjection";
-import { useTileDimensionsStore } from "../stores/tileDimensionsStore";
 import { xyflowNodeTypes, type CanvasFlowNode } from "./xyflowNodes";
 import {
   getCanvasLeftInset,
   rectIntersectsCanvasViewport,
 } from "./viewportBounds";
 import { clampScale, zoomAtClientPoint } from "./viewportZoom";
-import { WT_PAD, WT_TITLE_H, PROJ_PAD, PROJ_TITLE_H } from "../layout";
-import { getVisibleWorktreeTerminals } from "../utils/worktreeLayout";
+import { resolveCollisions } from "./collisionResolver";
 
 const EMPTY_EDGES: never[] = [];
 const WHEEL_ZOOM_SENSITIVITY = 0.002;
+const SNAP_GRID: [number, number] = [10, 10];
 
 function normalizeWheelDelta(event: React.WheelEvent): number {
   switch (event.deltaMode) {
@@ -67,28 +61,26 @@ function normalizeWheelDelta(event: React.WheelEvent): number {
   }
 }
 
-function buildProjectLayoutKey(
+/**
+ * Build a stable cache key for the terminal layout.
+ * In the flat canvas model, each terminal's own position and size
+ * determines the layout (no project/worktree container offsets).
+ */
+function buildLayoutKey(
   projects: ReturnType<typeof useProjectStore.getState>["projects"],
 ) {
   return projects
     .map((project) =>
       [
         project.id,
-        project.position.x,
-        project.position.y,
-        project.collapsed ? 1 : 0,
-        project.zIndex ?? 0,
         project.worktrees
           .map((worktree) =>
             [
               worktree.id,
-              worktree.position.x,
-              worktree.position.y,
-              worktree.collapsed ? 1 : 0,
-              getVisibleWorktreeTerminals(worktree)
+              worktree.terminals
                 .map(
-                  (terminal) =>
-                    `${terminal.id}:${terminal.span.cols}x${terminal.span.rows}:${terminal.stashed ? 1 : 0}`,
+                  (t) =>
+                    `${t.id}:${t.x},${t.y},${t.width}x${t.height}:${t.stashed ? 1 : 0}:${t.minimized ? 1 : 0}`,
                 )
                 .join(","),
             ].join(":"),
@@ -100,14 +92,12 @@ function buildProjectLayoutKey(
 }
 
 function TerminalRuntimeLayer({
-  nodes,
   projects,
   viewport,
   rightPanelCollapsed,
   leftPanelCollapsed,
   leftPanelWidth,
 }: {
-  nodes: CanvasFlowNode[];
   projects: ReturnType<typeof useProjectStore.getState>["projects"];
   viewport: ReturnType<typeof useCanvasStore.getState>["viewport"];
   rightPanelCollapsed: boolean;
@@ -116,20 +106,7 @@ function TerminalRuntimeLayer({
 }) {
   const managedTerminalIdsRef = useRef<Set<string>>(new Set());
   const publishedTerminalIdsRef = useRef<Set<string>>(new Set());
-  const projectedPositions = useMemo(() => {
-    const projectOffsets = new Map<string, { x: number; y: number }>();
-    const worktreeOffsets = new Map<string, { x: number; y: number }>();
 
-    for (const node of nodes) {
-      if (node.type === "project") {
-        projectOffsets.set(node.data.projectId, node.position);
-      } else if (node.type === "worktree") {
-        worktreeOffsets.set(node.data.worktreeId, node.position);
-      }
-    }
-
-    return { projectOffsets, worktreeOffsets };
-  }, [nodes]);
   const runtimeMetas = useMemo(
     () =>
       projects.flatMap((project) =>
@@ -144,48 +121,28 @@ function TerminalRuntimeLayer({
       ),
     [projects],
   );
+
+  // Flat terminal entries — no project/worktree offset calculation needed
   const terminalEntries = useMemo(
     () =>
       projects.flatMap((project) =>
-        project.worktrees.flatMap((worktree) => {
-          const layouts = getRenderableTerminalLayouts(worktree);
-          const projectOffset =
-            projectedPositions.projectOffsets.get(project.id) ??
-            project.position;
-          const worktreeOffset = projectedPositions.worktreeOffsets.get(
-            worktree.id,
-          ) ?? {
-            x: PROJ_PAD + worktree.position.x,
-            y: PROJ_TITLE_H + PROJ_PAD + worktree.position.y,
-          };
-
-          return layouts.map(({ item, terminal }) => {
-            const absoluteRect = {
-              h: item.h,
-              w: item.w,
-              x: projectOffset.x + worktreeOffset.x + WT_PAD + item.x,
-              y:
-                projectOffset.y +
-                worktreeOffset.y +
-                WT_TITLE_H +
-                WT_PAD +
-                item.y,
-            };
-
-            return {
-              absoluteRect,
+        project.worktrees.flatMap((worktree) =>
+          worktree.terminals
+            .filter((t) => !t.stashed)
+            .map((terminal) => ({
+              absoluteRect: {
+                x: terminal.x,
+                y: terminal.y,
+                w: terminal.width,
+                h: terminal.height,
+              },
               project,
               terminal,
               worktree,
-            };
-          });
-        }),
+            })),
+        ),
       ),
-    [
-      projects,
-      projectedPositions.projectOffsets,
-      projectedPositions.worktreeOffsets,
-    ],
+    [projects],
   );
 
   useEffect(() => {
@@ -210,10 +167,6 @@ function TerminalRuntimeLayer({
     const nextTerminalIds = new Set<string>();
 
     for (const entry of terminalEntries) {
-      if (entry.project.collapsed || entry.worktree.collapsed) {
-        continue;
-      }
-
       nextTerminalIds.add(entry.terminal.id);
       publishTerminalGeometry({
         h: entry.absoluteRect.h,
@@ -251,16 +204,13 @@ function TerminalRuntimeLayer({
     }
 
     for (const entry of terminalEntries) {
-      const visible =
-        !entry.project.collapsed &&
-        !entry.worktree.collapsed &&
-        rectIntersectsCanvasViewport(
-          entry.absoluteRect,
-          viewport,
-          rightPanelCollapsed,
-          leftPanelCollapsed,
-          leftPanelWidth,
-        );
+      const visible = rectIntersectsCanvasViewport(
+        entry.absoluteRect,
+        viewport,
+        rightPanelCollapsed,
+        leftPanelCollapsed,
+        leftPanelWidth,
+      );
       setTerminalRuntimeMode(
         entry.terminal.id,
         resolveTerminalMountMode({
@@ -310,18 +260,13 @@ function XyFlowCanvasInner() {
   const animationBlur = usePreferencesStore((state) => state.animationBlur);
   const drawingTool = useDrawingStore((state) => state.tool);
   const { handleMouseDown: handleBoxSelectMouseDown } = useBoxSelect();
-  const projectLayoutKey = useMemo(
-    () => buildProjectLayoutKey(projects),
-    [projects],
-  );
-  const tileW = useTileDimensionsStore((s) => s.w);
-  const tileH = useTileDimensionsStore((s) => s.h);
+  const layoutKey = useMemo(() => buildLayoutKey(projects), [projects]);
   const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
   const isDrawing = drawingEnabled && drawingTool !== "select";
-  // Keep local drag state stable across focus/status/session churn in projectStore.
+
   const projectedNodes = useMemo(
     () => buildCanvasFlowNodes(projects),
-    [projectLayoutKey, tileW, tileH],
+    [layoutKey],
   );
   const [nodes, setNodes, onNodesChange] =
     useNodesState<CanvasFlowNode>(projectedNodes);
@@ -380,56 +325,64 @@ function XyFlowCanvasInner() {
 
   const handleNodeClick = useCallback<NodeMouseHandler<CanvasFlowNode>>(
     (_event, node) => {
-      if (node.type === "project") {
-        activateProjectInScene(node.data.projectId, { bringToFront: true });
-        return;
-      }
-
-      if (node.type === "worktree") {
-        const { projectId, worktreeId } = node.data;
-        activateWorktreeInScene(projectId, worktreeId, { bringToFront: true });
-      }
+      // In flat canvas, clicking a terminal node activates its project/worktree
+      const { projectId, worktreeId } = node.data;
+      useProjectStore.getState().setFocusedWorktree(projectId, worktreeId);
     },
     [],
   );
 
-  const handleNodeDragStart = useCallback<OnNodeDrag<CanvasFlowNode>>(
-    (_event, node) => {
-      if (node.type === "project") {
-        useProjectStore.getState().bringToFront(node.data.projectId);
-        return;
-      }
-
-      if (node.type === "worktree") {
-        useProjectStore.getState().bringToFront(node.data.projectId);
-      }
-    },
-    [],
-  );
+  const handleNodeDragStart = useCallback<OnNodeDrag<CanvasFlowNode>>(() => {
+    // No-op in flat canvas — no bringToFront needed
+  }, []);
 
   const handleNodeDragStop = useCallback<OnNodeDrag<CanvasFlowNode>>(
     (_event, node) => {
-      if (node.type === "project") {
-        useProjectStore
-          .getState()
-          .updateProjectPosition(
-            node.data.projectId,
-            node.position.x,
-            node.position.y,
-          );
-        return;
-      }
+      // Write terminal position back to store
+      const { projectId, worktreeId, terminalId } = node.data;
+      const snappedX =
+        Math.round(node.position.x / SNAP_GRID[0]) * SNAP_GRID[0];
+      const snappedY =
+        Math.round(node.position.y / SNAP_GRID[1]) * SNAP_GRID[1];
+      useProjectStore
+        .getState()
+        .updateTerminalPosition(
+          projectId,
+          worktreeId,
+          terminalId,
+          snappedX,
+          snappedY,
+        );
 
-      if (node.type === "worktree") {
-        const { projectId, worktreeId } = node.data;
-        useProjectStore
-          .getState()
-          .updateWorktreePosition(
-            projectId,
-            worktreeId,
-            Math.max(0, node.position.x - PROJ_PAD),
-            Math.max(0, node.position.y - (PROJ_TITLE_H + PROJ_PAD)),
-          );
+      // Resolve collisions after drag
+      const allProjects = useProjectStore.getState().projects;
+      const allRects = allProjects.flatMap((p) =>
+        p.worktrees.flatMap((w) =>
+          w.terminals
+            .filter((t) => !t.stashed)
+            .map((t) => ({
+              id: t.id,
+              x: t.id === terminalId ? snappedX : t.x,
+              y: t.id === terminalId ? snappedY : t.y,
+              width: t.width,
+              height: t.height,
+            })),
+        ),
+      );
+      const resolved = resolveCollisions(allRects, 8, terminalId);
+      const updatePos = useProjectStore.getState().updateTerminalPosition;
+      for (const rect of resolved) {
+        if (rect.id === terminalId) continue;
+        const original = allRects.find((r) => r.id === rect.id);
+        if (original && (original.x !== rect.x || original.y !== rect.y)) {
+          for (const p of allProjects) {
+            for (const w of p.worktrees) {
+              if (w.terminals.some((t) => t.id === rect.id)) {
+                updatePos(p.id, w.id, rect.id, rect.x, rect.y);
+              }
+            }
+          }
+        }
       }
     },
     [],
@@ -471,11 +424,6 @@ function XyFlowCanvasInner() {
         return;
       }
 
-      // Don't zoom the canvas when the pinch/wheel originates inside a
-      // terminal tile (marked with the "nowheel" class).  Without this,
-      // two-finger pinch on a focused terminal still scales the canvas
-      // because the capture-phase handler fires before the event reaches
-      // the terminal's own scroll handling.
       const target = event.target;
       if (target instanceof Element && target.closest(".nowheel")) {
         return;
@@ -514,7 +462,6 @@ function XyFlowCanvasInner() {
       onDrop={handleDrop}
     >
       <TerminalRuntimeLayer
-        nodes={nodes}
         projects={projects}
         viewport={viewport}
         rightPanelCollapsed={rightPanelCollapsed}
@@ -551,6 +498,8 @@ function XyFlowCanvasInner() {
         panOnDrag={[0, 1]}
         panOnScroll
         panOnScrollMode={PanOnScrollMode.Free}
+        snapToGrid
+        snapGrid={SNAP_GRID}
         zoomOnScroll={false}
         zoomOnPinch={false}
         minZoom={0.1}

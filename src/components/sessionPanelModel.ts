@@ -66,16 +66,9 @@ const GENERIC_TERMINAL_TITLES =
   /^(terminal|shell|claude|codex|kimi|gemini|opencode|lazygit|tmux)$/i;
 
 function isCanvasTerminal(
-  projectCollapsed: boolean,
-  worktreeCollapsed: boolean,
   terminal: Pick<TerminalData, "minimized" | "stashed">,
 ): boolean {
-  return (
-    !projectCollapsed &&
-    !worktreeCollapsed &&
-    !terminal.minimized &&
-    !terminal.stashed
-  );
+  return !terminal.minimized && !terminal.stashed;
 }
 
 function collapseWhitespace(value: string, maxLength: number): string {
@@ -373,13 +366,7 @@ export function buildProjectTree(
       for (const terminal of worktree.terminals) {
         const resolvedTerminal = resolveTerminalWithRuntimeState(terminal);
 
-        if (
-          !isCanvasTerminal(
-            project.collapsed,
-            worktree.collapsed,
-            resolvedTerminal,
-          )
-        ) {
+        if (!isCanvasTerminal(resolvedTerminal)) {
           continue;
         }
 
@@ -470,13 +457,7 @@ export function buildCanvasTerminalSections(
       for (const terminal of worktree.terminals) {
         const resolvedTerminal = resolveTerminalWithRuntimeState(terminal);
 
-        if (
-          !isCanvasTerminal(
-            project.collapsed,
-            worktree.collapsed,
-            resolvedTerminal,
-          )
-        ) {
+        if (!isCanvasTerminal(resolvedTerminal)) {
           continue;
         }
 

@@ -2,13 +2,6 @@ import type { DrawingElement } from "../stores/drawingStore";
 import type { ProjectData } from "../types";
 import type { AnnotationAnchor } from "../types/scene";
 import { getTerminalGeometry } from "../terminal/terminalGeometryRegistry";
-import {
-  packTerminals,
-  PROJ_PAD,
-  PROJ_TITLE_H,
-  WT_PAD,
-  WT_TITLE_H,
-} from "../layout";
 
 interface Rect {
   x: number;
@@ -83,7 +76,9 @@ function shiftDrawingElement(
   }
 }
 
-function getDrawingElementOrigin(element: DrawingElement): { x: number; y: number } | null {
+function getDrawingElementOrigin(
+  element: DrawingElement,
+): { x: number; y: number } | null {
   switch (element.type) {
     case "pen":
       return element.points[0]
@@ -112,52 +107,41 @@ function resolveEntityAnchorWorldPoint(
   }
 
   for (const project of projects) {
+    // For project-level anchors, use the bounding box origin of all terminals
     if (project.id === entityId) {
+      const allTerminals = project.worktrees.flatMap((w) =>
+        w.terminals.filter((t) => !t.stashed),
+      );
+      const originX =
+        allTerminals.length > 0 ? Math.min(...allTerminals.map((t) => t.x)) : 0;
+      const originY =
+        allTerminals.length > 0 ? Math.min(...allTerminals.map((t) => t.y)) : 0;
       return {
-        x: project.position.x + offset.x,
-        y: project.position.y + offset.y,
+        x: originX + offset.x,
+        y: originY + offset.y,
       };
     }
 
     for (const worktree of project.worktrees) {
+      // For worktree-level anchors, use bounding box origin of worktree terminals
       if (worktree.id === entityId) {
+        const wtTerminals = worktree.terminals.filter((t) => !t.stashed);
+        const originX =
+          wtTerminals.length > 0 ? Math.min(...wtTerminals.map((t) => t.x)) : 0;
+        const originY =
+          wtTerminals.length > 0 ? Math.min(...wtTerminals.map((t) => t.y)) : 0;
         return {
-          x: project.position.x + PROJ_PAD + worktree.position.x + offset.x,
-          y:
-            project.position.y +
-            PROJ_TITLE_H +
-            PROJ_PAD +
-            worktree.position.y +
-            offset.y,
+          x: originX + offset.x,
+          y: originY + offset.y,
         };
       }
 
-      const visibleTerminals = worktree.terminals.filter(
-        (terminal) => !terminal.stashed,
-      );
-      const packed = packTerminals(visibleTerminals.map((terminal) => terminal.span));
-      const terminalIndex = visibleTerminals.findIndex(
-        (terminal) => terminal.id === entityId,
-      );
-      const item = terminalIndex >= 0 ? packed[terminalIndex] : null;
-      if (item) {
+      // For terminal-level anchors, use terminal x/y directly
+      const terminal = worktree.terminals.find((t) => t.id === entityId);
+      if (terminal) {
         return {
-          x:
-            project.position.x +
-            PROJ_PAD +
-            worktree.position.x +
-            WT_PAD +
-            item.x +
-            offset.x,
-          y:
-            project.position.y +
-            PROJ_TITLE_H +
-            PROJ_PAD +
-            worktree.position.y +
-            WT_TITLE_H +
-            WT_PAD +
-            item.y +
-            offset.y,
+          x: terminal.x + offset.x,
+          y: terminal.y + offset.y,
         };
       }
     }
@@ -216,7 +200,10 @@ export function getDrawingElementBounds(element: DrawingElement): Rect {
         (max, line) => Math.max(max, line.length),
         0,
       );
-      const width = Math.max(element.fontSize, maxLineLength * element.fontSize * 0.62);
+      const width = Math.max(
+        element.fontSize,
+        maxLineLength * element.fontSize * 0.62,
+      );
       const height = Math.max(
         element.fontSize * 1.4,
         lines.length * element.fontSize * 1.4,

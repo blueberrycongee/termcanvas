@@ -138,7 +138,8 @@ function isSceneStrokePoint(
     isRecord(value) &&
     typeof value.x === "number" &&
     typeof value.y === "number" &&
-    (typeof value.pressure === "undefined" || typeof value.pressure === "number")
+    (typeof value.pressure === "undefined" ||
+      typeof value.pressure === "number")
   );
 }
 
@@ -182,8 +183,7 @@ function isSceneAnnotation(
       );
     case "text":
       return (
-        typeof value.fontSize === "number" &&
-        typeof value.content === "string"
+        typeof value.fontSize === "number" && typeof value.content === "string"
       );
     case "rect":
       return (
@@ -192,10 +192,7 @@ function isSceneAnnotation(
         typeof value.height === "number"
       );
     case "arrow":
-      return (
-        typeof value.strokeWidth === "number" &&
-        isScenePoint(value.end)
-      );
+      return typeof value.strokeWidth === "number" && isScenePoint(value.end);
     default:
       return false;
   }
@@ -246,9 +243,7 @@ function isLegacyDrawingElement(value: unknown): value is DrawingElement {
   }
 }
 
-function normalizeSceneCamera(
-  value: unknown,
-): SceneDocument["camera"] {
+function normalizeSceneCamera(value: unknown): SceneDocument["camera"] {
   if (
     value &&
     typeof value === "object" &&
@@ -304,12 +299,15 @@ function migrateProjects(projects: Record<string, unknown>[]): ProjectData[] {
                   return [];
                 }
 
-                const span =
-                  isRecord(terminal.span) &&
-                  typeof terminal.span.cols === "number" &&
-                  typeof terminal.span.rows === "number"
-                    ? { cols: terminal.span.cols, rows: terminal.span.rows }
-                    : { cols: 1, rows: 1 };
+                const width =
+                  typeof terminal.width === "number" ? terminal.width : 640;
+                const height =
+                  typeof terminal.height === "number" ? terminal.height : 480;
+                const x = typeof terminal.x === "number" ? terminal.x : 0;
+                const y = typeof terminal.y === "number" ? terminal.y : 0;
+                const tags = Array.isArray(terminal.tags)
+                  ? (terminal.tags as string[])
+                  : [];
                 const origin: TerminalOrigin =
                   terminal.origin === "agent" ? "agent" : "user";
 
@@ -344,11 +342,15 @@ function migrateProjects(projects: Record<string, unknown>[]): ProjectData[] {
                       typeof terminal.sessionId === "string"
                         ? terminal.sessionId
                         : undefined,
-                    span,
                     starred: terminal.starred === true,
                     status: normalizeTerminalStatus(terminal.status),
+                    tags,
                     title: terminal.title,
                     type: normalizeTerminalType(terminal.type),
+                    width,
+                    height,
+                    x,
+                    y,
                   },
                 ];
               })
@@ -356,11 +358,9 @@ function migrateProjects(projects: Record<string, unknown>[]): ProjectData[] {
 
           return [
             {
-              collapsed: worktree.collapsed === true,
               id: worktree.id,
               name: worktree.name,
               path: worktree.path,
-              position: normalizePosition(worktree.position),
               terminals,
             },
           ];
@@ -369,13 +369,10 @@ function migrateProjects(projects: Record<string, unknown>[]): ProjectData[] {
 
     return [
       {
-        collapsed: project.collapsed === true,
         id: project.id,
         name: project.name,
         path: project.path,
-        position: normalizePosition(project.position),
         worktrees,
-        zIndex: typeof project.zIndex === "number" ? project.zIndex : 0,
       },
     ];
   });
@@ -397,8 +394,7 @@ function migrateLegacySnapshot(
 
   return {
     version: 1,
-    browserCards:
-      browserCardsSource as LegacyWorkspaceSnapshot["browserCards"],
+    browserCards: browserCardsSource as LegacyWorkspaceSnapshot["browserCards"],
     drawings: drawingsSource as LegacyWorkspaceSnapshot["drawings"],
     projects: normalizeProjectsFocus(migrateProjects(projectsSource)).projects,
     viewport: normalizeViewport(value.viewport),
@@ -421,12 +417,11 @@ function normalizeStashedTerminals(raw: unknown): StashedTerminal[] {
     if (typeof t.id !== "string" || typeof t.title !== "string") {
       return [];
     }
-    const span =
-      isRecord(t.span) &&
-      typeof t.span.cols === "number" &&
-      typeof t.span.rows === "number"
-        ? { cols: t.span.cols, rows: t.span.rows }
-        : { cols: 1, rows: 1 };
+    const width = typeof t.width === "number" ? t.width : 640;
+    const height = typeof t.height === "number" ? t.height : 480;
+    const x = typeof t.x === "number" ? t.x : 0;
+    const y = typeof t.y === "number" ? t.y : 0;
+    const tags = Array.isArray(t.tags) ? (t.tags as string[]) : [];
     const origin: TerminalOrigin = t.origin === "agent" ? "agent" : "user";
     return [
       {
@@ -451,13 +446,16 @@ function normalizeStashedTerminals(raw: unknown): StashedTerminal[] {
           ptyId: null,
           scrollback:
             typeof t.scrollback === "string" ? t.scrollback : undefined,
-          sessionId:
-            typeof t.sessionId === "string" ? t.sessionId : undefined,
-          span,
+          sessionId: typeof t.sessionId === "string" ? t.sessionId : undefined,
           starred: t.starred === true,
           status: normalizeTerminalStatus(t.status),
+          tags,
           title: t.title,
           type: normalizeTerminalType(t.type),
+          width,
+          height,
+          x,
+          y,
         },
       },
     ];
@@ -480,7 +478,9 @@ function coerceSceneDocument(value: unknown): SceneDocument | null {
     return null;
   }
 
-  const projects = normalizeProjectsFocus(migrateProjects(projectRecords)).projects;
+  const projects = normalizeProjectsFocus(
+    migrateProjects(projectRecords),
+  ).projects;
 
   if (!projects) {
     return null;
@@ -557,7 +557,10 @@ export function readWorkspaceSnapshot(
     try {
       parsed = JSON.parse(parsed) as unknown;
     } catch (error) {
-      console.error("[snapshotBridge] failed to parse workspace snapshot:", error);
+      console.error(
+        "[snapshotBridge] failed to parse workspace snapshot:",
+        error,
+      );
       return null;
     }
   }

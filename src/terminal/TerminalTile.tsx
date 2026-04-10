@@ -52,17 +52,8 @@ interface Props {
   worktreeName: string;
   worktreePath: string;
   terminal: TerminalData;
-  gridX: number;
-  gridY: number;
   width: number;
   height: number;
-  onDragStart?: (terminalId: string, e: React.MouseEvent) => void;
-  isDragging?: boolean;
-  isStashing?: boolean;
-  dragOffsetX?: number;
-  dragOffsetY?: number;
-  onDoubleClick?: () => void;
-  onSpanChange?: (span: { cols: number; rows: number }) => void;
 }
 
 const TYPE_CONFIG = TERMINAL_TYPE_CONFIG;
@@ -180,17 +171,8 @@ export function TerminalTile({
   worktreeName,
   worktreePath,
   terminal,
-  gridX,
-  gridY,
   width,
   height,
-  onDragStart,
-  isDragging = false,
-  isStashing = false,
-  dragOffsetX = 0,
-  dragOffsetY = 0,
-  onDoubleClick,
-  onSpanChange,
 }: Props) {
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -703,29 +685,14 @@ export function TerminalTile({
       onDragOver={handleTileDragOver}
       onDragLeave={handleTileDragLeave}
       onDrop={handleTileDrop}
-      className="absolute terminal-tile rounded-md bg-[var(--bg)] overflow-hidden flex flex-col"
+      className="terminal-tile rounded-md bg-[var(--bg)] overflow-hidden flex flex-col h-full w-full"
       style={{
-        left: gridX + (isDragging ? dragOffsetX : 0),
-        top: gridY + (isDragging ? dragOffsetY : 0),
         width: width,
         height: terminal.minimized ? "auto" : height,
-        zIndex: isDragging ? 50 : undefined,
-        opacity: isStashing ? 0.4 : isDragging ? 0.9 : 1,
-        transition:
-          isDragging || lodMode === "live"
-            ? "none"
-            : "left 0.2s ease, top 0.2s ease, width 0.2s ease, height 0.2s ease",
-        boxShadow: isDragging
-          ? "0 8px 32px rgba(0,0,0,0.3)"
-          : dragOver
-            ? "0 0 0 2px var(--accent), 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent)"
-            : terminal.focused
-              ? "0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 8px color-mix(in srgb, var(--accent) 15%, transparent)"
-              : undefined,
-        transform: isStashing
-          ? "scale(0.95)"
-          : isDragging
-            ? "scale(1.02)"
+        boxShadow: dragOver
+          ? "0 0 0 2px var(--accent), 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent)"
+          : terminal.focused
+            ? "0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 8px color-mix(in srgb, var(--accent) 15%, transparent)"
             : undefined,
         outline: "none",
       }}
@@ -748,9 +715,7 @@ export function TerminalTile({
       onWheel={(e) => e.stopPropagation()}
     >
       <div
-        className="flex items-center gap-2 px-3 py-2 select-none shrink-0 cursor-grab active:cursor-grabbing"
-        onMouseDown={(e) => onDragStart?.(terminal.id, e)}
-        onDoubleClick={onDoubleClick}
+        className="flex items-center gap-2 px-3 py-2 select-none shrink-0"
         onContextMenu={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -989,7 +954,9 @@ export function TerminalTile({
               ) {
                 scheduleXtermFocus();
               } else {
-                window.dispatchEvent(new CustomEvent("termcanvas:focus-composer"));
+                window.dispatchEvent(
+                  new CustomEvent("termcanvas:focus-composer"),
+                );
               }
             }}
           />
@@ -1020,27 +987,6 @@ export function TerminalTile({
             x={contextMenu.x}
             y={contextMenu.y}
             items={[
-              {
-                label: "1×1",
-                active: terminal.span.cols === 1 && terminal.span.rows === 1,
-                onClick: () => onSpanChange?.({ cols: 1, rows: 1 }),
-              },
-              {
-                label: "2×1 Wide",
-                active: terminal.span.cols === 2 && terminal.span.rows === 1,
-                onClick: () => onSpanChange?.({ cols: 2, rows: 1 }),
-              },
-              {
-                label: "1×2 Tall",
-                active: terminal.span.cols === 1 && terminal.span.rows === 2,
-                onClick: () => onSpanChange?.({ cols: 1, rows: 2 }),
-              },
-              {
-                label: "2×2 Large",
-                active: terminal.span.cols === 2 && terminal.span.rows === 2,
-                onClick: () => onSpanChange?.({ cols: 2, rows: 2 }),
-              },
-              { type: "separator" as const },
               {
                 label: t.stash_terminal,
                 onClick: () =>

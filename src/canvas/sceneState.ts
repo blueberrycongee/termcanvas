@@ -1,18 +1,7 @@
-import {
-  getWorktreeSize,
-  packTerminals,
-  type PackedTerminal,
-  type TileDims,
-} from "../layout";
 import type { BrowserCardData } from "../stores/browserCardStore";
 import type { DrawingElement } from "../stores/drawingStore";
 import type { SelectedItem } from "../stores/selectionStore";
 import type { ProjectData, TerminalData, WorktreeData } from "../types";
-
-export interface RenderableTerminalLayout {
-  item: PackedTerminal;
-  terminal: TerminalData;
-}
 
 export interface SceneSelectionEntities {
   annotations?: DrawingElement[];
@@ -23,45 +12,6 @@ export interface SceneSelectionEntities {
 
 export function getRenderableTerminals(worktree: WorktreeData): TerminalData[] {
   return worktree.terminals.filter((terminal) => !terminal.stashed);
-}
-
-export function getRenderableTerminalSpans(worktree: WorktreeData) {
-  return getRenderableTerminals(worktree).map((terminal) => terminal.span);
-}
-
-export function getRenderableTerminalLayouts(
-  worktree: WorktreeData,
-  gridCols?: number,
-  tileDims?: TileDims,
-): RenderableTerminalLayout[] {
-  const terminals = getRenderableTerminals(worktree);
-  const packed = packTerminals(
-    terminals.map((terminal) => terminal.span),
-    gridCols,
-    tileDims,
-  );
-
-  return terminals.flatMap((terminal, index) => {
-    const item = packed[index];
-    if (!item) {
-      return [];
-    }
-
-    return [{ item, terminal }];
-  });
-}
-
-export function getRenderableWorktreeSize(
-  worktree: WorktreeData,
-  gridCols?: number,
-  tileDims?: TileDims,
-) {
-  return getWorktreeSize(
-    getRenderableTerminalSpans(worktree),
-    worktree.collapsed,
-    gridCols,
-    tileDims,
-  );
 }
 
 export function getStashedTerminalIds(projects: ProjectData[]): Set<string> {
