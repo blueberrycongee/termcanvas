@@ -5,20 +5,34 @@ import {
 import { focusTerminalInScene } from "../actions/terminalSceneActions";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
-import { getTerminalGeometry } from "../terminal/terminalGeometryRegistry";
-import { getCanvasRightInset, getCanvasLeftInset, clampCenterX } from "../canvas/viewportBounds";
 import {
-  packTerminals,
-  PROJ_PAD,
-  PROJ_TITLE_H,
-  WT_PAD,
-  WT_TITLE_H,
-} from "../layout";
-import { useTileDimensionsStore, setTrackSidebar, recomputeTileDimensions } from "../stores/tileDimensionsStore";
+  getCanvasRightInset,
+  getCanvasLeftInset,
+  clampCenterX,
+} from "../canvas/viewportBounds";
+import {
+  useTileDimensionsStore,
+  setTrackSidebar,
+  recomputeTileDimensions,
+} from "../stores/tileDimensionsStore";
 
 interface PanToTerminalOptions {
   immediate?: boolean;
   preserveScale?: boolean;
+}
+
+function findTerminal(terminalId: string) {
+  const { projects } = useProjectStore.getState();
+  for (const p of projects) {
+    for (const w of p.worktrees) {
+      for (const t of w.terminals) {
+        if (t.id === terminalId) {
+          return { terminal: t, projectId: p.id, worktreeId: w.id };
+        }
+      }
+    }
+  }
+  return null;
 }
 
 function isAlreadyFocused(terminalId: string): boolean {
@@ -36,185 +50,55 @@ function isAlreadyFocused(terminalId: string): boolean {
 /**
  * Animate the canvas viewport to center on the given terminal.
  */
-export function panToTerminal(terminalId: string, opts?: PanToTerminalOptions): void {
+export function panToTerminal(
+  terminalId: string,
+  opts?: PanToTerminalOptions,
+): void {
   setTrackSidebar(true);
   recomputeTileDimensions();
 
-  const publishedGeometry = getTerminalGeometry(terminalId);
-  if (publishedGeometry) {
-    const canvasState = useCanvasStore.getState();
-    const {
-      rightPanelCollapsed,
-      leftPanelCollapsed,
-      leftPanelWidth,
-      viewport,
-    } = canvasState;
-    const rightOffset = getCanvasRightInset(rightPanelCollapsed);
-    const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
-    const padding = 40;
-    const topInset = 56;
-    const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
-    const viewH = window.innerHeight - padding * 2;
-
-    const tileDims = useTileDimensionsStore.getState();
-    const scale = opts?.preserveScale
-      ? viewport.scale
-      : Math.min(viewW / tileDims.w, viewH / tileDims.h) * 0.90;
-
-    let absX = publishedGeometry.x;
-    let absY = publishedGeometry.y;
-    let absH = publishedGeometry.h;
-    const { projects } = useProjectStore.getState();
-    const geomProject = projects.find((p) => p.id === publishedGeometry.projectId);
-    const geomWorktree = geomProject?.worktrees.find(
-      (w) => w.id === publishedGeometry.worktreeId,
-    );
-    if (geomProject && geomWorktree) {
-      const visibleTerminals = geomWorktree.terminals.filter((t) => !t.stashed);
-      const idx = visibleTerminals.findIndex((t) => t.id === terminalId);
-      if (idx !== -1) {
-        const packed = packTerminals(
-          visibleTerminals.map((t) => t.span),
-        );
-        const item = packed[idx];
-        if (item) {
-          absX =
-            geomProject.position.x +
-            PROJ_PAD +
-            geomWorktree.position.x +
-            WT_PAD +
-            item.x;
-          absY =
-            geomProject.position.y +
-            PROJ_TITLE_H +
-            PROJ_PAD +
-            geomWorktree.position.y +
-            WT_TITLE_H +
-            WT_PAD +
-            item.y;
-          absH = item.h;
-        }
-      }
-    }
-
-    const centerX = clampCenterX(
-      absX,
-      tileDims.w,
-      scale,
-      leftOffset,
-      rightOffset,
-    );
-    const centerY =
-      -(absY + absH / 2) * scale +
-      (topInset + window.innerHeight) / 2;
-
-    if (opts?.immediate) {
-      useCanvasStore.getState().setViewport({ x: centerX, y: centerY, scale });
-    } else {
-      useCanvasStore.getState().animateTo(centerX, centerY, scale);
-    }
-    if (isAlreadyFocused(terminalId)) {
-      selectTerminalInScene(
-        publishedGeometry.projectId,
-        publishedGeometry.worktreeId,
-        terminalId,
-      );
-    } else {
-      activateTerminalInScene(
-        publishedGeometry.projectId,
-        publishedGeometry.worktreeId,
-        terminalId,
-      );
-    }
+  const found = findTerminal(terminalId);
+  if (!found) {
+    console.warn(`[panToTerminal] terminal ${terminalId} not found`);
     return;
   }
 
-  const { projects } = useProjectStore.getState();
+  const { terminal, projectId, worktreeId } = found;
+  const absX = terminal.x;
+  const absY = terminal.y;
+  const absW = terminal.width;
+  const absH = terminal.height;
 
-  for (const p of projects) {
-    for (const w of p.worktrees) {
-      const index = w.terminals.findIndex((t) => t.id === terminalId);
-      if (index === -1) continue;
+  const canvasState = useCanvasStore.getState();
+  const { rightPanelCollapsed, leftPanelCollapsed, leftPanelWidth, viewport } =
+    canvasState;
+  const rightOffset = getCanvasRightInset(rightPanelCollapsed);
+  const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  const padding = 40;
+  const topInset = 56;
+  const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
+  const viewH = window.innerHeight - padding * 2;
 
-      const shouldFocusTerminal = !isAlreadyFocused(terminalId);
-      if (shouldFocusTerminal) {
-        focusTerminalInScene(terminalId);
-      }
-      const { projects: focusedProjects } = useProjectStore.getState();
-      const focusedProject = focusedProjects.find((candidate) => candidate.id === p.id);
-      const focusedWorktree = focusedProject?.worktrees.find(
-        (candidate) => candidate.id === w.id,
-      );
-      if (!focusedProject || !focusedWorktree) {
-        return;
-      }
+  const tileDims = useTileDimensionsStore.getState();
+  const scale = opts?.preserveScale
+    ? viewport.scale
+    : Math.min(viewW / absW, viewH / absH) * 0.9;
 
-      const visibleTerminals = focusedWorktree.terminals.filter(
-        (terminal) => !terminal.stashed,
-      );
-      const focusedIndex = visibleTerminals.findIndex(
-        (terminal) => terminal.id === terminalId,
-      );
-      if (focusedIndex === -1) {
-        return;
-      }
+  const centerX = clampCenterX(absX, absW, scale, leftOffset, rightOffset);
+  const centerY =
+    -(absY + absH / 2) * scale + (topInset + window.innerHeight) / 2;
 
-      const packed = packTerminals(
-        visibleTerminals.map((terminal) => terminal.span),
-      );
-      const item = packed[focusedIndex];
-      if (!item) return;
-
-      const absX =
-        focusedProject.position.x +
-        PROJ_PAD +
-        focusedWorktree.position.x +
-        WT_PAD +
-        item.x;
-      const absY =
-        focusedProject.position.y +
-        PROJ_TITLE_H +
-        PROJ_PAD +
-        focusedWorktree.position.y +
-        WT_TITLE_H +
-        WT_PAD +
-        item.y;
-
-      const canvasState = useCanvasStore.getState();
-      const {
-        rightPanelCollapsed,
-        leftPanelCollapsed,
-        leftPanelWidth,
-        viewport,
-      } = canvasState;
-      const rightOffset = getCanvasRightInset(rightPanelCollapsed);
-      const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
-      const padding = 40;
-      const topInset = 56;
-      const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
-      const viewH = window.innerHeight - padding * 2;
-
-      const tileDims = useTileDimensionsStore.getState();
-      const scale = opts?.preserveScale
-        ? viewport.scale
-        : Math.min(viewW / tileDims.w, viewH / tileDims.h) * 0.90;
-
-      const centerX = clampCenterX(absX, tileDims.w, scale, leftOffset, rightOffset);
-      const centerY = -(absY + item.h / 2) * scale + (topInset + window.innerHeight) / 2;
-
-      if (opts?.immediate) {
-        useCanvasStore.getState().setViewport({ x: centerX, y: centerY, scale });
-      } else {
-        useCanvasStore.getState().animateTo(centerX, centerY, scale);
-      }
-      if (shouldFocusTerminal) {
-        activateTerminalInScene(focusedProject.id, focusedWorktree.id, terminalId);
-      } else {
-        selectTerminalInScene(focusedProject.id, focusedWorktree.id, terminalId);
-      }
-      return;
-    }
+  if (opts?.immediate) {
+    useCanvasStore.getState().setViewport({ x: centerX, y: centerY, scale });
+  } else {
+    useCanvasStore.getState().animateTo(centerX, centerY, scale);
   }
 
-  console.warn(`[panToTerminal] terminal ${terminalId} not found`);
+  const shouldFocusTerminal = !isAlreadyFocused(terminalId);
+  if (shouldFocusTerminal) {
+    focusTerminalInScene(terminalId);
+    activateTerminalInScene(projectId, worktreeId, terminalId);
+  } else {
+    selectTerminalInScene(projectId, worktreeId, terminalId);
+  }
 }
