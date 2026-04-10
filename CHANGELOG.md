@@ -2,6 +2,16 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.27.1] - 2026-04-11
+
+### Fixed
+- Terminal resize handles and the surrounding node outline no longer stay visible on every tile all the time; the resizer now appears only for the selected terminal, removing the always-on blue frame from the canvas
+- Closing a terminal with cmd+d now re-zooms to the next focused terminal when the canvas is in normal zoomed-in navigation mode, instead of only panning and leaving the viewport scale behind
+
+### Fixed (zh-CN)
+- 终端尺寸调节手柄和外围节点描边不再常驻显示在每个 tile 外侧；现在只有选中该终端时才显示，去掉了画布上一直存在的蓝色外框
+- 在普通聚焦导航模式下，用 cmd+d 关闭终端后，现在会重新缩放聚焦到下一个终端，而不是只平移视口导致缩放状态残留
+
 ## [0.27.0] - 2026-04-10
 
 ### Added
