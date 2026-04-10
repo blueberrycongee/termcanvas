@@ -9,6 +9,8 @@ import {
 } from "../stores/projectStore";
 import { destroyTerminalRuntime } from "../terminal/terminalRuntimeStore";
 import { pickPlacement } from "../canvas/terminalPlacement";
+import { useCanvasStore } from "../stores/canvasStore";
+import { getVisibleCanvasWorldRect } from "../canvas/viewportBounds";
 
 interface CreateTerminalInSceneOptions {
   projectId: string;
@@ -59,6 +61,16 @@ export function createTerminalInScene({
   // terminal record. The default createTerminal() returns x=0, y=0, so we
   // treat that as "needs auto placement".
   const projectStore = useProjectStore.getState();
+  const canvasState = useCanvasStore.getState();
+  const viewportRect =
+    typeof window !== "undefined"
+      ? getVisibleCanvasWorldRect(
+          canvasState.viewport,
+          canvasState.rightPanelCollapsed,
+          canvasState.leftPanelCollapsed,
+          canvasState.leftPanelWidth,
+        )
+      : undefined;
   const placement = pickPlacement({
     projects: projectStore.projects,
     projectId,
@@ -67,6 +79,7 @@ export function createTerminalInScene({
     width: baseTerminal.width,
     height: baseTerminal.height,
     preferredPosition: position,
+    viewportRect,
   });
 
   const placedTerminal: TerminalData = {

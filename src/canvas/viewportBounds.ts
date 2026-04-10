@@ -43,6 +43,36 @@ export function screenPointToCanvasPoint(
   };
 }
 
+/**
+ * Visible canvas area in world space. Accounts for left/right side panels
+ * and the top toolbar so callers that want to place new content "inside the
+ * visible viewport" don't end up putting it under a panel or the toolbar.
+ */
+const CANVAS_TOP_INSET = 56;
+
+export function getVisibleCanvasWorldRect(
+  viewport: Viewport,
+  rightPanelCollapsed: boolean,
+  leftPanelCollapsed: boolean,
+  leftPanelWidth: number,
+): { x: number; y: number; w: number; h: number } {
+  const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  const rightInset = getCanvasRightInset(rightPanelCollapsed);
+  const screenW = Math.max(
+    0,
+    window.innerWidth - leftInset - rightInset,
+  );
+  const screenH = Math.max(0, window.innerHeight - CANVAS_TOP_INSET);
+  const x = -viewport.x / viewport.scale;
+  const y = (-viewport.y + CANVAS_TOP_INSET) / viewport.scale;
+  return {
+    x,
+    y,
+    w: screenW / viewport.scale,
+    h: screenH / viewport.scale,
+  };
+}
+
 export function rectIntersectsCanvasViewport(
   rect: { x: number; y: number; w: number; h: number },
   viewport: Viewport,

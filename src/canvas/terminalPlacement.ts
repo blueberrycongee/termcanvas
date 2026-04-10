@@ -19,6 +19,14 @@ export interface PlacementInput {
    * available to anchor against.
    */
   fallback?: { x: number; y: number };
+  /**
+   * Current visible canvas area in world space. When provided and the
+   * no-parent/no-preferredPosition path is taken, pickPlacement tries to
+   * find a free row-major slot inside this rect before falling back to the
+   * rightmost-sibling anchor. This is what makes cmd+t fill the visible
+   * screen instead of marching indefinitely off to the right.
+   */
+  viewportRect?: { x: number; y: number; w: number; h: number };
 }
 
 const SNAP_GRID = 10;
@@ -73,6 +81,63 @@ function findTerminal(
         }
       }
     }
+  }
+  return null;
+}
+
+function rectsIntersect(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number },
+): boolean {
+  return (
+    a.x < b.x + b.width &&
+    a.x + a.width > b.x &&
+    a.y < b.y + b.height &&
+    a.y + a.height > b.y
+  );
+}
+
+/**
+ * Row-major scan inside `viewportRect` for the first free slot that can
+ * hold a (width x height) tile without colliding with any existing tile.
+ *
+ * When a candidate intersects an existing tile, x advances to the smallest
+ * right edge among colliders rather than stepping by a fixed column so that
+ * a single wide (user-resized) tile only skips its own width, not an entire
+ * grid column. Returns null if the viewport cannot fit the tile anywhere.
+ */
+function scanViewportGrid(
+  viewportRect: { x: number; y: number; w: number; h: number },
+  rects: RectInput[],
+  width: number,
+  height: number,
+): { x: number; y: number } | null {
+  if (viewportRect.w < width || viewportRect.h < height) {
+    return null;
+  }
+  const xMax = viewportRect.x + viewportRect.w;
+  const yMax = viewportRect.y + viewportRect.h;
+
+  let y = snap(viewportRect.y);
+  // Row loop — step by height + gap so same-row tiles align on y.
+  while (y + height <= yMax) {
+    let x = snap(viewportRect.x);
+    let guard = 0;
+    while (x + width <= xMax && guard < 1000) {
+      guard += 1;
+      const candidate = { x, y, width, height };
+      const colliders = rects.filter((r) => rectsIntersect(candidate, r));
+      if (colliders.length === 0) {
+        return { x, y };
+      }
+      const minRight = Math.min(
+        ...colliders.map((r) => r.x + r.width),
+      );
+      const nextX = snap(minRight + ADJACENCY_GAP);
+      if (nextX <= x) break; // safety — should never regress
+      x = nextX;
+    }
+    y = snap(y + height + ADJACENCY_GAP);
   }
   return null;
 }
@@ -136,14 +201,29 @@ export function pickPlacement(input: PlacementInput): PlacementResult {
       anchor = input.fallback ?? { x: 0, y: 0 };
     }
   } else {
-    const sibling = worktreeAnchor(projects, input.projectId, input.worktreeId);
-    if (sibling) {
-      anchor = {
-        x: sibling.right + ADJACENCY_GAP,
-        y: sibling.y,
-      };
+    // Prefer a free slot inside the visible viewport so cmd+t fills the
+    // screen instead of marching off to the right. Only fall back to the
+    // rightmost-sibling anchor when the viewport has no room.
+    const existingRects = collectRects(projects);
+    const viewportSlot = input.viewportRect
+      ? scanViewportGrid(input.viewportRect, existingRects, width, height)
+      : null;
+    if (viewportSlot) {
+      anchor = viewportSlot;
     } else {
-      anchor = input.fallback ?? { x: 0, y: 0 };
+      const sibling = worktreeAnchor(
+        projects,
+        input.projectId,
+        input.worktreeId,
+      );
+      if (sibling) {
+        anchor = {
+          x: sibling.right + ADJACENCY_GAP,
+          y: sibling.y,
+        };
+      } else {
+        anchor = input.fallback ?? { x: 0, y: 0 };
+      }
     }
   }
 
