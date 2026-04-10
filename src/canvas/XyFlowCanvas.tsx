@@ -575,6 +575,13 @@ function XyFlowCanvasInner() {
           y={contextMenu.clientY}
           items={[
             {
+              label: t.canvas_empty_action,
+              onClick: () => {
+                void handleAddProject();
+              },
+            },
+            { type: "separator" },
+            {
               label: "New Shell",
               onClick: () => handleContextMenuPick("shell"),
             },
