@@ -690,7 +690,7 @@ export function TerminalTile({
       onDragOver={handleTileDragOver}
       onDragLeave={handleTileDragLeave}
       onDrop={handleTileDrop}
-      className="terminal-tile rounded-md bg-[var(--bg)] overflow-hidden flex flex-col h-full w-full"
+      className="terminal-tile rounded-md border border-[var(--border)] bg-[var(--surface)] overflow-hidden flex flex-col h-full w-full"
       style={{
         width: width,
         height: terminal.minimized ? "auto" : height,
