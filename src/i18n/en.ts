@@ -174,7 +174,7 @@ export const en = {
   zoom_out: "Zoom out",
   zoom_in: "Zoom in",
 
-  shortcut_add_project: "Add project",
+  shortcut_add_project: "Add project folder…",
   shortcut_cycle_focus_level: "Cycle focus level",
   shortcut_toggle_sidebar: "Toggle sidebar",
   shortcut_toggle_right_panel: "Toggle right panel",
@@ -475,7 +475,7 @@ export const en = {
   stash_destroy: "Destroy",
 
   canvas_empty_title: "No projects yet",
-  canvas_empty_action: "Add Project",
+  canvas_empty_action: "Add Project Folder…",
 } as const;
 
 export type TranslationKey = keyof typeof en;

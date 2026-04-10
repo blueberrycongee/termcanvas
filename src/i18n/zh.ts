@@ -169,7 +169,7 @@ export const zh = {
   zoom_out: "缩小",
   zoom_in: "放大",
 
-  shortcut_add_project: "添加项目",
+  shortcut_add_project: "添加项目目录…",
   shortcut_cycle_focus_level: "切换聚焦层级",
   shortcut_toggle_sidebar: "切换侧栏",
   shortcut_toggle_right_panel: "切换右侧面板",
@@ -467,5 +467,5 @@ export const zh = {
   stash_destroy: "销毁",
 
   canvas_empty_title: "还没有项目",
-  canvas_empty_action: "添加项目",
+  canvas_empty_action: "添加项目目录…",
 } as const;
