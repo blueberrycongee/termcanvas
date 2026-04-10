@@ -26,6 +26,7 @@ import { usePreferencesStore } from "../stores/preferencesStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSettingsModalStore } from "../stores/settingsModalStore";
 import {
+  getSpatialTerminalOrder,
   getTerminalFocusOrder,
   getWorktreeFocusOrder,
 } from "../stores/projectFocus";
@@ -44,10 +45,17 @@ function getAllTerminals() {
   return getTerminalFocusOrder(projects);
 }
 
-function getStarredTerminals() {
+// Spatial (top-left → bottom-right) order used by cmd+] / cmd+[ so prev/next
+// follows on-screen layout rather than array insertion order.
+function getAllTerminalsSpatial() {
   const { projects } = useProjectStore.getState();
-  const all = getTerminalFocusOrder(projects);
-  return all.filter((item) => {
+  return getSpatialTerminalOrder(projects);
+}
+
+function getStarredTerminalsSpatial() {
+  const { projects } = useProjectStore.getState();
+  const ordered = getSpatialTerminalOrder(projects);
+  return ordered.filter((item) => {
     const project = projects.find((p) => p.id === item.projectId);
     const worktree = project?.worktrees.find((w) => w.id === item.worktreeId);
     const terminal = worktree?.terminals.find((t) => t.id === item.terminalId);
@@ -475,7 +483,9 @@ export function useKeyboardShortcuts() {
         }
 
         const terminalList =
-          level === "starred" ? getStarredTerminals() : getAllTerminals();
+          level === "starred"
+            ? getStarredTerminalsSpatial()
+            : getAllTerminalsSpatial();
 
         if (terminalList.length === 0) return;
         const currentIndex = getFocusedTerminalIndex(terminalList);
@@ -509,7 +519,9 @@ export function useKeyboardShortcuts() {
         }
 
         const terminalList =
-          level === "starred" ? getStarredTerminals() : getAllTerminals();
+          level === "starred"
+            ? getStarredTerminalsSpatial()
+            : getAllTerminalsSpatial();
 
         if (terminalList.length === 0) return;
         const currentIndex = getFocusedTerminalIndex(terminalList);

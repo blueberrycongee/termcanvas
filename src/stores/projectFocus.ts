@@ -61,6 +61,55 @@ export function getTerminalFocusOrder(
 }
 
 /**
+ * Spatial (top-left → bottom-right) terminal order. Drives cmd+] / cmd+[
+ * navigation on the free canvas so "next terminal" follows what the user
+ * sees on screen instead of the insertion-order of the underlying arrays,
+ * which made sense on the old grid layout but is disorienting now that
+ * terminals can live anywhere.
+ *
+ * Sort key is (y asc, x asc, terminalId asc) — strict scanline order with
+ * the id as a deterministic tiebreaker. Stashed / minimized terminals are
+ * excluded the same way insertion order excludes them.
+ */
+export function getSpatialTerminalOrder(
+  projects: ProjectData[],
+): TerminalFocusOrderItem[] {
+  const entries: Array<
+    Omit<TerminalFocusOrderItem, "index"> & { x: number; y: number }
+  > = [];
+
+  for (const project of projects) {
+    for (const worktree of project.worktrees) {
+      for (const terminal of worktree.terminals) {
+        if (terminal.minimized || terminal.stashed) {
+          continue;
+        }
+        entries.push({
+          projectId: project.id,
+          worktreeId: worktree.id,
+          terminalId: terminal.id,
+          x: terminal.x,
+          y: terminal.y,
+        });
+      }
+    }
+  }
+
+  entries.sort((a, b) => {
+    if (a.y !== b.y) return a.y - b.y;
+    if (a.x !== b.x) return a.x - b.x;
+    return a.terminalId.localeCompare(b.terminalId);
+  });
+
+  return entries.map((entry, index) => ({
+    projectId: entry.projectId,
+    worktreeId: entry.worktreeId,
+    terminalId: entry.terminalId,
+    index,
+  }));
+}
+
+/**
  * Given the projects before and after a collapse, find the next visible
  * terminal to receive focus. Walks forward from the old focused position,
  * wrapping around if needed.
