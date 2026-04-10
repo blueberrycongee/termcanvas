@@ -1,28 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import { HandoffManager } from "../hydra/src/handoff/manager.ts";
-import type { Handoff } from "../hydra/src/handoff/types.ts";
-import {
-  validateSubAgentResult,
-} from "../hydra/src/protocol.ts";
-
-// Compatibility: main's telemetry uses validateResultContract/validateDoneMarker
-// which mapped to the old protocol. Provide thin wrappers.
-function validateResultContract(raw: unknown, handoff: { handoff_id: string; workflow_id: string; artifacts: { result_file: string } }): void {
-  // Best-effort: validate as SubAgentResult if it has the v2 schema, otherwise just check it parses
-  if (typeof raw === "object" && raw !== null && (raw as Record<string, unknown>).schema_version === "hydra/result/v2") {
-    validateSubAgentResult(raw, {
-      workflow_id: handoff.workflow_id,
-      assignment_id: handoff.handoff_id,
-      run_id: ((raw as Record<string, unknown>).run_id as string) ?? "",
-    });
-  }
-}
-
-function validateDoneMarker(_raw: unknown, _handoff: unknown): void {
-  // done markers are not part of the v2 protocol — accept any valid JSON
-}
-import { loadWorkflow } from "../hydra/src/workflow-store.ts";
+import { AssignmentManager } from "../hydra/src/assignment/manager.ts";
+import type { AssignmentRecord } from "../hydra/src/assignment/types.ts";
+import { validateSubAgentResult } from "../hydra/src/protocol.ts";
+import { loadWorkflow, type WorkflowRecord } from "../hydra/src/workflow-store.ts";
 import { getProcessSnapshot } from "./process-detector.ts";
 import { parseSessionTelemetryLine } from "./session-watcher.ts";
 import type {
@@ -83,7 +64,7 @@ interface RegisterTerminalInput {
   worktreePath: string;
   provider?: TelemetryProvider;
   workflowId?: string;
-  handoffId?: string;
+  assignmentId?: string;
   repoPath?: string;
   ptyId?: number | null;
   shellPid?: number | null;
@@ -94,7 +75,7 @@ interface UpdateTerminalInput {
   worktreePath?: string;
   provider?: TelemetryProvider;
   workflowId?: string;
-  handoffId?: string;
+  assignmentId?: string;
   repoPath?: string;
   ptyId?: number | null;
   shellPid?: number | null;
@@ -111,9 +92,7 @@ interface SessionAttachInput {
 
 interface ContractState {
   resultExists: boolean;
-  doneExists: boolean;
   resultValid?: boolean;
-  doneValid?: boolean;
   contractActivityAt?: string;
 }
 
@@ -200,8 +179,7 @@ export function deriveTelemetryStatus(
 
   if (
     snapshot.turn_state === "turn_complete" &&
-    snapshot.handoff_id &&
-    !snapshot.done_exists &&
+    snapshot.assignment_id &&
     !snapshot.result_exists
   ) {
     return "awaiting_contract";
@@ -334,7 +312,7 @@ function buildBaseSnapshot(
     worktree_path: input.worktreePath,
     provider: input.provider ?? "unknown",
     workflow_id: input.workflowId,
-    handoff_id: input.handoffId,
+    assignment_id: input.assignmentId,
     repo_path: input.repoPath,
     session_attached: false,
     session_attach_confidence: "none",
@@ -344,7 +322,6 @@ function buildBaseSnapshot(
     active_tool_calls: 0,
     task_status: "unknown",
     task_status_source: "none",
-    done_exists: false,
     result_exists: false,
     derived_status: "starting",
   };
@@ -394,7 +371,7 @@ export class TelemetryService {
     state.snapshot.worktree_path = input.worktreePath;
     state.snapshot.provider = input.provider ?? state.snapshot.provider;
     state.snapshot.workflow_id = input.workflowId ?? state.snapshot.workflow_id;
-    state.snapshot.handoff_id = input.handoffId ?? state.snapshot.handoff_id;
+    state.snapshot.assignment_id = input.assignmentId ?? state.snapshot.assignment_id;
     state.snapshot.repo_path = input.repoPath ?? state.snapshot.repo_path;
     if (input.ptyId !== undefined) {
       if (state.ptyId !== null && state.ptyId !== input.ptyId) {
@@ -421,7 +398,7 @@ export class TelemetryService {
       state.snapshot.provider = input.provider;
     }
     state.snapshot.workflow_id = input.workflowId ?? state.snapshot.workflow_id;
-    state.snapshot.handoff_id = input.handoffId ?? state.snapshot.handoff_id;
+    state.snapshot.assignment_id = input.assignmentId ?? state.snapshot.assignment_id;
     state.snapshot.repo_path = input.repoPath ?? state.snapshot.repo_path;
     if (input.ptyId !== undefined) {
       if (state.ptyId !== null && state.ptyId !== input.ptyId) {
@@ -816,56 +793,59 @@ export class TelemetryService {
     const workflow = loadWorkflow(repoPath, workflowId);
     if (!workflow) return null;
 
-    const handoffManager = new HandoffManager(repoPath);
-    const handoff = handoffManager.load(workflow.current_handoff_id);
-    if (!handoff) return null;
+    // Find the currently dispatched node's assignment
+    const dispatchedNodeId = Object.entries(workflow.node_statuses ?? {})
+      .find(([, s]) => s === "dispatched")?.[0];
+    const assignmentId = dispatchedNodeId
+      ? workflow.nodes?.[dispatchedNodeId]?.assignment_id
+      : workflow.assignment_ids?.[workflow.assignment_ids.length - 1];
+    if (!assignmentId) return null;
 
-    const terminalId = handoff.dispatch?.active_terminal_id ?? null;
+    const assignment = new AssignmentManager(repoPath, workflowId).load(assignmentId);
+    if (!assignment) return null;
+
+    const run = assignment.active_run_id
+      ? assignment.runs.find((r) => r.id === assignment.active_run_id)
+      : assignment.runs[assignment.runs.length - 1];
+    const terminalId = run?.terminal_id ?? null;
     const terminal = terminalId ? this.getTerminalSnapshot(terminalId) : null;
-    const contract = this.probeContractState(handoff);
+    const contract = this.probeContractState(assignment, workflowId);
     const lastMeaningfulProgressAt = latestIso(
       terminal?.last_meaningful_progress_at,
       contract.contractActivityAt,
     );
 
-    const startedAt =
-      handoff.dispatch?.attempts.at(-1)?.started_at ?? workflow.updated_at;
+    const startedAt = run?.started_at ?? workflow.updated_at;
     const startedMs = new Date(startedAt).getTime();
+    const timeoutMinutes = assignment.timeout_minutes ?? workflow.default_timeout_minutes;
     const deadlineMs =
-      Number.isFinite(startedMs) && typeof handoff.timeout_minutes === "number"
-        ? startedMs + handoff.timeout_minutes * 60_000
+      Number.isFinite(startedMs) && typeof timeoutMinutes === "number"
+        ? startedMs + timeoutMinutes * 60_000
         : undefined;
 
     return {
       workflow_id: workflow.id,
       repo_path: workflow.repo_path,
       workflow_status: workflow.status,
-      current_handoff_id: handoff.id,
+      current_assignment_id: assignment.id,
       terminal_id: terminalId,
       terminal,
       contract: {
         result_exists: contract.resultExists,
-        done_exists: contract.doneExists,
         result_valid: contract.resultValid,
-        done_valid: contract.doneValid,
         contract_activity_at: contract.contractActivityAt,
       },
       last_meaningful_progress_at: lastMeaningfulProgressAt,
       retry_budget: {
-        used: handoff.retry_count,
-        max: handoff.max_retries,
-        remaining: Math.max(0, handoff.max_retries - handoff.retry_count),
+        used: assignment.retry_count,
+        max: assignment.max_retries,
+        remaining: Math.max(0, assignment.max_retries - assignment.retry_count),
       },
       timeout_budget: {
-        minutes: handoff.timeout_minutes ?? workflow.timeout_minutes,
+        minutes: timeoutMinutes,
         started_at: startedAt,
-        deadline_at: deadlineMs
-          ? new Date(deadlineMs).toISOString()
-          : undefined,
-        remaining_ms:
-          deadlineMs !== undefined
-            ? Math.max(0, deadlineMs - this.now())
-            : undefined,
+        deadline_at: deadlineMs ? new Date(deadlineMs).toISOString() : undefined,
+        remaining_ms: deadlineMs !== undefined ? Math.max(0, deadlineMs - this.now()) : undefined,
       },
       advisory_status: terminal?.derived_status ?? "unavailable",
     };
@@ -1148,7 +1128,7 @@ export class TelemetryService {
       at: at ?? isoNow(this.now),
       terminal_id: state.snapshot.terminal_id,
       workflow_id: state.snapshot.workflow_id,
-      handoff_id: state.snapshot.handoff_id,
+      assignment_id: state.snapshot.assignment_id,
       source,
       kind,
       data,
@@ -1159,126 +1139,73 @@ export class TelemetryService {
     }
   }
 
-  private probeContractState(handoff: Handoff): ContractState {
-    const artifacts = handoff.artifacts;
-    if (!artifacts) {
-      return {
-        resultExists: false,
-        doneExists: false,
-      };
+  private probeContractState(assignment: AssignmentRecord, workflowId: string): ContractState {
+    const run = assignment.active_run_id
+      ? assignment.runs.find((r) => r.id === assignment.active_run_id)
+      : assignment.runs[assignment.runs.length - 1];
+    if (!run) {
+      return { resultExists: false };
     }
 
-    const resultExists = fs.existsSync(artifacts.result_file);
-    const doneExists = fs.existsSync(artifacts.done_file);
+    const resultExists = fs.existsSync(run.result_file);
     let resultValid: boolean | undefined;
-    let doneValid: boolean | undefined;
-    const handoffContract = {
-      handoff_id: handoff.id,
-      workflow_id: handoff.workflow_id,
-      artifacts,
-    };
 
     if (resultExists) {
       try {
-        const raw = JSON.parse(fs.readFileSync(artifacts.result_file, "utf-8"));
-        validateResultContract(raw, handoffContract);
+        const raw = JSON.parse(fs.readFileSync(run.result_file, "utf-8"));
+        validateSubAgentResult(raw, {
+          workflow_id: workflowId,
+          assignment_id: assignment.id,
+          run_id: run.id,
+        });
         resultValid = true;
       } catch {
         resultValid = false;
       }
     }
 
-    if (doneExists) {
-      try {
-        const raw = JSON.parse(fs.readFileSync(artifacts.done_file, "utf-8"));
-        validateDoneMarker(raw, handoffContract);
-        doneValid = true;
-      } catch {
-        doneValid = false;
-      }
-    }
-
     return {
       resultExists,
-      doneExists,
       resultValid,
-      doneValid,
-      contractActivityAt: latestIso(
-        safeMtime(artifacts.result_file),
-        safeMtime(artifacts.done_file),
-      ),
+      contractActivityAt: safeMtime(run.result_file),
     };
   }
 
   private syncContractState(state: TerminalState): void {
-    if (!state.snapshot.repo_path || !state.snapshot.handoff_id) {
+    if (!state.snapshot.repo_path || !state.snapshot.assignment_id || !state.snapshot.workflow_id) {
       return;
     }
 
-    const handoff = new HandoffManager(state.snapshot.repo_path).load(
-      state.snapshot.handoff_id,
-    );
-    if (!handoff) {
-      return;
-    }
+    const assignment = new AssignmentManager(
+      state.snapshot.repo_path, state.snapshot.workflow_id,
+    ).load(state.snapshot.assignment_id);
+    if (!assignment) return;
 
-    const contract = this.probeContractState(handoff);
+    const contract = this.probeContractState(assignment, state.snapshot.workflow_id);
     const contractKey = JSON.stringify(contract);
     const previousActivityAt = state.snapshot.contract_activity_at;
 
     state.snapshot.result_exists = contract.resultExists;
-    state.snapshot.done_exists = contract.doneExists;
     state.snapshot.result_valid = contract.resultValid;
-    state.snapshot.done_valid = contract.doneValid;
     state.snapshot.contract_activity_at = contract.contractActivityAt;
 
     if (contractKey !== state.lastContractKey) {
       state.lastContractKey = contractKey;
       if (contract.contractActivityAt) {
-        state.snapshot.last_meaningful_progress_at =
-          contract.contractActivityAt;
+        state.snapshot.last_meaningful_progress_at = contract.contractActivityAt;
       }
 
       if (contract.resultExists) {
-        this.appendEvent(
-          state,
-          contract.contractActivityAt,
-          "contract",
-          "result_written",
-          {},
-        );
+        this.appendEvent(state, contract.contractActivityAt, "contract", "result_written", {});
       }
-      if (contract.doneExists) {
-        this.appendEvent(
-          state,
-          contract.contractActivityAt,
-          "contract",
-          "done_written",
-          {},
-        );
-      }
-      if (contract.resultValid === false || contract.doneValid === false) {
-        this.appendEvent(
-          state,
-          contract.contractActivityAt,
-          "contract",
-          "contract_invalid",
-          {
-            result_valid: contract.resultValid ?? null,
-            done_valid: contract.doneValid ?? null,
-          },
-        );
-      } else if (contract.resultValid || contract.doneValid) {
-        this.appendEvent(
-          state,
-          contract.contractActivityAt,
-          "contract",
-          "contract_validated",
-          {
-            result_valid: contract.resultValid ?? null,
-            done_valid: contract.doneValid ?? null,
-          },
-        );
+      if (contract.resultValid === false) {
+        this.appendEvent(state, contract.contractActivityAt, "contract", "contract_invalid", {
+          result_valid: false,
+        });
+      } else if (contract.resultValid) {
+        this.appendEvent(state, contract.contractActivityAt, "contract", "contract_validated", {
+          result_valid: true,
+        });
       }
     } else if (
       contract.contractActivityAt &&

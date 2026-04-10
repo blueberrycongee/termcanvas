@@ -309,7 +309,7 @@ function setupIpc() {
         terminalType?: string;
         theme?: "dark" | "light";
         workflowId?: string;
-        handoffId?: string;
+        assignmentId?: string;
         repoPath?: string;
       },
     ) => {
