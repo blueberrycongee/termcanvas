@@ -213,19 +213,32 @@ function WorktreeRow({
         role="button"
         tabIndex={0}
         className="group w-full flex items-center gap-1.5 pl-4 pr-1 py-1 text-left cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors"
-        onClick={() => {
-          handleActivate();
-          toggle(group.worktreeId);
-        }}
+        onClick={handleActivate}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
             handleActivate();
-            toggle(group.worktreeId);
           }
         }}
+        onContextMenu={() => {
+          // Right-click should still focus the row even though the worktree
+          // context menu was removed in favor of the hover X button — so a
+          // subsequent cmd+t targets the row the user just right-clicked.
+          handleActivate();
+        }}
       >
-        <ChevronIcon open={!collapsed} />
+        <span
+          role="button"
+          tabIndex={-1}
+          aria-label={collapsed ? "Expand" : "Collapse"}
+          className="shrink-0 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+          onClick={(e) => {
+            e.stopPropagation();
+            toggle(group.worktreeId);
+          }}
+        >
+          <ChevronIcon open={!collapsed} />
+        </span>
         <span className="text-[10px] text-[var(--text-muted)] truncate flex-1 min-w-0">
           {group.worktreeName}
         </span>
@@ -377,24 +390,35 @@ function ProjectRow({
         role="button"
         tabIndex={0}
         className="group w-full flex items-center gap-1.5 px-3 py-1 text-left cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors"
-        onClick={() => {
-          handleActivate();
-          toggle(project.projectId);
-        }}
+        onClick={handleActivate}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
             handleActivate();
-            toggle(project.projectId);
           }
         }}
         onContextMenu={(e) => {
           e.preventDefault();
           e.stopPropagation();
+          // Focus this project before the menu opens, matching macOS Finder /
+          // VS Code semantics — otherwise cmd+t after dismissing the menu
+          // targets whichever row was previously active.
+          handleActivate();
           setMenu({ x: e.clientX, y: e.clientY });
         }}
       >
-        <ChevronIcon open={!collapsed} />
+        <span
+          role="button"
+          tabIndex={-1}
+          aria-label={collapsed ? "Expand" : "Collapse"}
+          className="shrink-0 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+          onClick={(e) => {
+            e.stopPropagation();
+            toggle(project.projectId);
+          }}
+        >
+          <ChevronIcon open={!collapsed} />
+        </span>
         <span className="text-[11px] font-medium truncate flex-1 min-w-0">
           {project.projectName}
         </span>
