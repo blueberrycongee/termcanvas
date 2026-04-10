@@ -176,7 +176,6 @@ export const en = {
 
   shortcut_add_project: "Add project",
   shortcut_cycle_focus_level: "Cycle focus level",
-  shortcut_compact_focused_project: "Compact focused project",
   shortcut_toggle_sidebar: "Toggle sidebar",
   shortcut_toggle_right_panel: "Toggle right panel",
   shortcut_new_terminal: "New terminal",

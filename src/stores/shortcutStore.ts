@@ -4,7 +4,6 @@ import { hasPrimaryModifier } from "../hooks/shortcutTarget.ts";
 export interface ShortcutMap {
   addProject: string;
   cycleFocusLevel: string;
-  compactFocusedProject: string;
   newTerminal: string;
   saveWorkspace: string;
   saveWorkspaceAs: string;
@@ -24,7 +23,6 @@ export interface ShortcutMap {
 const LEGACY_DEFAULT_SHORTCUTS: ShortcutMap = {
   addProject: "mod+o",
   cycleFocusLevel: "mod+g",
-  compactFocusedProject: "mod+shift+g",
   newTerminal: "mod+t",
   saveWorkspace: "mod+s",
   saveWorkspaceAs: "mod+shift+s",
@@ -44,7 +42,6 @@ const LEGACY_DEFAULT_SHORTCUTS: ShortcutMap = {
 const ALT_DEFAULT_SHORTCUTS: ShortcutMap = {
   addProject: "alt+o",
   cycleFocusLevel: "alt+g",
-  compactFocusedProject: "alt+shift+g",
   newTerminal: "alt+t",
   saveWorkspace: "alt+s",
   saveWorkspaceAs: "alt+shift+s",
