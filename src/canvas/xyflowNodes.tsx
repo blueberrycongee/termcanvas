@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   type Node,
   type NodeProps,
@@ -28,7 +28,8 @@ function snapTo(value: number, grid: number): number {
 
 type TerminalFlowNode = Node<TerminalNodeData, "terminal">;
 
-function TerminalNode({ data, selected = false }: NodeProps<TerminalFlowNode>) {
+function TerminalNode({ data }: NodeProps<TerminalFlowNode>) {
+  const [hovered, setHovered] = useState(false);
   const viewport = useCanvasStore((state) => state.viewport);
   const rightPanelCollapsed = useCanvasStore(
     (state) => state.rightPanelCollapsed,
@@ -176,9 +177,13 @@ function TerminalNode({ data, selected = false }: NodeProps<TerminalFlowNode>) {
   }
 
   return (
-    <div className="h-full w-full">
+    <div
+      className="h-full w-full"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <NodeResizer
-        isVisible={selected}
+        isVisible={hovered}
         minWidth={300}
         minHeight={200}
         handleStyle={{
