@@ -16,6 +16,7 @@ import {
 } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { ContextMenu } from "../components/ContextMenu";
+import { TagManager } from "./TagManager";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { getTerminalHeaderContextLabel } from "../stores/terminalState";
@@ -175,6 +176,10 @@ export function TerminalTile({
   height,
 }: Props) {
   const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [tagManager, setTagManager] = useState<{
     x: number;
     y: number;
   } | null>(null);
@@ -992,6 +997,11 @@ export function TerminalTile({
                 onClick: () =>
                   stashTerminalInScene(projectId, worktreeId, terminal.id),
               },
+              {
+                label: "Tags…",
+                onClick: () =>
+                  setTagManager({ x: contextMenu.x, y: contextMenu.y }),
+              },
               ...((terminal.type === "claude" || terminal.type === "codex") &&
               liveTerminal.sessionId
                 ? [
@@ -1010,6 +1020,19 @@ export function TerminalTile({
                 : []),
             ]}
             onClose={() => setContextMenu(null)}
+          />,
+          document.body,
+        )}
+
+      {tagManager &&
+        createPortal(
+          <TagManager
+            projectId={projectId}
+            worktreeId={worktreeId}
+            terminalId={terminal.id}
+            clientX={tagManager.x}
+            clientY={tagManager.y}
+            onClose={() => setTagManager(null)}
           />,
           document.body,
         )}
