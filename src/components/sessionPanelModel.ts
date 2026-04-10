@@ -409,8 +409,6 @@ export function buildProjectTree(
         });
       }
 
-      if (terminals.length === 0) continue;
-
       worktreeGroups.push({
         worktreeId: worktree.id,
         worktreeName: worktree.name,
@@ -420,8 +418,6 @@ export function buildProjectTree(
         terminals,
       });
     }
-
-    if (worktreeGroups.length === 0) continue;
 
     const allTerminals = worktreeGroups.flatMap((wt) => wt.terminals);
 
