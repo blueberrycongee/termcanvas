@@ -2,6 +2,26 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.27.2] - 2026-04-11
+
+### Added
+- Terminal tiles can now use the first real user prompt from telemetry as the default title, so new Codex/agent sessions are easier to distinguish in the canvas and sessions panel
+
+### Fixed
+- Telemetry title extraction now skips injected context so agent terminals do not pick a synthetic bootstrap message as the visible title
+- Sessions wait one poll cycle before accepting Codex session data and reject the baseline session, reducing false-positive terminal matches during initial discovery
+- Terminal resize handles now appear on hover instead of only on selected tiles, making free-resize discoverable without bringing back the always-on frame
+- Cmd+T placement now anchors from the focused terminal when possible, keeping new terminals closer to the user’s current working area
+
+### Added (zh-CN)
+- 终端瓦片现在可以把遥测中的第一条真实用户消息作为默认标题，因此新的 Codex/agent 会话在画布和会话面板里更容易区分
+
+### Fixed (zh-CN)
+- 遥测标题提取现在会跳过注入的上下文，避免 agent 终端把启动时的合成引导消息显示成可见标题
+- 会话发现现在会先延后一轮轮询再接受 Codex 会话数据，并过滤基线会话，减少初始化阶段的误匹配
+- 终端尺寸调节手柄改为 hover 时显示，而不是只在选中 tile 时显示，让自由调整尺寸更容易被发现，同时不再恢复常驻外框
+- Cmd+T 放置新终端时会优先以当前聚焦终端为锚点，让新 terminal 更接近用户当前的工作区域
+
 ## [0.27.1] - 2026-04-11
 
 ### Fixed
