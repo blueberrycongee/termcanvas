@@ -19,6 +19,98 @@ export interface WorktreeFocusOrderItem {
   index: number;
 }
 
+interface SpatialTerminalEntry extends Omit<TerminalFocusOrderItem, "index"> {
+  x: number;
+  y: number;
+  height: number;
+}
+
+interface VisualRow {
+  entries: SpatialTerminalEntry[];
+  anchorY: number;
+  averageHeight: number;
+}
+
+const MIN_VISUAL_ROW_TOLERANCE = 48;
+const VISUAL_ROW_TOLERANCE_FACTOR = 0.35;
+
+function sortByTopLeft(a: SpatialTerminalEntry, b: SpatialTerminalEntry): number {
+  if (a.y !== b.y) return a.y - b.y;
+  if (a.x !== b.x) return a.x - b.x;
+  return a.terminalId.localeCompare(b.terminalId);
+}
+
+function getVisualRowTolerance(
+  rowHeight: number,
+  entryHeight: number,
+): number {
+  const shorterHeight = Math.max(1, Math.min(rowHeight, entryHeight));
+  return Math.max(
+    MIN_VISUAL_ROW_TOLERANCE,
+    shorterHeight * VISUAL_ROW_TOLERANCE_FACTOR,
+  );
+}
+
+function findVisualRow(
+  rows: VisualRow[],
+  entry: SpatialTerminalEntry,
+): VisualRow | null {
+  let bestRow: VisualRow | null = null;
+  let bestDelta = Infinity;
+
+  for (const row of rows) {
+    const delta = Math.abs(entry.y - row.anchorY);
+    if (delta > getVisualRowTolerance(row.averageHeight, entry.height)) {
+      continue;
+    }
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      bestRow = row;
+    }
+  }
+
+  return bestRow;
+}
+
+function buildVisualRows(entries: SpatialTerminalEntry[]): VisualRow[] {
+  const rows: VisualRow[] = [];
+
+  for (const entry of [...entries].sort(sortByTopLeft)) {
+    const row = findVisualRow(rows, entry);
+    if (!row) {
+      rows.push({
+        entries: [entry],
+        anchorY: entry.y,
+        averageHeight: entry.height,
+      });
+      continue;
+    }
+
+    row.entries.push(entry);
+    const count = row.entries.length;
+    row.anchorY = (row.anchorY * (count - 1) + entry.y) / count;
+    row.averageHeight =
+      (row.averageHeight * (count - 1) + entry.height) / count;
+  }
+
+  rows.sort((a, b) => {
+    if (a.anchorY !== b.anchorY) return a.anchorY - b.anchorY;
+    const aLeft = Math.min(...a.entries.map((entry) => entry.x));
+    const bLeft = Math.min(...b.entries.map((entry) => entry.x));
+    if (aLeft !== bLeft) return aLeft - bLeft;
+    return a.entries[0]!.terminalId.localeCompare(b.entries[0]!.terminalId);
+  });
+
+  for (const row of rows) {
+    row.entries.sort((a, b) => {
+      if (a.x !== b.x) return a.x - b.x;
+      return sortByTopLeft(a, b);
+    });
+  }
+
+  return rows;
+}
+
 export function getWorktreeFocusOrder(
   projects: ProjectData[],
 ): WorktreeFocusOrderItem[] {
@@ -61,22 +153,20 @@ export function getTerminalFocusOrder(
 }
 
 /**
- * Spatial (top-left → bottom-right) terminal order. Drives cmd+] / cmd+[
- * navigation on the free canvas so "next terminal" follows what the user
- * sees on screen instead of the insertion-order of the underlying arrays,
- * which made sense on the old grid layout but is disorienting now that
- * terminals can live anywhere.
+ * Visual reading order for free-canvas terminals. Drives cmd+] / cmd+[
+ * navigation so "next terminal" follows what users perceive as rows instead
+ * of the raw top-left y-coordinate of each tile.
  *
- * Sort key is (y asc, x asc, terminalId asc) — strict scanline order with
- * the id as a deterministic tiebreaker. Stashed / minimized terminals are
- * excluded the same way insertion order excludes them.
+ * The old strict scanline order `(y, x)` was too brittle: if one terminal in
+ * a visually aligned row sat a bit lower than its neighbors, it would be
+ * kicked to the end of the traversal. To match the on-canvas layout better,
+ * we first group terminals into rows using a top-edge tolerance relative to
+ * tile height, then sort left-to-right inside each row.
  */
 export function getSpatialTerminalOrder(
   projects: ProjectData[],
 ): TerminalFocusOrderItem[] {
-  const entries: Array<
-    Omit<TerminalFocusOrderItem, "index"> & { x: number; y: number }
-  > = [];
+  const entries: SpatialTerminalEntry[] = [];
 
   for (const project of projects) {
     for (const worktree of project.worktrees) {
@@ -90,18 +180,15 @@ export function getSpatialTerminalOrder(
           terminalId: terminal.id,
           x: terminal.x,
           y: terminal.y,
+          height: terminal.height,
         });
       }
     }
   }
 
-  entries.sort((a, b) => {
-    if (a.y !== b.y) return a.y - b.y;
-    if (a.x !== b.x) return a.x - b.x;
-    return a.terminalId.localeCompare(b.terminalId);
-  });
+  const orderedEntries = buildVisualRows(entries).flatMap((row) => row.entries);
 
-  return entries.map((entry, index) => ({
+  return orderedEntries.map((entry, index) => ({
     projectId: entry.projectId,
     worktreeId: entry.worktreeId,
     terminalId: entry.terminalId,

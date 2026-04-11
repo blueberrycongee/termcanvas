@@ -47,8 +47,8 @@ function getAllTerminals() {
   return getTerminalFocusOrder(projects);
 }
 
-// Spatial (top-left → bottom-right) order used by cmd+] / cmd+[ so prev/next
-// follows on-screen layout rather than array insertion order.
+// Visual reading order used by cmd+] / cmd+[ so prev/next follows perceived
+// rows on the canvas rather than raw array order or strict top-left scanlines.
 function getAllTerminalsSpatial() {
   const { projects } = useProjectStore.getState();
   return getSpatialTerminalOrder(projects);

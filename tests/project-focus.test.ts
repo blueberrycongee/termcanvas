@@ -156,7 +156,7 @@ function spatialFixture(terminals: TerminalData[]): ProjectData[] {
   ];
 }
 
-test("getSpatialTerminalOrder sorts by y then x", () => {
+test("getSpatialTerminalOrder sorts distinct rows by y then x", () => {
   const projects = spatialFixture([
     makeTerminal("c", 500, 300),
     makeTerminal("a", 100, 0),
@@ -168,6 +168,32 @@ test("getSpatialTerminalOrder sorts by y then x", () => {
 
   // row y=0: a (x=100), b (x=600); row y=300: d (x=100), c (x=500)
   assert.deepEqual(order, ["a", "b", "d", "c"]);
+});
+
+test("getSpatialTerminalOrder keeps a visually aligned row in left-to-right order despite y jitter", () => {
+  const projects = spatialFixture([
+    makeTerminal("1", 100, 0),
+    makeTerminal("2", 600, 0),
+    makeTerminal("3", 1100, 0),
+    makeTerminal("4", 620, 420),
+    makeTerminal("5", 1120, 425),
+    makeTerminal("6", 100, 485),
+  ]);
+
+  const order = getSpatialTerminalOrder(projects).map((i) => i.terminalId);
+
+  assert.deepEqual(order, ["1", "2", "3", "6", "4", "5"]);
+});
+
+test("getSpatialTerminalOrder starts a new row once vertical offset exceeds row tolerance", () => {
+  const projects = spatialFixture([
+    makeTerminal("upper-right", 500, 0),
+    makeTerminal("lower-left", 0, 140),
+  ]);
+
+  const order = getSpatialTerminalOrder(projects).map((i) => i.terminalId);
+
+  assert.deepEqual(order, ["upper-right", "lower-left"]);
 });
 
 test("getSpatialTerminalOrder uses terminalId as deterministic tiebreaker", () => {
