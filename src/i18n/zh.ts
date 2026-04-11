@@ -478,6 +478,7 @@ export const zh = {
   panel_branch_name_placeholder: "分支名",
   panel_worktree_created: (name: string) => `已创建 Worktree "${name}"`,
   panel_worktree_create_failed: (err: string) => `创建 Worktree 失败:${err}`,
+  right_panel_collapse: "收起面板",
   panel_worktree_remove_title: "要移除 Worktree 吗?",
   panel_worktree_remove_confirm: (name: string) => `要移除 Worktree "${name}" 吗?`,
   panel_worktree_remove_confirm_with_terminals: (name: string, count: number) =>

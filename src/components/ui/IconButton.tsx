@@ -36,8 +36,13 @@ interface Props
 }
 
 const sizeClass: Record<IconButtonSize, string> = {
-  sm: "p-0.5 rounded",
-  md: "p-1 rounded",
+  // sm is for very dense rows (tree rows). Padding is p-1 around a ~10px
+  // icon ≈ 18px hit area — denser than ideal but consistent with the
+  // existing tree visual density.
+  sm: "p-1 rounded",
+  // md is the default for standalone buttons. p-1.5 around a ~12px icon
+  // ≈ 24px hit area, satisfying the touch-target floor (P5).
+  md: "p-1.5 rounded",
 };
 
 const toneClass: Record<IconButtonTone, string> = {

@@ -6,6 +6,7 @@ import { useProjectStore } from "../stores/projectStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { ContextMenu } from "./ContextMenu";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { IconButton } from "./ui/IconButton";
 import { createTerminalInScene } from "../actions/terminalSceneActions";
 import { activateWorktreeInScene } from "../actions/sceneSelectionActions";
 import { StatusBadges } from "./StatusBadges";
@@ -27,6 +28,19 @@ function PlusIcon() {
     >
       <path
         d="M6 2V10M2 6H10"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+      <path
+        d="M2 2L8 8M8 2L2 8"
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
@@ -285,38 +299,31 @@ function WorktreeRow({
           {group.worktreeName}
         </span>
         {collapsed && <StatusBadges summary={group.statusSummary} />}
-        <button
-          type="button"
-          title={t.panel_new_terminal_shell}
-          aria-label={t.panel_new_terminal_shell}
+        <IconButton
+          size="sm"
+          tone="neutral"
+          label={t.panel_new_terminal_shell}
+          className="opacity-0 group-hover:opacity-100 transition-opacity"
           onClick={(e) => {
             e.stopPropagation();
             handleNewTerminal("shell");
           }}
-          className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--border)]"
         >
           <PlusIcon />
-        </button>
+        </IconButton>
         {!group.isMain && (
-          <button
-            type="button"
-            title={t.panel_remove_worktree}
-            aria-label={t.panel_remove_worktree}
+          <IconButton
+            size="sm"
+            tone="danger"
+            label={t.panel_remove_worktree}
+            className="opacity-0 group-hover:opacity-100 transition-opacity"
             onClick={(e) => {
               e.stopPropagation();
               openRemoveDialog();
             }}
-            className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-[var(--text-muted)] hover:text-red-400 hover:bg-[var(--border)] shrink-0"
           >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path
-                d="M2 2L8 8M8 2L2 8"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
+            <CloseIcon />
+          </IconButton>
         )}
       </div>
       {!collapsed && (
@@ -484,18 +491,18 @@ function ProjectRow({
           {project.projectName}
         </span>
         <StatusBadges summary={project.statusSummary} />
-        <button
-          type="button"
-          title={t.panel_new_terminal}
-          aria-label={t.panel_new_terminal}
+        <IconButton
+          size="sm"
+          tone="neutral"
+          label={t.panel_new_terminal}
+          className="opacity-0 group-hover:opacity-100 transition-opacity"
           onClick={(e) => {
             e.stopPropagation();
             handleNewTerminal();
           }}
-          className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--border)]"
         >
           <PlusIcon />
-        </button>
+        </IconButton>
       </div>
       {!collapsed && creating && (
         <NewWorktreeInput

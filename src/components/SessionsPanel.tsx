@@ -20,6 +20,7 @@ import {
 import { useCompletionSeenStore } from "../stores/completionSeenStore";
 import { promptAndAddProjectToScene } from "../canvas/sceneCommands";
 import { closeTerminalInScene } from "../actions/terminalSceneActions";
+import { IconButton } from "./ui/IconButton";
 
 const STATUS_COLORS: Record<CanvasTerminalState, string> = {
   attention: "#ef4444",
@@ -149,15 +150,15 @@ function TerminalCard({
           {subtitleParts.join(" · ")}
         </div>
       </div>
-      <button
-        type="button"
-        title={t.panel_close_terminal}
-        aria-label={t.panel_close_terminal}
+      <IconButton
+        size="sm"
+        tone="danger"
+        label={t.panel_close_terminal}
+        className="opacity-0 group-hover:opacity-100 transition-opacity"
         onClick={(e) => {
           e.stopPropagation();
           closeTerminalInScene(item.projectId, item.worktreeId, item.terminalId);
         }}
-        className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-[var(--text-muted)] hover:text-red-400 hover:bg-[var(--border)] shrink-0"
       >
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
           <path
@@ -167,7 +168,7 @@ function TerminalCard({
             strokeLinecap="round"
           />
         </svg>
-      </button>
+      </IconButton>
     </div>
   );
 }
@@ -426,12 +427,11 @@ export function SessionsPanel() {
         >
           {t.sessions_panel_title}
         </span>
-        <button
-          type="button"
+        <IconButton
+          size="md"
+          tone="neutral"
+          label={t.shortcut_add_project}
           onClick={handleAddProject}
-          title={t.shortcut_add_project}
-          aria-label={t.shortcut_add_project}
-          className="p-0.5 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--border)] transition-colors"
         >
           <svg
             width="12"
@@ -447,7 +447,7 @@ export function SessionsPanel() {
               strokeLinecap="round"
             />
           </svg>
-        </button>
+        </IconButton>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto">
         <ProjectTree

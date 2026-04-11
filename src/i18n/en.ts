@@ -487,6 +487,7 @@ export const en = {
   panel_worktree_created: (name: string) => `Worktree "${name}" created`,
   panel_worktree_create_failed: (err: string) =>
     `Failed to create worktree: ${err}`,
+  right_panel_collapse: "Collapse panel",
   panel_worktree_remove_title: "Remove worktree?",
   panel_worktree_remove_confirm: (name: string) => `Remove worktree "${name}"?`,
   panel_worktree_remove_confirm_with_terminals: (name: string, count: number) =>
