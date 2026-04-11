@@ -1,3 +1,4 @@
+import { useCanvasStore } from "../stores/canvasStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { generateId, useProjectStore } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
@@ -106,8 +107,19 @@ export async function addProjectFromDirectoryPath(
   }
 
   const { projects, addProject } = useProjectStore.getState();
+  const wasEmpty = projects.length === 0;
   const project = buildProjectFromScan(info);
   addProject(project);
+
+  // When the canvas is empty, dropping a project only registers it in
+  // state — there is no visible change on the canvas itself. Auto-open
+  // the right-side sessions panel so the user can actually see the new
+  // project/worktree tree and pick where to launch a terminal.
+  if (wasEmpty) {
+    const canvas = useCanvasStore.getState();
+    canvas.setRightPanelActiveTab("sessions");
+    canvas.setRightPanelCollapsed(false);
+  }
 
   if (options.notifyAdded) {
     useNotificationStore
