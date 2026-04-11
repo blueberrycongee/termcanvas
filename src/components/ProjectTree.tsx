@@ -5,6 +5,7 @@ import { useSessionPanelCollapseStore } from "../stores/sessionPanelCollapseStor
 import { useProjectStore } from "../stores/projectStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { ContextMenu } from "./ContextMenu";
+import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { createTerminalInScene } from "../actions/terminalSceneActions";
 import { activateWorktreeInScene } from "../actions/sceneSelectionActions";
 import { StatusBadges } from "./StatusBadges";
@@ -168,33 +169,53 @@ function WorktreeRow({
     activateWorktreeInScene(project.id, group.worktreeId);
   };
 
-  const handleRemove = async () => {
-    if (group.isMain) return;
-    const runningCount = group.terminals.length;
-    const warning =
-      runningCount > 0
-        ? t.panel_worktree_remove_confirm_with_terminals(
-            group.worktreeName,
-            runningCount,
-          )
-        : t.panel_worktree_remove_confirm(group.worktreeName);
-    if (!window.confirm(warning)) return;
+  // Two-stage remove flow (P8):
+  //   stage="soft"  → first confirmation, calls remove without --force
+  //   stage="force" → only reached if git refused because of dirty files;
+  //                   second confirmation explicitly names what will be lost
+  //                   before calling remove with --force
+  // null = no dialog open.
+  const [removeStage, setRemoveStage] = useState<"soft" | "force" | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
 
+  const openRemoveDialog = () => {
+    if (group.isMain) return;
+    setRemoveStage("soft");
+  };
+
+  const closeRemoveDialog = () => {
+    if (removeBusy) return;
+    setRemoveStage(null);
+  };
+
+  const performRemove = async (force: boolean) => {
+    setRemoveBusy(true);
     try {
       const result = await window.termcanvas.project.removeWorktree(
         projectPath,
         group.worktreePath,
+        force,
       );
       if (result.ok) {
         useProjectStore.getState().syncWorktrees(projectPath, result.worktrees);
         useNotificationStore
           .getState()
           .notify("info", t.panel_worktree_removed(group.worktreeName));
-      } else {
-        useNotificationStore
-          .getState()
-          .notify("error", t.panel_worktree_remove_failed(result.error));
+        setRemoveStage(null);
+        return;
       }
+      // Soft remove failed — if git refused because the worktree is dirty,
+      // escalate to the force-confirmation dialog so the user gets a real
+      // chance to opt in. Any other failure mode bubbles to the toast.
+      const dirty = /contains modified or untracked files/i.test(result.error);
+      if (!force && dirty) {
+        setRemoveStage("force");
+        return;
+      }
+      useNotificationStore
+        .getState()
+        .notify("error", t.panel_worktree_remove_failed(result.error));
+      setRemoveStage(null);
     } catch (err) {
       useNotificationStore
         .getState()
@@ -204,8 +225,29 @@ function WorktreeRow({
             err instanceof Error ? err.message : String(err),
           ),
         );
+      setRemoveStage(null);
+    } finally {
+      setRemoveBusy(false);
     }
   };
+
+  const removeDialogTitle =
+    removeStage === "force"
+      ? t.panel_worktree_force_remove_title
+      : t.panel_worktree_remove_title;
+  const removeDialogBody =
+    removeStage === "force"
+      ? t.panel_worktree_force_remove_body(group.worktreeName)
+      : group.terminals.length > 0
+        ? t.panel_worktree_remove_confirm_with_terminals(
+            group.worktreeName,
+            group.terminals.length,
+          )
+        : t.panel_worktree_remove_confirm(group.worktreeName);
+  const removeDialogConfirmLabel =
+    removeStage === "force"
+      ? t.panel_worktree_force_remove_button
+      : t.panel_worktree_remove_button;
 
   return (
     <div>
@@ -262,7 +304,7 @@ function WorktreeRow({
             aria-label={t.panel_remove_worktree}
             onClick={(e) => {
               e.stopPropagation();
-              void handleRemove();
+              openRemoveDialog();
             }}
             className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-[var(--text-muted)] hover:text-red-400 hover:bg-[var(--border)] shrink-0"
           >
@@ -284,6 +326,19 @@ function WorktreeRow({
           ))}
         </div>
       )}
+      <ConfirmDialog
+        open={removeStage !== null}
+        title={removeDialogTitle}
+        body={removeDialogBody}
+        confirmLabel={removeDialogConfirmLabel}
+        busyLabel={t.panel_worktree_force_remove_busy}
+        confirmTone="danger"
+        busy={removeBusy}
+        onCancel={closeRemoveDialog}
+        onConfirm={() => {
+          void performRemove(removeStage === "force");
+        }}
+      />
     </div>
   );
 }

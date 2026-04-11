@@ -478,11 +478,18 @@ export const zh = {
   panel_branch_name_placeholder: "分支名",
   panel_worktree_created: (name: string) => `已创建 Worktree "${name}"`,
   panel_worktree_create_failed: (err: string) => `创建 Worktree 失败:${err}`,
+  panel_worktree_remove_title: "要移除 Worktree 吗?",
   panel_worktree_remove_confirm: (name: string) => `要移除 Worktree "${name}" 吗?`,
   panel_worktree_remove_confirm_with_terminals: (name: string, count: number) =>
     `这个 Worktree 还有 ${count} 个终端,仍要移除 "${name}" 吗?`,
+  panel_worktree_remove_button: "移除",
   panel_worktree_removed: (name: string) => `已移除 Worktree "${name}"`,
   panel_worktree_remove_failed: (err: string) => `移除 Worktree 失败:${err}`,
+  panel_worktree_force_remove_title: "Worktree 包含未提交的修改",
+  panel_worktree_force_remove_body: (name: string) =>
+    `"${name}" 内有已修改或未跟踪的文件。强制移除会永久删除这些文件,操作无法撤销。`,
+  panel_worktree_force_remove_button: "强制移除",
+  panel_worktree_force_remove_busy: "移除中…",
   panel_project_remove_confirm: (name: string) =>
     `要从面板移除项目 "${name}" 吗?磁盘上的文件不会被删除。`,
   panel_project_remove_confirm_with_terminals: (name: string, count: number) =>

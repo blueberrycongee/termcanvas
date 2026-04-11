@@ -487,12 +487,19 @@ export const en = {
   panel_worktree_created: (name: string) => `Worktree "${name}" created`,
   panel_worktree_create_failed: (err: string) =>
     `Failed to create worktree: ${err}`,
+  panel_worktree_remove_title: "Remove worktree?",
   panel_worktree_remove_confirm: (name: string) => `Remove worktree "${name}"?`,
   panel_worktree_remove_confirm_with_terminals: (name: string, count: number) =>
     `This worktree has ${count} terminal${count === 1 ? "" : "s"}. Remove "${name}" anyway?`,
+  panel_worktree_remove_button: "Remove",
   panel_worktree_removed: (name: string) => `Worktree "${name}" removed`,
   panel_worktree_remove_failed: (err: string) =>
     `Failed to remove worktree: ${err}`,
+  panel_worktree_force_remove_title: "Worktree has uncommitted changes",
+  panel_worktree_force_remove_body: (name: string) =>
+    `"${name}" contains modified or untracked files. Force-removing it will permanently delete those files. This cannot be undone.`,
+  panel_worktree_force_remove_button: "Force remove",
+  panel_worktree_force_remove_busy: "Removing…",
   panel_project_remove_confirm: (name: string) =>
     `Remove project "${name}"? Files on disk will not be deleted.`,
   panel_project_remove_confirm_with_terminals: (name: string, count: number) =>

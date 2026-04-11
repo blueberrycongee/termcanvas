@@ -500,6 +500,7 @@ export interface TermCanvasAPI {
     removeWorktree: (
       repoPath: string,
       worktreePath: string,
+      force?: boolean,
     ) => Promise<
       | {
           ok: true;
