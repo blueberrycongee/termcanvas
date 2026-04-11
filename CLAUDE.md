@@ -32,6 +32,12 @@ Hydra is a Lead-driven orchestration toolkit. You (the Lead) make strategic
 decisions at decision points; Hydra handles operational management.
 `result.json` is the only completion evidence.
 
+Why this design (vs. other coding-agent products):
+- **SWF decider pattern, specialized for LLM deciders.** Hydra is the AWS SWF / Cadence / Temporal decider pattern. `hydra watch` is `PollForDecisionTask`; the Lead is the decider; `lead_terminal_id` enforces single-decider semantics.
+- **Parallel-first, not bolted on.** `dispatch` + `depends_on` + worktree + `merge` are first-class. Other products (Factory.ai's Droid, Amp, Claude Code subagents) treat parallelism as open research; Hydra makes it the default.
+- **Typed result contract.** Workers publish a schema-validated `result.json` (`outcome: completed | stuck | error`, optional `stuck_reason: needs_clarification | needs_credentials | needs_context | blocked_technical`). Other products return free-text final messages and require downstream parsing.
+- **Lead intervention points.** `hydra reset --feedback` lets the Lead actually intervene at decision points instead of being block-and-join. A stale or wrong run is one `reset` away.
+
 Core rules:
 - Root cause first. Fix the implementation problem before changing tests.
 - Do not hack tests, fixtures, or mocks to force a green result.
