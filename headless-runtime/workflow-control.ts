@@ -23,6 +23,7 @@ import {
   completeWorkflow,
   failWorkflow,
   getWorkflowStatus,
+  askNode,
   type WorkflowStatusView,
   type InitWorkflowOptions,
   type InitWorkflowResult,
@@ -31,6 +32,8 @@ import {
   type ResetNodeResult,
   type MergeOutcome,
   type WatchOptions,
+  type AskNodeOptions,
+  type AskNodeResult,
 } from "../hydra/src/workflow-lead.ts";
 import type { DecisionPoint } from "../hydra/src/decision.ts";
 import {
@@ -46,7 +49,32 @@ import {
   launchTrackedTerminal,
   type TerminalLaunchDeps,
 } from "./terminal-launch.ts";
+import {
+  destroySubprocessWorker,
+  launchSubprocessWorker,
+} from "./subprocess-worker.ts";
 import type { ProjectStore } from "./project-store.ts";
+
+/**
+ * Worker dispatch mode:
+ *   - "pty":        legacy path — launch a termcanvas-tracked PTY terminal
+ *                   with an interactive claude/codex session (default)
+ *   - "subprocess": spawn a one-shot non-interactive CLI subprocess
+ *                   (claude -p / codex exec --json). See subprocess-worker.ts
+ *                   for rationale. Opt in via HYDRA_WORKER_MODE=subprocess or
+ *                   by passing workerMode to createWorkflowControl.
+ *
+ * This flag exists to let us cut over one workflow at a time and retain the
+ * PTY path as a rollback target while the subprocess path matures.
+ */
+export type WorkerMode = "pty" | "subprocess";
+
+function resolveWorkerMode(explicit: WorkerMode | undefined): WorkerMode {
+  if (explicit) return explicit;
+  const fromEnv = process.env.HYDRA_WORKER_MODE;
+  if (fromEnv === "subprocess") return "subprocess";
+  return "pty";
+}
 
 export interface WorkflowSummary {
   id: string;
@@ -69,6 +97,7 @@ export interface WorkflowControl {
   redispatch(repoPath: string, workflowId: string, nodeId: string, intent?: string): Promise<DispatchNodeResult>;
   watchDecision(repoPath: string, workflowId: string): Promise<DecisionPoint>;
   resetNode(repoPath: string, workflowId: string, nodeId: string, feedback?: string): Promise<ResetNodeResult>;
+  askNode(input: AskNodeOptions): Promise<AskNodeResult>;
   mergeNodes(repoPath: string, workflowId: string, nodeIds: string[]): Promise<MergeOutcome>;
   approveNode(repoPath: string, workflowId: string, nodeId: string): Promise<void>;
   complete(repoPath: string, workflowId: string, summary?: string): Promise<void>;
@@ -81,6 +110,13 @@ export interface WorkflowControl {
 
 interface WorkflowControlDeps extends TerminalLaunchDeps {
   projectScanner: ProjectScanner;
+  /**
+   * Opt into the subprocess worker dispatch path. Defaults to the value of
+   * HYDRA_WORKER_MODE env var (or "pty" if unset). Preserved on the
+   * WorkflowControl instance for the lifetime of the process — flipping it
+   * per-dispatch is not supported in v1.
+   */
+  workerMode?: WorkerMode;
 }
 
 function isLiveStatus(status: string): boolean {
@@ -100,6 +136,8 @@ function buildWorkflowSummary(record: WorkflowRecord): WorkflowSummary {
 export function createWorkflowControl(
   input: WorkflowControlDeps,
 ): WorkflowControl {
+  const workerMode = resolveWorkerMode(input.workerMode);
+
   const syncProject = (repoPath: string): void => {
     ensureProjectTracked({
       projectStore: input.projectStore,
@@ -110,6 +148,11 @@ export function createWorkflowControl(
   };
 
   const destroyTerminal = (terminalId: string): void => {
+    // Subprocess termination is idempotent — returns false for PTY-backed
+    // terminals, so this is safe to call unconditionally before the PTY
+    // destroy path. The order matters: kill the child process first so we
+    // don't race with its exit handler updating a removed terminal record.
+    destroySubprocessWorker(terminalId);
     try {
       destroyTrackedTerminal({
         projectStore: input.projectStore,
@@ -135,6 +178,33 @@ export function createWorkflowControl(
       request.taskFile, request.workflowId, request.resultFile,
       { assignmentId: request.assignmentId, runId: request.runId },
     );
+
+    if (workerMode === "subprocess") {
+      const sub = await launchSubprocessWorker({
+        projectStore: input.projectStore,
+        telemetryService: input.telemetryService,
+        eventBus: input.eventBus,
+        onMutation: input.onMutation,
+        worktree: request.worktreePath,
+        type: request.agentType as AgentType,
+        prompt,
+        autoApprove: request.autoApprove,
+        parentTerminalId: request.parentTerminalId,
+        workflowId: request.workflowId,
+        assignmentId: request.assignmentId,
+        repoPath: request.repoPath,
+        resumeSessionId: request.resumeSessionId,
+        model: request.model,
+        reasoningEffort: request.reasoningEffort,
+      });
+      return {
+        projectId: found.projectId,
+        terminalId: sub.id,
+        terminalType: sub.type,
+        terminalTitle: sub.title,
+        prompt,
+      };
+    }
 
     const terminal = await launchTrackedTerminal({
       projectStore: input.projectStore,
@@ -197,6 +267,12 @@ export function createWorkflowControl(
     async resetNode(repoPath, workflowId, nodeId, feedback) {
       return resetNode(
         { repoPath: path.resolve(repoPath), workflowId, nodeId, feedback },
+        workflowDependencies,
+      );
+    },
+    async askNode(input) {
+      return askNode(
+        { ...input, repoPath: path.resolve(input.repoPath) },
         workflowDependencies,
       );
     },

@@ -12,6 +12,7 @@ function printUsage() {
   console.log("  watch      Wait until a decision point is reached");
   console.log("  approve    Mark a node's output as approved");
   console.log("  reset      Reset a node (and downstream) for re-run");
+  console.log("  ask        Ask a completed node a follow-up question via session resume");
   console.log("  merge      Merge parallel worktree branches");
   console.log("  complete   Mark a workflow as completed");
   console.log("  fail       Mark a workflow as failed");
@@ -59,6 +60,11 @@ async function main() {
     case "reset": {
       const { cliReset } = await import("./cli-commands.js");
       await cliReset(rest);
+      break;
+    }
+    case "ask": {
+      const { cliAsk } = await import("./cli-commands.js");
+      await cliAsk(rest);
       break;
     }
     case "merge": {

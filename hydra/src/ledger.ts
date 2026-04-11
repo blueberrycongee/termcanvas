@@ -91,6 +91,25 @@ export type LedgerEvent =
       node_id: string;
       triggered_by: string[];
     }
+  /**
+   * Lead asked a follow-up question to a completed node via `hydra ask`.
+   * A one-shot subprocess resumed the node's session, answered the
+   * question, and exited. The new_session_id is only populated when
+   * the CLI supports fork (currently claude via --fork-session); for
+   * codex the follow-up appends to the original session id so
+   * new_session_id === session_id.
+   */
+  | {
+      type: "lead_asked_followup";
+      node_id: string;
+      role: string;
+      agent_type: AgentType;
+      session_id: string;
+      new_session_id?: string;
+      message_excerpt: string;
+      answer_excerpt: string;
+      duration_ms: number;
+    }
   | { type: "merge_attempted"; source_nodes: string[]; outcome: "merged" | "conflict" }
   | {
       type: "workflow_completed";

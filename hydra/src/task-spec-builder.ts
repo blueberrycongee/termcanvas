@@ -75,8 +75,22 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
     { label: "Workflow intent", path: getWorkflowIntentFile(repoPath, workflow.id) },
   ];
 
-  // Auto-inject outputs from depends_on nodes (their report.md + result.json)
+  // Auto-inject outputs from depends_on nodes (their report.md + result.json).
+  // We also collect a parallel list of "upstream summaries" — (role, nodeId,
+  // report path, session_id) tuples — that get rendered as an Upstream Nodes
+  // section below. Reviewer in particular needs a structured pointer to
+  // "here is what dev produced and how to follow up with it", not just a
+  // readFiles bag.
   const manager = new AssignmentManager(repoPath, workflow.id);
+  interface UpstreamSummary {
+    nodeId: string;
+    role: string;
+    reportPath: string | null;
+    resultPath: string | null;
+    sessionId: string | null;
+    sessionProvider: string | null;
+  }
+  const upstreamSummaries: UpstreamSummary[] = [];
   for (const depId of node.depends_on) {
     const depNode = workflow.nodes[depId];
     if (!depNode?.assignment_id) continue;
@@ -87,12 +101,22 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
       : depAssignment.runs[depAssignment.runs.length - 1];
     if (!depRun) continue;
     const reportPath = getRunReportFile(repoPath, workflow.id, depAssignment.id, depRun.id);
-    if (fs.existsSync(reportPath)) {
+    const reportExists = fs.existsSync(reportPath);
+    if (reportExists) {
       readFiles.push({ label: `${depNode.role} report (${depId})`, path: reportPath });
     }
-    if (fs.existsSync(depRun.result_file)) {
+    const resultExists = fs.existsSync(depRun.result_file);
+    if (resultExists) {
       readFiles.push({ label: `${depNode.role} result (${depId})`, path: depRun.result_file });
     }
+    upstreamSummaries.push({
+      nodeId: depId,
+      role: depNode.role,
+      reportPath: reportExists ? reportPath : null,
+      resultPath: resultExists ? depRun.result_file : null,
+      sessionId: depRun.session_id ?? null,
+      sessionProvider: depRun.session_provider ?? null,
+    });
   }
 
   // Auto-inject approved refs
@@ -173,9 +197,71 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
 
   // --- Extra sections ---
   // Role-specific strategy content lives in the role body (rendered as the
-  // ## Role section by run-task.ts). Only the result contract is appended
-  // here as a static, role-independent section.
-  const extraSections = [RESULT_CONTRACT_SECTION];
+  // ## Role section by run-task.ts). Two static sections are appended here:
+  //   1. Workflow Context — broadcast of human_request / overall_plan /
+  //      shared_constraints from the workflow record. Every dispatched
+  //      worker sees the wider picture instead of only its local intent.
+  //   2. Result Contract — the slim result.json shape.
+  const extraSections: { title: string; lines: string[] }[] = [];
+
+  const workflowContextLines: string[] = [];
+  if (workflow.human_request && workflow.human_request.trim()) {
+    workflowContextLines.push("**Original human request:**");
+    workflowContextLines.push(workflow.human_request.trim());
+    workflowContextLines.push("");
+  }
+  if (workflow.overall_plan && workflow.overall_plan.trim()) {
+    workflowContextLines.push("**Lead's overall plan:**");
+    workflowContextLines.push(workflow.overall_plan.trim());
+    workflowContextLines.push("");
+  }
+  if (workflow.shared_constraints && workflow.shared_constraints.length > 0) {
+    workflowContextLines.push("**Workflow-wide constraints (apply to every node):**");
+    for (const c of workflow.shared_constraints) {
+      workflowContextLines.push(`- ${c}`);
+    }
+    workflowContextLines.push("");
+  }
+  if (workflowContextLines.length > 0) {
+    // Trailing blank line is noise; trim it before emitting.
+    while (workflowContextLines.length > 0 && workflowContextLines[workflowContextLines.length - 1] === "") {
+      workflowContextLines.pop();
+    }
+    extraSections.push({
+      title: "Workflow Context",
+      lines: workflowContextLines,
+    });
+  }
+
+  if (upstreamSummaries.length > 0) {
+    const lines: string[] = [
+      "These upstream nodes already ran and their outputs are in your Read First list.",
+      "Read their report.md before forming conclusions — they contain self-assessment,",
+      "risks, and guidance written by the upstream worker itself.",
+      "",
+    ];
+    for (const s of upstreamSummaries) {
+      lines.push(`### ${s.role} (node: ${s.nodeId})`);
+      if (s.reportPath) lines.push(`- Report: ${s.reportPath}`);
+      if (s.resultPath) lines.push(`- Result: ${s.resultPath}`);
+      if (s.sessionId) {
+        // The session id is what `hydra ask` uses to spin up a one-shot
+        // follow-up subprocess via `claude --resume` / `codex exec resume`.
+        lines.push(
+          `- Session id: \`${s.sessionId}\` (${s.sessionProvider ?? "unknown"}) — Lead can ask follow-up questions via \`hydra ask --workflow <id> --node ${s.nodeId} --message "..."\``,
+        );
+      }
+      lines.push("");
+    }
+    // Trim trailing blank line.
+    while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+    extraSections.push({
+      title: "Upstream Nodes",
+      lines,
+    });
+  }
+
+  extraSections.push(RESULT_CONTRACT_SECTION);
 
   return {
     repoPath: workflow.repo_path,

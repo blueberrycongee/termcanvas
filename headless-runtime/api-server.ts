@@ -370,6 +370,10 @@ export class HeadlessApiServer {
       const parts = pathname.split("/");
       return this.workflowApproveNode(parts[2], parts[4], body);
     }
+    if (method === "POST" && pathname.match(/^\/workflow\/[^/]+\/node\/[^/]+\/ask$/)) {
+      const parts = pathname.split("/");
+      return this.workflowAskNode(parts[2], parts[4], body);
+    }
     if (method === "POST" && pathname.match(/^\/workflow\/[^/]+\/node\/[^/]+\/reset$/)) {
       const parts = pathname.split("/");
       return this.workflowResetNode(parts[2], parts[4], body);
@@ -589,8 +593,8 @@ export class HeadlessApiServer {
   }
 
   private async workflowInit(body: unknown): Promise<unknown> {
-    const { intent, worktree, worktreePath, timeoutMinutes, maxRetries, autoApprove } =
-      body as Record<string, unknown>;
+    const b = body as Record<string, unknown>;
+    const { intent, worktree, worktreePath, timeoutMinutes, maxRetries, autoApprove } = b;
     const repoPath = this.requireRepo(body);
     if (!intent || typeof intent !== "string") {
       throw Object.assign(new Error("intent is required"), { status: 400 });
@@ -601,6 +605,9 @@ export class HeadlessApiServer {
       defaultTimeoutMinutes: timeoutMinutes as number | undefined,
       defaultMaxRetries: maxRetries as number | undefined,
       autoApprove: autoApprove as boolean | undefined,
+      humanRequest: b.humanRequest as string | undefined,
+      overallPlan: b.overallPlan as string | undefined,
+      sharedConstraints: b.sharedConstraints as string[] | undefined,
     });
   }
 
@@ -651,6 +658,21 @@ export class HeadlessApiServer {
   private async workflowResetNode(workflowId: string, nodeId: string, body: unknown): Promise<unknown> {
     const { feedback } = body as { feedback?: string };
     return this.workflowControl.resetNode(this.requireRepo(body), workflowId, nodeId, feedback);
+  }
+
+  private async workflowAskNode(workflowId: string, nodeId: string, body: unknown): Promise<unknown> {
+    const b = body as Record<string, unknown>;
+    const message = b.message as string | undefined;
+    if (!message || typeof message !== "string") {
+      throw Object.assign(new Error("message is required"), { status: 400 });
+    }
+    return this.workflowControl.askNode({
+      repoPath: this.requireRepo(body),
+      workflowId,
+      nodeId,
+      message,
+      timeoutMs: b.timeoutMs as number | undefined,
+    });
   }
 
   private async workflowMerge(workflowId: string, body: unknown): Promise<unknown> {

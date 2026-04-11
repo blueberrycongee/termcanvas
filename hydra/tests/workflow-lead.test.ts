@@ -14,6 +14,7 @@ import {
   completeWorkflow,
   failWorkflow,
   getWorkflowStatus,
+  askNode,
   type WorkflowDependencies,
 } from "../src/workflow-lead.ts";
 import { loadWorkflow, WORKFLOW_STATE_SCHEMA_VERSION } from "../src/workflow-store.ts";
@@ -114,7 +115,7 @@ test("dispatchNode locks node.agent_type from the role file (codex role override
   };
   try {
     // The role file's terminals[0] is the only source for cli selection.
-    // tester[0] = codex, so the dispatched terminal comes up as codex.
+    // reviewer[0] = codex, so the dispatched terminal comes up as codex.
     const init = await initWorkflow({
       intent: "Test agent_type lock",
       repoPath: repo,
@@ -123,7 +124,7 @@ test("dispatchNode locks node.agent_type from the role file (codex role override
 
     await dispatchNode({
       repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "tester", intent: "Build it",
+      nodeId: "dev", role: "reviewer", intent: "Build it",
     }, deps);
 
     // The dispatched terminal must come up as codex (locked by the role),
@@ -134,7 +135,7 @@ test("dispatchNode locks node.agent_type from the role file (codex role override
     // The persisted node must record the role's agent_type, not the default.
     const workflow = loadWorkflow(repo, init.workflow_id)!;
     assert.equal(workflow.nodes.dev.agent_type, "codex");
-    assert.equal(workflow.nodes.dev.role, "tester");
+    assert.equal(workflow.nodes.dev.role, "reviewer");
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -147,7 +148,7 @@ test("dispatchNode snapshots retry_policy onto the assignment", async () => {
     const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
     const dispatched = await dispatchNode({
       repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "implementer", intent: "Build it",
+      nodeId: "dev", role: "dev", intent: "Build it",
       retryPolicy: {
         initial_interval_ms: 500,
         backoff_coefficient: 3,
@@ -206,7 +207,7 @@ test("dispatchAssignment waits for next_retry_at via the injected sleep dep", as
     const init = await initWorkflow({ intent: "Backoff", repoPath: repo, worktreePath: repo }, deps);
     const dispatched = await dispatchNode({
       repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "implementer", intent: "Build it",
+      nodeId: "dev", role: "dev", intent: "Build it",
       retryPolicy: { initial_interval_ms: 5_000 },
     }, deps);
 
@@ -278,7 +279,7 @@ test("dispatchNode threads model override through to the dispatch request", asyn
     }, deps);
     await dispatchNode({
       repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "implementer", intent: "Build it",
+      nodeId: "dev", role: "dev", intent: "Build it",
       model: "opus",
     }, deps);
 
@@ -301,7 +302,7 @@ test("dispatchNode dispatches an eligible node", async () => {
       repoPath: repo,
       workflowId: init.workflow_id,
       nodeId: "researcher",
-      role: "implementer",
+      role: "dev",
       intent: "Analyze the codebase",
     }, deps);
 
@@ -324,12 +325,12 @@ test("dispatchNode blocks when dependencies are not met", async () => {
     const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
     await dispatchNode({
       repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "researcher", role: "implementer", intent: "Research",
+      nodeId: "researcher", role: "dev", intent: "Research",
     }, deps);
 
     const result = await dispatchNode({
       repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "implementer", intent: "Implement",
+      nodeId: "dev", role: "dev", intent: "Implement",
       dependsOn: ["researcher"],
     }, deps);
 
@@ -349,13 +350,13 @@ test("dispatchNode rejects duplicate node IDs", async () => {
     const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
     await dispatchNode({
       repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "implementer", intent: "Implement",
+      nodeId: "dev", role: "dev", intent: "Implement",
     }, deps);
 
     await assert.rejects(
       () => dispatchNode({
         repoPath: repo, workflowId: init.workflow_id,
-        nodeId: "dev", role: "tester", intent: "Test",
+        nodeId: "dev", role: "reviewer", intent: "Test",
       }, deps),
       (err: Error) => {
         assert.match(err.message, /already exists/);
@@ -372,9 +373,9 @@ test("dispatchNode allows linear chains", async () => {
   const deps = mockDeps();
   try {
     const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
-    await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "a", role: "implementer", intent: "A" }, deps);
-    await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "b", role: "implementer", intent: "B", dependsOn: ["a"] }, deps);
-    const result = await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "c", role: "implementer", intent: "C", dependsOn: ["b"] }, deps);
+    await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "a", role: "dev", intent: "A" }, deps);
+    await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "b", role: "dev", intent: "B", dependsOn: ["a"] }, deps);
+    const result = await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "c", role: "dev", intent: "C", dependsOn: ["b"] }, deps);
     assert.equal(result.status, "blocked"); // b is blocked, so c is also blocked
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
@@ -389,7 +390,7 @@ test("dispatchNode rejects unknown dependency", async () => {
     await assert.rejects(
       () => dispatchNode({
         repoPath: repo, workflowId: init.workflow_id,
-        nodeId: "x", role: "implementer", intent: "X", dependsOn: ["nonexistent"],
+        nodeId: "x", role: "dev", intent: "X", dependsOn: ["nonexistent"],
       }, deps),
       (err: Error) => {
         assert.match(err.message, /not found/i);
@@ -408,7 +409,7 @@ test("watchUntilDecision returns node_completed when result.json appears", async
     const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
     const dispatched = await dispatchNode({
       repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "implementer", intent: "Implement feature",
+      nodeId: "dev", role: "dev", intent: "Implement feature",
     }, deps);
 
     // Write result.json to the expected location
@@ -468,9 +469,9 @@ test("resetNode cascades downstream and sets correct statuses", async () => {
   const deps = mockDeps();
   try {
     const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
-    await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "a", role: "implementer", intent: "A" }, deps);
-    await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "b", role: "implementer", intent: "B", dependsOn: ["a"] }, deps);
-    await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "c", role: "tester", intent: "C", dependsOn: ["b"] }, deps);
+    await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "a", role: "dev", intent: "A" }, deps);
+    await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "b", role: "dev", intent: "B", dependsOn: ["a"] }, deps);
+    await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "c", role: "reviewer", intent: "C", dependsOn: ["b"] }, deps);
 
     const result = await resetNode({
       repoPath: repo, workflowId: init.workflow_id, nodeId: "a", feedback: "Redo this",
@@ -503,7 +504,7 @@ test("approveNode stores approved ref", async () => {
     const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
     const dispatched = await dispatchNode({
       repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "researcher", role: "implementer", intent: "Research",
+      nodeId: "researcher", role: "dev", intent: "Research",
     }, deps);
 
     await approveNode({
@@ -569,14 +570,14 @@ test("getWorkflowStatus returns workflow and assignments", async () => {
     const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
     await dispatchNode({
       repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "implementer", intent: "Build",
+      nodeId: "dev", role: "dev", intent: "Build",
     }, deps);
 
     const view = getWorkflowStatus(repo, init.workflow_id);
 
     assert.equal(view.workflow.id, init.workflow_id);
     assert.equal(view.assignments.length, 1);
-    assert.equal(view.assignments[0].role, "implementer");
+    assert.equal(view.assignments[0].role, "dev");
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -617,7 +618,7 @@ test("redispatch on a claude assignment passes the captured session_id as resume
     }, deps);
     const dispatched = await dispatchNode({
       repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "implementer", intent: "First pass",
+      nodeId: "dev", role: "dev", intent: "First pass",
     }, deps);
 
     // First dispatch should have no resume session
@@ -678,11 +679,11 @@ test("redispatch on a non-claude assignment does not pass resumeSessionId", asyn
       repoPath: repo,
       worktreePath: repo,
     }, deps);
-    // Role-driven dispatch: pick `tester` so the assignment's agent_type
-    // comes out as codex (tester[0] = codex; resume is claude-only).
+    // Role-driven dispatch: pick `reviewer` so the assignment's agent_type
+    // comes out as codex (reviewer[0] = codex; resume is claude-only).
     const dispatched = await dispatchNode({
       repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "tester", intent: "First pass",
+      nodeId: "dev", role: "reviewer", intent: "First pass",
     }, deps);
 
     // Pre-populate a session_id on the prior run anyway — codex shouldn't resume
@@ -714,7 +715,7 @@ test("watchUntilDecision exposes pre-captured session info on the completed Deci
     const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
     const dispatched = await dispatchNode({
       repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "implementer", intent: "Implement feature",
+      nodeId: "dev", role: "dev", intent: "Implement feature",
     }, deps);
 
     // Pre-populate session info on the run, simulating capture from telemetry
@@ -753,6 +754,177 @@ test("watchUntilDecision exposes pre-captured session info on the completed Deci
     const completed = ledger.find((entry) => entry.event.type === "node_completed");
     assert.ok(completed);
     assert.equal((completed.event as { session_id?: string }).session_id, "claude-session-abc123");
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("askNode loads the node's session, delegates to askFollowUp, and writes a ledger entry", async () => {
+  const repo = makeTestRepo();
+  const deps = mockDeps();
+  // Capture the askFollowUp call args so we can assert the editor wired
+  // the right values through.
+  const askCalls: Array<{
+    cli: string;
+    sessionId: string;
+    message: string;
+    workdir: string;
+    timeoutMs?: number;
+  }> = [];
+  const extendedDeps: WorkflowDependencies = {
+    ...deps,
+    askFollowUp: async (opts) => {
+      askCalls.push(opts);
+      return {
+        answer: "Because pattern A is thread-safe and has no hidden lock contention.",
+        newSessionId: "forked-session-xyz",
+        durationMs: 1234,
+        exitCode: 0,
+      };
+    },
+  };
+
+  try {
+    // 1. Init + dispatch a dev node, mock its completion, capture a session_id.
+    const init = await initWorkflow(
+      { intent: "Add OAuth login", repoPath: repo, worktreePath: repo },
+      extendedDeps,
+    );
+    const dispatch = await dispatchNode(
+      {
+        repoPath: repo,
+        workflowId: init.workflow_id,
+        nodeId: "dev",
+        role: "dev",
+        intent: "Implement OAuth",
+      },
+      extendedDeps,
+    );
+    // Hand-stamp the run's session_id on disk so askNode finds it. This is
+    // what telemetry would do in production after the subprocess captures
+    // the claude init message.
+    const manager = new AssignmentManager(repo, init.workflow_id);
+    const assignment = manager.load(dispatch.assignment_id)!;
+    const run = assignment.runs[assignment.runs.length - 1]!;
+    run.session_id = "dev-session-original";
+    run.session_provider = "claude";
+    manager.save(assignment);
+
+    // 2. Lead asks Dev a follow-up.
+    const result = await askNode(
+      {
+        repoPath: repo,
+        workflowId: init.workflow_id,
+        nodeId: "dev",
+        message: "why did you choose pattern A over B?",
+      },
+      extendedDeps,
+    );
+
+    // 3. The injected askFollowUp was called with the node's session info.
+    assert.equal(askCalls.length, 1);
+    assert.equal(askCalls[0].cli, "claude");
+    assert.equal(askCalls[0].sessionId, "dev-session-original");
+    assert.equal(askCalls[0].message, "why did you choose pattern A over B?");
+    assert.equal(askCalls[0].workdir, repo);
+
+    // 4. askNode returned a structured result carrying the answer + fork id.
+    assert.equal(result.node_id, "dev");
+    assert.equal(result.role, "dev");
+    assert.equal(result.cli, "claude");
+    assert.equal(result.session_id, "dev-session-original");
+    assert.equal(result.new_session_id, "forked-session-xyz");
+    assert.ok(result.answer.includes("thread-safe"));
+    assert.equal(result.duration_ms, 1234);
+    assert.equal(result.exit_code, 0);
+
+    // 5. A ledger entry was written with the question + answer excerpt.
+    const ledger = readLedger(repo, init.workflow_id);
+    const askEvent = ledger.find((e) => e.event.type === "lead_asked_followup");
+    assert.ok(askEvent, "ledger should contain a lead_asked_followup entry");
+    assert.equal(askEvent.actor, "lead");
+    const event = askEvent.event as {
+      type: "lead_asked_followup";
+      node_id: string;
+      role: string;
+      session_id: string;
+      new_session_id?: string;
+      message_excerpt: string;
+      answer_excerpt: string;
+      duration_ms: number;
+    };
+    assert.equal(event.node_id, "dev");
+    assert.equal(event.role, "dev");
+    assert.equal(event.session_id, "dev-session-original");
+    assert.equal(event.new_session_id, "forked-session-xyz");
+    assert.ok(event.message_excerpt.includes("pattern A"));
+    assert.ok(event.answer_excerpt.includes("thread-safe"));
+    assert.equal(event.duration_ms, 1234);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("askNode rejects nodes that have no captured session_id", async () => {
+  const repo = makeTestRepo();
+  const deps = mockDeps();
+  try {
+    const init = await initWorkflow(
+      { intent: "Add OAuth login", repoPath: repo, worktreePath: repo },
+      deps,
+    );
+    await dispatchNode(
+      {
+        repoPath: repo,
+        workflowId: init.workflow_id,
+        nodeId: "dev",
+        role: "dev",
+        intent: "Implement OAuth",
+      },
+      deps,
+    );
+    // Do NOT set run.session_id — this simulates a node that has not yet
+    // had its session captured by telemetry (or a CLI that does not emit
+    // one).
+    await assert.rejects(
+      () =>
+        askNode(
+          {
+            repoPath: repo,
+            workflowId: init.workflow_id,
+            nodeId: "dev",
+            message: "hi",
+          },
+          deps,
+        ),
+      /no session_id captured/,
+    );
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("askNode rejects nodes that do not exist", async () => {
+  const repo = makeTestRepo();
+  const deps = mockDeps();
+  try {
+    const init = await initWorkflow(
+      { intent: "Anything", repoPath: repo, worktreePath: repo },
+      deps,
+    );
+    await assert.rejects(
+      () =>
+        askNode(
+          {
+            repoPath: repo,
+            workflowId: init.workflow_id,
+            nodeId: "nonexistent",
+            message: "hi",
+          },
+          deps,
+        ),
+      /Node not found/,
+    );
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }

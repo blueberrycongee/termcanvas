@@ -5,7 +5,7 @@ import { getClient } from "./client.ts";
 
 const inputSchema = z.object({
   action: z.enum([
-    "init", "dispatch", "redispatch", "watch", "approve", "reset", "merge",
+    "init", "dispatch", "redispatch", "watch", "approve", "reset", "ask", "merge",
     "complete", "fail", "status", "list", "list-roles", "cleanup",
   ]).describe(
     "Workflow action.",
@@ -16,6 +16,9 @@ const inputSchema = z.object({
   // init
   intent: z.string().optional().describe("Workflow or node intent (for init, dispatch)"),
   worktree: z.string().optional().describe("Worktree path (for init)"),
+  humanRequest: z.string().optional().describe("Original human request text (for init). Broadcast to every node's task.md under Workflow Context."),
+  overallPlan: z.string().optional().describe("Lead's plan / DAG summary (for init). Broadcast to every node's task.md under Workflow Context."),
+  sharedConstraints: z.array(z.string()).optional().describe("Workflow-wide constraints (for init). Apply to every dispatched node."),
   cli: z.string().optional().describe("Filter list-roles results to roles whose primary terminal targets this CLI (claude or codex)."),
   model: z.string().optional().describe("Override the role's default model (for dispatch, e.g. opus)"),
   timeoutMinutes: z.number().optional().describe("Timeout in minutes (for init, dispatch)"),
@@ -37,6 +40,8 @@ const inputSchema = z.object({
     path: z.string(),
   })).optional().describe("Context artifact refs (for dispatch)"),
   feedback: z.string().optional().describe("Feedback text (for reset, dispatch)"),
+  message: z.string().optional().describe("Follow-up question to send to a completed node (for ask)"),
+  timeoutMs: z.number().optional().describe("Subprocess timeout in ms for ask (default 300000)"),
   worktreePath: z.string().optional().describe("Isolated worktree path (for dispatch)"),
   worktreeBranch: z.string().optional().describe("Branch name for isolated worktree (for dispatch)"),
 
@@ -72,6 +77,11 @@ export const hydraWorkflowTool: Tool<typeof inputSchema.shape> = {
       if (input.worktree) body.worktreePath = input.worktree;
       if (input.timeoutMinutes) body.timeoutMinutes = input.timeoutMinutes;
       if (input.maxRetries !== undefined) body.maxRetries = input.maxRetries;
+      if (input.humanRequest) body.humanRequest = input.humanRequest;
+      if (input.overallPlan) body.overallPlan = input.overallPlan;
+      if (input.sharedConstraints && input.sharedConstraints.length > 0) {
+        body.sharedConstraints = input.sharedConstraints;
+      }
       const result = await client.request("POST", "/workflow/init", body);
       return { content: JSON.stringify(result, null, 2) };
     }
@@ -143,6 +153,16 @@ export const hydraWorkflowTool: Tool<typeof inputSchema.shape> = {
       const body: Record<string, unknown> = { repo };
       if (input.feedback) body.feedback = input.feedback;
       const result = await client.request("POST", `/workflow/${wfId}/node/${nodeId}/reset`, body);
+      return { content: JSON.stringify(result, null, 2) };
+    }
+
+    if (action === "ask") {
+      if (!input.nodeId) return { content: "nodeId is required for ask", is_error: true };
+      if (!input.message) return { content: "message is required for ask", is_error: true };
+      const nodeId = encodeURIComponent(input.nodeId);
+      const body: Record<string, unknown> = { repo, message: input.message };
+      if (input.timeoutMs) body.timeoutMs = input.timeoutMs;
+      const result = await client.request("POST", `/workflow/${wfId}/node/${nodeId}/ask`, body);
       return { content: JSON.stringify(result, null, 2) };
     }
 

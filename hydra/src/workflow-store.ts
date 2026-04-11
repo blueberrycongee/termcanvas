@@ -133,6 +133,15 @@ export interface WorkflowRecord {
   // Approval refs
   approved_refs?: Record<string, ApprovedArtifactRef>;
 
+  // Workflow-level shared context — broadcast to every dispatched node's
+  // task.md under a `## Workflow Context` section. These fields let Dev and
+  // Reviewer see the wider picture instead of working from only their local
+  // node intent. All three are optional to preserve backward compatibility
+  // with workflows created before this schema extension.
+  human_request?: string;          // original human-written request, untouched
+  overall_plan?: string;           // Lead's plan/DAG summary (free-form markdown)
+  shared_constraints?: string[];   // constraints that apply to every node
+
   // Final outcome
   result_file?: string;      // → outputs/summary.md (set on completion)
   failure?: WorkflowFailure;

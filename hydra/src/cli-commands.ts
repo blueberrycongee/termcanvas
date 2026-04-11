@@ -12,6 +12,7 @@ import {
   completeWorkflow,
   failWorkflow,
   getWorkflowStatus,
+  askNode,
 } from "./workflow-lead.ts";
 
 // --- Shared arg parser helpers ---
@@ -46,23 +47,39 @@ function listFlag(args: string[], flag: string): string[] {
   return raw.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
+/** Collect every occurrence of a repeatable flag, in order. */
+function repeatableFlag(args: string[], flag: string): string[] {
+  const values: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === flag && i + 1 < args.length) {
+      values.push(args[i + 1]);
+      i++;
+    }
+  }
+  return values;
+}
+
 // --- init ---
 
 export async function cliInit(args: string[]): Promise<void> {
   if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
     console.log("Usage: hydra init --intent <desc> --repo <path> [options]");
-    console.log("  --intent <desc>         Workflow intent (required)");
-    console.log("  --repo <path>           Repository path (required)");
-    console.log("  --worktree <path>       Use existing worktree");
-    console.log("  --timeout-minutes <n>   Default per-node timeout");
-    console.log("  --max-retries <n>       Default max retries");
-    console.log("  --no-auto-approve       Disable auto-approve");
+    console.log("  --intent <desc>              Workflow intent (required)");
+    console.log("  --repo <path>                Repository path (required)");
+    console.log("  --worktree <path>            Use existing worktree");
+    console.log("  --timeout-minutes <n>        Default per-node timeout");
+    console.log("  --max-retries <n>            Default max retries");
+    console.log("  --no-auto-approve            Disable auto-approve");
+    console.log("  --human-request <text>       Original human request (broadcast to all nodes)");
+    console.log("  --overall-plan <text>        Lead's plan summary (broadcast to all nodes)");
+    console.log("  --shared-constraint <text>   Workflow-wide constraint (repeatable)");
     console.log("");
     console.log("Note: agent_type is no longer a workflow-level default; the role file's");
     console.log("terminals[] array selects the CLI per dispatch.");
     process.exit(0);
   }
 
+  const sharedConstraints = repeatableFlag(args, "--shared-constraint");
   const result = await initWorkflow({
     intent: requireFlag(args, "--intent"),
     repoPath: requireFlag(args, "--repo"),
@@ -70,6 +87,9 @@ export async function cliInit(args: string[]): Promise<void> {
     defaultTimeoutMinutes: optionalNumber(args, "--timeout-minutes"),
     defaultMaxRetries: optionalNumber(args, "--max-retries"),
     autoApprove: !hasFlag(args, "--no-auto-approve"),
+    humanRequest: optionalFlag(args, "--human-request"),
+    overallPlan: optionalFlag(args, "--overall-plan"),
+    sharedConstraints: sharedConstraints.length > 0 ? sharedConstraints : undefined,
   });
   console.log(JSON.stringify(result, null, 2));
 }
@@ -81,7 +101,7 @@ export async function cliDispatch(args: string[]): Promise<void> {
     console.log("Usage: hydra dispatch --workflow <id> --node <id> --role <role> --intent <desc> --repo <path> [options]");
     console.log("  --workflow <id>         Workflow ID (required)");
     console.log("  --node <id>            Node ID (required)");
-    console.log("  --role <role>          Registered role name (required, e.g. implementer)");
+    console.log("  --role <role>          Registered role name (required, e.g. dev)");
     console.log("  --intent <desc>        Task intent (required)");
     console.log("  --repo <path>          Repository path (required)");
     console.log("  --depends-on <a,b>     Comma-separated dependency node IDs");
@@ -121,6 +141,32 @@ export async function cliDispatch(args: string[]): Promise<void> {
     worktreeBranch: optionalFlag(args, "--worktree-branch"),
     timeoutMinutes: optionalNumber(args, "--timeout-minutes"),
     maxRetries: optionalNumber(args, "--max-retries"),
+  });
+  console.log(JSON.stringify(result, null, 2));
+}
+
+// --- ask ---
+
+export async function cliAsk(args: string[]): Promise<void> {
+  if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
+    console.log("Usage: hydra ask --workflow <id> --node <id> --message <text> --repo <path> [options]");
+    console.log("  --workflow <id>        Workflow ID (required)");
+    console.log("  --node <id>            Node ID to ask (required, node must have completed at least one run)");
+    console.log("  --message <text>       Question to send (required)");
+    console.log("  --repo <path>          Repository path (required)");
+    console.log("  --timeout-ms <n>       Subprocess timeout (default 300000 = 5 min)");
+    console.log("");
+    console.log("Spins up a one-shot subprocess that resumes the node's session");
+    console.log("and asks a follow-up question. Does not touch workflow state.");
+    process.exit(0);
+  }
+
+  const result = await askNode({
+    repoPath: requireFlag(args, "--repo"),
+    workflowId: requireFlag(args, "--workflow"),
+    nodeId: requireFlag(args, "--node"),
+    message: requireFlag(args, "--message"),
+    timeoutMs: optionalNumber(args, "--timeout-ms"),
   });
   console.log(JSON.stringify(result, null, 2));
 }
@@ -345,6 +391,12 @@ function formatEventSummary(event: LedgerEvent): string {
     }
     case "node_promoted_eligible":
       return `node_promoted_eligible     ${event.node_id} triggered_by=[${event.triggered_by.join(",")}]`;
+    case "lead_asked_followup": {
+      const fork = event.new_session_id && event.new_session_id !== event.session_id
+        ? ` forked=${event.new_session_id.slice(0, 8)}`
+        : "";
+      return `lead_asked_followup        ${event.node_id} role=${event.role} session=${event.session_id.slice(0, 8)}${fork} "${truncate(event.message_excerpt, 50)}"`;
+    }
     case "merge_attempted":
       return `merge_attempted            sources=[${event.source_nodes.join(",")}] outcome=${event.outcome}`;
     case "workflow_completed":

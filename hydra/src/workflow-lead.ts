@@ -57,6 +57,7 @@ import {
 } from "./layout.ts";
 import { appendLedger } from "./ledger.ts";
 import { ensureLeadCaller } from "./lead-guard.ts";
+import { askFollowUp, type AskFollowUpResult } from "./ask.ts";
 import type { DecisionPoint, NodeStatus } from "./decision.ts";
 
 // --- Constants ---
@@ -72,6 +73,19 @@ export interface WorkflowDependencies {
   syncProject?: (repoPath: string) => void;
   destroyTerminal?: (terminalId: string) => void;
   checkTerminalAlive?: (terminalId: string) => boolean | null;
+  /**
+   * Test seam for `askNode`. In production this delegates to
+   * askFollowUp from ./ask.ts, which spawns a real claude/codex
+   * subprocess. Tests inject a fake that returns a deterministic
+   * answer without touching the network.
+   */
+  askFollowUp?: (opts: {
+    cli: AgentType;
+    sessionId: string;
+    message: string;
+    workdir: string;
+    timeoutMs?: number;
+  }) => Promise<AskFollowUpResult>;
 }
 
 const DEFAULT_SLEEP = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -360,6 +374,17 @@ export interface InitWorkflowOptions {
   defaultTimeoutMinutes?: number;
   defaultMaxRetries?: number;
   autoApprove?: boolean;
+  /**
+   * Optional workflow-level shared context. These fields are persisted on
+   * the WorkflowRecord and broadcast to every dispatched node's task.md
+   * under a `## Workflow Context` section. They exist so Dev and Reviewer
+   * can see the wider picture (the original human ask, Lead's overall plan,
+   * workflow-wide constraints) instead of working from only their local
+   * node intent.
+   */
+  humanRequest?: string;
+  overallPlan?: string;
+  sharedConstraints?: string[];
 }
 
 export interface InitWorkflowResult {
@@ -406,6 +431,11 @@ export async function initWorkflow(
     default_timeout_minutes: options.defaultTimeoutMinutes ?? 30,
     default_max_retries: options.defaultMaxRetries ?? 1,
     auto_approve: options.autoApprove ?? true,
+    ...(options.humanRequest ? { human_request: options.humanRequest } : {}),
+    ...(options.overallPlan ? { overall_plan: options.overallPlan } : {}),
+    ...(options.sharedConstraints && options.sharedConstraints.length > 0
+      ? { shared_constraints: options.sharedConstraints }
+      : {}),
   };
   saveWorkflow(workflow);
   appendLedger(repoPath, workflowId, "lead", {
@@ -429,7 +459,7 @@ export interface DispatchNodeOptions {
   workflowId: string;
   nodeId: string;
   /**
-   * Role name from the registry (e.g. "implementer", "tester", "reviewer").
+   * Role name from the registry (e.g. "dev", "reviewer").
    * The role file's terminals[] array locks cli/model/reasoning_effort —
    * there is no caller-supplied agent_type override.
    */
@@ -1280,4 +1310,163 @@ export function getWorkflowStatus(repoPath: string, workflowId: string): Workflo
 
 export function cleanupWorkflowState(repoPath: string, workflowId: string): void {
   deleteWorkflow(repoPath, workflowId);
+}
+
+// --- askNode (Lead → completed node follow-up) ---
+
+export interface AskNodeOptions {
+  repoPath: string;
+  workflowId: string;
+  nodeId: string;
+  message: string;
+  /** Override the default subprocess timeout (5 minutes). */
+  timeoutMs?: number;
+}
+
+export interface AskNodeResult {
+  node_id: string;
+  role: string;
+  cli: AgentType;
+  session_id: string;
+  new_session_id: string | null;
+  answer: string;
+  duration_ms: number;
+  exit_code: number | null;
+}
+
+/**
+ * Ask a follow-up question to a node that has already completed, without
+ * killing or re-dispatching anything. This reuses the node's saved
+ * session_id to spin up a one-shot non-interactive subprocess that
+ * loads the prior conversation, answers the question, and exits.
+ *
+ * Why this exists:
+ *   - `hydra reset --feedback` is the heavyweight intervention: it kills
+ *     the running worker, discards its session, and respawns a new one
+ *     from task.md with the Lead's feedback. That's the right tool when
+ *     the node needs to actually redo work.
+ *   - `hydra ask` is the lightweight intervention: just a question-and-
+ *     answer round with the already-completed node, leaving the workflow
+ *     state completely unchanged.
+ *
+ * Prerequisites:
+ *   - The node must have completed at least one run (it needs a
+ *     session_id captured by telemetry).
+ *   - The session provider must be claude or codex (other CLIs have no
+ *     resume contract).
+ *   - For claude, the subprocess uses --fork-session so the original
+ *     session file stays pristine.
+ *   - For codex, the subprocess uses `codex exec resume` which appends
+ *     to the original session (no headless fork yet; see openai/codex#13537).
+ */
+export async function askNode(
+  options: AskNodeOptions,
+  deps?: WorkflowDependencies,
+): Promise<AskNodeResult> {
+  const repoPath = path.resolve(options.repoPath);
+  const workflow = loadWorkflowOrThrow(repoPath, options.workflowId);
+  ensureLeadCaller(workflow);
+  const node = workflow.nodes[options.nodeId];
+  if (!node) {
+    throw new HydraError(
+      `Node not found: ${options.nodeId}`,
+      {
+        errorCode: "ASK_NODE_NOT_FOUND",
+        stage: "ask.preflight",
+        ids: { workflow_id: workflow.id, node_id: options.nodeId },
+      },
+    );
+  }
+  if (!node.assignment_id) {
+    throw new HydraError(
+      `Node ${options.nodeId} has never been dispatched — nothing to ask`,
+      {
+        errorCode: "ASK_NODE_NEVER_DISPATCHED",
+        stage: "ask.preflight",
+        ids: { workflow_id: workflow.id, node_id: options.nodeId },
+      },
+    );
+  }
+  const manager = managerForWorkflow(workflow);
+  const assignment = manager.load(node.assignment_id);
+  if (!assignment) {
+    throw new HydraError(
+      `Assignment ${node.assignment_id} not found`,
+      {
+        errorCode: "ASK_ASSIGNMENT_MISSING",
+        stage: "ask.preflight",
+        ids: { workflow_id: workflow.id, assignment_id: node.assignment_id },
+      },
+    );
+  }
+  const latestRun = assignment.runs[assignment.runs.length - 1];
+  if (!latestRun) {
+    throw new HydraError(
+      `Assignment ${assignment.id} has no runs yet`,
+      {
+        errorCode: "ASK_NO_RUNS",
+        stage: "ask.preflight",
+        ids: { workflow_id: workflow.id, assignment_id: assignment.id },
+      },
+    );
+  }
+  const sessionId = latestRun.session_id;
+  if (!sessionId) {
+    throw new HydraError(
+      `Node ${options.nodeId} has no session_id captured yet — ask requires a completed or in-progress session`,
+      {
+        errorCode: "ASK_NO_SESSION",
+        stage: "ask.preflight",
+        ids: { workflow_id: workflow.id, node_id: options.nodeId, run_id: latestRun.id },
+      },
+    );
+  }
+  if (latestRun.agent_type !== "claude" && latestRun.agent_type !== "codex") {
+    throw new HydraError(
+      `hydra ask supports only claude|codex sessions, got: ${latestRun.agent_type}`,
+      {
+        errorCode: "ASK_UNSUPPORTED_CLI",
+        stage: "ask.preflight",
+        ids: { workflow_id: workflow.id, node_id: options.nodeId },
+      },
+    );
+  }
+
+  const ask = deps?.askFollowUp ?? askFollowUp;
+  const result = await ask({
+    cli: latestRun.agent_type,
+    sessionId,
+    message: options.message,
+    workdir: workflow.worktree_path,
+    timeoutMs: options.timeoutMs,
+  });
+
+  // Ledger record: who asked what, how long, what came back. Excerpts
+  // are capped to keep the ledger scannable.
+  const excerpt = (text: string, max: number): string => {
+    const trimmed = text.trim();
+    return trimmed.length > max ? `${trimmed.slice(0, max)}…` : trimmed;
+  };
+  appendLedger(repoPath, workflow.id, "lead", {
+    type: "lead_asked_followup",
+    node_id: options.nodeId,
+    role: node.role,
+    agent_type: latestRun.agent_type,
+    session_id: sessionId,
+    new_session_id: result.newSessionId ?? undefined,
+    message_excerpt: excerpt(options.message, 200),
+    answer_excerpt: excerpt(result.answer, 400),
+    duration_ms: result.durationMs,
+  });
+
+  return {
+    node_id: options.nodeId,
+    role: node.role,
+    cli: latestRun.agent_type,
+    session_id: sessionId,
+    new_session_id: result.newSessionId,
+    answer: result.answer,
+    duration_ms: result.durationMs,
+    exit_code: result.exitCode,
+  };
 }
