@@ -46,6 +46,7 @@ import {
 } from "./viewportBounds";
 import { clampScale, zoomAtClientPoint } from "./viewportZoom";
 import { resolveCollisions } from "./collisionResolver";
+import { WorktreeLabelLayer } from "./WorktreeLabelLayer";
 import { ContextMenu } from "../components/ContextMenu";
 import { createTerminalInScene } from "../actions/terminalSceneActions";
 import type { TerminalType } from "../types";
@@ -606,6 +607,8 @@ function XyFlowCanvasInner() {
       <BoxSelectOverlay />
       <CanvasCardLayer />
       {drawingEnabled && <DrawingLayer />}
+
+      <WorktreeLabelLayer />
 
       <FamilyTreeOverlay />
 
