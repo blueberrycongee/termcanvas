@@ -490,6 +490,8 @@ export const zh = {
     `"${name}" 内有已修改或未跟踪的文件。强制移除会永久删除这些文件,操作无法撤销。`,
   panel_worktree_force_remove_button: "强制移除",
   panel_worktree_force_remove_busy: "移除中…",
+  panel_project_remove_title: "从面板移除项目?",
+  panel_project_remove_button: "移除",
   panel_project_remove_confirm: (name: string) =>
     `要从面板移除项目 "${name}" 吗?磁盘上的文件不会被删除。`,
   panel_project_remove_confirm_with_terminals: (name: string, count: number) =>

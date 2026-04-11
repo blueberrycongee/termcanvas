@@ -500,6 +500,8 @@ export const en = {
     `"${name}" contains modified or untracked files. Force-removing it will permanently delete those files. This cannot be undone.`,
   panel_worktree_force_remove_button: "Force remove",
   panel_worktree_force_remove_busy: "Removing…",
+  panel_project_remove_title: "Remove project from panel?",
+  panel_project_remove_button: "Remove",
   panel_project_remove_confirm: (name: string) =>
     `Remove project "${name}"? Files on disk will not be deleted.`,
   panel_project_remove_confirm_with_terminals: (name: string, count: number) =>

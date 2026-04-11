@@ -357,6 +357,7 @@ function ProjectRow({
   );
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [creating, setCreating] = useState(false);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteInput, setDeleteInput] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -382,23 +383,28 @@ function ProjectRow({
     activateWorktreeInScene(liveProject.id, firstWorktree.id);
   };
 
-  const handleRemoveProject = () => {
-    const terminalCount = project.worktrees.reduce(
-      (acc, wt) => acc + wt.terminals.length,
-      0,
-    );
-    const warning =
-      terminalCount > 0
-        ? t.panel_project_remove_confirm_with_terminals(
-            project.projectName,
-            terminalCount,
-          )
-        : t.panel_project_remove_confirm(project.projectName);
-    if (!window.confirm(warning)) return;
+  const terminalCount = project.worktrees.reduce(
+    (acc, wt) => acc + wt.terminals.length,
+    0,
+  );
+  const removeProjectBody =
+    terminalCount > 0
+      ? t.panel_project_remove_confirm_with_terminals(
+          project.projectName,
+          terminalCount,
+        )
+      : t.panel_project_remove_confirm(project.projectName);
+
+  const openRemoveProject = () => {
+    setConfirmingRemove(true);
+  };
+
+  const performRemoveProject = () => {
     useProjectStore.getState().removeProject(project.projectId);
     useNotificationStore
       .getState()
       .notify("info", t.panel_project_removed(project.projectName));
+    setConfirmingRemove(false);
   };
 
   const openDeleteFromDisk = () => {
@@ -539,7 +545,7 @@ function ProjectRow({
               {
                 label: t.panel_remove_project,
                 danger: true,
-                onClick: handleRemoveProject,
+                onClick: openRemoveProject,
               },
               {
                 label: t.panel_delete_project_disk,
@@ -630,6 +636,15 @@ function ProjectRow({
           </div>,
           document.body,
         )}
+      <ConfirmDialog
+        open={confirmingRemove}
+        title={t.panel_project_remove_title}
+        body={removeProjectBody}
+        confirmLabel={t.panel_project_remove_button}
+        confirmTone="danger"
+        onCancel={() => setConfirmingRemove(false)}
+        onConfirm={performRemoveProject}
+      />
     </div>
   );
 }
