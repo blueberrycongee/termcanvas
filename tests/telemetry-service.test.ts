@@ -36,6 +36,42 @@ function createRepoFixture() {
   return repoPath;
 }
 
+function writeSessionJsonl(
+  filePath: string,
+  prompt: string,
+): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(
+    filePath,
+    [
+      JSON.stringify({
+        timestamp: "2026-03-26T00:00:00.000Z",
+        type: "session_meta",
+        payload: {
+          id: path.basename(filePath, ".jsonl"),
+          timestamp: "2026-03-26T00:00:00.000Z",
+          cwd: "/tmp/project",
+        },
+      }),
+      JSON.stringify({
+        timestamp: "2026-03-26T00:00:01.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: prompt,
+            },
+          ],
+        },
+      }),
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
 test("deriveTelemetryStatus marks awaiting_contract after turn completion", () => {
   const status = deriveTelemetryStatus({
     terminal_id: "terminal-1",
@@ -542,6 +578,56 @@ test("recordHookEvent SessionStart uses registered provider instead of hardcoded
   assert.equal(snap.provider, "codex");
   assert.equal(snap.session_id, "sess-codex-1");
   service.dispose();
+});
+
+test("attachSessionSource refreshes first_user_prompt when a terminal reattaches to a different session", () => {
+  const tmpDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "termcanvas-telemetry-session-"),
+  );
+  const oldSessionFile = path.join(tmpDir, "old-session.jsonl");
+  const newSessionFile = path.join(tmpDir, "new-session.jsonl");
+  writeSessionJsonl(oldSessionFile, "你是谁");
+  writeSessionJsonl(
+    newSessionFile,
+    "我感觉现在的 termcanvas 右侧的那个 session 显示我们发送第一句话的那个 bug 还是存在",
+  );
+
+  const service = new TelemetryService({ processPollIntervalMs: 0 });
+  try {
+    service.registerTerminal({
+      terminalId: "terminal-1",
+      worktreePath: "/tmp/project",
+      provider: "codex",
+    });
+
+    service.attachSessionSource({
+      terminalId: "terminal-1",
+      provider: "codex",
+      sessionId: "old-session",
+      confidence: "medium",
+      sessionFile: oldSessionFile,
+    });
+    assert.equal(
+      service.getTerminalSnapshot("terminal-1")?.first_user_prompt,
+      "你是谁",
+    );
+
+    service.attachSessionSource({
+      terminalId: "terminal-1",
+      provider: "codex",
+      sessionId: "new-session",
+      confidence: "strong",
+      sessionFile: newSessionFile,
+    });
+
+    assert.equal(
+      service.getTerminalSnapshot("terminal-1")?.first_user_prompt,
+      "我感觉现在的 termcanvas 右侧的那个 session 显示我们发送第一句话的那个 bug 还是存在",
+    );
+  } finally {
+    service.dispose();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });
 
 test("deriveTelemetryStatus returns progressing when active_tool_calls > 0", () => {

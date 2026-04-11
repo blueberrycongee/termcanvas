@@ -630,12 +630,19 @@ export class TelemetryService {
   }
 
   attachSessionSource(input: SessionAttachInput): void {
-    this.recordSessionAttached(input);
     const state = this.ensureState(input.terminalId);
+    const sessionChanged =
+      state.snapshot.session_id !== input.sessionId ||
+      state.snapshot.session_file !== input.sessionFile;
+
+    this.recordSessionAttached(input);
     this.stopSessionTracking(state);
     state.sessionFile = input.sessionFile ?? null;
     state.sessionOffset = 0;
     state.sessionRemainder = "";
+    if (sessionChanged) {
+      state.snapshot.first_user_prompt = undefined;
+    }
     if (!state.sessionFile) {
       return;
     }
@@ -643,11 +650,9 @@ export class TelemetryService {
     this.startSessionTracking(state);
 
     // Extract first user prompt for display in the session panel title.
-    if (!state.snapshot.first_user_prompt) {
-      const prompt = extractFirstUserPrompt(state.sessionFile);
-      if (prompt) {
-        state.snapshot.first_user_prompt = prompt;
-      }
+    const prompt = extractFirstUserPrompt(state.sessionFile);
+    if (prompt) {
+      state.snapshot.first_user_prompt = prompt;
     }
   }
 
