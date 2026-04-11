@@ -162,7 +162,7 @@ export async function spawn(args: string[]): Promise<void> {
     workflowId,
     assignmentId,
     runId,
-    role: "implementer",
+    role: "dev",
     agentType: workerType,
     sourceRole: "orchestrator",
     objective: [

@@ -132,7 +132,7 @@ function renderReport(args: Args, workflowId: string, records: StageRecord[]): s
     "",
     "## Outcome",
     "",
-    "- Verified: init, dispatch, watch, approve, reset (tester loopback), complete, cleanup.",
+    "- Verified: init, dispatch, watch, approve, reset (reviewer loopback), complete, cleanup.",
     "",
   ].join("\n");
 }
@@ -154,7 +154,7 @@ async function main() {
     // 2. Dispatch the first node (cli/model come from the role file's terminals[0])
     const researcher = await dispatchNode({
       repoPath: args.repo, workflowId, nodeId: "researcher",
-      role: "implementer", intent: "Produce acceptance research brief.",
+      role: "dev", intent: "Produce acceptance research brief.",
     });
     assert.equal(researcher.status, "dispatched");
 
@@ -163,7 +163,7 @@ async function main() {
     let assignment = manager.load(researcher.assignment_id)!;
     let run = latestRun(assignment);
     writeResult(args.repo, workflowId, assignment.id, run, "Research brief produced.", "completed");
-    records.push(captureStage("researcher", assignment.id, "implementer", researcher.terminal_id ?? null, "Research brief produced."));
+    records.push(captureStage("researcher", assignment.id, "dev", researcher.terminal_id ?? null, "Research brief produced."));
 
     // 3. Watch → researcher completes
     let decision = await watchUntilDecision({ repoPath: args.repo, workflowId, timeoutMs: 10_000 });
@@ -172,50 +172,50 @@ async function main() {
     // 4. Approve researcher
     await approveNode({ repoPath: args.repo, workflowId, nodeId: "researcher" });
 
-    // 5. Dispatch implementer
+    // 5. Dispatch dev
     const dev = await dispatchNode({
       repoPath: args.repo, workflowId, nodeId: "dev",
-      role: "implementer", intent: "Implement first pass.", dependsOn: ["researcher"],
+      role: "dev", intent: "Implement first pass.", dependsOn: ["researcher"],
     });
     assert.equal(dev.status, "dispatched");
 
     assignment = manager.load(dev.assignment_id)!;
     run = latestRun(assignment);
     writeResult(args.repo, workflowId, assignment.id, run, "First implementation pass done.", "completed");
-    records.push(captureStage("dev", assignment.id, "implementer", dev.terminal_id ?? null, "First pass done."));
+    records.push(captureStage("dev", assignment.id, "dev", dev.terminal_id ?? null, "First pass done."));
 
     decision = await watchUntilDecision({ repoPath: args.repo, workflowId, timeoutMs: 10_000 });
     assert.equal(decision.type, "node_completed");
 
-    // 6. Dispatch tester (claude variant — exercises a cross-CLI workflow)
-    const tester = await dispatchNode({
-      repoPath: args.repo, workflowId, nodeId: "tester",
-      role: "tester", intent: "Verify implementation.", dependsOn: ["dev"],
+    // 6. Dispatch reviewer (codex variant — exercises a cross-CLI workflow)
+    const reviewer = await dispatchNode({
+      repoPath: args.repo, workflowId, nodeId: "review",
+      role: "reviewer", intent: "Review implementation.", dependsOn: ["dev"],
     });
-    assert.equal(tester.status, "dispatched");
+    assert.equal(reviewer.status, "dispatched");
 
-    assignment = manager.load(tester.assignment_id)!;
+    assignment = manager.load(reviewer.assignment_id)!;
     run = latestRun(assignment);
     writeResult(args.repo, workflowId, assignment.id, run, "Found issues, needs rework.", "completed");
-    records.push(captureStage("tester", assignment.id, "tester", tester.terminal_id ?? null, "Found issues."));
+    records.push(captureStage("review", assignment.id, "reviewer", reviewer.terminal_id ?? null, "Found issues."));
 
     decision = await watchUntilDecision({ repoPath: args.repo, workflowId, timeoutMs: 10_000 });
     assert.equal(decision.type, "node_completed");
     assert.equal(decision.completed?.result.outcome, "completed");
 
-    // 7. Reset dev based on tester feedback
-    await resetNode({ repoPath: args.repo, workflowId, nodeId: "dev", feedback: "Fix the issues found by tester." });
+    // 7. Reset dev based on reviewer feedback
+    await resetNode({ repoPath: args.repo, workflowId, nodeId: "dev", feedback: "Fix the issues the reviewer found." });
 
     // 8. Re-dispatch the same dev node (reset made it eligible)
     const dev2 = await redispatchNode({
-      repoPath: args.repo, workflowId, nodeId: "dev", intent: "Fix tester findings.",
+      repoPath: args.repo, workflowId, nodeId: "dev", intent: "Fix reviewer findings.",
     });
     assert.equal(dev2.status, "dispatched");
 
     assignment = manager.load(dev2.assignment_id)!;
     run = latestRun(assignment);
-    writeResult(args.repo, workflowId, assignment.id, run, "Fixed all tester findings.", "completed");
-    records.push(captureStage("dev", assignment.id, "implementer", dev2.terminal_id ?? null, "Fixed findings."));
+    writeResult(args.repo, workflowId, assignment.id, run, "Fixed all reviewer findings.", "completed");
+    records.push(captureStage("dev", assignment.id, "dev", dev2.terminal_id ?? null, "Fixed findings."));
 
     decision = await watchUntilDecision({ repoPath: args.repo, workflowId, timeoutMs: 10_000 });
     assert.equal(decision.type, "node_completed");

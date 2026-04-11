@@ -139,7 +139,7 @@ test("termcanvas workflow CLI drives a Lead-driven workflow init→dispatch→wa
       await runCli([
         "workflow", "dispatch", workflowId,
         "--node", "dev",
-        "--role", "implementer",
+        "--role", "reviewer",
         "--intent", "Implement workflow control",
         "--repo", repoPath,
         "--json",
@@ -267,7 +267,7 @@ test("termcanvas workflow reset CLI sends a reset feedback to the headless serve
     await runCli([
       "workflow", "dispatch", workflowId,
       "--node", "dev",
-      "--role", "implementer",
+      "--role", "reviewer",
       "--intent", "First pass",
       "--repo", repoPath,
       "--json",

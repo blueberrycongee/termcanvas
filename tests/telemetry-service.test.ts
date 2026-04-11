@@ -379,7 +379,7 @@ test("workflow snapshot reads contract truth from Hydra assignment run", () => {
       workflow_id: workflowId,
       created_at: "2026-03-26T00:00:00.000Z",
       updated_at: "2026-03-26T00:00:00.000Z",
-      role: "implementer",
+      role: "reviewer",
       from_assignment_id: null,
       requested_agent_type: "codex",
       status: "in_progress",
@@ -422,7 +422,7 @@ test("workflow snapshot reads contract truth from Hydra assignment run", () => {
       status: "active",
       nodes: {
         dev: {
-          id: "dev", role: "implementer", depends_on: [], agent_type: "codex",
+          id: "dev", role: "reviewer", depends_on: [], agent_type: "codex",
           assignment_id: assignmentId, intent_file: "nodes/dev/intent.md",
         },
       },

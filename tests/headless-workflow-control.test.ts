@@ -181,7 +181,7 @@ test("createWorkflowControl drives a Lead-driven workflow end-to-end (in-process
         repoPath,
         workflowId: init.workflow_id,
         nodeId: "dev",
-        role: "implementer",
+        role: "reviewer",
         intent: "Implement workflow control",
       });
       assert.equal(dispatch.status, "dispatched");
@@ -262,7 +262,7 @@ test("Lead-driven workflow HTTP routes init, dispatch, watch, approve, complete,
           body: JSON.stringify({
             repoPath,
             nodeId: "dev",
-            role: "implementer",
+            role: "reviewer",
             intent: "Implement workflow control",
           }),
         },

@@ -51,23 +51,16 @@ hydra init --intent "Add OAuth login" --repo .
 
 # (Lead reads the code, reviews related modules, decides the plan.)
 
-hydra dispatch --workflow W --node dev --role implementer \
-  --intent "Implement OAuth middleware following the design in CLAUDE.md" --repo .
+hydra dispatch --workflow W --node dev --role dev \
+  --intent "Implement OAuth middleware and its tests following the design in CLAUDE.md" --repo .
 # → { node_id, assignment_id, status: "dispatched" }
 
 hydra watch --workflow W --repo .
 # → DecisionPoint: dev completed
 
-hydra dispatch --workflow W --node check --role tester \
-  --intent "Verify OAuth flow end-to-end" \
-  --depends-on dev --repo .
-
-hydra watch --workflow W --repo .
-# → DecisionPoint: check completed
-
 hydra dispatch --workflow W --node review --role reviewer \
   --intent "Independent review of the OAuth change" \
-  --depends-on check --repo .
+  --depends-on dev --repo .
 
 hydra watch --workflow W --repo .
 # → DecisionPoint: review completed
@@ -78,15 +71,15 @@ hydra complete --workflow W --repo .
 ## Parallel dev
 
 When the Lead identifies independent work streams, dispatch multiple
-implementers with isolated worktrees:
+dev workers with isolated worktrees:
 
 ```
-hydra dispatch --workflow W --node dev-frontend --role implementer \
-  --intent "Frontend OAuth components" \
+hydra dispatch --workflow W --node dev-frontend --role dev \
+  --intent "Frontend OAuth components and their tests" \
   --worktree .worktrees/frontend --repo .
 
-hydra dispatch --workflow W --node dev-backend --role implementer \
-  --intent "Backend OAuth middleware" \
+hydra dispatch --workflow W --node dev-backend --role dev \
+  --intent "Backend OAuth middleware and its tests" \
   --worktree .worktrees/backend --repo .
 
 hydra watch --workflow W --repo .
@@ -122,21 +115,24 @@ Hydra always picks `terminals[0]` for now; future fallback logic walks
 the list. The Lead chooses **which role** to dispatch — the role file
 chooses **which CLI** to invoke and at what reasoning level.
 
-**implementer** — Writes code. Default: Claude Opus at max reasoning,
-codex fallback. Use for the actual change.
+**lead** — The Hydra decider itself. Not dispatched by `hydra dispatch`;
+this role file codifies what the Lead terminal (the one holding the
+`lead_terminal_id` lock and talking to the human) is supposed to be.
+Default: Claude Opus at max reasoning.
 
-**tester** — Independently validates an implementation against code
-reality. Default: Codex at high reasoning, claude fallback. Run on a
-**different model family** from the implementer so blind spots don't
-overlap.
+**dev** — Writes code AND the tests that cover it. A dev-produced change
+is not complete until its test surface covers the new behavior. Default:
+Claude Opus at max reasoning, codex fallback.
 
-**reviewer** — Independent second opinion at the highest available
-reasoning level. Default: Codex at xhigh, claude max fallback. The
-last line of defense before Lead approves a change.
+**reviewer** — Independent cross-model second opinion at the highest
+available reasoning level. Default: Codex at xhigh, Claude Opus max
+fallback. Runs on a **different model family** from dev so blind spots
+don't overlap. The last line of defense before Lead approves a change.
 
 There is no `researcher` role: the Lead does the research itself
-before dispatching anything. Spinning up a separate agent to do the
-Lead's own job is wasted compute.
+before dispatching anything. There is no separate `tester` role either:
+dev owns its own test surface, and reviewer provides the cross-model
+check that tester used to provide.
 
 You can override the model or reasoning effort per-dispatch via
 `--model` and a project-level role file in `.hydra/roles/`.

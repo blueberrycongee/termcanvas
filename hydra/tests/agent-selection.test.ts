@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
   resolveCurrentAgentType,
   resolveDefaultAgentType,
-  resolveWorkflowAgentTypes,
   resolveWorkerAgentType,
 } from "../src/agent-selection.ts";
 
@@ -24,23 +23,6 @@ test("resolveDefaultAgentType inherits the current terminal type before falling 
     "claude",
   );
   assert.equal(resolveDefaultAgentType({}), "claude");
-});
-
-test("resolveWorkflowAgentTypes supports all-type defaults with per-role overrides", () => {
-  assert.deepStrictEqual(
-    resolveWorkflowAgentTypes(
-      {
-        allType: "codex",
-        testerType: "claude",
-      },
-      {},
-    ),
-    {
-      researcherType: "codex",
-      implementerType: "codex",
-      testerType: "claude",
-    },
-  );
 });
 
 test("resolveWorkerAgentType inherits the current terminal type when unset", () => {

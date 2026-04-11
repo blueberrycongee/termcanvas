@@ -26,11 +26,13 @@ Route first. Choose the lightest path that preserves correctness.
 
 Lead-driven, decision-point oriented. The Lead reads the codebase, picks
 the strategy, and dispatches workers for the steps that need a fresh
-agent process. Three roles available: `implementer`, `tester`, `reviewer`
-(no separate researcher — the Lead does its own research).
+agent process. Roles available: `lead` (the decider — not itself dispatched),
+`dev` (writes code AND its tests), `reviewer` (independent cross-model
+check). No separate researcher — the Lead does its own research. No
+separate tester — dev owns its own test surface.
 
-- `hydra init --intent "..." --repo .` then dispatch `implementer` ->
-  `tester` -> `reviewer` for ambiguous, risky, or PRD-driven work
+- `hydra init --intent "..." --repo .` then dispatch `dev` -> `reviewer`
+  for ambiguous, risky, or PRD-driven work
   - call `hydra watch` after each dispatch to wait for the decision point
 - `hydra spawn --task "..." --repo .` for a single isolated worker
   - use when the task split is already known and you do not need the

@@ -18,8 +18,8 @@ function writeProjectRole(repoPath: string, name: string, content: string): void
 test("loadRole resolves a builtin role with a populated terminals array", () => {
   const repoPath = makeTmpRepo();
   try {
-    const role = loadRole("implementer", repoPath);
-    assert.equal(role.name, "implementer");
+    const role = loadRole("dev", repoPath);
+    assert.equal(role.name, "dev");
     assert.equal(role.source, "builtin");
     assert.ok(role.description.length > 0);
     assert.ok(role.terminals.length >= 1);
@@ -36,10 +36,10 @@ test("loadRole prefers a project-level role over the builtin with the same name"
   try {
     writeProjectRole(
       repoPath,
-      "implementer",
+      "dev",
       [
         "---",
-        "name: implementer",
+        "name: dev",
         "description: PROJECT OVERRIDE",
         "terminals:",
         "  - cli: codex",
@@ -50,7 +50,7 @@ test("loadRole prefers a project-level role over the builtin with the same name"
         "Project body.",
       ].join("\n"),
     );
-    const role = loadRole("implementer", repoPath);
+    const role = loadRole("dev", repoPath);
     assert.equal(role.source, "project");
     assert.equal(role.description, "PROJECT OVERRIDE");
     assert.equal(role.terminals.length, 1);
@@ -254,17 +254,18 @@ test("listRoles enumerates all builtin roles and applies project precedence", ()
   try {
     const before = listRoles(repoPath);
     const builtinNames = before.map((role) => role.name).sort();
-    // Builtin lineup: implementer / tester / reviewer.
-    assert.ok(builtinNames.includes("implementer"));
-    assert.ok(builtinNames.includes("tester"));
+    // Builtin lineup after the Lead/Dev/Reviewer formalization:
+    // lead is a first-class role file even though it is never dispatched.
+    assert.ok(builtinNames.includes("dev"));
+    assert.ok(builtinNames.includes("lead"));
     assert.ok(builtinNames.includes("reviewer"));
 
     writeProjectRole(
       repoPath,
-      "implementer",
+      "dev",
       [
         "---",
-        "name: implementer",
+        "name: dev",
         "description: project version",
         "terminals:",
         "  - cli: claude",
@@ -275,7 +276,7 @@ test("listRoles enumerates all builtin roles and applies project precedence", ()
     );
 
     const after = listRoles(repoPath);
-    const projectRole = after.find((role) => role.name === "implementer");
+    const projectRole = after.find((role) => role.name === "dev");
     assert.ok(projectRole);
     assert.equal(projectRole!.source, "project");
     // No duplicates introduced by precedence walk.

@@ -50,7 +50,7 @@ function setupNode(repoPath: string, nodeId: string, role: string, intent: strin
 
 function makeNode(repoPath: string, overrides: Partial<WorkflowNode> = {}): WorkflowNode {
   const id = overrides.id ?? "test-node";
-  const role = overrides.role ?? "implementer";
+  const role = overrides.role ?? "dev";
   const intentFile = overrides.intent_file ?? setupNode(repoPath, id, role, "Implement feature X");
   return {
     id,
@@ -69,7 +69,7 @@ function makeAssignment(overrides: Partial<AssignmentRecord> = {}): AssignmentRe
     workflow_id: "workflow-test",
     created_at: "2026-04-09T00:00:00.000Z",
     updated_at: "2026-04-09T00:00:00.000Z",
-    role: "implementer",
+    role: "dev",
     from_assignment_id: null,
     requested_agent_type: "claude",
     status: "pending",
@@ -81,19 +81,19 @@ function makeAssignment(overrides: Partial<AssignmentRecord> = {}): AssignmentRe
   } as AssignmentRecord;
 }
 
-test("buildTaskSpecFromIntent produces valid RunTaskSpec for implementer", () => {
+test("buildTaskSpecFromIntent produces valid RunTaskSpec for dev", () => {
   const repoPath = makeTmpDir();
   try {
     setupWorkflow(repoPath, "Test workflow intent");
 
     const spec = buildTaskSpecFromIntent({
       workflow: makeWorkflow(repoPath),
-      node: makeNode(repoPath, { role: "implementer" }),
-      assignment: makeAssignment({ role: "implementer" }),
+      node: makeNode(repoPath, { role: "dev" }),
+      assignment: makeAssignment({ role: "dev" }),
       runId: "run-001",
     });
 
-    assert.equal(spec.role, "implementer");
+    assert.equal(spec.role, "dev");
     assert.equal(spec.agentType, "claude");
     assert.equal(spec.workflowId, "workflow-test");
     assert.equal(spec.assignmentId, "assignment-test");
@@ -110,27 +110,28 @@ test("buildTaskSpecFromIntent produces valid RunTaskSpec for implementer", () =>
   }
 });
 
-test("buildTaskSpecFromIntent surfaces tester briefing via the role body", () => {
+test("buildTaskSpecFromIntent surfaces reviewer briefing via the role body", () => {
   const repoPath = makeTmpDir();
   try {
     setupWorkflow(repoPath, "Test");
     const node = makeNode(repoPath, {
-      id: "tester",
-      role: "tester",
-      intent_file: setupNode(repoPath, "tester", "tester", "Verify the implementation"),
+      id: "review",
+      role: "reviewer",
+      intent_file: setupNode(repoPath, "review", "reviewer", "Review the implementation"),
     });
 
     const spec = buildTaskSpecFromIntent({
       workflow: makeWorkflow(repoPath),
       node,
-      assignment: makeAssignment({ role: "tester" }),
+      assignment: makeAssignment({ role: "reviewer" }),
       runId: "run-001",
     });
 
-    // Tester framing lives in the role body (additive briefing), not in
+    // Reviewer framing lives in the role body (additive briefing), not in
     // an objective prefix or extraSections.
-    assert.ok(spec.roleBody && /tester/i.test(spec.roleBody));
-    assert.ok(spec.roleBody && /Verification Strategy/.test(spec.roleBody));
+    assert.ok(spec.roleBody && /reviewer/i.test(spec.roleBody));
+    // Reviewer's decision rules include the "independent judgment" rule
+    // that used to live on tester — reviewer is the new cross-model check.
     assert.ok(spec.decisionRules.some((r) => /independent judgment/i.test(r)));
   } finally {
     fs.rmSync(repoPath, { recursive: true, force: true });

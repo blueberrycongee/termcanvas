@@ -42,7 +42,8 @@ test("hydra list-roles outputs JSON containing all 3 builtin roles", async () =>
       source: string;
     }>;
     const names = parsed.map((row) => row.name).sort();
-    assert.deepEqual(names, ["implementer", "reviewer", "tester"]);
+    // Builtin lineup after the Lead/Dev/Reviewer formalization.
+    assert.deepEqual(names, ["dev", "lead", "reviewer"]);
 
     // Each row carries the metadata Lead actually consumes.
     for (const row of parsed) {
@@ -71,10 +72,10 @@ test("hydra list-roles --cli codex returns roles whose primary terminal targets 
     for (const row of parsed) {
       assert.equal(row.terminals[0].cli, "codex");
     }
-    // tester and reviewer have codex as their primary terminal in the
-    // builtin lineup; implementer has claude.
+    // reviewer is the only codex-primary role in the post-rename lineup.
+    // dev and lead both default to claude for terminals[0].
     const names = parsed.map((row) => row.name).sort();
-    assert.deepEqual(names, ["reviewer", "tester"]);
+    assert.deepEqual(names, ["reviewer"]);
   } finally {
     cap.restore();
     fs.rmSync(repo, { recursive: true, force: true });
@@ -88,10 +89,10 @@ test("hydra list-roles surfaces project overrides ahead of builtins in source fi
     const projectDir = path.join(repo, ".hydra", "roles");
     fs.mkdirSync(projectDir, { recursive: true });
     fs.writeFileSync(
-      path.join(projectDir, "implementer.md"),
+      path.join(projectDir, "dev.md"),
       [
         "---",
-        "name: implementer",
+        "name: dev",
         "description: project override description",
         "terminals:",
         "  - cli: claude",
@@ -111,7 +112,7 @@ test("hydra list-roles surfaces project overrides ahead of builtins in source fi
       description: string;
       terminals: Array<{ cli: string; model?: string; reasoning_effort?: string }>;
     }>;
-    const overridden = parsed.find((row) => row.name === "implementer");
+    const overridden = parsed.find((row) => row.name === "dev");
     assert.ok(overridden);
     assert.equal(overridden!.source, "project");
     assert.equal(overridden!.description, "project override description");

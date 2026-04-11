@@ -22,7 +22,7 @@ function createFixture() {
   const assignment = manager.create({
     id: "assignment-123",
     workflow_id: workflowId,
-    role: "implementer",
+    role: "dev",
     from_assignment_id: null,
     requested_agent_type: "codex",
     timeout_minutes: 1,

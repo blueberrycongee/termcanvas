@@ -71,11 +71,11 @@ test("writeWorkflowSummary writes summary.md under outputs/", () => {
 test("writeNodeIntent writes nodes/{id}/intent.md with role and node id in the heading", () => {
   const repo = makeRepo();
   try {
-    const filePath = writeNodeIntent(repo, "wf-1", "dev", "implementer", "Implement login form");
+    const filePath = writeNodeIntent(repo, "wf-1", "dev", "dev", "Implement login form");
     assert.equal(filePath, getNodeIntentFile(repo, "wf-1", "dev"));
     assert.ok(fs.existsSync(filePath));
     const content = fs.readFileSync(filePath, "utf-8");
-    assert.match(content, /# implementer — Node dev/);
+    assert.match(content, /# dev — Node dev/);
     assert.match(content, /Implement login form/);
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
@@ -85,7 +85,7 @@ test("writeNodeIntent writes nodes/{id}/intent.md with role and node id in the h
 test("readNodeIntent round-trips written content", () => {
   const repo = makeRepo();
   try {
-    const filePath = writeNodeIntent(repo, "wf-1", "tester", "tester", "Verify the OAuth flow");
+    const filePath = writeNodeIntent(repo, "wf-1", "review", "reviewer", "Verify the OAuth flow");
     const content = readNodeIntent(filePath);
     assert.ok(content);
     assert.match(content, /Verify the OAuth flow/);

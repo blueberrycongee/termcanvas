@@ -125,7 +125,7 @@ test("Q1 — workflow lifecycle: status, intent, completion are visible from the
     const dev = await dispatchNode(
       {
         repoPath: repo, workflowId,
-        nodeId: "dev", role: "implementer", intent: "Build OAuth.",
+        nodeId: "dev", role: "dev", intent: "Build OAuth.",
       },
       deps,
     );
@@ -158,7 +158,7 @@ test("Q2 — Lead decisions are visible: dispatch, approve, reset, redispatch, c
     const dev = await dispatchNode(
       {
         repoPath: repo, workflowId,
-        nodeId: "dev", role: "implementer", intent: "First pass.",
+        nodeId: "dev", role: "dev", intent: "First pass.",
       },
       deps,
     );
@@ -216,14 +216,14 @@ test("Q3 — system decisions are visible: promotions emit node_promoted_eligibl
     const researcher = await dispatchNode(
       {
         repoPath: repo, workflowId,
-        nodeId: "researcher", role: "tester", intent: "Investigate.",
+        nodeId: "researcher", role: "reviewer", intent: "Investigate.",
       },
       deps,
     );
     await dispatchNode(
       {
         repoPath: repo, workflowId,
-        nodeId: "dev", role: "implementer", intent: "Build.",
+        nodeId: "dev", role: "dev", intent: "Build.",
         dependsOn: ["researcher"],
       },
       deps,
@@ -262,7 +262,7 @@ test("Q3 — system decisions are visible: assignment_retried records cause + at
     const dev = await dispatchNode(
       {
         repoPath: repo, workflowId,
-        nodeId: "dev", role: "implementer", intent: "Try.",
+        nodeId: "dev", role: "dev", intent: "Try.",
         maxRetries: 2,
       },
       deps,
@@ -318,7 +318,7 @@ test("Q4 — worker verdicts are visible: outcome + stuck_reason flow into the l
     const dev = await dispatchNode(
       {
         repoPath: repo, workflowId,
-        nodeId: "dev", role: "implementer", intent: "Try.",
+        nodeId: "dev", role: "dev", intent: "Try.",
       },
       deps,
     );
@@ -360,7 +360,7 @@ test("Q5 — drill-down refs: failure events carry failure_message and report_fi
     const dev = await dispatchNode(
       {
         repoPath: repo, workflowId,
-        nodeId: "dev", role: "implementer", intent: "Will fail.",
+        nodeId: "dev", role: "dev", intent: "Will fail.",
         maxRetries: 0, // exhaust on first error
       },
       deps,

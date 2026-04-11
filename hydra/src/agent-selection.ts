@@ -14,19 +14,6 @@ export const AUTO_APPROVE_AGENT_TYPES = new Set<AgentType>(["claude", "codex"]);
 
 const AGENT_TYPES = new Set<AgentType>(SUPPORTED_AGENT_TYPES);
 
-export interface WorkflowAgentTypeSelection {
-  allType?: AgentType;
-  researcherType?: AgentType;
-  implementerType?: AgentType;
-  testerType?: AgentType;
-}
-
-export interface ResolvedWorkflowAgentTypes {
-  researcherType: AgentType;
-  implementerType: AgentType;
-  testerType: AgentType;
-}
-
 export interface WorkerAgentTypeSelection {
   workerType?: AgentType;
 }
@@ -59,18 +46,6 @@ export function resolveDefaultAgentType(
   env: Record<string, string | undefined> = process.env,
 ): AgentType {
   return resolveCurrentAgentType(env) ?? DEFAULT_AGENT_TYPE;
-}
-
-export function resolveWorkflowAgentTypes(
-  selection: WorkflowAgentTypeSelection,
-  env: Record<string, string | undefined> = process.env,
-): ResolvedWorkflowAgentTypes {
-  const baseType = selection.allType ?? resolveDefaultAgentType(env);
-  return {
-    researcherType: selection.researcherType ?? baseType,
-    implementerType: selection.implementerType ?? selection.allType ?? baseType,
-    testerType: selection.testerType ?? selection.allType ?? baseType,
-  };
 }
 
 export function resolveWorkerAgentType(
