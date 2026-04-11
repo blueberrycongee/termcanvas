@@ -31,6 +31,7 @@ import {
   getTerminalFocusOrder,
   getWorktreeFocusOrder,
 } from "../stores/projectFocus";
+import { pickCloseFocusTarget } from "../canvas/closeFocusTarget";
 import { shouldIgnoreShortcutTarget } from "./shortcutTarget";
 import { snapshotStateWithRefresh } from "../snapshotState";
 import { updateWindowTitle } from "../titleHelper";
@@ -81,6 +82,21 @@ function getFocusedTerminalIndex(list: ReturnType<typeof getAllTerminals>) {
     }
   }
   return -1;
+}
+
+function findFocusedTerminalLocation(
+  projects: ReturnType<typeof useProjectStore.getState>["projects"],
+): { projectId: string; worktreeId: string; terminalId: string } | null {
+  for (const p of projects) {
+    for (const w of p.worktrees) {
+      for (const t of w.terminals) {
+        if (t.focused) {
+          return { projectId: p.id, worktreeId: w.id, terminalId: t.id };
+        }
+      }
+    }
+  }
+  return null;
 }
 
 function getFocusedWorktreeIndex(
@@ -462,35 +478,36 @@ export function useKeyboardShortcuts() {
 
       if (matchesShortcut(e, shortcuts.closeFocused)) {
         consumeShortcut();
-        // Walk in spatial order so cmd+d's "where does focus land next?"
-        // matches cmd+] / cmd+[ semantics. projectStore.removeTerminal will
-        // still auto-pick its own array-adjacent neighbor, but we override
-        // focus to the spatial next right after so the landing spot is
-        // consistent with the rest of the navigation keys.
-        const spatial = getAllTerminalsSpatial();
-        const focusedIdx = getFocusedTerminalIndex(spatial);
-        if (focusedIdx !== -1) {
-          const focused = spatial[focusedIdx];
-          const nextFocusedTerminalId =
-            spatial.length > 1
-              ? spatial[(focusedIdx + 1) % spatial.length].terminalId
-              : null;
+        // cmd+d is the inverse of cmd+t. cmd+t (terminalPlacement.ts) inserts
+        // a new tile at (focused.right + gap, focused.y) inside the focused
+        // worktree, so cmd+d closes the focused tile and lands focus on its
+        // spatial-LEFT neighbor in the same worktree — pressing cmd+t then
+        // cmd+d round-trips to the original tile. The fallback chain stays
+        // strictly inside worktree → project → cross-project so users are
+        // never silently kicked out of the project they were working in.
+        const projects = useProjectStore.getState().projects;
+        const focused = findFocusedTerminalLocation(projects);
+        if (!focused) return;
 
-          closeTerminalInScene(
-            focused.projectId,
-            focused.worktreeId,
-            focused.terminalId,
+        const nextFocusedTerminalId = pickCloseFocusTarget(
+          projects,
+          focused.terminalId,
+        );
+
+        closeTerminalInScene(
+          focused.projectId,
+          focused.worktreeId,
+          focused.terminalId,
+        );
+
+        if (nextFocusedTerminalId) {
+          setZoomedOutTerminalId(
+            navigateToTerminalWithViewport(nextFocusedTerminalId, {
+              zoomedOutTerminalId: getZoomedOutTerminalId(),
+            }),
           );
-
-          if (nextFocusedTerminalId) {
-            setZoomedOutTerminalId(
-              navigateToTerminalWithViewport(nextFocusedTerminalId, {
-                zoomedOutTerminalId: getZoomedOutTerminalId(),
-              }),
-            );
-          } else {
-            setZoomedOutTerminalId(null);
-          }
+        } else {
+          setZoomedOutTerminalId(null);
         }
         return;
       }
