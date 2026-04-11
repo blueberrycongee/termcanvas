@@ -1,47 +1,65 @@
 import type { NodeStatus } from "./decision.ts";
-import type { LedgerEntry } from "./ledger.ts";
+import type { LedgerActor, LedgerEntry } from "./ledger.ts";
+import type { StuckReason, SubAgentOutcome } from "./protocol.ts";
 import type { WorkflowStatus } from "./workflow-store.ts";
 
 /**
- * Event-sourcing replay over `ledger.jsonl`.
+ * Ledger summary builder.
  *
- * The current ledger captures only the **high-level workflow narrative** —
- * what was dispatched, what completed, what failed, what was approved. It
- * was not designed to be a full event source: critical workflow setup
- * (repo_path, worktree_path, defaults), node configuration (depends_on,
- * retry_policy, model, context_refs), and assignment-level state (the full
- * AssignmentStateMachine transition log) live only in workflow.json /
- * assignment.json.
+ * **This is not an event-sourcing recovery layer.** Hydra's source of truth
+ * is `workflow.json` + `assignment.json`; the ledger is a Lead-readable
+ * audit log used to scan "what happened and was every decision correct".
  *
- * `replayLedger` reconstructs the subset that *is* derivable from events:
- *   - workflow.status, intent_file, lead_terminal_id, completion outcome
- *   - the per-node trajectory: dispatched → completed/failed/reset/approved
- *   - the merge history (which nodes were merged together)
+ * `summarizeLedger` reduces a stream of `LedgerEntry` events into a
+ * structured summary that answers the five questions a Lead or a periodic
+ * auditor wants to ask without opening any other file:
  *
- * Anything not in this list is reported via `gaps` so callers (and the
- * replay test) can see exactly which fields are *not yet* event-sourced.
- * The intent is architectural validation: each entry in `gaps` is either a
- * candidate for promotion into the ledger or a deliberate "derived cache"
- * decision that should be documented.
+ *   1. What is this workflow's lifecycle status, and how did it get there?
+ *   2. What decisions did the Lead make, and on what?
+ *   3. What decisions did the system make on its own (retries, promotions)?
+ *   4. What did each worker conclude (outcome + stuck_reason)?
+ *   5. Where do I drill down for the full story (report.md, feedback.md)?
+ *
+ * Fields that deliberately do **not** live in the ledger are listed under
+ * `INTENTIONALLY_NOT_LEDGERED` with the design rationale. Adding them to
+ * the ledger would either duplicate state already in `*.json` or expand
+ * the ledger past the point a human can usefully scan it.
  */
 
 export interface ReplayedNode {
   node_id: string;
   role: string;
   status: NodeStatus;
-  /**
-   * intent_file path captured from the dispatch event. Tracks the *latest*
-   * intent file (re-dispatch / reset overwrites it).
-   */
   intent_file: string;
-  /** Path to the feedback file written by the most recent reset, if any. */
   feedback_file?: string;
-  /** Whether this node has been approved by the Lead. */
   approved: boolean;
-  /** Total dispatches observed for this node (initial + redispatches). */
+  /** Total dispatches observed (initial + Lead redispatches + system retries). */
   dispatch_count: number;
-  /** Most recent completion outcome, if the node ever reported one. */
-  last_outcome?: "completed" | "stuck" | "error";
+  /** Most recent worker verdict, if the node ever reported one. */
+  last_outcome?: SubAgentOutcome;
+  /** Sub-state Lead can route on when last_outcome === "stuck". */
+  last_stuck_reason?: StuckReason;
+  /** Most recent failure code, if the node ever failed. */
+  last_failure_code?: string;
+  /** Most recent failure message (human-readable). */
+  last_failure_message?: string;
+  /** report.md path of the most recent failure run, if the worker wrote one. */
+  last_failure_report_file?: string;
+}
+
+export interface SystemRetryEvent {
+  node_id: string;
+  cause: "timeout" | "agent_reported_error";
+  attempt: number;
+  max_attempts: number;
+  next_retry_at?: string;
+  failure_code: string;
+  failure_message?: string;
+}
+
+export interface NodePromotionEvent {
+  node_id: string;
+  triggered_by: string[];
 }
 
 export interface ReplayedMerge {
@@ -55,86 +73,94 @@ export interface ReplayedWorkflow {
   lead_terminal_id?: string;
   result_file?: string;
   failure_reason?: string;
+  failed_node_id?: string;
   nodes: Record<string, ReplayedNode>;
   merges: ReplayedMerge[];
+  /** System decisions to retry an assignment after timeout / agent error. */
+  system_retries: SystemRetryEvent[];
+  /** System decisions to promote blocked nodes to eligible. */
+  promotions: NodePromotionEvent[];
+  /** Per-actor counts so callers can filter "what did Lead vs system do". */
+  actor_counts: Record<LedgerActor, number>;
 }
 
 /**
- * Inventory of `WorkflowRecord` / `WorkflowNode` / `AssignmentRecord` fields
- * that the current ledger event vocabulary cannot reconstruct. Each entry is
- * an architectural debt item: it should either get its own ledger event or
- * be explicitly annotated as a derived/runtime cache.
+ * Inventory of fields that deliberately do not appear in the ledger and
+ * should be read from `*.json` files instead. This is **architectural
+ * design**, not technical debt — every entry below has a documented reason.
  *
- * If the ledger schema changes to cover one of these fields, remove it from
- * this list — the replay test will then catch any regression.
+ * If a future change moves one of these fields into the ledger, remove its
+ * row here and tighten the matching test in `ledger-replay.test.ts`. If a
+ * future change adds a new load-bearing field somewhere, decide whether it
+ * is a *decision* (→ promote into the ledger) or *configuration / state*
+ * (→ add it here with a one-line rationale).
  */
-export interface ReplayGaps {
-  /** Workflow-level setup state never logged by `workflow_created`. */
-  workflow_fields_missing_from_ledger: string[];
-  /** Node configuration fields never logged by `node_dispatched`. */
-  node_fields_missing_from_ledger: string[];
-  /** Assignment-level state machine details never logged. */
-  assignment_fields_missing_from_ledger: string[];
-}
+export const INTENTIONALLY_NOT_LEDGERED = {
+  workflow_setup: {
+    fields: [
+      "id",
+      "repo_path",
+      "worktree_path",
+      "branch",
+      "base_branch",
+      "own_worktree",
+      "default_timeout_minutes",
+      "default_max_retries",
+      "default_agent_type",
+      "auto_approve",
+      "approved_refs",
+    ],
+    rationale:
+      "Workflow setup parameters are configuration, not decisions. They live in workflow.json and never change after init. Putting them in the ledger would bloat every audit scan with static config the reader does not need to judge.",
+  },
+  node_configuration: {
+    fields: [
+      "depends_on",
+      "model",
+      "retry_policy",
+      "context_refs",
+      "worktree_path",
+      "worktree_branch",
+      "timeout_minutes",
+      "max_retries",
+      "assignment_id",
+    ],
+    rationale:
+      "Node-level configuration lives in workflow.json. The ledger records the dispatch *decision* (role, cause, intent_file). To answer 'is this dispatch correct', the reader judges the decision; to answer 'what config did it use', the reader drills into workflow.json.",
+  },
+  assignment_state_machine: {
+    fields: [
+      "retry_count",
+      "transitions",
+      "runs",
+      "last_error",
+      "claim",
+      "status_updated_at",
+      "next_retry_at",
+      "result",
+    ],
+    rationale:
+      "AssignmentStateMachine internal state lives in assignment.json. The ledger records *user-meaningful* state-machine outcomes (assignment_retried, node_completed, node_failed) but not every claim_pending → claimed → in_progress micro-transition. Recording every micro-transition is the wrong granularity for 'is this decision correct'.",
+  },
+} as const;
 
 export interface ReplayResult {
   workflow: ReplayedWorkflow;
-  gaps: ReplayGaps;
 }
-
-export const KNOWN_REPLAY_GAPS: ReplayGaps = {
-  workflow_fields_missing_from_ledger: [
-    // workflow_created only carries intent_file + lead_terminal_id.
-    "id",
-    "repo_path",
-    "worktree_path",
-    "branch",
-    "base_branch",
-    "own_worktree",
-    "default_timeout_minutes",
-    "default_max_retries",
-    "default_agent_type",
-    "auto_approve",
-    "approved_refs",
-  ],
-  node_fields_missing_from_ledger: [
-    // node_dispatched only carries node_id + role + agent_type + intent_file.
-    "depends_on",
-    "model",
-    "retry_policy",
-    "context_refs",
-    "worktree_path",
-    "worktree_branch",
-    "timeout_minutes",
-    "max_retries",
-    "assignment_id",
-  ],
-  assignment_fields_missing_from_ledger: [
-    // No assignment-level state-machine events are written to the ledger.
-    // claim_pending, mark_in_progress, mark_timed_out, schedule_retry,
-    // mark_failed, mark_completed all happen silently inside the state
-    // machine. The result is that retry_count, transitions[], runs[],
-    // last_error, claim, status_updated_at, etc. are all unrecoverable
-    // from the ledger alone.
-    "retry_count",
-    "transitions",
-    "runs",
-    "last_error",
-    "claim",
-    "status_updated_at",
-    "next_retry_at",
-    "result",
-  ],
-};
 
 export function replayLedger(entries: LedgerEntry[]): ReplayResult {
   const workflow: ReplayedWorkflow = {
     status: "active",
     nodes: {},
     merges: [],
+    system_retries: [],
+    promotions: [],
+    actor_counts: { lead: 0, worker: 0, system: 0 },
   };
 
   for (const entry of entries) {
+    workflow.actor_counts[entry.actor] = (workflow.actor_counts[entry.actor] ?? 0) + 1;
+
     const { event } = entry;
     switch (event.type) {
       case "workflow_created": {
@@ -168,6 +194,7 @@ export function replayLedger(entries: LedgerEntry[]): ReplayResult {
         if (node) {
           node.status = "completed";
           node.last_outcome = event.outcome;
+          node.last_stuck_reason = event.stuck_reason;
         }
         break;
       }
@@ -176,6 +203,9 @@ export function replayLedger(entries: LedgerEntry[]): ReplayResult {
         const node = workflow.nodes[event.node_id];
         if (node) {
           node.status = "failed";
+          node.last_failure_code = event.failure_code;
+          node.last_failure_message = event.failure_message;
+          node.last_failure_report_file = event.report_file;
         }
         break;
       }
@@ -205,6 +235,27 @@ export function replayLedger(entries: LedgerEntry[]): ReplayResult {
         break;
       }
 
+      case "assignment_retried": {
+        workflow.system_retries.push({
+          node_id: event.node_id,
+          cause: event.cause,
+          attempt: event.attempt,
+          max_attempts: event.max_attempts,
+          next_retry_at: event.next_retry_at,
+          failure_code: event.failure_code,
+          failure_message: event.failure_message,
+        });
+        break;
+      }
+
+      case "node_promoted_eligible": {
+        workflow.promotions.push({
+          node_id: event.node_id,
+          triggered_by: event.triggered_by,
+        });
+        break;
+      }
+
       case "merge_attempted": {
         workflow.merges.push({
           source_nodes: event.source_nodes,
@@ -222,10 +273,11 @@ export function replayLedger(entries: LedgerEntry[]): ReplayResult {
       case "workflow_failed": {
         workflow.status = "failed";
         workflow.failure_reason = event.reason;
+        workflow.failed_node_id = event.failed_node_id;
         break;
       }
     }
   }
 
-  return { workflow, gaps: KNOWN_REPLAY_GAPS };
+  return { workflow };
 }

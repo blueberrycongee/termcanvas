@@ -410,7 +410,7 @@ export async function initWorkflow(
     auto_approve: options.autoApprove ?? true,
   };
   saveWorkflow(workflow);
-  appendLedger(repoPath, workflowId, {
+  appendLedger(repoPath, workflowId, "lead", {
     type: "workflow_created",
     intent_file: workflow.intent_file,
     lead_terminal_id: leadTerminalId,
@@ -547,9 +547,10 @@ export async function dispatchNode(
   const eligible = allDepsCompleted(workflow, node);
   workflow.node_statuses[options.nodeId] = eligible ? "eligible" : "blocked";
 
-  appendLedger(repoPath, workflow.id, {
+  appendLedger(repoPath, workflow.id, "lead", {
     type: "node_dispatched", node_id: options.nodeId, role: options.role,
     agent_type: agentType, intent_file: node.intent_file,
+    cause: "initial",
   });
 
   if (eligible) {
@@ -617,9 +618,10 @@ export async function redispatchNode(
   const assignment = loadAssignmentByIdOrThrow(manager, workflow, node.assignment_id);
   const runId = generateRunId();
 
-  appendLedger(repoPath, workflow.id, {
+  appendLedger(repoPath, workflow.id, "lead", {
     type: "node_dispatched", node_id: options.nodeId, role: node.role,
     agent_type: node.agent_type, intent_file: node.intent_file,
+    cause: "lead_redispatch",
   });
 
   const result = await dispatchAssignment(workflow, assignment, node, runId, deps);
@@ -703,35 +705,55 @@ export async function watchUntilDecision(
       if (collected.status === "completed") {
         // Route by outcome: error → Hydra retries automatically, completed/stuck → report to Lead
         if (collected.result.outcome === "error") {
+          const errorMessage = `Agent reported error in ${collected.result.report_file}`;
           await stateMachine.markTimedOut(assignment.id, {
             code: "AGENT_REPORTED_ERROR",
-            message: `Agent reported error in ${collected.result.report_file}`,
+            message: errorMessage,
             stage: "workflow.agent_error",
           });
           const retryResult = await stateMachine.scheduleRetry(assignment.id);
           if (retryResult.assignment.status === "failed") {
             workflow.node_statuses[nodeId] = "failed";
             const durationMs = run.started_at ? Date.parse(now()) - Date.parse(run.started_at) : 0;
-            appendLedger(repoPath, workflow.id, {
+            appendLedger(repoPath, workflow.id, "system", {
               type: "node_failed", node_id: nodeId, role: node.role, agent_type: node.agent_type,
               duration_ms: durationMs, retries_used: assignment.retry_count + 1,
               failure_code: "AGENT_REPORTED_ERROR",
+              failure_message: errorMessage,
+              report_file: collected.result.report_file,
             });
             saveWorkflow(workflow);
             return {
               type: "node_failed_final", workflow_id: workflow.id, timestamp: now(),
               failed: {
                 node_id: nodeId, role: node.role, code: "AGENT_REPORTED_ERROR",
-                message: `Agent reported error in ${collected.result.report_file}`,
+                message: errorMessage,
                 retries_used: assignment.retry_count + 1, max_retries: assignment.max_retries,
               },
               nodes: buildNodesSummary(workflow),
             };
           }
-          // Retry scheduled — re-dispatch
+          // Retry scheduled — log the system decision then re-dispatch
+          appendLedger(repoPath, workflow.id, "system", {
+            type: "assignment_retried",
+            node_id: nodeId,
+            cause: "agent_reported_error",
+            attempt: retryResult.assignment.retry_count + 1,
+            max_attempts:
+              (retryResult.assignment.retry_policy?.maximum_attempts
+                ?? retryResult.assignment.max_retries + 1),
+            next_retry_at: retryResult.assignment.next_retry_at,
+            failure_code: "AGENT_REPORTED_ERROR",
+            failure_message: errorMessage,
+          });
           await destroyAssignmentTerminal(assignment, deps);
           const retryRunId = generateRunId();
           const freshAssignment = loadAssignmentByIdOrThrow(manager, workflow, assignment.id);
+          appendLedger(repoPath, workflow.id, "system", {
+            type: "node_dispatched", node_id: nodeId, role: node.role,
+            agent_type: node.agent_type, intent_file: node.intent_file,
+            cause: "system_retry",
+          });
           await dispatchAssignment(workflow, freshAssignment, node, retryRunId, deps);
           saveWorkflow(workflow);
           continue;
@@ -753,16 +775,27 @@ export async function watchUntilDecision(
         const sessionId = reloadedRun?.session_id;
 
         const durationMs = run.started_at ? Date.parse(now()) - Date.parse(run.started_at) : 0;
-        appendLedger(repoPath, workflow.id, {
+        appendLedger(repoPath, workflow.id, "worker", {
           type: "node_completed", node_id: nodeId, role: node.role, agent_type: node.agent_type,
           duration_ms: durationMs, retries_used: assignment.retry_count,
           outcome: collected.result.outcome,
+          stuck_reason: collected.result.stuck_reason,
           report_file: collected.result.report_file,
           session_id: sessionId,
         });
 
-        // Promote blocked → eligible (Lead decides whether to dispatch)
+        // Promote blocked → eligible (Lead decides whether to dispatch).
+        // Each promotion is a system decision worth auditing — log one
+        // ledger entry per newly-promoted node, attributing the trigger.
         const promoted = promoteEligibleNodes(workflow);
+        for (const promotedNodeId of promoted) {
+          const promotedNode = workflow.nodes[promotedNodeId];
+          appendLedger(repoPath, workflow.id, "system", {
+            type: "node_promoted_eligible",
+            node_id: promotedNodeId,
+            triggered_by: promotedNode?.depends_on ?? [nodeId],
+          });
+        }
 
         saveWorkflow(workflow);
         return {
@@ -787,10 +820,11 @@ export async function watchUntilDecision(
         await stateMachine.markFailed(assignment.id, collected.failure);
         workflow.node_statuses[nodeId] = "failed";
         const durationMs = run.started_at ? Date.parse(now()) - Date.parse(run.started_at) : 0;
-        appendLedger(repoPath, workflow.id, {
+        appendLedger(repoPath, workflow.id, "system", {
           type: "node_failed", node_id: nodeId, role: node.role, agent_type: node.agent_type,
           duration_ms: durationMs, retries_used: assignment.retry_count,
           failure_code: collected.failure.code,
+          failure_message: collected.failure.message,
         });
         saveWorkflow(workflow);
         return {
@@ -818,10 +852,11 @@ export async function watchUntilDecision(
           const retryResult = await stateMachine.scheduleRetry(assignment.id);
           if (retryResult.assignment.status === "failed") {
             workflow.node_statuses[nodeId] = "failed";
-            appendLedger(repoPath, workflow.id, {
+            appendLedger(repoPath, workflow.id, "system", {
               type: "node_failed", node_id: nodeId, role: node.role, agent_type: node.agent_type,
               duration_ms: elapsedMs, retries_used: assignment.retry_count + 1,
               failure_code: "ASSIGNMENT_PROCESS_EXITED",
+              failure_message: `Agent process exited without writing result (${Math.round(elapsedMs / 1000)}s)`,
             });
             saveWorkflow(workflow);
             return {
@@ -834,9 +869,26 @@ export async function watchUntilDecision(
               nodes: buildNodesSummary(workflow),
             };
           }
-          // Retry: re-dispatch
+          // Retry scheduled — log the system decision then re-dispatch.
+          appendLedger(repoPath, workflow.id, "system", {
+            type: "assignment_retried",
+            node_id: nodeId,
+            cause: "timeout",
+            attempt: retryResult.assignment.retry_count + 1,
+            max_attempts:
+              (retryResult.assignment.retry_policy?.maximum_attempts
+                ?? retryResult.assignment.max_retries + 1),
+            next_retry_at: retryResult.assignment.next_retry_at,
+            failure_code: "ASSIGNMENT_PROCESS_EXITED",
+            failure_message: `Agent process exited without writing result (${Math.round(elapsedMs / 1000)}s)`,
+          });
           const retryRunId = generateRunId();
           const freshAssignment = loadAssignmentByIdOrThrow(manager, workflow, assignment.id);
+          appendLedger(repoPath, workflow.id, "system", {
+            type: "node_dispatched", node_id: nodeId, role: node.role,
+            agent_type: node.agent_type, intent_file: node.intent_file,
+            cause: "system_retry",
+          });
           const retryOutcome = await dispatchAssignment(workflow, freshAssignment, node, retryRunId, deps);
           if (retryOutcome.status === "dispatched") { changed = true; }
           saveWorkflow(workflow);
@@ -861,10 +913,11 @@ export async function watchUntilDecision(
         );
         if (retryOutcome.status === "failed") {
           workflow.node_statuses[nodeId] = "failed";
-          appendLedger(repoPath, workflow.id, {
+          appendLedger(repoPath, workflow.id, "system", {
             type: "node_failed", node_id: nodeId, role: node.role, agent_type: node.agent_type,
             duration_ms: 0, retries_used: freshAssignment.retry_count + 1,
             failure_code: "ASSIGNMENT_TIMED_OUT",
+            failure_message: "Assignment timed out and retry limit reached",
           });
           saveWorkflow(workflow);
           return {
@@ -876,6 +929,28 @@ export async function watchUntilDecision(
             },
             nodes: buildNodesSummary(workflow),
           };
+        }
+        // retryTimedOutAssignment scheduled and re-dispatched. Log the
+        // system decision so the audit log shows the system retry path.
+        const reloadedForLog = manager.load(assignment.id);
+        if (reloadedForLog) {
+          appendLedger(repoPath, workflow.id, "system", {
+            type: "assignment_retried",
+            node_id: nodeId,
+            cause: "timeout",
+            attempt: reloadedForLog.retry_count + 1,
+            max_attempts:
+              (reloadedForLog.retry_policy?.maximum_attempts
+                ?? reloadedForLog.max_retries + 1),
+            next_retry_at: reloadedForLog.next_retry_at,
+            failure_code: "ASSIGNMENT_TIMEOUT",
+            failure_message: `Assignment exceeded ${freshAssignment.timeout_minutes}-minute timeout`,
+          });
+          appendLedger(repoPath, workflow.id, "system", {
+            type: "node_dispatched", node_id: nodeId, role: node.role,
+            agent_type: node.agent_type, intent_file: node.intent_file,
+            cause: "system_retry",
+          });
         }
         changed = true;
         saveWorkflow(workflow);
@@ -980,7 +1055,7 @@ export async function resetNode(
     return node && allDepsCompleted(workflow, node);
   });
 
-  appendLedger(repoPath, workflow.id, {
+  appendLedger(repoPath, workflow.id, "lead", {
     type: "node_reset", node_id: options.nodeId, role: workflow.nodes[options.nodeId].role,
     feedback_file: feedbackFileRel, cascade_targets: resetNodeIds.filter((id) => id !== options.nodeId),
   });
@@ -1046,13 +1121,13 @@ export async function mergeWorktrees(
       } catch {}
       // Reset to pre-merge state to undo any partial merges
       try { execFileSync("git", ["reset", "--hard", preMergeHead], { cwd, encoding: "utf-8", stdio: "pipe" }); } catch {}
-      appendLedger(repoPath, workflow.id, { type: "merge_attempted", source_nodes: options.sourceNodeIds, outcome: "conflict" });
+      appendLedger(repoPath, workflow.id, "lead", { type: "merge_attempted", source_nodes: options.sourceNodeIds, outcome: "conflict" });
       return { status: "conflict", conflicting_files: conflictingFiles };
     }
   }
 
   const commitSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf-8", stdio: "pipe" }).trim();
-  appendLedger(repoPath, workflow.id, { type: "merge_attempted", source_nodes: options.sourceNodeIds, outcome: "merged" });
+  appendLedger(repoPath, workflow.id, "lead", { type: "merge_attempted", source_nodes: options.sourceNodeIds, outcome: "merged" });
   return { status: "merged", commit_sha: commitSha };
 }
 
@@ -1091,7 +1166,7 @@ export async function approveNode(options: ApproveNodeOptions, deps?: WorkflowDe
     result_file: run.result_file, approved_at: now(),
   };
 
-  appendLedger(repoPath, workflow.id, { type: "node_approved", node_id: options.nodeId, role: node.role });
+  appendLedger(repoPath, workflow.id, "lead", { type: "node_approved", node_id: options.nodeId, role: node.role });
   workflow.updated_at = now();
   saveWorkflow(workflow);
 }
@@ -1134,7 +1209,7 @@ export async function completeWorkflow(
   workflow.updated_at = now();
   saveWorkflow(workflow);
 
-  appendLedger(repoPath, workflow.id, {
+  appendLedger(repoPath, workflow.id, "lead", {
     type: "workflow_completed",
     result_file: resultFileRel,
     total_duration_ms: totalDuration,
@@ -1162,13 +1237,21 @@ export async function failWorkflow(
   }
 
   const totalDuration = Date.parse(now()) - Date.parse(workflow.created_at);
+  // Find the node that bears the visible failure (most recently failed),
+  // for the failed_node_id field on the ledger event.
+  const failedNodeId = Object.entries(workflow.node_statuses)
+    .filter(([, status]) => status === "failed")
+    .map(([id]) => id)[0];
   workflow.status = "failed";
   workflow.failure = { code: "WORKFLOW_MANUALLY_FAILED", message: options.reason, stage: "workflow.fail" };
   workflow.updated_at = now();
   saveWorkflow(workflow);
 
-  appendLedger(repoPath, workflow.id, {
-    type: "workflow_failed", reason: options.reason, total_duration_ms: totalDuration,
+  appendLedger(repoPath, workflow.id, "lead", {
+    type: "workflow_failed",
+    reason: options.reason,
+    total_duration_ms: totalDuration,
+    failed_node_id: failedNodeId,
   });
 }
 

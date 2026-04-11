@@ -10,15 +10,12 @@ import {
   approveNode,
   watchUntilDecision,
   completeWorkflow,
+  resetNode,
+  redispatchNode,
   type WorkflowDependencies,
 } from "../src/workflow-lead.ts";
-import { loadWorkflow } from "../src/workflow-store.ts";
 import { readLedger } from "../src/ledger.ts";
-import {
-  KNOWN_REPLAY_GAPS,
-  replayLedger,
-  type ReplayedWorkflow,
-} from "../src/replay.ts";
+import { INTENTIONALLY_NOT_LEDGERED, replayLedger } from "../src/replay.ts";
 import { RESULT_SCHEMA_VERSION } from "../src/protocol.ts";
 import { AssignmentManager } from "../src/assignment/manager.ts";
 
@@ -63,7 +60,7 @@ function writeWorkerResult(
   assignmentId: string,
   runId: string,
   outcome: "completed" | "stuck" | "error",
-  reportFile = "report.md",
+  options: { stuck_reason?: string; reportFile?: string } = {},
 ): void {
   const runDir = path.join(
     repo,
@@ -77,22 +74,16 @@ function writeWorkerResult(
   );
   fs.mkdirSync(runDir, { recursive: true });
   fs.writeFileSync(path.join(runDir, "report.md"), `# Worker report\nOutcome: ${outcome}\n`, "utf-8");
-  fs.writeFileSync(
-    path.join(runDir, "result.json"),
-    JSON.stringify(
-      {
-        schema_version: RESULT_SCHEMA_VERSION,
-        workflow_id: workflowId,
-        assignment_id: assignmentId,
-        run_id: runId,
-        outcome,
-        report_file: reportFile,
-      },
-      null,
-      2,
-    ),
-    "utf-8",
-  );
+  const result: Record<string, unknown> = {
+    schema_version: RESULT_SCHEMA_VERSION,
+    workflow_id: workflowId,
+    assignment_id: assignmentId,
+    run_id: runId,
+    outcome,
+    report_file: options.reportFile ?? "report.md",
+  };
+  if (options.stuck_reason) result.stuck_reason = options.stuck_reason;
+  fs.writeFileSync(path.join(runDir, "result.json"), JSON.stringify(result, null, 2), "utf-8");
 }
 
 function activeRunId(manager: AssignmentManager, assignmentId: string): string {
@@ -105,7 +96,22 @@ function activeRunId(manager: AssignmentManager, assignmentId: string): string {
   return run.id;
 }
 
-test("replayLedger reconstructs workflow status, node trajectory, and approvals from a real run", async () => {
+// ─── User-story-driven audit tests ───────────────────────────────────────
+//
+// Each test answers ONE of the five questions a Lead / human auditor wants
+// to be able to ask after periodically reading the ledger:
+//
+//   1. What is the workflow's lifecycle status?
+//   2. What did the Lead decide?
+//   3. What did the system decide on its own?
+//   4. What did each worker conclude?
+//   5. Where do I drill down for details?
+//
+// Together these tests pin the **decision-coverage contract** of the
+// ledger. Adding a new user story to this list (or removing one) is the
+// way to evolve the ledger schema deliberately.
+
+test("Q1 — workflow lifecycle: status, intent, completion are visible from the ledger alone", async () => {
   const repo = makeTestRepo();
   const deps = mockDeps();
   try {
@@ -116,196 +122,49 @@ test("replayLedger reconstructs workflow status, node trajectory, and approvals 
     const workflowId = init.workflow_id;
     const manager = new AssignmentManager(repo, workflowId);
 
-    // Linear flow: researcher → dev. The full Lead-driven loop:
-    //   dispatch → worker writes result → watch → approve → next dispatch.
-    const researcher = await dispatchNode(
-      {
-        repoPath: repo,
-        workflowId,
-        nodeId: "researcher",
-        role: "claude-researcher",
-        intent: "Investigate OAuth approach.",
-      },
-      deps,
-    );
-    writeWorkerResult(
-      repo,
-      workflowId,
-      researcher.assignment_id,
-      activeRunId(manager, researcher.assignment_id),
-      "completed",
-    );
-    await watchUntilDecision({ repoPath: repo, workflowId, timeoutMs: 5_000 }, deps);
-    await approveNode({ repoPath: repo, workflowId, nodeId: "researcher" }, deps);
-
     const dev = await dispatchNode(
       {
-        repoPath: repo,
-        workflowId,
-        nodeId: "dev",
-        role: "claude-implementer",
-        intent: "Implement OAuth.",
-        dependsOn: ["researcher"],
+        repoPath: repo, workflowId,
+        nodeId: "dev", role: "claude-implementer", intent: "Build OAuth.",
       },
       deps,
     );
-    writeWorkerResult(
-      repo,
-      workflowId,
-      dev.assignment_id,
-      activeRunId(manager, dev.assignment_id),
-      "completed",
-    );
+    writeWorkerResult(repo, workflowId, dev.assignment_id, activeRunId(manager, dev.assignment_id), "completed");
     await watchUntilDecision({ repoPath: repo, workflowId, timeoutMs: 5_000 }, deps);
+    await completeWorkflow({ repoPath: repo, workflowId, summary: "Done." }, deps);
 
-    await completeWorkflow(
-      { repoPath: repo, workflowId, summary: "OAuth shipped." },
-      deps,
-    );
-
-    // Capture the original on-disk state, then delete the JSON files and
-    // try to rebuild from the ledger alone.
-    const originalWorkflow = loadWorkflow(repo, workflowId)!;
-    const originalNodeStatuses = { ...originalWorkflow.node_statuses };
-    const originalApprovedRefs = originalWorkflow.approved_refs ?? {};
-    const originalAssignments = originalWorkflow.assignment_ids.map((id) => manager.load(id));
-
-    const workflowJson = path.join(repo, ".hydra", "workflows", workflowId, "workflow.json");
-    fs.unlinkSync(workflowJson);
-    for (const assignmentId of originalWorkflow.assignment_ids) {
-      const assignmentJson = path.join(
-        repo,
-        ".hydra",
-        "workflows",
-        workflowId,
-        "assignments",
-        assignmentId,
-        "assignment.json",
-      );
-      if (fs.existsSync(assignmentJson)) {
-        fs.unlinkSync(assignmentJson);
-      }
-    }
-
-    // Replay the ledger and inspect what comes out.
-    const entries = readLedger(repo, workflowId);
-    const { workflow: replayed, gaps } = replayLedger(entries);
-
-    // ─── What replay DOES reconstruct ────────────────────────────────────
-
-    // 1. Workflow lifecycle: created → completed.
-    assert.equal(replayed.status, "completed");
-    assert.equal(replayed.intent_file, originalWorkflow.intent_file);
-    assert.equal(replayed.lead_terminal_id, originalWorkflow.lead_terminal_id);
-
-    // 2. Node trajectory: every dispatched node is rebuilt with its final
-    //    status, intent file, and approval flag.
-    assert.deepEqual(Object.keys(replayed.nodes).sort(), ["dev", "researcher"]);
-
-    const replayedResearcher = replayed.nodes.researcher;
-    assert.equal(replayedResearcher.role, "claude-researcher");
-    assert.equal(replayedResearcher.status, originalNodeStatuses.researcher);
-    assert.equal(replayedResearcher.approved, true);
-    assert.equal(replayedResearcher.last_outcome, "completed");
-    assert.equal(replayedResearcher.dispatch_count, 1);
-
-    const replayedDev = replayed.nodes.dev;
-    assert.equal(replayedDev.role, "claude-implementer");
-    assert.equal(replayedDev.status, originalNodeStatuses.dev);
-    assert.equal(replayedDev.approved, false);
-    assert.equal(replayedDev.last_outcome, "completed");
-
-    // 3. Approval audit: every approved_ref in the original has a matching
-    //    approved=true in the replay (and vice versa).
-    const replayedApproved = Object.values(replayed.nodes)
-      .filter((n) => n.approved)
-      .map((n) => n.node_id)
-      .sort();
-    const originalApproved = Object.keys(originalApprovedRefs).sort();
-    assert.deepEqual(replayedApproved, originalApproved);
-
-    // ─── What replay does NOT reconstruct (architectural debt) ───────────
-
-    // The KNOWN_REPLAY_GAPS list documents fields that the current ledger
-    // event vocabulary cannot recover. Spot-check the most load-bearing
-    // ones to make sure the gap inventory is honest.
-    assert.ok(
-      gaps.workflow_fields_missing_from_ledger.includes("repo_path"),
-      "workflow_created event still does not log repo_path",
-    );
-    assert.ok(
-      gaps.workflow_fields_missing_from_ledger.includes("default_agent_type"),
-      "workflow_created event still does not log default_agent_type",
-    );
-    assert.ok(
-      gaps.node_fields_missing_from_ledger.includes("depends_on"),
-      "node_dispatched event still does not log depends_on",
-    );
-    assert.ok(
-      gaps.node_fields_missing_from_ledger.includes("retry_policy"),
-      "node_dispatched event still does not log retry_policy",
-    );
-    assert.ok(
-      gaps.assignment_fields_missing_from_ledger.includes("retry_count"),
-      "assignment state machine does not emit retry_count to the ledger",
-    );
-    assert.ok(
-      gaps.assignment_fields_missing_from_ledger.includes("transitions"),
-      "assignment state machine does not emit transition history to the ledger",
-    );
-
-    // The ledger does not contain enough information to rebuild a single
-    // AssignmentRecord. This is the central architectural finding: every
-    // assignment-state-machine decision happens silently. Surface that
-    // explicitly so a future change either tightens this assertion or
-    // explicitly removes it after promoting assignment events.
-    assert.equal(originalAssignments.length, 2);
-    for (const assignment of originalAssignments) {
-      assert.ok(assignment, "fixture should have created the assignment");
-      // The replay model does not even hold an assignments map. If a future
-      // refactor adds one, change this assertion.
-      assert.equal(
-        "assignments" in (replayed as ReplayedWorkflow & { assignments?: unknown }),
-        false,
-      );
-    }
+    const { workflow } = replayLedger(readLedger(repo, workflowId));
+    assert.equal(workflow.status, "completed");
+    assert.match(workflow.intent_file ?? "", /intent\.md$/);
+    assert.equal(workflow.lead_terminal_id, "terminal-test-lead");
+    assert.match(workflow.result_file ?? "", /summary\.md$/);
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
 });
 
-test("replayLedger handles a node that was reset and re-dispatched", async () => {
+test("Q2 — Lead decisions are visible: dispatch, approve, reset, redispatch, complete", async () => {
   const repo = makeTestRepo();
   const deps = mockDeps();
   try {
     const init = await initWorkflow(
-      { intent: "Test reset cycle", repoPath: repo, worktreePath: repo },
+      { intent: "Trace Lead decisions", repoPath: repo, worktreePath: repo },
       deps,
     );
     const workflowId = init.workflow_id;
     const manager = new AssignmentManager(repo, workflowId);
 
+    // Lead makes 5 decisions: dispatch → approve → reset → redispatch → complete
     const dev = await dispatchNode(
       {
-        repoPath: repo,
-        workflowId,
-        nodeId: "dev",
-        role: "claude-implementer",
-        intent: "First pass.",
+        repoPath: repo, workflowId,
+        nodeId: "dev", role: "claude-implementer", intent: "First pass.",
       },
       deps,
     );
-    writeWorkerResult(
-      repo,
-      workflowId,
-      dev.assignment_id,
-      activeRunId(manager, dev.assignment_id),
-      "completed",
-    );
+    writeWorkerResult(repo, workflowId, dev.assignment_id, activeRunId(manager, dev.assignment_id), "completed");
     await watchUntilDecision({ repoPath: repo, workflowId, timeoutMs: 5_000 }, deps);
-
-    // Reset and observe the cascade in the replayed model.
-    const { resetNode, redispatchNode } = await import("../src/workflow-lead.ts");
+    await approveNode({ repoPath: repo, workflowId, nodeId: "dev" }, deps);
     await resetNode(
       { repoPath: repo, workflowId, nodeId: "dev", feedback: "Try again." },
       deps,
@@ -314,42 +173,228 @@ test("replayLedger handles a node that was reset and re-dispatched", async () =>
       { repoPath: repo, workflowId, nodeId: "dev", intent: "Second pass." },
       deps,
     );
-    writeWorkerResult(
-      repo,
-      workflowId,
-      dev.assignment_id,
-      activeRunId(manager, dev.assignment_id),
-      "completed",
-    );
+    writeWorkerResult(repo, workflowId, dev.assignment_id, activeRunId(manager, dev.assignment_id), "completed");
     await watchUntilDecision({ repoPath: repo, workflowId, timeoutMs: 5_000 }, deps);
+    await completeWorkflow({ repoPath: repo, workflowId }, deps);
 
     const entries = readLedger(repo, workflowId);
-    const { workflow: replayed } = replayLedger(entries);
+    const leadEntries = entries.filter((e) => e.actor === "lead");
+    const leadEventTypes = leadEntries.map((e) => e.event.type);
 
-    const node = replayed.nodes.dev;
-    assert.ok(node);
-    // We saw two dispatches in the ledger: the original + the redispatch
-    // after reset. Replay tracks this as dispatch_count.
-    assert.equal(node.dispatch_count, 2);
-    // Final status reflects the latest event: completed (after the second pass).
-    assert.equal(node.status, "completed");
-    // Approval is cleared by reset.
-    assert.equal(node.approved, false);
+    // The 5 distinct Lead decisions all show up, attributed to actor=lead.
+    assert.ok(leadEventTypes.includes("workflow_created"));
+    assert.ok(leadEventTypes.includes("node_dispatched"));
+    assert.ok(leadEventTypes.includes("node_approved"));
+    assert.ok(leadEventTypes.includes("node_reset"));
+    assert.ok(leadEventTypes.includes("workflow_completed"));
+
+    // node_dispatched events carry a cause so the reader can distinguish
+    // initial dispatches from redispatches.
+    const dispatchEntries = leadEntries.filter((e) => e.event.type === "node_dispatched");
+    const causes = dispatchEntries.map(
+      (e) => (e.event as { type: "node_dispatched"; cause: string }).cause,
+    );
+    assert.ok(causes.includes("initial"), "first dispatch should have cause=initial");
+    assert.ok(causes.includes("lead_redispatch"), "second dispatch should have cause=lead_redispatch");
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
 });
 
-test("KNOWN_REPLAY_GAPS lists every load-bearing missing field — change-detector", () => {
-  // This is intentionally a change-detector. If you add a new field to
-  // WorkflowRecord / WorkflowNode / AssignmentRecord and it should be
-  // event-sourced, add it here AND update replayLedger to consume the new
-  // event. If it should remain a derived cache, add it here with a
-  // comment in replay.ts explaining why.
-  //
-  // Removing items here is fine when the corresponding ledger event has
-  // landed and replayLedger now reconstructs the field.
-  assert.ok(KNOWN_REPLAY_GAPS.workflow_fields_missing_from_ledger.length >= 10);
-  assert.ok(KNOWN_REPLAY_GAPS.node_fields_missing_from_ledger.length >= 8);
-  assert.ok(KNOWN_REPLAY_GAPS.assignment_fields_missing_from_ledger.length >= 7);
+test("Q3 — system decisions are visible: promotions emit node_promoted_eligible with the triggering deps", async () => {
+  const repo = makeTestRepo();
+  const deps = mockDeps();
+  try {
+    const init = await initWorkflow(
+      { intent: "Trace promotions", repoPath: repo, worktreePath: repo },
+      deps,
+    );
+    const workflowId = init.workflow_id;
+    const manager = new AssignmentManager(repo, workflowId);
+
+    // researcher → dev (dev is blocked initially, gets promoted when researcher completes)
+    const researcher = await dispatchNode(
+      {
+        repoPath: repo, workflowId,
+        nodeId: "researcher", role: "claude-researcher", intent: "Investigate.",
+      },
+      deps,
+    );
+    await dispatchNode(
+      {
+        repoPath: repo, workflowId,
+        nodeId: "dev", role: "claude-implementer", intent: "Build.",
+        dependsOn: ["researcher"],
+      },
+      deps,
+    );
+
+    writeWorkerResult(
+      repo, workflowId, researcher.assignment_id,
+      activeRunId(manager, researcher.assignment_id), "completed",
+    );
+    await watchUntilDecision({ repoPath: repo, workflowId, timeoutMs: 5_000 }, deps);
+
+    const { workflow } = replayLedger(readLedger(repo, workflowId));
+    // The promotion of dev (after researcher completed) is visible to the auditor.
+    const devPromotion = workflow.promotions.find((p) => p.node_id === "dev");
+    assert.ok(devPromotion, "dev should have a promotion event after researcher completed");
+    assert.deepEqual(devPromotion!.triggered_by, ["researcher"]);
+    // actor_counts confirms the system actor is exercising decisions.
+    assert.ok(workflow.actor_counts.system >= 1);
+    assert.ok(workflow.actor_counts.lead >= 2); // workflow_created + 2 dispatches
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("Q3 — system decisions are visible: assignment_retried records cause + attempt + next dispatch", async () => {
+  const repo = makeTestRepo();
+  const deps = mockDeps();
+  try {
+    const init = await initWorkflow(
+      { intent: "Trace retries", repoPath: repo, worktreePath: repo },
+      deps,
+    );
+    const workflowId = init.workflow_id;
+    const manager = new AssignmentManager(repo, workflowId);
+
+    const dev = await dispatchNode(
+      {
+        repoPath: repo, workflowId,
+        nodeId: "dev", role: "claude-implementer", intent: "Try.",
+        maxRetries: 2,
+      },
+      deps,
+    );
+
+    // First run: worker reports outcome=error → system retries.
+    writeWorkerResult(
+      repo, workflowId, dev.assignment_id,
+      activeRunId(manager, dev.assignment_id), "error",
+    );
+    await watchUntilDecision({ repoPath: repo, workflowId, timeoutMs: 5_000 }, deps);
+
+    const entries = readLedger(repo, workflowId);
+    const systemEntries = entries.filter((e) => e.actor === "system");
+    const systemTypes = systemEntries.map((e) => e.event.type);
+
+    // Both the retry decision AND the system-driven re-dispatch land in the ledger.
+    assert.ok(systemTypes.includes("assignment_retried"));
+    assert.ok(systemTypes.includes("node_dispatched"));
+
+    const retryEntry = systemEntries.find((e) => e.event.type === "assignment_retried");
+    const retryEvent = retryEntry!.event as {
+      type: "assignment_retried";
+      cause: "timeout" | "agent_reported_error";
+      attempt: number;
+      failure_code: string;
+    };
+    assert.equal(retryEvent.cause, "agent_reported_error");
+    assert.equal(retryEvent.failure_code, "AGENT_REPORTED_ERROR");
+    assert.ok(retryEvent.attempt >= 1);
+
+    const systemDispatch = systemEntries.find((e) => e.event.type === "node_dispatched");
+    assert.equal(
+      (systemDispatch!.event as { type: "node_dispatched"; cause: string }).cause,
+      "system_retry",
+    );
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("Q4 — worker verdicts are visible: outcome + stuck_reason flow into the ledger", async () => {
+  const repo = makeTestRepo();
+  const deps = mockDeps();
+  try {
+    const init = await initWorkflow(
+      { intent: "Trace worker verdicts", repoPath: repo, worktreePath: repo },
+      deps,
+    );
+    const workflowId = init.workflow_id;
+    const manager = new AssignmentManager(repo, workflowId);
+
+    const dev = await dispatchNode(
+      {
+        repoPath: repo, workflowId,
+        nodeId: "dev", role: "claude-implementer", intent: "Try.",
+      },
+      deps,
+    );
+    writeWorkerResult(
+      repo, workflowId, dev.assignment_id,
+      activeRunId(manager, dev.assignment_id),
+      "stuck",
+      { stuck_reason: "needs_credentials" },
+    );
+    await watchUntilDecision({ repoPath: repo, workflowId, timeoutMs: 5_000 }, deps);
+
+    const { workflow } = replayLedger(readLedger(repo, workflowId));
+    const node = workflow.nodes.dev;
+    assert.ok(node);
+    assert.equal(node.last_outcome, "stuck");
+    assert.equal(node.last_stuck_reason, "needs_credentials");
+
+    // The actor on the verdict event is "worker", not "system" or "lead".
+    const completedEntries = readLedger(repo, workflowId)
+      .filter((e) => e.event.type === "node_completed");
+    assert.equal(completedEntries.length, 1);
+    assert.equal(completedEntries[0].actor, "worker");
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("Q5 — drill-down refs: failure events carry failure_message and report_file when available", async () => {
+  const repo = makeTestRepo();
+  const deps = mockDeps();
+  try {
+    const init = await initWorkflow(
+      { intent: "Trace failure drilldown", repoPath: repo, worktreePath: repo },
+      deps,
+    );
+    const workflowId = init.workflow_id;
+    const manager = new AssignmentManager(repo, workflowId);
+
+    const dev = await dispatchNode(
+      {
+        repoPath: repo, workflowId,
+        nodeId: "dev", role: "claude-implementer", intent: "Will fail.",
+        maxRetries: 0, // exhaust on first error
+      },
+      deps,
+    );
+    writeWorkerResult(
+      repo, workflowId, dev.assignment_id,
+      activeRunId(manager, dev.assignment_id), "error",
+    );
+    await watchUntilDecision({ repoPath: repo, workflowId, timeoutMs: 5_000 }, deps);
+
+    const { workflow } = replayLedger(readLedger(repo, workflowId));
+    const node = workflow.nodes.dev;
+    assert.ok(node);
+    assert.equal(node.status, "failed");
+    assert.equal(node.last_failure_code, "AGENT_REPORTED_ERROR");
+    // failure_message gives the human-readable line; report_file is the
+    // drill-down path so the reader can `cat` straight to the worker's report.
+    assert.match(node.last_failure_message ?? "", /Agent reported error/);
+    assert.equal(node.last_failure_report_file, "report.md");
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("INTENTIONALLY_NOT_LEDGERED documents the design rationale for fields that live in *.json", () => {
+  // This is a change-detector. If you reorganize the inventory, update this
+  // test. If you move a field FROM json INTO the ledger, remove its row
+  // from INTENTIONALLY_NOT_LEDGERED and prove the new ledger event covers
+  // it via a new Q1–Q5 case above.
+  for (const category of Object.values(INTENTIONALLY_NOT_LEDGERED)) {
+    assert.ok(category.fields.length > 0);
+    assert.ok(category.rationale.length > 50, "rationale should be substantive, not a one-liner");
+  }
+  assert.ok(INTENTIONALLY_NOT_LEDGERED.workflow_setup.fields.includes("repo_path"));
+  assert.ok(INTENTIONALLY_NOT_LEDGERED.node_configuration.fields.includes("retry_policy"));
+  assert.ok(INTENTIONALLY_NOT_LEDGERED.assignment_state_machine.fields.includes("transitions"));
 });

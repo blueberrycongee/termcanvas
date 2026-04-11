@@ -1,9 +1,26 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { AgentType } from "./assignment/types.ts";
-import type { SubAgentOutcome } from "./protocol.ts";
+import type { StuckReason, SubAgentOutcome } from "./protocol.ts";
+
+// --- Actor: who made the decision recorded in this entry ---
+//
+// The ledger is read periodically by humans / agents to judge whether
+// decisions were correct. The first thing the reader needs to know is
+// "who decided this" — Lead, the spawned worker, or Hydra orchestration.
+// Mixing the three together makes the audit useless.
+export type LedgerActor = "lead" | "worker" | "system";
 
 // --- Ledger event types ---
+//
+// Why each event records what it does:
+//   - cause / failure_message / stuck_reason / failed_node_id let the
+//     reader scan a single line and judge correctness without drilling
+//     down (drill-down still works via report_file / feedback_file).
+//   - assignment_retried + node_promoted_eligible surface system
+//     decisions that used to be silent inside the state machine.
+
+export type DispatchCause = "initial" | "system_retry" | "lead_redispatch";
 
 export type LedgerEvent =
   | { type: "workflow_created"; intent_file: string; lead_terminal_id: string }
@@ -13,6 +30,7 @@ export type LedgerEvent =
       role: string;
       agent_type: AgentType;
       intent_file: string;
+      cause: DispatchCause;
       resumed_from_session?: string;
     }
   | {
@@ -23,6 +41,7 @@ export type LedgerEvent =
       duration_ms: number;
       retries_used: number;
       outcome: SubAgentOutcome;
+      stuck_reason?: StuckReason;
       report_file: string;
       session_id?: string;
     }
@@ -34,6 +53,8 @@ export type LedgerEvent =
       duration_ms: number;
       retries_used: number;
       failure_code: string;
+      failure_message?: string;
+      report_file?: string;
     }
   | {
       type: "node_reset";
@@ -43,6 +64,33 @@ export type LedgerEvent =
       cascade_targets: string[];
     }
   | { type: "node_approved"; node_id: string; role: string }
+  /**
+   * System-side retry of a single assignment after a timeout or an
+   * agent-reported error. Emitted when scheduleRetry queues a fresh attempt
+   * (so a corresponding node_dispatched with cause=system_retry follows).
+   * Lets the reader audit "should we have retried this / how long until
+   * the next attempt".
+   */
+  | {
+      type: "assignment_retried";
+      node_id: string;
+      cause: "timeout" | "agent_reported_error";
+      attempt: number;
+      max_attempts: number;
+      next_retry_at?: string;
+      failure_code: string;
+      failure_message?: string;
+    }
+  /**
+   * System-side promotion of a previously blocked node to "eligible" once
+   * its dependencies completed. Lets the reader audit "did Hydra promote
+   * the right node, at the right time, after the right deps".
+   */
+  | {
+      type: "node_promoted_eligible";
+      node_id: string;
+      triggered_by: string[];
+    }
   | { type: "merge_attempted"; source_nodes: string[]; outcome: "merged" | "conflict" }
   | {
       type: "workflow_completed";
@@ -51,10 +99,16 @@ export type LedgerEvent =
       total_nodes: number;
       total_retries: number;
     }
-  | { type: "workflow_failed"; reason: string; total_duration_ms: number };
+  | {
+      type: "workflow_failed";
+      reason: string;
+      total_duration_ms: number;
+      failed_node_id?: string;
+    };
 
 export interface LedgerEntry {
   timestamp: string;
+  actor: LedgerActor;
   event: LedgerEvent;
 }
 
@@ -67,12 +121,14 @@ function getLedgerPath(repoPath: string, workflowId: string): string {
 export function appendLedger(
   repoPath: string,
   workflowId: string,
+  actor: LedgerActor,
   event: LedgerEvent,
 ): void {
   const filePath = getLedgerPath(repoPath, workflowId);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const entry: LedgerEntry = {
     timestamp: new Date().toISOString(),
+    actor,
     event,
   };
   fs.appendFileSync(filePath, JSON.stringify(entry) + "\n", "utf-8");

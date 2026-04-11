@@ -1,6 +1,6 @@
 import path from "node:path";
 import { parseAgentTypeFlag } from "./agent-selection.ts";
-import { readLedger } from "./ledger.ts";
+import { readLedger, type LedgerEntry, type LedgerEvent } from "./ledger.ts";
 import { listRoles } from "./roles/loader.ts";
 import {
   initWorkflow,
@@ -293,7 +293,9 @@ export async function cliStatus(args: string[]): Promise<void> {
 
 export async function cliLedger(args: string[]): Promise<void> {
   if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
-    console.log("Usage: hydra ledger --workflow <id> --repo <path>");
+    console.log("Usage: hydra ledger --workflow <id> --repo <path> [--json]");
+    console.log("  Default: one-line scannable view, prefixed with [L]/[W]/[S] actor.");
+    console.log("  --json:  raw JSON-per-line for machine consumption.");
     process.exit(0);
   }
 
@@ -301,7 +303,61 @@ export async function cliLedger(args: string[]): Promise<void> {
     path.resolve(requireFlag(args, "--repo")),
     requireFlag(args, "--workflow"),
   );
+  const json = hasFlag(args, "--json");
   for (const entry of entries) {
-    console.log(JSON.stringify(entry));
+    console.log(json ? JSON.stringify(entry) : formatLedgerLine(entry));
   }
+}
+
+function formatLedgerLine(entry: LedgerEntry): string {
+  const actorPrefix = entry.actor === "lead" ? "[L]"
+    : entry.actor === "worker" ? "[W]"
+    : "[S]";
+  const time = entry.timestamp.slice(11, 19); // HH:MM:SS from ISO
+  const summary = formatEventSummary(entry.event);
+  return `${actorPrefix} ${time}  ${summary}`;
+}
+
+function formatEventSummary(event: LedgerEvent): string {
+  switch (event.type) {
+    case "workflow_created":
+      return `workflow_created           intent=${event.intent_file}`;
+    case "node_dispatched":
+      return `node_dispatched            ${event.node_id} role=${event.role} cause=${event.cause}`;
+    case "node_completed": {
+      const stuck = event.stuck_reason ? ` stuck_reason=${event.stuck_reason}` : "";
+      return `node_completed             ${event.node_id} outcome=${event.outcome}${stuck} report=${event.report_file}`;
+    }
+    case "node_failed": {
+      const msg = event.failure_message ? ` "${truncate(event.failure_message, 60)}"` : "";
+      const ref = event.report_file ? ` report=${event.report_file}` : "";
+      return `node_failed                ${event.node_id} code=${event.failure_code}${msg}${ref}`;
+    }
+    case "node_reset": {
+      const cascade = event.cascade_targets.length > 0 ? ` cascade=[${event.cascade_targets.join(",")}]` : "";
+      const fb = event.feedback_file ? ` feedback=${event.feedback_file}` : "";
+      return `node_reset                 ${event.node_id}${cascade}${fb}`;
+    }
+    case "node_approved":
+      return `node_approved              ${event.node_id}`;
+    case "assignment_retried": {
+      const next = event.next_retry_at ? ` next=${event.next_retry_at.slice(11, 19)}` : "";
+      const msg = event.failure_message ? ` "${truncate(event.failure_message, 60)}"` : "";
+      return `assignment_retried         ${event.node_id} cause=${event.cause} attempt=${event.attempt}/${event.max_attempts}${next} code=${event.failure_code}${msg}`;
+    }
+    case "node_promoted_eligible":
+      return `node_promoted_eligible     ${event.node_id} triggered_by=[${event.triggered_by.join(",")}]`;
+    case "merge_attempted":
+      return `merge_attempted            sources=[${event.source_nodes.join(",")}] outcome=${event.outcome}`;
+    case "workflow_completed":
+      return `workflow_completed         nodes=${event.total_nodes} retries=${event.total_retries} duration_ms=${event.total_duration_ms}`;
+    case "workflow_failed": {
+      const failedNode = event.failed_node_id ? ` failed_node=${event.failed_node_id}` : "";
+      return `workflow_failed            "${truncate(event.reason, 60)}"${failedNode}`;
+    }
+  }
+}
+
+function truncate(text: string, max: number): string {
+  return text.length > max ? text.slice(0, max - 1) + "…" : text;
 }
