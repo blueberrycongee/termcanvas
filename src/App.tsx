@@ -3,7 +3,6 @@ import { CanvasRoot } from "./canvas/CanvasRoot";
 import { addProjectFromDirectoryPath } from "./canvas/sceneCommands";
 import { Toolbar } from "./toolbar/Toolbar";
 import { NotificationToast } from "./components/NotificationToast";
-import { Hub } from "./components/Hub";
 import { LeftPanel } from "./components/LeftPanel";
 import { initUpdaterListeners, useUpdaterStore } from "./stores/updaterStore";
 import { ComposerBar } from "./components/ComposerBar";
@@ -547,7 +546,10 @@ export function App() {
   return (
     <div className="h-screen w-screen overflow-hidden bg-[var(--bg)] text-[var(--text-primary)]">
       <Toolbar onShowTutorial={() => setShowWelcome(true)} />
-      <Hub />
+      {/* Hub (focus-level switcher) hidden until the underlying level
+          cycling is reworked — it currently overlaps the new worktree
+          label HUD in the canvas top-left. Re-enable when ready. */}
+      {/* <Hub /> */}
       <LeftPanel />
       <CanvasRoot />
       {drawingEnabled && <DrawingPanel />}
