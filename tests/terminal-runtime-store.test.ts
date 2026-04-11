@@ -693,3 +693,177 @@ test("reattaching a parked runtime reacquires WebGL after the pool evicts it", a
     releaseWebGL("terminal-1");
   }
 });
+
+test("codex SessionStart hook cancels fallback polling and preserves the exact session", async () => {
+  const mockWindow = installRuntimeGlobals();
+  const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const { useTerminalRuntimeStateStore } = await import(
+    "../src/stores/terminalRuntimeStateStore.ts"
+  );
+  const {
+    destroyAllTerminalRuntimes,
+    ensureTerminalRuntime,
+  } = await import("../src/terminal/terminalRuntimeStore.ts");
+  const previousProjectState = useProjectStore.getState();
+  let sessionStartListener: ((
+    payload: {
+      terminalId: string;
+      sessionId: string;
+      transcriptPath: string | null;
+      cwd: string | null;
+    },
+  ) => void) | null = null;
+  let findCodexCalls = 0;
+  const watchCalls: Array<{
+    cwd: string;
+    sessionId: string;
+    type: string;
+  }> = [];
+  const attachCalls: Array<{
+    confidence: string;
+    cwd: string;
+    provider: string;
+    sessionId: string;
+    terminalId: string;
+  }> = [];
+
+  destroyAllTerminalRuntimes();
+
+  try {
+    seedProjectState(useProjectStore, {
+      ...createTerminal(),
+      ptyId: null,
+      status: "idle",
+      title: "codex",
+      type: "codex",
+    });
+
+    mockWindow.termcanvas = {
+      hooks: {
+        getHealth: async () => ({
+          eventsReceived: 0,
+          lastEventAt: null,
+          parseErrors: 0,
+          socketPath: null,
+        }),
+        getSocketPath: async () => null,
+        onSessionStarted(
+          callback: (payload: {
+            terminalId: string;
+            sessionId: string;
+            transcriptPath: string | null;
+            cwd: string | null;
+          }) => void,
+        ) {
+          sessionStartListener = callback;
+          return () => {
+            if (sessionStartListener === callback) {
+              sessionStartListener = null;
+            }
+          };
+        },
+        onStopFailure() {
+          return () => {};
+        },
+        onTurnComplete() {
+          return () => {};
+        },
+      },
+      session: {
+        findCodex: async () => {
+          findCodexCalls += 1;
+          return { confidence: "medium", sessionId: "wrong-session" };
+        },
+        getBypassState: async () => false,
+        getCodexLatest: async () => "baseline-session",
+        onTurnComplete() {
+          return () => {};
+        },
+        unwatch: async () => {},
+        watch: async (type: string, sessionId: string, cwd: string) => {
+          watchCalls.push({ cwd, sessionId, type });
+          return { ok: true };
+        },
+      },
+      telemetry: {
+        attachSession: async (input: {
+          confidence: string;
+          cwd: string;
+          provider: string;
+          sessionId: string;
+          terminalId: string;
+        }) => {
+          attachCalls.push(input);
+          return { ok: true, sessionFile: `/tmp/${input.sessionId}.jsonl` };
+        },
+        detachSession: async () => {},
+        getTerminal: async () => null,
+        onSnapshotChanged() {
+          return () => {};
+        },
+      },
+      terminal: {
+        create: async () => 42,
+        destroy: async () => {},
+        input() {},
+        notifyThemeChanged() {},
+        onExit() {
+          return () => {};
+        },
+        onOutput() {
+          return () => {};
+        },
+        resize() {},
+      },
+    };
+
+    ensureTerminalRuntime({
+      projectId: "project-1",
+      terminal: useProjectStore.getState().projects[0].worktrees[0].terminals[0],
+      worktreeId: "worktree-1",
+      worktreePath: "/tmp/project-1",
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    assert.ok(
+      sessionStartListener,
+      "codex runtime should register a SessionStart hook listener",
+    );
+
+    sessionStartListener?.({
+      cwd: "/tmp/project-1",
+      sessionId: "correct-session",
+      terminalId: "terminal-1",
+      transcriptPath: "/tmp/correct-session.jsonl",
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 650));
+
+    assert.equal(findCodexCalls, 0);
+    assert.deepEqual(watchCalls, [
+      {
+        cwd: "/tmp/project-1",
+        sessionId: "correct-session",
+        type: "codex",
+      },
+    ]);
+    assert.deepEqual(attachCalls, [
+      {
+        confidence: "strong",
+        cwd: "/tmp/project-1",
+        provider: "codex",
+        sessionId: "correct-session",
+        terminalId: "terminal-1",
+      },
+    ]);
+    assert.equal(
+      useTerminalRuntimeStateStore.getState().terminals["terminal-1"]?.sessionId,
+      "correct-session",
+    );
+  } finally {
+    destroyAllTerminalRuntimes();
+    useTerminalRuntimeStateStore.getState().reset();
+    useProjectStore.setState(previousProjectState);
+  }
+});

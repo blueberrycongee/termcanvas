@@ -1238,6 +1238,7 @@ async function spawnPty(
   let hookSessionReceived = false;
   const isHookEnabled =
     (runtime.meta.terminal.type === "claude" ||
+      runtime.meta.terminal.type === "codex" ||
       runtime.meta.terminal.type === "shell") &&
     !!window.termcanvas?.hooks;
 
@@ -1269,8 +1270,10 @@ async function spawnPty(
             .catch(() => {});
         }
 
+        const hookSessionType =
+          runtime.meta.terminal.type === "codex" ? "codex" : "claude";
         setSessionId(runtime, payload.sessionId);
-        watchSession(runtime, "claude", payload.sessionId, "strong");
+        watchSession(runtime, hookSessionType, payload.sessionId, "strong");
         void syncPermissionMode(runtime, payload.sessionId);
       });
   }
@@ -1294,8 +1297,12 @@ async function spawnPty(
     }
 
     if (!resumeSessionId && launch) {
-      if (runtime.meta.terminal.type === "claude" && isHookEnabled) {
-        // Hook is primary for claude; fall back to polling after 30s if no hook event
+      if (
+        isHookEnabled &&
+        (runtime.meta.terminal.type === "claude" ||
+          runtime.meta.terminal.type === "codex")
+      ) {
+        // Hook is primary for claude/codex; fall back to polling if no hook event.
         runtime.hookFallbackTimer = setTimeout(() => {
           runtime.hookFallbackTimer = null;
           if (!hookSessionReceived && !runtime.disposed) {
