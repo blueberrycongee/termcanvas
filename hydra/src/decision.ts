@@ -1,4 +1,4 @@
-import type { SubAgentOutcome } from "./protocol.ts";
+import type { StuckReason, SubAgentOutcome } from "./protocol.ts";
 
 export type NodeStatus =
   | "blocked"
@@ -19,6 +19,12 @@ export interface CompletedNodeInfo {
   node_id: string;
   role: string;
   outcome: SubAgentOutcome;
+  /**
+   * Set when outcome === "stuck". Lets Lead route the intervention without
+   * having to read report.md first. See StuckReason in protocol.ts for the
+   * meaning of each category.
+   */
+  stuck_reason?: StuckReason;
   report_file: string;          // path to report.md (Lead reads for details)
   duration_ms: number;
   retries_used: number;

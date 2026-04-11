@@ -6,6 +6,25 @@ export const RESULT_SCHEMA_VERSION = "hydra/result/v0.1";
 
 export type SubAgentOutcome = "completed" | "stuck" | "error";
 
+/**
+ * When a worker reports outcome="stuck", `stuck_reason` tells Lead *why* it
+ * is stuck so Lead can decide what to do without having to read report.md
+ * first. The categories are deliberately coarse — they classify the kind of
+ * intervention needed, not the underlying technical detail (which lives in
+ * report.md). Inspired by Google's A2A protocol task-state vocabulary.
+ *
+ *   needs_clarification — the worker cannot disambiguate the request
+ *   needs_credentials   — the worker is missing an auth token / secret
+ *   needs_context       — the worker is missing a file / artifact / spec
+ *   blocked_technical   — an environmental / technical block the worker
+ *                         cannot resolve on its own (network, tool, etc.)
+ */
+export type StuckReason =
+  | "needs_clarification"
+  | "needs_credentials"
+  | "needs_context"
+  | "blocked_technical";
+
 // --- Sub-agent result contract ---
 //
 // JSON keeps only what Hydra needs to drive routing.
@@ -20,6 +39,12 @@ export interface SubAgentResult {
 
   outcome: SubAgentOutcome;
   report_file: string;       // path to report.md (relative to result.json's dir or absolute)
+
+  /**
+   * Required when outcome === "stuck"; rejected otherwise. Lets Lead route
+   * stuck workers to the right intervention without parsing report.md prose.
+   */
+  stuck_reason?: StuckReason;
 }
 
 // --- Validation helpers ---
@@ -68,6 +93,38 @@ function validateOutcome(record: Record<string, unknown>, root: unknown): SubAge
   return value as SubAgentOutcome;
 }
 
+const VALID_STUCK_REASONS = new Set<StuckReason>([
+  "needs_clarification",
+  "needs_credentials",
+  "needs_context",
+  "blocked_technical",
+]);
+
+function validateStuckReason(
+  record: Record<string, unknown>,
+  outcome: SubAgentOutcome,
+  root: unknown,
+): StuckReason | undefined {
+  const raw = record.stuck_reason;
+  if (raw === undefined) return undefined;
+  if (typeof raw !== "string") {
+    failValidation("Invalid stuck_reason: expected a string", root);
+  }
+  if (outcome !== "stuck") {
+    failValidation(
+      `Invalid stuck_reason: only allowed when outcome="stuck" (received outcome="${outcome}")`,
+      root,
+    );
+  }
+  if (!VALID_STUCK_REASONS.has(raw as StuckReason)) {
+    failValidation(
+      `Invalid stuck_reason: ${raw}. Expected one of: ${[...VALID_STUCK_REASONS].join(", ")}`,
+      root,
+    );
+  }
+  return raw as StuckReason;
+}
+
 // --- Main validation ---
 
 export function validateSubAgentResult(
@@ -83,13 +140,15 @@ export function validateSubAgentResult(
     );
   }
 
+  const outcome = validateOutcome(record, value);
   const validated: SubAgentResult = {
     schema_version: RESULT_SCHEMA_VERSION,
     workflow_id: expectString(record, "workflow_id", value),
     assignment_id: expectString(record, "assignment_id", value),
     run_id: expectString(record, "run_id", value),
-    outcome: validateOutcome(record, value),
+    outcome,
     report_file: expectString(record, "report_file", value),
+    stuck_reason: validateStuckReason(record, outcome, value),
   };
 
   if (validated.workflow_id !== expected.workflow_id) {

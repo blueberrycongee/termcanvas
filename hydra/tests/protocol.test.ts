@@ -78,6 +78,68 @@ test("validateSubAgentResult requires report_file", () => {
   );
 });
 
+test("validateSubAgentResult accepts a valid stuck_reason on a stuck result", () => {
+  const result = validateSubAgentResult(
+    {
+      ...buildValidResult(),
+      outcome: "stuck",
+      stuck_reason: "needs_credentials",
+    },
+    EXPECTED_IDS,
+  );
+  assert.equal(result.outcome, "stuck");
+  assert.equal(result.stuck_reason, "needs_credentials");
+});
+
+test("validateSubAgentResult leaves stuck_reason undefined when not provided", () => {
+  const result = validateSubAgentResult(
+    { ...buildValidResult(), outcome: "stuck" },
+    EXPECTED_IDS,
+  );
+  assert.equal(result.outcome, "stuck");
+  assert.equal(result.stuck_reason, undefined);
+});
+
+test("validateSubAgentResult rejects an unknown stuck_reason value", () => {
+  assert.throws(
+    () =>
+      validateSubAgentResult(
+        {
+          ...buildValidResult(),
+          outcome: "stuck",
+          stuck_reason: "needs_a_hug",
+        },
+        EXPECTED_IDS,
+      ),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /stuck_reason/);
+      assert.match(error.message, /needs_a_hug/);
+      return true;
+    },
+  );
+});
+
+test("validateSubAgentResult rejects stuck_reason when outcome is not stuck", () => {
+  assert.throws(
+    () =>
+      validateSubAgentResult(
+        {
+          ...buildValidResult(),
+          outcome: "completed",
+          stuck_reason: "needs_clarification",
+        },
+        EXPECTED_IDS,
+      ),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /stuck_reason/);
+      assert.match(error.message, /outcome="stuck"/);
+      return true;
+    },
+  );
+});
+
 test("validateSubAgentResult rejects mismatched run identity", () => {
   const invalid = {
     ...buildValidResult(),

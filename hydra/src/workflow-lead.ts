@@ -752,6 +752,7 @@ export async function watchUntilDecision(
           completed: {
             node_id: nodeId, role: node.role,
             outcome: collected.result.outcome,
+            stuck_reason: collected.result.stuck_reason,
             report_file: collected.result.report_file,
             duration_ms: durationMs,
             retries_used: assignment.retry_count,
