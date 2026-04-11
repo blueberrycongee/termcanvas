@@ -46,7 +46,6 @@ import {
 } from "./viewportBounds";
 import { clampScale, zoomAtClientPoint } from "./viewportZoom";
 import { resolveCollisions } from "./collisionResolver";
-import { ClusterToolbar } from "./ClusterToolbar";
 import { ContextMenu } from "../components/ContextMenu";
 import { createTerminalInScene } from "../actions/terminalSceneActions";
 import type { TerminalType } from "../types";
@@ -566,8 +565,6 @@ function XyFlowCanvasInner() {
       >
         <Background gap={20} size={1} color="var(--border)" />
       </ReactFlow>
-
-      <ClusterToolbar />
 
       {contextMenu && (
         <ContextMenu
