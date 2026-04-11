@@ -2,6 +2,48 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.27.4] - 2026-04-11
+
+### Added
+- Screen-space worktree label layer: each worktree now shows a pixel-fixed `project / worktree` label anchored to its topmost terminal, scaled-driven so it fades in as you zoom out and collapses to `Project (N)` at extreme zoom-out; hovering any terminal lights up its worktree's label, hovering or clicking a label highlights it and pans the viewport to fit the worktree
+- Top-left HUD pill that shows the focused `project / worktree` whenever you're zoomed in past 0.7, so the canvas itself answers "where am I" without forcing the right session panel open
+- `wuu` is now a first-class terminal agent type
+- `IconButton` and `ConfirmDialog` UI primitives, adopted across the right session panel
+- Sessions panel auto-opens the first time a project is added so new users see their newly added project immediately
+
+### Changed
+- `cmd+d` is now the strict inverse of `cmd+t`: closing the focused terminal lands focus on the spatial-LEFT row sibling in the SAME worktree (mirroring `cmd+t`'s right-of-focused insertion), and only walks worktree → project → cross-project as fallbacks. Pressing `cmd+t` then `cmd+d` round-trips back to the original focused tile, and you can no longer be silently kicked out of the project you were working in
+- The yellow project-name sticker in each terminal header is removed; the new label layer carries that information at a readable size at every zoom
+- The Hub focus-level switcher is hidden for now while the underlying level cycling is reworked, since it overlapped the new HUD
+- The cluster toolbar is hidden until its layout algorithm is reworked
+- Right session panel: project/worktree removal is unified on the new `ConfirmDialog`, with two-step confirm and a `--force` fallback for non-empty worktree removal
+- Right session panel: chevrons are semantic `<button>`s with focus-visible rings and proper tablist semantics; left-click on a worktree row toggles expand instead of being conflated with focus
+
+### Fixed
+- New terminals now have their tile size recomputed on every create, so the first tile in a fresh worktree always lands at the right dimensions instead of inheriting a stale measurement
+- Codex session attach now uses the SessionStart hook for an exact match instead of guessing from polling order
+- OpenAI streaming `tool_call` accumulator is realigned with the `openai-node` upstream so partial argument chunks are stitched in the correct order
+
+### Added (zh-CN)
+- 屏幕坐标系下的 worktree 标签层：每个 worktree 现在会在它最上方那个终端的上方显示一个 `项目 / worktree` 标签，字号是固定像素大小，跟随画布平移和缩放但本身不会变小；标签会随着缩远渐入显示，缩到极远时会自动合并成 `Project (N)`；hover 任何终端会点亮它所属 worktree 的标签，hover 或点击标签会高亮它并把视口平移到刚好包住该 worktree
+- 当画布缩放 ≥ 0.7（你正在某个终端里打字时），左上角会出现一个 HUD pill 显示当前焦点的 `项目 / worktree`，让画布本身回答"我在哪"，不再强迫你打开右侧 session 面板才知道
+- `wuu` 现在是一等的终端 agent 类型
+- 新增 `IconButton` 和 `ConfirmDialog` 两个 UI 原语，并在右侧 session 面板里推广使用
+- 第一次新增项目时，session 面板会自动打开，让新用户立即看到刚添加的项目
+
+### Changed (zh-CN)
+- `cmd+d` 现在是 `cmd+t` 的严格逆运算：关闭焦点终端后，焦点会落到**同一个 worktree 内、同一行的左侧邻居**（对应 `cmd+t` 在焦点右边插入新终端），fallback 顺序严格走 worktree → project → 跨项目。连按 `cmd+t`、`cmd+d` 会完全回到原焦点终端；再也不会在你不知情的情况下被踢到别的项目里
+- 删除了终端 header 上的黄色项目名贴纸；新的标签层在任何缩放下都能读清楚归属，贴纸不再需要
+- Hub 层级切换器临时隐藏，因为和新 HUD 重叠，且底层 focus-level 还在改造
+- 集群工具条临时隐藏，等布局算法重做完再恢复
+- 右侧 session 面板：项目和 worktree 的删除流程统一到新的 `ConfirmDialog`，提供两步确认；非空 worktree 删除会回退到 `--force`
+- 右侧 session 面板：折叠箭头改为语义 `<button>`，带 focus-visible 圈和正确的 tablist 语义；worktree 行的左键点击改为切换展开而不是混淆成 focus
+
+### Fixed (zh-CN)
+- 新建终端现在每次都会重新计算 tile 尺寸，避免在一个空 worktree 里第一个终端继承到上次的旧尺寸
+- Codex 会话 attach 改为通过 SessionStart hook 精确匹配，不再依赖轮询顺序猜测
+- OpenAI 流式 `tool_call` 累加器与上游 `openai-node` 对齐，部分参数 chunk 现在按正确顺序拼接
+
 ## [0.27.3] - 2026-04-10
 
 ### Fixed
