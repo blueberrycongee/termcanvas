@@ -85,6 +85,10 @@ export const IconButton = forwardRef<HTMLButtonElement, Props>(
         {...rest}
         className={[
           "shrink-0 inline-flex items-center justify-center transition-colors",
+          // P1 follow-through: keyboard users need to see where focus is.
+          // outline-none + a tinted ring matches the rest of the surface and
+          // doesn't fight with the row's background hover.
+          "outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)]",
           sizeClass[size],
           toneClass[tone],
           busy ? "opacity-60 cursor-progress" : "",

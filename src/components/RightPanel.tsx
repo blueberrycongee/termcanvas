@@ -46,13 +46,16 @@ export function RightPanel() {
         onClick={() => setCollapsed(false)}
       >
         {TAB_IDS.map((id) => (
+          // Collapsed-rail buttons are not real tabs (no tabpanel is
+          // visible while collapsed) — they expand the panel and pick a
+          // tab in one shot. Treat them as plain buttons with a clear
+          // label, not as tab/toggle widgets.
           <button
             key={id}
             type="button"
             title={tabLabels[id]}
             aria-label={tabLabels[id]}
-            aria-pressed={activeTab === id}
-            className={`flex flex-col items-center py-2 px-1 rounded cursor-pointer hover:bg-[var(--sidebar-hover)] ${
+            className={`flex flex-col items-center py-2 px-1 rounded cursor-pointer hover:bg-[var(--sidebar-hover)] outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)] ${
               activeTab === id ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"
             }`}
             onClick={() => {
@@ -72,25 +75,35 @@ export function RightPanel() {
           transition: "width 0.2s ease",
         }}
       >
-        <div className="shrink-0 flex items-center border-b border-[var(--border)] h-[34px]">
-          {TAB_IDS.map((id) => (
-            <button
-              key={id}
-              type="button"
-              aria-label={tabLabels[id]}
-              aria-pressed={activeTab === id}
-              className={`flex-1 flex items-center justify-center gap-1.5 h-full text-[10px] uppercase tracking-wider cursor-pointer border-b-2 transition-colors ${
-                activeTab === id
-                  ? "border-[var(--accent)] text-[var(--text-primary)]"
-                  : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-              }`}
-              onClick={() => setActiveTab(id)}
-              style={{ fontFamily: '"Geist Mono", monospace' }}
-            >
-              {TAB_ICONS[id]}
-              {tabLabels[id]}
-            </button>
-          ))}
+        <div
+          role="tablist"
+          aria-label={t.sessions_panel_title}
+          className="shrink-0 flex items-center border-b border-[var(--border)] h-[34px]"
+        >
+          {TAB_IDS.map((id) => {
+            const selected = activeTab === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                id={`right-panel-tab-${id}`}
+                aria-selected={selected}
+                aria-controls={`right-panel-tabpanel-${id}`}
+                tabIndex={selected ? 0 : -1}
+                className={`flex-1 flex items-center justify-center gap-1.5 h-full text-[10px] uppercase tracking-wider cursor-pointer border-b-2 transition-colors outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent)] ${
+                  selected
+                    ? "border-[var(--accent)] text-[var(--text-primary)]"
+                    : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                }`}
+                onClick={() => setActiveTab(id)}
+                style={{ fontFamily: '"Geist Mono", monospace' }}
+              >
+                {TAB_ICONS[id]}
+                {tabLabels[id]}
+              </button>
+            );
+          })}
           <IconButton
             size="md"
             tone="neutral"
@@ -103,7 +116,12 @@ export function RightPanel() {
           </IconButton>
         </div>
 
-        <div className="flex-1 min-h-0">
+        <div
+          role="tabpanel"
+          id={`right-panel-tabpanel-${activeTab}`}
+          aria-labelledby={`right-panel-tab-${activeTab}`}
+          className="flex-1 min-h-0"
+        >
           {activeTab === "usage" && <UsagePanel />}
           {activeTab === "sessions" && <SessionsPanel />}
         </div>

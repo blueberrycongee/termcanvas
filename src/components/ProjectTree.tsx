@@ -287,7 +287,7 @@ function WorktreeRow({
           type="button"
           aria-label={collapsed ? "Expand" : "Collapse"}
           aria-expanded={!collapsed}
-          className="shrink-0 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+          className="shrink-0 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)] rounded"
           onClick={(e) => {
             e.stopPropagation();
             toggle(group.worktreeId);
@@ -479,7 +479,7 @@ function ProjectRow({
           type="button"
           aria-label={collapsed ? "Expand" : "Collapse"}
           aria-expanded={!collapsed}
-          className="shrink-0 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+          className="shrink-0 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)] rounded"
           onClick={(e) => {
             e.stopPropagation();
             toggle(project.projectId);
