@@ -145,15 +145,27 @@ export class OpenAIProvider implements LLMProvider {
           }
 
           if (delta.tool_calls) {
+            // Mirrors the canonical accumulator from openai-node /
+            // openai-go: lazy-init the slot by index, then assign each
+            // field independently. Makes no assumption about whether id,
+            // name, or arguments arrive first — robust to OpenAI-compat
+            // providers that batch fragments differently.
             for (const tc of delta.tool_calls) {
               const idx = tc.index ?? 0;
-              if (tc.id) {
-                toolCalls.set(idx, { id: tc.id, name: tc.function?.name ?? "", args: "" });
-                yield { type: "tool_use_start", id: tc.id, name: tc.function?.name ?? "" };
+              let entry = toolCalls.get(idx);
+              if (!entry) {
+                entry = { id: "", name: "", args: "" };
+                toolCalls.set(idx, entry);
               }
-              const existing = toolCalls.get(idx);
-              if (existing && tc.function?.arguments) {
-                existing.args += tc.function.arguments;
+              if (tc.id) {
+                entry.id = tc.id;
+                yield { type: "tool_use_start", id: tc.id, name: entry.name || tc.function?.name || "" };
+              }
+              if (tc.function?.name) {
+                entry.name = tc.function.name;
+              }
+              if (tc.function?.arguments) {
+                entry.args += tc.function.arguments;
                 yield { type: "input_json_delta", partial_json: tc.function.arguments };
               }
             }
