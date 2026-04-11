@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { setTimeout as delay } from "node:timers/promises";
 import { HydraError } from "../errors.ts";
+import type { RetryPolicy } from "../workflow-store.ts";
 import { AssignmentManager } from "./manager.ts";
 import type {
   AssignmentError,
@@ -8,6 +9,28 @@ import type {
   AssignmentStatus,
   AssignmentTransition,
 } from "./types.ts";
+
+/**
+ * Computes when the next retry is allowed to dispatch given a policy and the
+ * incremented retry_count (so retry_count=1 means the first retry). Returns
+ * undefined when no backoff is configured — callers should treat this as
+ * "dispatch immediately".
+ *
+ * Backoff = initial_interval_ms × backoff_coefficient ^ (retry_count - 1)
+ * with backoff_coefficient defaulting to 2.0 (Temporal-style exponential).
+ */
+export function computeNextRetryAt(
+  policy: RetryPolicy | undefined,
+  retryCount: number,
+  nowIso: string,
+): string | undefined {
+  if (!policy?.initial_interval_ms || policy.initial_interval_ms <= 0) {
+    return undefined;
+  }
+  const coefficient = policy.backoff_coefficient ?? 2.0;
+  const waitMs = policy.initial_interval_ms * Math.pow(coefficient, Math.max(0, retryCount - 1));
+  return new Date(Date.parse(nowIso) + waitMs).toISOString();
+}
 
 export interface StateMachineOptions {
   lockRetryMs?: number;
@@ -186,7 +209,33 @@ export class AssignmentStateMachine {
         throw this.invalidTransition(assignment, "scheduleRetry", ["timed_out"]);
       }
 
-      if (assignment.retry_count >= assignment.max_retries) {
+      // Honor non_retryable_error_codes from the retry policy: if the most
+      // recent failure code is in the non-retryable list, fail immediately
+      // regardless of remaining attempts.
+      const nonRetryable = assignment.retry_policy?.non_retryable_error_codes ?? [];
+      const lastErrorCode = assignment.last_error?.code;
+      if (lastErrorCode && nonRetryable.includes(lastErrorCode)) {
+        assignment.claim = undefined;
+        assignment.last_error = {
+          code: lastErrorCode,
+          message: assignment.last_error?.message ?? `Non-retryable error: ${lastErrorCode}`,
+          stage: assignment.last_error?.stage ?? "assignment.scheduleRetry",
+          retryable: false,
+          at: this.now(),
+        };
+        this.applyTransition(assignment, "failed", { event: "retry_exhausted" });
+        return { changed: true, assignment };
+      }
+
+      // Determine the effective retry budget. retry_policy.maximum_attempts
+      // counts the *initial* attempt as 1, so the corresponding max_retries
+      // is maximum_attempts - 1. Falls back to the legacy scalar field.
+      const effectiveMaxRetries =
+        assignment.retry_policy?.maximum_attempts !== undefined
+          ? Math.max(0, assignment.retry_policy.maximum_attempts - 1)
+          : assignment.max_retries;
+
+      if (assignment.retry_count >= effectiveMaxRetries) {
         assignment.claim = undefined;
         assignment.last_error = {
           code: "ASSIGNMENT_RETRY_LIMIT_EXCEEDED",
@@ -204,6 +253,11 @@ export class AssignmentStateMachine {
       assignment.last_error = undefined;
       assignment.result = undefined;
       assignment.active_run_id = null;
+      assignment.next_retry_at = computeNextRetryAt(
+        assignment.retry_policy,
+        assignment.retry_count,
+        this.now(),
+      );
       this.applyTransition(assignment, "pending", { event: "schedule_retry" });
       return { changed: true, assignment };
     });

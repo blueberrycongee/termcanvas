@@ -33,6 +33,7 @@ import {
   loadWorkflow,
   saveWorkflow,
   WORKFLOW_STATE_SCHEMA_VERSION,
+  type RetryPolicy,
   type WorkflowFailure,
   type WorkflowNode,
   type WorkflowRecord,
@@ -296,9 +297,18 @@ async function dispatchAssignment(
   runId: string, deps?: WorkflowDependencies,
 ): Promise<{ status: "dispatched" | "failed"; terminalId?: string; failure?: WorkflowFailure }> {
   const now = nowFn(deps);
+  const sleep = sleepFn(deps);
   const manager = managerForWorkflow(workflow);
   const stateMachine = new AssignmentStateMachine(manager, { now });
   const tickId = `tick:${workflow.id}:${now()}`;
+
+  // Honor retry backoff: scheduleRetry stamps next_retry_at when a policy
+  // configures initial_interval_ms. Wait inline before claiming so the
+  // dispatch never beats the policy.
+  if (assignment.next_retry_at) {
+    const waitMs = Date.parse(assignment.next_retry_at) - Date.parse(now());
+    if (waitMs > 0) await sleep(waitMs);
+  }
 
   const claim = await stateMachine.claimPending(assignment.id, tickId);
   if (!claim.changed) return { status: "failed", failure: { code: "CLAIM_FAILED", message: "Could not claim assignment", stage: "workflow.dispatch" } };
@@ -439,6 +449,11 @@ export interface DispatchNodeOptions {
   worktreeBranch?: string;
   timeoutMinutes?: number;
   maxRetries?: number;
+  /**
+   * Declarative retry policy for this node. When set, takes precedence over
+   * maxRetries and enables exponential backoff + non-retryable error codes.
+   */
+  retryPolicy?: RetryPolicy;
 }
 
 export interface DispatchNodeResult {
@@ -505,9 +520,11 @@ export async function dispatchNode(
     worktree_path: options.worktreePath, worktree_branch: options.worktreeBranch,
     timeout_minutes: options.timeoutMinutes ?? workflow.default_timeout_minutes,
     max_retries: options.maxRetries ?? workflow.default_max_retries,
+    retry_policy: options.retryPolicy,
   };
 
-  // Create assignment
+  // Create assignment — snapshot the retry_policy onto the assignment so the
+  // state machine never has to load the workflow to make retry decisions.
   const manager = managerForWorkflow(workflow);
   const assignmentId = generateAssignmentId();
   const fromAssignmentId = dependsOn.length > 0
@@ -519,6 +536,7 @@ export async function dispatchNode(
     requested_agent_type: agentType,
     timeout_minutes: node.timeout_minutes ?? workflow.default_timeout_minutes,
     max_retries: node.max_retries ?? workflow.default_max_retries,
+    retry_policy: node.retry_policy,
   });
   node.assignment_id = assignmentId;
 

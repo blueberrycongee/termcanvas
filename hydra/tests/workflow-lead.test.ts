@@ -140,6 +140,112 @@ test("dispatchNode locks node.agent_type from the role file (codex role override
   }
 });
 
+test("dispatchNode snapshots retry_policy onto the assignment", async () => {
+  const repo = makeTestRepo();
+  const deps = mockDeps();
+  try {
+    const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
+    const dispatched = await dispatchNode({
+      repoPath: repo, workflowId: init.workflow_id,
+      nodeId: "dev", role: "claude-implementer", intent: "Build it",
+      retryPolicy: {
+        initial_interval_ms: 500,
+        backoff_coefficient: 3,
+        maximum_attempts: 4,
+        non_retryable_error_codes: ["AGENT_REPORTED_ERROR"],
+      },
+    }, deps);
+
+    const workflow = loadWorkflow(repo, init.workflow_id)!;
+    assert.deepEqual(workflow.nodes.dev.retry_policy, {
+      initial_interval_ms: 500,
+      backoff_coefficient: 3,
+      maximum_attempts: 4,
+      non_retryable_error_codes: ["AGENT_REPORTED_ERROR"],
+    });
+
+    // Same policy is snapshotted onto the assignment so the state machine
+    // never has to load the workflow.
+    const manager = new AssignmentManager(repo, init.workflow_id);
+    const assignment = manager.load(dispatched.assignment_id)!;
+    assert.deepEqual(assignment.retry_policy, {
+      initial_interval_ms: 500,
+      backoff_coefficient: 3,
+      maximum_attempts: 4,
+      non_retryable_error_codes: ["AGENT_REPORTED_ERROR"],
+    });
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("dispatchAssignment waits for next_retry_at via the injected sleep dep", async () => {
+  const repo = makeTestRepo();
+  const sleepCalls: number[] = [];
+  let time = Date.parse("2026-04-12T00:00:00.000Z");
+  const deps: WorkflowDependencies = {
+    now: () => {
+      time += 1000;
+      return new Date(time).toISOString();
+    },
+    dispatchCreateOnly: async (request) => ({
+      projectId: "project-1",
+      terminalId: `terminal-${request.assignmentId}`,
+      terminalType: request.agentType,
+      terminalTitle: `Agent ${request.assignmentId}`,
+      prompt: "test prompt",
+    }),
+    sleep: async (ms) => {
+      sleepCalls.push(ms);
+    },
+    syncProject: () => {},
+    destroyTerminal: () => {},
+    checkTerminalAlive: () => null,
+  };
+  try {
+    const init = await initWorkflow({ intent: "Backoff", repoPath: repo, worktreePath: repo }, deps);
+    const dispatched = await dispatchNode({
+      repoPath: repo, workflowId: init.workflow_id,
+      nodeId: "dev", role: "claude-implementer", intent: "Build it",
+      retryPolicy: { initial_interval_ms: 5_000 },
+    }, deps);
+
+    // Hand-stamp next_retry_at to a future time and reset the assignment to
+    // pending so the next dispatchAssignment call observes the backoff. Also
+    // flip the node status to "reset" so redispatchNode accepts it.
+    const manager = new AssignmentManager(repo, init.workflow_id);
+    const assignment = manager.load(dispatched.assignment_id)!;
+    const baseNowIso = new Date(time).toISOString();
+    assignment.next_retry_at = new Date(Date.parse(baseNowIso) + 5_000).toISOString();
+    assignment.status = "pending";
+    assignment.claim = undefined;
+    manager.save(assignment);
+
+    const workflow = loadWorkflow(repo, init.workflow_id)!;
+    workflow.node_statuses.dev = "reset";
+    // saveWorkflow is internal; mutate via the manager-adjacent path —
+    // re-serialize via fs since the test fixture doesn't expose saveWorkflow.
+    fs.writeFileSync(
+      path.join(repo, ".hydra", "workflows", init.workflow_id, "workflow.json"),
+      JSON.stringify(workflow, null, 2),
+      "utf-8",
+    );
+
+    // Trigger redispatchNode (which calls dispatchAssignment under the hood).
+    await redispatchNode({
+      repoPath: repo, workflowId: init.workflow_id, nodeId: "dev",
+    }, deps);
+
+    // The injected sleep was invoked with roughly the backoff window. Time
+    // ticks 1s per call inside `now`, so the observed wait is 5_000 minus a
+    // few `now()` increments.
+    assert.equal(sleepCalls.length >= 1, true, "expected dispatchAssignment to call sleep");
+    assert.ok(sleepCalls[0] > 0 && sleepCalls[0] <= 5_000);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test("dispatchNode threads model override through to the dispatch request", async () => {
   const repo = makeTestRepo();
   const dispatched: Array<{ model?: string }> = [];

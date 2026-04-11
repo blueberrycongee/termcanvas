@@ -624,6 +624,14 @@ export class HeadlessApiServer {
       worktreeBranch: b.worktreeBranch as string | undefined,
       timeoutMinutes: b.timeoutMinutes as number | undefined,
       maxRetries: b.maxRetries as number | undefined,
+      retryPolicy: b.retryPolicy as
+        | {
+            initial_interval_ms?: number;
+            backoff_coefficient?: number;
+            maximum_attempts?: number;
+            non_retryable_error_codes?: string[];
+          }
+        | undefined,
     });
   }
 

@@ -33,6 +33,24 @@ export interface ContextRef {
   path: string;
 }
 
+/**
+ * Declarative retry policy attached to a node. Modeled after Temporal /
+ * Cadence retry policies — when set, takes precedence over the legacy
+ * scalar `max_retries` field. The policy is snapshotted onto the
+ * AssignmentRecord at dispatch time so retry decisions never have to
+ * re-traverse the workflow store.
+ */
+export interface RetryPolicy {
+  /** Wait this long before the first retry (after the first failure). */
+  initial_interval_ms?: number;
+  /** Each subsequent retry waits coefficient × previous wait. Defaults to 2.0. */
+  backoff_coefficient?: number;
+  /** Total attempts allowed, including the first try. Replaces max_retries. */
+  maximum_attempts?: number;
+  /** Error codes that immediately fail the assignment instead of retrying. */
+  non_retryable_error_codes?: string[];
+}
+
 export interface WorkflowNode {
   id: string;
   role: string;
@@ -64,7 +82,13 @@ export interface WorkflowNode {
 
   // Per-node overrides
   timeout_minutes?: number;
+  /** Legacy scalar retry budget. Superseded by retry_policy when set. */
   max_retries?: number;
+  /**
+   * Declarative retry policy. When set, takes precedence over max_retries
+   * and enables backoff + non-retryable error code handling.
+   */
+  retry_policy?: RetryPolicy;
 }
 
 export interface WorkflowRecord {

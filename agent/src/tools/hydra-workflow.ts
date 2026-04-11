@@ -19,7 +19,13 @@ const inputSchema = z.object({
   agentType: z.string().optional().describe("Default agent type for the workflow (for init only). Dispatch derives agent_type from the role file."),
   model: z.string().optional().describe("Override the role's default model (for dispatch, e.g. opus)"),
   timeoutMinutes: z.number().optional().describe("Timeout in minutes (for init, dispatch)"),
-  maxRetries: z.number().optional().describe("Max retries (for init, dispatch)"),
+  maxRetries: z.number().optional().describe("Max retries (for init, dispatch). Legacy scalar — use retryPolicy for new work."),
+  retryPolicy: z.object({
+    initial_interval_ms: z.number().optional(),
+    backoff_coefficient: z.number().optional(),
+    maximum_attempts: z.number().optional(),
+    non_retryable_error_codes: z.array(z.string()).optional(),
+  }).optional().describe("Declarative retry policy (for dispatch). Takes precedence over maxRetries."),
   autoApprove: z.boolean().optional().describe("Auto-approve mode (for init, default true)"),
 
   // dispatch
@@ -100,6 +106,7 @@ export const hydraWorkflowTool: Tool<typeof inputSchema.shape> = {
       };
       if (input.dependsOn) body.dependsOn = input.dependsOn;
       if (input.model) body.model = input.model;
+      if (input.retryPolicy) body.retryPolicy = input.retryPolicy;
       if (input.contextRefs) body.contextRefs = input.contextRefs;
       if (input.feedback) body.feedback = input.feedback;
       if (input.worktreePath) body.worktreePath = input.worktreePath;

@@ -1,4 +1,5 @@
 import type { SubAgentOutcome } from "../protocol.ts";
+import type { RetryPolicy } from "../workflow-store.ts";
 
 export const ASSIGNMENT_STATE_SCHEMA_VERSION = "hydra/assignment-state/v0.1";
 
@@ -88,6 +89,18 @@ export interface AssignmentRecord {
   timeout_minutes?: number;
   retry_count: number;
   max_retries: number;
+  /**
+   * Snapshot of the node's retry_policy at dispatch time. When set, takes
+   * precedence over the scalar max_retries field. Snapshotted (not
+   * dereferenced) so the state machine never has to load the workflow.
+   */
+  retry_policy?: RetryPolicy;
+  /**
+   * Earliest timestamp at which the next retry may dispatch. Set by
+   * scheduleRetry when a backoff interval applies; consumed by the
+   * redispatch path in the watch loop.
+   */
+  next_retry_at?: string;
   active_run_id: string | null;
   runs: AssignmentRun[];
   claim?: AssignmentClaim;
