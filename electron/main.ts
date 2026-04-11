@@ -52,6 +52,7 @@ import {
   submitComposerRequest,
 } from "./composer-submit";
 import { collectUsage, collectHeatmapData } from "./usage-collector";
+import { buildGitWorktreeRemoveArgs } from "../hydra/src/cleanup";
 import {
   installDownloadedUpdate,
   setupAutoUpdater,
@@ -582,7 +583,12 @@ function setupIpc() {
 
   ipcMain.handle(
     "project:remove-worktree",
-    async (_event, repoPath: string, worktreePath: string) => {
+    async (
+      _event,
+      repoPath: string,
+      worktreePath: string,
+      force?: boolean,
+    ) => {
       const resolvedRepo = path.resolve(repoPath);
       const resolvedWorktree = path.resolve(worktreePath);
 
@@ -590,7 +596,14 @@ function setupIpc() {
         const { execFile } = await import("child_process");
         const { promisify } = await import("util");
         const execFileAsync = promisify(execFile);
-        await execFileAsync("git", ["worktree", "remove", resolvedWorktree], {
+        // Reuse the shared --force builder so the renderer/IPC path matches
+        // the CLI, hydra, and headless paths exactly. Without --force, git
+        // refuses to remove worktrees containing modified or untracked files
+        // — which is exactly what worker worktrees produce by design.
+        const args = force
+          ? buildGitWorktreeRemoveArgs(resolvedWorktree)
+          : ["worktree", "remove", resolvedWorktree];
+        await execFileAsync("git", args, {
           cwd: resolvedRepo,
           maxBuffer: 10 * 1024 * 1024,
         });

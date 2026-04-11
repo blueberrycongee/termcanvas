@@ -166,11 +166,16 @@ contextBridge.exposeInMainWorld("termcanvas", {
           }
         | { ok: false; error: string }
       >,
-    removeWorktree: (repoPath: string, worktreePath: string) =>
+    removeWorktree: (
+      repoPath: string,
+      worktreePath: string,
+      force?: boolean,
+    ) =>
       ipcRenderer.invoke(
         "project:remove-worktree",
         repoPath,
         worktreePath,
+        force,
       ) as Promise<
         | {
             ok: true;
