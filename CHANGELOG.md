@@ -2,6 +2,14 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.27.5] - 2026-04-11
+
+### Fixed
+- Clicking a worktree label on the canvas now also focuses that worktree, so a follow-up `cmd+t` creates the new terminal inside the worktree you just clicked instead of whichever one happened to be focused before. The label click handler now pairs `panToWorktree` with `focusWorktreeInScene`, matching the convention already used by Hub and `cmd+]` / `cmd+[` worktree-level navigation. The LOD project-label fallback (extreme zoom-out) also focuses the first populated worktree, so click-then-`cmd+t` works at every scale
+
+### Fixed (zh-CN)
+- 在画布上点击 worktree 标签时，现在会同时把键盘焦点切到该 worktree，这样紧接着按 `cmd+t` 新建的终端会落在你刚刚点击的 worktree 里，而不是上一次焦点所在的 worktree。label 的 click handler 现在会同时调 `panToWorktree` 和 `focusWorktreeInScene`，与 Hub 以及 `cmd+]` / `cmd+[` worktree 级导航的现有约定一致。极远缩放下点击 LOD 模式的项目级合并标签也会聚焦该项目的第一个有内容的 worktree，因此在任何缩放比例下"点了再 cmd+t"都能落到正确位置
+
 ## [0.27.4] - 2026-04-11
 
 ### Added
