@@ -37,7 +37,18 @@ export interface WorkflowNode {
   id: string;
   role: string;
   depends_on: string[];
+  /**
+   * Cached agent_type derived from the role registry at dispatch time.
+   * Sourced from the role file's frontmatter (claude or codex), NOT from
+   * any caller-supplied override — dispatchNode locks this from the role.
+   */
   agent_type: AgentType;
+  /**
+   * Optional model pin (e.g. "opus" / "gpt-5"). When set, the underlying
+   * CLI is invoked with its model flag. Sourced from the role file's
+   * frontmatter or an explicit override at dispatch time.
+   */
+  model?: string;
   assignment_id?: string;
 
   // Content references — actual text lives in MD files under nodes/{id}/

@@ -390,6 +390,11 @@ export class HeadlessApiServer {
       const repoPath = url.searchParams.get("repo");
       return this.workflowList(repoPath);
     }
+    if (method === "GET" && pathname === "/workflow/list-roles") {
+      const repoPath = url.searchParams.get("repo");
+      const agentType = url.searchParams.get("agentType") ?? url.searchParams.get("agent_type");
+      return this.workflowListRoles(repoPath, agentType);
+    }
     if (method === "GET" && pathname.match(/^\/workflow\/[^/]+$/)) {
       const id = pathname.split("/")[2];
       const repoPath = url.searchParams.get("repo");
@@ -612,7 +617,7 @@ export class HeadlessApiServer {
     return this.workflowControl.dispatch({
       repoPath, workflowId, nodeId, role, intent,
       dependsOn: b.dependsOn as string[] | undefined,
-      agentType: b.agentType as "claude" | "codex" | "kimi" | "gemini" | undefined,
+      model: b.model as string | undefined,
       contextRefs: b.contextRefs as Array<{ label: string; path: string }> | undefined,
       feedback: b.feedback as string | undefined,
       worktreePath: b.worktreePath as string | undefined,
@@ -664,6 +669,11 @@ export class HeadlessApiServer {
   private workflowList(repoPath: string | null): unknown {
     if (!repoPath) throw Object.assign(new Error("repo query parameter is required"), { status: 400 });
     return this.workflowControl.list(repoPath);
+  }
+
+  private workflowListRoles(repoPath: string | null, agentType: string | null): unknown {
+    if (!repoPath) throw Object.assign(new Error("repo query parameter is required"), { status: 400 });
+    return this.workflowControl.listRoles(repoPath, agentType ?? undefined);
   }
 
   private workflowStatus(workflowId: string, repoPath: string | null): unknown {

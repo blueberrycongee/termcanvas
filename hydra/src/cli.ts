@@ -17,9 +17,10 @@ function printUsage() {
   console.log("  fail       Mark a workflow as failed");
   console.log("");
   console.log("Inspection:");
-  console.log("  status     Show structured workflow status");
-  console.log("  list       List workflows or spawned agents");
-  console.log("  ledger     Show workflow event log");
+  console.log("  status      Show structured workflow status");
+  console.log("  list        List workflows or spawned agents");
+  console.log("  list-roles  List role registry entries (project + user + builtin)");
+  console.log("  ledger      Show workflow event log");
   console.log("");
   console.log("Housekeeping:");
   console.log("  spawn      Create one direct isolated worker terminal");
@@ -90,6 +91,11 @@ async function main() {
     case "list": {
       const { list } = await import("./list.js");
       await list(rest);
+      break;
+    }
+    case "list-roles": {
+      const { cliListRoles } = await import("./cli-commands.js");
+      await cliListRoles(rest);
       break;
     }
 

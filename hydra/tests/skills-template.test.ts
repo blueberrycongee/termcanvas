@@ -72,9 +72,11 @@ test("task template links role guidance and result-only completion rules", () =>
     workflowId: "workflow-auth",
     assignmentId: "assignment-abc123",
     runId: "run-0001",
-    role: "tester",
+    role: "claude-tester",
     agentType: "claude",
-    sourceRole: "implementer",
+    sourceRole: "claude-implementer",
+    roleBody:
+      "For this task, you are additionally playing a **tester** role. Independently validate the implementation against code reality.",
     objective: ["Verify the implementation honestly."],
     readFiles: [
       { label: "User request", path: "/repo/project/.hydra/workflows/workflow-auth/inputs/user-request.md" },
@@ -89,9 +91,9 @@ test("task template links role guidance and result-only completion rules", () =>
         path: "/repo/project/.hydra/workflows/workflow-auth/assignments/assignment-abc123/runs/run-0001/result.json",
       },
     ],
-    decisionRules: ["- Form an independent judgment before trusting the implementer's summary."],
+    decisionRules: ["Form an independent judgment before trusting the implementer's summary."],
     acceptanceCriteria: ["Write a valid result.json file"],
-    skills: ["qa", "code-review"],
+    skills: [],
     extraSections: [
       {
         title: "Verification Strategy",
@@ -100,15 +102,18 @@ test("task template links role guidance and result-only completion rules", () =>
     ],
   });
 
+  // ## Role contains the additive briefing from the role registry.
   assert.match(rendered, /## Role/);
-  assert.match(rendered, /You are the tester/);
+  assert.match(rendered, /additionally playing a \*\*tester\*\*/);
+
+  // ## Run Context contains the workflow / assignment / run identity.
+  assert.match(rendered, /## Run Context/);
+  assert.match(rendered, /Role: claude-tester/);
+
   assert.match(rendered, /## Objective/);
   assert.match(rendered, /## Read First/);
   assert.match(rendered, /## Write Targets/);
   assert.match(rendered, /## Decision Rules/);
-  assert.match(rendered, /## Skills/);
-  assert.match(rendered, /qa/);
-  assert.match(rendered, /code-review/);
   assert.match(rendered, /Root cause first/i);
   assert.match(rendered, /Do not fake outputs/i);
   assert.match(rendered, /silent fallbacks/i);

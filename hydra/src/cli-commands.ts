@@ -1,6 +1,7 @@
 import path from "node:path";
 import { parseAgentTypeFlag } from "./agent-selection.ts";
 import { readLedger } from "./ledger.ts";
+import { listRoles } from "./roles/loader.ts";
 import {
   initWorkflow,
   dispatchNode,
@@ -81,11 +82,11 @@ export async function cliDispatch(args: string[]): Promise<void> {
     console.log("Usage: hydra dispatch --workflow <id> --node <id> --role <role> --intent <desc> --repo <path> [options]");
     console.log("  --workflow <id>         Workflow ID (required)");
     console.log("  --node <id>            Node ID (required)");
-    console.log("  --role <role>          Agent role (required)");
+    console.log("  --role <role>          Registered role name (required, e.g. claude-researcher)");
     console.log("  --intent <desc>        Task intent (required)");
     console.log("  --repo <path>          Repository path (required)");
     console.log("  --depends-on <a,b>     Comma-separated dependency node IDs");
-    console.log("  --agent-type <type>    Override agent type");
+    console.log("  --model <name>         Override the role's default model (e.g. opus)");
     console.log("  --context-ref <l:p>    Context ref as label:path (repeatable)");
     console.log("  --feedback <text>      Feedback text (for reset re-dispatch)");
     console.log("  --worktree <path>      Isolated worktree path");
@@ -114,8 +115,7 @@ export async function cliDispatch(args: string[]): Promise<void> {
     role: requireFlag(args, "--role"),
     intent: requireFlag(args, "--intent"),
     dependsOn: listFlag(args, "--depends-on"),
-    agentType: optionalFlag(args, "--agent-type")
-      ? parseAgentTypeFlag("--agent-type", optionalFlag(args, "--agent-type")) : undefined,
+    model: optionalFlag(args, "--model"),
     contextRefs: contextRefs.length > 0 ? contextRefs : undefined,
     feedback: optionalFlag(args, "--feedback"),
     worktreePath: optionalFlag(args, "--worktree"),
@@ -124,6 +124,33 @@ export async function cliDispatch(args: string[]): Promise<void> {
     maxRetries: optionalNumber(args, "--max-retries"),
   });
   console.log(JSON.stringify(result, null, 2));
+}
+
+// --- list-roles ---
+
+export async function cliListRoles(args: string[]): Promise<void> {
+  if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
+    console.log("Usage: hydra list-roles [--repo <path>] [--agent-type <claude|codex>]");
+    console.log("  --repo <path>          Repository path (defaults to cwd)");
+    console.log("  --agent-type <type>    Filter to roles for a single CLI");
+    console.log("");
+    console.log("Output: JSON array of {name, agent_type, description, model, source}.");
+    process.exit(0);
+  }
+  const repoPath = optionalFlag(args, "--repo") ?? process.cwd();
+  const agentTypeFilter = optionalFlag(args, "--agent-type");
+  const roles = listRoles(repoPath);
+  const filtered = agentTypeFilter
+    ? roles.filter((role) => role.agent_type === agentTypeFilter)
+    : roles;
+  const summaries = filtered.map((role) => ({
+    name: role.name,
+    agent_type: role.agent_type,
+    description: role.description,
+    model: role.model,
+    source: role.source,
+  }));
+  console.log(JSON.stringify(summaries, null, 2));
 }
 
 // --- redispatch ---

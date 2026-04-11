@@ -30,6 +30,13 @@ export interface RunTaskSpec {
   role: string;
   agentType: string;
   sourceRole?: string | null;
+  /**
+   * Markdown body from the role registry file. Rendered as the ## Role
+   * section at the top of task.md. Should be additive briefing
+   * ("For this task, you are additionally playing X"), not a replacement
+   * persona — the underlying CLI already has its own system prompt.
+   */
+  roleBody?: string;
   objective: string[];
   readFiles: TaskFileRef[];
   writeTargets: TaskWriteTarget[];
@@ -81,9 +88,18 @@ export function renderRunTask(spec: RunTaskSpec): string {
     "",
     "Hydra runs the workflow, but files are the source of truth for this assignment run.",
     "",
-    "## Role",
+  ];
+
+  // ## Role — additive briefing from the role registry. Rendered first so the
+  // worker reads its persona before anything else.
+  if (spec.roleBody && spec.roleBody.trim()) {
+    lines.push("## Role", "", spec.roleBody.trim(), "");
+  }
+
+  lines.push(
+    "## Run Context",
     "",
-    `- You are the ${spec.role}.`,
+    `- Role: ${spec.role}`,
     `- Workflow ID: ${spec.workflowId}`,
     `- Assignment ID: ${spec.assignmentId}`,
     `- Run ID: ${spec.runId}`,
@@ -110,11 +126,14 @@ export function renderRunTask(spec: RunTaskSpec): string {
     "",
     ...renderList(spec.acceptanceCriteria, "No acceptance criteria provided."),
     "",
-    "## Skills",
-    "",
-    ...renderList(spec.skills, "No additional skills required."),
-    "",
-  ];
+  );
+
+  // Skills section is only emitted when something declares them. The role
+  // registry no longer populates this — kept for callers that build a
+  // RunTaskSpec by hand (e.g. spawn / single-step run).
+  if (spec.skills.length > 0) {
+    lines.push("## Skills", "", ...renderList(spec.skills, ""), "");
+  }
 
   for (const section of spec.extraSections ?? []) {
     lines.push(`## ${section.title}`, "");

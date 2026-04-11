@@ -285,8 +285,8 @@ async function main() {
         };
         const dependsOn = listFlag("--depends-on");
         if (dependsOn.length > 0) body.dependsOn = dependsOn;
-        const agentType = optionalFlag("--agent-type");
-        if (agentType) body.agentType = agentType;
+        const model = optionalFlag("--model");
+        if (model) body.model = model;
         const feedback = optionalFlag("--feedback");
         if (feedback) body.feedback = feedback;
         const worktree = optionalFlag("--worktree");
@@ -411,6 +411,13 @@ async function main() {
         for (const workflow of result) {
           console.log(`${workflow.id}  ${workflow.status}  ${workflow.updated_at}`);
         }
+      } else if (command === "list-roles") {
+        const repo = requireRepo();
+        const params = new URLSearchParams({ repo });
+        const agentType = optionalFlag("--agent-type");
+        if (agentType) params.set("agentType", agentType);
+        const result = await request("GET", `/workflow/list-roles?${params.toString()}`);
+        console.log(JSON.stringify(result, null, 2));
       } else if (command === "status") {
         const workflowId = requireWorkflowId();
         const repo = requireRepo();
@@ -434,7 +441,7 @@ async function main() {
         else console.log("Cleaned up.");
       } else {
         console.log(
-          "Usage: termcanvas workflow <init|dispatch|redispatch|watch|approve|reset|merge|complete|fail|list|status|cleanup> [args]",
+          "Usage: termcanvas workflow <init|dispatch|redispatch|watch|approve|reset|merge|complete|fail|list|list-roles|status|cleanup> [args]",
         );
       }
     } else if (group === "worktree") {
@@ -736,6 +743,9 @@ async function main() {
       );
       console.log(
         "  workflow list --repo <p>                   List workflows",
+      );
+      console.log(
+        "  workflow list-roles --repo <p> [--agent-type <t>]  List role registry entries",
       );
       console.log(
         "  workflow status <id> --repo <p>            Get workflow status",

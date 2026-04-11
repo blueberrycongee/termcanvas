@@ -16,9 +16,11 @@ function createSpec(repoPath: string) {
     workflowId: "workflow-auth",
     assignmentId: "assignment-abc123",
     runId: "run-0001",
-    role: "implementer",
+    role: "codex-implementer",
     agentType: "codex",
-    sourceRole: "researcher",
+    sourceRole: "codex-researcher",
+    roleBody:
+      "For this task, you are additionally playing an **implementer** role. Build the requested change.",
     objective: [
       "Implement the auth workflow using the approved research as the controlling input.",
       "",
@@ -61,13 +63,20 @@ function createSpec(repoPath: string) {
   };
 }
 
-test("renderRunTask renders a thin role-based task file", () => {
+test("renderRunTask renders a role-driven task file", () => {
   const content = renderRunTask(createSpec("/repo/project"));
 
+  // ## Role section comes first and contains the role body briefing.
   assert.match(content, /## Role/);
-  assert.match(content, /You are the implementer/);
+  assert.match(content, /additionally playing an \*\*implementer\*\*/);
+
+  // ## Run Context holds the workflow/assignment/run identity bullets.
+  assert.match(content, /## Run Context/);
+  assert.match(content, /Role: codex-implementer/);
   assert.match(content, /Assignment ID: assignment-abc123/);
   assert.match(content, /Run ID: run-0001/);
+  assert.match(content, /Source role: codex-researcher/);
+
   assert.match(content, /## Objective/);
   assert.match(content, /file-contract-driven auth workflow/);
   assert.match(content, /## Read First/);
@@ -80,8 +89,8 @@ test("renderRunTask renders a thin role-based task file", () => {
   assert.match(content, /replan/i);
   assert.match(content, /## Acceptance Criteria/);
   assert.match(content, /without test hacking/i);
-  assert.match(content, /## Skills/);
-  assert.match(content, /No additional skills required/);
+  // Skills section is suppressed when nothing declares skills.
+  assert.doesNotMatch(content, /## Skills/);
   assert.match(content, /## Implementation Strategy/);
   assert.match(content, /approved brief as the contract/i);
   assert.match(content, /## Operational Notes/);
@@ -89,6 +98,16 @@ test("renderRunTask renders a thin role-based task file", () => {
   assert.match(content, /## Completion/);
   assert.match(content, /Publish result\.json atomically/i);
   assert.doesNotMatch(content, /\bdone\b/i);
+});
+
+test("renderRunTask omits the Role section when no role body is provided", () => {
+  const spec = createSpec("/repo/project");
+  delete (spec as { roleBody?: string }).roleBody;
+  const content = renderRunTask(spec);
+  // The Run Context block must still render even without a role body.
+  assert.match(content, /## Run Context/);
+  // No bare ## Role header should appear.
+  assert.doesNotMatch(content, /\n## Role\n/);
 });
 
 test("writeRunTask writes task.md inside the assignment run directory", () => {

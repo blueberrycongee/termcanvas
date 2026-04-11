@@ -18,6 +18,7 @@ import {
   hasAssignmentTimedOut,
   retryTimedOutAssignment,
 } from "./retry.ts";
+import { loadRole } from "./roles/loader.ts";
 import { writeRunTask } from "./run-task.ts";
 import { buildTaskSpecFromIntent } from "./task-spec-builder.ts";
 import {
@@ -281,6 +282,7 @@ function buildDispatchRequest(
     repoPath: workflow.repo_path,
     worktreePath: node.worktree_path ?? workflow.worktree_path,
     agentType: assignment.requested_agent_type,
+    model: node.model,
     taskFile: getRunTaskFile(workflow.repo_path, workflow.id, assignment.id, runId),
     resultFile: getRunResultFile(workflow.repo_path, workflow.id, assignment.id, runId),
     autoApprove: workflow.auto_approve,
@@ -418,10 +420,19 @@ export interface DispatchNodeOptions {
   repoPath: string;
   workflowId: string;
   nodeId: string;
+  /**
+   * Role name from the registry (e.g. "claude-researcher"). The role file
+   * locks the agent_type — there is no caller-supplied agent_type override.
+   */
   role: string;
   intent: string;
   dependsOn?: string[];
-  agentType?: AgentType;
+  /**
+   * Optional model override that takes precedence over the role file's
+   * frontmatter `model`. Validated against the resolved CLI adapter at
+   * dispatch time.
+   */
+  model?: string;
   contextRefs?: Array<{ label: string; path: string }>;
   feedback?: string;
   worktreePath?: string;
@@ -470,8 +481,14 @@ export async function dispatchNode(
     });
   }
 
+  // Resolve role from registry. The role file locks agent_type — callers
+  // cannot override it. Fail fast if the role is unknown or malformed so the
+  // dispatch never reaches a worker that does not exist.
+  const role = loadRole(options.role, repoPath);
+  const agentType = role.agent_type as AgentType;
+  const model = options.model ?? role.model;
+
   // Create node — write intent to nodes/{id}/intent.md
-  const agentType = options.agentType ?? workflow.default_agent_type;
   const intentFileAbs = writeNodeIntent(repoPath, workflow.id, options.nodeId, options.role, options.intent);
   let feedbackFileRel: string | undefined;
   if (options.feedback) {
@@ -481,6 +498,7 @@ export async function dispatchNode(
 
   const node: WorkflowNode = {
     id: options.nodeId, role: options.role, depends_on: dependsOn, agent_type: agentType,
+    model,
     intent_file: path.relative(repoPath, intentFileAbs),
     feedback_file: feedbackFileRel,
     context_refs: options.contextRefs,

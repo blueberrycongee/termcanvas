@@ -6,7 +6,7 @@ import { getClient } from "./client.ts";
 const inputSchema = z.object({
   action: z.enum([
     "init", "dispatch", "redispatch", "watch", "approve", "reset", "merge",
-    "complete", "fail", "status", "list", "cleanup",
+    "complete", "fail", "status", "list", "list-roles", "cleanup",
   ]).describe(
     "Workflow action.",
   ),
@@ -16,7 +16,8 @@ const inputSchema = z.object({
   // init
   intent: z.string().optional().describe("Workflow or node intent (for init, dispatch)"),
   worktree: z.string().optional().describe("Worktree path (for init)"),
-  agentType: z.string().optional().describe("Default agent type (for init, dispatch)"),
+  agentType: z.string().optional().describe("Default agent type for the workflow (for init only). Dispatch derives agent_type from the role file."),
+  model: z.string().optional().describe("Override the role's default model (for dispatch, e.g. opus)"),
   timeoutMinutes: z.number().optional().describe("Timeout in minutes (for init, dispatch)"),
   maxRetries: z.number().optional().describe("Max retries (for init, dispatch)"),
   autoApprove: z.boolean().optional().describe("Auto-approve mode (for init, default true)"),
@@ -76,6 +77,14 @@ export const hydraWorkflowTool: Tool<typeof inputSchema.shape> = {
       return { content: JSON.stringify(result, null, 2) };
     }
 
+    if (action === "list-roles") {
+      if (!input.repo) return { content: "repo is required for list-roles", is_error: true };
+      const params = new URLSearchParams({ repo: input.repo });
+      if (input.agentType) params.set("agentType", input.agentType);
+      const result = await client.request("GET", `/workflow/list-roles?${params.toString()}`);
+      return { content: JSON.stringify(result, null, 2) };
+    }
+
     // All remaining actions require workflowId and repo
     if (!input.workflowId) return { content: "workflowId is required for " + action, is_error: true };
     if (!input.repo) return { content: "repo is required for " + action, is_error: true };
@@ -90,7 +99,7 @@ export const hydraWorkflowTool: Tool<typeof inputSchema.shape> = {
         repo, nodeId: input.nodeId, role: input.role, intent: input.intent,
       };
       if (input.dependsOn) body.dependsOn = input.dependsOn;
-      if (input.agentType) body.agentType = input.agentType;
+      if (input.model) body.model = input.model;
       if (input.contextRefs) body.contextRefs = input.contextRefs;
       if (input.feedback) body.feedback = input.feedback;
       if (input.worktreePath) body.worktreePath = input.worktreePath;

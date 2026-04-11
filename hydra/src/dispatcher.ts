@@ -12,6 +12,11 @@ export interface DispatchCreateOnlyRequest {
   repoPath: string;
   worktreePath: string;
   agentType: string;
+  /**
+   * Optional model pin (e.g. "opus", "gpt-5"). When set, the underlying CLI
+   * is invoked with its model flag via the CLI adapter.
+   */
+  model?: string;
   taskFile: string;
   resultFile: string;
   autoApprove?: boolean;

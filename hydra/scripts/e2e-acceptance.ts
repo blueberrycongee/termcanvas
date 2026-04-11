@@ -152,10 +152,10 @@ async function main() {
     });
     workflowId = init.workflow_id;
 
-    // 2. Dispatch researcher
+    // 2. Dispatch researcher (codex variant — agent_type comes from the role file)
     const researcher = await dispatchNode({
       repoPath: args.repo, workflowId, nodeId: "researcher",
-      role: "researcher", intent: "Produce acceptance research brief.",
+      role: "codex-researcher", intent: "Produce acceptance research brief.",
     });
     assert.equal(researcher.status, "dispatched");
 
@@ -164,7 +164,7 @@ async function main() {
     let assignment = manager.load(researcher.assignment_id)!;
     let run = latestRun(assignment);
     writeResult(args.repo, workflowId, assignment.id, run, "Research brief produced.", "completed");
-    records.push(captureStage("researcher", assignment.id, "researcher", researcher.terminal_id ?? null, "Research brief produced."));
+    records.push(captureStage("researcher", assignment.id, "codex-researcher", researcher.terminal_id ?? null, "Research brief produced."));
 
     // 3. Watch → researcher completes
     let decision = await watchUntilDecision({ repoPath: args.repo, workflowId, timeoutMs: 10_000 });
@@ -176,30 +176,29 @@ async function main() {
     // 5. Dispatch implementer
     const dev = await dispatchNode({
       repoPath: args.repo, workflowId, nodeId: "dev",
-      role: "implementer", intent: "Implement first pass.", dependsOn: ["researcher"],
+      role: "codex-implementer", intent: "Implement first pass.", dependsOn: ["researcher"],
     });
     assert.equal(dev.status, "dispatched");
 
     assignment = manager.load(dev.assignment_id)!;
     run = latestRun(assignment);
     writeResult(args.repo, workflowId, assignment.id, run, "First implementation pass done.", "completed");
-    records.push(captureStage("dev", assignment.id, "implementer", dev.terminal_id ?? null, "First pass done."));
+    records.push(captureStage("dev", assignment.id, "codex-implementer", dev.terminal_id ?? null, "First pass done."));
 
     decision = await watchUntilDecision({ repoPath: args.repo, workflowId, timeoutMs: 10_000 });
     assert.equal(decision.type, "node_completed");
 
-    // 6. Dispatch tester
+    // 6. Dispatch tester (claude variant — exercises a cross-CLI workflow)
     const tester = await dispatchNode({
       repoPath: args.repo, workflowId, nodeId: "tester",
-      role: "tester", intent: "Verify implementation.", dependsOn: ["dev"],
-      agentType: "claude",
+      role: "claude-tester", intent: "Verify implementation.", dependsOn: ["dev"],
     });
     assert.equal(tester.status, "dispatched");
 
     assignment = manager.load(tester.assignment_id)!;
     run = latestRun(assignment);
     writeResult(args.repo, workflowId, assignment.id, run, "Found issues, needs rework.", "completed");
-    records.push(captureStage("tester", assignment.id, "tester", tester.terminal_id ?? null, "Found issues."));
+    records.push(captureStage("tester", assignment.id, "claude-tester", tester.terminal_id ?? null, "Found issues."));
 
     decision = await watchUntilDecision({ repoPath: args.repo, workflowId, timeoutMs: 10_000 });
     assert.equal(decision.type, "node_completed");
@@ -217,7 +216,7 @@ async function main() {
     assignment = manager.load(dev2.assignment_id)!;
     run = latestRun(assignment);
     writeResult(args.repo, workflowId, assignment.id, run, "Fixed all tester findings.", "completed");
-    records.push(captureStage("dev", assignment.id, "implementer", dev2.terminal_id ?? null, "Fixed findings."));
+    records.push(captureStage("dev", assignment.id, "codex-implementer", dev2.terminal_id ?? null, "Fixed findings."));
 
     decision = await watchUntilDecision({ repoPath: args.repo, workflowId, timeoutMs: 10_000 });
     assert.equal(decision.type, "node_completed");

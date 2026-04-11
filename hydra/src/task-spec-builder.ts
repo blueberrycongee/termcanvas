@@ -8,6 +8,7 @@ import {
   getWorkflowIntentFile,
 } from "./layout.ts";
 import { RESULT_SCHEMA_VERSION } from "./protocol.ts";
+import { loadRole } from "./roles/loader.ts";
 import type { RunTaskSpec, TaskFileRef, TaskWriteTarget } from "./run-task.ts";
 import type { WorkflowRecord, WorkflowNode } from "./workflow-store.ts";
 
@@ -19,121 +20,6 @@ function resolvePath(repoPath: string, relativeOrAbsolute: string): string {
   return path.isAbsolute(relativeOrAbsolute) ? relativeOrAbsolute : path.join(repoPath, relativeOrAbsolute);
 }
 
-// --- Role defaults ---
-
-const BRIEF_ROLES = new Set(["researcher", "implementer", "tester", "reviewer"]);
-
-interface RoleDefaults {
-  objectivePrefix: string;
-  decisionRules: string[];
-  acceptanceCriteria: string[];
-  skills: string[];
-  extraSections: Array<{ title: string; lines: string[] }>;
-}
-
-function getRoleDefaults(role: string): RoleDefaults {
-  switch (role) {
-    case "researcher":
-      return {
-        objectivePrefix: "Turn the following intent into an actionable research brief.",
-        decisionRules: [
-          "- Read the user request before forming any architecture conclusion.",
-          "- Investigate the current codebase instead of restating the task.",
-          "- If the strategy changes user-approved scope or prerequisites, also write approval-request.md.",
-        ],
-        acceptanceCriteria: [
-          "Produce a research brief grounded in the current codebase",
-          "Call out structural blockers, unknowns, and verification focus",
-        ],
-        skills: [],
-        extraSections: [
-          {
-            title: "Research Strategy",
-            lines: [
-              "- Start from user-request.md, then confirm how the codebase changes the real problem.",
-              "- Produce a brief that downstream agents can execute without re-reading the whole repo history.",
-              "- Make constraints, risks, and validation focus explicit.",
-            ],
-          },
-        ],
-      };
-
-    case "implementer":
-      return {
-        objectivePrefix: "Implement the following change in the current worktree.",
-        decisionRules: [
-          "- Solve the real implementation problem before changing tests or fixtures.",
-          "- Do not fake success with silent fallbacks or placeholder outputs.",
-          "- If the approved assumptions fail in the real codebase, report via intent.type=replan instead of forcing a brittle implementation.",
-        ],
-        acceptanceCriteria: [
-          "Implement the requested change without test hacking",
-          "Keep the brief focused on what changed, what remains risky, and what a tester should inspect next",
-        ],
-        skills: [],
-        extraSections: [
-          {
-            title: "Implementation Strategy",
-            lines: [
-              "- Use upstream briefs and approved research as the contract for what to build.",
-              "- Update code and tests honestly; do not fake success by weakening checks.",
-              "- Use the brief to explain concrete code changes and open risks.",
-            ],
-          },
-        ],
-      };
-
-    case "tester":
-      return {
-        objectivePrefix: "Independently validate the implementation against code reality and runtime evidence.",
-        decisionRules: [
-          "- Form an independent judgment from code and runtime behavior before trusting the implementer's summary.",
-          "- Report issues via intent.type=needs_rework with a clear reason.",
-        ],
-        acceptanceCriteria: [
-          "Run baseline verification before declaring success",
-          "Compare implementer claims with code/runtime reality",
-          "Include a verification object in result.json",
-        ],
-        skills: ["qa", "code-review"],
-        extraSections: [
-          {
-            title: "Verification Strategy",
-            lines: [
-              "- Start with baseline checks first and stop early if they fail.",
-              "- Verify the approved constraints, regression risks, and implementer claims with concrete evidence.",
-              "- Treat discrepancies between code reality and the implementation brief as high-priority findings.",
-            ],
-          },
-        ],
-      };
-
-    case "reviewer":
-      return {
-        objectivePrefix: "Review the work produced by other agents and provide an independent assessment.",
-        decisionRules: [
-          "- Form an independent judgment; do not parrot other agents' conclusions.",
-          "- Focus on correctness, completeness, and adherence to the original intent.",
-        ],
-        acceptanceCriteria: [
-          "Provide an evidence-based assessment",
-          "Identify concrete issues or confirm correctness with reasoning",
-        ],
-        skills: ["code-review"],
-        extraSections: [],
-      };
-
-    default:
-      return {
-        objectivePrefix: "",
-        decisionRules: [],
-        acceptanceCriteria: [],
-        skills: [],
-        extraSections: [],
-      };
-  }
-}
-
 // --- Result contract section ---
 
 const RESULT_CONTRACT_SECTION = {
@@ -141,7 +27,7 @@ const RESULT_CONTRACT_SECTION = {
   lines: [
     `result.json must contain ONLY these fields:`,
     `- schema_version: "${RESULT_SCHEMA_VERSION}"`,
-    "- workflow_id, assignment_id, run_id (from the Role section above)",
+    "- workflow_id, assignment_id, run_id (from the Run Context section above)",
     "- outcome: \"completed\" | \"stuck\" | \"error\"",
     "- report_file: relative path to your report.md (typically just \"report.md\")",
     "",
@@ -172,17 +58,17 @@ export interface BuildTaskSpecInput {
 
 export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec {
   const { workflow, node, assignment, runId } = input;
-  const roleDefaults = getRoleDefaults(node.role);
   const repoPath = workflow.repo_path;
+
+  // Resolve role from registry. agent_type is locked by the role file —
+  // dispatchers must not override it. fail-fast on missing/malformed role.
+  const role = loadRole(node.role, repoPath);
 
   // --- Objective: read intent file content ---
   const intentText = readFileOrEmpty(resolvePath(repoPath, node.intent_file));
-  const objectiveLines: string[] = [];
-  if (roleDefaults.objectivePrefix) {
-    objectiveLines.push(roleDefaults.objectivePrefix);
-    objectiveLines.push("");
-  }
-  objectiveLines.push(intentText.trim() || `(intent_file is empty: ${node.intent_file})`);
+  const objectiveLines: string[] = [
+    intentText.trim() || `(intent_file is empty: ${node.intent_file})`,
+  ];
 
   // --- Read files ---
   const readFiles: TaskFileRef[] = [
@@ -269,10 +155,10 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
 
   // --- Decision rules ---
   const decisionRules = [
-    ...roleDefaults.decisionRules,
-    "- Use outcome=completed when your work is done (regardless of findings).",
-    "- Use outcome=stuck when you cannot proceed without external help.",
-    "- Use outcome=error only for technical failures (Hydra may retry you).",
+    ...role.decision_rules,
+    "Use outcome=completed when your work is done (regardless of findings).",
+    "Use outcome=stuck when you cannot proceed without external help.",
+    "Use outcome=error only for technical failures (Hydra may retry you).",
   ];
 
   // --- Acceptance criteria ---
@@ -281,15 +167,15 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
     `Write ${path.basename(resultFile)} last, atomically, with schema_version=${RESULT_SCHEMA_VERSION}.`,
   ];
   const acceptanceCriteria = [
-    ...roleDefaults.acceptanceCriteria,
+    ...role.acceptance_criteria,
     ...commonCompletion,
   ];
 
   // --- Extra sections ---
-  const extraSections = [
-    ...roleDefaults.extraSections,
-    RESULT_CONTRACT_SECTION,
-  ];
+  // Role-specific strategy content lives in the role body (rendered as the
+  // ## Role section by run-task.ts). Only the result contract is appended
+  // here as a static, role-independent section.
+  const extraSections = [RESULT_CONTRACT_SECTION];
 
   return {
     repoPath: workflow.repo_path,
@@ -297,14 +183,15 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
     assignmentId: assignment.id,
     runId,
     role: node.role,
-    agentType: assignment.requested_agent_type,
+    agentType: role.agent_type,
     sourceRole: null,
+    roleBody: role.body,
     objective: objectiveLines,
     readFiles,
     writeTargets,
     decisionRules,
     acceptanceCriteria,
-    skills: roleDefaults.skills,
+    skills: [],
     extraSections,
   };
 }

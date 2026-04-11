@@ -11,6 +11,7 @@ import {
 } from "../hydra/src/dispatcher.ts";
 import { AssignmentManager } from "../hydra/src/assignment/manager.ts";
 import type { AgentType } from "../hydra/src/assignment/types.ts";
+import { listRoles as listRoleRegistry, type RoleDefinition } from "../hydra/src/roles/loader.ts";
 import {
   initWorkflow,
   dispatchNode,
@@ -55,6 +56,14 @@ export interface WorkflowSummary {
   updated_at: string;
 }
 
+export interface RoleSummary {
+  name: string;
+  agent_type: RoleDefinition["agent_type"];
+  description: string;
+  model?: string;
+  source: RoleDefinition["source"];
+}
+
 export interface WorkflowControl {
   init(input: Omit<InitWorkflowOptions, "repoPath"> & { repoPath: string }): Promise<InitWorkflowResult>;
   dispatch(input: Omit<DispatchNodeOptions, "repoPath"> & { repoPath: string }): Promise<DispatchNodeResult>;
@@ -67,6 +76,7 @@ export interface WorkflowControl {
   fail(repoPath: string, workflowId: string, reason: string): Promise<void>;
   status(repoPath: string, workflowId: string): WorkflowStatusView;
   list(repoPath: string): WorkflowSummary[];
+  listRoles(repoPath: string, agentTypeFilter?: string): RoleSummary[];
   cleanup(repoPath: string, workflowId: string, force?: boolean): { ok: true };
 }
 
@@ -142,6 +152,7 @@ export function createWorkflowControl(
       assignmentId: request.assignmentId,
       repoPath: request.repoPath,
       resumeSessionId: request.resumeSessionId,
+      model: request.model,
     });
 
     return {
@@ -220,6 +231,19 @@ export function createWorkflowControl(
       return listWorkflows(path.resolve(repoPath))
         .sort((left, right) => right.updated_at.localeCompare(left.updated_at))
         .map(buildWorkflowSummary);
+    },
+    listRoles(repoPath, agentTypeFilter) {
+      const roles = listRoleRegistry(path.resolve(repoPath));
+      const filtered = agentTypeFilter
+        ? roles.filter((role) => role.agent_type === agentTypeFilter)
+        : roles;
+      return filtered.map((role) => ({
+        name: role.name,
+        agent_type: role.agent_type,
+        description: role.description,
+        model: role.model,
+        source: role.source,
+      }));
     },
     cleanup(repoPath, workflowId, force = false) {
       const resolvedRepo = path.resolve(repoPath);
