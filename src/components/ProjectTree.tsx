@@ -557,85 +557,50 @@ function ProjectRow({
           />,
           document.body,
         )}
-      {confirmingDelete &&
-        createPortal(
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60"
-            onClick={() => {
-              if (!deleting) setConfirmingDelete(false);
-            }}
-          >
-            <div
-              className="w-[420px] max-w-[90vw] rounded-md border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="text-[12px] font-semibold text-[var(--text-primary)] mb-2">
-                {t.panel_project_delete_title}
-              </div>
-              <div className="text-[11px] text-[var(--text-muted)] mb-3 leading-relaxed">
-                {t.panel_project_delete_intro}
-                <div className="mt-1 font-mono text-[10px] break-all text-[var(--text-primary)]">
-                  {project.projectPath}
-                </div>
-                <div className="mt-2">
-                  {t.panel_project_delete_warning}
-                </div>
-                <div className="mt-2">
-                  {t.panel_project_delete_type_to_confirm}{" "}
-                  <span className="font-mono text-[var(--text-primary)]">
-                    {project.projectName}
-                  </span>
-                </div>
-              </div>
-              <input
-                autoFocus
-                value={deleteInput}
-                disabled={deleting}
-                onChange={(e) => setDeleteInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (
-                    e.key === "Enter" &&
-                    deleteInput === project.projectName
-                  ) {
-                    e.preventDefault();
-                    void performDeleteFromDisk();
-                  } else if (e.key === "Escape") {
-                    e.preventDefault();
-                    if (!deleting) setConfirmingDelete(false);
-                  }
-                }}
-                placeholder={project.projectName}
-                className="w-full text-[11px] px-2 py-1 rounded bg-[var(--background)] border border-[var(--border)] text-[var(--text-primary)] outline-none focus:border-[var(--accent)] disabled:opacity-50"
-                style={{ fontFamily: '"Geist Mono", monospace' }}
-              />
-              <div className="mt-3 flex justify-end gap-2">
-                <button
-                  type="button"
-                  disabled={deleting}
-                  onClick={() => setConfirmingDelete(false)}
-                  className="text-[11px] px-2 py-1 rounded border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] disabled:opacity-50"
-                >
-                  {t.cancel}
-                </button>
-                <button
-                  type="button"
-                  disabled={
-                    deleting || deleteInput !== project.projectName
-                  }
-                  onClick={() => void performDeleteFromDisk()}
-                  className="text-[11px] px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {deleting
-                    ? t.panel_project_delete_button_busy
-                    : t.panel_project_delete_button}
-                </button>
-              </div>
+      <ConfirmDialog
+        open={confirmingDelete}
+        title={t.panel_project_delete_title}
+        body={
+          <>
+            {t.panel_project_delete_intro}
+            <div className="mt-1 font-mono text-[10px] break-all text-[var(--text-primary)]">
+              {project.projectPath}
             </div>
-          </div>,
-          document.body,
-        )}
+            <div className="mt-2">{t.panel_project_delete_warning}</div>
+            <div className="mt-2">
+              {t.panel_project_delete_type_to_confirm}{" "}
+              <span className="font-mono text-[var(--text-primary)]">
+                {project.projectName}
+              </span>
+            </div>
+            <input
+              autoFocus
+              value={deleteInput}
+              disabled={deleting}
+              onChange={(e) => setDeleteInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (
+                  e.key === "Enter" &&
+                  deleteInput === project.projectName
+                ) {
+                  e.preventDefault();
+                  void performDeleteFromDisk();
+                }
+              }}
+              placeholder={project.projectName}
+              className="mt-2 w-full text-[11px] px-2 py-1 rounded bg-[var(--background)] border border-[var(--border)] text-[var(--text-primary)] outline-none focus:border-[var(--accent)] disabled:opacity-50"
+              style={{ fontFamily: '"Geist Mono", monospace' }}
+            />
+          </>
+        }
+        confirmLabel={t.panel_project_delete_button}
+        busyLabel={t.panel_project_delete_button_busy}
+        confirmTone="danger"
+        busy={deleting}
+        disableConfirm={deleteInput !== project.projectName}
+        onCancel={() => setConfirmingDelete(false)}
+        onConfirm={() => void performDeleteFromDisk()}
+      />
       <ConfirmDialog
         open={confirmingRemove}
         title={t.panel_project_remove_title}
