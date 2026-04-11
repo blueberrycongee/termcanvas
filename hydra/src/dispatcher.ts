@@ -17,6 +17,12 @@ export interface DispatchCreateOnlyRequest {
    * is invoked with its model flag via the CLI adapter.
    */
   model?: string;
+  /**
+   * Optional reasoning effort level using the target CLI's native vocabulary
+   * (claude: low|medium|high|max; codex: low|medium|high|xhigh). Validated
+   * against the adapter's capability before launch.
+   */
+  reasoningEffort?: string;
   taskFile: string;
   resultFile: string;
   autoApprove?: boolean;

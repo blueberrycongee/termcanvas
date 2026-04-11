@@ -51,7 +51,7 @@ function setupNode(repoPath: string, nodeId: string, role: string, intent: strin
 
 function makeNode(repoPath: string, overrides: Partial<WorkflowNode> = {}): WorkflowNode {
   const id = overrides.id ?? "test-node";
-  const role = overrides.role ?? "claude-implementer";
+  const role = overrides.role ?? "implementer";
   const intentFile = overrides.intent_file ?? setupNode(repoPath, id, role, "Implement feature X");
   return {
     id,
@@ -70,7 +70,7 @@ function makeAssignment(overrides: Partial<AssignmentRecord> = {}): AssignmentRe
     workflow_id: "workflow-test",
     created_at: "2026-04-09T00:00:00.000Z",
     updated_at: "2026-04-09T00:00:00.000Z",
-    role: "claude-implementer",
+    role: "implementer",
     from_assignment_id: null,
     requested_agent_type: "claude",
     status: "pending",
@@ -82,19 +82,19 @@ function makeAssignment(overrides: Partial<AssignmentRecord> = {}): AssignmentRe
   } as AssignmentRecord;
 }
 
-test("buildTaskSpecFromIntent produces valid RunTaskSpec for claude-implementer", () => {
+test("buildTaskSpecFromIntent produces valid RunTaskSpec for implementer", () => {
   const repoPath = makeTmpDir();
   try {
     setupWorkflow(repoPath, "Test workflow intent");
 
     const spec = buildTaskSpecFromIntent({
       workflow: makeWorkflow(repoPath),
-      node: makeNode(repoPath, { role: "claude-implementer" }),
-      assignment: makeAssignment({ role: "claude-implementer" }),
+      node: makeNode(repoPath, { role: "implementer" }),
+      assignment: makeAssignment({ role: "implementer" }),
       runId: "run-001",
     });
 
-    assert.equal(spec.role, "claude-implementer");
+    assert.equal(spec.role, "implementer");
     assert.equal(spec.agentType, "claude");
     assert.equal(spec.workflowId, "workflow-test");
     assert.equal(spec.assignmentId, "assignment-test");
@@ -111,28 +111,28 @@ test("buildTaskSpecFromIntent produces valid RunTaskSpec for claude-implementer"
   }
 });
 
-test("buildTaskSpecFromIntent surfaces researcher briefing via the role body for claude-researcher", () => {
+test("buildTaskSpecFromIntent surfaces tester briefing via the role body", () => {
   const repoPath = makeTmpDir();
   try {
     setupWorkflow(repoPath, "Test");
     const node = makeNode(repoPath, {
-      id: "researcher",
-      role: "claude-researcher",
-      intent_file: setupNode(repoPath, "researcher", "claude-researcher", "Analyze auth options"),
+      id: "tester",
+      role: "tester",
+      intent_file: setupNode(repoPath, "tester", "tester", "Verify the implementation"),
     });
 
     const spec = buildTaskSpecFromIntent({
       workflow: makeWorkflow(repoPath),
       node,
-      assignment: makeAssignment({ role: "claude-researcher" }),
+      assignment: makeAssignment({ role: "tester" }),
       runId: "run-001",
     });
 
-    // Researcher framing now lives in the role body, not in the objective prefix
-    // or an extraSections "Research Strategy" entry.
-    assert.ok(spec.roleBody && /research brief/i.test(spec.roleBody));
-    assert.ok(spec.roleBody && /Research Strategy/.test(spec.roleBody));
-    assert.ok(spec.decisionRules.some((r) => r.toLowerCase().includes("codebase")));
+    // Tester framing lives in the role body (additive briefing), not in
+    // an objective prefix or extraSections.
+    assert.ok(spec.roleBody && /tester/i.test(spec.roleBody));
+    assert.ok(spec.roleBody && /Verification Strategy/.test(spec.roleBody));
+    assert.ok(spec.decisionRules.some((r) => /independent judgment/i.test(r)));
   } finally {
     fs.rmSync(repoPath, { recursive: true, force: true });
   }

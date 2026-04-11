@@ -284,6 +284,7 @@ function buildDispatchRequest(
     worktreePath: node.worktree_path ?? workflow.worktree_path,
     agentType: assignment.requested_agent_type,
     model: node.model,
+    reasoningEffort: node.reasoning_effort,
     taskFile: getRunTaskFile(workflow.repo_path, workflow.id, assignment.id, runId),
     resultFile: getRunResultFile(workflow.repo_path, workflow.id, assignment.id, runId),
     autoApprove: workflow.auto_approve,
@@ -431,8 +432,9 @@ export interface DispatchNodeOptions {
   workflowId: string;
   nodeId: string;
   /**
-   * Role name from the registry (e.g. "claude-researcher"). The role file
-   * locks the agent_type — there is no caller-supplied agent_type override.
+   * Role name from the registry (e.g. "implementer", "tester", "reviewer").
+   * The role file's terminals[] array locks cli/model/reasoning_effort —
+   * there is no caller-supplied agent_type override.
    */
   role: string;
   intent: string;
@@ -496,12 +498,17 @@ export async function dispatchNode(
     });
   }
 
-  // Resolve role from registry. The role file locks agent_type — callers
-  // cannot override it. Fail fast if the role is unknown or malformed so the
-  // dispatch never reaches a worker that does not exist.
+  // Resolve role from registry and pick the highest-priority terminal.
+  // The role file's terminals[] array is the source of truth for cli /
+  // model / reasoning_effort. Today we always pick terminals[0]; future
+  // fallback logic can walk the array if the chosen CLI is unavailable.
+  // Fail fast if the role is unknown or malformed so the dispatch never
+  // reaches a worker that does not exist.
   const role = loadRole(options.role, repoPath);
-  const agentType = role.agent_type as AgentType;
-  const model = options.model ?? role.model;
+  const chosenTerminal = role.terminals[0];
+  const agentType = chosenTerminal.cli as AgentType;
+  const model = options.model ?? chosenTerminal.model;
+  const reasoningEffort = chosenTerminal.reasoning_effort;
 
   // Create node — write intent to nodes/{id}/intent.md
   const intentFileAbs = writeNodeIntent(repoPath, workflow.id, options.nodeId, options.role, options.intent);
@@ -514,6 +521,7 @@ export async function dispatchNode(
   const node: WorkflowNode = {
     id: options.nodeId, role: options.role, depends_on: dependsOn, agent_type: agentType,
     model,
+    reasoning_effort: reasoningEffort,
     intent_file: path.relative(repoPath, intentFileAbs),
     feedback_file: feedbackFileRel,
     context_refs: options.contextRefs,

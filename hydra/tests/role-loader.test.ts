@@ -15,18 +15,17 @@ function writeProjectRole(repoPath: string, name: string, content: string): void
   fs.writeFileSync(path.join(dir, `${name}.md`), content, "utf-8");
 }
 
-test("loadRole resolves a builtin role with all required fields", () => {
+test("loadRole resolves a builtin role with a populated terminals array", () => {
   const repoPath = makeTmpRepo();
   try {
-    const role = loadRole("claude-researcher", repoPath);
-    assert.equal(role.name, "claude-researcher");
-    assert.equal(role.agent_type, "claude");
+    const role = loadRole("implementer", repoPath);
+    assert.equal(role.name, "implementer");
     assert.equal(role.source, "builtin");
     assert.ok(role.description.length > 0);
-    assert.ok(role.decision_rules.length > 0);
-    assert.ok(role.acceptance_criteria.length > 0);
+    assert.ok(role.terminals.length >= 1);
+    // First terminal must declare a cli; everything else is optional.
+    assert.ok(role.terminals[0].cli === "claude" || role.terminals[0].cli === "codex");
     assert.ok(role.body.length > 0);
-    assert.ok(role.body.includes("researcher"));
   } finally {
     fs.rmSync(repoPath, { recursive: true, force: true });
   }
@@ -37,21 +36,67 @@ test("loadRole prefers a project-level role over the builtin with the same name"
   try {
     writeProjectRole(
       repoPath,
-      "claude-researcher",
+      "implementer",
       [
         "---",
-        "name: claude-researcher",
+        "name: implementer",
         "description: PROJECT OVERRIDE",
-        "agent_type: claude",
+        "terminals:",
+        "  - cli: codex",
+        "    model: gpt-5-codex-max",
+        "    reasoning_effort: xhigh",
         "---",
         "",
         "Project body.",
       ].join("\n"),
     );
-    const role = loadRole("claude-researcher", repoPath);
+    const role = loadRole("implementer", repoPath);
     assert.equal(role.source, "project");
     assert.equal(role.description, "PROJECT OVERRIDE");
+    assert.equal(role.terminals.length, 1);
+    assert.equal(role.terminals[0].cli, "codex");
+    assert.equal(role.terminals[0].model, "gpt-5-codex-max");
+    assert.equal(role.terminals[0].reasoning_effort, "xhigh");
     assert.equal(role.body.trim(), "Project body.");
+  } finally {
+    fs.rmSync(repoPath, { recursive: true, force: true });
+  }
+});
+
+test("loadRole parses a multi-entry terminals array preserving order", () => {
+  const repoPath = makeTmpRepo();
+  try {
+    writeProjectRole(
+      repoPath,
+      "multi-cli",
+      [
+        "---",
+        "name: multi-cli",
+        "description: ordered preference list",
+        "terminals:",
+        "  - cli: claude",
+        "    model: claude-opus-4-6",
+        "    reasoning_effort: max",
+        "  - cli: codex",
+        "    model: gpt-5-codex-max",
+        "    reasoning_effort: xhigh",
+        "---",
+        "",
+        "body",
+      ].join("\n"),
+    );
+    const role = loadRole("multi-cli", repoPath);
+    assert.equal(role.terminals.length, 2);
+    assert.deepEqual(role.terminals[0], {
+      cli: "claude",
+      model: "claude-opus-4-6",
+      reasoning_effort: "max",
+    });
+    assert.deepEqual(role.terminals[1], {
+      cli: "codex",
+      model: "gpt-5-codex-max",
+      reasoning_effort: "xhigh",
+    });
   } finally {
     fs.rmSync(repoPath, { recursive: true, force: true });
   }
@@ -69,7 +114,7 @@ test("loadRole throws when the role file is missing across all 3 layers", () => 
   }
 });
 
-test("loadRole fails fast when a required field is missing", () => {
+test("loadRole fails fast when description is missing", () => {
   const repoPath = makeTmpRepo();
   try {
     writeProjectRole(
@@ -78,10 +123,11 @@ test("loadRole fails fast when a required field is missing", () => {
       [
         "---",
         "name: broken-role",
-        // intentionally no description, no agent_type
+        "terminals:",
+        "  - cli: claude",
         "---",
         "",
-        "Body.",
+        "body",
       ].join("\n"),
     );
     assert.throws(
@@ -93,25 +139,50 @@ test("loadRole fails fast when a required field is missing", () => {
   }
 });
 
-test("loadRole rejects an unknown agent_type", () => {
+test("loadRole fails fast when terminals is missing or empty", () => {
   const repoPath = makeTmpRepo();
   try {
     writeProjectRole(
       repoPath,
-      "weird-role",
+      "no-terminals",
       [
         "---",
-        "name: weird-role",
-        "description: bogus",
-        "agent_type: smolagent",
+        "name: no-terminals",
+        "description: missing terminals",
         "---",
         "",
-        "Body.",
+        "body",
       ].join("\n"),
     );
     assert.throws(
-      () => loadRole("weird-role", repoPath),
-      (err) => err instanceof RoleLoadError && /agent_type/.test(err.message),
+      () => loadRole("no-terminals", repoPath),
+      (err) => err instanceof RoleLoadError && /terminals/.test(err.message),
+    );
+  } finally {
+    fs.rmSync(repoPath, { recursive: true, force: true });
+  }
+});
+
+test("loadRole rejects an unknown cli inside terminals", () => {
+  const repoPath = makeTmpRepo();
+  try {
+    writeProjectRole(
+      repoPath,
+      "weird-cli",
+      [
+        "---",
+        "name: weird-cli",
+        "description: bogus cli",
+        "terminals:",
+        "  - cli: smolagent",
+        "---",
+        "",
+        "body",
+      ].join("\n"),
+    );
+    assert.throws(
+      () => loadRole("weird-cli", repoPath),
+      (err) => err instanceof RoleLoadError && /cli/.test(err.message),
     );
   } finally {
     fs.rmSync(repoPath, { recursive: true, force: true });
@@ -128,10 +199,11 @@ test("loadRole enforces filename / frontmatter name match", () => {
         "---",
         "name: a-different-name",
         "description: test",
-        "agent_type: claude",
+        "terminals:",
+        "  - cli: claude",
         "---",
         "",
-        "Body.",
+        "body",
       ].join("\n"),
     );
     assert.throws(
@@ -143,17 +215,19 @@ test("loadRole enforces filename / frontmatter name match", () => {
   }
 });
 
-test("loadRole parses decision_rules and acceptance_criteria as string arrays", () => {
+test("loadRole parses decision_rules and acceptance_criteria as string arrays alongside terminals", () => {
   const repoPath = makeTmpRepo();
   try {
     writeProjectRole(
       repoPath,
-      "array-role",
+      "with-rules",
       [
         "---",
-        "name: array-role",
+        "name: with-rules",
         "description: array parsing test",
-        "agent_type: codex",
+        "terminals:",
+        "  - cli: codex",
+        "    model: gpt-5-codex-max",
         "decision_rules:",
         "  - rule one",
         "  - rule two",
@@ -161,12 +235,15 @@ test("loadRole parses decision_rules and acceptance_criteria as string arrays", 
         "  - criterion one",
         "---",
         "",
-        "Body.",
+        "body",
       ].join("\n"),
     );
-    const role = loadRole("array-role", repoPath);
+    const role = loadRole("with-rules", repoPath);
     assert.deepEqual(role.decision_rules, ["rule one", "rule two"]);
     assert.deepEqual(role.acceptance_criteria, ["criterion one"]);
+    assert.equal(role.terminals.length, 1);
+    assert.equal(role.terminals[0].cli, "codex");
+    assert.equal(role.terminals[0].model, "gpt-5-codex-max");
   } finally {
     fs.rmSync(repoPath, { recursive: true, force: true });
   }
@@ -177,18 +254,20 @@ test("listRoles enumerates all builtin roles and applies project precedence", ()
   try {
     const before = listRoles(repoPath);
     const builtinNames = before.map((role) => role.name).sort();
-    // We ship 8 builtin roles (claude/codex × researcher/implementer/tester/reviewer).
-    assert.ok(builtinNames.includes("claude-researcher"));
-    assert.ok(builtinNames.includes("codex-implementer"));
+    // Builtin lineup: implementer / tester / reviewer.
+    assert.ok(builtinNames.includes("implementer"));
+    assert.ok(builtinNames.includes("tester"));
+    assert.ok(builtinNames.includes("reviewer"));
 
     writeProjectRole(
       repoPath,
-      "claude-researcher",
+      "implementer",
       [
         "---",
-        "name: claude-researcher",
+        "name: implementer",
         "description: project version",
-        "agent_type: claude",
+        "terminals:",
+        "  - cli: claude",
         "---",
         "",
         "project body",
@@ -196,7 +275,7 @@ test("listRoles enumerates all builtin roles and applies project precedence", ()
     );
 
     const after = listRoles(repoPath);
-    const projectRole = after.find((role) => role.name === "claude-researcher");
+    const projectRole = after.find((role) => role.name === "implementer");
     assert.ok(projectRole);
     assert.equal(projectRole!.source, "project");
     // No duplicates introduced by precedence walk.

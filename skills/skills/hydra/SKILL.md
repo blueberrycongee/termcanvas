@@ -40,49 +40,54 @@ Telemetry polling:
 
 ## Core workflow
 
+The Lead is the decider — Lead reads the codebase, makes the strategic
+calls, and dispatches workers for the steps that genuinely need a fresh
+agent process. There is no "researcher" role: the Lead does the research
+itself before deciding what to build.
+
 ```
 hydra init --intent "Add OAuth login" --repo .
 # → { workflow_id, worktree_path }
 
-hydra dispatch --workflow W --node researcher --role researcher \
-  --intent "Analyze OAuth integration approach" --repo .
-# → { node_id, assignment_id, status: "dispatched" }
-
-hydra watch --workflow W --repo .
-# → DecisionPoint: researcher completed with result
-
-hydra approve --workflow W --node researcher --repo .
+# (Lead reads the code, reviews related modules, decides the plan.)
 
 hydra dispatch --workflow W --node dev --role implementer \
-  --intent "Implement OAuth middleware" \
-  --depends-on researcher --repo .
+  --intent "Implement OAuth middleware following the design in CLAUDE.md" --repo .
+# → { node_id, assignment_id, status: "dispatched" }
 
 hydra watch --workflow W --repo .
 # → DecisionPoint: dev completed
 
-hydra dispatch --workflow W --node tester --role tester \
-  --intent "Verify OAuth flow" \
+hydra dispatch --workflow W --node check --role tester \
+  --intent "Verify OAuth flow end-to-end" \
   --depends-on dev --repo .
 
 hydra watch --workflow W --repo .
-# → DecisionPoint: tester completed
+# → DecisionPoint: check completed
+
+hydra dispatch --workflow W --node review --role reviewer \
+  --intent "Independent review of the OAuth change" \
+  --depends-on check --repo .
+
+hydra watch --workflow W --repo .
+# → DecisionPoint: review completed
 
 hydra complete --workflow W --repo .
 ```
 
 ## Parallel dev
 
-When the research identifies independent work streams, dispatch multiple devs
-with isolated worktrees:
+When the Lead identifies independent work streams, dispatch multiple
+implementers with isolated worktrees:
 
 ```
 hydra dispatch --workflow W --node dev-frontend --role implementer \
   --intent "Frontend OAuth components" \
-  --depends-on researcher --worktree .worktrees/frontend --repo .
+  --worktree .worktrees/frontend --repo .
 
 hydra dispatch --workflow W --node dev-backend --role implementer \
   --intent "Backend OAuth middleware" \
-  --depends-on researcher --worktree .worktrees/backend --repo .
+  --worktree .worktrees/backend --repo .
 
 hydra watch --workflow W --repo .
 # → DecisionPoint: both completed
@@ -102,7 +107,6 @@ When `watchUntilDecision` returns a `node_completed` DecisionPoint:
 2. Read the `report.md` referenced by `report_file` to decide:
    - Dispatch next node → `hydra dispatch ...`
    - Reset for rework → `hydra reset --workflow W --node dev --feedback "..." --repo .`
-   - Reset for replan → `hydra reset --workflow W --node researcher --feedback "..." --repo .`
    - Re-dispatch after reset → `hydra redispatch --workflow W --node dev --repo .`
    - Complete workflow → `hydra complete --workflow W --repo .`
 
@@ -112,12 +116,30 @@ what's ready.
 
 ## Agent role guidance
 
-**researcher** — Investigate, plan, produce a brief. Good for Claude.
-**implementer** — Write code. Good for Codex.
-**tester** — Verify independently. Good for Claude.
-**reviewer** — Second opinion on work. Replaces the old challenge mechanism.
+The role file (in `.hydra/roles/<name>.md` or shipped builtin) declares
+an ordered `terminals[]` list of CLI / model / reasoning_effort triples.
+Hydra always picks `terminals[0]` for now; future fallback logic walks
+the list. The Lead chooses **which role** to dispatch — the role file
+chooses **which CLI** to invoke and at what reasoning level.
 
-Use `--agent-type` to override per node. Default inherits from workflow.
+**implementer** — Writes code. Default: Claude Opus at max reasoning,
+codex fallback. Use for the actual change.
+
+**tester** — Independently validates an implementation against code
+reality. Default: Codex at high reasoning, claude fallback. Run on a
+**different model family** from the implementer so blind spots don't
+overlap.
+
+**reviewer** — Independent second opinion at the highest available
+reasoning level. Default: Codex at xhigh, claude max fallback. The
+last line of defense before Lead approves a change.
+
+There is no `researcher` role: the Lead does the research itself
+before dispatching anything. Spinning up a separate agent to do the
+Lead's own job is wasted compute.
+
+You can override the model or reasoning effort per-dispatch via
+`--model` and a project-level role file in `.hydra/roles/`.
 
 ## Commands
 

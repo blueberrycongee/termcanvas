@@ -62,11 +62,17 @@ export interface WorkflowNode {
    */
   agent_type: AgentType;
   /**
-   * Optional model pin (e.g. "opus" / "gpt-5"). When set, the underlying
-   * CLI is invoked with its model flag. Sourced from the role file's
-   * frontmatter or an explicit override at dispatch time.
+   * Optional model pin (e.g. "claude-opus-4-6" / "gpt-5-codex-max").
+   * Cached from the chosen role terminal at dispatch time so other code
+   * paths don't have to re-resolve the role file.
    */
   model?: string;
+  /**
+   * Optional reasoning effort level cached from the chosen role terminal
+   * (per-CLI native vocabulary: claude max/high/medium/low; codex
+   * xhigh/high/medium/low). Honored by the CLI adapter at launch.
+   */
+  reasoning_effort?: string;
   assignment_id?: string;
 
   // Content references — actual text lives in MD files under nodes/{id}/

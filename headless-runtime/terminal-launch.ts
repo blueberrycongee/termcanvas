@@ -6,21 +6,29 @@ import type { ProjectStore, TerminalType } from "./project-store.ts";
 /**
  * CLI adapter for a single terminal type. Centralizes everything we know
  * about how to invoke a particular CLI: its shell binary, what flags to pass
- * for auto-approve / resume / model selection, and how to deliver the prompt.
+ * for auto-approve / resume / model / reasoning-effort selection, and how
+ * to deliver the prompt.
  *
  * Methods (rather than optional fields) keep the call sites uniform — they
  * just spread the result. Adapters that don't support a capability return [].
  *
- * `supportsModel()` is the capability query the dispatcher uses to validate
- * that a role's `model` pin is actually deliverable to the spawned CLI
- * before the worker is launched.
+ * Capability queries (`supportsModel`, `supportsReasoningEffort`) let the
+ * dispatcher validate role pins against the actual CLI before launch.
  */
 export interface CliAdapter {
   shell: string;
   supportsModel(): boolean;
+  supportsReasoningEffort(): boolean;
   autoApproveArgs(): string[];
   resumeArgs(sessionId: string): string[];
   modelArgs(model: string): string[];
+  /**
+   * Per-CLI native effort flag. Each CLI uses its own vocabulary
+   * (claude: low/medium/high/max; codex: low/medium/high/xhigh) — Hydra
+   * does not normalize between them; the role file uses the value the
+   * target CLI actually understands.
+   */
+  reasoningEffortArgs(level: string): string[];
   promptArgs(prompt: string): string[];
 }
 
@@ -29,30 +37,40 @@ const defaultPromptArgs = (prompt: string): string[] => [prompt];
 const CLAUDE_ADAPTER: CliAdapter = {
   shell: "claude",
   supportsModel: () => true,
+  supportsReasoningEffort: () => true,
   autoApproveArgs: () => ["--dangerously-skip-permissions"],
   resumeArgs: (sessionId) => ["--resume", sessionId],
   modelArgs: (model) => ["--model", model],
+  // Verified against `claude --help`: --effort accepts low|medium|high|max.
+  reasoningEffortArgs: (level) => ["--effort", level],
   promptArgs: defaultPromptArgs,
 };
 
 const CODEX_ADAPTER: CliAdapter = {
   shell: "codex",
   supportsModel: () => true,
+  supportsReasoningEffort: () => true,
   autoApproveArgs: () => ["--dangerously-bypass-approvals-and-sandbox"],
   resumeArgs: () => [],
   modelArgs: (model) => ["-m", model],
+  // Codex CLI exposes reasoning effort through its config-override flag:
+  // `codex -c model_reasoning_effort="<level>"`. Values include
+  // low|medium|high|xhigh. Source: openai/codex#2715, OpenAI Codex CLI docs.
+  reasoningEffortArgs: (level) => ["-c", `model_reasoning_effort=${level}`],
   promptArgs: defaultPromptArgs,
 };
 
 // Non-Hydra terminal types — kept here so termcanvas can still spawn them
-// directly. They do not participate in the role registry, so supportsModel
-// and modelArgs are stubbed out.
+// directly. They do not participate in the role registry, so model and
+// reasoning_effort are stubbed out.
 const KIMI_ADAPTER: CliAdapter = {
   shell: "kimi",
   supportsModel: () => false,
+  supportsReasoningEffort: () => false,
   autoApproveArgs: () => [],
   resumeArgs: () => [],
   modelArgs: () => [],
+  reasoningEffortArgs: () => [],
   promptArgs: (prompt) => ["--prompt", prompt],
 };
 
@@ -60,9 +78,11 @@ function makeBareAdapter(shell: string): CliAdapter {
   return {
     shell,
     supportsModel: () => false,
+    supportsReasoningEffort: () => false,
     autoApproveArgs: () => [],
     resumeArgs: () => [],
     modelArgs: () => [],
+    reasoningEffortArgs: () => [],
     promptArgs: defaultPromptArgs,
   };
 }
@@ -100,6 +120,10 @@ export interface LaunchTrackedTerminalOptions extends TerminalLaunchDeps {
   // Pin the model for this launch — passed to adapter.modelArgs(). Only
   // honored when the adapter's supportsModel() returns true.
   model?: string;
+  // Pin the per-CLI reasoning effort level (claude: low|medium|high|max;
+  // codex: low|medium|high|xhigh). Honored when the adapter's
+  // supportsReasoningEffort() returns true.
+  reasoningEffort?: string;
 }
 
 export async function launchTrackedTerminal(
@@ -149,12 +173,23 @@ export async function launchTrackedTerminal(
         { status: 400 },
       );
     }
+    if (options.reasoningEffort && !launchConfig.supportsReasoningEffort()) {
+      throw Object.assign(
+        new Error(
+          `Terminal type "${options.type}" does not support reasoning effort selection (requested level: ${options.reasoningEffort}).`,
+        ),
+        { status: 400 },
+      );
+    }
     const args: string[] = [];
     if (options.autoApprove) {
       args.push(...launchConfig.autoApproveArgs());
     }
     if (options.model) {
       args.push(...launchConfig.modelArgs(options.model));
+    }
+    if (options.reasoningEffort) {
+      args.push(...launchConfig.reasoningEffortArgs(options.reasoningEffort));
     }
     if (options.resumeSessionId) {
       args.push(...launchConfig.resumeArgs(options.resumeSessionId));

@@ -6,10 +6,17 @@ import { fileURLToPath } from "node:url";
 /**
  * Role registry loader.
  *
- * A role is an agent invocation profile, NOT a "subagent persona". It pins
- * one CLI (claude or codex), optionally pins a model, and supplies an
- * additive briefing block that gets prepended to task.md as a `## Role`
- * section. Hydra workers are real OS processes running the underlying CLI.
+ * A role is an *agent invocation profile*: an ordered list of CLI/model
+ * choices Hydra should use to do the role's job, plus optional
+ * frontmatter-driven structured guidance and a markdown briefing body.
+ *
+ * Why `terminals: []` is an array, not a single field:
+ *   - Different roles want different SOTA model + reasoning combinations
+ *     (e.g. implementer = Opus max, reviewer = GPT-5 xhigh).
+ *   - Order expresses preference. dispatchNode picks `terminals[0]`
+ *     today; future fallback logic can walk the array if the first CLI
+ *     is unavailable. Project- and user-level role files can override
+ *     the order without forking the schema.
  *
  * Resolution order (first hit wins):
  *   1. project   → <repoPath>/.hydra/roles/<name>.md
@@ -17,14 +24,35 @@ import { fileURLToPath } from "node:url";
  *   3. builtin   → shipped with hydra (src/roles/builtin or dist/roles/builtin)
  */
 
-export type RoleAgentType = "claude" | "codex";
+export type RoleCli = "claude" | "codex";
 export type RoleSource = "project" | "user" | "builtin";
+
+/**
+ * One terminal option for a role. The `cli` field selects which CLI
+ * adapter (and therefore which agent_type) Hydra dispatches into. The
+ * model + reasoning_effort fields are passed to that CLI's adapter at
+ * launch time and ultimately become CLI arguments — `--effort <level>`
+ * for claude, `-c model_reasoning_effort=<level>` for codex.
+ */
+export interface RoleTerminal {
+  cli: RoleCli;
+  /** Model name passed to the CLI's --model flag. Optional. */
+  model?: string;
+  /**
+   * Per-CLI reasoning effort level. Use the CLI's native vocabulary —
+   * claude accepts `low|medium|high|max`, codex accepts `low|medium|
+   * high|xhigh`. Hydra does not normalize between them; the schema is
+   * deliberately leaky so role authors can use the value each CLI
+   * actually understands.
+   */
+  reasoning_effort?: string;
+}
 
 export interface RoleDefinition {
   name: string;
   description: string;
-  agent_type: RoleAgentType;
-  model?: string;
+  /** Ordered preference list. terminals[0] is the dispatcher's choice. */
+  terminals: RoleTerminal[];
   decision_rules: string[];
   acceptance_criteria: string[];
   body: string;
@@ -32,9 +60,10 @@ export interface RoleDefinition {
   file_path: string;
 }
 
-const REQUIRED_SCALAR_FIELDS = ["name", "description", "agent_type"] as const;
-const VALID_AGENT_TYPES = new Set<RoleAgentType>(["claude", "codex"]);
-const KNOWN_ARRAY_FIELDS = new Set(["decision_rules", "acceptance_criteria"]);
+const REQUIRED_SCALAR_FIELDS = ["name", "description"] as const;
+const VALID_CLIS = new Set<RoleCli>(["claude", "codex"]);
+const KNOWN_STRING_ARRAY_FIELDS = new Set(["decision_rules", "acceptance_criteria"]);
+const KNOWN_OBJECT_ARRAY_FIELDS = new Set(["terminals"]);
 
 export class RoleLoadError extends Error {
   constructor(message: string) {
@@ -44,8 +73,6 @@ export class RoleLoadError extends Error {
 }
 
 function getBuiltinSearchDirs(): string[] {
-  // Resolve relative to this file's location so the loader works in both
-  // dev (`src/roles/loader.ts`) and bundled (`dist/hydra.js`) modes.
   const here = path.dirname(fileURLToPath(import.meta.url));
   return [
     path.join(here, "builtin"), // dev: src/roles/loader.ts → src/roles/builtin
@@ -86,18 +113,20 @@ function resolveRoleFile(name: string, repoPath: string): ResolvedRoleFile | nul
 
 interface ParsedFrontmatter {
   scalars: Record<string, string>;
-  arrays: Record<string, string[]>;
+  stringArrays: Record<string, string[]>;
+  objectArrays: Record<string, Array<Record<string, string>>>;
 }
 
 /**
- * Minimal frontmatter parser tailored to role files. Supports:
- *   - scalar: `key: value` (with optional surrounding quotes)
- *   - string array: `key:` followed by `  - item` lines
- *   - blank lines and `# comment` lines (skipped)
+ * Hand-rolled frontmatter parser tailored to role files. Supports:
+ *   - scalar:           `key: value`
+ *   - string array:     `key:` followed by `  - item`
+ *   - object array:     `key:` followed by `  - subkey: subval` and
+ *                       further `    subkey: subval` lines per object
  *
- * No nested objects, no flow style, no multiline scalars. We do this by hand
- * to avoid pulling a yaml dependency into hydra (which currently has zero
- * runtime deps).
+ * No nested objects beyond two levels (good enough for `terminals`),
+ * no flow style, no multiline scalars. Custom on purpose to keep
+ * hydra zero-runtime-deps.
  */
 function parseFrontmatter(text: string, sourceFile: string): { fm: ParsedFrontmatter; body: string } {
   const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(text);
@@ -109,45 +138,116 @@ function parseFrontmatter(text: string, sourceFile: string): { fm: ParsedFrontma
   const [, fmText, body] = match;
 
   const scalars: Record<string, string> = {};
-  const arrays: Record<string, string[]> = {};
+  const stringArrays: Record<string, string[]> = {};
+  const objectArrays: Record<string, Array<Record<string, string>>> = {};
   const lines = fmText.split(/\r?\n/);
 
+  // Parser state — we track which array we're currently building and, if
+  // it's an object array, which item within that array is the current one.
   let currentArrayKey: string | null = null;
+  let currentArrayKind: "string" | "object" | null = null;
+  let currentObject: Record<string, string> | null = null;
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
     const trimmed = raw.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
 
-    const itemMatch = /^\s+-\s*(.*)$/.exec(raw);
-    if (itemMatch) {
-      if (!currentArrayKey) {
+    const indent = raw.length - raw.trimStart().length;
+
+    // Top-level key: starts a new field. Resets array state.
+    if (indent === 0) {
+      const kvMatch = /^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*)$/.exec(raw);
+      if (!kvMatch) {
         throw new RoleLoadError(
-          `${sourceFile}: array item on line ${i + 1} has no preceding key: ${JSON.stringify(raw)}`,
+          `${sourceFile}: cannot parse top-level frontmatter line ${i + 1}: ${JSON.stringify(raw)}`,
         );
       }
-      arrays[currentArrayKey].push(stripQuotes(itemMatch[1].trim()));
+      const [, key, rawValue] = kvMatch;
+      const value = rawValue.trim();
+      currentObject = null;
+
+      if (value === "") {
+        // Could be string array or object array — determine from the next non-empty line.
+        currentArrayKey = key;
+        currentArrayKind = peekArrayKind(lines, i);
+        if (currentArrayKind === "object") {
+          objectArrays[key] = [];
+        } else {
+          stringArrays[key] = [];
+        }
+      } else {
+        scalars[key] = stripQuotes(value);
+        currentArrayKey = null;
+        currentArrayKind = null;
+      }
       continue;
     }
 
-    const kvMatch = /^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*)$/.exec(raw);
-    if (!kvMatch) {
+    // Indented line — must belong to the current array.
+    if (!currentArrayKey || !currentArrayKind) {
       throw new RoleLoadError(
-        `${sourceFile}: cannot parse frontmatter line ${i + 1}: ${JSON.stringify(raw)}`,
+        `${sourceFile}: indented line ${i + 1} has no parent key: ${JSON.stringify(raw)}`,
       );
     }
-    const [, key, rawValue] = kvMatch;
-    const value = rawValue.trim();
-    if (value === "") {
-      currentArrayKey = key;
-      arrays[key] = [];
-    } else {
-      scalars[key] = stripQuotes(value);
-      currentArrayKey = null;
+
+    const itemMatch = /^\s+-\s*(.*)$/.exec(raw);
+    if (itemMatch) {
+      const itemBody = itemMatch[1].trim();
+      // Object-array item: starts with `key: value` after the dash.
+      const subKvMatch = /^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*)$/.exec(itemBody);
+      if (currentArrayKind === "object" && subKvMatch) {
+        const [, subKey, subValue] = subKvMatch;
+        currentObject = { [subKey]: stripQuotes(subValue.trim()) };
+        objectArrays[currentArrayKey].push(currentObject);
+      } else if (currentArrayKind === "string") {
+        stringArrays[currentArrayKey].push(stripQuotes(itemBody));
+      } else {
+        throw new RoleLoadError(
+          `${sourceFile}: array kind mismatch at line ${i + 1} under key "${currentArrayKey}"`,
+        );
+      }
+      continue;
     }
+
+    // Continuation of an object-array item: `    subkey: subvalue` (no dash).
+    if (currentArrayKind === "object" && currentObject) {
+      const subKvMatch = /^\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*)$/.exec(raw);
+      if (!subKvMatch) {
+        throw new RoleLoadError(
+          `${sourceFile}: cannot parse object field on line ${i + 1}: ${JSON.stringify(raw)}`,
+        );
+      }
+      const [, subKey, subValue] = subKvMatch;
+      currentObject[subKey] = stripQuotes(subValue.trim());
+      continue;
+    }
+
+    throw new RoleLoadError(
+      `${sourceFile}: unexpected line ${i + 1} in frontmatter: ${JSON.stringify(raw)}`,
+    );
   }
 
-  return { fm: { scalars, arrays }, body: body.replace(/^\s*\n/, "") };
+  return {
+    fm: { scalars, stringArrays, objectArrays },
+    body: body.replace(/^\s*\n/, ""),
+  };
+}
+
+/** Peek ahead from a `key:` line to determine if its array is string- or object-shaped. */
+function peekArrayKind(lines: string[], fromIndex: number): "string" | "object" {
+  for (let j = fromIndex + 1; j < lines.length; j++) {
+    const line = lines[j];
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const indent = line.length - line.trimStart().length;
+    if (indent === 0) return "string"; // empty array (next is a top-level key)
+    const dashMatch = /^\s+-\s*(.*)$/.exec(line);
+    if (!dashMatch) return "string"; // shouldn't happen, fall back
+    const itemBody = dashMatch[1].trim();
+    return /^[A-Za-z_][A-Za-z0-9_]*\s*:/.test(itemBody) ? "object" : "string";
+  }
+  return "string"; // empty array at end of frontmatter
 }
 
 function stripQuotes(value: string): string {
@@ -165,9 +265,10 @@ function stripQuotes(value: string): string {
  * Load a single role by name. Throws RoleLoadError fast on:
  *   - file not found in any of the 3 search locations
  *   - malformed frontmatter
- *   - missing required scalar fields
+ *   - missing required scalar fields (name, description)
+ *   - missing or empty `terminals` array
+ *   - invalid `cli` value in any terminal entry
  *   - frontmatter `name` mismatch with file basename
- *   - unknown agent_type
  */
 export function loadRole(name: string, repoPath: string): RoleDefinition {
   const resolved = resolveRoleFile(name, repoPath);
@@ -195,32 +296,60 @@ export function loadRole(name: string, repoPath: string): RoleDefinition {
     );
   }
 
-  const agentType = fm.scalars.agent_type as RoleAgentType;
-  if (!VALID_AGENT_TYPES.has(agentType)) {
-    throw new RoleLoadError(
-      `${resolved.filePath}: agent_type "${fm.scalars.agent_type}" must be one of: ${Array.from(
-        VALID_AGENT_TYPES,
-      ).join(", ")}`,
-    );
-  }
-
-  for (const arrKey of Object.keys(fm.arrays)) {
-    if (!KNOWN_ARRAY_FIELDS.has(arrKey)) {
+  // Validate string-array keys.
+  for (const arrKey of Object.keys(fm.stringArrays)) {
+    if (!KNOWN_STRING_ARRAY_FIELDS.has(arrKey)) {
       throw new RoleLoadError(
-        `${resolved.filePath}: unknown array field "${arrKey}" in frontmatter (allowed: ${Array.from(
-          KNOWN_ARRAY_FIELDS,
+        `${resolved.filePath}: unknown string-array field "${arrKey}" (allowed: ${Array.from(
+          KNOWN_STRING_ARRAY_FIELDS,
         ).join(", ")})`,
       );
     }
   }
 
+  // Validate object-array keys.
+  for (const arrKey of Object.keys(fm.objectArrays)) {
+    if (!KNOWN_OBJECT_ARRAY_FIELDS.has(arrKey)) {
+      throw new RoleLoadError(
+        `${resolved.filePath}: unknown object-array field "${arrKey}" (allowed: ${Array.from(
+          KNOWN_OBJECT_ARRAY_FIELDS,
+        ).join(", ")})`,
+      );
+    }
+  }
+
+  // terminals[] is required and must be non-empty.
+  const rawTerminals = fm.objectArrays.terminals ?? [];
+  if (rawTerminals.length === 0) {
+    throw new RoleLoadError(
+      `${resolved.filePath}: missing required frontmatter field "terminals" (an ordered list of CLI/model choices)`,
+    );
+  }
+
+  const terminals: RoleTerminal[] = rawTerminals.map((entry, idx) => {
+    if (!entry.cli) {
+      throw new RoleLoadError(
+        `${resolved.filePath}: terminals[${idx}] is missing required field "cli"`,
+      );
+    }
+    if (!VALID_CLIS.has(entry.cli as RoleCli)) {
+      throw new RoleLoadError(
+        `${resolved.filePath}: terminals[${idx}].cli "${entry.cli}" must be one of: ${Array.from(VALID_CLIS).join(", ")}`,
+      );
+    }
+    return {
+      cli: entry.cli as RoleCli,
+      model: entry.model,
+      reasoning_effort: entry.reasoning_effort,
+    };
+  });
+
   return {
     name: declaredName,
     description: fm.scalars.description,
-    agent_type: agentType,
-    model: fm.scalars.model,
-    decision_rules: fm.arrays.decision_rules ?? [],
-    acceptance_criteria: fm.arrays.acceptance_criteria ?? [],
+    terminals,
+    decision_rules: fm.stringArrays.decision_rules ?? [],
+    acceptance_criteria: fm.stringArrays.acceptance_criteria ?? [],
     body: body.trim(),
     source: resolved.source,
     file_path: resolved.filePath,

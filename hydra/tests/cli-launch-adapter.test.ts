@@ -35,3 +35,37 @@ test("non-Hydra terminal types do not advertise model support", () => {
     assert.deepEqual(adapter!.modelArgs("anything"), []);
   }
 });
+
+// ─── Reasoning effort flag wiring ────────────────────────────────────────
+//
+// Claude and Codex use different vocabularies for the same idea
+// (claude: low/medium/high/max via --effort; codex: low/medium/high/xhigh
+// via `-c model_reasoning_effort=`). Hydra deliberately does NOT normalize
+// between them — the role file uses the value the target CLI actually
+// understands. These tests pin both wire formats so an upstream rename
+// breaks the suite, not a worker silently launched without reasoning.
+
+test("claude adapter advertises reasoning effort and emits --effort <level>", () => {
+  const adapter = CLI_LAUNCH.claude;
+  assert.ok(adapter);
+  assert.equal(adapter!.supportsReasoningEffort(), true);
+  assert.deepEqual(adapter!.reasoningEffortArgs("max"), ["--effort", "max"]);
+  assert.deepEqual(adapter!.reasoningEffortArgs("high"), ["--effort", "high"]);
+});
+
+test("codex adapter advertises reasoning effort and emits -c model_reasoning_effort=<level>", () => {
+  const adapter = CLI_LAUNCH.codex;
+  assert.ok(adapter);
+  assert.equal(adapter!.supportsReasoningEffort(), true);
+  assert.deepEqual(adapter!.reasoningEffortArgs("xhigh"), ["-c", "model_reasoning_effort=xhigh"]);
+  assert.deepEqual(adapter!.reasoningEffortArgs("high"), ["-c", "model_reasoning_effort=high"]);
+});
+
+test("non-Hydra terminal types do not advertise reasoning effort support", () => {
+  for (const type of ["gemini", "kimi", "lazygit", "tmux", "opencode"] as const) {
+    const adapter = CLI_LAUNCH[type];
+    assert.ok(adapter);
+    assert.equal(adapter!.supportsReasoningEffort(), false);
+    assert.deepEqual(adapter!.reasoningEffortArgs("anything"), []);
+  }
+});

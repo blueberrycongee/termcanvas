@@ -24,12 +24,17 @@ Route first. Choose the lightest path that preserves correctness.
 
 ## Hydra workflow patterns
 
-- `hydra run --task "..." --repo . --template single-step`
-  - one implementer assignment run with a `result.json` gate
-  - use for clear implementation tasks that still need Hydra evidence
-- `hydra run --task "..." --repo .`
-  - default researcher -> implementer -> tester loop, with research approval before implementation
-  - use for ambiguous, risky, PRD-driven, or long-running tasks
+Lead-driven, decision-point oriented. The Lead reads the codebase, picks
+the strategy, and dispatches workers for the steps that need a fresh
+agent process. Three roles available: `implementer`, `tester`, `reviewer`
+(no separate researcher — the Lead does its own research).
+
+- `hydra init --intent "..." --repo .` then dispatch `implementer` ->
+  `tester` -> `reviewer` for ambiguous, risky, or PRD-driven work
+  - call `hydra watch` after each dispatch to wait for the decision point
+- `hydra spawn --task "..." --repo .` for a single isolated worker
+  - use when the task split is already known and you do not need the
+    full Lead-driven loop
 
 ## Hydra worker primitive
 

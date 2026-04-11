@@ -183,7 +183,11 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
     assignmentId: assignment.id,
     runId,
     role: node.role,
-    agentType: role.agent_type,
+    // Cached on the node at dispatch time from the chosen role terminal.
+    // task-spec-builder reads from the node, not the role, because the
+    // node carries the locked-in choice; the role file's terminals[]
+    // could in principle change between dispatches.
+    agentType: node.agent_type,
     sourceRole: null,
     roleBody: role.body,
     objective: objectiveLines,

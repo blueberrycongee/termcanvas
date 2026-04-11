@@ -176,7 +176,7 @@ test("scheduleRetry honors retry_policy.maximum_attempts over the legacy max_ret
   // max_retries=1 (legacy budget = 1 retry) but maximum_attempts=3 → 2 retries.
   const assignment = manager.create({
     workflow_id: "workflow-policy",
-    role: "claude-implementer",
+    role: "implementer",
     from_assignment_id: null,
     requested_agent_type: "claude",
     max_retries: 1,
@@ -227,7 +227,7 @@ test("scheduleRetry stamps next_retry_at when initial_interval_ms is set", async
   });
   const assignment = manager.create({
     workflow_id: "workflow-backoff",
-    role: "claude-implementer",
+    role: "implementer",
     from_assignment_id: null,
     requested_agent_type: "claude",
     max_retries: 5,
@@ -264,7 +264,7 @@ test("scheduleRetry fails immediately when last_error.code is in non_retryable_e
   });
   const assignment = manager.create({
     workflow_id: "workflow-nonretry",
-    role: "claude-implementer",
+    role: "implementer",
     from_assignment_id: null,
     requested_agent_type: "claude",
     max_retries: 5,

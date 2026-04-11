@@ -16,9 +16,9 @@ function createSpec(repoPath: string) {
     workflowId: "workflow-auth",
     assignmentId: "assignment-abc123",
     runId: "run-0001",
-    role: "codex-implementer",
+    role: "implementer",
     agentType: "codex",
-    sourceRole: "codex-researcher",
+    sourceRole: "tester",
     roleBody:
       "For this task, you are additionally playing an **implementer** role. Build the requested change.",
     objective: [
@@ -72,10 +72,10 @@ test("renderRunTask renders a role-driven task file", () => {
 
   // ## Run Context holds the workflow/assignment/run identity bullets.
   assert.match(content, /## Run Context/);
-  assert.match(content, /Role: codex-implementer/);
+  assert.match(content, /Role: implementer/);
   assert.match(content, /Assignment ID: assignment-abc123/);
   assert.match(content, /Run ID: run-0001/);
-  assert.match(content, /Source role: codex-researcher/);
+  assert.match(content, /Source role: tester/);
 
   assert.match(content, /## Objective/);
   assert.match(content, /file-contract-driven auth workflow/);

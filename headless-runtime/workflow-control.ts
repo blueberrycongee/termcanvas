@@ -153,6 +153,7 @@ export function createWorkflowControl(
       repoPath: request.repoPath,
       resumeSessionId: request.resumeSessionId,
       model: request.model,
+      reasoningEffort: request.reasoningEffort,
     });
 
     return {

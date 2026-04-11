@@ -48,8 +48,8 @@ test("router skill stays always-on and classifies TermCanvas work before Hydra",
   assert.match(skill, /challenge/i);
   assert.match(skill, /do it directly/i);
   assert.match(skill, /hydra init/i);
-  assert.match(skill, /single-step/i);
-  assert.match(skill, /researcher -> implementer -> tester/i);
+  // The Lead-driven loop: implementer → tester → reviewer (no researcher).
+  assert.match(skill, /implementer -> `tester` -> `reviewer`|implementer.*tester.*reviewer/i);
   assert.match(skill, /hydra spawn/i);
   assert.match(skill, /hydra list/i);
   assert.match(skill, /termcanvas terminal create --prompt/i);
@@ -79,9 +79,9 @@ test("task template links role guidance and result-only completion rules", () =>
     workflowId: "workflow-auth",
     assignmentId: "assignment-abc123",
     runId: "run-0001",
-    role: "claude-tester",
+    role: "tester",
     agentType: "claude",
-    sourceRole: "claude-implementer",
+    sourceRole: "implementer",
     roleBody:
       "For this task, you are additionally playing a **tester** role. Independently validate the implementation against code reality.",
     objective: ["Verify the implementation honestly."],
@@ -115,7 +115,7 @@ test("task template links role guidance and result-only completion rules", () =>
 
   // ## Run Context contains the workflow / assignment / run identity.
   assert.match(rendered, /## Run Context/);
-  assert.match(rendered, /Role: claude-tester/);
+  assert.match(rendered, /Role: tester/);
 
   assert.match(rendered, /## Objective/);
   assert.match(rendered, /## Read First/);

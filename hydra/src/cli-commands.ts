@@ -82,7 +82,7 @@ export async function cliDispatch(args: string[]): Promise<void> {
     console.log("Usage: hydra dispatch --workflow <id> --node <id> --role <role> --intent <desc> --repo <path> [options]");
     console.log("  --workflow <id>         Workflow ID (required)");
     console.log("  --node <id>            Node ID (required)");
-    console.log("  --role <role>          Registered role name (required, e.g. claude-researcher)");
+    console.log("  --role <role>          Registered role name (required, e.g. implementer)");
     console.log("  --intent <desc>        Task intent (required)");
     console.log("  --repo <path>          Repository path (required)");
     console.log("  --depends-on <a,b>     Comma-separated dependency node IDs");
@@ -130,24 +130,23 @@ export async function cliDispatch(args: string[]): Promise<void> {
 
 export async function cliListRoles(args: string[]): Promise<void> {
   if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
-    console.log("Usage: hydra list-roles [--repo <path>] [--agent-type <claude|codex>]");
+    console.log("Usage: hydra list-roles [--repo <path>] [--cli <claude|codex>]");
     console.log("  --repo <path>          Repository path (defaults to cwd)");
-    console.log("  --agent-type <type>    Filter to roles for a single CLI");
+    console.log("  --cli <type>           Filter to roles whose primary terminal targets this CLI");
     console.log("");
-    console.log("Output: JSON array of {name, agent_type, description, model, source}.");
+    console.log("Output: JSON array of {name, description, terminals[], source}.");
     process.exit(0);
   }
   const repoPath = optionalFlag(args, "--repo") ?? process.cwd();
-  const agentTypeFilter = optionalFlag(args, "--agent-type");
+  const cliFilter = optionalFlag(args, "--cli") ?? optionalFlag(args, "--agent-type");
   const roles = listRoles(repoPath);
-  const filtered = agentTypeFilter
-    ? roles.filter((role) => role.agent_type === agentTypeFilter)
+  const filtered = cliFilter
+    ? roles.filter((role) => role.terminals[0]?.cli === cliFilter)
     : roles;
   const summaries = filtered.map((role) => ({
     name: role.name,
-    agent_type: role.agent_type,
     description: role.description,
-    model: role.model,
+    terminals: role.terminals,
     source: role.source,
   }));
   console.log(JSON.stringify(summaries, null, 2));
