@@ -283,10 +283,10 @@ function WorktreeRow({
           handleActivate();
         }}
       >
-        <span
-          role="button"
-          tabIndex={-1}
+        <button
+          type="button"
           aria-label={collapsed ? "Expand" : "Collapse"}
+          aria-expanded={!collapsed}
           className="shrink-0 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)]"
           onClick={(e) => {
             e.stopPropagation();
@@ -294,7 +294,7 @@ function WorktreeRow({
           }}
         >
           <ChevronIcon open={!collapsed} />
-        </span>
+        </button>
         <span className="text-[10px] text-[var(--text-muted)] truncate flex-1 min-w-0">
           {group.worktreeName}
         </span>
@@ -475,10 +475,10 @@ function ProjectRow({
           setMenu({ x: e.clientX, y: e.clientY });
         }}
       >
-        <span
-          role="button"
-          tabIndex={-1}
+        <button
+          type="button"
           aria-label={collapsed ? "Expand" : "Collapse"}
+          aria-expanded={!collapsed}
           className="shrink-0 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)]"
           onClick={(e) => {
             e.stopPropagation();
@@ -486,7 +486,7 @@ function ProjectRow({
           }}
         >
           <ChevronIcon open={!collapsed} />
-        </span>
+        </button>
         <span className="text-[11px] font-medium truncate flex-1 min-w-0">
           {project.projectName}
         </span>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSessionStore } from "../stores/sessionStore";
 import { SessionReplayView } from "./SessionReplayView";
 import { useT } from "../i18n/useT";
@@ -414,9 +414,16 @@ export function SessionsPanel() {
     return <SessionReplayView />;
   }
 
-  const handleAddProject = async () => {
-    await promptAndAddProjectToScene(t);
-  };
+  const [addingProject, setAddingProject] = useState(false);
+  const handleAddProject = useCallback(async () => {
+    if (addingProject) return;
+    setAddingProject(true);
+    try {
+      await promptAndAddProjectToScene(t);
+    } finally {
+      setAddingProject(false);
+    }
+  }, [addingProject, t]);
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -431,6 +438,7 @@ export function SessionsPanel() {
           size="md"
           tone="neutral"
           label={t.shortcut_add_project}
+          busy={addingProject}
           onClick={handleAddProject}
         >
           <svg
