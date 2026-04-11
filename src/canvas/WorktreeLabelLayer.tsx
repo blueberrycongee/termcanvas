@@ -7,6 +7,7 @@ import {
   canvasPointToScreenPoint,
   getCanvasLeftInset,
 } from "./viewportBounds";
+import { panToWorktree } from "../utils/panToWorktree";
 
 /**
  * Per-worktree screen-space label layer.
@@ -32,14 +33,34 @@ import {
  *     single project-level label "Project (N)" so a screen full of tiny
  *     tiles doesn't become a screen full of tiny labels.
  *
- * The layer never participates in ReactFlow's node graph, never affects
- * terminal positions, and is pointer-events: none on the wrapper so it
- * cannot block any canvas interaction.
+ * Interaction:
+ *   • Hover label → highlight (full accent), click → pan-to-fit the
+ *     worktree's bbox so the label doubles as a worktree jump target.
+ *   • Hover any terminal → its worktree's label highlights (consumes
+ *     the existing termcanvas:terminal-hover event so we don't add a
+ *     second hover surface to terminal tiles).
+ *   • Labels collide-avoid against each other — overlapping labels are
+ *     stacked vertically so they never sit on top of each other. They
+ *     never push or move actual terminals.
+ *
+ * The wrapper is pointer-events: none; only the label pills opt back into
+ * pointer events. The layer never participates in ReactFlow's node graph,
+ * never affects terminal positions, and cannot block any canvas drag.
  */
 
 const HUD_THRESHOLD = 0.7;
 const FADE_END = 0.3;
 const LOD_THRESHOLD = 0.15;
+
+// Pixel-space gap to leave between two stacked labels.
+const COLLISION_GAP = 4;
+
+// Estimated character width for "Geist Mono" 12px so we can lay out
+// before the DOM has measured each label. Slightly generous to avoid
+// pessimistic overlap.
+const APPROX_CHAR_PX = 7.2;
+const LABEL_PADDING_PX = 12;
+const LABEL_HEIGHT_PX = 22;
 
 interface WorktreeLabelEntry {
   key: string;
@@ -152,9 +173,38 @@ function findFocusInfo(projects: ProjectData[]): FocusInfo {
   };
 }
 
+function findWorktreeKeyForTerminal(
+  projects: ProjectData[],
+  terminalId: string,
+): string | null {
+  for (const project of projects) {
+    for (const worktree of project.worktrees) {
+      if (worktree.terminals.some((t) => t.id === terminalId)) {
+        return `${project.id}::${worktree.id}`;
+      }
+    }
+  }
+  return null;
+}
+
+function findProjectKeyForTerminal(
+  projects: ProjectData[],
+  terminalId: string,
+): string | null {
+  for (const project of projects) {
+    for (const worktree of project.worktrees) {
+      if (worktree.terminals.some((t) => t.id === terminalId)) {
+        return `proj::${project.id}`;
+      }
+    }
+  }
+  return null;
+}
+
 function clusterOpacity(
   scale: number,
   isFocused: boolean,
+  isHovered: boolean,
   hasFocus: boolean,
 ): number {
   if (scale >= HUD_THRESHOLD) return 0;
@@ -162,13 +212,80 @@ function clusterOpacity(
     1,
     Math.max(0, (HUD_THRESHOLD - scale) / (HUD_THRESHOLD - FADE_END)),
   );
-  let dim = 1;
-  if (hasFocus) {
-    dim = isFocused ? 1 : 0.35;
+  let dim: number;
+  if (isFocused || isHovered) {
+    dim = 1;
+  } else if (hasFocus) {
+    dim = 0.35;
   } else {
     dim = 0.85;
   }
   return fadeProgress * dim;
+}
+
+function estimateLabelWidth(text: string): number {
+  return Math.ceil(text.length * APPROX_CHAR_PX) + LABEL_PADDING_PX;
+}
+
+interface PlacedEntry<T> {
+  entry: T;
+  screenX: number;
+  screenY: number;
+  width: number;
+  isFocused: boolean;
+  isHovered: boolean;
+  opacity: number;
+}
+
+/**
+ * Stack-up collision avoidance: walk labels in spatial order, and for each
+ * one, push it upward until its rect doesn't overlap any previously placed
+ * label. Labels are screen-space rectangles only, so this never touches
+ * canvas world coords or terminal positions. If a label cannot find a free
+ * slot within MAX_LIFT it is hidden via opacity 0.
+ */
+const MAX_LIFT = LABEL_HEIGHT_PX * 4;
+
+function resolveCollisions<T>(placed: PlacedEntry<T>[]): PlacedEntry<T>[] {
+  // Sort by anchor y so labels nearer the top get placed first.
+  const sorted = [...placed].sort((a, b) => a.screenY - b.screenY);
+  const settled: PlacedEntry<T>[] = [];
+
+  for (const candidate of sorted) {
+    let liftedY = candidate.screenY;
+    const left = candidate.screenX;
+    const right = candidate.screenX + candidate.width;
+
+    for (let attempt = 0; attempt <= MAX_LIFT; attempt += LABEL_HEIGHT_PX) {
+      const top = liftedY - LABEL_HEIGHT_PX;
+      const bottom = liftedY;
+      const collides = settled.some((s) => {
+        const sLeft = s.screenX;
+        const sRight = s.screenX + s.width;
+        const sTop = s.screenY - LABEL_HEIGHT_PX;
+        const sBottom = s.screenY;
+        return (
+          left < sRight + COLLISION_GAP &&
+          right + COLLISION_GAP > sLeft &&
+          top < sBottom + COLLISION_GAP &&
+          bottom + COLLISION_GAP > sTop
+        );
+      });
+      if (!collides) {
+        settled.push({ ...candidate, screenY: liftedY });
+        break;
+      }
+      liftedY -= LABEL_HEIGHT_PX + COLLISION_GAP;
+      if (attempt + LABEL_HEIGHT_PX > MAX_LIFT) {
+        // Out of stacking room — drop the label entirely so we never
+        // render it on top of another one.
+        settled.push({ ...candidate, screenY: liftedY, opacity: 0 });
+        break;
+      }
+    }
+  }
+
+  return settled;
 }
 
 const LABEL_BASE_STYLE = {
@@ -186,17 +303,55 @@ const LABEL_BASE_STYLE = {
     "opacity 120ms ease-out, transform 120ms ease-out, background-color 120ms ease-out",
 } as const;
 
+interface ClusterEntry {
+  key: string;
+  projectId: string;
+  worktreeId: string | null;
+  worldX: number;
+  worldY: number;
+  primary: string;
+  prefix: string | null;
+}
+
 export function WorktreeLabelLayer() {
   const projects = useProjectStore((s) => s.projects);
   const viewport = useCanvasStore((s) => s.viewport);
   const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
   const [, setResizeTick] = useState(0);
+  const [hoveredLabelKey, setHoveredLabelKey] = useState<string | null>(null);
+  const [hoveredTerminalKey, setHoveredTerminalKey] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     const onResize = () => setResizeTick((v) => v + 1);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  // Mirror the existing terminal-hover event so hovering a tile lights up
+  // its worktree's label without us having to add a second hover surface
+  // on TerminalTile. The same event powers FamilyTreeOverlay.
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const terminalId = (event as CustomEvent<string | null>).detail;
+      if (!terminalId) {
+        setHoveredTerminalKey(null);
+        return;
+      }
+      // Compute key lazily from current state — store ref capture would
+      // race with the project store on rapid hovers.
+      const currentProjects = useProjectStore.getState().projects;
+      const useLod = useCanvasStore.getState().viewport.scale < LOD_THRESHOLD;
+      const key = useLod
+        ? findProjectKeyForTerminal(currentProjects, terminalId)
+        : findWorktreeKeyForTerminal(currentProjects, terminalId);
+      setHoveredTerminalKey(key);
+    };
+    window.addEventListener("termcanvas:terminal-hover", handler);
+    return () =>
+      window.removeEventListener("termcanvas:terminal-hover", handler);
   }, []);
 
   const focus = useMemo(() => findFocusInfo(projects), [projects]);
@@ -218,25 +373,56 @@ export function WorktreeLabelLayer() {
   const hasFocus = focus.worktreeId !== null;
   const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
 
-  const clusterEntries = useLodMode
+  const clusterEntries: ClusterEntry[] = useLodMode
     ? projectLabels.map((entry) => ({
         key: entry.key,
+        projectId: entry.projectId,
+        worktreeId: null,
         worldX: entry.worldX,
         worldY: entry.worldY,
-        isFocused: entry.projectId === focus.projectId,
         primary: `${entry.projectName} (${entry.worktreeCount})`,
-        prefix: null as string | null,
+        prefix: null,
       }))
     : worktreeLabels.map((entry) => ({
         key: entry.key,
+        projectId: entry.projectId,
+        worktreeId: entry.worktreeId,
         worldX: entry.worldX,
         worldY: entry.worldY,
-        isFocused:
-          entry.projectId === focus.projectId &&
-          entry.worktreeId === focus.worktreeId,
         primary: entry.worktreeName,
-        prefix: entry.projectName as string | null,
+        prefix: entry.projectName,
       }));
+
+  const placedEntries: PlacedEntry<ClusterEntry>[] = clusterEntries.map(
+    (entry) => {
+      const screen = canvasPointToScreenPoint(
+        entry.worldX,
+        entry.worldY,
+        viewport,
+        leftPanelCollapsed,
+        leftPanelWidth,
+      );
+      const isFocused = useLodMode
+        ? entry.projectId === focus.projectId
+        : entry.projectId === focus.projectId &&
+          entry.worktreeId === focus.worktreeId;
+      const isHovered =
+        hoveredLabelKey === entry.key || hoveredTerminalKey === entry.key;
+      const fullText =
+        (entry.prefix ? `${entry.prefix} / ` : "") + entry.primary;
+      return {
+        entry,
+        screenX: screen.x,
+        screenY: screen.y - 6,
+        width: estimateLabelWidth(fullText),
+        isFocused,
+        isHovered,
+        opacity: clusterOpacity(scale, isFocused, isHovered, hasFocus),
+      };
+    },
+  );
+
+  const collisionResolved = resolveCollisions(placedEntries);
 
   return createPortal(
     <div
@@ -244,26 +430,36 @@ export function WorktreeLabelLayer() {
       style={{ zIndex: 30 }}
       aria-hidden="true"
     >
-      {clusterEntries.map((entry) => {
-        const opacity = clusterOpacity(scale, entry.isFocused, hasFocus);
-        if (opacity <= 0.01) return null;
-        const screen = canvasPointToScreenPoint(
-          entry.worldX,
-          entry.worldY,
-          viewport,
-          leftPanelCollapsed,
-          leftPanelWidth,
-        );
+      {collisionResolved.map((placed) => {
+        if (placed.opacity <= 0.01) return null;
+        const { entry } = placed;
         return (
           <div
             key={entry.key}
-            className="absolute select-none whitespace-nowrap"
+            className="absolute select-none whitespace-nowrap cursor-pointer pointer-events-auto"
             style={{
               ...LABEL_BASE_STYLE,
-              left: screen.x,
-              top: screen.y,
-              transform: "translate(0, calc(-100% - 6px))",
-              opacity,
+              left: placed.screenX,
+              top: placed.screenY,
+              transform: "translate(0, -100%)",
+              opacity: placed.opacity,
+            }}
+            onMouseEnter={() => setHoveredLabelKey(entry.key)}
+            onMouseLeave={() =>
+              setHoveredLabelKey((prev) => (prev === entry.key ? null : prev))
+            }
+            onClick={(e) => {
+              e.stopPropagation();
+              if (entry.worktreeId) {
+                panToWorktree(entry.projectId, entry.worktreeId);
+              } else if (useLodMode) {
+                // LOD project label: pan to the first non-empty worktree
+                const proj = projects.find((p) => p.id === entry.projectId);
+                const wt = proj?.worktrees.find(
+                  (w) => w.terminals.some((t) => !t.stashed && !t.minimized),
+                );
+                if (proj && wt) panToWorktree(proj.id, wt.id);
+              }
             }}
           >
             {entry.prefix && (
@@ -280,10 +476,11 @@ export function WorktreeLabelLayer() {
             )}
             <span
               style={{
-                fontWeight: entry.isFocused ? 700 : 600,
-                color: entry.isFocused
-                  ? "var(--accent)"
-                  : "var(--text-primary)",
+                fontWeight: placed.isFocused || placed.isHovered ? 700 : 600,
+                color:
+                  placed.isFocused || placed.isHovered
+                    ? "var(--accent)"
+                    : "var(--text-primary)",
               }}
             >
               {entry.primary}
