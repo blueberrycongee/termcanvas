@@ -62,9 +62,9 @@ export interface WorkflowNode {
    */
   agent_type: AgentType;
   /**
-   * Optional model pin (e.g. "claude-opus-4-6" / "gpt-5-codex-max").
-   * Cached from the chosen role terminal at dispatch time so other code
-   * paths don't have to re-resolve the role file.
+   * Optional model pin (e.g. "claude-opus-4-6" / "gpt-5.4"). Cached from
+   * the chosen role terminal at dispatch time so other code paths don't
+   * have to re-resolve the role file.
    */
   model?: string;
   /**
@@ -124,10 +124,10 @@ export interface WorkflowRecord {
   node_statuses: Record<string, NodeStatus>;
   assignment_ids: string[];
 
-  // Defaults
+  // Defaults — agent_type is no longer a workflow default; the role file's
+  // terminals[] array is the authoritative source for cli/model/reasoning.
   default_timeout_minutes: number;
   default_max_retries: number;
-  default_agent_type: AgentType;
   auto_approve: boolean;
 
   // Approval refs

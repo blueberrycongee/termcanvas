@@ -29,6 +29,10 @@ export interface RunTaskSpec {
   runId: string;
   role: string;
   agentType: string;
+  /** Model pin from the chosen role terminal, if set. */
+  model?: string;
+  /** Reasoning effort level from the chosen role terminal, if set. */
+  reasoningEffort?: string;
   sourceRole?: string | null;
   /**
    * Markdown body from the role registry file. Rendered as the ## Role
@@ -105,6 +109,8 @@ export function renderRunTask(spec: RunTaskSpec): string {
     `- Run ID: ${spec.runId}`,
     spec.sourceRole ? `- Source role: ${spec.sourceRole}` : "",
     `- Agent type: ${spec.agentType}`,
+    spec.model ? `- Model: ${spec.model}` : "",
+    spec.reasoningEffort ? `- Reasoning effort: ${spec.reasoningEffort}` : "",
     "",
     "## Objective",
     "",

@@ -106,7 +106,6 @@ export const INTENTIONALLY_NOT_LEDGERED = {
       "own_worktree",
       "default_timeout_minutes",
       "default_max_retries",
-      "default_agent_type",
       "auto_approve",
       "approved_refs",
     ],

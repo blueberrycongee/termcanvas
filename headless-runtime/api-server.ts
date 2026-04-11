@@ -589,7 +589,7 @@ export class HeadlessApiServer {
   }
 
   private async workflowInit(body: unknown): Promise<unknown> {
-    const { intent, worktree, worktreePath, agentType, timeoutMinutes, maxRetries, autoApprove } =
+    const { intent, worktree, worktreePath, timeoutMinutes, maxRetries, autoApprove } =
       body as Record<string, unknown>;
     const repoPath = this.requireRepo(body);
     if (!intent || typeof intent !== "string") {
@@ -598,7 +598,6 @@ export class HeadlessApiServer {
     return this.workflowControl.init({
       intent, repoPath,
       worktreePath: (worktreePath ?? worktree) as string | undefined,
-      defaultAgentType: agentType as "claude" | "codex" | "kimi" | "gemini" | undefined,
       defaultTimeoutMinutes: timeoutMinutes as number | undefined,
       defaultMaxRetries: maxRetries as number | undefined,
       autoApprove: autoApprove as boolean | undefined,

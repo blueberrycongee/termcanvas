@@ -113,12 +113,12 @@ test("dispatchNode locks node.agent_type from the role file (codex role override
     checkTerminalAlive: () => null,
   };
   try {
-    // Workflow defaults to claude — but the role file pins codex.
+    // The role file's terminals[0] is the only source for cli selection.
+    // tester[0] = codex, so the dispatched terminal comes up as codex.
     const init = await initWorkflow({
       intent: "Test agent_type lock",
       repoPath: repo,
       worktreePath: repo,
-      defaultAgentType: "claude",
     }, deps);
 
     await dispatchNode({
@@ -614,7 +614,6 @@ test("redispatch on a claude assignment passes the captured session_id as resume
       intent: "Test resume",
       repoPath: repo,
       worktreePath: repo,
-      defaultAgentType: "claude",
     }, deps);
     const dispatched = await dispatchNode({
       repoPath: repo, workflowId: init.workflow_id,
@@ -678,7 +677,6 @@ test("redispatch on a non-claude assignment does not pass resumeSessionId", asyn
       intent: "Test no-resume on codex",
       repoPath: repo,
       worktreePath: repo,
-      defaultAgentType: "codex",
     }, deps);
     // Role-driven dispatch: pick `tester` so the assignment's agent_type
     // comes out as codex (tester[0] = codex; resume is claude-only).

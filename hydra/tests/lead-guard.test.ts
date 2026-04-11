@@ -23,7 +23,6 @@ function makeWorkflow(overrides: Partial<WorkflowRecord> = {}): WorkflowRecord {
     assignment_ids: [],
     default_timeout_minutes: 30,
     default_max_retries: 1,
-    default_agent_type: "claude",
     auto_approve: true,
     ...overrides,
   };

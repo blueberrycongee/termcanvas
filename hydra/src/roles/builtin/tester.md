@@ -3,7 +3,7 @@ name: tester
 description: Independently validates an implementation against code reality and runtime evidence.
 terminals:
   - cli: codex
-    model: gpt-5-codex-max
+    model: gpt-5.4
     reasoning_effort: high
   - cli: claude
     model: claude-opus-4-6

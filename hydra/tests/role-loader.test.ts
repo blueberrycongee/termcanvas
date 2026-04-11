@@ -43,7 +43,7 @@ test("loadRole prefers a project-level role over the builtin with the same name"
         "description: PROJECT OVERRIDE",
         "terminals:",
         "  - cli: codex",
-        "    model: gpt-5-codex-max",
+        "    model: gpt-5.4",
         "    reasoning_effort: xhigh",
         "---",
         "",
@@ -55,7 +55,7 @@ test("loadRole prefers a project-level role over the builtin with the same name"
     assert.equal(role.description, "PROJECT OVERRIDE");
     assert.equal(role.terminals.length, 1);
     assert.equal(role.terminals[0].cli, "codex");
-    assert.equal(role.terminals[0].model, "gpt-5-codex-max");
+    assert.equal(role.terminals[0].model, "gpt-5.4");
     assert.equal(role.terminals[0].reasoning_effort, "xhigh");
     assert.equal(role.body.trim(), "Project body.");
   } finally {
@@ -78,7 +78,7 @@ test("loadRole parses a multi-entry terminals array preserving order", () => {
         "    model: claude-opus-4-6",
         "    reasoning_effort: max",
         "  - cli: codex",
-        "    model: gpt-5-codex-max",
+        "    model: gpt-5.4",
         "    reasoning_effort: xhigh",
         "---",
         "",
@@ -94,7 +94,7 @@ test("loadRole parses a multi-entry terminals array preserving order", () => {
     });
     assert.deepEqual(role.terminals[1], {
       cli: "codex",
-      model: "gpt-5-codex-max",
+      model: "gpt-5.4",
       reasoning_effort: "xhigh",
     });
   } finally {
@@ -227,7 +227,7 @@ test("loadRole parses decision_rules and acceptance_criteria as string arrays al
         "description: array parsing test",
         "terminals:",
         "  - cli: codex",
-        "    model: gpt-5-codex-max",
+        "    model: gpt-5.4",
         "decision_rules:",
         "  - rule one",
         "  - rule two",
@@ -243,7 +243,7 @@ test("loadRole parses decision_rules and acceptance_criteria as string arrays al
     assert.deepEqual(role.acceptance_criteria, ["criterion one"]);
     assert.equal(role.terminals.length, 1);
     assert.equal(role.terminals[0].cli, "codex");
-    assert.equal(role.terminals[0].model, "gpt-5-codex-max");
+    assert.equal(role.terminals[0].model, "gpt-5.4");
   } finally {
     fs.rmSync(repoPath, { recursive: true, force: true });
   }

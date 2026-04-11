@@ -263,8 +263,6 @@ async function main() {
         };
         const worktree = optionalFlag("--worktree");
         if (worktree) body.worktreePath = worktree;
-        const agentType = optionalFlag("--agent-type");
-        if (agentType) body.agentType = agentType;
         const timeoutMinutes = optionalNumber("--timeout-minutes");
         if (timeoutMinutes !== undefined) body.timeoutMinutes = timeoutMinutes;
         const maxRetries = optionalNumber("--max-retries");
@@ -414,8 +412,8 @@ async function main() {
       } else if (command === "list-roles") {
         const repo = requireRepo();
         const params = new URLSearchParams({ repo });
-        const agentType = optionalFlag("--agent-type");
-        if (agentType) params.set("agentType", agentType);
+        const cli = optionalFlag("--cli") ?? optionalFlag("--agent-type");
+        if (cli) params.set("agentType", cli);
         const result = await request("GET", `/workflow/list-roles?${params.toString()}`);
         console.log(JSON.stringify(result, null, 2));
       } else if (command === "status") {
@@ -745,7 +743,7 @@ async function main() {
         "  workflow list --repo <p>                   List workflows",
       );
       console.log(
-        "  workflow list-roles --repo <p> [--agent-type <t>]  List role registry entries",
+        "  workflow list-roles --repo <p> [--cli <claude|codex>]  List role registry entries",
       );
       console.log(
         "  workflow status <id> --repo <p>            Get workflow status",

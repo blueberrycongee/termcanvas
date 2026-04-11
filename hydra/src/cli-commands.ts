@@ -1,5 +1,4 @@
 import path from "node:path";
-import { parseAgentTypeFlag } from "./agent-selection.ts";
 import { readLedger, type LedgerEntry, type LedgerEvent } from "./ledger.ts";
 import { listRoles } from "./roles/loader.ts";
 import {
@@ -55,10 +54,12 @@ export async function cliInit(args: string[]): Promise<void> {
     console.log("  --intent <desc>         Workflow intent (required)");
     console.log("  --repo <path>           Repository path (required)");
     console.log("  --worktree <path>       Use existing worktree");
-    console.log("  --agent-type <type>     Default agent type");
     console.log("  --timeout-minutes <n>   Default per-node timeout");
     console.log("  --max-retries <n>       Default max retries");
     console.log("  --no-auto-approve       Disable auto-approve");
+    console.log("");
+    console.log("Note: agent_type is no longer a workflow-level default; the role file's");
+    console.log("terminals[] array selects the CLI per dispatch.");
     process.exit(0);
   }
 
@@ -66,8 +67,6 @@ export async function cliInit(args: string[]): Promise<void> {
     intent: requireFlag(args, "--intent"),
     repoPath: requireFlag(args, "--repo"),
     worktreePath: optionalFlag(args, "--worktree"),
-    defaultAgentType: optionalFlag(args, "--agent-type")
-      ? parseAgentTypeFlag("--agent-type", optionalFlag(args, "--agent-type")) : undefined,
     defaultTimeoutMinutes: optionalNumber(args, "--timeout-minutes"),
     defaultMaxRetries: optionalNumber(args, "--max-retries"),
     autoApprove: !hasFlag(args, "--no-auto-approve"),

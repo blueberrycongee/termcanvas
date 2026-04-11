@@ -6,7 +6,7 @@ terminals:
     model: claude-opus-4-6
     reasoning_effort: max
   - cli: codex
-    model: gpt-5-codex-max
+    model: gpt-5.4
     reasoning_effort: high
 decision_rules:
   - Solve the real implementation problem before changing tests or fixtures.

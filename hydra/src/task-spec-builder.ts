@@ -188,6 +188,8 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
     // node carries the locked-in choice; the role file's terminals[]
     // could in principle change between dispatches.
     agentType: node.agent_type,
+    model: node.model,
+    reasoningEffort: node.reasoning_effort,
     sourceRole: null,
     roleBody: role.body,
     objective: objectiveLines,

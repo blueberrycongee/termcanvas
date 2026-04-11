@@ -148,11 +148,10 @@ async function main() {
       intent: "Hydra acceptance harness: exercise the Lead-driven control plane.",
       repoPath: args.repo,
       worktreePath: args.repo,
-      defaultAgentType: "codex",
     });
     workflowId = init.workflow_id;
 
-    // 2. Dispatch researcher (codex variant — agent_type comes from the role file)
+    // 2. Dispatch the first node (cli/model come from the role file's terminals[0])
     const researcher = await dispatchNode({
       repoPath: args.repo, workflowId, nodeId: "researcher",
       role: "implementer", intent: "Produce acceptance research brief.",

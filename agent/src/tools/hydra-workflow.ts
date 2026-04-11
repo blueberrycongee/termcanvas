@@ -16,7 +16,7 @@ const inputSchema = z.object({
   // init
   intent: z.string().optional().describe("Workflow or node intent (for init, dispatch)"),
   worktree: z.string().optional().describe("Worktree path (for init)"),
-  agentType: z.string().optional().describe("Default agent type for the workflow (for init only). Dispatch derives agent_type from the role file."),
+  cli: z.string().optional().describe("Filter list-roles results to roles whose primary terminal targets this CLI (claude or codex)."),
   model: z.string().optional().describe("Override the role's default model (for dispatch, e.g. opus)"),
   timeoutMinutes: z.number().optional().describe("Timeout in minutes (for init, dispatch)"),
   maxRetries: z.number().optional().describe("Max retries (for init, dispatch). Legacy scalar — use retryPolicy for new work."),
@@ -70,7 +70,6 @@ export const hydraWorkflowTool: Tool<typeof inputSchema.shape> = {
         autoApprove: input.autoApprove ?? true,
       };
       if (input.worktree) body.worktreePath = input.worktree;
-      if (input.agentType) body.agentType = input.agentType;
       if (input.timeoutMinutes) body.timeoutMinutes = input.timeoutMinutes;
       if (input.maxRetries !== undefined) body.maxRetries = input.maxRetries;
       const result = await client.request("POST", "/workflow/init", body);
@@ -86,7 +85,7 @@ export const hydraWorkflowTool: Tool<typeof inputSchema.shape> = {
     if (action === "list-roles") {
       if (!input.repo) return { content: "repo is required for list-roles", is_error: true };
       const params = new URLSearchParams({ repo: input.repo });
-      if (input.agentType) params.set("agentType", input.agentType);
+      if (input.cli) params.set("agentType", input.cli);
       const result = await client.request("GET", `/workflow/list-roles?${params.toString()}`);
       return { content: JSON.stringify(result, null, 2) };
     }

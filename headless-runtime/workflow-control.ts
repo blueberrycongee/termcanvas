@@ -58,9 +58,8 @@ export interface WorkflowSummary {
 
 export interface RoleSummary {
   name: string;
-  agent_type: RoleDefinition["agent_type"];
   description: string;
-  model?: string;
+  terminals: RoleDefinition["terminals"];
   source: RoleDefinition["source"];
 }
 
@@ -233,16 +232,17 @@ export function createWorkflowControl(
         .sort((left, right) => right.updated_at.localeCompare(left.updated_at))
         .map(buildWorkflowSummary);
     },
-    listRoles(repoPath, agentTypeFilter) {
+    listRoles(repoPath, cliFilter) {
       const roles = listRoleRegistry(path.resolve(repoPath));
-      const filtered = agentTypeFilter
-        ? roles.filter((role) => role.agent_type === agentTypeFilter)
+      // Filter on the primary terminal's CLI (terminals[0].cli) so the
+      // HTTP-side filter matches the cliListRoles CLI behavior.
+      const filtered = cliFilter
+        ? roles.filter((role) => role.terminals[0]?.cli === cliFilter)
         : roles;
       return filtered.map((role) => ({
         name: role.name,
-        agent_type: role.agent_type,
         description: role.description,
-        model: role.model,
+        terminals: role.terminals,
         source: role.source,
       }));
     },

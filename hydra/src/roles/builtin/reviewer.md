@@ -3,7 +3,7 @@ name: reviewer
 description: Independent review of work produced by other agents, focused on correctness and intent.
 terminals:
   - cli: codex
-    model: gpt-5-codex-max
+    model: gpt-5.4
     reasoning_effort: xhigh
   - cli: claude
     model: claude-opus-4-6

@@ -12,7 +12,6 @@ import { HydraError } from "./errors.ts";
 import { AssignmentManager } from "./assignment/manager.ts";
 import { AssignmentStateMachine } from "./assignment/state-machine.ts";
 import type { AssignmentRecord, AgentType } from "./assignment/types.ts";
-import { resolveDefaultAgentType } from "./agent-selection.ts";
 import {
   registerDispatchAttempt,
   hasAssignmentTimedOut,
@@ -358,7 +357,6 @@ export interface InitWorkflowOptions {
   intent: string;
   repoPath: string;
   worktreePath?: string;
-  defaultAgentType?: AgentType;
   defaultTimeoutMinutes?: number;
   defaultMaxRetries?: number;
   autoApprove?: boolean;
@@ -407,7 +405,6 @@ export async function initWorkflow(
     assignment_ids: [],
     default_timeout_minutes: options.defaultTimeoutMinutes ?? 30,
     default_max_retries: options.defaultMaxRetries ?? 1,
-    default_agent_type: options.defaultAgentType ?? resolveDefaultAgentType(),
     auto_approve: options.autoApprove ?? true,
   };
   saveWorkflow(workflow);
