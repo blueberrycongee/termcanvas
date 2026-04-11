@@ -25,6 +25,7 @@ import { usePreferencesStore } from "./preferencesStore.ts";
 import { logSlowRendererPath } from "../utils/devPerf.ts";
 import { useSelectionStore } from "./selectionStore.ts";
 import {
+  recomputeTileDimensions,
   setTrackSidebar,
   useTileDimensionsStore,
 } from "./tileDimensionsStore.ts";
@@ -177,6 +178,10 @@ export function createTerminal(
   origin: TerminalOrigin = "user",
   parentTerminalId?: string,
 ): TerminalData {
+  // Recompute based on current panel insets so every creation path (right
+  // session panel "+", cmd+t, ProjectTree, agent-driven) gets the same
+  // panel-aware size instead of the stale default left over from module load.
+  recomputeTileDimensions();
   const { w, h } = useTileDimensionsStore.getState();
   return {
     id: generateId(),
