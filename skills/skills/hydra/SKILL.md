@@ -19,6 +19,25 @@ information. Hydra manages the lifecycle; you decide what happens next.
 - **Typed result contract.** Workers publish a schema-validated `result.json` (`outcome: completed | stuck | error`, optional `stuck_reason: needs_clarification | needs_credentials | needs_context | blocked_technical`). Other products return free-text final messages and require downstream parsing.
 - **Lead intervention points.** `hydra reset --feedback` lets the Lead actually intervene at decision points instead of being block-and-join. A stale or wrong run is one `reset` away.
 
+## Lead operational rules
+
+Core rules:
+- **Root cause first.** Fix the real implementation problem before changing tests, fixtures, or mocks.
+- **Do not hack tests** to force a green result. If a test is wrong, fix it honestly.
+- **No silent fallbacks** or swallowed errors. Surface failure with `outcome=stuck` or `outcome=error`.
+
+Agent launch rule:
+- When dispatching Claude/Codex through TermCanvas, start a fresh agent terminal with `termcanvas terminal create --prompt "..."`.
+- Do not use `termcanvas terminal input` for task dispatch — it is not a supported automation path.
+
+Telemetry polling:
+- Treat `hydra watch` as the main polling loop. Do not infer progress from terminal prose.
+- Before deciding wait / retry / takeover, query:
+  - `termcanvas telemetry get --workflow <workflowId> --repo .`
+  - `termcanvas telemetry get --terminal <terminalId>`
+  - `termcanvas telemetry events --terminal <terminalId> --limit 20`
+- Watch the derived telemetry states: `awaiting_contract` means the worker has not yet published `result.json`; `stall_candidate` means the worker may be hung. Trust `derived_status` and `task_status` over terminal prose.
+
 ## Core workflow
 
 ```
@@ -116,7 +135,7 @@ Use `--agent-type` to override per node. Default inherits from workflow.
 | `hydra list` | List workflows |
 | `hydra ledger` | Show workflow event log |
 | `hydra cleanup` | Clean up workflow state |
-| `hydra spawn` | Direct isolated worker (not a full workflow) |
+| `hydra spawn` | Direct isolated worker (not a full workflow run) |
 
 ## After `hydra dispatch` or `hydra watch`, always watch
 

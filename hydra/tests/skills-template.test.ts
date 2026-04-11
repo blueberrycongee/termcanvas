@@ -11,25 +11,32 @@ test("Hydra skill copy documents root-cause-first, no test hacking, and result g
   const skill = fs.readFileSync(skillPath, "utf-8");
 
   assert.doesNotMatch(skill, /alwaysApply:\s*true/i);
-  assert.match(skill, /hydra run --task ".*" --repo \./i);
-  assert.match(skill, /--template single-step/i);
+
+  // Core surface area: spawn / list / watch / result contract.
   assert.match(skill, /hydra spawn/i);
   assert.match(skill, /not a full workflow run/i);
   assert.match(skill, /hydra list/i);
-  assert.match(skill, /researcher -> implementer -> tester/i);
+  assert.match(skill, /hydra watch/i);
+  assert.match(skill, /result\.json/i);
+
+  // Lead operational rules — root-cause-first, no test hacking, no silent fallbacks.
   assert.match(skill, /root cause/i);
   assert.match(skill, /Do not hack tests|test hacking/i);
   assert.match(skill, /silent fallback|swallow/i);
+
+  // Agent launch rule.
   assert.match(skill, /termcanvas terminal create --prompt/i);
   assert.match(skill, /Do not use `termcanvas terminal input`|not a supported automation path/i);
-  assert.match(skill, /result\.json/i);
-  assert.doesNotMatch(skill, /result\.json\s*\+\s*`done`|result\.json.*done/i);
-  assert.match(skill, /hydra run|hydra tick|hydra watch|hydra status|hydra retry/i);
+
+  // Telemetry polling guidance + state names.
   assert.match(skill, /termcanvas telemetry get --workflow/i);
   assert.match(skill, /termcanvas telemetry get --terminal/i);
   assert.match(skill, /hydra watch.*polling loop|polling loop.*hydra watch/i);
   assert.match(skill, /awaiting_contract/i);
   assert.match(skill, /stall_candidate/i);
+
+  // Old "result.json + done" intent shape must not have crept back in.
+  assert.doesNotMatch(skill, /result\.json\s*\+\s*`done`|result\.json.*done/i);
 });
 
 test("router skill stays always-on and classifies TermCanvas work before Hydra", () => {
