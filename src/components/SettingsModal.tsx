@@ -162,7 +162,7 @@ function UpdateCheckButton() {
   );
 }
 
-const AGENT_TYPES = ["claude", "codex", "kimi", "gemini", "opencode"] as const;
+const AGENT_TYPES = ["claude", "codex", "kimi", "gemini", "opencode", "wuu"] as const;
 
 type ValidateResult =
   | { ok: true; resolvedPath: string; version: string | null }

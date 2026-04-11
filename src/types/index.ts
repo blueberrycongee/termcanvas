@@ -14,6 +14,7 @@ export type TerminalType =
   | "kimi"
   | "gemini"
   | "opencode"
+  | "wuu"
   | "lazygit"
   | "tmux";
 

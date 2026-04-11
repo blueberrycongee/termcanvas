@@ -63,7 +63,7 @@ export interface ProjectGroup {
 }
 
 const GENERIC_TERMINAL_TITLES =
-  /^(terminal|shell|claude|codex|kimi|gemini|opencode|lazygit|tmux)$/i;
+  /^(terminal|shell|claude|codex|kimi|gemini|opencode|wuu|lazygit|tmux)$/i;
 
 function isCanvasTerminal(
   terminal: Pick<TerminalData, "minimized" | "stashed">,

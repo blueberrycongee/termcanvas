@@ -100,6 +100,7 @@ function normalizeTerminalType(value: unknown): TerminalType {
     case "kimi":
     case "gemini":
     case "opencode":
+    case "wuu":
     case "lazygit":
     case "tmux":
     case "shell":

@@ -170,6 +170,25 @@ export const TERMINAL_CONFIG: Record<TerminalType, TerminalAdapterConfig> = {
       pasteStrategy: "separate",
     },
   },
+  wuu: {
+    type: "wuu",
+    launch: {
+      shell: "wuu",
+      resumeArgs: (id) => ["--resume", id],
+      newArgs: () => [],
+      promptArgs: (prompt) => ["run", prompt],
+    },
+    composer: {
+      supportsComposer: true,
+      allowedStatuses: INTERACTIVE_STATUSES,
+      inputMode: "bracketed-paste",
+      supportsImages: false,
+      pasteKeySequence: () => "",
+      imageFallback: "error",
+      pasteDelayMs: 120,
+      pasteStrategy: "separate",
+    },
+  },
   lazygit: {
     type: "lazygit",
     launch: {

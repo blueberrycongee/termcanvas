@@ -24,6 +24,10 @@ export const CLI_LAUNCH: Partial<Record<TerminalType, CliLaunchConfig>> = {
   },
   gemini: { shell: "gemini" },
   opencode: { shell: "opencode" },
+  wuu: {
+    shell: "wuu",
+    promptArgs: (prompt) => ["run", prompt],
+  },
   lazygit: { shell: "lazygit" },
   tmux: { shell: "tmux" },
 };
