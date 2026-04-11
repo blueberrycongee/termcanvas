@@ -867,3 +867,127 @@ test("codex SessionStart hook cancels fallback polling and preserves the exact s
     useProjectStore.setState(previousProjectState);
   }
 });
+
+test("wuu polling attaches the discovered session to telemetry", async () => {
+  const mockWindow = installRuntimeGlobals();
+  const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const { useTerminalRuntimeStateStore } = await import(
+    "../src/stores/terminalRuntimeStateStore.ts"
+  );
+  const {
+    destroyAllTerminalRuntimes,
+    ensureTerminalRuntime,
+  } = await import("../src/terminal/terminalRuntimeStore.ts");
+  const previousProjectState = useProjectStore.getState();
+  const watchCalls: Array<{
+    cwd: string;
+    sessionId: string;
+    type: string;
+  }> = [];
+  const attachCalls: Array<{
+    confidence: string;
+    cwd: string;
+    provider: string;
+    sessionId: string;
+    terminalId: string;
+  }> = [];
+  let findWuuCalls = 0;
+
+  destroyAllTerminalRuntimes();
+
+  try {
+    seedProjectState(useProjectStore, {
+      ...createTerminal(),
+      ptyId: null,
+      status: "idle",
+      title: "wuu",
+      type: "wuu",
+    });
+
+    mockWindow.termcanvas = {
+      session: {
+        findWuu: async () => {
+          findWuuCalls += 1;
+          return {
+            confidence: "medium",
+            filePath: "/tmp/project-1/.wuu/sessions/wuu-session.jsonl",
+            sessionId: "wuu-session",
+          };
+        },
+        onTurnComplete() {
+          return () => {};
+        },
+        unwatch: async () => {},
+        watch: async (type: string, sessionId: string, cwd: string) => {
+          watchCalls.push({ cwd, sessionId, type });
+          return { ok: true };
+        },
+      },
+      telemetry: {
+        attachSession: async (input: {
+          confidence: string;
+          cwd: string;
+          provider: string;
+          sessionId: string;
+          terminalId: string;
+        }) => {
+          attachCalls.push(input);
+          return { ok: true, sessionFile: `/tmp/${input.sessionId}.jsonl` };
+        },
+        detachSession: async () => {},
+        getTerminal: async () => null,
+        onSnapshotChanged() {
+          return () => {};
+        },
+      },
+      terminal: {
+        create: async () => 42,
+        destroy: async () => {},
+        input() {},
+        notifyThemeChanged() {},
+        onExit() {
+          return () => {};
+        },
+        onOutput() {
+          return () => {};
+        },
+        resize() {},
+      },
+    };
+
+    ensureTerminalRuntime({
+      projectId: "project-1",
+      terminal: useProjectStore.getState().projects[0].worktrees[0].terminals[0],
+      worktreeId: "worktree-1",
+      worktreePath: "/tmp/project-1",
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+
+    assert.ok(findWuuCalls > 0);
+    assert.deepEqual(watchCalls, [
+      {
+        cwd: "/tmp/project-1",
+        sessionId: "wuu-session",
+        type: "wuu",
+      },
+    ]);
+    assert.deepEqual(attachCalls, [
+      {
+        confidence: "medium",
+        cwd: "/tmp/project-1",
+        provider: "wuu",
+        sessionId: "wuu-session",
+        terminalId: "terminal-1",
+      },
+    ]);
+    assert.equal(
+      useTerminalRuntimeStateStore.getState().terminals["terminal-1"]?.sessionId,
+      "wuu-session",
+    );
+  } finally {
+    destroyAllTerminalRuntimes();
+    useTerminalRuntimeStateStore.getState().reset();
+    useProjectStore.setState(previousProjectState);
+  }
+});

@@ -72,6 +72,29 @@ function writeSessionJsonl(
   );
 }
 
+function writeWuuSessionJsonl(
+  filePath: string,
+  prompt: string,
+): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(
+    filePath,
+    [
+      JSON.stringify({
+        role: "user",
+        content: prompt,
+        at: "2026-03-26T00:00:01.000Z",
+      }),
+      JSON.stringify({
+        role: "assistant",
+        content: "收到",
+        at: "2026-03-26T00:00:02.000Z",
+      }),
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
 test("deriveTelemetryStatus marks awaiting_contract after turn completion", () => {
   const status = deriveTelemetryStatus({
     terminal_id: "terminal-1",
@@ -623,6 +646,42 @@ test("attachSessionSource refreshes first_user_prompt when a terminal reattaches
     assert.equal(
       service.getTerminalSnapshot("terminal-1")?.first_user_prompt,
       "我感觉现在的 termcanvas 右侧的那个 session 显示我们发送第一句话的那个 bug 还是存在",
+    );
+  } finally {
+    service.dispose();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("attachSessionSource extracts first_user_prompt from wuu session files", () => {
+  const tmpDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "termcanvas-telemetry-wuu-session-"),
+  );
+  const sessionFile = path.join(tmpDir, "wuu-session.jsonl");
+  writeWuuSessionJsonl(
+    sessionFile,
+    "右侧的 session 我想支持一下 现在没支持好",
+  );
+
+  const service = new TelemetryService({ processPollIntervalMs: 0 });
+  try {
+    service.registerTerminal({
+      terminalId: "terminal-1",
+      worktreePath: "/tmp/project",
+      provider: "wuu",
+    });
+
+    service.attachSessionSource({
+      terminalId: "terminal-1",
+      provider: "wuu",
+      sessionId: "wuu-session",
+      confidence: "medium",
+      sessionFile,
+    });
+
+    assert.equal(
+      service.getTerminalSnapshot("terminal-1")?.first_user_prompt,
+      "右侧的 session 我想支持一下 现在没支持好",
     );
   } finally {
     service.dispose();

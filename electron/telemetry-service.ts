@@ -154,6 +154,15 @@ function isActiveTurnState(state: TelemetryTurnState): boolean {
   );
 }
 
+function toSessionProvider(
+  provider: TelemetryProvider,
+): "claude" | "codex" | "wuu" | null {
+  if (provider === "claude" || provider === "codex" || provider === "wuu") {
+    return provider;
+  }
+  return null;
+}
+
 export function deriveTelemetryStatus(
   snapshot: TerminalTelemetrySnapshot,
   nowMs = Date.now(),
@@ -327,7 +336,10 @@ const INJECTED_CONTEXT_PATTERN =
  * Codex (`{type:"response_item",payload:{type:"message",role:"user",…}}`)
  * formats.  Provider-agnostic: format is detected per line.
  */
-function extractFirstUserPrompt(filePath: string): string | undefined {
+function extractFirstUserPrompt(
+  filePath: string,
+  _provider?: TelemetryProvider,
+): string | undefined {
   let lines: string[];
   try {
     const content = fs.readFileSync(filePath, "utf-8");
@@ -377,6 +389,12 @@ function extractFirstUserPrompt(filePath: string): string | undefined {
         if (!text || INJECTED_CONTEXT_PATTERN.test(text)) continue;
         return collapseAndTruncate(text, FIRST_PROMPT_MAX_LENGTH);
       }
+    }
+
+    if (raw.role === "user") {
+      const text = extractTextFromMessageContent(raw.content);
+      if (!text || INJECTED_CONTEXT_PATTERN.test(text)) continue;
+      return collapseAndTruncate(text, FIRST_PROMPT_MAX_LENGTH);
     }
   }
 
@@ -1505,11 +1523,13 @@ export class TelemetryService {
       const completeLines = trailing === "" ? lines : lines.slice(0, -1);
       for (const line of completeLines) {
         if (!line.trim()) continue;
+        const provider = toSessionProvider(state.snapshot.provider);
+        if (!provider) continue;
         this.recordSessionTelemetry(
           state.snapshot.terminal_id,
           parseSessionTelemetryLine(
             line,
-            state.snapshot.provider === "claude" ? "claude" : "codex",
+            provider,
           ),
         );
       }
@@ -1552,11 +1572,13 @@ export class TelemetryService {
 
       for (const line of lines) {
         if (!line.trim()) continue;
+        const provider = toSessionProvider(state.snapshot.provider);
+        if (!provider) continue;
         this.recordSessionTelemetry(
           state.snapshot.terminal_id,
           parseSessionTelemetryLine(
             line,
-            state.snapshot.provider === "claude" ? "claude" : "codex",
+            provider,
           ),
         );
       }

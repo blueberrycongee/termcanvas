@@ -419,6 +419,14 @@ export interface TermCanvasAPI {
       filePath: string;
       confidence: "strong" | "medium" | "weak";
     } | null>;
+    findWuu: (
+      cwd: string,
+      startedAt?: string,
+    ) => Promise<{
+      sessionId: string;
+      filePath: string;
+      confidence: "medium" | "weak";
+    } | null>;
     getPermissionMode: (
       sessionId: string,
       cwd: string,
@@ -441,7 +449,7 @@ export interface TermCanvasAPI {
   telemetry: {
     attachSession: (input: {
       terminalId: string;
-      provider: "claude" | "codex";
+      provider: "claude" | "codex" | "wuu";
       sessionId: string;
       cwd: string;
       confidence: "strong" | "medium" | "weak";
@@ -450,7 +458,7 @@ export interface TermCanvasAPI {
     updateTerminal: (input: {
       terminalId: string;
       worktreePath?: string;
-      provider?: "claude" | "codex" | "unknown";
+      provider?: "claude" | "codex" | "wuu" | "unknown";
       ptyId?: number | null;
       shellPid?: number | null;
     }) => Promise<TerminalTelemetrySnapshot>;

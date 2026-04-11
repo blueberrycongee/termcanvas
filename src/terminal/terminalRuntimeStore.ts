@@ -147,6 +147,12 @@ const xtermRuntimeModule = xtermModule as XtermRuntimeModule;
 const XtermTerminalConstructor = (xtermRuntimeModule.Terminal ??
   xtermRuntimeModule.default?.Terminal) as XtermTerminalConstructor;
 
+function isSessionTelemetryProvider(
+  type: TerminalType,
+): type is "claude" | "codex" | "wuu" {
+  return type === "claude" || type === "codex" || type === "wuu";
+}
+
 export const useTerminalRuntimeStore = create<TerminalRuntimeStoreState>(
   () => ({
     terminals: {},
@@ -282,8 +288,10 @@ async function pollSessionId(
   detectedCliPid?: number | null,
   startedAt?: string,
 ) {
-  const maxAttempts = cliType === "codex" ? 20 : 10;
-  const interval = cliType === "codex" ? 500 : 5_000;
+  const maxAttempts =
+    cliType === "codex" ? 20 : cliType === "wuu" ? 120 : 10;
+  const interval =
+    cliType === "codex" ? 500 : cliType === "wuu" ? 1_000 : 5_000;
 
   let cachedPid: number | null = detectedCliPid ?? null;
   if (!cachedPid && cliType === "claude") {
@@ -335,6 +343,13 @@ async function pollSessionId(
       confidence = candidate?.confidence;
     } else if (cliType === "kimi") {
       sessionId = await window.termcanvas.session.getKimiLatest(worktreePath);
+    } else if (cliType === "wuu") {
+      const candidate = await window.termcanvas.session.findWuu(
+        worktreePath,
+        startedAt,
+      );
+      sessionId = candidate?.sessionId ?? null;
+      confidence = candidate?.confidence;
     }
 
     if (shouldCancel()) {
@@ -468,10 +483,7 @@ function clearWatchedSession(runtime: ManagedTerminalRuntime) {
 
   const sessionId = runtime.watchedSessionId;
   runtime.watchedSessionId = null;
-  if (
-    runtime.meta.terminal.type === "claude" ||
-    runtime.meta.terminal.type === "codex"
-  ) {
+  if (isSessionTelemetryProvider(runtime.meta.terminal.type)) {
     void window.termcanvas.telemetry
       .detachSession(runtime.meta.terminal.id)
       .catch((error) => {
@@ -501,7 +513,7 @@ function watchSession(
   }
 
   runtime.watchedSessionId = sessionId;
-  if (type === "claude" || type === "codex") {
+  if (isSessionTelemetryProvider(type)) {
     void window.termcanvas.telemetry
       .attachSession({
         terminalId: runtime.meta.terminal.id,
@@ -1008,7 +1020,7 @@ function scheduleSessionCapture(
     runtime.meta.worktreePath,
     ({ sessionId, confidence }) => {
       setSessionId(runtime, sessionId);
-      if (cliType === "claude" || cliType === "codex") {
+      if (isSessionTelemetryProvider(cliType)) {
         watchSession(runtime, cliType, sessionId, confidence);
       }
       if (cliType === "claude" || cliType === "codex") {
@@ -1066,7 +1078,7 @@ function triggerDetection(runtime: ManagedTerminalRuntime) {
       } else if (nextType === "codex") {
         void useCodexQuotaStore.getState().fetch();
       }
-      if (nextType === "claude" || nextType === "codex") {
+      if (isSessionTelemetryProvider(nextType)) {
         void window.termcanvas.telemetry
           .updateTerminal({
             terminalId: runtime.meta.terminal.id,
@@ -1288,11 +1300,7 @@ async function spawnPty(
     setPtyId(runtime, ptyId);
     setStatus(runtime, "running");
 
-    if (
-      resumeSessionId &&
-      (runtime.meta.terminal.type === "claude" ||
-        runtime.meta.terminal.type === "codex")
-    ) {
+    if (resumeSessionId && isSessionTelemetryProvider(runtime.meta.terminal.type)) {
       watchSession(runtime, runtime.meta.terminal.type, resumeSessionId);
     }
 

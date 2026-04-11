@@ -99,6 +99,7 @@ import { HookReceiver } from "./hook-receiver";
 import {
   findBestClaudeSession,
   findBestCodexSession,
+  findBestWuuSession,
   readClaudeSessionPermissionMode,
   readCodexSessionBypassState,
   readLatestCodexSessionId,
@@ -331,7 +332,9 @@ function setupIpc() {
         terminalId,
         worktreePath: options.cwd,
         provider:
-          options.terminalType === "claude" || options.terminalType === "codex"
+          options.terminalType === "claude" ||
+            options.terminalType === "codex" ||
+            options.terminalType === "wuu"
             ? options.terminalType
             : "unknown",
         workflowId: options.workflowId,
@@ -451,6 +454,10 @@ function setupIpc() {
       return findBestClaudeSession(cwd, startedAt, pid);
     },
   );
+
+  ipcMain.handle("session:find-wuu", (_event, cwd: string, startedAt?: string) => {
+    return findBestWuuSession(cwd, startedAt);
+  });
 
   ipcMain.handle(
     "session:get-permission-mode",
@@ -783,7 +790,7 @@ function setupIpc() {
       _event,
       input: {
         terminalId: string;
-        provider: "claude" | "codex";
+        provider: "claude" | "codex" | "wuu";
         sessionId: string;
         cwd: string;
         confidence: "strong" | "medium" | "weak";
@@ -819,7 +826,7 @@ function setupIpc() {
       input: {
         terminalId: string;
         worktreePath?: string;
-        provider?: "claude" | "codex" | "unknown";
+        provider?: "claude" | "codex" | "wuu" | "unknown";
         ptyId?: number | null;
         shellPid?: number | null;
       },
