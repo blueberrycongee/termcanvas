@@ -269,7 +269,14 @@ function WorktreeRow({
         role="button"
         tabIndex={0}
         className="group w-full flex items-center gap-1.5 pl-4 pr-1 py-1 text-left cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors"
-        onClick={handleActivate}
+        onClick={() => {
+          // Left-click on the row both activates and toggles expand/collapse
+          // so users don't have to aim for the tiny chevron. Right-click is
+          // handled separately in onContextMenu and must NOT toggle — see
+          // below.
+          handleActivate();
+          toggle(group.worktreeId);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
@@ -280,6 +287,9 @@ function WorktreeRow({
           // Right-click should still focus the row even though the worktree
           // context menu was removed in favor of the hover X button — so a
           // subsequent cmd+t targets the row the user just right-clicked.
+          // Intentionally does NOT toggle collapse: right-click is a focus
+          // gesture, not an expand gesture. React's onClick does not fire on
+          // right-click, so the onClick above stays out of the way here.
           handleActivate();
         }}
       >
