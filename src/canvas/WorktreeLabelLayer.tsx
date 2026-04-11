@@ -8,6 +8,7 @@ import {
   getCanvasLeftInset,
 } from "./viewportBounds";
 import { panToWorktree } from "../utils/panToWorktree";
+import { focusWorktreeInScene } from "../actions/sceneSelectionActions";
 
 /**
  * Per-worktree screen-space label layer.
@@ -450,15 +451,26 @@ export function WorktreeLabelLayer() {
             }
             onClick={(e) => {
               e.stopPropagation();
+              // Pair pan with focus so the next cmd+t lands inside the
+              // worktree the user just clicked. panToWorktree only updates
+              // useSelectionStore (visual selection); cmd+t reads
+              // focusedProjectId / focusedWorktreeId from useProjectStore,
+              // so without focusWorktreeInScene the new terminal would go
+              // to whichever worktree happened to be focused before.
               if (entry.worktreeId) {
+                focusWorktreeInScene(entry.projectId, entry.worktreeId);
                 panToWorktree(entry.projectId, entry.worktreeId);
               } else if (useLodMode) {
-                // LOD project label: pan to the first non-empty worktree
+                // LOD project label: pan to and focus the first populated
+                // worktree so a follow-up cmd+t still has a valid target.
                 const proj = projects.find((p) => p.id === entry.projectId);
-                const wt = proj?.worktrees.find(
-                  (w) => w.terminals.some((t) => !t.stashed && !t.minimized),
+                const wt = proj?.worktrees.find((w) =>
+                  w.terminals.some((t) => !t.stashed && !t.minimized),
                 );
-                if (proj && wt) panToWorktree(proj.id, wt.id);
+                if (proj && wt) {
+                  focusWorktreeInScene(proj.id, wt.id);
+                  panToWorktree(proj.id, wt.id);
+                }
               }
             }}
           >
