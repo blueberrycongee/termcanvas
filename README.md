@@ -156,68 +156,76 @@ For Claude/Codex task automation, start a fresh terminal with `termcanvas termin
 
 <br>
 
-Hydra is TermCanvas's terminal orchestration framework for multi-agent workflows. It dispatches AI agents (Claude, Codex, Kimi, Gemini) into **isolated git worktrees**, coordinates them through **assignment/run file contracts**, and monitors progress via a **telemetry truth layer** — all without controlling what happens inside each agent's session.
+Hydra is TermCanvas's terminal orchestration toolkit for Lead-driven workflows and isolated direct workers. It coordinates **git worktrees**, **assignment/run file contracts**, and the **telemetry truth layer** without taking control away from the agent sessions themselves.
 
-**Design philosophy:** each agent runs in its own terminal with a fresh context and full autonomy. Agents don't share conversation history — they share a **worktree** (code on disk) and **structured workflow files** (`inputs/user-request.md`, `task.md`, `artifacts/brief.md`, `result.json`). Terminal prose is not authoritative; validated `result.json` files are the single source of truth. If a workflow fails, discard the worktree and start clean.
+Hydra is now **Lead-driven**. One main terminal owns the workflow, reads the codebase, and decides what to do at each decision point. Worker terminals stay autonomous. Workflow state lives under repo-local `.hydra/workflows/`, and the authoritative contract is on disk: `inputs/intent.md`, `nodes/<nodeId>/intent.md`, `report.md`, `result.json`, and `ledger.jsonl`. Terminal prose is advisory only; validated `result.json` is the machine gate.
+
+Role-driven workflows currently target **Claude/Codex** through the Hydra role registry. If you only need one isolated worker without a Lead-driven DAG, use `hydra spawn` instead.
 
 This design is inspired by [Anthropic's harness design research](https://www.anthropic.com/engineering/harness-design-long-running-apps) on long-running agent orchestration, adapted for terminal-based agents where each process is naturally isolated. For the theoretical foundations behind this approach, see [Harness Design from a Distribution Perspective](harness-design-essay.md).
 
 #### Getting started
 
-Run `hydra init` in your project (or click **Enable Hydra** in the worktree header) to teach your AI agents how to use Hydra. Then just talk to your agent:
+Run `hydra init-repo` in your project (or click **Enable Hydra** in the worktree header) to sync the Hydra instructions into `CLAUDE.md` / `AGENTS.md`. Then either talk to your main agent, or drive the workflow yourself:
 
 > *Write a PRD or describe your requirements clearly, then tell the agent:*
 >
 > *"Read the Hydra skill. I want you to choose the right mode and autonomously complete this task based on the PRD in `docs/prd/auth-redesign.md`."*
 
-The agent reads the Hydra instructions in your project's `CLAUDE.md`, classifies the task, and picks the lightest fitting path:
+The main agent should classify the task and pick the lightest fitting path:
 
 - **Stay in current agent** — simple or local tasks, no orchestration overhead
 - **`hydra spawn`** — a direct isolated worker when the task is clear and self-contained
-- **`hydra run --template single-step`** — one implementer with file-contract gates and evidence
-- **`hydra run`** (default) — researcher → implementer → tester pipeline with approval and verification loops
-
-Each role can target a different provider (`--researcher-type claude --implementer-type codex`), or inherit from the current terminal.
+- **`hydra init` + `dispatch` + `watch`** — Lead-driven workflow for ambiguous, risky, parallel, or multi-step work
 
 ```bash
-hydra init    # one-time setup: writes Hydra instructions into CLAUDE.md and AGENTS.md
+hydra init-repo
+
+hydra init --intent "Add OAuth login" --repo .
+
+hydra dispatch --workflow <workflow-id> --node dev --role dev \
+  --intent "Implement OAuth login and the tests that cover it" --repo .
+
+hydra watch --workflow <workflow-id> --repo .
+
+hydra dispatch --workflow <workflow-id> --node review --role reviewer \
+  --intent "Independent review of the OAuth change" \
+  --depends-on dev --repo .
+
+hydra watch --workflow <workflow-id> --repo .
+hydra complete --workflow <workflow-id> --repo .
 ```
+
+Role files choose the CLI / model / reasoning profile. The caller chooses the `role`; Hydra resolves the terminal from that role definition.
 
 <details>
 <summary>Full command reference</summary>
 
 ```
-Usage: hydra <run|tick|watch|status|retry|spawn|list|cleanup|init> [options]
+Usage: hydra <command> [options]
 
-Workflow commands:
-  run      Create and start a file-contract workflow
-           --task <desc>              Task description (required)
-           --repo <path>              Repository path (required)
-           --template <name>          single-step | researcher-implementer-tester (default)
-           --all-type <type>          Force one agent type for all roles
-           --researcher-type <type>      Researcher agent type
-           --implementer-type <type>  Implementer agent type
-           --tester-type <type>    Tester agent type
-           --timeout-minutes <num>    Per-assignment timeout (default: 30)
-           --max-retries <num>        Automatic retry limit (default: 1)
-           --auto-approve             Run sub-agent in auto-approve mode
+Lead-driven workflow:
+  init        Create a workflow context
+  dispatch    Dispatch a node into a workflow
+  watch       Wait until a decision point is reached
+  redispatch  Re-run an eligible/reset node
+  approve     Mark a node output as approved
+  reset       Reset a node (and downstream by default) for rework
+  ask         Ask a completed node a follow-up question via session resume
+  merge       Merge completed parallel node branches
+  complete    Mark a workflow as completed
+  fail        Mark a workflow as failed
 
-  tick     Advance one workflow tick (collect result, dispatch next assignment)
-  watch    Poll a workflow until it reaches a terminal state
-  status   Show structured workflow status + telemetry advisory
-  retry    Retry a failed or timed-out workflow
+Inspection:
+  status      Show structured workflow + assignment state
+  ledger      Show workflow event log
+  list        List direct spawned agents (pass --workflows for workflows)
+  list-roles  Show available role definitions
 
-Worker commands:
-  spawn    Create one direct isolated worker terminal
-           --task <desc>              Task description (required)
-           --repo <path>              Repository path (required)
-           --worker-type <type>       Worker agent type
-           --base-branch <branch>     Base branch for the new worktree
-
-Management commands:
-  list     List all spawned agents
-  cleanup  Clean up agent worktrees and terminals
-  init     Add Hydra instructions to project CLAUDE.md and AGENTS.md
+Housekeeping:
+  spawn      Create one direct isolated worker terminal
+  cleanup    Clean up workflow state or direct spawned workers
+  init-repo  Sync Hydra instructions into CLAUDE.md and AGENTS.md
 ```
 
 </details>
@@ -226,23 +234,34 @@ Management commands:
 <summary>Example commands</summary>
 
 ```bash
-# Full workflow (researcher → implementer → tester)
-hydra run --task "fix the login bug" --repo .
+# Repo setup
+hydra init-repo
 
-# Mixed providers by role
-hydra run --task "implement auth" --repo . \
-  --researcher-type claude --implementer-type codex --tester-type claude
+# Start a Lead-driven workflow
+hydra init --intent "fix the login bug" --repo .
 
-# Single-step (one implementer, file gates only)
-hydra run --task "implement the API change" --repo . --template single-step
+# Dispatch a node and wait for the decision point
+hydra dispatch --workflow <workflow-id> --node dev --role dev \
+  --intent "Fix the login bug and add regression coverage" --repo .
+hydra watch --workflow <workflow-id> --repo .
+
+# Ask a completed node a follow-up question without re-running it
+hydra ask --workflow <workflow-id> --node dev \
+  --message "Why did you change the session validation path?" --repo .
+
+# Send a node back for rework
+hydra reset --workflow <workflow-id> --node dev \
+  --feedback "The fix regressed the refresh-token path. Rework it." --repo .
+hydra redispatch --workflow <workflow-id> --node dev --repo .
 
 # Direct isolated worker
 hydra spawn --task "investigate the flaky CI failure" --repo .
 
-# Orchestration
-hydra watch --repo . --workflow <workflow-id>
-hydra status --repo . --workflow <workflow-id>
-hydra retry --repo . --workflow <workflow-id>
+# Inspection
+hydra status --workflow <workflow-id> --repo .
+hydra ledger --workflow <workflow-id> --repo .
+hydra list --workflows --repo .
+hydra list-roles --repo .
 
 # Cleanup
 hydra cleanup --workflow <workflow-id> --repo . --force
@@ -251,9 +270,9 @@ hydra cleanup <agent-id> --force
 
 </details>
 
-Workflows advance through validated `result.json` evidence inside `.hydra/workflows/`. The telemetry truth layer provides real-time `turn_state`, `last_meaningful_progress_at`, and `derived_status` — used by both the UI (badges, advisory views) and Hydra itself (stall detection, retry decisions).
+Lead-driven workflows advance through validated `result.json` evidence inside `.hydra/workflows/`. The telemetry truth layer provides real-time `turn_state`, `last_meaningful_progress_at`, `derived_status`, and session attachment data — used by both the UI and Hydra's watch / retry / health-check paths.
 
-**Typical workflow:** write a PRD → enable Hydra → let the main-brain agent choose the mode and orchestrate autonomously → monitor via `hydra watch` or the canvas UI → review the diff and merge. See [Hydra Orchestration Guide](docs/hydra-orchestration.md) for architecture, troubleshooting, and anti-patterns. For a visual overview of every mode, state machine, and system component, see the [Hydra Panoramic Flowchart](docs/hydra-panorama-flow.md).
+**Typical workflow:** write a PRD → run `hydra init-repo` once → let the Lead choose direct work vs `spawn` vs `init/dispatch/watch` → monitor via `hydra watch` or the canvas UI → read `report.md` before approving / resetting / completing. See [Hydra Orchestration Guide](docs/hydra-orchestration.md) for the control-plane details, and the [Hydra Panoramic Flowchart](docs/hydra-panorama-flow.md) for the updated state / file model.
 
 ---
 

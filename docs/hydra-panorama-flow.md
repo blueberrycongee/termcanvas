@@ -9,12 +9,11 @@ flowchart TD
     classDef hydra fill:#50e3c2,stroke:#36b49f,color:#1a1a1a,font-weight:bold
     classDef decision fill:#bd10e0,stroke:#8b0ca6,color:#fff,font-weight:bold
 
-    USER([User request]):::user --> BRAIN["Main brain<br/>route the task"]:::brain
-    BRAIN --> MODE{Which path?}:::decision
+    USER([User request]):::user --> LEAD["Lead terminal<br/>reads code and decides"]:::brain
+    LEAD --> MODE{Which path?}:::decision
     MODE -- "Simple / local / fast" --> DIRECT["Work directly<br/>in current agent"]:::brain
-    MODE -- "Need isolation + file evidence" --> SINGLE["hydra run --template single-step"]:::hydra
-    MODE -- "Ambiguous / risky / long-running" --> WF["hydra run"]:::hydra
-    MODE -- "Known split, one isolated worker" --> SPAWN["hydra spawn"]:::hydra
+    MODE -- "One isolated worker" --> SPAWN["hydra spawn"]:::hydra
+    MODE -- "Ambiguous / risky / parallel / multi-step" --> WF["hydra init -> dispatch -> watch"]:::hydra
 ```
 
 ## 2. Runtime Control Flow
@@ -28,29 +27,38 @@ flowchart TD
     classDef file fill:#6b6b6b,stroke:#4a4a4a,color:#fff,font-style:italic
     classDef fail fill:#d0021b,stroke:#a00116,color:#fff,font-weight:bold
 
-    START([Workflow created]):::state --> RESEARCH
+    START([Workflow created]):::state --> DISPATCH["Lead: hydra dispatch"]:::hydra
+    DISPATCH --> WORKER["Worker terminal<br/>runs task.md"]:::agent
+    WORKER --> FILES["write report.md<br/>+ result.json"]:::file
+    FILES --> WATCH["Lead: hydra watch"]:::hydra
+    WATCH --> DECIDE{DecisionPoint}:::decision
 
-    RESEARCH["Assignment: researcher<br/>run task.md"]:::agent --> RR["publish result.json<br/>+ artifacts/brief.md"]:::file
-    RR --> APPROVAL{Approval needed?}:::decision
-    APPROVAL -- "Yes" --> WAIT_APPROVAL([waiting_for_approval]):::state
-    WAIT_APPROVAL --> RESEARCH
-    APPROVAL -- "No" --> IMPLEMENT
+    DECIDE -- "node_completed" --> ACTION{Lead action}:::decision
+    DECIDE -- "node_failed" --> FAIL_OR_RESET["hydra fail<br/>or hydra reset"]:::fail
+    DECIDE -- "watch_timeout" --> INSPECT["hydra status + telemetry"]:::hydra
+    DECIDE -- "batch_completed" --> BATCH{More work?}:::decision
 
-    IMPLEMENT["Assignment: implementer<br/>run task.md"]:::agent --> IR["publish result.json<br/>+ artifacts/brief.md"]:::file
-    IR --> VERIFY
+    ACTION -- "ask follow-up" --> ASK["hydra ask"]:::hydra
+    ASK --> ACTION
+    ACTION -- "approve" --> APPROVE["hydra approve"]:::hydra
+    ACTION -- "rework" --> RESET["hydra reset"]:::hydra
+    RESET --> REDISPATCH["hydra redispatch"]:::hydra
+    REDISPATCH --> WORKER
+    ACTION -- "dispatch next / parallel nodes" --> MORE["hydra dispatch"]:::hydra
+    MORE --> WATCH
+    ACTION -- "complete workflow" --> COMPLETE["hydra complete"]:::state
 
-    VERIFY["Assignment: tester<br/>run task.md"]:::agent --> VR["publish result.json<br/>+ artifacts/brief.md"]:::file
-    VR --> VERIFY_DECIDE{next_action}:::decision
+    APPROVE --> AFTER_APPROVE{Dispatch follow-on?}:::decision
+    AFTER_APPROVE -- "yes" --> MORE
+    AFTER_APPROVE -- "not yet" --> WATCH
 
-    VERIFY_DECIDE -- "transition to implementer" --> IMPLEMENT
-    VERIFY_DECIDE -- "transition to researcher" --> INTENT
-    VERIFY_DECIDE -- "invalid / exhausted" --> FAILED([failed]):::fail
+    BATCH -- "dispatch newly eligible nodes" --> MORE
+    BATCH -- "merge parallel branches" --> MERGE["hydra merge"]:::hydra
+    MERGE --> WATCH
+    BATCH -- "workflow done" --> COMPLETE
 
-    INTENT["Assignment: researcher<br/>intent confirmation"]:::agent --> CR["publish result.json"]:::file
-    CR --> INTENT_DECIDE{next_action}:::decision
-    INTENT_DECIDE -- "complete" --> DONE([completed]):::state
-    INTENT_DECIDE -- "transition to implementer" --> IMPLEMENT
-    INTENT_DECIDE -- "transition to researcher + replan" --> RESEARCH
+    INSPECT --> WATCH
+    FAIL_OR_RESET --> WATCH
 ```
 
 ## 3. Assignment State Machine
@@ -82,26 +90,35 @@ flowchart LR
     classDef agent fill:#7ed321,stroke:#5a9e18,color:#fff,font-weight:bold
 
     subgraph WF[".hydra/workflows/<workflowId>"]
-        WJ["workflow.json<br/>workflow metadata"]:::state
-        INPUT["inputs/user-request.md<br/>workflow-level request"]:::file
-        AJ["assignments/<assignmentId>/assignment.json<br/>assignment metadata"]:::state
-        TASK["assignments/<assignmentId>/runs/<runId>/task.md<br/>thin task sheet"]:::file
-        ART["assignments/<assignmentId>/runs/<runId>/artifacts/*.md<br/>human-readable deliverables"]:::file
-        RESULT["assignments/<assignmentId>/runs/<runId>/result.json<br/>machine completion gate"]:::file
+        WJ["workflow.json<br/>workflow metadata + DAG"]:::state
+        LEDGER["ledger.jsonl<br/>decision audit log"]:::file
+        INPUT["inputs/intent.md<br/>workflow intent"]:::file
+        NODE["nodes/<nodeId>/intent.md<br/>node intent"]:::file
+        FEEDBACK["nodes/<nodeId>/feedback.md<br/>Lead feedback"]:::file
+        AJ["assignments/<assignmentId>/assignment.json<br/>assignment state"]:::state
+        TASK["assignments/<assignmentId>/runs/<runId>/task.md<br/>run task sheet"]:::file
+        REPORT["assignments/<assignmentId>/runs/<runId>/report.md<br/>human-readable report"]:::file
+        RESULT["assignments/<assignmentId>/runs/<runId>/result.json<br/>machine routing gate"]:::file
+        OUT["outputs/summary.md<br/>workflow summary"]:::file
     end
 
+    WJ --> NODE
     WJ --> AJ
-    AJ --> TASK
     INPUT --> TASK
-    TASK --> AGENT["Claude / Codex terminal"]:::agent
-    AGENT --> ART
+    NODE --> TASK
+    FEEDBACK --> TASK
+    AJ --> TASK
+    TASK --> AGENT["Claude / Codex worker"]:::agent
+    AGENT --> REPORT
     AGENT --> RESULT
+    WJ --> LEDGER
+    WJ --> OUT
 ```
 
 ## 5. Design Rules
 
-- Hydra does not read Markdown prose to decide the next step.
-- `task.md` is for the current agent and humans.
-- `artifacts/*.md` are downstream deliverables.
-- `result.json` is the only machine completion gate.
-- Retry means a new terminal, a new run id, and a new output directory.
+- `hydra watch` is the Lead's decision loop.
+- `report.md` explains what happened; `result.json` tells Hydra how to route.
+- Role files lock the CLI / model / reasoning profile for a node.
+- `hydra ask` is lightweight follow-up; `hydra reset` is explicit rework.
+- Retry means a new run id and a new output directory.

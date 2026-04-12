@@ -155,68 +155,76 @@ termcanvas diff ~/my-repo --summary
 
 <br>
 
-Hydra 是 TermCanvas 的终端编排框架，用于多 agent 工作流。它将 AI agent（Claude、Codex、Kimi、Gemini）分发到**隔离的 git worktree** 中，通过**assignment/run 文件契约**协调它们，并通过 **telemetry 真相层**监控进度——同时不干预每个 agent 会话内部的行为。
+Hydra 是 TermCanvas 的终端编排工具，用于 Lead 驱动 workflow 和直接隔离 worker。它负责协调 **git worktree**、**assignment/run 文件契约** 以及 **telemetry 真相层**，但不会接管 agent 会话本身。
 
-**设计理念：** 每个 agent 在自己的终端中运行，拥有全新的上下文和完全的自主权。Agent 之间不共享对话历史——它们共享的是 **worktree**（磁盘上的代码）和**结构化工作流文件**（`inputs/user-request.md`、`task.md`、`artifacts/brief.md`、`result.json`）。终端输出不具权威性，经过验证的 `result.json` 才是唯一的事实来源。如果 workflow 失败，丢弃 worktree 重新开始。
+Hydra 现在是 **Lead 驱动** 的。一个主终端负责读代码、做决策、推进 workflow；worker 终端保持自治。Workflow 状态保存在仓库内的 `.hydra/workflows/` 目录下，权威契约也都在磁盘上：`inputs/intent.md`、`nodes/<nodeId>/intent.md`、`report.md`、`result.json`、`ledger.jsonl`。终端输出只作参考；经过验证的 `result.json` 才是机器门禁。
+
+基于 role 的 workflow 目前主要面向 **Claude/Codex**。如果你只需要一个隔离 worker，而不需要 Lead 驱动的 DAG，就用 `hydra spawn`。
 
 这一设计受到 [Anthropic 关于长时间运行 agent 编排的 harness 设计研究](https://www.anthropic.com/engineering/harness-design-long-running-apps)的启发，并针对终端 agent（每个进程天然隔离）做了适配。关于这一设计背后的理论基础，参见[从数据分布视角看 Harness 设计](harness-design-essay.md)。
 
 #### 开始使用
 
-在项目中运行 `hydra init`（或在 worktree 标题栏点击**启用 Hydra**），让你的 AI agent 学会使用 Hydra。然后直接和 agent 对话：
+在项目中运行 `hydra init-repo`（或在 worktree 标题栏点击**启用 Hydra**），把 Hydra 指令同步到 `CLAUDE.md` / `AGENTS.md`。之后你可以直接和主 agent 对话，或者自己驱动 workflow：
 
 > *先写好 PRD 或清晰地描述需求，然后告诉 agent：*
 >
 > *”读一下 Hydra skill。我希望你自己选择合适的模式，根据 `docs/prd/auth-redesign.md` 中的 PRD 自主完成这个任务。”*
 
-Agent 会读取项目 `CLAUDE.md` 中的 Hydra 指令，对任务进行分类，并选择最轻量的路径：
+主 agent 应该先对任务进行分类，再选择最轻量的路径：
 
 - **留在当前 agent** —— 简单或局部任务，无编排开销
 - **`hydra spawn`** —— 任务清晰且自包含时，创建一个隔离 worker
-- **`hydra run --template single-step`** —— 单个 implementer + 文件契约门禁和证据
-- **`hydra run`**（默认）—— researcher → implementer → tester 流水线，带 approval 和 verification 回环
-
-每个角色可以指定不同的 provider（`--researcher-type claude --implementer-type codex`），也可以继承当前终端类型。
+- **`hydra init` + `dispatch` + `watch`** —— 适合模糊、高风险、可并行或多阶段任务的 Lead 驱动 workflow
 
 ```bash
-hydra init    # 一次性设置：将 Hydra 指令写入 CLAUDE.md 和 AGENTS.md
+hydra init-repo
+
+hydra init --intent "Add OAuth login" --repo .
+
+hydra dispatch --workflow <workflow-id> --node dev --role dev \
+  --intent "实现 OAuth 登录并补上覆盖它的测试" --repo .
+
+hydra watch --workflow <workflow-id> --repo .
+
+hydra dispatch --workflow <workflow-id> --node review --role reviewer \
+  --intent "独立审查这次 OAuth 改动" \
+  --depends-on dev --repo .
+
+hydra watch --workflow <workflow-id> --repo .
+hydra complete --workflow <workflow-id> --repo .
 ```
+
+Role 文件会决定 CLI / model / reasoning 组合。调用方只负责选择 `role`；终端如何启动由 Hydra 根据 role 定义解析。
 
 <details>
 <summary>完整命令参考</summary>
 
 ```
-用法: hydra <run|tick|watch|status|retry|spawn|list|cleanup|init> [options]
+用法: hydra <command> [options]
 
-Workflow 命令:
-  run      创建并启动文件契约 workflow
-           --task <desc>              任务描述（必填）
-           --repo <path>              仓库路径（必填）
-           --template <name>          single-step | researcher-implementer-tester（默认）
-           --all-type <type>          所有角色使用同一 agent 类型
-           --researcher-type <type>      Researcher agent 类型
-           --implementer-type <type>  Implementer agent 类型
-           --tester-type <type>    Tester agent 类型
-           --timeout-minutes <num>    每个 assignment 超时（默认 30）
-           --max-retries <num>        自动重试上限（默认 1）
-           --auto-approve             子 agent 以 auto-approve 模式运行
+Lead 驱动 workflow:
+  init        创建 workflow 上下文
+  dispatch    向 workflow 分发一个节点
+  watch       等待下一个 decision point
+  redispatch  重新执行一个 eligible / reset 节点
+  approve     将节点产物标记为已批准
+  reset       将节点（默认连同下游）退回重做
+  ask         基于已完成节点的 session 继续追问
+  merge       合并已完成的并行节点分支
+  complete    将 workflow 标记为完成
+  fail        将 workflow 标记为失败
 
-  tick     推进一个 workflow tick（收集结果、派发下一个 assignment）
-  watch    轮询 workflow 直到达到终态
-  status   显示结构化 workflow 状态 + telemetry 建议
-  retry    重试失败或超时的 workflow
+检查类:
+  status      查看结构化 workflow + assignment 状态
+  ledger      查看 workflow 事件日志
+  list        列出直接 spawn 的 worker（加 --workflows 可列 workflow）
+  list-roles  查看可用 role 定义
 
-Worker 命令:
-  spawn    创建一个隔离 worker 终端
-           --task <desc>              任务描述（必填）
-           --repo <path>              仓库路径（必填）
-           --worker-type <type>       Worker agent 类型
-           --base-branch <branch>     新 worktree 的基础分支
-
-管理命令:
-  list     列出所有已创建的 agent
-  cleanup  清理 agent worktree 和终端
-  init     向项目添加 Hydra 指令（CLAUDE.md / AGENTS.md）
+维护类:
+  spawn      创建一个直接隔离 worker
+  cleanup    清理 workflow 状态或直接 spawn 的 worker
+  init-repo  将 Hydra 指令同步到 CLAUDE.md 和 AGENTS.md
 ```
 
 </details>
@@ -225,23 +233,34 @@ Worker 命令:
 <summary>命令示例</summary>
 
 ```bash
-# 完整 workflow（researcher → implementer → tester）
-hydra run --task “fix the login bug” --repo .
+# 仓库初始化
+hydra init-repo
 
-# 按角色混合 provider
-hydra run --task “implement auth” --repo . \
-  --researcher-type claude --implementer-type codex --tester-type claude
+# 启动一个 Lead 驱动 workflow
+hydra init --intent "fix the login bug" --repo .
 
-# 单步（一个 implementer + 文件门禁）
-hydra run --task “implement the API change” --repo . --template single-step
+# 分发节点并等待 decision point
+hydra dispatch --workflow <workflow-id> --node dev --role dev \
+  --intent "修复登录 bug 并补上回归覆盖" --repo .
+hydra watch --workflow <workflow-id> --repo .
+
+# 对已完成节点追加追问，不重跑
+hydra ask --workflow <workflow-id> --node dev \
+  --message "为什么你改了 session 校验路径？" --repo .
+
+# 让节点返工
+hydra reset --workflow <workflow-id> --node dev \
+  --feedback "这个修复把 refresh-token 路径弄回归了，重新处理。" --repo .
+hydra redispatch --workflow <workflow-id> --node dev --repo .
 
 # 直接隔离 worker
-hydra spawn --task “investigate the flaky CI failure” --repo .
+hydra spawn --task "investigate the flaky CI failure" --repo .
 
-# 编排操作
-hydra watch --repo . --workflow <workflow-id>
-hydra status --repo . --workflow <workflow-id>
-hydra retry --repo . --workflow <workflow-id>
+# 状态检查
+hydra status --workflow <workflow-id> --repo .
+hydra ledger --workflow <workflow-id> --repo .
+hydra list --workflows --repo .
+hydra list-roles --repo .
 
 # 清理
 hydra cleanup --workflow <workflow-id> --repo . --force
@@ -250,9 +269,9 @@ hydra cleanup <agent-id> --force
 
 </details>
 
-Workflow 在 `.hydra/workflows/` 中通过 `result.json` 的验证后才会前进。Telemetry 真相层提供实时 `turn_state`、`last_meaningful_progress_at` 和 `derived_status`——同时服务于 UI（徽章、建议视图）和 Hydra 自身（卡顿检测、重试决策）。
+Lead 驱动 workflow 只会在 `.hydra/workflows/` 里的 `result.json` 通过校验后前进。Telemetry 真相层会补充 `turn_state`、`last_meaningful_progress_at`、`derived_status` 和 session 绑定信息，既给 UI 用，也给 Hydra 的 watch / retry / 健康检查路径用。
 
-**典型工作流：** 编写 PRD → 启用 Hydra → 让主脑 agent 自主选择模式并编排执行 → 通过 `hydra watch` 或画布 UI 监控 → 审查 diff 并合并。更多架构、故障排查和反模式，见 [Hydra 编排指南](docs/hydra-orchestration.md)。所有模式、状态机和系统组件的可视化全景，见 [Hydra 全景流程图](docs/hydra-panorama-flow-zh.md)。
+**典型工作流：** 先写 PRD → 先跑一次 `hydra init-repo` → 让 Lead 在“直接做 / spawn / init+dispatch+watch”之间做选择 → 通过 `hydra watch` 或画布 UI 观察 → 在读完 `report.md` 后再决定 approve / reset / complete。更多控制面细节见 [Hydra 编排指南](docs/hydra-orchestration.md)，状态和文件模型见 [Hydra 全景流程图](docs/hydra-panorama-flow-zh.md)。
 
 ---
 

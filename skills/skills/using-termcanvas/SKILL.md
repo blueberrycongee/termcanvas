@@ -20,7 +20,7 @@ Route first. Choose the lightest path that preserves correctness.
 - If the task needs an isolated worktree, file evidence, retry/status control,
   or a staged workflow, use `hydra`.
 - Before using Hydra in a repo, ensure the project has current Hydra
-  instructions via `hydra init` or the TermCanvas Hydra enable action.
+  instructions via `hydra init-repo` or the TermCanvas Hydra enable action.
 
 ## Hydra workflow patterns
 
@@ -50,9 +50,9 @@ separate tester — dev owns its own test surface.
   spawned workers are actually involved.
 - When launching Claude/Codex tasks via TermCanvas CLI, use
   `termcanvas terminal create --prompt "..."` rather than `termcanvas terminal input`.
-- After `hydra run` or `hydra spawn`, immediately start `hydra watch` — do not ask whether to watch.
-- Use `hydra tick` / `hydra watch` / `hydra status` / `hydra retry` for
-  workflow runs created by `hydra run`.
+- After `hydra dispatch`, immediately start `hydra watch` — do not ask whether to watch.
+- Use `hydra watch` / `hydra status` / `hydra ledger` / `hydra list --workflows`
+  for workflows created by `hydra init`.
 - Use `hydra list` and `hydra cleanup <agentId>` for direct workers created by
   `hydra spawn`.
 - Prefer structured Hydra state and files over terminal prose.

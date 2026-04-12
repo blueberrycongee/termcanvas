@@ -9,12 +9,11 @@ flowchart TD
     classDef hydra fill:#50e3c2,stroke:#36b49f,color:#1a1a1a,font-weight:bold
     classDef decision fill:#bd10e0,stroke:#8b0ca6,color:#fff,font-weight:bold
 
-    USER([用户请求]):::user --> BRAIN["主脑<br/>决定走哪条路径"]:::brain
-    BRAIN --> MODE{选择路径}:::decision
+    USER([用户请求]):::user --> LEAD["Lead 终端<br/>读代码并做决策"]:::brain
+    LEAD --> MODE{选哪条路径?}:::decision
     MODE -- "简单 / 本地 / 快速" --> DIRECT["直接在当前 agent 中完成"]:::brain
-    MODE -- "需要隔离 + 文件证据" --> SINGLE["hydra run --template single-step"]:::hydra
-    MODE -- "模糊 / 高风险 / 长任务" --> WF["hydra run"]:::hydra
-    MODE -- "拆分已知，只要一个隔离 worker" --> SPAWN["hydra spawn"]:::hydra
+    MODE -- "只要一个隔离 worker" --> SPAWN["hydra spawn"]:::hydra
+    MODE -- "模糊 / 高风险 / 可并行 / 多阶段" --> WF["hydra init -> dispatch -> watch"]:::hydra
 ```
 
 ## 2. 运行时主流程
@@ -28,29 +27,38 @@ flowchart TD
     classDef file fill:#6b6b6b,stroke:#4a4a4a,color:#fff,font-style:italic
     classDef fail fill:#d0021b,stroke:#a00116,color:#fff,font-weight:bold
 
-    START([工作流已创建]):::state --> RESEARCH
+    START([workflow 已创建]):::state --> DISPATCH["Lead: hydra dispatch"]:::hydra
+    DISPATCH --> WORKER["worker 终端<br/>执行 task.md"]:::agent
+    WORKER --> FILES["写入 report.md<br/>+ result.json"]:::file
+    FILES --> WATCH["Lead: hydra watch"]:::hydra
+    WATCH --> DECIDE{DecisionPoint}:::decision
 
-    RESEARCH["assignment: researcher<br/>执行 task.md"]:::agent --> RR["发布 result.json<br/>+ artifacts/brief.md"]:::file
-    RR --> APPROVAL{是否需要审批?}:::decision
-    APPROVAL -- "需要" --> WAIT_APPROVAL([waiting_for_approval]):::state
-    WAIT_APPROVAL --> RESEARCH
-    APPROVAL -- "不需要" --> IMPLEMENT
+    DECIDE -- "node_completed" --> ACTION{Lead 动作}:::decision
+    DECIDE -- "node_failed" --> FAIL_OR_RESET["hydra fail<br/>或 hydra reset"]:::fail
+    DECIDE -- "watch_timeout" --> INSPECT["hydra status + telemetry"]:::hydra
+    DECIDE -- "batch_completed" --> BATCH{还有后续吗?}:::decision
 
-    IMPLEMENT["assignment: implementer<br/>执行 task.md"]:::agent --> IR["发布 result.json<br/>+ artifacts/brief.md"]:::file
-    IR --> VERIFY
+    ACTION -- "继续追问" --> ASK["hydra ask"]:::hydra
+    ASK --> ACTION
+    ACTION -- "批准产物" --> APPROVE["hydra approve"]:::hydra
+    ACTION -- "返工" --> RESET["hydra reset"]:::hydra
+    RESET --> REDISPATCH["hydra redispatch"]:::hydra
+    REDISPATCH --> WORKER
+    ACTION -- "分发后续 / 并行节点" --> MORE["hydra dispatch"]:::hydra
+    MORE --> WATCH
+    ACTION -- "结束 workflow" --> COMPLETE["hydra complete"]:::state
 
-    VERIFY["assignment: tester<br/>执行 task.md"]:::agent --> VR["发布 result.json<br/>+ artifacts/brief.md"]:::file
-    VR --> VERIFY_DECIDE{next_action}:::decision
+    APPROVE --> AFTER_APPROVE{要继续分发吗?}:::decision
+    AFTER_APPROVE -- "要" --> MORE
+    AFTER_APPROVE -- "暂时不要" --> WATCH
 
-    VERIFY_DECIDE -- "转回 implementer" --> IMPLEMENT
-    VERIFY_DECIDE -- "转回 researcher" --> INTENT
-    VERIFY_DECIDE -- "无效 / 超限" --> FAILED([failed]):::fail
+    BATCH -- "分发 newly eligible 节点" --> MORE
+    BATCH -- "合并并行分支" --> MERGE["hydra merge"]:::hydra
+    MERGE --> WATCH
+    BATCH -- "workflow 已完成" --> COMPLETE
 
-    INTENT["assignment: researcher<br/>做 intent confirmation"]:::agent --> CR["发布 result.json"]:::file
-    CR --> INTENT_DECIDE{next_action}:::decision
-    INTENT_DECIDE -- "complete" --> DONE([completed]):::state
-    INTENT_DECIDE -- "转回 implementer" --> IMPLEMENT
-    INTENT_DECIDE -- "转回 researcher 且 replan" --> RESEARCH
+    INSPECT --> WATCH
+    FAIL_OR_RESET --> WATCH
 ```
 
 ## 3. Assignment 状态机
@@ -82,26 +90,35 @@ flowchart LR
     classDef agent fill:#7ed321,stroke:#5a9e18,color:#fff,font-weight:bold
 
     subgraph WF[".hydra/workflows/<workflowId>"]
-        WJ["workflow.json<br/>workflow 元数据"]:::state
-        INPUT["inputs/user-request.md<br/>workflow 级请求"]:::file
-        AJ["assignments/<assignmentId>/assignment.json<br/>assignment 元数据"]:::state
-        TASK["assignments/<assignmentId>/runs/<runId>/task.md<br/>薄任务单"]:::file
-        ART["assignments/<assignmentId>/runs/<runId>/artifacts/*.md<br/>人类可读交付物"]:::file
-        RESULT["assignments/<assignmentId>/runs/<runId>/result.json<br/>机器完成门"]:::file
+        WJ["workflow.json<br/>workflow 元数据 + DAG"]:::state
+        LEDGER["ledger.jsonl<br/>决策审计日志"]:::file
+        INPUT["inputs/intent.md<br/>workflow intent"]:::file
+        NODE["nodes/<nodeId>/intent.md<br/>节点 intent"]:::file
+        FEEDBACK["nodes/<nodeId>/feedback.md<br/>Lead 反馈"]:::file
+        AJ["assignments/<assignmentId>/assignment.json<br/>assignment 状态"]:::state
+        TASK["assignments/<assignmentId>/runs/<runId>/task.md<br/>本轮任务单"]:::file
+        REPORT["assignments/<assignmentId>/runs/<runId>/report.md<br/>人类可读报告"]:::file
+        RESULT["assignments/<assignmentId>/runs/<runId>/result.json<br/>机器路由门禁"]:::file
+        OUT["outputs/summary.md<br/>workflow 总结"]:::file
     end
 
+    WJ --> NODE
     WJ --> AJ
-    AJ --> TASK
     INPUT --> TASK
-    TASK --> AGENT["Claude / Codex 终端"]:::agent
-    AGENT --> ART
+    NODE --> TASK
+    FEEDBACK --> TASK
+    AJ --> TASK
+    TASK --> AGENT["Claude / Codex worker"]:::agent
+    AGENT --> REPORT
     AGENT --> RESULT
+    WJ --> LEDGER
+    WJ --> OUT
 ```
 
 ## 5. 设计规则
 
-- Hydra 不靠解析 Markdown 正文决定下一步。
-- `task.md` 给当前 agent 和人读。
-- `artifacts/*.md` 是给下游和人看的正式产物。
-- `result.json` 是唯一机器完成门。
-- retry = 新终端 + 新 run id + 新输出目录。
+- `hydra watch` 是 Lead 的决策循环。
+- `report.md` 负责解释发生了什么；`result.json` 负责告诉 Hydra 怎么路由。
+- Role 文件锁定节点的 CLI / model / reasoning 配置。
+- `hydra ask` 是轻量追问；`hydra reset` 是明确返工。
+- retry = 新 run id + 新输出目录。
