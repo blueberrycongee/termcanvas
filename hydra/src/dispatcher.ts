@@ -71,7 +71,7 @@ export function buildCreateOnlyPrompt(
     runId: string;
   },
 ): string {
-  return `Read ${taskFile} for the full task instructions. Finish every required artifact first, then write a human-readable report.md alongside ${resultFile} (summary, outputs, evidence, reflection — free-form markdown). Finally, publish a slim hydra/result/v0.1 result JSON to ${resultFile} with workflow_id=${workflowId}, assignment_id=${options.assignmentId}, run_id=${options.runId}, outcome (completed/stuck/error), and report_file pointing at the report.md you wrote. result.json must contain only those fields; Hydra rejects extras. Publish result.json atomically as the final artifact for this run.`;
+  return `Read ${taskFile} for your task instructions and completion requirements.`;
 }
 
 export async function dispatchCreateOnly(

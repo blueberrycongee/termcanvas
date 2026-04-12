@@ -1,5 +1,5 @@
 import path from "node:path";
-import { readLedger, type LedgerEntry, type LedgerEvent } from "./ledger.ts";
+import { readLedger, type LeadAssessment, type LedgerEntry, type LedgerEvent } from "./ledger.ts";
 import { listRoles } from "./roles/loader.ts";
 import {
   initWorkflow,
@@ -112,6 +112,7 @@ export async function cliDispatch(args: string[]): Promise<void> {
     console.log("  --worktree-branch <b>  Branch name for isolated worktree");
     console.log("  --timeout-minutes <n>  Per-node timeout override");
     console.log("  --max-retries <n>      Max retries override");
+    console.log("  --assessment <json>    Lead assessment JSON: {coupling,novelty,mode,rationale?}");
     process.exit(0);
   }
 
@@ -124,6 +125,17 @@ export async function cliDispatch(args: string[]): Promise<void> {
       if (colonIdx > 0) {
         contextRefs.push({ label: raw.slice(0, colonIdx), path: raw.slice(colonIdx + 1) });
       }
+    }
+  }
+
+  // Parse optional assessment JSON
+  const assessmentRaw = optionalFlag(args, "--assessment");
+  let assessment: LeadAssessment | undefined;
+  if (assessmentRaw) {
+    try {
+      assessment = JSON.parse(assessmentRaw) as LeadAssessment;
+    } catch {
+      throw new Error(`Invalid --assessment JSON: ${assessmentRaw}`);
     }
   }
 
@@ -141,6 +153,7 @@ export async function cliDispatch(args: string[]): Promise<void> {
     worktreeBranch: optionalFlag(args, "--worktree-branch"),
     timeoutMinutes: optionalNumber(args, "--timeout-minutes"),
     maxRetries: optionalNumber(args, "--max-retries"),
+    assessment,
   });
   console.log(JSON.stringify(result, null, 2));
 }
@@ -366,8 +379,10 @@ function formatEventSummary(event: LedgerEvent): string {
   switch (event.type) {
     case "workflow_created":
       return `workflow_created           intent=${event.intent_file}`;
-    case "node_dispatched":
-      return `node_dispatched            ${event.node_id} role=${event.role} cause=${event.cause}`;
+    case "node_dispatched": {
+      const assess = event.assessment?.rationale ? ` — ${truncate(event.assessment.rationale, 60)}` : "";
+      return `node_dispatched            ${event.node_id} role=${event.role} cause=${event.cause}${assess}`;
+    }
     case "node_completed": {
       const stuck = event.stuck_reason ? ` stuck_reason=${event.stuck_reason}` : "";
       return `node_completed             ${event.node_id} outcome=${event.outcome}${stuck} report=${event.report_file}`;
