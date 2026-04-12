@@ -177,22 +177,17 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
     },
   ];
 
-  // --- Decision rules ---
+  // --- Decision rules (Hydra operational only; role-specific rules live in the role body) ---
   const decisionRules = [
-    ...role.decision_rules,
     "Use outcome=completed when your work is done (regardless of findings).",
     "Use outcome=stuck when you cannot proceed without external help.",
     "Use outcome=error only for technical failures (Hydra may retry you).",
   ];
 
-  // --- Acceptance criteria ---
-  const commonCompletion = [
+  // --- Acceptance criteria (Hydra operational only) ---
+  const acceptanceCriteria = [
     `Write ${path.basename(reportFile)} before publishing the result.`,
     `Write ${path.basename(resultFile)} last, atomically, with schema_version=${RESULT_SCHEMA_VERSION}.`,
-  ];
-  const acceptanceCriteria = [
-    ...role.acceptance_criteria,
-    ...commonCompletion,
   ];
 
   // --- Extra sections ---

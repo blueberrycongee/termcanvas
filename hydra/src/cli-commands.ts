@@ -192,7 +192,7 @@ export async function cliListRoles(args: string[]): Promise<void> {
     console.log("  --repo <path>          Repository path (defaults to cwd)");
     console.log("  --cli <type>           Filter to roles whose primary terminal targets this CLI");
     console.log("");
-    console.log("Output: JSON array of {name, description, terminals[], source}.");
+    console.log("Output: JSON array of {name, description, terminals[], source, file_path}.");
     process.exit(0);
   }
   const repoPath = optionalFlag(args, "--repo") ?? process.cwd();
@@ -206,6 +206,7 @@ export async function cliListRoles(args: string[]): Promise<void> {
     description: role.description,
     terminals: role.terminals,
     source: role.source,
+    file_path: role.file_path,
   }));
   console.log(JSON.stringify(summaries, null, 2));
 }

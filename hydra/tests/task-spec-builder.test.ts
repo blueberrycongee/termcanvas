@@ -102,9 +102,11 @@ test("buildTaskSpecFromIntent produces valid RunTaskSpec for dev", () => {
     assert.ok(spec.readFiles.some((f) => f.label === "Workflow intent"));
     assert.ok(spec.writeTargets.some((t) => t.label === "Result JSON"));
     assert.ok(spec.writeTargets.some((t) => t.label === "Report"));
-    // Role body comes from the registry, decisionRules from the role frontmatter.
+    // Role-specific rules now live in the role body (markdown), not in decisionRules.
     assert.ok(spec.roleBody && spec.roleBody.length > 0);
-    assert.ok(spec.decisionRules.some((r) => /implementation problem|silent fallbacks/i.test(r)));
+    assert.ok(/implementation problem|silent fallbacks/i.test(spec.roleBody));
+    // decisionRules contains only Hydra operational rules (outcome guidance).
+    assert.ok(spec.decisionRules.some((r) => /outcome=completed/i.test(r)));
   } finally {
     fs.rmSync(repoPath, { recursive: true, force: true });
   }
@@ -130,9 +132,8 @@ test("buildTaskSpecFromIntent surfaces reviewer briefing via the role body", () 
     // Reviewer framing lives in the role body (additive briefing), not in
     // an objective prefix or extraSections.
     assert.ok(spec.roleBody && /reviewer/i.test(spec.roleBody));
-    // Reviewer's decision rules include the "independent judgment" rule
-    // that used to live on tester — reviewer is the new cross-model check.
-    assert.ok(spec.decisionRules.some((r) => /independent judgment/i.test(r)));
+    // "independent judgment" rule now lives in the role body, not decisionRules.
+    assert.ok(/independent judgment/i.test(spec.roleBody));
   } finally {
     fs.rmSync(repoPath, { recursive: true, force: true });
   }
