@@ -22,6 +22,21 @@ export type LedgerActor = "lead" | "worker" | "system";
 
 export type DispatchCause = "initial" | "system_retry" | "lead_redispatch";
 
+/**
+ * Lead's pre-dispatch context note. Free-form annotation recorded in the
+ * ledger for audit — lets readers understand what system-level context
+ * Lead had when it made the dispatch decision.
+ *
+ * Not enforced by Hydra. The Lead writes whatever is useful for the
+ * audit trail.
+ */
+export interface LeadAssessment {
+  /** How the dispatched work connects to the broader system. */
+  architectural_context?: string;
+  /** One-line rationale for the dispatch decision. */
+  rationale?: string;
+}
+
 export type LedgerEvent =
   | { type: "workflow_created"; intent_file: string; lead_terminal_id: string }
   | {
@@ -32,6 +47,8 @@ export type LedgerEvent =
       intent_file: string;
       cause: DispatchCause;
       resumed_from_session?: string;
+      /** Lead's coupling × novelty assessment at dispatch time. */
+      assessment?: LeadAssessment;
     }
   | {
       type: "node_completed";

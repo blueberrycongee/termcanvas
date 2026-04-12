@@ -59,6 +59,7 @@ import { appendLedger } from "./ledger.ts";
 import { ensureLeadCaller } from "./lead-guard.ts";
 import { askFollowUp, type AskFollowUpResult } from "./ask.ts";
 import type { DecisionPoint, NodeStatus } from "./decision.ts";
+import type { LeadAssessment } from "./ledger.ts";
 
 // --- Constants ---
 
@@ -483,6 +484,12 @@ export interface DispatchNodeOptions {
    * maxRetries and enables exponential backoff + non-retryable error codes.
    */
   retryPolicy?: RetryPolicy;
+  /**
+   * Lead's pre-dispatch assessment of coupling × novelty for this node.
+   * Recorded in the ledger for audit. Not enforced by Hydra — the Lead
+   * is trusted to self-assess and choose the right intervention mode.
+   */
+  assessment?: LeadAssessment;
 }
 
 export interface DispatchNodeResult {
@@ -586,6 +593,7 @@ export async function dispatchNode(
     type: "node_dispatched", node_id: options.nodeId, role: options.role,
     agent_type: agentType, intent_file: node.intent_file,
     cause: "initial",
+    ...(options.assessment ? { assessment: options.assessment } : {}),
   });
 
   if (eligible) {
