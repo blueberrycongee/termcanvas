@@ -29,7 +29,6 @@ type Tab = SettingsTab;
 const SHORTCUT_KEYS: { key: keyof ShortcutMap; labelKey: string }[] = [
   { key: "addProject", labelKey: "shortcut_add_project" },
   { key: "cycleFocusLevel", labelKey: "shortcut_cycle_focus_level" },
-  { key: "compactFocusedProject", labelKey: "shortcut_compact_focused_project" },
   { key: "toggleRightPanel", labelKey: "shortcut_toggle_right_panel" },
   { key: "newTerminal", labelKey: "shortcut_new_terminal" },
   { key: "saveWorkspace", labelKey: "shortcut_save_workspace" },
@@ -40,10 +39,6 @@ const SHORTCUT_KEYS: { key: keyof ShortcutMap; labelKey: string }[] = [
   { key: "nextTerminal", labelKey: "shortcut_next_terminal" },
   { key: "prevTerminal", labelKey: "shortcut_prev_terminal" },
   { key: "clearFocus", labelKey: "shortcut_clear_focus" },
-  { key: "spanDefault", labelKey: "shortcut_span_default" },
-  { key: "spanWide", labelKey: "shortcut_span_wide" },
-  { key: "spanTall", labelKey: "shortcut_span_tall" },
-  { key: "spanLarge", labelKey: "shortcut_span_large" },
 ];
 
 function ShortcutRow({
@@ -167,7 +162,7 @@ function UpdateCheckButton() {
   );
 }
 
-const AGENT_TYPES = ["claude", "codex", "kimi", "gemini", "opencode"] as const;
+const AGENT_TYPES = ["claude", "codex", "kimi", "gemini", "opencode", "wuu"] as const;
 
 type ValidateResult =
   | { ok: true; resolvedPath: string; version: string | null }

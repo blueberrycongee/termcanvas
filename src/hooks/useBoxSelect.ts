@@ -12,21 +12,14 @@ import {
   resolveDrawingElementForRender,
 } from "../canvas/annotationGeometry";
 import { useCanvasStore } from "../stores/canvasStore";
-import { useProjectStore, getProjectBounds } from "../stores/projectStore";
-import { useCardLayoutStore, resolveAllCardPositions } from "../stores/cardLayoutStore";
+import { useProjectStore } from "../stores/projectStore";
 import {
-  getRenderableTerminalLayouts,
-  getRenderableWorktreeSize,
-} from "../canvas/sceneState";
+  useCardLayoutStore,
+  resolveAllCardPositions,
+} from "../stores/cardLayoutStore";
 import { useDrawingStore } from "../stores/drawingStore";
 import { type SelectedItem } from "../stores/selectionStore";
 import { screenPointToCanvasPoint } from "../canvas/viewportBounds";
-import {
-  WT_PAD,
-  WT_TITLE_H,
-  PROJ_PAD,
-  PROJ_TITLE_H,
-} from "../layout";
 
 const BOX_SELECT_BLOCK_SELECTOR = "[data-scene-box-select-block]";
 
@@ -34,17 +27,25 @@ function rectsIntersect(
   a: { x: number; y: number; w: number; h: number },
   b: { x: number; y: number; w: number; h: number },
 ): boolean {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  return (
+    a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
+  );
 }
 
-export function shouldIgnoreBoxSelectTarget(target: EventTarget | null): boolean {
+export function shouldIgnoreBoxSelectTarget(
+  target: EventTarget | null,
+): boolean {
   if (typeof Element === "undefined") {
     return false;
   }
-  return target instanceof Element && !!target.closest(BOX_SELECT_BLOCK_SELECTOR);
+  return (
+    target instanceof Element && !!target.closest(BOX_SELECT_BLOCK_SELECTOR)
+  );
 }
 
-export function prioritizeBoxSelectionItems(items: SelectedItem[]): SelectedItem[] {
+export function prioritizeBoxSelectionItems(
+  items: SelectedItem[],
+): SelectedItem[] {
   const annotationItems = items.filter((item) => item.type === "annotation");
   if (annotationItems.length > 0) {
     return annotationItems;
@@ -70,7 +71,12 @@ function screenToCanvas(clientX: number, clientY: number) {
   );
 }
 
-function getItemsInRect(rect: { x: number; y: number; w: number; h: number }): SelectedItem[] {
+function getItemsInRect(rect: {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}): SelectedItem[] {
   const nr = {
     x: rect.w < 0 ? rect.x + rect.w : rect.x,
     y: rect.h < 0 ? rect.y + rect.h : rect.y,
@@ -81,50 +87,19 @@ function getItemsInRect(rect: { x: number; y: number; w: number; h: number }): S
   const items: SelectedItem[] = [];
   const { projects } = useProjectStore.getState();
 
-  const selectedProjectIds = new Set<string>();
+  // Iterate all non-stashed terminals across all projects/worktrees.
+  // Each terminal has absolute x, y, width, height on the canvas.
   for (const p of projects) {
-    const bounds = getProjectBounds(p);
-    if (rectsIntersect(nr, bounds)) {
-      items.push({ type: "project", projectId: p.id });
-      selectedProjectIds.add(p.id);
-    }
-  }
-
-  // Skip worktrees whose parent project is already selected (avoid duplicates)
-  const selectedWorktreeKeys = new Set<string>();
-  for (const p of projects) {
-    if (selectedProjectIds.has(p.id)) continue;
     for (const wt of p.worktrees) {
-      const wtSize = getRenderableWorktreeSize(wt);
-      const wtAbsX = p.position.x + PROJ_PAD + wt.position.x;
-      const wtAbsY = p.position.y + PROJ_TITLE_H + PROJ_PAD + wt.position.y;
-      if (rectsIntersect(nr, { x: wtAbsX, y: wtAbsY, w: wtSize.w, h: wtSize.h })) {
-        items.push({ type: "worktree", projectId: p.id, worktreeId: wt.id });
-        selectedWorktreeKeys.add(`${p.id}:${wt.id}`);
-      }
-    }
-  }
-
-  for (const p of projects) {
-    if (selectedProjectIds.has(p.id)) continue;
-    for (const wt of p.worktrees) {
-      if (selectedWorktreeKeys.has(`${p.id}:${wt.id}`)) continue;
-      if (wt.collapsed) continue;
-      const wtAbsX = p.position.x + PROJ_PAD + wt.position.x + WT_PAD;
-      const wtAbsY = p.position.y + PROJ_TITLE_H + PROJ_PAD + wt.position.y + WT_TITLE_H + WT_PAD;
-      for (const { item, terminal } of getRenderableTerminalLayouts(wt)) {
-        const termRect = {
-          x: wtAbsX + item.x,
-          y: wtAbsY + item.y,
-          w: item.w,
-          h: item.h,
-        };
+      for (const t of wt.terminals) {
+        if (t.stashed) continue;
+        const termRect = { x: t.x, y: t.y, w: t.width, h: t.height };
         if (rectsIntersect(nr, termRect)) {
           items.push({
             type: "terminal",
             projectId: p.id,
             worktreeId: wt.id,
-            terminalId: terminal.id,
+            terminalId: t.id,
           });
         }
       }
@@ -132,8 +107,7 @@ function getItemsInRect(rect: { x: number; y: number; w: number; h: number }): S
   }
 
   const cards = useCardLayoutStore.getState().cards;
-  const projectBounds = projects.map((p) => getProjectBounds(p));
-  const resolved = resolveAllCardPositions(cards, projectBounds);
+  const resolved = resolveAllCardPositions(cards);
   for (const [cardId, entry] of Object.entries(cards)) {
     const pos = resolved[cardId];
     if (!pos) continue;
@@ -154,12 +128,9 @@ function getItemsInRect(rect: { x: number; y: number; w: number; h: number }): S
 
 export function activateSingleBoxSelectionItem(item: SelectedItem): void {
   if (item.type === "terminal") {
-    activateTerminalInScene(
-      item.projectId,
-      item.worktreeId,
-      item.terminalId,
-      { focusComposer: false },
-    );
+    activateTerminalInScene(item.projectId, item.worktreeId, item.terminalId, {
+      focusComposer: false,
+    });
   } else if (item.type === "worktree") {
     activateWorktreeInScene(item.projectId, item.worktreeId);
   } else if (item.type === "card") {

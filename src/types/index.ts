@@ -14,6 +14,7 @@ export type TerminalType =
   | "kimi"
   | "gemini"
   | "opencode"
+  | "wuu"
   | "lazygit"
   | "tmux";
 
@@ -96,7 +97,11 @@ export interface TerminalData {
   focused: boolean;
   ptyId: number | null;
   status: TerminalStatus;
-  span: { cols: number; rows: number };
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  tags: string[];
   origin?: TerminalOrigin;
   parentTerminalId?: string;
   scrollback?: string;
@@ -135,8 +140,6 @@ export interface WorktreeData {
   id: string;
   name: string;
   path: string;
-  position: Position;
-  collapsed: boolean;
   terminals: TerminalData[];
 }
 
@@ -148,10 +151,6 @@ export interface ProjectData {
   id: string;
   name: string;
   path: string;
-  position: Position;
-  collapsed: boolean;
-  zIndex: number;
-  autoCompact?: boolean;
   worktrees: WorktreeData[];
 }
 
@@ -420,6 +419,14 @@ export interface TermCanvasAPI {
       filePath: string;
       confidence: "strong" | "medium" | "weak";
     } | null>;
+    findWuu: (
+      cwd: string,
+      startedAt?: string,
+    ) => Promise<{
+      sessionId: string;
+      filePath: string;
+      confidence: "medium" | "weak";
+    } | null>;
     getPermissionMode: (
       sessionId: string,
       cwd: string,
@@ -442,7 +449,7 @@ export interface TermCanvasAPI {
   telemetry: {
     attachSession: (input: {
       terminalId: string;
-      provider: "claude" | "codex";
+      provider: "claude" | "codex" | "wuu";
       sessionId: string;
       cwd: string;
       confidence: "strong" | "medium" | "weak";
@@ -451,7 +458,7 @@ export interface TermCanvasAPI {
     updateTerminal: (input: {
       terminalId: string;
       worktreePath?: string;
-      provider?: "claude" | "codex" | "unknown";
+      provider?: "claude" | "codex" | "wuu" | "unknown";
       ptyId?: number | null;
       shellPid?: number | null;
     }) => Promise<TerminalTelemetrySnapshot>;
@@ -501,6 +508,7 @@ export interface TermCanvasAPI {
     removeWorktree: (
       repoPath: string,
       worktreePath: string,
+      force?: boolean,
     ) => Promise<
       | {
           ok: true;
@@ -508,6 +516,9 @@ export interface TermCanvasAPI {
         }
       | { ok: false; error: string }
     >;
+    deleteFolder: (
+      projectPath: string,
+    ) => Promise<{ ok: true } | { ok: false; error: string }>;
     enableHydra: (dirPath: string) => Promise<ProjectEnableHydraResult>;
     checkHydra: (
       dirPath: string,

@@ -74,6 +74,20 @@ const KIMI_ADAPTER: CliAdapter = {
   promptArgs: (prompt) => ["--prompt", prompt],
 };
 
+// wuu has a non-default prompt injection shape (`wuu run <prompt>`), so it
+// cannot reuse makeBareAdapter. Added in main while this branch was in
+// development; merged in via the CliAdapter architecture here.
+const WUU_ADAPTER: CliAdapter = {
+  shell: "wuu",
+  supportsModel: () => false,
+  supportsReasoningEffort: () => false,
+  autoApproveArgs: () => [],
+  resumeArgs: () => [],
+  modelArgs: () => [],
+  reasoningEffortArgs: () => [],
+  promptArgs: (prompt) => ["run", prompt],
+};
+
 function makeBareAdapter(shell: string): CliAdapter {
   return {
     shell,
@@ -91,6 +105,7 @@ export const CLI_LAUNCH: Partial<Record<TerminalType, CliAdapter>> = {
   claude: CLAUDE_ADAPTER,
   codex: CODEX_ADAPTER,
   kimi: KIMI_ADAPTER,
+  wuu: WUU_ADAPTER,
   gemini: makeBareAdapter("gemini"),
   opencode: makeBareAdapter("opencode"),
   lazygit: makeBareAdapter("lazygit"),

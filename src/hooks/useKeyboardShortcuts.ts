@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useViewportFocusStore } from "../stores/viewportFocusStore";
 import { deleteSelectedSceneItems } from "../actions/sceneDeleteActions";
 import {
   activateTerminalInScene,
@@ -10,55 +11,53 @@ import {
   createTerminalInScene,
   focusTerminalInScene,
   toggleTerminalStarredInScene,
-  updateTerminalSpanInScene,
 } from "../actions/terminalSceneActions";
-import {
-  useProjectStore,
-  getProjectBounds,
-} from "../stores/projectStore";
+import { useProjectStore } from "../stores/projectStore";
 import {
   addScannedProjectAndFocus,
   ensureTerminalCreationTarget,
 } from "../projects/projectCreation";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useNotificationStore } from "../stores/notificationStore";
-import {
-  promptAndAddProjectToScene,
-} from "../canvas/sceneCommands";
-import {
-  useShortcutStore,
-  matchesShortcut,
-  type ShortcutMap,
-} from "../stores/shortcutStore";
+import { promptAndAddProjectToScene } from "../canvas/sceneCommands";
+import { useShortcutStore, matchesShortcut } from "../stores/shortcutStore";
 import { useT } from "../i18n/useT";
 import { useComposerStore } from "../stores/composerStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSettingsModalStore } from "../stores/settingsModalStore";
-import { getTerminalFocusOrder, getWorktreeFocusOrder } from "../stores/projectFocus";
 import {
-  packTerminals,
-  WT_PAD,
-  WT_TITLE_H,
-  PROJ_PAD,
-  PROJ_TITLE_H,
-} from "../layout";
+  getSpatialTerminalOrder,
+  getTerminalFocusOrder,
+  getWorktreeFocusOrder,
+} from "../stores/projectFocus";
+import { pickCloseFocusTarget } from "../canvas/closeFocusTarget";
 import { shouldIgnoreShortcutTarget } from "./shortcutTarget";
 import { snapshotStateWithRefresh } from "../snapshotState";
 import { updateWindowTitle } from "../titleHelper";
 import { panToTerminal } from "../utils/panToTerminal";
 import { panToWorktree } from "../utils/panToWorktree";
-import { getCanvasRightInset, getCanvasLeftInset } from "../canvas/viewportBounds";
+import {
+  getCanvasRightInset,
+  getCanvasLeftInset,
+} from "../canvas/viewportBounds";
 
 function getAllTerminals() {
   const { projects } = useProjectStore.getState();
   return getTerminalFocusOrder(projects);
 }
 
-function getStarredTerminals() {
+// Visual reading order used by cmd+] / cmd+[ so prev/next follows perceived
+// rows on the canvas rather than raw array order or strict top-left scanlines.
+function getAllTerminalsSpatial() {
   const { projects } = useProjectStore.getState();
-  const all = getTerminalFocusOrder(projects);
-  return all.filter((item) => {
+  return getSpatialTerminalOrder(projects);
+}
+
+function getStarredTerminalsSpatial() {
+  const { projects } = useProjectStore.getState();
+  const ordered = getSpatialTerminalOrder(projects);
+  return ordered.filter((item) => {
     const project = projects.find((p) => p.id === item.projectId);
     const worktree = project?.worktrees.find((w) => w.id === item.worktreeId);
     const terminal = worktree?.terminals.find((t) => t.id === item.terminalId);
@@ -85,6 +84,21 @@ function getFocusedTerminalIndex(list: ReturnType<typeof getAllTerminals>) {
   return -1;
 }
 
+function findFocusedTerminalLocation(
+  projects: ReturnType<typeof useProjectStore.getState>["projects"],
+): { projectId: string; worktreeId: string; terminalId: string } | null {
+  for (const p of projects) {
+    for (const w of p.worktrees) {
+      for (const t of w.terminals) {
+        if (t.focused) {
+          return { projectId: p.id, worktreeId: w.id, terminalId: t.id };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 function getFocusedWorktreeIndex(
   list: { projectId: string; worktreeId: string }[],
 ) {
@@ -95,6 +109,34 @@ function getFocusedWorktreeIndex(
 
 function zoomToTerminal(terminalId: string) {
   panToTerminal(terminalId);
+}
+
+function getZoomedOutTerminalId(): string | null {
+  return useViewportFocusStore.getState().zoomedOutTerminalId;
+}
+
+function setZoomedOutTerminalId(terminalId: string | null): void {
+  useViewportFocusStore.getState().setZoomedOutTerminalId(terminalId);
+}
+
+export function navigateToTerminalWithViewport(
+  terminalId: string,
+  options: {
+    zoomedOutTerminalId: string | null;
+    pan?: typeof panToTerminal;
+    zoom?: typeof zoomToTerminal;
+  },
+): string | null {
+  const pan = options.pan ?? panToTerminal;
+  const zoom = options.zoom ?? zoomToTerminal;
+
+  if (options.zoomedOutTerminalId !== null) {
+    pan(terminalId, { preserveScale: true });
+    return terminalId;
+  }
+
+  zoom(terminalId);
+  return null;
 }
 
 function zoomToFitAll() {
@@ -109,11 +151,15 @@ function zoomToFitAll() {
   let maxX = -Infinity;
   let maxY = -Infinity;
   for (const p of projects) {
-    const bounds = getProjectBounds(p);
-    minX = Math.min(minX, bounds.x);
-    minY = Math.min(minY, bounds.y);
-    maxX = Math.max(maxX, bounds.x + bounds.w);
-    maxY = Math.max(maxY, bounds.y + bounds.h);
+    for (const w of p.worktrees) {
+      for (const t of w.terminals) {
+        if (t.stashed) continue;
+        minX = Math.min(minX, t.x);
+        minY = Math.min(minY, t.y);
+        maxX = Math.max(maxX, t.x + t.width);
+        maxY = Math.max(maxY, t.y + t.height);
+      }
+    }
   }
   const contentW = maxX - minX;
   const contentH = maxY - minY;
@@ -134,26 +180,47 @@ async function handleAddProject(t: ReturnType<typeof useT>) {
   if (!createdProject) return;
 
   // Compute actual project size (same logic as ProjectContainer).
-  const newProject = useProjectStore.getState().projects.find(
-    (p) => p.id === createdProject.id,
-  );
+  const newProject = useProjectStore
+    .getState()
+    .projects.find((p) => p.id === createdProject.id);
 
   // Auto-focus the first worktree so cmd+t works immediately
   if (newProject && newProject.worktrees.length > 0) {
     activateWorktreeInScene(newProject.id, newProject.worktrees[0].id);
   }
 
-  const newProjectBounds = newProject
-    ? getProjectBounds(newProject)
-    : {
-        x: createdProject.position.x,
-        y: 0,
-        w: 340,
-        h: PROJ_TITLE_H + PROJ_PAD + 60 + PROJ_PAD,
-      };
+  // Compute bounds from terminal positions
+  let bx = 0,
+    by = 0,
+    bw = 340,
+    bh = 200;
+  if (newProject) {
+    const terminals = newProject.worktrees.flatMap((w) =>
+      w.terminals.filter((t) => !t.stashed),
+    );
+    if (terminals.length > 0) {
+      let minX = Infinity,
+        minY = Infinity,
+        maxX = -Infinity,
+        maxY = -Infinity;
+      for (const t of terminals) {
+        minX = Math.min(minX, t.x);
+        minY = Math.min(minY, t.y);
+        maxX = Math.max(maxX, t.x + t.width);
+        maxY = Math.max(maxY, t.y + t.height);
+      }
+      bx = minX;
+      by = minY;
+      bw = maxX - minX;
+      bh = maxY - minY;
+    }
+  }
+  const newProjectBounds = { x: bx, y: by, w: bw, h: bh };
 
-  const { viewport: { scale }, rightPanelCollapsed } =
-    useCanvasStore.getState();
+  const {
+    viewport: { scale },
+    rightPanelCollapsed,
+  } = useCanvasStore.getState();
   const rightOffset = getCanvasRightInset(rightPanelCollapsed);
   const screenCenterX = (window.innerWidth - rightOffset) / 2;
   const screenCenterY = window.innerHeight / 2;
@@ -174,7 +241,6 @@ export function useKeyboardShortcuts() {
   const shortcuts = useShortcutStore((s) => s.shortcuts);
   const t = useT();
   const lastFocusedRef = useRef<TerminalRef | null>(null);
-  const zoomedOutTerminalIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -191,7 +257,10 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      if ((e.key === "Backspace" || e.key === "Delete") && deleteSelectedSceneItems()) {
+      if (
+        (e.key === "Backspace" || e.key === "Delete") &&
+        deleteSelectedSceneItems()
+      ) {
         e.preventDefault();
         return;
       }
@@ -214,12 +283,12 @@ export function useKeyboardShortcuts() {
             worktreeId: focused.worktreeId,
             terminalId: focused.terminalId,
           };
-          if (zoomedOutTerminalIdRef.current === focused.terminalId) {
+          if (getZoomedOutTerminalId() === focused.terminalId) {
             zoomToTerminal(focused.terminalId);
-            zoomedOutTerminalIdRef.current = null;
+            setZoomedOutTerminalId(null);
           } else {
             zoomToFitAll();
-            zoomedOutTerminalIdRef.current = focused.terminalId;
+            setZoomedOutTerminalId(focused.terminalId);
           }
         } else if (lastFocusedRef.current) {
           // Not focused, has history → restore last focused terminal
@@ -233,10 +302,10 @@ export function useKeyboardShortcuts() {
               restored.terminalId,
             );
             zoomToTerminal(restored.terminalId);
-            zoomedOutTerminalIdRef.current = null;
+            setZoomedOutTerminalId(null);
           } else {
             lastFocusedRef.current = null;
-            zoomedOutTerminalIdRef.current = null;
+            setZoomedOutTerminalId(null);
           }
         } else if (list.length > 0) {
           const first = list[0];
@@ -251,7 +320,7 @@ export function useKeyboardShortcuts() {
             first.terminalId,
           );
           zoomToTerminal(first.terminalId);
-          zoomedOutTerminalIdRef.current = null;
+          setZoomedOutTerminalId(null);
         }
         return;
       }
@@ -280,7 +349,8 @@ export function useKeyboardShortcuts() {
 
       if (matchesShortcut(e, shortcuts.newTerminal)) {
         e.preventDefault();
-        const { focusedProjectId, focusedWorktreeId } = useProjectStore.getState();
+        const { focusedProjectId, focusedWorktreeId } =
+          useProjectStore.getState();
         if (focusedProjectId && focusedWorktreeId) {
           const terminal = createTerminalInScene({
             projectId: focusedProjectId,
@@ -288,8 +358,8 @@ export function useKeyboardShortcuts() {
           });
           focusTerminalInScene(terminal.id);
           panToTerminal(terminal.id, { preserveScale: true });
-          if (zoomedOutTerminalIdRef.current !== null) {
-            zoomedOutTerminalIdRef.current = terminal.id;
+          if (getZoomedOutTerminalId() !== null) {
+            setZoomedOutTerminalId(terminal.id);
           }
         }
         return;
@@ -373,8 +443,12 @@ export function useKeyboardShortcuts() {
         const project = useProjectStore
           .getState()
           .projects.find((p) => p.id === focused.projectId);
-        const worktree = project?.worktrees.find((w) => w.id === focused.worktreeId);
-        const terminal = worktree?.terminals.find((term) => term.id === focused.terminalId);
+        const worktree = project?.worktrees.find(
+          (w) => w.id === focused.worktreeId,
+        );
+        const terminal = worktree?.terminals.find(
+          (term) => term.id === focused.terminalId,
+        );
         if (!terminal) {
           useNotificationStore
             .getState()
@@ -387,7 +461,10 @@ export function useKeyboardShortcuts() {
           focusTerminalInScene(terminal.id);
           useComposerStore
             .getState()
-            .enterRenameTerminalTitleMode(terminal.id, terminal.customTitle ?? "");
+            .enterRenameTerminalTitleMode(
+              terminal.id,
+              terminal.customTitle ?? "",
+            );
         } else {
           focusTerminalInScene(terminal.id, { focusComposer: false });
           window.dispatchEvent(
@@ -401,28 +478,36 @@ export function useKeyboardShortcuts() {
 
       if (matchesShortcut(e, shortcuts.closeFocused)) {
         consumeShortcut();
-        const list = getAllTerminals();
-        const focusedIdx = getFocusedTerminalIndex(list);
-        if (focusedIdx !== -1) {
-          const focused = list[focusedIdx];
-          closeTerminalInScene(
-            focused.projectId,
-            focused.worktreeId,
-            focused.terminalId,
+        // cmd+d is the inverse of cmd+t. cmd+t (terminalPlacement.ts) inserts
+        // a new tile at (focused.right + gap, focused.y) inside the focused
+        // worktree, so cmd+d closes the focused tile and lands focus on its
+        // spatial-LEFT neighbor in the same worktree — pressing cmd+t then
+        // cmd+d round-trips to the original tile. The fallback chain stays
+        // strictly inside worktree → project → cross-project so users are
+        // never silently kicked out of the project they were working in.
+        const projects = useProjectStore.getState().projects;
+        const focused = findFocusedTerminalLocation(projects);
+        if (!focused) return;
+
+        const nextFocusedTerminalId = pickCloseFocusTarget(
+          projects,
+          focused.terminalId,
+        );
+
+        closeTerminalInScene(
+          focused.projectId,
+          focused.worktreeId,
+          focused.terminalId,
+        );
+
+        if (nextFocusedTerminalId) {
+          setZoomedOutTerminalId(
+            navigateToTerminalWithViewport(nextFocusedTerminalId, {
+              zoomedOutTerminalId: getZoomedOutTerminalId(),
+            }),
           );
-          const nextList = getAllTerminals();
-          const nextFocusedIdx = getFocusedTerminalIndex(nextList);
-          if (nextFocusedIdx !== -1) {
-            const nextFocusedTerminalId = nextList[nextFocusedIdx].terminalId;
-            panToTerminal(nextFocusedTerminalId, {
-              preserveScale: true,
-            });
-            if (zoomedOutTerminalIdRef.current !== null) {
-              zoomedOutTerminalIdRef.current = nextFocusedTerminalId;
-            }
-          } else {
-            zoomedOutTerminalIdRef.current = null;
-          }
+        } else {
+          setZoomedOutTerminalId(null);
         }
         return;
       }
@@ -430,24 +515,6 @@ export function useKeyboardShortcuts() {
       if (matchesShortcut(e, shortcuts.cycleFocusLevel)) {
         consumeShortcut();
         useCanvasStore.getState().cycleFocusLevel();
-        return;
-      }
-
-      if (matchesShortcut(e, shortcuts.compactFocusedProject)) {
-        consumeShortcut();
-        const { focusedProjectId, projects, compactProjectWorktrees } =
-          useProjectStore.getState();
-
-        const targetProjectId =
-          focusedProjectId ?? (projects.length === 1 ? projects[0].id : null);
-        if (!targetProjectId) {
-          useNotificationStore
-            .getState()
-            .notify("warn", t.project_compact_focus_required);
-          return;
-        }
-
-        compactProjectWorktrees(targetProjectId);
         return;
       }
 
@@ -468,7 +535,9 @@ export function useKeyboardShortcuts() {
         }
 
         const terminalList =
-          level === "starred" ? getStarredTerminals() : getAllTerminals();
+          level === "starred"
+            ? getStarredTerminalsSpatial()
+            : getAllTerminalsSpatial();
 
         if (terminalList.length === 0) return;
         const currentIndex = getFocusedTerminalIndex(terminalList);
@@ -476,12 +545,11 @@ export function useKeyboardShortcuts() {
           currentIndex === -1 ? 0 : (currentIndex + 1) % terminalList.length;
         const next = terminalList[nextIndex];
         focusTerminalInScene(next.terminalId);
-        if (zoomedOutTerminalIdRef.current !== null) {
-          panToTerminal(next.terminalId, { preserveScale: true });
-          zoomedOutTerminalIdRef.current = next.terminalId;
-        } else {
-          zoomToTerminal(next.terminalId);
-        }
+        setZoomedOutTerminalId(
+          navigateToTerminalWithViewport(next.terminalId, {
+            zoomedOutTerminalId: getZoomedOutTerminalId(),
+          }),
+        );
         return;
       }
 
@@ -502,7 +570,9 @@ export function useKeyboardShortcuts() {
         }
 
         const terminalList =
-          level === "starred" ? getStarredTerminals() : getAllTerminals();
+          level === "starred"
+            ? getStarredTerminalsSpatial()
+            : getAllTerminalsSpatial();
 
         if (terminalList.length === 0) return;
         const currentIndex = getFocusedTerminalIndex(terminalList);
@@ -510,45 +580,12 @@ export function useKeyboardShortcuts() {
           currentIndex <= 0 ? terminalList.length - 1 : currentIndex - 1;
         const prev = terminalList[prevIndex];
         focusTerminalInScene(prev.terminalId);
-        if (zoomedOutTerminalIdRef.current !== null) {
-          panToTerminal(prev.terminalId, { preserveScale: true });
-          zoomedOutTerminalIdRef.current = prev.terminalId;
-        } else {
-          zoomToTerminal(prev.terminalId);
-        }
+        setZoomedOutTerminalId(
+          navigateToTerminalWithViewport(prev.terminalId, {
+            zoomedOutTerminalId: getZoomedOutTerminalId(),
+          }),
+        );
         return;
-      }
-
-      const SPAN_PRESETS: {
-        key: keyof ShortcutMap;
-        span: { cols: number; rows: number };
-      }[] = [
-        { key: "spanDefault", span: { cols: 1, rows: 1 } },
-        { key: "spanWide", span: { cols: 2, rows: 1 } },
-        { key: "spanTall", span: { cols: 1, rows: 2 } },
-        { key: "spanLarge", span: { cols: 2, rows: 2 } },
-      ];
-
-      for (const preset of SPAN_PRESETS) {
-        if (matchesShortcut(e, shortcuts[preset.key])) {
-          e.preventDefault();
-          const { projects } = useProjectStore.getState();
-          for (const p of projects) {
-            for (const w of p.worktrees) {
-              const focused = w.terminals.find((t) => t.focused);
-              if (focused) {
-                updateTerminalSpanInScene(
-                  p.id,
-                  w.id,
-                  focused.id,
-                  preset.span,
-                );
-                return;
-              }
-            }
-          }
-          return;
-        }
       }
 
     };

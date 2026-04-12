@@ -3,7 +3,7 @@ import path from "path";
 import os from "os";
 import type { NormalizedSessionTelemetryEvent, TelemetryTurnState } from "../shared/telemetry.ts";
 
-export type SessionType = "claude" | "codex";
+export type SessionType = "claude" | "codex" | "wuu";
 
 interface CompletionSignal {
   completed: boolean;
@@ -76,7 +76,8 @@ export function checkTurnComplete(
 
   const lines = content.split("\n").filter((l) => l.trim().length > 0);
 
-  for (let i = lines.length - 1; i >= Math.max(0, lines.length - 5); i--) {
+  const startIndex = type === "wuu" ? 0 : Math.max(0, lines.length - 5);
+  for (let i = lines.length - 1; i >= startIndex; i--) {
     let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(lines[i]);
@@ -105,6 +106,23 @@ export function checkTurnComplete(
         (payload?.type === "task_complete" || payload?.type === "turn_complete")
       ) {
         return { completed: true };
+      }
+    }
+
+    if (type === "wuu") {
+      const role = getString(parsed.role);
+      if (role === "meta" || role === "system") {
+        continue;
+      }
+      if (role === "assistant") {
+        const toolCalls = Array.isArray(parsed.tool_calls) ? parsed.tool_calls : [];
+        if (toolCalls.length > 0) {
+          return { completed: false };
+        }
+        return { completed: extractTextContent(parsed.content).trim().length > 0 };
+      }
+      if (role === "tool" || role === "user") {
+        return { completed: false };
       }
     }
   }
@@ -149,6 +167,10 @@ export function resolveSessionFile(
     return null;
   }
 
+  if (type === "wuu") {
+    return path.join(cwd, ".wuu", "sessions", sessionId + ".jsonl");
+  }
+
   return null;
 }
 
@@ -163,7 +185,7 @@ export function parseSessionTelemetryLine(
     return [];
   }
 
-  const at = typeof parsed.timestamp === "string" ? parsed.timestamp : undefined;
+  const at = getString(parsed.timestamp) ?? getString(parsed.at);
 
   if (type === "claude") {
     const events: NormalizedSessionTelemetryEvent[] = [];
@@ -292,6 +314,93 @@ export function parseSessionTelemetryLine(
           at,
           event_type: "progress",
           role: "system",
+        }),
+      ];
+    }
+
+    return [];
+  }
+
+  if (type === "wuu") {
+    const role = getString(parsed.role);
+    if (role === "user") {
+      const text = extractTextContent(parsed.content);
+      if (!text.trim()) return [];
+      return [
+        buildEvent({
+          at,
+          event_type: "user_message",
+          role: "user",
+          turn_state: "in_turn",
+        }),
+      ];
+    }
+
+    if (role === "assistant") {
+      const events: NormalizedSessionTelemetryEvent[] = [];
+      const toolCalls = Array.isArray(parsed.tool_calls) ? parsed.tool_calls : [];
+
+      for (const callEntry of toolCalls) {
+        const call = getObject(callEntry);
+        if (!call) continue;
+        events.push(buildEvent({
+          at,
+          event_type: "tool_use",
+          role: "assistant",
+          tool_name: getString(call.name),
+          call_id: getString(call.id),
+          lifecycle: "start",
+          turn_state: "tool_running",
+          meaningful_progress: true,
+        }));
+      }
+
+      const text = extractTextContent(parsed.content);
+      if (text.trim()) {
+        events.push(buildEvent({
+          at,
+          event_type: "assistant_message",
+          role: "assistant",
+          turn_state: "turn_complete",
+          meaningful_progress: true,
+        }));
+      }
+
+      return events;
+    }
+
+    if (role === "tool") {
+      return [
+        buildEvent({
+          at,
+          event_type: "tool_result",
+          role: "tool",
+          tool_name: getString(parsed.name),
+          call_id: getString(parsed.tool_call_id),
+          lifecycle: "end",
+          turn_state: "in_turn",
+          meaningful_progress: true,
+        }),
+      ];
+    }
+
+    if (role === "system") {
+      const content = extractTextContent(parsed.content).trim();
+      if (!content) return [];
+      let eventType = "system_message";
+      if (content.includes("worker spawned")) {
+        eventType = "worker_spawned";
+      } else if (content.includes("worker completed")) {
+        eventType = "worker_completed";
+      } else if (content.includes("worker failed")) {
+        eventType = "worker_failed";
+      }
+      return [
+        buildEvent({
+          at,
+          event_type: eventType,
+          role: "system",
+          meaningful_progress: true,
         }),
       ];
     }

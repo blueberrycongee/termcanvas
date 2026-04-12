@@ -46,6 +46,7 @@ const COMMANDS_BY_TYPE: Record<TerminalType, readonly SlashCommand[]> = {
   kimi: NO_COMMANDS,
   gemini: NO_COMMANDS,
   opencode: NO_COMMANDS,
+  wuu: NO_COMMANDS,
   lazygit: NO_COMMANDS,
   tmux: NO_COMMANDS,
 };

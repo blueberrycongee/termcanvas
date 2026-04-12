@@ -63,19 +63,12 @@ export interface ProjectGroup {
 }
 
 const GENERIC_TERMINAL_TITLES =
-  /^(terminal|shell|claude|codex|kimi|gemini|opencode|lazygit|tmux)$/i;
+  /^(terminal|shell|claude|codex|kimi|gemini|opencode|wuu|lazygit|tmux)$/i;
 
 function isCanvasTerminal(
-  projectCollapsed: boolean,
-  worktreeCollapsed: boolean,
   terminal: Pick<TerminalData, "minimized" | "stashed">,
 ): boolean {
-  return (
-    !projectCollapsed &&
-    !worktreeCollapsed &&
-    !terminal.minimized &&
-    !terminal.stashed
-  );
+  return !terminal.minimized && !terminal.stashed;
 }
 
 function collapseWhitespace(value: string, maxLength: number): string {
@@ -89,6 +82,7 @@ function resolveTerminalTitle(
   worktreeName: string,
   projectName: string,
   provider?: string,
+  firstUserPrompt?: string,
 ): string {
   const displayTitle = collapseWhitespace(
     terminal.customTitle
@@ -99,12 +93,16 @@ function resolveTerminalTitle(
   const initialPrompt = terminal.initialPrompt
     ? collapseWhitespace(terminal.initialPrompt, 72)
     : "";
+  const telemetryPrompt = firstUserPrompt
+    ? collapseWhitespace(firstUserPrompt, 72)
+    : "";
 
   if (displayTitle && !GENERIC_TERMINAL_TITLES.test(displayTitle)) {
     return displayTitle;
   }
 
   if (initialPrompt) return initialPrompt;
+  if (telemetryPrompt) return telemetryPrompt;
   if (provider && provider !== "unknown") {
     return provider.charAt(0).toUpperCase() + provider.slice(1);
   }
@@ -373,13 +371,7 @@ export function buildProjectTree(
       for (const terminal of worktree.terminals) {
         const resolvedTerminal = resolveTerminalWithRuntimeState(terminal);
 
-        if (
-          !isCanvasTerminal(
-            project.collapsed,
-            worktree.collapsed,
-            resolvedTerminal,
-          )
-        ) {
+        if (!isCanvasTerminal(resolvedTerminal)) {
           continue;
         }
 
@@ -397,6 +389,7 @@ export function buildProjectTree(
           worktree.name,
           project.name,
           telemetry?.provider,
+          telemetry?.first_user_prompt,
         );
         const locationLabel =
           worktree.name === project.name
@@ -422,8 +415,6 @@ export function buildProjectTree(
         });
       }
 
-      if (terminals.length === 0) continue;
-
       worktreeGroups.push({
         worktreeId: worktree.id,
         worktreeName: worktree.name,
@@ -433,8 +424,6 @@ export function buildProjectTree(
         terminals,
       });
     }
-
-    if (worktreeGroups.length === 0) continue;
 
     const allTerminals = worktreeGroups.flatMap((wt) => wt.terminals);
 
@@ -470,13 +459,7 @@ export function buildCanvasTerminalSections(
       for (const terminal of worktree.terminals) {
         const resolvedTerminal = resolveTerminalWithRuntimeState(terminal);
 
-        if (
-          !isCanvasTerminal(
-            project.collapsed,
-            worktree.collapsed,
-            resolvedTerminal,
-          )
-        ) {
+        if (!isCanvasTerminal(resolvedTerminal)) {
           continue;
         }
 
@@ -494,6 +477,7 @@ export function buildCanvasTerminalSections(
           worktree.name,
           project.name,
           telemetry?.provider,
+          telemetry?.first_user_prompt,
         );
         const locationLabel =
           worktree.name === project.name

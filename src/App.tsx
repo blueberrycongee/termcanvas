@@ -3,7 +3,6 @@ import { CanvasRoot } from "./canvas/CanvasRoot";
 import { addProjectFromDirectoryPath } from "./canvas/sceneCommands";
 import { Toolbar } from "./toolbar/Toolbar";
 import { NotificationToast } from "./components/NotificationToast";
-import { Hub } from "./components/Hub";
 import { LeftPanel } from "./components/LeftPanel";
 import { initUpdaterListeners, useUpdaterStore } from "./stores/updaterStore";
 import { ComposerBar } from "./components/ComposerBar";
@@ -20,16 +19,16 @@ import {
   createTerminalInScene,
   updateTerminalCustomTitleInScene,
 } from "./actions/terminalSceneActions";
-import {
-  useProjectStore,
-  generateId,
-} from "./stores/projectStore";
+import { useProjectStore, generateId } from "./stores/projectStore";
 import { addScannedProjectAndFocus } from "./projects/projectCreation";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useT } from "./i18n/useT";
 import { loadAllDownloadedFonts } from "./terminal/fontLoader";
 import { startAutoSummaryWatcher } from "./terminal/summaryScheduler";
-import { shouldRunAutoSaveBackstop, useWorkspaceStore } from "./stores/workspaceStore";
+import {
+  shouldRunAutoSaveBackstop,
+  useWorkspaceStore,
+} from "./stores/workspaceStore";
 import {
   readWorkspaceSnapshot,
   restoreWorkspaceSnapshot,
@@ -194,10 +193,7 @@ function useWorkspaceOpen() {
   useEffect(() => {
     const handler = (e: Event) => {
       const { dirty } = useWorkspaceStore.getState();
-      if (
-        dirty &&
-        !window.confirm("Unsaved changes will be lost. Continue?")
-      ) {
+      if (dirty && !window.confirm("Unsaved changes will be lost. Continue?")) {
         return;
       }
 
@@ -211,7 +207,10 @@ function useWorkspaceOpen() {
         useWorkspaceStore.getState().setWorkspacePath(null);
         useWorkspaceStore.getState().markClean();
       } catch (err) {
-        console.error("[useWorkspaceOpen] failed to parse workspace file:", err);
+        console.error(
+          "[useWorkspaceOpen] failed to parse workspace file:",
+          err,
+        );
       }
     };
     window.addEventListener("termcanvas:open-workspace", handler);
@@ -247,9 +246,14 @@ function useCloseHandler() {
         void (async () => {
           const startedAt = performance.now();
           try {
-            await window.termcanvas.state.save(await snapshotStateWithRefresh());
+            await window.termcanvas.state.save(
+              await snapshotStateWithRefresh(),
+            );
           } catch (err) {
-            console.error("[CloseHandler] failed to save recovery snapshot:", err);
+            console.error(
+              "[CloseHandler] failed to save recovery snapshot:",
+              err,
+            );
           } finally {
             logSlowRendererPath("App.closeRecoverySnapshot", startedAt, {
               thresholdMs: 20,
@@ -377,7 +381,9 @@ export function App() {
   }, [summaryEnabled]);
 
   useEffect(() => initUpdaterListeners(), []);
-  useEffect(() => { void hydrateApiKey(); }, []);
+  useEffect(() => {
+    void hydrateApiKey();
+  }, []);
   useEffect(() => {
     if (!window.termcanvas?.sessions) return;
     return initSessionStoreIPC();
@@ -426,7 +432,8 @@ export function App() {
                     type: liveTerminal.type,
                     status: liveTerminal.status,
                     ptyId: liveTerminal.ptyId,
-                    span: liveTerminal.span,
+                    width: liveTerminal.width,
+                    height: liveTerminal.height,
                     parentTerminalId: liveTerminal.parentTerminalId,
                   };
                 }),
@@ -446,7 +453,14 @@ export function App() {
         return true;
       },
 
-      addTerminal: (projectId: string, worktreeId: string, type: string, prompt?: string, autoApprove?: boolean, parentTerminalId?: string | null) => {
+      addTerminal: (
+        projectId: string,
+        worktreeId: string,
+        type: string,
+        prompt?: string,
+        autoApprove?: boolean,
+        parentTerminalId?: string | null,
+      ) => {
         const terminal = createTerminalInScene({
           projectId,
           worktreeId,
@@ -489,7 +503,8 @@ export function App() {
                   type: liveTerminal.type,
                   status: liveTerminal.status,
                   ptyId: liveTerminal.ptyId,
-                  span: liveTerminal.span,
+                  width: liveTerminal.width,
+                  height: liveTerminal.height,
                   parentTerminalId: liveTerminal.parentTerminalId,
                   projectId: p.id,
                   worktreeId: w.id,
@@ -531,7 +546,10 @@ export function App() {
   return (
     <div className="h-screen w-screen overflow-hidden bg-[var(--bg)] text-[var(--text-primary)]">
       <Toolbar onShowTutorial={() => setShowWelcome(true)} />
-      <Hub />
+      {/* Hub (focus-level switcher) hidden until the underlying level
+          cycling is reworked — it currently overlaps the new worktree
+          label HUD in the canvas top-left. Re-enable when ready. */}
+      {/* <Hub /> */}
       <LeftPanel />
       <CanvasRoot />
       {drawingEnabled && <DrawingPanel />}

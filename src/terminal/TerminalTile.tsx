@@ -16,6 +16,7 @@ import {
 } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { ContextMenu } from "../components/ContextMenu";
+import { TagManager } from "./TagManager";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { getTerminalHeaderContextLabel } from "../stores/terminalState";
@@ -52,17 +53,8 @@ interface Props {
   worktreeName: string;
   worktreePath: string;
   terminal: TerminalData;
-  gridX: number;
-  gridY: number;
   width: number;
   height: number;
-  onDragStart?: (terminalId: string, e: React.MouseEvent) => void;
-  isDragging?: boolean;
-  isStashing?: boolean;
-  dragOffsetX?: number;
-  dragOffsetY?: number;
-  onDoubleClick?: () => void;
-  onSpanChange?: (span: { cols: number; rows: number }) => void;
 }
 
 const TYPE_CONFIG = TERMINAL_TYPE_CONFIG;
@@ -180,19 +172,14 @@ export function TerminalTile({
   worktreeName,
   worktreePath,
   terminal,
-  gridX,
-  gridY,
   width,
   height,
-  onDragStart,
-  isDragging = false,
-  isStashing = false,
-  dragOffsetX = 0,
-  dragOffsetY = 0,
-  onDoubleClick,
-  onSpanChange,
 }: Props) {
   const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [tagManager, setTagManager] = useState<{
     x: number;
     y: number;
   } | null>(null);
@@ -248,13 +235,6 @@ export function TerminalTile({
     worktreeName,
     terminal.title,
   );
-  const projectName = useProjectStore(
-    useCallback(
-      (s) => s.projects.find((p) => p.id === projectId)?.name ?? "",
-      [projectId],
-    ),
-  );
-
   useEffect(() => {
     if (!isEditingCustomTitle) {
       setCustomTitleDraft(terminal.customTitle ?? "");
@@ -703,29 +683,14 @@ export function TerminalTile({
       onDragOver={handleTileDragOver}
       onDragLeave={handleTileDragLeave}
       onDrop={handleTileDrop}
-      className="absolute terminal-tile rounded-md bg-[var(--bg)] overflow-hidden flex flex-col"
+      className="terminal-tile rounded-md border border-[var(--border)] bg-[var(--surface)] overflow-hidden flex flex-col h-full w-full"
       style={{
-        left: gridX + (isDragging ? dragOffsetX : 0),
-        top: gridY + (isDragging ? dragOffsetY : 0),
         width: width,
         height: terminal.minimized ? "auto" : height,
-        zIndex: isDragging ? 50 : undefined,
-        opacity: isStashing ? 0.4 : isDragging ? 0.9 : 1,
-        transition:
-          isDragging || lodMode === "live"
-            ? "none"
-            : "left 0.2s ease, top 0.2s ease, width 0.2s ease, height 0.2s ease",
-        boxShadow: isDragging
-          ? "0 8px 32px rgba(0,0,0,0.3)"
-          : dragOver
-            ? "0 0 0 2px var(--accent), 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent)"
-            : terminal.focused
-              ? "0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 8px color-mix(in srgb, var(--accent) 15%, transparent)"
-              : undefined,
-        transform: isStashing
-          ? "scale(0.95)"
-          : isDragging
-            ? "scale(1.02)"
+        boxShadow: dragOver
+          ? "0 0 0 2px var(--accent), 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent)"
+          : terminal.focused
+            ? "0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 8px color-mix(in srgb, var(--accent) 15%, transparent)"
             : undefined,
         outline: "none",
       }}
@@ -748,13 +713,15 @@ export function TerminalTile({
       onWheel={(e) => e.stopPropagation()}
     >
       <div
-        className="flex items-center gap-2 px-3 py-2 select-none shrink-0 cursor-grab active:cursor-grabbing"
-        onMouseDown={(e) => onDragStart?.(terminal.id, e)}
-        onDoubleClick={onDoubleClick}
+        className="flex items-center gap-2 px-3 py-2 select-none shrink-0"
         onContextMenu={(e) => {
           e.preventDefault();
           e.stopPropagation();
           setContextMenu({ x: e.clientX, y: e.clientY });
+        }}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          panToTerminal(terminal.id);
         }}
       >
         {terminal.origin !== "agent" && (
@@ -767,26 +734,6 @@ export function TerminalTile({
           {config.label}
         </span>
         <HierarchyBadges terminal={terminal} />
-        {projectName && (
-          <span
-            className="shrink-0 whitespace-nowrap text-[11px] font-medium text-[var(--text-primary)]"
-            style={{
-              fontFamily: '"Geist Mono", monospace',
-              position: "relative" as const,
-              padding: "0.1em 0.4em 0.15em 0.3em",
-              backgroundImage: [
-                "linear-gradient(104deg, transparent 0.9%, rgba(255,224,0,0.1) 2.4%, rgba(255,224,0,0.4) 5.8%, rgba(255,224,0,0.32) 40%, rgba(255,224,0,0.45) 55%, rgba(255,224,0,0.28) 80%, rgba(255,224,0,0.1) 96%, transparent 98%)",
-                "linear-gradient(183deg, transparent 10%, rgba(255,224,0,0.15) 30%, rgba(255,224,0,0.2) 50%, transparent 85%)",
-              ].join(", "),
-              borderRadius: "7.5px 12.5px 8px 15.5px",
-              transform: "rotate(-1.2deg) skewX(-1deg)",
-              boxDecorationBreak: "clone" as const,
-            }}
-            title={projectName}
-          >
-            {projectName}
-          </span>
-        )}
         <span
           className="shrink-0 whitespace-nowrap text-[11px] text-[var(--text-muted)]"
           style={{ fontFamily: '"Geist Mono", monospace' }}
@@ -989,7 +936,9 @@ export function TerminalTile({
               ) {
                 scheduleXtermFocus();
               } else {
-                window.dispatchEvent(new CustomEvent("termcanvas:focus-composer"));
+                window.dispatchEvent(
+                  new CustomEvent("termcanvas:focus-composer"),
+                );
               }
             }}
           />
@@ -1021,30 +970,14 @@ export function TerminalTile({
             y={contextMenu.y}
             items={[
               {
-                label: "1×1",
-                active: terminal.span.cols === 1 && terminal.span.rows === 1,
-                onClick: () => onSpanChange?.({ cols: 1, rows: 1 }),
-              },
-              {
-                label: "2×1 Wide",
-                active: terminal.span.cols === 2 && terminal.span.rows === 1,
-                onClick: () => onSpanChange?.({ cols: 2, rows: 1 }),
-              },
-              {
-                label: "1×2 Tall",
-                active: terminal.span.cols === 1 && terminal.span.rows === 2,
-                onClick: () => onSpanChange?.({ cols: 1, rows: 2 }),
-              },
-              {
-                label: "2×2 Large",
-                active: terminal.span.cols === 2 && terminal.span.rows === 2,
-                onClick: () => onSpanChange?.({ cols: 2, rows: 2 }),
-              },
-              { type: "separator" as const },
-              {
                 label: t.stash_terminal,
                 onClick: () =>
                   stashTerminalInScene(projectId, worktreeId, terminal.id),
+              },
+              {
+                label: "Tags…",
+                onClick: () =>
+                  setTagManager({ x: contextMenu.x, y: contextMenu.y }),
               },
               ...((terminal.type === "claude" || terminal.type === "codex") &&
               liveTerminal.sessionId
@@ -1064,6 +997,19 @@ export function TerminalTile({
                 : []),
             ]}
             onClose={() => setContextMenu(null)}
+          />,
+          document.body,
+        )}
+
+      {tagManager &&
+        createPortal(
+          <TagManager
+            projectId={projectId}
+            worktreeId={worktreeId}
+            terminalId={terminal.id}
+            clientX={tagManager.x}
+            clientY={tagManager.y}
+            onClose={() => setTagManager(null)}
           />,
           document.body,
         )}

@@ -4,8 +4,16 @@ import type { Terminal as XtermTerminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { ImageAddon } from "@xterm/addon-image";
 import { SerializeAddon } from "@xterm/addon-serialize";
-import { acquireWebGL, releaseWebGL, touch as touchWebGL } from "./webglContextPool";
-import { registerTerminal, serializeTerminal, unregisterTerminal } from "./terminalRegistry";
+import {
+  acquireWebGL,
+  releaseWebGL,
+  touch as touchWebGL,
+} from "./webglContextPool";
+import {
+  registerTerminal,
+  serializeTerminal,
+  unregisterTerminal,
+} from "./terminalRegistry";
 import { useNotificationStore } from "../stores/notificationStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useProjectStore } from "../stores/projectStore";
@@ -70,7 +78,9 @@ interface ManagedTerminalRuntime {
   activityThrottled: boolean;
   attachedContainer: HTMLDivElement | null;
   attachOptions: AttachOptions | null;
-  cliOverride: ReturnType<typeof usePreferencesStore.getState>["cliCommands"][TerminalType];
+  cliOverride: ReturnType<
+    typeof usePreferencesStore.getState
+  >["cliCommands"][TerminalType];
   currentStatus: TerminalStatus;
   detectAttempts: number;
   detectTimer: ReturnType<typeof setTimeout> | null;
@@ -127,15 +137,21 @@ let spawnStaggerResetTimer: ReturnType<typeof setTimeout> | null = null;
 function nextSpawnDelay(): number {
   spawnStaggerCount += 1;
   if (spawnStaggerResetTimer) clearTimeout(spawnStaggerResetTimer);
-  spawnStaggerResetTimer = setTimeout(() => { spawnStaggerCount = 0; }, 3_000);
+  spawnStaggerResetTimer = setTimeout(() => {
+    spawnStaggerCount = 0;
+  }, 3_000);
   return spawnStaggerCount * SPAWN_STAGGER_MS;
 }
 const runtimeRegistry = new Map<string, ManagedTerminalRuntime>();
 const xtermRuntimeModule = xtermModule as XtermRuntimeModule;
-const XtermTerminalConstructor = (
-  xtermRuntimeModule.Terminal ??
-  xtermRuntimeModule.default?.Terminal
-) as XtermTerminalConstructor;
+const XtermTerminalConstructor = (xtermRuntimeModule.Terminal ??
+  xtermRuntimeModule.default?.Terminal) as XtermTerminalConstructor;
+
+function isSessionTelemetryProvider(
+  type: TerminalType,
+): type is "claude" | "codex" | "wuu" {
+  return type === "claude" || type === "codex" || type === "wuu";
+}
 
 export const useTerminalRuntimeStore = create<TerminalRuntimeStoreState>(
   () => ({
@@ -263,15 +279,18 @@ async function pollSessionId(
   ptyId: number,
   cliType: string,
   worktreePath: string,
-  onFound: (
-    match: { sessionId: string; confidence?: "strong" | "medium" | "weak" },
-  ) => void,
+  onFound: (match: {
+    sessionId: string;
+    confidence?: "strong" | "medium" | "weak";
+  }) => void,
   shouldCancel: () => boolean,
   detectedCliPid?: number | null,
   startedAt?: string,
 ) {
-  const maxAttempts = cliType === "codex" ? 20 : 10;
-  const interval = cliType === "codex" ? 500 : 5_000;
+  const maxAttempts =
+    cliType === "codex" ? 20 : cliType === "wuu" ? 120 : 10;
+  const interval =
+    cliType === "codex" ? 500 : cliType === "wuu" ? 1_000 : 5_000;
 
   let cachedPid: number | null = detectedCliPid ?? null;
   if (!cachedPid && cliType === "claude") {
@@ -284,9 +303,11 @@ async function pollSessionId(
   }
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    if (attempt > 0 || cliType !== "codex") {
-      await new Promise((resolve) => setTimeout(resolve, interval));
-    }
+    // Always wait before polling — Codex needs time to write its session
+    // file after launch.  Polling immediately on the first attempt would
+    // find the PREVIOUS session in the same cwd and lock onto it because
+    // onFound returns after the first match.
+    await new Promise((resolve) => setTimeout(resolve, interval));
     if (shouldCancel()) {
       return;
     }
@@ -294,15 +315,21 @@ async function pollSessionId(
     let sessionId: string | null = null;
     let confidence: "strong" | "medium" | "weak" | undefined;
     if (cliType === "codex") {
-      const candidate = await window.termcanvas.session.findCodex(worktreePath, startedAt);
+      const candidate = await window.termcanvas.session.findCodex(
+        worktreePath,
+        startedAt,
+      );
       sessionId = candidate?.sessionId ?? null;
       confidence = candidate?.confidence;
-      if (sessionId && sessionId === codexBaseline && candidate?.confidence !== "medium") {
+      // Reject baseline (the session that existed before this terminal
+      // started) so we don't attach to a stale session.
+      if (sessionId && sessionId === codexBaseline) {
         sessionId = null;
         confidence = undefined;
       }
     } else if (cliType === "claude") {
-      const pid = cachedPid ?? (await window.termcanvas.terminal.getPid(ptyId)) ?? null;
+      const pid =
+        cachedPid ?? (await window.termcanvas.terminal.getPid(ptyId)) ?? null;
       if (!cachedPid && pid) {
         cachedPid = pid;
       }
@@ -315,6 +342,13 @@ async function pollSessionId(
       confidence = candidate?.confidence;
     } else if (cliType === "kimi") {
       sessionId = await window.termcanvas.session.getKimiLatest(worktreePath);
+    } else if (cliType === "wuu") {
+      const candidate = await window.termcanvas.session.findWuu(
+        worktreePath,
+        startedAt,
+      );
+      sessionId = candidate?.sessionId ?? null;
+      confidence = candidate?.confidence;
     }
 
     if (shouldCancel()) {
@@ -344,26 +378,24 @@ function updateTerminalInStore(
   };
 }
 
-function withResolvedRuntimeMeta(meta: TerminalRuntimeMeta): TerminalRuntimeMeta {
+function withResolvedRuntimeMeta(
+  meta: TerminalRuntimeMeta,
+): TerminalRuntimeMeta {
   return {
     ...meta,
     terminal: resolveTerminalWithRuntimeState(meta.terminal),
   };
 }
 
-function setPtyId(
-  runtime: ManagedTerminalRuntime,
-  ptyId: number | null,
-) {
+function setPtyId(runtime: ManagedTerminalRuntime, ptyId: number | null) {
   runtime.ptyId = ptyId;
-  useTerminalRuntimeStateStore.getState().setPtyId(runtime.meta.terminal.id, ptyId);
+  useTerminalRuntimeStateStore
+    .getState()
+    .setPtyId(runtime.meta.terminal.id, ptyId);
   updateTerminalInStore(runtime, (terminal) => ({ ...terminal, ptyId }));
 }
 
-function setStatus(
-  runtime: ManagedTerminalRuntime,
-  status: TerminalStatus,
-) {
+function setStatus(runtime: ManagedTerminalRuntime, status: TerminalStatus) {
   if (runtime.currentStatus === status) {
     return;
   }
@@ -403,10 +435,7 @@ function setSessionId(
   }
 }
 
-function setAutoApprove(
-  runtime: ManagedTerminalRuntime,
-  autoApprove: boolean,
-) {
+function setAutoApprove(runtime: ManagedTerminalRuntime, autoApprove: boolean) {
   useProjectStore
     .getState()
     .updateTerminalAutoApprove(
@@ -453,10 +482,15 @@ function clearWatchedSession(runtime: ManagedTerminalRuntime) {
 
   const sessionId = runtime.watchedSessionId;
   runtime.watchedSessionId = null;
-  if (runtime.meta.terminal.type === "claude" || runtime.meta.terminal.type === "codex") {
-    void window.termcanvas.telemetry.detachSession(runtime.meta.terminal.id).catch((error) => {
-      console.error("[terminalRuntime] failed to detach telemetry session:", error);
-    });
+  if (isSessionTelemetryProvider(runtime.meta.terminal.type)) {
+    void window.termcanvas.telemetry
+      .detachSession(runtime.meta.terminal.id)
+      .catch((error) => {
+        console.error(
+          "[terminalRuntime] failed to detach telemetry session:",
+          error,
+        );
+      });
   }
   void window.termcanvas.session.unwatch(sessionId).catch((error) => {
     console.error("[terminalRuntime] failed to unwatch session:", error);
@@ -478,16 +512,18 @@ function watchSession(
   }
 
   runtime.watchedSessionId = sessionId;
-  if (type === "claude" || type === "codex") {
-    void window.termcanvas.telemetry.attachSession({
-      terminalId: runtime.meta.terminal.id,
-      provider: type,
-      sessionId,
-      cwd: runtime.meta.worktreePath,
-      confidence: confidence ?? (type === "claude" ? "strong" : "medium"),
-    }).catch((error: unknown) => {
-      console.error("[terminalRuntime] telemetry attach failed:", error);
-    });
+  if (isSessionTelemetryProvider(type)) {
+    void window.termcanvas.telemetry
+      .attachSession({
+        terminalId: runtime.meta.terminal.id,
+        provider: type,
+        sessionId,
+        cwd: runtime.meta.worktreePath,
+        confidence: confidence ?? (type === "claude" ? "strong" : "medium"),
+      })
+      .catch((error: unknown) => {
+        console.error("[terminalRuntime] telemetry attach failed:", error);
+      });
   }
   void window.termcanvas.session
     .watch(type, sessionId, runtime.meta.worktreePath)
@@ -497,10 +533,7 @@ function watchSession(
       }
 
       if (!result?.ok) {
-        notify(
-          "warn",
-          `Session watch failed: ${result?.reason ?? "unknown"}`,
-        );
+        notify("warn", `Session watch failed: ${result?.reason ?? "unknown"}`);
       }
     })
     .catch((error: unknown) => {
@@ -512,10 +545,7 @@ function watchSession(
     });
 }
 
-function setTerminalType(
-  runtime: ManagedTerminalRuntime,
-  type: TerminalType,
-) {
+function setTerminalType(runtime: ManagedTerminalRuntime, type: TerminalType) {
   useProjectStore
     .getState()
     .updateTerminalType(
@@ -529,7 +559,9 @@ function setTerminalType(
 
 function lookupCurrentTerminal(runtime: ManagedTerminalRuntime) {
   const state = useProjectStore.getState();
-  const project = state.projects.find((entry) => entry.id === runtime.meta.projectId);
+  const project = state.projects.find(
+    (entry) => entry.id === runtime.meta.projectId,
+  );
   const worktree = project?.worktrees.find(
     (entry) => entry.id === runtime.meta.worktreeId,
   );
@@ -587,7 +619,9 @@ function ensureParkingRoot(): HTMLDivElement | null {
     return null;
   }
 
-  let root = document.getElementById(TERMINAL_PARKING_ROOT_ID) as HTMLDivElement | null;
+  let root = document.getElementById(
+    TERMINAL_PARKING_ROOT_ID,
+  ) as HTMLDivElement | null;
   if (root) {
     return root;
   }
@@ -608,7 +642,9 @@ function ensureParkingRoot(): HTMLDivElement | null {
   return root.parentElement ? root : null;
 }
 
-function ensureRuntimeHost(runtime: ManagedTerminalRuntime): HTMLDivElement | null {
+function ensureRuntimeHost(
+  runtime: ManagedTerminalRuntime,
+): HTMLDivElement | null {
   if (runtime.hostElement || typeof document === "undefined") {
     return runtime.hostElement;
   }
@@ -844,8 +880,7 @@ function createTerminalRenderer(
 
   try {
     xterm.loadAddon(new ImageAddon());
-  } catch {
-  }
+  } catch {}
 
   xterm.attachCustomKeyEventHandler((event) => {
     if (event.type === "keydown" && isRegisteredAppShortcutEvent(event)) {
@@ -935,8 +970,7 @@ function setupRuntimeSubscriptions(runtime: ManagedTerminalRuntime) {
     }
 
     if (
-      runtime.xterm.options.minimumContrastRatio !==
-      state.minimumContrastRatio
+      runtime.xterm.options.minimumContrastRatio !== state.minimumContrastRatio
     ) {
       runtime.xterm.options.minimumContrastRatio = state.minimumContrastRatio;
       runtime.xterm.refresh(0, runtime.xterm.rows - 1);
@@ -985,7 +1019,7 @@ function scheduleSessionCapture(
     runtime.meta.worktreePath,
     ({ sessionId, confidence }) => {
       setSessionId(runtime, sessionId);
-      if (cliType === "claude" || cliType === "codex") {
+      if (isSessionTelemetryProvider(cliType)) {
         watchSession(runtime, cliType, sessionId, confidence);
       }
       if (cliType === "claude" || cliType === "codex") {
@@ -1043,15 +1077,20 @@ function triggerDetection(runtime: ManagedTerminalRuntime) {
       } else if (nextType === "codex") {
         void useCodexQuotaStore.getState().fetch();
       }
-      if (nextType === "claude" || nextType === "codex") {
-        void window.termcanvas.telemetry.updateTerminal({
-          terminalId: runtime.meta.terminal.id,
-          worktreePath: runtime.meta.worktreePath,
-          provider: nextType,
-          ptyId: runtime.ptyId,
-        }).catch((error: unknown) => {
-          console.error("[terminalRuntime] telemetry provider update failed:", error);
-        });
+      if (isSessionTelemetryProvider(nextType)) {
+        void window.termcanvas.telemetry
+          .updateTerminal({
+            terminalId: runtime.meta.terminal.id,
+            worktreePath: runtime.meta.worktreePath,
+            provider: nextType,
+            ptyId: runtime.ptyId,
+          })
+          .catch((error: unknown) => {
+            console.error(
+              "[terminalRuntime] telemetry provider update failed:",
+              error,
+            );
+          });
       }
       if (nextType === "tmux" && result?.sessionName) {
         setSessionId(runtime, result.sessionName);
@@ -1113,7 +1152,8 @@ function buildTerminalRuntime(
     attachedContainer: null,
     attachOptions: null,
     cliOverride:
-      usePreferencesStore.getState().cliCommands[resolvedMeta.terminal.type] ?? undefined,
+      usePreferencesStore.getState().cliCommands[resolvedMeta.terminal.type] ??
+      undefined,
     currentStatus: resolvedMeta.terminal.status,
     detectAttempts: 0,
     detectTimer: null,
@@ -1152,8 +1192,9 @@ function buildTerminalRuntime(
         resolvedMeta.terminal.type,
         resolvedMeta.terminal.sessionId,
         resolvedMeta.terminal.autoApprove,
-        usePreferencesStore.getState().cliCommands[resolvedMeta.terminal.type] ??
-          undefined,
+        usePreferencesStore.getState().cliCommands[
+          resolvedMeta.terminal.type
+        ] ?? undefined,
       ),
     watchedSessionId: null,
     xterm: null,
@@ -1168,7 +1209,10 @@ function buildTerminalRuntime(
   return runtime;
 }
 
-async function spawnPty(runtime: ManagedTerminalRuntime, resumeSessionId?: string) {
+async function spawnPty(
+  runtime: ManagedTerminalRuntime,
+  resumeSessionId?: string,
+) {
   const launch = getTerminalLaunchOptions(
     runtime.meta.terminal.type,
     resumeSessionId,
@@ -1204,13 +1248,15 @@ async function spawnPty(runtime: ManagedTerminalRuntime, resumeSessionId?: strin
   // Register hook listener BEFORE spawning pty to avoid race condition (C2)
   let hookSessionReceived = false;
   const isHookEnabled =
-    (runtime.meta.terminal.type === "claude" || runtime.meta.terminal.type === "shell") &&
+    (runtime.meta.terminal.type === "claude" ||
+      runtime.meta.terminal.type === "codex" ||
+      runtime.meta.terminal.type === "shell") &&
     !!window.termcanvas?.hooks;
 
   if (!resumeSessionId && launch && isHookEnabled) {
     runtime.removeHookSessionStarted?.();
-    runtime.removeHookSessionStarted = window.termcanvas!.hooks.onSessionStarted(
-      (payload) => {
+    runtime.removeHookSessionStarted =
+      window.termcanvas!.hooks.onSessionStarted((payload) => {
         if (payload.terminalId !== runtime.meta.terminal.id) return;
         if (runtime.disposed || hookSessionReceived) return;
         hookSessionReceived = true;
@@ -1225,19 +1271,22 @@ async function spawnPty(runtime: ManagedTerminalRuntime, resumeSessionId?: strin
         if (runtime.meta.terminal.type === "shell") {
           setTerminalType(runtime, "claude");
           useQuotaStore.getState().nudge();
-          void window.termcanvas!.telemetry.updateTerminal({
-            terminalId: runtime.meta.terminal.id,
-            worktreePath: runtime.meta.worktreePath,
-            provider: "claude",
-            ptyId: runtime.ptyId,
-          }).catch(() => {});
+          void window
+            .termcanvas!.telemetry.updateTerminal({
+              terminalId: runtime.meta.terminal.id,
+              worktreePath: runtime.meta.worktreePath,
+              provider: "claude",
+              ptyId: runtime.ptyId,
+            })
+            .catch(() => {});
         }
 
+        const hookSessionType =
+          runtime.meta.terminal.type === "codex" ? "codex" : "claude";
         setSessionId(runtime, payload.sessionId);
-        watchSession(runtime, "claude", payload.sessionId, "strong");
+        watchSession(runtime, hookSessionType, payload.sessionId, "strong");
         void syncPermissionMode(runtime, payload.sessionId);
-      },
-    );
+      });
   }
 
   try {
@@ -1250,17 +1299,17 @@ async function spawnPty(runtime: ManagedTerminalRuntime, resumeSessionId?: strin
     setPtyId(runtime, ptyId);
     setStatus(runtime, "running");
 
-    if (
-      resumeSessionId &&
-      (runtime.meta.terminal.type === "claude" ||
-        runtime.meta.terminal.type === "codex")
-    ) {
+    if (resumeSessionId && isSessionTelemetryProvider(runtime.meta.terminal.type)) {
       watchSession(runtime, runtime.meta.terminal.type, resumeSessionId);
     }
 
     if (!resumeSessionId && launch) {
-      if (runtime.meta.terminal.type === "claude" && isHookEnabled) {
-        // Hook is primary for claude; fall back to polling after 30s if no hook event
+      if (
+        isHookEnabled &&
+        (runtime.meta.terminal.type === "claude" ||
+          runtime.meta.terminal.type === "codex")
+      ) {
+        // Hook is primary for claude/codex; fall back to polling if no hook event.
         runtime.hookFallbackTimer = setTimeout(() => {
           runtime.hookFallbackTimer = null;
           if (!hookSessionReceived && !runtime.disposed) {
@@ -1286,7 +1335,10 @@ async function spawnPty(runtime: ManagedTerminalRuntime, resumeSessionId?: strin
     const t = getT();
     notify(
       "error",
-      t.failed_create_pty(getTerminalDisplayTitle(runtime.meta.terminal), message),
+      t.failed_create_pty(
+        getTerminalDisplayTitle(runtime.meta.terminal),
+        message,
+      ),
     );
     setStatus(runtime, "error");
     appendPreview(
@@ -1311,9 +1363,12 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
 
   const telemetryTick = () => {
     refreshTelemetry(runtime);
-    const pushStale = runtime.lastPushAt > 0 &&
+    const pushStale =
+      runtime.lastPushAt > 0 &&
       Date.now() - runtime.lastPushAt > PUSH_STALE_THRESHOLD;
-    const currentInterval = pushStale ? TELEMETRY_POLL_FAST : TELEMETRY_POLL_SLOW;
+    const currentInterval = pushStale
+      ? TELEMETRY_POLL_FAST
+      : TELEMETRY_POLL_SLOW;
     if (runtime.telemetryTimer) clearInterval(runtime.telemetryTimer);
     runtime.telemetryTimer = setInterval(telemetryTick, currentInterval);
   };
@@ -1322,63 +1377,108 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
   // Push-based telemetry: immediate updates from hook events
   if (window.termcanvas.telemetry?.onSnapshotChanged) {
     let prevTurnState: string | undefined;
-    const removePush = window.termcanvas.telemetry.onSnapshotChanged((payload) => {
-      if (payload.terminalId !== runtime.meta.terminal.id) return;
-      if (runtime.disposed) return;
-      runtime.lastPushAt = Date.now();
+    const removePush = window.termcanvas.telemetry.onSnapshotChanged(
+      (payload) => {
+        if (payload.terminalId !== runtime.meta.terminal.id) return;
+        if (runtime.disposed) return;
+        runtime.lastPushAt = Date.now();
 
-      const snap = payload.snapshot as TerminalTelemetrySnapshot;
+        const snap = payload.snapshot as TerminalTelemetrySnapshot;
 
-      if (snap.turn_state === "turn_complete" && prevTurnState !== "turn_complete") {
-        onTerminalTurnCompleted(runtime.meta.terminal.id);
-      }
-      prevTurnState = snap.turn_state;
+        if (
+          snap.turn_state === "turn_complete" &&
+          prevTurnState !== "turn_complete"
+        ) {
+          onTerminalTurnCompleted(runtime.meta.terminal.id);
+        }
+        prevTurnState = snap.turn_state;
 
-      updateRuntimeSnapshot(runtime.meta.terminal.id, {
-        telemetry: snap,
-      });
-    });
+        updateRuntimeSnapshot(runtime.meta.terminal.id, {
+          telemetry: snap,
+        });
+      },
+    );
     runtime.globalDisposers.push(removePush);
   }
 
-  runtime.outputUnsubscribe = window.termcanvas.terminal.onOutput((ptyId, data) => {
-    if (ptyId !== runtime.ptyId) {
-      return;
-    }
+  runtime.outputUnsubscribe = window.termcanvas.terminal.onOutput(
+    (ptyId, data) => {
+      if (ptyId !== runtime.ptyId) {
+        return;
+      }
 
-    handleRuntimeOutput(runtime, data);
-  });
+      handleRuntimeOutput(runtime, data);
+    },
+  );
 
-  const exitUnsubscribe = window.termcanvas.terminal.onExit((ptyId, exitCode) => {
-    if (ptyId !== runtime.ptyId) {
-      return;
-    }
+  const exitUnsubscribe = window.termcanvas.terminal.onExit(
+    (ptyId, exitCode) => {
+      if (ptyId !== runtime.ptyId) {
+        return;
+      }
 
-    if (runtime.waitingTimer) {
-      clearTimeout(runtime.waitingTimer);
-      runtime.waitingTimer = null;
-    }
+      if (runtime.waitingTimer) {
+        clearTimeout(runtime.waitingTimer);
+        runtime.waitingTimer = null;
+      }
 
-    if (exitCode !== 0 && runtime.wasResumeAttempt && !runtime.hasRespawned) {
-      runtime.hasRespawned = true;
-      clearWatchedSession(runtime);
-      setSessionId(runtime, undefined);
-      appendPreview(
-        runtime,
-        "\r\n\x1b[33m[Session expired, starting fresh...]\x1b[0m\r\n",
+      if (exitCode !== 0 && runtime.wasResumeAttempt && !runtime.hasRespawned) {
+        runtime.hasRespawned = true;
+        clearWatchedSession(runtime);
+        setSessionId(runtime, undefined);
+        const expiredNotice =
+          "\r\n\x1b[33m[Session expired, starting fresh...]\x1b[0m\r\n";
+        appendPreview(runtime, expiredNotice);
+        runtime.xterm?.write(expiredNotice);
+        void spawnPty(runtime);
+        return;
+      }
+
+      // When a CLI tile's PTY exits (graceful or otherwise), keep the tile alive
+      // by demoting it to a plain user shell in the same xterm. This fixes the
+      // long-standing "restored CLI dies on Ctrl+C with no fallback shell" bug:
+      // restored CLI tiles spawn the CLI as PID 1 (no parent shell), so killing
+      // the CLI used to leave the tile dead. Now we transparently fall back.
+      if (runtime.meta.terminal.type !== "shell") {
+        const previousType = runtime.meta.terminal.type;
+        clearWatchedSession(runtime);
+        setSessionId(runtime, undefined);
+        runtime.removeHookSessionStarted?.();
+        runtime.removeHookSessionStarted = null;
+        if (runtime.hookFallbackTimer) {
+          clearTimeout(runtime.hookFallbackTimer);
+          runtime.hookFallbackTimer = null;
+        }
+        runtime.sessionCancel?.();
+        runtime.sessionCancel = null;
+        runtime.wasResumeAttempt = false;
+        runtime.hasRespawned = false;
+        setTerminalType(runtime, "shell");
+        // Note: we intentionally do not call telemetry.updateTerminal here.
+        // `clearWatchedSession` already invoked `detachSession`, which flips
+        // `session_attached` to false — that is the canonical signal that this
+        // terminal no longer has a live CLI session. The cached `provider`
+        // field is left untouched (telemetry-service.updateTerminal has no way
+        // to clear it; passing `undefined` is a silent no-op).
+        const fallbackNotice = `\r\n\x1b[2m[${previousType} exited with code ${exitCode}; dropped to shell]\x1b[0m\r\n`;
+        appendPreview(runtime, fallbackNotice);
+        runtime.xterm?.write(fallbackNotice);
+        void spawnPty(runtime);
+        return;
+      }
+
+      const nextStatus = exitCode === 0 ? "success" : "error";
+      setStatus(runtime, nextStatus);
+      appendPreview(runtime, getT().process_exited(exitCode));
+      notify(
+        exitCode === 0 ? "info" : "warn",
+        getT().terminal_exited(
+          getTerminalDisplayTitle(runtime.meta.terminal),
+          exitCode,
+        ),
       );
-      void spawnPty(runtime);
-      return;
-    }
-
-    const nextStatus = exitCode === 0 ? "success" : "error";
-    setStatus(runtime, nextStatus);
-    appendPreview(runtime, getT().process_exited(exitCode));
-    notify(
-      exitCode === 0 ? "info" : "warn",
-      getT().terminal_exited(getTerminalDisplayTitle(runtime.meta.terminal), exitCode),
-    );
-  });
+    },
+  );
 
   const TURN_COMPLETE_DEDUP_MS = 5_000;
 
@@ -1388,7 +1488,8 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
     if (
       runtime.currentStatus !== "active" &&
       runtime.currentStatus !== "waiting"
-    ) return;
+    )
+      return;
     runtime.lastTurnCompletedAt = now;
     setStatus(runtime, "completed");
   };
@@ -1406,6 +1507,16 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
     runtime.removeHookTurnComplete = window.termcanvas.hooks.onTurnComplete(
       (payload) => {
         if (payload.terminalId !== runtime.meta.terminal.id) return;
+        // Reject events from a stale CLI session: after a fallback-shell
+        // demotion the terminal id is reused, so a delayed hook event from
+        // the dead claude/codex run could otherwise corrupt the new shell's
+        // status. The terminal's current sessionId is the source of truth.
+        if (
+          payload.sessionId &&
+          payload.sessionId !== runtime.meta.terminal.sessionId
+        ) {
+          return;
+        }
         handleTurnComplete();
       },
     );
@@ -1413,6 +1524,12 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
     runtime.removeHookStopFailure = window.termcanvas.hooks.onStopFailure(
       (payload) => {
         if (payload.terminalId !== runtime.meta.terminal.id) return;
+        if (
+          payload.sessionId &&
+          payload.sessionId !== runtime.meta.terminal.sessionId
+        ) {
+          return;
+        }
         if (payload.error) {
           setStatus(runtime, "error");
           appendPreview(
@@ -1428,17 +1545,19 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
 
   const doSpawn = () => {
     if (runtime.disposed) return;
-    runtime.ptyPromise = spawnPty(runtime, runtime.meta.terminal.sessionId).finally(
-      () => {
-        runtime.ptyPromise = null;
-      },
-    );
+    runtime.ptyPromise = spawnPty(
+      runtime,
+      runtime.meta.terminal.sessionId,
+    ).finally(() => {
+      runtime.ptyPromise = null;
+    });
   };
 
   // For restored Claude/Codex sessions, read permission state from the
   // JSONL before spawning so the bypass flag is included in launch args.
   const needsPermissionSync =
-    (runtime.meta.terminal.type === "claude" || runtime.meta.terminal.type === "codex") &&
+    (runtime.meta.terminal.type === "claude" ||
+      runtime.meta.terminal.type === "codex") &&
     !!runtime.meta.terminal.sessionId &&
     !runtime.meta.terminal.autoApprove;
 
@@ -1466,7 +1585,8 @@ export function ensureTerminalRuntime(meta: TerminalRuntimeMeta) {
   if (existing) {
     existing.meta = resolvedMeta;
     existing.cliOverride =
-      usePreferencesStore.getState().cliCommands[resolvedMeta.terminal.type] ?? undefined;
+      usePreferencesStore.getState().cliCommands[resolvedMeta.terminal.type] ??
+      undefined;
     if (!existing.previewAnsi && resolvedMeta.terminal.scrollback) {
       pushPreview(existing, resolvedMeta.terminal.scrollback);
     }
@@ -1485,7 +1605,8 @@ export function updateTerminalRuntime(meta: TerminalRuntimeMeta) {
   const runtime = ensureTerminalRuntime(resolvedMeta);
   runtime.meta = resolvedMeta;
   runtime.cliOverride =
-    usePreferencesStore.getState().cliCommands[resolvedMeta.terminal.type] ?? undefined;
+    usePreferencesStore.getState().cliCommands[resolvedMeta.terminal.type] ??
+    undefined;
 
   if (!runtime.previewAnsi && resolvedMeta.terminal.scrollback) {
     pushPreview(runtime, resolvedMeta.terminal.scrollback);
@@ -1692,7 +1813,11 @@ export async function refreshClaudeSessionStates(): Promise<void> {
   const tasks: Promise<void>[] = [];
 
   for (const runtime of runtimeRegistry.values()) {
-    if (runtime.disposed || runtime.meta.terminal.type !== "claude" || runtime.ptyId === null) {
+    if (
+      runtime.disposed ||
+      runtime.meta.terminal.type !== "claude" ||
+      runtime.ptyId === null
+    ) {
       continue;
     }
 
@@ -1705,7 +1830,10 @@ export async function refreshClaudeSessionStates(): Promise<void> {
           await window.termcanvas.session.getClaudeByPid(pid);
         if (runtime.disposed) return;
 
-        if (latestSessionId && latestSessionId !== runtime.meta.terminal.sessionId) {
+        if (
+          latestSessionId &&
+          latestSessionId !== runtime.meta.terminal.sessionId
+        ) {
           setSessionId(runtime, latestSessionId);
         }
 

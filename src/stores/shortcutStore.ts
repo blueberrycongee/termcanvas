@@ -4,7 +4,6 @@ import { hasPrimaryModifier } from "../hooks/shortcutTarget.ts";
 export interface ShortcutMap {
   addProject: string;
   cycleFocusLevel: string;
-  compactFocusedProject: string;
   newTerminal: string;
   saveWorkspace: string;
   saveWorkspaceAs: string;
@@ -15,16 +14,11 @@ export interface ShortcutMap {
   closeFocused: string;
   toggleRightPanel: string;
   toggleStarFocused: string;
-  spanDefault: string;
-  spanWide: string;
-  spanTall: string;
-  spanLarge: string;
 }
 
 const LEGACY_DEFAULT_SHORTCUTS: ShortcutMap = {
   addProject: "mod+o",
   cycleFocusLevel: "mod+g",
-  compactFocusedProject: "mod+shift+g",
   newTerminal: "mod+t",
   saveWorkspace: "mod+s",
   saveWorkspaceAs: "mod+shift+s",
@@ -35,16 +29,11 @@ const LEGACY_DEFAULT_SHORTCUTS: ShortcutMap = {
   closeFocused: "mod+d",
   toggleRightPanel: "mod+/",
   toggleStarFocused: "mod+f",
-  spanDefault: "mod+1",
-  spanWide: "mod+2",
-  spanTall: "mod+3",
-  spanLarge: "mod+4",
 };
 
 const ALT_DEFAULT_SHORTCUTS: ShortcutMap = {
   addProject: "alt+o",
   cycleFocusLevel: "alt+g",
-  compactFocusedProject: "alt+shift+g",
   newTerminal: "alt+t",
   saveWorkspace: "alt+s",
   saveWorkspaceAs: "alt+shift+s",
@@ -55,10 +44,6 @@ const ALT_DEFAULT_SHORTCUTS: ShortcutMap = {
   closeFocused: "alt+d",
   toggleRightPanel: "alt+/",
   toggleStarFocused: "alt+f",
-  spanDefault: "alt+1",
-  spanWide: "alt+2",
-  spanTall: "alt+3",
-  spanLarge: "alt+4",
 };
 
 export const DEFAULT_SHORTCUTS: ShortcutMap = { ...LEGACY_DEFAULT_SHORTCUTS };
@@ -105,20 +90,47 @@ function isLegacyDefaultShortcutMap(shortcuts: ShortcutMap): boolean {
   ).every(([key, value]) => shortcuts[key] === value);
 }
 
+// Drop any legacy tile-size / span shortcut keys that may still live in
+// localStorage from older builds. The feature has been removed.
+const REMOVED_SHORTCUT_KEYS = [
+  "spanDefault",
+  "spanWide",
+  "spanTall",
+  "spanLarge",
+  "tileSizeDefault",
+  "tileSizeWide",
+  "tileSizeTall",
+  "tileSizeLarge",
+];
+
+function migrateLegacyShortcutKeys(
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  const migrated: Record<string, unknown> = { ...raw };
+  for (const key of REMOVED_SHORTCUT_KEYS) {
+    delete migrated[key];
+  }
+  return migrated;
+}
+
 function loadShortcuts(): ShortcutMap {
   const platform = getShortcutPlatform();
   const defaults = getDefaultShortcuts(platform);
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
+      const rawParsed = JSON.parse(saved) as Record<string, unknown>;
+      const migrated = migrateLegacyShortcutKeys(rawParsed);
       const parsed = {
         ...defaults,
-        ...JSON.parse(saved),
+        ...migrated,
       } as ShortcutMap;
       if (platform !== "darwin" && isLegacyDefaultShortcutMap(parsed)) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(defaults));
         return defaults;
       }
+      // Persist the migrated form so subsequent reads don't replay it.
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
       return parsed;
     }
   } catch {

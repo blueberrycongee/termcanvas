@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSessionStore } from "../stores/sessionStore";
 import { SessionReplayView } from "./SessionReplayView";
 import { useT } from "../i18n/useT";
@@ -18,6 +18,9 @@ import {
   type InspectorTraceItem,
 } from "./sessionInspectorModel";
 import { useCompletionSeenStore } from "../stores/completionSeenStore";
+import { promptAndAddProjectToScene } from "../canvas/sceneCommands";
+import { closeTerminalInScene } from "../actions/terminalSceneActions";
+import { IconButton } from "./ui/IconButton";
 
 const STATUS_COLORS: Record<CanvasTerminalState, string> = {
   attention: "#ef4444",
@@ -117,8 +120,10 @@ function TerminalCard({
   ].filter(Boolean);
 
   return (
-    <button
-      className={`w-full rounded-md flex items-center gap-2 text-left cursor-pointer transition-colors ${
+    <div
+      role="button"
+      tabIndex={0}
+      className={`group w-full rounded-md flex items-center gap-2 text-left cursor-pointer transition-colors ${
         compact ? "px-2 py-1.5" : "px-2 py-2"
       } ${
         item.focused
@@ -126,6 +131,12 @@ function TerminalCard({
           : "bg-[var(--surface)] hover:bg-[var(--sidebar-hover)]"
       }`}
       onClick={() => panToTerminal(item.terminalId)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          panToTerminal(item.terminalId);
+        }
+      }}
     >
       <div
         className="w-2 h-2 rounded-full shrink-0"
@@ -139,7 +150,26 @@ function TerminalCard({
           {subtitleParts.join(" · ")}
         </div>
       </div>
-    </button>
+      <IconButton
+        size="sm"
+        tone="danger"
+        label={t.panel_close_terminal}
+        className="opacity-0 group-hover:opacity-100 transition-opacity"
+        onClick={(e) => {
+          e.stopPropagation();
+          closeTerminalInScene(item.projectId, item.worktreeId, item.terminalId);
+        }}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path
+            d="M2 2L8 8M8 2L2 8"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+        </svg>
+      </IconButton>
+    </div>
   );
 }
 
@@ -384,8 +414,49 @@ export function SessionsPanel() {
     return <SessionReplayView />;
   }
 
+  const [addingProject, setAddingProject] = useState(false);
+  const handleAddProject = useCallback(async () => {
+    if (addingProject) return;
+    setAddingProject(true);
+    try {
+      await promptAndAddProjectToScene(t);
+    } finally {
+      setAddingProject(false);
+    }
+  }, [addingProject, t]);
+
   return (
     <div className="flex flex-col h-full min-h-0">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] shrink-0">
+        <span
+          className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          {t.sessions_panel_title}
+        </span>
+        <IconButton
+          size="md"
+          tone="neutral"
+          label={t.shortcut_add_project}
+          busy={addingProject}
+          onClick={handleAddProject}
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            className="shrink-0"
+          >
+            <path
+              d="M6 2V10M2 6H10"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+        </IconButton>
+      </div>
       <div className="flex-1 min-h-0 overflow-y-auto">
         <ProjectTree
           projects={projectTree}

@@ -5,6 +5,7 @@ export const TERMINAL_TYPE_CONFIG: Record<string, { color: string; label: string
   kimi: { color: "#0070f3", label: "Kimi" },
   gemini: { color: "#4285f4", label: "Gemini" },
   opencode: { color: "#50e3c2", label: "OpenCode" },
+  wuu: { color: "#ff6b9d", label: "Wuu" },
   lazygit: { color: "#e84d31", label: "Lazygit" },
   tmux: { color: "#1bb91f", label: "Tmux" },
 };

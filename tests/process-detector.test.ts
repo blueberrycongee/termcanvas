@@ -167,6 +167,26 @@ test("detects opencode", () => {
   assert.equal(results[0].cliType, "opencode");
 });
 
+test("detects wuu", () => {
+  const ps = HEADER +
+    "  100     1 /bin/zsh\n" +
+    "  200   100 wuu\n";
+
+  const results = parsePsOutput(ps, [100]);
+  assert.equal(results.length, 1);
+  assert.equal(results[0].cliType, "wuu");
+});
+
+test("detects wuu --resume as wuu", () => {
+  const ps = HEADER +
+    "  100     1 /bin/zsh\n" +
+    "  200   100 wuu --resume 20260411-143022-abcd\n";
+
+  const results = parsePsOutput(ps, [100]);
+  assert.equal(results.length, 1);
+  assert.equal(results[0].cliType, "wuu");
+});
+
 test("returns empty for no matching children", () => {
   const ps = HEADER +
     "  100     1 /bin/zsh\n" +

@@ -19,6 +19,7 @@ import {
   drawingToAnnotation,
   sceneDocumentToLegacyState,
 } from "./canvas/sceneProjection";
+import { clusterByTag } from "./clustering";
 
 export interface LegacyWorkspaceSnapshot {
   version: 1;
@@ -99,6 +100,7 @@ function normalizeTerminalType(value: unknown): TerminalType {
     case "kimi":
     case "gemini":
     case "opencode":
+    case "wuu":
     case "lazygit":
     case "tmux":
     case "shell":
@@ -138,7 +140,8 @@ function isSceneStrokePoint(
     isRecord(value) &&
     typeof value.x === "number" &&
     typeof value.y === "number" &&
-    (typeof value.pressure === "undefined" || typeof value.pressure === "number")
+    (typeof value.pressure === "undefined" ||
+      typeof value.pressure === "number")
   );
 }
 
@@ -182,8 +185,7 @@ function isSceneAnnotation(
       );
     case "text":
       return (
-        typeof value.fontSize === "number" &&
-        typeof value.content === "string"
+        typeof value.fontSize === "number" && typeof value.content === "string"
       );
     case "rect":
       return (
@@ -192,10 +194,7 @@ function isSceneAnnotation(
         typeof value.height === "number"
       );
     case "arrow":
-      return (
-        typeof value.strokeWidth === "number" &&
-        isScenePoint(value.end)
-      );
+      return typeof value.strokeWidth === "number" && isScenePoint(value.end);
     default:
       return false;
   }
@@ -246,9 +245,7 @@ function isLegacyDrawingElement(value: unknown): value is DrawingElement {
   }
 }
 
-function normalizeSceneCamera(
-  value: unknown,
-): SceneDocument["camera"] {
+function normalizeSceneCamera(value: unknown): SceneDocument["camera"] {
   if (
     value &&
     typeof value === "object" &&
@@ -275,8 +272,29 @@ function normalizeSceneCamera(
   return { x: 0, y: 0, zoom: 1 };
 }
 
+interface LegacySpan {
+  cols?: unknown;
+  rows?: unknown;
+}
+
+function widthFromSpan(span: LegacySpan, baseW: number): number {
+  const cols = Math.max(1, Number(span?.cols ?? 1));
+  return cols * baseW + Math.max(0, cols - 1) * 8;
+}
+
+function heightFromSpan(span: LegacySpan, baseH: number): number {
+  const rows = Math.max(1, Number(span?.rows ?? 1));
+  return rows * baseH + Math.max(0, rows - 1) * 8;
+}
+
+const FREE_CANVAS_DEFAULT_TILE = { w: 640, h: 480 };
+
 function migrateProjects(projects: Record<string, unknown>[]): ProjectData[] {
-  return projects.flatMap((project) => {
+  // Track terminal IDs that need cluster placement (legacy v1 records that
+  // lack x/y/tags). After we project everything, we run clusterByTag to
+  // assign positions for these.
+  const pendingClusterIds = new Set<string>();
+  const result = projects.flatMap((project) => {
     if (
       typeof project.id !== "string" ||
       typeof project.name !== "string" ||
@@ -304,14 +322,46 @@ function migrateProjects(projects: Record<string, unknown>[]): ProjectData[] {
                   return [];
                 }
 
+                const hasNumericWidth = typeof terminal.width === "number";
+                const hasNumericHeight = typeof terminal.height === "number";
+                const hasNumericX = typeof terminal.x === "number";
+                const hasNumericY = typeof terminal.y === "number";
                 const span =
-                  isRecord(terminal.span) &&
-                  typeof terminal.span.cols === "number" &&
-                  typeof terminal.span.rows === "number"
-                    ? { cols: terminal.span.cols, rows: terminal.span.rows }
-                    : { cols: 1, rows: 1 };
+                  isRecord(terminal.span)
+                    ? (terminal.span as LegacySpan)
+                    : undefined;
+
+                const width = hasNumericWidth
+                  ? (terminal.width as number)
+                  : span
+                    ? widthFromSpan(span, FREE_CANVAS_DEFAULT_TILE.w)
+                    : FREE_CANVAS_DEFAULT_TILE.w;
+                const height = hasNumericHeight
+                  ? (terminal.height as number)
+                  : span
+                    ? heightFromSpan(span, FREE_CANVAS_DEFAULT_TILE.h)
+                    : FREE_CANVAS_DEFAULT_TILE.h;
+                const x = hasNumericX ? (terminal.x as number) : 0;
+                const y = hasNumericY ? (terminal.y as number) : 0;
+                const existingTags = Array.isArray(terminal.tags)
+                  ? (terminal.tags as string[])
+                  : [];
+                const needsAutoTags =
+                  existingTags.length === 0 || (!hasNumericX && !hasNumericY);
+                const tags = needsAutoTags
+                  ? [
+                      `project:${project.name as string}`,
+                      `worktree:${worktree.name as string}`,
+                      `type:${normalizeTerminalType(terminal.type)}`,
+                      ...existingTags.filter((tag) => tag.startsWith("custom:")),
+                    ]
+                  : existingTags;
                 const origin: TerminalOrigin =
                   terminal.origin === "agent" ? "agent" : "user";
+
+                if (!hasNumericX && !hasNumericY) {
+                  pendingClusterIds.add(terminal.id as string);
+                }
 
                 return [
                   {
@@ -344,11 +394,15 @@ function migrateProjects(projects: Record<string, unknown>[]): ProjectData[] {
                       typeof terminal.sessionId === "string"
                         ? terminal.sessionId
                         : undefined,
-                    span,
                     starred: terminal.starred === true,
                     status: normalizeTerminalStatus(terminal.status),
+                    tags,
                     title: terminal.title,
                     type: normalizeTerminalType(terminal.type),
+                    width,
+                    height,
+                    x,
+                    y,
                   },
                 ];
               })
@@ -356,11 +410,9 @@ function migrateProjects(projects: Record<string, unknown>[]): ProjectData[] {
 
           return [
             {
-              collapsed: worktree.collapsed === true,
               id: worktree.id,
               name: worktree.name,
               path: worktree.path,
-              position: normalizePosition(worktree.position),
               terminals,
             },
           ];
@@ -369,16 +421,42 @@ function migrateProjects(projects: Record<string, unknown>[]): ProjectData[] {
 
     return [
       {
-        collapsed: project.collapsed === true,
         id: project.id,
         name: project.name,
         path: project.path,
-        position: normalizePosition(project.position),
         worktrees,
-        zIndex: typeof project.zIndex === "number" ? project.zIndex : 0,
       },
     ];
   });
+
+  if (pendingClusterIds.size > 0) {
+    const tilesForCluster = result.flatMap((project) =>
+      project.worktrees.flatMap((worktree) =>
+        worktree.terminals
+          .filter((terminal) => pendingClusterIds.has(terminal.id))
+          .map((terminal) => ({
+            id: terminal.id,
+            width: terminal.width,
+            height: terminal.height,
+            tags: terminal.tags,
+          })),
+      ),
+    );
+    const positions = clusterByTag(tilesForCluster, "project");
+    for (const project of result) {
+      for (const worktree of project.worktrees) {
+        for (const terminal of worktree.terminals) {
+          const position = positions.get(terminal.id);
+          if (position) {
+            terminal.x = position.x;
+            terminal.y = position.y;
+          }
+        }
+      }
+    }
+  }
+
+  return result;
 }
 
 function migrateLegacySnapshot(
@@ -397,8 +475,7 @@ function migrateLegacySnapshot(
 
   return {
     version: 1,
-    browserCards:
-      browserCardsSource as LegacyWorkspaceSnapshot["browserCards"],
+    browserCards: browserCardsSource as LegacyWorkspaceSnapshot["browserCards"],
     drawings: drawingsSource as LegacyWorkspaceSnapshot["drawings"],
     projects: normalizeProjectsFocus(migrateProjects(projectsSource)).projects,
     viewport: normalizeViewport(value.viewport),
@@ -421,12 +498,11 @@ function normalizeStashedTerminals(raw: unknown): StashedTerminal[] {
     if (typeof t.id !== "string" || typeof t.title !== "string") {
       return [];
     }
-    const span =
-      isRecord(t.span) &&
-      typeof t.span.cols === "number" &&
-      typeof t.span.rows === "number"
-        ? { cols: t.span.cols, rows: t.span.rows }
-        : { cols: 1, rows: 1 };
+    const width = typeof t.width === "number" ? t.width : 640;
+    const height = typeof t.height === "number" ? t.height : 480;
+    const x = typeof t.x === "number" ? t.x : 0;
+    const y = typeof t.y === "number" ? t.y : 0;
+    const tags = Array.isArray(t.tags) ? (t.tags as string[]) : [];
     const origin: TerminalOrigin = t.origin === "agent" ? "agent" : "user";
     return [
       {
@@ -451,13 +527,16 @@ function normalizeStashedTerminals(raw: unknown): StashedTerminal[] {
           ptyId: null,
           scrollback:
             typeof t.scrollback === "string" ? t.scrollback : undefined,
-          sessionId:
-            typeof t.sessionId === "string" ? t.sessionId : undefined,
-          span,
+          sessionId: typeof t.sessionId === "string" ? t.sessionId : undefined,
           starred: t.starred === true,
           status: normalizeTerminalStatus(t.status),
+          tags,
           title: t.title,
           type: normalizeTerminalType(t.type),
+          width,
+          height,
+          x,
+          y,
         },
       },
     ];
@@ -480,7 +559,9 @@ function coerceSceneDocument(value: unknown): SceneDocument | null {
     return null;
   }
 
-  const projects = normalizeProjectsFocus(migrateProjects(projectRecords)).projects;
+  const projects = normalizeProjectsFocus(
+    migrateProjects(projectRecords),
+  ).projects;
 
   if (!projects) {
     return null;
@@ -557,7 +638,10 @@ export function readWorkspaceSnapshot(
     try {
       parsed = JSON.parse(parsed) as unknown;
     } catch (error) {
-      console.error("[snapshotBridge] failed to parse workspace snapshot:", error);
+      console.error(
+        "[snapshotBridge] failed to parse workspace snapshot:",
+        error,
+      );
       return null;
     }
   }

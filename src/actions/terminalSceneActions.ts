@@ -8,6 +8,9 @@ import {
   useProjectStore,
 } from "../stores/projectStore";
 import { destroyTerminalRuntime } from "../terminal/terminalRuntimeStore";
+import { pickPlacement } from "../canvas/terminalPlacement";
+import { useCanvasStore } from "../stores/canvasStore";
+import { getVisibleCanvasWorldRect } from "../canvas/viewportBounds";
 
 interface CreateTerminalInSceneOptions {
   projectId: string;
@@ -19,6 +22,7 @@ interface CreateTerminalInSceneOptions {
   autoApprove?: boolean;
   origin?: TerminalOrigin;
   parentTerminalId?: string;
+  position?: { x: number; y: number };
 }
 
 export function addTerminalToScene(
@@ -40,20 +44,68 @@ export function createTerminalInScene({
   autoApprove,
   origin = "user",
   parentTerminalId,
+  position,
 }: CreateTerminalInSceneOptions): TerminalData {
-  return addTerminalToScene(
+  const baseTerminal =
+    terminal ??
+    createProjectTerminal(
+      type,
+      title,
+      initialPrompt,
+      autoApprove,
+      origin,
+      parentTerminalId,
+    );
+
+  // Compute placement if the caller did not specify explicit x/y on the
+  // terminal record. The default createTerminal() returns x=0, y=0, so we
+  // treat that as "needs auto placement".
+  const projectStore = useProjectStore.getState();
+  const canvasState = useCanvasStore.getState();
+  const viewportRect =
+    typeof window !== "undefined"
+      ? getVisibleCanvasWorldRect(
+          canvasState.viewport,
+          canvasState.rightPanelCollapsed,
+          canvasState.leftPanelCollapsed,
+          canvasState.leftPanelWidth,
+        )
+      : undefined;
+  const placement = pickPlacement({
+    projects: projectStore.projects,
     projectId,
     worktreeId,
-    terminal ??
-      createProjectTerminal(
-        type,
-        title,
-        initialPrompt,
-        autoApprove,
-        origin,
-        parentTerminalId,
-      ),
-  );
+    parentTerminalId,
+    width: baseTerminal.width,
+    height: baseTerminal.height,
+    preferredPosition: position,
+    viewportRect,
+  });
+
+  const placedTerminal: TerminalData = {
+    ...baseTerminal,
+    x: placement.x,
+    y: placement.y,
+  };
+
+  // Apply collision-resolved nudges to existing tiles.
+  for (const nudge of placement.nudged) {
+    for (const project of projectStore.projects) {
+      for (const worktree of project.worktrees) {
+        if (worktree.terminals.some((t) => t.id === nudge.id)) {
+          projectStore.updateTerminalPosition(
+            project.id,
+            worktree.id,
+            nudge.id,
+            nudge.x,
+            nudge.y,
+          );
+        }
+      }
+    }
+  }
+
+  return addTerminalToScene(projectId, worktreeId, placedTerminal);
 }
 
 export function focusTerminalInScene(
@@ -101,17 +153,6 @@ export function toggleTerminalMinimizeInScene(
   useProjectStore
     .getState()
     .toggleTerminalMinimize(projectId, worktreeId, terminalId);
-}
-
-export function updateTerminalSpanInScene(
-  projectId: string,
-  worktreeId: string,
-  terminalId: string,
-  span: { cols: number; rows: number },
-): void {
-  useProjectStore
-    .getState()
-    .updateTerminalSpan(projectId, worktreeId, terminalId, span);
 }
 
 export function stashTerminalInScene(

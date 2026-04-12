@@ -6,33 +6,32 @@ import type {
   TerminalType,
   TerminalStatus,
   TerminalOrigin,
-  StashedTerminal,
 } from "../types/index.ts";
 import {
   filterValidSelectedItems,
-  getRenderableTerminalSpans,
   sameSelectedItems,
 } from "../canvas/sceneState.ts";
 import {
-  getStandardWorktreeWidth,
-  getWorktreeSize,
-  PROJ_PAD,
-  PROJ_TITLE_H,
-} from "../layout.ts";
-import {
-  DEFAULT_SPAN,
   withToggledTerminalStarred,
   withUpdatedTerminalCustomTitle,
   withUpdatedTerminalType,
 } from "./terminalState.ts";
-import { normalizeProjectsFocus, findNextVisibleTerminalId } from "./projectFocus.ts";
+import {
+  normalizeProjectsFocus,
+  findNextVisibleTerminalId,
+} from "./projectFocus.ts";
 import { useWorkspaceStore } from "./workspaceStore.ts";
 import { usePreferencesStore } from "./preferencesStore.ts";
-import { logSlowRendererPath, measureRendererSync } from "../utils/devPerf.ts";
+import { logSlowRendererPath } from "../utils/devPerf.ts";
 import { useSelectionStore } from "./selectionStore.ts";
-import { setTrackSidebar, useTileDimensionsStore } from "./tileDimensionsStore.ts";
+import {
+  recomputeTileDimensions,
+  setTrackSidebar,
+  useTileDimensionsStore,
+} from "./tileDimensionsStore.ts";
 import { useTerminalRuntimeStateStore } from "./terminalRuntimeStateStore.ts";
 import { destroyTerminalRuntime } from "../terminal/terminalRuntimeStore.ts";
+import { resolveCollisions } from "../canvas/collisionResolver.ts";
 
 interface ProjectStore {
   projects: ProjectData[];
@@ -41,18 +40,7 @@ interface ProjectStore {
 
   addProject: (project: ProjectData) => void;
   removeProject: (projectId: string) => void;
-  updateProjectPosition: (projectId: string, x: number, y: number) => void;
-  toggleProjectCollapse: (projectId: string) => void;
-  compactProjectWorktrees: (projectId: string) => void;
-  bringToFront: (projectId: string) => void;
 
-  updateWorktreePosition: (
-    projectId: string,
-    worktreeId: string,
-    x: number,
-    y: number,
-  ) => void;
-  toggleWorktreeCollapse: (projectId: string, worktreeId: string) => void;
   removeWorktree: (projectId: string, worktreeId: string) => void;
   syncWorktrees: (
     projectPath: string,
@@ -115,11 +103,31 @@ interface ProjectStore {
     worktreeId: string,
     terminalId: string,
   ) => void;
-  updateTerminalSpan: (
+  updateTerminalPosition: (
     projectId: string,
     worktreeId: string,
     terminalId: string,
-    span: { cols: number; rows: number },
+    x: number,
+    y: number,
+  ) => void;
+  updateTerminalSize: (
+    projectId: string,
+    worktreeId: string,
+    terminalId: string,
+    width: number,
+    height: number,
+  ) => void;
+  addTerminalTag: (
+    projectId: string,
+    worktreeId: string,
+    terminalId: string,
+    tag: string,
+  ) => void;
+  removeTerminalTag: (
+    projectId: string,
+    worktreeId: string,
+    terminalId: string,
+    tag: string,
   ) => void;
   reorderTerminal: (
     projectId: string,
@@ -170,6 +178,11 @@ export function createTerminal(
   origin: TerminalOrigin = "user",
   parentTerminalId?: string,
 ): TerminalData {
+  // Recompute based on current panel insets so every creation path (right
+  // session panel "+", cmd+t, ProjectTree, agent-driven) gets the same
+  // panel-aware size instead of the stale default left over from module load.
+  recomputeTileDimensions();
+  const { w, h } = useTileDimensionsStore.getState();
   return {
     id: generateId(),
     title: title ?? (type === "shell" ? "Terminal" : type),
@@ -178,7 +191,11 @@ export function createTerminal(
     focused: false,
     ptyId: null,
     status: "idle",
-    span: DEFAULT_SPAN[type],
+    x: 0,
+    y: 0,
+    width: w,
+    height: h,
+    tags: [],
     origin,
     ...(initialPrompt ? { initialPrompt } : {}),
     ...(autoApprove ? { autoApprove } : {}),
@@ -212,218 +229,8 @@ function mapTerminals(
   );
 }
 
-const OVERLAP_GAP = 40;
-const WORKTREE_GAP = 8;
-const COMPACT_ROW_WIDTH = getStandardWorktreeWidth();
-
 function markDirty() {
   useWorkspaceStore.getState().markDirty();
-}
-
-function getVisibleWorktreeSize(worktree: WorktreeData) {
-  return getWorktreeSize(
-    getRenderableTerminalSpans(worktree),
-    worktree.collapsed,
-  );
-}
-
-function resolveWorktreeOverlaps(worktrees: WorktreeData[]): WorktreeData[] {
-  if (worktrees.length <= 1) return worktrees;
-
-  const positions = new Map(worktrees.map((w) => [w.id, { ...w.position }]));
-  const sorted = [...worktrees].sort(
-    (a, b) => positions.get(a.id)!.y - positions.get(b.id)!.y,
-  );
-
-  for (let i = 1; i < sorted.length; i++) {
-    const curr = sorted[i];
-    const currPos = positions.get(curr.id)!;
-    const currSize = getVisibleWorktreeSize(curr);
-
-    for (let j = 0; j < i; j++) {
-      const prev = sorted[j];
-      const prevPos = positions.get(prev.id)!;
-      const prevSize = getVisibleWorktreeSize(prev);
-
-      if (
-        rectsOverlap(
-          { ...prevPos, w: prevSize.w, h: prevSize.h },
-          { ...currPos, w: currSize.w, h: currSize.h },
-          WORKTREE_GAP,
-        )
-      ) {
-        currPos.y = prevPos.y + prevSize.h + WORKTREE_GAP;
-      }
-    }
-  }
-
-  let changed = false;
-  for (const w of worktrees) {
-    const pos = positions.get(w.id)!;
-    if (pos.x !== w.position.x || pos.y !== w.position.y) {
-      changed = true;
-      break;
-    }
-  }
-  if (!changed) return worktrees;
-
-  return worktrees.map((w) => ({ ...w, position: positions.get(w.id)! }));
-}
-
-function compactWorktreeLayout(worktrees: WorktreeData[]): WorktreeData[] {
-  if (worktrees.length <= 1) return worktrees;
-
-  const ordered = worktrees
-    .map((worktree, index) => ({
-      worktree,
-      index,
-      size: getVisibleWorktreeSize(worktree),
-    }))
-    .sort(
-      (a, b) =>
-        a.worktree.position.y - b.worktree.position.y ||
-        a.worktree.position.x - b.worktree.position.x ||
-        a.index - b.index,
-    );
-
-  const positions = new Map<string, { x: number; y: number }>();
-  let rowX = 0;
-  let rowY = 0;
-  let rowHeight = 0;
-
-  for (const item of ordered) {
-    if (rowX > 0 && rowX + item.size.w > COMPACT_ROW_WIDTH) {
-      rowX = 0;
-      rowY += rowHeight + WORKTREE_GAP;
-      rowHeight = 0;
-    }
-
-    positions.set(item.worktree.id, { x: rowX, y: rowY });
-    rowX += item.size.w + WORKTREE_GAP;
-    rowHeight = Math.max(rowHeight, item.size.h);
-  }
-
-  let changed = false;
-  for (const worktree of worktrees) {
-    const nextPosition = positions.get(worktree.id)!;
-    if (
-      nextPosition.x !== worktree.position.x ||
-      nextPosition.y !== worktree.position.y
-    ) {
-      changed = true;
-      break;
-    }
-  }
-
-  if (!changed) return worktrees;
-
-  return worktrees.map((worktree) => ({
-    ...worktree,
-    position: positions.get(worktree.id)!,
-  }));
-}
-
-export function getProjectBounds(p: ProjectData) {
-  if (p.worktrees.length === 0) {
-    return {
-      x: p.position.x,
-      y: p.position.y,
-      w: 340,
-      h: PROJ_TITLE_H + PROJ_PAD + 60 + PROJ_PAD,
-    };
-  }
-  let maxW = 300;
-  let totalH = 0;
-  for (const wt of p.worktrees) {
-    const wtSize = getVisibleWorktreeSize(wt);
-    maxW = Math.max(maxW, wt.position.x + wtSize.w);
-    totalH = Math.max(totalH, wt.position.y + wtSize.h);
-  }
-  return {
-    x: p.position.x,
-    y: p.position.y,
-    w: Math.max(340, maxW + PROJ_PAD * 2),
-    h: p.collapsed
-      ? PROJ_TITLE_H + 8
-      : PROJ_TITLE_H + PROJ_PAD + totalH + PROJ_PAD,
-  };
-}
-
-function rectsOverlap(
-  a: { x: number; y: number; w: number; h: number },
-  b: { x: number; y: number; w: number; h: number },
-  gap: number,
-): boolean {
-  return (
-    a.x < b.x + b.w + gap &&
-    a.x + a.w + gap > b.x &&
-    a.y < b.y + b.h + gap &&
-    a.y + a.h + gap > b.y
-  );
-}
-
-function resolveOverlaps(projects: ProjectData[]): ProjectData[] {
-  return measureRendererSync(
-    "projectStore.resolveOverlaps",
-    () => {
-      const withResolvedWorktrees = projects.map((p) => ({
-        ...p,
-        worktrees: resolveWorktreeOverlaps(p.worktrees),
-      }));
-
-      const positions = new Map(
-        withResolvedWorktrees.map((p) => [p.id, { ...p.position }]),
-      );
-
-      const sorted = [...withResolvedWorktrees].sort((a, b) => {
-        const posA = positions.get(a.id)!;
-        const posB = positions.get(b.id)!;
-        return posA.x - posB.x || posA.y - posB.y;
-      });
-
-      for (let i = 1; i < sorted.length; i++) {
-        const curr = sorted[i];
-        const currPos = positions.get(curr.id)!;
-
-        for (let j = 0; j < i; j++) {
-          const prev = sorted[j];
-          const prevPos = positions.get(prev.id)!;
-
-          const prevBounds = getProjectBounds({ ...prev, position: prevPos });
-          const currBounds = getProjectBounds({ ...curr, position: currPos });
-
-          if (rectsOverlap(prevBounds, currBounds, OVERLAP_GAP)) {
-            const prevCx = prevBounds.x + prevBounds.w / 2;
-            const prevCy = prevBounds.y + prevBounds.h / 2;
-            const currCx = currBounds.x + currBounds.w / 2;
-            const currCy = currBounds.y + currBounds.h / 2;
-
-            const dx = currCx - prevCx;
-            const dy = currCy - prevCy;
-            const overlapX =
-              (prevBounds.w + currBounds.w) / 2 + OVERLAP_GAP - Math.abs(dx);
-            const overlapY =
-              (prevBounds.h + currBounds.h) / 2 + OVERLAP_GAP - Math.abs(dy);
-
-            if (overlapX <= overlapY) {
-              currPos.x += dx >= 0 ? overlapX : -overlapX;
-            } else {
-              currPos.y += dy >= 0 ? overlapY : -overlapY;
-            }
-          }
-        }
-      }
-
-      return withResolvedWorktrees.map((p) => ({
-        ...p,
-        position: positions.get(p.id)!,
-      }));
-    },
-    {
-      thresholdMs: 12,
-      details: { projects: projects.length },
-    },
-  );
 }
 
 function syncProjectWorktrees(
@@ -438,8 +245,6 @@ function syncProjectWorktrees(
         id: generateId(),
         name: wt.branch,
         path: wt.path,
-        position: { x: 0, y: 0 },
-        collapsed: true,
         terminals: [],
       };
     }
@@ -612,7 +417,9 @@ function findWorktreeTarget(
     return null;
   }
 
-  const worktree = project.worktrees.find((candidate) => candidate.id === worktreeId);
+  const worktree = project.worktrees.find(
+    (candidate) => candidate.id === worktreeId,
+  );
   if (!worktree) {
     return null;
   }
@@ -625,82 +432,18 @@ function findWorktreeTarget(
 
 function expandFocusedTerminalAncestors(
   projects: ProjectData[],
-  projectId: string | null,
-  worktreeId: string | null,
+  _projectId: string | null,
+  _worktreeId: string | null,
 ): ProjectData[] {
-  if (!projectId || !worktreeId) {
-    return projects;
-  }
-
-  let changed = false;
-  const expandedProjects = projects.map((project) => {
-    if (project.id !== projectId) {
-      return project;
-    }
-
-    let nextProject = project;
-    if (project.collapsed) {
-      changed = true;
-      nextProject = { ...nextProject, collapsed: false };
-    }
-
-    const expandedWorktrees = nextProject.worktrees.map((worktree) => {
-      if (worktree.id !== worktreeId || !worktree.collapsed) {
-        return worktree;
-      }
-
-      changed = true;
-      return { ...worktree, collapsed: false };
-    });
-
-    if (expandedWorktrees !== nextProject.worktrees) {
-      nextProject = { ...nextProject, worktrees: expandedWorktrees };
-    }
-
-    return nextProject;
-  });
-
-  return changed ? resolveOverlaps(expandedProjects) : projects;
+  return projects;
 }
 
 function expandFocusedWorktreeAncestors(
   projects: ProjectData[],
-  projectId: string | null,
-  worktreeId: string | null,
+  _projectId: string | null,
+  _worktreeId: string | null,
 ): ProjectData[] {
-  if (!projectId || !worktreeId) {
-    return projects;
-  }
-
-  let changed = false;
-  const expandedProjects = projects.map((project) => {
-    if (project.id !== projectId) {
-      return project;
-    }
-
-    let nextProject = project;
-    if (project.collapsed) {
-      changed = true;
-      nextProject = { ...nextProject, collapsed: false };
-    }
-
-    const expandedWorktrees = nextProject.worktrees.map((worktree) => {
-      if (worktree.id !== worktreeId || !worktree.collapsed) {
-        return worktree;
-      }
-
-      changed = true;
-      return { ...worktree, collapsed: false };
-    });
-
-    if (expandedWorktrees !== nextProject.worktrees) {
-      nextProject = { ...nextProject, worktrees: expandedWorktrees };
-    }
-
-    return nextProject;
-  });
-
-  return changed ? resolveOverlaps(expandedProjects) : projects;
+  return projects;
 }
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
@@ -710,7 +453,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   addProject: (project) => {
     set((state) => ({
-      projects: resolveOverlaps([...state.projects, project]),
+      projects: [...state.projects, project],
     }));
     markDirty();
   },
@@ -718,16 +461,22 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   removeProject: (projectId) => {
     let removedTerminalIds: string[] = [];
     set((state) => {
-      const removedProject = state.projects.find((project) => project.id === projectId);
+      const removedProject = state.projects.find(
+        (project) => project.id === projectId,
+      );
       if (!removedProject) {
         return state;
       }
 
       removedTerminalIds = collectProjectTerminalIds(removedProject);
-      const nextProjects = state.projects.filter((project) => project.id !== projectId);
+      const nextProjects = state.projects.filter(
+        (project) => project.id !== projectId,
+      );
       const nextFocus = resolveStructuralFocus(nextProjects, {
-        projectId: state.focusedProjectId === projectId ? null : state.focusedProjectId,
-        worktreeId: state.focusedProjectId === projectId ? null : state.focusedWorktreeId,
+        projectId:
+          state.focusedProjectId === projectId ? null : state.focusedProjectId,
+        worktreeId:
+          state.focusedProjectId === projectId ? null : state.focusedWorktreeId,
       });
 
       return {
@@ -740,119 +489,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     markDirty();
   },
 
-  updateProjectPosition: (projectId, x, y) => {
-    set((state) => {
-      const updated = state.projects.map((p) =>
-        p.id !== projectId ? p : { ...p, position: { x, y } },
-      );
-      return { projects: resolveOverlaps(updated) };
-    });
-    markDirty();
-  },
-
-  toggleProjectCollapse: (projectId) => {
-    set((state) => {
-      const targetProject = state.projects.find((project) => project.id === projectId);
-      if (!targetProject) {
-        return state;
-      }
-
-      const nextCollapsed = !targetProject.collapsed;
-      const currentFocusedTerminalId = nextCollapsed
-        ? targetProject.worktrees.flatMap((worktree) => worktree.terminals).find(
-            (terminal) => terminal.focused,
-          )?.id ?? null
-        : null;
-      let projects = resolveOverlaps(
-        state.projects.map((project) =>
-          project.id !== projectId
-            ? project
-            : { ...project, collapsed: nextCollapsed },
-        ),
-      );
-
-      if (currentFocusedTerminalId) {
-        const nextTerminalId = findNextVisibleTerminalId(
-          state.projects,
-          currentFocusedTerminalId,
-          projects,
-        );
-        projects = updateFocusedTerminalFlags(
-          projects,
-          currentFocusedTerminalId,
-          nextTerminalId,
-        );
-        const lookup = inspectFocus(projects, nextTerminalId);
-        return {
-          focusedProjectId: lookup.nextProjectId,
-          focusedWorktreeId: lookup.nextWorktreeId,
-          projects,
-        };
-      }
-
-      return {
-        focusedProjectId: state.focusedProjectId,
-        focusedWorktreeId: state.focusedWorktreeId,
-        projects,
-      };
-    });
-    markDirty();
-  },
-
-  compactProjectWorktrees: (projectId) => {
-    set((state) => {
-      const updatedProjects = state.projects.map((project) => {
-        if (project.id !== projectId) return project;
-        const compactedWorktrees = compactWorktreeLayout(project.worktrees);
-        if (compactedWorktrees === project.worktrees) {
-          return project;
-        }
-        return { ...project, autoCompact: true, worktrees: compactedWorktrees };
-      });
-
-      if (updatedProjects.every((p, i) => p === state.projects[i])) {
-        return state;
-      }
-      return { projects: resolveOverlaps(updatedProjects) };
-    });
-    markDirty();
-  },
-
-  bringToFront: (projectId) => {
-    set((state) => {
-      const maxZ = Math.max(0, ...state.projects.map((p) => p.zIndex ?? 0));
-      return {
-        projects: state.projects.map((p) =>
-          p.id !== projectId ? p : { ...p, zIndex: maxZ + 1 },
-        ),
-      };
-    });
-    markDirty();
-  },
-
-  updateWorktreePosition: (projectId, worktreeId, x, y) => {
-    set((state) => ({
-      projects: resolveOverlaps(
-        state.projects.map((p) =>
-          p.id !== projectId
-            ? p
-            : {
-                ...p,
-                autoCompact: false,
-                worktrees: p.worktrees.map((w) =>
-                  w.id !== worktreeId ? w : { ...w, position: { x, y } },
-                ),
-              },
-        ),
-      ),
-    }));
-    markDirty();
-  },
-
   removeWorktree: (projectId, worktreeId) => {
     let removedTerminalIds: string[] = [];
     set((state) => {
-      const targetProject = state.projects.find((project) => project.id === projectId);
+      const targetProject = state.projects.find(
+        (project) => project.id === projectId,
+      );
       const removedWorktree = targetProject?.worktrees.find(
         (worktree) => worktree.id === worktreeId,
       );
@@ -861,26 +503,15 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       }
 
       removedTerminalIds = collectWorktreeTerminalIds(removedWorktree);
-      const filtered = state.projects.map((project) =>
+      const nextProjects = state.projects.map((project) =>
         project.id !== projectId
           ? project
           : {
               ...project,
-              worktrees: project.worktrees.filter((worktree) => worktree.id !== worktreeId),
+              worktrees: project.worktrees.filter(
+                (worktree) => worktree.id !== worktreeId,
+              ),
             },
-      );
-      const project = filtered.find((candidate) => candidate.id === projectId);
-      const nextProjects = resolveOverlaps(
-        project?.autoCompact
-          ? filtered.map((candidate) =>
-              candidate.id !== projectId
-                ? candidate
-                : {
-                    ...candidate,
-                    worktrees: compactWorktreeLayout(candidate.worktrees),
-                  },
-            )
-          : filtered,
       );
       const removedFocusedWorktree =
         state.focusedProjectId === projectId &&
@@ -921,8 +552,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         return state;
       }
 
-      const nextProjects = resolveOverlaps(updatedProjects);
-      const nextFocus = resolveStructuralFocus(nextProjects, {
+      const nextFocus = resolveStructuralFocus(updatedProjects, {
         projectId: state.focusedProjectId,
         worktreeId: state.focusedWorktreeId,
       });
@@ -939,87 +569,34 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     }
   },
 
-  toggleWorktreeCollapse: (projectId, worktreeId) => {
-    set((state) => {
-      const targetProject = state.projects.find((project) => project.id === projectId);
-      const targetWorktree = targetProject?.worktrees.find(
-        (worktree) => worktree.id === worktreeId,
-      );
-      if (!targetWorktree) {
-        return state;
-      }
-
-      const nextCollapsed = !targetWorktree.collapsed;
-      const currentFocusedTerminalId = nextCollapsed
-        ? targetWorktree.terminals.find((terminal) => terminal.focused)?.id ?? null
-        : null;
-      let projects = resolveOverlaps(
-        state.projects.map((project) =>
-          project.id !== projectId
-            ? project
-            : {
-                ...project,
-                worktrees: project.worktrees.map((worktree) =>
-                  worktree.id !== worktreeId
-                    ? worktree
-                    : { ...worktree, collapsed: nextCollapsed },
-                ),
-              },
-        ),
-      );
-
-      if (currentFocusedTerminalId) {
-        const nextTerminalId = findNextVisibleTerminalId(
-          state.projects,
-          currentFocusedTerminalId,
-          projects,
-        );
-        projects = updateFocusedTerminalFlags(
-          projects,
-          currentFocusedTerminalId,
-          nextTerminalId,
-        );
-        const lookup = inspectFocus(projects, nextTerminalId);
-        return {
-          focusedProjectId: lookup.nextProjectId,
-          focusedWorktreeId: lookup.nextWorktreeId,
-          projects,
-        };
-      }
-
-      return {
-        focusedProjectId: state.focusedProjectId,
-        focusedWorktreeId: state.focusedWorktreeId,
-        projects,
-      };
-    });
-    markDirty();
-  },
-
   addTerminal: (projectId, worktreeId, terminal) => {
     set((state) => {
-      const updated = state.projects.map((p) =>
-        p.id !== projectId
-          ? p
-          : {
-              ...p,
-              worktrees: p.worktrees.map((w) =>
-                w.id !== worktreeId
-                  ? w
-                  : { ...w, terminals: [...w.terminals, terminal] },
-              ),
-            },
-      );
-      const project = updated.find((p) => p.id === projectId);
+      const project = state.projects.find((p) => p.id === projectId);
+      const worktree = project?.worktrees.find((w) => w.id === worktreeId);
+      const autoTags = [
+        `project:${project?.name ?? "unknown"}`,
+        `worktree:${worktree?.name ?? "unknown"}`,
+        `type:${terminal.type}`,
+      ];
+      const taggedTerminal = {
+        ...terminal,
+        tags: [
+          ...autoTags,
+          ...terminal.tags.filter((t) => t.startsWith("custom:")),
+        ],
+      };
       return {
-        projects: resolveOverlaps(
-          project?.autoCompact
-            ? updated.map((p) =>
-                p.id !== projectId
-                  ? p
-                  : { ...p, worktrees: compactWorktreeLayout(p.worktrees) },
-              )
-            : updated,
+        projects: state.projects.map((p) =>
+          p.id !== projectId
+            ? p
+            : {
+                ...p,
+                worktrees: p.worktrees.map((w) =>
+                  w.id !== worktreeId
+                    ? w
+                    : { ...w, terminals: [...w.terminals, taggedTerminal] },
+                ),
+              },
         ),
       };
     });
@@ -1047,7 +624,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         }
       }
 
-      const filtered = state.projects.map((p) =>
+      const updatedProjects = state.projects.map((p) =>
         p.id !== projectId
           ? p
           : {
@@ -1057,22 +634,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
                   ? w
                   : {
                       ...w,
-                      terminals: w.terminals.filter(
-                        (t) => t.id !== terminalId,
-                      ),
+                      terminals: w.terminals.filter((t) => t.id !== terminalId),
                     },
               ),
             },
-      );
-      const project = filtered.find((p) => p.id === projectId);
-      const updatedProjects = resolveOverlaps(
-        project?.autoCompact
-          ? filtered.map((p) =>
-              p.id !== projectId
-                ? p
-                : { ...p, worktrees: compactWorktreeLayout(p.worktrees) },
-            )
-          : filtered,
       );
 
       if (!wasFocused) {
@@ -1154,7 +719,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     useTerminalRuntimeStateStore.getState().setSessionId(terminalId, sessionId);
   },
 
-  updateTerminalAutoApprove: (projectId, worktreeId, terminalId, autoApprove) => {
+  updateTerminalAutoApprove: (
+    projectId,
+    worktreeId,
+    terminalId,
+    autoApprove,
+  ) => {
     set((state) => ({
       projects: mapTerminals(
         state.projects,
@@ -1169,20 +739,23 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   updateTerminalType: (projectId, worktreeId, terminalId, type) => {
     set((state) => ({
-      projects: resolveOverlaps(
-        mapTerminals(
-          state.projects,
-          projectId,
-          worktreeId,
-          terminalId,
-          (t) => withUpdatedTerminalType(t, type),
-        ),
+      projects: mapTerminals(
+        state.projects,
+        projectId,
+        worktreeId,
+        terminalId,
+        (t) => withUpdatedTerminalType(t, type),
       ),
     }));
     markDirty();
   },
 
-  updateTerminalCustomTitle: (projectId, worktreeId, terminalId, customTitle) => {
+  updateTerminalCustomTitle: (
+    projectId,
+    worktreeId,
+    terminalId,
+    customTitle,
+  ) => {
     set((state) => ({
       projects: mapTerminals(
         state.projects,
@@ -1208,28 +781,57 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     markDirty();
   },
 
-  updateTerminalSpan: (projectId, worktreeId, terminalId, span) => {
-    set((state) => {
-      const updated = mapTerminals(
+  updateTerminalPosition: (projectId, worktreeId, terminalId, x, y) => {
+    set((state) => ({
+      projects: mapTerminals(
         state.projects,
         projectId,
         worktreeId,
         terminalId,
-        (t) => ({ ...t, span }),
-      );
-      const project = updated.find((p) => p.id === projectId);
-      return {
-        projects: resolveOverlaps(
-          project?.autoCompact
-            ? updated.map((p) =>
-                p.id !== projectId
-                  ? p
-                  : { ...p, worktrees: compactWorktreeLayout(p.worktrees) },
-              )
-            : updated,
-        ),
-      };
-    });
+        (t) => ({ ...t, x, y }),
+      ),
+    }));
+    markDirty();
+  },
+
+  updateTerminalSize: (projectId, worktreeId, terminalId, width, height) => {
+    set((state) => ({
+      projects: mapTerminals(
+        state.projects,
+        projectId,
+        worktreeId,
+        terminalId,
+        (t) => ({ ...t, width, height }),
+      ),
+    }));
+    markDirty();
+  },
+
+  addTerminalTag: (projectId, worktreeId, terminalId, tag) => {
+    if (!tag.startsWith("custom:")) return;
+    set((state) => ({
+      projects: mapTerminals(
+        state.projects,
+        projectId,
+        worktreeId,
+        terminalId,
+        (t) => (t.tags.includes(tag) ? t : { ...t, tags: [...t.tags, tag] }),
+      ),
+    }));
+    markDirty();
+  },
+
+  removeTerminalTag: (projectId, worktreeId, terminalId, tag) => {
+    if (!tag.startsWith("custom:")) return;
+    set((state) => ({
+      projects: mapTerminals(
+        state.projects,
+        projectId,
+        worktreeId,
+        terminalId,
+        (t) => ({ ...t, tags: t.tags.filter((existing) => existing !== tag) }),
+      ),
+    }));
     markDirty();
   },
 
@@ -1246,7 +848,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
                 const visibleSlots = terminals.flatMap((terminal, index) =>
                   terminal.stashed ? [] : [index],
                 );
-                const visibleTerminals = visibleSlots.map((index) => terminals[index]);
+                const visibleTerminals = visibleSlots.map(
+                  (index) => terminals[index],
+                );
                 const oldVisibleIndex = visibleTerminals.findIndex(
                   (terminal) => terminal.id === terminalId,
                 );
@@ -1285,11 +889,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     }
 
     set((state) => {
-      const {
-        currentFocusedTerminalId,
-        nextProjectId,
-        nextWorktreeId,
-      } = focusLookup;
+      const { currentFocusedTerminalId, nextProjectId, nextWorktreeId } =
+        focusLookup;
       const focusedProjects = updateFocusedTerminalFlags(
         state.projects,
         currentFocusedTerminalId,
@@ -1315,12 +916,18 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         projects,
       };
     });
-    if (terminalId && options?.focusInput !== false && options?.focusComposer !== false) {
+    if (
+      terminalId &&
+      options?.focusInput !== false &&
+      options?.focusComposer !== false
+    ) {
       const composerEnabled = usePreferencesStore.getState().composerEnabled;
       if (composerEnabled) {
         window.dispatchEvent(new CustomEvent("termcanvas:focus-composer"));
       } else {
-        window.dispatchEvent(new CustomEvent("termcanvas:focus-xterm", { detail: terminalId }));
+        window.dispatchEvent(
+          new CustomEvent("termcanvas:focus-xterm", { detail: terminalId }),
+        );
       }
     }
     logSlowRendererPath("projectStore.setFocusedTerminal", startedAt, {
@@ -1404,7 +1011,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
 }));
 
-
 export interface TerminalLocation {
   terminal: TerminalData;
   projectId: string;
@@ -1440,16 +1046,6 @@ export function getChildTerminals(
   }
   return children;
 }
-
-useTileDimensionsStore.subscribe((state, prev) => {
-  if (state.w === prev.w && state.h === prev.h) return;
-  const { projects } = useProjectStore.getState();
-  if (projects.length === 0) return;
-  const resolved = resolveOverlaps(projects);
-  if (resolved !== projects) {
-    useProjectStore.setState({ projects: resolved });
-  }
-});
 
 useProjectStore.subscribe((state, prev) => {
   if (state.projects === prev.projects) {
@@ -1489,7 +1085,12 @@ export function stashTerminal(
                     terminals: w.terminals.map((t) =>
                       t.id !== terminalId
                         ? t
-                        : { ...t, stashed: true, stashedAt: now, focused: false },
+                        : {
+                            ...t,
+                            stashed: true,
+                            stashedAt: now,
+                            focused: false,
+                          },
                     ),
                   },
             ),
@@ -1500,6 +1101,7 @@ export function stashTerminal(
 }
 
 export function unstashTerminal(terminalId: string): void {
+  // First, restore the stashed flag using the existing position.
   useProjectStore.setState((state) => ({
     projects: state.projects.map((p) => ({
       ...p,
@@ -1513,6 +1115,49 @@ export function unstashTerminal(terminalId: string): void {
       })),
     })),
   }));
+
+  // Resolve any collision between the unstashed tile and currently visible
+  // tiles. This both detects whether the original (x, y) is still free and
+  // nudges the unstashed tile out of the way if not.
+  const projects = useProjectStore.getState().projects;
+  const allRects: Array<{
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }> = [];
+  for (const project of projects) {
+    for (const worktree of project.worktrees) {
+      for (const terminal of worktree.terminals) {
+        if (terminal.stashed) continue;
+        allRects.push({
+          id: terminal.id,
+          x: terminal.x,
+          y: terminal.y,
+          width: terminal.width,
+          height: terminal.height,
+        });
+      }
+    }
+  }
+  // Anchor remains the unstashed terminal — collision resolver will only
+  // move it when forced and otherwise nudge other tiles.
+  const resolved = resolveCollisions(allRects, 8, terminalId);
+  const updatePos = useProjectStore.getState().updateTerminalPosition;
+  for (const rect of resolved) {
+    const original = allRects.find((r) => r.id === rect.id);
+    if (!original) continue;
+    if (original.x === rect.x && original.y === rect.y) continue;
+    for (const project of projects) {
+      for (const worktree of project.worktrees) {
+        if (worktree.terminals.some((t) => t.id === rect.id)) {
+          updatePos(project.id, worktree.id, rect.id, rect.x, rect.y);
+        }
+      }
+    }
+  }
+
   useProjectStore.getState().setFocusedTerminal(terminalId);
   markDirty();
 }
@@ -1551,7 +1196,9 @@ export function destroyStashedTerminal(terminalId: string): void {
   const items = getStashedTerminals();
   const entry = items.find((e) => e.terminal.id === terminalId);
   if (entry) {
-    useProjectStore.getState().removeTerminal(entry.projectId, entry.worktreeId, terminalId);
+    useProjectStore
+      .getState()
+      .removeTerminal(entry.projectId, entry.worktreeId, terminalId);
     return;
   }
   cleanupRemovedTerminalIds([terminalId]);

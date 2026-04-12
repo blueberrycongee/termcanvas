@@ -2,6 +2,7 @@ import { useCanvasStore, COLLAPSED_TAB_WIDTH, RIGHT_PANEL_WIDTH } from "../store
 import type { RightPanelTab } from "../stores/canvasStore";
 import { UsagePanel } from "./UsagePanel";
 import { SessionsPanel } from "./SessionsPanel";
+import { IconButton } from "./ui/IconButton";
 import { useT } from "../i18n/useT";
 
 const TAB_ICONS: Record<RightPanelTab, React.ReactNode> = {
@@ -45,16 +46,22 @@ export function RightPanel() {
         onClick={() => setCollapsed(false)}
       >
         {TAB_IDS.map((id) => (
+          // Collapsed-rail buttons are not real tabs (no tabpanel is
+          // visible while collapsed) — they expand the panel and pick a
+          // tab in one shot. Treat them as plain buttons with a clear
+          // label, not as tab/toggle widgets.
           <button
             key={id}
-            className={`flex flex-col items-center py-2 px-1 rounded cursor-pointer hover:bg-[var(--sidebar-hover)] ${
+            type="button"
+            title={tabLabels[id]}
+            aria-label={tabLabels[id]}
+            className={`flex flex-col items-center py-2 px-1 rounded cursor-pointer hover:bg-[var(--sidebar-hover)] outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)] ${
               activeTab === id ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"
             }`}
             onClick={() => {
               setActiveTab(id);
               setCollapsed(false);
             }}
-            title={tabLabels[id]}
           >
             {TAB_ICONS[id]}
           </button>
@@ -68,33 +75,53 @@ export function RightPanel() {
           transition: "width 0.2s ease",
         }}
       >
-        <div className="shrink-0 flex items-center border-b border-[var(--border)] h-[34px]">
-          {TAB_IDS.map((id) => (
-            <button
-              key={id}
-              className={`flex-1 flex items-center justify-center gap-1.5 h-full text-[10px] uppercase tracking-wider cursor-pointer border-b-2 transition-colors ${
-                activeTab === id
-                  ? "border-[var(--accent)] text-[var(--text-primary)]"
-                  : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-              }`}
-              onClick={() => setActiveTab(id)}
-              style={{ fontFamily: '"Geist Mono", monospace' }}
-            >
-              {TAB_ICONS[id]}
-              {tabLabels[id]}
-            </button>
-          ))}
-          <button
-            className="shrink-0 px-2 h-full text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+        <div
+          role="tablist"
+          aria-label={t.sessions_panel_title}
+          className="shrink-0 flex items-center border-b border-[var(--border)] h-[34px]"
+        >
+          {TAB_IDS.map((id) => {
+            const selected = activeTab === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                id={`right-panel-tab-${id}`}
+                aria-selected={selected}
+                aria-controls={`right-panel-tabpanel-${id}`}
+                tabIndex={selected ? 0 : -1}
+                className={`flex-1 flex items-center justify-center gap-1.5 h-full text-[10px] uppercase tracking-wider cursor-pointer border-b-2 transition-colors outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent)] ${
+                  selected
+                    ? "border-[var(--accent)] text-[var(--text-primary)]"
+                    : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                }`}
+                onClick={() => setActiveTab(id)}
+                style={{ fontFamily: '"Geist Mono", monospace' }}
+              >
+                {TAB_ICONS[id]}
+                {tabLabels[id]}
+              </button>
+            );
+          })}
+          <IconButton
+            size="md"
+            tone="neutral"
+            label={t.right_panel_collapse}
             onClick={() => setCollapsed(true)}
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M4 1l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-          </button>
+          </IconButton>
         </div>
 
-        <div className="flex-1 min-h-0">
+        <div
+          role="tabpanel"
+          id={`right-panel-tabpanel-${activeTab}`}
+          aria-labelledby={`right-panel-tab-${activeTab}`}
+          className="flex-1 min-h-0"
+        >
           {activeTab === "usage" && <UsagePanel />}
           {activeTab === "sessions" && <SessionsPanel />}
         </div>

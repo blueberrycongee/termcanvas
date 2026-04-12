@@ -1,9 +1,6 @@
+import { useCanvasStore } from "../stores/canvasStore";
 import { useNotificationStore } from "../stores/notificationStore";
-import {
-  generateId,
-  getProjectBounds,
-  useProjectStore,
-} from "../stores/projectStore";
+import { generateId, useProjectStore } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import type { ProjectData, TermCanvasAPI } from "../types";
 
@@ -24,8 +21,12 @@ function getNextProjectX(projects: ProjectData[]): number {
   const gap = 80;
 
   for (const project of projects) {
-    const bounds = getProjectBounds(project);
-    placeX = Math.max(placeX, bounds.x + bounds.w + gap);
+    const terminals = project.worktrees.flatMap((w) =>
+      w.terminals.filter((t) => !t.stashed),
+    );
+    if (terminals.length === 0) continue;
+    const maxRight = Math.max(...terminals.map((t) => t.x + t.width));
+    placeX = Math.max(placeX, maxRight + gap);
   }
 
   return placeX;
@@ -33,21 +34,15 @@ function getNextProjectX(projects: ProjectData[]): number {
 
 function buildProjectFromScan(
   info: NonNullable<ProjectScanResult>,
-  positionX: number,
 ): ProjectData {
   return {
     id: generateId(),
     name: info.name,
     path: info.path,
-    position: { x: positionX, y: 0 },
-    collapsed: false,
-    zIndex: 0,
-    worktrees: info.worktrees.map((worktree, index) => ({
+    worktrees: info.worktrees.map((worktree) => ({
       id: generateId(),
       name: worktree.branch,
       path: worktree.path,
-      position: { x: 0, y: index * 360 },
-      collapsed: false,
       terminals: [],
     })),
   };
@@ -86,12 +81,8 @@ export function clearSceneFocusAndSelection() {
 
 export function activateProjectInScene(
   projectId: string,
-  options: { bringToFront?: boolean } = {},
+  _options: { bringToFront?: boolean } = {},
 ) {
-  if (options.bringToFront) {
-    useProjectStore.getState().bringToFront(projectId);
-  }
-
   useProjectStore.getState().clearFocus();
   useSelectionStore.getState().selectProject(projectId);
 }
@@ -99,12 +90,8 @@ export function activateProjectInScene(
 export function activateWorktreeInScene(
   projectId: string,
   worktreeId: string,
-  options: { bringToFront?: boolean } = {},
+  _options: { bringToFront?: boolean } = {},
 ) {
-  if (options.bringToFront) {
-    useProjectStore.getState().bringToFront(projectId);
-  }
-
   useProjectStore.getState().setFocusedWorktree(projectId, worktreeId);
   useSelectionStore.getState().selectWorktree(projectId, worktreeId);
 }
@@ -120,8 +107,19 @@ export async function addProjectFromDirectoryPath(
   }
 
   const { projects, addProject } = useProjectStore.getState();
-  const project = buildProjectFromScan(info, getNextProjectX(projects));
+  const wasEmpty = projects.length === 0;
+  const project = buildProjectFromScan(info);
   addProject(project);
+
+  // When the canvas is empty, dropping a project only registers it in
+  // state — there is no visible change on the canvas itself. Auto-open
+  // the right-side sessions panel so the user can actually see the new
+  // project/worktree tree and pick where to launch a terminal.
+  if (wasEmpty) {
+    const canvas = useCanvasStore.getState();
+    canvas.setRightPanelActiveTab("sessions");
+    canvas.setRightPanelCollapsed(false);
+  }
 
   if (options.notifyAdded) {
     useNotificationStore

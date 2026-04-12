@@ -11,6 +11,7 @@ import { MemoryContent } from "./LeftPanel/MemoryContent";
 import { HydraSetupPopup } from "./HydraSetupPopup";
 import { panToTerminal } from "../utils/panToTerminal";
 import { useSidebarDragStore } from "../stores/sidebarDragStore";
+import { useViewportFocusStore } from "../stores/viewportFocusStore";
 import type { LeftPanelTab } from "../stores/canvasStore";
 import {
   resolveRepoContext,
@@ -334,7 +335,18 @@ export function LeftPanel() {
           .flatMap((p) => p.worktrees)
           .flatMap((w) => w.terminals)
           .find((t) => t.focused)?.id;
-        if (tid) panToTerminal(tid, { immediate: true });
+        if (tid) {
+          // Only re-fit the viewport when we're in zoom-focus mode. In plain
+          // (panned) focus mode the user has explicitly broken away from
+          // fit-scale, so a sidebar resize must not yank them back into a
+          // forced zoom.
+          const inZoomFocus =
+            useViewportFocusStore.getState().zoomedOutTerminalId === null;
+          panToTerminal(tid, {
+            immediate: true,
+            preserveScale: !inZoomFocus,
+          });
+        }
       };
       handle.addEventListener("pointermove", handleMove);
       handle.addEventListener("pointerup", cleanup);

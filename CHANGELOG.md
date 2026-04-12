@@ -2,6 +2,206 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.27.5] - 2026-04-11
+
+### Fixed
+- Clicking a worktree label on the canvas now also focuses that worktree, so a follow-up `cmd+t` creates the new terminal inside the worktree you just clicked instead of whichever one happened to be focused before. The label click handler now pairs `panToWorktree` with `focusWorktreeInScene`, matching the convention already used by Hub and `cmd+]` / `cmd+[` worktree-level navigation. The LOD project-label fallback (extreme zoom-out) also focuses the first populated worktree, so click-then-`cmd+t` works at every scale
+
+### Fixed (zh-CN)
+- 在画布上点击 worktree 标签时，现在会同时把键盘焦点切到该 worktree，这样紧接着按 `cmd+t` 新建的终端会落在你刚刚点击的 worktree 里，而不是上一次焦点所在的 worktree。label 的 click handler 现在会同时调 `panToWorktree` 和 `focusWorktreeInScene`，与 Hub 以及 `cmd+]` / `cmd+[` worktree 级导航的现有约定一致。极远缩放下点击 LOD 模式的项目级合并标签也会聚焦该项目的第一个有内容的 worktree，因此在任何缩放比例下"点了再 cmd+t"都能落到正确位置
+
+## [0.27.4] - 2026-04-11
+
+### Added
+- Screen-space worktree label layer: each worktree now shows a pixel-fixed `project / worktree` label anchored to its topmost terminal, scaled-driven so it fades in as you zoom out and collapses to `Project (N)` at extreme zoom-out; hovering any terminal lights up its worktree's label, hovering or clicking a label highlights it and pans the viewport to fit the worktree
+- Top-left HUD pill that shows the focused `project / worktree` whenever you're zoomed in past 0.7, so the canvas itself answers "where am I" without forcing the right session panel open
+- `wuu` is now a first-class terminal agent type
+- `IconButton` and `ConfirmDialog` UI primitives, adopted across the right session panel
+- Sessions panel auto-opens the first time a project is added so new users see their newly added project immediately
+
+### Changed
+- `cmd+d` is now the strict inverse of `cmd+t`: closing the focused terminal lands focus on the spatial-LEFT row sibling in the SAME worktree (mirroring `cmd+t`'s right-of-focused insertion), and only walks worktree → project → cross-project as fallbacks. Pressing `cmd+t` then `cmd+d` round-trips back to the original focused tile, and you can no longer be silently kicked out of the project you were working in
+- The yellow project-name sticker in each terminal header is removed; the new label layer carries that information at a readable size at every zoom
+- The Hub focus-level switcher is hidden for now while the underlying level cycling is reworked, since it overlapped the new HUD
+- The cluster toolbar is hidden until its layout algorithm is reworked
+- Right session panel: project/worktree removal is unified on the new `ConfirmDialog`, with two-step confirm and a `--force` fallback for non-empty worktree removal
+- Right session panel: chevrons are semantic `<button>`s with focus-visible rings and proper tablist semantics; left-click on a worktree row toggles expand instead of being conflated with focus
+
+### Fixed
+- New terminals now have their tile size recomputed on every create, so the first tile in a fresh worktree always lands at the right dimensions instead of inheriting a stale measurement
+- Codex session attach now uses the SessionStart hook for an exact match instead of guessing from polling order
+- OpenAI streaming `tool_call` accumulator is realigned with the `openai-node` upstream so partial argument chunks are stitched in the correct order
+
+### Added (zh-CN)
+- 屏幕坐标系下的 worktree 标签层：每个 worktree 现在会在它最上方那个终端的上方显示一个 `项目 / worktree` 标签，字号是固定像素大小，跟随画布平移和缩放但本身不会变小；标签会随着缩远渐入显示，缩到极远时会自动合并成 `Project (N)`；hover 任何终端会点亮它所属 worktree 的标签，hover 或点击标签会高亮它并把视口平移到刚好包住该 worktree
+- 当画布缩放 ≥ 0.7（你正在某个终端里打字时），左上角会出现一个 HUD pill 显示当前焦点的 `项目 / worktree`，让画布本身回答"我在哪"，不再强迫你打开右侧 session 面板才知道
+- `wuu` 现在是一等的终端 agent 类型
+- 新增 `IconButton` 和 `ConfirmDialog` 两个 UI 原语，并在右侧 session 面板里推广使用
+- 第一次新增项目时，session 面板会自动打开，让新用户立即看到刚添加的项目
+
+### Changed (zh-CN)
+- `cmd+d` 现在是 `cmd+t` 的严格逆运算：关闭焦点终端后，焦点会落到**同一个 worktree 内、同一行的左侧邻居**（对应 `cmd+t` 在焦点右边插入新终端），fallback 顺序严格走 worktree → project → 跨项目。连按 `cmd+t`、`cmd+d` 会完全回到原焦点终端；再也不会在你不知情的情况下被踢到别的项目里
+- 删除了终端 header 上的黄色项目名贴纸；新的标签层在任何缩放下都能读清楚归属，贴纸不再需要
+- Hub 层级切换器临时隐藏，因为和新 HUD 重叠，且底层 focus-level 还在改造
+- 集群工具条临时隐藏，等布局算法重做完再恢复
+- 右侧 session 面板：项目和 worktree 的删除流程统一到新的 `ConfirmDialog`，提供两步确认；非空 worktree 删除会回退到 `--force`
+- 右侧 session 面板：折叠箭头改为语义 `<button>`，带 focus-visible 圈和正确的 tablist 语义；worktree 行的左键点击改为切换展开而不是混淆成 focus
+
+### Fixed (zh-CN)
+- 新建终端现在每次都会重新计算 tile 尺寸，避免在一个空 worktree 里第一个终端继承到上次的旧尺寸
+- Codex 会话 attach 改为通过 SessionStart hook 精确匹配，不再依赖轮询顺序猜测
+- OpenAI 流式 `tool_call` 累加器与上游 `openai-node` 对齐，部分参数 chunk 现在按正确顺序拼接
+
+## [0.27.3] - 2026-04-10
+
+### Fixed
+- Dragging the left sidebar width no longer force-zooms the focused terminal back to fit-scale when the canvas is in plain (non zoom-focus) focus mode; the resize cleanup now consults the shared viewport focus state and only re-fits the viewport when the user is actually in zoom-focus mode
+
+### Changed
+- The "zoomed out vs zoom-focused" flag previously kept as a local ref inside the keyboard shortcut hook is now lifted into a shared `viewportFocusStore`, so any surface that mutates the viewport (sidebar resize today, future panels tomorrow) reads the same source of truth instead of guessing the mode
+
+### Fixed (zh-CN)
+- 在“仅聚焦”（非放大聚焦）模式下拖动左侧栏宽度，不再强制把当前聚焦终端重新放大充满视口；拖动结束后的清理逻辑会读取共享的视口聚焦状态，只有在真正处于放大聚焦模式时才会重新 fit 视口
+
+### Changed (zh-CN)
+- 原本只活在键盘快捷键 hook 里的 `zoomedOutTerminalIdRef` 已提升为共享的 `viewportFocusStore`，让所有会改动视口的入口（当前是侧栏拖动，未来其它面板）都从同一份状态读取焦点模式，而不是各自猜测
+
+## [0.27.2] - 2026-04-11
+
+### Added
+- Terminal tiles can now use the first real user prompt from telemetry as the default title, so new Codex/agent sessions are easier to distinguish in the canvas and sessions panel
+
+### Fixed
+- Telemetry title extraction now skips injected context so agent terminals do not pick a synthetic bootstrap message as the visible title
+- Sessions wait one poll cycle before accepting Codex session data and reject the baseline session, reducing false-positive terminal matches during initial discovery
+- Terminal resize handles now appear on hover instead of only on selected tiles, making free-resize discoverable without bringing back the always-on frame
+- Cmd+T placement now anchors from the focused terminal when possible, keeping new terminals closer to the user’s current working area
+
+### Added (zh-CN)
+- 终端瓦片现在可以把遥测中的第一条真实用户消息作为默认标题，因此新的 Codex/agent 会话在画布和会话面板里更容易区分
+
+### Fixed (zh-CN)
+- 遥测标题提取现在会跳过注入的上下文，避免 agent 终端把启动时的合成引导消息显示成可见标题
+- 会话发现现在会先延后一轮轮询再接受 Codex 会话数据，并过滤基线会话，减少初始化阶段的误匹配
+- 终端尺寸调节手柄改为 hover 时显示，而不是只在选中 tile 时显示，让自由调整尺寸更容易被发现，同时不再恢复常驻外框
+- Cmd+T 放置新终端时会优先以当前聚焦终端为锚点，让新 terminal 更接近用户当前的工作区域
+
+## [0.27.1] - 2026-04-11
+
+### Fixed
+- Terminal resize handles and the surrounding node outline no longer stay visible on every tile all the time; the resizer now appears only for the selected terminal, removing the always-on blue frame from the canvas
+- Closing a terminal with cmd+d now re-zooms to the next focused terminal when the canvas is in normal zoomed-in navigation mode, instead of only panning and leaving the viewport scale behind
+
+### Fixed (zh-CN)
+- 终端尺寸调节手柄和外围节点描边不再常驻显示在每个 tile 外侧；现在只有选中该终端时才显示，去掉了画布上一直存在的蓝色外框
+- 在普通聚焦导航模式下，用 cmd+d 关闭终端后，现在会重新缩放聚焦到下一个终端，而不是只平移视口导致缩放状态残留
+
+## [0.27.0] - 2026-04-10
+
+### Added
+- Free resize of terminal tiles: drag any corner or edge of a terminal node to reshape it live; the inner xterm refits cols/rows on release
+- Double-click the terminal header to zoom-to-fit that terminal (restored after the flat-canvas refactor, now respects the tile's current freely-resized dimensions)
+- Clicking a worktree or project row in the session panel activates it, so a subsequent cmd+t targets that row without having to click back on the canvas first
+- Right-clicking a session panel row also activates it before opening the context menu so cmd+t after dismissing the menu still lands on the right row
+- Viewport-aware grid placement for cmd+t: new terminals now fill the visible canvas row-major (top-left → bottom-right), stepping past user-resized wide tiles instead of getting stuck behind them; the old rightmost-sibling anchor is kept as a fallback only when the viewport is saturated or smaller than a default tile
+- Spatial (y asc, x asc, id) navigation order shared between cmd+] / cmd+[ and cmd+d's "next focus after close", so prev/next and post-close focus both follow what the user sees on screen instead of the array insertion order that only made sense on the old grid layout
+
+### Changed
+- cmd+t no longer stacks new terminals vertically below the worktree's bounding box; the no-parent placement path anchors off the rightmost sibling first (when the viewport grid is unavailable) instead of its bottom
+- Session panel row click only activates the row; collapse/expand is now a dedicated chevron button so the two gestures don't stomp on each other
+
+### Fixed
+- cmd+d lands focus on the spatial next terminal to match cmd+] / cmd+[, instead of whichever terminal happened to be array-adjacent inside the same worktree
+- Restored CLI tiles fall back to a default shell when the original CLI process is already gone during session rehydration, instead of leaving a dead tile behind
+
+### Removed
+- cmd+1 / cmd+2 / cmd+3 / cmd+4 tile-size presets (tileSizeDefault / tileSizeWide / tileSizeTall / tileSizeLarge): the hardcoded 640x480 / 1288x480 / 640x968 / 1288x968 dimensions ignored the adaptive tileDimensionsStore and interacted badly with focus zoom. Free NodeResizer drag-resize replaces them end-to-end. Removed shortcut definitions on both mac and win/linux defaults, the handler loop, the SettingsModal / ShortcutHints rows, the en/zh i18n strings, and the now-unused updateTerminalSizeInScene action. The localStorage migration helper strips any leftover span* / tileSize* keys on load
+
+### Added (zh-CN)
+- 终端瓦片支持鼠标自由调整尺寸：拖动节点四角或四边即时改变大小,释放后 xterm cols/rows 自动重新适配
+- 双击终端顶部标题栏聚焦放大该终端（在自由画布重构之后补回,现在会按照 tile 当前的自由尺寸计算缩放）
+- 在右侧会话面板点击某个 worktree 或 project 行会把它激活,接着按 cmd+t 就会在对应行下建新终端,不用再切回 canvas 点一下
+- 右键会话面板的行时也会先激活所在行再弹出菜单,避免关闭菜单后 cmd+t 还落到之前那一行
+- cmd+t 的新终端放置改为感知视口的行优先网格填充（左上 → 右下）：遇到用户自由 resize 出来的宽胖 tile 会跳过它继续在同一行放置,视口塞满或太小时才回退到 rightmost-sibling 锚点
+- cmd+] / cmd+[ 和 cmd+d 关闭后的"下一个焦点"统一改成空间顺序（按 y 升序再按 x 升序,同位置用 id 做稳定 tiebreaker）,和屏幕上看到的前后关系一致,不再跟随数组创建顺序
+
+### Changed (zh-CN)
+- cmd+t 不再把新终端堆到 worktree 包围盒下方;没有 parent 的情况在视口网格不可用时会锚到 rightmost sibling 的右边,而不是底部
+- 会话面板的行点击只触发激活,折叠/展开归还给独立的 chevron 图标,两个动作不再互相干扰
+
+### Fixed (zh-CN)
+- cmd+d 关闭焦点终端后的新焦点改为空间顺序上的下一个,和 cmd+] / cmd+[ 的语义对齐,不再跳到数组里的创建顺序邻居
+- 恢复会话时如果原来的 CLI 进程已经退出,现在会自动落回一个默认 shell,而不是留下一个死 tile
+
+### Removed (zh-CN)
+- 删除 cmd+1/2/3/4 的 tile-size 预设快捷键（tileSizeDefault / tileSizeWide / tileSizeTall / tileSizeLarge）：硬编码的 640x480 / 1288x480 / 640x968 / 1288x968 完全忽略自适应的 tileDimensionsStore,并且和聚焦缩放有互相干扰。自由拖拽节点手柄调整尺寸已经完整替代这套快捷键。相关的 mac 和 win/linux 键位定义、handler 循环、SettingsModal / ShortcutHints 显示行、en/zh i18n 字符串、以及无人引用的 updateTerminalSizeInScene action 全部一并删除;localStorage 里遗留的 span* / tileSize* 键会在加载时自动清理
+
+## [0.26.0] - 2026-04-10
+
+### Added
+- Free canvas layout: terminals are now flat top-level ReactFlow nodes that can be freely positioned, replacing the nested project/worktree containers
+- Clustering toolbar with rule picker (by project / worktree / type / status / custom tag) and an undo for the last cluster
+- Custom Tags… popover on each terminal for managing user tags
+- Auto-placement for newly created terminals so they land in a free spot on the canvas
+- Collision resolver to nudge tiles apart when they overlap (also applied when unstashing)
+- Add Project Folder entry in the canvas right-click menu and a + button in the session panel header
+- Inline + button on session panel rows for creating a new terminal in that project/worktree
+- Hover × button to remove a non-main worktree directly from the session panel
+- Hover × button to close a single terminal directly from its session panel card
+- Remove Project entry in the project context menu (panel-only removal, files untouched)
+- Delete Project from Disk… entry with a typed-name confirmation modal that calls a guarded `project:delete-folder` IPC
+- Auto-migration from legacy v1 (nested) snapshots into the free canvas layout on load
+- End-to-end integration test suite for the free canvas
+
+### Changed
+- Session panel strings (context menus, notifications, delete-project modal) are fully internationalized; added panel_* keys to en/zh dictionaries
+- Worktree row now exposes Remove via the hover × button instead of a right-click menu
+- Canvas right-click menu uses the shared ContextMenu component for consistency
+- Shortcut identifiers renamed from span* to tileSize* (existing keybinds preserved)
+
+### Fixed
+- Popovers (canvas right-click menu, cluster dropdown) no longer stay stuck open: dismiss listeners now run in the capture phase so React Flow's stopPropagation can't swallow them
+- Cluster toolbar now positions itself below the toolbar and respects the right-panel inset
+- Terminal tile border restored after the free-canvas flatten refactor
+- Session panel now shows projects and worktrees that have no terminals
+- Cluster toolbar gained Escape-to-close support
+
+### Removed
+- Dead grid-pack helpers superseded by the free canvas layout
+- Orphaned compactFocusedProject shortcut
+
+### Added (zh-CN)
+- 自由画布布局：终端改为 ReactFlow 顶层节点，可在画布任意位置自由摆放，不再使用嵌套的项目/工作树容器
+- 集群工具栏，支持按项目 / 工作树 / 类型 / 状态 / 自定义标签聚类，并可撤销上一次聚类
+- 终端 Tags… 弹层，用于管理自定义标签
+- 新建终端时自动放置到空闲位置
+- 终端瓦片重叠时的碰撞偏移（取出暂存时也会应用）
+- 画布右键菜单新增 "Add Project Folder" 入口；会话面板顶部新增 + 按钮
+- 会话面板各行增加内联 + 按钮，可在该项目 / 工作树下快速新建终端
+- 会话面板支持 hover 时显示 × 按钮直接移除非 main worktree
+- 会话面板的终端卡片支持 hover 时显示 × 按钮直接关闭终端
+- 项目右键菜单新增 "Remove Project"（仅从面板移除，磁盘文件不动）
+- 项目右键菜单新增 "Delete Project from Disk…"，需在弹窗中输入项目名确认，主进程 `project:delete-folder` IPC 已加路径安全护栏
+- 加载旧版 v1（嵌套）快照时自动迁移到自由画布布局
+- 自由画布的端到端集成测试套件
+
+### Changed (zh-CN)
+- 会话面板的所有文案（右键菜单、通知、删除项目弹窗等）已完成国际化，新增 panel_* 键到 en/zh 字典
+- Worktree 移除入口从右键菜单改为 hover 时的 × 按钮
+- 画布右键菜单改为复用共享的 ContextMenu 组件
+- 快捷键标识符从 span* 重命名为 tileSize*（已有键位保持不变）
+
+### Fixed (zh-CN)
+- 画布右键菜单和集群下拉菜单不再卡住打不掉：dismiss 监听器改在 capture 阶段触发，避免被 React Flow 的 stopPropagation 吞掉
+- 集群工具栏现在放在工具栏下方，并尊重右侧面板的内边距
+- 修复自由画布扁平化重构后丢失的终端瓦片边框
+- 会话面板现在会显示没有终端的项目和工作树
+- 集群工具栏新增 Escape 关闭
+
+### Removed (zh-CN)
+- 删除自由画布之后已无用的 grid-pack 辅助代码
+- 删除已无引用的 compactFocusedProject 快捷键
+
 ## [0.25.23] - 2026-04-09
 
 ### Changed

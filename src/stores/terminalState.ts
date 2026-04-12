@@ -11,6 +11,7 @@ export const DEFAULT_SPAN: Record<TerminalType, { cols: number; rows: number }> 
   kimi: { cols: 1, rows: 1 },
   gemini: { cols: 1, rows: 1 },
   opencode: { cols: 1, rows: 1 },
+  wuu: { cols: 1, rows: 1 },
   lazygit: { cols: 1, rows: 1 },
   tmux: { cols: 1, rows: 1 },
 };

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { shouldIgnoreShortcutTarget } from "../src/hooks/shortcutTarget.ts";
+import { navigateToTerminalWithViewport } from "../src/hooks/useKeyboardShortcuts.ts";
 import {
   DEFAULT_SHORTCUTS,
   eventToShortcut,
@@ -368,4 +369,53 @@ test("terminal focus order follows natural project/worktree/array order", () => 
     getTerminalFocusOrder(projects).map((terminal) => terminal.terminalId),
     ["terminal-1", "terminal-2", "terminal-3", "terminal-4"],
   );
+});
+
+test("terminal navigation re-zooms to the target tile when not in zoomed-out mode", () => {
+  const pans: Array<{ terminalId: string; preserveScale?: boolean }> = [];
+  const zooms: string[] = [];
+
+  const nextZoomedOutId = navigateToTerminalWithViewport("terminal-2", {
+    zoomedOutTerminalId: null,
+    pan: (terminalId, options) => {
+      pans.push({
+        terminalId,
+        preserveScale: options?.preserveScale,
+      });
+    },
+    zoom: (terminalId) => {
+      zooms.push(terminalId);
+    },
+  });
+
+  assert.equal(nextZoomedOutId, null);
+  assert.deepEqual(zooms, ["terminal-2"]);
+  assert.deepEqual(pans, []);
+});
+
+test("terminal navigation preserves scale only while zoomed out", () => {
+  const pans: Array<{ terminalId: string; preserveScale?: boolean }> = [];
+  const zooms: string[] = [];
+
+  const nextZoomedOutId = navigateToTerminalWithViewport("terminal-2", {
+    zoomedOutTerminalId: "terminal-1",
+    pan: (terminalId, options) => {
+      pans.push({
+        terminalId,
+        preserveScale: options?.preserveScale,
+      });
+    },
+    zoom: (terminalId) => {
+      zooms.push(terminalId);
+    },
+  });
+
+  assert.equal(nextZoomedOutId, "terminal-2");
+  assert.deepEqual(zooms, []);
+  assert.deepEqual(pans, [
+    {
+      terminalId: "terminal-2",
+      preserveScale: true,
+    },
+  ]);
 });

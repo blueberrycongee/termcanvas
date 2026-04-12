@@ -261,3 +261,108 @@ test("codex telemetry parser captures exec_command_end lifecycle and status", ()
   assert.equal(events[0].event_subtype, "completed");
   assert.equal(events[0].turn_state, "in_turn");
 });
+
+test("wuu: detects completion when the latest relevant line is a plain assistant reply", () => {
+  const jsonl = [
+    JSON.stringify({ role: "user", content: "你是谁", at: "2026-04-11T10:00:00Z" }),
+    JSON.stringify({
+      role: "assistant",
+      content: "我是 Wuu。",
+      at: "2026-04-11T10:00:01Z",
+    }),
+    JSON.stringify({ role: "meta", content: "token_usage", at: "2026-04-11T10:00:01Z" }),
+  ].join("\n");
+
+  withTempFile(jsonl, (filePath) => {
+    const result = checkTurnComplete(filePath, "wuu");
+    assert.equal(result.completed, true);
+  });
+});
+
+test("wuu: does not report completion while a tool result is the latest relevant event", () => {
+  const jsonl = [
+    JSON.stringify({ role: "user", content: "list files", at: "2026-04-11T10:00:00Z" }),
+    JSON.stringify({
+      role: "assistant",
+      content: "",
+      at: "2026-04-11T10:00:01Z",
+      tool_calls: [{ id: "call-1", name: "list_files" }],
+    }),
+    JSON.stringify({
+      role: "tool",
+      content: "{\"entries\":[]}",
+      at: "2026-04-11T10:00:02Z",
+      tool_call_id: "call-1",
+      name: "list_files",
+    }),
+  ].join("\n");
+
+  withTempFile(jsonl, (filePath) => {
+    const result = checkTurnComplete(filePath, "wuu");
+    assert.equal(result.completed, false);
+  });
+});
+
+test("wuu telemetry parser tracks tool lifecycle and final assistant completion", () => {
+  const toolStart = parseSessionTelemetryLine(
+    JSON.stringify({
+      role: "assistant",
+      content: "",
+      at: "2026-04-11T10:00:01Z",
+      tool_calls: [{ id: "call-1", name: "list_files" }],
+    }),
+    "wuu",
+  );
+  const toolEnd = parseSessionTelemetryLine(
+    JSON.stringify({
+      role: "tool",
+      content: "{\"entries\":[]}",
+      at: "2026-04-11T10:00:02Z",
+      tool_call_id: "call-1",
+      name: "list_files",
+    }),
+    "wuu",
+  );
+  const assistantReply = parseSessionTelemetryLine(
+    JSON.stringify({
+      role: "assistant",
+      content: "Done.",
+      at: "2026-04-11T10:00:03Z",
+    }),
+    "wuu",
+  );
+
+  assert.deepEqual(toolStart, [
+    {
+      at: "2026-04-11T10:00:01Z",
+      event_type: "tool_use",
+      role: "assistant",
+      tool_name: "list_files",
+      call_id: "call-1",
+      lifecycle: "start",
+      turn_state: "tool_running",
+      meaningful_progress: true,
+    },
+  ]);
+  assert.deepEqual(toolEnd, [
+    {
+      at: "2026-04-11T10:00:02Z",
+      event_type: "tool_result",
+      role: "tool",
+      tool_name: "list_files",
+      call_id: "call-1",
+      lifecycle: "end",
+      turn_state: "in_turn",
+      meaningful_progress: true,
+    },
+  ]);
+  assert.deepEqual(assistantReply, [
+    {
+      at: "2026-04-11T10:00:03Z",
+      event_type: "assistant_message",
+      role: "assistant",
+      turn_state: "turn_complete",
+      meaningful_progress: true,
+    },
+  ]);
+});

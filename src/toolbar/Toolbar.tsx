@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { createBrowserCardInScene } from "../actions/sceneCardActions";
 import { useCanvasStore } from "../stores/canvasStore";
-import { getProjectBounds, useProjectStore } from "../stores/projectStore";
+import { useProjectStore } from "../stores/projectStore";
 import { useThemeStore } from "../stores/themeStore";
 import { useUpdaterStore } from "../stores/updaterStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
@@ -25,9 +25,10 @@ const noDrag = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
 const platform = window.termcanvas?.app.platform ?? "darwin";
 const isMac = platform === "darwin";
 const isWin = platform === "win32";
-const TOOLBAR_HEIGHT = 44;
+export const TOOLBAR_HEIGHT = 44;
 
-const controlRow = "relative z-10 flex items-center gap-2 text-[var(--text-secondary)]";
+const controlRow =
+  "relative z-10 flex items-center gap-2 text-[var(--text-secondary)]";
 const controlSection = "flex items-center gap-0.5";
 const controlDivider =
   "h-4 w-px bg-[color-mix(in_srgb,var(--border)_72%,transparent)]";
@@ -67,11 +68,14 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
       maxX = -Infinity,
       maxY = -Infinity;
     for (const p of projects) {
-      const bounds = getProjectBounds(p);
-      minX = Math.min(minX, bounds.x);
-      minY = Math.min(minY, bounds.y);
-      maxX = Math.max(maxX, bounds.x + bounds.w);
-      maxY = Math.max(maxY, bounds.y + bounds.h);
+      for (const wt of p.worktrees) {
+        for (const t of wt.terminals) {
+          minX = Math.min(minX, t.x);
+          minY = Math.min(minY, t.y);
+          maxX = Math.max(maxX, t.x + t.width);
+          maxY = Math.max(maxY, t.y + t.height);
+        }
+      }
     }
     const contentW = maxX - minX;
     const contentH = maxY - minY;
@@ -149,7 +153,8 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
             <span
               className="min-w-0 truncate text-[12px] font-medium tracking-[0.01em] text-[var(--text-secondary)]"
               style={{
-                textShadow: "0 1px 0 color-mix(in srgb, var(--bg) 70%, transparent)",
+                textShadow:
+                  "0 1px 0 color-mix(in srgb, var(--bg) 70%, transparent)",
               }}
             >
               {workspaceName}
@@ -166,8 +171,20 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
               aria-label={t.tutorial}
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2" />
-                <path d="M5 5.5a2 2 0 0 1 3.9.5c0 1-1.4 1.2-1.4 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                <circle
+                  cx="7"
+                  cy="7"
+                  r="5.5"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                />
+                <path
+                  d="M5 5.5a2 2 0 0 1 3.9.5c0 1-1.4 1.2-1.4 2"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
                 <circle cx="7" cy="10" r="0.6" fill="currentColor" />
               </svg>
             </button>
@@ -175,16 +192,41 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
             <button
               className={iconButton}
               onClick={() => {
-                const { rightPanelCollapsed, setRightPanelCollapsed } = useCanvasStore.getState();
+                const { rightPanelCollapsed, setRightPanelCollapsed } =
+                  useCanvasStore.getState();
                 setRightPanelCollapsed(!rightPanelCollapsed);
               }}
               title={t.usage_title}
               aria-label={t.usage_title}
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <rect x="1.5" y="3" width="3" height="8" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
-                <rect x="5.5" y="5" width="3" height="6" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
-                <rect x="9.5" y="1" width="3" height="10" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+                <rect
+                  x="1.5"
+                  y="3"
+                  width="3"
+                  height="8"
+                  rx="0.5"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                />
+                <rect
+                  x="5.5"
+                  y="5"
+                  width="3"
+                  height="6"
+                  rx="0.5"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                />
+                <rect
+                  x="9.5"
+                  y="1"
+                  width="3"
+                  height="10"
+                  rx="0.5"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                />
               </svg>
             </button>
 
@@ -192,7 +234,9 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
               className={iconButton}
               onClick={toggleTheme}
               title={theme === "dark" ? t.switch_to_light : t.switch_to_dark}
-              aria-label={theme === "dark" ? t.switch_to_light : t.switch_to_dark}
+              aria-label={
+                theme === "dark" ? t.switch_to_light : t.switch_to_dark
+              }
             >
               {theme === "dark" ? (
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -227,40 +271,95 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
                 className={`${iconButton} relative`}
                 onClick={() => setShowUpdate(true)}
                 title={
-                  updateStatus === "downloading" ? t.update_downloading
-                  : updateStatus === "ready" ? t.update_ready
-                  : updateStatus === "error" ? t.update_error
-                  : t.update_checking
+                  updateStatus === "downloading"
+                    ? t.update_downloading
+                    : updateStatus === "ready"
+                      ? t.update_ready
+                      : updateStatus === "error"
+                        ? t.update_error
+                        : t.update_checking
                 }
                 aria-label={
-                  updateStatus === "downloading" ? t.update_downloading
-                  : updateStatus === "ready" ? t.update_ready
-                  : updateStatus === "error" ? t.update_error
-                  : t.update_checking
+                  updateStatus === "downloading"
+                    ? t.update_downloading
+                    : updateStatus === "ready"
+                      ? t.update_ready
+                      : updateStatus === "error"
+                        ? t.update_error
+                        : t.update_checking
                 }
               >
                 {updateStatus === "downloading" ? (
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="animate-bounce">
-                    <path d="M7 2v8M4 7.5L7 10.5 10 7.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M3 12h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 14 14"
+                    fill="none"
+                    className="animate-bounce"
+                  >
+                    <path
+                      d="M7 2v8M4 7.5L7 10.5 10 7.5"
+                      stroke="currentColor"
+                      strokeWidth="1.3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M3 12h8"
+                      stroke="currentColor"
+                      strokeWidth="1.3"
+                      strokeLinecap="round"
+                    />
                   </svg>
                 ) : updateStatus === "ready" ? (
                   <>
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <path d="M7 12V4M4 6.5L7 3.5 10 6.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M3 2h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                      <path
+                        d="M7 12V4M4 6.5L7 3.5 10 6.5"
+                        stroke="currentColor"
+                        strokeWidth="1.3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M3 2h8"
+                        stroke="currentColor"
+                        strokeWidth="1.3"
+                        strokeLinecap="round"
+                      />
                     </svg>
                     <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-green-500" />
                   </>
                 ) : updateStatus === "error" ? (
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M7 2L1.5 12h11L7 2Z" stroke="var(--amber)" strokeWidth="1.2" strokeLinejoin="round" />
-                    <path d="M7 6v3" stroke="var(--amber)" strokeWidth="1.3" strokeLinecap="round" />
+                    <path
+                      d="M7 2L1.5 12h11L7 2Z"
+                      stroke="var(--amber)"
+                      strokeWidth="1.2"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M7 6v3"
+                      stroke="var(--amber)"
+                      strokeWidth="1.3"
+                      strokeLinecap="round"
+                    />
                     <circle cx="7" cy="10.5" r="0.6" fill="var(--amber)" />
                   </svg>
                 ) : (
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="animate-spin">
-                    <path d="M7 1.5A5.5 5.5 0 1 1 1.5 7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 14 14"
+                    fill="none"
+                    className="animate-spin"
+                  >
+                    <path
+                      d="M7 1.5A5.5 5.5 0 1 1 1.5 7"
+                      stroke="currentColor"
+                      strokeWidth="1.3"
+                      strokeLinecap="round"
+                    />
                   </svg>
                 )}
               </button>
@@ -301,15 +400,26 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
                       getCanvasRightInset(rightPanelCollapsed)) /
                       2;
                   const x = (-viewport.x + canvasCenterX) / scale - 400;
-                  const y = (-viewport.y + window.innerHeight / 2) / scale - 300;
+                  const y =
+                    (-viewport.y + window.innerHeight / 2) / scale - 300;
                   createBrowserCardInScene("https://google.com", { x, y });
                 }}
                 title={t.add_browser}
                 aria-label={t.add_browser}
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2" />
-                  <path d="M1.5 7h11M7 1.5c-1.5 2-2 3.5-2 5.5s.5 3.5 2 5.5M7 1.5c1.5 2 2 3.5 2 5.5s-.5 3.5-2 5.5" stroke="currentColor" strokeWidth="1.2" />
+                  <circle
+                    cx="7"
+                    cy="7"
+                    r="5.5"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                  />
+                  <path
+                    d="M1.5 7h11M7 1.5c-1.5 2-2 3.5-2 5.5s.5 3.5 2 5.5M7 1.5c1.5 2 2 3.5 2 5.5s-.5 3.5-2 5.5"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                  />
                 </svg>
               </button>
             )}

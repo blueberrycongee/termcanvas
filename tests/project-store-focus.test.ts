@@ -10,53 +10,43 @@ import { usePreferencesStore } from "../src/stores/preferencesStore.ts";
 import { useTerminalRuntimeStateStore } from "../src/stores/terminalRuntimeStateStore.ts";
 import type { ProjectData } from "../src/types/index.ts";
 
+function createTerminalFixture(
+  id: string,
+  title: string,
+  type: string = "shell",
+  focused: boolean = false,
+) {
+  return {
+    id,
+    title,
+    type: type as "shell" | "claude" | "codex",
+    minimized: false,
+    focused,
+    ptyId: null,
+    status: "idle" as const,
+    x: 0,
+    y: 0,
+    width: 640,
+    height: 480,
+    tags: [],
+  };
+}
+
 function createProjects(): ProjectData[] {
   return [
     {
       id: "project-1",
       name: "Project One",
       path: "/tmp/project-1",
-      position: { x: 0, y: 0 },
-      collapsed: false,
-      zIndex: 1,
       worktrees: [
         {
           id: "worktree-1",
           name: "main",
           path: "/tmp/project-1",
-          position: { x: 0, y: 0 },
-          collapsed: false,
           terminals: [
-            {
-              id: "terminal-1",
-              title: "Terminal 1",
-              type: "shell",
-              minimized: false,
-              focused: true,
-              ptyId: null,
-              status: "idle",
-              span: { cols: 1, rows: 1 },
-            },
-            {
-              id: "terminal-2",
-              title: "Terminal 2",
-              type: "codex",
-              minimized: false,
-              focused: false,
-              ptyId: null,
-              status: "idle",
-              span: { cols: 1, rows: 1 },
-            },
-            {
-              id: "terminal-3",
-              title: "Terminal 3",
-              type: "claude",
-              minimized: false,
-              focused: false,
-              ptyId: null,
-              status: "idle",
-              span: { cols: 1, rows: 1 },
-            },
+            createTerminalFixture("terminal-1", "Terminal 1", "shell", true),
+            createTerminalFixture("terminal-2", "Terminal 2", "codex"),
+            createTerminalFixture("terminal-3", "Terminal 3", "claude"),
           ],
         },
       ],
@@ -65,28 +55,12 @@ function createProjects(): ProjectData[] {
       id: "project-2",
       name: "Project Two",
       path: "/tmp/project-2",
-      position: { x: 1000, y: 0 },
-      collapsed: false,
-      zIndex: 2,
       worktrees: [
         {
           id: "worktree-2",
           name: "main",
           path: "/tmp/project-2",
-          position: { x: 0, y: 0 },
-          collapsed: false,
-          terminals: [
-            {
-              id: "terminal-4",
-              title: "Terminal 4",
-              type: "shell",
-              minimized: false,
-              focused: false,
-              ptyId: null,
-              status: "idle",
-              span: { cols: 1, rows: 1 },
-            },
-          ],
+          terminals: [createTerminalFixture("terminal-4", "Terminal 4")],
         },
       ],
     },
@@ -206,90 +180,6 @@ test("clearFocus is a no-op when nothing is focused", () => {
   assert.equal(state.focusedWorktreeId, null);
 });
 
-test("setFocusedTerminal expands a collapsed target worktree before focusing", () => {
-  const projects = createProjects();
-  projects[1].worktrees[0].collapsed = true;
-
-  useProjectStore.setState({
-    projects,
-    focusedProjectId: "project-1",
-    focusedWorktreeId: "worktree-1",
-  });
-
-  useProjectStore.getState().setFocusedTerminal("terminal-4", {
-    focusComposer: false,
-  });
-
-  const state = useProjectStore.getState();
-  const expandedWorktree = state.projects[1].worktrees[0];
-
-  assert.equal(expandedWorktree.collapsed, false);
-  assert.equal(expandedWorktree.terminals[0].focused, true);
-  assert.equal(state.focusedProjectId, "project-2");
-  assert.equal(state.focusedWorktreeId, "worktree-2");
-});
-
-test("setFocusedTerminal expands a collapsed target project before focusing", () => {
-  const projects = createProjects();
-  projects[1].collapsed = true;
-
-  useProjectStore.setState({
-    projects,
-    focusedProjectId: "project-1",
-    focusedWorktreeId: "worktree-1",
-  });
-
-  useProjectStore.getState().setFocusedTerminal("terminal-4", {
-    focusComposer: false,
-  });
-
-  const state = useProjectStore.getState();
-  const expandedProject = state.projects[1];
-
-  assert.equal(expandedProject.collapsed, false);
-  assert.equal(expandedProject.worktrees[0].terminals[0].focused, true);
-  assert.equal(state.focusedProjectId, "project-2");
-  assert.equal(state.focusedWorktreeId, "worktree-2");
-});
-
-test("setFocusedWorktree expands a collapsed target worktree", () => {
-  const projects = createProjects();
-  projects[1].worktrees[0].collapsed = true;
-
-  useProjectStore.setState({
-    projects,
-    focusedProjectId: "project-1",
-    focusedWorktreeId: "worktree-1",
-  });
-
-  useProjectStore.getState().setFocusedWorktree("project-2", "worktree-2");
-
-  const state = useProjectStore.getState();
-  assert.equal(state.projects[1].worktrees[0].collapsed, false);
-  assert.equal(state.projects[0].worktrees[0].terminals[0].focused, false);
-  assert.equal(state.focusedProjectId, "project-2");
-  assert.equal(state.focusedWorktreeId, "worktree-2");
-});
-
-test("setFocusedWorktree expands a collapsed target project", () => {
-  const projects = createProjects();
-  projects[1].collapsed = true;
-
-  useProjectStore.setState({
-    projects,
-    focusedProjectId: "project-1",
-    focusedWorktreeId: "worktree-1",
-  });
-
-  useProjectStore.getState().setFocusedWorktree("project-2", "worktree-2");
-
-  const state = useProjectStore.getState();
-  assert.equal(state.projects[1].collapsed, false);
-  assert.equal(state.projects[0].worktrees[0].terminals[0].focused, false);
-  assert.equal(state.focusedProjectId, "project-2");
-  assert.equal(state.focusedWorktreeId, "worktree-2");
-});
-
 test("setFocusedTerminal ignores unknown terminal ids", () => {
   resetStore();
 
@@ -311,7 +201,9 @@ test("setFocusedWorktree ignores unknown worktree ids", () => {
 
   const before = useProjectStore.getState();
 
-  useProjectStore.getState().setFocusedWorktree("project-1", "missing-worktree");
+  useProjectStore
+    .getState()
+    .setFocusedWorktree("project-1", "missing-worktree");
 
   const state = useProjectStore.getState();
   assert.strictEqual(state.projects, before.projects);
@@ -339,12 +231,17 @@ test("removeProject clears focus when the focused project is deleted", () => {
   const state = useProjectStore.getState();
   assert.equal(state.focusedProjectId, null);
   assert.equal(state.focusedWorktreeId, null);
-  assert.equal(state.projects.some((project) => project.id === "project-1"), false);
+  assert.equal(
+    state.projects.some((project) => project.id === "project-1"),
+    false,
+  );
 });
 
 test("removeProject clears descendant terminal runtime state", () => {
   resetStore();
-  useTerminalRuntimeStateStore.getState().setSessionId("terminal-1", "session-1");
+  useTerminalRuntimeStateStore
+    .getState()
+    .setSessionId("terminal-1", "session-1");
   useTerminalRuntimeStateStore.getState().setStatus("terminal-2", "running");
 
   useProjectStore.getState().removeProject("project-1");
@@ -365,40 +262,14 @@ test("removeWorktree clears only the deleted worktree focus", () => {
 
 test("removeWorktree clears runtime state for removed terminals", () => {
   resetStore();
-  useTerminalRuntimeStateStore.getState().setSessionId("terminal-1", "session-1");
+  useTerminalRuntimeStateStore
+    .getState()
+    .setSessionId("terminal-1", "session-1");
   useTerminalRuntimeStateStore.getState().setStatus("terminal-2", "running");
 
   useProjectStore.getState().removeWorktree("project-1", "worktree-1");
 
   assert.deepEqual(useTerminalRuntimeStateStore.getState().terminals, {});
-});
-
-test("toggleProjectCollapse moves focus to next visible terminal", () => {
-  resetStore();
-
-  useProjectStore.getState().toggleProjectCollapse("project-1");
-
-  const state = useProjectStore.getState();
-  assert.equal(state.projects[0].collapsed, true);
-  assert.equal(state.projects[0].worktrees[0].terminals[0].focused, false);
-  // Focus should jump to terminal-4 in project-2
-  assert.equal(state.projects[1].worktrees[0].terminals[0].focused, true);
-  assert.equal(state.focusedProjectId, "project-2");
-  assert.equal(state.focusedWorktreeId, "worktree-2");
-});
-
-test("toggleWorktreeCollapse moves focus to next visible terminal", () => {
-  resetStore();
-
-  useProjectStore.getState().toggleWorktreeCollapse("project-1", "worktree-1");
-
-  const state = useProjectStore.getState();
-  assert.equal(state.projects[0].worktrees[0].collapsed, true);
-  assert.equal(state.projects[0].worktrees[0].terminals[0].focused, false);
-  // Focus should jump to terminal-4 in project-2
-  assert.equal(state.projects[1].worktrees[0].terminals[0].focused, true);
-  assert.equal(state.focusedProjectId, "project-2");
-  assert.equal(state.focusedWorktreeId, "worktree-2");
 });
 
 test("addScannedProjectAndFocus focuses the first worktree of the created project", () => {
@@ -453,22 +324,4 @@ test("ensureTerminalCreationTarget returns the focused worktree when one already
   assert.strictEqual(state.projects, before);
   assert.equal(target.projectId, "project-1");
   assert.equal(target.worktreeId, "worktree-1");
-});
-
-test("toggleProjectCollapse clears focus when no visible terminal remains", () => {
-  const projects = createProjects();
-  projects[1].collapsed = true;
-  useProjectStore.setState({
-    projects,
-    focusedProjectId: "project-1",
-    focusedWorktreeId: "worktree-1",
-  });
-
-  useProjectStore.getState().toggleProjectCollapse("project-1");
-
-  const state = useProjectStore.getState();
-  assert.equal(state.projects[0].collapsed, true);
-  assert.equal(state.projects[0].worktrees[0].terminals[0].focused, false);
-  assert.equal(state.focusedProjectId, null);
-  assert.equal(state.focusedWorktreeId, null);
 });

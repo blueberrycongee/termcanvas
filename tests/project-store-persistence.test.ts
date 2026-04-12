@@ -10,16 +10,11 @@ function createProject(): ProjectData {
     id: "project-1",
     name: "Project One",
     path: "/tmp/project-1",
-    position: { x: 0, y: 0 },
-    collapsed: false,
-    zIndex: 1,
     worktrees: [
       {
         id: "worktree-1",
         name: "main",
         path: "/tmp/project-1",
-        position: { x: 0, y: 0 },
-        collapsed: false,
         terminals: [
           {
             id: "terminal-1",
@@ -29,7 +24,11 @@ function createProject(): ProjectData {
             focused: false,
             ptyId: null,
             status: "idle",
-            span: { cols: 1, rows: 1 },
+            x: 0,
+            y: 0,
+            width: 640,
+            height: 480,
+            tags: [],
           },
         ],
       },
@@ -50,15 +49,6 @@ function resetStores(projects: ProjectData[]) {
     lastDirtyAt: null,
   });
 }
-
-test("bringToFront marks the workspace dirty", () => {
-  resetStores([createProject()]);
-
-  useProjectStore.getState().bringToFront("project-1");
-
-  assert.equal(useWorkspaceStore.getState().dirty, true);
-  assert.ok(useWorkspaceStore.getState().lastDirtyAt !== null);
-});
 
 test("syncWorktrees marks the workspace dirty when the project set changes", () => {
   resetStores([createProject()]);
@@ -81,7 +71,8 @@ test("updateTerminalAutoApprove marks the workspace dirty", () => {
 
   assert.equal(useWorkspaceStore.getState().dirty, true);
   assert.equal(
-    useProjectStore.getState().projects[0]?.worktrees[0]?.terminals[0]?.autoApprove,
+    useProjectStore.getState().projects[0]?.worktrees[0]?.terminals[0]
+      ?.autoApprove,
     true,
   );
 });

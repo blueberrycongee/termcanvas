@@ -40,6 +40,7 @@ test("agent terminals beyond claude/codex are composer-supported", () => {
   assert.equal(isComposerSupportedTerminal("kimi"), true);
   assert.equal(isComposerSupportedTerminal("gemini"), true);
   assert.equal(isComposerSupportedTerminal("opencode"), true);
+  assert.equal(isComposerSupportedTerminal("wuu"), true);
 });
 
 test("getTerminalLaunchOptions reuses centralized launch config", () => {

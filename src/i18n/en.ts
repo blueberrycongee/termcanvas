@@ -174,9 +174,8 @@ export const en = {
   zoom_out: "Zoom out",
   zoom_in: "Zoom in",
 
-  shortcut_add_project: "Add project",
+  shortcut_add_project: "Add project folder…",
   shortcut_cycle_focus_level: "Cycle focus level",
-  shortcut_compact_focused_project: "Compact focused project",
   shortcut_toggle_sidebar: "Toggle sidebar",
   shortcut_toggle_right_panel: "Toggle right panel",
   shortcut_new_terminal: "New terminal",
@@ -188,10 +187,6 @@ export const en = {
   shortcut_next_terminal: "Next terminal",
   shortcut_prev_terminal: "Prev terminal",
   shortcut_clear_focus: "Toggle focus",
-  shortcut_span_default: "Default size",
-  shortcut_span_wide: "Wide",
-  shortcut_span_tall: "Tall",
-  shortcut_span_large: "Large",
   shortcut_save_workspace: "Save",
   shortcut_save_workspace_as: "Save As",
   save_as: "Save As",
@@ -424,6 +419,7 @@ export const en = {
   sessions_fresh_results: "Fresh Results",
   sessions_background: "Background",
   sessions_no_canvas_items: "No canvas terminals",
+  sessions_panel_title: "Projects",
   sessions_inspector: "Inspector",
   sessions_recent_trace: "Recent Trace",
   sessions_trace_loading: "Loading trace…",
@@ -476,7 +472,53 @@ export const en = {
   stash_destroy: "Destroy",
 
   canvas_empty_title: "No projects yet",
-  canvas_empty_action: "Add Project",
+  canvas_empty_action: "Add Project Folder…",
+
+  panel_new_terminal: "New Terminal",
+  panel_new_terminal_shell: "New Terminal (Shell)",
+  panel_new_terminal_claude: "New Terminal (Claude)",
+  panel_new_terminal_codex: "New Terminal (Codex)",
+  panel_new_worktree: "New Worktree…",
+  panel_remove_worktree: "Remove Worktree",
+  panel_remove_project: "Remove Project",
+  panel_delete_project_disk: "Delete Project from Disk…",
+  panel_close_terminal: "Close terminal",
+  panel_branch_name_placeholder: "branch name",
+  panel_worktree_created: (name: string) => `Worktree "${name}" created`,
+  panel_worktree_create_failed: (err: string) =>
+    `Failed to create worktree: ${err}`,
+  right_panel_collapse: "Collapse panel",
+  panel_worktree_remove_title: "Remove worktree?",
+  panel_worktree_remove_confirm: (name: string) => `Remove worktree "${name}"?`,
+  panel_worktree_remove_confirm_with_terminals: (name: string, count: number) =>
+    `This worktree has ${count} terminal${count === 1 ? "" : "s"}. Remove "${name}" anyway?`,
+  panel_worktree_remove_button: "Remove",
+  panel_worktree_removed: (name: string) => `Worktree "${name}" removed`,
+  panel_worktree_remove_failed: (err: string) =>
+    `Failed to remove worktree: ${err}`,
+  panel_worktree_force_remove_title: "Worktree has uncommitted changes",
+  panel_worktree_force_remove_body: (name: string) =>
+    `"${name}" contains modified or untracked files. Force-removing it will permanently delete those files. This cannot be undone.`,
+  panel_worktree_force_remove_button: "Force remove",
+  panel_worktree_force_remove_busy: "Removing…",
+  panel_project_remove_title: "Remove project from panel?",
+  panel_project_remove_button: "Remove",
+  panel_project_remove_confirm: (name: string) =>
+    `Remove project "${name}"? Files on disk will not be deleted.`,
+  panel_project_remove_confirm_with_terminals: (name: string, count: number) =>
+    `Remove project "${name}"? This will close ${count} terminal${count === 1 ? "" : "s"}. Files on disk will not be deleted.`,
+  panel_project_removed: (name: string) => `Project "${name}" removed`,
+  panel_project_delete_title: "Delete project from disk?",
+  panel_project_delete_intro: "This will permanently delete the folder",
+  panel_project_delete_warning:
+    "All worktrees, terminals, and uncommitted changes will be lost. This cannot be undone.",
+  panel_project_delete_type_to_confirm: "Type the project name to confirm.",
+  panel_project_delete_button: "Delete from disk",
+  panel_project_delete_button_busy: "Deleting…",
+  panel_project_deleted: (name: string) =>
+    `Project "${name}" deleted from disk`,
+  panel_project_delete_failed: (err: string) =>
+    `Failed to delete project: ${err}`,
 } as const;
 
 export type TranslationKey = keyof typeof en;

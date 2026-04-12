@@ -8,6 +8,7 @@ import path from "node:path";
 import {
   findBestClaudeSession,
   findBestCodexSession,
+  findBestWuuSession,
   readLatestCodexSessionId,
 } from "../electron/session-discovery.ts";
 
@@ -367,4 +368,83 @@ test("findBestCodexSession keeps a weak latest-id fallback when no cwd match is 
       confidence: "weak",
     });
   });
+});
+
+test("findBestWuuSession ignores sessions created before the terminal started", () => {
+  const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-wuu-session-"));
+  try {
+    const sessionsDir = path.join(workspaceDir, ".wuu", "sessions");
+    const staleSessionId = "20260411-100000-abcd";
+    fs.mkdirSync(sessionsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(sessionsDir, "index.jsonl"),
+      `${JSON.stringify({
+        id: staleSessionId,
+        created_at: "2026-04-11T10:00:00.000Z",
+      })}\n`,
+      "utf-8",
+    );
+    fs.writeFileSync(
+      path.join(sessionsDir, `${staleSessionId}.jsonl`),
+      JSON.stringify({ role: "user", content: "old" }),
+      "utf-8",
+    );
+
+    const found = findBestWuuSession(
+      workspaceDir,
+      "2026-04-11T10:05:00.000Z",
+    );
+
+    assert.equal(found, null);
+  } finally {
+    fs.rmSync(workspaceDir, { recursive: true, force: true });
+  }
+});
+
+test("findBestWuuSession picks the newest indexed session created after launch", () => {
+  const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-wuu-session-"));
+  try {
+    const sessionsDir = path.join(workspaceDir, ".wuu", "sessions");
+    const olderSessionId = "20260411-100000-abcd";
+    const freshSessionId = "20260411-100502-beef";
+    fs.mkdirSync(sessionsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(sessionsDir, "index.jsonl"),
+      [
+        JSON.stringify({
+          id: olderSessionId,
+          created_at: "2026-04-11T10:00:00.000Z",
+        }),
+        JSON.stringify({
+          id: freshSessionId,
+          created_at: "2026-04-11T10:05:02.000Z",
+        }),
+      ].join("\n"),
+      "utf-8",
+    );
+    fs.writeFileSync(
+      path.join(sessionsDir, `${olderSessionId}.jsonl`),
+      JSON.stringify({ role: "user", content: "older" }),
+      "utf-8",
+    );
+    const freshFile = path.join(sessionsDir, `${freshSessionId}.jsonl`);
+    fs.writeFileSync(
+      freshFile,
+      JSON.stringify({ role: "user", content: "fresh" }),
+      "utf-8",
+    );
+
+    const found = findBestWuuSession(
+      workspaceDir,
+      "2026-04-11T10:05:00.000Z",
+    );
+
+    assert.deepEqual(found, {
+      sessionId: freshSessionId,
+      filePath: freshFile,
+      confidence: "medium",
+    });
+  } finally {
+    fs.rmSync(workspaceDir, { recursive: true, force: true });
+  }
 });

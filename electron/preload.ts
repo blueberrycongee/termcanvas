@@ -60,6 +60,12 @@ contextBridge.exposeInMainWorld("termcanvas", {
         filePath: string;
         confidence: "strong" | "medium" | "weak";
       } | null>,
+    findWuu: (cwd: string, startedAt?: string) =>
+      ipcRenderer.invoke("session:find-wuu", cwd, startedAt) as Promise<{
+        sessionId: string;
+        filePath: string;
+        confidence: "medium" | "weak";
+      } | null>,
     getPermissionMode: (sessionId: string, cwd: string) =>
       ipcRenderer.invoke(
         "session:get-permission-mode",
@@ -99,7 +105,7 @@ contextBridge.exposeInMainWorld("termcanvas", {
   telemetry: {
     attachSession: (input: {
       terminalId: string;
-      provider: "claude" | "codex";
+      provider: "claude" | "codex" | "wuu";
       sessionId: string;
       cwd: string;
       confidence: "strong" | "medium" | "weak";
@@ -116,7 +122,7 @@ contextBridge.exposeInMainWorld("termcanvas", {
     updateTerminal: (input: {
       terminalId: string;
       worktreePath?: string;
-      provider?: "claude" | "codex" | "unknown";
+      provider?: "claude" | "codex" | "wuu" | "unknown";
       ptyId?: number | null;
       shellPid?: number | null;
     }) => ipcRenderer.invoke("telemetry:update-terminal", input),
@@ -166,17 +172,26 @@ contextBridge.exposeInMainWorld("termcanvas", {
           }
         | { ok: false; error: string }
       >,
-    removeWorktree: (repoPath: string, worktreePath: string) =>
+    removeWorktree: (
+      repoPath: string,
+      worktreePath: string,
+      force?: boolean,
+    ) =>
       ipcRenderer.invoke(
         "project:remove-worktree",
         repoPath,
         worktreePath,
+        force,
       ) as Promise<
         | {
             ok: true;
             worktrees: { path: string; branch: string; isMain: boolean }[];
           }
         | { ok: false; error: string }
+      >,
+    deleteFolder: (projectPath: string) =>
+      ipcRenderer.invoke("project:delete-folder", projectPath) as Promise<
+        { ok: true } | { ok: false; error: string }
       >,
     enableHydra: (dirPath: string) =>
       ipcRenderer.invoke("project:enable-hydra", dirPath),

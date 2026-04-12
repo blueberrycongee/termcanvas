@@ -149,6 +149,15 @@ function isActiveTurnState(state: TelemetryTurnState): boolean {
   );
 }
 
+function toSessionProvider(
+  provider: TelemetryProvider,
+): "claude" | "codex" | "wuu" | null {
+  if (provider === "claude" || provider === "codex" || provider === "wuu") {
+    return provider;
+  }
+  return null;
+}
+
 export function deriveTelemetryStatus(
   snapshot: TerminalTelemetrySnapshot,
   nowMs = Date.now(),
@@ -302,6 +311,112 @@ export function deriveTelemetryTaskStatus(
   }
 
   return { status: "unknown", source: "none" };
+}
+
+const HEAD_LINES_FOR_FIRST_PROMPT = 40;
+const FIRST_PROMPT_MAX_LENGTH = 100;
+
+/**
+ * Pattern that matches auto-injected context messages from both Claude Code
+ * and Codex (AGENTS.md, environment context, skills, etc.).  These are sent
+ * as role:"user" but are not actual user input.
+ */
+const INJECTED_CONTEXT_PATTERN =
+  /^(?:\s*#\s*AGENTS\.md\s|<(?:environment_context|skill|user_instructions|apps_instructions|skills_instructions|plugins_instructions|collaboration_mode|realtime_conversation|system-reminder)[>\s]|\s*<[a-z][\w-]*[\s>]|\[Request interrupted by user)/;
+
+/**
+ * Read the head of a session JSONL file and return the first meaningful
+ * user prompt text.  Handles both Claude (`{type:"user",message:…}`) and
+ * Codex (`{type:"response_item",payload:{type:"message",role:"user",…}}`)
+ * formats.  Provider-agnostic: format is detected per line.
+ */
+function extractFirstUserPrompt(
+  filePath: string,
+  _provider?: TelemetryProvider,
+): string | undefined {
+  let lines: string[];
+  try {
+    const content = fs.readFileSync(filePath, "utf-8");
+    lines = content.split("\n").slice(0, HEAD_LINES_FOR_FIRST_PROMPT);
+  } catch {
+    return undefined;
+  }
+
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    let raw: Record<string, unknown>;
+    try {
+      raw = JSON.parse(line);
+    } catch {
+      continue;
+    }
+
+    // Claude format: { type: "user", message: { role: "user", content: ... } }
+    if (raw.type === "user") {
+      // Skip metadata entries (hook output, IDE context, etc.)
+      if (raw.isMeta === true || raw.isCompactSummary === true) continue;
+      const message = raw.message as Record<string, unknown> | undefined;
+      if (!message) continue;
+      const text = extractTextFromMessageContent(message.content);
+      if (!text || INJECTED_CONTEXT_PATTERN.test(text)) continue;
+      return collapseAndTruncate(text, FIRST_PROMPT_MAX_LENGTH);
+    }
+
+    // Codex event_msg format: { type: "event_msg", payload: { type: "user_message", message: "..." } }
+    if (raw.type === "event_msg") {
+      const payload = raw.payload as Record<string, unknown> | undefined;
+      if (
+        payload?.type === "user_message" &&
+        typeof payload.message === "string" &&
+        payload.message.trim()
+      ) {
+        if (INJECTED_CONTEXT_PATTERN.test(payload.message)) continue;
+        return collapseAndTruncate(payload.message, FIRST_PROMPT_MAX_LENGTH);
+      }
+    }
+
+    // Codex response_item format: { type: "response_item", payload: { type: "message", role: "user", content: [...] } }
+    if (raw.type === "response_item") {
+      const payload = raw.payload as Record<string, unknown> | undefined;
+      if (payload?.type === "message" && payload.role === "user") {
+        const text = extractTextFromMessageContent(payload.content);
+        if (!text || INJECTED_CONTEXT_PATTERN.test(text)) continue;
+        return collapseAndTruncate(text, FIRST_PROMPT_MAX_LENGTH);
+      }
+    }
+
+    if (raw.role === "user") {
+      const text = extractTextFromMessageContent(raw.content);
+      if (!text || INJECTED_CONTEXT_PATTERN.test(text)) continue;
+      return collapseAndTruncate(text, FIRST_PROMPT_MAX_LENGTH);
+    }
+  }
+
+  return undefined;
+}
+
+function extractTextFromMessageContent(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  for (const block of content) {
+    if (!block || typeof block !== "object") continue;
+    const entry = block as Record<string, unknown>;
+    // Claude: { type: "text", text: "..." }
+    if (entry.type === "text" && typeof entry.text === "string")
+      return entry.text;
+    // Codex: { type: "input_text", text: "..." }
+    if (entry.type === "input_text" && typeof entry.text === "string")
+      return entry.text;
+    if (entry.type === "tool_result") continue;
+  }
+  return "";
+}
+
+function collapseAndTruncate(value: string, maxLength: number): string {
+  const normalized = value.trim().replace(/\s+/g, " ");
+  if (!normalized) return "";
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
 function buildBaseSnapshot(
@@ -526,17 +641,30 @@ export class TelemetryService {
   }
 
   attachSessionSource(input: SessionAttachInput): void {
-    this.recordSessionAttached(input);
     const state = this.ensureState(input.terminalId);
+    const sessionChanged =
+      state.snapshot.session_id !== input.sessionId ||
+      state.snapshot.session_file !== input.sessionFile;
+
+    this.recordSessionAttached(input);
     this.stopSessionTracking(state);
     state.sessionFile = input.sessionFile ?? null;
     state.sessionOffset = 0;
     state.sessionRemainder = "";
+    if (sessionChanged) {
+      state.snapshot.first_user_prompt = undefined;
+    }
     if (!state.sessionFile) {
       return;
     }
     this.primeSessionFromTail(state);
     this.startSessionTracking(state);
+
+    // Extract first user prompt for display in the session panel title.
+    const prompt = extractFirstUserPrompt(state.sessionFile);
+    if (prompt) {
+      state.snapshot.first_user_prompt = prompt;
+    }
   }
 
   recordSessionAttachFailed(
@@ -1338,11 +1466,13 @@ export class TelemetryService {
       const completeLines = trailing === "" ? lines : lines.slice(0, -1);
       for (const line of completeLines) {
         if (!line.trim()) continue;
+        const provider = toSessionProvider(state.snapshot.provider);
+        if (!provider) continue;
         this.recordSessionTelemetry(
           state.snapshot.terminal_id,
           parseSessionTelemetryLine(
             line,
-            state.snapshot.provider === "claude" ? "claude" : "codex",
+            provider,
           ),
         );
       }
@@ -1385,13 +1515,27 @@ export class TelemetryService {
 
       for (const line of lines) {
         if (!line.trim()) continue;
+        const provider = toSessionProvider(state.snapshot.provider);
+        if (!provider) continue;
         this.recordSessionTelemetry(
           state.snapshot.terminal_id,
           parseSessionTelemetryLine(
             line,
-            state.snapshot.provider === "claude" ? "claude" : "codex",
+            provider,
           ),
         );
+      }
+
+      // Retry first-user-prompt extraction if the initial attempt
+      // during attachSessionSource missed it (e.g. file was empty).
+      if (!state.snapshot.first_user_prompt && state.sessionFile) {
+        const prompt = extractFirstUserPrompt(
+          state.sessionFile,
+          state.snapshot.provider,
+        );
+        if (prompt) {
+          state.snapshot.first_user_prompt = prompt;
+        }
       }
     } finally {
       state.sessionReadInFlight = false;

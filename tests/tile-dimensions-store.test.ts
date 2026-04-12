@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { computeTileDimensions } from "../src/stores/tileDimensionsStore.ts";
-import { packTerminals, computeWorktreeSize, getStandardWorktreeWidth } from "../src/layout.ts";
 
 test("computeTileDimensions returns reasonable dims for default viewport", () => {
   const result = computeTileDimensions(1920, 1080, 32, 32);
@@ -37,45 +36,10 @@ test("computeTileDimensions clamps to min/max bounds", () => {
   assert.ok(wide.h >= 300, `h=${wide.h} should be >= 300`);
 });
 
-test("packTerminals uses custom tile dimensions", () => {
-  const spans = [{ cols: 1, rows: 1 }, { cols: 1, rows: 1 }];
-  const defaultPacked = packTerminals(spans);
-  const customPacked = packTerminals(spans, 3, { w: 500, h: 600 });
-
-  assert.equal(defaultPacked[0].w, 640);
-  assert.equal(defaultPacked[0].h, 480);
-  assert.equal(customPacked[0].w, 500);
-  assert.equal(customPacked[0].h, 600);
-  assert.equal(customPacked[1].x, 500 + 8);
-});
-
-test("computeWorktreeSize uses custom tile dimensions", () => {
-  const spans = [{ cols: 2, rows: 1 }];
-  const size = computeWorktreeSize(spans, 3, { w: 500, h: 600 });
-  assert.equal(size.w, 2 * 500 + 1 * 8 + 10 * 2);
-});
-
-test("getStandardWorktreeWidth uses custom tile dimensions", () => {
-  const width = getStandardWorktreeWidth(3, { w: 500, h: 600 });
-  assert.equal(width, 3 * 500 + 2 * 8 + 10 * 2);
-});
-
-test("default packTerminals still works without tileDims", () => {
-  const packed = packTerminals([{ cols: 1, rows: 1 }]);
-  assert.equal(packed[0].w, 640);
-  assert.equal(packed[0].h, 480);
-});
-
 test("computeTileDimensions handles zero-width gracefully", () => {
   const result = computeTileDimensions(400, 1080, 500, 32);
   assert.ok(result.w >= 400, `w=${result.w} should be >= 400`);
   assert.ok(result.h >= 300, `h=${result.h} should be >= 300`);
-});
-
-test("packTerminals with custom dims produces correct 2x1 span", () => {
-  const packed = packTerminals([{ cols: 2, rows: 1 }], 3, { w: 500, h: 600 });
-  assert.equal(packed[0].w, 2 * 500 + 8);
-  assert.equal(packed[0].h, 600);
 });
 
 test("computeTileDimensions is stable across similar inputs", () => {

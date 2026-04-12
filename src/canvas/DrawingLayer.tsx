@@ -30,6 +30,18 @@ import {
   screenPointToCanvasPoint,
 } from "./viewportBounds";
 
+export function getDrawingLayerViewportSize(
+  leftInset: number,
+  rightInset: number,
+  innerWidth: number,
+  innerHeight: number,
+): { width: number; height: number } {
+  return {
+    width: Math.max(0, innerWidth - leftInset - rightInset),
+    height: Math.max(0, innerHeight),
+  };
+}
+
 function getSvgPathFromStroke(stroke: number[][]) {
   if (stroke.length === 0) return "";
   const d = stroke.reduce(
@@ -407,13 +419,21 @@ export function DrawingLayer() {
   const isDrawing = tool !== "select";
   const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
   const rightInset = getCanvasRightInset(rightPanelCollapsed);
+  const { width, height } = getDrawingLayerViewportSize(
+    leftInset,
+    rightInset,
+    window.innerWidth,
+    window.innerHeight,
+  );
 
   return (
     <svg
       className="fixed top-0 bottom-0"
       style={{
         left: leftInset,
-        right: rightInset,
+        width,
+        height,
+        display: "block",
         pointerEvents: isDrawing ? "auto" : "none",
         cursor: isDrawing ? "crosshair" : "default",
         zIndex: isDrawing ? 30 : 20,

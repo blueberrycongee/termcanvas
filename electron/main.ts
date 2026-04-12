@@ -52,6 +52,7 @@ import {
   submitComposerRequest,
 } from "./composer-submit";
 import { collectUsage, collectHeatmapData } from "./usage-collector";
+import { buildGitWorktreeRemoveArgs } from "../hydra/src/cleanup";
 import {
   installDownloadedUpdate,
   setupAutoUpdater,
@@ -98,6 +99,7 @@ import { HookReceiver } from "./hook-receiver";
 import {
   findBestClaudeSession,
   findBestCodexSession,
+  findBestWuuSession,
   readClaudeSessionPermissionMode,
   readCodexSessionBypassState,
   readLatestCodexSessionId,
@@ -330,7 +332,9 @@ function setupIpc() {
         terminalId,
         worktreePath: options.cwd,
         provider:
-          options.terminalType === "claude" || options.terminalType === "codex"
+          options.terminalType === "claude" ||
+            options.terminalType === "codex" ||
+            options.terminalType === "wuu"
             ? options.terminalType
             : "unknown",
         workflowId: options.workflowId,
@@ -450,6 +454,10 @@ function setupIpc() {
       return findBestClaudeSession(cwd, startedAt, pid);
     },
   );
+
+  ipcMain.handle("session:find-wuu", (_event, cwd: string, startedAt?: string) => {
+    return findBestWuuSession(cwd, startedAt);
+  });
 
   ipcMain.handle(
     "session:get-permission-mode",
@@ -582,7 +590,12 @@ function setupIpc() {
 
   ipcMain.handle(
     "project:remove-worktree",
-    async (_event, repoPath: string, worktreePath: string) => {
+    async (
+      _event,
+      repoPath: string,
+      worktreePath: string,
+      force?: boolean,
+    ) => {
       const resolvedRepo = path.resolve(repoPath);
       const resolvedWorktree = path.resolve(worktreePath);
 
@@ -590,12 +603,49 @@ function setupIpc() {
         const { execFile } = await import("child_process");
         const { promisify } = await import("util");
         const execFileAsync = promisify(execFile);
-        await execFileAsync("git", ["worktree", "remove", resolvedWorktree], {
+        // Reuse the shared --force builder so the renderer/IPC path matches
+        // the CLI, hydra, and headless paths exactly. Without --force, git
+        // refuses to remove worktrees containing modified or untracked files
+        // — which is exactly what worker worktrees produce by design.
+        const args = force
+          ? buildGitWorktreeRemoveArgs(resolvedWorktree)
+          : ["worktree", "remove", resolvedWorktree];
+        await execFileAsync("git", args, {
           cwd: resolvedRepo,
           maxBuffer: 10 * 1024 * 1024,
         });
         const worktrees = await projectScanner.listWorktreesAsync(resolvedRepo);
         return { ok: true as const, worktrees };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false as const, error: message };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "project:delete-folder",
+    async (_event, projectPath: string) => {
+      try {
+        const resolved = path.resolve(projectPath);
+        const home = os.homedir();
+        const root = path.parse(resolved).root;
+        // Safety: refuse to delete obviously dangerous paths.
+        if (
+          !path.isAbsolute(resolved) ||
+          resolved === root ||
+          resolved === home ||
+          home.startsWith(resolved + path.sep) ||
+          resolved.split(path.sep).filter(Boolean).length < 2
+        ) {
+          return {
+            ok: false as const,
+            error: `Refusing to delete unsafe path: ${resolved}`,
+          };
+        }
+        const { rm } = await import("fs/promises");
+        await rm(resolved, { recursive: true, force: true });
+        return { ok: true as const };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return { ok: false as const, error: message };
@@ -740,7 +790,7 @@ function setupIpc() {
       _event,
       input: {
         terminalId: string;
-        provider: "claude" | "codex";
+        provider: "claude" | "codex" | "wuu";
         sessionId: string;
         cwd: string;
         confidence: "strong" | "medium" | "weak";
@@ -776,7 +826,7 @@ function setupIpc() {
       input: {
         terminalId: string;
         worktreePath?: string;
-        provider?: "claude" | "codex" | "unknown";
+        provider?: "claude" | "codex" | "wuu" | "unknown";
         ptyId?: number | null;
         shellPid?: number | null;
       },

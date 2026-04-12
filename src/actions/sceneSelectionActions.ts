@@ -1,8 +1,5 @@
 import { useProjectStore } from "../stores/projectStore";
-import {
-  useSelectionStore,
-  type SelectedItem,
-} from "../stores/selectionStore";
+import { useSelectionStore, type SelectedItem } from "../stores/selectionStore";
 import { focusTerminalInScene } from "./terminalSceneActions";
 
 interface SelectionRect {
@@ -95,11 +92,8 @@ export function focusWorktreeInScene(
 
 export function activateProjectInScene(
   projectId: string,
-  options?: SceneInteractionOptions,
+  _options?: SceneInteractionOptions,
 ): void {
-  if (options?.bringToFront) {
-    useProjectStore.getState().bringToFront(projectId);
-  }
   clearSceneFocus();
   selectProjectInScene(projectId);
 }
@@ -109,9 +103,6 @@ export function activateWorktreeInScene(
   worktreeId: string,
   options?: WorktreeInteractionOptions,
 ): void {
-  if (options?.bringToFront) {
-    useProjectStore.getState().bringToFront(projectId);
-  }
   if (options?.focus ?? true) {
     focusWorktreeInScene(projectId, worktreeId);
   }
