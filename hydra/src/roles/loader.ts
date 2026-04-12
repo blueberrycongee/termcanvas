@@ -53,8 +53,6 @@ export interface RoleDefinition {
   description: string;
   /** Ordered preference list. terminals[0] is the dispatcher's choice. */
   terminals: RoleTerminal[];
-  decision_rules: string[];
-  acceptance_criteria: string[];
   body: string;
   source: RoleSource;
   file_path: string;
@@ -62,7 +60,7 @@ export interface RoleDefinition {
 
 const REQUIRED_SCALAR_FIELDS = ["name", "description"] as const;
 const VALID_CLIS = new Set<RoleCli>(["claude", "codex"]);
-const KNOWN_STRING_ARRAY_FIELDS = new Set(["decision_rules", "acceptance_criteria"]);
+const KNOWN_STRING_ARRAY_FIELDS = new Set<string>();
 const KNOWN_OBJECT_ARRAY_FIELDS = new Set(["terminals"]);
 
 export class RoleLoadError extends Error {
@@ -348,8 +346,6 @@ export function loadRole(name: string, repoPath: string): RoleDefinition {
     name: declaredName,
     description: fm.scalars.description,
     terminals,
-    decision_rules: fm.stringArrays.decision_rules ?? [],
-    acceptance_criteria: fm.stringArrays.acceptance_criteria ?? [],
     body: body.trim(),
     source: resolved.source,
     file_path: resolved.filePath,

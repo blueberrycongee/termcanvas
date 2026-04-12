@@ -215,7 +215,7 @@ test("loadRole enforces filename / frontmatter name match", () => {
   }
 });
 
-test("loadRole parses decision_rules and acceptance_criteria as string arrays alongside terminals", () => {
+test("loadRole rejects unknown string-array fields in frontmatter", () => {
   const repoPath = makeTmpRepo();
   try {
     writeProjectRole(
@@ -230,20 +230,12 @@ test("loadRole parses decision_rules and acceptance_criteria as string arrays al
         "    model: gpt-5.4",
         "decision_rules:",
         "  - rule one",
-        "  - rule two",
-        "acceptance_criteria:",
-        "  - criterion one",
         "---",
         "",
         "body",
       ].join("\n"),
     );
-    const role = loadRole("with-rules", repoPath);
-    assert.deepEqual(role.decision_rules, ["rule one", "rule two"]);
-    assert.deepEqual(role.acceptance_criteria, ["criterion one"]);
-    assert.equal(role.terminals.length, 1);
-    assert.equal(role.terminals[0].cli, "codex");
-    assert.equal(role.terminals[0].model, "gpt-5.4");
+    assert.throws(() => loadRole("with-rules", repoPath), /unknown string-array field/);
   } finally {
     fs.rmSync(repoPath, { recursive: true, force: true });
   }
