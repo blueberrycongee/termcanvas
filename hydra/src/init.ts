@@ -1,33 +1,40 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const MARKER = "## Hydra Sub-Agent Tool";
+const MARKER = "## Hydra Orchestration Toolkit";
+const LEGACY_MARKER = "## Hydra Sub-Agent Tool";
 const INSTRUCTION_FILES = ["CLAUDE.md", "AGENTS.md"] as const;
 
 const HYDRA_SECTION = `
-## Hydra Sub-Agent Tool
+## Hydra Orchestration Toolkit
 
-Classify the task before choosing a mode. Hydra is for file-driven
-orchestration, not the default path for every change.
-Hydra treats \`result.json\` + \`done\` as the only completion evidence.
-Terminal conversation is not a source of truth.
+Hydra is a Lead-driven orchestration toolkit. You (the Lead) make strategic
+decisions at decision points; Hydra handles operational management.
+\`result.json\` is the only completion evidence.
+
+Why this design (vs. other coding-agent products):
+- **SWF decider pattern, specialized for LLM deciders.** Hydra is the AWS SWF / Cadence / Temporal decider pattern. \`hydra watch\` is \`PollForDecisionTask\`; the Lead is the decider; \`lead_terminal_id\` enforces single-decider semantics.
+- **Parallel-first, not bolted on.** \`dispatch\` + \`depends_on\` + worktree + \`merge\` are first-class. Other products (Factory.ai's Droid, Amp, Claude Code subagents) treat parallelism as open research; Hydra makes it the default.
+- **Typed result contract.** Workers publish a schema-validated \`result.json\` (\`outcome: completed | stuck | error\`, optional \`stuck_reason: needs_clarification | needs_credentials | needs_context | blocked_technical\`). Other products return free-text final messages and require downstream parsing.
+- **Lead intervention points.** \`hydra reset --feedback\` lets the Lead actually intervene at decision points instead of being block-and-join. A stale or wrong run is one \`reset\` away.
 
 Core rules:
 - Root cause first. Fix the implementation problem before changing tests.
 - Do not hack tests, fixtures, or mocks to force a green result.
 - Do not add silent fallbacks or swallowed errors.
-- A handoff is only complete when both \`result.json\` and \`done\` exist and pass schema validation.
+- An assignment run is only complete when \`result.json\` exists and passes schema validation.
 
 Workflow patterns:
 1. Do the task directly when it is simple, local, or clearly faster without workflow overhead.
-2. Use a single implementer workflow when you still want Hydra evidence and retry control:
-   \`hydra run --task "<specific task>" --repo . --template single-step [--worktree .]\`
-3. Use the default planner -> implementer -> evaluator workflow for ambiguous, risky, or PRD-driven work:
-   \`hydra run --task "<specific task>" --repo . [--worktree .]\`
-   - If the user says all roles should use one provider, pass \`--all-type <provider>\`.
-   - If the user wants a mix, pass \`--planner-type\`, \`--implementer-type\`, and \`--evaluator-type\`.
-   - If the user does not specify providers, Hydra should prefer the current terminal's provider when available.
-4. Use a direct isolated worker primitive when the split is already known and you do not need a full workflow:
+2. Use Hydra for ambiguous, risky, parallel, or multi-step work:
+   \`\`\`
+   hydra init --intent "<task>" --repo .
+   hydra dispatch --workflow W --node <id> --role <role> --intent "<desc>" --repo .
+   hydra watch --workflow W --repo .
+   # → DecisionPoint returned, decide next step
+   hydra complete --workflow W --repo .
+   \`\`\`
+3. Use a direct isolated worker when only a separate worker is needed:
    \`hydra spawn --task "<specific task>" --repo . [--worktree .]\`
 
 Agent launch rule:
@@ -35,44 +42,36 @@ Agent launch rule:
 - Do not use \`termcanvas terminal input\` for task dispatch; it is not a supported automation path
 
 Workflow control:
-- After \`hydra run\` or \`hydra spawn\`, immediately start polling with \`hydra watch\`. Do not ask whether to watch — always watch.
-1. Inspect one-shot progress: \`hydra tick --repo . --workflow <workflowId>\`
-2. Watch until terminal state: \`hydra watch --repo . --workflow <workflowId>\`
-3. Inspect structured state and failures: \`hydra status --repo . --workflow <workflowId>\`
-4. Retry a failed/timed-out workflow when allowed: \`hydra retry --repo . --workflow <workflowId>\`
-5. Clean up runtime state or worktrees: \`hydra cleanup --workflow <workflowId> --repo .\`
+- After dispatching nodes, always call \`hydra watch\`. It returns at decision points.
+1. Watch until decision point: \`hydra watch --workflow <workflowId> --repo .\`
+2. Inspect structured state: \`hydra status --workflow <workflowId> --repo .\`
+3. Reset a node for rework: \`hydra reset --workflow W --node N --feedback "..." --repo .\`
+4. Approve a node's output: \`hydra approve --workflow W --node N --repo .\`
+5. Merge parallel branches: \`hydra merge --workflow W --nodes A,B --repo .\`
+6. View event log: \`hydra ledger --workflow <workflowId> --repo .\`
+7. Clean up: \`hydra cleanup --workflow <workflowId> --repo .\`
 
 Telemetry polling:
-1. Treat \`hydra watch\` as the main-brain polling loop; do not infer progress from terminal prose alone.
+1. Treat \`hydra watch\` as the main polling loop; do not infer progress from terminal prose alone.
 2. Before deciding wait / retry / takeover, query:
    - \`termcanvas telemetry get --workflow <workflowId> --repo .\`
    - \`termcanvas telemetry get --terminal <terminalId>\`
    - \`termcanvas telemetry events --terminal <terminalId> --limit 20\`
-3. Trust \`derived_status\` and \`task_status\` as the primary decision signals. Only investigate further when both indicate a problem.
-4. Keep waiting when \`derived_status=progressing\` or \`task_status=running\`.
-5. Treat \`awaiting_contract\` as "turn complete, file contract still pending".
-6. Treat \`stall_candidate\` as "investigate before retry", not automatic failure. Query recent telemetry events to confirm the agent is truly stuck.
-7. Treat \`error\` as "agent hit an API error". Check \`last_hook_error\`: \`rate_limit\`/\`server_error\` → wait and retry; \`billing_error\`/\`authentication_failed\` → stop; \`max_output_tokens\` → retry with compact; \`invalid_request\` → stop and investigate.
+3. Trust \`derived_status\` and \`task_status\` as the primary decision signals.
 
-Worker control:
-1. List direct workers: \`hydra list --repo .\`
-2. Clean up a direct worker: \`hydra cleanup <agentId>\`
+\`result.json\` must contain (slim, schema_version \`hydra/result/v0.1\`):
+- \`schema_version\`, \`workflow_id\`, \`assignment_id\`, \`run_id\` (passthrough IDs)
+- \`outcome\` (completed/stuck/error — Hydra routes on this)
+- \`report_file\` (path to a \`report.md\` written alongside \`result.json\`)
 
-\`result.json\` must contain:
-- \`success\`
-- \`summary\`
-- \`outputs[]\`
-- \`evidence[]\`
-- \`next_action\`
+All human-readable content (summary, outputs, evidence, reflection) lives in
+\`report.md\`. Hydra rejects any extra fields in \`result.json\`. Write \`report.md\`
+first, then publish \`result.json\` atomically as the final artifact of the run.
 
 When NOT to use: simple fixes, high-certainty tasks, or work that is faster to do directly in the current agent.
 `;
 
-export type InitInstructionStatus =
-  | "created"
-  | "appended"
-  | "updated"
-  | "unchanged";
+export type InitInstructionStatus = "created" | "appended" | "updated" | "unchanged";
 
 export interface InitInstructionResult {
   fileName: (typeof INSTRUCTION_FILES)[number];
@@ -117,13 +116,11 @@ export function syncHydraInstructions(
   targetDir: string,
 ): InitInstructionResult[] {
   return INSTRUCTION_FILES.map((fileName) =>
-    upsertHydraInstructions(path.join(targetDir, fileName), fileName),
+    upsertHydraInstructions(path.join(targetDir, fileName), fileName)
   );
 }
 
-export async function init(
-  targetDir = process.cwd(),
-): Promise<InitInstructionResult[]> {
+export async function init(targetDir = process.cwd()): Promise<InitInstructionResult[]> {
   const results = syncHydraInstructions(targetDir);
   for (const result of results) {
     console.log(formatInitLog(result));
@@ -151,12 +148,17 @@ function normalizeSection(section: string): string {
 function findHydraSectionRange(
   content: string,
 ): { start: number; end: number } | null {
-  const start = content.indexOf(MARKER);
+  let start = content.indexOf(MARKER);
+  let markerLen = MARKER.length;
+  if (start === -1) {
+    start = content.indexOf(LEGACY_MARKER);
+    markerLen = LEGACY_MARKER.length;
+  }
   if (start === -1) {
     return null;
   }
 
-  const nextHeadingStart = content.indexOf("\n## ", start + MARKER.length);
+  const nextHeadingStart = content.indexOf("\n## ", start + markerLen);
   return {
     start,
     end: nextHeadingStart === -1 ? content.length : nextHeadingStart,
@@ -176,11 +178,7 @@ function replaceHydraSection(content: string): string {
   if (!range) {
     return content;
   }
-  return (
-    content.slice(0, range.start) +
-    HYDRA_SECTION.trim() +
-    content.slice(range.end)
-  );
+  return content.slice(0, range.start) + HYDRA_SECTION.trim() + content.slice(range.end);
 }
 
 function buildAppendedContent(existing: string): string {
@@ -212,9 +210,7 @@ function upsertHydraInstructions(
     content = replaceHydraSection(existing);
     status = "updated";
   } else {
-    content = existing
-      ? buildAppendedContent(existing)
-      : HYDRA_SECTION.trimStart();
+    content = existing ? buildAppendedContent(existing) : HYDRA_SECTION.trimStart();
     status = existing ? "appended" : "created";
   }
   fs.writeFileSync(filePath, content);

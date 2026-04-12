@@ -9,7 +9,7 @@ import {
 
 export interface HeartbeatPayload {
   workflow_status: string;
-  current_handoff: string | null;
+  current_assignment: string | null;
   telemetry_snapshot: unknown;
   resource_usage: {
     memory_mb: number;
@@ -71,7 +71,7 @@ export class Heartbeat {
     const mem = process.memoryUsage();
     return {
       workflow_status: "running",
-      current_handoff: null,
+      current_assignment: null,
       telemetry_snapshot: null,
       resource_usage: {
         memory_mb: Math.round(mem.rss / (1024 * 1024)),

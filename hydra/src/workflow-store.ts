@@ -1,10 +1,18 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { AgentType } from "./handoff/types.ts";
-import type { ChallengeState } from "./challenge.ts";
-import type { ResultContract } from "./protocol.ts";
+import type { AgentType } from "./assignment/types.ts";
+import type { NodeStatus } from "./decision.ts";
+import {
+  getWorkflowDir,
+  getWorkflowStatePath,
+} from "./layout.ts";
 
-export type WorkflowStatus = "pending" | "running" | "challenging" | "waiting_for_approval" | "completed" | "failed";
+export const WORKFLOW_STATE_SCHEMA_VERSION = "hydra/workflow-state/v0.1";
+
+export type WorkflowStatus =
+  | "active"
+  | "completed"
+  | "failed";
 
 export interface WorkflowFailure {
   code: string;
@@ -12,39 +20,134 @@ export interface WorkflowFailure {
   stage: string;
 }
 
-export interface WorkflowRecord {
+export interface ApprovedArtifactRef {
+  assignment_id: string;
+  run_id: string;
+  brief_file: string;
+  result_file: string;
+  approved_at: string;
+}
+
+export interface ContextRef {
+  label: string;
+  path: string;
+}
+
+/**
+ * Declarative retry policy attached to a node. Modeled after Temporal /
+ * Cadence retry policies — when set, takes precedence over the legacy
+ * scalar `max_retries` field. The policy is snapshotted onto the
+ * AssignmentRecord at dispatch time so retry decisions never have to
+ * re-traverse the workflow store.
+ */
+export interface RetryPolicy {
+  /** Wait this long before the first retry (after the first failure). */
+  initial_interval_ms?: number;
+  /** Each subsequent retry waits coefficient × previous wait. Defaults to 2.0. */
+  backoff_coefficient?: number;
+  /** Total attempts allowed, including the first try. Replaces max_retries. */
+  maximum_attempts?: number;
+  /** Error codes that immediately fail the assignment instead of retrying. */
+  non_retryable_error_codes?: string[];
+}
+
+export interface WorkflowNode {
   id: string;
-  template: string;
-  task: string;
+  role: string;
+  depends_on: string[];
+  /**
+   * Cached agent_type derived from the role registry at dispatch time.
+   * Sourced from the role file's frontmatter (claude or codex), NOT from
+   * any caller-supplied override — dispatchNode locks this from the role.
+   */
+  agent_type: AgentType;
+  /**
+   * Optional model pin (e.g. "claude-opus-4-6" / "gpt-5.4"). Cached from
+   * the chosen role terminal at dispatch time so other code paths don't
+   * have to re-resolve the role file.
+   */
+  model?: string;
+  /**
+   * Optional reasoning effort level cached from the chosen role terminal
+   * (per-CLI native vocabulary: claude max/high/medium/low; codex
+   * xhigh/high/medium/low). Honored by the CLI adapter at launch.
+   */
+  reasoning_effort?: string;
+  assignment_id?: string;
+
+  // Content references — actual text lives in MD files under nodes/{id}/
+  intent_file: string;       // → nodes/{id}/intent.md
+  feedback_file?: string;    // → nodes/{id}/feedback.md (set by reset)
+
+  // Lead-provided extra context (supplements depends_on auto-injection)
+  context_refs?: ContextRef[];
+
+  // Parallel isolation
+  worktree_path?: string;
+  worktree_branch?: string;
+
+  // Per-node overrides
+  timeout_minutes?: number;
+  /** Legacy scalar retry budget. Superseded by retry_policy when set. */
+  max_retries?: number;
+  /**
+   * Declarative retry policy. When set, takes precedence over max_retries
+   * and enables backoff + non-retryable error code handling.
+   */
+  retry_policy?: RetryPolicy;
+}
+
+export interface WorkflowRecord {
+  schema_version: typeof WORKFLOW_STATE_SCHEMA_VERSION;
+  id: string;
+
+  // Lead identity — workflow has exactly one Lead terminal
+  lead_terminal_id: string;
+
+  // Content reference — workflow intent lives in inputs/intent.md
+  intent_file: string;
+
+  // Workspace
   repo_path: string;
   worktree_path: string;
   branch: string | null;
   base_branch: string;
   own_worktree: boolean;
-  agent_type: AgentType;
-  parent_terminal_id?: string;
+
+  // Lifecycle
   created_at: string;
   updated_at: string;
   status: WorkflowStatus;
-  current_handoff_id: string;
-  handoff_ids: string[];
-  timeout_minutes: number;
-  max_retries: number;
+
+  // DAG
+  nodes: Record<string, WorkflowNode>;
+  node_statuses: Record<string, NodeStatus>;
+  assignment_ids: string[];
+
+  // Defaults — agent_type is no longer a workflow default; the role file's
+  // terminals[] array is the authoritative source for cli/model/reasoning.
+  default_timeout_minutes: number;
+  default_max_retries: number;
   auto_approve: boolean;
-  approve_plan?: boolean;
-  challenge?: ChallengeState;
-  challenge_completed?: boolean;
-  result?: ResultContract;
+
+  // Approval refs
+  approved_refs?: Record<string, ApprovedArtifactRef>;
+
+  // Workflow-level shared context — broadcast to every dispatched node's
+  // task.md under a `## Workflow Context` section. These fields let Dev and
+  // Reviewer see the wider picture instead of working from only their local
+  // node intent. All three are optional to preserve backward compatibility
+  // with workflows created before this schema extension.
+  human_request?: string;          // original human-written request, untouched
+  overall_plan?: string;           // Lead's plan/DAG summary (free-form markdown)
+  shared_constraints?: string[];   // constraints that apply to every node
+
+  // Final outcome
+  result_file?: string;      // → outputs/summary.md (set on completion)
   failure?: WorkflowFailure;
 }
 
-export function getWorkflowDir(repoPath: string, workflowId: string): string {
-  return path.join(path.resolve(repoPath), ".hydra", "workflows", workflowId);
-}
-
-export function getWorkflowStatePath(repoPath: string, workflowId: string): string {
-  return path.join(getWorkflowDir(repoPath, workflowId), "workflow.json");
-}
+export { getWorkflowDir, getWorkflowStatePath };
 
 export function saveWorkflow(workflow: WorkflowRecord): void {
   const filePath = getWorkflowStatePath(workflow.repo_path, workflow.id);
@@ -53,13 +156,15 @@ export function saveWorkflow(workflow: WorkflowRecord): void {
 }
 
 export function loadWorkflow(repoPath: string, workflowId: string): WorkflowRecord | null {
-  try {
-    return JSON.parse(
-      fs.readFileSync(getWorkflowStatePath(repoPath, workflowId), "utf-8"),
-    ) as WorkflowRecord;
-  } catch {
-    return null;
+  const filePath = getWorkflowStatePath(repoPath, workflowId);
+  if (!fs.existsSync(filePath)) return null;
+  const workflow = JSON.parse(fs.readFileSync(filePath, "utf-8")) as WorkflowRecord;
+  if (workflow.schema_version !== WORKFLOW_STATE_SCHEMA_VERSION) {
+    throw new Error(
+      `Unsupported workflow state schema in ${filePath}: expected ${WORKFLOW_STATE_SCHEMA_VERSION}, received ${String((workflow as unknown as Record<string, unknown>).schema_version ?? "<missing>")}`,
+    );
   }
+  return workflow;
 }
 
 export function listWorkflows(repoPath: string): WorkflowRecord[] {
@@ -72,7 +177,6 @@ export function listWorkflows(repoPath: string): WorkflowRecord[] {
   } catch {
     return [];
   }
-
   return entries
     .map((workflowId) => loadWorkflow(repoPath, workflowId))
     .filter((workflow): workflow is WorkflowRecord => workflow !== null);

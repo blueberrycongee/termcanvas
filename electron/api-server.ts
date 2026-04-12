@@ -362,7 +362,7 @@ export class ApiServer {
     const autoApprove = body?.autoApprove as boolean | undefined;
     const parentTerminalId = body?.parentTerminalId as string | undefined;
     const workflowId = body?.workflowId as string | undefined;
-    const handoffId = body?.handoffId as string | undefined;
+    const assignmentId = body?.assignmentId as string | undefined;
     const repoPath = body?.repoPath as string | undefined;
     if (!worktree)
       throw Object.assign(new Error("worktree path is required"), {
@@ -398,7 +398,7 @@ export class ApiServer {
       worktreePath: worktree,
       provider: type === "claude" || type === "codex" ? type : "unknown",
       workflowId,
-      handoffId,
+      assignmentId,
       repoPath,
     });
     return { id: terminal.id, type: terminal.type, title: terminal.title };

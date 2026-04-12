@@ -3,33 +3,113 @@ import type { TelemetryService } from "../electron/telemetry-service.ts";
 import type { ServerEventBus } from "./event-bus.ts";
 import type { ProjectStore, TerminalType } from "./project-store.ts";
 
-interface CliLaunchConfig {
+/**
+ * CLI adapter for a single terminal type. Centralizes everything we know
+ * about how to invoke a particular CLI: its shell binary, what flags to pass
+ * for auto-approve / resume / model / reasoning-effort selection, and how
+ * to deliver the prompt.
+ *
+ * Methods (rather than optional fields) keep the call sites uniform — they
+ * just spread the result. Adapters that don't support a capability return [].
+ *
+ * Capability queries (`supportsModel`, `supportsReasoningEffort`) let the
+ * dispatcher validate role pins against the actual CLI before launch.
+ */
+export interface CliAdapter {
   shell: string;
-  autoApproveArgs?: string[];
-  promptArgs?: (prompt: string) => string[];
+  supportsModel(): boolean;
+  supportsReasoningEffort(): boolean;
+  autoApproveArgs(): string[];
+  resumeArgs(sessionId: string): string[];
+  modelArgs(model: string): string[];
+  /**
+   * Per-CLI native effort flag. Each CLI uses its own vocabulary
+   * (claude: low/medium/high/max; codex: low/medium/high/xhigh) — Hydra
+   * does not normalize between them; the role file uses the value the
+   * target CLI actually understands.
+   */
+  reasoningEffortArgs(level: string): string[];
+  promptArgs(prompt: string): string[];
 }
 
-export const CLI_LAUNCH: Partial<Record<TerminalType, CliLaunchConfig>> = {
-  claude: {
-    shell: "claude",
-    autoApproveArgs: ["--dangerously-skip-permissions"],
-  },
-  codex: {
-    shell: "codex",
-    autoApproveArgs: ["--dangerously-bypass-approvals-and-sandbox"],
-  },
-  kimi: {
-    shell: "kimi",
-    promptArgs: (prompt) => ["--prompt", prompt],
-  },
-  gemini: { shell: "gemini" },
-  opencode: { shell: "opencode" },
-  wuu: {
-    shell: "wuu",
-    promptArgs: (prompt) => ["run", prompt],
-  },
-  lazygit: { shell: "lazygit" },
-  tmux: { shell: "tmux" },
+const defaultPromptArgs = (prompt: string): string[] => [prompt];
+
+const CLAUDE_ADAPTER: CliAdapter = {
+  shell: "claude",
+  supportsModel: () => true,
+  supportsReasoningEffort: () => true,
+  autoApproveArgs: () => ["--dangerously-skip-permissions"],
+  resumeArgs: (sessionId) => ["--resume", sessionId],
+  modelArgs: (model) => ["--model", model],
+  // Verified against `claude --help`: --effort accepts low|medium|high|max.
+  reasoningEffortArgs: (level) => ["--effort", level],
+  promptArgs: defaultPromptArgs,
+};
+
+const CODEX_ADAPTER: CliAdapter = {
+  shell: "codex",
+  supportsModel: () => true,
+  supportsReasoningEffort: () => true,
+  autoApproveArgs: () => ["--dangerously-bypass-approvals-and-sandbox"],
+  resumeArgs: () => [],
+  modelArgs: (model) => ["-m", model],
+  // Codex CLI exposes reasoning effort through its config-override flag:
+  // `codex -c model_reasoning_effort="<level>"`. Values include
+  // low|medium|high|xhigh. Source: openai/codex#2715, OpenAI Codex CLI docs.
+  reasoningEffortArgs: (level) => ["-c", `model_reasoning_effort=${level}`],
+  promptArgs: defaultPromptArgs,
+};
+
+// Non-Hydra terminal types — kept here so termcanvas can still spawn them
+// directly. They do not participate in the role registry, so model and
+// reasoning_effort are stubbed out.
+const KIMI_ADAPTER: CliAdapter = {
+  shell: "kimi",
+  supportsModel: () => false,
+  supportsReasoningEffort: () => false,
+  autoApproveArgs: () => [],
+  resumeArgs: () => [],
+  modelArgs: () => [],
+  reasoningEffortArgs: () => [],
+  promptArgs: (prompt) => ["--prompt", prompt],
+};
+
+// wuu has a non-default prompt injection shape (`wuu run <prompt>`), so it
+// cannot reuse makeBareAdapter. Added in main while this branch was in
+// development; merged in via the CliAdapter architecture here.
+const WUU_ADAPTER: CliAdapter = {
+  shell: "wuu",
+  supportsModel: () => false,
+  supportsReasoningEffort: () => false,
+  autoApproveArgs: () => [],
+  resumeArgs: () => [],
+  modelArgs: () => [],
+  reasoningEffortArgs: () => [],
+  promptArgs: (prompt) => ["run", prompt],
+};
+
+function makeBareAdapter(shell: string): CliAdapter {
+  return {
+    shell,
+    supportsModel: () => false,
+    supportsReasoningEffort: () => false,
+    autoApproveArgs: () => [],
+    resumeArgs: () => [],
+    modelArgs: () => [],
+    reasoningEffortArgs: () => [],
+    promptArgs: defaultPromptArgs,
+  };
+}
+
+export const CLI_LAUNCH: Partial<Record<TerminalType, CliAdapter>> = {
+  claude: CLAUDE_ADAPTER,
+  codex: CODEX_ADAPTER,
+  kimi: KIMI_ADAPTER,
+  wuu: WUU_ADAPTER,
+  gemini: makeBareAdapter("gemini"),
+  opencode: makeBareAdapter("opencode"),
+  lazygit: makeBareAdapter("lazygit"),
+  tmux: makeBareAdapter("tmux"),
 };
 
 export interface TerminalLaunchDeps {
@@ -47,8 +127,18 @@ export interface LaunchTrackedTerminalOptions extends TerminalLaunchDeps {
   autoApprove?: boolean;
   parentTerminalId?: string;
   workflowId?: string;
-  handoffId?: string;
+  assignmentId?: string;
   repoPath?: string;
+  // Resume the agent's prior session — only honored by agent types whose
+  // adapter implements resumeArgs (currently claude).
+  resumeSessionId?: string;
+  // Pin the model for this launch — passed to adapter.modelArgs(). Only
+  // honored when the adapter's supportsModel() returns true.
+  model?: string;
+  // Pin the per-CLI reasoning effort level (claude: low|medium|high|max;
+  // codex: low|medium|high|xhigh). Honored when the adapter's
+  // supportsReasoningEffort() returns true.
+  reasoningEffort?: string;
 }
 
 export async function launchTrackedTerminal(
@@ -90,16 +180,37 @@ export async function launchTrackedTerminal(
   };
 
   if (launchConfig) {
+    if (options.model && !launchConfig.supportsModel()) {
+      throw Object.assign(
+        new Error(
+          `Terminal type "${options.type}" does not support model selection (requested model: ${options.model}).`,
+        ),
+        { status: 400 },
+      );
+    }
+    if (options.reasoningEffort && !launchConfig.supportsReasoningEffort()) {
+      throw Object.assign(
+        new Error(
+          `Terminal type "${options.type}" does not support reasoning effort selection (requested level: ${options.reasoningEffort}).`,
+        ),
+        { status: 400 },
+      );
+    }
     const args: string[] = [];
-    if (options.autoApprove && launchConfig.autoApproveArgs) {
-      args.push(...launchConfig.autoApproveArgs);
+    if (options.autoApprove) {
+      args.push(...launchConfig.autoApproveArgs());
+    }
+    if (options.model) {
+      args.push(...launchConfig.modelArgs(options.model));
+    }
+    if (options.reasoningEffort) {
+      args.push(...launchConfig.reasoningEffortArgs(options.reasoningEffort));
+    }
+    if (options.resumeSessionId) {
+      args.push(...launchConfig.resumeArgs(options.resumeSessionId));
     }
     if (options.prompt) {
-      if (launchConfig.promptArgs) {
-        args.push(...launchConfig.promptArgs(options.prompt));
-      } else {
-        args.push(options.prompt);
-      }
+      args.push(...launchConfig.promptArgs(options.prompt));
     }
     ptyOptions.shell = launchConfig.shell;
     ptyOptions.args = args;
@@ -129,7 +240,7 @@ export async function launchTrackedTerminal(
         ? options.type
         : "unknown",
     workflowId: options.workflowId,
-    handoffId: options.handoffId,
+    assignmentId: options.assignmentId,
     repoPath: options.repoPath,
     ptyId,
     shellPid: pid ?? null,

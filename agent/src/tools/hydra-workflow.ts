@@ -3,65 +3,86 @@ import type { Tool } from "../tool.ts";
 import type { ToolResult } from "../types.ts";
 import { getClient } from "./client.ts";
 
-const UNAVAILABLE_ACTIONS = new Set(["spawn", "approve", "revise"]);
-
 const inputSchema = z.object({
   action: z.enum([
-    "run", "spawn", "list", "status", "tick", "watch", "retry", "cleanup", "approve", "revise",
+    "init", "dispatch", "redispatch", "watch", "approve", "reset", "ask", "merge",
+    "complete", "fail", "status", "list", "list-roles", "cleanup",
   ]).describe(
-    "Workflow action. spawn/approve/revise are not available via HTTP API.",
+    "Workflow action.",
   ),
   repo: z.string().optional().describe("Repository path (required for most actions)"),
-  workflowId: z.string().optional().describe("Workflow ID (required for status, tick, watch, retry, cleanup)"),
-  task: z.string().optional().describe("Task description (required for run)"),
-  worktree: z.string().optional().describe("Worktree path (for run)"),
-  template: z.string().optional().describe("Workflow template (for run, e.g. single-step)"),
-  allType: z.string().optional().describe("Provider type for all roles (for run)"),
-  plannerType: z.string().optional().describe("Provider type for planner (for run)"),
-  implementerType: z.string().optional().describe("Provider type for implementer (for run)"),
-  evaluatorType: z.string().optional().describe("Provider type for evaluator (for run)"),
-  timeoutMinutes: z.number().optional().describe("Timeout in minutes (for run)"),
-  maxRetries: z.number().optional().describe("Max retries (for run)"),
-  autoApprove: z.boolean().optional().describe("Auto-approve mode (for run, default true)"),
-  approvePlan: z.boolean().optional().describe("Auto-approve plan (for run)"),
+  workflowId: z.string().optional().describe("Workflow ID (required for all except init and list)"),
+
+  // init
+  intent: z.string().optional().describe("Workflow or node intent (for init, dispatch)"),
+  worktree: z.string().optional().describe("Worktree path (for init)"),
+  humanRequest: z.string().optional().describe("Original human request text (for init). Broadcast to every node's task.md under Workflow Context."),
+  overallPlan: z.string().optional().describe("Lead's plan / DAG summary (for init). Broadcast to every node's task.md under Workflow Context."),
+  sharedConstraints: z.array(z.string()).optional().describe("Workflow-wide constraints (for init). Apply to every dispatched node."),
+  cli: z.string().optional().describe("Filter list-roles results to roles whose primary terminal targets this CLI (claude or codex)."),
+  model: z.string().optional().describe("Override the role's default model (for dispatch, e.g. opus)"),
+  timeoutMinutes: z.number().optional().describe("Timeout in minutes (for init, dispatch)"),
+  maxRetries: z.number().optional().describe("Max retries (for init, dispatch). Legacy scalar — use retryPolicy for new work."),
+  retryPolicy: z.object({
+    initial_interval_ms: z.number().optional(),
+    backoff_coefficient: z.number().optional(),
+    maximum_attempts: z.number().optional(),
+    non_retryable_error_codes: z.array(z.string()).optional(),
+  }).optional().describe("Declarative retry policy (for dispatch). Takes precedence over maxRetries."),
+  autoApprove: z.boolean().optional().describe("Auto-approve mode (for init, default true)"),
+
+  // dispatch
+  nodeId: z.string().optional().describe("Node ID (for dispatch, approve, reset)"),
+  role: z.string().optional().describe("Agent role (for dispatch)"),
+  dependsOn: z.array(z.string()).optional().describe("Dependency node IDs (for dispatch)"),
+  contextRefs: z.array(z.object({
+    label: z.string(),
+    path: z.string(),
+  })).optional().describe("Context artifact refs (for dispatch)"),
+  feedback: z.string().optional().describe("Feedback text (for reset, dispatch)"),
+  message: z.string().optional().describe("Follow-up question to send to a completed node (for ask)"),
+  timeoutMs: z.number().optional().describe("Subprocess timeout in ms for ask (default 300000)"),
+  worktreePath: z.string().optional().describe("Isolated worktree path (for dispatch)"),
+  worktreeBranch: z.string().optional().describe("Branch name for isolated worktree (for dispatch)"),
+
+  // merge
+  nodeIds: z.array(z.string()).optional().describe("Node IDs to merge (for merge)"),
+
+  // complete/fail
+  summary: z.string().optional().describe("Completion summary (for complete)"),
+  reason: z.string().optional().describe("Failure reason (for fail)"),
+
+  // cleanup
   force: z.boolean().optional().describe("Force cleanup (for cleanup)"),
-  intervalMs: z.number().optional().describe("Poll interval in ms (for watch, default 30000)"),
-  timeoutMs: z.number().optional().describe("Total timeout in ms (for watch, default 3600000)"),
 });
 
 export const hydraWorkflowTool: Tool<typeof inputSchema.shape> = {
   name: "HydraWorkflow",
-  description: "Manage Hydra workflows: run, list, status, tick, watch, retry, cleanup. spawn/approve/revise are not available via HTTP — use the Hydra CLI.",
+  description: "Manage Hydra workflows: init, dispatch, watch, approve, reset, merge, complete, fail, status, list, cleanup.",
   inputSchema,
   isReadOnly: false,
 
-  async call(input: z.infer<typeof inputSchema>, signal?: AbortSignal): Promise<ToolResult> {
+  async call(input: z.infer<typeof inputSchema>, _signal?: AbortSignal): Promise<ToolResult> {
     const { action } = input;
-
-    if (UNAVAILABLE_ACTIONS.has(action)) {
-      return { content: `Action '${action}' is not available via HTTP API. Use the Hydra CLI directly.`, is_error: true };
-    }
-
     const client = getClient();
 
-    if (action === "run") {
-      if (!input.task) return { content: "task is required for run", is_error: true };
-      if (!input.repo) return { content: "repo is required for run", is_error: true };
+    if (action === "init") {
+      if (!input.intent) return { content: "intent is required for init", is_error: true };
+      if (!input.repo) return { content: "repo is required for init", is_error: true };
       const body: Record<string, unknown> = {
-        task: input.task,
+        intent: input.intent,
         repo: input.repo,
         autoApprove: input.autoApprove ?? true,
       };
-      if (input.worktree) body.worktree = input.worktree;
-      if (input.template) body.template = input.template;
-      if (input.allType) body.allType = input.allType;
-      if (input.plannerType) body.plannerType = input.plannerType;
-      if (input.implementerType) body.implementerType = input.implementerType;
-      if (input.evaluatorType) body.evaluatorType = input.evaluatorType;
+      if (input.worktree) body.worktreePath = input.worktree;
       if (input.timeoutMinutes) body.timeoutMinutes = input.timeoutMinutes;
       if (input.maxRetries !== undefined) body.maxRetries = input.maxRetries;
-      if (input.approvePlan) body.approvePlan = input.approvePlan;
-      const result = await client.request("POST", "/workflow/run", body);
+      if (input.humanRequest) body.humanRequest = input.humanRequest;
+      if (input.overallPlan) body.overallPlan = input.overallPlan;
+      if (input.sharedConstraints && input.sharedConstraints.length > 0) {
+        body.sharedConstraints = input.sharedConstraints;
+      }
+      const result = await client.request("POST", "/workflow/init", body);
       return { content: JSON.stringify(result, null, 2) };
     }
 
@@ -71,23 +92,101 @@ export const hydraWorkflowTool: Tool<typeof inputSchema.shape> = {
       return { content: JSON.stringify(result, null, 2) };
     }
 
+    if (action === "list-roles") {
+      if (!input.repo) return { content: "repo is required for list-roles", is_error: true };
+      const params = new URLSearchParams({ repo: input.repo });
+      if (input.cli) params.set("agentType", input.cli);
+      const result = await client.request("GET", `/workflow/list-roles?${params.toString()}`);
+      return { content: JSON.stringify(result, null, 2) };
+    }
+
+    // All remaining actions require workflowId and repo
     if (!input.workflowId) return { content: "workflowId is required for " + action, is_error: true };
     if (!input.repo) return { content: "repo is required for " + action, is_error: true };
     const wfId = encodeURIComponent(input.workflowId);
     const repo = input.repo;
 
+    if (action === "dispatch") {
+      if (!input.nodeId) return { content: "nodeId is required for dispatch", is_error: true };
+      if (!input.role) return { content: "role is required for dispatch", is_error: true };
+      if (!input.intent) return { content: "intent is required for dispatch", is_error: true };
+      const body: Record<string, unknown> = {
+        repo, nodeId: input.nodeId, role: input.role, intent: input.intent,
+      };
+      if (input.dependsOn) body.dependsOn = input.dependsOn;
+      if (input.model) body.model = input.model;
+      if (input.retryPolicy) body.retryPolicy = input.retryPolicy;
+      if (input.contextRefs) body.contextRefs = input.contextRefs;
+      if (input.feedback) body.feedback = input.feedback;
+      if (input.worktreePath) body.worktreePath = input.worktreePath;
+      if (input.worktreeBranch) body.worktreeBranch = input.worktreeBranch;
+      if (input.timeoutMinutes) body.timeoutMinutes = input.timeoutMinutes;
+      if (input.maxRetries !== undefined) body.maxRetries = input.maxRetries;
+      const result = await client.request("POST", `/workflow/${wfId}/dispatch`, body);
+      return { content: JSON.stringify(result, null, 2) };
+    }
+
+    if (action === "redispatch") {
+      if (!input.nodeId) return { content: "nodeId is required for redispatch", is_error: true };
+      const nodeId = encodeURIComponent(input.nodeId);
+      const body: Record<string, unknown> = { repo };
+      if (input.intent) body.intent = input.intent;
+      const result = await client.request("POST", `/workflow/${wfId}/node/${nodeId}/redispatch`, body);
+      return { content: JSON.stringify(result, null, 2) };
+    }
+
+    if (action === "watch") {
+      const result = await client.request("POST", `/workflow/${wfId}/watch-decision`, { repo });
+      return { content: JSON.stringify(result, null, 2) };
+    }
+
+    if (action === "approve") {
+      if (!input.nodeId) return { content: "nodeId is required for approve", is_error: true };
+      const nodeId = encodeURIComponent(input.nodeId);
+      const result = await client.request("POST", `/workflow/${wfId}/node/${nodeId}/approve`, { repo });
+      return { content: JSON.stringify(result, null, 2) };
+    }
+
+    if (action === "reset") {
+      if (!input.nodeId) return { content: "nodeId is required for reset", is_error: true };
+      const nodeId = encodeURIComponent(input.nodeId);
+      const body: Record<string, unknown> = { repo };
+      if (input.feedback) body.feedback = input.feedback;
+      const result = await client.request("POST", `/workflow/${wfId}/node/${nodeId}/reset`, body);
+      return { content: JSON.stringify(result, null, 2) };
+    }
+
+    if (action === "ask") {
+      if (!input.nodeId) return { content: "nodeId is required for ask", is_error: true };
+      if (!input.message) return { content: "message is required for ask", is_error: true };
+      const nodeId = encodeURIComponent(input.nodeId);
+      const body: Record<string, unknown> = { repo, message: input.message };
+      if (input.timeoutMs) body.timeoutMs = input.timeoutMs;
+      const result = await client.request("POST", `/workflow/${wfId}/node/${nodeId}/ask`, body);
+      return { content: JSON.stringify(result, null, 2) };
+    }
+
+    if (action === "merge") {
+      if (!input.nodeIds) return { content: "nodeIds is required for merge", is_error: true };
+      const result = await client.request("POST", `/workflow/${wfId}/merge`, { repo, nodeIds: input.nodeIds });
+      return { content: JSON.stringify(result, null, 2) };
+    }
+
+    if (action === "complete") {
+      const body: Record<string, unknown> = { repo };
+      if (input.summary) body.summary = input.summary;
+      const result = await client.request("POST", `/workflow/${wfId}/complete`, body);
+      return { content: JSON.stringify(result, null, 2) };
+    }
+
+    if (action === "fail") {
+      if (!input.reason) return { content: "reason is required for fail", is_error: true };
+      const result = await client.request("POST", `/workflow/${wfId}/fail`, { repo, reason: input.reason });
+      return { content: JSON.stringify(result, null, 2) };
+    }
+
     if (action === "status") {
       const result = await client.request("GET", `/workflow/${wfId}?repo=${encodeURIComponent(repo)}`);
-      return { content: JSON.stringify(result, null, 2) };
-    }
-
-    if (action === "tick") {
-      const result = await client.request("POST", `/workflow/${wfId}/tick`, { repo });
-      return { content: JSON.stringify(result, null, 2) };
-    }
-
-    if (action === "retry") {
-      const result = await client.request("POST", `/workflow/${wfId}/retry`, { repo });
       return { content: JSON.stringify(result, null, 2) };
     }
 
@@ -98,27 +197,6 @@ export const hydraWorkflowTool: Tool<typeof inputSchema.shape> = {
       return { content: JSON.stringify(result, null, 2) };
     }
 
-    const intervalMs = input.intervalMs ?? 30_000;
-    const timeoutMs = input.timeoutMs ?? 3_600_000;
-    const startedAt = Date.now();
-
-    let result = await client.request("POST", `/workflow/${wfId}/tick`, { repo }) as Record<string, unknown>;
-    const workflow = result.workflow as Record<string, unknown> | undefined;
-    let status = workflow?.status as string | undefined;
-
-    while (
-      status !== "completed" &&
-      status !== "failed" &&
-      status !== "waiting_for_approval" &&
-      Date.now() - startedAt < timeoutMs
-    ) {
-      if (signal?.aborted) return { content: "Watch aborted", is_error: true };
-      await new Promise((r) => setTimeout(r, intervalMs));
-      result = await client.request("POST", `/workflow/${wfId}/tick`, { repo }) as Record<string, unknown>;
-      const wf = result.workflow as Record<string, unknown> | undefined;
-      status = wf?.status as string | undefined;
-    }
-
-    return { content: JSON.stringify(result, null, 2) };
+    return { content: `Unknown action: ${action}`, is_error: true };
   },
 };

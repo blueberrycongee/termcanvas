@@ -43,7 +43,7 @@ Each worker prompt must include, in this order:
 1. The mandatory preamble below (verbatim)
 2. The full summary from Step 1
 3. The methodology instructions below (one per worker)
-4. Instruction to write findings to `result.json`
+4. Instruction to write findings to `result.json` atomically
 
 ### Mandatory preamble (prepend to every worker prompt verbatim)
 
@@ -119,14 +119,17 @@ Each worker writes `result.json`:
   ],
   "outputs": [],
   "evidence": [],
-  "next_action": "none"
+  "next_action": { "type": "complete", "reason": "Challenge review complete" }
 }
 ```
+
+Write to `result.json.tmp` first, then atomically rename it to `result.json`
+only after the JSON is complete.
 
 ## Step 3: Watch
 
 For each spawned worker, run `hydra watch --agent <agentId>`. This polls
-the worker's handoff contract until it reaches a terminal state (completed,
+the worker's assignment run result until it reaches a terminal state (completed,
 failed, or terminal dead).
 
 Run all 4 watches in parallel (background bash commands or concurrent

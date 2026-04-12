@@ -74,7 +74,7 @@ test("buildTerminalCreateArgs includes workflow telemetry metadata when provided
     true,
     "parent-1",
     "workflow-1",
-    "handoff-1",
+    "assignment-1",
     "/repo/project",
   );
   assert.deepStrictEqual(args, [
@@ -91,10 +91,37 @@ test("buildTerminalCreateArgs includes workflow telemetry metadata when provided
     "parent-1",
     "--workflow-id",
     "workflow-1",
-    "--handoff-id",
-    "handoff-1",
+    "--assignment-id",
+    "assignment-1",
     "--repo",
     "/repo/project",
+    "--json",
+  ]);
+});
+
+test("buildTerminalCreateArgs appends --resume-session-id when provided", () => {
+  const args = buildTerminalCreateArgs(
+    "/tmp/wt",
+    "claude",
+    "Continue the task",
+    false,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    "claude-session-xyz",
+  );
+  assert.deepStrictEqual(args, [
+    "terminal",
+    "create",
+    "--worktree",
+    "/tmp/wt",
+    "--type",
+    "claude",
+    "--prompt",
+    "Continue the task",
+    "--resume-session-id",
+    "claude-session-xyz",
     "--json",
   ]);
 });

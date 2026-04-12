@@ -3,7 +3,7 @@ name: qa
 description: >-
   QA testing skill with real browser automation. Use when asked to "test this
   site", "QA this page", "check for visual bugs", "verify the deploy", or
-  when a Hydra evaluator needs to validate UI changes. Requires the browse
+  when a Hydra tester needs to validate UI changes. Requires the browse
   binary.
 ---
 

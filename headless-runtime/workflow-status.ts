@@ -6,29 +6,30 @@ import {
 } from "../hydra/src/workflow-store.ts";
 
 const ACTIVE_WORKFLOW_STATUSES = new Set<WorkflowStatus>([
-  "pending",
-  "running",
-  "waiting_for_approval",
+  "active",
 ]);
 
 export interface ActiveWorkflowSummary {
   id: string;
   status: WorkflowStatus;
-  task: string;
+  intent_file: string;
   repo_path: string;
   worktree_path: string;
-  current_handoff_id: string;
+  active_node_ids: string[];
   updated_at: string;
 }
 
 function summarizeWorkflow(workflow: WorkflowRecord): ActiveWorkflowSummary {
+  const activeNodeIds = Object.entries(workflow.node_statuses ?? {})
+    .filter(([, s]) => s === "dispatched" || s === "eligible")
+    .map(([id]) => id);
   return {
     id: workflow.id,
     status: workflow.status,
-    task: workflow.task,
+    intent_file: workflow.intent_file,
     repo_path: workflow.repo_path,
     worktree_path: workflow.worktree_path,
-    current_handoff_id: workflow.current_handoff_id,
+    active_node_ids: activeNodeIds,
     updated_at: workflow.updated_at,
   };
 }

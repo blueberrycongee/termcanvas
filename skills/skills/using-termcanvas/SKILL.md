@@ -18,18 +18,25 @@ Route first. Choose the lightest path that preserves correctness.
 - If the task is simple, local, high-certainty, or faster in the current
   agent, do it directly. Do not invoke Hydra by default.
 - If the task needs an isolated worktree, file evidence, retry/status control,
-  or a staged handoff, use `hydra`.
+  or a staged workflow, use `hydra`.
 - Before using Hydra in a repo, ensure the project has current Hydra
   instructions via `hydra init` or the TermCanvas Hydra enable action.
 
 ## Hydra workflow patterns
 
-- `hydra run --task "..." --repo . --template single-step`
-  - one implementer with `result.json` + `done` gates
-  - use for clear implementation tasks that still need Hydra evidence
-- `hydra run --task "..." --repo .`
-  - default planner -> implementer -> evaluator loop
-  - use for ambiguous, risky, PRD-driven, or long-running tasks
+Lead-driven, decision-point oriented. The Lead reads the codebase, picks
+the strategy, and dispatches workers for the steps that need a fresh
+agent process. Roles available: `lead` (the decider — not itself dispatched),
+`dev` (writes code AND its tests), `reviewer` (independent cross-model
+check). No separate researcher — the Lead does its own research. No
+separate tester — dev owns its own test surface.
+
+- `hydra init --intent "..." --repo .` then dispatch `dev` -> `reviewer`
+  for ambiguous, risky, or PRD-driven work
+  - call `hydra watch` after each dispatch to wait for the decision point
+- `hydra spawn --task "..." --repo .` for a single isolated worker
+  - use when the task split is already known and you do not need the
+    full Lead-driven loop
 
 ## Hydra worker primitive
 

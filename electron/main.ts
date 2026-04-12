@@ -311,7 +311,7 @@ function setupIpc() {
         terminalType?: string;
         theme?: "dark" | "light";
         workflowId?: string;
-        handoffId?: string;
+        assignmentId?: string;
         repoPath?: string;
       },
     ) => {
@@ -338,7 +338,7 @@ function setupIpc() {
             ? options.terminalType
             : "unknown",
         workflowId: options.workflowId,
-        handoffId: options.handoffId,
+        assignmentId: options.assignmentId,
         repoPath: options.repoPath,
         ptyId,
         shellPid: pid ?? null,

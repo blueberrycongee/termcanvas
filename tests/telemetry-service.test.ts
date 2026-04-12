@@ -100,14 +100,13 @@ test("deriveTelemetryStatus marks awaiting_contract after turn completion", () =
     terminal_id: "terminal-1",
     worktree_path: "/tmp/project",
     provider: "codex",
-    handoff_id: "handoff-1",
+    assignment_id: "assignment-1",
     session_attached: true,
     session_attach_confidence: "medium",
     turn_state: "turn_complete",
     pty_alive: true,
     descendant_processes: [],
     active_tool_calls: 0,
-    done_exists: false,
     result_exists: false,
     derived_status: "starting",
   });
@@ -128,7 +127,6 @@ test("deriveTelemetryStatus keeps codex as progressing when session events are f
       pty_alive: true,
       descendant_processes: [],
       active_tool_calls: 0,
-      done_exists: false,
       result_exists: false,
       last_session_event_at: "2026-03-26T00:09:30.000Z",
       last_meaningful_progress_at: "2026-03-26T00:05:00.000Z",
@@ -151,7 +149,6 @@ test("deriveTelemetryTaskStatus prefers explicit running/idle signals over PTY n
     pty_alive: true,
     descendant_processes: [],
     active_tool_calls: 1,
-    done_exists: false,
     result_exists: false,
     derived_status: "starting",
   });
@@ -170,7 +167,6 @@ test("deriveTelemetryTaskStatus prefers explicit running/idle signals over PTY n
     pty_alive: true,
     descendant_processes: [],
     active_tool_calls: 0,
-    done_exists: false,
     result_exists: false,
     derived_status: "starting",
   });
@@ -186,7 +182,6 @@ test("deriveTelemetryTaskStatus prefers explicit running/idle signals over PTY n
     pty_alive: true,
     descendant_processes: [],
     active_tool_calls: 0,
-    done_exists: false,
     result_exists: false,
     derived_status: "starting",
   });
@@ -422,89 +417,79 @@ test("telemetry service ignores stale PTY exits after a terminal respawns", () =
   assert.equal(snapshot?.derived_status, "exited");
 });
 
-test("workflow snapshot reads contract truth from Hydra handoff artifacts", () => {
+test("workflow snapshot reads contract truth from Hydra assignment run", () => {
   const repoPath = createRepoFixture();
   try {
     const workflowId = "workflow-telemetry";
-    const handoffId = "handoff-telemetry";
+    const assignmentId = "assignment-telemetry";
+    const runId = "run-telemetry";
     const workflowDir = path.join(repoPath, ".hydra", "workflows", workflowId);
-    const artifactsDir = path.join(workflowDir, handoffId);
+    const runDir = path.join(workflowDir, "assignments", assignmentId, "runs", runId);
+    const artifactsDir = path.join(runDir, "artifacts");
     fs.mkdirSync(artifactsDir, { recursive: true });
-    fs.mkdirSync(path.join(repoPath, ".hydra", "handoffs"), {
-      recursive: true,
-    });
 
-    const resultFile = path.join(artifactsDir, "result.json");
-    const doneFile = path.join(artifactsDir, "done");
-    const handoffFile = path.join(artifactsDir, "handoff.json");
-    const taskFile = path.join(artifactsDir, "task.md");
+    const resultFile = path.join(runDir, "result.json");
+    const taskFile = path.join(runDir, "task.md");
     fs.writeFileSync(taskFile, "# Task\n", "utf-8");
 
-    const handoff = {
-      id: handoffId,
-      created_at: "2026-03-26T00:00:00.000Z",
+    const assignment = {
+      schema_version: "hydra/assignment-state/v0.1",
+      id: assignmentId,
       workflow_id: workflowId,
-      worktree_path: repoPath,
-      from: { role: "planner", agent_type: "codex", agent_id: "parent" },
-      to: { role: "implementer", agent_type: "codex", agent_id: null },
-      task: {
-        type: "code-change-task",
-        title: "Implement telemetry",
-        description: "Implement telemetry",
-        acceptance_criteria: ["done"],
-      },
-      context: {
-        files: [],
-        previous_handoffs: [],
-      },
-      artifacts: {
-        package_dir: artifactsDir,
-        handoff_file: handoffFile,
-        task_file: taskFile,
-        result_file: resultFile,
-        done_file: doneFile,
-      },
+      created_at: "2026-03-26T00:00:00.000Z",
+      updated_at: "2026-03-26T00:00:00.000Z",
+      role: "reviewer",
+      from_assignment_id: null,
+      requested_agent_type: "codex",
       status: "in_progress",
       retry_count: 1,
       max_retries: 3,
       timeout_minutes: 15,
-      dispatch: {
-        active_terminal_id: "terminal-1",
-        attempts: [
-          {
-            attempt: 1,
-            terminal_id: "terminal-1",
-            agent_type: "codex",
-            prompt: "prompt",
-            started_at: "2026-03-26T00:00:00.000Z",
-          },
-        ],
-      },
+      active_run_id: runId,
+      runs: [
+        {
+          id: runId,
+          terminal_id: "terminal-1",
+          agent_type: "codex",
+          prompt: "prompt",
+          task_file: taskFile,
+          result_file: resultFile,
+          artifact_dir: artifactsDir,
+          status: "running",
+          started_at: "2026-03-26T00:00:00.000Z",
+        },
+      ],
     };
     fs.writeFileSync(
-      path.join(repoPath, ".hydra", "handoffs", `${handoffId}.json`),
-      JSON.stringify(handoff, null, 2),
+      path.join(workflowDir, "assignments", assignmentId, "assignment.json"),
+      JSON.stringify(assignment, null, 2),
       "utf-8",
     );
-    fs.writeFileSync(handoffFile, JSON.stringify(handoff, null, 2), "utf-8");
 
     const workflow = {
+      schema_version: "hydra/workflow-state/v0.1",
       id: workflowId,
-      template: "single-step",
-      task: "Implement telemetry",
+      lead_terminal_id: "terminal-telemetry-test",
+      intent_file: "inputs/intent.md",
       repo_path: repoPath,
       worktree_path: repoPath,
       branch: null,
       base_branch: "main",
       own_worktree: false,
-      agent_type: "codex",
       created_at: "2026-03-26T00:00:00.000Z",
       updated_at: "2026-03-26T00:00:00.000Z",
-      status: "running",
-      current_handoff_id: handoffId,
-      handoff_ids: [handoffId],
-      timeout_minutes: 15,
-      max_retries: 3,
+      status: "active",
+      nodes: {
+        dev: {
+          id: "dev", role: "reviewer", depends_on: [], agent_type: "codex",
+          assignment_id: assignmentId, intent_file: "nodes/dev/intent.md",
+        },
+      },
+      node_statuses: { dev: "dispatched" },
+      assignment_ids: [assignmentId],
+      default_timeout_minutes: 15,
+      default_max_retries: 3,
+      default_agent_type: "codex",
       auto_approve: false,
     };
     fs.writeFileSync(
@@ -515,33 +500,16 @@ test("workflow snapshot reads contract truth from Hydra handoff artifacts", () =
 
     fs.writeFileSync(
       resultFile,
-      JSON.stringify(
-        {
-          success: true,
-          summary: "done",
-          handoff_id: handoffId,
-          workflow_id: workflowId,
-          outputs: [],
-          evidence: [],
-          next_action: { type: "complete", reason: "done" },
-        },
-        null,
-        2,
-      ),
-      "utf-8",
-    );
-    fs.writeFileSync(
-      doneFile,
-      JSON.stringify(
-        {
-          version: "hydra/v2",
-          handoff_id: handoffId,
-          workflow_id: workflowId,
-          result_file: resultFile,
-        },
-        null,
-        2,
-      ),
+      JSON.stringify({
+        schema_version: "hydra/result/v0.1",
+        workflow_id: workflowId,
+        assignment_id: assignmentId,
+        run_id: runId,
+        outcome: "completed",
+        summary: "done",
+        outputs: [],
+        evidence: ["test"],
+      }, null, 2),
       "utf-8",
     );
 
@@ -551,7 +519,7 @@ test("workflow snapshot reads contract truth from Hydra handoff artifacts", () =
       worktreePath: repoPath,
       provider: "codex",
       workflowId,
-      handoffId,
+      assignmentId,
       repoPath,
     });
     service.recordPtyCreated({ terminalId: "terminal-1", ptyId: 10 });
@@ -573,10 +541,9 @@ test("workflow snapshot reads contract truth from Hydra handoff artifacts", () =
     const workflowSnapshot = service.getWorkflowSnapshot(repoPath, workflowId);
     assert.ok(workflowSnapshot);
     assert.equal(workflowSnapshot?.contract.result_exists, true);
-    assert.equal(workflowSnapshot?.contract.done_valid, true);
+    assert.equal(workflowSnapshot?.contract.result_valid, true);
     assert.equal(workflowSnapshot?.retry_budget.remaining, 2);
     assert.equal(workflowSnapshot?.terminal?.result_exists, true);
-    assert.equal(workflowSnapshot?.terminal?.done_exists, true);
     service.dispose();
   } finally {
     fs.rmSync(repoPath, { recursive: true, force: true });
@@ -701,7 +668,6 @@ test("deriveTelemetryStatus returns progressing when active_tool_calls > 0", () 
       pty_alive: true,
       descendant_processes: [],
       active_tool_calls: 2,
-      done_exists: false,
       result_exists: false,
       last_output_at: "2026-03-26T00:00:01.000Z",
       last_meaningful_progress_at: "2026-03-26T00:00:01.000Z",
@@ -726,7 +692,6 @@ test("deriveTelemetryStatus returns stall_candidate for Codex in_turn when sessi
       pty_alive: true,
       descendant_processes: [],
       active_tool_calls: 0,
-      done_exists: false,
       result_exists: false,
       // session event 4 min ago (stale beyond 90s heartbeat)
       last_session_event_at: "2026-03-26T00:06:00.000Z",
@@ -756,7 +721,6 @@ test("deriveTelemetryStatus returns progressing for Codex in_turn with recent se
       pty_alive: true,
       descendant_processes: [],
       active_tool_calls: 0,
-      done_exists: false,
       result_exists: false,
       // session event 30s ago (within 90s heartbeat)
       last_session_event_at: "2026-03-26T00:09:30.000Z",

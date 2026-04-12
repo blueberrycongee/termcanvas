@@ -1,121 +1,53 @@
-import path from "node:path";
 import { HydraError } from "./errors.ts";
 
-export const PROTOCOL_VERSION = "hydra/v2";
-export const TASK_PACKAGE_FILES = {
-  handoff: "handoff.json",
-  task: "task.md",
-  result: "result.json",
-  done: "done",
-} as const;
+export const RESULT_SCHEMA_VERSION = "hydra/result/v0.1";
 
-const AGENT_ROLES = new Set([
-  "planner",
-  "implementer",
-  "evaluator",
-  "reviewer",
-  "integrator",
-  "researcher",
-]);
+// --- Outcome: machine-readable routing signal for Hydra ---
 
-const AGENT_TYPES = new Set([
-  "claude",
-  "codex",
-  "kimi",
-  "gemini",
-]);
+export type SubAgentOutcome = "completed" | "stuck" | "error";
 
-const NEXT_ACTION_TYPES = new Set([
-  "complete",
-  "retry",
-  "handoff",
-]);
+/**
+ * When a worker reports outcome="stuck", `stuck_reason` tells Lead *why* it
+ * is stuck so Lead can decide what to do without having to read report.md
+ * first. The categories are deliberately coarse — they classify the kind of
+ * intervention needed, not the underlying technical detail (which lives in
+ * report.md). Inspired by Google's A2A protocol task-state vocabulary.
+ *
+ *   needs_clarification — the worker cannot disambiguate the request
+ *   needs_credentials   — the worker is missing an auth token / secret
+ *   needs_context       — the worker is missing a file / artifact / spec
+ *   blocked_technical   — an environmental / technical block the worker
+ *                         cannot resolve on its own (network, tool, etc.)
+ */
+export type StuckReason =
+  | "needs_clarification"
+  | "needs_credentials"
+  | "needs_context"
+  | "blocked_technical";
 
-export interface TaskPackagePaths {
-  package_dir: string;
-  handoff_file: string;
-  task_file: string;
-  result_file: string;
-  done_file: string;
-}
+// --- Sub-agent result contract ---
+//
+// JSON keeps only what Hydra needs to drive routing.
+// All human-readable content (summary, evidence, reflection, output
+// descriptions) lives in the `report.md` file referenced by `report_file`.
 
-export interface ProtocolAgent {
-  role: string;
-  agent_type: string;
-  agent_id: string | null;
-}
-
-export interface ProtocolTask {
-  type: string;
-  title: string;
-  description: string;
-  acceptance_criteria: string[];
-  constraints?: Record<string, unknown>;
-  skills?: string[];
-}
-
-export interface ProtocolContext {
-  files: string[];
-  previous_handoffs: string[];
-  decisions?: Record<string, string>;
-  shared_state?: Record<string, unknown>;
-}
-
-export interface HandoffContract {
-  version: typeof PROTOCOL_VERSION;
-  handoff_id: string;
+export interface SubAgentResult {
+  schema_version: typeof RESULT_SCHEMA_VERSION;
   workflow_id: string;
-  created_at: string;
-  from: ProtocolAgent;
-  to: ProtocolAgent;
-  task: ProtocolTask;
-  context: ProtocolContext;
-  artifacts: TaskPackagePaths;
+  assignment_id: string;
+  run_id: string;
+
+  outcome: SubAgentOutcome;
+  report_file: string;       // path to report.md (relative to result.json's dir or absolute)
+
+  /**
+   * Required when outcome === "stuck"; rejected otherwise. Lets Lead route
+   * stuck workers to the right intervention without parsing report.md prose.
+   */
+  stuck_reason?: StuckReason;
 }
 
-export interface ResultOutput {
-  path: string;
-  description: string;
-}
-
-export interface ResultNextAction {
-  type: "complete" | "retry" | "handoff";
-  reason: string;
-  handoff_id?: string;
-}
-
-export interface VerificationTier {
-  ran: boolean;
-  pass?: boolean;
-  detail?: string;
-  reason?: string;
-}
-
-export interface ResultVerification {
-  runtime?: VerificationTier;
-  build?: VerificationTier;
-  probing?: VerificationTier;
-  static?: VerificationTier;
-}
-
-export interface ResultContract {
-  version: typeof PROTOCOL_VERSION;
-  handoff_id: string;
-  workflow_id: string;
-  success: boolean;
-  summary: string;
-  outputs: ResultOutput[];
-  evidence: string[];
-  next_action: ResultNextAction;
-  verification?: ResultVerification;
-}
-
-export interface DoneMarker {
-  version: typeof PROTOCOL_VERSION;
-  handoff_id: string;
-  workflow_id: string;
-  result_file: string;
-}
+// --- Validation helpers ---
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -123,392 +55,110 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function extractIds(value: unknown): Record<string, string> {
   if (!isRecord(value)) return {};
-
   const ids: Record<string, string> = {};
-  if (typeof value.handoff_id === "string" && value.handoff_id) {
-    ids.handoff_id = value.handoff_id;
-  }
-  if (typeof value.workflow_id === "string" && value.workflow_id) {
-    ids.workflow_id = value.workflow_id;
-  }
+  if (typeof value.workflow_id === "string" && value.workflow_id) ids.workflow_id = value.workflow_id;
+  if (typeof value.assignment_id === "string" && value.assignment_id) ids.assignment_id = value.assignment_id;
+  if (typeof value.run_id === "string" && value.run_id) ids.run_id = value.run_id;
   return ids;
 }
 
-function failProtocolValidation(
-  errorCode: "PROTOCOL_INVALID_HANDOFF" | "PROTOCOL_INVALID_RESULT" | "PROTOCOL_INVALID_DONE",
-  stage: "protocol.validate_handoff" | "protocol.validate_result" | "protocol.validate_done",
-  message: string,
-  value: unknown,
-): never {
+function failValidation(message: string, value: unknown): never {
   throw new HydraError(message, {
-    errorCode,
-    stage,
+    errorCode: "PROTOCOL_INVALID_RESULT",
+    stage: "protocol.validate_result",
     ids: extractIds(value),
   });
 }
 
-function expectRecord(
-  value: unknown,
-  field: string,
-  errorCode: "PROTOCOL_INVALID_HANDOFF" | "PROTOCOL_INVALID_RESULT" | "PROTOCOL_INVALID_DONE",
-  stage: "protocol.validate_handoff" | "protocol.validate_result" | "protocol.validate_done",
-  root: unknown,
-): Record<string, unknown> {
-  if (!isRecord(value)) {
-    failProtocolValidation(errorCode, stage, `Invalid ${field}: expected an object`, root);
-  }
+function expectRecord(value: unknown, field: string, root: unknown): Record<string, unknown> {
+  if (!isRecord(value)) failValidation(`Invalid ${field}: expected an object`, root);
   return value;
 }
 
-function expectString(
-  record: Record<string, unknown>,
-  field: string,
-  errorCode: "PROTOCOL_INVALID_HANDOFF" | "PROTOCOL_INVALID_RESULT" | "PROTOCOL_INVALID_DONE",
-  stage: "protocol.validate_handoff" | "protocol.validate_result" | "protocol.validate_done",
-  root: unknown,
-): string {
+function expectString(record: Record<string, unknown>, field: string, root: unknown): string {
   const value = record[field];
   if (typeof value !== "string" || value.trim() === "") {
-    failProtocolValidation(errorCode, stage, `Invalid ${field}: expected a non-empty string`, root);
+    failValidation(`Invalid ${field}: expected a non-empty string`, root);
   }
   return value;
 }
 
-function expectBoolean(
+const VALID_OUTCOMES = new Set<SubAgentOutcome>(["completed", "stuck", "error"]);
+
+function validateOutcome(record: Record<string, unknown>, root: unknown): SubAgentOutcome {
+  const value = expectString(record, "outcome", root);
+  if (!VALID_OUTCOMES.has(value as SubAgentOutcome)) {
+    failValidation(`Invalid outcome: ${value}. Expected one of: ${[...VALID_OUTCOMES].join(", ")}`, root);
+  }
+  return value as SubAgentOutcome;
+}
+
+const VALID_STUCK_REASONS = new Set<StuckReason>([
+  "needs_clarification",
+  "needs_credentials",
+  "needs_context",
+  "blocked_technical",
+]);
+
+function validateStuckReason(
   record: Record<string, unknown>,
-  field: string,
-  errorCode: "PROTOCOL_INVALID_RESULT",
-  stage: "protocol.validate_result",
+  outcome: SubAgentOutcome,
   root: unknown,
-): boolean {
-  const value = record[field];
-  if (typeof value !== "boolean") {
-    failProtocolValidation(errorCode, stage, `Invalid ${field}: expected a boolean`, root);
+): StuckReason | undefined {
+  const raw = record.stuck_reason;
+  if (raw === undefined) return undefined;
+  if (typeof raw !== "string") {
+    failValidation("Invalid stuck_reason: expected a string", root);
   }
-  return value;
-}
-
-function expectStringArray(
-  record: Record<string, unknown>,
-  field: string,
-  errorCode: "PROTOCOL_INVALID_HANDOFF" | "PROTOCOL_INVALID_RESULT",
-  stage: "protocol.validate_handoff" | "protocol.validate_result",
-  root: unknown,
-): string[] {
-  const value = record[field];
-  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string" || entry.trim() === "")) {
-    failProtocolValidation(errorCode, stage, `Invalid ${field}: expected an array of non-empty strings`, root);
-  }
-  return value;
-}
-
-function expectOptionalStringArray(
-  record: Record<string, unknown>,
-  field: string,
-  errorCode: "PROTOCOL_INVALID_HANDOFF",
-  stage: "protocol.validate_handoff",
-  root: unknown,
-): string[] | undefined {
-  const value = record[field];
-  if (value === undefined) return undefined;
-  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string" || entry.trim() === "")) {
-    failProtocolValidation(errorCode, stage, `Invalid ${field}: expected an array of non-empty strings`, root);
-  }
-  return value;
-}
-
-function expectOptionalRecord(
-  record: Record<string, unknown>,
-  field: string,
-  errorCode: "PROTOCOL_INVALID_HANDOFF",
-  stage: "protocol.validate_handoff",
-  root: unknown,
-): Record<string, unknown> | undefined {
-  const value = record[field];
-  if (value === undefined) return undefined;
-  return expectRecord(value, field, errorCode, stage, root);
-}
-
-function expectOptionalStringRecord(
-  record: Record<string, unknown>,
-  field: string,
-  errorCode: "PROTOCOL_INVALID_HANDOFF",
-  stage: "protocol.validate_handoff",
-  root: unknown,
-): Record<string, string> | undefined {
-  const value = record[field];
-  if (value === undefined) return undefined;
-  if (!isRecord(value)) {
-    failProtocolValidation(errorCode, stage, `Invalid ${field}: expected an object`, root);
-  }
-  const entries = Object.entries(value);
-  if (entries.some(([, entry]) => typeof entry !== "string")) {
-    failProtocolValidation(errorCode, stage, `Invalid ${field}: expected string values`, root);
-  }
-  return Object.fromEntries(entries) as Record<string, string>;
-}
-
-function expectVersion(
-  record: Record<string, unknown>,
-  errorCode: "PROTOCOL_INVALID_HANDOFF" | "PROTOCOL_INVALID_RESULT" | "PROTOCOL_INVALID_DONE",
-  stage: "protocol.validate_handoff" | "protocol.validate_result" | "protocol.validate_done",
-  root: unknown,
-): typeof PROTOCOL_VERSION {
-  const version = expectString(record, "version", errorCode, stage, root);
-  if (version !== PROTOCOL_VERSION) {
-    failProtocolValidation(errorCode, stage, `Invalid version: expected ${PROTOCOL_VERSION}`, root);
-  }
-  return PROTOCOL_VERSION;
-}
-
-function validateAgent(
-  value: unknown,
-  field: "from" | "to",
-  root: unknown,
-): ProtocolAgent {
-  const record = expectRecord(value, field, "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", root);
-  const role = expectString(record, "role", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", root);
-  if (!AGENT_ROLES.has(role)) {
-    failProtocolValidation("PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", `Invalid ${field}.role: ${role}`, root);
-  }
-
-  const agentType = expectString(record, "agent_type", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", root);
-  if (!AGENT_TYPES.has(agentType)) {
-    failProtocolValidation("PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", `Invalid ${field}.agent_type: ${agentType}`, root);
-  }
-
-  const agentId = record.agent_id;
-  if (agentId !== null && (typeof agentId !== "string" || agentId.trim() === "")) {
-    failProtocolValidation("PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", `Invalid ${field}.agent_id`, root);
-  }
-
-  return {
-    role,
-    agent_type: agentType,
-    agent_id: agentId,
-  };
-}
-
-function validateTask(value: unknown, root: unknown): ProtocolTask {
-  const record = expectRecord(value, "task", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", root);
-  const acceptanceCriteria = expectStringArray(
-    record,
-    "acceptance_criteria",
-    "PROTOCOL_INVALID_HANDOFF",
-    "protocol.validate_handoff",
-    root,
-  );
-  if (acceptanceCriteria.length === 0) {
-    failProtocolValidation("PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", "Invalid acceptance_criteria: expected at least one item", root);
-  }
-
-  return {
-    type: expectString(record, "type", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", root),
-    title: expectString(record, "title", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", root),
-    description: expectString(record, "description", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", root),
-    acceptance_criteria: acceptanceCriteria,
-    constraints: expectOptionalRecord(record, "constraints", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", root),
-    skills: expectOptionalStringArray(record, "skills", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", root),
-  };
-}
-
-function validateContext(value: unknown, root: unknown): ProtocolContext {
-  const record = expectRecord(value, "context", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", root);
-  return {
-    files: expectStringArray(record, "files", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", root),
-    previous_handoffs: expectStringArray(
-      record,
-      "previous_handoffs",
-      "PROTOCOL_INVALID_HANDOFF",
-      "protocol.validate_handoff",
+  if (outcome !== "stuck") {
+    failValidation(
+      `Invalid stuck_reason: only allowed when outcome="stuck" (received outcome="${outcome}")`,
       root,
-    ),
-    decisions: expectOptionalStringRecord(record, "decisions", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", root),
-    shared_state: expectOptionalRecord(record, "shared_state", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", root),
-  };
-}
-
-export function buildTaskPackagePaths(packageDir: string): TaskPackagePaths {
-  const resolved = path.resolve(packageDir);
-  return {
-    package_dir: resolved,
-    handoff_file: path.join(resolved, TASK_PACKAGE_FILES.handoff),
-    task_file: path.join(resolved, TASK_PACKAGE_FILES.task),
-    result_file: path.join(resolved, TASK_PACKAGE_FILES.result),
-    done_file: path.join(resolved, TASK_PACKAGE_FILES.done),
-  };
-}
-
-function validateArtifacts(value: unknown, root: unknown): TaskPackagePaths {
-  const record = expectRecord(value, "artifacts", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", root);
-  const packageDir = expectString(record, "package_dir", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", root);
-  if (!path.isAbsolute(packageDir)) {
-    failProtocolValidation("PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", "Invalid artifacts.package_dir: expected an absolute path", root);
+    );
   }
-
-  const handoffFile = expectString(record, "handoff_file", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", root);
-  const taskFile = expectString(record, "task_file", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", root);
-  const resultFile = expectString(record, "result_file", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", root);
-  const doneFile = expectString(record, "done_file", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", root);
-
-  const expected = buildTaskPackagePaths(packageDir);
-  const actual: TaskPackagePaths = {
-    package_dir: packageDir,
-    handoff_file: handoffFile,
-    task_file: taskFile,
-    result_file: resultFile,
-    done_file: doneFile,
-  };
-
-  for (const key of Object.keys(expected) as Array<keyof TaskPackagePaths>) {
-    if (actual[key] !== expected[key]) {
-      failProtocolValidation(
-        "PROTOCOL_INVALID_HANDOFF",
-        "protocol.validate_handoff",
-        `Invalid artifacts.${key}: expected ${expected[key]}`,
-        root,
-      );
-    }
+  if (!VALID_STUCK_REASONS.has(raw as StuckReason)) {
+    failValidation(
+      `Invalid stuck_reason: ${raw}. Expected one of: ${[...VALID_STUCK_REASONS].join(", ")}`,
+      root,
+    );
   }
-
-  return expected;
+  return raw as StuckReason;
 }
 
-function validateCreatedAt(record: Record<string, unknown>, root: unknown): string {
-  const createdAt = expectString(record, "created_at", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", root);
-  if (Number.isNaN(Date.parse(createdAt))) {
-    failProtocolValidation("PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", "Invalid created_at: expected an ISO timestamp", root);
-  }
-  return createdAt;
-}
+// --- Main validation ---
 
-export function validateHandoffContract(value: unknown): HandoffContract {
-  const record = expectRecord(value, "handoff", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", value);
-
-  return {
-    version: expectVersion(record, "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", value),
-    handoff_id: expectString(record, "handoff_id", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", value),
-    workflow_id: expectString(record, "workflow_id", "PROTOCOL_INVALID_HANDOFF", "protocol.validate_handoff", value),
-    created_at: validateCreatedAt(record, value),
-    from: validateAgent(record.from, "from", value),
-    to: validateAgent(record.to, "to", value),
-    task: validateTask(record.task, value),
-    context: validateContext(record.context, value),
-    artifacts: validateArtifacts(record.artifacts, value),
-  };
-}
-
-function validateOutputs(record: Record<string, unknown>, root: unknown): ResultOutput[] {
-  const value = record.outputs;
-  if (!Array.isArray(value)) {
-    failProtocolValidation("PROTOCOL_INVALID_RESULT", "protocol.validate_result", "Invalid outputs: expected an array", root);
-  }
-
-  return value.map((entry) => {
-    const output = expectRecord(entry, "outputs[]", "PROTOCOL_INVALID_RESULT", "protocol.validate_result", root);
-    return {
-      path: expectString(output, "path", "PROTOCOL_INVALID_RESULT", "protocol.validate_result", root),
-      description: expectString(output, "description", "PROTOCOL_INVALID_RESULT", "protocol.validate_result", root),
-    };
-  });
-}
-
-function validateNextAction(record: Record<string, unknown>, root: unknown): ResultNextAction {
-  const value = expectRecord(record.next_action, "next_action", "PROTOCOL_INVALID_RESULT", "protocol.validate_result", root);
-  const type = expectString(value, "type", "PROTOCOL_INVALID_RESULT", "protocol.validate_result", root);
-  if (!NEXT_ACTION_TYPES.has(type)) {
-    failProtocolValidation("PROTOCOL_INVALID_RESULT", "protocol.validate_result", `Invalid next_action.type: ${type}`, root);
-  }
-
-  const nextAction: ResultNextAction = {
-    type: type as ResultNextAction["type"],
-    reason: expectString(value, "reason", "PROTOCOL_INVALID_RESULT", "protocol.validate_result", root),
-  };
-
-  const handoffId = value.handoff_id;
-  if (handoffId !== undefined) {
-    if (typeof handoffId !== "string" || handoffId.trim() === "") {
-      failProtocolValidation("PROTOCOL_INVALID_RESULT", "protocol.validate_result", "Invalid next_action.handoff_id", root);
-    }
-    nextAction.handoff_id = handoffId;
-  }
-
-  return nextAction;
-}
-
-function validateVerificationTier(value: unknown): VerificationTier | undefined {
-  if (!isRecord(value)) return undefined;
-  if (typeof value.ran !== "boolean") return undefined;
-  const tier: VerificationTier = { ran: value.ran };
-  if (typeof value.pass === "boolean") tier.pass = value.pass;
-  if (typeof value.detail === "string") tier.detail = value.detail;
-  if (typeof value.reason === "string") tier.reason = value.reason;
-  return tier;
-}
-
-function validateVerification(record: Record<string, unknown>): ResultVerification | undefined {
-  const value = record.verification;
-  if (value === undefined || !isRecord(value)) return undefined;
-  const v: ResultVerification = {};
-  const runtime = validateVerificationTier(value.runtime);
-  const build = validateVerificationTier(value.build);
-  const probing = validateVerificationTier(value.probing);
-  const staticTier = validateVerificationTier(value.static);
-  if (runtime) v.runtime = runtime;
-  if (build) v.build = build;
-  if (probing) v.probing = probing;
-  if (staticTier) v.static = staticTier;
-  return Object.keys(v).length > 0 ? v : undefined;
-}
-
-export function validateResultContract(
+export function validateSubAgentResult(
   value: unknown,
-  handoff: Pick<HandoffContract, "handoff_id" | "workflow_id">,
-): ResultContract {
-  const record = expectRecord(value, "result", "PROTOCOL_INVALID_RESULT", "protocol.validate_result", value);
-  const validated: ResultContract = {
-    version: expectVersion(record, "PROTOCOL_INVALID_RESULT", "protocol.validate_result", value),
-    handoff_id: expectString(record, "handoff_id", "PROTOCOL_INVALID_RESULT", "protocol.validate_result", value),
-    workflow_id: expectString(record, "workflow_id", "PROTOCOL_INVALID_RESULT", "protocol.validate_result", value),
-    success: expectBoolean(record, "success", "PROTOCOL_INVALID_RESULT", "protocol.validate_result", value),
-    summary: expectString(record, "summary", "PROTOCOL_INVALID_RESULT", "protocol.validate_result", value),
-    outputs: validateOutputs(record, value),
-    evidence: expectStringArray(record, "evidence", "PROTOCOL_INVALID_RESULT", "protocol.validate_result", value),
-    next_action: validateNextAction(record, value),
-  };
-  const verification = validateVerification(record);
-  if (verification) validated.verification = verification;
-
-  if (validated.handoff_id !== handoff.handoff_id) {
-    failProtocolValidation("PROTOCOL_INVALID_RESULT", "protocol.validate_result", "Invalid handoff_id: result does not match handoff", value);
-  }
-  if (validated.workflow_id !== handoff.workflow_id) {
-    failProtocolValidation("PROTOCOL_INVALID_RESULT", "protocol.validate_result", "Invalid workflow_id: result does not match handoff", value);
+  expected: Pick<SubAgentResult, "workflow_id" | "assignment_id" | "run_id">,
+): SubAgentResult {
+  const record = expectRecord(value, "result", value);
+  const schemaVersion = expectString(record, "schema_version", value);
+  if (schemaVersion !== RESULT_SCHEMA_VERSION) {
+    failValidation(
+      `Invalid schema_version: expected ${RESULT_SCHEMA_VERSION}, received ${schemaVersion}`,
+      value,
+    );
   }
 
-  return validated;
-}
-
-export function validateDoneMarker(
-  value: unknown,
-  handoff: Pick<HandoffContract, "handoff_id" | "workflow_id" | "artifacts">,
-): DoneMarker {
-  const record = expectRecord(value, "done", "PROTOCOL_INVALID_DONE", "protocol.validate_done", value);
-  const validated: DoneMarker = {
-    version: expectVersion(record, "PROTOCOL_INVALID_DONE", "protocol.validate_done", value),
-    handoff_id: expectString(record, "handoff_id", "PROTOCOL_INVALID_DONE", "protocol.validate_done", value),
-    workflow_id: expectString(record, "workflow_id", "PROTOCOL_INVALID_DONE", "protocol.validate_done", value),
-    result_file: expectString(record, "result_file", "PROTOCOL_INVALID_DONE", "protocol.validate_done", value),
+  const outcome = validateOutcome(record, value);
+  const validated: SubAgentResult = {
+    schema_version: RESULT_SCHEMA_VERSION,
+    workflow_id: expectString(record, "workflow_id", value),
+    assignment_id: expectString(record, "assignment_id", value),
+    run_id: expectString(record, "run_id", value),
+    outcome,
+    report_file: expectString(record, "report_file", value),
+    stuck_reason: validateStuckReason(record, outcome, value),
   };
 
-  if (validated.handoff_id !== handoff.handoff_id) {
-    failProtocolValidation("PROTOCOL_INVALID_DONE", "protocol.validate_done", "Invalid handoff_id: done marker does not match handoff", value);
+  if (validated.workflow_id !== expected.workflow_id) {
+    failValidation("Invalid workflow_id: result does not match workflow", value);
   }
-  if (validated.workflow_id !== handoff.workflow_id) {
-    failProtocolValidation("PROTOCOL_INVALID_DONE", "protocol.validate_done", "Invalid workflow_id: done marker does not match handoff", value);
+  if (validated.assignment_id !== expected.assignment_id) {
+    failValidation("Invalid assignment_id: result does not match assignment", value);
   }
-  if (validated.result_file !== handoff.artifacts.result_file) {
-    failProtocolValidation("PROTOCOL_INVALID_DONE", "protocol.validate_done", "Invalid result_file: done marker does not match handoff artifacts", value);
+  if (validated.run_id !== expected.run_id) {
+    failValidation("Invalid run_id: result does not match active run", value);
   }
 
   return validated;

@@ -214,7 +214,6 @@ function sameTelemetrySnapshot(
     left.task_status === right.task_status &&
     left.task_status_source === right.task_status_source &&
     left.result_exists === right.result_exists &&
-    left.done_exists === right.done_exists &&
     left.turn_state === right.turn_state
   );
 }

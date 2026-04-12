@@ -1,149 +1,157 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  PROTOCOL_VERSION,
-  buildTaskPackagePaths,
-  validateDoneMarker,
-  validateHandoffContract,
-  validateResultContract,
+  RESULT_SCHEMA_VERSION,
+  validateSubAgentResult,
 } from "../src/protocol.ts";
-
-function buildValidHandoff() {
-  return {
-    version: PROTOCOL_VERSION,
-    handoff_id: "handoff-abc123",
-    workflow_id: "workflow-xyz",
-    created_at: "2026-03-26T12:00:00.000Z",
-    from: {
-      role: "planner",
-      agent_type: "claude",
-      agent_id: "claude-session-1",
-    },
-    to: {
-      role: "implementer",
-      agent_type: "codex",
-      agent_id: null,
-    },
-    task: {
-      type: "implement-feature",
-      title: "Implement protocol v2",
-      description: "Create the file contract validator.",
-      acceptance_criteria: [
-        "Reject invalid result files",
-        "Keep paths inside the package directory",
-      ],
-      skills: ["test-driven-development"],
-    },
-    context: {
-      files: ["hydra/src/protocol.ts"],
-      previous_handoffs: [],
-      decisions: {
-        result_gate: "schema-first",
-      },
-    },
-    artifacts: buildTaskPackagePaths("/tmp/hydra/workflow-xyz/handoff-abc123"),
-  };
-}
 
 function buildValidResult() {
   return {
-    version: PROTOCOL_VERSION,
-    handoff_id: "handoff-abc123",
+    schema_version: RESULT_SCHEMA_VERSION,
     workflow_id: "workflow-xyz",
-    success: true,
-    summary: "Validated the protocol contract.",
-    outputs: [
-      {
-        path: "hydra/src/protocol.ts",
-        description: "Protocol types and validators",
-      },
-    ],
-    evidence: [
-      "npm run typecheck",
-      "npm test",
-    ],
-    next_action: {
-      type: "complete",
-      reason: "Contract is valid and ready for the next stage.",
-    },
+    assignment_id: "assignment-abc123",
+    run_id: "run-0001",
+    outcome: "completed",
+    report_file: "report.md",
   };
 }
 
-function buildValidDoneMarker() {
-  return {
-    version: PROTOCOL_VERSION,
-    handoff_id: "handoff-abc123",
-    workflow_id: "workflow-xyz",
-    result_file: "/tmp/hydra/workflow-xyz/handoff-abc123/result.json",
-  };
-}
+const EXPECTED_IDS = {
+  workflow_id: "workflow-xyz",
+  assignment_id: "assignment-abc123",
+  run_id: "run-0001",
+} as const;
 
-test("validateHandoffContract accepts a valid v2 contract", () => {
-  const handoff = validateHandoffContract(buildValidHandoff());
+test("validateSubAgentResult accepts a valid result", () => {
+  const result = validateSubAgentResult(buildValidResult(), EXPECTED_IDS);
 
-  assert.equal(handoff.artifacts.task_file, "/tmp/hydra/workflow-xyz/handoff-abc123/task.md");
-  assert.equal(handoff.artifacts.result_file, "/tmp/hydra/workflow-xyz/handoff-abc123/result.json");
-  assert.equal(handoff.artifacts.done_file, "/tmp/hydra/workflow-xyz/handoff-abc123/done");
+  assert.equal(result.schema_version, RESULT_SCHEMA_VERSION);
+  assert.equal(result.assignment_id, EXPECTED_IDS.assignment_id);
+  assert.equal(result.outcome, "completed");
+  assert.equal(result.report_file, "report.md");
 });
 
-test("validateHandoffContract rejects missing required fields", () => {
-  const invalid = buildValidHandoff();
-  delete (invalid as Partial<typeof invalid>).workflow_id;
-
-  assert.throws(
-    () => validateHandoffContract(invalid),
-    (error: unknown) => {
-      assert.ok(error instanceof Error);
-      assert.equal((error as Error & { errorCode?: string }).errorCode, "PROTOCOL_INVALID_HANDOFF");
-      assert.match(error.message, /workflow_id/);
-      return true;
-    },
-  );
-});
-
-test("validateResultContract rejects incorrect field types", () => {
+test("validateSubAgentResult rejects invalid outcome", () => {
   const invalid = {
     ...buildValidResult(),
-    success: "yes",
+    outcome: "invalid_value",
   };
 
   assert.throws(
-    () => validateResultContract(invalid, buildValidHandoff()),
+    () => validateSubAgentResult(invalid, EXPECTED_IDS),
     (error: unknown) => {
       assert.ok(error instanceof Error);
       assert.equal((error as Error & { errorCode?: string }).errorCode, "PROTOCOL_INVALID_RESULT");
-      assert.match(error.message, /success/);
+      assert.match(error.message, /outcome/);
       return true;
     },
   );
 });
 
-test("validateHandoffContract rejects artifact path mismatches", () => {
-  const invalid = buildValidHandoff();
-  invalid.artifacts.result_file = "/tmp/hydra/other/result.json";
+test("validateSubAgentResult accepts stuck outcome", () => {
+  const result = validateSubAgentResult(
+    { ...buildValidResult(), outcome: "stuck" },
+    EXPECTED_IDS,
+  );
+  assert.equal(result.outcome, "stuck");
+});
+
+test("validateSubAgentResult accepts error outcome", () => {
+  const result = validateSubAgentResult(
+    { ...buildValidResult(), outcome: "error" },
+    EXPECTED_IDS,
+  );
+  assert.equal(result.outcome, "error");
+});
+
+test("validateSubAgentResult requires report_file", () => {
+  const invalid: Record<string, unknown> = { ...buildValidResult() };
+  delete invalid.report_file;
 
   assert.throws(
-    () => validateHandoffContract(invalid),
+    () => validateSubAgentResult(invalid, EXPECTED_IDS),
     (error: unknown) => {
       assert.ok(error instanceof Error);
-      assert.equal((error as Error & { errorCode?: string }).errorCode, "PROTOCOL_INVALID_HANDOFF");
-      assert.match(error.message, /result_file/);
+      assert.match(error.message, /report_file/);
       return true;
     },
   );
 });
 
-test("validateDoneMarker rejects done markers that point at a different result file", () => {
-  const handoff = validateHandoffContract(buildValidHandoff());
-  const invalid = buildValidDoneMarker();
-  invalid.result_file = "/tmp/hydra/workflow-xyz/handoff-abc123/other-result.json";
+test("validateSubAgentResult accepts a valid stuck_reason on a stuck result", () => {
+  const result = validateSubAgentResult(
+    {
+      ...buildValidResult(),
+      outcome: "stuck",
+      stuck_reason: "needs_credentials",
+    },
+    EXPECTED_IDS,
+  );
+  assert.equal(result.outcome, "stuck");
+  assert.equal(result.stuck_reason, "needs_credentials");
+});
 
+test("validateSubAgentResult leaves stuck_reason undefined when not provided", () => {
+  const result = validateSubAgentResult(
+    { ...buildValidResult(), outcome: "stuck" },
+    EXPECTED_IDS,
+  );
+  assert.equal(result.outcome, "stuck");
+  assert.equal(result.stuck_reason, undefined);
+});
+
+test("validateSubAgentResult rejects an unknown stuck_reason value", () => {
   assert.throws(
-    () => validateDoneMarker(invalid, handoff),
+    () =>
+      validateSubAgentResult(
+        {
+          ...buildValidResult(),
+          outcome: "stuck",
+          stuck_reason: "needs_a_hug",
+        },
+        EXPECTED_IDS,
+      ),
     (error: unknown) => {
       assert.ok(error instanceof Error);
-      assert.equal((error as Error & { errorCode?: string }).errorCode, "PROTOCOL_INVALID_DONE");
-      assert.match(error.message, /result_file/);
+      assert.match(error.message, /stuck_reason/);
+      assert.match(error.message, /needs_a_hug/);
+      return true;
+    },
+  );
+});
+
+test("validateSubAgentResult rejects stuck_reason when outcome is not stuck", () => {
+  assert.throws(
+    () =>
+      validateSubAgentResult(
+        {
+          ...buildValidResult(),
+          outcome: "completed",
+          stuck_reason: "needs_clarification",
+        },
+        EXPECTED_IDS,
+      ),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /stuck_reason/);
+      assert.match(error.message, /outcome="stuck"/);
+      return true;
+    },
+  );
+});
+
+test("validateSubAgentResult rejects mismatched run identity", () => {
+  const invalid = {
+    ...buildValidResult(),
+    run_id: "run-other",
+  };
+
+  assert.throws(
+    () => validateSubAgentResult(invalid, EXPECTED_IDS),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.equal((error as Error & { errorCode?: string }).errorCode, "PROTOCOL_INVALID_RESULT");
+      assert.match(error.message, /run_id/);
       return true;
     },
   );

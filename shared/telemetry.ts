@@ -47,7 +47,7 @@ export interface TelemetryEvent {
   at: string;
   terminal_id: string;
   workflow_id?: string;
-  handoff_id?: string;
+  assignment_id?: string;
   source: TelemetrySource;
   kind: string;
   data: Record<string, unknown>;
@@ -72,7 +72,7 @@ export interface TerminalTelemetrySnapshot {
   worktree_path: string;
   provider: TelemetryProvider;
   workflow_id?: string;
-  handoff_id?: string;
+  assignment_id?: string;
   repo_path?: string;
   session_attached: boolean;
   session_attach_confidence: SessionAttachConfidence;
@@ -97,10 +97,8 @@ export interface TerminalTelemetrySnapshot {
   git_activity_at?: string;
   worktree_activity_at?: string;
   contract_activity_at?: string;
-  done_exists: boolean;
   result_exists: boolean;
   result_valid?: boolean;
-  done_valid?: boolean;
   last_meaningful_progress_at?: string;
   last_hook_error?: string;
   last_hook_error_details?: string;
@@ -112,14 +110,12 @@ export interface WorkflowTelemetrySnapshot {
   workflow_id: string;
   repo_path: string;
   workflow_status: string;
-  current_handoff_id: string;
+  current_assignment_id?: string;
   terminal_id?: string | null;
   terminal: TerminalTelemetrySnapshot | null;
   contract: {
     result_exists: boolean;
-    done_exists: boolean;
     result_valid?: boolean;
-    done_valid?: boolean;
     contract_activity_at?: string;
   };
   last_meaningful_progress_at?: string;

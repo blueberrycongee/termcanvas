@@ -167,7 +167,7 @@ create table cloud_tasks (
   task        text not null,
   repo_url    text,
   branch      text default 'main',
-  template    text default 'planner-implementer-evaluator',
+  template    text default 'researcher-implementer-tester',
   agent_config jsonb default '{}',
   status      text default 'queued'
               check (status in ('queued','provisioning','running',

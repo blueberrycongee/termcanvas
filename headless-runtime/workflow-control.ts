@@ -1,5 +1,4 @@
 import { execFileSync } from "node:child_process";
-import fs from "node:fs";
 import path from "node:path";
 import type { ProjectScanner } from "../electron/project-scanner.ts";
 import type { PtyManager } from "../electron/pty-manager.ts";
@@ -10,15 +9,33 @@ import {
   type DispatchCreateOnlyRequest,
   type DispatchCreateOnlyResult,
 } from "../hydra/src/dispatcher.ts";
-import { HandoffManager } from "../hydra/src/handoff/manager.ts";
-import type { AgentType } from "../hydra/src/handoff/types.ts";
+import { AssignmentManager } from "../hydra/src/assignment/manager.ts";
+import type { AgentType } from "../hydra/src/assignment/types.ts";
+import { listRoles as listRoleRegistry, type RoleDefinition } from "../hydra/src/roles/loader.ts";
 import {
+  initWorkflow,
+  dispatchNode,
+  redispatchNode,
+  watchUntilDecision,
+  approveNode,
+  resetNode,
+  mergeWorktrees,
+  completeWorkflow,
+  failWorkflow,
   getWorkflowStatus,
-  retryWorkflow,
-  runWorkflow,
-  tickWorkflow,
+  askNode,
   type WorkflowStatusView,
-} from "../hydra/src/workflow.ts";
+  type InitWorkflowOptions,
+  type InitWorkflowResult,
+  type DispatchNodeOptions,
+  type DispatchNodeResult,
+  type ResetNodeResult,
+  type MergeOutcome,
+  type WatchOptions,
+  type AskNodeOptions,
+  type AskNodeResult,
+} from "../hydra/src/workflow-lead.ts";
+import type { DecisionPoint } from "../hydra/src/decision.ts";
 import {
   deleteWorkflow,
   listWorkflows,
@@ -32,88 +49,95 @@ import {
   launchTrackedTerminal,
   type TerminalLaunchDeps,
 } from "./terminal-launch.ts";
+import {
+  destroySubprocessWorker,
+  launchSubprocessWorker,
+} from "./subprocess-worker.ts";
 import type { ProjectStore } from "./project-store.ts";
 
-export interface WorkflowRunRequest {
-  task: string;
-  repoPath: string;
-  worktreePath?: string;
-  template?: "single-step" | "planner-implementer-evaluator";
-  allType?: AgentType;
-  plannerType?: AgentType;
-  implementerType?: AgentType;
-  evaluatorType?: AgentType;
-  timeoutMinutes?: number;
-  maxRetries?: number;
-  autoApprove?: boolean;
-  approvePlan?: boolean;
+/**
+ * Worker dispatch mode:
+ *   - "pty":        legacy path — launch a termcanvas-tracked PTY terminal
+ *                   with an interactive claude/codex session (default)
+ *   - "subprocess": spawn a one-shot non-interactive CLI subprocess
+ *                   (claude -p / codex exec --json). See subprocess-worker.ts
+ *                   for rationale. Opt in via HYDRA_WORKER_MODE=subprocess or
+ *                   by passing workerMode to createWorkflowControl.
+ *
+ * This flag exists to let us cut over one workflow at a time and retain the
+ * PTY path as a rollback target while the subprocess path matures.
+ */
+export type WorkerMode = "pty" | "subprocess";
+
+function resolveWorkerMode(explicit: WorkerMode | undefined): WorkerMode {
+  if (explicit) return explicit;
+  const fromEnv = process.env.HYDRA_WORKER_MODE;
+  if (fromEnv === "subprocess") return "subprocess";
+  return "pty";
 }
 
 export interface WorkflowSummary {
   id: string;
   status: WorkflowRecord["status"];
-  task: string;
+  intent_file: string;
   worktree_path: string;
-  current_handoff_id: string;
   updated_at: string;
 }
 
+export interface RoleSummary {
+  name: string;
+  description: string;
+  terminals: RoleDefinition["terminals"];
+  source: RoleDefinition["source"];
+}
+
 export interface WorkflowControl {
-  run(input: WorkflowRunRequest): Promise<WorkflowStatusView>;
-  list(repoPath: string): WorkflowSummary[];
+  init(input: Omit<InitWorkflowOptions, "repoPath"> & { repoPath: string }): Promise<InitWorkflowResult>;
+  dispatch(input: Omit<DispatchNodeOptions, "repoPath"> & { repoPath: string }): Promise<DispatchNodeResult>;
+  redispatch(repoPath: string, workflowId: string, nodeId: string, intent?: string): Promise<DispatchNodeResult>;
+  watchDecision(repoPath: string, workflowId: string): Promise<DecisionPoint>;
+  resetNode(repoPath: string, workflowId: string, nodeId: string, feedback?: string): Promise<ResetNodeResult>;
+  askNode(input: AskNodeOptions): Promise<AskNodeResult>;
+  mergeNodes(repoPath: string, workflowId: string, nodeIds: string[]): Promise<MergeOutcome>;
+  approveNode(repoPath: string, workflowId: string, nodeId: string): Promise<void>;
+  complete(repoPath: string, workflowId: string, summary?: string): Promise<void>;
+  fail(repoPath: string, workflowId: string, reason: string): Promise<void>;
   status(repoPath: string, workflowId: string): WorkflowStatusView;
-  tick(repoPath: string, workflowId: string): Promise<WorkflowStatusView>;
-  retry(repoPath: string, workflowId: string): Promise<WorkflowStatusView>;
+  list(repoPath: string): WorkflowSummary[];
+  listRoles(repoPath: string, agentTypeFilter?: string): RoleSummary[];
   cleanup(repoPath: string, workflowId: string, force?: boolean): { ok: true };
 }
 
 interface WorkflowControlDeps extends TerminalLaunchDeps {
   projectScanner: ProjectScanner;
+  /**
+   * Opt into the subprocess worker dispatch path. Defaults to the value of
+   * HYDRA_WORKER_MODE env var (or "pty" if unset). Preserved on the
+   * WorkflowControl instance for the lifetime of the process — flipping it
+   * per-dispatch is not supported in v1.
+   */
+  workerMode?: WorkerMode;
 }
 
 function isLiveStatus(status: string): boolean {
-  return (
-    status === "running" ||
-    status === "active" ||
-    status === "waiting" ||
-    status === "idle"
-  );
+  return status === "running" || status === "active" || status === "waiting" || status === "idle";
 }
 
 function buildWorkflowSummary(record: WorkflowRecord): WorkflowSummary {
   return {
     id: record.id,
     status: record.status,
-    task: record.task,
+    intent_file: record.intent_file,
     worktree_path: record.worktree_path,
-    current_handoff_id: record.current_handoff_id,
     updated_at: record.updated_at,
   };
-}
-
-function buildWorkflowEventPayload(view: WorkflowStatusView): Record<string, unknown> {
-  const currentHandoff = view.handoffs.find(
-    (handoff) => handoff.id === view.workflow.current_handoff_id,
-  );
-  return {
-    workflowId: view.workflow.id,
-    handoffId: view.workflow.current_handoff_id,
-    repoPath: view.workflow.repo_path,
-    terminalId: currentHandoff?.dispatch?.active_terminal_id,
-  };
-}
-
-function emitWorkflowEvent(
-  eventBus: ServerEventBus | undefined,
-  type: "workflow_started" | "workflow_completed" | "workflow_failed",
-  view: WorkflowStatusView,
-): void {
-  eventBus?.emit(type, buildWorkflowEventPayload(view));
 }
 
 export function createWorkflowControl(
   input: WorkflowControlDeps,
 ): WorkflowControl {
+  const workerMode = resolveWorkerMode(input.workerMode);
+
   const syncProject = (repoPath: string): void => {
     ensureProjectTracked({
       projectStore: input.projectStore,
@@ -124,6 +148,11 @@ export function createWorkflowControl(
   };
 
   const destroyTerminal = (terminalId: string): void => {
+    // Subprocess termination is idempotent — returns false for PTY-backed
+    // terminals, so this is safe to call unconditionally before the PTY
+    // destroy path. The order matters: kill the child process first so we
+    // don't race with its exit handler updating a removed terminal record.
+    destroySubprocessWorker(terminalId);
     try {
       destroyTrackedTerminal({
         projectStore: input.projectStore,
@@ -133,8 +162,7 @@ export function createWorkflowControl(
         onMutation: input.onMutation,
         terminalId,
       });
-    } catch {
-    }
+    } catch {}
   };
 
   const dispatchCreateOnly = async (
@@ -143,18 +171,40 @@ export function createWorkflowControl(
     syncProject(request.repoPath);
     const found = input.projectStore.findWorktree(request.worktreePath);
     if (!found) {
-      throw Object.assign(new Error("Worktree not found on canvas"), {
-        status: 404,
-      });
+      throw Object.assign(new Error("Worktree not found on canvas"), { status: 404 });
     }
 
     const prompt = buildCreateOnlyPrompt(
-      request.taskFile,
-      request.doneFile,
-      request.handoffId,
-      request.workflowId,
-      request.resultFile,
+      request.taskFile, request.workflowId, request.resultFile,
+      { assignmentId: request.assignmentId, runId: request.runId },
     );
+
+    if (workerMode === "subprocess") {
+      const sub = await launchSubprocessWorker({
+        projectStore: input.projectStore,
+        telemetryService: input.telemetryService,
+        eventBus: input.eventBus,
+        onMutation: input.onMutation,
+        worktree: request.worktreePath,
+        type: request.agentType as AgentType,
+        prompt,
+        autoApprove: request.autoApprove,
+        parentTerminalId: request.parentTerminalId,
+        workflowId: request.workflowId,
+        assignmentId: request.assignmentId,
+        repoPath: request.repoPath,
+        resumeSessionId: request.resumeSessionId,
+        model: request.model,
+        reasoningEffort: request.reasoningEffort,
+      });
+      return {
+        projectId: found.projectId,
+        terminalId: sub.id,
+        terminalType: sub.type,
+        terminalTitle: sub.title,
+        prompt,
+      };
+    }
 
     const terminal = await launchTrackedTerminal({
       projectStore: input.projectStore,
@@ -168,8 +218,11 @@ export function createWorkflowControl(
       autoApprove: request.autoApprove,
       parentTerminalId: request.parentTerminalId,
       workflowId: request.workflowId,
-      handoffId: request.handoffId,
+      assignmentId: request.assignmentId,
       repoPath: request.repoPath,
+      resumeSessionId: request.resumeSessionId,
+      model: request.model,
+      reasoningEffort: request.reasoningEffort,
     });
 
     return {
@@ -187,84 +240,103 @@ export function createWorkflowControl(
     destroyTerminal,
     checkTerminalAlive: (terminalId: string) => {
       const terminal = input.projectStore.getTerminal(terminalId);
-      if (!terminal) {
-        return false;
-      }
+      if (!terminal) return false;
       return isLiveStatus(terminal.status);
     },
   };
 
   return {
-    async run(request) {
-      const view = await runWorkflow(
-        {
-          task: request.task,
-          repoPath: request.repoPath,
-          worktreePath: request.worktreePath,
-          template: request.template,
-          plannerType: request.allType ?? request.plannerType,
-          implementerType: request.allType ?? request.implementerType,
-          evaluatorType: request.allType ?? request.evaluatorType,
-          timeoutMinutes: request.timeoutMinutes ?? 30,
-          maxRetries: request.maxRetries ?? 1,
-          autoApprove: request.autoApprove ?? true,
-          approvePlan: request.approvePlan ?? false,
-        },
+    async init(request) {
+      return initWorkflow(request, workflowDependencies);
+    },
+    async dispatch(request) {
+      return dispatchNode(request, workflowDependencies);
+    },
+    async redispatch(repoPath, workflowId, nodeId, intent) {
+      return redispatchNode(
+        { repoPath: path.resolve(repoPath), workflowId, nodeId, intent },
         workflowDependencies,
       );
-      emitWorkflowEvent(input.eventBus, "workflow_started", view);
-      return view;
+    },
+    async watchDecision(repoPath, workflowId) {
+      return watchUntilDecision(
+        { repoPath: path.resolve(repoPath), workflowId },
+        workflowDependencies,
+      );
+    },
+    async resetNode(repoPath, workflowId, nodeId, feedback) {
+      return resetNode(
+        { repoPath: path.resolve(repoPath), workflowId, nodeId, feedback },
+        workflowDependencies,
+      );
+    },
+    async askNode(input) {
+      return askNode(
+        { ...input, repoPath: path.resolve(input.repoPath) },
+        workflowDependencies,
+      );
+    },
+    async mergeNodes(repoPath, workflowId, nodeIds) {
+      return mergeWorktrees(
+        { repoPath: path.resolve(repoPath), workflowId, sourceNodeIds: nodeIds },
+        workflowDependencies,
+      );
+    },
+    async approveNode(repoPath, workflowId, nodeId) {
+      return approveNode(
+        { repoPath: path.resolve(repoPath), workflowId, nodeId },
+        workflowDependencies,
+      );
+    },
+    async complete(repoPath, workflowId, summary) {
+      return completeWorkflow(
+        { repoPath: path.resolve(repoPath), workflowId, summary },
+        workflowDependencies,
+      );
+    },
+    async fail(repoPath, workflowId, reason) {
+      return failWorkflow(
+        { repoPath: path.resolve(repoPath), workflowId, reason },
+        workflowDependencies,
+      );
+    },
+    status(repoPath, workflowId) {
+      return getWorkflowStatus(path.resolve(repoPath), workflowId);
     },
     list(repoPath) {
       return listWorkflows(path.resolve(repoPath))
         .sort((left, right) => right.updated_at.localeCompare(left.updated_at))
         .map(buildWorkflowSummary);
     },
-    status(repoPath, workflowId) {
-      return getWorkflowStatus({ repoPath: path.resolve(repoPath), workflowId });
-    },
-    async tick(repoPath, workflowId) {
-      const previous = loadWorkflow(path.resolve(repoPath), workflowId);
-      const view = await tickWorkflow(
-        { repoPath: path.resolve(repoPath), workflowId },
-        workflowDependencies,
-      );
-      if (view.workflow.status === "completed" && previous?.status !== "completed") {
-        emitWorkflowEvent(input.eventBus, "workflow_completed", view);
-      } else if (view.workflow.status === "failed" && previous?.status !== "failed") {
-        emitWorkflowEvent(input.eventBus, "workflow_failed", view);
-      }
-      return view;
-    },
-    async retry(repoPath, workflowId) {
-      const previous = loadWorkflow(path.resolve(repoPath), workflowId);
-      const view = await retryWorkflow(
-        { repoPath: path.resolve(repoPath), workflowId },
-        workflowDependencies,
-      );
-      if (view.workflow.status === "completed" && previous?.status !== "completed") {
-        emitWorkflowEvent(input.eventBus, "workflow_completed", view);
-      } else if (view.workflow.status === "failed" && previous?.status !== "failed") {
-        emitWorkflowEvent(input.eventBus, "workflow_failed", view);
-      }
-      return view;
+    listRoles(repoPath, cliFilter) {
+      const roles = listRoleRegistry(path.resolve(repoPath));
+      // Filter on the primary terminal's CLI (terminals[0].cli) so the
+      // HTTP-side filter matches the cliListRoles CLI behavior.
+      const filtered = cliFilter
+        ? roles.filter((role) => role.terminals[0]?.cli === cliFilter)
+        : roles;
+      return filtered.map((role) => ({
+        name: role.name,
+        description: role.description,
+        terminals: role.terminals,
+        source: role.source,
+      }));
     },
     cleanup(repoPath, workflowId, force = false) {
       const resolvedRepo = path.resolve(repoPath);
       const workflow = loadWorkflow(resolvedRepo, workflowId);
       if (!workflow) {
-        throw Object.assign(new Error(`Workflow not found: ${workflowId}`), {
-          status: 404,
-        });
+        throw Object.assign(new Error(`Workflow not found: ${workflowId}`), { status: 404 });
       }
 
-      const manager = new HandoffManager(resolvedRepo);
-      for (const handoffId of workflow.handoff_ids) {
-        const handoff = manager.load(handoffId);
-        const terminalId = handoff?.dispatch?.active_terminal_id;
-        if (!terminalId) {
-          continue;
-        }
+      const manager = new AssignmentManager(resolvedRepo, workflowId);
+      for (const assignmentId of workflow.assignment_ids) {
+        const assignment = manager.load(assignmentId);
+        const activeRun = assignment?.active_run_id
+          ? assignment.runs.find((run) => run.id === assignment.active_run_id)
+          : assignment?.runs[assignment.runs.length - 1];
+        const terminalId = activeRun?.terminal_id;
+        if (!terminalId) continue;
 
         const terminal = input.projectStore.getTerminal(terminalId);
         if (!force && terminal && isLiveStatus(terminal.status)) {
@@ -279,26 +351,19 @@ export function createWorkflowControl(
       if (workflow.own_worktree) {
         try {
           execFileSync("git", buildGitWorktreeRemoveArgs(workflow.worktree_path), {
-            cwd: workflow.repo_path,
-            stdio: "pipe",
+            cwd: workflow.repo_path, stdio: "pipe",
           });
-        } catch {
-        }
+        } catch {}
         if (workflow.branch) {
           try {
             execFileSync("git", buildGitBranchDeleteArgs(workflow.branch), {
-              cwd: workflow.repo_path,
-              stdio: "pipe",
+              cwd: workflow.repo_path, stdio: "pipe",
             });
-          } catch {
-          }
+          } catch {}
         }
         syncProject(workflow.repo_path);
       }
 
-      for (const handoffId of workflow.handoff_ids) {
-        fs.rmSync(manager.getHandoffPath(handoffId), { force: true });
-      }
       deleteWorkflow(resolvedRepo, workflowId);
       return { ok: true };
     },

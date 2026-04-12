@@ -1,118 +1,195 @@
 ---
 name: hydra
-description: Use when a task should run through Hydra's file-contract workflow in an isolated worktree, or when an existing Hydra workflow must be inspected, retried, or cleaned up.
+description: Use when a task should run through Hydra's Lead-driven workflow for multi-agent orchestration, or when an existing workflow must be inspected or cleaned up.
 ---
 
-# Hydra Sub-Agent Tool
+# Hydra Orchestration Toolkit
 
-Use this skill after routing has already determined that Hydra is the right
-execution path. Hydra is a strict file-contract workflow engine:
-`handoff.json`, `task.md`, `result.json`, and `done` are authoritative.
-Terminal conversation is not a source of truth.
+Hydra is a Lead-driven orchestration toolkit. You (the Lead agent) make strategic
+decisions; Hydra handles operational management (dispatch, retry, health checks,
+result collection).
 
-## Choose the path
+Sub-agents output semantic intent (`done`/`needs_rework`/`replan`), not routing
+information. Hydra manages the lifecycle; you decide what happens next.
 
-- `hydra run --task "..." --repo . --template single-step`
-  - one implementer handoff
-  - use for clear implementation work that still needs worktree isolation and
-    `result.json` / `done` evidence
-- `hydra run --task "..." --repo .`
-  - default planner -> implementer -> evaluator workflow
-  - use for ambiguous, risky, PRD-driven, or long-running tasks
-  - if the user wants one provider for all roles, pass `--all-type <provider>`
-  - if the user wants a mix, pass `--planner-type`, `--implementer-type`, and
-    `--evaluator-type`
-  - if the user does not specify providers, inherit the current terminal type
-    when available rather than hard-coding Claude or Codex
+## Why this design (vs. other coding-agent products)
 
-## Agent characteristics (soft guidance, not hard rules)
+- **SWF decider pattern, specialized for LLM deciders.** Hydra is the AWS SWF / Cadence / Temporal decider pattern. `hydra watch` is `PollForDecisionTask`; the Lead is the decider; `lead_terminal_id` enforces single-decider semantics.
+- **Parallel-first, not bolted on.** `dispatch` + `depends_on` + worktree + `merge` are first-class. Other products (Factory.ai's Droid, Amp, Claude Code subagents) treat parallelism as open research; Hydra makes it the default.
+- **Typed result contract.** Workers publish a schema-validated `result.json` (`outcome: completed | stuck | error`, optional `stuck_reason: needs_clarification | needs_credentials | needs_context | blocked_technical`). Other products return free-text final messages and require downstream parsing.
+- **Lead intervention points.** `hydra reset --feedback` lets the Lead actually intervene at decision points instead of being block-and-join. A stale or wrong run is one `reset` away.
 
-When choosing providers for each role, consider these observed tendencies:
+## Lead operational rules
 
-**Claude** — stronger at reasoning, planning, and architectural judgment.
-- Good fit for: planner, evaluator
-- Watch out for: stub implementations (code that looks complete but doesn't work),
-  context-window anxiety (rushing to finish when context fills up)
+Core rules:
+- **Root cause first.** Fix the real implementation problem before changing tests, fixtures, or mocks.
+- **Do not hack tests** to force a green result. If a test is wrong, fix it honestly.
+- **No silent fallbacks** or swallowed errors. Surface failure with `outcome=stuck` or `outcome=error`.
 
-**Codex** — stronger at code generation, tends to complete the full task.
-- Good fit for: implementer
-- Watch out for: over-engineering (excessive try-catch, unnecessary boundary checks),
-  test hacking (over-mocking, tests that pass without exercising real code)
+Agent launch rule:
+- When dispatching Claude/Codex through TermCanvas, start a fresh agent terminal with `termcanvas terminal create --prompt "..."`.
+- Do not use `termcanvas terminal input` for task dispatch — it is not a supported automation path.
 
-These are defaults from experience, not constraints. The user can override freely
-with `--all-type` or per-role flags. When the user does not specify, a reasonable
-default is `--planner-type claude --implementer-type codex --evaluator-type claude`.
+Telemetry polling:
+- Treat `hydra watch` as the main polling loop. Do not infer progress from terminal prose.
+- Before deciding wait / retry / takeover, query:
+  - `termcanvas telemetry get --workflow <workflowId> --repo .`
+  - `termcanvas telemetry get --terminal <terminalId>`
+  - `termcanvas telemetry events --terminal <terminalId> --limit 20`
+- Watch the derived telemetry states: `awaiting_contract` means the worker has not yet published `result.json`; `stall_candidate` means the worker may be hung. Trust `derived_status` and `task_status` over terminal prose.
 
-## Direct worker primitive
+## Core workflow
 
-- `hydra spawn --task "..." --repo .`
-  - one direct isolated worker terminal
-  - use when the split is already known and only a separate worker is needed
-  - this is not a full workflow run
-  - use `--worker-type <provider>` when the user explicitly names the worker
-    provider
+The Lead is the decider — Lead reads the codebase, makes the strategic
+calls, and dispatches workers for the steps that genuinely need a fresh
+agent process. There is no "researcher" role: the Lead does the research
+itself before deciding what to build.
 
-## Agent launch rule
+```
+hydra init --intent "Add OAuth login" --repo .
+# → { workflow_id, worktree_path }
 
-- When dispatching Claude/Codex through TermCanvas CLI, start a fresh agent
-  terminal with `termcanvas terminal create --prompt "..."`
-- Do not use `termcanvas terminal input` for task dispatch; it does not
-  reliably submit prompts and is not a supported automation path
+# (Lead reads the code, reviews related modules, decides the plan.)
 
-## Quality bar
+hydra dispatch --workflow W --node dev --role dev \
+  --intent "Implement OAuth middleware and its tests following the design in CLAUDE.md" --repo .
+# → { node_id, assignment_id, status: "dispatched" }
 
-- Root cause first. Fix the real implementation problem before changing tests.
-- Do not hack tests, fixtures, snapshots, or mocks to force a green result.
-- Do not add silent fallbacks, swallowed errors, or default-success paths.
-- Tests prove correctness; they do not replace correctness.
-- A handoff only passes when `result.json` and `done` both exist and the schema
-  validates.
+hydra watch --workflow W --repo .
+# → DecisionPoint: dev completed
 
-## Workflow control
+hydra dispatch --workflow W --node review --role reviewer \
+  --intent "Independent review of the OAuth change" \
+  --depends-on dev --repo .
 
-1. Investigate first and write a concrete task description.
-2. Start the chosen workflow or worker path:
-   - Existing worktree / read-only workflow: `hydra run --task "..." --repo . --worktree .`
-   - Existing worktree / read-only worker: `hydra spawn --task "..." --repo . --worktree .`
-3. After `hydra run` or `hydra spawn`, immediately start polling with `hydra watch`. Do not ask whether to watch — always watch.
-4. For workflow runs created by `hydra run`, advance or inspect with:
-   - `hydra tick --repo . --workflow <workflowId>`
-   - `hydra watch --repo . --workflow <workflowId>`
-   - `hydra status --repo . --workflow <workflowId>`
-   - `hydra retry --repo . --workflow <workflowId>`
-4. For direct workers created by `hydra spawn`:
-   - `hydra watch --agent <agentId>` to poll until completion
-   - `hydra list --repo .` to list all agents
-   - `hydra cleanup <agentId>` to clean up
-5. Read failures from structured Hydra state; do not parse terminal prose.
-6. Before deciding to keep waiting, retry, or take over a live workflow, query telemetry first:
-   - `termcanvas telemetry get --workflow <workflowId> --repo .`
-   - `termcanvas telemetry get --terminal <terminalId>`
-7. Trust `derived_status` and `task_status` as the primary decision signals. Only investigate further when both indicate a problem.
-8. Decision rules:
-   - `derived_status=progressing` or `task_status=running` → keep waiting
-   - `awaiting_contract` → turn is done but `result.json` / `done` still pending
-   - `stall_candidate` → investigate with `termcanvas telemetry events --terminal <terminalId> --limit 20` before retry/takeover
-   - `error` → check `last_hook_error` for retry/stop guidance
-9. Clean up after completion:
-   - workflow: `hydra cleanup --workflow <workflowId> --repo .`
-   - worker: `hydra cleanup <agentId>`
+hydra watch --workflow W --repo .
+# → DecisionPoint: review completed
+
+hydra complete --workflow W --repo .
+```
+
+## Parallel dev
+
+When the Lead identifies independent work streams, dispatch multiple
+dev workers with isolated worktrees:
+
+```
+hydra dispatch --workflow W --node dev-frontend --role dev \
+  --intent "Frontend OAuth components and their tests" \
+  --worktree .worktrees/frontend --repo .
+
+hydra dispatch --workflow W --node dev-backend --role dev \
+  --intent "Backend OAuth middleware and its tests" \
+  --worktree .worktrees/backend --repo .
+
+hydra watch --workflow W --repo .
+# → DecisionPoint: both completed
+
+hydra merge --workflow W --nodes dev-frontend,dev-backend --repo .
+```
+
+## Handling agent results
+
+When `watchUntilDecision` returns a `node_completed` DecisionPoint:
+
+1. Check `outcome`:
+   - **`completed`** — agent finished. Read `report_file` to decide next step.
+   - **`stuck`** — agent can't proceed. Read `report_file` for what's needed.
+   - **`error`** — Hydra already retried; if still failing, it reports to you.
+
+2. Read the `report.md` referenced by `report_file` to decide:
+   - Dispatch next node → `hydra dispatch ...`
+   - Reset for rework → `hydra reset --workflow W --node dev --feedback "..." --repo .`
+   - Re-dispatch after reset → `hydra redispatch --workflow W --node dev --repo .`
+   - Complete workflow → `hydra complete --workflow W --repo .`
+
+Hydra promotes blocked nodes to eligible automatically, but **you decide
+when to dispatch**. Check `newly_eligible` in the DecisionPoint to see
+what's ready.
+
+## Agent role guidance
+
+The role file (in `.hydra/roles/<name>.md` or shipped builtin) declares
+an ordered `terminals[]` list of CLI / model / reasoning_effort triples.
+Hydra always picks `terminals[0]` for now; future fallback logic walks
+the list. The Lead chooses **which role** to dispatch — the role file
+chooses **which CLI** to invoke and at what reasoning level.
+
+**lead** — The Hydra decider itself. Not dispatched by `hydra dispatch`;
+this role file codifies what the Lead terminal (the one holding the
+`lead_terminal_id` lock and talking to the human) is supposed to be.
+Default: Claude Opus at max reasoning.
+
+**dev** — Writes code AND the tests that cover it. A dev-produced change
+is not complete until its test surface covers the new behavior. Default:
+Claude Opus at max reasoning, codex fallback.
+
+**reviewer** — Independent cross-model second opinion at the highest
+available reasoning level. Default: Codex at xhigh, Claude Opus max
+fallback. Runs on a **different model family** from dev so blind spots
+don't overlap. The last line of defense before Lead approves a change.
+
+There is no `researcher` role: the Lead does the research itself
+before dispatching anything. There is no separate `tester` role either:
+dev owns its own test surface, and reviewer provides the cross-model
+check that tester used to provide.
+
+You can override the model or reasoning effort per-dispatch via
+`--model` and a project-level role file in `.hydra/roles/`.
+
+## Commands
+
+| Command | Purpose |
+|---------|---------|
+| `hydra init` | Create workflow context |
+| `hydra dispatch` | Dispatch an agent node |
+| `hydra watch` | Wait for next decision point |
+| `hydra approve` | Mark a node's output as approved |
+| `hydra reset` | Reset a node and downstream |
+| `hydra merge` | Merge parallel worktree branches |
+| `hydra complete` | Mark workflow completed |
+| `hydra fail` | Mark workflow failed |
+| `hydra status` | Show workflow state |
+| `hydra list` | List workflows |
+| `hydra ledger` | Show workflow event log |
+| `hydra cleanup` | Clean up workflow state |
+| `hydra spawn` | Direct isolated worker (not a full workflow run) |
+
+## After `hydra dispatch` or `hydra watch`, always watch
+
+After dispatching nodes, always call `hydra watch` to wait for the next
+decision point. Do not poll manually with tick.
 
 ## Result contract
 
-`result.json` must contain:
-- `success`
-- `summary`
-- `outputs[]`
-- `evidence[]`
-- `next_action`
+Sub-agents write a slim `result.json` with `schema_version: "hydra/result/v0.1"`
+plus a sidecar `report.md`. The JSON holds only what Hydra needs for routing;
+all human-readable content lives in `report.md`.
 
-The `done` marker must point at the exact `result.json` path for the handoff.
-If either file is missing or invalid, Hydra must fail the handoff rather than
-assuming success.
+`result.json` fields:
+- `schema_version`, `workflow_id`, `assignment_id`, `run_id` — passthrough IDs
+- `outcome`: `"completed"` / `"stuck"` / `"error"` — Hydra uses this for routing
+- `report_file`: relative or absolute path to the `report.md` written alongside
 
-## Auto-approve inheritance
+Hydra rejects any extra fields. Write `report.md` first, then publish
+`result.json` atomically as the final artifact of the run.
 
-When you are already running in auto-approve/full-access mode, pass
-`--auto-approve` so Claude/Codex sub-agents inherit the same autonomy.
-Do not pass it in restricted approval modes.
+```json
+{
+  "schema_version": "hydra/result/v0.1",
+  "workflow_id": "wf-...",
+  "assignment_id": "asg-...",
+  "run_id": "run-...",
+  "outcome": "completed",
+  "report_file": "report.md"
+}
+```
+
+`report.md` is free-form markdown. Recommended sections: summary of what was
+done, outputs (file paths + descriptions), evidence (test runs, manual checks),
+and a reflection on approach / blockers / confidence.
+
+## Ledger
+
+Every workflow action is recorded in `.hydra/workflows/{id}/ledger.jsonl`.
+Use `hydra ledger --workflow W --repo .` to inspect the event log.

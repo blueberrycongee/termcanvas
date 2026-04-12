@@ -2,12 +2,16 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
+export const AGENT_STORE_SCHEMA_VERSION = "hydra/agent-store/v2";
+
 export interface AgentRecord {
+  schema_version: typeof AGENT_STORE_SCHEMA_VERSION;
   id: string;
   task: string;
   type: string;
   workflowId?: string;
-  handoffId?: string;
+  assignmentId?: string;
+  runId?: string;
   repo: string;
   terminalId: string;
   worktreePath: string;
@@ -15,9 +19,7 @@ export interface AgentRecord {
   baseBranch: string;
   ownWorktree: boolean;
   taskFile?: string;
-  handoffFile?: string;
   resultFile?: string;
-  doneFile?: string;
   createdAt: string;
 }
 
@@ -37,11 +39,18 @@ export function saveAgent(record: AgentRecord): void {
 }
 
 export function loadAgent(id: string): AgentRecord | null {
-  try {
-    return JSON.parse(fs.readFileSync(agentPath(id), "utf-8"));
-  } catch {
+  const filePath = agentPath(id);
+  if (!fs.existsSync(filePath)) {
     return null;
   }
+
+  const record = JSON.parse(fs.readFileSync(filePath, "utf-8")) as AgentRecord;
+  if (record.schema_version !== AGENT_STORE_SCHEMA_VERSION) {
+    throw new Error(
+      `Unsupported agent store schema for ${id}: expected ${AGENT_STORE_SCHEMA_VERSION}, received ${String(record.schema_version ?? "<missing>")}`,
+    );
+  }
+  return record;
 }
 
 export function listAgents(repo?: string): AgentRecord[] {
@@ -55,9 +64,15 @@ export function listAgents(repo?: string): AgentRecord[] {
   const agents = files
     .map((f) => {
       try {
-        return JSON.parse(
+        const record = JSON.parse(
           fs.readFileSync(path.join(dir, f), "utf-8"),
         ) as AgentRecord;
+        if (record.schema_version !== AGENT_STORE_SCHEMA_VERSION) {
+          throw new Error(
+            `Unsupported agent store schema in ${f}: expected ${AGENT_STORE_SCHEMA_VERSION}, received ${String(record.schema_version ?? "<missing>")}`,
+          );
+        }
+        return record;
       } catch {
         return null;
       }

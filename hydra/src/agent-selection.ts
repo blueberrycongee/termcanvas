@@ -1,4 +1,4 @@
-import type { AgentType } from "./handoff/types.ts";
+import type { AgentType } from "./assignment/types.ts";
 
 export const SUPPORTED_AGENT_TYPES = [
   "claude",
@@ -13,19 +13,6 @@ export const DEFAULT_AGENT_TYPE: AgentType = "claude";
 export const AUTO_APPROVE_AGENT_TYPES = new Set<AgentType>(["claude", "codex"]);
 
 const AGENT_TYPES = new Set<AgentType>(SUPPORTED_AGENT_TYPES);
-
-export interface WorkflowAgentTypeSelection {
-  allType?: AgentType;
-  plannerType?: AgentType;
-  implementerType?: AgentType;
-  evaluatorType?: AgentType;
-}
-
-export interface ResolvedWorkflowAgentTypes {
-  plannerType: AgentType;
-  implementerType: AgentType;
-  evaluatorType: AgentType;
-}
 
 export interface WorkerAgentTypeSelection {
   workerType?: AgentType;
@@ -59,18 +46,6 @@ export function resolveDefaultAgentType(
   env: Record<string, string | undefined> = process.env,
 ): AgentType {
   return resolveCurrentAgentType(env) ?? DEFAULT_AGENT_TYPE;
-}
-
-export function resolveWorkflowAgentTypes(
-  selection: WorkflowAgentTypeSelection,
-  env: Record<string, string | undefined> = process.env,
-): ResolvedWorkflowAgentTypes {
-  const baseType = selection.allType ?? resolveDefaultAgentType(env);
-  return {
-    plannerType: selection.plannerType ?? baseType,
-    implementerType: selection.implementerType ?? selection.allType ?? baseType,
-    evaluatorType: selection.evaluatorType ?? selection.allType ?? baseType,
-  };
 }
 
 export function resolveWorkerAgentType(

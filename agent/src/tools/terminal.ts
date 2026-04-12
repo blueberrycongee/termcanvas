@@ -14,7 +14,7 @@ const inputSchema = z.object({
   autoApprove: z.boolean().optional().describe("Enable auto-approve mode (for create)"),
   parentTerminalId: z.string().optional().describe("Parent terminal ID (for create)"),
   workflowId: z.string().optional().describe("Associated workflow ID (for create)"),
-  handoffId: z.string().optional().describe("Associated handoff ID (for create)"),
+  assignmentId: z.string().optional().describe("Associated assignment ID (for create)"),
   repoPath: z.string().optional().describe("Repository path (for create)"),
   lines: z.number().optional().describe("Number of output lines to return (for output, default 50)"),
   customTitle: z.string().optional().describe("Custom title text (required for set-title)"),
@@ -40,7 +40,7 @@ export const terminalTool: Tool<typeof inputSchema.shape> = {
       if (input.autoApprove) body.autoApprove = true;
       if (input.parentTerminalId) body.parentTerminalId = input.parentTerminalId;
       if (input.workflowId) body.workflowId = input.workflowId;
-      if (input.handoffId) body.handoffId = input.handoffId;
+      if (input.assignmentId) body.assignmentId = input.assignmentId;
       if (input.repoPath) body.repoPath = input.repoPath;
       const result = await client.request("POST", "/terminal/create", body);
       return { content: JSON.stringify(result, null, 2) };

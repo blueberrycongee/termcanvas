@@ -2,7 +2,7 @@
 name: code-review
 description: >-
   Structured code review skill. Use when asked to "review this code",
-  "review this PR", "check this diff", or when acting as a Hydra evaluator.
+  "review this PR", "check this diff", or when acting as a Hydra tester.
   Runs a multi-pass review with specialist focus areas and confidence-gated
   findings.
 ---

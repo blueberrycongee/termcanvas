@@ -7,11 +7,19 @@ import os from "node:os";
 const testDir = fs.mkdtempSync(path.join(os.tmpdir(), "hydra-store-"));
 process.env.HYDRA_HOME = testDir;
 
-const { saveAgent, loadAgent, listAgents, deleteAgent } = await import(
+const {
+  AGENT_STORE_SCHEMA_VERSION,
+  saveAgent,
+  loadAgent,
+  listAgents,
+  deleteAgent,
+} = await import(
   "../src/store.ts"
 );
+type AgentRecord = import("../src/store.ts").AgentRecord;
 
-const record = {
+const record: AgentRecord = {
+  schema_version: AGENT_STORE_SCHEMA_VERSION,
   id: "hydra-1234-abcd",
   task: "fix the bug",
   type: "claude",
@@ -45,6 +53,26 @@ test("deleteAgent removes record", () => {
   deleteAgent(record.id);
   assert.equal(loadAgent(record.id), null);
   assert.equal(listAgents().length, 0);
+});
+
+test("loadAgent rejects outdated agent-store schemas", () => {
+  const outdatedId = "hydra-outdated";
+  const agentsDir = path.join(testDir, "agents");
+  fs.mkdirSync(agentsDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(agentsDir, `${outdatedId}.json`),
+    JSON.stringify({
+      ...record,
+      id: outdatedId,
+      schema_version: "hydra/agent-store/v1",
+    }, null, 2),
+    "utf-8",
+  );
+
+  assert.throws(
+    () => loadAgent(outdatedId),
+    /Unsupported agent store schema/,
+  );
 });
 
 test.after(() => {

@@ -26,7 +26,7 @@ export async function list(args: string[]): Promise<void> {
     for (const workflow of workflows) {
       const failure = workflow.failure?.code ?? "-";
       console.log(
-        `${workflow.id}  ${workflow.status}  ${workflow.agent_type}  ${workflow.current_handoff_id}  ${failure}`,
+        `${workflow.id}  ${workflow.status}  ${failure}`,
       );
     }
     return;

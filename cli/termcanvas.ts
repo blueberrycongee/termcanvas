@@ -206,62 +206,194 @@ async function main() {
         console.log("Usage: termcanvas project <add|list|remove> [args]");
       }
     } else if (group === "workflow") {
-      if (command === "run") {
-        const taskIdx = rest.indexOf("--task");
+      // Lead-driven workflow CLI: a thin HTTP client over the headless server's
+      // /workflow/* routes. Mirrors the in-process `hydra` binary commands but
+      // dispatches over HTTP, so CI / remote / cross-process callers can drive
+      // workflows without embedding the hydra package.
+      const requireRepo = (): string => {
         const repoIdx = rest.indexOf("--repo");
-        const worktreeIdx = rest.indexOf("--worktree");
-        const templateIdx = rest.indexOf("--template");
-        const allTypeIdx = rest.indexOf("--all-type");
-        const plannerTypeIdx = rest.indexOf("--planner-type");
-        const implementerTypeIdx = rest.indexOf("--implementer-type");
-        const evaluatorTypeIdx = rest.indexOf("--evaluator-type");
-        const timeoutIdx = rest.indexOf("--timeout-minutes");
-        const retriesIdx = rest.indexOf("--max-retries");
-        const task = taskIdx >= 0 ? rest[taskIdx + 1] : undefined;
         const repo = repoIdx >= 0 ? rest[repoIdx + 1] : undefined;
-        const worktree = worktreeIdx >= 0 ? rest[worktreeIdx + 1] : undefined;
-        const template = templateIdx >= 0 ? rest[templateIdx + 1] : undefined;
-        const allType = allTypeIdx >= 0 ? rest[allTypeIdx + 1] : undefined;
-        const plannerType = plannerTypeIdx >= 0 ? rest[plannerTypeIdx + 1] : undefined;
-        const implementerType = implementerTypeIdx >= 0 ? rest[implementerTypeIdx + 1] : undefined;
-        const evaluatorType = evaluatorTypeIdx >= 0 ? rest[evaluatorTypeIdx + 1] : undefined;
-        const timeoutMinutes = timeoutIdx >= 0 ? parseInt(rest[timeoutIdx + 1], 10) : undefined;
-        const maxRetries = retriesIdx >= 0 ? parseInt(rest[retriesIdx + 1], 10) : undefined;
-        const autoApprove = !rest.includes("--no-auto-approve");
-        const approvePlan = rest.includes("--approve-plan");
-
-        if (!task) {
-          console.error("--task is required");
-          process.exit(1);
-        }
         if (!repo) {
           console.error("--repo is required");
           process.exit(1);
         }
+        return repo;
+      };
+      const optionalFlag = (flag: string): string | undefined => {
+        const idx = rest.indexOf(flag);
+        return idx >= 0 && idx + 1 < rest.length ? rest[idx + 1] : undefined;
+      };
+      const optionalNumber = (flag: string): number | undefined => {
+        const raw = optionalFlag(flag);
+        if (raw === undefined) return undefined;
+        const n = Number(raw);
+        if (Number.isNaN(n)) {
+          console.error(`Invalid number for ${flag}: ${raw}`);
+          process.exit(1);
+        }
+        return n;
+      };
+      const listFlag = (flag: string): string[] => {
+        const raw = optionalFlag(flag);
+        return raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : [];
+      };
+      const requireWorkflowId = (): string => {
+        const workflowId = rest[0];
+        if (!workflowId || workflowId.startsWith("--")) {
+          console.error(`workflow ${command} requires a workflow id as the first positional argument`);
+          process.exit(1);
+        }
+        return workflowId;
+      };
+      const requireFlag = (flag: string): string => {
+        const value = optionalFlag(flag);
+        if (!value) {
+          console.error(`${flag} is required`);
+          process.exit(1);
+        }
+        return value;
+      };
 
-        const result = await request("POST", "/workflow/run", {
-          task,
-          repo,
-          ...(worktree ? { worktree } : {}),
-          ...(template ? { template } : {}),
-          ...(allType ? { allType } : {}),
-          ...(plannerType ? { plannerType } : {}),
-          ...(implementerType ? { implementerType } : {}),
-          ...(evaluatorType ? { evaluatorType } : {}),
-          ...(timeoutMinutes ? { timeoutMinutes } : {}),
-          ...(maxRetries !== undefined ? { maxRetries } : {}),
-          autoApprove,
-          approvePlan,
-        });
+      if (command === "init") {
+        const repo = requireRepo();
+        const intent = requireFlag("--intent");
+        const body: Record<string, unknown> = {
+          intent,
+          repoPath: repo,
+        };
+        const worktree = optionalFlag("--worktree");
+        if (worktree) body.worktreePath = worktree;
+        const timeoutMinutes = optionalNumber("--timeout-minutes");
+        if (timeoutMinutes !== undefined) body.timeoutMinutes = timeoutMinutes;
+        const maxRetries = optionalNumber("--max-retries");
+        if (maxRetries !== undefined) body.maxRetries = maxRetries;
+        if (rest.includes("--no-auto-approve")) body.autoApprove = false;
+
+        const result = await request("POST", "/workflow/init", body);
         if (jsonFlag) console.log(JSON.stringify(result, null, 2));
-        else console.log(`Started workflow ${result.workflow.id}.`);
-      } else if (command === "list") {
-        const repoIdx = rest.indexOf("--repo");
-        const repo = repoIdx >= 0 ? rest[repoIdx + 1] : undefined;
-        if (!repo) {
-          console.error("--repo is required");
+        else console.log(`Initialized workflow ${result.workflow_id}.`);
+      } else if (command === "dispatch") {
+        const workflowId = requireWorkflowId();
+        const repo = requireRepo();
+        const body: Record<string, unknown> = {
+          repoPath: repo,
+          nodeId: requireFlag("--node"),
+          role: requireFlag("--role"),
+          intent: requireFlag("--intent"),
+        };
+        const dependsOn = listFlag("--depends-on");
+        if (dependsOn.length > 0) body.dependsOn = dependsOn;
+        const model = optionalFlag("--model");
+        if (model) body.model = model;
+        const feedback = optionalFlag("--feedback");
+        if (feedback) body.feedback = feedback;
+        const worktree = optionalFlag("--worktree");
+        if (worktree) body.worktreePath = worktree;
+        const worktreeBranch = optionalFlag("--worktree-branch");
+        if (worktreeBranch) body.worktreeBranch = worktreeBranch;
+        const timeoutMinutes = optionalNumber("--timeout-minutes");
+        if (timeoutMinutes !== undefined) body.timeoutMinutes = timeoutMinutes;
+        const maxRetries = optionalNumber("--max-retries");
+        if (maxRetries !== undefined) body.maxRetries = maxRetries;
+
+        const result = await request(
+          "POST",
+          `/workflow/${encodeURIComponent(workflowId)}/dispatch`,
+          body,
+        );
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log(`${result.status}  node=${result.node_id}  assignment=${result.assignment_id}`);
+      } else if (command === "redispatch") {
+        const workflowId = requireWorkflowId();
+        const repo = requireRepo();
+        const nodeId = requireFlag("--node");
+        const body: Record<string, unknown> = { repoPath: repo };
+        const intent = optionalFlag("--intent");
+        if (intent) body.intent = intent;
+
+        const result = await request(
+          "POST",
+          `/workflow/${encodeURIComponent(workflowId)}/node/${encodeURIComponent(nodeId)}/redispatch`,
+          body,
+        );
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log(`${result.status}  node=${result.node_id}`);
+      } else if (command === "watch") {
+        const workflowId = requireWorkflowId();
+        const repo = requireRepo();
+        const result = await request(
+          "POST",
+          `/workflow/${encodeURIComponent(workflowId)}/watch-decision`,
+          { repoPath: repo },
+        );
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log(`${result.type}  workflow=${result.workflow_id}`);
+      } else if (command === "approve") {
+        const workflowId = requireWorkflowId();
+        const repo = requireRepo();
+        const nodeId = requireFlag("--node");
+        const result = await request(
+          "POST",
+          `/workflow/${encodeURIComponent(workflowId)}/node/${encodeURIComponent(nodeId)}/approve`,
+          { repoPath: repo },
+        );
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log(`Approved node ${nodeId}.`);
+      } else if (command === "reset") {
+        const workflowId = requireWorkflowId();
+        const repo = requireRepo();
+        const nodeId = requireFlag("--node");
+        const body: Record<string, unknown> = { repoPath: repo };
+        const feedback = optionalFlag("--feedback");
+        if (feedback) body.feedback = feedback;
+        const result = await request(
+          "POST",
+          `/workflow/${encodeURIComponent(workflowId)}/node/${encodeURIComponent(nodeId)}/reset`,
+          body,
+        );
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log(`Reset node ${nodeId} (${result.reset_node_ids?.length ?? 0} nodes affected).`);
+      } else if (command === "merge") {
+        const workflowId = requireWorkflowId();
+        const repo = requireRepo();
+        const nodeIds = listFlag("--nodes");
+        if (nodeIds.length === 0) {
+          console.error("--nodes is required (comma-separated node IDs)");
           process.exit(1);
         }
+        const result = await request(
+          "POST",
+          `/workflow/${encodeURIComponent(workflowId)}/merge`,
+          { repoPath: repo, nodeIds },
+        );
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log(`Merged ${nodeIds.length} nodes.`);
+      } else if (command === "complete") {
+        const workflowId = requireWorkflowId();
+        const repo = requireRepo();
+        const body: Record<string, unknown> = { repoPath: repo };
+        const summary = optionalFlag("--summary");
+        if (summary) body.summary = summary;
+        const result = await request(
+          "POST",
+          `/workflow/${encodeURIComponent(workflowId)}/complete`,
+          body,
+        );
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log("Workflow completed.");
+      } else if (command === "fail") {
+        const workflowId = requireWorkflowId();
+        const repo = requireRepo();
+        const reason = requireFlag("--reason");
+        const result = await request(
+          "POST",
+          `/workflow/${encodeURIComponent(workflowId)}/fail`,
+          { repoPath: repo, reason },
+        );
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log("Workflow failed.");
+      } else if (command === "list") {
+        const repo = requireRepo();
         const result = await request(
           "GET",
           `/workflow/list?repo=${encodeURIComponent(repo)}`,
@@ -275,85 +407,39 @@ async function main() {
           return;
         }
         for (const workflow of result) {
-          console.log(
-            `${workflow.id}  ${workflow.status}  ${workflow.current_handoff_id}  ${workflow.updated_at}`,
-          );
+          console.log(`${workflow.id}  ${workflow.status}  ${workflow.updated_at}`);
         }
-      } else if (
-        (command === "status" || command === "tick" || command === "retry" || command === "cleanup" || command === "watch") &&
-        rest[0]
-      ) {
-        const workflowId = rest[0];
-        const repoIdx = rest.indexOf("--repo");
-        const repo = repoIdx >= 0 ? rest[repoIdx + 1] : undefined;
-        if (!repo) {
-          console.error("--repo is required");
-          process.exit(1);
-        }
-
-        if (command === "status") {
-          const result = await request(
-            "GET",
-            `/workflow/${encodeURIComponent(workflowId)}?repo=${encodeURIComponent(repo)}`,
-          );
-          if (jsonFlag) console.log(JSON.stringify(result, null, 2));
-          else console.log(`${result.workflow.status}  ${result.workflow.current_handoff_id}`);
-        } else if (command === "tick") {
-          const result = await request(
-            "POST",
-            `/workflow/${encodeURIComponent(workflowId)}/tick`,
-            { repo },
-          );
-          if (jsonFlag) console.log(JSON.stringify(result, null, 2));
-          else console.log(`${result.workflow.status}  ${result.workflow.current_handoff_id}`);
-        } else if (command === "retry") {
-          const result = await request(
-            "POST",
-            `/workflow/${encodeURIComponent(workflowId)}/retry`,
-            { repo },
-          );
-          if (jsonFlag) console.log(JSON.stringify(result, null, 2));
-          else console.log(`${result.workflow.status}  ${result.workflow.current_handoff_id}`);
-        } else if (command === "cleanup") {
-          const force = rest.includes("--force");
-          const query = new URLSearchParams({ repo });
-          if (force) query.set("force", "true");
-          const result = await request(
-            "DELETE",
-            `/workflow/${encodeURIComponent(workflowId)}?${query.toString()}`,
-          );
-          if (jsonFlag) console.log(JSON.stringify(result, null, 2));
-          else console.log("Cleaned up.");
-        } else {
-          const intervalIdx = rest.indexOf("--interval-ms");
-          const timeoutIdx = rest.indexOf("--timeout-ms");
-          const intervalMs = intervalIdx >= 0 ? parseInt(rest[intervalIdx + 1], 10) : 30_000;
-          const timeoutMs = timeoutIdx >= 0 ? parseInt(rest[timeoutIdx + 1], 10) : 3_600_000;
-          const startedAt = Date.now();
-          let result = await request(
-            "POST",
-            `/workflow/${encodeURIComponent(workflowId)}/tick`,
-            { repo },
-          );
-          while (
-            result.workflow.status !== "completed" &&
-            result.workflow.status !== "failed" &&
-            result.workflow.status !== "waiting_for_approval" &&
-            Date.now() - startedAt < timeoutMs
-          ) {
-            await new Promise((resolve) => setTimeout(resolve, intervalMs));
-            result = await request(
-              "POST",
-              `/workflow/${encodeURIComponent(workflowId)}/tick`,
-              { repo },
-            );
-          }
-          if (jsonFlag) console.log(JSON.stringify(result, null, 2));
-          else console.log(`${result.workflow.status}  ${result.workflow.current_handoff_id}`);
-        }
+      } else if (command === "list-roles") {
+        const repo = requireRepo();
+        const params = new URLSearchParams({ repo });
+        const cli = optionalFlag("--cli") ?? optionalFlag("--agent-type");
+        if (cli) params.set("agentType", cli);
+        const result = await request("GET", `/workflow/list-roles?${params.toString()}`);
+        console.log(JSON.stringify(result, null, 2));
+      } else if (command === "status") {
+        const workflowId = requireWorkflowId();
+        const repo = requireRepo();
+        const result = await request(
+          "GET",
+          `/workflow/${encodeURIComponent(workflowId)}?repo=${encodeURIComponent(repo)}`,
+        );
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log(`${result.workflow.status}  ${result.workflow.id}`);
+      } else if (command === "cleanup") {
+        const workflowId = requireWorkflowId();
+        const repo = requireRepo();
+        const force = rest.includes("--force");
+        const query = new URLSearchParams({ repo });
+        if (force) query.set("force", "true");
+        const result = await request(
+          "DELETE",
+          `/workflow/${encodeURIComponent(workflowId)}?${query.toString()}`,
+        );
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log("Cleaned up.");
       } else {
         console.log(
-          "Usage: termcanvas workflow <run|list|status|tick|watch|retry|cleanup> [args]",
+          "Usage: termcanvas workflow <init|dispatch|redispatch|watch|approve|reset|merge|complete|fail|list|list-roles|status|cleanup> [args]",
         );
       }
     } else if (group === "worktree") {
@@ -436,16 +522,18 @@ async function main() {
         const promptIdx = rest.indexOf("--prompt");
         const parentIdx = rest.indexOf("--parent-terminal");
         const workflowIdx = rest.indexOf("--workflow-id");
-        const handoffIdx = rest.indexOf("--handoff-id");
+        const assignmentIdx = rest.indexOf("--assignment-id");
         const repoIdx = rest.indexOf("--repo");
+        const resumeIdx = rest.indexOf("--resume-session-id");
         const autoApprove = rest.includes("--auto-approve");
         const worktree = wtIdx >= 0 ? rest[wtIdx + 1] : undefined;
         const type = typeIdx >= 0 ? rest[typeIdx + 1] : "shell";
         const prompt = promptIdx >= 0 ? rest[promptIdx + 1] : undefined;
         const parentTerminalId = parentIdx >= 0 ? rest[parentIdx + 1] : undefined;
         const workflowId = workflowIdx >= 0 ? rest[workflowIdx + 1] : undefined;
-        const handoffId = handoffIdx >= 0 ? rest[handoffIdx + 1] : undefined;
+        const assignmentId = assignmentIdx >= 0 ? rest[assignmentIdx + 1] : undefined;
         const repoPath = repoIdx >= 0 ? rest[repoIdx + 1] : undefined;
+        const resumeSessionId = resumeIdx >= 0 ? rest[resumeIdx + 1] : undefined;
         if (!worktree) {
           console.error("--worktree is required");
           process.exit(1);
@@ -457,8 +545,9 @@ async function main() {
           ...(autoApprove ? { autoApprove: true } : {}),
           ...(parentTerminalId ? { parentTerminalId } : {}),
           ...(workflowId ? { workflowId } : {}),
-          ...(handoffId ? { handoffId } : {}),
+          ...(assignmentId ? { assignmentId } : {}),
           ...(repoPath ? { repoPath } : {}),
+          ...(resumeSessionId ? { resumeSessionId } : {}),
         });
         if (jsonFlag) console.log(JSON.stringify(result, null, 2));
         else
@@ -615,25 +704,52 @@ async function main() {
         "  project rescan <id>                         Rescan worktrees",
       );
       console.log(
-        "  workflow run --task <t> --repo <p>         Start a workflow",
+        "  workflow init --intent <t> --repo <p>      Create a Lead-driven workflow",
+      );
+      console.log(
+        "  workflow dispatch <id> --node <n> --role <r> --intent <t> --repo <p>",
+      );
+      console.log(
+        "                                              Dispatch an agent node",
+      );
+      console.log(
+        "  workflow redispatch <id> --node <n> --repo <p>",
+      );
+      console.log(
+        "                                              Re-dispatch a reset node",
+      );
+      console.log(
+        "  workflow watch <id> --repo <p>             Wait for next decision point",
+      );
+      console.log(
+        "  workflow approve <id> --node <n> --repo <p>  Approve a node's output",
+      );
+      console.log(
+        "  workflow reset <id> --node <n> --repo <p> [--feedback <t>]",
+      );
+      console.log(
+        "                                              Reset a node and downstream",
+      );
+      console.log(
+        "  workflow merge <id> --nodes a,b --repo <p> Merge parallel branches",
+      );
+      console.log(
+        "  workflow complete <id> --repo <p> [--summary <t>]  Mark workflow done",
+      );
+      console.log(
+        "  workflow fail <id> --reason <t> --repo <p> Mark workflow failed",
       );
       console.log(
         "  workflow list --repo <p>                   List workflows",
       );
       console.log(
+        "  workflow list-roles --repo <p> [--cli <claude|codex>]  List role registry entries",
+      );
+      console.log(
         "  workflow status <id> --repo <p>            Get workflow status",
       );
       console.log(
-        "  workflow tick <id> --repo <p>              Advance one workflow tick",
-      );
-      console.log(
-        "  workflow watch <id> --repo <p>             Poll workflow until terminal state",
-      );
-      console.log(
-        "  workflow retry <id> --repo <p>             Retry failed workflow",
-      );
-      console.log(
-        "  workflow cleanup <id> --repo <p>           Clean up workflow runtime state",
+        "  workflow cleanup <id> --repo <p> [--force] Clean up workflow runtime state",
       );
       console.log(
         "  worktree list --repo <p>                   List worktrees",

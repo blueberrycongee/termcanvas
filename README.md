@@ -156,9 +156,9 @@ For Claude/Codex task automation, start a fresh terminal with `termcanvas termin
 
 <br>
 
-Hydra is TermCanvas's terminal orchestration framework for multi-agent workflows. It dispatches AI agents (Claude, Codex, Kimi, Gemini) into **isolated git worktrees**, coordinates them through **file-contract handoffs**, and monitors progress via a **telemetry truth layer** — all without controlling what happens inside each agent's session.
+Hydra is TermCanvas's terminal orchestration framework for multi-agent workflows. It dispatches AI agents (Claude, Codex, Kimi, Gemini) into **isolated git worktrees**, coordinates them through **assignment/run file contracts**, and monitors progress via a **telemetry truth layer** — all without controlling what happens inside each agent's session.
 
-**Design philosophy:** each agent runs in its own terminal with a fresh context and full autonomy. Agents don't share conversation history — they share a **worktree** (code on disk) and **structured file contracts** (`handoff.json`, `task.md`, `result.json`, `done`). Terminal prose is not authoritative; validated files are the single source of truth. If a workflow fails, discard the worktree and start clean.
+**Design philosophy:** each agent runs in its own terminal with a fresh context and full autonomy. Agents don't share conversation history — they share a **worktree** (code on disk) and **structured workflow files** (`inputs/user-request.md`, `task.md`, `artifacts/brief.md`, `result.json`). Terminal prose is not authoritative; validated `result.json` files are the single source of truth. If a workflow fails, discard the worktree and start clean.
 
 This design is inspired by [Anthropic's harness design research](https://www.anthropic.com/engineering/harness-design-long-running-apps) on long-running agent orchestration, adapted for terminal-based agents where each process is naturally isolated. For the theoretical foundations behind this approach, see [Harness Design from a Distribution Perspective](harness-design-essay.md).
 
@@ -175,9 +175,9 @@ The agent reads the Hydra instructions in your project's `CLAUDE.md`, classifies
 - **Stay in current agent** — simple or local tasks, no orchestration overhead
 - **`hydra spawn`** — a direct isolated worker when the task is clear and self-contained
 - **`hydra run --template single-step`** — one implementer with file-contract gates and evidence
-- **`hydra run`** (default) — planner → implementer → evaluator pipeline with evaluator-to-implementer loops
+- **`hydra run`** (default) — researcher → implementer → tester pipeline with approval and verification loops
 
-Each role can target a different provider (`--planner-type claude --implementer-type codex`), or inherit from the current terminal.
+Each role can target a different provider (`--researcher-type claude --implementer-type codex`), or inherit from the current terminal.
 
 ```bash
 hydra init    # one-time setup: writes Hydra instructions into CLAUDE.md and AGENTS.md
@@ -193,16 +193,16 @@ Workflow commands:
   run      Create and start a file-contract workflow
            --task <desc>              Task description (required)
            --repo <path>              Repository path (required)
-           --template <name>          single-step | planner-implementer-evaluator (default)
+           --template <name>          single-step | researcher-implementer-tester (default)
            --all-type <type>          Force one agent type for all roles
-           --planner-type <type>      Planner agent type
+           --researcher-type <type>      Researcher agent type
            --implementer-type <type>  Implementer agent type
-           --evaluator-type <type>    Evaluator agent type
-           --timeout-minutes <num>    Per-handoff timeout (default: 30)
+           --tester-type <type>    Tester agent type
+           --timeout-minutes <num>    Per-assignment timeout (default: 30)
            --max-retries <num>        Automatic retry limit (default: 1)
            --auto-approve             Run sub-agent in auto-approve mode
 
-  tick     Advance one workflow tick (collect result, dispatch next handoff)
+  tick     Advance one workflow tick (collect result, dispatch next assignment)
   watch    Poll a workflow until it reaches a terminal state
   status   Show structured workflow status + telemetry advisory
   retry    Retry a failed or timed-out workflow
@@ -226,12 +226,12 @@ Management commands:
 <summary>Example commands</summary>
 
 ```bash
-# Full workflow (planner → implementer → evaluator)
+# Full workflow (researcher → implementer → tester)
 hydra run --task "fix the login bug" --repo .
 
 # Mixed providers by role
 hydra run --task "implement auth" --repo . \
-  --planner-type claude --implementer-type codex --evaluator-type claude
+  --researcher-type claude --implementer-type codex --tester-type claude
 
 # Single-step (one implementer, file gates only)
 hydra run --task "implement the API change" --repo . --template single-step
@@ -251,7 +251,7 @@ hydra cleanup <agent-id> --force
 
 </details>
 
-Workflows advance through validated `result.json` + `done` evidence inside `.hydra/workflows/`. The telemetry truth layer provides real-time `turn_state`, `last_meaningful_progress_at`, and `derived_status` — used by both the UI (badges, advisory views) and Hydra itself (stall detection, retry decisions).
+Workflows advance through validated `result.json` evidence inside `.hydra/workflows/`. The telemetry truth layer provides real-time `turn_state`, `last_meaningful_progress_at`, and `derived_status` — used by both the UI (badges, advisory views) and Hydra itself (stall detection, retry decisions).
 
 **Typical workflow:** write a PRD → enable Hydra → let the main-brain agent choose the mode and orchestrate autonomously → monitor via `hydra watch` or the canvas UI → review the diff and merge. See [Hydra Orchestration Guide](docs/hydra-orchestration.md) for architecture, troubleshooting, and anti-patterns. For a visual overview of every mode, state machine, and system component, see the [Hydra Panoramic Flowchart](docs/hydra-panorama-flow.md).
 

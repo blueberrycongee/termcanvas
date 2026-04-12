@@ -3,144 +3,89 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {
-  collectTaskPackage,
-  writeDoneMarker,
-  writeResultContract,
-} from "../src/collector.ts";
-import { buildTaskPackageContext, writeTaskPackage } from "../src/task-package.ts";
+import { collectRunResult } from "../src/collector.ts";
+import { RESULT_SCHEMA_VERSION } from "../src/protocol.ts";
 
-function createTaskPackageRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "hydra-collector-"));
+function createRunResultPath(): string {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "hydra-collector-"));
+  return path.join(rootDir, "result.json");
 }
 
-function createContract(rootDir: string) {
-  const context = buildTaskPackageContext({
-    workspaceRoot: rootDir,
-    workflowId: "workflow-auth",
-    handoffId: "handoff-abc123",
-    createdAt: "2026-03-26T12:00:00.000Z",
-    from: {
-      role: "planner",
-      agent_type: "claude",
-      agent_id: "claude-session-1",
-    },
-    to: {
-      role: "implementer",
-      agent_type: "codex",
-      agent_id: null,
-    },
-    task: {
-      type: "implement-feature",
-      title: "Implement collector",
-      description: "Read result.json and done.",
-      acceptance_criteria: ["Reject invalid results"],
-    },
-    context: {
-      files: [],
-      previous_handoffs: [],
-    },
-  });
-
-  writeTaskPackage(context.contract);
-  return context.contract;
+function buildExpectation(resultFile: string) {
+  return {
+    workflow_id: "workflow-auth",
+    assignment_id: "assignment-abc123",
+    run_id: "run-0001",
+    result_file: resultFile,
+  } as const;
 }
 
-test("collectTaskPackage returns completed when done and result are both valid", () => {
-  const rootDir = createTaskPackageRoot();
+test("collectRunResult returns waiting when result.json is missing", () => {
+  const resultFile = createRunResultPath();
 
   try {
-    const contract = createContract(rootDir);
-    writeResultContract(contract, {
-      version: "hydra/v2",
-      handoff_id: contract.handoff_id,
-      workflow_id: contract.workflow_id,
-      success: true,
-      summary: "Implemented the collector flow.",
-      outputs: [{ path: "hydra/src/collector.ts", description: "Collector implementation" }],
-      evidence: ["npm test"],
-      next_action: { type: "complete", reason: "No more work required." },
-    });
-    writeDoneMarker(contract);
-
-    const collected = collectTaskPackage(contract);
-
-    assert.equal(collected.status, "completed");
-    assert.equal(collected.result?.summary, "Implemented the collector flow.");
-    assert.equal(collected.advance, true);
-  } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
-  }
-});
-
-test("collectTaskPackage returns waiting when done is missing", () => {
-  const rootDir = createTaskPackageRoot();
-
-  try {
-    const contract = createContract(rootDir);
-    writeResultContract(contract, {
-      version: "hydra/v2",
-      handoff_id: contract.handoff_id,
-      workflow_id: contract.workflow_id,
-      success: true,
-      summary: "Implemented the collector flow.",
-      outputs: [{ path: "hydra/src/collector.ts", description: "Collector implementation" }],
-      evidence: ["npm test"],
-      next_action: { type: "complete", reason: "No more work required." },
-    });
-
-    const collected = collectTaskPackage(contract);
+    const collected = collectRunResult(buildExpectation(resultFile));
 
     assert.deepEqual(collected, {
       status: "waiting",
       advance: false,
-      reason: "done_missing",
+      reason: "result_missing",
     });
   } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
+    fs.rmSync(path.dirname(resultFile), { recursive: true, force: true });
   }
 });
 
-test("collectTaskPackage fails when done exists but result.json is missing", () => {
-  const rootDir = createTaskPackageRoot();
+test("collectRunResult returns completed when result.json is valid", () => {
+  const resultFile = createRunResultPath();
 
   try {
-    const contract = createContract(rootDir);
-    writeDoneMarker(contract);
-
-    const collected = collectTaskPackage(contract);
-
-    assert.equal(collected.status, "failed");
-    assert.equal(collected.advance, false);
-    assert.equal(collected.failure?.code, "COLLECTOR_RESULT_MISSING");
-  } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
-  }
-});
-
-test("collectTaskPackage fails when result.json does not satisfy the schema", () => {
-  const rootDir = createTaskPackageRoot();
-
-  try {
-    const contract = createContract(rootDir);
     fs.writeFileSync(
-      contract.artifacts.result_file,
+      resultFile,
       JSON.stringify({
-        version: "hydra/v2",
-        handoff_id: contract.handoff_id,
-        workflow_id: contract.workflow_id,
+        schema_version: RESULT_SCHEMA_VERSION,
+        workflow_id: "workflow-auth",
+        assignment_id: "assignment-abc123",
+        run_id: "run-0001",
+        outcome: "completed",
+        report_file: "report.md",
+      }, null, 2),
+      "utf-8",
+    );
+
+    const collected = collectRunResult(buildExpectation(resultFile));
+
+    assert.equal(collected.status, "completed");
+    assert.equal(collected.advance, true);
+    assert.equal(collected.result.outcome, "completed");
+    assert.equal(collected.result.report_file, "report.md");
+  } finally {
+    fs.rmSync(path.dirname(resultFile), { recursive: true, force: true });
+  }
+});
+
+test("collectRunResult fails when result.json does not satisfy the schema", () => {
+  const resultFile = createRunResultPath();
+
+  try {
+    fs.writeFileSync(
+      resultFile,
+      JSON.stringify({
+        schema_version: RESULT_SCHEMA_VERSION,
+        workflow_id: "workflow-auth",
+        assignment_id: "assignment-abc123",
+        run_id: "run-0001",
         success: "yes",
       }, null, 2),
       "utf-8",
     );
-    writeDoneMarker(contract);
 
-    const collected = collectTaskPackage(contract);
+    const collected = collectRunResult(buildExpectation(resultFile));
 
     assert.equal(collected.status, "failed");
     assert.equal(collected.advance, false);
     assert.equal(collected.failure?.code, "COLLECTOR_RESULT_INVALID");
   } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
+    fs.rmSync(path.dirname(resultFile), { recursive: true, force: true });
   }
 });

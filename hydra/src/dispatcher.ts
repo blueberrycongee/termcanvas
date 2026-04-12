@@ -7,15 +7,29 @@ import {
 
 export interface DispatchCreateOnlyRequest {
   workflowId: string;
-  handoffId: string;
+  assignmentId: string;
+  runId: string;
   repoPath: string;
   worktreePath: string;
   agentType: string;
+  /**
+   * Optional model pin (e.g. "opus", "gpt-5"). When set, the underlying CLI
+   * is invoked with its model flag via the CLI adapter.
+   */
+  model?: string;
+  /**
+   * Optional reasoning effort level using the target CLI's native vocabulary
+   * (claude: low|medium|high|max; codex: low|medium|high|xhigh). Validated
+   * against the adapter's capability before launch.
+   */
+  reasoningEffort?: string;
   taskFile: string;
-  doneFile: string;
   resultFile: string;
   autoApprove?: boolean;
   parentTerminalId?: string;
+  // Resume the agent's prior session (e.g., for redispatch after reset).
+  // Only consumed by agents that support session resumption (currently claude).
+  resumeSessionId?: string;
 }
 
 export interface DispatchCreateOnlyResult {
@@ -36,8 +50,9 @@ export interface DispatcherDependencies {
     autoApprove?: boolean,
     parentTerminalId?: string,
     workflowId?: string,
-    handoffId?: string,
+    assignmentId?: string,
     repoPath?: string,
+    resumeSessionId?: string,
   ): { id: string; type: string; title: string };
 }
 
@@ -49,12 +64,14 @@ const DEFAULT_DEPENDENCIES: DispatcherDependencies = {
 
 export function buildCreateOnlyPrompt(
   taskFile: string,
-  doneFile: string,
-  handoffId: string,
   workflowId: string,
   resultFile: string,
+  options: {
+    assignmentId: string;
+    runId: string;
+  },
 ): string {
-  return `Read ${taskFile} for the full task contract. Write a valid hydra/v2 result JSON to ${resultFile}. Then write a JSON done marker to ${doneFile} with version=hydra/v2, handoff_id=${handoffId}, workflow_id=${workflowId}, and result_file=${resultFile}.`;
+  return `Read ${taskFile} for the full task instructions. Finish every required artifact first, then write a human-readable report.md alongside ${resultFile} (summary, outputs, evidence, reflection — free-form markdown). Finally, publish a slim hydra/result/v0.1 result JSON to ${resultFile} with workflow_id=${workflowId}, assignment_id=${options.assignmentId}, run_id=${options.runId}, outcome (completed/stuck/error), and report_file pointing at the report.md you wrote. result.json must contain only those fields; Hydra rejects extras. Publish result.json atomically as the final artifact for this run.`;
 }
 
 export async function dispatchCreateOnly(
@@ -67,7 +84,7 @@ export async function dispatchCreateOnly(
       stage: "dispatcher.preflight",
       ids: {
         workflow_id: request.workflowId,
-        handoff_id: request.handoffId,
+        assignment_id: request.assignmentId,
       },
     });
   }
@@ -79,17 +96,19 @@ export async function dispatchCreateOnly(
       stage: "dispatcher.preflight",
       ids: {
         workflow_id: request.workflowId,
-        handoff_id: request.handoffId,
+        assignment_id: request.assignmentId,
       },
     });
   }
 
   const prompt = buildCreateOnlyPrompt(
     request.taskFile,
-    request.doneFile,
-    request.handoffId,
     request.workflowId,
     request.resultFile,
+    {
+      assignmentId: request.assignmentId,
+      runId: request.runId,
+    },
   );
   const terminal = dependencies.terminalCreate(
     request.worktreePath,
@@ -98,8 +117,9 @@ export async function dispatchCreateOnly(
     request.autoApprove,
     request.parentTerminalId,
     request.workflowId,
-    request.handoffId,
+    request.assignmentId,
     request.repoPath,
+    request.resumeSessionId,
   );
 
   return {
