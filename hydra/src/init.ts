@@ -100,10 +100,16 @@ export function checkHydraInstructionsStatus(
       return "missing";
     }
 
-    const currentSection = extractHydraSection(content);
-    if (!currentSection) {
+    const ranges = findHydraSectionRanges(content);
+    if (ranges.length === 0) {
       return "missing";
     }
+    if (ranges.length > 1) {
+      worst = "outdated";
+      continue;
+    }
+
+    const currentSection = extractHydraSection(content);
     if (normalizeSection(currentSection) !== normalizeSection(desiredSection)) {
       worst = "outdated";
     }
@@ -145,40 +151,47 @@ function normalizeSection(section: string): string {
   return section.trim().replace(/\s+$/gm, "");
 }
 
-function findHydraSectionRange(
+function findHydraSectionRanges(
   content: string,
-): { start: number; end: number } | null {
-  let start = content.indexOf(MARKER);
-  let markerLen = MARKER.length;
-  if (start === -1) {
-    start = content.indexOf(LEGACY_MARKER);
-    markerLen = LEGACY_MARKER.length;
-  }
-  if (start === -1) {
-    return null;
+): Array<{ start: number; end: number }> {
+  const headingRegex = /^## Hydra (?:Orchestration Toolkit|Sub-Agent Tool)$/gm;
+  const ranges: Array<{ start: number; end: number }> = [];
+
+  for (const match of content.matchAll(headingRegex)) {
+    const start = match.index;
+    if (start === undefined) continue;
+    const nextHeadingStart = content.indexOf("\n## ", start + match[0].length);
+    ranges.push({
+      start,
+      end: nextHeadingStart === -1 ? content.length : nextHeadingStart,
+    });
   }
 
-  const nextHeadingStart = content.indexOf("\n## ", start + markerLen);
-  return {
-    start,
-    end: nextHeadingStart === -1 ? content.length : nextHeadingStart,
-  };
+  return ranges;
 }
 
 function extractHydraSection(content: string): string | null {
-  const range = findHydraSectionRange(content);
+  const range = findHydraSectionRanges(content)[0];
   if (!range) {
     return null;
   }
   return content.slice(range.start, range.end).trimEnd();
 }
 
-function replaceHydraSection(content: string): string {
-  const range = findHydraSectionRange(content);
-  if (!range) {
+function replaceHydraSections(content: string): string {
+  const ranges = findHydraSectionRanges(content);
+  if (ranges.length === 0) {
     return content;
   }
-  return content.slice(0, range.start) + HYDRA_SECTION.trim() + content.slice(range.end);
+
+  let updated = content.slice(0, ranges[0].start) + HYDRA_SECTION.trim();
+  let cursor = ranges[0].end;
+  for (const range of ranges.slice(1)) {
+    updated += content.slice(cursor, range.start);
+    cursor = range.end;
+  }
+  updated += content.slice(cursor);
+  return updated;
 }
 
 function buildAppendedContent(existing: string): string {
@@ -202,12 +215,16 @@ function upsertHydraInstructions(
     return { fileName, filePath, status };
   }
 
+  const ranges = findHydraSectionRanges(existing);
   const currentSection = extractHydraSection(existing);
-  if (currentSection) {
-    if (normalizeSection(currentSection) === normalizeSection(desiredSection)) {
+  if (ranges.length > 0 && currentSection) {
+    if (
+      ranges.length === 1 &&
+      normalizeSection(currentSection) === normalizeSection(desiredSection)
+    ) {
       return { fileName, filePath, status: "unchanged" };
     }
-    content = replaceHydraSection(existing);
+    content = replaceHydraSections(existing);
     status = "updated";
   } else {
     content = existing ? buildAppendedContent(existing) : HYDRA_SECTION.trimStart();

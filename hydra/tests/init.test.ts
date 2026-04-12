@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { init } from "../src/init.ts";
+import { checkHydraInstructionsStatus, init } from "../src/init.ts";
 
 async function runInit(dir: string): Promise<string[]> {
   const logs: string[] = [];
@@ -106,6 +106,39 @@ test("init is idempotent when the current Hydra block is already present", async
 
   assert.deepEqual(logs, [
     "CLAUDE.md already contains current hydra instructions",
+    "AGENTS.md already contains current hydra instructions",
+  ]);
+});
+
+test("init treats duplicate legacy blocks as outdated and removes them", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hydra-init-duplicate-"));
+
+  await runInit(dir);
+
+  const claudePath = path.join(dir, "CLAUDE.md");
+  fs.appendFileSync(
+    claudePath,
+    [
+      "",
+      "",
+      "## Hydra Sub-Agent Tool",
+      "",
+      "Old Hydra instructions.",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+
+  assert.equal(checkHydraInstructionsStatus(dir), "outdated");
+
+  const logs = await runInit(dir);
+  const claudeMd = fs.readFileSync(claudePath, "utf-8");
+
+  assert.equal(checkHydraInstructionsStatus(dir), "current");
+  assert.equal(claudeMd.match(/## Hydra Orchestration Toolkit/g)?.length, 1);
+  assert.doesNotMatch(claudeMd, /## Hydra Sub-Agent Tool/);
+  assert.deepEqual(logs, [
+    "Updated hydra instructions in CLAUDE.md",
     "AGENTS.md already contains current hydra instructions",
   ]);
 });

@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { enableHydraForProject } from "../electron/hydra-project.ts";
+import {
+  checkHydraProjectStatus,
+  enableHydraForProject,
+} from "../electron/hydra-project.ts";
 
 test("enableHydraForProject writes Hydra instructions into the project root", () => {
   const repoPath = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-hydra-enable-"));
@@ -16,8 +19,8 @@ test("enableHydraForProject writes Hydra instructions into the project root", ()
   }
 
   assert.equal(result.changed, true);
-  assert.match(fs.readFileSync(path.join(repoPath, "CLAUDE.md"), "utf-8"), /## Hydra Sub-Agent Tool/);
-  assert.match(fs.readFileSync(path.join(repoPath, "AGENTS.md"), "utf-8"), /## Hydra Sub-Agent Tool/);
+  assert.match(fs.readFileSync(path.join(repoPath, "CLAUDE.md"), "utf-8"), /## Hydra Orchestration Toolkit/);
+  assert.match(fs.readFileSync(path.join(repoPath, "AGENTS.md"), "utf-8"), /## Hydra Orchestration Toolkit/);
 });
 
 test("enableHydraForProject reports unchanged when the current instructions already exist", () => {
@@ -46,4 +49,28 @@ test("enableHydraForProject rejects missing project paths", () => {
   }
 
   assert.match(result.error, /no such file or directory/i);
+});
+
+test("checkHydraProjectStatus auto-upgrades outdated Hydra instructions for old projects", () => {
+  const repoPath = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-hydra-upgrade-"));
+  const legacy = [
+    "# Notes",
+    "",
+    "## Hydra Sub-Agent Tool",
+    "",
+    "Old Hydra instructions.",
+    "",
+  ].join("\n");
+  fs.writeFileSync(path.join(repoPath, "CLAUDE.md"), legacy, "utf-8");
+  fs.writeFileSync(path.join(repoPath, "AGENTS.md"), legacy, "utf-8");
+
+  const status = checkHydraProjectStatus(repoPath);
+
+  assert.equal(status, "current");
+  const claudeMd = fs.readFileSync(path.join(repoPath, "CLAUDE.md"), "utf-8");
+  const agentsMd = fs.readFileSync(path.join(repoPath, "AGENTS.md"), "utf-8");
+  assert.match(claudeMd, /## Hydra Orchestration Toolkit/);
+  assert.match(agentsMd, /## Hydra Orchestration Toolkit/);
+  assert.doesNotMatch(claudeMd, /## Hydra Sub-Agent Tool/);
+  assert.doesNotMatch(agentsMd, /## Hydra Sub-Agent Tool/);
 });

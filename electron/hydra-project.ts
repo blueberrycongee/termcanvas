@@ -26,7 +26,16 @@ export type HydraInjectStatus = "missing" | "outdated" | "current";
 
 export function checkHydraProjectStatus(repoPath: string): HydraInjectStatus {
   try {
-    return checkHydraInstructionsStatus(path.resolve(repoPath));
+    const resolvedPath = path.resolve(repoPath);
+    const status = checkHydraInstructionsStatus(resolvedPath);
+    if (status !== "outdated") {
+      return status;
+    }
+
+    // Heal forward for projects that already opted into Hydra but still
+    // carry a stale instruction block from an older TermCanvas release.
+    syncHydraInstructions(resolvedPath);
+    return checkHydraInstructionsStatus(resolvedPath);
   } catch {
     return "missing";
   }
