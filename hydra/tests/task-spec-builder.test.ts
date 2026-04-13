@@ -4,24 +4,24 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { buildTaskSpecFromIntent } from "../src/task-spec-builder.ts";
-import { WORKFLOW_STATE_SCHEMA_VERSION } from "../src/workflow-store.ts";
-import type { WorkflowRecord, WorkflowNode } from "../src/workflow-store.ts";
+import { WORKBENCH_STATE_SCHEMA_VERSION } from "../src/workflow-store.ts";
+import type { WorkbenchRecord, Dispatch } from "../src/workflow-store.ts";
 import type { AssignmentRecord } from "../src/assignment/types.ts";
 import { RESULT_SCHEMA_VERSION } from "../src/protocol.ts";
-import { writeNodeFeedback, writeNodeIntent, writeWorkflowIntent } from "../src/artifacts.ts";
+import { writeDispatchFeedback, writeDispatchIntent, writeWorkbenchIntent } from "../src/artifacts.ts";
 
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "hydra-taskspec-"));
 }
 
 function setupWorkflow(repoPath: string, intent: string): string {
-  const intentAbs = writeWorkflowIntent(repoPath, "workflow-test", intent);
+  const intentAbs = writeWorkbenchIntent(repoPath, "workflow-test", intent);
   return path.relative(repoPath, intentAbs);
 }
 
-function makeWorkflow(repoPath: string, overrides: Partial<WorkflowRecord> = {}): WorkflowRecord {
+function makeWorkbench(repoPath: string, overrides: Partial<WorkbenchRecord> = {}): WorkbenchRecord {
   return {
-    schema_version: WORKFLOW_STATE_SCHEMA_VERSION,
+    schema_version: WORKBENCH_STATE_SCHEMA_VERSION,
     id: "workflow-test",
     lead_terminal_id: "terminal-lead",
     intent_file: "inputs/intent.md",
@@ -33,9 +33,7 @@ function makeWorkflow(repoPath: string, overrides: Partial<WorkflowRecord> = {})
     created_at: "2026-04-09T00:00:00.000Z",
     updated_at: "2026-04-09T00:00:00.000Z",
     status: "active",
-    nodes: {},
-    node_statuses: {},
-    assignment_ids: [],
+    dispatches: {},
     default_timeout_minutes: 30,
     default_max_retries: 1,
     auto_approve: true,
@@ -43,20 +41,20 @@ function makeWorkflow(repoPath: string, overrides: Partial<WorkflowRecord> = {})
   };
 }
 
-function setupNode(repoPath: string, nodeId: string, role: string, intent: string): string {
-  const abs = writeNodeIntent(repoPath, "workflow-test", nodeId, role, intent);
+function setupDispatch(repoPath: string, dispatchId: string, role: string, intent: string): string {
+  const abs = writeDispatchIntent(repoPath, "workflow-test", dispatchId, role, intent);
   return path.relative(repoPath, abs);
 }
 
-function makeNode(repoPath: string, overrides: Partial<WorkflowNode> = {}): WorkflowNode {
+function makeDispatch(repoPath: string, overrides: Partial<Dispatch> = {}): Dispatch {
   const id = overrides.id ?? "test-node";
   const role = overrides.role ?? "dev";
-  const intentFile = overrides.intent_file ?? setupNode(repoPath, id, role, "Implement feature X");
+  const intentFile = overrides.intent_file ?? setupDispatch(repoPath, id, role, "Implement feature X");
   return {
     id,
     role,
-    depends_on: overrides.depends_on ?? [],
     agent_type: overrides.agent_type ?? "claude",
+    status: overrides.status ?? "dispatched",
     intent_file: intentFile,
     ...overrides,
   };
@@ -87,15 +85,15 @@ test("buildTaskSpecFromIntent produces valid RunTaskSpec for dev", () => {
     setupWorkflow(repoPath, "Test workflow intent");
 
     const spec = buildTaskSpecFromIntent({
-      workflow: makeWorkflow(repoPath),
-      node: makeNode(repoPath, { role: "dev" }),
+      workbench: makeWorkbench(repoPath),
+      dispatch: makeDispatch(repoPath, { role: "dev" }),
       assignment: makeAssignment({ role: "dev" }),
       runId: "run-001",
     });
 
     assert.equal(spec.role, "dev");
     assert.equal(spec.agentType, "claude");
-    assert.equal(spec.workflowId, "workflow-test");
+    assert.equal(spec.workbenchId, "workflow-test");
     assert.equal(spec.assignmentId, "assignment-test");
     assert.equal(spec.runId, "run-001");
     assert.ok(spec.objective.some((line) => line.includes("Implement")));
@@ -116,15 +114,15 @@ test("buildTaskSpecFromIntent surfaces reviewer briefing via the role body", () 
   const repoPath = makeTmpDir();
   try {
     setupWorkflow(repoPath, "Test");
-    const node = makeNode(repoPath, {
+    const disp = makeDispatch(repoPath, {
       id: "review",
       role: "reviewer",
-      intent_file: setupNode(repoPath, "review", "reviewer", "Review the implementation"),
+      intent_file: setupDispatch(repoPath, "review", "reviewer", "Review the implementation"),
     });
 
     const spec = buildTaskSpecFromIntent({
-      workflow: makeWorkflow(repoPath),
-      node,
+      workbench: makeWorkbench(repoPath),
+      dispatch: disp,
       assignment: makeAssignment({ role: "reviewer" }),
       runId: "run-001",
     });
@@ -147,8 +145,8 @@ test("buildTaskSpecFromIntent includes context_refs in readFiles", () => {
     fs.writeFileSync(contextFile, "# Context\n", "utf-8");
 
     const spec = buildTaskSpecFromIntent({
-      workflow: makeWorkflow(repoPath),
-      node: makeNode(repoPath, { context_refs: [{ label: "Research brief", path: contextFile }] }),
+      workbench: makeWorkbench(repoPath),
+      dispatch: makeDispatch(repoPath, { context_refs: [{ label: "Research brief", path: contextFile }] }),
       assignment: makeAssignment(),
       runId: "run-001",
     });
@@ -163,12 +161,12 @@ test("buildTaskSpecFromIntent reads feedback file when feedback_file is set", ()
   const repoPath = makeTmpDir();
   try {
     setupWorkflow(repoPath, "Test");
-    const feedbackAbs = writeNodeFeedback(repoPath, "workflow-test", "test-node", "Tests fail on edge case X");
+    const feedbackAbs = writeDispatchFeedback(repoPath, "workflow-test", "test-node", "Tests fail on edge case X");
     const feedbackRel = path.relative(repoPath, feedbackAbs);
 
     const spec = buildTaskSpecFromIntent({
-      workflow: makeWorkflow(repoPath),
-      node: makeNode(repoPath, { feedback_file: feedbackRel }),
+      workbench: makeWorkbench(repoPath),
+      dispatch: makeDispatch(repoPath, { feedback_file: feedbackRel }),
       assignment: makeAssignment(),
       runId: "run-001",
     });
@@ -189,8 +187,8 @@ test("buildTaskSpecFromIntent includes result contract section with schema versi
     setupWorkflow(repoPath, "Test");
 
     const spec = buildTaskSpecFromIntent({
-      workflow: makeWorkflow(repoPath),
-      node: makeNode(repoPath),
+      workbench: makeWorkbench(repoPath),
+      dispatch: makeDispatch(repoPath),
       assignment: makeAssignment(),
       runId: "run-001",
     });
@@ -213,8 +211,8 @@ test("buildTaskSpecFromIntent fails fast when the role is not in the registry", 
     assert.throws(
       () =>
         buildTaskSpecFromIntent({
-          workflow: makeWorkflow(repoPath),
-          node: makeNode(repoPath, { role: "custom-checker" }),
+          workbench: makeWorkbench(repoPath),
+          dispatch: makeDispatch(repoPath, { role: "custom-checker" }),
           assignment: makeAssignment({ role: "custom-checker" }),
           runId: "run-001",
         }),
@@ -231,8 +229,8 @@ test("buildTaskSpecFromIntent always includes Report and Result write targets", 
     setupWorkflow(repoPath, "Test");
 
     const spec = buildTaskSpecFromIntent({
-      workflow: makeWorkflow(repoPath),
-      node: makeNode(repoPath),
+      workbench: makeWorkbench(repoPath),
+      dispatch: makeDispatch(repoPath),
       assignment: makeAssignment(),
       runId: "run-001",
     });

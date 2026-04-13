@@ -32,7 +32,7 @@ test("dispatchCreateOnly launches a terminal with the create-only prompt", async
 
   const result = await dispatchCreateOnly(
     {
-      workflowId: "workflow-auth",
+      workbenchId: "workflow-auth",
       assignmentId: "assignment-abc123",
       runId: "run-1",
       repoPath: "/repo/project",
@@ -101,7 +101,7 @@ test("dispatchCreateOnly forwards resumeSessionId to terminalCreate", async () =
 
   await dispatchCreateOnly(
     {
-      workflowId: "workflow-resume",
+      workbenchId: "workflow-resume",
       assignmentId: "assignment-resume",
       runId: "run-2",
       repoPath: "/repo/project",
@@ -133,7 +133,7 @@ test("dispatchCreateOnly fails when TermCanvas is not running", async () => {
     () =>
       dispatchCreateOnly(
         {
-          workflowId: "workflow-auth",
+          workbenchId: "workflow-auth",
           assignmentId: "assignment-abc123",
           runId: "run-1",
           repoPath: "/repo/project",
@@ -165,7 +165,7 @@ test("dispatchCreateOnly fails when the repo is not on the canvas", async () => 
     () =>
       dispatchCreateOnly(
         {
-          workflowId: "workflow-auth",
+          workbenchId: "workflow-auth",
           assignmentId: "assignment-abc123",
           runId: "run-1",
           repoPath: "/repo/project",

@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { ensureLeadCaller, getCurrentTerminalId } from "../src/lead-guard.ts";
-import type { WorkflowRecord } from "../src/workflow-store.ts";
-import { WORKFLOW_STATE_SCHEMA_VERSION } from "../src/workflow-store.ts";
+import type { WorkbenchRecord } from "../src/workflow-store.ts";
+import { WORKBENCH_STATE_SCHEMA_VERSION } from "../src/workflow-store.ts";
 
-function makeWorkflow(overrides: Partial<WorkflowRecord> = {}): WorkflowRecord {
+function makeWorkflow(overrides: Partial<WorkbenchRecord> = {}): WorkbenchRecord {
   return {
-    schema_version: WORKFLOW_STATE_SCHEMA_VERSION,
+    schema_version: WORKBENCH_STATE_SCHEMA_VERSION,
     id: "workflow-test",
     lead_terminal_id: "terminal-lead",
     intent_file: "inputs/intent.md",
@@ -18,9 +18,7 @@ function makeWorkflow(overrides: Partial<WorkflowRecord> = {}): WorkflowRecord {
     created_at: "2026-04-10T00:00:00.000Z",
     updated_at: "2026-04-10T00:00:00.000Z",
     status: "active",
-    nodes: {},
-    node_statuses: {},
-    assignment_ids: [],
+    dispatches: {},
     default_timeout_minutes: 30,
     default_max_retries: 1,
     auto_approve: true,
@@ -72,13 +70,13 @@ test("ensureLeadCaller permits the matching Lead terminal", () => {
   });
 });
 
-test("ensureLeadCaller rejects a different terminal with WORKFLOW_NOT_LEAD", () => {
+test("ensureLeadCaller rejects a different terminal with WORKBENCH_NOT_LEAD", () => {
   withTerminalId("terminal-other", () => {
     const workflow = makeWorkflow({ lead_terminal_id: "terminal-lead" });
     assert.throws(
       () => ensureLeadCaller(workflow),
       (err: Error & { errorCode?: string }) => {
-        assert.equal(err.errorCode, "WORKFLOW_NOT_LEAD");
+        assert.equal(err.errorCode, "WORKBENCH_NOT_LEAD");
         assert.match(err.message, /Only the Lead terminal/);
         return true;
       },

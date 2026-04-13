@@ -5,19 +5,20 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import {
-  initWorkflow,
-  dispatchNode,
-  redispatchNode,
+  initWorkbench,
+  dispatch,
+  redispatch,
   watchUntilDecision,
-  resetNode,
-  approveNode,
-  completeWorkflow,
-  failWorkflow,
-  getWorkflowStatus,
-  askNode,
-  type WorkflowDependencies,
+  resetDispatch,
+  approveDispatch,
+  completeWorkbench,
+  failWorkbench,
+  getWorkbenchStatus,
+  askDispatch,
+  type WorkbenchDependencies,
 } from "../src/workflow-lead.ts";
-import { loadWorkflow, WORKFLOW_STATE_SCHEMA_VERSION } from "../src/workflow-store.ts";
+import type { DispatchCreateOnlyRequest } from "../src/dispatcher.ts";
+import { loadWorkbench, WORKBENCH_STATE_SCHEMA_VERSION } from "../src/workflow-store.ts";
 import { RESULT_SCHEMA_VERSION } from "../src/protocol.ts";
 import { readLedger } from "../src/ledger.ts";
 import { AssignmentManager } from "../src/assignment/manager.ts";
@@ -32,14 +33,14 @@ function makeTestRepo(): string {
   return dir;
 }
 
-function mockDeps(): WorkflowDependencies {
+function mockDeps(): WorkbenchDependencies {
   let time = Date.parse("2026-04-09T00:00:00.000Z");
   return {
     now: () => {
       time += 1000;
       return new Date(time).toISOString();
     },
-    dispatchCreateOnly: async (request) => ({
+    dispatchCreateOnly: async (request: DispatchCreateOnlyRequest) => ({
       projectId: "project-1",
       terminalId: `terminal-${request.assignmentId}`,
       terminalType: request.agentType,
@@ -57,33 +58,32 @@ test("initWorkflow creates workflow directory and record", async () => {
   const repo = makeTestRepo();
   const deps = mockDeps();
   try {
-    const result = await initWorkflow({
+    const result = await initWorkbench({
       intent: "Add OAuth login",
       repoPath: repo,
       worktreePath: repo,
     }, deps);
 
-    assert.ok(result.workflow_id.startsWith("workflow-"));
+    assert.ok(result.workbench_id.startsWith("workbench-"));
     assert.equal(result.worktree_path, repo);
 
-    const workflow = loadWorkflow(repo, result.workflow_id);
+    const workflow = loadWorkbench(repo, result.workbench_id);
     assert.ok(workflow);
-    assert.equal(workflow.schema_version, WORKFLOW_STATE_SCHEMA_VERSION);
+    assert.equal(workflow.schema_version, WORKBENCH_STATE_SCHEMA_VERSION);
     assert.equal(workflow.lead_terminal_id, "terminal-test-lead");
     assert.equal(workflow.status, "active");
-    assert.deepEqual(workflow.nodes, {});
-    assert.deepEqual(workflow.node_statuses, {});
+    assert.deepEqual(workflow.dispatches, {});
 
     // Check intent.md exists with the actual intent text
-    const intentPath = path.join(repo, ".hydra", "workflows", result.workflow_id, "inputs", "intent.md");
+    const intentPath = path.join(repo, ".hydra", "workbenches", result.workbench_id, "inputs", "intent.md");
     assert.ok(fs.existsSync(intentPath));
     const intentContent = fs.readFileSync(intentPath, "utf-8");
     assert.ok(intentContent.includes("Add OAuth login"));
 
     // Check ledger
-    const ledger = readLedger(repo, result.workflow_id);
+    const ledger = readLedger(repo, result.workbench_id);
     assert.equal(ledger.length, 1);
-    assert.equal(ledger[0].event.type, "workflow_created");
+    assert.equal(ledger[0].event.type, "workbench_created");
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -93,12 +93,12 @@ test("dispatchNode locks node.agent_type from the role file (codex role override
   const repo = makeTestRepo();
   const dispatched: Array<{ agentType: string; model?: string }> = [];
   let time = Date.parse("2026-04-09T00:00:00.000Z");
-  const deps: WorkflowDependencies = {
+  const deps: WorkbenchDependencies = {
     now: () => {
       time += 1000;
       return new Date(time).toISOString();
     },
-    dispatchCreateOnly: async (request) => {
+    dispatchCreateOnly: async (request: DispatchCreateOnlyRequest) => {
       dispatched.push({ agentType: request.agentType, model: request.model });
       return {
         projectId: "project-1",
@@ -116,15 +116,15 @@ test("dispatchNode locks node.agent_type from the role file (codex role override
   try {
     // The role file's terminals[0] is the only source for cli selection.
     // reviewer[0] = codex, so the dispatched terminal comes up as codex.
-    const init = await initWorkflow({
+    const init = await initWorkbench({
       intent: "Test agent_type lock",
       repoPath: repo,
       worktreePath: repo,
     }, deps);
 
-    await dispatchNode({
-      repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "reviewer", intent: "Build it",
+    await dispatch({
+      repoPath: repo, workbenchId: init.workbench_id,
+      dispatchId: "dev", role: "reviewer", intent: "Build it",
     }, deps);
 
     // The dispatched terminal must come up as codex (locked by the role),
@@ -133,9 +133,9 @@ test("dispatchNode locks node.agent_type from the role file (codex role override
     assert.equal(dispatched[0].agentType, "codex");
 
     // The persisted node must record the role's agent_type, not the default.
-    const workflow = loadWorkflow(repo, init.workflow_id)!;
-    assert.equal(workflow.nodes.dev.agent_type, "codex");
-    assert.equal(workflow.nodes.dev.role, "reviewer");
+    const workflow = loadWorkbench(repo, init.workbench_id)!;
+    assert.equal(workflow.dispatches.dev.agent_type, "codex");
+    assert.equal(workflow.dispatches.dev.role, "reviewer");
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -145,10 +145,10 @@ test("dispatchNode snapshots retry_policy onto the assignment", async () => {
   const repo = makeTestRepo();
   const deps = mockDeps();
   try {
-    const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
-    const dispatched = await dispatchNode({
-      repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "dev", intent: "Build it",
+    const init = await initWorkbench({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
+    const dispatched = await dispatch({
+      repoPath: repo, workbenchId: init.workbench_id,
+      dispatchId: "dev", role: "dev", intent: "Build it",
       retryPolicy: {
         initial_interval_ms: 500,
         backoff_coefficient: 3,
@@ -157,8 +157,8 @@ test("dispatchNode snapshots retry_policy onto the assignment", async () => {
       },
     }, deps);
 
-    const workflow = loadWorkflow(repo, init.workflow_id)!;
-    assert.deepEqual(workflow.nodes.dev.retry_policy, {
+    const workflow = loadWorkbench(repo, init.workbench_id)!;
+    assert.deepEqual(workflow.dispatches.dev.retry_policy, {
       initial_interval_ms: 500,
       backoff_coefficient: 3,
       maximum_attempts: 4,
@@ -167,8 +167,8 @@ test("dispatchNode snapshots retry_policy onto the assignment", async () => {
 
     // Same policy is snapshotted onto the assignment so the state machine
     // never has to load the workflow.
-    const manager = new AssignmentManager(repo, init.workflow_id);
-    const assignment = manager.load(dispatched.assignment_id)!;
+    const manager = new AssignmentManager(repo, init.workbench_id);
+    const assignment = manager.load(dispatched.dispatch_id)!;
     assert.deepEqual(assignment.retry_policy, {
       initial_interval_ms: 500,
       backoff_coefficient: 3,
@@ -184,19 +184,19 @@ test("dispatchAssignment waits for next_retry_at via the injected sleep dep", as
   const repo = makeTestRepo();
   const sleepCalls: number[] = [];
   let time = Date.parse("2026-04-12T00:00:00.000Z");
-  const deps: WorkflowDependencies = {
+  const deps: WorkbenchDependencies = {
     now: () => {
       time += 1000;
       return new Date(time).toISOString();
     },
-    dispatchCreateOnly: async (request) => ({
+    dispatchCreateOnly: async (request: DispatchCreateOnlyRequest) => ({
       projectId: "project-1",
       terminalId: `terminal-${request.assignmentId}`,
       terminalType: request.agentType,
       terminalTitle: `Agent ${request.assignmentId}`,
       prompt: "test prompt",
     }),
-    sleep: async (ms) => {
+    sleep: async (ms: number) => {
       sleepCalls.push(ms);
     },
     syncProject: () => {},
@@ -204,37 +204,37 @@ test("dispatchAssignment waits for next_retry_at via the injected sleep dep", as
     checkTerminalAlive: () => null,
   };
   try {
-    const init = await initWorkflow({ intent: "Backoff", repoPath: repo, worktreePath: repo }, deps);
-    const dispatched = await dispatchNode({
-      repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "dev", intent: "Build it",
+    const init = await initWorkbench({ intent: "Backoff", repoPath: repo, worktreePath: repo }, deps);
+    const dispatched = await dispatch({
+      repoPath: repo, workbenchId: init.workbench_id,
+      dispatchId: "dev", role: "dev", intent: "Build it",
       retryPolicy: { initial_interval_ms: 5_000 },
     }, deps);
 
     // Hand-stamp next_retry_at to a future time and reset the assignment to
     // pending so the next dispatchAssignment call observes the backoff. Also
     // flip the node status to "reset" so redispatchNode accepts it.
-    const manager = new AssignmentManager(repo, init.workflow_id);
-    const assignment = manager.load(dispatched.assignment_id)!;
+    const manager = new AssignmentManager(repo, init.workbench_id);
+    const assignment = manager.load(dispatched.dispatch_id)!;
     const baseNowIso = new Date(time).toISOString();
     assignment.next_retry_at = new Date(Date.parse(baseNowIso) + 5_000).toISOString();
     assignment.status = "pending";
     assignment.claim = undefined;
     manager.save(assignment);
 
-    const workflow = loadWorkflow(repo, init.workflow_id)!;
-    workflow.node_statuses.dev = "reset";
+    const workflow = loadWorkbench(repo, init.workbench_id)!;
+    workflow.dispatches.dev.status = "reset";
     // saveWorkflow is internal; mutate via the manager-adjacent path —
     // re-serialize via fs since the test fixture doesn't expose saveWorkflow.
     fs.writeFileSync(
-      path.join(repo, ".hydra", "workflows", init.workflow_id, "workflow.json"),
+      path.join(repo, ".hydra", "workbenches", init.workbench_id, "workbench.json"),
       JSON.stringify(workflow, null, 2),
       "utf-8",
     );
 
     // Trigger redispatchNode (which calls dispatchAssignment under the hood).
-    await redispatchNode({
-      repoPath: repo, workflowId: init.workflow_id, nodeId: "dev",
+    await redispatch({
+      repoPath: repo, workbenchId: init.workbench_id, dispatchId: "dev",
     }, deps);
 
     // The injected sleep was invoked with roughly the backoff window. Time
@@ -251,12 +251,12 @@ test("dispatchNode threads model override through to the dispatch request", asyn
   const repo = makeTestRepo();
   const dispatched: Array<{ model?: string }> = [];
   let time = Date.parse("2026-04-09T00:00:00.000Z");
-  const deps: WorkflowDependencies = {
+  const deps: WorkbenchDependencies = {
     now: () => {
       time += 1000;
       return new Date(time).toISOString();
     },
-    dispatchCreateOnly: async (request) => {
+    dispatchCreateOnly: async (request: DispatchCreateOnlyRequest) => {
       dispatched.push({ model: request.model });
       return {
         projectId: "project-1",
@@ -272,21 +272,21 @@ test("dispatchNode threads model override through to the dispatch request", asyn
     checkTerminalAlive: () => null,
   };
   try {
-    const init = await initWorkflow({
+    const init = await initWorkbench({
       intent: "Test model wiring",
       repoPath: repo,
       worktreePath: repo,
     }, deps);
-    await dispatchNode({
-      repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "dev", intent: "Build it",
+    await dispatch({
+      repoPath: repo, workbenchId: init.workbench_id,
+      dispatchId: "dev", role: "dev", intent: "Build it",
       model: "opus",
     }, deps);
 
     assert.equal(dispatched.length, 1);
     assert.equal(dispatched[0].model, "opus");
-    const workflow = loadWorkflow(repo, init.workflow_id)!;
-    assert.equal(workflow.nodes.dev.model, "opus");
+    const workflow = loadWorkbench(repo, init.workbench_id)!;
+    assert.equal(workflow.dispatches.dev.model, "opus");
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -296,48 +296,46 @@ test("dispatchNode dispatches an eligible node", async () => {
   const repo = makeTestRepo();
   const deps = mockDeps();
   try {
-    const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
+    const init = await initWorkbench({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
 
-    const result = await dispatchNode({
+    const result = await dispatch({
       repoPath: repo,
-      workflowId: init.workflow_id,
-      nodeId: "researcher",
+      workbenchId: init.workbench_id,
+      dispatchId: "researcher",
       role: "dev",
       intent: "Analyze the codebase",
     }, deps);
 
-    assert.equal(result.node_id, "researcher");
+    assert.equal(result.dispatch_id, "researcher");
     assert.equal(result.status, "dispatched");
     assert.ok(result.terminal_id);
 
-    const workflow = loadWorkflow(repo, init.workflow_id)!;
-    assert.equal(workflow.node_statuses.researcher, "dispatched");
-    assert.ok(workflow.nodes.researcher.assignment_id);
+    const workflow = loadWorkbench(repo, init.workbench_id)!;
+    assert.equal(workflow.dispatches.researcher.status, "dispatched");
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
 });
 
-test("dispatchNode blocks when dependencies are not met", async () => {
+test("dispatchNode dispatches immediately (no dependency blocking)", async () => {
   const repo = makeTestRepo();
   const deps = mockDeps();
   try {
-    const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
-    await dispatchNode({
-      repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "researcher", role: "dev", intent: "Research",
+    const init = await initWorkbench({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
+    await dispatch({
+      repoPath: repo, workbenchId: init.workbench_id,
+      dispatchId: "researcher", role: "dev", intent: "Research",
     }, deps);
 
-    const result = await dispatchNode({
-      repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "dev", intent: "Implement",
-      dependsOn: ["researcher"],
+    const result = await dispatch({
+      repoPath: repo, workbenchId: init.workbench_id,
+      dispatchId: "dev", role: "dev", intent: "Implement",
     }, deps);
 
-    assert.equal(result.status, "blocked");
+    assert.equal(result.status, "dispatched");
 
-    const workflow = loadWorkflow(repo, init.workflow_id)!;
-    assert.equal(workflow.node_statuses.dev, "blocked");
+    const workflow = loadWorkbench(repo, init.workbench_id)!;
+    assert.equal(workflow.dispatches.dev.status, "dispatched");
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -347,16 +345,16 @@ test("dispatchNode rejects duplicate node IDs", async () => {
   const repo = makeTestRepo();
   const deps = mockDeps();
   try {
-    const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
-    await dispatchNode({
-      repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "dev", intent: "Implement",
+    const init = await initWorkbench({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
+    await dispatch({
+      repoPath: repo, workbenchId: init.workbench_id,
+      dispatchId: "dev", role: "dev", intent: "Implement",
     }, deps);
 
     await assert.rejects(
-      () => dispatchNode({
-        repoPath: repo, workflowId: init.workflow_id,
-        nodeId: "dev", role: "reviewer", intent: "Test",
+      () => dispatch({
+        repoPath: repo, workbenchId: init.workbench_id,
+        dispatchId: "dev", role: "reviewer", intent: "Test",
       }, deps),
       (err: Error) => {
         assert.match(err.message, /already exists/);
@@ -368,35 +366,17 @@ test("dispatchNode rejects duplicate node IDs", async () => {
   }
 });
 
-test("dispatchNode allows linear chains", async () => {
+test("dispatchNode dispatches multiple nodes independently", async () => {
   const repo = makeTestRepo();
   const deps = mockDeps();
   try {
-    const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
-    await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "a", role: "dev", intent: "A" }, deps);
-    await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "b", role: "dev", intent: "B", dependsOn: ["a"] }, deps);
-    const result = await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "c", role: "dev", intent: "C", dependsOn: ["b"] }, deps);
-    assert.equal(result.status, "blocked"); // b is blocked, so c is also blocked
-  } finally {
-    fs.rmSync(repo, { recursive: true, force: true });
-  }
-});
-
-test("dispatchNode rejects unknown dependency", async () => {
-  const repo = makeTestRepo();
-  const deps = mockDeps();
-  try {
-    const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
-    await assert.rejects(
-      () => dispatchNode({
-        repoPath: repo, workflowId: init.workflow_id,
-        nodeId: "x", role: "dev", intent: "X", dependsOn: ["nonexistent"],
-      }, deps),
-      (err: Error) => {
-        assert.match(err.message, /not found/i);
-        return true;
-      },
-    );
+    const init = await initWorkbench({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
+    const a = await dispatch({ repoPath: repo, workbenchId: init.workbench_id, dispatchId: "a", role: "dev", intent: "A" }, deps);
+    const b = await dispatch({ repoPath: repo, workbenchId: init.workbench_id, dispatchId: "b", role: "dev", intent: "B" }, deps);
+    const c = await dispatch({ repoPath: repo, workbenchId: init.workbench_id, dispatchId: "c", role: "dev", intent: "C" }, deps);
+    assert.equal(a.status, "dispatched");
+    assert.equal(b.status, "dispatched");
+    assert.equal(c.status, "dispatched");
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -406,18 +386,18 @@ test("watchUntilDecision returns node_completed when result.json appears", async
   const repo = makeTestRepo();
   const deps = mockDeps();
   try {
-    const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
-    const dispatched = await dispatchNode({
-      repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "dev", intent: "Implement feature",
+    const init = await initWorkbench({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
+    const dispatched = await dispatch({
+      repoPath: repo, workbenchId: init.workbench_id,
+      dispatchId: "dev", role: "dev", intent: "Implement feature",
     }, deps);
 
     // Write result.json to the expected location
-    const workflow = loadWorkflow(repo, init.workflow_id)!;
+    const workflow = loadWorkbench(repo, init.workbench_id)!;
     const assignment = (await import("../src/assignment/manager.ts")).AssignmentManager
       .prototype.load.call(
-        new (await import("../src/assignment/manager.ts")).AssignmentManager(repo, init.workflow_id),
-        dispatched.assignment_id,
+        new (await import("../src/assignment/manager.ts")).AssignmentManager(repo, init.workbench_id),
+        dispatched.dispatch_id,
       );
     assert.ok(assignment);
     const run = assignment.runs[0];
@@ -425,19 +405,19 @@ test("watchUntilDecision returns node_completed when result.json appears", async
 
     fs.writeFileSync(run.result_file, JSON.stringify({
       schema_version: RESULT_SCHEMA_VERSION,
-      workflow_id: init.workflow_id,
-      assignment_id: dispatched.assignment_id,
+      workbench_id: init.workbench_id,
+      assignment_id: dispatched.dispatch_id,
       run_id: run.id,
       outcome: "completed",
       report_file: "report.md",
     }, null, 2), "utf-8");
 
     const decision = await watchUntilDecision({
-      repoPath: repo, workflowId: init.workflow_id, timeoutMs: 5000,
+      repoPath: repo, workbenchId: init.workbench_id, timeoutMs: 5000,
     }, deps);
 
-    assert.equal(decision.type, "node_completed");
-    assert.equal(decision.completed?.node_id, "dev");
+    assert.equal(decision.type, "dispatch_completed");
+    assert.equal(decision.completed?.dispatch_id, "dev");
     assert.equal(decision.completed?.outcome, "completed");
     assert.equal(decision.completed?.report_file, "report.md");
   } finally {
@@ -449,13 +429,13 @@ test("watchUntilDecision returns batch_completed when no nodes are active", asyn
   const repo = makeTestRepo();
   const deps = mockDeps();
   try {
-    const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
+    const init = await initWorkbench({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
     // Don't dispatch anything — empty workflow
     // Need at least one node for batch_completed (otherwise it loops forever)
     // Actually with no nodes, statuses.length === 0 so it won't trigger batch_completed
     // It'll hit timeout instead
     const decision = await watchUntilDecision({
-      repoPath: repo, workflowId: init.workflow_id, timeoutMs: 100,
+      repoPath: repo, workbenchId: init.workbench_id, timeoutMs: 100,
     }, deps);
 
     assert.equal(decision.type, "watch_timeout");
@@ -464,34 +444,30 @@ test("watchUntilDecision returns batch_completed when no nodes are active", asyn
   }
 });
 
-test("resetNode cascades downstream and sets correct statuses", async () => {
+test("resetNode resets only the target node", async () => {
   const repo = makeTestRepo();
   const deps = mockDeps();
   try {
-    const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
-    await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "a", role: "dev", intent: "A" }, deps);
-    await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "b", role: "dev", intent: "B", dependsOn: ["a"] }, deps);
-    await dispatchNode({ repoPath: repo, workflowId: init.workflow_id, nodeId: "c", role: "reviewer", intent: "C", dependsOn: ["b"] }, deps);
+    const init = await initWorkbench({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
+    await dispatch({ repoPath: repo, workbenchId: init.workbench_id, dispatchId: "a", role: "dev", intent: "A" }, deps);
+    await dispatch({ repoPath: repo, workbenchId: init.workbench_id, dispatchId: "b", role: "dev", intent: "B" }, deps);
 
-    const result = await resetNode({
-      repoPath: repo, workflowId: init.workflow_id, nodeId: "a", feedback: "Redo this",
+    const result = await resetDispatch({
+      repoPath: repo, workbenchId: init.workbench_id, dispatchId: "a", feedback: "Redo this",
     }, deps);
 
-    assert.ok(result.reset_node_ids.includes("a"));
-    assert.ok(result.reset_node_ids.includes("b"));
-    assert.ok(result.reset_node_ids.includes("c"));
+    assert.equal(result.dispatch_id, "a");
 
-    const workflow = loadWorkflow(repo, init.workflow_id)!;
-    assert.equal(workflow.node_statuses.a, "eligible"); // target: eligible
-    assert.equal(workflow.node_statuses.b, "blocked");  // downstream: blocked
-    assert.equal(workflow.node_statuses.c, "blocked");  // downstream: blocked
-    assert.ok(workflow.nodes.a.feedback_file);  // feedback written to file
-    const feedbackContent = fs.readFileSync(path.join(repo, workflow.nodes.a.feedback_file!), "utf-8");
+    const workflow = loadWorkbench(repo, init.workbench_id)!;
+    assert.equal(workflow.dispatches.a.status, "eligible");  // target: reset to eligible
+    assert.equal(workflow.dispatches.b.status, "dispatched"); // other node: unchanged
+    assert.ok(workflow.dispatches.a.feedback_file);
+    const feedbackContent = fs.readFileSync(path.join(repo, workflow.dispatches.a.feedback_file!), "utf-8");
     assert.ok(feedbackContent.includes("Redo this"));
 
     // Check ledger
-    const ledger = readLedger(repo, init.workflow_id);
-    assert.ok(ledger.some((e) => e.event.type === "node_reset"));
+    const ledger = readLedger(repo, init.workbench_id);
+    assert.ok(ledger.some((e) => e.event.type === "dispatch_reset"));
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -501,19 +477,19 @@ test("approveNode stores approved ref", async () => {
   const repo = makeTestRepo();
   const deps = mockDeps();
   try {
-    const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
-    const dispatched = await dispatchNode({
-      repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "researcher", role: "dev", intent: "Research",
+    const init = await initWorkbench({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
+    const dispatched = await dispatch({
+      repoPath: repo, workbenchId: init.workbench_id,
+      dispatchId: "researcher", role: "dev", intent: "Research",
     }, deps);
 
-    await approveNode({
-      repoPath: repo, workflowId: init.workflow_id, nodeId: "researcher",
+    await approveDispatch({
+      repoPath: repo, workbenchId: init.workbench_id, dispatchId: "researcher",
     }, deps);
 
-    const workflow = loadWorkflow(repo, init.workflow_id)!;
+    const workflow = loadWorkbench(repo, init.workbench_id)!;
     assert.ok(workflow.approved_refs?.researcher);
-    assert.equal(workflow.approved_refs.researcher.assignment_id, dispatched.assignment_id);
+    assert.equal(workflow.approved_refs.researcher.assignment_id, dispatched.dispatch_id);
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -523,20 +499,20 @@ test("completeWorkflow sets status and writes ledger", async () => {
   const repo = makeTestRepo();
   const deps = mockDeps();
   try {
-    const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
+    const init = await initWorkbench({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
 
-    await completeWorkflow({
-      repoPath: repo, workflowId: init.workflow_id, summary: "All done",
+    await completeWorkbench({
+      repoPath: repo, workbenchId: init.workbench_id, summary: "All done",
     }, deps);
 
-    const workflow = loadWorkflow(repo, init.workflow_id)!;
+    const workflow = loadWorkbench(repo, init.workbench_id)!;
     assert.equal(workflow.status, "completed");
     assert.ok(workflow.result_file);
     const summaryContent = fs.readFileSync(path.join(repo, workflow.result_file!), "utf-8");
     assert.ok(summaryContent.includes("All done"));
 
-    const ledger = readLedger(repo, init.workflow_id);
-    assert.ok(ledger.some((e) => e.event.type === "workflow_completed"));
+    const ledger = readLedger(repo, init.workbench_id);
+    assert.ok(ledger.some((e) => e.event.type === "workbench_completed"));
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -546,18 +522,18 @@ test("failWorkflow sets status and writes ledger", async () => {
   const repo = makeTestRepo();
   const deps = mockDeps();
   try {
-    const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
+    const init = await initWorkbench({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
 
-    await failWorkflow({
-      repoPath: repo, workflowId: init.workflow_id, reason: "Blocked on external API",
+    await failWorkbench({
+      repoPath: repo, workbenchId: init.workbench_id, reason: "Blocked on external API",
     }, deps);
 
-    const workflow = loadWorkflow(repo, init.workflow_id)!;
+    const workflow = loadWorkbench(repo, init.workbench_id)!;
     assert.equal(workflow.status, "failed");
     assert.equal(workflow.failure?.message, "Blocked on external API");
 
-    const ledger = readLedger(repo, init.workflow_id);
-    assert.ok(ledger.some((e) => e.event.type === "workflow_failed"));
+    const ledger = readLedger(repo, init.workbench_id);
+    assert.ok(ledger.some((e) => e.event.type === "workbench_failed"));
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -567,15 +543,15 @@ test("getWorkflowStatus returns workflow and assignments", async () => {
   const repo = makeTestRepo();
   const deps = mockDeps();
   try {
-    const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
-    await dispatchNode({
-      repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "dev", intent: "Build",
+    const init = await initWorkbench({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
+    await dispatch({
+      repoPath: repo, workbenchId: init.workbench_id,
+      dispatchId: "dev", role: "dev", intent: "Build",
     }, deps);
 
-    const view = getWorkflowStatus(repo, init.workflow_id);
+    const view = getWorkbenchStatus(repo, init.workbench_id);
 
-    assert.equal(view.workflow.id, init.workflow_id);
+    assert.equal(view.workbench.id, init.workbench_id);
     assert.equal(view.assignments.length, 1);
     assert.equal(view.assignments[0].role, "dev");
   } finally {
@@ -587,12 +563,12 @@ test("redispatch on a claude assignment passes the captured session_id as resume
   const repo = makeTestRepo();
   const dispatchedRequests: Array<{ assignmentId: string; resumeSessionId?: string }> = [];
   let time = Date.parse("2026-04-09T00:00:00.000Z");
-  const deps: WorkflowDependencies = {
+  const deps: WorkbenchDependencies = {
     now: () => {
       time += 1000;
       return new Date(time).toISOString();
     },
-    dispatchCreateOnly: async (request) => {
+    dispatchCreateOnly: async (request: DispatchCreateOnlyRequest) => {
       dispatchedRequests.push({
         assignmentId: request.assignmentId,
         resumeSessionId: request.resumeSessionId,
@@ -611,14 +587,14 @@ test("redispatch on a claude assignment passes the captured session_id as resume
     checkTerminalAlive: () => null,
   };
   try {
-    const init = await initWorkflow({
+    const init = await initWorkbench({
       intent: "Test resume",
       repoPath: repo,
       worktreePath: repo,
     }, deps);
-    const dispatched = await dispatchNode({
-      repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "dev", intent: "First pass",
+    const dispatched = await dispatch({
+      repoPath: repo, workbenchId: init.workbench_id,
+      dispatchId: "dev", role: "dev", intent: "First pass",
     }, deps);
 
     // First dispatch should have no resume session
@@ -627,19 +603,19 @@ test("redispatch on a claude assignment passes the captured session_id as resume
 
     // Pre-populate session_id on the prior run, simulating what
     // destroyAssignmentTerminal would have captured from telemetry.
-    const manager = new AssignmentManager(repo, init.workflow_id);
-    const assignment = manager.load(dispatched.assignment_id)!;
+    const manager = new AssignmentManager(repo, init.workbench_id);
+    const assignment = manager.load(dispatched.dispatch_id)!;
     const firstRun = assignment.runs[0]!;
     firstRun.session_id = "claude-session-resume-test";
     firstRun.session_provider = "claude";
     manager.save(assignment);
 
     // Reset + redispatch the node — the new run should pick up the prior session
-    await resetNode({
-      repoPath: repo, workflowId: init.workflow_id, nodeId: "dev", feedback: "Try again",
+    await resetDispatch({
+      repoPath: repo, workbenchId: init.workbench_id, dispatchId: "dev", feedback: "Try again",
     }, deps);
-    await redispatchNode({
-      repoPath: repo, workflowId: init.workflow_id, nodeId: "dev",
+    await redispatch({
+      repoPath: repo, workbenchId: init.workbench_id, dispatchId: "dev",
     }, deps);
 
     assert.equal(dispatchedRequests.length, 2);
@@ -653,12 +629,12 @@ test("redispatch on a non-claude assignment does not pass resumeSessionId", asyn
   const repo = makeTestRepo();
   const dispatchedRequests: Array<{ resumeSessionId?: string }> = [];
   let time = Date.parse("2026-04-09T00:00:00.000Z");
-  const deps: WorkflowDependencies = {
+  const deps: WorkbenchDependencies = {
     now: () => {
       time += 1000;
       return new Date(time).toISOString();
     },
-    dispatchCreateOnly: async (request) => {
+    dispatchCreateOnly: async (request: DispatchCreateOnlyRequest) => {
       dispatchedRequests.push({ resumeSessionId: request.resumeSessionId });
       return {
         projectId: "project-1",
@@ -674,29 +650,29 @@ test("redispatch on a non-claude assignment does not pass resumeSessionId", asyn
     checkTerminalAlive: () => null,
   };
   try {
-    const init = await initWorkflow({
+    const init = await initWorkbench({
       intent: "Test no-resume on codex",
       repoPath: repo,
       worktreePath: repo,
     }, deps);
     // Role-driven dispatch: pick `reviewer` so the assignment's agent_type
     // comes out as codex (reviewer[0] = codex; resume is claude-only).
-    const dispatched = await dispatchNode({
-      repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "reviewer", intent: "First pass",
+    const dispatched = await dispatch({
+      repoPath: repo, workbenchId: init.workbench_id,
+      dispatchId: "dev", role: "reviewer", intent: "First pass",
     }, deps);
 
     // Pre-populate a session_id on the prior run anyway — codex shouldn't resume
-    const manager = new AssignmentManager(repo, init.workflow_id);
-    const assignment = manager.load(dispatched.assignment_id)!;
+    const manager = new AssignmentManager(repo, init.workbench_id);
+    const assignment = manager.load(dispatched.dispatch_id)!;
     assignment.runs[0]!.session_id = "codex-session-should-be-ignored";
     manager.save(assignment);
 
-    await resetNode({
-      repoPath: repo, workflowId: init.workflow_id, nodeId: "dev",
+    await resetDispatch({
+      repoPath: repo, workbenchId: init.workbench_id, dispatchId: "dev",
     }, deps);
-    await redispatchNode({
-      repoPath: repo, workflowId: init.workflow_id, nodeId: "dev",
+    await redispatch({
+      repoPath: repo, workbenchId: init.workbench_id, dispatchId: "dev",
     }, deps);
 
     assert.equal(dispatchedRequests.length, 2);
@@ -712,17 +688,17 @@ test("watchUntilDecision exposes pre-captured session info on the completed Deci
   const repo = makeTestRepo();
   const deps = mockDeps();
   try {
-    const init = await initWorkflow({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
-    const dispatched = await dispatchNode({
-      repoPath: repo, workflowId: init.workflow_id,
-      nodeId: "dev", role: "dev", intent: "Implement feature",
+    const init = await initWorkbench({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
+    const dispatched = await dispatch({
+      repoPath: repo, workbenchId: init.workbench_id,
+      dispatchId: "dev", role: "dev", intent: "Implement feature",
     }, deps);
 
     // Pre-populate session info on the run, simulating capture from telemetry
     // before the terminal was destroyed. This bypasses the live telemetry call
     // path so the test can run without TermCanvas being available.
-    const manager = new AssignmentManager(repo, init.workflow_id);
-    const assignment = manager.load(dispatched.assignment_id)!;
+    const manager = new AssignmentManager(repo, init.workbench_id);
+    const assignment = manager.load(dispatched.dispatch_id)!;
     const run = assignment.runs[0]!;
     run.session_id = "claude-session-abc123";
     run.session_provider = "claude";
@@ -732,26 +708,26 @@ test("watchUntilDecision exposes pre-captured session info on the completed Deci
     // Write the slim result so watchUntilDecision treats the node as completed
     fs.writeFileSync(run.result_file, JSON.stringify({
       schema_version: RESULT_SCHEMA_VERSION,
-      workflow_id: init.workflow_id,
-      assignment_id: dispatched.assignment_id,
+      workbench_id: init.workbench_id,
+      assignment_id: dispatched.dispatch_id,
       run_id: run.id,
       outcome: "completed",
       report_file: "report.md",
     }, null, 2), "utf-8");
 
     const decision = await watchUntilDecision({
-      repoPath: repo, workflowId: init.workflow_id, timeoutMs: 5000,
+      repoPath: repo, workbenchId: init.workbench_id, timeoutMs: 5000,
     }, deps);
 
-    assert.equal(decision.type, "node_completed");
+    assert.equal(decision.type, "dispatch_completed");
     assert.ok(decision.completed?.session, "session info should be exposed");
     assert.equal(decision.completed.session.id, "claude-session-abc123");
     assert.equal(decision.completed.session.provider, "claude");
     assert.equal(decision.completed.session.file, "/tmp/claude-sessions/claude-session-abc123.json");
 
     // Ledger should also record the session_id for the completed node event
-    const ledger = readLedger(repo, init.workflow_id);
-    const completed = ledger.find((entry) => entry.event.type === "node_completed");
+    const ledger = readLedger(repo, init.workbench_id);
+    const completed = ledger.find((entry) => entry.event.type === "dispatch_completed");
     assert.ok(completed);
     assert.equal((completed.event as { session_id?: string }).session_id, "claude-session-abc123");
   } finally {
@@ -771,9 +747,9 @@ test("askNode loads the node's session, delegates to askFollowUp, and writes a l
     workdir: string;
     timeoutMs?: number;
   }> = [];
-  const extendedDeps: WorkflowDependencies = {
+  const extendedDeps: WorkbenchDependencies = {
     ...deps,
-    askFollowUp: async (opts) => {
+    askFollowUp: async (opts: { cli: string; sessionId: string; message: string; workdir: string; timeoutMs?: number }) => {
       askCalls.push(opts);
       return {
         answer: "Because pattern A is thread-safe and has no hidden lock contention.",
@@ -786,15 +762,15 @@ test("askNode loads the node's session, delegates to askFollowUp, and writes a l
 
   try {
     // 1. Init + dispatch a dev node, mock its completion, capture a session_id.
-    const init = await initWorkflow(
+    const init = await initWorkbench(
       { intent: "Add OAuth login", repoPath: repo, worktreePath: repo },
       extendedDeps,
     );
-    const dispatch = await dispatchNode(
+    const dispatched = await dispatch(
       {
         repoPath: repo,
-        workflowId: init.workflow_id,
-        nodeId: "dev",
+        workbenchId: init.workbench_id,
+        dispatchId: "dev",
         role: "dev",
         intent: "Implement OAuth",
       },
@@ -803,19 +779,19 @@ test("askNode loads the node's session, delegates to askFollowUp, and writes a l
     // Hand-stamp the run's session_id on disk so askNode finds it. This is
     // what telemetry would do in production after the subprocess captures
     // the claude init message.
-    const manager = new AssignmentManager(repo, init.workflow_id);
-    const assignment = manager.load(dispatch.assignment_id)!;
+    const manager = new AssignmentManager(repo, init.workbench_id);
+    const assignment = manager.load(dispatched.dispatch_id)!;
     const run = assignment.runs[assignment.runs.length - 1]!;
     run.session_id = "dev-session-original";
     run.session_provider = "claude";
     manager.save(assignment);
 
     // 2. Lead asks Dev a follow-up.
-    const result = await askNode(
+    const result = await askDispatch(
       {
         repoPath: repo,
-        workflowId: init.workflow_id,
-        nodeId: "dev",
+        workbenchId: init.workbench_id,
+        dispatchId: "dev",
         message: "why did you choose pattern A over B?",
       },
       extendedDeps,
@@ -829,7 +805,7 @@ test("askNode loads the node's session, delegates to askFollowUp, and writes a l
     assert.equal(askCalls[0].workdir, repo);
 
     // 4. askNode returned a structured result carrying the answer + fork id.
-    assert.equal(result.node_id, "dev");
+    assert.equal(result.dispatch_id, "dev");
     assert.equal(result.role, "dev");
     assert.equal(result.cli, "claude");
     assert.equal(result.session_id, "dev-session-original");
@@ -839,21 +815,22 @@ test("askNode loads the node's session, delegates to askFollowUp, and writes a l
     assert.equal(result.exit_code, 0);
 
     // 5. A ledger entry was written with the question + answer excerpt.
-    const ledger = readLedger(repo, init.workflow_id);
+    const ledger = readLedger(repo, init.workbench_id);
     const askEvent = ledger.find((e) => e.event.type === "lead_asked_followup");
     assert.ok(askEvent, "ledger should contain a lead_asked_followup entry");
     assert.equal(askEvent.actor, "lead");
     const event = askEvent.event as {
       type: "lead_asked_followup";
-      node_id: string;
+      dispatch_id: string;
       role: string;
+      agent_type: string;
       session_id: string;
       new_session_id?: string;
       message_excerpt: string;
       answer_excerpt: string;
       duration_ms: number;
     };
-    assert.equal(event.node_id, "dev");
+    assert.equal(event.dispatch_id, "dev");
     assert.equal(event.role, "dev");
     assert.equal(event.session_id, "dev-session-original");
     assert.equal(event.new_session_id, "forked-session-xyz");
@@ -869,15 +846,15 @@ test("askNode rejects nodes that have no captured session_id", async () => {
   const repo = makeTestRepo();
   const deps = mockDeps();
   try {
-    const init = await initWorkflow(
+    const init = await initWorkbench(
       { intent: "Add OAuth login", repoPath: repo, worktreePath: repo },
       deps,
     );
-    await dispatchNode(
+    await dispatch(
       {
         repoPath: repo,
-        workflowId: init.workflow_id,
-        nodeId: "dev",
+        workbenchId: init.workbench_id,
+        dispatchId: "dev",
         role: "dev",
         intent: "Implement OAuth",
       },
@@ -888,11 +865,11 @@ test("askNode rejects nodes that have no captured session_id", async () => {
     // one).
     await assert.rejects(
       () =>
-        askNode(
+        askDispatch(
           {
             repoPath: repo,
-            workflowId: init.workflow_id,
-            nodeId: "dev",
+            workbenchId: init.workbench_id,
+            dispatchId: "dev",
             message: "hi",
           },
           deps,
@@ -908,22 +885,22 @@ test("askNode rejects nodes that do not exist", async () => {
   const repo = makeTestRepo();
   const deps = mockDeps();
   try {
-    const init = await initWorkflow(
+    const init = await initWorkbench(
       { intent: "Anything", repoPath: repo, worktreePath: repo },
       deps,
     );
     await assert.rejects(
       () =>
-        askNode(
+        askDispatch(
           {
             repoPath: repo,
-            workflowId: init.workflow_id,
-            nodeId: "nonexistent",
+            workbenchId: init.workbench_id,
+            dispatchId: "nonexistent",
             message: "hi",
           },
           deps,
         ),
-      /Node not found/,
+      /Dispatch not found/,
     );
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });

@@ -13,7 +13,7 @@ function createRunResultPath(): string {
 
 function buildExpectation(resultFile: string) {
   return {
-    workflow_id: "workflow-auth",
+    workbench_id: "workflow-auth",
     assignment_id: "assignment-abc123",
     run_id: "run-0001",
     result_file: resultFile,
@@ -44,7 +44,7 @@ test("collectRunResult returns completed when result.json is valid", () => {
       resultFile,
       JSON.stringify({
         schema_version: RESULT_SCHEMA_VERSION,
-        workflow_id: "workflow-auth",
+        workbench_id: "workflow-auth",
         assignment_id: "assignment-abc123",
         run_id: "run-0001",
         outcome: "completed",
@@ -72,7 +72,7 @@ test("collectRunResult fails when result.json does not satisfy the schema", () =
       resultFile,
       JSON.stringify({
         schema_version: RESULT_SCHEMA_VERSION,
-        workflow_id: "workflow-auth",
+        workbench_id: "workflow-auth",
         assignment_id: "assignment-abc123",
         run_id: "run-0001",
         success: "yes",

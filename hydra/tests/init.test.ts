@@ -81,7 +81,7 @@ test("init updates an existing Hydra block in place and preserves adjacent conte
   assert.match(claudeMd, /Do not use `termcanvas terminal input`/);
   assert.match(claudeMd, /Workflow control:/);
   assert.match(claudeMd, /Telemetry polling:/);
-  assert.match(claudeMd, /termcanvas telemetry get --workflow <workflowId> --repo \./);
+  assert.match(claudeMd, /termcanvas telemetry get --workbench <workbenchId> --repo \./);
   assert.match(claudeMd, /termcanvas telemetry events --terminal <terminalId> --limit 20/);
 
   // Slim result contract is reflected in the rendered section.

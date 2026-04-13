@@ -77,7 +77,7 @@ test("challenge skill defines four orthogonal attack methodologies", () => {
 test("task template links role guidance and result-only completion rules", () => {
   const rendered = renderRunTask({
     repoPath: "/repo/project",
-    workflowId: "workflow-auth",
+    workbenchId: "workflow-auth",
     assignmentId: "assignment-abc123",
     runId: "run-0001",
     role: "reviewer",
