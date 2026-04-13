@@ -149,6 +149,7 @@ export function renderRunTask(spec: RunTaskSpec): string {
     "- Do not fake outputs or add silent fallbacks.",
     "- Root cause first. Fix the real implementation problem before changing tests or fixtures.",
     "- Publish result.json atomically after all required artifacts are complete.",
+    "- Context refs and read files are provided in full. Read them completely — do not skim or summarize. (Trade-off note: full-text injection is deliberate. File size is not available at dispatch time, and implementation roles need complete content. If context pressure becomes an issue in practice, this policy may be revisited.)",
     "",
     "## Completion",
     "",
