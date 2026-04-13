@@ -99,6 +99,142 @@ test("createTerminalInScene adds a terminal and focusTerminalInScene marks it fo
   }
 });
 
+test("buildWorktreeGroupMove keeps a stable formation and commit only moves that worktree", async () => {
+  installActionGlobals();
+  const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const {
+    buildWorktreeGroupMove,
+    commitWorktreeGroupMove,
+  } = await import("../src/actions/terminalSceneActions.ts");
+  const previousState = useProjectStore.getState();
+
+  try {
+    useProjectStore.setState({
+      focusedProjectId: "project-1",
+      focusedWorktreeId: "worktree-1",
+      projects: [
+        {
+          id: "project-1",
+          name: "Project One",
+          path: "/tmp/project-1",
+          worktrees: [
+            {
+              id: "worktree-1",
+              name: "main",
+              path: "/tmp/project-1",
+              terminals: [
+                {
+                  id: "terminal-1",
+                  title: "Terminal 1",
+                  type: "shell",
+                  minimized: false,
+                  focused: false,
+                  ptyId: 1,
+                  status: "running",
+                  x: 100,
+                  y: 200,
+                  width: 400,
+                  height: 300,
+                  tags: [],
+                },
+                {
+                  id: "terminal-2",
+                  title: "Terminal 2",
+                  type: "claude",
+                  minimized: false,
+                  focused: false,
+                  ptyId: 2,
+                  status: "running",
+                  x: 560,
+                  y: 240,
+                  width: 400,
+                  height: 300,
+                  tags: [],
+                },
+                {
+                  id: "terminal-stashed",
+                  title: "Stashed",
+                  type: "shell",
+                  minimized: false,
+                  focused: false,
+                  ptyId: 3,
+                  status: "idle",
+                  x: 900,
+                  y: 900,
+                  width: 400,
+                  height: 300,
+                  tags: [],
+                  stashed: true,
+                },
+              ],
+            },
+            {
+              id: "worktree-2",
+              name: "feature",
+              path: "/tmp/project-1-feature",
+              terminals: [
+                {
+                  id: "terminal-3",
+                  title: "Terminal 3",
+                  type: "shell",
+                  minimized: false,
+                  focused: false,
+                  ptyId: 4,
+                  status: "running",
+                  x: 1600,
+                  y: 400,
+                  width: 400,
+                  height: 300,
+                  tags: [],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const preview = buildWorktreeGroupMove("project-1", "worktree-1", 130, -70);
+    assert.ok(preview);
+    assert.deepEqual(preview.worktreeOffset, { x: 130, y: -70 });
+    assert.deepEqual(preview.positions.get("terminal-1"), { x: 230, y: 130 });
+    assert.deepEqual(preview.positions.get("terminal-2"), { x: 690, y: 170 });
+    assert.equal(preview.positions.has("terminal-stashed"), false);
+    assert.equal(preview.positions.has("terminal-3"), false);
+
+    commitWorktreeGroupMove("project-1", "worktree-1", preview);
+
+    const [mainWorktree, featureWorktree] =
+      useProjectStore.getState().projects[0].worktrees;
+    const terminal1 = mainWorktree.terminals.find(
+      (terminal) => terminal.id === "terminal-1",
+    );
+    const terminal2 = mainWorktree.terminals.find(
+      (terminal) => terminal.id === "terminal-2",
+    );
+    const terminal3 = featureWorktree.terminals.find(
+      (terminal) => terminal.id === "terminal-3",
+    );
+    const stashed = mainWorktree.terminals.find(
+      (terminal) => terminal.id === "terminal-stashed",
+    );
+
+    assert.ok(terminal1 && terminal2 && terminal3 && stashed);
+    assert.equal(terminal1.x, 230);
+    assert.equal(terminal1.y, 130);
+    assert.equal(terminal2.x, 690);
+    assert.equal(terminal2.y, 170);
+    assert.equal(terminal2.x - terminal1.x, 460);
+    assert.equal(terminal2.y - terminal1.y, 40);
+    assert.equal(terminal3.x, 1600);
+    assert.equal(terminal3.y, 400);
+    assert.equal(stashed.x, 900);
+    assert.equal(stashed.y, 900);
+  } finally {
+    useProjectStore.setState(previousState);
+  }
+});
+
 test("closeTerminalInScene destroys runtime and removes the terminal from the scene", async () => {
   const mockWindow = installActionGlobals();
   const { useProjectStore } = await import("../src/stores/projectStore.ts");
@@ -110,9 +246,9 @@ test("closeTerminalInScene destroys runtime and removes the terminal from the sc
     ensureTerminalRuntime,
     useTerminalRuntimeStore,
   } = await import("../src/terminal/terminalRuntimeStore.ts");
-  const {
-    closeTerminalInScene,
-  } = await import("../src/actions/terminalSceneActions.ts");
+  const { closeTerminalInScene } = await import(
+    "../src/actions/terminalSceneActions.ts"
+  );
   const previousState = useProjectStore.getState();
 
   destroyAllTerminalRuntimes();
