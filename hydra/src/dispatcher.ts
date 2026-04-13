@@ -6,7 +6,7 @@ import {
 } from "./termcanvas.ts";
 
 export interface DispatchCreateOnlyRequest {
-  workflowId: string;
+  workbenchId: string;
   assignmentId: string;
   runId: string;
   repoPath: string;
@@ -49,7 +49,7 @@ export interface DispatcherDependencies {
     prompt?: string,
     autoApprove?: boolean,
     parentTerminalId?: string,
-    workflowId?: string,
+    workbenchId?: string,
     assignmentId?: string,
     repoPath?: string,
     resumeSessionId?: string,
@@ -64,7 +64,7 @@ const DEFAULT_DEPENDENCIES: DispatcherDependencies = {
 
 export function buildCreateOnlyPrompt(
   taskFile: string,
-  workflowId: string,
+  workbenchId: string,
   resultFile: string,
   options: {
     assignmentId: string;
@@ -83,7 +83,7 @@ export async function dispatchCreateOnly(
       errorCode: "DISPATCH_TERMCANVAS_NOT_RUNNING",
       stage: "dispatcher.preflight",
       ids: {
-        workflow_id: request.workflowId,
+        workbench_id: request.workbenchId,
         assignment_id: request.assignmentId,
       },
     });
@@ -95,7 +95,7 @@ export async function dispatchCreateOnly(
       errorCode: "DISPATCH_REPO_NOT_ON_CANVAS",
       stage: "dispatcher.preflight",
       ids: {
-        workflow_id: request.workflowId,
+        workbench_id: request.workbenchId,
         assignment_id: request.assignmentId,
       },
     });
@@ -103,7 +103,7 @@ export async function dispatchCreateOnly(
 
   const prompt = buildCreateOnlyPrompt(
     request.taskFile,
-    request.workflowId,
+    request.workbenchId,
     request.resultFile,
     {
       assignmentId: request.assignmentId,
@@ -116,7 +116,7 @@ export async function dispatchCreateOnly(
     prompt,
     request.autoApprove,
     request.parentTerminalId,
-    request.workflowId,
+    request.workbenchId,
     request.assignmentId,
     request.repoPath,
     request.resumeSessionId,

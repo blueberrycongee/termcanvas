@@ -1,16 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
-import { AssignmentManager } from "./assignment/manager.ts";
-import type { AssignmentRecord } from "./assignment/types.ts";
 import {
   getRunReportFile,
   getRunResultFile,
-  getWorkflowIntentFile,
+  getWorkbenchIntentFile,
 } from "./layout.ts";
 import { RESULT_SCHEMA_VERSION } from "./protocol.ts";
 import { loadRole } from "./roles/loader.ts";
 import type { RunTaskSpec, TaskFileRef, TaskWriteTarget } from "./run-task.ts";
-import type { WorkflowRecord, WorkflowNode } from "./workflow-store.ts";
+import type { AssignmentRecord } from "./assignment/types.ts";
+import type { WorkbenchRecord, Dispatch } from "./workflow-store.ts";
 
 function readFileOrEmpty(filePath: string): string {
   try { return fs.readFileSync(filePath, "utf-8"); } catch { return ""; }
@@ -27,7 +26,7 @@ const RESULT_CONTRACT_SECTION = {
   lines: [
     `result.json must contain ONLY these fields:`,
     `- schema_version: "${RESULT_SCHEMA_VERSION}"`,
-    "- workflow_id, assignment_id, run_id (from the Run Context section above)",
+    "- workbench_id, assignment_id, run_id (from the Run Context section above)",
     "- outcome: \"completed\" | \"stuck\" | \"error\"",
     "- report_file: relative path to your report.md (typically just \"report.md\")",
     "",
@@ -50,78 +49,34 @@ const RESULT_CONTRACT_SECTION = {
 // --- Builder ---
 
 export interface BuildTaskSpecInput {
-  workflow: WorkflowRecord;
-  node: WorkflowNode;
+  workbench: WorkbenchRecord;
+  dispatch: Dispatch;
   assignment: AssignmentRecord;
   runId: string;
 }
 
 export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec {
-  const { workflow, node, assignment, runId } = input;
-  const repoPath = workflow.repo_path;
+  const { workbench, dispatch: disp, assignment, runId } = input;
+  const repoPath = workbench.repo_path;
 
   // Resolve role from registry. agent_type is locked by the role file —
   // dispatchers must not override it. fail-fast on missing/malformed role.
-  const role = loadRole(node.role, repoPath);
+  const role = loadRole(disp.role, repoPath);
 
   // --- Objective: read intent file content ---
-  const intentText = readFileOrEmpty(resolvePath(repoPath, node.intent_file));
+  const intentText = readFileOrEmpty(resolvePath(repoPath, disp.intent_file));
   const objectiveLines: string[] = [
-    intentText.trim() || `(intent_file is empty: ${node.intent_file})`,
+    intentText.trim() || `(intent_file is empty: ${disp.intent_file})`,
   ];
 
   // --- Read files ---
   const readFiles: TaskFileRef[] = [
-    { label: "Workflow intent", path: getWorkflowIntentFile(repoPath, workflow.id) },
+    { label: "Workflow intent", path: getWorkbenchIntentFile(repoPath, workbench.id) },
   ];
 
-  // Auto-inject outputs from depends_on nodes (their report.md + result.json).
-  // We also collect a parallel list of "upstream summaries" — (role, nodeId,
-  // report path, session_id) tuples — that get rendered as an Upstream Nodes
-  // section below. Reviewer in particular needs a structured pointer to
-  // "here is what dev produced and how to follow up with it", not just a
-  // readFiles bag.
-  const manager = new AssignmentManager(repoPath, workflow.id);
-  interface UpstreamSummary {
-    nodeId: string;
-    role: string;
-    reportPath: string | null;
-    resultPath: string | null;
-    sessionId: string | null;
-    sessionProvider: string | null;
-  }
-  const upstreamSummaries: UpstreamSummary[] = [];
-  for (const depId of node.depends_on) {
-    const depNode = workflow.nodes[depId];
-    if (!depNode?.assignment_id) continue;
-    const depAssignment = manager.load(depNode.assignment_id);
-    if (!depAssignment) continue;
-    const depRun = depAssignment.active_run_id
-      ? depAssignment.runs.find((r) => r.id === depAssignment.active_run_id)
-      : depAssignment.runs[depAssignment.runs.length - 1];
-    if (!depRun) continue;
-    const reportPath = getRunReportFile(repoPath, workflow.id, depAssignment.id, depRun.id);
-    const reportExists = fs.existsSync(reportPath);
-    if (reportExists) {
-      readFiles.push({ label: `${depNode.role} report (${depId})`, path: reportPath });
-    }
-    const resultExists = fs.existsSync(depRun.result_file);
-    if (resultExists) {
-      readFiles.push({ label: `${depNode.role} result (${depId})`, path: depRun.result_file });
-    }
-    upstreamSummaries.push({
-      nodeId: depId,
-      role: depNode.role,
-      reportPath: reportExists ? reportPath : null,
-      resultPath: resultExists ? depRun.result_file : null,
-      sessionId: depRun.session_id ?? null,
-      sessionProvider: depRun.session_provider ?? null,
-    });
-  }
-
   // Auto-inject approved refs
-  if (workflow.approved_refs) {
-    for (const [refNodeId, ref] of Object.entries(workflow.approved_refs)) {
+  if (workbench.approved_refs) {
+    for (const [refNodeId, ref] of Object.entries(workbench.approved_refs)) {
       if (fs.existsSync(ref.brief_file)) {
         readFiles.push({ label: `Approved report (${refNodeId})`, path: ref.brief_file });
       }
@@ -132,8 +87,8 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
   }
 
   // Add extra context refs provided by Lead (supplements)
-  if (node.context_refs) {
-    for (const ref of node.context_refs) {
+  if (disp.context_refs) {
+    for (const ref of disp.context_refs) {
       if (fs.existsSync(ref.path)) {
         readFiles.push({ label: ref.label, path: ref.path });
       }
@@ -141,8 +96,8 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
   }
 
   // Add feedback file if present (from reset)
-  if (node.feedback_file) {
-    const feedbackAbs = resolvePath(repoPath, node.feedback_file);
+  if (disp.feedback_file) {
+    const feedbackAbs = resolvePath(repoPath, disp.feedback_file);
     if (fs.existsSync(feedbackAbs)) {
       readFiles.push({ label: "Feedback from Lead", path: feedbackAbs });
     }
@@ -161,8 +116,8 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
   readFiles.push(...dedupedReadFiles);
 
   // --- Write targets ---
-  const reportFile = getRunReportFile(repoPath, workflow.id, assignment.id, runId);
-  const resultFile = getRunResultFile(repoPath, workflow.id, assignment.id, runId);
+  const reportFile = getRunReportFile(repoPath, workbench.id, assignment.id, runId);
+  const resultFile = getRunResultFile(repoPath, workbench.id, assignment.id, runId);
 
   const writeTargets: TaskWriteTarget[] = [
     {
@@ -200,19 +155,19 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
   const extraSections: { title: string; lines: string[] }[] = [];
 
   const workflowContextLines: string[] = [];
-  if (workflow.human_request && workflow.human_request.trim()) {
+  if (workbench.human_request && workbench.human_request.trim()) {
     workflowContextLines.push("**Original human request:**");
-    workflowContextLines.push(workflow.human_request.trim());
+    workflowContextLines.push(workbench.human_request.trim());
     workflowContextLines.push("");
   }
-  if (workflow.overall_plan && workflow.overall_plan.trim()) {
+  if (workbench.overall_plan && workbench.overall_plan.trim()) {
     workflowContextLines.push("**Lead's overall plan:**");
-    workflowContextLines.push(workflow.overall_plan.trim());
+    workflowContextLines.push(workbench.overall_plan.trim());
     workflowContextLines.push("");
   }
-  if (workflow.shared_constraints && workflow.shared_constraints.length > 0) {
+  if (workbench.shared_constraints && workbench.shared_constraints.length > 0) {
     workflowContextLines.push("**Workflow-wide constraints (apply to every node):**");
-    for (const c of workflow.shared_constraints) {
+    for (const c of workbench.shared_constraints) {
       workflowContextLines.push(`- ${c}`);
     }
     workflowContextLines.push("");
@@ -228,49 +183,21 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
     });
   }
 
-  if (upstreamSummaries.length > 0) {
-    const lines: string[] = [
-      "These upstream nodes already ran and their outputs are in your Read First list.",
-      "Read their report.md before forming conclusions — they contain self-assessment,",
-      "risks, and guidance written by the upstream worker itself.",
-      "",
-    ];
-    for (const s of upstreamSummaries) {
-      lines.push(`### ${s.role} (node: ${s.nodeId})`);
-      if (s.reportPath) lines.push(`- Report: ${s.reportPath}`);
-      if (s.resultPath) lines.push(`- Result: ${s.resultPath}`);
-      if (s.sessionId) {
-        // The session id is what `hydra ask` uses to spin up a one-shot
-        // follow-up subprocess via `claude --resume` / `codex exec resume`.
-        lines.push(
-          `- Session id: \`${s.sessionId}\` (${s.sessionProvider ?? "unknown"}) — Lead can ask follow-up questions via \`hydra ask --workflow <id> --node ${s.nodeId} --message "..."\``,
-        );
-      }
-      lines.push("");
-    }
-    // Trim trailing blank line.
-    while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
-    extraSections.push({
-      title: "Upstream Nodes",
-      lines,
-    });
-  }
-
   extraSections.push(RESULT_CONTRACT_SECTION);
 
   return {
-    repoPath: workflow.repo_path,
-    workflowId: workflow.id,
+    repoPath: workbench.repo_path,
+    workbenchId: workbench.id,
     assignmentId: assignment.id,
     runId,
-    role: node.role,
-    // Cached on the node at dispatch time from the chosen role terminal.
-    // task-spec-builder reads from the node, not the role, because the
-    // node carries the locked-in choice; the role file's terminals[]
+    role: disp.role,
+    // Cached on the dispatch at dispatch time from the chosen role terminal.
+    // task-spec-builder reads from the dispatch, not the role, because the
+    // dispatch carries the locked-in choice; the role file's terminals[]
     // could in principle change between dispatches.
-    agentType: node.agent_type,
-    model: node.model,
-    reasoningEffort: node.reasoning_effort,
+    agentType: disp.agent_type,
+    model: disp.model,
+    reasoningEffort: disp.reasoning_effort,
     sourceRole: null,
     roleBody: role.body,
     objective: objectiveLines,
