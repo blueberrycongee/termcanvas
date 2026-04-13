@@ -24,8 +24,8 @@ Dev owns implementation. You do not own verification testing — that is handled
 
 Before writing result.json, verify each of these passes. If any fails, fix your implementation — not the check.
 
-- `tsc --noEmit` passes with zero errors.
-- All existing tests pass (`npm test` or equivalent). You do not write new tests, but you must not break existing ones.
+- The repo's build or typecheck command passes with zero errors (e.g., `tsc --noEmit`, `cargo check`, `go build ./...` — use whatever the project already has).
+- All existing tests pass (use the repo's test command). You do not write new tests, but you must not break existing ones.
 - No `console.log` debugging statements remain in your diff.
 - Every changed line in your diff traces back to a specific requirement in the intent. If you changed something the intent did not ask for, revert it or justify it in report.md.
 
