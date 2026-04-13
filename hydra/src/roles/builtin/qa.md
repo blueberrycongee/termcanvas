@@ -19,7 +19,7 @@ You test the feature as a user would encounter it. You do not review code qualit
 ## Workflow
 
 1. **Read the intent** from Lead's dispatch — this tells you what the feature should do.
-2. **Read upstream reports** for context on what was built and any known risks.
+2. **Read any context refs** Lead provided for background on what was built and any known risks.
 3. **Write e2e tests** that exercise the feature through its public interface, the way a user would use it.
 4. **Run the tests.** Failures are your primary output.
 5. **Write report.md** with results.

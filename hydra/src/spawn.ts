@@ -159,7 +159,7 @@ export async function spawn(args: string[]): Promise<void> {
 
   const taskRun = writeRunTask({
     repoPath: repo,
-    workflowId,
+    workbenchId: workflowId,
     assignmentId,
     runId,
     role: "dev",
@@ -188,7 +188,7 @@ export async function spawn(args: string[]): Promise<void> {
 
   const parentTerminalId = process.env.TERMCANVAS_TERMINAL_ID;
   const dispatch = await dispatchCreateOnly({
-    workflowId,
+    workbenchId: workflowId,
     assignmentId,
     runId,
     repoPath: repo,

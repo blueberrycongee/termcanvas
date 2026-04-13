@@ -33,7 +33,7 @@ export type StuckReason =
 
 export interface SubAgentResult {
   schema_version: typeof RESULT_SCHEMA_VERSION;
-  workflow_id: string;
+  workbench_id: string;
   assignment_id: string;
   run_id: string;
 
@@ -56,7 +56,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function extractIds(value: unknown): Record<string, string> {
   if (!isRecord(value)) return {};
   const ids: Record<string, string> = {};
-  if (typeof value.workflow_id === "string" && value.workflow_id) ids.workflow_id = value.workflow_id;
+  if (typeof value.workbench_id === "string" && value.workbench_id) ids.workbench_id = value.workbench_id;
   if (typeof value.assignment_id === "string" && value.assignment_id) ids.assignment_id = value.assignment_id;
   if (typeof value.run_id === "string" && value.run_id) ids.run_id = value.run_id;
   return ids;
@@ -129,7 +129,7 @@ function validateStuckReason(
 
 export function validateSubAgentResult(
   value: unknown,
-  expected: Pick<SubAgentResult, "workflow_id" | "assignment_id" | "run_id">,
+  expected: Pick<SubAgentResult, "workbench_id" | "assignment_id" | "run_id">,
 ): SubAgentResult {
   const record = expectRecord(value, "result", value);
   const schemaVersion = expectString(record, "schema_version", value);
@@ -143,7 +143,7 @@ export function validateSubAgentResult(
   const outcome = validateOutcome(record, value);
   const validated: SubAgentResult = {
     schema_version: RESULT_SCHEMA_VERSION,
-    workflow_id: expectString(record, "workflow_id", value),
+    workbench_id: expectString(record, "workbench_id", value),
     assignment_id: expectString(record, "assignment_id", value),
     run_id: expectString(record, "run_id", value),
     outcome,
@@ -151,8 +151,8 @@ export function validateSubAgentResult(
     stuck_reason: validateStuckReason(record, outcome, value),
   };
 
-  if (validated.workflow_id !== expected.workflow_id) {
-    failValidation("Invalid workflow_id: result does not match workflow", value);
+  if (validated.workbench_id !== expected.workbench_id) {
+    failValidation("Invalid workbench_id: result does not match workbench", value);
   }
   if (validated.assignment_id !== expected.assignment_id) {
     failValidation("Invalid assignment_id: result does not match assignment", value);

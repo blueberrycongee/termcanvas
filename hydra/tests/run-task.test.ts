@@ -13,7 +13,7 @@ import {
 function createSpec(repoPath: string) {
   return {
     repoPath,
-    workflowId: "workflow-auth",
+    workbenchId: "workflow-auth",
     assignmentId: "assignment-abc123",
     runId: "run-0001",
     role: "dev",

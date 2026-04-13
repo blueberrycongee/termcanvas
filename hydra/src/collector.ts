@@ -28,7 +28,7 @@ export type CollectRunResult =
     };
 
 export interface RunResultExpectation {
-  workflow_id: string;
+  workbench_id: string;
   assignment_id: string;
   run_id: string;
   result_file: string;

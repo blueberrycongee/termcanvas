@@ -28,12 +28,12 @@ test("parseCleanupArgs with --all --force", () => {
 });
 
 test("parseCleanupArgs throws with no args", () => {
-  assert.throws(() => parseCleanupArgs([]), /agent ID, --workflow, or --all/);
+  assert.throws(() => parseCleanupArgs([]), /agent ID, --workbench, or --all/);
 });
 
-test("parseCleanupArgs supports workflow cleanup", () => {
-  const result = parseCleanupArgs(["--workflow", "workflow-123", "--repo", "/tmp/repo"]);
-  assert.equal(result.workflowId, "workflow-123");
+test("parseCleanupArgs supports workbench cleanup", () => {
+  const result = parseCleanupArgs(["--workbench", "workbench-123", "--repo", "/tmp/repo"]);
+  assert.equal(result.workbenchId, "workbench-123");
   assert.equal(result.repo, "/tmp/repo");
   assert.equal(result.agentId, undefined);
 });

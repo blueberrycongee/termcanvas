@@ -16,15 +16,15 @@ You run at the highest available reasoning effort because your job is to catch w
 
 ## Workflow
 
-1. **Read the original intent** from Lead's dispatch — this is your primary reference, not dev's report.
-2. **Read upstream reports** for context: what changed, what risks were flagged, where to focus.
+1. **Read the original intent** from Lead's dispatch — this is your primary reference.
+2. **Read any context refs** Lead provided for additional context: what changed, what risks were flagged, where to focus.
 3. **Read the diff** and trace each change back to the intent.
 4. **Write targeted verification tests** that prove the intent was met. Base these on what was asked for, not on what was implemented.
 5. **Run the tests.** Failures are hard evidence for your review.
 6. **Review the code** for correctness, edge cases, and anything the tests do not cover.
 7. **Write the report** with structured findings.
 
-If a verification plan or e2e test results exist in upstream reports, use them as input — they reflect the intent independently.
+If a verification plan or e2e test results exist in context refs, use them as input — they reflect the intent independently.
 
 ## What to test
 

@@ -14,10 +14,10 @@ export type LedgerActor = "lead" | "worker" | "system";
 // --- Ledger event types ---
 //
 // Why each event records what it does:
-//   - cause / failure_message / stuck_reason / failed_node_id let the
+//   - cause / failure_message / stuck_reason / failed_dispatch_id let the
 //     reader scan a single line and judge correctness without drilling
 //     down (drill-down still works via report_file / feedback_file).
-//   - assignment_retried + node_promoted_eligible surface system
+//   - dispatch_retried surface system
 //     decisions that used to be silent inside the state machine.
 
 export type DispatchCause = "initial" | "system_retry" | "lead_redispatch";
@@ -38,21 +38,21 @@ export interface LeadAssessment {
 }
 
 export type LedgerEvent =
-  | { type: "workflow_created"; intent_file: string; lead_terminal_id: string }
+  | { type: "workbench_created"; intent_file: string; lead_terminal_id: string }
   | {
-      type: "node_dispatched";
-      node_id: string;
+      type: "dispatch_started";
+      dispatch_id: string;
       role: string;
       agent_type: AgentType;
       intent_file: string;
       cause: DispatchCause;
       resumed_from_session?: string;
-      /** Lead's coupling × novelty assessment at dispatch time. */
+      /** Lead's coupling x novelty assessment at dispatch time. */
       assessment?: LeadAssessment;
     }
   | {
-      type: "node_completed";
-      node_id: string;
+      type: "dispatch_completed";
+      dispatch_id: string;
       role: string;
       agent_type: AgentType;
       duration_ms: number;
@@ -63,8 +63,8 @@ export type LedgerEvent =
       session_id?: string;
     }
   | {
-      type: "node_failed";
-      node_id: string;
+      type: "dispatch_failed";
+      dispatch_id: string;
       role: string;
       agent_type: AgentType;
       duration_ms: number;
@@ -74,23 +74,22 @@ export type LedgerEvent =
       report_file?: string;
     }
   | {
-      type: "node_reset";
-      node_id: string;
+      type: "dispatch_reset";
+      dispatch_id: string;
       role: string;
       feedback_file?: string;
-      cascade_targets: string[];
     }
-  | { type: "node_approved"; node_id: string; role: string }
+  | { type: "dispatch_approved"; dispatch_id: string; role: string }
   /**
    * System-side retry of a single assignment after a timeout or an
    * agent-reported error. Emitted when scheduleRetry queues a fresh attempt
-   * (so a corresponding node_dispatched with cause=system_retry follows).
+   * (so a corresponding dispatch_started with cause=system_retry follows).
    * Lets the reader audit "should we have retried this / how long until
    * the next attempt".
    */
   | {
-      type: "assignment_retried";
-      node_id: string;
+      type: "dispatch_retried";
+      dispatch_id: string;
       cause: "timeout" | "agent_reported_error";
       attempt: number;
       max_attempts: number;
@@ -99,18 +98,8 @@ export type LedgerEvent =
       failure_message?: string;
     }
   /**
-   * System-side promotion of a previously blocked node to "eligible" once
-   * its dependencies completed. Lets the reader audit "did Hydra promote
-   * the right node, at the right time, after the right deps".
-   */
-  | {
-      type: "node_promoted_eligible";
-      node_id: string;
-      triggered_by: string[];
-    }
-  /**
-   * Lead asked a follow-up question to a completed node via `hydra ask`.
-   * A one-shot subprocess resumed the node's session, answered the
+   * Lead asked a follow-up question to a completed dispatch via `hydra ask`.
+   * A one-shot subprocess resumed the dispatch's session, answered the
    * question, and exited. The new_session_id is only populated when
    * the CLI supports fork (currently claude via --fork-session); for
    * codex the follow-up appends to the original session id so
@@ -118,7 +107,7 @@ export type LedgerEvent =
    */
   | {
       type: "lead_asked_followup";
-      node_id: string;
+      dispatch_id: string;
       role: string;
       agent_type: AgentType;
       session_id: string;
@@ -127,19 +116,19 @@ export type LedgerEvent =
       answer_excerpt: string;
       duration_ms: number;
     }
-  | { type: "merge_attempted"; source_nodes: string[]; outcome: "merged" | "conflict" }
+  | { type: "merge_attempted"; source_dispatches: string[]; outcome: "merged" | "conflict" }
   | {
-      type: "workflow_completed";
+      type: "workbench_completed";
       result_file?: string;
       total_duration_ms: number;
-      total_nodes: number;
+      total_dispatches: number;
       total_retries: number;
     }
   | {
-      type: "workflow_failed";
+      type: "workbench_failed";
       reason: string;
       total_duration_ms: number;
-      failed_node_id?: string;
+      failed_dispatch_id?: string;
     };
 
 export interface LedgerEntry {
@@ -150,17 +139,17 @@ export interface LedgerEntry {
 
 // --- Storage ---
 
-function getLedgerPath(repoPath: string, workflowId: string): string {
-  return path.join(path.resolve(repoPath), ".hydra", "workflows", workflowId, "ledger.jsonl");
+function getLedgerPath(repoPath: string, workbenchId: string): string {
+  return path.join(path.resolve(repoPath), ".hydra", "workbenches", workbenchId, "ledger.jsonl");
 }
 
 export function appendLedger(
   repoPath: string,
-  workflowId: string,
+  workbenchId: string,
   actor: LedgerActor,
   event: LedgerEvent,
 ): void {
-  const filePath = getLedgerPath(repoPath, workflowId);
+  const filePath = getLedgerPath(repoPath, workbenchId);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const entry: LedgerEntry = {
     timestamp: new Date().toISOString(),
@@ -172,9 +161,9 @@ export function appendLedger(
 
 export function readLedger(
   repoPath: string,
-  workflowId: string,
+  workbenchId: string,
 ): LedgerEntry[] {
-  const filePath = getLedgerPath(repoPath, workflowId);
+  const filePath = getLedgerPath(repoPath, workbenchId);
   if (!fs.existsSync(filePath)) return [];
   const content = fs.readFileSync(filePath, "utf-8").trim();
   if (content === "") return [];

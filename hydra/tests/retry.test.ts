@@ -13,15 +13,15 @@ import {
 
 function createFixture() {
   const repoPath = fs.mkdtempSync(path.join(os.tmpdir(), "hydra-retry-"));
-  const workflowId = "workflow-123";
-  const manager = new AssignmentManager(repoPath, workflowId);
+  const workbenchId = "workflow-123";
+  const manager = new AssignmentManager(repoPath, workbenchId);
   const stateMachine = new AssignmentStateMachine(manager, {
     now: () => "2026-03-26T12:00:00.000Z",
   });
 
   const assignment = manager.create({
     id: "assignment-123",
-    workflow_id: workflowId,
+    workflow_id: workbenchId,
     role: "dev",
     from_assignment_id: null,
     requested_agent_type: "codex",
@@ -31,7 +31,7 @@ function createFixture() {
 
   return {
     repoPath,
-    workflowId,
+    workbenchId,
     manager,
     stateMachine,
     assignment,
@@ -66,7 +66,7 @@ test("hasAssignmentTimedOut detects whether the timeout threshold has been cross
 });
 
 test("retryTimedOutAssignment dispatches a new terminal and records retry_of_run_id on a new run", async (t) => {
-  const { repoPath, workflowId, manager, stateMachine, assignment } = createFixture();
+  const { repoPath, workbenchId, manager, stateMachine, assignment } = createFixture();
   t.after(() => cleanupWorkspace(repoPath));
 
   await stateMachine.claimPending(assignment.id, "tick-1");
@@ -87,7 +87,7 @@ test("retryTimedOutAssignment dispatches a new terminal and records retry_of_run
       assignmentId: assignment.id,
       timeoutCheckedAt: "2026-03-26T12:01:02.000Z",
       dispatchRequest: {
-        workflowId,
+        workbenchId,
         assignmentId: assignment.id,
         runId: "run-2",
         repoPath: "/repo/project",
@@ -149,7 +149,7 @@ test("retryTimedOutAssignment dispatches a new terminal and records retry_of_run
 });
 
 test("retryTimedOutAssignment converges to failed when the retry limit is exhausted", async (t) => {
-  const { repoPath, workflowId, manager, stateMachine, assignment } = createFixture();
+  const { repoPath, workbenchId, manager, stateMachine, assignment } = createFixture();
   t.after(() => cleanupWorkspace(repoPath));
 
   await stateMachine.claimPending(assignment.id, "tick-1");
@@ -170,7 +170,7 @@ test("retryTimedOutAssignment converges to failed when the retry limit is exhaus
       assignmentId: assignment.id,
       timeoutCheckedAt: "2026-03-26T12:01:02.000Z",
       dispatchRequest: {
-        workflowId,
+        workbenchId,
         assignmentId: assignment.id,
         runId: "run-2",
         repoPath: "/repo/project",
@@ -208,7 +208,7 @@ test("retryTimedOutAssignment converges to failed when the retry limit is exhaus
       assignmentId: assignment.id,
       timeoutCheckedAt: "2026-03-26T12:02:30.000Z",
       dispatchRequest: {
-        workflowId,
+        workbenchId,
         assignmentId: assignment.id,
         runId: "run-3",
         repoPath: "/repo/project",
@@ -240,7 +240,7 @@ test("retryTimedOutAssignment converges to failed when the retry limit is exhaus
 });
 
 test("retryTimedOutAssignment does not dispatch when another controller claims the retry first", async (t) => {
-  const { repoPath, workflowId, manager, stateMachine, assignment } = createFixture();
+  const { repoPath, workbenchId, manager, stateMachine, assignment } = createFixture();
   t.after(() => cleanupWorkspace(repoPath));
 
   await stateMachine.claimPending(assignment.id, "tick-1");
@@ -273,7 +273,7 @@ test("retryTimedOutAssignment does not dispatch when another controller claims t
       assignmentId: assignment.id,
       timeoutCheckedAt: "2026-03-26T12:01:02.000Z",
       dispatchRequest: {
-        workflowId,
+        workbenchId,
         assignmentId: assignment.id,
         runId: "run-2",
         repoPath: "/repo/project",

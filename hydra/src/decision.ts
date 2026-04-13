@@ -1,7 +1,6 @@
 import type { StuckReason, SubAgentOutcome } from "./protocol.ts";
 
-export type NodeStatus =
-  | "blocked"
+export type DispatchStatus =
   | "eligible"
   | "dispatched"
   | "completed"
@@ -9,14 +8,14 @@ export type NodeStatus =
   | "reset";
 
 export type DecisionPointType =
-  | "node_completed"
-  | "node_failed"
-  | "node_failed_final"
+  | "dispatch_completed"
+  | "dispatch_failed"
+  | "dispatch_failed_final"
   | "batch_completed"
   | "watch_timeout";
 
-export interface CompletedNodeInfo {
-  node_id: string;
+export interface CompletedDispatchInfo {
+  dispatch_id: string;
   role: string;
   outcome: SubAgentOutcome;
   /**
@@ -38,8 +37,8 @@ export interface CompletedNodeInfo {
   };
 }
 
-export interface FailedNodeInfo {
-  node_id: string;
+export interface FailedDispatchInfo {
+  dispatch_id: string;
   role: string;
   code: string;
   message: string;
@@ -47,20 +46,18 @@ export interface FailedNodeInfo {
   max_retries: number;
 }
 
-export interface NodeSummary {
-  node_id: string;
+export interface DispatchSummary {
+  dispatch_id: string;
   role: string;
-  status: NodeStatus;
-  depends_on: string[];
+  status: DispatchStatus;
   assignment_id?: string;
 }
 
 export interface DecisionPoint {
   type: DecisionPointType;
-  workflow_id: string;
+  workbench_id: string;
   timestamp: string;
-  completed?: CompletedNodeInfo;
-  failed?: FailedNodeInfo;
-  nodes: NodeSummary[];
-  newly_eligible?: string[];
+  completed?: CompletedDispatchInfo;
+  failed?: FailedDispatchInfo;
+  dispatches: DispatchSummary[];
 }

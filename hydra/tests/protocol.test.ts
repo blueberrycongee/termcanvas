@@ -8,7 +8,7 @@ import {
 function buildValidResult() {
   return {
     schema_version: RESULT_SCHEMA_VERSION,
-    workflow_id: "workflow-xyz",
+    workbench_id: "workflow-xyz",
     assignment_id: "assignment-abc123",
     run_id: "run-0001",
     outcome: "completed",
@@ -17,7 +17,7 @@ function buildValidResult() {
 }
 
 const EXPECTED_IDS = {
-  workflow_id: "workflow-xyz",
+  workbench_id: "workflow-xyz",
   assignment_id: "assignment-abc123",
   run_id: "run-0001",
 } as const;

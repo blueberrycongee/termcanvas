@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
  * Why `terminals: []` is an array, not a single field:
  *   - Different roles want different SOTA model + reasoning combinations
  *     (e.g. dev = Opus max, reviewer = GPT-5 xhigh).
- *   - Order expresses preference. dispatchNode picks `terminals[0]`
+ *   - Order expresses preference. dispatch picks `terminals[0]`
  *     today; future fallback logic can walk the array if the first CLI
  *     is unavailable. Project- and user-level role files can override
  *     the order without forking the schema.

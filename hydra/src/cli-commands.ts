@@ -2,17 +2,17 @@ import path from "node:path";
 import { readLedger, type LeadAssessment, type LedgerEntry, type LedgerEvent } from "./ledger.ts";
 import { listRoles } from "./roles/loader.ts";
 import {
-  initWorkflow,
-  dispatchNode,
-  redispatchNode,
+  initWorkbench,
+  dispatch,
+  redispatch,
   watchUntilDecision,
-  approveNode,
-  resetNode,
+  approveDispatch,
+  resetDispatch,
   mergeWorktrees,
-  completeWorkflow,
-  failWorkflow,
-  getWorkflowStatus,
-  askNode,
+  completeWorkbench,
+  failWorkbench,
+  getWorkbenchStatus,
+  askDispatch,
 } from "./workflow-lead.ts";
 
 // --- Shared arg parser helpers ---
@@ -64,23 +64,23 @@ function repeatableFlag(args: string[], flag: string): string[] {
 export async function cliInit(args: string[]): Promise<void> {
   if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
     console.log("Usage: hydra init --intent <desc> --repo <path> [options]");
-    console.log("  --intent <desc>              Workflow intent (required)");
+    console.log("  --intent <desc>              Workbench intent (required)");
     console.log("  --repo <path>                Repository path (required)");
     console.log("  --worktree <path>            Use existing worktree");
-    console.log("  --timeout-minutes <n>        Default per-node timeout");
+    console.log("  --timeout-minutes <n>        Default per-dispatch timeout");
     console.log("  --max-retries <n>            Default max retries");
     console.log("  --no-auto-approve            Disable auto-approve");
-    console.log("  --human-request <text>       Original human request (broadcast to all nodes)");
-    console.log("  --overall-plan <text>        Lead's plan summary (broadcast to all nodes)");
-    console.log("  --shared-constraint <text>   Workflow-wide constraint (repeatable)");
+    console.log("  --human-request <text>       Original human request (broadcast to all dispatches)");
+    console.log("  --overall-plan <text>        Lead's plan summary (broadcast to all dispatches)");
+    console.log("  --shared-constraint <text>   Workbench-wide constraint (repeatable)");
     console.log("");
-    console.log("Note: agent_type is no longer a workflow-level default; the role file's");
+    console.log("Note: agent_type is no longer a workbench-level default; the role file's");
     console.log("terminals[] array selects the CLI per dispatch.");
     process.exit(0);
   }
 
   const sharedConstraints = repeatableFlag(args, "--shared-constraint");
-  const result = await initWorkflow({
+  const result = await initWorkbench({
     intent: requireFlag(args, "--intent"),
     repoPath: requireFlag(args, "--repo"),
     worktreePath: optionalFlag(args, "--worktree"),
@@ -98,19 +98,18 @@ export async function cliInit(args: string[]): Promise<void> {
 
 export async function cliDispatch(args: string[]): Promise<void> {
   if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
-    console.log("Usage: hydra dispatch --workflow <id> --node <id> --role <role> --intent <desc> --repo <path> [options]");
-    console.log("  --workflow <id>         Workflow ID (required)");
-    console.log("  --node <id>            Node ID (required)");
+    console.log("Usage: hydra dispatch --workbench <id> --dispatch <id> --role <role> --intent <desc> --repo <path> [options]");
+    console.log("  --workbench <id>       Workbench ID (required)");
+    console.log("  --dispatch <id>        Dispatch ID (required)");
     console.log("  --role <role>          Registered role name (required, e.g. dev)");
     console.log("  --intent <desc>        Task intent (required)");
     console.log("  --repo <path>          Repository path (required)");
-    console.log("  --depends-on <a,b>     Comma-separated dependency node IDs");
     console.log("  --model <name>         Override the role's default model (e.g. opus)");
     console.log("  --context-ref <l:p>    Context ref as label:path (repeatable)");
     console.log("  --feedback <text>      Feedback text (for reset re-dispatch)");
     console.log("  --worktree <path>      Isolated worktree path");
     console.log("  --worktree-branch <b>  Branch name for isolated worktree");
-    console.log("  --timeout-minutes <n>  Per-node timeout override");
+    console.log("  --timeout-minutes <n>  Per-dispatch timeout override");
     console.log("  --max-retries <n>      Max retries override");
     console.log("  --assessment <json>    Lead assessment JSON: {coupling,novelty,mode,rationale?}");
     process.exit(0);
@@ -139,13 +138,12 @@ export async function cliDispatch(args: string[]): Promise<void> {
     }
   }
 
-  const result = await dispatchNode({
+  const result = await dispatch({
     repoPath: requireFlag(args, "--repo"),
-    workflowId: requireFlag(args, "--workflow"),
-    nodeId: requireFlag(args, "--node"),
+    workbenchId: requireFlag(args, "--workbench"),
+    dispatchId: requireFlag(args, "--dispatch"),
     role: requireFlag(args, "--role"),
     intent: requireFlag(args, "--intent"),
-    dependsOn: listFlag(args, "--depends-on"),
     model: optionalFlag(args, "--model"),
     contextRefs: contextRefs.length > 0 ? contextRefs : undefined,
     feedback: optionalFlag(args, "--feedback"),
@@ -162,22 +160,22 @@ export async function cliDispatch(args: string[]): Promise<void> {
 
 export async function cliAsk(args: string[]): Promise<void> {
   if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
-    console.log("Usage: hydra ask --workflow <id> --node <id> --message <text> --repo <path> [options]");
-    console.log("  --workflow <id>        Workflow ID (required)");
-    console.log("  --node <id>            Node ID to ask (required, node must have completed at least one run)");
+    console.log("Usage: hydra ask --workbench <id> --dispatch <id> --message <text> --repo <path> [options]");
+    console.log("  --workbench <id>       Workbench ID (required)");
+    console.log("  --dispatch <id>        Dispatch ID to ask (required, dispatch must have completed at least one run)");
     console.log("  --message <text>       Question to send (required)");
     console.log("  --repo <path>          Repository path (required)");
     console.log("  --timeout-ms <n>       Subprocess timeout (default 300000 = 5 min)");
     console.log("");
-    console.log("Spins up a one-shot subprocess that resumes the node's session");
-    console.log("and asks a follow-up question. Does not touch workflow state.");
+    console.log("Spins up a one-shot subprocess that resumes the dispatch's session");
+    console.log("and asks a follow-up question. Does not touch workbench state.");
     process.exit(0);
   }
 
-  const result = await askNode({
+  const result = await askDispatch({
     repoPath: requireFlag(args, "--repo"),
-    workflowId: requireFlag(args, "--workflow"),
-    nodeId: requireFlag(args, "--node"),
+    workbenchId: requireFlag(args, "--workbench"),
+    dispatchId: requireFlag(args, "--dispatch"),
     message: requireFlag(args, "--message"),
     timeoutMs: optionalNumber(args, "--timeout-ms"),
   });
@@ -215,14 +213,14 @@ export async function cliListRoles(args: string[]): Promise<void> {
 
 export async function cliRedispatch(args: string[]): Promise<void> {
   if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
-    console.log("Usage: hydra redispatch --workflow <id> --node <id> --repo <path> [--intent <desc>]");
+    console.log("Usage: hydra redispatch --workbench <id> --dispatch <id> --repo <path> [--intent <desc>]");
     process.exit(0);
   }
 
-  const result = await redispatchNode({
+  const result = await redispatch({
     repoPath: requireFlag(args, "--repo"),
-    workflowId: requireFlag(args, "--workflow"),
-    nodeId: requireFlag(args, "--node"),
+    workbenchId: requireFlag(args, "--workbench"),
+    dispatchId: requireFlag(args, "--dispatch"),
     intent: optionalFlag(args, "--intent"),
   });
   console.log(JSON.stringify(result, null, 2));
@@ -232,8 +230,8 @@ export async function cliRedispatch(args: string[]): Promise<void> {
 
 export async function cliWatch(args: string[]): Promise<void> {
   if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
-    console.log("Usage: hydra watch --workflow <id> --repo <path> [options]");
-    console.log("  --workflow <id>        Workflow ID (required)");
+    console.log("Usage: hydra watch --workbench <id> --repo <path> [options]");
+    console.log("  --workbench <id>       Workbench ID (required)");
     console.log("  --repo <path>          Repository path (required)");
     console.log("  --interval-ms <n>      Poll interval (default 5000)");
     console.log("  --timeout-ms <n>       Max watch duration");
@@ -242,7 +240,7 @@ export async function cliWatch(args: string[]): Promise<void> {
 
   const result = await watchUntilDecision({
     repoPath: requireFlag(args, "--repo"),
-    workflowId: requireFlag(args, "--workflow"),
+    workbenchId: requireFlag(args, "--workbench"),
     intervalMs: optionalNumber(args, "--interval-ms"),
     timeoutMs: optionalNumber(args, "--timeout-ms"),
   });
@@ -253,14 +251,14 @@ export async function cliWatch(args: string[]): Promise<void> {
 
 export async function cliApprove(args: string[]): Promise<void> {
   if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
-    console.log("Usage: hydra approve --workflow <id> --node <id> --repo <path>");
+    console.log("Usage: hydra approve --workbench <id> --dispatch <id> --repo <path>");
     process.exit(0);
   }
 
-  await approveNode({
+  await approveDispatch({
     repoPath: requireFlag(args, "--repo"),
-    workflowId: requireFlag(args, "--workflow"),
-    nodeId: requireFlag(args, "--node"),
+    workbenchId: requireFlag(args, "--workbench"),
+    dispatchId: requireFlag(args, "--dispatch"),
   });
   console.log("Approved.");
 }
@@ -269,16 +267,15 @@ export async function cliApprove(args: string[]): Promise<void> {
 
 export async function cliReset(args: string[]): Promise<void> {
   if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
-    console.log("Usage: hydra reset --workflow <id> --node <id> --repo <path> [--feedback <text>] [--no-cascade]");
+    console.log("Usage: hydra reset --workbench <id> --dispatch <id> --repo <path> [--feedback <text>]");
     process.exit(0);
   }
 
-  const result = await resetNode({
+  const result = await resetDispatch({
     repoPath: requireFlag(args, "--repo"),
-    workflowId: requireFlag(args, "--workflow"),
-    nodeId: requireFlag(args, "--node"),
+    workbenchId: requireFlag(args, "--workbench"),
+    dispatchId: requireFlag(args, "--dispatch"),
     feedback: optionalFlag(args, "--feedback"),
-    cascade: !hasFlag(args, "--no-cascade"),
   });
   console.log(JSON.stringify(result, null, 2));
 }
@@ -287,14 +284,14 @@ export async function cliReset(args: string[]): Promise<void> {
 
 export async function cliMerge(args: string[]): Promise<void> {
   if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
-    console.log("Usage: hydra merge --workflow <id> --nodes <a,b,c> --repo <path> [--target-branch <branch>]");
+    console.log("Usage: hydra merge --workbench <id> --dispatches <a,b,c> --repo <path> [--target-branch <branch>]");
     process.exit(0);
   }
 
   const result = await mergeWorktrees({
     repoPath: requireFlag(args, "--repo"),
-    workflowId: requireFlag(args, "--workflow"),
-    sourceNodeIds: listFlag(args, "--nodes"),
+    workbenchId: requireFlag(args, "--workbench"),
+    sourceDispatchIds: listFlag(args, "--dispatches"),
     targetBranch: optionalFlag(args, "--target-branch"),
   });
   console.log(JSON.stringify(result, null, 2));
@@ -304,45 +301,45 @@ export async function cliMerge(args: string[]): Promise<void> {
 
 export async function cliComplete(args: string[]): Promise<void> {
   if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
-    console.log("Usage: hydra complete --workflow <id> --repo <path> [--summary <text>]");
+    console.log("Usage: hydra complete --workbench <id> --repo <path> [--summary <text>]");
     process.exit(0);
   }
 
-  await completeWorkflow({
+  await completeWorkbench({
     repoPath: requireFlag(args, "--repo"),
-    workflowId: requireFlag(args, "--workflow"),
+    workbenchId: requireFlag(args, "--workbench"),
     summary: optionalFlag(args, "--summary"),
   });
-  console.log("Workflow completed.");
+  console.log("Workbench completed.");
 }
 
 // --- fail ---
 
 export async function cliFail(args: string[]): Promise<void> {
   if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
-    console.log("Usage: hydra fail --workflow <id> --repo <path> --reason <text>");
+    console.log("Usage: hydra fail --workbench <id> --repo <path> --reason <text>");
     process.exit(0);
   }
 
-  await failWorkflow({
+  await failWorkbench({
     repoPath: requireFlag(args, "--repo"),
-    workflowId: requireFlag(args, "--workflow"),
+    workbenchId: requireFlag(args, "--workbench"),
     reason: requireFlag(args, "--reason"),
   });
-  console.log("Workflow failed.");
+  console.log("Workbench failed.");
 }
 
 // --- status ---
 
 export async function cliStatus(args: string[]): Promise<void> {
   if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
-    console.log("Usage: hydra status --workflow <id> --repo <path>");
+    console.log("Usage: hydra status --workbench <id> --repo <path>");
     process.exit(0);
   }
 
-  const result = getWorkflowStatus(
+  const result = getWorkbenchStatus(
     requireFlag(args, "--repo"),
-    requireFlag(args, "--workflow"),
+    requireFlag(args, "--workbench"),
   );
   console.log(JSON.stringify(result, null, 2));
 }
@@ -351,7 +348,7 @@ export async function cliStatus(args: string[]): Promise<void> {
 
 export async function cliLedger(args: string[]): Promise<void> {
   if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
-    console.log("Usage: hydra ledger --workflow <id> --repo <path> [--json]");
+    console.log("Usage: hydra ledger --workbench <id> --repo <path> [--json]");
     console.log("  Default: one-line scannable view, prefixed with [L]/[W]/[S] actor.");
     console.log("  --json:  raw JSON-per-line for machine consumption.");
     process.exit(0);
@@ -359,7 +356,7 @@ export async function cliLedger(args: string[]): Promise<void> {
 
   const entries = readLedger(
     path.resolve(requireFlag(args, "--repo")),
-    requireFlag(args, "--workflow"),
+    requireFlag(args, "--workbench"),
   );
   const json = hasFlag(args, "--json");
   for (const entry of entries) {
@@ -378,48 +375,45 @@ function formatLedgerLine(entry: LedgerEntry): string {
 
 function formatEventSummary(event: LedgerEvent): string {
   switch (event.type) {
-    case "workflow_created":
-      return `workflow_created           intent=${event.intent_file}`;
-    case "node_dispatched": {
+    case "workbench_created":
+      return `workbench_created          intent=${event.intent_file}`;
+    case "dispatch_started": {
       const assess = event.assessment?.rationale ? ` — ${truncate(event.assessment.rationale, 60)}` : "";
-      return `node_dispatched            ${event.node_id} role=${event.role} cause=${event.cause}${assess}`;
+      return `dispatch_started           ${event.dispatch_id} role=${event.role} cause=${event.cause}${assess}`;
     }
-    case "node_completed": {
+    case "dispatch_completed": {
       const stuck = event.stuck_reason ? ` stuck_reason=${event.stuck_reason}` : "";
-      return `node_completed             ${event.node_id} outcome=${event.outcome}${stuck} report=${event.report_file}`;
+      return `dispatch_completed         ${event.dispatch_id} outcome=${event.outcome}${stuck} report=${event.report_file}`;
     }
-    case "node_failed": {
+    case "dispatch_failed": {
       const msg = event.failure_message ? ` "${truncate(event.failure_message, 60)}"` : "";
       const ref = event.report_file ? ` report=${event.report_file}` : "";
-      return `node_failed                ${event.node_id} code=${event.failure_code}${msg}${ref}`;
+      return `dispatch_failed            ${event.dispatch_id} code=${event.failure_code}${msg}${ref}`;
     }
-    case "node_reset": {
-      const cascade = event.cascade_targets.length > 0 ? ` cascade=[${event.cascade_targets.join(",")}]` : "";
+    case "dispatch_reset": {
       const fb = event.feedback_file ? ` feedback=${event.feedback_file}` : "";
-      return `node_reset                 ${event.node_id}${cascade}${fb}`;
+      return `dispatch_reset             ${event.dispatch_id}${fb}`;
     }
-    case "node_approved":
-      return `node_approved              ${event.node_id}`;
-    case "assignment_retried": {
+    case "dispatch_approved":
+      return `dispatch_approved          ${event.dispatch_id}`;
+    case "dispatch_retried": {
       const next = event.next_retry_at ? ` next=${event.next_retry_at.slice(11, 19)}` : "";
       const msg = event.failure_message ? ` "${truncate(event.failure_message, 60)}"` : "";
-      return `assignment_retried         ${event.node_id} cause=${event.cause} attempt=${event.attempt}/${event.max_attempts}${next} code=${event.failure_code}${msg}`;
+      return `dispatch_retried           ${event.dispatch_id} cause=${event.cause} attempt=${event.attempt}/${event.max_attempts}${next} code=${event.failure_code}${msg}`;
     }
-    case "node_promoted_eligible":
-      return `node_promoted_eligible     ${event.node_id} triggered_by=[${event.triggered_by.join(",")}]`;
     case "lead_asked_followup": {
       const fork = event.new_session_id && event.new_session_id !== event.session_id
         ? ` forked=${event.new_session_id.slice(0, 8)}`
         : "";
-      return `lead_asked_followup        ${event.node_id} role=${event.role} session=${event.session_id.slice(0, 8)}${fork} "${truncate(event.message_excerpt, 50)}"`;
+      return `lead_asked_followup        ${event.dispatch_id} role=${event.role} session=${event.session_id.slice(0, 8)}${fork} "${truncate(event.message_excerpt, 50)}"`;
     }
     case "merge_attempted":
-      return `merge_attempted            sources=[${event.source_nodes.join(",")}] outcome=${event.outcome}`;
-    case "workflow_completed":
-      return `workflow_completed         nodes=${event.total_nodes} retries=${event.total_retries} duration_ms=${event.total_duration_ms}`;
-    case "workflow_failed": {
-      const failedNode = event.failed_node_id ? ` failed_node=${event.failed_node_id}` : "";
-      return `workflow_failed            "${truncate(event.reason, 60)}"${failedNode}`;
+      return `merge_attempted            sources=[${event.source_dispatches.join(",")}] outcome=${event.outcome}`;
+    case "workbench_completed":
+      return `workbench_completed        dispatches=${event.total_dispatches} retries=${event.total_retries} duration_ms=${event.total_duration_ms}`;
+    case "workbench_failed": {
+      const failedDispatch = event.failed_dispatch_id ? ` failed_dispatch=${event.failed_dispatch_id}` : "";
+      return `workbench_failed           "${truncate(event.reason, 60)}"${failedDispatch}`;
     }
   }
 }

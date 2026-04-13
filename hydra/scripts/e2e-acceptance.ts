@@ -5,16 +5,16 @@ import { cleanup } from "../src/cleanup.ts";
 import { AssignmentManager } from "../src/assignment/manager.ts";
 import { terminalDestroy, terminalStatus } from "../src/termcanvas.ts";
 import {
-  initWorkflow,
-  dispatchNode,
-  redispatchNode,
+  initWorkbench,
+  dispatch,
+  redispatch,
   watchUntilDecision,
-  approveNode,
-  resetNode,
-  completeWorkflow,
-  getWorkflowStatus,
+  approveDispatch,
+  resetDispatch,
+  completeWorkbench,
+  getWorkbenchStatus,
 } from "../src/workflow-lead.ts";
-import { loadWorkflow } from "../src/workflow-store.ts";
+import { loadWorkbench } from "../src/workflow-store.ts";
 import { RESULT_SCHEMA_VERSION } from "../src/protocol.ts";
 import { getReportFilePath } from "../src/artifacts.ts";
 import type { AssignmentRecord } from "../src/assignment/types.ts";
@@ -26,7 +26,7 @@ interface Args {
 
 interface StageRecord {
   stage: string;
-  nodeId: string;
+  dispatchId: string;
   assignmentId: string;
   role: string;
   terminalId: string | null;
@@ -58,13 +58,13 @@ function latestRun(assignment: AssignmentRecord): AssignmentRecord["runs"][numbe
 
 function writeResult(
   repoPath: string,
-  workflowId: string,
+  workbenchId: string,
   assignmentId: string,
   run: AssignmentRecord["runs"][number],
   summary: string,
   outcome: "completed" | "stuck" | "error",
 ): void {
-  const reportFile = getReportFilePath(repoPath, workflowId, assignmentId, run.id);
+  const reportFile = getReportFilePath(repoPath, workbenchId, assignmentId, run.id);
   fs.mkdirSync(path.dirname(reportFile), { recursive: true });
   fs.writeFileSync(
     reportFile,
@@ -91,7 +91,7 @@ function writeResult(
     run.result_file,
     JSON.stringify({
       schema_version: RESULT_SCHEMA_VERSION,
-      workflow_id: workflowId,
+      workbench_id: workbenchId,
       assignment_id: assignmentId,
       run_id: run.id,
       outcome,
@@ -102,7 +102,7 @@ function writeResult(
 }
 
 function captureStage(
-  nodeId: string,
+  dispatchId: string,
   assignmentId: string,
   role: string,
   terminalId: string | null,
@@ -112,23 +112,23 @@ function captureStage(
   if (terminalId) {
     try { status = terminalStatus(terminalId).status; } catch { status = "missing"; }
   }
-  return { stage: role, nodeId, assignmentId, role, terminalId, terminalStatus: status, summary };
+  return { stage: role, dispatchId, assignmentId, role, terminalId, terminalStatus: status, summary };
 }
 
-function renderReport(args: Args, workflowId: string, records: StageRecord[]): string {
+function renderReport(args: Args, workbenchId: string, records: StageRecord[]): string {
   return [
     "# Hydra Acceptance Report",
     "",
     `- Date: ${new Date().toISOString()}`,
     `- Repo: ${args.repo}`,
-    `- Workflow ID: ${workflowId}`,
+    `- Workbench ID: ${workbenchId}`,
     `- Mode: Lead-driven dispatch + deterministic result injection`,
     "",
     "## Observed Stages",
     "",
-    "| Stage | Node ID | Assignment ID | Terminal ID | Summary |",
-    "|-------|---------|---------------|-------------|---------|",
-    ...records.map((r) => `| ${r.stage} | ${r.nodeId} | ${r.assignmentId} | ${r.terminalId ?? "-"} | ${r.summary} |`),
+    "| Stage | Dispatch ID | Assignment ID | Terminal ID | Summary |",
+    "|-------|-------------|---------------|-------------|---------|",
+    ...records.map((r) => `| ${r.stage} | ${r.dispatchId} | ${r.assignmentId} | ${r.terminalId ?? "-"} | ${r.summary} |`),
     "",
     "## Outcome",
     "",
@@ -140,98 +140,98 @@ function renderReport(args: Args, workflowId: string, records: StageRecord[]): s
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const records: StageRecord[] = [];
-  let workflowId: string | null = null;
+  let workbenchId: string | null = null;
 
   try {
-    // 1. Init workflow
-    const init = await initWorkflow({
+    // 1. Init workbench
+    const init = await initWorkbench({
       intent: "Hydra acceptance harness: exercise the Lead-driven control plane.",
       repoPath: args.repo,
       worktreePath: args.repo,
     });
-    workflowId = init.workflow_id;
+    workbenchId = init.workbench_id;
 
-    // 2. Dispatch the first node (cli/model come from the role file's terminals[0])
-    const researcher = await dispatchNode({
-      repoPath: args.repo, workflowId, nodeId: "researcher",
+    // 2. Dispatch the first dispatch (cli/model come from the role file's terminals[0])
+    const researcher = await dispatch({
+      repoPath: args.repo, workbenchId, dispatchId: "researcher",
       role: "dev", intent: "Produce acceptance research brief.",
     });
     assert.equal(researcher.status, "dispatched");
 
     // Write researcher result
-    const manager = new AssignmentManager(args.repo, workflowId);
-    let assignment = manager.load(researcher.assignment_id)!;
+    const manager = new AssignmentManager(args.repo, workbenchId);
+    let assignment = manager.load(researcher.dispatch_id)!;
     let run = latestRun(assignment);
-    writeResult(args.repo, workflowId, assignment.id, run, "Research brief produced.", "completed");
+    writeResult(args.repo, workbenchId, assignment.id, run, "Research brief produced.", "completed");
     records.push(captureStage("researcher", assignment.id, "dev", researcher.terminal_id ?? null, "Research brief produced."));
 
     // 3. Watch → researcher completes
-    let decision = await watchUntilDecision({ repoPath: args.repo, workflowId, timeoutMs: 10_000 });
-    assert.equal(decision.type, "node_completed");
+    let decision = await watchUntilDecision({ repoPath: args.repo, workbenchId, timeoutMs: 10_000 });
+    assert.equal(decision.type, "dispatch_completed");
 
     // 4. Approve researcher
-    await approveNode({ repoPath: args.repo, workflowId, nodeId: "researcher" });
+    await approveDispatch({ repoPath: args.repo, workbenchId, dispatchId: "researcher" });
 
     // 5. Dispatch dev
-    const dev = await dispatchNode({
-      repoPath: args.repo, workflowId, nodeId: "dev",
-      role: "dev", intent: "Implement first pass.", dependsOn: ["researcher"],
+    const dev = await dispatch({
+      repoPath: args.repo, workbenchId, dispatchId: "dev",
+      role: "dev", intent: "Implement first pass.",
     });
     assert.equal(dev.status, "dispatched");
 
-    assignment = manager.load(dev.assignment_id)!;
+    assignment = manager.load(dev.dispatch_id)!;
     run = latestRun(assignment);
-    writeResult(args.repo, workflowId, assignment.id, run, "First implementation pass done.", "completed");
+    writeResult(args.repo, workbenchId, assignment.id, run, "First implementation pass done.", "completed");
     records.push(captureStage("dev", assignment.id, "dev", dev.terminal_id ?? null, "First pass done."));
 
-    decision = await watchUntilDecision({ repoPath: args.repo, workflowId, timeoutMs: 10_000 });
-    assert.equal(decision.type, "node_completed");
+    decision = await watchUntilDecision({ repoPath: args.repo, workbenchId, timeoutMs: 10_000 });
+    assert.equal(decision.type, "dispatch_completed");
 
     // 6. Dispatch reviewer (codex variant — exercises a cross-CLI workflow)
-    const reviewer = await dispatchNode({
-      repoPath: args.repo, workflowId, nodeId: "review",
-      role: "reviewer", intent: "Review implementation.", dependsOn: ["dev"],
+    const reviewer = await dispatch({
+      repoPath: args.repo, workbenchId, dispatchId: "review",
+      role: "reviewer", intent: "Review implementation.",
     });
     assert.equal(reviewer.status, "dispatched");
 
-    assignment = manager.load(reviewer.assignment_id)!;
+    assignment = manager.load(reviewer.dispatch_id)!;
     run = latestRun(assignment);
-    writeResult(args.repo, workflowId, assignment.id, run, "Found issues, needs rework.", "completed");
+    writeResult(args.repo, workbenchId, assignment.id, run, "Found issues, needs rework.", "completed");
     records.push(captureStage("review", assignment.id, "reviewer", reviewer.terminal_id ?? null, "Found issues."));
 
-    decision = await watchUntilDecision({ repoPath: args.repo, workflowId, timeoutMs: 10_000 });
-    assert.equal(decision.type, "node_completed");
-    assert.equal(decision.completed?.result.outcome, "completed");
+    decision = await watchUntilDecision({ repoPath: args.repo, workbenchId, timeoutMs: 10_000 });
+    assert.equal(decision.type, "dispatch_completed");
+    assert.equal(decision.completed?.outcome, "completed");
 
     // 7. Reset dev based on reviewer feedback
-    await resetNode({ repoPath: args.repo, workflowId, nodeId: "dev", feedback: "Fix the issues the reviewer found." });
+    await resetDispatch({ repoPath: args.repo, workbenchId, dispatchId: "dev", feedback: "Fix the issues the reviewer found." });
 
     // 8. Re-dispatch the same dev node (reset made it eligible)
-    const dev2 = await redispatchNode({
-      repoPath: args.repo, workflowId, nodeId: "dev", intent: "Fix reviewer findings.",
+    const dev2 = await redispatch({
+      repoPath: args.repo, workbenchId, dispatchId: "dev", intent: "Fix reviewer findings.",
     });
     assert.equal(dev2.status, "dispatched");
 
-    assignment = manager.load(dev2.assignment_id)!;
+    assignment = manager.load(dev2.dispatch_id)!;
     run = latestRun(assignment);
-    writeResult(args.repo, workflowId, assignment.id, run, "Fixed all reviewer findings.", "completed");
+    writeResult(args.repo, workbenchId, assignment.id, run, "Fixed all reviewer findings.", "completed");
     records.push(captureStage("dev", assignment.id, "dev", dev2.terminal_id ?? null, "Fixed findings."));
 
-    decision = await watchUntilDecision({ repoPath: args.repo, workflowId, timeoutMs: 10_000 });
-    assert.equal(decision.type, "node_completed");
+    decision = await watchUntilDecision({ repoPath: args.repo, workbenchId, timeoutMs: 10_000 });
+    assert.equal(decision.type, "dispatch_completed");
 
     // 9. Complete
-    await completeWorkflow({ repoPath: args.repo, workflowId, summary: "Acceptance test passed." });
-    const final = getWorkflowStatus(args.repo, workflowId);
-    assert.equal(final.workflow.status, "completed");
+    await completeWorkbench({ repoPath: args.repo, workbenchId, summary: "Acceptance test passed." });
+    const final = getWorkbenchStatus(args.repo, workbenchId);
+    assert.equal(final.workbench.status, "completed");
 
     // Write report
     fs.mkdirSync(path.dirname(args.report), { recursive: true });
-    fs.writeFileSync(args.report, renderReport(args, workflowId, records), "utf-8");
-    console.log(JSON.stringify({ workflowId, report: args.report, stages: records, finalStatus: "completed" }, null, 2));
+    fs.writeFileSync(args.report, renderReport(args, workbenchId, records), "utf-8");
+    console.log(JSON.stringify({ workbenchId, report: args.report, stages: records, finalStatus: "completed" }, null, 2));
   } finally {
-    if (workflowId) {
-      try { await cleanup(["--workflow", workflowId, "--repo", args.repo, "--force"]); } catch {}
+    if (workbenchId) {
+      try { await cleanup(["--workbench", workbenchId, "--repo", args.repo, "--force"]); } catch {}
     }
   }
 }

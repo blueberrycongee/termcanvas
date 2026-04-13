@@ -3,7 +3,6 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   getAssignmentStatePath,
-  getWorkflowAssignmentsDir,
 } from "../layout.ts";
 import {
   ASSIGNMENT_STATE_SCHEMA_VERSION,
@@ -13,23 +12,22 @@ import {
 
 export class AssignmentManager {
   private readonly repoPath: string;
-  private readonly workflowId: string;
+  private readonly workbenchId: string;
 
   constructor(
     repoPath: string,
-    workflowId: string,
+    workbenchId: string,
   ) {
     this.repoPath = repoPath;
-    this.workflowId = workflowId;
-    fs.mkdirSync(getWorkflowAssignmentsDir(repoPath, workflowId), { recursive: true });
+    this.workbenchId = workbenchId;
   }
 
   generateAssignmentId(): string {
     return `assignment-${crypto.randomBytes(6).toString("hex")}`;
   }
 
-  getAssignmentPath(assignmentId: string): string {
-    return getAssignmentStatePath(this.repoPath, this.workflowId, assignmentId);
+  getAssignmentPath(dispatchId: string): string {
+    return getAssignmentStatePath(this.repoPath, this.workbenchId, dispatchId);
   }
 
   create(

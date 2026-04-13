@@ -24,7 +24,7 @@ export interface TaskExtraSection {
 
 export interface RunTaskSpec {
   repoPath: string;
-  workflowId: string;
+  workbenchId: string;
   assignmentId: string;
   runId: string;
   role: string;
@@ -103,7 +103,7 @@ export function renderRunTask(spec: RunTaskSpec): string {
   lines.push(
     "## Run Context",
     "",
-    `- Workflow ID: ${spec.workflowId}`,
+    `- Workbench ID: ${spec.workbenchId}`,
     `- Assignment ID: ${spec.assignmentId}`,
     `- Run ID: ${spec.runId}`,
     "",
@@ -152,7 +152,7 @@ export function renderRunTask(spec: RunTaskSpec): string {
     "",
     "## Completion",
     "",
-    `- Finish every required write target before publishing ${path.basename(getRunResultFile(spec.repoPath, spec.workflowId, spec.assignmentId, spec.runId))}.`,
+    `- Finish every required write target before publishing ${path.basename(getRunResultFile(spec.repoPath, spec.workbenchId, spec.assignmentId, spec.runId))}.`,
     "- Make sure result.json reflects the real outcome, not a hopeful guess.",
     "",
   );
@@ -161,9 +161,9 @@ export function renderRunTask(spec: RunTaskSpec): string {
 }
 
 export function writeRunTask(spec: RunTaskSpec): RunArtifacts {
-  const taskFile = getRunTaskFile(spec.repoPath, spec.workflowId, spec.assignmentId, spec.runId);
-  const resultFile = getRunResultFile(spec.repoPath, spec.workflowId, spec.assignmentId, spec.runId);
-  const artifactDir = getRunArtifactsDir(spec.repoPath, spec.workflowId, spec.assignmentId, spec.runId);
+  const taskFile = getRunTaskFile(spec.repoPath, spec.workbenchId, spec.assignmentId, spec.runId);
+  const resultFile = getRunResultFile(spec.repoPath, spec.workbenchId, spec.assignmentId, spec.runId);
+  const artifactDir = getRunArtifactsDir(spec.repoPath, spec.workbenchId, spec.assignmentId, spec.runId);
   const runDir = path.dirname(taskFile);
 
   fs.mkdirSync(artifactDir, { recursive: true });

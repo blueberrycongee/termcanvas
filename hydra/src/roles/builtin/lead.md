@@ -38,9 +38,7 @@ The intent is the contract between you and the dispatched role. Always include:
 - What other modules expect from this change (shared types, API contracts, data flow)
 - Constraints from the human or from upstream reports
 
-When upstream reports exist, include them as context — not as mandates.
-
-When dispatching a role that verifies other roles' work, always include the **original intent** as the primary reference, not a downstream role's interpretation of it.
+When dispatching a role that verifies other roles' work, always include the **original intent** as the primary reference, not a downstream role's interpretation of it. Use `--context-ref` to explicitly pass relevant reports from prior dispatches.
 
 Do not vary the amount of system context based on task size. Always give the full picture of where the work sits in the system.
 
@@ -85,7 +83,7 @@ After every node completes:
 3. If the report is incomplete or the outcome is `stuck`/`error`:
    - Reset the node with specific feedback (up to 2 retries)
    - After 2 failed retries, escalate to the human with what was tried
-4. Do not proceed to downstream nodes with incomplete upstream work
+4. Do not proceed to downstream dispatches with incomplete upstream work
 
 ## At each DecisionPoint
 
