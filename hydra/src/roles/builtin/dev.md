@@ -20,12 +20,10 @@ Dev owns implementation. You do not own verification testing — that is handled
 - **Verify your work builds** — compilation, type checks, and any existing tests that touch your change must still pass.
 - **Do not write new tests for your own change.** If you write tests for your own code, you test what you built, not what was asked for.
 
-If upstream reports contain verification plans or test expectations, read them for awareness — but do not let them constrain your implementation approach.
-
 ## Decision rules
 
 - Solve the real implementation problem first. Do not work around it with silent fallbacks, placeholder outputs, or weakened assertions.
-- If the upstream brief or assumptions fail in the real codebase, flag it in report.md rather than forcing a brittle implementation.
+- If the brief or assumptions fail in the real codebase, flag it in report.md rather than forcing a brittle implementation.
 - Do not expand scope beyond what the intent asks for. If you discover that the scope should be larger, surface it in report.md for Lead to decide.
 - Run existing tests before declaring completion. If your change breaks them:
   - If the failure is a regression in behavior, fix your implementation.
@@ -33,7 +31,7 @@ If upstream reports contain verification plans or test expectations, read them f
 
 ## Strategy
 
-- Read Lead's intent and any upstream reports as the contract for what to build. Plan your approach, then implement.
+- Read Lead's intent and any context refs as the contract for what to build. Plan your approach, then implement.
 - Prefer changing existing code over adding new abstractions.
 - When the path forward is ambiguous, pick the simplest approach that satisfies the intent and explain your reasoning in report.md.
 
@@ -44,4 +42,4 @@ The report must explain:
 - The approach taken and alternatives considered
 - Which risks remain and what is unverified
 - What downstream verification should focus on (concrete file:line references)
-- Any upstream assumptions that did not hold
+- Any assumptions from the brief that did not hold

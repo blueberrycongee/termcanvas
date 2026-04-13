@@ -3,11 +3,11 @@ import { execFileSync } from "node:child_process";
 import { loadAgent, listAgents, deleteAgent } from "./store.ts";
 import { isTermCanvasRunning, terminalDestroy, terminalStatus } from "./termcanvas.ts";
 import { AssignmentManager } from "./assignment/manager.ts";
-import { deleteWorkflow, loadWorkflow } from "./workflow-store.ts";
+import { deleteWorkbench, loadWorkbench } from "./workflow-store.ts";
 
 export interface CleanupArgs {
   agentId?: string;
-  workflowId?: string;
+  workbenchId?: string;
   repo?: string;
   all: boolean;
   force: boolean;
@@ -16,12 +16,12 @@ export interface CleanupArgs {
 function printCleanupUsage(): never {
   console.log("Usage: hydra cleanup <agentId> [options]");
   console.log("       hydra cleanup --all [options]");
-  console.log("       hydra cleanup --workflow <workflowId> --repo <path> [options]");
+  console.log("       hydra cleanup --workbench <workbenchId> --repo <path> [options]");
   console.log("");
   console.log("Options:");
   console.log("  --all      Clean up all agents");
-  console.log("  --workflow Clean up a workflow by ID");
-  console.log("  --repo     Repository path for workflow cleanup");
+  console.log("  --workbench Clean up a workbench by ID");
+  console.log("  --repo     Repository path for workbench cleanup");
   console.log("  --force    Force cleanup even if agent is still running");
   process.exit(0);
 }
@@ -34,11 +34,11 @@ export function parseCleanupArgs(args: string[]): CleanupArgs {
   const consumed = new Set<number>();
   const all = args.includes("--all");
   const force = args.includes("--force");
-  const workflowIdx = args.indexOf("--workflow");
-  const workflowId = workflowIdx >= 0 && workflowIdx + 1 < args.length ? args[workflowIdx + 1] : undefined;
-  if (workflowIdx >= 0) {
-    consumed.add(workflowIdx);
-    if (workflowIdx + 1 < args.length) consumed.add(workflowIdx + 1);
+  const workbenchIdx = args.indexOf("--workbench");
+  const workbenchId = workbenchIdx >= 0 && workbenchIdx + 1 < args.length ? args[workbenchIdx + 1] : undefined;
+  if (workbenchIdx >= 0) {
+    consumed.add(workbenchIdx);
+    if (workbenchIdx + 1 < args.length) consumed.add(workbenchIdx + 1);
   }
   const repoIdx = args.indexOf("--repo");
   const repo = repoIdx >= 0 && repoIdx + 1 < args.length ? args[repoIdx + 1] : undefined;
@@ -53,15 +53,15 @@ export function parseCleanupArgs(args: string[]): CleanupArgs {
   }
   const agentId = args.find((arg, index) => !arg.startsWith("--") && !consumed.has(index));
 
-  if (workflowId && !repo) {
-    throw new Error("Provide --repo when cleaning up a workflow");
+  if (workbenchId && !repo) {
+    throw new Error("Provide --repo when cleaning up a workbench");
   }
 
-  if (!all && !agentId && !workflowId) {
-    throw new Error("Provide an agent ID, --workflow, or --all");
+  if (!all && !agentId && !workbenchId) {
+    throw new Error("Provide an agent ID, --workbench, or --all");
   }
 
-  return { agentId, workflowId, repo, all, force };
+  return { agentId, workbenchId, repo, all, force };
 }
 
 export function buildGitWorktreeRemoveArgs(worktreePath: string): string[] {
@@ -133,18 +133,18 @@ function cleanupOne(agentId: string, force: boolean): void {
   console.log(`Cleaned up ${agentId}.`);
 }
 
-function cleanupWorkflow(workflowId: string, repo: string, force: boolean): void {
-  const workflow = loadWorkflow(repo, workflowId);
+function cleanupWorkbench(workbenchId: string, repo: string, force: boolean): void {
+  const workflow = loadWorkbench(repo, workbenchId);
   if (!workflow) {
-    console.error(`Workflow ${workflowId} not found.`);
+    console.error(`Workbench ${workbenchId} not found.`);
     return;
   }
 
-  const manager = new AssignmentManager(repo, workflowId);
+  const manager = new AssignmentManager(repo, workbenchId);
 
   if (isTermCanvasRunning()) {
-    for (const assignmentId of workflow.assignment_ids) {
-      const assignment = manager.load(assignmentId);
+    for (const dispatchId of Object.keys(workflow.dispatches)) {
+      const assignment = manager.load(dispatchId);
       const activeRun = assignment?.active_run_id
         ? assignment.runs.find((run) => run.id === assignment.active_run_id)
         : assignment?.runs[assignment.runs.length - 1];
@@ -156,7 +156,7 @@ function cleanupWorkflow(workflowId: string, repo: string, force: boolean): void
           const { status } = terminalStatus(terminalId);
           if (isLiveTerminalStatus(status)) {
             console.error(
-              `Workflow ${workflowId} has a running terminal (${terminalId}, status: ${status}). Use --force to clean up anyway.`,
+              `Workbench ${workbenchId} has a running terminal (${terminalId}, status: ${status}). Use --force to clean up anyway.`,
             );
             return;
           }
@@ -195,15 +195,15 @@ function cleanupWorkflow(workflowId: string, repo: string, force: boolean): void
     }
   }
 
-  deleteWorkflow(repo, workflowId);
-  console.log(`Cleaned up workflow ${workflowId}.`);
+  deleteWorkbench(repo, workbenchId);
+  console.log(`Cleaned up workbench ${workbenchId}.`);
 }
 
 export async function cleanup(args: string[]): Promise<void> {
   const opts = parseCleanupArgs(args);
 
-  if (opts.workflowId && opts.repo) {
-    cleanupWorkflow(opts.workflowId, opts.repo, opts.force);
+  if (opts.workbenchId && opts.repo) {
+    cleanupWorkbench(opts.workbenchId, opts.repo, opts.force);
   } else if (opts.all) {
     const agents = listAgents();
     if (agents.length === 0) {

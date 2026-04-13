@@ -28,23 +28,24 @@
 
 ## Hydra Orchestration Toolkit
 
-Hydra is an orchestration toolkit. Lead holds system-level context and
-dispatches dev/reviewer into isolated context windows. `result.json` is the
-only completion evidence.
+Hydra is Lead's persistent workbench for multi-role orchestration. Lead holds
+system-level context, dispatches roles into isolated terminals, and reads every
+report to decide next steps. Hydra manages terminal lifecycle (retry, timeout,
+session capture). `result.json` is the only completion evidence.
 
 ### Lead
 
 Lead is the human's primary terminal. It holds the system picture (architecture,
-module boundaries, dependencies) and dispatches dev/reviewer. Lead always reads
-every report.md to keep its system understanding current. Lead never writes
-code. For large changes (refactors, new modules, architectural shifts), Lead
-uses subagents to research approaches before dispatching.
+module boundaries, dependencies) and dispatches roles. Lead always reads every
+report.md to keep its system understanding current. Lead never writes code. For
+large changes (refactors, new modules, architectural shifts), Lead uses
+subagents to research approaches before dispatching.
 
 See `hydra/src/roles/builtin/lead.md` for the full role definition.
 
 ### Design rationale
 - **SWF decider pattern.** `hydra watch` is `PollForDecisionTask`; `lead_terminal_id` enforces single-decider semantics.
-- **Parallel-first.** `dispatch` + `depends_on` + worktree + `merge` are first-class.
+- **Parallel-first.** `dispatch` + worktree + `merge` are first-class. Lead sequences dispatches manually and passes context via `--context-ref`.
 - **Typed result contract.** Schema-validated `result.json` (`outcome: completed | stuck | error`).
 - **Lead intervention points.** `hydra reset --feedback` for mid-flight course correction.
 
@@ -54,15 +55,15 @@ Core rules:
 - Do not add silent fallbacks or swallowed errors.
 - An assignment run is only complete when `result.json` exists and passes schema validation.
 
-Workflow patterns:
-1. Do the task directly when it is simple, local, or clearly faster without workflow overhead.
+Workbench patterns:
+1. Do the task directly when it is simple, local, or clearly faster without orchestration overhead.
 2. Use Hydra for ambiguous, risky, parallel, or multi-step work:
    ```
    hydra init --intent "<task>" --repo .
-   hydra dispatch --workflow W --node <id> --role <role> --intent "<desc>" --repo .
-   hydra watch --workflow W --repo .
+   hydra dispatch --workbench W --dispatch <id> --role <role> --intent "<desc>" --repo .
+   hydra watch --workbench W --repo .
    # → DecisionPoint returned, decide next step
-   hydra complete --workflow W --repo .
+   hydra complete --workbench W --repo .
    ```
 3. Use a direct isolated dev when only a single task is needed:
    `hydra spawn --task "<specific task>" --repo . [--worktree .]`
@@ -71,26 +72,26 @@ Agent launch rule:
 - When dispatching Claude/Codex through TermCanvas CLI, start a fresh agent terminal with `termcanvas terminal create --prompt "..."`
 - Do not use `termcanvas terminal input` for task dispatch; it is not a supported automation path
 
-Workflow control:
-- After dispatching nodes, always call `hydra watch`. It returns at decision points.
-1. Watch until decision point: `hydra watch --workflow <workflowId> --repo .`
-2. Inspect structured state: `hydra status --workflow <workflowId> --repo .`
-3. Reset a node for rework: `hydra reset --workflow W --node N --feedback "..." --repo .`
-4. Approve a node's output: `hydra approve --workflow W --node N --repo .`
-5. Merge parallel branches: `hydra merge --workflow W --nodes A,B --repo .`
-6. View event log: `hydra ledger --workflow <workflowId> --repo .`
-7. Clean up: `hydra cleanup --workflow <workflowId> --repo .`
+Workbench control:
+- After dispatching, always call `hydra watch`. It returns at decision points.
+1. Watch until decision point: `hydra watch --workbench <workbenchId> --repo .`
+2. Inspect structured state: `hydra status --workbench <workbenchId> --repo .`
+3. Reset a dispatch for rework: `hydra reset --workbench W --dispatch N --feedback "..." --repo .`
+4. Approve a dispatch's output: `hydra approve --workbench W --dispatch N --repo .`
+5. Merge parallel branches: `hydra merge --workbench W --dispatches A,B --repo .`
+6. View event log: `hydra ledger --workbench <workbenchId> --repo .`
+7. Clean up: `hydra cleanup --workbench <workbenchId> --repo .`
 
 Telemetry polling:
 1. Treat `hydra watch` as the main polling loop; do not infer progress from terminal prose alone.
 2. Before deciding wait / retry / takeover, query:
-   - `termcanvas telemetry get --workflow <workflowId> --repo .`
+   - `termcanvas telemetry get --workbench <workbenchId> --repo .`
    - `termcanvas telemetry get --terminal <terminalId>`
    - `termcanvas telemetry events --terminal <terminalId> --limit 20`
 3. Trust `derived_status` and `task_status` as the primary decision signals.
 
 `result.json` must contain (slim, schema_version `hydra/result/v0.1`):
-- `schema_version`, `workflow_id`, `assignment_id`, `run_id` (passthrough IDs)
+- `schema_version`, `workbench_id`, `assignment_id`, `run_id` (passthrough IDs)
 - `outcome` (completed/stuck/error — Hydra routes on this)
 - `report_file` (path to a `report.md` written alongside `result.json`)
 

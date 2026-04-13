@@ -14,7 +14,7 @@ decisions at decision points; Hydra handles operational management.
 
 Why this design (vs. other coding-agent products):
 - **SWF decider pattern, specialized for LLM deciders.** Hydra is the AWS SWF / Cadence / Temporal decider pattern. \`hydra watch\` is \`PollForDecisionTask\`; the Lead is the decider; \`lead_terminal_id\` enforces single-decider semantics.
-- **Parallel-first, not bolted on.** \`dispatch\` + \`depends_on\` + worktree + \`merge\` are first-class. Other products (Factory.ai's Droid, Amp, Claude Code subagents) treat parallelism as open research; Hydra makes it the default.
+- **Parallel-first, not bolted on.** \`dispatch\` + worktree + \`merge\` are first-class. Lead sequences nodes manually and passes context explicitly via \`--context-ref\`. Other products treat parallelism as open research; Hydra makes it the default.
 - **Typed result contract.** Workers publish a schema-validated \`result.json\` (\`outcome: completed | stuck | error\`, optional \`stuck_reason: needs_clarification | needs_credentials | needs_context | blocked_technical\`). Other products return free-text final messages and require downstream parsing.
 - **Lead intervention points.** \`hydra reset --feedback\` lets the Lead actually intervene at decision points instead of being block-and-join. A stale or wrong run is one \`reset\` away.
 
@@ -29,10 +29,10 @@ Workflow patterns:
 2. Use Hydra for ambiguous, risky, parallel, or multi-step work:
    \`\`\`
    hydra init --intent "<task>" --repo .
-   hydra dispatch --workflow W --node <id> --role <role> --intent "<desc>" --repo .
-   hydra watch --workflow W --repo .
+   hydra dispatch --workbench W --dispatch <id> --role <role> --intent "<desc>" --repo .
+   hydra watch --workbench W --repo .
    # → DecisionPoint returned, decide next step
-   hydra complete --workflow W --repo .
+   hydra complete --workbench W --repo .
    \`\`\`
 3. Use a direct isolated worker when only a separate worker is needed:
    \`hydra spawn --task "<specific task>" --repo . [--worktree .]\`
@@ -42,25 +42,25 @@ Agent launch rule:
 - Do not use \`termcanvas terminal input\` for task dispatch; it is not a supported automation path
 
 Workflow control:
-- After dispatching nodes, always call \`hydra watch\`. It returns at decision points.
-1. Watch until decision point: \`hydra watch --workflow <workflowId> --repo .\`
-2. Inspect structured state: \`hydra status --workflow <workflowId> --repo .\`
-3. Reset a node for rework: \`hydra reset --workflow W --node N --feedback "..." --repo .\`
-4. Approve a node's output: \`hydra approve --workflow W --node N --repo .\`
-5. Merge parallel branches: \`hydra merge --workflow W --nodes A,B --repo .\`
-6. View event log: \`hydra ledger --workflow <workflowId> --repo .\`
-7. Clean up: \`hydra cleanup --workflow <workflowId> --repo .\`
+- After dispatching, always call \`hydra watch\`. It returns at decision points.
+1. Watch until decision point: \`hydra watch --workbench <workbenchId> --repo .\`
+2. Inspect structured state: \`hydra status --workbench <workbenchId> --repo .\`
+3. Reset a dispatch for rework: \`hydra reset --workbench W --dispatch N --feedback "..." --repo .\`
+4. Approve a dispatch's output: \`hydra approve --workbench W --dispatch N --repo .\`
+5. Merge parallel branches: \`hydra merge --workbench W --dispatches A,B --repo .\`
+6. View event log: \`hydra ledger --workbench <workbenchId> --repo .\`
+7. Clean up: \`hydra cleanup --workbench <workbenchId> --repo .\`
 
 Telemetry polling:
 1. Treat \`hydra watch\` as the main polling loop; do not infer progress from terminal prose alone.
 2. Before deciding wait / retry / takeover, query:
-   - \`termcanvas telemetry get --workflow <workflowId> --repo .\`
+   - \`termcanvas telemetry get --workbench <workbenchId> --repo .\`
    - \`termcanvas telemetry get --terminal <terminalId>\`
    - \`termcanvas telemetry events --terminal <terminalId> --limit 20\`
 3. Trust \`derived_status\` and \`task_status\` as the primary decision signals.
 
 \`result.json\` must contain (slim, schema_version \`hydra/result/v0.1\`):
-- \`schema_version\`, \`workflow_id\`, \`assignment_id\`, \`run_id\` (passthrough IDs)
+- \`schema_version\`, \`workbench_id\`, \`assignment_id\`, \`run_id\` (passthrough IDs)
 - \`outcome\` (completed/stuck/error — Hydra routes on this)
 - \`report_file\` (path to a \`report.md\` written alongside \`result.json\`)
 
