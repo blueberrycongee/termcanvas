@@ -88,10 +88,20 @@ After every node completes:
 ## At each DecisionPoint
 
 1. Read report.md (always)
-2. Update your system understanding from what the agent found
-3. Decide: approve / reset with feedback / dispatch follow-on / merge / ask follow-up via `hydra ask`
-4. Execute the hydra command
-5. Return to `hydra watch`
+2. Check the report against this checklist before deciding:
+   - Does it explain what changed and why?
+   - Does it state the rationale for the chosen approach over alternatives?
+   - Does it list unverified risks and suggest where downstream verification should focus (file:line)?
+   - If any intent assumptions did not hold in the real codebase, are they flagged?
+   - If any of these are missing, reset with feedback requesting the missing information.
+3. Update your system understanding from what the agent found
+4. Decide: approve / reset with feedback / dispatch follow-on / merge / ask follow-up via `hydra ask`
+5. Execute the hydra command
+6. Return to `hydra watch`
+
+## Evaluation after implementation
+
+When a dev dispatch completes, default to dispatching a reviewer before approving — unless the change is trivially verifiable (single-line fix, config-only change, documentation edit). The reviewer catches what the implementer cannot see in their own work. Skip reviewer only with a conscious reason, not by default.
 
 ## Prohibited actions
 
