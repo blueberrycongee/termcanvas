@@ -4,143 +4,124 @@ export function getHydraRoot(repoPath: string): string {
   return path.join(path.resolve(repoPath), ".hydra");
 }
 
-export function getWorkflowsRoot(repoPath: string): string {
-  return path.join(getHydraRoot(repoPath), "workflows");
+export function getWorkbenchesRoot(repoPath: string): string {
+  return path.join(getHydraRoot(repoPath), "workbenches");
 }
 
-export function getWorkflowDir(repoPath: string, workflowId: string): string {
-  return path.join(getWorkflowsRoot(repoPath), workflowId);
+export function getWorkbenchDir(repoPath: string, workbenchId: string): string {
+  return path.join(getWorkbenchesRoot(repoPath), workbenchId);
 }
 
-export function getWorkflowStatePath(repoPath: string, workflowId: string): string {
-  return path.join(getWorkflowDir(repoPath, workflowId), "workflow.json");
+export function getWorkbenchStatePath(repoPath: string, workbenchId: string): string {
+  return path.join(getWorkbenchDir(repoPath, workbenchId), "workbench.json");
 }
 
-export function getWorkflowInputsDir(repoPath: string, workflowId: string): string {
-  return path.join(getWorkflowDir(repoPath, workflowId), "inputs");
+export function getWorkbenchInputsDir(repoPath: string, workbenchId: string): string {
+  return path.join(getWorkbenchDir(repoPath, workbenchId), "inputs");
 }
 
-export function getWorkflowIntentFile(repoPath: string, workflowId: string): string {
-  return path.join(getWorkflowInputsDir(repoPath, workflowId), "intent.md");
+export function getWorkbenchIntentFile(repoPath: string, workbenchId: string): string {
+  return path.join(getWorkbenchInputsDir(repoPath, workbenchId), "intent.md");
 }
 
-/** @deprecated use getWorkflowIntentFile */
-export function getWorkflowUserRequestPath(repoPath: string, workflowId: string): string {
-  return getWorkflowIntentFile(repoPath, workflowId);
+export function getWorkbenchOutputsDir(repoPath: string, workbenchId: string): string {
+  return path.join(getWorkbenchDir(repoPath, workbenchId), "outputs");
 }
 
-export function getWorkflowOutputsDir(repoPath: string, workflowId: string): string {
-  return path.join(getWorkflowDir(repoPath, workflowId), "outputs");
+export function getWorkbenchSummaryFile(repoPath: string, workbenchId: string): string {
+  return path.join(getWorkbenchOutputsDir(repoPath, workbenchId), "summary.md");
 }
 
-export function getWorkflowSummaryFile(repoPath: string, workflowId: string): string {
-  return path.join(getWorkflowOutputsDir(repoPath, workflowId), "summary.md");
+export function getWorkbenchDispatchesDir(repoPath: string, workbenchId: string): string {
+  return path.join(getWorkbenchDir(repoPath, workbenchId), "dispatches");
 }
 
-export function getWorkflowNodesDir(repoPath: string, workflowId: string): string {
-  return path.join(getWorkflowDir(repoPath, workflowId), "nodes");
+export function getDispatchDir(repoPath: string, workbenchId: string, dispatchId: string): string {
+  return path.join(getWorkbenchDispatchesDir(repoPath, workbenchId), dispatchId);
 }
 
-export function getNodeDir(repoPath: string, workflowId: string, nodeId: string): string {
-  return path.join(getWorkflowNodesDir(repoPath, workflowId), nodeId);
+export function getDispatchIntentFile(repoPath: string, workbenchId: string, dispatchId: string): string {
+  return path.join(getDispatchDir(repoPath, workbenchId, dispatchId), "intent.md");
 }
 
-export function getNodeIntentFile(repoPath: string, workflowId: string, nodeId: string): string {
-  return path.join(getNodeDir(repoPath, workflowId, nodeId), "intent.md");
+export function getDispatchFeedbackFile(repoPath: string, workbenchId: string, dispatchId: string): string {
+  return path.join(getDispatchDir(repoPath, workbenchId, dispatchId), "feedback.md");
 }
 
-export function getNodeFeedbackFile(repoPath: string, workflowId: string, nodeId: string): string {
-  return path.join(getNodeDir(repoPath, workflowId, nodeId), "feedback.md");
-}
-
-export function getWorkflowAssignmentsDir(repoPath: string, workflowId: string): string {
-  return path.join(getWorkflowDir(repoPath, workflowId), "assignments");
-}
-
-export function getAssignmentDir(
+export function getDispatchStateDir(
   repoPath: string,
-  workflowId: string,
-  assignmentId: string,
+  workbenchId: string,
+  dispatchId: string,
 ): string {
-  return path.join(getWorkflowAssignmentsDir(repoPath, workflowId), assignmentId);
+  return getDispatchDir(repoPath, workbenchId, dispatchId);
 }
 
 export function getAssignmentStatePath(
   repoPath: string,
-  workflowId: string,
-  assignmentId: string,
+  workbenchId: string,
+  dispatchId: string,
 ): string {
-  return path.join(getAssignmentDir(repoPath, workflowId, assignmentId), "assignment.json");
+  return path.join(getDispatchDir(repoPath, workbenchId, dispatchId), "assignment.json");
 }
 
 export function getAssignmentRunsDir(
   repoPath: string,
-  workflowId: string,
-  assignmentId: string,
+  workbenchId: string,
+  dispatchId: string,
 ): string {
-  return path.join(getAssignmentDir(repoPath, workflowId, assignmentId), "runs");
+  return path.join(getDispatchDir(repoPath, workbenchId, dispatchId), "runs");
 }
 
 export function getRunDir(
   repoPath: string,
-  workflowId: string,
-  assignmentId: string,
+  workbenchId: string,
+  dispatchId: string,
   runId: string,
 ): string {
-  return path.join(getAssignmentRunsDir(repoPath, workflowId, assignmentId), runId);
+  return path.join(getAssignmentRunsDir(repoPath, workbenchId, dispatchId), runId);
 }
 
 export function getRunTaskFile(
   repoPath: string,
-  workflowId: string,
-  assignmentId: string,
+  workbenchId: string,
+  dispatchId: string,
   runId: string,
 ): string {
-  return path.join(getRunDir(repoPath, workflowId, assignmentId, runId), "task.md");
+  return path.join(getRunDir(repoPath, workbenchId, dispatchId, runId), "task.md");
 }
 
 export function getRunResultFile(
   repoPath: string,
-  workflowId: string,
-  assignmentId: string,
+  workbenchId: string,
+  dispatchId: string,
   runId: string,
 ): string {
-  return path.join(getRunDir(repoPath, workflowId, assignmentId, runId), "result.json");
+  return path.join(getRunDir(repoPath, workbenchId, dispatchId, runId), "result.json");
 }
 
 export function getRunArtifactsDir(
   repoPath: string,
-  workflowId: string,
-  assignmentId: string,
+  workbenchId: string,
+  dispatchId: string,
   runId: string,
 ): string {
-  return path.join(getRunDir(repoPath, workflowId, assignmentId, runId), "artifacts");
+  return path.join(getRunDir(repoPath, workbenchId, dispatchId, runId), "artifacts");
 }
 
 export function getRunReportFile(
   repoPath: string,
-  workflowId: string,
-  assignmentId: string,
+  workbenchId: string,
+  dispatchId: string,
   runId: string,
 ): string {
-  return path.join(getRunDir(repoPath, workflowId, assignmentId, runId), "report.md");
-}
-
-/** @deprecated use getRunReportFile */
-export function getRunBriefFile(
-  repoPath: string,
-  workflowId: string,
-  assignmentId: string,
-  runId: string,
-): string {
-  return getRunReportFile(repoPath, workflowId, assignmentId, runId);
+  return path.join(getRunDir(repoPath, workbenchId, dispatchId, runId), "report.md");
 }
 
 export function getRunApprovalRequestFile(
   repoPath: string,
-  workflowId: string,
-  assignmentId: string,
+  workbenchId: string,
+  dispatchId: string,
   runId: string,
 ): string {
-  return path.join(getRunArtifactsDir(repoPath, workflowId, assignmentId, runId), "approval-request.md");
+  return path.join(getRunArtifactsDir(repoPath, workbenchId, dispatchId, runId), "approval-request.md");
 }

@@ -1,11 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
-  getNodeFeedbackFile,
-  getNodeIntentFile,
+  getDispatchFeedbackFile,
+  getDispatchIntentFile,
   getRunReportFile,
-  getWorkflowIntentFile,
-  getWorkflowSummaryFile,
+  getWorkbenchIntentFile,
+  getWorkbenchSummaryFile,
 } from "./layout.ts";
 
 // Helpers for content files (markdown).
@@ -25,18 +25,18 @@ function readFileIfExists(filePath: string): string | null {
   return fs.readFileSync(filePath, "utf-8");
 }
 
-// --- Workflow-level intent ---
+// --- Workbench-level intent ---
 
-export function writeWorkflowIntent(
+export function writeWorkbenchIntent(
   repoPath: string,
-  workflowId: string,
+  workbenchId: string,
   intent: string,
 ): string {
-  const filePath = getWorkflowIntentFile(repoPath, workflowId);
+  const filePath = getWorkbenchIntentFile(repoPath, workbenchId);
   writeFileEnsuringDir(filePath, [
-    "# Workflow Intent",
+    "# Workbench Intent",
     "",
-    "This file is the canonical statement of what the workflow is trying to achieve.",
+    "This file is the canonical statement of what the workbench is trying to achieve.",
     "Read it before making downstream decisions.",
     "",
     intent,
@@ -45,20 +45,20 @@ export function writeWorkflowIntent(
   return filePath;
 }
 
-export function readWorkflowIntent(filePath: string): string | null {
+export function readWorkbenchIntent(filePath: string): string | null {
   return readFileIfExists(filePath);
 }
 
-// --- Workflow-level summary (final) ---
+// --- Workbench-level summary (final) ---
 
-export function writeWorkflowSummary(
+export function writeWorkbenchSummary(
   repoPath: string,
-  workflowId: string,
+  workbenchId: string,
   summary: string,
 ): string {
-  const filePath = getWorkflowSummaryFile(repoPath, workflowId);
+  const filePath = getWorkbenchSummaryFile(repoPath, workbenchId);
   writeFileEnsuringDir(filePath, [
-    "# Workflow Summary",
+    "# Workbench Summary",
     "",
     summary,
     "",
@@ -66,18 +66,18 @@ export function writeWorkflowSummary(
   return filePath;
 }
 
-// --- Node intent ---
+// --- Dispatch intent ---
 
-export function writeNodeIntent(
+export function writeDispatchIntent(
   repoPath: string,
-  workflowId: string,
-  nodeId: string,
+  workbenchId: string,
+  dispatchId: string,
   role: string,
   intent: string,
 ): string {
-  const filePath = getNodeIntentFile(repoPath, workflowId, nodeId);
+  const filePath = getDispatchIntentFile(repoPath, workbenchId, dispatchId);
   writeFileEnsuringDir(filePath, [
-    `# ${role} — Node ${nodeId}`,
+    `# ${role} — ${dispatchId}`,
     "",
     intent,
     "",
@@ -85,19 +85,19 @@ export function writeNodeIntent(
   return filePath;
 }
 
-export function readNodeIntent(filePath: string): string | null {
+export function readDispatchIntent(filePath: string): string | null {
   return readFileIfExists(filePath);
 }
 
-// --- Node feedback (set by reset) ---
+// --- Dispatch feedback (set by reset) ---
 
-export function writeNodeFeedback(
+export function writeDispatchFeedback(
   repoPath: string,
-  workflowId: string,
-  nodeId: string,
+  workbenchId: string,
+  dispatchId: string,
   feedback: string,
 ): string {
-  const filePath = getNodeFeedbackFile(repoPath, workflowId, nodeId);
+  const filePath = getDispatchFeedbackFile(repoPath, workbenchId, dispatchId);
   writeFileEnsuringDir(filePath, [
     "# Feedback",
     "",
@@ -109,8 +109,8 @@ export function writeNodeFeedback(
   return filePath;
 }
 
-export function clearNodeFeedback(repoPath: string, workflowId: string, nodeId: string): void {
-  const filePath = getNodeFeedbackFile(repoPath, workflowId, nodeId);
+export function clearDispatchFeedback(repoPath: string, workbenchId: string, dispatchId: string): void {
+  const filePath = getDispatchFeedbackFile(repoPath, workbenchId, dispatchId);
   try { fs.unlinkSync(filePath); } catch {}
 }
 
@@ -118,9 +118,9 @@ export function clearNodeFeedback(repoPath: string, workflowId: string, nodeId: 
 
 export function getReportFilePath(
   repoPath: string,
-  workflowId: string,
-  assignmentId: string,
+  workbenchId: string,
+  dispatchId: string,
   runId: string,
 ): string {
-  return getRunReportFile(repoPath, workflowId, assignmentId, runId);
+  return getRunReportFile(repoPath, workbenchId, dispatchId, runId);
 }
