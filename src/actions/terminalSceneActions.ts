@@ -1,5 +1,4 @@
 import type { TerminalData, TerminalOrigin, TerminalType } from "../types";
-import { resolveCollisionsDetailed } from "../canvas/collisionResolver";
 import {
   createTerminal as createProjectTerminal,
   destroyAllStashedTerminals as destroyAllProjectStashedTerminals,
@@ -89,29 +88,8 @@ export function commitWorktreeGroupMove(
     return;
   }
 
-  const anchorIds = terminals.map((terminal) => terminal.id);
-  const allRects = useProjectStore
-    .getState()
-    .projects.flatMap((project) =>
-      project.worktrees.flatMap((worktree) =>
-        worktree.terminals
-          .filter((terminal) => !terminal.stashed)
-          .map((terminal) => {
-            const previewPosition = preview.positions.get(terminal.id);
-            return {
-              id: terminal.id,
-              x: previewPosition ? previewPosition.x : terminal.x,
-              y: previewPosition ? previewPosition.y : terminal.y,
-              width: terminal.width,
-              height: terminal.height,
-            };
-          }),
-      ),
-    );
-
-  const resolved = resolveCollisionsDetailed(allRects, 8, anchorIds);
   const updates = terminals.map((terminal) => {
-    const next = resolved.positionsById.get(terminal.id);
+    const next = preview.positions.get(terminal.id);
     return {
       projectId,
       worktreeId,
