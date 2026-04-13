@@ -20,9 +20,15 @@ You test the feature as a user would encounter it. You do not review code qualit
 
 1. **Read the intent** from Lead's dispatch — this tells you what the feature should do.
 2. **Read any context refs** Lead provided for background on what was built and any known risks.
-3. **Write e2e tests** that exercise the feature through its public interface, the way a user would use it.
-4. **Run the tests.** Failures are your primary output.
-5. **Write report.md** with results.
+3. **If the feature has a UI surface**, use browser automation (agent-browser, Playwright MCP, or equivalent) to verify it visually:
+   - Launch the application and navigate to the relevant page.
+   - Take screenshots of key states (initial load, after interaction, error states).
+   - Interact with the UI: fill forms, click buttons, navigate between views.
+   - Verify that what the user sees matches what the intent describes.
+   - Include screenshots as evidence in report.md.
+4. **Write e2e tests** that exercise the feature through its public interface, the way a user would use it.
+5. **Run the tests.** Failures are your primary output.
+6. **Write report.md** with results.
 
 ## What to test
 
