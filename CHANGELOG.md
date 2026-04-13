@@ -2,6 +2,24 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.27.6] - 2026-04-13
+
+### Changed
+- Hydra: rename Workflow → Workbench, Node → Dispatch — Hydra is now Lead's persistent workbench for multi-role orchestration, not a predefined workflow
+- Hydra: remove DAG dependency system (`depends_on`, auto-blocking, cascade reset, node promotion) — Lead sequences dispatches manually and passes context explicitly via `--context-ref`
+- Hydra: merge Node + Assignment into Dispatch, eliminating redundant abstraction layers; each dispatch carries inline status
+- Hydra: CLI flags renamed (`--workflow` → `--workbench`, `--node` → `--dispatch`)
+- Hydra: result contract uses `workbench_id` instead of `workflow_id`
+- Hydra: file layout changed from `.hydra/workflows/` to `.hydra/workbenches/`, `nodes/` to `dispatches/`
+
+### Changed (zh-CN)
+- Hydra: 重命名 Workflow → Workbench, Node → Dispatch — Hydra 现在是 Lead 的持久化工作台，而非预定义工作流
+- Hydra: 移除 DAG 依赖系统（`depends_on`、自动阻塞、级联重置、节点提升）— Lead 手动排序调度，通过 `--context-ref` 显式传递上下文
+- Hydra: 合并 Node + Assignment 为 Dispatch，消除冗余抽象层；每个 dispatch 内联状态
+- Hydra: CLI 参数重命名（`--workflow` → `--workbench`、`--node` → `--dispatch`）
+- Hydra: 结果契约使用 `workbench_id` 替代 `workflow_id`
+- Hydra: 文件布局从 `.hydra/workflows/` 变更为 `.hydra/workbenches/`，`nodes/` 变更为 `dispatches/`
+
 ## [0.27.5] - 2026-04-11
 
 ### Fixed
