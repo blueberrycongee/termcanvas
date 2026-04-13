@@ -235,6 +235,94 @@ test("buildWorktreeGroupMove keeps a stable formation and commit only moves that
   }
 });
 
+test("commitWorktreeGroupMove keeps rigid preview positions even when they overlap unrelated terminals", async () => {
+  installActionGlobals();
+  const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const {
+    buildWorktreeGroupMove,
+    commitWorktreeGroupMove,
+  } = await import("../src/actions/terminalSceneActions.ts");
+  const previousState = useProjectStore.getState();
+
+  try {
+    useProjectStore.setState({
+      focusedProjectId: "project-1",
+      focusedWorktreeId: "worktree-1",
+      projects: [
+        {
+          id: "project-1",
+          name: "Project One",
+          path: "/tmp/project-1",
+          worktrees: [
+            {
+              id: "worktree-1",
+              name: "main",
+              path: "/tmp/project-1",
+              terminals: [
+                {
+                  id: "drag-1",
+                  title: "Drag 1",
+                  type: "shell",
+                  minimized: false,
+                  focused: false,
+                  ptyId: 1,
+                  status: "running",
+                  x: 100,
+                  y: 100,
+                  width: 400,
+                  height: 300,
+                  tags: [],
+                },
+              ],
+            },
+            {
+              id: "worktree-2",
+              name: "feature",
+              path: "/tmp/project-1-feature",
+              terminals: [
+                {
+                  id: "static-1",
+                  title: "Static 1",
+                  type: "shell",
+                  minimized: false,
+                  focused: false,
+                  ptyId: 2,
+                  status: "running",
+                  x: 520,
+                  y: 100,
+                  width: 400,
+                  height: 300,
+                  tags: [],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const preview = buildWorktreeGroupMove("project-1", "worktree-1", 420, 0);
+    assert.ok(preview);
+    assert.deepEqual(preview.positions.get("drag-1"), { x: 520, y: 100 });
+
+    commitWorktreeGroupMove("project-1", "worktree-1", preview);
+
+    const [mainWorktree, featureWorktree] =
+      useProjectStore.getState().projects[0].worktrees;
+    const dragged = mainWorktree.terminals.find((terminal) => terminal.id === "drag-1");
+    const staticTerminal = featureWorktree.terminals.find(
+      (terminal) => terminal.id === "static-1",
+    );
+
+    assert.ok(dragged && staticTerminal);
+    assert.equal(dragged.x, 520);
+    assert.equal(dragged.y, 100);
+    assert.equal(staticTerminal.x, 520);
+    assert.equal(staticTerminal.y, 100);
+  } finally {
+    useProjectStore.setState(previousState);
+  }
+});
 test("closeTerminalInScene destroys runtime and removes the terminal from the scene", async () => {
   const mockWindow = installActionGlobals();
   const { useProjectStore } = await import("../src/stores/projectStore.ts");
