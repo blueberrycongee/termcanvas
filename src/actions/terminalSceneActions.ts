@@ -1,4 +1,5 @@
 import type { TerminalData, TerminalOrigin, TerminalType } from "../types";
+import { resolveCollisionsDetailed } from "../canvas/collisionResolver";
 import {
   createTerminal as createProjectTerminal,
   destroyAllStashedTerminals as destroyAllProjectStashedTerminals,
@@ -25,6 +26,25 @@ interface CreateTerminalInSceneOptions {
   position?: { x: number; y: number };
 }
 
+interface WorktreeGroupMovePreview {
+  positions: Map<string, { x: number; y: number }>;
+  worktreeOffset: { x: number; y: number };
+}
+
+function snapToGrid(value: number, grid = 10) {
+  return Math.round(value / grid) * grid;
+}
+
+function collectWorktreeTerminals(projectId: string, worktreeId: string) {
+  const project = useProjectStore
+    .getState()
+    .projects.find((candidate) => candidate.id === projectId);
+  const worktree = project?.worktrees.find(
+    (candidate) => candidate.id === worktreeId,
+  );
+  return worktree?.terminals.filter((terminal) => !terminal.stashed) ?? [];
+}
+
 export function addTerminalToScene(
   projectId: string,
   worktreeId: string,
@@ -32,6 +52,76 @@ export function addTerminalToScene(
 ): TerminalData {
   useProjectStore.getState().addTerminal(projectId, worktreeId, terminal);
   return terminal;
+}
+
+export function buildWorktreeGroupMove(
+  projectId: string,
+  worktreeId: string,
+  deltaX: number,
+  deltaY: number,
+): WorktreeGroupMovePreview | null {
+  const terminals = collectWorktreeTerminals(projectId, worktreeId);
+  if (terminals.length === 0) {
+    return null;
+  }
+
+  const positions = new Map<string, { x: number; y: number }>();
+  for (const terminal of terminals) {
+    positions.set(terminal.id, {
+      x: terminal.x + deltaX,
+      y: terminal.y + deltaY,
+    });
+  }
+
+  return {
+    positions,
+    worktreeOffset: { x: deltaX, y: deltaY },
+  };
+}
+
+export function commitWorktreeGroupMove(
+  projectId: string,
+  worktreeId: string,
+  preview: WorktreeGroupMovePreview,
+): void {
+  const terminals = collectWorktreeTerminals(projectId, worktreeId);
+  if (terminals.length === 0) {
+    return;
+  }
+
+  const anchorIds = terminals.map((terminal) => terminal.id);
+  const allRects = useProjectStore
+    .getState()
+    .projects.flatMap((project) =>
+      project.worktrees.flatMap((worktree) =>
+        worktree.terminals
+          .filter((terminal) => !terminal.stashed)
+          .map((terminal) => {
+            const previewPosition = preview.positions.get(terminal.id);
+            return {
+              id: terminal.id,
+              x: previewPosition ? previewPosition.x : terminal.x,
+              y: previewPosition ? previewPosition.y : terminal.y,
+              width: terminal.width,
+              height: terminal.height,
+            };
+          }),
+      ),
+    );
+
+  const resolved = resolveCollisionsDetailed(allRects, 8, anchorIds);
+  const updates = terminals.map((terminal) => {
+    const next = resolved.positionsById.get(terminal.id);
+    return {
+      projectId,
+      worktreeId,
+      terminalId: terminal.id,
+      x: snapToGrid(next?.x ?? terminal.x),
+      y: snapToGrid(next?.y ?? terminal.y),
+    };
+  });
+
+  useProjectStore.getState().updateTerminalPositions(updates);
 }
 
 export function createTerminalInScene({

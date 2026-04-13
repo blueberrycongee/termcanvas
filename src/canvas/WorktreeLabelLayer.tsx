@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ProjectData } from "../types";
 import { useProjectStore } from "../stores/projectStore";
@@ -6,9 +6,14 @@ import { useCanvasStore } from "../stores/canvasStore";
 import {
   canvasPointToScreenPoint,
   getCanvasLeftInset,
+  screenDeltaToCanvasDelta,
 } from "./viewportBounds";
 import { panToWorktree } from "../utils/panToWorktree";
 import { focusWorktreeInScene } from "../actions/sceneSelectionActions";
+import {
+  buildWorktreeGroupMove,
+  commitWorktreeGroupMove,
+} from "../actions/terminalSceneActions";
 
 /**
  * Per-worktree screen-space label layer.
@@ -314,7 +319,26 @@ interface ClusterEntry {
   prefix: string | null;
 }
 
-export function WorktreeLabelLayer() {
+interface LabelDragPreview {
+  positions: Map<string, { x: number; y: number }>;
+  worktreeOffset: { x: number; y: number };
+}
+
+interface WorktreeDragState {
+  key: string;
+  projectId: string;
+  worktreeId: string;
+  startClientX: number;
+  startClientY: number;
+  pointerId: number;
+  moved: boolean;
+}
+
+export function WorktreeLabelLayer({
+  onPreviewPositionsChange,
+}: {
+  onPreviewPositionsChange?: (positions: Map<string, { x: number; y: number }> | null) => void;
+} = {}) {
   const projects = useProjectStore((s) => s.projects);
   const viewport = useCanvasStore((s) => s.viewport);
   const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
@@ -324,6 +348,10 @@ export function WorktreeLabelLayer() {
   const [hoveredTerminalKey, setHoveredTerminalKey] = useState<string | null>(
     null,
   );
+  const [dragPreview, setDragPreview] = useState<LabelDragPreview | null>(null);
+  const dragStateRef = useRef<WorktreeDragState | null>(null);
+  const dragPreviewRef = useRef<LabelDragPreview | null>(null);
+  const suppressClickUntilRef = useRef(0);
 
   useEffect(() => {
     const onResize = () => setResizeTick((v) => v + 1);
@@ -354,6 +382,72 @@ export function WorktreeLabelLayer() {
     return () =>
       window.removeEventListener("termcanvas:terminal-hover", handler);
   }, []);
+
+  useEffect(() => {
+    dragPreviewRef.current = dragPreview;
+    onPreviewPositionsChange?.(dragPreview?.positions ?? null);
+  }, [dragPreview, onPreviewPositionsChange]);
+
+  useEffect(() => {
+    const active = dragStateRef.current;
+    if (!active) {
+      return;
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (event.pointerId !== active.pointerId) {
+        return;
+      }
+      event.preventDefault();
+      const delta = screenDeltaToCanvasDelta(
+        event.clientX - active.startClientX,
+        event.clientY - active.startClientY,
+        viewport,
+      );
+      const nextPreview = buildWorktreeGroupMove(
+        active.projectId,
+        active.worktreeId,
+        delta.x,
+        delta.y,
+      );
+      active.moved =
+        active.moved ||
+        Math.abs(event.clientX - active.startClientX) > 3 ||
+        Math.abs(event.clientY - active.startClientY) > 3;
+      setDragPreview(nextPreview);
+    };
+
+    const finishDrag = (event: PointerEvent) => {
+      if (event.pointerId !== active.pointerId) {
+        return;
+      }
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", finishDrag);
+      window.removeEventListener("pointercancel", finishDrag);
+      dragStateRef.current = null;
+
+      const preview = dragPreviewRef.current;
+      setDragPreview(null);
+      onPreviewPositionsChange?.(null);
+
+      if (!active.moved || !preview) {
+        return;
+      }
+
+      suppressClickUntilRef.current = performance.now() + 250;
+      commitWorktreeGroupMove(active.projectId, active.worktreeId, preview);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: false });
+    window.addEventListener("pointerup", finishDrag);
+    window.addEventListener("pointercancel", finishDrag);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", finishDrag);
+      window.removeEventListener("pointercancel", finishDrag);
+    };
+  }, [onPreviewPositionsChange, viewport]);
 
   const focus = useMemo(() => findFocusInfo(projects), [projects]);
   const worktreeLabels = useMemo(
@@ -425,6 +519,40 @@ export function WorktreeLabelLayer() {
 
   const collisionResolved = resolveCollisions(placedEntries);
 
+  const handleLabelPointerDown = (
+    event: React.PointerEvent<HTMLDivElement>,
+    entry: ClusterEntry,
+  ) => {
+    if (!entry.worktreeId || useLodMode) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    dragStateRef.current = {
+      key: entry.key,
+      projectId: entry.projectId,
+      worktreeId: entry.worktreeId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      pointerId: event.pointerId,
+      moved: false,
+    };
+
+    const initialPreview = buildWorktreeGroupMove(
+      entry.projectId,
+      entry.worktreeId,
+      0,
+      0,
+    );
+    if (!initialPreview) {
+      dragStateRef.current = null;
+      return;
+    }
+    setDragPreview(initialPreview);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
   return createPortal(
     <div
       className="pointer-events-none fixed inset-0"
@@ -442,15 +570,28 @@ export function WorktreeLabelLayer() {
               ...LABEL_BASE_STYLE,
               left: placed.screenX,
               top: placed.screenY,
-              transform: "translate(0, -100%)",
+              transform:
+                dragStateRef.current?.key === entry.key
+                  ? `translate(${(dragPreview?.worktreeOffset.x ?? 0) * viewport.scale}px, calc(-100% + ${(dragPreview?.worktreeOffset.y ?? 0) * viewport.scale}px))`
+                  : "translate(0, -100%)",
               opacity: placed.opacity,
+              cursor:
+                entry.worktreeId && !useLodMode ? "grab" : "pointer",
+              transition:
+                dragStateRef.current?.key === entry.key
+                  ? "none"
+                  : LABEL_BASE_STYLE.transition,
             }}
+            onPointerDown={(event) => handleLabelPointerDown(event, entry)}
             onMouseEnter={() => setHoveredLabelKey(entry.key)}
             onMouseLeave={() =>
               setHoveredLabelKey((prev) => (prev === entry.key ? null : prev))
             }
             onClick={(e) => {
               e.stopPropagation();
+              if (performance.now() < suppressClickUntilRef.current) {
+                return;
+              }
               // Pair pan with focus so the next cmd+t lands inside the
               // worktree the user just clicked. panToWorktree only updates
               // useSelectionStore (visual selection); cmd+t reads

@@ -110,6 +110,15 @@ interface ProjectStore {
     x: number,
     y: number,
   ) => void;
+  updateTerminalPositions: (
+    updates: Array<{
+      projectId: string;
+      worktreeId: string;
+      terminalId: string;
+      x: number;
+      y: number;
+    }>,
+  ) => void;
   updateTerminalSize: (
     projectId: string,
     worktreeId: string,
@@ -790,6 +799,61 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         terminalId,
         (t) => ({ ...t, x, y }),
       ),
+    }));
+    markDirty();
+  },
+
+  updateTerminalPositions: (updates) => {
+    if (updates.length === 0) {
+      return;
+    }
+
+    const grouped = new Map<
+      string,
+      Map<string, { x: number; y: number }>
+    >();
+    for (const update of updates) {
+      const worktreeKey = `${update.projectId}::${update.worktreeId}`;
+      let terminals = grouped.get(worktreeKey);
+      if (!terminals) {
+        terminals = new Map<string, { x: number; y: number }>();
+        grouped.set(worktreeKey, terminals);
+      }
+      terminals.set(update.terminalId, { x: update.x, y: update.y });
+    }
+
+    set((state) => ({
+      projects: state.projects.map((project) => {
+        let projectChanged = false;
+        const worktrees = project.worktrees.map((worktree) => {
+          const terminals = grouped.get(`${project.id}::${worktree.id}`);
+          if (!terminals) {
+            return worktree;
+          }
+
+          let worktreeChanged = false;
+          const nextTerminals = worktree.terminals.map((terminal) => {
+            const nextPosition = terminals.get(terminal.id);
+            if (
+              !nextPosition ||
+              (terminal.x === nextPosition.x && terminal.y === nextPosition.y)
+            ) {
+              return terminal;
+            }
+            worktreeChanged = true;
+            return { ...terminal, x: nextPosition.x, y: nextPosition.y };
+          });
+
+          if (!worktreeChanged) {
+            return worktree;
+          }
+
+          projectChanged = true;
+          return { ...worktree, terminals: nextTerminals };
+        });
+
+        return projectChanged ? { ...project, worktrees } : project;
+      }),
     }));
     markDirty();
   },

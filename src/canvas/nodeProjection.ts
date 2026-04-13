@@ -13,16 +13,20 @@ export type CanvasFlowNode = Node<TerminalNodeData, "terminal">;
 
 export function buildCanvasFlowNodes(
   projects: ProjectData[],
+  positionOverrides?: Map<string, { x: number; y: number }>,
 ): CanvasFlowNode[] {
   const nodes: CanvasFlowNode[] = [];
   for (const project of projects) {
     for (const worktree of project.worktrees) {
       for (const terminal of worktree.terminals) {
         if (terminal.stashed) continue;
+        const position = positionOverrides?.get(terminal.id);
         nodes.push({
           id: terminal.id,
           type: "terminal",
-          position: { x: terminal.x, y: terminal.y },
+          position: position
+            ? { x: position.x, y: position.y }
+            : { x: terminal.x, y: terminal.y },
           data: {
             terminalId: terminal.id,
             projectId: project.id,

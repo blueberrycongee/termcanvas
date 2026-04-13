@@ -11,6 +11,7 @@ import {
   type OnNodeDrag,
   type ReactFlowInstance,
 } from "@xyflow/react";
+import { flushSync } from "react-dom";
 import {
   addProjectFromDirectoryPath,
   clearSceneFocusAndSelection,
@@ -276,6 +277,9 @@ function XyFlowCanvasInner() {
     flowX: number;
     flowY: number;
   } | null>(null);
+  const [previewPositions, setPreviewPositions] = useState<
+    Map<string, { x: number; y: number }> | null
+  >(null);
 
   const handlePaneContextMenu = useCallback(
     (event: React.MouseEvent | MouseEvent) => {
@@ -321,8 +325,8 @@ function XyFlowCanvasInner() {
   );
 
   const projectedNodes = useMemo(
-    () => buildCanvasFlowNodes(projects),
-    [layoutKey],
+    () => buildCanvasFlowNodes(projects, previewPositions ?? undefined),
+    [layoutKey, previewPositions],
   );
   const [nodes, setNodes, onNodesChange] =
     useNodesState<CanvasFlowNode>(projectedNodes);
@@ -608,7 +612,13 @@ function XyFlowCanvasInner() {
       <CanvasCardLayer />
       {drawingEnabled && <DrawingLayer />}
 
-      <WorktreeLabelLayer />
+      <WorktreeLabelLayer
+        onPreviewPositionsChange={(positions) => {
+          flushSync(() => {
+            setPreviewPositions(positions ? new Map(positions) : null);
+          });
+        }}
+      />
 
       <FamilyTreeOverlay />
 

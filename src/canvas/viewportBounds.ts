@@ -43,6 +43,17 @@ export function screenPointToCanvasPoint(
   };
 }
 
+export function screenDeltaToCanvasDelta(
+  deltaX: number,
+  deltaY: number,
+  viewport: Viewport,
+) {
+  return {
+    x: deltaX / viewport.scale,
+    y: deltaY / viewport.scale,
+  };
+}
+
 /**
  * Visible canvas area in world space. Accounts for left/right side panels
  * and the top toolbar so callers that want to place new content "inside the
