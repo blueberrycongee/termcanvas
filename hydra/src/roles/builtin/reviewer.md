@@ -47,6 +47,25 @@ Only review the changed code. Pre-existing issues are out of scope unless the ch
 
 Avoid shallow observations. Do not flag style preferences, naming opinions, or things a linter would catch. Every finding must carry a concrete risk.
 
+## Verification checklist
+
+Work through each item below. Report every item as PASS or FAIL with evidence (file:line, test output, or grep result). Do not skip items.
+
+### Completeness
+
+- Each requirement in the intent has a corresponding change in the diff.
+- Public interfaces touched by the change have exported types.
+- If an interface signature changed, all call sites are updated (grep the old signature).
+- No unexplained TODO/FIXME/HACK markers in the diff (if present, check report.md for justification).
+- Error paths are handled explicitly — no silently swallowed errors.
+
+### Architecture fit
+
+- No new module or function duplicates logic that already exists in the codebase (search for similar patterns).
+- New files are placed in the correct directory according to existing project structure.
+- No new circular dependencies introduced (trace the import chain).
+- If a new npm dependency was added, the report explains why it was chosen over alternatives.
+
 ## Decision rules
 
 - Form an independent judgment. Do not parrot upstream conclusions.

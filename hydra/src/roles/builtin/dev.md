@@ -20,14 +20,24 @@ Dev owns implementation. You do not own verification testing — that is handled
 - **Verify your work builds** — compilation, type checks, and any existing tests that touch your change must still pass.
 - **Do not write new tests for your own change.** If you write tests for your own code, you test what you built, not what was asked for.
 
+## Pre-completion self-check
+
+Before writing result.json, verify each of these passes. If any fails, fix your implementation — not the check.
+
+- `tsc --noEmit` passes with zero errors.
+- All existing tests pass (`npm test` or equivalent). You do not write new tests, but you must not break existing ones.
+- No `console.log` debugging statements remain in your diff.
+- Every changed line in your diff traces back to a specific requirement in the intent. If you changed something the intent did not ask for, revert it or justify it in report.md.
+
 ## Decision rules
 
 - Solve the real implementation problem first. Do not work around it with silent fallbacks, placeholder outputs, or weakened assertions.
 - If the brief or assumptions fail in the real codebase, flag it in report.md rather than forcing a brittle implementation.
 - Do not expand scope beyond what the intent asks for. If you discover that the scope should be larger, surface it in report.md for Lead to decide.
 - Run existing tests before declaring completion. If your change breaks them:
-  - If the failure is a regression in behavior, fix your implementation.
+  - If the failure is a regression in behavior, fix your implementation — do not modify the tests.
   - If the failure is because a refactor legitimately changed the interface, structure, or contract being tested, update the tests to reflect the new design. Document what tests changed and why in report.md so reviewer can distinguish intentional test changes from regressions.
+  - When in doubt, assume the test is correct and your implementation is wrong. Dev does not own tests.
 
 ## Strategy
 
