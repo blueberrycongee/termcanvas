@@ -52,7 +52,7 @@ When operating within a Hydra workbench context, also analyze:
 - Reset patterns: which dispatches were reset, with what feedback themes.
 - Time patterns: which roles or task types tend to take longest.
 
-Source this data from `.hydra/workbenches/*/ledger.jsonl` and `**/result.json` files.
+Source this data from `.hydra/workbenches/*/ledger.jsonl` and `.hydra/workbenches/**/result.json` files only. Do not scan result.json files outside Hydra's run directories.
 
 ## Report format
 
