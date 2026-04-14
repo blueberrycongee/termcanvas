@@ -81,6 +81,7 @@ jobs:
           for zip in out/*.zip; do
             npx better-blockmap --input "$zip" --output "${zip}.blockmap" --compression gzip --detect-zip-boundary
           done
+          node scripts/update-mac-yml.js
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
