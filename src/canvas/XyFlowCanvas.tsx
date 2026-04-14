@@ -276,15 +276,6 @@ function XyFlowCanvasInner() {
     flowX: number;
     flowY: number;
   } | null>(null);
-  const [previewPositions, setPreviewPositions] = useState<
-    Map<string, { x: number; y: number }> | null
-  >(null);
-  const handlePreviewPositionsChange = useCallback(
-    (positions: Map<string, { x: number; y: number }> | null) => {
-      setPreviewPositions(positions ? new Map(positions) : null);
-    },
-    [],
-  );
 
   const handlePaneContextMenu = useCallback(
     (event: React.MouseEvent | MouseEvent) => {
@@ -306,8 +297,11 @@ function XyFlowCanvasInner() {
   const handleContextMenuPick = useCallback(
     (type: TerminalType) => {
       if (!contextMenu) return;
-      const { focusedProjectId, focusedWorktreeId, projects: currentProjects } =
-        useProjectStore.getState();
+      const {
+        focusedProjectId,
+        focusedWorktreeId,
+        projects: currentProjects,
+      } = useProjectStore.getState();
       let projectId = focusedProjectId;
       let worktreeId = focusedWorktreeId;
       if (!projectId || !worktreeId) {
@@ -330,8 +324,8 @@ function XyFlowCanvasInner() {
   );
 
   const projectedNodes = useMemo(
-    () => buildCanvasFlowNodes(projects, previewPositions ?? undefined),
-    [layoutKey, previewPositions],
+    () => buildCanvasFlowNodes(projects),
+    [layoutKey],
   );
   const [nodes, setNodes, onNodesChange] =
     useNodesState<CanvasFlowNode>(projectedNodes);
@@ -617,9 +611,7 @@ function XyFlowCanvasInner() {
       <CanvasCardLayer />
       {drawingEnabled && <DrawingLayer />}
 
-      <WorktreeLabelLayer
-        onPreviewPositionsChange={handlePreviewPositionsChange}
-      />
+      <WorktreeLabelLayer />
 
       <FamilyTreeOverlay />
 

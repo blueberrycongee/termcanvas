@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useReactFlow } from "@xyflow/react";
 import type { ProjectData } from "../types";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
@@ -8,12 +9,9 @@ import {
   getCanvasLeftInset,
   screenDeltaToCanvasDelta,
 } from "./viewportBounds";
+import { resolveCollisionsDetailed } from "./collisionResolver";
 import { panToWorktree } from "../utils/panToWorktree";
 import { focusWorktreeInScene } from "../actions/sceneSelectionActions";
-import {
-  buildWorktreeGroupMove,
-  commitWorktreeGroupMove,
-} from "../actions/terminalSceneActions";
 
 /**
  * Per-worktree screen-space label layer.
@@ -319,11 +317,6 @@ interface ClusterEntry {
   prefix: string | null;
 }
 
-interface LabelDragPreview {
-  positions: Map<string, { x: number; y: number }>;
-  worktreeOffset: { x: number; y: number };
-}
-
 interface WorktreeDragState {
   key: string;
   projectId: string;
@@ -332,31 +325,70 @@ interface WorktreeDragState {
   startClientY: number;
   pointerId: number;
   moved: boolean;
+  /** Compact positions computed on pointerdown (anchor-relative offsets). */
+  compactOffsets: Map<string, { x: number; y: number }>;
+  /** Canvas-space anchor (label world position) at drag start. */
+  anchorX: number;
+  anchorY: number;
+  /** Terminal IDs involved in this drag. */
+  terminalIds: string[];
 }
 
-export function WorktreeLabelLayer({
-  onPreviewPositionsChange,
-}: {
-  onPreviewPositionsChange?: (positions: Map<string, { x: number; y: number }> | null) => void;
-} = {}) {
+/**
+ * Compute compact offsets for terminals relative to an anchor point.
+ * Terminals "snap" into a tight grid below the anchor — like being
+ * summoned to the label.
+ */
+const COMPACT_GAP = 12;
+
+function computeCompactOffsets(
+  terminals: Array<{ id: string; width: number; height: number }>,
+): Map<string, { x: number; y: number }> {
+  const offsets = new Map<string, { x: number; y: number }>();
+  if (terminals.length === 0) return offsets;
+
+  // Simple packing: lay out in rows, wrapping when width exceeds ~2 tiles.
+  const maxRowWidth =
+    terminals.length === 1
+      ? Infinity
+      : terminals.reduce((sum, t) => sum + t.width, 0) / 2 +
+        COMPACT_GAP * (terminals.length - 1);
+
+  let curX = 0;
+  let curY = 0;
+  let rowHeight = 0;
+
+  for (const t of terminals) {
+    if (curX > 0 && curX + t.width > maxRowWidth) {
+      curX = 0;
+      curY += rowHeight + COMPACT_GAP;
+      rowHeight = 0;
+    }
+    offsets.set(t.id, { x: curX, y: curY });
+    curX += t.width + COMPACT_GAP;
+    rowHeight = Math.max(rowHeight, t.height);
+  }
+
+  return offsets;
+}
+
+export function WorktreeLabelLayer() {
   const projects = useProjectStore((s) => s.projects);
   const viewport = useCanvasStore((s) => s.viewport);
   const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
+  const reactFlow = useReactFlow();
   const [, setResizeTick] = useState(0);
   const [hoveredLabelKey, setHoveredLabelKey] = useState<string | null>(null);
   const [hoveredTerminalKey, setHoveredTerminalKey] = useState<string | null>(
     null,
   );
-  const [dragPreview, setDragPreview] = useState<LabelDragPreview | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const dragStateRef = useRef<WorktreeDragState | null>(null);
-  const dragPreviewRef = useRef<LabelDragPreview | null>(null);
-  const previewChangeRef = useRef(onPreviewPositionsChange);
+  const dragLabelRef = useRef<HTMLDivElement | null>(null);
   const suppressClickUntilRef = useRef(0);
-
-  useEffect(() => {
-    previewChangeRef.current = onPreviewPositionsChange;
-  }, [onPreviewPositionsChange]);
+  const viewportRef = useRef(viewport);
+  viewportRef.current = viewport;
 
   useEffect(() => {
     const onResize = () => setResizeTick((v) => v + 1);
@@ -374,8 +406,6 @@ export function WorktreeLabelLayer({
         setHoveredTerminalKey(null);
         return;
       }
-      // Compute key lazily from current state — store ref capture would
-      // race with the project store on rapid hovers.
       const currentProjects = useProjectStore.getState().projects;
       const useLod = useCanvasStore.getState().viewport.scale < LOD_THRESHOLD;
       const key = useLod
@@ -388,80 +418,12 @@ export function WorktreeLabelLayer({
       window.removeEventListener("termcanvas:terminal-hover", handler);
   }, []);
 
-  useEffect(() => {
-    dragPreviewRef.current = dragPreview;
-    previewChangeRef.current?.(dragPreview?.positions ?? null);
-  }, [dragPreview]);
-
-  useEffect(() => {
-    const active = dragStateRef.current;
-    if (!active) {
-      return;
-    }
-
-    const handlePointerMove = (event: PointerEvent) => {
-      if (event.pointerId !== active.pointerId) {
-        return;
-      }
-      event.preventDefault();
-      const delta = screenDeltaToCanvasDelta(
-        event.clientX - active.startClientX,
-        event.clientY - active.startClientY,
-        viewport,
-      );
-      const nextPreview = buildWorktreeGroupMove(
-        active.projectId,
-        active.worktreeId,
-        delta.x,
-        delta.y,
-      );
-      active.moved =
-        active.moved ||
-        Math.abs(event.clientX - active.startClientX) > 3 ||
-        Math.abs(event.clientY - active.startClientY) > 3;
-      setDragPreview(nextPreview);
-    };
-
-    const finishDrag = (event: PointerEvent) => {
-      if (event.pointerId !== active.pointerId) {
-        return;
-      }
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", finishDrag);
-      window.removeEventListener("pointercancel", finishDrag);
-      dragStateRef.current = null;
-
-      const preview = dragPreviewRef.current;
-      setDragPreview(null);
-
-      if (!active.moved || !preview) {
-        return;
-      }
-
-      suppressClickUntilRef.current = performance.now() + 250;
-      commitWorktreeGroupMove(active.projectId, active.worktreeId, preview);
-    };
-
-    window.addEventListener("pointermove", handlePointerMove, { passive: false });
-    window.addEventListener("pointerup", finishDrag);
-    window.addEventListener("pointercancel", finishDrag);
-
-    return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", finishDrag);
-      window.removeEventListener("pointercancel", finishDrag);
-    };
-  }, [viewport]);
-
   const focus = useMemo(() => findFocusInfo(projects), [projects]);
   const worktreeLabels = useMemo(
     () => buildWorktreeLabels(projects),
     [projects],
   );
-  const projectLabels = useMemo(
-    () => buildProjectLabels(projects),
-    [projects],
-  );
+  const projectLabels = useMemo(() => buildProjectLabels(projects), [projects]);
 
   if (typeof document === "undefined") return null;
   if (worktreeLabels.length === 0) return null;
@@ -533,6 +495,18 @@ export function WorktreeLabelLayer({
 
     event.preventDefault();
     event.stopPropagation();
+
+    // Collect worktree terminals for compact layout.
+    const project = projects.find((p) => p.id === entry.projectId);
+    const worktree = project?.worktrees.find((w) => w.id === entry.worktreeId);
+    const terminals = worktree?.terminals.filter((t) => !t.stashed) ?? [];
+    if (terminals.length === 0) return;
+
+    const compactOffsets = computeCompactOffsets(
+      terminals.map((t) => ({ id: t.id, width: t.width, height: t.height })),
+    );
+    const terminalIds = terminals.map((t) => t.id);
+
     dragStateRef.current = {
       key: entry.key,
       projectId: entry.projectId,
@@ -541,20 +515,154 @@ export function WorktreeLabelLayer({
       startClientY: event.clientY,
       pointerId: event.pointerId,
       moved: false,
+      compactOffsets,
+      anchorX: entry.worldX,
+      anchorY: entry.worldY,
+      terminalIds,
     };
 
-    const initialPreview = buildWorktreeGroupMove(
-      entry.projectId,
-      entry.worktreeId,
-      0,
-      0,
+    // Immediately snap terminals to compact positions around the label anchor.
+    reactFlow.setNodes((nodes) =>
+      nodes.map((n) => {
+        const offset = compactOffsets.get(n.id);
+        if (!offset) return n;
+        return {
+          ...n,
+          position: {
+            x: entry.worldX + offset.x,
+            y: entry.worldY + offset.y,
+          },
+        };
+      }),
     );
-    if (!initialPreview) {
+
+    setIsDragging(true);
+
+    const handlePointerMove = (e: PointerEvent) => {
+      const active = dragStateRef.current;
+      if (!active || e.pointerId !== active.pointerId) return;
+      e.preventDefault();
+
+      active.moved =
+        active.moved ||
+        Math.abs(e.clientX - active.startClientX) > 3 ||
+        Math.abs(e.clientY - active.startClientY) > 3;
+
+      const vp = viewportRef.current;
+      const delta = screenDeltaToCanvasDelta(
+        e.clientX - active.startClientX,
+        e.clientY - active.startClientY,
+        vp,
+      );
+
+      const ax = active.anchorX + delta.x;
+      const ay = active.anchorY + delta.y;
+
+      reactFlow.setNodes((nodes) =>
+        nodes.map((n) => {
+          const offset = active.compactOffsets.get(n.id);
+          if (!offset) return n;
+          return {
+            ...n,
+            position: { x: ax + offset.x, y: ay + offset.y },
+          };
+        }),
+      );
+
+      // Move the label DOM element directly to follow the cursor.
+      const el = dragLabelRef.current;
+      if (el) {
+        const screenDx = e.clientX - active.startClientX;
+        const screenDy = e.clientY - active.startClientY;
+        el.style.transform = `translate(${screenDx}px, calc(-100% + ${screenDy}px))`;
+      }
+    };
+
+    const finishDrag = (e: PointerEvent) => {
+      const active = dragStateRef.current;
+      if (!active || e.pointerId !== active.pointerId) return;
+
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", finishDrag);
+      window.removeEventListener("pointercancel", finishDrag);
       dragStateRef.current = null;
-      return;
-    }
-    setDragPreview(initialPreview);
-    event.currentTarget.setPointerCapture(event.pointerId);
+      setIsDragging(false);
+
+      // Reset label transform.
+      const el = dragLabelRef.current;
+      if (el) el.style.transform = "translate(0, -100%)";
+
+      if (!active.moved) return;
+
+      suppressClickUntilRef.current = performance.now() + 250;
+
+      // Commit final positions to the store.
+      const vp = viewportRef.current;
+      const delta = screenDeltaToCanvasDelta(
+        e.clientX - active.startClientX,
+        e.clientY - active.startClientY,
+        vp,
+      );
+      const finalAnchorX = active.anchorX + delta.x;
+      const finalAnchorY = active.anchorY + delta.y;
+
+      const SNAP = 10;
+      const snap = (v: number) => Math.round(v / SNAP) * SNAP;
+
+      const updates = active.terminalIds.map((id) => {
+        const offset = active.compactOffsets.get(id)!;
+        return {
+          projectId: active.projectId,
+          worktreeId: active.worktreeId,
+          terminalId: id,
+          x: snap(finalAnchorX + offset.x),
+          y: snap(finalAnchorY + offset.y),
+        };
+      });
+      useProjectStore.getState().updateTerminalPositions(updates);
+
+      // Resolve collisions with all other terminals.
+      const allProjects = useProjectStore.getState().projects;
+      const movedIds = new Set(active.terminalIds);
+      const allRects = allProjects.flatMap((p) =>
+        p.worktrees.flatMap((w) =>
+          w.terminals
+            .filter((t) => !t.stashed)
+            .map((t) => ({
+              id: t.id,
+              x: t.x,
+              y: t.y,
+              width: t.width,
+              height: t.height,
+            })),
+        ),
+      );
+      const { resolved } = resolveCollisionsDetailed(
+        allRects,
+        8,
+        active.terminalIds,
+      );
+      const updatePos = useProjectStore.getState().updateTerminalPosition;
+      for (const rect of resolved) {
+        if (movedIds.has(rect.id)) continue;
+        const original = allRects.find((r) => r.id === rect.id);
+        if (original && (original.x !== rect.x || original.y !== rect.y)) {
+          for (const p of allProjects) {
+            for (const w of p.worktrees) {
+              if (w.terminals.some((t) => t.id === rect.id)) {
+                updatePos(p.id, w.id, rect.id, rect.x, rect.y);
+              }
+            }
+          }
+        }
+      }
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, {
+      passive: false,
+    });
+    window.addEventListener("pointerup", finishDrag);
+    window.addEventListener("pointercancel", finishDrag);
   };
 
   return createPortal(
@@ -566,25 +674,20 @@ export function WorktreeLabelLayer({
       {collisionResolved.map((placed) => {
         if (placed.opacity <= 0.01) return null;
         const { entry } = placed;
+        const isDragTarget = dragStateRef.current?.key === entry.key;
         return (
           <div
             key={entry.key}
+            ref={isDragTarget ? dragLabelRef : undefined}
             className="absolute select-none whitespace-nowrap cursor-pointer pointer-events-auto"
             style={{
               ...LABEL_BASE_STYLE,
               left: placed.screenX,
               top: placed.screenY,
-              transform:
-                dragStateRef.current?.key === entry.key
-                  ? `translate(${(dragPreview?.worktreeOffset.x ?? 0) * viewport.scale}px, calc(-100% + ${(dragPreview?.worktreeOffset.y ?? 0) * viewport.scale}px))`
-                  : "translate(0, -100%)",
+              transform: "translate(0, -100%)",
               opacity: placed.opacity,
-              cursor:
-                entry.worktreeId && !useLodMode ? "grab" : "pointer",
-              transition:
-                dragStateRef.current?.key === entry.key
-                  ? "none"
-                  : LABEL_BASE_STYLE.transition,
+              cursor: entry.worktreeId && !useLodMode ? "grab" : "pointer",
+              transition: isDragging ? "none" : LABEL_BASE_STYLE.transition,
             }}
             onPointerDown={(event) => handleLabelPointerDown(event, entry)}
             onMouseEnter={() => setHoveredLabelKey(entry.key)}
@@ -624,9 +727,7 @@ export function WorktreeLabelLayer({
                 <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
                   {entry.prefix}
                 </span>
-                <span
-                  style={{ color: "var(--text-faint)", margin: "0 4px" }}
-                >
+                <span style={{ color: "var(--text-faint)", margin: "0 4px" }}>
                   /
                 </span>
               </>
@@ -673,9 +774,7 @@ export function WorktreeLabelLayer({
             {focus.projectName}
           </span>
           <span style={{ color: "var(--text-faint)" }}>/</span>
-          <span
-            style={{ fontWeight: 700, color: "var(--text-primary)" }}
-          >
+          <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>
             {focus.worktreeName}
           </span>
         </div>
