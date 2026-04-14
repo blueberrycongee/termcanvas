@@ -68,6 +68,9 @@ function TerminalNode({ data }: NodeProps<TerminalFlowNode>) {
   const updateTerminalSize = useProjectStore(
     (state) => state.updateTerminalSize,
   );
+  const updateTerminalPosition = useProjectStore(
+    (state) => state.updateTerminalPosition,
+  );
 
   const visible = useMemo(() => {
     if (!terminal) return false;
@@ -101,7 +104,17 @@ function TerminalNode({ data }: NodeProps<TerminalFlowNode>) {
   // Live resize: update the store on every frame so the inner TerminalTile
   // follows the React Flow wrapper while the user drags a handle.
   const handleResize = useCallback(
-    (_event: unknown, params: { width: number; height: number }) => {
+    (
+      _event: unknown,
+      params: { x: number; y: number; width: number; height: number },
+    ) => {
+      updateTerminalPosition(
+        data.projectId,
+        data.worktreeId,
+        data.terminalId,
+        params.x,
+        params.y,
+      );
       updateTerminalSize(
         data.projectId,
         data.worktreeId,
@@ -110,13 +123,31 @@ function TerminalNode({ data }: NodeProps<TerminalFlowNode>) {
         params.height,
       );
     },
-    [data.projectId, data.worktreeId, data.terminalId, updateTerminalSize],
+    [
+      data.projectId,
+      data.worktreeId,
+      data.terminalId,
+      updateTerminalPosition,
+      updateTerminalSize,
+    ],
   );
 
   const handleResizeEnd = useCallback(
-    (_event: unknown, params: { width: number; height: number }) => {
+    (
+      _event: unknown,
+      params: { x: number; y: number; width: number; height: number },
+    ) => {
+      const snappedX = snapTo(params.x, SNAP_GRID);
+      const snappedY = snapTo(params.y, SNAP_GRID);
       const snappedW = snapTo(params.width, SNAP_GRID);
       const snappedH = snapTo(params.height, SNAP_GRID);
+      updateTerminalPosition(
+        data.projectId,
+        data.worktreeId,
+        data.terminalId,
+        snappedX,
+        snappedY,
+      );
       updateTerminalSize(
         data.projectId,
         data.worktreeId,
@@ -133,8 +164,8 @@ function TerminalNode({ data }: NodeProps<TerminalFlowNode>) {
             .filter((t) => !t.stashed)
             .map((t) => ({
               id: t.id,
-              x: t.x,
-              y: t.y,
+              x: t.id === data.terminalId ? snappedX : t.x,
+              y: t.id === data.terminalId ? snappedY : t.y,
               width: t.id === data.terminalId ? snappedW : t.width,
               height: t.id === data.terminalId ? snappedH : t.height,
             })),
@@ -165,7 +196,13 @@ function TerminalNode({ data }: NodeProps<TerminalFlowNode>) {
         fitTerminalRuntime(data.terminalId);
       });
     },
-    [data.projectId, data.worktreeId, data.terminalId, updateTerminalSize],
+    [
+      data.projectId,
+      data.worktreeId,
+      data.terminalId,
+      updateTerminalPosition,
+      updateTerminalSize,
+    ],
   );
 
   if (!terminal || !worktree) {
