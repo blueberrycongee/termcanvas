@@ -28,26 +28,15 @@
 
 ## Hydra Orchestration Toolkit
 
-Hydra is Lead's persistent workbench for multi-role orchestration. Lead holds
-system-level context, dispatches roles into isolated terminals, and reads every
-report to decide next steps. Hydra manages terminal lifecycle (retry, timeout,
-session capture). `result.json` is the only completion evidence.
+Hydra is a Lead-driven orchestration toolkit. You (the Lead) make strategic
+decisions at decision points; Hydra handles operational management.
+`result.json` is the only completion evidence.
 
-### Lead
-
-Lead is the human's primary terminal. It holds the system picture (architecture,
-module boundaries, dependencies) and dispatches roles. Lead always reads every
-report.md to keep its system understanding current. Lead never writes code. For
-large changes (refactors, new modules, architectural shifts), Lead uses
-subagents to research approaches before dispatching.
-
-See `hydra/src/roles/builtin/lead.md` for the full role definition.
-
-### Design rationale
-- **SWF decider pattern.** `hydra watch` is `PollForDecisionTask`; `lead_terminal_id` enforces single-decider semantics.
-- **Parallel-first.** `dispatch` + worktree + `merge` are first-class. Lead sequences dispatches manually and passes context via `--context-ref`.
-- **Typed result contract.** Schema-validated `result.json` (`outcome: completed | stuck | error`).
-- **Lead intervention points.** `hydra reset --feedback` for mid-flight course correction.
+Why this design (vs. other coding-agent products):
+- **SWF decider pattern, specialized for LLM deciders.** Hydra is the AWS SWF / Cadence / Temporal decider pattern. `hydra watch` is `PollForDecisionTask`; the Lead is the decider; `lead_terminal_id` enforces single-decider semantics.
+- **Parallel-first, not bolted on.** `dispatch` + worktree + `merge` are first-class. Lead sequences nodes manually and passes context explicitly via `--context-ref`. Other products treat parallelism as open research; Hydra makes it the default.
+- **Typed result contract.** Workers publish a schema-validated `result.json` (`outcome: completed | stuck | error`, optional `stuck_reason: needs_clarification | needs_credentials | needs_context | blocked_technical`). Other products return free-text final messages and require downstream parsing.
+- **Lead intervention points.** `hydra reset --feedback` lets the Lead actually intervene at decision points instead of being block-and-join. A stale or wrong run is one `reset` away.
 
 Core rules:
 - Root cause first. Fix the implementation problem before changing tests.
@@ -55,8 +44,8 @@ Core rules:
 - Do not add silent fallbacks or swallowed errors.
 - An assignment run is only complete when `result.json` exists and passes schema validation.
 
-Workbench patterns:
-1. Do the task directly when it is simple, local, or clearly faster without orchestration overhead.
+Workflow patterns:
+1. Do the task directly when it is simple, local, or clearly faster without workflow overhead.
 2. Use Hydra for ambiguous, risky, parallel, or multi-step work:
    ```
    hydra init --intent "<task>" --repo .
@@ -65,14 +54,14 @@ Workbench patterns:
    # → DecisionPoint returned, decide next step
    hydra complete --workbench W --repo .
    ```
-3. Use a direct isolated dev when only a single task is needed:
+3. Use a direct isolated worker when only a separate worker is needed:
    `hydra spawn --task "<specific task>" --repo . [--worktree .]`
 
 Agent launch rule:
 - When dispatching Claude/Codex through TermCanvas CLI, start a fresh agent terminal with `termcanvas terminal create --prompt "..."`
 - Do not use `termcanvas terminal input` for task dispatch; it is not a supported automation path
 
-Workbench control:
+Workflow control:
 - After dispatching, always call `hydra watch`. It returns at decision points.
 1. Watch until decision point: `hydra watch --workbench <workbenchId> --repo .`
 2. Inspect structured state: `hydra status --workbench <workbenchId> --repo .`
