@@ -3,6 +3,7 @@ import {
   createWriteStream,
   mkdirSync,
   rmSync,
+  renameSync,
   readdirSync,
   existsSync,
   createReadStream,
@@ -244,15 +245,6 @@ export class MacCustomUpdater {
   async checkForUpdates(): Promise<void> {
     if (this.downloading) return;
 
-    if (this.pendingUpdate) {
-      sendToWindow(this.window, "updater:update-downloaded", {
-        version: this.pendingUpdate.version,
-        releaseNotes: this.pendingUpdate.releaseNotes,
-        releaseDate: this.pendingUpdate.releaseDate,
-      });
-      return;
-    }
-
     // Skip updates when the .app is on a read-only volume (e.g. mounted DMG)
     if (!isAppLocationWritable()) return;
 
@@ -263,6 +255,19 @@ export class MacCustomUpdater {
 
       if (!release.version) return;
       if (!isNewerVersion(release.version, app.getVersion())) return;
+
+      // If a pending update already matches the latest, just re-notify the UI
+      if (
+        this.pendingUpdate &&
+        this.pendingUpdate.version === release.version
+      ) {
+        sendToWindow(this.window, "updater:update-downloaded", {
+          version: this.pendingUpdate.version,
+          releaseNotes: this.pendingUpdate.releaseNotes,
+          releaseDate: this.pendingUpdate.releaseDate,
+        });
+        return;
+      }
 
       let releaseNotes = "";
       try {
@@ -283,6 +288,16 @@ export class MacCustomUpdater {
 
       await this.downloadUpdate(release, releaseNotes);
     } catch (error) {
+      // If we already have a valid pending update (e.g. offline), surface it
+      // instead of showing an error so users can still install it
+      if (this.pendingUpdate) {
+        sendToWindow(this.window, "updater:update-downloaded", {
+          version: this.pendingUpdate.version,
+          releaseNotes: this.pendingUpdate.releaseNotes,
+          releaseDate: this.pendingUpdate.releaseDate,
+        });
+        return;
+      }
       sendToWindow(this.window, "updater:error", {
         message: error instanceof Error ? error.message : String(error),
       });
@@ -301,6 +316,7 @@ export class MacCustomUpdater {
     releaseNotes: string,
   ): Promise<void> {
     this.downloading = true;
+    const tempDir = getStagingDir() + "-tmp";
     try {
       const isArm64 = process.arch === "arm64";
       const zipFile = release.files.find(
@@ -314,13 +330,15 @@ export class MacCustomUpdater {
       }
 
       const downloadUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/v${release.version}/${zipFile.url}`;
-      const stagingDir = getStagingDir();
-      const zipPath = join(stagingDir, zipFile.url);
 
-      if (existsSync(stagingDir)) {
-        rmSync(stagingDir, { recursive: true, force: true });
+      // Download into a temp dir so the existing pending update survives
+      // if this download fails (network error, hash mismatch, etc.)
+      if (existsSync(tempDir)) {
+        rmSync(tempDir, { recursive: true, force: true });
       }
-      mkdirSync(stagingDir, { recursive: true });
+      mkdirSync(tempDir, { recursive: true });
+
+      const zipPath = join(tempDir, zipFile.url);
 
       await downloadWithRetry(
         downloadUrl,
@@ -333,11 +351,10 @@ export class MacCustomUpdater {
 
       const hash = await computeSha512(zipPath);
       if (hash !== zipFile.sha512) {
-        rmSync(stagingDir, { recursive: true, force: true });
         throw new Error("SHA-512 verification failed — update is corrupted");
       }
 
-      const extractDir = join(stagingDir, "extracted");
+      const extractDir = join(tempDir, "extracted");
       await extractZip(zipPath, extractDir);
 
       const appName = readdirSync(extractDir).find((f) => f.endsWith(".app"));
@@ -347,9 +364,16 @@ export class MacCustomUpdater {
 
       rmSync(zipPath, { force: true });
 
+      // Download succeeded — replace the old staging dir atomically
+      const stagingDir = getStagingDir();
+      if (existsSync(stagingDir)) {
+        rmSync(stagingDir, { recursive: true, force: true });
+      }
+      renameSync(tempDir, stagingDir);
+
       this.pendingUpdate = {
         version: release.version,
-        appPath: join(extractDir, appName),
+        appPath: join(stagingDir, "extracted", appName),
         releaseNotes,
         releaseDate: release.releaseDate,
       };
@@ -362,6 +386,14 @@ export class MacCustomUpdater {
         releaseDate: release.releaseDate,
       });
     } catch (error) {
+      // Clean up temp dir on failure; existing pending update is untouched
+      if (existsSync(tempDir)) {
+        try {
+          rmSync(tempDir, { recursive: true, force: true });
+        } catch {
+          // Ignore cleanup errors
+        }
+      }
       sendToWindow(this.window, "updater:error", {
         message: error instanceof Error ? error.message : String(error),
       });
