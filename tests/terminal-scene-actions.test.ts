@@ -1,6 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+// Node.js does not provide CustomEvent globally — polyfill it for tests.
+if (typeof globalThis.CustomEvent === "undefined") {
+  (globalThis as Record<string, unknown>).CustomEvent = class CustomEvent<
+    T = unknown,
+  > extends Event {
+    detail: T;
+    constructor(type: string, init?: CustomEventInit<T>) {
+      super(type, init);
+      this.detail = init?.detail as T;
+    }
+  };
+}
+
 function installActionGlobals() {
   const storage = new Map<string, string>();
   const navigator = {
