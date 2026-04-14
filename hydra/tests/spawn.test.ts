@@ -5,6 +5,7 @@ import {
   generateAgentId,
   buildGitWorktreeAddArgs,
   validateWorktreePath,
+  injectScanDefaults,
 } from "../src/spawn.ts";
 
 test("parseSpawnArgs extracts all flags correctly", () => {
@@ -100,4 +101,43 @@ test("validateWorktreePath rejects worktrees outside the repo", () => {
     () => validateWorktreePath("/tmp/repo", "/tmp/other-repo"),
     /must be inside the repo/,
   );
+});
+
+// --- --role flag ---
+
+test("parseSpawnArgs parses --role flag", () => {
+  const args = parseSpawnArgs([
+    "--task", "scan",
+    "--role", "janitor",
+    "--repo", "/tmp/repo",
+  ]);
+  assert.equal(args.role, "janitor");
+});
+
+test("parseSpawnArgs leaves role undefined when not provided", () => {
+  const args = parseSpawnArgs(["--task", "do stuff", "--repo", "/tmp/repo"]);
+  assert.equal(args.role, undefined);
+});
+
+// --- injectScanDefaults ---
+
+test("injectScanDefaults adds --role janitor and default --task", () => {
+  const result = injectScanDefaults(["--repo", "/tmp/repo"]);
+  assert.ok(result.includes("--role"));
+  assert.equal(result[result.indexOf("--role") + 1], "janitor");
+  assert.ok(result.includes("--task"));
+});
+
+test("injectScanDefaults does not override existing --role", () => {
+  const result = injectScanDefaults(["--repo", "/tmp/repo", "--role", "dev"]);
+  const roleValues = result.filter((_, i) => i > 0 && result[i - 1] === "--role");
+  assert.equal(roleValues.length, 1);
+  assert.equal(roleValues[0], "dev");
+});
+
+test("injectScanDefaults does not override existing --task", () => {
+  const result = injectScanDefaults(["--repo", "/tmp/repo", "--task", "custom scan"]);
+  const taskValues = result.filter((_, i) => i > 0 && result[i - 1] === "--task");
+  assert.equal(taskValues.length, 1);
+  assert.equal(taskValues[0], "custom scan");
 });

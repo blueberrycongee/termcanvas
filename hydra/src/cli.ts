@@ -1,4 +1,23 @@
 import { HydraError, writeFailureLog } from "./errors.ts";
+import {
+  cliInit,
+  cliDispatch,
+  cliWatch,
+  cliRedispatch,
+  cliApprove,
+  cliReset,
+  cliAsk,
+  cliMerge,
+  cliComplete,
+  cliFail,
+  cliStatus,
+  cliLedger,
+  cliListRoles,
+} from "./cli-commands.ts";
+import { list } from "./list.ts";
+import { spawn, injectScanDefaults } from "./spawn.ts";
+import { cleanup } from "./cleanup.ts";
+import { init as initRepo } from "./init.ts";
 
 const args = process.argv.slice(2);
 const [command, ...rest] = args;
@@ -25,6 +44,7 @@ function printUsage() {
   console.log("");
   console.log("Housekeeping:");
   console.log("  spawn      Create one direct isolated worker terminal");
+  console.log("  scan       Scan codebase for entropy (shortcut for spawn --role janitor)");
   console.log("  cleanup    Clean up workflow state and worktrees");
   console.log("  init-repo  Add hydra instructions to project CLAUDE.md");
 }
@@ -32,95 +52,64 @@ function printUsage() {
 async function main() {
   switch (command) {
     // --- Lead-driven workflow ---
-    case "init": {
-      const { cliInit } = await import("./cli-commands.js");
+    case "init":
       await cliInit(rest);
       break;
-    }
-    case "dispatch": {
-      const { cliDispatch } = await import("./cli-commands.js");
+    case "dispatch":
       await cliDispatch(rest);
       break;
-    }
-    case "watch": {
-      const { cliWatch } = await import("./cli-commands.js");
+    case "watch":
       await cliWatch(rest);
       break;
-    }
-    case "redispatch": {
-      const { cliRedispatch } = await import("./cli-commands.js");
+    case "redispatch":
       await cliRedispatch(rest);
       break;
-    }
-    case "approve": {
-      const { cliApprove } = await import("./cli-commands.js");
+    case "approve":
       await cliApprove(rest);
       break;
-    }
-    case "reset": {
-      const { cliReset } = await import("./cli-commands.js");
+    case "reset":
       await cliReset(rest);
       break;
-    }
-    case "ask": {
-      const { cliAsk } = await import("./cli-commands.js");
+    case "ask":
       await cliAsk(rest);
       break;
-    }
-    case "merge": {
-      const { cliMerge } = await import("./cli-commands.js");
+    case "merge":
       await cliMerge(rest);
       break;
-    }
-    case "complete": {
-      const { cliComplete } = await import("./cli-commands.js");
+    case "complete":
       await cliComplete(rest);
       break;
-    }
-    case "fail": {
-      const { cliFail } = await import("./cli-commands.js");
+    case "fail":
       await cliFail(rest);
       break;
-    }
 
     // --- Inspection ---
-    case "status": {
-      const { cliStatus } = await import("./cli-commands.js");
+    case "status":
       await cliStatus(rest);
       break;
-    }
-    case "ledger": {
-      const { cliLedger } = await import("./cli-commands.js");
+    case "ledger":
       await cliLedger(rest);
       break;
-    }
-    case "list": {
-      const { list } = await import("./list.js");
+    case "list":
       await list(rest);
       break;
-    }
-    case "list-roles": {
-      const { cliListRoles } = await import("./cli-commands.js");
+    case "list-roles":
       await cliListRoles(rest);
       break;
-    }
 
     // --- Housekeeping ---
-    case "spawn": {
-      const { spawn } = await import("./spawn.js");
+    case "spawn":
       await spawn(rest);
       break;
-    }
-    case "cleanup": {
-      const { cleanup } = await import("./cleanup.js");
+    case "scan":
+      await spawn(injectScanDefaults(rest));
+      break;
+    case "cleanup":
       await cleanup(rest);
       break;
-    }
-    case "init-repo": {
-      const { init } = await import("./init.js");
-      await init();
+    case "init-repo":
+      await initRepo();
       break;
-    }
 
     case "--help":
     case "-h":

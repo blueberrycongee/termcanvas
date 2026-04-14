@@ -9,6 +9,7 @@ export interface AgentRecord {
   id: string;
   task: string;
   type: string;
+  role?: string;
   workflowId?: string;
   assignmentId?: string;
   runId?: string;

@@ -12,13 +12,15 @@ import { getRunResultFile } from "./layout.ts";
 import {
   AUTO_APPROVE_AGENT_TYPES,
   DEFAULT_AGENT_TYPE,
+  SUPPORTED_AGENT_TYPES,
   parseAgentTypeFlag,
-  resolveWorkerAgentType,
 } from "./agent-selection.ts";
+import { loadRole, type RoleTerminal } from "./roles/loader.ts";
 import type { AgentType } from "./assignment/types.ts";
 
 export interface SpawnArgs {
   task: string;
+  role?: string;
   workerType?: AgentType;
   repo: string;
   worktree?: string;
@@ -31,7 +33,8 @@ function printSpawnUsage(): never {
   console.log("");
   console.log("Options:");
   console.log("  --task <desc>        Task description for the sub-agent (required)");
-  console.log("  --worker-type <type> Worker agent type");
+  console.log("  --role <name>        Role from the registry (default: dev)");
+  console.log("  --worker-type <type> Override the role's CLI agent type");
   console.log(`  --type <type>        Alias for --worker-type (fallback default: ${DEFAULT_AGENT_TYPE})`);
   console.log("  --repo <path>        Path to the git repository (required)");
   console.log("  --worktree <path>    Use an existing worktree (read-only mode)");
@@ -53,6 +56,8 @@ export function parseSpawnArgs(args: string[]): SpawnArgs {
     const arg = args[i];
     if (arg === "--task" && i + 1 < args.length) {
       result.task = args[++i];
+    } else if (arg === "--role" && i + 1 < args.length) {
+      result.role = args[++i];
     } else if ((arg === "--worker-type" || arg === "--type") && i + 1 < args.length) {
       result.workerType = parseAgentTypeFlag(arg, args[++i]);
     } else if (arg === "--repo" && i + 1 < args.length) {
@@ -119,10 +124,49 @@ export function validateWorktreePath(repoPath: string, worktreePath: string): st
   return resolvedWorktree;
 }
 
+/**
+ * Inject default flags for `hydra scan`. Scan is a convenience alias for
+ * `hydra spawn --role janitor` with a default task.
+ */
+export function injectScanDefaults(args: string[]): string[] {
+  const result = [...args];
+  if (!result.includes("--role")) {
+    result.push("--role", "janitor");
+  }
+  if (!result.includes("--task")) {
+    result.push("--task", "Scan this repository for codebase entropy and produce a health report.");
+  }
+  return result;
+}
+
 export async function spawn(args: string[]): Promise<void> {
   const parsed = parseSpawnArgs(args);
   const repo = path.resolve(parsed.repo);
-  const workerType = resolveWorkerAgentType(parsed, process.env);
+
+  // Resolve role from registry. Fail fast if the role doesn't exist.
+  const roleName = parsed.role ?? "dev";
+  const role = loadRole(roleName, repo);
+
+  // Pick the first terminal whose CLI is a supported agent type.
+  const supportedSet = new Set<string>(SUPPORTED_AGENT_TYPES);
+  let chosenTerminal: RoleTerminal | undefined;
+  for (const terminal of role.terminals) {
+    if (supportedSet.has(terminal.cli)) {
+      chosenTerminal = terminal;
+      break;
+    }
+    console.error(`hydra: role "${roleName}" terminal cli="${terminal.cli}" is not a supported agent type, trying next`);
+  }
+  if (!chosenTerminal) {
+    throw new Error(
+      `Role "${roleName}" has no terminal with a supported CLI (tried: ${role.terminals.map(t => t.cli).join(", ")})`,
+    );
+  }
+
+  // User --type overrides role terminal; otherwise role terminal wins.
+  const workerType = parsed.workerType ?? (chosenTerminal.cli as AgentType);
+  const model = chosenTerminal.model;
+  const reasoningEffort = chosenTerminal.reasoning_effort;
 
   if (parsed.autoApprove && !AUTO_APPROVE_AGENT_TYPES.has(workerType)) {
     throw new Error(
@@ -162,9 +206,12 @@ export async function spawn(args: string[]): Promise<void> {
     workbenchId: workflowId,
     assignmentId,
     runId,
-    role: "dev",
+    role: roleName,
     agentType: workerType,
-    sourceRole: "orchestrator",
+    model,
+    reasoningEffort,
+    roleBody: role.body,
+    sourceRole: null,
     objective: [
       parsed.task,
     ],
@@ -176,8 +223,9 @@ export async function spawn(args: string[]): Promise<void> {
       },
     ],
     decisionRules: [
-      "- Complete the requested task honestly.",
-      "- Use intent.type=done when the worker is actually done.",
+      "Use outcome=completed when your work is done.",
+      "Use outcome=stuck when you cannot proceed without external help.",
+      "Use outcome=error only for technical failures.",
     ],
     acceptanceCriteria: [
       "Complete the requested task",
@@ -194,6 +242,8 @@ export async function spawn(args: string[]): Promise<void> {
     repoPath: repo,
     worktreePath,
     agentType: workerType,
+    model,
+    reasoningEffort,
     taskFile: taskRun.task_file,
     resultFile: taskRun.result_file,
     autoApprove: parsed.autoApprove,
@@ -205,6 +255,7 @@ export async function spawn(args: string[]): Promise<void> {
     id: agentId,
     task: parsed.task,
     type: workerType,
+    role: roleName,
     workflowId,
     assignmentId,
     runId,
@@ -224,6 +275,7 @@ export async function spawn(args: string[]): Promise<void> {
     workflowId,
     assignmentId,
     runId,
+    role: roleName,
     terminalId: dispatch.terminalId,
     worktreePath,
     branch,
