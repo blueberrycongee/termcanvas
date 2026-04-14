@@ -181,6 +181,14 @@ export function listWorkbenches(repoPath: string): WorkbenchRecord[] {
     .filter((workbench): workbench is WorkbenchRecord => workbench !== null);
 }
 
+/**
+ * Permanently removes all workbench state files (workbench.json, ledger,
+ * dispatches, runs). Not called by `hydra cleanup` — cleanup only
+ * releases runtime resources (terminals, worktrees, branches) and
+ * preserves state for audit. This function exists for:
+ *   - janitor-driven archival (move to cold storage, then delete)
+ *   - manual emergency purge
+ */
 export function deleteWorkbench(repoPath: string, workbenchId: string): void {
   fs.rmSync(getWorkbenchDir(repoPath, workbenchId), { recursive: true, force: true });
 }

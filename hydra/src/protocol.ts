@@ -4,7 +4,7 @@ export const RESULT_SCHEMA_VERSION = "hydra/result/v0.1";
 
 // --- Outcome: machine-readable routing signal for Hydra ---
 
-export type SubAgentOutcome = "completed" | "stuck" | "error";
+export type RunOutcome = "completed" | "stuck" | "error";
 
 /**
  * When a worker reports outcome="stuck", `stuck_reason` tells Lead *why* it
@@ -31,13 +31,13 @@ export type StuckReason =
 // All human-readable content (summary, evidence, reflection, output
 // descriptions) lives in the `report.md` file referenced by `report_file`.
 
-export interface SubAgentResult {
+export interface RunResult {
   schema_version: typeof RESULT_SCHEMA_VERSION;
   workbench_id: string;
   assignment_id: string;
   run_id: string;
 
-  outcome: SubAgentOutcome;
+  outcome: RunOutcome;
   report_file: string;       // path to report.md (relative to result.json's dir or absolute)
 
   /**
@@ -83,14 +83,14 @@ function expectString(record: Record<string, unknown>, field: string, root: unkn
   return value;
 }
 
-const VALID_OUTCOMES = new Set<SubAgentOutcome>(["completed", "stuck", "error"]);
+const VALID_OUTCOMES = new Set<RunOutcome>(["completed", "stuck", "error"]);
 
-function validateOutcome(record: Record<string, unknown>, root: unknown): SubAgentOutcome {
+function validateOutcome(record: Record<string, unknown>, root: unknown): RunOutcome {
   const value = expectString(record, "outcome", root);
-  if (!VALID_OUTCOMES.has(value as SubAgentOutcome)) {
+  if (!VALID_OUTCOMES.has(value as RunOutcome)) {
     failValidation(`Invalid outcome: ${value}. Expected one of: ${[...VALID_OUTCOMES].join(", ")}`, root);
   }
-  return value as SubAgentOutcome;
+  return value as RunOutcome;
 }
 
 const VALID_STUCK_REASONS = new Set<StuckReason>([
@@ -102,7 +102,7 @@ const VALID_STUCK_REASONS = new Set<StuckReason>([
 
 function validateStuckReason(
   record: Record<string, unknown>,
-  outcome: SubAgentOutcome,
+  outcome: RunOutcome,
   root: unknown,
 ): StuckReason | undefined {
   const raw = record.stuck_reason;
@@ -127,10 +127,10 @@ function validateStuckReason(
 
 // --- Main validation ---
 
-export function validateSubAgentResult(
+export function validateRunResult(
   value: unknown,
-  expected: Pick<SubAgentResult, "workbench_id" | "assignment_id" | "run_id">,
-): SubAgentResult {
+  expected: Pick<RunResult, "workbench_id" | "assignment_id" | "run_id">,
+): RunResult {
   const record = expectRecord(value, "result", value);
   const schemaVersion = expectString(record, "schema_version", value);
   if (schemaVersion !== RESULT_SCHEMA_VERSION) {
@@ -141,7 +141,7 @@ export function validateSubAgentResult(
   }
 
   const outcome = validateOutcome(record, value);
-  const validated: SubAgentResult = {
+  const validated: RunResult = {
     schema_version: RESULT_SCHEMA_VERSION,
     workbench_id: expectString(record, "workbench_id", value),
     assignment_id: expectString(record, "assignment_id", value),

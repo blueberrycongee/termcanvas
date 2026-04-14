@@ -459,7 +459,7 @@ test("resetNode resets only the target node", async () => {
     assert.equal(result.dispatch_id, "a");
 
     const workflow = loadWorkbench(repo, init.workbench_id)!;
-    assert.equal(workflow.dispatches.a.status, "eligible");  // target: reset to eligible
+    assert.equal(workflow.dispatches.a.status, "reset");  // target: reset status
     assert.equal(workflow.dispatches.b.status, "dispatched"); // other node: unchanged
     assert.ok(workflow.dispatches.a.feedback_file);
     const feedbackContent = fs.readFileSync(path.join(repo, workflow.dispatches.a.feedback_file!), "utf-8");
@@ -669,7 +669,7 @@ test("redispatch on a non-claude assignment does not pass resumeSessionId", asyn
     manager.save(assignment);
 
     await resetDispatch({
-      repoPath: repo, workbenchId: init.workbench_id, dispatchId: "dev",
+      repoPath: repo, workbenchId: init.workbench_id, dispatchId: "dev", feedback: "Try again",
     }, deps);
     await redispatch({
       repoPath: repo, workbenchId: init.workbench_id, dispatchId: "dev",

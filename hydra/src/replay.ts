@@ -1,6 +1,6 @@
 import type { DispatchStatus } from "./decision.ts";
 import type { LedgerActor, LedgerEntry } from "./ledger.ts";
-import type { StuckReason, SubAgentOutcome } from "./protocol.ts";
+import type { StuckReason, RunOutcome } from "./protocol.ts";
 import type { WorkbenchStatus } from "./workflow-store.ts";
 
 /**
@@ -36,7 +36,7 @@ export interface ReplayedDispatch {
   /** Total dispatches observed (initial + Lead redispatches + system retries). */
   dispatch_count: number;
   /** Most recent worker verdict, if the dispatch ever reported one. */
-  last_outcome?: SubAgentOutcome;
+  last_outcome?: RunOutcome;
   /** Sub-state Lead can route on when last_outcome === "stuck". */
   last_stuck_reason?: StuckReason;
   /** Most recent failure code, if the dispatch ever failed. */
