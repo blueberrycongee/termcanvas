@@ -1,4 +1,4 @@
-import type { SubAgentOutcome } from "../protocol.ts";
+import type { RunOutcome } from "../protocol.ts";
 import type { RetryPolicy } from "../workflow-store.ts";
 
 export const ASSIGNMENT_STATE_SCHEMA_VERSION = "hydra/assignment-state/v0.1";
@@ -68,7 +68,7 @@ export interface AssignmentRun {
 }
 
 export interface AssignmentResult {
-  outcome: SubAgentOutcome;
+  outcome: RunOutcome;
   report_file: string;
   completed_at?: string;
 }
@@ -76,13 +76,11 @@ export interface AssignmentResult {
 export interface AssignmentRecord {
   schema_version: typeof ASSIGNMENT_STATE_SCHEMA_VERSION;
   id: string;
-  workflow_id: string;
+  workbench_id: string;
   created_at: string;
   updated_at: string;
-  workspace_root?: string;
   worktree_path?: string;
   role: AssignmentRole;
-  from_assignment_id: string | null;
   requested_agent_type: AgentType;
   status: AssignmentStatus;
   status_updated_at?: string;

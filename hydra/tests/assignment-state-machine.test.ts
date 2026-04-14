@@ -15,9 +15,9 @@ function createFixture() {
   });
 
   const assignment = manager.create({
-    workflow_id: workflowId,
+    workbench_id: workflowId,
     role: "dev",
-    from_assignment_id: "assignment-research",
+
     requested_agent_type: "codex",
     max_retries: 1,
   });
@@ -175,9 +175,9 @@ test("scheduleRetry honors retry_policy.maximum_attempts over the legacy max_ret
   });
   // max_retries=1 (legacy budget = 1 retry) but maximum_attempts=3 → 2 retries.
   const assignment = manager.create({
-    workflow_id: "workflow-policy",
+    workbench_id: "workflow-policy",
     role: "dev",
-    from_assignment_id: null,
+
     requested_agent_type: "claude",
     max_retries: 1,
     retry_policy: { maximum_attempts: 3 },
@@ -226,9 +226,9 @@ test("scheduleRetry stamps next_retry_at when initial_interval_ms is set", async
     now: () => "2026-04-12T00:00:00.000Z",
   });
   const assignment = manager.create({
-    workflow_id: "workflow-backoff",
+    workbench_id: "workflow-backoff",
     role: "dev",
-    from_assignment_id: null,
+
     requested_agent_type: "claude",
     max_retries: 5,
     retry_policy: { initial_interval_ms: 2000, backoff_coefficient: 2 },
@@ -263,9 +263,9 @@ test("scheduleRetry fails immediately when last_error.code is in non_retryable_e
     now: () => "2026-04-12T00:00:00.000Z",
   });
   const assignment = manager.create({
-    workflow_id: "workflow-nonretry",
+    workbench_id: "workflow-nonretry",
     role: "dev",
-    from_assignment_id: null,
+
     requested_agent_type: "claude",
     max_retries: 5,
     retry_policy: {

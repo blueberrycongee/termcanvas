@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   RESULT_SCHEMA_VERSION,
-  validateSubAgentResult,
+  validateRunResult,
 } from "../src/protocol.ts";
 
 function buildValidResult() {
@@ -22,8 +22,8 @@ const EXPECTED_IDS = {
   run_id: "run-0001",
 } as const;
 
-test("validateSubAgentResult accepts a valid result", () => {
-  const result = validateSubAgentResult(buildValidResult(), EXPECTED_IDS);
+test("validateRunResult accepts a valid result", () => {
+  const result = validateRunResult(buildValidResult(), EXPECTED_IDS);
 
   assert.equal(result.schema_version, RESULT_SCHEMA_VERSION);
   assert.equal(result.assignment_id, EXPECTED_IDS.assignment_id);
@@ -31,14 +31,14 @@ test("validateSubAgentResult accepts a valid result", () => {
   assert.equal(result.report_file, "report.md");
 });
 
-test("validateSubAgentResult rejects invalid outcome", () => {
+test("validateRunResult rejects invalid outcome", () => {
   const invalid = {
     ...buildValidResult(),
     outcome: "invalid_value",
   };
 
   assert.throws(
-    () => validateSubAgentResult(invalid, EXPECTED_IDS),
+    () => validateRunResult(invalid, EXPECTED_IDS),
     (error: unknown) => {
       assert.ok(error instanceof Error);
       assert.equal((error as Error & { errorCode?: string }).errorCode, "PROTOCOL_INVALID_RESULT");
@@ -48,28 +48,28 @@ test("validateSubAgentResult rejects invalid outcome", () => {
   );
 });
 
-test("validateSubAgentResult accepts stuck outcome", () => {
-  const result = validateSubAgentResult(
+test("validateRunResult accepts stuck outcome", () => {
+  const result = validateRunResult(
     { ...buildValidResult(), outcome: "stuck" },
     EXPECTED_IDS,
   );
   assert.equal(result.outcome, "stuck");
 });
 
-test("validateSubAgentResult accepts error outcome", () => {
-  const result = validateSubAgentResult(
+test("validateRunResult accepts error outcome", () => {
+  const result = validateRunResult(
     { ...buildValidResult(), outcome: "error" },
     EXPECTED_IDS,
   );
   assert.equal(result.outcome, "error");
 });
 
-test("validateSubAgentResult requires report_file", () => {
+test("validateRunResult requires report_file", () => {
   const invalid: Record<string, unknown> = { ...buildValidResult() };
   delete invalid.report_file;
 
   assert.throws(
-    () => validateSubAgentResult(invalid, EXPECTED_IDS),
+    () => validateRunResult(invalid, EXPECTED_IDS),
     (error: unknown) => {
       assert.ok(error instanceof Error);
       assert.match(error.message, /report_file/);
@@ -78,8 +78,8 @@ test("validateSubAgentResult requires report_file", () => {
   );
 });
 
-test("validateSubAgentResult accepts a valid stuck_reason on a stuck result", () => {
-  const result = validateSubAgentResult(
+test("validateRunResult accepts a valid stuck_reason on a stuck result", () => {
+  const result = validateRunResult(
     {
       ...buildValidResult(),
       outcome: "stuck",
@@ -91,8 +91,8 @@ test("validateSubAgentResult accepts a valid stuck_reason on a stuck result", ()
   assert.equal(result.stuck_reason, "needs_credentials");
 });
 
-test("validateSubAgentResult leaves stuck_reason undefined when not provided", () => {
-  const result = validateSubAgentResult(
+test("validateRunResult leaves stuck_reason undefined when not provided", () => {
+  const result = validateRunResult(
     { ...buildValidResult(), outcome: "stuck" },
     EXPECTED_IDS,
   );
@@ -100,10 +100,10 @@ test("validateSubAgentResult leaves stuck_reason undefined when not provided", (
   assert.equal(result.stuck_reason, undefined);
 });
 
-test("validateSubAgentResult rejects an unknown stuck_reason value", () => {
+test("validateRunResult rejects an unknown stuck_reason value", () => {
   assert.throws(
     () =>
-      validateSubAgentResult(
+      validateRunResult(
         {
           ...buildValidResult(),
           outcome: "stuck",
@@ -120,10 +120,10 @@ test("validateSubAgentResult rejects an unknown stuck_reason value", () => {
   );
 });
 
-test("validateSubAgentResult rejects stuck_reason when outcome is not stuck", () => {
+test("validateRunResult rejects stuck_reason when outcome is not stuck", () => {
   assert.throws(
     () =>
-      validateSubAgentResult(
+      validateRunResult(
         {
           ...buildValidResult(),
           outcome: "completed",
@@ -140,14 +140,14 @@ test("validateSubAgentResult rejects stuck_reason when outcome is not stuck", ()
   );
 });
 
-test("validateSubAgentResult rejects mismatched run identity", () => {
+test("validateRunResult rejects mismatched run identity", () => {
   const invalid = {
     ...buildValidResult(),
     run_id: "run-other",
   };
 
   assert.throws(
-    () => validateSubAgentResult(invalid, EXPECTED_IDS),
+    () => validateRunResult(invalid, EXPECTED_IDS),
     (error: unknown) => {
       assert.ok(error instanceof Error);
       assert.equal((error as Error & { errorCode?: string }).errorCode, "PROTOCOL_INVALID_RESULT");

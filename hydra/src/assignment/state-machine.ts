@@ -378,7 +378,7 @@ export class AssignmentStateMachine {
         stage: "assignment.transition",
         ids: {
           assignment_id: assignment.id,
-          workflow_id: assignment.workflow_id,
+          workbench_id: assignment.workbench_id,
         },
       },
     );

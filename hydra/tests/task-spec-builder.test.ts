@@ -64,11 +64,10 @@ function makeAssignment(overrides: Partial<AssignmentRecord> = {}): AssignmentRe
   return {
     schema_version: "hydra/assignment-state/v0.1",
     id: "assignment-test",
-    workflow_id: "workflow-test",
+    workbench_id: "workflow-test",
     created_at: "2026-04-09T00:00:00.000Z",
     updated_at: "2026-04-09T00:00:00.000Z",
     role: "dev",
-    from_assignment_id: null,
     requested_agent_type: "claude",
     status: "pending",
     retry_count: 0,

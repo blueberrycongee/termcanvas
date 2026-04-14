@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { AgentType } from "./assignment/types.ts";
-import type { StuckReason, SubAgentOutcome } from "./protocol.ts";
+import type { StuckReason, RunOutcome } from "./protocol.ts";
 
 // --- Actor: who made the decision recorded in this entry ---
 //
@@ -57,7 +57,7 @@ export type LedgerEvent =
       agent_type: AgentType;
       duration_ms: number;
       retries_used: number;
-      outcome: SubAgentOutcome;
+      outcome: RunOutcome;
       stuck_reason?: StuckReason;
       report_file: string;
       session_id?: string;

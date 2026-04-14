@@ -71,6 +71,18 @@ export class AssignmentManager {
     return parsed;
   }
 
+  /**
+   * Low-level status override that bypasses the state machine. Does not
+   * acquire the file lock, validate the transition, or append to
+   * transitions[]. Exists for two reasons:
+   *
+   *   1. Test scaffolding — tests that need an assignment in a specific
+   *      status without replaying the full claim→in_progress→… sequence.
+   *   2. Emergency recovery — if a stale lock or schema migration leaves
+   *      an assignment in an unreachable state, this is the escape hatch.
+   *
+   * Production workflow code must use AssignmentStateMachine instead.
+   */
   updateStatus(assignmentId: string, status: AssignmentStatus): void {
     const assignment = this.load(assignmentId);
     if (!assignment) throw new Error(`Assignment not found: ${assignmentId}`);

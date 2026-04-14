@@ -2,8 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { AssignmentManager } from "../hydra/src/assignment/manager.ts";
 import type { AssignmentRecord } from "../hydra/src/assignment/types.ts";
-import { validateSubAgentResult } from "../hydra/src/protocol.ts";
-import { loadWorkflow, type WorkflowRecord } from "../hydra/src/workflow-store.ts";
+import { validateRunResult } from "../hydra/src/protocol.ts";
+import { loadWorkbench, type WorkbenchRecord } from "../hydra/src/workflow-store.ts";
 import { getProcessSnapshot } from "./process-detector.ts";
 import { parseSessionTelemetryLine } from "./session-watcher.ts";
 import type {
@@ -918,7 +918,7 @@ export class TelemetryService {
     repoPath: string,
     workflowId: string,
   ): WorkflowTelemetrySnapshot | null {
-    const workflow = loadWorkflow(repoPath, workflowId);
+    const workflow = loadWorkbench(repoPath, workflowId);
     if (!workflow) return null;
 
     // Find the currently dispatched node's assignment
@@ -1281,8 +1281,8 @@ export class TelemetryService {
     if (resultExists) {
       try {
         const raw = JSON.parse(fs.readFileSync(run.result_file, "utf-8"));
-        validateSubAgentResult(raw, {
-          workflow_id: workflowId,
+        validateRunResult(raw, {
+          workbench_id: workflowId,
           assignment_id: assignment.id,
           run_id: run.id,
         });

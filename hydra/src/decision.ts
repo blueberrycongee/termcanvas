@@ -1,4 +1,4 @@
-import type { StuckReason, SubAgentOutcome } from "./protocol.ts";
+import type { StuckReason, RunOutcome } from "./protocol.ts";
 
 export type DispatchStatus =
   | "eligible"
@@ -17,7 +17,7 @@ export type DecisionPointType =
 export interface CompletedDispatchInfo {
   dispatch_id: string;
   role: string;
-  outcome: SubAgentOutcome;
+  outcome: RunOutcome;
   /**
    * Set when outcome === "stuck". Lets Lead route the intervention without
    * having to read report.md first. See StuckReason in protocol.ts for the

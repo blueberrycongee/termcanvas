@@ -34,9 +34,9 @@ test("AssignmentManager creates an assignment", (t) => {
   t.after(() => cleanup(repoPath));
 
   const assignment = manager.create({
-    workflow_id: workflowId,
+    workbench_id: workflowId,
     role: "dev",
-    from_assignment_id: null,
+
     requested_agent_type: "codex",
     max_retries: 2,
   });
@@ -54,9 +54,9 @@ test("AssignmentManager loads an assignment", (t) => {
   t.after(() => cleanup(repoPath));
 
   const created = manager.create({
-    workflow_id: workflowId,
+    workbench_id: workflowId,
     role: "researcher",
-    from_assignment_id: null,
+
     requested_agent_type: "claude",
     max_retries: 1,
   });
@@ -72,9 +72,9 @@ test("AssignmentManager updates assignment status", (t) => {
   t.after(() => cleanup(repoPath));
 
   const assignment = manager.create({
-    workflow_id: workflowId,
+    workbench_id: workflowId,
     role: "reviewer",
-    from_assignment_id: "assignment-previous",
+
     requested_agent_type: "claude",
     max_retries: 1,
   });
