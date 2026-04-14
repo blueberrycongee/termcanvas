@@ -1092,6 +1092,34 @@ export interface TerminalLocation {
   worktreeId: string;
 }
 
+export function getProjectBounds(project: ProjectData): {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+} {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  for (const worktree of project.worktrees) {
+    for (const terminal of worktree.terminals) {
+      if (terminal.stashed) continue;
+      minX = Math.min(minX, terminal.x);
+      minY = Math.min(minY, terminal.y);
+      maxX = Math.max(maxX, terminal.x + terminal.width);
+      maxY = Math.max(maxY, terminal.y + terminal.height);
+    }
+  }
+
+  if (!isFinite(minX)) {
+    return { x: 0, y: 0, w: 0, h: 0 };
+  }
+
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+}
+
 export function findTerminalById(
   projects: ProjectData[],
   terminalId: string,
