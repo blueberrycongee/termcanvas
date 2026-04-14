@@ -244,15 +244,6 @@ export class MacCustomUpdater {
   async checkForUpdates(): Promise<void> {
     if (this.downloading) return;
 
-    if (this.pendingUpdate) {
-      sendToWindow(this.window, "updater:update-downloaded", {
-        version: this.pendingUpdate.version,
-        releaseNotes: this.pendingUpdate.releaseNotes,
-        releaseDate: this.pendingUpdate.releaseDate,
-      });
-      return;
-    }
-
     // Skip updates when the .app is on a read-only volume (e.g. mounted DMG)
     if (!isAppLocationWritable()) return;
 
@@ -263,6 +254,25 @@ export class MacCustomUpdater {
 
       if (!release.version) return;
       if (!isNewerVersion(release.version, app.getVersion())) return;
+
+      // If a pending update already matches the latest, just re-notify the UI
+      if (
+        this.pendingUpdate &&
+        this.pendingUpdate.version === release.version
+      ) {
+        sendToWindow(this.window, "updater:update-downloaded", {
+          version: this.pendingUpdate.version,
+          releaseNotes: this.pendingUpdate.releaseNotes,
+          releaseDate: this.pendingUpdate.releaseDate,
+        });
+        return;
+      }
+
+      // A newer version supersedes any stale pending update
+      if (this.pendingUpdate) {
+        this.pendingUpdate = null;
+        this.cleanStagingDir();
+      }
 
       let releaseNotes = "";
       try {
