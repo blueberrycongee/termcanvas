@@ -24,7 +24,16 @@ const ROW_HEIGHT = 40;
 
 function IconGitBranch({ size = 14 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <circle cx="5" cy="3.5" r="1.5" />
       <circle cx="5" cy="12.5" r="1.5" />
       <circle cx="11" cy="6.5" r="1.5" />
@@ -35,7 +44,16 @@ function IconGitBranch({ size = 14 }: { size?: number }) {
 
 function IconRefresh({ size = 14 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M2.5 8a5.5 5.5 0 019.3-4M13.5 8a5.5 5.5 0 01-9.3 4" />
       <path d="M12 1v3.5h-3.5M4 15v-3.5h3.5" />
     </svg>
@@ -44,7 +62,16 @@ function IconRefresh({ size = 14 }: { size?: number }) {
 
 function IconArrowUp({ size = 14 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M8 13V3M4 7l4-4 4 4" />
     </svg>
   );
@@ -52,7 +79,16 @@ function IconArrowUp({ size = 14 }: { size?: number }) {
 
 function IconArrowDown({ size = 14 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M8 3v10M4 9l4 4 4-4" />
     </svg>
   );
@@ -60,7 +96,16 @@ function IconArrowDown({ size = 14 }: { size?: number }) {
 
 function IconHydra({ size = 14 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M4 7C4 3.5 7.5 2 10.5 5L12 7.5 10.5 10.5C7.5 14 4 12.5 4 9Z" />
       <circle cx="7.5" cy="5.8" r="1" fill="currentColor" stroke="none" />
       <path d="M12 7.5L14 7.5M14 7.5L15.5 6M14 7.5L15.5 9" />
@@ -70,7 +115,16 @@ function IconHydra({ size = 14 }: { size?: number }) {
 
 function IconCheck({ size = 14 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M3 8.5l3.5 3.5 6.5-7" />
     </svg>
   );
@@ -78,7 +132,15 @@ function IconCheck({ size = 14 }: { size?: number }) {
 
 function IconPlus({ size = 12 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+    >
       <path d="M8 3v10M3 8h10" />
     </svg>
   );
@@ -86,7 +148,15 @@ function IconPlus({ size = 12 }: { size?: number }) {
 
 function IconMinus({ size = 12 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+    >
       <path d="M3 8h10" />
     </svg>
   );
@@ -94,13 +164,27 @@ function IconMinus({ size = 12 }: { size?: number }) {
 
 function IconX({ size = 12 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+    >
       <path d="M4 4l8 8M12 4l-8 8" />
     </svg>
   );
 }
 
-function IconChevron({ size = 12, expanded }: { size?: number; expanded: boolean }) {
+function IconChevron({
+  size = 12,
+  expanded,
+}: {
+  size?: number;
+  expanded: boolean;
+}) {
   return (
     <svg
       width={size}
@@ -121,7 +205,15 @@ function IconChevron({ size = 12, expanded }: { size?: number; expanded: boolean
 
 function IconSearch({ size = 12 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+    >
       <circle cx="7" cy="7" r="4" />
       <path d="M10 10l3 3" />
     </svg>
@@ -205,14 +297,18 @@ function CollapsibleGroup({
             style={{
               ...MONO_STYLE,
               color: "var(--text-muted)",
-              backgroundColor: "color-mix(in srgb, var(--surface) 60%, transparent)",
+              backgroundColor:
+                "color-mix(in srgb, var(--surface) 60%, transparent)",
             }}
           >
             {count}
           </span>
         )}
         {actions && (
-          <span className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>
+          <span
+            className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100"
+            onClick={(e) => e.stopPropagation()}
+          >
             {actions}
           </span>
         )}
@@ -260,9 +356,7 @@ function FileListItem({
           )}
         </div>
       </div>
-      <span className="flex items-center gap-0.5">
-        {actions}
-      </span>
+      <span className="flex items-center gap-0.5">{actions}</span>
       <span
         className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[10px] font-bold"
         style={{ ...MONO_STYLE, color: statusColor }}
@@ -319,7 +413,10 @@ function BranchPopover({
           borderColor: "var(--border)",
         }}
       >
-        <div className="flex items-center gap-1.5 border-b px-2 py-1.5" style={{ borderColor: "var(--border)" }}>
+        <div
+          className="flex items-center gap-1.5 border-b px-2 py-1.5"
+          style={{ borderColor: "var(--border)" }}
+        >
           <IconSearch />
           <input
             ref={inputRef}
@@ -340,7 +437,10 @@ function BranchPopover({
                 onClose();
               }}
             >
-              <span className="w-3 text-center" style={{ color: "var(--accent)" }}>
+              <span
+                className="w-3 text-center"
+                style={{ color: "var(--accent)" }}
+              >
                 {name === currentBranch ? "●" : ""}
               </span>
               <span
@@ -352,7 +452,10 @@ function BranchPopover({
             </button>
           ))}
           {filtered.length === 0 && (
-            <div className="px-3 py-2 text-[11px] text-[var(--text-faint)]" style={MONO_STYLE}>
+            <div
+              className="px-3 py-2 text-[11px] text-[var(--text-faint)]"
+              style={MONO_STYLE}
+            >
               No matching branches
             </div>
           )}
@@ -382,21 +485,29 @@ function CommitDetailInline({
     setDetail(null);
     setExpandedFiles(new Set());
 
-    window.termcanvas.git.commitDetail(worktreePath, hash).then((result) => {
-      if (mountedRef.current) {
-        setDetail(result);
-        setLoading(false);
-      }
-    }).catch(() => {
-      if (mountedRef.current) setLoading(false);
-    });
+    window.termcanvas.git
+      .commitDetail(worktreePath, hash)
+      .then((result) => {
+        if (mountedRef.current) {
+          setDetail(result);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (mountedRef.current) setLoading(false);
+      });
 
-    return () => { mountedRef.current = false; };
+    return () => {
+      mountedRef.current = false;
+    };
   }, [worktreePath, hash]);
 
   if (loading) {
     return (
-      <div className="px-4 py-2 text-[10px] text-[var(--text-faint)]" style={MONO_STYLE}>
+      <div
+        className="px-4 py-2 text-[10px] text-[var(--text-faint)]"
+        style={MONO_STYLE}
+      >
         Loading...
       </div>
     );
@@ -437,13 +548,22 @@ function CommitDetailInline({
               }}
             >
               <IconChevron size={10} expanded={isExpanded} />
-              <span className="min-w-0 flex-1 truncate text-[11px]" style={{ ...MONO_STYLE, color: "var(--text-secondary)" }}>
+              <span
+                className="min-w-0 flex-1 truncate text-[11px]"
+                style={{ ...MONO_STYLE, color: "var(--text-secondary)" }}
+              >
                 {file.name}
               </span>
-              <span className="text-[10px]" style={{ ...MONO_STYLE, color: "var(--cyan)" }}>
+              <span
+                className="text-[10px]"
+                style={{ ...MONO_STYLE, color: "var(--cyan)" }}
+              >
                 {file.additions > 0 ? `+${file.additions}` : ""}
               </span>
-              <span className="text-[10px]" style={{ ...MONO_STYLE, color: "var(--red)" }}>
+              <span
+                className="text-[10px]"
+                style={{ ...MONO_STYLE, color: "var(--red)" }}
+              >
                 {file.deletions > 0 ? `-${file.deletions}` : ""}
               </span>
             </button>
@@ -459,10 +579,12 @@ function CommitDetailInline({
                       let lineBg = "transparent";
                       if (line.startsWith("+")) {
                         lineColor = "var(--cyan)";
-                        lineBg = "color-mix(in srgb, var(--cyan) 8%, transparent)";
+                        lineBg =
+                          "color-mix(in srgb, var(--cyan) 8%, transparent)";
                       } else if (line.startsWith("-")) {
                         lineColor = "var(--red)";
-                        lineBg = "color-mix(in srgb, var(--red) 8%, transparent)";
+                        lineBg =
+                          "color-mix(in srgb, var(--red) 8%, transparent)";
                       } else if (line.startsWith("@@")) {
                         lineColor = "var(--accent)";
                       }
@@ -470,7 +592,11 @@ function CommitDetailInline({
                         <div
                           key={lineIdx}
                           className="whitespace-pre text-[10px]"
-                          style={{ ...MONO_STYLE, color: lineColor, backgroundColor: lineBg }}
+                          style={{
+                            ...MONO_STYLE,
+                            color: lineColor,
+                            backgroundColor: lineBg,
+                          }}
                         >
                           {line}
                         </div>
@@ -500,7 +626,9 @@ function GitGraphRail({
   onLeaveCommit: (hash: string) => void;
   onSelectCommit: (hash: string) => void;
 }) {
-  const hasInteractiveFocus = model.nodes.some((node) => node.isSelected || node.isHovered);
+  const hasInteractiveFocus = model.nodes.some(
+    (node) => node.isSelected || node.isHovered,
+  );
   const firstOverflowNode = model.nodes.find((node) => node.isOverflow) ?? null;
 
   return (
@@ -544,15 +672,27 @@ function GitGraphRail({
               fill="transparent"
               stroke={node.color}
               strokeWidth={1}
-              opacity={hasInteractiveFocus ? (node.isFocused ? 0.95 : 0.42) : 0.78}
+              opacity={
+                hasInteractiveFocus ? (node.isFocused ? 0.95 : 0.42) : 0.78
+              }
             />
           )}
           <circle
             r={node.radius}
             fill={node.isOverflow ? "var(--surface)" : node.color}
-            stroke={node.isOverflow ? node.color : "color-mix(in srgb, var(--bg) 78%, transparent)"}
+            stroke={
+              node.isOverflow
+                ? node.color
+                : "color-mix(in srgb, var(--bg) 78%, transparent)"
+            }
             strokeWidth={node.isOverflow ? 1.2 : 0.8}
-            opacity={hasInteractiveFocus ? (node.isFocused || node.isSelected || node.isHovered ? 1 : 0.42) : 0.96}
+            opacity={
+              hasInteractiveFocus
+                ? node.isFocused || node.isSelected || node.isHovered
+                  ? 1
+                  : 0.42
+                : 0.96
+            }
           />
         </g>
       ))}
@@ -614,7 +754,10 @@ export function GitContent({
     pull,
   } = useGitStatus(worktreePath);
 
-  const branchInfo = useMemo(() => summarizeBranchInventory(branches), [branches]);
+  const branchInfo = useMemo(
+    () => summarizeBranchInventory(branches),
+    [branches],
+  );
   const currentBranch = branches.find((b) => b.isCurrent);
   const aheadBehind = currentBranch
     ? buildAheadBehindLabel(currentBranch.ahead, currentBranch.behind)
@@ -628,8 +771,12 @@ export function GitContent({
   const [branchPopoverOpen, setBranchPopoverOpen] = useState(false);
   const [initializingRepo, setInitializingRepo] = useState(false);
   const [switchingBranch, setSwitchingBranch] = useState(false);
-  const [hoveredCommitHash, setHoveredCommitHash] = useState<string | null>(null);
-  const [selectedCommitHash, setSelectedCommitHash] = useState<string | null>(null);
+  const [hoveredCommitHash, setHoveredCommitHash] = useState<string | null>(
+    null,
+  );
+  const [selectedCommitHash, setSelectedCommitHash] = useState<string | null>(
+    null,
+  );
 
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -638,8 +785,21 @@ export function GitContent({
   const detailRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setViewportHeight(entry.contentRect.height);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
     const el = detailRef.current;
-    if (!el) { setDetailHeight(0); return; }
+    if (!el) {
+      setDetailHeight(0);
+      return;
+    }
     const ro = new ResizeObserver(([entry]) => {
       setDetailHeight(entry.contentRect.height);
     });
@@ -648,7 +808,10 @@ export function GitContent({
   }, [selectedCommitHash]);
 
   const selectedIndex = useMemo(
-    () => (selectedCommitHash ? commits.findIndex((commit) => commit.hash === selectedCommitHash) : -1),
+    () =>
+      selectedCommitHash
+        ? commits.findIndex((commit) => commit.hash === selectedCommitHash)
+        : -1,
     [commits, selectedCommitHash],
   );
   const effectiveDetailHeight = selectedIndex >= 0 ? detailHeight : 0;
@@ -696,7 +859,10 @@ export function GitContent({
       selectedIndex,
     ],
   );
-  const visibleCommits = commits.slice(commitWindow.startIndex, commitWindow.endIndex);
+  const visibleCommits = commits.slice(
+    commitWindow.startIndex,
+    commitWindow.endIndex,
+  );
   const handleCommitSelection = useCallback((hash: string) => {
     setDetailHeight(0);
     setSelectedCommitHash((prev) => (prev === hash ? null : hash));
@@ -725,7 +891,16 @@ export function GitContent({
     } finally {
       setCommitting(false);
     }
-  }, [commitMessage, stagedFiles, changedFiles, stageAll, commit, refreshLog, notify, t]);
+  }, [
+    commitMessage,
+    stagedFiles,
+    changedFiles,
+    stageAll,
+    commit,
+    refreshLog,
+    notify,
+    t,
+  ]);
 
   const handlePush = useCallback(async () => {
     setPushing(true);
@@ -753,22 +928,28 @@ export function GitContent({
     }
   }, [pull, refreshAll, notify, t]);
 
-  const handleBranchSwitch = useCallback(async (ref: string) => {
-    setSwitchingBranch(true);
-    try {
-      await window.termcanvas.git.checkout(worktreePath!, ref);
-      await refreshAll();
-    } catch (error) {
-      notify("error", t.git_checkout_failed(String(error)));
-    } finally {
-      setSwitchingBranch(false);
-    }
-  }, [worktreePath, refreshAll, notify, t]);
+  const handleBranchSwitch = useCallback(
+    async (ref: string) => {
+      setSwitchingBranch(true);
+      try {
+        await window.termcanvas.git.checkout(worktreePath!, ref);
+        await refreshAll();
+      } catch (error) {
+        notify("error", t.git_checkout_failed(String(error)));
+      } finally {
+        setSwitchingBranch(false);
+      }
+    },
+    [worktreePath, refreshAll, notify, t],
+  );
 
   if (loading && !isGitRepo) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <div className="h-4 w-4 animate-pulse rounded-full" style={{ backgroundColor: "var(--accent)" }} />
+        <div
+          className="h-4 w-4 animate-pulse rounded-full"
+          style={{ backgroundColor: "var(--accent)" }}
+        />
       </div>
     );
   }
@@ -777,7 +958,10 @@ export function GitContent({
     return (
       <div className="flex flex-1 items-center justify-center p-4">
         <div className="w-full max-w-[260px]">
-          <div className="text-[13px] text-[var(--text-primary)]" style={MONO_STYLE}>
+          <div
+            className="text-[13px] text-[var(--text-primary)]"
+            style={MONO_STYLE}
+          >
             {t.git_not_repository}
           </div>
           <p className="mt-1 text-[11px] leading-5 text-[var(--text-muted)]">
@@ -894,7 +1078,10 @@ export function GitContent({
         )}
       </div>
 
-      <div className="shrink-0 border-b px-3 py-2" style={{ borderColor: "var(--border)" }}>
+      <div
+        className="shrink-0 border-b px-3 py-2"
+        style={{ borderColor: "var(--border)" }}
+      >
         <div className="flex gap-1.5">
           <div className="min-w-0 flex-1">
             <input
@@ -919,11 +1106,13 @@ export function GitContent({
           </div>
           <button
             title={t.git_commit}
-            disabled={committing || (!commitMessage.trim())}
+            disabled={committing || !commitMessage.trim()}
             onClick={handleCommit}
             className="flex h-7 w-7 shrink-0 items-center justify-center self-end rounded-md transition-colors hover:bg-[var(--surface-hover)] disabled:opacity-40"
             style={{
-              color: commitMessage.trim() ? "var(--accent)" : "var(--text-faint)",
+              color: commitMessage.trim()
+                ? "var(--accent)"
+                : "var(--text-faint)",
             }}
           >
             <IconCheck size={16} />
@@ -1039,7 +1228,10 @@ export function GitContent({
                           try {
                             await discardFiles([entry]);
                           } catch (error) {
-                            notify("error", t.git_discard_failed(String(error)));
+                            notify(
+                              "error",
+                              t.git_discard_failed(String(error)),
+                            );
                           }
                         }}
                       >
@@ -1084,7 +1276,10 @@ export function GitContent({
               setScrollTop(el.scrollTop);
               setViewportHeight(el.clientHeight);
 
-              if (hasMore && el.scrollHeight - el.scrollTop - el.clientHeight < 160) {
+              if (
+                hasMore &&
+                el.scrollHeight - el.scrollTop - el.clientHeight < 160
+              ) {
                 loadMore();
               }
             }}
@@ -1100,122 +1295,142 @@ export function GitContent({
                 onSelectCommit={handleCommitSelection}
               />
               {visibleCommits.map((c, i) => {
-                  const actualIndex = commitWindow.startIndex + i;
-                  const isSelected = c.hash === selectedCommitHash;
-                  const isHovered = c.hash === hoveredCommitHash;
-                  const isMergeCommit = c.parents.length > 1;
-                  const { visibleRefs, hiddenCount } = summarizeCommitRefs(c.refs, {
+                const actualIndex = commitWindow.startIndex + i;
+                const isSelected = c.hash === selectedCommitHash;
+                const isHovered = c.hash === hoveredCommitHash;
+                const isMergeCommit = c.parents.length > 1;
+                const { visibleRefs, hiddenCount } = summarizeCommitRefs(
+                  c.refs,
+                  {
                     currentBranchName: branchInfo.currentBranchName,
                     localBranchNames: branchInfo.orderedLocalBranchNames,
                     maxVisible: 3,
-                  });
-                  const rowTop = getCommitRowTop({
-                    detailHeight: effectiveDetailHeight,
-                    row: actualIndex,
-                    rowHeight: ROW_HEIGHT,
-                    selectedIndex,
-                  });
+                  },
+                );
+                const rowTop = getCommitRowTop({
+                  detailHeight: effectiveDetailHeight,
+                  row: actualIndex,
+                  rowHeight: ROW_HEIGHT,
+                  selectedIndex,
+                });
 
-                  return (
-                    <div key={c.hash}>
-                      <button
-                        className="flex w-full items-center gap-2 pr-3 text-left transition-colors duration-150"
-                        style={{
-                          position: "absolute",
-                          top: rowTop,
-                          height: ROW_HEIGHT,
-                          width: "100%",
-                          paddingLeft: graphRailModel.railWidth + 4,
-                          backgroundColor: isSelected
-                            ? "color-mix(in srgb, var(--accent) 8%, transparent)"
-                            : isHovered
-                              ? "color-mix(in srgb, var(--surface-hover) 82%, transparent)"
+                return (
+                  <div key={c.hash}>
+                    <button
+                      className="flex w-full items-center gap-2 pr-3 text-left transition-colors duration-150"
+                      style={{
+                        position: "absolute",
+                        top: rowTop,
+                        height: ROW_HEIGHT,
+                        width: "100%",
+                        paddingLeft: graphRailModel.railWidth + 4,
+                        backgroundColor: isSelected
+                          ? "color-mix(in srgb, var(--accent) 8%, transparent)"
+                          : isHovered
+                            ? "color-mix(in srgb, var(--surface-hover) 82%, transparent)"
                             : undefined,
-                        }}
-                        onClick={() => handleCommitSelection(c.hash)}
-                        onMouseEnter={() => setHoveredCommitHash(c.hash)}
-                        onMouseLeave={() => {
-                          setHoveredCommitHash((prev) => (prev === c.hash ? null : prev));
-                        }}
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
+                      }}
+                      onClick={() => handleCommitSelection(c.hash)}
+                      onMouseEnter={() => setHoveredCommitHash(c.hash)}
+                      onMouseLeave={() => {
+                        setHoveredCommitHash((prev) =>
+                          prev === c.hash ? null : prev,
+                        );
+                      }}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className="truncate text-[11px]"
+                            style={{
+                              ...MONO_STYLE,
+                              color: isMergeCommit
+                                ? "var(--text-secondary)"
+                                : "var(--text-primary)",
+                            }}
+                          >
+                            {c.message}
+                          </span>
+                          {isMergeCommit && (
                             <span
-                              className="truncate text-[11px]"
+                              className="shrink-0 rounded px-1 text-[9px]"
                               style={{
                                 ...MONO_STYLE,
-                                color: isMergeCommit ? "var(--text-secondary)" : "var(--text-primary)",
+                                color: "var(--text-secondary)",
+                                backgroundColor:
+                                  "color-mix(in srgb, var(--text-secondary) 10%, transparent)",
                               }}
                             >
-                              {c.message}
+                              merge
                             </span>
-                            {isMergeCommit && (
-                              <span
-                                className="shrink-0 rounded px-1 text-[9px]"
-                                style={{
-                                  ...MONO_STYLE,
-                                  color: "var(--text-secondary)",
-                                  backgroundColor: "color-mix(in srgb, var(--text-secondary) 10%, transparent)",
-                                }}
-                              >
-                                merge
-                              </span>
-                            )}
-                            {visibleRefs.map((ref) => (
-                              <span
-                                key={ref}
-                                className="shrink-0 rounded px-1 text-[9px]"
-                                style={{
-                                  ...MONO_STYLE,
-                                  color: ref.startsWith("HEAD")
-                                    ? "var(--bg)"
-                                    : "var(--accent)",
-                                  backgroundColor: ref.startsWith("HEAD")
-                                    ? "var(--accent)"
-                                    : "color-mix(in srgb, var(--accent) 14%, transparent)",
-                                }}
-                              >
-                                {ref}
-                              </span>
-                            ))}
-                            {hiddenCount > 0 && (
-                              <span
-                                className="shrink-0 text-[9px]"
-                                style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
-                              >
-                                +{hiddenCount}
-                              </span>
-                            )}
-                          </div>
-                          <div className="mt-0.5 flex items-center gap-2 text-[10px]" style={MONO_STYLE}>
-                            <span style={{ color: "var(--text-faint)" }}>{c.hash.slice(0, 7)}</span>
-                            <span style={{ color: "var(--text-muted)" }}>{c.author}</span>
-                            <span style={{ color: "var(--text-faint)" }}>{formatRelativeTime(c.date)}</span>
-                          </div>
+                          )}
+                          {visibleRefs.map((ref) => (
+                            <span
+                              key={ref}
+                              className="shrink-0 rounded px-1 text-[9px]"
+                              style={{
+                                ...MONO_STYLE,
+                                color: ref.startsWith("HEAD")
+                                  ? "var(--bg)"
+                                  : "var(--accent)",
+                                backgroundColor: ref.startsWith("HEAD")
+                                  ? "var(--accent)"
+                                  : "color-mix(in srgb, var(--accent) 14%, transparent)",
+                              }}
+                            >
+                              {ref}
+                            </span>
+                          ))}
+                          {hiddenCount > 0 && (
+                            <span
+                              className="shrink-0 text-[9px]"
+                              style={{
+                                ...MONO_STYLE,
+                                color: "var(--text-faint)",
+                              }}
+                            >
+                              +{hiddenCount}
+                            </span>
+                          )}
                         </div>
-                      </button>
-                      {isSelected && (
                         <div
-                          ref={detailRef}
-                          style={{
-                            position: "absolute",
-                            top: rowTop + ROW_HEIGHT,
-                            left: graphRailModel.railWidth,
-                            right: 0,
-                            zIndex: 5,
-                            backgroundColor: "var(--surface)",
-                          }}
+                          className="mt-0.5 flex items-center gap-2 text-[10px]"
+                          style={MONO_STYLE}
                         >
-                          <CommitDetailInline
-                            worktreePath={worktreePath!}
-                            hash={c.hash}
-                            contentInset={6}
-                          />
+                          <span style={{ color: "var(--text-faint)" }}>
+                            {c.hash.slice(0, 7)}
+                          </span>
+                          <span style={{ color: "var(--text-muted)" }}>
+                            {c.author}
+                          </span>
+                          <span style={{ color: "var(--text-faint)" }}>
+                            {formatRelativeTime(c.date)}
+                          </span>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                      </div>
+                    </button>
+                    {isSelected && (
+                      <div
+                        ref={detailRef}
+                        style={{
+                          position: "absolute",
+                          top: rowTop + ROW_HEIGHT,
+                          left: graphRailModel.railWidth,
+                          right: 0,
+                          zIndex: 5,
+                          backgroundColor: "var(--surface)",
+                        }}
+                      >
+                        <CommitDetailInline
+                          worktreePath={worktreePath!}
+                          hash={c.hash}
+                          contentInset={6}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
