@@ -74,19 +74,7 @@ export function buildTaskSpecFromIntent(input: BuildTaskSpecInput): RunTaskSpec 
     { label: "Workflow intent", path: getWorkbenchIntentFile(repoPath, workbench.id) },
   ];
 
-  // Auto-inject approved refs
-  if (workbench.approved_refs) {
-    for (const [refNodeId, ref] of Object.entries(workbench.approved_refs)) {
-      if (fs.existsSync(ref.brief_file)) {
-        readFiles.push({ label: `Approved report (${refNodeId})`, path: ref.brief_file });
-      }
-      if (fs.existsSync(ref.result_file)) {
-        readFiles.push({ label: `Approved result (${refNodeId})`, path: ref.result_file });
-      }
-    }
-  }
-
-  // Add extra context refs provided by Lead (supplements)
+  // Add extra context refs provided by Lead via --context-ref
   if (disp.context_refs) {
     for (const ref of disp.context_refs) {
       if (fs.existsSync(ref.path)) {

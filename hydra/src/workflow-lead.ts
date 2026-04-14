@@ -17,18 +17,17 @@ import {
   hasAssignmentTimedOut,
   retryTimedOutAssignment,
 } from "./retry.ts";
-import { loadRole } from "./roles/loader.ts";
+import { loadRole, type RoleTerminal } from "./roles/loader.ts";
+import { SUPPORTED_AGENT_TYPES } from "./agent-selection.ts";
 import { writeRunTask } from "./run-task.ts";
 import { buildTaskSpecFromIntent } from "./task-spec-builder.ts";
 import {
-  clearDispatchFeedback,
   writeDispatchFeedback,
   writeDispatchIntent,
   writeWorkbenchIntent,
   writeWorkbenchSummary,
 } from "./artifacts.ts";
 import {
-  deleteWorkbench,
   loadWorkbench,
   saveWorkbench,
   WORKBENCH_STATE_SCHEMA_VERSION,
@@ -199,6 +198,7 @@ function latestRun(assignment: AssignmentRecord): AssignmentRecord["runs"][numbe
 }
 
 async function destroyAssignmentTerminal(
+  repoPath: string,
   assignment: AssignmentRecord,
   deps?: WorkbenchDependencies,
 ): Promise<void> {
@@ -215,7 +215,7 @@ async function destroyAssignmentTerminal(
         run.session_id = telemetry.session_id;
         run.session_file = telemetry.session_file;
         run.session_provider = telemetry.provider;
-        const manager = new AssignmentManager(assignment.workspace_root ?? "", assignment.workflow_id);
+        const manager = new AssignmentManager(repoPath, assignment.workbench_id);
         manager.save(assignment);
       }
     } catch {}
@@ -466,14 +466,25 @@ export async function dispatch(
     });
   }
 
-  // Resolve role from registry and pick the highest-priority terminal.
-  // The role file's terminals[] array is the source of truth for cli /
-  // model / reasoning_effort. Today we always pick terminals[0]; future
-  // fallback logic can walk the array if the chosen CLI is unavailable.
-  // Fail fast if the role is unknown or malformed so the dispatch never
-  // reaches a worker that does not exist.
+  // Resolve role from registry and pick the first terminal whose CLI is a
+  // supported agent type. Walk terminals[] in order (preference list) and
+  // fall back if the preferred CLI is unsupported.
   const role = loadRole(options.role, repoPath);
-  const chosenTerminal = role.terminals[0];
+  const supportedSet = new Set<string>(SUPPORTED_AGENT_TYPES);
+  let chosenTerminal: RoleTerminal | undefined;
+  for (const terminal of role.terminals) {
+    if (supportedSet.has(terminal.cli)) {
+      chosenTerminal = terminal;
+      break;
+    }
+    console.error(`hydra: role "${options.role}" terminal cli="${terminal.cli}" is not a supported agent type, trying next`);
+  }
+  if (!chosenTerminal) {
+    throw new HydraError(
+      `Role "${options.role}" has no terminal with a supported CLI (tried: ${role.terminals.map(t => t.cli).join(", ")})`,
+      { errorCode: "WORKBENCH_NO_SUPPORTED_CLI", stage: "workbench.dispatch", ids: { workbench_id: workbench.id } },
+    );
+  }
   const agentType = chosenTerminal.cli as AgentType;
   const model = options.model ?? chosenTerminal.model;
   const reasoningEffort = chosenTerminal.reasoning_effort;
@@ -505,9 +516,9 @@ export async function dispatch(
   // Use dispatchId as the assignment ID directly.
   const manager = managerForWorkbench(workbench);
   manager.create({
-    id: options.dispatchId, workflow_id: workbench.id,
-    workspace_root: workbench.repo_path, worktree_path: disp.worktree_path ?? workbench.worktree_path,
-    role: options.role, from_assignment_id: null,
+    id: options.dispatchId, workbench_id: workbench.id,
+    worktree_path: disp.worktree_path ?? workbench.worktree_path,
+    role: options.role,
     requested_agent_type: agentType,
     timeout_minutes: disp.timeout_minutes ?? workbench.default_timeout_minutes,
     max_retries: disp.max_retries ?? workbench.default_max_retries,
@@ -704,7 +715,7 @@ export async function watchUntilDecision(
             failure_code: "AGENT_REPORTED_ERROR",
             failure_message: errorMessage,
           });
-          await destroyAssignmentTerminal(assignment, deps);
+          await destroyAssignmentTerminal(repoPath, assignment, deps);
           const retryRunId = generateRunId();
           const freshAssignment = loadAssignmentByIdOrThrow(manager, workbench, assignment.id);
           appendLedger(repoPath, workbench.id, "system", {
@@ -724,7 +735,7 @@ export async function watchUntilDecision(
           completed_at: now(),
         };
         await stateMachine.markCompleted(assignment.id, mappedResult);
-        await destroyAssignmentTerminal(assignment, deps);
+        await destroyAssignmentTerminal(repoPath, assignment, deps);
         workbench.dispatches[dispatchId].status = "completed";
 
         // Reload assignment to get the captured session_id (set by destroyAssignmentTerminal)
@@ -787,7 +798,7 @@ export async function watchUntilDecision(
       if (alive === false) {
         const elapsedMs = run.started_at ? Date.parse(now()) - Date.parse(run.started_at) : 0;
         if (elapsedMs > SPAWN_GRACE_PERIOD_MS) {
-          await destroyAssignmentTerminal(assignment, deps);
+          await destroyAssignmentTerminal(repoPath, assignment, deps);
           await stateMachine.markTimedOut(assignment.id, {
             code: "ASSIGNMENT_PROCESS_EXITED",
             message: `Agent process exited without writing result (${Math.round(elapsedMs / 1000)}s)`,
@@ -927,7 +938,7 @@ export interface ResetDispatchOptions {
   repoPath: string;
   workbenchId: string;
   dispatchId: string;
-  feedback?: string;
+  feedback: string;
 }
 
 export interface ResetDispatchResult {
@@ -950,13 +961,13 @@ export async function resetDispatch(
   }
 
   // Reset only the target dispatch — Lead manually resets others if needed
-  workbench.dispatches[options.dispatchId].status = "eligible";
+  workbench.dispatches[options.dispatchId].status = "reset";
 
   const disp = workbench.dispatches[options.dispatchId];
   // Use dispatchId as the assignment ID
   const assignment = manager.load(options.dispatchId);
   if (assignment) {
-    await destroyAssignmentTerminal(assignment, deps);
+    await destroyAssignmentTerminal(repoPath, assignment, deps);
     const previousStatus = assignment.status;
     assignment.status = "pending";
     assignment.updated_at = now();
@@ -970,14 +981,9 @@ export async function resetDispatch(
   }
 
   // Store feedback on target dispatch — write feedback.md, store path
-  if (options.feedback) {
-    const feedbackAbs = writeDispatchFeedback(repoPath, workbench.id, options.dispatchId, options.feedback);
-    const feedbackFileRel = path.relative(repoPath, feedbackAbs);
-    workbench.dispatches[options.dispatchId].feedback_file = feedbackFileRel;
-  } else {
-    clearDispatchFeedback(repoPath, workbench.id, options.dispatchId);
-    workbench.dispatches[options.dispatchId].feedback_file = undefined;
-  }
+  const feedbackAbs = writeDispatchFeedback(repoPath, workbench.id, options.dispatchId, options.feedback);
+  const feedbackFileRel = path.relative(repoPath, feedbackAbs);
+  workbench.dispatches[options.dispatchId].feedback_file = feedbackFileRel;
 
   appendLedger(repoPath, workbench.id, "lead", {
     type: "dispatch_reset", dispatch_id: options.dispatchId, role: workbench.dispatches[options.dispatchId].role,
@@ -1111,7 +1117,7 @@ export async function completeWorkbench(
   for (const [dispatchId, disp] of Object.entries(workbench.dispatches)) {
     const a = manager.load(dispatchId);
     if (a && (a.status === "claimed" || a.status === "in_progress")) {
-      await destroyAssignmentTerminal(a, deps);
+      await destroyAssignmentTerminal(repoPath, a, deps);
     }
   }
 
@@ -1157,7 +1163,7 @@ export async function failWorkbench(
   for (const [dispatchId, disp] of Object.entries(workbench.dispatches)) {
     const a = manager.load(dispatchId);
     if (a && (a.status === "claimed" || a.status === "in_progress")) {
-      await destroyAssignmentTerminal(a, deps);
+      await destroyAssignmentTerminal(repoPath, a, deps);
     }
   }
 
@@ -1194,12 +1200,6 @@ export function getWorkbenchStatus(repoPath: string, workbenchId: string): Workb
     .map((id) => manager.load(id))
     .filter((a): a is AssignmentRecord => a !== null);
   return { workbench, assignments };
-}
-
-// --- cleanupWorkbench ---
-
-export function cleanupWorkbenchState(repoPath: string, workbenchId: string): void {
-  deleteWorkbench(repoPath, workbenchId);
 }
 
 // --- askDispatch (Lead -> completed dispatch follow-up) ---

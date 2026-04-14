@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { readLedger, type LeadAssessment, type LedgerEntry, type LedgerEvent } from "./ledger.ts";
 import { listRoles } from "./roles/loader.ts";
@@ -47,6 +48,19 @@ function listFlag(args: string[], flag: string): string[] {
   return raw.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
+/**
+ * Resolve intent from either --intent <text> or --intent-file <path>.
+ * Errors if both or neither are provided.
+ */
+function resolveIntent(args: string[]): string {
+  const inline = optionalFlag(args, "--intent");
+  const file = optionalFlag(args, "--intent-file");
+  if (inline && file) throw new Error("Provide either --intent or --intent-file, not both");
+  if (file) return fs.readFileSync(file, "utf-8");
+  if (inline) return inline;
+  throw new Error("Missing required flag: --intent or --intent-file");
+}
+
 /** Collect every occurrence of a repeatable flag, in order. */
 function repeatableFlag(args: string[], flag: string): string[] {
   const values: string[] = [];
@@ -64,7 +78,8 @@ function repeatableFlag(args: string[], flag: string): string[] {
 export async function cliInit(args: string[]): Promise<void> {
   if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
     console.log("Usage: hydra init --intent <desc> --repo <path> [options]");
-    console.log("  --intent <desc>              Workbench intent (required)");
+    console.log("  --intent <desc>              Workbench intent (required, or use --intent-file)");
+    console.log("  --intent-file <path>         Read intent from file (mutually exclusive with --intent)");
     console.log("  --repo <path>                Repository path (required)");
     console.log("  --worktree <path>            Use existing worktree");
     console.log("  --timeout-minutes <n>        Default per-dispatch timeout");
@@ -81,7 +96,7 @@ export async function cliInit(args: string[]): Promise<void> {
 
   const sharedConstraints = repeatableFlag(args, "--shared-constraint");
   const result = await initWorkbench({
-    intent: requireFlag(args, "--intent"),
+    intent: resolveIntent(args),
     repoPath: requireFlag(args, "--repo"),
     worktreePath: optionalFlag(args, "--worktree"),
     defaultTimeoutMinutes: optionalNumber(args, "--timeout-minutes"),
@@ -102,7 +117,8 @@ export async function cliDispatch(args: string[]): Promise<void> {
     console.log("  --workbench <id>       Workbench ID (required)");
     console.log("  --dispatch <id>        Dispatch ID (required)");
     console.log("  --role <role>          Registered role name (required, e.g. dev)");
-    console.log("  --intent <desc>        Task intent (required)");
+    console.log("  --intent <desc>        Task intent (required, or use --intent-file)");
+    console.log("  --intent-file <path>   Read intent from file (mutually exclusive with --intent)");
     console.log("  --repo <path>          Repository path (required)");
     console.log("  --model <name>         Override the role's default model (e.g. opus)");
     console.log("  --context-ref <l:p>    Context ref as label:path (repeatable)");
@@ -143,7 +159,7 @@ export async function cliDispatch(args: string[]): Promise<void> {
     workbenchId: requireFlag(args, "--workbench"),
     dispatchId: requireFlag(args, "--dispatch"),
     role: requireFlag(args, "--role"),
-    intent: requireFlag(args, "--intent"),
+    intent: resolveIntent(args),
     model: optionalFlag(args, "--model"),
     contextRefs: contextRefs.length > 0 ? contextRefs : undefined,
     feedback: optionalFlag(args, "--feedback"),
@@ -267,7 +283,7 @@ export async function cliApprove(args: string[]): Promise<void> {
 
 export async function cliReset(args: string[]): Promise<void> {
   if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
-    console.log("Usage: hydra reset --workbench <id> --dispatch <id> --repo <path> [--feedback <text>]");
+    console.log("Usage: hydra reset --workbench <id> --dispatch <id> --repo <path> --feedback <text>");
     process.exit(0);
   }
 
@@ -275,7 +291,7 @@ export async function cliReset(args: string[]): Promise<void> {
     repoPath: requireFlag(args, "--repo"),
     workbenchId: requireFlag(args, "--workbench"),
     dispatchId: requireFlag(args, "--dispatch"),
-    feedback: optionalFlag(args, "--feedback"),
+    feedback: requireFlag(args, "--feedback"),
   });
   console.log(JSON.stringify(result, null, 2));
 }

@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { loadAgent, listAgents, deleteAgent } from "./store.ts";
 import { isTermCanvasRunning, terminalDestroy, terminalStatus } from "./termcanvas.ts";
 import { AssignmentManager } from "./assignment/manager.ts";
-import { deleteWorkbench, loadWorkbench } from "./workflow-store.ts";
+import { loadWorkbench } from "./workflow-store.ts";
 
 export interface CleanupArgs {
   agentId?: string;
@@ -195,8 +195,10 @@ function cleanupWorkbench(workbenchId: string, repo: string, force: boolean): vo
     }
   }
 
-  deleteWorkbench(repo, workbenchId);
-  console.log(`Cleaned up workbench ${workbenchId}.`);
+  // Workbench state files (.hydra/workbenches/<wid>/) are preserved for
+  // audit and historical reference. Only runtime resources (terminals,
+  // worktrees, branches) are cleaned up.
+  console.log(`Cleaned up resources for workbench ${workbenchId}. State files preserved.`);
 }
 
 export async function cleanup(args: string[]): Promise<void> {
