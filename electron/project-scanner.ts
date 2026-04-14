@@ -21,12 +21,18 @@ export interface ChildGitRepoInfo {
 
 const IGNORED_CHILD_DIRS = new Set([".git", "node_modules"]);
 
-function parseWorktreesOutput(output: string): WorktreeInfo[] {
+function parseWorktreesOutput(
+  output: string,
+  repoPath: string,
+): WorktreeInfo[] {
   const worktrees: WorktreeInfo[] = [];
   let current: Partial<WorktreeInfo> & { prunable?: boolean } = {};
+  const resolvedRepo = path.resolve(repoPath);
 
   // Ensure the final record is flushed even if output doesn't end with '\n'
-  for (const line of (output.endsWith("\n") ? output : `${output}\n`).split("\n")) {
+  for (const line of (output.endsWith("\n") ? output : `${output}\n`).split(
+    "\n",
+  )) {
     if (line.startsWith("worktree ")) {
       current.path = line.slice("worktree ".length);
     } else if (line.startsWith("branch ")) {
@@ -41,11 +47,18 @@ function parseWorktreesOutput(output: string): WorktreeInfo[] {
         worktrees.push({
           path: current.path,
           branch: current.branch ?? "(detached)",
-          isMain: worktrees.length === 0,
+          isMain: path.resolve(current.path) === resolvedRepo,
         });
       }
       current = {};
     }
+  }
+
+  // If no worktree matched repoPath (e.g. symlink divergence), fall back to
+  // marking the first entry as main — git always lists the primary worktree
+  // first.
+  if (worktrees.length > 0 && !worktrees.some((w) => w.isMain)) {
+    worktrees[0] = { ...worktrees[0], isMain: true };
   }
 
   return worktrees;
@@ -150,7 +163,7 @@ export class ProjectScanner {
         },
       );
 
-      return parseWorktreesOutput(output);
+      return parseWorktreesOutput(output, dirPath);
     } catch {
       return [
         {
@@ -169,7 +182,7 @@ export class ProjectScanner {
         "list",
         "--porcelain",
       ]);
-      return parseWorktreesOutput(output);
+      return parseWorktreesOutput(output, dirPath);
     } catch {
       return [
         {
