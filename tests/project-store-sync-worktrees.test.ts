@@ -114,16 +114,43 @@ test("syncWorktrees still adds and removes worktrees", () => {
   assert.ok(feature);
   assert.deepEqual(feature!.terminals, []);
 
+  // Sync down to just the feature worktree — the main worktree at
+  // project.path must be preserved automatically.
   useProjectStore
     .getState()
     .syncWorktrees("/tmp/project-1", [
-      { path: "/tmp/project-1-feature", branch: "feature", isMain: true },
+      { path: "/tmp/project-1-feature", branch: "feature", isMain: false },
     ]);
 
   state = useProjectStore.getState();
-  assert.equal(state.projects[0].worktrees.length, 1);
-  assert.equal(state.projects[0].worktrees[0].path, "/tmp/project-1-feature");
-  assert.equal(state.projects[0].worktrees[0].name, "feature");
+  assert.equal(state.projects[0].worktrees.length, 2);
+  assert.equal(state.projects[0].worktrees[0].path, "/tmp/project-1");
+  assert.equal(state.projects[0].worktrees[1].path, "/tmp/project-1-feature");
+  assert.equal(state.projects[0].worktrees[1].name, "feature");
+});
+
+test("syncWorktrees preserves main worktree when backend omits it", () => {
+  const project = createProject();
+  project.worktrees[0].terminals = [
+    createTerminalFixture("terminal-1", "Terminal 1"),
+    createTerminalFixture("terminal-2", "Terminal 2"),
+  ];
+  resetStore([project]);
+
+  // Backend scan returns only a linked worktree, omitting the main worktree
+  // (e.g. transient git error, path mismatch). The main worktree and its
+  // terminals must survive.
+  useProjectStore.getState().syncWorktrees("/tmp/project-1", [
+    { path: "/tmp/project-1-feat", branch: "feat", isMain: false },
+  ]);
+
+  const state = useProjectStore.getState();
+  const mainWt = state.projects[0].worktrees.find(
+    (w) => w.path === "/tmp/project-1",
+  );
+  assert.ok(mainWt, "main worktree must still exist");
+  assert.equal(mainWt!.terminals.length, 2, "terminals must be preserved");
+  assert.equal(state.projects[0].worktrees.length, 2);
 });
 
 test("syncWorktrees clears removed runtime state and normalizes focused worktree ids", () => {

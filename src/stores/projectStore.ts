@@ -254,6 +254,17 @@ function syncProjectWorktrees(
     return { ...existing, name: wt.branch };
   });
 
+  // Guarantee: the main worktree (path === project.path) must always be
+  // present. If the backend scan omitted it for any reason (transient git
+  // error, path mismatch, race condition), preserve the existing entry so the
+  // session panel never loses the main workspace.
+  if (!synced.some((w) => w.path === project.path)) {
+    const existingMain = existingByPath.get(project.path);
+    if (existingMain) {
+      synced.unshift(existingMain);
+    }
+  }
+
   if (
     synced.length === project.worktrees.length &&
     synced.every((worktree, index) => worktree === project.worktrees[index])
