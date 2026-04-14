@@ -351,7 +351,12 @@ export function WorktreeLabelLayer({
   const [dragPreview, setDragPreview] = useState<LabelDragPreview | null>(null);
   const dragStateRef = useRef<WorktreeDragState | null>(null);
   const dragPreviewRef = useRef<LabelDragPreview | null>(null);
+  const previewChangeRef = useRef(onPreviewPositionsChange);
   const suppressClickUntilRef = useRef(0);
+
+  useEffect(() => {
+    previewChangeRef.current = onPreviewPositionsChange;
+  }, [onPreviewPositionsChange]);
 
   useEffect(() => {
     const onResize = () => setResizeTick((v) => v + 1);
@@ -385,8 +390,8 @@ export function WorktreeLabelLayer({
 
   useEffect(() => {
     dragPreviewRef.current = dragPreview;
-    onPreviewPositionsChange?.(dragPreview?.positions ?? null);
-  }, [dragPreview, onPreviewPositionsChange]);
+    previewChangeRef.current?.(dragPreview?.positions ?? null);
+  }, [dragPreview]);
 
   useEffect(() => {
     const active = dragStateRef.current;
@@ -428,7 +433,6 @@ export function WorktreeLabelLayer({
 
       const preview = dragPreviewRef.current;
       setDragPreview(null);
-      onPreviewPositionsChange?.(null);
 
       if (!active.moved || !preview) {
         return;
@@ -447,7 +451,7 @@ export function WorktreeLabelLayer({
       window.removeEventListener("pointerup", finishDrag);
       window.removeEventListener("pointercancel", finishDrag);
     };
-  }, [onPreviewPositionsChange, viewport]);
+  }, [viewport]);
 
   const focus = useMemo(() => findFocusInfo(projects), [projects]);
   const worktreeLabels = useMemo(
