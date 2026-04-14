@@ -74,6 +74,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Optimize macOS ZIPs for differential updates
+        if: matrix.platform == 'mac'
+        run: |
+          npx @indutny/rezip-electron optimize out/*.zip
+          for zip in out/*.zip; do
+            npx better-blockmap --input "$zip" --output "${zip}.blockmap" --compression gzip --detect-zip-boundary
+          done
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
         with:
@@ -81,6 +89,7 @@ jobs:
           path: |
             out/*.dmg
             out/*.zip
+            out/*.blockmap
             out/*.AppImage
             out/*.deb
             out/*.exe
