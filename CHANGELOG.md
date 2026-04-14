@@ -2,6 +2,40 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.27.7] - 2026-04-14
+
+### Added
+- Updater: blockmap-based differential downloads for macOS — subsequent updates now download only changed blocks (~3-5 MB) instead of the full ZIP (~120 MB), with automatic fallback to full download on failure
+- Hydra: `hydra spawn --role <name>` dispatches any role (not just dev) into an isolated terminal
+- Hydra: `hydra scan` convenience command — spawns a janitor role for codebase entropy scanning
+- Hydra: role-specific model and reasoning effort are forwarded from role definitions to spawned agents
+
+### Fixed
+- Updater: skip directly to the latest version instead of updating through every intermediate release
+- Updater: preserve pending update when offline so users can still install an already-downloaded version
+- Updater: download to a temp directory so a failed download does not destroy a previously valid pending update
+- Canvas: main worktree is no longer dropped when project scanner syncs worktree list
+- CI: macOS ZIPs are re-compressed with rezip-electron for efficient differential updates; latest-mac.yml hashes are recomputed after optimization
+
+### Changed
+- Hydra: CLI cleanup — consistent reset behavior, cleanup state preservation, SubAgent renamed to Run
+
+### Added (zh-CN)
+- 更新器：macOS 基于 blockmap 的差量下载 — 后续更新仅下载变化的块（约 3-5 MB），而非完整 ZIP（约 120 MB），失败时自动回退到全量下载
+- Hydra：`hydra spawn --role <name>` 可将任意角色调度到独立终端
+- Hydra：`hydra scan` 快捷命令 — 启动 janitor 角色进行代码库熵扫描
+- Hydra：角色定义中的 model 和 reasoning effort 会传递给生成的 agent
+
+### Fixed (zh-CN)
+- 更新器：直接跳到最新版本，不再逐版本更新
+- 更新器：离线时保留已下载的待安装更新，用户仍可安装
+- 更新器：下载到临时目录，下载失败不会破坏已有的待安装更新
+- 画布：项目扫描器同步 worktree 列表时不再丢失主 worktree
+- CI：macOS ZIP 使用 rezip-electron 重压缩以支持高效差量更新；优化后重新计算 latest-mac.yml 的哈希值
+
+### Changed (zh-CN)
+- Hydra：CLI 清理 — 统一 reset 行为、cleanup 状态保留、SubAgent 重命名为 Run
+
 ## [0.27.6] - 2026-04-13
 
 ### Changed
