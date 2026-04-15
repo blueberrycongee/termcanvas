@@ -21,6 +21,7 @@ interface PreferencesStore {
   drawingEnabled: boolean;
   browserEnabled: boolean;
   summaryEnabled: boolean;
+  globalSearchEnabled: boolean;
   summaryCli: "claude" | "codex";
   minimumContrastRatio: number;
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
@@ -36,6 +37,7 @@ interface PreferencesStore {
   setDrawingEnabled: (value: boolean) => void;
   setBrowserEnabled: (value: boolean) => void;
   setSummaryEnabled: (value: boolean) => void;
+  setGlobalSearchEnabled: (value: boolean) => void;
   setSummaryCli: (value: "claude" | "codex") => void;
   setCli: (type: TerminalType, config: CliCommandConfig | null) => void;
   setAgentConfig: (config: AgentProviderConfig) => void;
@@ -54,6 +56,7 @@ interface SavedPrefs {
   drawingEnabled: boolean;
   browserEnabled: boolean;
   summaryEnabled: boolean;
+  globalSearchEnabled: boolean;
   summaryCli: "claude" | "codex";
   minimumContrastRatio: number;
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
@@ -125,6 +128,9 @@ function loadPreferences(): SavedPrefs {
       let summaryEnabled = false;
       if (parsed.summaryEnabled === true) summaryEnabled = true;
 
+      let globalSearchEnabled = false;
+      if (parsed.globalSearchEnabled === true) globalSearchEnabled = true;
+
       let summaryCli: "claude" | "codex" = "claude";
       if (parsed.summaryCli === "codex") summaryCli = "codex";
 
@@ -151,6 +157,7 @@ function loadPreferences(): SavedPrefs {
         drawingEnabled,
         browserEnabled,
         summaryEnabled,
+        globalSearchEnabled,
         summaryCli,
         minimumContrastRatio,
         cliCommands,
@@ -167,6 +174,7 @@ function loadPreferences(): SavedPrefs {
     drawingEnabled: false,
     browserEnabled: false,
     summaryEnabled: false,
+    globalSearchEnabled: false,
     summaryCli: "claude",
     minimumContrastRatio: DEFAULT_MIN_CONTRAST,
     cliCommands: {},
@@ -263,6 +271,7 @@ function getSaveState(state: PreferencesStore): SavedPrefs {
     drawingEnabled: state.drawingEnabled,
     browserEnabled: state.browserEnabled,
     summaryEnabled: state.summaryEnabled,
+    globalSearchEnabled: state.globalSearchEnabled,
     summaryCli: state.summaryCli,
     minimumContrastRatio: state.minimumContrastRatio,
     cliCommands: state.cliCommands,
@@ -280,6 +289,7 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   drawingEnabled: initialPrefs.drawingEnabled,
   browserEnabled: initialPrefs.browserEnabled,
   summaryEnabled: initialPrefs.summaryEnabled,
+  globalSearchEnabled: initialPrefs.globalSearchEnabled,
   summaryCli: initialPrefs.summaryCli,
   minimumContrastRatio: initialPrefs.minimumContrastRatio,
   cliCommands: initialPrefs.cliCommands,
@@ -320,6 +330,10 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   setSummaryEnabled: (value) => {
     set({ summaryEnabled: value });
     savePreferences(getSaveState({ ...get(), summaryEnabled: value }));
+  },
+  setGlobalSearchEnabled: (value) => {
+    set({ globalSearchEnabled: value });
+    savePreferences(getSaveState({ ...get(), globalSearchEnabled: value }));
   },
   setSummaryCli: (value) => {
     set({ summaryCli: value });

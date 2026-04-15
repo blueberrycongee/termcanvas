@@ -1210,6 +1210,19 @@ export function GitContent({
     setSelectedCommitHash((prev) => (prev === hash ? null : hash));
   }, []);
 
+  // Listen for external commit selection (from global search)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const hash = (e as CustomEvent).detail;
+      if (typeof hash === "string") {
+        setDetailHeight(0);
+        setSelectedCommitHash(hash);
+      }
+    };
+    window.addEventListener("termcanvas:select-git-commit", handler);
+    return () => window.removeEventListener("termcanvas:select-git-commit", handler);
+  }, []);
+
   const refreshAll = useCallback(async () => {
     await Promise.all([refreshLog(), refreshStatus()]);
   }, [refreshLog, refreshStatus]);

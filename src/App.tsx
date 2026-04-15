@@ -14,6 +14,7 @@ import { RightPanel } from "./components/RightPanel";
 import { initSessionStoreIPC } from "./stores/sessionStore";
 import { StashBox } from "./components/StashBox";
 import { WelcomePopup } from "./components/WelcomePopup";
+import { SearchModal } from "./components/SearchModal";
 import {
   closeTerminalInScene,
   createTerminalInScene,
@@ -366,6 +367,7 @@ export function App() {
   useKeyboardShortcuts();
   const t = useT();
   const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
+  const globalSearchEnabled = usePreferencesStore((s) => s.globalSearchEnabled);
   const drawingEnabled = usePreferencesStore((s) => s.drawingEnabled);
   const summaryEnabled = usePreferencesStore((s) => s.summaryEnabled);
   const { showCloseDialog, handleSave, handleDiscard, handleCancel } =
@@ -559,6 +561,7 @@ export function App() {
       <StashBox />
       {composerEnabled && <ComposerBar />}
       <NotificationToast />
+      {globalSearchEnabled && <SearchModal />}
       {showCloseDialog && (
         <CloseDialog
           onSave={handleSave}

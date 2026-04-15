@@ -645,6 +645,14 @@ export interface TermCanvasAPI {
       callback: (worktreePath: string, payload: { isGitRepo: boolean }) => void,
     ) => () => void;
   };
+  search: {
+    fileContents: (query: string, worktreePath?: string) => Promise<
+      Array<{ filePath: string; line: number; preview: string }>
+    >;
+    sessionContents: (query: string) => Promise<
+      Array<{ sessionId: string; filePath: string; lineNumber: number; preview: string }>
+    >;
+  };
   state: {
     load: () => Promise<PersistedCanvasState | null>;
     save: (state: unknown) => Promise<void>;

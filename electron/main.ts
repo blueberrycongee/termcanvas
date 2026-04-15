@@ -78,6 +78,7 @@ import {
 } from "./usage-sync";
 import type { ComposerSubmitRequest } from "../src/types";
 import { getProjectDiff } from "./git-diff";
+import { searchFileContents, searchSessionContents } from "./search-handlers";
 import {
   checkoutGitRef,
   createCommit,
@@ -978,6 +979,26 @@ function setupIpc() {
     "git:blame",
     async (_event, worktreePath: string, filePath: string) => {
       return getBlame(worktreePath, filePath);
+    },
+  );
+
+  // ── Search handlers ──
+
+  ipcMain.handle(
+    "search:file-contents",
+    async (_event, query: string, worktreePath?: string) => {
+      try {
+        return await searchFileContents(worktreePath ?? "", query);
+      } catch { return []; }
+    },
+  );
+
+  ipcMain.handle(
+    "search:session-contents",
+    async (_event, query: string) => {
+      try {
+        return await searchSessionContents(query);
+      } catch { return []; }
     },
   );
 

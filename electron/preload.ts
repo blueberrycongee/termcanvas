@@ -364,6 +364,16 @@ contextBridge.exposeInMainWorld("termcanvas", {
       return () => ipcRenderer.removeListener("git:presence-changed", listener);
     },
   },
+  search: {
+    fileContents: (query: string, worktreePath?: string) =>
+      ipcRenderer.invoke("search:file-contents", query, worktreePath) as Promise<
+        Array<{ filePath: string; line: number; preview: string }>
+      >,
+    sessionContents: (query: string) =>
+      ipcRenderer.invoke("search:session-contents", query) as Promise<
+        Array<{ sessionId: string; filePath: string; lineNumber: number; preview: string }>
+      >,
+  },
   state: {
     load: () => ipcRenderer.invoke("state:load"),
     save: (state: unknown) => ipcRenderer.invoke("state:save", state),

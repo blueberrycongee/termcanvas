@@ -24,6 +24,7 @@ import { useShortcutStore, matchesShortcut } from "../stores/shortcutStore";
 import { useT } from "../i18n/useT";
 import { useComposerStore } from "../stores/composerStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
+import { useSearchStore } from "../stores/searchStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSettingsModalStore } from "../stores/settingsModalStore";
 import {
@@ -250,6 +251,17 @@ export function useKeyboardShortcuts() {
       };
 
       if (useSettingsModalStore.getState().open) {
+        return;
+      }
+
+      // Global search — must be before shouldIgnoreShortcutTarget so it works from terminal focus
+      if (matchesShortcut(e, shortcuts.globalSearch)) {
+        if (usePreferencesStore.getState().globalSearchEnabled) {
+          consumeShortcut();
+          const searchStore = useSearchStore.getState();
+          if (searchStore.open) searchStore.closeSearch();
+          else searchStore.openSearch();
+        }
         return;
       }
 
