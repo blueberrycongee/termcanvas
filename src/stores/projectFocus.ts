@@ -186,14 +186,59 @@ export function getSpatialTerminalOrder(
     }
   }
 
-  const orderedEntries = buildVisualRows(entries).flatMap((row) => row.entries);
+  // Group terminals by worktree so focus cycles through each worktree
+  // completely before moving to the next, matching the visual clusters
+  // users see on the canvas after dragging a worktree label.
+  const worktreeGroups = new Map<string, SpatialTerminalEntry[]>();
+  for (const entry of entries) {
+    const key = `${entry.projectId}\0${entry.worktreeId}`;
+    let group = worktreeGroups.get(key);
+    if (!group) {
+      group = [];
+      worktreeGroups.set(key, group);
+    }
+    group.push(entry);
+  }
 
-  return orderedEntries.map((entry, index) => ({
-    projectId: entry.projectId,
-    worktreeId: entry.worktreeId,
-    terminalId: entry.terminalId,
-    index,
-  }));
+  // Sort groups spatially by their bounding-box top-left corner using
+  // the same visual-row logic, then sort terminals within each group.
+  const groupAsEntries: SpatialTerminalEntry[] = [
+    ...worktreeGroups.entries(),
+  ].map(([key, grp]) => {
+    const minX = Math.min(...grp.map((e) => e.x));
+    const minY = Math.min(...grp.map((e) => e.y));
+    const maxY = Math.max(...grp.map((e) => e.y + e.height));
+    return {
+      projectId: "",
+      worktreeId: "",
+      terminalId: key,
+      x: minX,
+      y: minY,
+      height: maxY - minY,
+    };
+  });
+
+  const sortedKeys = buildVisualRows(groupAsEntries)
+    .flatMap((row) => row.entries)
+    .map((e) => e.terminalId);
+
+  const result: TerminalFocusOrderItem[] = [];
+  for (const key of sortedKeys) {
+    const groupEntries = worktreeGroups.get(key)!;
+    const sorted = buildVisualRows(groupEntries).flatMap(
+      (row) => row.entries,
+    );
+    for (const entry of sorted) {
+      result.push({
+        projectId: entry.projectId,
+        worktreeId: entry.worktreeId,
+        terminalId: entry.terminalId,
+        index: result.length,
+      });
+    }
+  }
+
+  return result;
 }
 
 /**
