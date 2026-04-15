@@ -9,6 +9,7 @@ import {
   watchUntilDecision,
   approveDispatch,
   resetDispatch,
+  rollbackDispatch,
   mergeWorktrees,
   completeWorkbench,
   failWorkbench,
@@ -283,7 +284,7 @@ export async function cliApprove(args: string[]): Promise<void> {
 
 export async function cliReset(args: string[]): Promise<void> {
   if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
-    console.log("Usage: hydra reset --workbench <id> --dispatch <id> --repo <path> --feedback <text>");
+    console.log("Usage: hydra reset --workbench <id> --dispatch <id> --repo <path> --feedback <text> [--no-rollback]");
     process.exit(0);
   }
 
@@ -292,6 +293,23 @@ export async function cliReset(args: string[]): Promise<void> {
     workbenchId: requireFlag(args, "--workbench"),
     dispatchId: requireFlag(args, "--dispatch"),
     feedback: requireFlag(args, "--feedback"),
+    skipRollback: hasFlag(args, "--no-rollback"),
+  });
+  console.log(JSON.stringify(result, null, 2));
+}
+
+// --- rollback ---
+
+export async function cliRollback(args: string[]): Promise<void> {
+  if (hasFlag(args, "--help") || hasFlag(args, "-h")) {
+    console.log("Usage: hydra rollback --workbench <id> --dispatch <id> --repo <path>");
+    process.exit(0);
+  }
+
+  const result = await rollbackDispatch({
+    repoPath: requireFlag(args, "--repo"),
+    workbenchId: requireFlag(args, "--workbench"),
+    dispatchId: requireFlag(args, "--dispatch"),
   });
   console.log(JSON.stringify(result, null, 2));
 }
@@ -423,6 +441,12 @@ function formatEventSummary(event: LedgerEvent): string {
         : "";
       return `lead_asked_followup        ${event.dispatch_id} role=${event.role} session=${event.session_id.slice(0, 8)}${fork} "${truncate(event.message_excerpt, 50)}"`;
     }
+    case "checkpoint_created": {
+      const dirty = event.was_dirty ? " (dirty)" : " (clean)";
+      return `checkpoint_created         ${event.dispatch_id} run=${event.run_id} sha=${event.sha.slice(0, 8)}${dirty}`;
+    }
+    case "checkpoint_rollback":
+      return `checkpoint_rollback        ${event.dispatch_id} run=${event.run_id} target=${event.target_sha.slice(0, 8)} cause=${event.cause}`;
     case "merge_attempted":
       return `merge_attempted            sources=[${event.source_dispatches.join(",")}] outcome=${event.outcome}`;
     case "workbench_completed":

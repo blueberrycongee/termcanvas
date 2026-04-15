@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
+import { removeCheckpointRef } from "./checkpoint.ts";
 import { loadAgent, listAgents, deleteAgent } from "./store.ts";
 import { isTermCanvasRunning, terminalDestroy, terminalStatus } from "./termcanvas.ts";
 import { AssignmentManager } from "./assignment/manager.ts";
@@ -169,6 +170,17 @@ function cleanupWorkbench(workbenchId: string, repo: string, force: boolean): vo
         terminalDestroy(terminalId);
       } catch {
         // terminal already gone
+      }
+    }
+  }
+
+  // Clean up checkpoint refs before removing the worktree
+  for (const dispatchId of Object.keys(workflow.dispatches)) {
+    const assignment = manager.load(dispatchId);
+    if (!assignment) continue;
+    for (const run of assignment.runs) {
+      if (run.checkpoint) {
+        removeCheckpointRef(workflow.worktree_path, run.id);
       }
     }
   }
