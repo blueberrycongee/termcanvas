@@ -199,23 +199,14 @@ export function PreviewContent({ filePath, onClose, onNavigate }: Props) {
           />
         ) : isMarkdown && !showSource ? (
           <div
-            className="px-4 py-3 prose prose-sm prose-invert max-w-none text-[12px] leading-relaxed text-[var(--text-primary)] cursor-text [&_h1]:text-[17px] [&_h1]:font-semibold [&_h2]:text-[15px] [&_h2]:font-semibold [&_h3]:text-[13px] [&_h3]:font-semibold [&_h1]:text-[var(--text-primary)] [&_h2]:text-[var(--text-primary)] [&_h3]:text-[var(--text-secondary)] [&_h1]:mt-5 [&_h1]:mb-2 [&_h1]:pb-1.5 [&_h1]:border-b [&_h1]:border-[var(--border)] [&_h2]:mt-4 [&_h2]:mb-1.5 [&_h3]:mt-3 [&_h3]:mb-1 [&_p]:my-2 [&_a]:text-[var(--accent)] [&_a]:cursor-pointer [&_code]:text-[var(--amber)] [&_code]:bg-[var(--bg)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[11px] [&_pre]:bg-[var(--bg)] [&_pre]:rounded-md [&_pre]:p-3 [&_pre]:text-[11px] [&_pre]:overflow-x-auto [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_ul]:pl-4 [&_ol]:pl-4 [&_li]:my-0.5 [&_blockquote]:border-l-2 [&_blockquote]:border-[var(--border-hover)] [&_blockquote]:pl-3 [&_blockquote]:text-[var(--text-muted)] [&_hr]:border-[var(--border)] [&_table]:text-[11px] [&_th]:p-1.5 [&_td]:p-1.5 [&_th]:border [&_td]:border [&_th]:border-[var(--border)] [&_td]:border-[var(--border)] [&_img]:max-w-full [&_img]:rounded"
-            onClick={(e) => {
-              // If clicking a link, handle navigation; otherwise enter edit
-              const anchor = (e.target as HTMLElement).closest("a");
-              if (anchor) {
-                handleMarkdownClick(e);
-              } else {
-                enterEdit();
-              }
-            }}
+            className="px-4 py-3 prose prose-sm prose-invert max-w-none text-[12px] leading-relaxed text-[var(--text-primary)] select-text [&_h1]:text-[17px] [&_h1]:font-semibold [&_h2]:text-[15px] [&_h2]:font-semibold [&_h3]:text-[13px] [&_h3]:font-semibold [&_h1]:text-[var(--text-primary)] [&_h2]:text-[var(--text-primary)] [&_h3]:text-[var(--text-secondary)] [&_h1]:mt-5 [&_h1]:mb-2 [&_h1]:pb-1.5 [&_h1]:border-b [&_h1]:border-[var(--border)] [&_h2]:mt-4 [&_h2]:mb-1.5 [&_h3]:mt-3 [&_h3]:mb-1 [&_p]:my-2 [&_a]:text-[var(--accent)] [&_a]:cursor-pointer [&_code]:text-[var(--amber)] [&_code]:bg-[var(--bg)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[11px] [&_pre]:bg-[var(--bg)] [&_pre]:rounded-md [&_pre]:p-3 [&_pre]:text-[11px] [&_pre]:overflow-x-auto [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_ul]:pl-4 [&_ol]:pl-4 [&_li]:my-0.5 [&_blockquote]:border-l-2 [&_blockquote]:border-[var(--border-hover)] [&_blockquote]:pl-3 [&_blockquote]:text-[var(--text-muted)] [&_hr]:border-[var(--border)] [&_table]:text-[11px] [&_th]:p-1.5 [&_td]:p-1.5 [&_th]:border [&_td]:border [&_th]:border-[var(--border)] [&_td]:border-[var(--border)] [&_img]:max-w-full [&_img]:rounded"
+            onClick={handleMarkdownClick}
             dangerouslySetInnerHTML={{ __html: markdownHtml }}
           />
         ) : (
           <pre
-            className="px-4 py-3 text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap break-words cursor-text"
+            className="px-4 py-3 text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap break-words select-text"
             style={{ fontFamily: '"Geist Mono", monospace', fontSize: 11 }}
-            onClick={isEditable ? enterEdit : undefined}
           >
             {content}
           </pre>
