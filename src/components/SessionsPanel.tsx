@@ -157,7 +157,11 @@ function TerminalCard({
         className="opacity-0 group-hover:opacity-100 transition-opacity"
         onClick={(e) => {
           e.stopPropagation();
-          closeTerminalInScene(item.projectId, item.worktreeId, item.terminalId);
+          closeTerminalInScene(
+            item.projectId,
+            item.worktreeId,
+            item.terminalId,
+          );
         }}
       >
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -410,10 +414,6 @@ export function SessionsPanel() {
     };
   }, [inspectedItem?.activityAt, inspectedItem?.terminalId, panelView]);
 
-  if (panelView === "replay") {
-    return <SessionReplayView />;
-  }
-
   const [addingProject, setAddingProject] = useState(false);
   const handleAddProject = useCallback(async () => {
     if (addingProject) return;
@@ -424,6 +424,10 @@ export function SessionsPanel() {
       setAddingProject(false);
     }
   }, [addingProject, t]);
+
+  if (panelView === "replay") {
+    return <SessionReplayView />;
+  }
 
   return (
     <div className="flex flex-col h-full min-h-0">
