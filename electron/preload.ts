@@ -259,6 +259,83 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("git:push", worktreePath) as Promise<string>,
     pull: (worktreePath: string) =>
       ipcRenderer.invoke("git:pull", worktreePath) as Promise<string>,
+    amend: (worktreePath: string, message: string) =>
+      ipcRenderer.invoke("git:amend", worktreePath, message) as Promise<string>,
+    fetch: (worktreePath: string, remote?: string) =>
+      ipcRenderer.invoke("git:fetch", worktreePath, remote) as Promise<string>,
+    // Stash
+    stashList: (worktreePath: string) =>
+      ipcRenderer.invoke("git:stash-list", worktreePath) as Promise<
+        import("../src/types").GitStashEntry[]
+      >,
+    stashCreate: (worktreePath: string, message: string, includeUntracked: boolean) =>
+      ipcRenderer.invoke("git:stash-create", worktreePath, message, includeUntracked) as Promise<void>,
+    stashApply: (worktreePath: string, index: number) =>
+      ipcRenderer.invoke("git:stash-apply", worktreePath, index) as Promise<void>,
+    stashPop: (worktreePath: string, index: number) =>
+      ipcRenderer.invoke("git:stash-pop", worktreePath, index) as Promise<void>,
+    stashDrop: (worktreePath: string, index: number) =>
+      ipcRenderer.invoke("git:stash-drop", worktreePath, index) as Promise<void>,
+    // Branch management
+    branchCreate: (worktreePath: string, name: string, startPoint?: string) =>
+      ipcRenderer.invoke("git:branch-create", worktreePath, name, startPoint) as Promise<void>,
+    branchDelete: (worktreePath: string, name: string, force: boolean) =>
+      ipcRenderer.invoke("git:branch-delete", worktreePath, name, force) as Promise<void>,
+    branchRename: (worktreePath: string, oldName: string, newName: string) =>
+      ipcRenderer.invoke("git:branch-rename", worktreePath, oldName, newName) as Promise<void>,
+    // Tags
+    tagList: (worktreePath: string) =>
+      ipcRenderer.invoke("git:tag-list", worktreePath) as Promise<
+        import("../src/types").GitTagInfo[]
+      >,
+    tagCreate: (worktreePath: string, name: string, ref: string, message?: string) =>
+      ipcRenderer.invoke("git:tag-create", worktreePath, name, ref, message) as Promise<void>,
+    tagDelete: (worktreePath: string, name: string) =>
+      ipcRenderer.invoke("git:tag-delete", worktreePath, name) as Promise<void>,
+    // Remotes
+    remoteList: (worktreePath: string) =>
+      ipcRenderer.invoke("git:remote-list", worktreePath) as Promise<
+        import("../src/types").GitRemoteInfo[]
+      >,
+    remoteAdd: (worktreePath: string, name: string, url: string) =>
+      ipcRenderer.invoke("git:remote-add", worktreePath, name, url) as Promise<void>,
+    remoteRemove: (worktreePath: string, name: string) =>
+      ipcRenderer.invoke("git:remote-remove", worktreePath, name) as Promise<void>,
+    remoteRename: (worktreePath: string, oldName: string, newName: string) =>
+      ipcRenderer.invoke("git:remote-rename", worktreePath, oldName, newName) as Promise<void>,
+    // Merge / Rebase / Cherry-pick
+    merge: (worktreePath: string, ref: string) =>
+      ipcRenderer.invoke("git:merge", worktreePath, ref) as Promise<string>,
+    mergeAbort: (worktreePath: string) =>
+      ipcRenderer.invoke("git:merge-abort", worktreePath) as Promise<void>,
+    rebase: (worktreePath: string, ref: string) =>
+      ipcRenderer.invoke("git:rebase", worktreePath, ref) as Promise<string>,
+    rebaseAbort: (worktreePath: string) =>
+      ipcRenderer.invoke("git:rebase-abort", worktreePath) as Promise<void>,
+    rebaseContinue: (worktreePath: string) =>
+      ipcRenderer.invoke("git:rebase-continue", worktreePath) as Promise<string>,
+    cherryPick: (worktreePath: string, hash: string) =>
+      ipcRenderer.invoke("git:cherry-pick", worktreePath, hash) as Promise<string>,
+    cherryPickAbort: (worktreePath: string) =>
+      ipcRenderer.invoke("git:cherry-pick-abort", worktreePath) as Promise<void>,
+    mergeState: (worktreePath: string) =>
+      ipcRenderer.invoke("git:merge-state", worktreePath) as Promise<
+        import("../src/types").GitMergeState
+      >,
+    // File diff & partial staging
+    fileDiff: (worktreePath: string, filePath: string, staged: boolean) =>
+      ipcRenderer.invoke("git:file-diff", worktreePath, filePath, staged) as Promise<
+        import("../src/types").GitFileDiff
+      >,
+    stageHunk: (worktreePath: string, filePath: string, hunkHeader: string) =>
+      ipcRenderer.invoke("git:stage-hunk", worktreePath, filePath, hunkHeader) as Promise<void>,
+    unstageHunk: (worktreePath: string, filePath: string, hunkHeader: string) =>
+      ipcRenderer.invoke("git:unstage-hunk", worktreePath, filePath, hunkHeader) as Promise<void>,
+    // Blame
+    blame: (worktreePath: string, filePath: string) =>
+      ipcRenderer.invoke("git:blame", worktreePath, filePath) as Promise<
+        import("../src/types").GitBlameEntry[]
+      >,
     onChanged: (callback: (worktreePath: string) => void) => {
       const listener = (
         _event: Electron.IpcRendererEvent,

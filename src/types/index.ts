@@ -336,6 +336,49 @@ export interface GitStatusEntry {
   originalPath?: string;
 }
 
+export interface GitStashEntry {
+  index: number;
+  message: string;
+  hash: string;
+  date: string;
+}
+
+export interface GitTagInfo {
+  name: string;
+  hash: string;
+  isAnnotated: boolean;
+  message: string;
+  date: string;
+}
+
+export interface GitRemoteInfo {
+  name: string;
+  fetchUrl: string;
+  pushUrl: string;
+}
+
+export interface GitBlameEntry {
+  hash: string;
+  author: string;
+  date: string;
+  lineStart: number;
+  lineCount: number;
+  content: string;
+}
+
+export interface GitFileDiff {
+  hunks: string[];
+  isNew: boolean;
+  isDeleted: boolean;
+  isBinary: boolean;
+}
+
+export type GitMergeState =
+  | { type: "none" }
+  | { type: "merge" }
+  | { type: "rebase"; current: string; total: string }
+  | { type: "cherry-pick" };
+
 export type AgentStreamEvent =
   | { type: "stream_start" }
   | { type: "stream_end" }
@@ -559,6 +602,43 @@ export interface TermCanvasAPI {
     commit: (worktreePath: string, message: string) => Promise<string>;
     push: (worktreePath: string) => Promise<string>;
     pull: (worktreePath: string) => Promise<string>;
+    amend: (worktreePath: string, message: string) => Promise<string>;
+    fetch: (worktreePath: string, remote?: string) => Promise<string>;
+    // Stash
+    stashList: (worktreePath: string) => Promise<GitStashEntry[]>;
+    stashCreate: (worktreePath: string, message: string, includeUntracked: boolean) => Promise<void>;
+    stashApply: (worktreePath: string, index: number) => Promise<void>;
+    stashPop: (worktreePath: string, index: number) => Promise<void>;
+    stashDrop: (worktreePath: string, index: number) => Promise<void>;
+    // Branch management
+    branchCreate: (worktreePath: string, name: string, startPoint?: string) => Promise<void>;
+    branchDelete: (worktreePath: string, name: string, force: boolean) => Promise<void>;
+    branchRename: (worktreePath: string, oldName: string, newName: string) => Promise<void>;
+    // Tags
+    tagList: (worktreePath: string) => Promise<GitTagInfo[]>;
+    tagCreate: (worktreePath: string, name: string, ref: string, message?: string) => Promise<void>;
+    tagDelete: (worktreePath: string, name: string) => Promise<void>;
+    // Remotes
+    remoteList: (worktreePath: string) => Promise<GitRemoteInfo[]>;
+    remoteAdd: (worktreePath: string, name: string, url: string) => Promise<void>;
+    remoteRemove: (worktreePath: string, name: string) => Promise<void>;
+    remoteRename: (worktreePath: string, oldName: string, newName: string) => Promise<void>;
+    // Merge / Rebase / Cherry-pick
+    merge: (worktreePath: string, ref: string) => Promise<string>;
+    mergeAbort: (worktreePath: string) => Promise<void>;
+    rebase: (worktreePath: string, ref: string) => Promise<string>;
+    rebaseAbort: (worktreePath: string) => Promise<void>;
+    rebaseContinue: (worktreePath: string) => Promise<string>;
+    cherryPick: (worktreePath: string, hash: string) => Promise<string>;
+    cherryPickAbort: (worktreePath: string) => Promise<void>;
+    mergeState: (worktreePath: string) => Promise<GitMergeState>;
+    // File diff & partial staging
+    fileDiff: (worktreePath: string, filePath: string, staged: boolean) => Promise<GitFileDiff>;
+    stageHunk: (worktreePath: string, filePath: string, hunkHeader: string) => Promise<void>;
+    unstageHunk: (worktreePath: string, filePath: string, hunkHeader: string) => Promise<void>;
+    // Blame
+    blame: (worktreePath: string, filePath: string) => Promise<GitBlameEntry[]>;
+    // Events
     onChanged: (callback: (worktreePath: string) => void) => () => void;
     onLogChanged: (callback: (worktreePath: string) => void) => () => void;
     onPresenceChanged: (

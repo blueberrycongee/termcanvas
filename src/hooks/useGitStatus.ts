@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { GitStatusEntry } from "../types";
+import type { GitMergeState, GitStashEntry, GitStatusEntry } from "../types";
 import {
   EMPTY_GIT_STATUS_CACHE,
   useLeftPanelRepoStore,
@@ -11,6 +11,8 @@ export interface UseGitStatusResult {
   changedFiles: GitStatusEntry[];
   isLoading: boolean;
   refreshing: boolean;
+  mergeState: GitMergeState;
+  stashes: GitStashEntry[];
   refresh: () => Promise<void>;
   stageFiles: (paths: string[]) => Promise<void>;
   stageAll: () => Promise<void>;
@@ -19,9 +21,18 @@ export interface UseGitStatusResult {
   discardFiles: (entries: GitStatusEntry[]) => Promise<void>;
   discardAll: () => Promise<void>;
   commit: (message: string) => Promise<string>;
+  amend: (message: string) => Promise<string>;
   push: () => Promise<string>;
   pull: () => Promise<string>;
+  fetch: (remote?: string) => Promise<string>;
+  stashCreate: (message: string, includeUntracked: boolean) => Promise<void>;
+  stashApply: (index: number) => Promise<void>;
+  stashPop: (index: number) => Promise<void>;
+  stashDrop: (index: number) => Promise<void>;
+  refreshStashes: () => Promise<void>;
 }
+
+const NONE_MERGE_STATE: GitMergeState = { type: "none" };
 
 export function useGitStatus(worktreePath: string | null): UseGitStatusResult {
   const snapshot = useLeftPanelRepoStore((state) =>
@@ -30,6 +41,28 @@ export function useGitStatus(worktreePath: string | null): UseGitStatusResult {
       : EMPTY_GIT_STATUS_CACHE,
   );
   const mountedRef = useRef(true);
+  const [mergeState, setMergeState] = useState<GitMergeState>(NONE_MERGE_STATE);
+  const [stashes, setStashes] = useState<GitStashEntry[]>([]);
+
+  const refreshMergeState = useCallback(async () => {
+    if (!worktreePath) return;
+    try {
+      const state = await window.termcanvas.git.mergeState(worktreePath);
+      if (mountedRef.current) setMergeState(state);
+    } catch {
+      if (mountedRef.current) setMergeState(NONE_MERGE_STATE);
+    }
+  }, [worktreePath]);
+
+  const refreshStashes = useCallback(async () => {
+    if (!worktreePath) return;
+    try {
+      const list = await window.termcanvas.git.stashList(worktreePath);
+      if (mountedRef.current) setStashes(list);
+    } catch {
+      if (mountedRef.current) setStashes([]);
+    }
+  }, [worktreePath]);
 
   const refresh = useCallback(async () => {
     if (!worktreePath) return;
@@ -42,12 +75,12 @@ export function useGitStatus(worktreePath: string | null): UseGitStatusResult {
         stagedFiles: entries.filter((entry) => entry.staged),
       });
     } catch {
-      // silently fail — watcher will retry
       if (!mountedRef.current) return;
       useLeftPanelRepoStore.getState().failGitStatusLoad(worktreePath);
-    } finally {
     }
-  }, [worktreePath]);
+    // Also refresh merge state and stashes alongside status
+    await Promise.all([refreshMergeState(), refreshStashes()]);
+  }, [worktreePath, refreshMergeState, refreshStashes]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -143,11 +176,69 @@ export function useGitStatus(worktreePath: string | null): UseGitStatusResult {
     return result;
   }, [worktreePath, refresh]);
 
+  const amend = useCallback(
+    async (message: string): Promise<string> => {
+      if (!worktreePath) return "";
+      const hash = await window.termcanvas.git.amend(worktreePath, message);
+      await refresh();
+      return hash;
+    },
+    [worktreePath, refresh],
+  );
+
+  const fetchRemote = useCallback(
+    async (remote?: string): Promise<string> => {
+      if (!worktreePath) return "";
+      const result = await window.termcanvas.git.fetch(worktreePath, remote);
+      await refresh();
+      return result;
+    },
+    [worktreePath, refresh],
+  );
+
+  const stashCreate = useCallback(
+    async (message: string, includeUntracked: boolean) => {
+      if (!worktreePath) return;
+      await window.termcanvas.git.stashCreate(worktreePath, message, includeUntracked);
+      await refresh();
+    },
+    [worktreePath, refresh],
+  );
+
+  const stashApply = useCallback(
+    async (index: number) => {
+      if (!worktreePath) return;
+      await window.termcanvas.git.stashApply(worktreePath, index);
+      await refresh();
+    },
+    [worktreePath, refresh],
+  );
+
+  const stashPop = useCallback(
+    async (index: number) => {
+      if (!worktreePath) return;
+      await window.termcanvas.git.stashPop(worktreePath, index);
+      await refresh();
+    },
+    [worktreePath, refresh],
+  );
+
+  const stashDrop = useCallback(
+    async (index: number) => {
+      if (!worktreePath) return;
+      await window.termcanvas.git.stashDrop(worktreePath, index);
+      await refresh();
+    },
+    [worktreePath, refresh],
+  );
+
   return {
     stagedFiles: snapshot.stagedFiles,
     changedFiles: snapshot.changedFiles,
     isLoading: snapshot.loading,
     refreshing: snapshot.refreshing,
+    mergeState,
+    stashes,
     refresh,
     stageFiles,
     stageAll,
@@ -156,7 +247,14 @@ export function useGitStatus(worktreePath: string | null): UseGitStatusResult {
     discardFiles,
     discardAll,
     commit,
+    amend,
     push,
     pull,
+    fetch: fetchRemote,
+    stashCreate,
+    stashApply,
+    stashPop,
+    stashDrop,
+    refreshStashes,
   };
 }

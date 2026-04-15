@@ -4,7 +4,13 @@ import { useGitLog } from "../../hooks/useGitLog";
 import { useGitStatus } from "../../hooks/useGitStatus";
 import { useT } from "../../i18n/useT";
 import { useNotificationStore } from "../../stores/notificationStore";
-import type { GitCommitDetail, GitStatusEntry } from "../../types";
+import type {
+  GitCommitDetail,
+  GitFileDiff,
+  GitMergeState,
+  GitStashEntry,
+  GitStatusEntry,
+} from "../../types";
 import { parseDiff } from "../../utils/diffParser";
 import {
   buildGitGraphRailModel,
@@ -220,6 +226,62 @@ function IconSearch({ size = 12 }: { size?: number }) {
   );
 }
 
+function IconArchive({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="12" height="3" rx="0.5" />
+      <path d="M3 5v8.5a.5.5 0 00.5.5h9a.5.5 0 00.5-.5V5" />
+      <path d="M6.5 8h3" />
+    </svg>
+  );
+}
+
+function IconTag({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2.5 2.5h5l6 6-5 5-6-6z" />
+      <circle cx="5.5" cy="5.5" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function IconGlobe({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="5.5" />
+      <path d="M2.5 8h11M8 2.5c-1.5 2-2 3.5-2 5.5s.5 3.5 2 5.5c1.5-2 2-3.5 2-5.5s-.5-3.5-2-5.5" />
+    </svg>
+  );
+}
+
+function IconDownload({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 2v8M4 7l4 4 4-4M3 13h10" />
+    </svg>
+  );
+}
+
+function IconPencil({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 2.5l2.5 2.5L5 13.5H2.5V11z" />
+      <path d="M9 4.5l2.5 2.5" />
+    </svg>
+  );
+}
+
+function IconMerge({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="4" cy="4" r="1.5" />
+      <circle cx="4" cy="12" r="1.5" />
+      <circle cx="12" cy="8" r="1.5" />
+      <path d="M4 5.5v5M4 5.5c2 1 5 1.5 6.5 2.5" />
+    </svg>
+  );
+}
+
 function formatRelativeTime(isoDate: string): string {
   const now = Date.now();
   const then = new Date(isoDate).getTime();
@@ -322,47 +384,269 @@ function CollapsibleGroup({
   );
 }
 
+function FileDiffInline({
+  worktreePath,
+  filePath,
+  staged,
+  onStageHunk,
+  onUnstageHunk,
+}: {
+  worktreePath: string;
+  filePath: string;
+  staged: boolean;
+  onStageHunk?: (hunkHeader: string) => void;
+  onUnstageHunk?: (hunkHeader: string) => void;
+}) {
+  const [diff, setDiff] = useState<GitFileDiff | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    setDiff(null);
+    window.termcanvas.git
+      .fileDiff(worktreePath, filePath, staged)
+      .then(setDiff)
+      .catch(() => setDiff(null))
+      .finally(() => setLoading(false));
+  }, [worktreePath, filePath, staged]);
+
+  if (loading) {
+    return (
+      <div className="px-4 py-1 text-[10px] text-[var(--text-faint)]" style={MONO_STYLE}>
+        Loading diff...
+      </div>
+    );
+  }
+  if (!diff || (diff.hunks.length === 0 && !diff.isBinary)) return null;
+  if (diff.isBinary) {
+    return (
+      <div className="px-4 py-1 text-[10px] text-[var(--text-faint)]" style={MONO_STYLE}>
+        Binary file
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto border-t" style={{ borderColor: "color-mix(in srgb, var(--border) 50%, transparent)", backgroundColor: "var(--surface)" }}>
+      {diff.hunks.map((hunkContent, hunkIdx) => {
+        const hunkHeaderLine = hunkContent.split("\n")[0] ?? "";
+        const hunkHeaderMatch = hunkHeaderLine.match(/@@ [^@]+ @@/)?.[0] ?? "";
+        return (
+          <div key={hunkIdx}>
+            <div className="flex items-center gap-1 px-2 py-0.5" style={{ backgroundColor: "color-mix(in srgb, var(--accent) 6%, transparent)" }}>
+              <span className="flex-1 truncate text-[9px]" style={{ ...MONO_STYLE, color: "var(--accent)" }}>
+                {hunkHeaderLine}
+              </span>
+              {!staged && onStageHunk && (
+                <button
+                  onClick={() => onStageHunk(hunkHeaderMatch)}
+                  className="shrink-0 rounded px-1 text-[9px] hover:bg-[var(--surface-hover)]"
+                  style={{ ...MONO_STYLE, color: "var(--cyan)" }}
+                  title="Stage Hunk"
+                >
+                  +Stage
+                </button>
+              )}
+              {staged && onUnstageHunk && (
+                <button
+                  onClick={() => onUnstageHunk(hunkHeaderMatch)}
+                  className="shrink-0 rounded px-1 text-[9px] hover:bg-[var(--surface-hover)]"
+                  style={{ ...MONO_STYLE, color: "var(--amber)" }}
+                  title="Unstage Hunk"
+                >
+                  -Unstage
+                </button>
+              )}
+            </div>
+            {hunkContent.split("\n").slice(1).map((line, lineIdx) => {
+              let lineColor = "var(--text-muted)";
+              let lineBg = "transparent";
+              if (line.startsWith("+")) { lineColor = "var(--cyan)"; lineBg = "color-mix(in srgb, var(--cyan) 8%, transparent)"; }
+              else if (line.startsWith("-")) { lineColor = "var(--red)"; lineBg = "color-mix(in srgb, var(--red) 8%, transparent)"; }
+              return (
+                <div key={lineIdx} className="whitespace-pre text-[10px] px-2" style={{ ...MONO_STYLE, color: lineColor, backgroundColor: lineBg }}>
+                  {line}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function MergeStateBanner({
+  mergeState,
+  worktreePath,
+  onRefresh,
+}: {
+  mergeState: GitMergeState;
+  worktreePath: string;
+  onRefresh: () => Promise<void>;
+}) {
+  const t = useT();
+  const { notify } = useNotificationStore();
+  const [busy, setBusy] = useState(false);
+
+  if (mergeState.type === "none") return null;
+
+  const label =
+    mergeState.type === "merge" ? t.git_merge_in_progress :
+    mergeState.type === "cherry-pick" ? t.git_cherry_pick_in_progress :
+    t.git_rebase_progress(mergeState.current, mergeState.total);
+
+  const handleAbort = async () => {
+    setBusy(true);
+    try {
+      if (mergeState.type === "merge") await window.termcanvas.git.mergeAbort(worktreePath);
+      else if (mergeState.type === "rebase") await window.termcanvas.git.rebaseAbort(worktreePath);
+      else if (mergeState.type === "cherry-pick") await window.termcanvas.git.cherryPickAbort(worktreePath);
+      await onRefresh();
+    } catch (err) {
+      notify("error", String(err));
+    } finally { setBusy(false); }
+  };
+
+  const handleContinue = async () => {
+    setBusy(true);
+    try {
+      if (mergeState.type === "rebase") await window.termcanvas.git.rebaseContinue(worktreePath);
+      await onRefresh();
+    } catch (err) {
+      notify("error", String(err));
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="shrink-0 flex items-center gap-2 border-b px-3 py-1.5" style={{ borderColor: "var(--border)", backgroundColor: "color-mix(in srgb, var(--amber) 8%, transparent)" }}>
+      <IconMerge size={12} />
+      <span className="flex-1 truncate text-[11px] font-medium" style={{ ...MONO_STYLE, color: "var(--amber)" }}>
+        {label}
+      </span>
+      {mergeState.type === "rebase" && (
+        <button disabled={busy} onClick={handleContinue} className="rounded px-1.5 py-0.5 text-[10px] hover:bg-[var(--surface-hover)]" style={{ ...MONO_STYLE, color: "var(--cyan)" }}>
+          {t.git_rebase_continue}
+        </button>
+      )}
+      <button disabled={busy} onClick={handleAbort} className="rounded px-1.5 py-0.5 text-[10px] hover:bg-[var(--surface-hover)]" style={{ ...MONO_STYLE, color: "var(--red)" }}>
+        Abort
+      </button>
+    </div>
+  );
+}
+
+function StashSection({
+  stashes,
+  worktreePath,
+  onStashCreate,
+  onStashApply,
+  onStashPop,
+  onStashDrop,
+}: {
+  stashes: GitStashEntry[];
+  worktreePath: string;
+  onStashCreate: (message: string, includeUntracked: boolean) => Promise<void>;
+  onStashApply: (index: number) => Promise<void>;
+  onStashPop: (index: number) => Promise<void>;
+  onStashDrop: (index: number) => Promise<void>;
+}) {
+  const t = useT();
+  const { notify } = useNotificationStore();
+  const [busy, setBusy] = useState(false);
+
+  const handleCreate = async () => {
+    setBusy(true);
+    try {
+      await onStashCreate("", true);
+      notify("info", t.git_stash_success);
+    } catch (err) { notify("error", t.git_stash_failed(String(err))); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <CollapsibleGroup
+      title={t.git_stash}
+      count={stashes.length}
+      defaultExpanded={false}
+      actions={
+        <button title={t.git_stash_create} disabled={busy} onClick={handleCreate} className="flex h-5 w-5 items-center justify-center rounded hover:bg-[var(--surface-hover)]" style={{ color: "var(--text-secondary)" }}>
+          <IconArchive />
+        </button>
+      }
+    >
+      {stashes.length === 0 ? (
+        <div className="px-4 py-2 text-[10px] text-[var(--text-faint)]" style={MONO_STYLE}>{t.git_stash_empty}</div>
+      ) : stashes.map((s) => (
+        <div key={s.index} className="group flex items-center gap-1.5 mx-1 px-3 py-1 rounded-md hover:bg-[var(--surface-hover)]" style={{ minHeight: 26 }}>
+          <div className="min-w-0 flex-1">
+            <span className="truncate text-[11px]" style={{ ...MONO_STYLE, color: "var(--text-primary)" }}>
+              {s.message || `stash@{${s.index}}`}
+            </span>
+          </div>
+          <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button title={t.git_stash_pop} onClick={async () => { try { await onStashPop(s.index); } catch (err) { notify("error", t.git_stash_failed(String(err))); } }} className="rounded px-1 text-[9px] hover:bg-[var(--surface-hover)]" style={{ ...MONO_STYLE, color: "var(--cyan)" }}>Pop</button>
+            <button title={t.git_stash_apply} onClick={async () => { try { await onStashApply(s.index); } catch (err) { notify("error", t.git_stash_failed(String(err))); } }} className="rounded px-1 text-[9px] hover:bg-[var(--surface-hover)]" style={{ ...MONO_STYLE, color: "var(--text-secondary)" }}>Apply</button>
+            <button title={t.git_stash_drop} onClick={async () => { try { await onStashDrop(s.index); } catch (err) { notify("error", t.git_stash_failed(String(err))); } }} className="rounded px-1 text-[9px] hover:bg-[var(--surface-hover)]" style={{ ...MONO_STYLE, color: "var(--red)" }}>Drop</button>
+          </span>
+        </div>
+      ))}
+    </CollapsibleGroup>
+  );
+}
+
 function FileListItem({
   entry,
   actions,
+  expanded,
+  onToggle,
+  diffContent,
 }: {
   entry: GitStatusEntry;
   actions: React.ReactNode;
+  expanded?: boolean;
+  onToggle?: () => void;
+  diffContent?: React.ReactNode;
 }) {
   const { fileName, directory } = getStatusDisplayPath(entry.path);
   const statusColor = getStatusColor(entry.status);
   const statusLabel = getStatusLabel(entry.status);
 
   return (
-    <div
-      className="group flex items-center gap-1.5 mx-1 px-3 py-1 rounded-md hover:bg-[var(--surface-hover)] transition-colors duration-150"
-      style={{ minHeight: 26 }}
-    >
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-1.5">
-          <span
-            className="truncate text-[12px]"
-            style={{ ...MONO_STYLE, color: "var(--text-primary)" }}
-          >
-            {fileName}
-          </span>
-          {directory && (
-            <span
-              className="shrink-0 truncate text-[10px]"
-              style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
-            >
-              {directory}
-            </span>
-          )}
-        </div>
-      </div>
-      <span className="flex items-center gap-0.5">{actions}</span>
-      <span
-        className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[10px] font-bold"
-        style={{ ...MONO_STYLE, color: statusColor }}
+    <div>
+      <div
+        className="group flex items-center gap-1.5 mx-1 px-3 py-1 rounded-md hover:bg-[var(--surface-hover)] transition-colors duration-150 cursor-pointer"
+        style={{ minHeight: 26 }}
+        onClick={onToggle}
       >
-        {statusLabel}
-      </span>
+        {onToggle && <IconChevron size={10} expanded={!!expanded} />}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-1.5">
+            <span
+              className="truncate text-[12px]"
+              style={{ ...MONO_STYLE, color: "var(--text-primary)" }}
+            >
+              {fileName}
+            </span>
+            {directory && (
+              <span
+                className="shrink-0 truncate text-[10px]"
+                style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
+              >
+                {directory}
+              </span>
+            )}
+          </div>
+        </div>
+        <span className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>{actions}</span>
+        <span
+          className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[10px] font-bold"
+          style={{ ...MONO_STYLE, color: statusColor }}
+        >
+          {statusLabel}
+        </span>
+      </div>
+      {expanded && diffContent}
     </div>
   );
 }
@@ -373,19 +657,33 @@ function BranchPopover({
   onSelect,
   onClose,
   searchPlaceholder,
+  onDelete,
+  showNewBranch,
+  onToggleNewBranch,
+  newBranchName,
+  onNewBranchNameChange,
+  onCreateBranch,
 }: {
   branches: string[];
   currentBranch: string | null;
   onSelect: (name: string) => void;
   onClose: () => void;
   searchPlaceholder: string;
+  onDelete?: (name: string) => void;
+  showNewBranch?: boolean;
+  onToggleNewBranch?: () => void;
+  newBranchName?: string;
+  onNewBranchNameChange?: (name: string) => void;
+  onCreateBranch?: () => void;
 }) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const newBranchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    if (showNewBranch) newBranchRef.current?.focus();
+    else inputRef.current?.focus();
+  }, [showNewBranch]);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -426,36 +724,67 @@ function BranchPopover({
             className="min-w-0 flex-1 bg-transparent text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none"
             style={MONO_STYLE}
           />
+          {onToggleNewBranch && (
+            <button
+              onClick={onToggleNewBranch}
+              className="shrink-0 rounded px-1 text-[10px] hover:bg-[var(--surface-hover)]"
+              style={{ ...MONO_STYLE, color: "var(--accent)" }}
+              title="New branch"
+            >
+              <IconPlus size={10} />
+            </button>
+          )}
         </div>
+        {showNewBranch && onCreateBranch && onNewBranchNameChange && (
+          <div className="flex items-center gap-1.5 border-b px-2 py-1.5" style={{ borderColor: "var(--border)" }}>
+            <input
+              ref={newBranchRef}
+              value={newBranchName ?? ""}
+              onChange={(e) => onNewBranchNameChange(e.target.value)}
+              placeholder="Branch name..."
+              className="min-w-0 flex-1 bg-transparent text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none"
+              style={MONO_STYLE}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onCreateBranch(); } }}
+            />
+            <button onClick={onCreateBranch} className="shrink-0 rounded px-1.5 py-0.5 text-[10px] hover:bg-[var(--surface-hover)]" style={{ ...MONO_STYLE, color: "var(--cyan)" }}>
+              Create
+            </button>
+          </div>
+        )}
         <div className="max-h-48 overflow-auto">
           {filtered.map((name) => (
-            <button
+            <div
               key={name}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-[var(--surface-hover)]"
-              onClick={() => {
-                onSelect(name);
-                onClose();
-              }}
+              className="group flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-[var(--surface-hover)]"
             >
-              <span
-                className="w-3 text-center"
-                style={{ color: "var(--accent)" }}
+              <button
+                className="flex min-w-0 flex-1 items-center gap-2"
+                onClick={() => {
+                  onSelect(name);
+                  onClose();
+                }}
               >
-                {name === currentBranch ? "●" : ""}
-              </span>
-              <span
-                className="truncate text-[11px]"
-                style={{ ...MONO_STYLE, color: "var(--text-primary)" }}
-              >
-                {name}
-              </span>
-            </button>
+                <span className="w-3 text-center" style={{ color: "var(--accent)" }}>
+                  {name === currentBranch ? "●" : ""}
+                </span>
+                <span className="truncate text-[11px]" style={{ ...MONO_STYLE, color: "var(--text-primary)" }}>
+                  {name}
+                </span>
+              </button>
+              {onDelete && name !== currentBranch && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(name); }}
+                  className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity rounded hover:bg-[var(--surface-hover)]"
+                  style={{ color: "var(--red)" }}
+                  title="Delete branch"
+                >
+                  <IconX size={10} />
+                </button>
+              )}
+            </div>
           ))}
           {filtered.length === 0 && (
-            <div
-              className="px-3 py-2 text-[11px] text-[var(--text-faint)]"
-              style={MONO_STYLE}
-            >
+            <div className="px-3 py-2 text-[11px] text-[var(--text-faint)]" style={MONO_STYLE}>
               No matching branches
             </div>
           )}
@@ -742,6 +1071,8 @@ export function GitContent({
     changedFiles,
     isLoading: statusLoading,
     refreshing: statusRefreshing,
+    mergeState,
+    stashes,
     refresh: refreshStatus,
     stageFiles,
     stageAll,
@@ -750,8 +1081,14 @@ export function GitContent({
     discardFiles,
     discardAll,
     commit,
+    amend,
     push,
     pull,
+    fetch: fetchRemote,
+    stashCreate,
+    stashApply,
+    stashPop,
+    stashDrop,
   } = useGitStatus(worktreePath);
 
   const branchInfo = useMemo(
@@ -768,9 +1105,14 @@ export function GitContent({
   const [committing, setCommitting] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [pulling, setPulling] = useState(false);
+  const [fetching, setFetching] = useState(false);
   const [branchPopoverOpen, setBranchPopoverOpen] = useState(false);
   const [initializingRepo, setInitializingRepo] = useState(false);
   const [switchingBranch, setSwitchingBranch] = useState(false);
+  const [amendMode, setAmendMode] = useState(false);
+  const [expandedFile, setExpandedFile] = useState<string | null>(null);
+  const [newBranchName, setNewBranchName] = useState("");
+  const [showNewBranch, setShowNewBranch] = useState(false);
   const [hoveredCommitHash, setHoveredCommitHash] = useState<string | null>(
     null,
   );
@@ -879,24 +1221,33 @@ export function GitContent({
     }
     setCommitting(true);
     try {
-      if (stagedFiles.length === 0 && changedFiles.length > 0) {
-        await stageAll();
+      if (amendMode) {
+        const hash = await amend(commitMessage);
+        setCommitMessage("");
+        setAmendMode(false);
+        notify("info", t.git_amend_success(hash.slice(0, 7)));
+      } else {
+        if (stagedFiles.length === 0 && changedFiles.length > 0) {
+          await stageAll();
+        }
+        const hash = await commit(commitMessage);
+        setCommitMessage("");
+        notify("info", t.git_commit_success(hash.slice(0, 7)));
       }
-      const hash = await commit(commitMessage);
-      setCommitMessage("");
-      notify("info", t.git_commit_success(hash.slice(0, 7)));
       await refreshLog();
     } catch (error) {
-      notify("error", t.git_commit_failed(String(error)));
+      notify("error", amendMode ? t.git_amend_failed(String(error)) : t.git_commit_failed(String(error)));
     } finally {
       setCommitting(false);
     }
   }, [
     commitMessage,
+    amendMode,
     stagedFiles,
     changedFiles,
     stageAll,
     commit,
+    amend,
     refreshLog,
     notify,
     t,
@@ -927,6 +1278,67 @@ export function GitContent({
       setPulling(false);
     }
   }, [pull, refreshAll, notify, t]);
+
+  const handleFetch = useCallback(async () => {
+    setFetching(true);
+    try {
+      await fetchRemote();
+      notify("info", t.git_fetch_success);
+      await refreshLog();
+    } catch (error) {
+      notify("error", t.git_fetch_failed(String(error)));
+    } finally {
+      setFetching(false);
+    }
+  }, [fetchRemote, refreshLog, notify, t]);
+
+  const handleCreateBranch = useCallback(async () => {
+    if (!newBranchName.trim() || !worktreePath) return;
+    try {
+      await window.termcanvas.git.branchCreate(worktreePath, newBranchName.trim());
+      setNewBranchName("");
+      setShowNewBranch(false);
+      await refreshAll();
+    } catch (error) {
+      notify("error", t.git_branch_failed(String(error)));
+    }
+  }, [newBranchName, worktreePath, refreshAll, notify, t]);
+
+  const handleDeleteBranch = useCallback(async (name: string) => {
+    if (!worktreePath) return;
+    try {
+      await window.termcanvas.git.branchDelete(worktreePath, name, false);
+      await refreshAll();
+    } catch (error) {
+      // Try force delete if normal delete fails
+      try {
+        await window.termcanvas.git.branchDelete(worktreePath, name, true);
+        await refreshAll();
+      } catch (err2) {
+        notify("error", t.git_branch_failed(String(err2)));
+      }
+    }
+  }, [worktreePath, refreshAll, notify, t]);
+
+  const handleStageHunk = useCallback(async (filePath: string, hunkHeader: string) => {
+    if (!worktreePath) return;
+    try {
+      await window.termcanvas.git.stageHunk(worktreePath, filePath, hunkHeader);
+      await refreshStatus();
+    } catch (error) {
+      notify("error", t.git_hunk_failed(String(error)));
+    }
+  }, [worktreePath, refreshStatus, notify, t]);
+
+  const handleUnstageHunk = useCallback(async (filePath: string, hunkHeader: string) => {
+    if (!worktreePath) return;
+    try {
+      await window.termcanvas.git.unstageHunk(worktreePath, filePath, hunkHeader);
+      await refreshStatus();
+    } catch (error) {
+      notify("error", t.git_hunk_failed(String(error)));
+    }
+  }, [worktreePath, refreshStatus, notify, t]);
 
   const handleBranchSwitch = useCallback(
     async (ref: string) => {
@@ -1026,6 +1438,15 @@ export function GitContent({
 
           <div className="flex items-center gap-0.5">
             <button
+              title={t.git_fetch}
+              disabled={fetching}
+              onClick={handleFetch}
+              className="flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-[var(--surface-hover)] disabled:opacity-40"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              <IconDownload size={14} />
+            </button>
+            <button
               title={t.git_pull}
               disabled={pulling}
               onClick={handlePull}
@@ -1072,11 +1493,20 @@ export function GitContent({
             branches={branchInfo.orderedLocalBranchNames}
             currentBranch={branchInfo.currentBranchName}
             onSelect={handleBranchSwitch}
-            onClose={() => setBranchPopoverOpen(false)}
+            onClose={() => { setBranchPopoverOpen(false); setShowNewBranch(false); }}
             searchPlaceholder={t.git_search_branches}
+            onDelete={handleDeleteBranch}
+            showNewBranch={showNewBranch}
+            onToggleNewBranch={() => setShowNewBranch((p) => !p)}
+            newBranchName={newBranchName}
+            onNewBranchNameChange={setNewBranchName}
+            onCreateBranch={handleCreateBranch}
           />
         )}
       </div>
+
+      {/* ── Merge state banner ── */}
+      <MergeStateBanner mergeState={mergeState} worktreePath={worktreePath!} onRefresh={refreshAll} />
 
       <div
         className="shrink-0 border-b px-3 py-2"
@@ -1088,12 +1518,12 @@ export function GitContent({
               type="text"
               value={commitMessage}
               onChange={(e) => setCommitMessage(e.target.value)}
-              placeholder={t.git_commit_message_placeholder}
+              placeholder={amendMode ? "Amend message..." : t.git_commit_message_placeholder}
               aria-label={t.git_commit_message_placeholder}
               className="h-7 min-w-0 w-full rounded-md border bg-transparent px-2 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] focus:outline-none"
               style={{
                 ...MONO_STYLE,
-                borderColor: "var(--border)",
+                borderColor: amendMode ? "var(--amber)" : "var(--border)",
                 lineHeight: "18px",
               }}
               onKeyDown={(e) => {
@@ -1105,13 +1535,21 @@ export function GitContent({
             />
           </div>
           <button
-            title={t.git_commit}
+            title={t.git_amend}
+            onClick={() => setAmendMode((p) => !p)}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-[var(--surface-hover)]"
+            style={{ color: amendMode ? "var(--amber)" : "var(--text-faint)" }}
+          >
+            <IconPencil size={12} />
+          </button>
+          <button
+            title={amendMode ? t.git_amend : t.git_commit}
             disabled={committing || !commitMessage.trim()}
             onClick={handleCommit}
             className="flex h-7 w-7 shrink-0 items-center justify-center self-end rounded-md transition-colors hover:bg-[var(--surface-hover)] disabled:opacity-40"
             style={{
               color: commitMessage.trim()
-                ? "var(--accent)"
+                ? amendMode ? "var(--amber)" : "var(--accent)"
                 : "var(--text-faint)",
             }}
           >
@@ -1148,6 +1586,18 @@ export function GitContent({
                 <FileListItem
                   key={`staged-${entry.path}`}
                   entry={entry}
+                  expanded={expandedFile === `staged:${entry.path}`}
+                  onToggle={() => setExpandedFile((p) => p === `staged:${entry.path}` ? null : `staged:${entry.path}`)}
+                  diffContent={
+                    expandedFile === `staged:${entry.path}` && worktreePath ? (
+                      <FileDiffInline
+                        worktreePath={worktreePath}
+                        filePath={entry.path}
+                        staged={true}
+                        onUnstageHunk={(hh) => handleUnstageHunk(entry.path, hh)}
+                      />
+                    ) : null
+                  }
                   actions={
                     <ActionButton
                       title={t.git_unstage}
@@ -1208,6 +1658,18 @@ export function GitContent({
                 <FileListItem
                   key={`changed-${entry.path}`}
                   entry={entry}
+                  expanded={expandedFile === `changed:${entry.path}`}
+                  onToggle={() => setExpandedFile((p) => p === `changed:${entry.path}` ? null : `changed:${entry.path}`)}
+                  diffContent={
+                    expandedFile === `changed:${entry.path}` && worktreePath ? (
+                      <FileDiffInline
+                        worktreePath={worktreePath}
+                        filePath={entry.path}
+                        staged={false}
+                        onStageHunk={(hh) => handleStageHunk(entry.path, hh)}
+                      />
+                    ) : null
+                  }
                   actions={
                     <>
                       <ActionButton
@@ -1252,6 +1714,16 @@ export function GitContent({
           {t.git_nothing_to_commit}
         </div>
       ) : null}
+
+      {/* ── Stash ── */}
+      <StashSection
+        stashes={stashes}
+        worktreePath={worktreePath!}
+        onStashCreate={stashCreate}
+        onStashApply={stashApply}
+        onStashPop={stashPop}
+        onStashDrop={stashDrop}
+      />
 
       {/* ── History — fills remaining space ── */}
       <CollapsibleGroup

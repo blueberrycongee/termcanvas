@@ -92,6 +92,35 @@ import {
   isGitRepo,
   stageFiles,
   unstageFiles,
+  amendCommit,
+  listStashes,
+  createStash,
+  applyStash,
+  popStash,
+  dropStash,
+  createBranch,
+  deleteBranch,
+  renameBranch,
+  listTags,
+  createTag,
+  deleteTag,
+  listRemotes,
+  addRemote,
+  removeRemote,
+  renameRemote,
+  gitFetch,
+  gitMerge,
+  gitMergeAbort,
+  gitRebase,
+  gitRebaseAbort,
+  gitRebaseContinue,
+  gitCherryPick,
+  gitCherryPickAbort,
+  getMergeState,
+  getFileDiff,
+  stageHunk,
+  unstageHunk,
+  getBlame,
 } from "./git-info";
 import { createMenu } from "./menu";
 import { TelemetryService } from "./telemetry-service";
@@ -770,6 +799,187 @@ function setupIpc() {
   ipcMain.handle("git:pull", async (_event, worktreePath: string) => {
     return gitPull(worktreePath);
   });
+
+  // ── New git handlers ──
+
+  ipcMain.handle(
+    "git:amend",
+    async (_event, worktreePath: string, message: string) => {
+      return amendCommit(worktreePath, message);
+    },
+  );
+
+  ipcMain.handle("git:stash-list", async (_event, worktreePath: string) => {
+    try { return await listStashes(worktreePath); } catch { return []; }
+  });
+
+  ipcMain.handle(
+    "git:stash-create",
+    async (_event, worktreePath: string, message: string, includeUntracked: boolean) => {
+      return createStash(worktreePath, message, includeUntracked);
+    },
+  );
+
+  ipcMain.handle(
+    "git:stash-apply",
+    async (_event, worktreePath: string, index: number) => {
+      return applyStash(worktreePath, index);
+    },
+  );
+
+  ipcMain.handle(
+    "git:stash-pop",
+    async (_event, worktreePath: string, index: number) => {
+      return popStash(worktreePath, index);
+    },
+  );
+
+  ipcMain.handle(
+    "git:stash-drop",
+    async (_event, worktreePath: string, index: number) => {
+      return dropStash(worktreePath, index);
+    },
+  );
+
+  ipcMain.handle(
+    "git:branch-create",
+    async (_event, worktreePath: string, name: string, startPoint?: string) => {
+      return createBranch(worktreePath, name, startPoint);
+    },
+  );
+
+  ipcMain.handle(
+    "git:branch-delete",
+    async (_event, worktreePath: string, name: string, force: boolean) => {
+      return deleteBranch(worktreePath, name, force);
+    },
+  );
+
+  ipcMain.handle(
+    "git:branch-rename",
+    async (_event, worktreePath: string, oldName: string, newName: string) => {
+      return renameBranch(worktreePath, oldName, newName);
+    },
+  );
+
+  ipcMain.handle("git:tag-list", async (_event, worktreePath: string) => {
+    try { return await listTags(worktreePath); } catch { return []; }
+  });
+
+  ipcMain.handle(
+    "git:tag-create",
+    async (_event, worktreePath: string, name: string, ref: string, message?: string) => {
+      return createTag(worktreePath, name, ref, message);
+    },
+  );
+
+  ipcMain.handle(
+    "git:tag-delete",
+    async (_event, worktreePath: string, name: string) => {
+      return deleteTag(worktreePath, name);
+    },
+  );
+
+  ipcMain.handle("git:remote-list", async (_event, worktreePath: string) => {
+    try { return await listRemotes(worktreePath); } catch { return []; }
+  });
+
+  ipcMain.handle(
+    "git:remote-add",
+    async (_event, worktreePath: string, name: string, url: string) => {
+      return addRemote(worktreePath, name, url);
+    },
+  );
+
+  ipcMain.handle(
+    "git:remote-remove",
+    async (_event, worktreePath: string, name: string) => {
+      return removeRemote(worktreePath, name);
+    },
+  );
+
+  ipcMain.handle(
+    "git:remote-rename",
+    async (_event, worktreePath: string, oldName: string, newName: string) => {
+      return renameRemote(worktreePath, oldName, newName);
+    },
+  );
+
+  ipcMain.handle(
+    "git:fetch",
+    async (_event, worktreePath: string, remote?: string) => {
+      return gitFetch(worktreePath, remote);
+    },
+  );
+
+  ipcMain.handle(
+    "git:merge",
+    async (_event, worktreePath: string, ref: string) => {
+      return gitMerge(worktreePath, ref);
+    },
+  );
+
+  ipcMain.handle("git:merge-abort", async (_event, worktreePath: string) => {
+    return gitMergeAbort(worktreePath);
+  });
+
+  ipcMain.handle(
+    "git:rebase",
+    async (_event, worktreePath: string, ref: string) => {
+      return gitRebase(worktreePath, ref);
+    },
+  );
+
+  ipcMain.handle("git:rebase-abort", async (_event, worktreePath: string) => {
+    return gitRebaseAbort(worktreePath);
+  });
+
+  ipcMain.handle("git:rebase-continue", async (_event, worktreePath: string) => {
+    return gitRebaseContinue(worktreePath);
+  });
+
+  ipcMain.handle(
+    "git:cherry-pick",
+    async (_event, worktreePath: string, hash: string) => {
+      return gitCherryPick(worktreePath, hash);
+    },
+  );
+
+  ipcMain.handle("git:cherry-pick-abort", async (_event, worktreePath: string) => {
+    return gitCherryPickAbort(worktreePath);
+  });
+
+  ipcMain.handle("git:merge-state", async (_event, worktreePath: string) => {
+    return getMergeState(worktreePath);
+  });
+
+  ipcMain.handle(
+    "git:file-diff",
+    async (_event, worktreePath: string, filePath: string, staged: boolean) => {
+      return getFileDiff(worktreePath, filePath, staged);
+    },
+  );
+
+  ipcMain.handle(
+    "git:stage-hunk",
+    async (_event, worktreePath: string, filePath: string, hunkHeader: string) => {
+      return stageHunk(worktreePath, filePath, hunkHeader);
+    },
+  );
+
+  ipcMain.handle(
+    "git:unstage-hunk",
+    async (_event, worktreePath: string, filePath: string, hunkHeader: string) => {
+      return unstageHunk(worktreePath, filePath, hunkHeader);
+    },
+  );
+
+  ipcMain.handle(
+    "git:blame",
+    async (_event, worktreePath: string, filePath: string) => {
+      return getBlame(worktreePath, filePath);
+    },
+  );
 
   ipcMain.handle(
     "session:watch",
