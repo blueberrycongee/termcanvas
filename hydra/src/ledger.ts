@@ -116,6 +116,21 @@ export type LedgerEvent =
       answer_excerpt: string;
       duration_ms: number;
     }
+  | {
+      type: "checkpoint_created";
+      dispatch_id: string;
+      run_id: string;
+      sha: string;
+      head_sha: string;
+      was_dirty: boolean;
+    }
+  | {
+      type: "checkpoint_rollback";
+      dispatch_id: string;
+      run_id: string;
+      target_sha: string;
+      cause: "system_retry" | "lead_reset" | "timeout_retry" | "manual";
+    }
   | { type: "merge_attempted"; source_dispatches: string[]; outcome: "merged" | "conflict" }
   | {
       type: "workbench_completed";

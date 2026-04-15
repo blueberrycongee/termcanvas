@@ -17,6 +17,12 @@ export interface RegisterDispatchAttemptInput {
   artifactDir: string;
   startedAt: string;
   retryOfRunId?: string;
+  /** Checkpoint captured before this run started. */
+  checkpoint?: {
+    sha: string;
+    head_sha: string;
+    was_dirty: boolean;
+  };
 }
 
 export interface RetryTimedOutAssignmentInput {
@@ -75,6 +81,7 @@ export function registerDispatchAttempt(
     status: "running",
     started_at: input.startedAt,
     retry_of_run_id: input.retryOfRunId,
+    checkpoint: input.checkpoint,
   });
   assignment.active_run_id = input.runId;
   assignment.updated_at = input.startedAt;

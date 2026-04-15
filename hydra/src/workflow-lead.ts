@@ -2,6 +2,12 @@ import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import {
+  createCheckpoint as defaultCreateCheckpoint,
+  rollbackToCheckpoint as defaultRollbackToCheckpoint,
+  removeCheckpointRef,
+  type CheckpointResult,
+} from "./checkpoint.ts";
 import { collectRunResult } from "./collector.ts";
 import {
   dispatchCreateOnly as defaultDispatchCreateOnly,
@@ -86,6 +92,10 @@ export interface WorkbenchDependencies {
     workdir: string;
     timeoutMs?: number;
   }) => Promise<AskFollowUpResult>;
+  /** Test seam for checkpoint creation. */
+  createCheckpoint?: (worktreePath: string, refName: string) => CheckpointResult;
+  /** Test seam for checkpoint rollback. */
+  rollbackToCheckpoint?: (worktreePath: string, checkpoint: CheckpointResult) => void;
 }
 
 const DEFAULT_SLEEP = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -117,6 +127,18 @@ function checkTerminalAliveFn(deps?: WorkbenchDependencies): (id: string) => boo
       return null; // cannot check without telemetry import cycle
     } catch { return null; }
   };
+}
+function createCheckpointFn(deps?: WorkbenchDependencies) {
+  if (deps?.createCheckpoint) return deps.createCheckpoint;
+  // When running in a test harness (dispatchCreateOnly injected), default to
+  // a no-op checkpoint that records an empty SHA so rollback is also a no-op.
+  if (deps?.dispatchCreateOnly) return (_wt: string, _ref: string): CheckpointResult => ({ sha: "", head_sha: "", was_dirty: false });
+  return defaultCreateCheckpoint;
+}
+function rollbackToCheckpointFn(deps?: WorkbenchDependencies) {
+  if (deps?.rollbackToCheckpoint) return deps.rollbackToCheckpoint;
+  if (deps?.dispatchCreateOnly) return (_wt: string, _cp: CheckpointResult) => {};
+  return defaultRollbackToCheckpoint;
 }
 
 // --- ID generation ---
@@ -280,6 +302,20 @@ async function dispatchAssignment(
   const claim = await stateMachine.claimPending(assignment.id, tickId);
   if (!claim.changed) return { status: "failed", failure: { code: "CLAIM_FAILED", message: "Could not claim assignment", stage: "workbench.dispatch" } };
 
+  // Checkpoint: snapshot worktree state before agent starts
+  const worktreePath = disp.worktree_path ?? workbench.worktree_path;
+  let checkpoint: CheckpointResult | undefined;
+  try {
+    checkpoint = createCheckpointFn(deps)(worktreePath, runId);
+    appendLedger(workbench.repo_path, workbench.id, "system", {
+      type: "checkpoint_created",
+      dispatch_id: assignment.id, run_id: runId,
+      sha: checkpoint.sha, head_sha: checkpoint.head_sha, was_dirty: checkpoint.was_dirty,
+    });
+  } catch {
+    // Checkpoint failure is non-fatal — dispatch proceeds without rollback capability
+  }
+
   const taskSpec = buildTaskSpecFromIntent({ workbench, dispatch: disp, assignment, runId });
   let dispatchedTerminalId: string | undefined;
   try {
@@ -290,6 +326,7 @@ async function dispatchAssignment(
       runId, terminalId: dispatchResult.terminalId, agentType: dispatchResult.terminalType as AgentType,
       prompt: dispatchResult.prompt, taskFile: runArtifacts.task_file, resultFile: runArtifacts.result_file,
       artifactDir: runArtifacts.artifact_dir, startedAt: now(),
+      checkpoint,
     });
     await stateMachine.markInProgress(assignment.id, { tickId, runId });
     return { status: "dispatched", terminalId: dispatchResult.terminalId };
@@ -716,6 +753,16 @@ export async function watchUntilDecision(
             failure_message: errorMessage,
           });
           await destroyAssignmentTerminal(repoPath, assignment, deps);
+          // Rollback worktree to pre-dispatch state before retry
+          if (run.checkpoint) {
+            try {
+              rollbackToCheckpointFn(deps)(disp.worktree_path ?? workbench.worktree_path, run.checkpoint);
+              appendLedger(repoPath, workbench.id, "system", {
+                type: "checkpoint_rollback", dispatch_id: dispatchId, run_id: run.id,
+                target_sha: run.checkpoint.head_sha, cause: "system_retry",
+              });
+            } catch { /* rollback failure is non-fatal — retry proceeds with dirty state */ }
+          }
           const retryRunId = generateRunId();
           const freshAssignment = loadAssignmentByIdOrThrow(manager, workbench, assignment.id);
           appendLedger(repoPath, workbench.id, "system", {
@@ -837,6 +884,16 @@ export async function watchUntilDecision(
             failure_code: "ASSIGNMENT_PROCESS_EXITED",
             failure_message: `Agent process exited without writing result (${Math.round(elapsedMs / 1000)}s)`,
           });
+          // Rollback worktree to pre-dispatch state before retry
+          if (run.checkpoint) {
+            try {
+              rollbackToCheckpointFn(deps)(disp.worktree_path ?? workbench.worktree_path, run.checkpoint);
+              appendLedger(repoPath, workbench.id, "system", {
+                type: "checkpoint_rollback", dispatch_id: dispatchId, run_id: run.id,
+                target_sha: run.checkpoint.head_sha, cause: "system_retry",
+              });
+            } catch { /* rollback failure is non-fatal */ }
+          }
           const retryRunId = generateRunId();
           const freshAssignment = loadAssignmentByIdOrThrow(manager, workbench, assignment.id);
           appendLedger(repoPath, workbench.id, "system", {
@@ -854,6 +911,17 @@ export async function watchUntilDecision(
       // Check duration timeout
       const freshAssignment = loadAssignmentByIdOrThrow(manager, workbench, assignment.id);
       if (hasAssignmentTimedOut(freshAssignment, now())) {
+        // Rollback worktree to pre-dispatch state before timeout retry
+        const currentRun = latestRun(freshAssignment);
+        if (currentRun?.checkpoint) {
+          try {
+            rollbackToCheckpointFn(deps)(disp.worktree_path ?? workbench.worktree_path, currentRun.checkpoint);
+            appendLedger(repoPath, workbench.id, "system", {
+              type: "checkpoint_rollback", dispatch_id: dispatchId, run_id: currentRun.id,
+              target_sha: currentRun.checkpoint.head_sha, cause: "timeout_retry",
+            });
+          } catch { /* rollback failure is non-fatal */ }
+        }
         const retryRunId = generateRunId();
         const retrySpec = buildTaskSpecFromIntent({ workbench, dispatch: disp, assignment: freshAssignment, runId: retryRunId });
         const retryArtifacts = writeRunTask(retrySpec);
@@ -939,6 +1007,8 @@ export interface ResetDispatchOptions {
   workbenchId: string;
   dispatchId: string;
   feedback: string;
+  /** When true, skip git rollback and preserve the agent's changes. */
+  skipRollback?: boolean;
 }
 
 export interface ResetDispatchResult {
@@ -968,6 +1038,24 @@ export async function resetDispatch(
   const assignment = manager.load(options.dispatchId);
   if (assignment) {
     await destroyAssignmentTerminal(repoPath, assignment, deps);
+
+    // Rollback worktree to latest checkpoint unless opted out
+    if (!options.skipRollback) {
+      const latestCheckpointRun = assignment.runs
+        .slice()
+        .reverse()
+        .find((r) => r.checkpoint);
+      if (latestCheckpointRun?.checkpoint) {
+        try {
+          rollbackToCheckpointFn(deps)(disp.worktree_path ?? workbench.worktree_path, latestCheckpointRun.checkpoint);
+          appendLedger(repoPath, workbench.id, "system", {
+            type: "checkpoint_rollback", dispatch_id: options.dispatchId, run_id: latestCheckpointRun.id,
+            target_sha: latestCheckpointRun.checkpoint.head_sha, cause: "lead_reset",
+          });
+        } catch { /* rollback failure is non-fatal */ }
+      }
+    }
+
     const previousStatus = assignment.status;
     assignment.status = "pending";
     assignment.updated_at = now();
@@ -1121,6 +1209,9 @@ export async function completeWorkbench(
     }
   }
 
+  // Clean up checkpoint refs — they are no longer needed after completion
+  cleanupCheckpointRefs(workbench, manager);
+
   const totalDuration = Date.parse(now()) - Date.parse(workbench.created_at);
   const totalRetries = Object.keys(workbench.dispatches).reduce((sum, id) => {
     const a = manager.load(id);
@@ -1167,6 +1258,9 @@ export async function failWorkbench(
     }
   }
 
+  // Clean up checkpoint refs
+  cleanupCheckpointRefs(workbench, manager);
+
   const totalDuration = Date.parse(now()) - Date.parse(workbench.created_at);
   // Find the dispatch that bears the visible failure (most recently failed),
   // for the failed_dispatch_id field on the ledger event.
@@ -1184,6 +1278,68 @@ export async function failWorkbench(
     total_duration_ms: totalDuration,
     failed_dispatch_id: failedDispatchId,
   });
+}
+
+// --- checkpoint ref cleanup ---
+
+function cleanupCheckpointRefs(workbench: WorkbenchRecord, manager: AssignmentManager): void {
+  const worktreePath = workbench.worktree_path;
+  for (const dispatchId of Object.keys(workbench.dispatches)) {
+    const a = manager.load(dispatchId);
+    if (!a) continue;
+    for (const run of a.runs) {
+      if (run.checkpoint) {
+        removeCheckpointRef(worktreePath, run.id);
+      }
+    }
+  }
+}
+
+// --- rollbackDispatch ---
+
+export interface RollbackDispatchOptions {
+  repoPath: string;
+  workbenchId: string;
+  dispatchId: string;
+}
+
+export interface RollbackDispatchResult {
+  dispatch_id: string;
+  rolled_back_to: string;
+}
+
+export async function rollbackDispatch(
+  options: RollbackDispatchOptions, deps?: WorkbenchDependencies,
+): Promise<RollbackDispatchResult> {
+  const repoPath = path.resolve(options.repoPath);
+  const workbench = loadWorkbenchOrThrow(repoPath, options.workbenchId);
+  ensureLeadCaller(workbench);
+  const manager = managerForWorkbench(workbench);
+
+  const disp = workbench.dispatches[options.dispatchId];
+  if (!disp) {
+    throw new HydraError(`Dispatch not found: ${options.dispatchId}`, {
+      errorCode: "WORKBENCH_DISPATCH_NOT_FOUND", stage: "workbench.rollback",
+      ids: { workbench_id: workbench.id },
+    });
+  }
+
+  const assignment = loadAssignmentByIdOrThrow(manager, workbench, options.dispatchId);
+  const checkpointRun = assignment.runs.slice().reverse().find((r) => r.checkpoint);
+  if (!checkpointRun?.checkpoint) {
+    throw new HydraError(`No checkpoint found for dispatch "${options.dispatchId}"`, {
+      errorCode: "WORKBENCH_NO_CHECKPOINT", stage: "workbench.rollback",
+      ids: { workbench_id: workbench.id },
+    });
+  }
+
+  rollbackToCheckpointFn(deps)(disp.worktree_path ?? workbench.worktree_path, checkpointRun.checkpoint);
+  appendLedger(repoPath, workbench.id, "lead", {
+    type: "checkpoint_rollback", dispatch_id: options.dispatchId, run_id: checkpointRun.id,
+    target_sha: checkpointRun.checkpoint.head_sha, cause: "manual",
+  });
+
+  return { dispatch_id: options.dispatchId, rolled_back_to: checkpointRun.checkpoint.head_sha };
 }
 
 // --- getWorkbenchStatus ---

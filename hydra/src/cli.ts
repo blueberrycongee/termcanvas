@@ -6,6 +6,7 @@ import {
   cliRedispatch,
   cliApprove,
   cliReset,
+  cliRollback,
   cliAsk,
   cliMerge,
   cliComplete,
@@ -31,6 +32,7 @@ function printUsage() {
   console.log("  watch      Wait until a decision point is reached");
   console.log("  approve    Mark a node's output as approved");
   console.log("  reset      Reset a node (and downstream) for re-run");
+  console.log("  rollback   Rollback a dispatch's worktree to its pre-dispatch checkpoint");
   console.log("  ask        Ask a completed node a follow-up question via session resume");
   console.log("  merge      Merge parallel worktree branches");
   console.log("  complete   Mark a workflow as completed");
@@ -69,6 +71,9 @@ async function main() {
       break;
     case "reset":
       await cliReset(rest);
+      break;
+    case "rollback":
+      await cliRollback(rest);
       break;
     case "ask":
       await cliAsk(rest);

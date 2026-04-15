@@ -65,6 +65,16 @@ export interface AssignmentRun {
   session_id?: string;
   session_file?: string;
   session_provider?: string;
+
+  /** Checkpoint captured before this run started. Enables rollback on failure. */
+  checkpoint?: {
+    /** Stash object SHA (if dirty) or HEAD SHA (if clean). */
+    sha: string;
+    /** HEAD commit at checkpoint time — rollback target. */
+    head_sha: string;
+    /** True if worktree had uncommitted changes at checkpoint time. */
+    was_dirty: boolean;
+  };
 }
 
 export interface AssignmentResult {
