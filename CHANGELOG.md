@@ -2,6 +2,28 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.27.8] - 2026-04-15
+
+### Added
+- Canvas: summon-style label drag with collision detection — dragging a worktree label repositions it with automatic avoidance of overlapping labels
+
+### Fixed
+- Canvas: stop label drag preview update loop that caused unnecessary re-renders
+- Canvas: preserve node position while resizing
+- Renderer: restore missing getProjectBounds export
+- Git panel: initialize viewport height with ResizeObserver on mount to prevent blank bottom area
+- CI: rezip-electron requires -o flag for output path
+
+### Added (zh-CN)
+- 画布：召唤式标签拖拽，支持碰撞检测 — 拖拽 worktree 标签时自动避让重叠标签
+
+### Fixed (zh-CN)
+- 画布：修复标签拖拽预览的无限更新循环
+- 画布：调整节点大小时保留节点位置
+- 渲染器：恢复 getProjectBounds 导出
+- Git 面板：挂载时用 ResizeObserver 初始化视口高度，修复底部空白
+- CI：rezip-electron 需要 -o 参数指定输出路径
+
 ## [0.27.7] - 2026-04-14
 
 ### Added
