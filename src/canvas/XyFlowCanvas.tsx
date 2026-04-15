@@ -26,6 +26,7 @@ import { FamilyTreeOverlay } from "../components/FamilyTreeOverlay";
 import { BoxSelectOverlay } from "./BoxSelectOverlay";
 import { CanvasCardLayer } from "./CanvasCardLayer";
 import { DrawingLayer } from "./DrawingLayer";
+import { PetOverlay } from "../pet/PetOverlay";
 import { useBoxSelect } from "../hooks/useBoxSelect";
 import {
   publishTerminalGeometry,
@@ -262,6 +263,7 @@ function XyFlowCanvasInner() {
   const leftPanelWidth = useCanvasStore((state) => state.leftPanelWidth);
   const projects = useProjectStore((state) => state.projects);
   const drawingEnabled = usePreferencesStore((state) => state.drawingEnabled);
+  const petEnabled = usePreferencesStore((state) => state.petEnabled);
   const animationBlur = usePreferencesStore((state) => state.animationBlur);
   const drawingTool = useDrawingStore((state) => state.tool);
   const { handleMouseDown: handleBoxSelectMouseDown } = useBoxSelect();
@@ -610,6 +612,7 @@ function XyFlowCanvasInner() {
       <BoxSelectOverlay />
       <CanvasCardLayer />
       {drawingEnabled && <DrawingLayer />}
+      {petEnabled && <PetOverlay />}
 
       <WorktreeLabelLayer />
 

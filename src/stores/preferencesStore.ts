@@ -22,6 +22,7 @@ interface PreferencesStore {
   browserEnabled: boolean;
   summaryEnabled: boolean;
   globalSearchEnabled: boolean;
+  petEnabled: boolean;
   summaryCli: "claude" | "codex";
   minimumContrastRatio: number;
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
@@ -38,6 +39,7 @@ interface PreferencesStore {
   setBrowserEnabled: (value: boolean) => void;
   setSummaryEnabled: (value: boolean) => void;
   setGlobalSearchEnabled: (value: boolean) => void;
+  setPetEnabled: (value: boolean) => void;
   setSummaryCli: (value: "claude" | "codex") => void;
   setCli: (type: TerminalType, config: CliCommandConfig | null) => void;
   setAgentConfig: (config: AgentProviderConfig) => void;
@@ -57,6 +59,7 @@ interface SavedPrefs {
   browserEnabled: boolean;
   summaryEnabled: boolean;
   globalSearchEnabled: boolean;
+  petEnabled: boolean;
   summaryCli: "claude" | "codex";
   minimumContrastRatio: number;
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
@@ -131,6 +134,9 @@ function loadPreferences(): SavedPrefs {
       let globalSearchEnabled = false;
       if (parsed.globalSearchEnabled === true) globalSearchEnabled = true;
 
+      let petEnabled = false;
+      if (parsed.petEnabled === true) petEnabled = true;
+
       let summaryCli: "claude" | "codex" = "claude";
       if (parsed.summaryCli === "codex") summaryCli = "codex";
 
@@ -158,6 +164,7 @@ function loadPreferences(): SavedPrefs {
         browserEnabled,
         summaryEnabled,
         globalSearchEnabled,
+        petEnabled,
         summaryCli,
         minimumContrastRatio,
         cliCommands,
@@ -175,6 +182,7 @@ function loadPreferences(): SavedPrefs {
     browserEnabled: false,
     summaryEnabled: false,
     globalSearchEnabled: false,
+    petEnabled: false,
     summaryCli: "claude",
     minimumContrastRatio: DEFAULT_MIN_CONTRAST,
     cliCommands: {},
@@ -272,6 +280,7 @@ function getSaveState(state: PreferencesStore): SavedPrefs {
     browserEnabled: state.browserEnabled,
     summaryEnabled: state.summaryEnabled,
     globalSearchEnabled: state.globalSearchEnabled,
+    petEnabled: state.petEnabled,
     summaryCli: state.summaryCli,
     minimumContrastRatio: state.minimumContrastRatio,
     cliCommands: state.cliCommands,
@@ -290,6 +299,7 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   browserEnabled: initialPrefs.browserEnabled,
   summaryEnabled: initialPrefs.summaryEnabled,
   globalSearchEnabled: initialPrefs.globalSearchEnabled,
+  petEnabled: initialPrefs.petEnabled,
   summaryCli: initialPrefs.summaryCli,
   minimumContrastRatio: initialPrefs.minimumContrastRatio,
   cliCommands: initialPrefs.cliCommands,
@@ -334,6 +344,10 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   setGlobalSearchEnabled: (value) => {
     set({ globalSearchEnabled: value });
     savePreferences(getSaveState({ ...get(), globalSearchEnabled: value }));
+  },
+  setPetEnabled: (value) => {
+    set({ petEnabled: value });
+    savePreferences(getSaveState({ ...get(), petEnabled: value }));
   },
   setSummaryCli: (value) => {
     set({ summaryCli: value });

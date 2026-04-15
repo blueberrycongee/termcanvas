@@ -282,6 +282,9 @@ export const en = {
   browser_toggle: "Built-in browser shortcut",
   browser_toggle_desc:
     "Experimental. Shows the open-browser button in the top toolbar when enabled",
+  pet_toggle: "Canvas pet",
+  pet_toggle_desc:
+    "Experimental. A pixel-art capybara that reacts to terminal and workflow events",
   summary_toggle: "Terminal auto-summary",
   summary_toggle_desc:
     "Experimental. AI-generated one-line summaries for CLI terminals. May increase token usage.",

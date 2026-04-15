@@ -319,7 +319,7 @@ function ProviderDropdown({ value, onChange }: { value: string; onChange: (id: s
 
 export function SettingsModal({ onClose }: Props) {
   const { locale, setLocale } = useLocaleStore();
-  const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize, terminalFontFamily, setTerminalFontFamily, composerEnabled, setComposerEnabled, drawingEnabled, setDrawingEnabled, browserEnabled, setBrowserEnabled, summaryEnabled, setSummaryEnabled, globalSearchEnabled, setGlobalSearchEnabled, summaryCli, setSummaryCli, minimumContrastRatio, setMinimumContrastRatio, agentConfig, patchAgentConfig, setAgentConfig } = usePreferencesStore();
+  const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize, terminalFontFamily, setTerminalFontFamily, composerEnabled, setComposerEnabled, drawingEnabled, setDrawingEnabled, browserEnabled, setBrowserEnabled, summaryEnabled, setSummaryEnabled, globalSearchEnabled, setGlobalSearchEnabled, petEnabled, setPetEnabled, summaryCli, setSummaryCli, minimumContrastRatio, setMinimumContrastRatio, agentConfig, patchAgentConfig, setAgentConfig } = usePreferencesStore();
   const [fontSizeDraft, setFontSizeDraft] = useState(terminalFontSize);
   const { shortcuts, setShortcut, resetAll } = useShortcutStore();
   const [downloadedFonts, setDownloadedFonts] = useState<Set<string>>(new Set());
@@ -834,6 +834,31 @@ export function SettingsModal({ onClose }: Props) {
                   <button
                     className={!globalSearchEnabled ? activeBtn : inactiveBtn}
                     onClick={() => setGlobalSearchEnabled(false)}
+                  >
+                    {t.setting_off}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[13px] text-[var(--text-secondary)]">
+                    {t.pet_toggle}
+                  </span>
+                  <span className="text-[11px] text-[var(--text-muted)]">
+                    {t.pet_toggle_desc}
+                  </span>
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    className={petEnabled ? activeBtn : inactiveBtn}
+                    onClick={() => setPetEnabled(true)}
+                  >
+                    {t.setting_on}
+                  </button>
+                  <button
+                    className={!petEnabled ? activeBtn : inactiveBtn}
+                    onClick={() => setPetEnabled(false)}
                   >
                     {t.setting_off}
                   </button>
