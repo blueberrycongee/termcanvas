@@ -2,6 +2,26 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.28.0] - 2026-04-16
+
+### Added
+- Git: comprehensive git panel with stash, amend, merge, rebase, tags, remotes, file diff, and hunk staging
+- Search: experimental global search (Cmd+K)
+- Pet: pixel-art capybara desktop pet (experimental)
+
+### Fixed
+- Preview: stop click-to-edit, use button toggle instead
+- Sessions: move early return after hooks to fix React rules violation
+
+### Added (zh-CN)
+- Git：完整 git 面板，支持 stash、amend、merge、rebase、标签、远程、文件 diff、hunk 暂存
+- 搜索：实验性全局搜索（Cmd+K）
+- 桌宠：像素风水豚桌面宠物（实验性）
+
+### Fixed (zh-CN)
+- 预览：点击编辑改为按钮切换
+- 会话面板：修复 hooks 顺序违反 React 规则的问题
+
 ## [0.27.8] - 2026-04-15
 
 ### Added
