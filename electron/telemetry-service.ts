@@ -21,11 +21,17 @@ import type {
   WorkflowTelemetrySnapshot,
 } from "../shared/telemetry.ts";
 import type { SessionInfo } from "../shared/sessions.ts";
+import {
+  DEFAULT_CLAUDE_STALL_MS,
+  DEFAULT_CODEX_STALL_MS,
+  DEFAULT_PROCESS_POLL_INTERVAL_MS,
+  DEFAULT_SESSION_HEARTBEAT_MS,
+  DEFAULT_SESSION_POLL_INTERVAL_MS,
+  PRE_TOOL_USE_AWAITING_INPUT_MS,
+  PRE_TOOL_USE_STALE_RESET_MS,
+} from "../shared/lifecycleThresholds.ts";
 
 const DEFAULT_EVENT_LIMIT = 200;
-const DEFAULT_STALL_THRESHOLD_MS = 45_000;
-const DEFAULT_CODEX_STALL_THRESHOLD_MS = 180_000;
-const DEFAULT_SESSION_HEARTBEAT_MS = 90_000;
 
 interface ActiveToolCall {
   callId: string;
@@ -167,8 +173,8 @@ export function deriveTelemetryStatus(
   const effectiveStallThresholdMs =
     stallThresholdMs ??
     (snapshot.provider === "codex"
-      ? DEFAULT_CODEX_STALL_THRESHOLD_MS
-      : DEFAULT_STALL_THRESHOLD_MS);
+      ? DEFAULT_CODEX_STALL_MS
+      : DEFAULT_CLAUDE_STALL_MS);
 
   if (!snapshot.pty_alive) {
     return "exited";
@@ -472,8 +478,10 @@ export class TelemetryService {
   }) {
     this.eventLimit = options?.eventLimit ?? DEFAULT_EVENT_LIMIT;
     this.now = options?.now ?? Date.now;
-    this.processPollIntervalMs = options?.processPollIntervalMs ?? 15_000;
-    this.sessionPollIntervalMs = options?.sessionPollIntervalMs ?? 10_000;
+    this.processPollIntervalMs =
+      options?.processPollIntervalMs ?? DEFAULT_PROCESS_POLL_INTERVAL_MS;
+    this.sessionPollIntervalMs =
+      options?.sessionPollIntervalMs ?? DEFAULT_SESSION_POLL_INTERVAL_MS;
     this.sessionPrimeBytes = options?.sessionPrimeBytes ?? 262_144;
     this.stallThresholdMs = options?.stallThresholdMs;
     this.sessionHeartbeatMs =
@@ -837,7 +845,7 @@ export class TelemetryService {
     // Don't let ps data overwrite hook-set foreground_tool while a tool is running
     if (state.pendingPreToolUse) {
       // Auto-reset if stuck for >5 minutes (CC crashed without PostToolUse)
-      if (this.now() - state.pendingPreToolUseAt > 5 * 60_000) {
+      if (this.now() - state.pendingPreToolUseAt > PRE_TOOL_USE_STALE_RESET_MS) {
         console.warn(
           `[Telemetry] Resetting stale pendingPreToolUse for terminal=${terminalId} (>5min without PostToolUse)`,
         );
@@ -1093,7 +1101,7 @@ export class TelemetryService {
             state.snapshot.turn_state = "awaiting_input";
             this.updateDerivedStatus(state, { force: true });
           }
-        }, 5_000);
+        }, PRE_TOOL_USE_AWAITING_INPUT_MS);
         this.appendEvent(state, at, "session", "hook_pre_tool", {
           tool_name: event.tool_name ?? null,
         });

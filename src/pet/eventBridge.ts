@@ -15,6 +15,10 @@ import type {
   WorkflowTelemetrySnapshot,
 } from "../../shared/telemetry";
 import {
+  PET_IDLE_TICK_MS,
+  WORKFLOW_REFRESH_INTERVAL_MS,
+} from "../../shared/lifecycleThresholds";
+import {
   deriveAttentionFromTelemetryTransition,
   derivePetEventFromTelemetryTransition,
   derivePetEventFromWorkflowTransition,
@@ -479,7 +483,10 @@ export function usePetEventBridge() {
     triggerWorkflowRefresh.current = refreshWorkflowStates;
     refreshWorkflowStates();
 
-    const interval = setInterval(refreshWorkflowStates, 5000);
+    const interval = setInterval(
+      refreshWorkflowStates,
+      WORKFLOW_REFRESH_INTERVAL_MS,
+    );
     return () => {
       disposed = true;
       triggerWorkflowRefresh.current = null;
@@ -539,7 +546,7 @@ export function usePetEventBridge() {
       const info = usePetStore.getState().stateInfo;
       const elapsed = Date.now() - info.enteredAt;
       dispatch({ type: "TIMER", elapsed });
-    }, 1000);
+    }, PET_IDLE_TICK_MS);
 
     return () => {
       if (idleTimer.current) clearInterval(idleTimer.current);

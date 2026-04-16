@@ -33,6 +33,19 @@ import { isRegisteredAppShortcutEvent } from "../stores/shortcutStore";
 import { en } from "../i18n/en";
 import { zh } from "../i18n/zh";
 import type { TerminalTelemetrySnapshot } from "../../shared/telemetry";
+import {
+  CLI_DETECTION_MAX_ATTEMPTS,
+  CLI_DETECTION_POLL_INTERVAL_MS,
+  HOOK_SESSION_FALLBACK_MS,
+  SESSION_POLL_INTERVAL_MS,
+  SESSION_POLL_MAX_ATTEMPTS,
+  SHELL_WAITING_AFTER_SILENCE_MS,
+  TELEMETRY_POLL_FAST_MS,
+  TELEMETRY_POLL_SLOW_MS,
+  TELEMETRY_PUSH_STALE_MS,
+  TURN_COMPLETE_DEDUP_MS,
+  WORKTREE_ACTIVITY_THROTTLE_MS,
+} from "../../shared/lifecycleThresholds";
 import { onTerminalTurnCompleted } from "./summaryScheduler";
 import {
   clampPreviewAnsi,
@@ -126,8 +139,6 @@ type XtermRuntimeModule = typeof xtermModule & {
 };
 
 const dictionaries = { en, zh } as const;
-const WAITING_THRESHOLD = 30_000;
-const ACTIVITY_THROTTLE_MS = 3_000;
 const SPAWN_STAGGER_MS = 150;
 const TERMINAL_PARKING_ROOT_ID = "tc-terminal-runtime-parking-root";
 
@@ -288,9 +299,17 @@ async function pollSessionId(
   startedAt?: string,
 ) {
   const maxAttempts =
-    cliType === "codex" ? 20 : cliType === "wuu" ? 120 : 10;
+    cliType === "codex"
+      ? SESSION_POLL_MAX_ATTEMPTS.codex
+      : cliType === "wuu"
+        ? SESSION_POLL_MAX_ATTEMPTS.wuu
+        : SESSION_POLL_MAX_ATTEMPTS.default;
   const interval =
-    cliType === "codex" ? 500 : cliType === "wuu" ? 1_000 : 5_000;
+    cliType === "codex"
+      ? SESSION_POLL_INTERVAL_MS.codex
+      : cliType === "wuu"
+        ? SESSION_POLL_INTERVAL_MS.wuu
+        : SESSION_POLL_INTERVAL_MS.default;
 
   let cachedPid: number | null = detectedCliPid ?? null;
   if (!cachedPid && cliType === "claude") {
@@ -1039,15 +1058,12 @@ function scheduleSessionCapture(
   });
 }
 
-const DETECT_INTERVAL_MS = 3_000;
-const DETECT_MAX_ATTEMPTS = 30;
-
 function triggerDetection(runtime: ManagedTerminalRuntime) {
   if (runtime.meta.terminal.type !== "shell" || runtime.ptyId === null) {
     return;
   }
 
-  if (runtime.detectAttempts >= DETECT_MAX_ATTEMPTS) return;
+  if (runtime.detectAttempts >= CLI_DETECTION_MAX_ATTEMPTS) return;
 
   // Don't reset an already-scheduled timer — allows detection during active output
   if (runtime.detectTimer) return;
@@ -1099,7 +1115,7 @@ function triggerDetection(runtime: ManagedTerminalRuntime) {
 
       scheduleSessionCapture(runtime, runtime.ptyId!, nextType, result?.pid);
     });
-  }, DETECT_INTERVAL_MS);
+  }, CLI_DETECTION_POLL_INTERVAL_MS);
 }
 
 function handleRuntimeOutput(runtime: ManagedTerminalRuntime, data: string) {
@@ -1117,7 +1133,7 @@ function handleRuntimeOutput(runtime: ManagedTerminalRuntime, data: string) {
         runtime.activityPending = false;
         dispatchWorktreeActivity(runtime.meta.worktreePath);
       }
-    }, ACTIVITY_THROTTLE_MS);
+    }, WORKTREE_ACTIVITY_THROTTLE_MS);
   } else {
     runtime.activityPending = true;
   }
@@ -1134,7 +1150,7 @@ function handleRuntimeOutput(runtime: ManagedTerminalRuntime, data: string) {
       setStatus(runtime, "waiting");
       dispatchWorktreeActivity(runtime.meta.worktreePath);
     }
-  }, WAITING_THRESHOLD);
+  }, SHELL_WAITING_AFTER_SILENCE_MS);
 }
 
 function buildTerminalRuntime(
@@ -1318,7 +1334,7 @@ async function spawnPty(
             );
             scheduleSessionCapture(runtime, ptyId, runtime.meta.terminal.type);
           }
-        }, 30_000);
+        }, HOOK_SESSION_FALLBACK_MS);
       } else if (runtime.meta.terminal.type !== "shell") {
         scheduleSessionCapture(runtime, ptyId, runtime.meta.terminal.type);
       }
@@ -1357,22 +1373,18 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
   setupRuntimeSubscriptions(runtime);
   refreshTelemetry(runtime);
 
-  const TELEMETRY_POLL_SLOW = 30_000;
-  const TELEMETRY_POLL_FAST = 5_000;
-  const PUSH_STALE_THRESHOLD = 60_000;
-
   const telemetryTick = () => {
     refreshTelemetry(runtime);
     const pushStale =
       runtime.lastPushAt > 0 &&
-      Date.now() - runtime.lastPushAt > PUSH_STALE_THRESHOLD;
+      Date.now() - runtime.lastPushAt > TELEMETRY_PUSH_STALE_MS;
     const currentInterval = pushStale
-      ? TELEMETRY_POLL_FAST
-      : TELEMETRY_POLL_SLOW;
+      ? TELEMETRY_POLL_FAST_MS
+      : TELEMETRY_POLL_SLOW_MS;
     if (runtime.telemetryTimer) clearInterval(runtime.telemetryTimer);
     runtime.telemetryTimer = setInterval(telemetryTick, currentInterval);
   };
-  runtime.telemetryTimer = setInterval(telemetryTick, TELEMETRY_POLL_SLOW);
+  runtime.telemetryTimer = setInterval(telemetryTick, TELEMETRY_POLL_SLOW_MS);
 
   // Push-based telemetry: immediate updates from hook events
   if (window.termcanvas.telemetry?.onSnapshotChanged) {
@@ -1479,8 +1491,6 @@ function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
       );
     },
   );
-
-  const TURN_COMPLETE_DEDUP_MS = 5_000;
 
   const handleTurnComplete = () => {
     const now = Date.now();

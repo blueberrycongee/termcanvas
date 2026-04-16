@@ -6,11 +6,14 @@ import { usePreferencesStore } from "../stores/preferencesStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { useLocaleStore } from "../stores/localeStore";
 import { resolveTerminalWithRuntimeState } from "../stores/terminalRuntimeStateStore";
+import {
+  AUTO_SUMMARY_SWEEP_MS,
+  TURN_COMPLETE_SUMMARY_DEBOUNCE_MS,
+} from "../../shared/lifecycleThresholds";
 
 type SummaryCli = "claude" | "codex";
 
 const SUMMARY_ELIGIBLE_TYPES = new Set(["claude", "codex"]);
-const AUTO_SUMMARY_INTERVAL_MS = 10 * 60_000; // 10 minutes
 
 const useSummaryFlightStore = create<{ ids: Set<string> }>(() => ({
   ids: new Set(),
@@ -135,7 +138,7 @@ const turnCompletedTimers = new Map<string, ReturnType<typeof setTimeout>>();
 export function onTerminalTurnCompleted(terminalId: string): void {
   if (!usePreferencesStore.getState().summaryEnabled) return;
 
-  // Debounce: wait 5s in case of rapid turn completions
+  // Debounce so rapid turn completions coalesce (see TURN_COMPLETE_SUMMARY_DEBOUNCE_MS)
   if (turnCompletedTimers.has(terminalId)) return;
 
   const timer = setTimeout(() => {
@@ -172,7 +175,7 @@ export function onTerminalTurnCompleted(terminalId: string): void {
         return;
       }
     }
-  }, 5_000);
+  }, TURN_COMPLETE_SUMMARY_DEBOUNCE_MS);
   turnCompletedTimers.set(terminalId, timer);
 }
 
@@ -223,7 +226,7 @@ export function startAutoSummaryWatcher(): () => void {
     }
   };
 
-  const intervalId = setInterval(tick, AUTO_SUMMARY_INTERVAL_MS);
+  const intervalId = setInterval(tick, AUTO_SUMMARY_SWEEP_MS);
 
   return () => {
     disposed = true;
