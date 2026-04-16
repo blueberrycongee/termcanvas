@@ -13,6 +13,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "generate:icons": "python3 scripts/generate-icons.py",
+    "pet:preview": "tsx scripts/pet-preview.ts > /tmp/pet-preview.html && echo 'Open /tmp/pet-preview.html in a browser'",
     "postinstall": "electron-builder install-app-deps && npx playwright install chromium",
     "typecheck": "tsc --noEmit",
     "typecheck:headless": "tsc --noEmit -p tsconfig.headless.json",
