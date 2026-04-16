@@ -965,19 +965,9 @@ export function TerminalTile({
                   }
                 : undefined),
             }}
-            onClick={() => {
-              const adapter = getComposerAdapter(terminal.type);
-              if (
-                !adapter ||
-                adapter.inputMode === "type" ||
-                !composerEnabled
-              ) {
-                scheduleXtermFocus();
-              } else {
-                window.dispatchEvent(
-                  new CustomEvent("termcanvas:focus-composer"),
-                );
-              }
+            onClick={(e) => {
+              e.stopPropagation();
+              activateTerminalInScene(projectId, worktreeId, terminal.id);
             }}
           />
         </div>
