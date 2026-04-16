@@ -545,10 +545,20 @@ export function TerminalTile({
 
     const fix = (e: MouseEvent) => {
       if (corrected.has(e)) return;
-      if (e.type === "dblclick" && isOverviewMode) {
+      if (
+        isOverviewMode &&
+        (e.type === "mousedown" ||
+          e.type === "mouseup" ||
+          e.type === "click" ||
+          e.type === "dblclick")
+      ) {
         e.stopPropagation();
         e.preventDefault();
-        zoomIntoTerminalFromOverview();
+        if (e.type === "click" && e.detail === 1) {
+          focusTerminalInOverview();
+        } else if (e.type === "dblclick") {
+          zoomIntoTerminalFromOverview();
+        }
         return;
       }
       const { scale } = useCanvasStore.getState().viewport;
@@ -614,7 +624,7 @@ export function TerminalTile({
       e.stopPropagation();
     };
 
-    const types = ["mousedown", "mousemove", "mouseup", "dblclick"];
+    const types = ["mousedown", "mousemove", "mouseup", "click", "dblclick"];
     for (const type of types) {
       containerEl.addEventListener(type, fix as EventListener, true);
     }
@@ -628,7 +638,13 @@ export function TerminalTile({
       containerEl.removeEventListener("mousedown", stopMouseDownBubble);
       containerEl.removeEventListener("pointerdown", capturePointer);
     };
-  }, [containerEl, isOverviewMode, lodMode, zoomIntoTerminalFromOverview]);
+  }, [
+    containerEl,
+    focusTerminalInOverview,
+    isOverviewMode,
+    lodMode,
+    zoomIntoTerminalFromOverview,
+  ]);
 
   // Intercept drag events on the xterm container in the capture phase so they
   // are not swallowed by xterm's own handlers.
