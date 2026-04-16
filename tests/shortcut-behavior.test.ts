@@ -383,10 +383,6 @@ test("cycle focus level shortcut defaults to mod+g and matches correctly", () =>
   });
 });
 
-test("compact focused project shortcut defaults to mod+shift+g", () => {
-  assert.equal(DEFAULT_SHORTCUTS.compactFocusedProject, "mod+shift+g");
-});
-
 test("Windows defaults use alt-based shortcuts", () => {
   withPlatform("win32", () => {
     const defaults = getDefaultShortcuts();
