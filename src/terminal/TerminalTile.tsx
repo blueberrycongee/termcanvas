@@ -539,6 +539,12 @@ export function TerminalTile({
 
     const fix = (e: MouseEvent) => {
       if (corrected.has(e)) return;
+      if (e.type === "dblclick" && isZoomedOut) {
+        e.stopPropagation();
+        e.preventDefault();
+        zoomIntoTerminalFromOverview();
+        return;
+      }
       const { scale } = useCanvasStore.getState().viewport;
       if (scale === 1) return;
 
@@ -616,7 +622,7 @@ export function TerminalTile({
       containerEl.removeEventListener("mousedown", stopMouseDownBubble);
       containerEl.removeEventListener("pointerdown", capturePointer);
     };
-  }, [lodMode, containerEl]);
+  }, [containerEl, isZoomedOut, lodMode, zoomIntoTerminalFromOverview]);
 
   // Intercept drag events on the xterm container in the capture phase so they
   // are not swallowed by xterm's own handlers.
