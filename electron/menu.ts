@@ -48,7 +48,13 @@ export function createMenu(mainWindow: BrowserWindow) {
         { role: "cut" as const },
         { role: "copy" as const },
         { role: "paste" as const },
-        { role: "selectAll" as const },
+        {
+          label: "Select All",
+          accelerator: "CmdOrCtrl+A",
+          click: () => {
+            mainWindow.webContents.send("menu:select-all");
+          },
+        },
       ],
     },
     {

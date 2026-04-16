@@ -772,5 +772,10 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.on("menu:open-folder", listener);
       return () => ipcRenderer.removeListener("menu:open-folder", listener);
     },
+    onSelectAll: (callback: () => void) => {
+      const listener = () => callback();
+      ipcRenderer.on("menu:select-all", listener);
+      return () => ipcRenderer.removeListener("menu:select-all", listener);
+    },
   },
 });

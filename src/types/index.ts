@@ -892,6 +892,7 @@ export interface TermCanvasAPI {
   };
   menu: {
     onOpenFolder: (callback: (dirPath: string) => void) => () => void;
+    onSelectAll: (callback: () => void) => () => void;
   };
   updater: {
     check: () => Promise<unknown>;

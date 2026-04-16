@@ -42,11 +42,28 @@ import { useNotificationStore } from "./stores/notificationStore";
 import { resolveTerminalWithRuntimeState } from "./stores/terminalRuntimeStateStore";
 import { logSlowRendererPath } from "./utils/devPerf";
 import { getCloseAction } from "./closeFlow";
+import { selectAllTerminalRuntime } from "./terminal/terminalRuntimeStore";
+import { performContextualSelectAll } from "./utils/contextualSelectAll";
 
 function isSkipRestoreSnapshot(
   snapshot: ReturnType<typeof readWorkspaceSnapshot>,
 ): snapshot is SkipRestoreSnapshot {
   return !!snapshot && "skipRestore" in snapshot;
+}
+
+function selectFocusedTerminalBuffer(): boolean {
+  const { projects } = useProjectStore.getState();
+  for (const project of projects) {
+    for (const worktree of project.worktrees) {
+      for (const terminal of worktree.terminals) {
+        if (terminal.focused) {
+          return selectAllTerminalRuntime(terminal.id);
+        }
+      }
+    }
+  }
+
+  return false;
 }
 
 function useWorktreeWatcher() {
@@ -393,9 +410,19 @@ export function App() {
 
   useEffect(() => {
     if (!window.termcanvas?.menu) return;
-    return window.termcanvas.menu.onOpenFolder(async (dirPath: string) => {
-      await addProjectFromDirectoryPath(dirPath, t);
+    const removeOpenFolderListener = window.termcanvas.menu.onOpenFolder(
+      async (dirPath: string) => {
+        await addProjectFromDirectoryPath(dirPath, t);
+      },
+    );
+    const removeSelectAllListener = window.termcanvas.menu.onSelectAll(() => {
+      performContextualSelectAll(document.activeElement, selectFocusedTerminalBuffer);
     });
+
+    return () => {
+      removeOpenFolderListener();
+      removeSelectAllListener();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t]);
 

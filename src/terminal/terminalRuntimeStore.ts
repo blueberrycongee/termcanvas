@@ -1715,6 +1715,16 @@ export function blurTerminalRuntime(terminalId: string): boolean {
   return true;
 }
 
+export function selectAllTerminalRuntime(terminalId: string): boolean {
+  const runtime = runtimeRegistry.get(terminalId);
+  if (!runtime?.xterm) {
+    return false;
+  }
+
+  runtime.xterm.selectAll();
+  return true;
+}
+
 export function touchTerminalRuntime(terminalId: string) {
   if (runtimeRegistry.get(terminalId)?.xterm) {
     touchWebGL(terminalId);

@@ -124,6 +124,7 @@ import {
   getBlame,
 } from "./git-info";
 import { createMenu } from "./menu";
+import { isSelectAllShortcutInput } from "./select-all-shortcut";
 import { TelemetryService } from "./telemetry-service";
 import { HookReceiver } from "./hook-receiver";
 import {
@@ -272,6 +273,15 @@ function createWindow() {
     webPreferences.nodeIntegration = false;
     webPreferences.contextIsolation = true;
     delete webPreferences.preload;
+  });
+
+  mainWindow.webContents.on("before-input-event", (event, input) => {
+    if (!isSelectAllShortcutInput(input)) {
+      return;
+    }
+
+    event.preventDefault();
+    mainWindow?.webContents.send("menu:select-all");
   });
 
   mainWindow.once("ready-to-show", () => {

@@ -11,6 +11,12 @@ import {
   matchesShortcut,
   useShortcutStore,
 } from "../src/stores/shortcutStore.ts";
+import { isSelectAllShortcutInput } from "../electron/select-all-shortcut.ts";
+import {
+  isXtermHelperTextArea,
+  performContextualSelectAll,
+  selectAllInTarget,
+} from "../src/utils/contextualSelectAll.ts";
 import { getTerminalFocusOrder } from "../src/stores/projectFocus.ts";
 import {
   createTerminalSelectionAutoCopyState,
@@ -65,6 +71,20 @@ function createTarget(
   return {
     tagName,
     isContentEditable,
+  } as unknown as EventTarget;
+}
+
+function createTargetWithClass(
+  tagName: string,
+  className: string,
+): EventTarget {
+  return {
+    tagName,
+    classList: {
+      contains(token: string) {
+        return token === className;
+      },
+    },
   } as unknown as EventTarget;
 }
 
@@ -194,6 +214,126 @@ test("editable targets allow command shortcuts to reach the app on macOS", () =>
       true,
     );
   });
+});
+
+test("select-all shortcut detection only matches the platform primary modifier", () => {
+  assert.equal(
+    isSelectAllShortcutInput(
+      {
+        type: "keyDown",
+        key: "a",
+        meta: true,
+        control: false,
+        alt: false,
+        shift: false,
+      },
+      "darwin",
+    ),
+    true,
+  );
+  assert.equal(
+    isSelectAllShortcutInput(
+      {
+        type: "keyDown",
+        key: "a",
+        meta: false,
+        control: true,
+        alt: false,
+        shift: false,
+      },
+      "darwin",
+    ),
+    false,
+  );
+  assert.equal(
+    isSelectAllShortcutInput(
+      {
+        type: "keyDown",
+        key: "A",
+        meta: false,
+        control: true,
+        alt: false,
+        shift: false,
+      },
+      "win32",
+    ),
+    true,
+  );
+  assert.equal(
+    isSelectAllShortcutInput(
+      {
+        type: "keyDown",
+        key: "a",
+        meta: false,
+        control: true,
+        alt: true,
+        shift: false,
+      },
+      "win32",
+    ),
+    false,
+  );
+});
+
+test("contextual select-all uses native selection for regular text inputs", () => {
+  let selected = false;
+  const result = performContextualSelectAll(
+    {
+      tagName: "TEXTAREA",
+      select() {
+        selected = true;
+      },
+    } as unknown as EventTarget,
+    () => false,
+  );
+
+  assert.equal(result, "target");
+  assert.equal(selected, true);
+});
+
+test("contextual select-all routes xterm helper textarea to the terminal", () => {
+  let terminalSelected = 0;
+  const target = createTargetWithClass("TEXTAREA", "xterm-helper-textarea");
+
+  assert.equal(isXtermHelperTextArea(target), true);
+  assert.equal(selectAllInTarget(target), false);
+  assert.equal(
+    performContextualSelectAll(target, () => {
+      terminalSelected += 1;
+      return true;
+    }),
+    "terminal",
+  );
+  assert.equal(terminalSelected, 1);
+});
+
+test("contextual select-all selects contenteditable contents", () => {
+  let selectedNode: unknown = null;
+  let addedRange: unknown = null;
+  const target = {
+    isContentEditable: true,
+    ownerDocument: {
+      createRange() {
+        return {
+          selectNodeContents(node: unknown) {
+            selectedNode = node;
+          },
+        };
+      },
+      getSelection() {
+        return {
+          addRange(range: unknown) {
+            addedRange = range;
+          },
+          removeAllRanges() {},
+        };
+      },
+    },
+  } as unknown as EventTarget;
+
+  assert.equal(performContextualSelectAll(target, () => false), "target");
+  assert.equal(selectedNode, target);
+  assert.notEqual(addedRange, null);
 });
 
 test("terminal auto-copy only fires after a pointer-completed selection", () => {

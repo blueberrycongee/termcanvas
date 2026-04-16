@@ -123,6 +123,7 @@ function createMockXterm() {
     loadAddonCalls: 0,
     refreshCalls: 0,
     resizeBindingDisposeCalls: 0,
+    selectAllCalls: 0,
     selectionBindingDisposeCalls: 0,
     selectionPointerCleanupCalls: 0,
     selectionSubscriptions: 0,
@@ -169,6 +170,9 @@ function createMockXterm() {
     },
     refresh() {
       stats.refreshCalls += 1;
+    },
+    selectAll() {
+      stats.selectAllCalls += 1;
     },
     scrollToBottom() {},
     write() {},
@@ -609,6 +613,66 @@ test("starting a parked runtime does not fit or resize the hidden terminal host"
   } finally {
     destroyAllTerminalRuntimes();
     useProjectStore.setState(previousProjectState);
+  }
+});
+
+test("selectAllTerminalRuntime selects the focused xterm buffer", async () => {
+  const mockWindow = installRuntimeGlobals();
+  const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const {
+    destroyAllTerminalRuntimes,
+    ensureTerminalRuntime,
+    getTerminalRuntime,
+    selectAllTerminalRuntime,
+  } = await import("../src/terminal/terminalRuntimeStore.ts");
+  const previousState = useProjectStore.getState();
+
+  destroyAllTerminalRuntimes();
+
+  try {
+    seedProjectState(useProjectStore);
+    mockWindow.termcanvas = {
+      terminal: {
+        create: async () => 42,
+        destroy: async () => {},
+        input() {},
+        onExit() {
+          return () => {};
+        },
+        onOutput() {
+          return () => {};
+        },
+        resize() {},
+      },
+      session: {
+        onTurnComplete() {
+          return () => {};
+        },
+      },
+    };
+
+    ensureTerminalRuntime({
+      projectId: "project-1",
+      terminal: useProjectStore.getState().projects[0].worktrees[0].terminals[0],
+      worktreeId: "worktree-1",
+      worktreePath: "/tmp/project-1",
+    });
+
+    const runtime = getTerminalRuntime("terminal-1");
+    assert.ok(runtime);
+    if (!runtime) {
+      return;
+    }
+
+    const { stats, xterm } = createMockXterm();
+    runtime.xterm = xterm as unknown as typeof runtime.xterm;
+
+    assert.equal(selectAllTerminalRuntime("terminal-1"), true);
+    assert.equal(stats.selectAllCalls, 1);
+    assert.equal(selectAllTerminalRuntime("missing-terminal"), false);
+  } finally {
+    destroyAllTerminalRuntimes();
+    useProjectStore.setState(previousState);
   }
 });
 
