@@ -52,11 +52,19 @@ export function pickIdleWanderTarget(
   };
 }
 
+/**
+ * Get a move target on a terminal's title bar.
+ * @param edge  If true, position pet at the right edge (to avoid blocking focused content).
+ */
 export function getTerminalTitleBarTarget(
   terminal: { x: number; y: number; width: number },
+  edge?: boolean,
 ): PetMoveTarget {
+  const petX = edge
+    ? terminal.x + terminal.width - 48 - 8 // right edge, 8px margin from right
+    : terminal.x + terminal.width / 2 - 24; // center (48/2 = 24)
   return {
-    x: terminal.x + terminal.width / 2 - 24, // center pet on terminal (48/2 = 24)
+    x: petX,
     y: terminal.y,
     terminalId: undefined,
     onTitleBar: true,

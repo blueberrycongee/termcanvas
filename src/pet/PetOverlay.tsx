@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { usePetStore } from "./petStore";
+import type { AttentionPriority } from "./petStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { SpriteRenderer, PIXEL_SIZE, GRID_SIZE } from "./SpriteRenderer";
 import { getCurrentFrame, getFrameInterval } from "./sprites";
@@ -15,6 +16,13 @@ import { sparklePositions } from "./sprites/celebrating";
 
 const PET_SIZE = GRID_SIZE * PIXEL_SIZE; // 48px
 
+const PRIORITY_COLORS: Record<AttentionPriority, string> = {
+  error: "#EF4444",
+  stuck: "#F59E0B",
+  approval: "#3B82F6",
+  success: "#10B981",
+};
+
 export function PetOverlay() {
   usePetEventBridge();
 
@@ -26,6 +34,8 @@ export function PetOverlay() {
   const animationFrame = usePetStore((s) => s.animationFrame);
   const showBubble = usePetStore((s) => s.showBubble);
   const bubbleText = usePetStore((s) => s.bubbleText);
+  const currentAttention = usePetStore((s) => s.currentAttention);
+  const attentionQueue = usePetStore((s) => s.attentionQueue);
   const dispatch = usePetStore((s) => s.dispatch);
   const setPosition = usePetStore((s) => s.setPosition);
   const setMoveTarget = usePetStore((s) => s.setMoveTarget);
@@ -112,6 +122,15 @@ export function PetOverlay() {
   const screenX = viewport.x + position.x * viewport.scale;
   const screenY = viewport.y + position.y * viewport.scale;
   const scale = viewport.scale;
+
+  // Attention bubble properties
+  const hasAttention = !!currentAttention;
+  const queueCount = attentionQueue.length;
+  const attnColor = currentAttention
+    ? PRIORITY_COLORS[currentAttention.priority]
+    : "#D1D5DB";
+  const attnText = currentAttention?.message ?? "";
+  const attnBubbleWidth = Math.max(50, attnText.length * 7 + 16);
 
   return (
     <svg
@@ -208,37 +227,88 @@ export function PetOverlay() {
           </text>
         )}
 
-        {/* Speech bubble */}
-        {showBubble && bubbleText && (
-          <g transform={`translate(${PET_SIZE + 4}, ${-16})`}>
+        {/* Attention bubble — persistent, colored, with queue badge */}
+        {hasAttention ? (
+          <g transform={`translate(${PET_SIZE + 4}, ${-20})`}>
             <rect
               x={0}
               y={0}
-              width={Math.max(30, bubbleText.length * 7 + 12)}
-              height={20}
+              width={attnBubbleWidth}
+              height={22}
               rx={4}
               fill={C.bubble}
-              stroke={C.bubbleBorder}
-              strokeWidth={1}
+              stroke={attnColor}
+              strokeWidth={1.5}
             />
             {/* Bubble tail */}
             <polygon
-              points="-2,10 4,10 4,16"
+              points="-2,11 4,11 4,17"
               fill={C.bubble}
-              stroke={C.bubbleBorder}
-              strokeWidth={1}
+              stroke={attnColor}
+              strokeWidth={1.5}
             />
-            <rect x={-1} y={9} width={6} height={3} fill={C.bubble} />
+            <rect x={-1} y={10} width={6} height={3} fill={C.bubble} />
             <text
               x={6}
-              y={14}
+              y={15}
               fontSize={10}
               fill="#374151"
               fontFamily="monospace"
             >
-              {bubbleText}
+              {attnText}
             </text>
+            {/* Queue count badge */}
+            {queueCount > 0 && (
+              <g transform={`translate(${attnBubbleWidth - 2}, ${-4})`}>
+                <circle r={7} fill={attnColor} />
+                <text
+                  x={0}
+                  y={3.5}
+                  fontSize={9}
+                  fill="white"
+                  textAnchor="middle"
+                  fontFamily="monospace"
+                  fontWeight="bold"
+                >
+                  {queueCount > 9 ? "9+" : queueCount}
+                </text>
+              </g>
+            )}
           </g>
+        ) : (
+          /* Regular speech bubble — transient */
+          showBubble &&
+          bubbleText && (
+            <g transform={`translate(${PET_SIZE + 4}, ${-16})`}>
+              <rect
+                x={0}
+                y={0}
+                width={Math.max(30, bubbleText.length * 7 + 12)}
+                height={20}
+                rx={4}
+                fill={C.bubble}
+                stroke={C.bubbleBorder}
+                strokeWidth={1}
+              />
+              {/* Bubble tail */}
+              <polygon
+                points="-2,10 4,10 4,16"
+                fill={C.bubble}
+                stroke={C.bubbleBorder}
+                strokeWidth={1}
+              />
+              <rect x={-1} y={9} width={6} height={3} fill={C.bubble} />
+              <text
+                x={6}
+                y={14}
+                fontSize={10}
+                fill="#374151"
+                fontFamily="monospace"
+              >
+                {bubbleText}
+              </text>
+            </g>
+          )
         )}
       </g>
     </svg>
