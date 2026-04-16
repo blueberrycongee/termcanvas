@@ -200,6 +200,7 @@ export function TerminalTile({
   const copiedNonce = useTerminalRuntimeStore(
     (s) => s.terminals[terminal.id]?.copiedNonce ?? 0,
   );
+  const mountNonceRef = useRef(copiedNonce);
   const previewText = useTerminalRuntimeStore(
     (s) => s.terminals[terminal.id]?.previewText ?? "",
   );
@@ -276,9 +277,16 @@ export function TerminalTile({
   );
 
   useEffect(() => {
-    if (copiedNonce === 0) {
+    // Skip the initial mount — only show the toast when the nonce actually
+    // increments after the component is alive.  Without this guard, terminals
+    // re-mounted by React Flow's onlyRenderVisibleElements (e.g. after
+    // cmd+e zoom-to-fit) would re-flash the "Copied" toast for every
+    // terminal that was copied in the past.
+    if (copiedNonce === 0 || copiedNonce === mountNonceRef.current) {
+      mountNonceRef.current = copiedNonce;
       return;
     }
+    mountNonceRef.current = copiedNonce;
 
     if (copiedTimerRef.current) {
       clearTimeout(copiedTimerRef.current);
