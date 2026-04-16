@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { usePetStore } from "./petStore";
 import type { AttentionPriority } from "./petStore";
 import { useCanvasStore } from "../stores/canvasStore";
@@ -14,6 +14,7 @@ import { C } from "./sprites/colors";
 import { zzzOffsets } from "./sprites/sleeping";
 import { sparklePositions } from "./sprites/celebrating";
 import { PET_SIZE } from "./constants";
+import { ParticleLayer, type Particle } from "./ParticleLayer";
 
 const PRIORITY_COLORS: Record<AttentionPriority, string> = {
   error: "#EF4444",
@@ -21,6 +22,63 @@ const PRIORITY_COLORS: Record<AttentionPriority, string> = {
   approval: "#3B82F6",
   success: "#10B981",
 };
+
+// State names that place the pet in a lying/compacted pose — skip the shadow there.
+const SHADOW_SKIP: Record<string, boolean> = {
+  sleeping: true,
+  goodbye: true,
+};
+
+// Celebrating cadence: [crouch, peak, peak, crouch, landing, landing]
+// We trigger a dust puff when the frame index crosses INTO `landing`.
+const CELEBRATING_LANDING_FRAME = 4;
+
+function spawnHearts(): Particle[] {
+  const now = Date.now();
+  const count = 4;
+  const half = PET_SIZE / 2;
+  return Array.from({ length: count }, (_, i) => {
+    const angle = -Math.PI / 2 + (i - (count - 1) / 2) * 0.45;
+    const speed = 22 + Math.random() * 10;
+    return {
+      id: `heart-${now}-${i}-${Math.random().toString(36).slice(2, 5)}`,
+      kind: "heart" as const,
+      ox: half + (Math.random() - 0.5) * 6,
+      oy: 18 + (Math.random() - 0.5) * 6,
+      dx: Math.cos(angle) * speed,
+      dy: Math.sin(angle) * speed,
+      spawnedAt: now + i * 50,
+      durationMs: 1100,
+    };
+  });
+}
+
+function spawnDust(): Particle[] {
+  const now = Date.now();
+  const baseY = PET_SIZE - 16;
+  return [
+    {
+      id: `dust-l-${now}`,
+      kind: "dust" as const,
+      ox: 16,
+      oy: baseY,
+      dx: -16,
+      dy: -6,
+      spawnedAt: now,
+      durationMs: 550,
+    },
+    {
+      id: `dust-r-${now}`,
+      kind: "dust" as const,
+      ox: PET_SIZE - 16,
+      oy: baseY,
+      dx: 16,
+      dy: -6,
+      spawnedAt: now,
+      durationMs: 550,
+    },
+  ];
+}
 
 export function PetOverlay() {
   usePetEventBridge();
@@ -50,6 +108,12 @@ export function PetOverlay() {
 
   const animFrameRef = useRef<number>(0);
   const lastFrameTimeRef = useRef(0);
+
+  const [particles, setParticles] = useState<Particle[]>([]);
+
+  const spawnParticles = useCallback((batch: Particle[]) => {
+    setParticles((prev) => [...prev, ...batch]);
+  }, []);
 
   // Main animation loop
   useEffect(() => {
@@ -93,9 +157,41 @@ export function PetOverlay() {
     };
   }, [advanceFrame, setPosition, setMoveTarget, setIsMoving, setFacingRight]);
 
+  // Prune expired particles periodically
+  useEffect(() => {
+    if (particles.length === 0) return;
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setParticles((prev) =>
+        prev.filter((p) => now - p.spawnedAt < p.durationMs + 200),
+      );
+    }, 250);
+    return () => clearInterval(interval);
+  }, [particles.length]);
+
+  // Dust-puff on celebrating landing frame
+  const prevCelebrateFrameRef = useRef(-1);
+  useEffect(() => {
+    if (stateInfo.state !== "celebrating" && stateInfo.state !== "triumph") {
+      prevCelebrateFrameRef.current = -1;
+      return;
+    }
+    const frameIdx = animationFrame % 6;
+    const prev = prevCelebrateFrameRef.current;
+    const justLanded =
+      frameIdx === CELEBRATING_LANDING_FRAME &&
+      prev !== CELEBRATING_LANDING_FRAME &&
+      prev !== CELEBRATING_LANDING_FRAME + 1;
+    if (justLanded) {
+      spawnParticles(spawnDust());
+    }
+    prevCelebrateFrameRef.current = frameIdx;
+  }, [animationFrame, stateInfo.state, spawnParticles]);
+
   // Click handler
   const handleClick = useCallback(() => {
     dispatch({ type: "CLICK" });
+    spawnParticles(spawnHearts());
 
     const messages = [
       "(*^▽^*)",
@@ -104,9 +200,16 @@ export function PetOverlay() {
       "(◕ᴗ◕✿)",
       "♪♪♪",
       "カピバラ！",
+      "(・ω・)ノ",
+      "♥",
+      "*notices you*",
+      "(=^･ω･^=)",
     ];
-    showSpeechBubble(messages[Math.floor(Math.random() * messages.length)], 2000);
-  }, [dispatch, showSpeechBubble]);
+    showSpeechBubble(
+      messages[Math.floor(Math.random() * messages.length)],
+      2000,
+    );
+  }, [dispatch, showSpeechBubble, spawnParticles]);
 
   // Transform pet world coordinates to screen coordinates
   const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
@@ -131,6 +234,16 @@ export function PetOverlay() {
   const attnText = currentAttention?.message ?? "";
   const attnBubbleWidth = Math.max(50, attnText.length * 7 + 16);
 
+  // Ground shadow gets smaller when airborne (celebrate peak frames)
+  let shadowScale = 1;
+  if (displayState === "celebrating" || displayState === "triumph") {
+    const frameIdx = animationFrame % 6;
+    // peak frames are 1 and 2 — shadow shrinks at the top of the jump
+    if (frameIdx === 1 || frameIdx === 2) shadowScale = 0.55;
+    else if (frameIdx === 0 || frameIdx === 3) shadowScale = 0.8;
+  }
+  const showShadow = !SHADOW_SKIP[displayState];
+
   return (
     <svg
       width={svgWidth}
@@ -150,6 +263,17 @@ export function PetOverlay() {
         style={{ cursor: "pointer", pointerEvents: "auto" }}
         onClick={handleClick}
       >
+        {/* Ground shadow — drawn first so it sits behind the pet */}
+        {showShadow && (
+          <ellipse
+            cx={PET_SIZE / 2}
+            cy={PET_SIZE - 6}
+            rx={PET_SIZE * 0.34 * shadowScale}
+            ry={4 * shadowScale}
+            fill={C.shadow}
+          />
+        )}
+
         <SpriteRenderer
           frame={frame}
           x={0}
@@ -225,6 +349,9 @@ export function PetOverlay() {
             ?
           </text>
         )}
+
+        {/* Particle overlay (hearts / dust / notes) */}
+        <ParticleLayer particles={particles} />
 
         {/* Attention bubble — persistent, colored, with queue badge */}
         {hasAttention ? (
