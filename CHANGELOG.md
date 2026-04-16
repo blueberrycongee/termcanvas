@@ -2,6 +2,22 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.28.3] - 2026-04-16
+
+### Added
+- Pet: richer telemetry-driven reactions for tool running, tool pending, workflow start/completion/failure, stall, and stuck states
+
+### Fixed
+- Keyboard: Cmd/Ctrl+A now scopes "Select All" to the active context, selecting the focused input/editor or the focused terminal buffer instead of the wrong surface
+- Pet: suppress repeated completion alerts after a finished terminal has already been seen
+
+### Added (zh-CN)
+- 桌宠：接入更丰富的遥测驱动反馈，覆盖工具运行、工具等待、工作流开始/完成/失败、停滞与卡住等状态
+
+### Fixed (zh-CN)
+- 键盘：Cmd/Ctrl+A 的“全选”现在按当前焦点上下文生效，会优先选中当前输入框/编辑区，或当前聚焦终端的缓冲区，而不是错误作用到别的区域
+- 桌宠：已查看过完成结果的终端不再重复弹出完成提醒
+
 ## [0.28.2] - 2026-04-16
 
 ### Added
