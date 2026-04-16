@@ -378,18 +378,33 @@ export function SettingsModal({ onClose }: Props) {
       setCliPendingAction(nextEnabled ? "register" : "unregister");
 
       try {
-        const ok = nextEnabled
-          ? await window.termcanvas.cli.register()
-          : await window.termcanvas.cli.unregister();
-
-        if (!ok) {
-          useNotificationStore
-            .getState()
-            .notify("error", nextEnabled ? t.cli_register_failed : t.cli_unregister_failed);
-          return;
+        if (nextEnabled) {
+          const result = await window.termcanvas.cli.register();
+          if (!result.ok) {
+            useNotificationStore
+              .getState()
+              .notify("error", t.cli_register_failed);
+            return;
+          }
+          if (!result.skillInstalled) {
+            // CLI registered but skill injection failed — agent sessions
+            // started through hydra may miss hydra-specific guidance. Surface
+            // it instead of silently succeeding.
+            useNotificationStore
+              .getState()
+              .notify("warn", t.cli_register_skill_failed);
+          }
+          setCliRegistered(true);
+        } else {
+          const ok = await window.termcanvas.cli.unregister();
+          if (!ok) {
+            useNotificationStore
+              .getState()
+              .notify("error", t.cli_unregister_failed);
+            return;
+          }
+          setCliRegistered(false);
         }
-
-        setCliRegistered(nextEnabled);
       } finally {
         setCliPendingAction(null);
         setCliLoading(false);

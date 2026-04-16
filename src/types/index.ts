@@ -751,7 +751,7 @@ export interface TermCanvasAPI {
   };
   cli: {
     isRegistered: () => Promise<boolean>;
-    register: () => Promise<boolean>;
+    register: () => Promise<{ ok: boolean; skillInstalled: boolean }>;
     unregister: () => Promise<boolean>;
     validateCommand: (
       command: string,

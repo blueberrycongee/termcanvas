@@ -71,7 +71,7 @@ export function buildCreateOnlyPrompt(
     runId: string;
   },
 ): string {
-  return `Read ${taskFile} for your task instructions and completion requirements.`;
+  return `You MUST read ${taskFile} FIRST — before any other action. It is the single source of truth for your task, context files, output paths, and the result.json contract. Do not write code, run commands, or plan until you have read it.`;
 }
 
 export async function dispatchCreateOnly(

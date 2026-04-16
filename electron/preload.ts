@@ -450,7 +450,11 @@ contextBridge.exposeInMainWorld("termcanvas", {
   cli: {
     isRegistered: () =>
       ipcRenderer.invoke("cli:is-registered") as Promise<boolean>,
-    register: () => ipcRenderer.invoke("cli:register") as Promise<boolean>,
+    register: () =>
+      ipcRenderer.invoke("cli:register") as Promise<{
+        ok: boolean;
+        skillInstalled: boolean;
+      }>,
     unregister: () => ipcRenderer.invoke("cli:unregister") as Promise<boolean>,
     validateCommand: (command: string, args?: string[]) =>
       ipcRenderer.invoke("cli:validate-command", command, args) as Promise<

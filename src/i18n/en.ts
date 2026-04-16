@@ -330,6 +330,8 @@ export const en = {
   cli_registering: "Registering\u2026",
   cli_unregistering: "Unregistering\u2026",
   cli_register_failed: "Failed to enable CLI integration",
+  cli_register_skill_failed:
+    "CLI registered, but skill injection failed. Hydra-managed agents may miss hydra-specific guidance.",
   cli_unregister_failed: "Failed to disable CLI integration",
 
   settings_agents: "Agents",

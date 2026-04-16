@@ -321,6 +321,8 @@ export const zh = {
   cli_registering: "注册中…",
   cli_unregistering: "取消注册中…",
   cli_register_failed: "启用命令行集成失败",
+  cli_register_skill_failed:
+    "命令行已注册，但 skill 注入失败。由 Hydra 管理的 agent 可能缺失 hydra 专属指引。",
   cli_unregister_failed: "关闭命令行集成失败",
 
   settings_agents: "Agent",

@@ -1313,12 +1313,13 @@ function setupIpc() {
 
   ipcMain.handle("cli:is-registered", () => isCliRegistered(getCliDir()));
   ipcMain.handle("cli:register", () => {
-    const ok = registerCli(getCliDir());
-    if (ok) {
-      writeCliIntegrationState({ autoRegister: true });
-      installSkill();
+    const cliOk = registerCli(getCliDir());
+    if (!cliOk) {
+      return { ok: false, skillInstalled: false };
     }
-    return ok;
+    writeCliIntegrationState({ autoRegister: true });
+    const skillInstalled = installSkill();
+    return { ok: true, skillInstalled };
   });
   ipcMain.handle("cli:unregister", () => {
     const ok = unregisterCli(getCliDir());

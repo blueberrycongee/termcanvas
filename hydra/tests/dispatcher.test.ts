@@ -5,7 +5,7 @@ import {
   dispatchCreateOnly,
 } from "../src/dispatcher.ts";
 
-test("buildCreateOnlyPrompt emits a slim result + report contract", () => {
+test("buildCreateOnlyPrompt commands the agent to read task.md first", () => {
   const prompt = buildCreateOnlyPrompt(
     "/repo/.hydra/workflows/wf-1/assignments/asg-1/runs/run-1/task.md",
     "wf-1",
@@ -16,15 +16,13 @@ test("buildCreateOnlyPrompt emits a slim result + report contract", () => {
     },
   );
 
+  // Prompt is intentionally slim — task.md is the single source of truth for
+  // the schema, output paths, etc. The prompt's only job is to mandate the
+  // read-first ordering so the agent can't skip the contract.
   assert.ok(!prompt.includes("\n"), "prompt must stay single-line");
-  assert.match(prompt, /task\.md/);
-  assert.match(prompt, /result\.json/);
-  assert.match(prompt, /report\.md/);
-  assert.match(prompt, /report_file/);
-  assert.match(prompt, /hydra\/result\/v0\.1/);
-  assert.match(prompt, /assignment_id=asg-1/);
-  assert.match(prompt, /run_id=run-1/);
-  assert.match(prompt, /atomically/i);
+  assert.match(prompt, /task\.md/, "prompt must reference the task file path");
+  assert.match(prompt, /MUST/, "prompt must use imperative MUST");
+  assert.match(prompt, /FIRST/, "prompt must assert read-first ordering");
 });
 
 test("dispatchCreateOnly launches a terminal with the create-only prompt", async () => {
