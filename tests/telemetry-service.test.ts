@@ -359,7 +359,11 @@ test("telemetry service updates meaningful progress from token growth and proces
   );
 
   snapshot = service.getTerminalSnapshot("terminal-1");
-  assert.equal(snapshot?.foreground_tool, "npm run build");
+  // Agent terminal in "in_turn" with no active tool call: descendants
+  // are infrastructure noise (MCP servers, build subprocesses spawned
+  // by the agent's previous step that haven't died yet), not the tool
+  // the agent is currently running. Keep foreground_tool unset.
+  assert.equal(snapshot?.foreground_tool, undefined);
   assert.equal(
     snapshot?.last_meaningful_progress_at,
     "2026-03-26T00:00:03.000Z",
@@ -888,5 +892,135 @@ test(
     } finally {
       mock.timers.reset();
     }
+  },
+);
+
+test(
+  "Codex with idle MCP daemon descendants does not get foreground_tool polluted",
+  () => {
+    // Regression: opening a Codex terminal configured with playwright-mcp
+    // used to show a persistent "running playwright mcp" yellow state on
+    // the session panel. Cause: Codex spawns the MCP server as a
+    // subprocess (see thirdparty/codex .../rmcp_client.rs); the shell's
+    // descendants include that daemon forever, and we blindly wrote its
+    // command into foreground_tool. Session panel then read
+    // `turn_state=in_turn && foreground_tool!=null` → "running".
+    const service = new TelemetryService({ processPollIntervalMs: 0 });
+    service.registerTerminal({
+      terminalId: "codex-mcp",
+      worktreePath: "/repo",
+      provider: "codex",
+    });
+    service.recordSessionAttached({
+      terminalId: "codex-mcp",
+      provider: "codex",
+      sessionId: "sess",
+      confidence: "medium",
+    });
+    // Mimic the "Codex just started, hasn't run a tool yet" steady state.
+    service.recordSessionTelemetry("codex-mcp", [
+      {
+        at: "2026-04-16T00:00:01.000Z",
+        event_type: "turn_started",
+        turn_state: "in_turn",
+        meaningful_progress: true,
+      },
+    ]);
+
+    service.recordProcessSnapshot(
+      "codex-mcp",
+      {
+        descendantProcesses: [
+          { pid: 10, command: "codex", cli_type: "codex" },
+          // Daemon: playwright-mcp server. Long-lived, user never typed a thing.
+          { pid: 20, command: "npx @playwright/mcp-server", cli_type: null },
+        ],
+        foregroundTool: "npx @playwright/mcp-server",
+      },
+      "2026-04-16T00:00:02.000Z",
+    );
+
+    const snap = service.getTerminalSnapshot("codex-mcp");
+    assert.equal(snap?.foreground_tool, undefined);
+    service.dispose();
+  },
+);
+
+test(
+  "Codex with active tool call DOES pick up descendant foreground_tool",
+  () => {
+    // Positive case: when the session *does* say a tool is running, the
+    // ps-derived foreground_tool remains useful (covers hook-less Codex
+    // flows where the session is the only signal we have).
+    const service = new TelemetryService({ processPollIntervalMs: 0 });
+    service.registerTerminal({
+      terminalId: "codex-tool",
+      worktreePath: "/repo",
+      provider: "codex",
+    });
+    service.recordSessionAttached({
+      terminalId: "codex-tool",
+      provider: "codex",
+      sessionId: "sess",
+      confidence: "medium",
+    });
+    service.recordSessionTelemetry("codex-tool", [
+      {
+        at: "2026-04-16T00:00:01.000Z",
+        event_type: "exec_command_begin",
+        tool_name: "exec_command",
+        call_id: "call-1",
+        lifecycle: "start",
+        turn_state: "tool_running",
+        meaningful_progress: true,
+      },
+    ]);
+
+    service.recordProcessSnapshot(
+      "codex-tool",
+      {
+        descendantProcesses: [
+          { pid: 10, command: "codex", cli_type: "codex" },
+          { pid: 11, command: "npm run build", cli_type: null },
+        ],
+        foregroundTool: "npm run build",
+      },
+      "2026-04-16T00:00:02.000Z",
+    );
+
+    const snap = service.getTerminalSnapshot("codex-tool");
+    assert.equal(snap?.foreground_tool, "npm run build");
+    service.dispose();
+  },
+);
+
+test(
+  "shell terminal keeps the descendant foreground_tool verbatim",
+  () => {
+    // Guard against over-correction: plain shell terminals have no
+    // hooks or session events, so the ps-derived tool name is the ONLY
+    // signal available and must keep flowing through.
+    const service = new TelemetryService({ processPollIntervalMs: 0 });
+    service.registerTerminal({
+      terminalId: "shell-1",
+      worktreePath: "/repo",
+      // no provider → plain shell
+    });
+
+    service.recordProcessSnapshot(
+      "shell-1",
+      {
+        descendantProcesses: [
+          { pid: 10, command: "bash", cli_type: null },
+          { pid: 11, command: "vim README.md", cli_type: null },
+        ],
+        foregroundTool: "vim README.md",
+      },
+      "2026-04-16T00:00:01.000Z",
+    );
+
+    const snap = service.getTerminalSnapshot("shell-1");
+    assert.equal(snap?.foreground_tool, "vim README.md");
+    service.dispose();
   },
 );

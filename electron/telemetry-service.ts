@@ -843,9 +843,33 @@ export class TelemetryService {
       }),
     );
 
-    // Don't let ps data overwrite hook-set foreground_tool while a tool is running
-    if (state.pendingPreToolUse) {
-      // Auto-reset if stuck for >5 minutes (CC crashed without PostToolUse)
+    // Deciding what to do with the process-derived foreground_tool is
+    // subtle because agents (claude/codex/wuu) and plain shell terminals
+    // want opposite behaviour:
+    //
+    //   - Shell terminals have no hook / session signal, so the
+    //     descendant process tree IS the primary source of truth for
+    //     "which tool is the user currently running". We keep that.
+    //
+    //   - Agent terminals get their authoritative foreground_tool from
+    //     hooks (PreToolUse → tool_name) or from session events. Outside
+    //     of an actual tool call, descendant processes are long-lived
+    //     infrastructure (MCP servers like playwright-mcp, and the
+    //     Chromium children they spawn) that aren't tools the agent is
+    //     running — but they'd pollute the session panel into a perma-
+    //     "running <mcp>" yellow state otherwise.
+    const provider = state.snapshot.provider;
+    const isAgentTerminal =
+      provider === "claude" || provider === "codex" || provider === "wuu";
+    const hasActiveHookTool = state.pendingPreToolUse;
+    const hasActiveSessionTool =
+      state.activeToolCalls.size > 0 ||
+      state.snapshot.turn_state === "tool_running" ||
+      state.snapshot.turn_state === "tool_pending";
+
+    if (hasActiveHookTool) {
+      // Hook already knows the exact tool name; ps data is noisier and
+      // can't improve on it. Only intervene on the stale-recovery path.
       if (this.now() - state.pendingPreToolUseAt > PRE_TOOL_USE_STALE_RESET_MS) {
         console.warn(
           `[Telemetry] Resetting stale pendingPreToolUse for terminal=${terminalId} (>5min without PostToolUse)`,
@@ -859,8 +883,18 @@ export class TelemetryService {
           state.awaitingInputTimer = null;
         }
       }
-    } else {
+    } else if (!isAgentTerminal) {
+      // Plain shell — ps is the only signal we have.
       state.snapshot.foreground_tool = snapshot.foregroundTool ?? undefined;
+    } else if (hasActiveSessionTool) {
+      // Agent, session says a tool is running, hook has not claimed one.
+      // ps-derived tool name fills the gap (e.g. hook-less agent flows).
+      state.snapshot.foreground_tool = snapshot.foregroundTool ?? undefined;
+    } else {
+      // Agent, idle: descendants are daemons (MCP servers etc). Drop
+      // anything ps might have picked up so the panel doesn't invent a
+      // running tool where there isn't one.
+      state.snapshot.foreground_tool = undefined;
     }
 
     if (hasMeaningfulChange) {
