@@ -268,6 +268,12 @@ export function TerminalTile({
     setIsEditingCustomTitle(false);
   }, [customTitleDraft, projectId, terminal.id, worktreeId]);
 
+  const zoomIntoTerminalFromOverview = useCallback(() => {
+    activateTerminalInScene(projectId, worktreeId, terminal.id);
+    panToTerminal(terminal.id);
+    useViewportFocusStore.getState().setZoomedOutTerminalId(null);
+  }, [projectId, terminal.id, worktreeId]);
+
   useEffect(() => {
     if (!isEditingCustomTitle) return;
 
@@ -715,15 +721,14 @@ export function TerminalTile({
       }}
       onClick={(e) => {
         e.stopPropagation();
-        if (isZoomedOut) {
-          activateTerminalInScene(projectId, worktreeId, terminal.id);
-          panToTerminal(terminal.id);
-          useViewportFocusStore.getState().setZoomedOutTerminalId(null);
-          return;
-        }
         activateTerminalInScene(projectId, worktreeId, terminal.id, {
           focusInput: false,
         });
+      }}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        if (!isZoomedOut) return;
+        zoomIntoTerminalFromOverview();
       }}
       onMouseEnter={() => {
         window.dispatchEvent(
@@ -746,6 +751,10 @@ export function TerminalTile({
         }}
         onDoubleClick={(e) => {
           e.stopPropagation();
+          if (isZoomedOut) {
+            zoomIntoTerminalFromOverview();
+            return;
+          }
           panToTerminal(terminal.id);
         }}
       >
@@ -777,6 +786,10 @@ export function TerminalTile({
           onMouseDown={(e) => e.stopPropagation()}
           onDoubleClick={(e) => {
             e.stopPropagation();
+            if (isZoomedOut) {
+              zoomIntoTerminalFromOverview();
+              return;
+            }
             startCustomTitleEdit();
           }}
         >
