@@ -217,11 +217,12 @@ export function TerminalTile({
   const isSummarizing = useIsSummarizing(terminal.id);
   const sidebarDragActive = useSidebarDragStore((s) => s.active);
   const viewportScale = useCanvasStore((s) => s.viewport.scale);
+  const zoomedOutTerminalId = useViewportFocusStore((s) => s.zoomedOutTerminalId);
   const fitAllScale = useViewportFocusStore((s) => s.fitAllScale);
-  const isZoomedOut =
+  const isOverviewMode =
     fitAllScale !== null &&
-    viewportScale <= fitAllScale * 1.2 &&
-    !terminal.focused;
+    zoomedOutTerminalId !== null &&
+    viewportScale <= fitAllScale * 1.2;
   const liveRuntimeState = useResolvedTerminalRuntimeState(terminal);
   const liveTerminal = {
     ...terminal,
@@ -272,6 +273,11 @@ export function TerminalTile({
     activateTerminalInScene(projectId, worktreeId, terminal.id);
     panToTerminal(terminal.id);
     useViewportFocusStore.getState().setZoomedOutTerminalId(null);
+  }, [projectId, terminal.id, worktreeId]);
+
+  const focusTerminalInOverview = useCallback(() => {
+    activateTerminalInScene(projectId, worktreeId, terminal.id);
+    useViewportFocusStore.getState().setZoomedOutTerminalId(terminal.id);
   }, [projectId, terminal.id, worktreeId]);
 
   useEffect(() => {
@@ -539,7 +545,7 @@ export function TerminalTile({
 
     const fix = (e: MouseEvent) => {
       if (corrected.has(e)) return;
-      if (e.type === "dblclick" && isZoomedOut) {
+      if (e.type === "dblclick" && isOverviewMode) {
         e.stopPropagation();
         e.preventDefault();
         zoomIntoTerminalFromOverview();
@@ -622,7 +628,7 @@ export function TerminalTile({
       containerEl.removeEventListener("mousedown", stopMouseDownBubble);
       containerEl.removeEventListener("pointerdown", capturePointer);
     };
-  }, [containerEl, isZoomedOut, lodMode, zoomIntoTerminalFromOverview]);
+  }, [containerEl, isOverviewMode, lodMode, zoomIntoTerminalFromOverview]);
 
   // Intercept drag events on the xterm container in the capture phase so they
   // are not swallowed by xterm's own handlers.
@@ -727,13 +733,17 @@ export function TerminalTile({
       }}
       onClick={(e) => {
         e.stopPropagation();
+        if (isOverviewMode) {
+          focusTerminalInOverview();
+          return;
+        }
         activateTerminalInScene(projectId, worktreeId, terminal.id, {
           focusInput: false,
         });
       }}
       onDoubleClick={(e) => {
         e.stopPropagation();
-        if (!isZoomedOut) return;
+        if (!isOverviewMode) return;
         zoomIntoTerminalFromOverview();
       }}
       onMouseEnter={() => {
@@ -757,7 +767,7 @@ export function TerminalTile({
         }}
         onDoubleClick={(e) => {
           e.stopPropagation();
-          if (isZoomedOut) {
+          if (isOverviewMode) {
             zoomIntoTerminalFromOverview();
             return;
           }
@@ -792,7 +802,7 @@ export function TerminalTile({
           onMouseDown={(e) => e.stopPropagation()}
           onDoubleClick={(e) => {
             e.stopPropagation();
-            if (isZoomedOut) {
+            if (isOverviewMode) {
               zoomIntoTerminalFromOverview();
               return;
             }
@@ -972,8 +982,23 @@ export function TerminalTile({
                 : undefined),
             }}
             onClick={(e) => {
-              e.stopPropagation();
-              activateTerminalInScene(projectId, worktreeId, terminal.id);
+              if (isOverviewMode) {
+                e.stopPropagation();
+                focusTerminalInOverview();
+                return;
+              }
+              const adapter = getComposerAdapter(terminal.type);
+              if (
+                !adapter ||
+                adapter.inputMode === "type" ||
+                !composerEnabled
+              ) {
+                scheduleXtermFocus();
+              } else {
+                window.dispatchEvent(
+                  new CustomEvent("termcanvas:focus-composer"),
+                );
+              }
             }}
           />
         </div>
