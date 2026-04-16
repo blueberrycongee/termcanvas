@@ -4,6 +4,7 @@ import { loadAgent, listAgents, deleteAgent } from "./store.ts";
 import { isTermCanvasRunning, terminalDestroy, terminalStatus } from "./termcanvas.ts";
 import { AssignmentManager } from "./assignment/manager.ts";
 import { loadWorkbench } from "./workflow-store.ts";
+import { ensureLeadCaller } from "./lead-guard.ts";
 
 export interface CleanupArgs {
   agentId?: string;
@@ -133,12 +134,19 @@ function cleanupOne(agentId: string, force: boolean): void {
   console.log(`Cleaned up ${agentId}.`);
 }
 
-function cleanupWorkbench(workbenchId: string, repo: string, force: boolean): void {
+export function cleanupWorkbench(workbenchId: string, repo: string, force: boolean): void {
   const workflow = loadWorkbench(repo, workbenchId);
   if (!workflow) {
     console.error(`Workbench ${workbenchId} not found.`);
     return;
   }
+
+  // Every destructive Lead-op must verify single-decider semantics before
+  // touching the workbench's terminals, worktree, or branch — a non-Lead
+  // caller running `hydra cleanup` could otherwise wipe out another Lead's
+  // in-flight state. Tooling/scripts without TERMCANVAS_TERMINAL_ID remain
+  // permitted by design (see lead-guard.ts).
+  ensureLeadCaller(workflow);
 
   const manager = new AssignmentManager(repo, workbenchId);
 
