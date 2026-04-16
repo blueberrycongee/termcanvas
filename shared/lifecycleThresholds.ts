@@ -173,6 +173,28 @@ export const DEFAULT_CLAUDE_STALL_MS = 45_000;
 export const DEFAULT_CODEX_STALL_MS = 180_000;
 
 /**
+ * Advisory stall thresholds used by the hydra watch loop when deciding
+ * whether to surface a stall_advisory DecisionPoint. The *_STALL_MS
+ * constants drive UI status ("stall_candidate"), which is deliberately
+ * aggressive so the canvas can flag slow agents early. Promoting that
+ * signal to a control-flow decision — one that interrupts the Lead —
+ * demands a much more conservative threshold: by the time we advise the
+ * Lead to intervene, we want to be fairly sure the worker has stopped
+ * making progress, not just that it is in a long tool call.
+ *
+ * 3× is an intentional multiplier, not a round-number choice. Two
+ * observed stall windows in a row already carry enough signal that the
+ * worker is unlikely to recover on its own. Raise this when advisories
+ * fire on legitimate long tool calls; lower it only when real stalls
+ * routinely slip past unnoticed.
+ */
+export const STALL_ADVISORY_MULTIPLIER = 3;
+export const DEFAULT_CLAUDE_STALL_ADVISORY_MS =
+  DEFAULT_CLAUDE_STALL_MS * STALL_ADVISORY_MULTIPLIER;
+export const DEFAULT_CODEX_STALL_ADVISORY_MS =
+  DEFAULT_CODEX_STALL_MS * STALL_ADVISORY_MULTIPLIER;
+
+/**
  * Session heartbeat staleness: how long a `turn_state: "in_turn"`
  * snapshot is trusted before we start second-guessing it. Guards
  * against a session getting stuck "thinking" after the backend has

@@ -1,35 +1,52 @@
+import type { TelemetryDerivedStatus } from "../../shared/telemetry.ts";
 import { isTermCanvasRunning, telemetryTerminal } from "./termcanvas.ts";
 
 /**
- * PTY liveness probe for the watch loop.
+ * Telemetry-backed probes used by the watch loop.
  *
- * Returns:
- *   true  — PTY is alive; worker may still be working.
- *   false — PTY has exited; the watch loop should apply its timeout path
- *           (mark timed_out, attempt a retry, surface dispatch_failed_final
- *           when the retry budget is exhausted).
- *   null  — unknown; either TermCanvas is not running, the telemetry snapshot
- *           is unavailable, or the field was absent. The watch loop treats
- *           null as "no signal" and keeps polling.
+ * The watch loop needs two distinct signals from telemetry:
  *
- * History: this used to be a stub that always returned null with a comment
- * claiming a telemetry import cycle. There is no cycle — workflow-lead
- * already imports telemetryTerminal directly — so the stub silently
+ *   1. PTY liveness (checkTerminalAlive) — hard signal, drives timeouts.
+ *      pty_alive === false means the PTY exited; the watch loop then marks
+ *      the assignment timed_out and kicks a retry through the state machine.
+ *
+ *   2. Progress liveness (probeTerminalProgress) — soft signal, drives
+ *      advisory DecisionPoints. derived_status plus last_meaningful_progress_at
+ *      tell us when a worker is alive but not doing anything. The watch
+ *      loop does NOT kill such workers autonomously — the Lead decides
+ *      via a stall_advisory DecisionPoint.
+ *
+ * History: checkTerminalAlive used to be a stub returning null with a
+ * comment blaming a "telemetry import cycle" that does not exist —
+ * workflow-lead already imports telemetryTerminal. The stub silently
  * disabled the entire PTY-exit branch of the watch loop. That is the bug
- * this helper exists to close: without it, an agent that exits without
- * writing result.json leaves the assignment "in_progress" until the
- * workbench timeout fires, which is typically far too long.
+ * this helper exists to close.
  */
 
 export interface TerminalLivenessDependencies {
   isTermCanvasRunning(): boolean;
-  telemetryTerminal(terminalId: string): { pty_alive?: boolean } | null;
+  telemetryTerminal(terminalId: string): TelemetrySnapshotProbe | null;
+}
+
+/**
+ * Narrow shape of the telemetry snapshot the watch loop cares about. We
+ * deliberately keep it minimal instead of importing the full
+ * TerminalTelemetrySnapshot — the hydra CLI receives whatever the
+ * `termcanvas telemetry get` command prints as JSON, and future telemetry
+ * fields should not break hydra parsing. Optional everywhere on purpose:
+ * absent means "no signal", the same as undefined, so fallbacks are
+ * uniform.
+ */
+export interface TelemetrySnapshotProbe {
+  pty_alive?: boolean;
+  derived_status?: TelemetryDerivedStatus;
+  last_meaningful_progress_at?: string;
 }
 
 const DEFAULT_DEPENDENCIES: TerminalLivenessDependencies = {
   isTermCanvasRunning,
   telemetryTerminal: (id) =>
-    telemetryTerminal(id) as { pty_alive?: boolean } | null,
+    telemetryTerminal(id) as TelemetrySnapshotProbe | null,
 };
 
 export function checkTerminalAlive(
@@ -47,5 +64,34 @@ export function checkTerminalAlive(
     // unknown rather than assuming the PTY is dead — a spurious false
     // here would trigger an unnecessary retry cycle.
     return null;
+  }
+}
+
+export interface ProgressProbeResult {
+  /** Full snapshot payload when the probe succeeded; null otherwise. */
+  snapshot: TelemetrySnapshotProbe | null;
+  /** True when telemetry was reachable AND returned a snapshot. */
+  available: boolean;
+}
+
+/**
+ * Best-effort read of the subset of telemetry the stall-advisory logic
+ * needs. Returns available=false when the snapshot could not be fetched —
+ * callers MUST treat that as "unknown" rather than as "progressing", to
+ * avoid suppressing advisories whenever telemetry is momentarily down.
+ */
+export function probeTerminalProgress(
+  terminalId: string,
+  dependencies: TerminalLivenessDependencies = DEFAULT_DEPENDENCIES,
+): ProgressProbeResult {
+  try {
+    if (!dependencies.isTermCanvasRunning()) {
+      return { snapshot: null, available: false };
+    }
+    const snapshot = dependencies.telemetryTerminal(terminalId);
+    if (!snapshot) return { snapshot: null, available: false };
+    return { snapshot, available: true };
+  } catch {
+    return { snapshot: null, available: false };
   }
 }

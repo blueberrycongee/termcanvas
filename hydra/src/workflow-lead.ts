@@ -19,6 +19,10 @@ import {
 } from "./retry.ts";
 import { captureRunShellPid } from "./process-identity.ts";
 import { checkTerminalAlive } from "./terminal-liveness.ts";
+import {
+  evaluateStallAdvisory,
+  type StallAdvisoryInput,
+} from "./stall-advisory.ts";
 import { loadRole, type RoleTerminal } from "./roles/loader.ts";
 import { SUPPORTED_AGENT_TYPES } from "./agent-selection.ts";
 import { writeRunTask } from "./run-task.ts";
@@ -920,6 +924,38 @@ export async function watchUntilDecision(
     if (!anyDispatched && statuses.length > 0 && !changed) {
       saveWorkbench(workbench);
       return { type: "batch_completed", workbench_id: workbench.id, timestamp: now(), dispatches: buildDispatchesSummary(workbench) };
+    }
+
+    // Phase 2.5: Stall advisory — fire only when every in-flight dispatch
+    // has stopped progressing beyond the (conservative) advisory threshold.
+    // Skipped on ticks where Phase 1 changed state, since the freshly-
+    // mutated state hasn't had a chance to settle and the probe would
+    // race against registerDispatchAttempt.
+    if (!changed && anyDispatched) {
+      const stallInputs: StallAdvisoryInput[] = [];
+      for (const [dispatchId, disp] of Object.entries(workbench.dispatches)) {
+        if (disp.status !== "dispatched") continue;
+        const assignment = manager.load(dispatchId);
+        if (!assignment) continue;
+        const run = latestRun(assignment);
+        if (!run) continue;
+        stallInputs.push({
+          dispatchId,
+          role: disp.role,
+          agentType: disp.agent_type,
+          terminalId: run.terminal_id,
+        });
+      }
+      const advisory = evaluateStallAdvisory(stallInputs, { now });
+      if (advisory) {
+        return {
+          type: "stall_advisory",
+          workbench_id: workbench.id,
+          timestamp: now(),
+          advisory,
+          dispatches: buildDispatchesSummary(workbench),
+        };
+      }
     }
 
     // Phase 3: Timeout check
