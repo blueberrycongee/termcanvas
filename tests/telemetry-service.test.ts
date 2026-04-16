@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -9,6 +9,10 @@ import {
   deriveTelemetryStatus,
   deriveTelemetryTaskStatus,
 } from "../electron/telemetry-service.ts";
+import {
+  CLAUDE_PRE_TOOL_USE_FALLBACK_MS,
+  CODEX_PRE_TOOL_USE_AWAITING_INPUT_MS,
+} from "../shared/lifecycleThresholds.ts";
 
 function createRepoFixture() {
   const repoPath = fs.mkdtempSync(path.join(os.tmpdir(), "telemetry-repo-"));
@@ -733,3 +737,156 @@ test("deriveTelemetryStatus returns progressing for Codex in_turn with recent se
 
   assert.equal(status, "progressing");
 });
+
+test("Claude Notification hook flips turn_state to awaiting_input immediately", () => {
+  mock.timers.enable(["setTimeout"]);
+  try {
+    let nowMs = Date.parse("2026-04-16T00:00:00.000Z");
+    const service = new TelemetryService({
+      now: () => nowMs,
+      processPollIntervalMs: 0,
+    });
+    service.registerTerminal({
+      terminalId: "claude-1",
+      worktreePath: "/repo",
+      provider: "claude",
+    });
+    service.recordHookEvent("claude-1", {
+      hook_event_name: "SessionStart",
+      session_id: "sess-1",
+    });
+
+    // Tool starts — turn_state should now be tool_running, NOT awaiting_input.
+    service.recordHookEvent("claude-1", {
+      hook_event_name: "PreToolUse",
+      session_id: "sess-1",
+      tool_name: "Bash",
+    });
+    assert.equal(
+      service.getTerminalSnapshot("claude-1")?.turn_state,
+      "tool_running",
+    );
+
+    // User approval notification arrives — flip immediately, no need to
+    // wait out the Claude fallback window.
+    nowMs += 200;
+    service.recordHookEvent("claude-1", {
+      hook_event_name: "Notification",
+      session_id: "sess-1",
+      message: "Claude needs your permission to use Bash",
+    });
+    assert.equal(
+      service.getTerminalSnapshot("claude-1")?.turn_state,
+      "awaiting_input",
+    );
+
+    // The long fallback timer shouldn't fire after PostToolUse clears
+    // pendingPreToolUse.
+    nowMs += 500;
+    service.recordHookEvent("claude-1", {
+      hook_event_name: "PostToolUse",
+      session_id: "sess-1",
+      tool_name: "Bash",
+    });
+    mock.timers.tick(CLAUDE_PRE_TOOL_USE_FALLBACK_MS + 1_000);
+    assert.notEqual(
+      service.getTerminalSnapshot("claude-1")?.turn_state,
+      "awaiting_input",
+    );
+
+    service.dispose();
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test(
+  "Claude PreToolUse without Notification only falls back after the long window",
+  () => {
+    mock.timers.enable(["setTimeout"]);
+    try {
+      let nowMs = Date.parse("2026-04-16T00:00:00.000Z");
+      const service = new TelemetryService({
+        now: () => nowMs,
+        processPollIntervalMs: 0,
+      });
+      service.registerTerminal({
+        terminalId: "claude-2",
+        worktreePath: "/repo",
+        provider: "claude",
+      });
+      service.recordHookEvent("claude-2", {
+        hook_event_name: "SessionStart",
+        session_id: "sess-2",
+      });
+      service.recordHookEvent("claude-2", {
+        hook_event_name: "PreToolUse",
+        session_id: "sess-2",
+        tool_name: "Bash",
+      });
+
+      // Halfway through the Claude fallback — must NOT be flagged yet.
+      // This is the key regression guard against the old 5 s behaviour
+      // that mis-flagged ordinary long-running tools.
+      mock.timers.tick(CLAUDE_PRE_TOOL_USE_FALLBACK_MS / 2);
+      nowMs += CLAUDE_PRE_TOOL_USE_FALLBACK_MS / 2;
+      assert.equal(
+        service.getTerminalSnapshot("claude-2")?.turn_state,
+        "tool_running",
+      );
+
+      // Once the full window elapses, the safety-net flips us.
+      mock.timers.tick(CLAUDE_PRE_TOOL_USE_FALLBACK_MS / 2 + 1);
+      nowMs += CLAUDE_PRE_TOOL_USE_FALLBACK_MS / 2 + 1;
+      assert.equal(
+        service.getTerminalSnapshot("claude-2")?.turn_state,
+        "awaiting_input",
+      );
+
+      service.dispose();
+    } finally {
+      mock.timers.reset();
+    }
+  },
+);
+
+test(
+  "Codex PreToolUse uses the codex-specific silence window for awaiting_input",
+  () => {
+    mock.timers.enable(["setTimeout"]);
+    try {
+      let nowMs = Date.parse("2026-04-16T00:00:00.000Z");
+      const service = new TelemetryService({
+        now: () => nowMs,
+        processPollIntervalMs: 0,
+      });
+      service.registerTerminal({
+        terminalId: "codex-1",
+        worktreePath: "/repo",
+        provider: "codex",
+      });
+      service.recordHookEvent("codex-1", {
+        hook_event_name: "SessionStart",
+        session_id: "codex-sess",
+      });
+      service.recordHookEvent("codex-1", {
+        hook_event_name: "PreToolUse",
+        session_id: "codex-sess",
+        tool_name: "Bash",
+      });
+
+      // Past the 20 s Codex window but well below Claude's 30 s — the
+      // provider-specific constant is what we verify here.
+      mock.timers.tick(CODEX_PRE_TOOL_USE_AWAITING_INPUT_MS + 1);
+      nowMs += CODEX_PRE_TOOL_USE_AWAITING_INPUT_MS + 1;
+      assert.equal(
+        service.getTerminalSnapshot("codex-1")?.turn_state,
+        "awaiting_input",
+      );
+
+      service.dispose();
+    } finally {
+      mock.timers.reset();
+    }
+  },
+);

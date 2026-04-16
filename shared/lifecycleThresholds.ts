@@ -199,22 +199,41 @@ export const DEFAULT_SESSION_POLL_INTERVAL_MS = 10_000;
 // ---------------------------------------------------------------------------
 
 /**
- * If a PreToolUse event fires and we don't see the matching PostToolUse
- * within this window, assume the tool needs user input and flip
- * `turn_state` to "awaiting_input".
+ * Claude Code: fallback silence window after `PreToolUse` before we
+ * assume the agent is blocked on user approval.
  *
- * ⚠ FRAGILE: the current implementation treats "no PostToolUse yet" as
- * "user input needed", which is only sometimes true. A long-running
- * tool with no stdout also produces this silence. If you can derive a
- * signal directly from the agent about approval state, prefer that
- * over this timer.
+ * Claude Code emits a `Notification` hook the moment a tool prompt
+ * needs user approval (see `recordHookEvent` → `"Notification"`), and
+ * that hook is the primary signal for flipping `turn_state` to
+ * `"awaiting_input"`. This timer is ONLY a safety net for the rare
+ * case where a Notification doesn't fire (older Claude Code builds,
+ * hook drop, or a brand-new prompt flavor we haven't seen).
  *
- * Tune when: we're flipping to "awaiting_input" on long tools that
- * don't actually need input (raise); conversely, users report "the
- * pet didn't notice I was being asked for approval" (lower, or wire up
- * a real signal).
+ * Because it's a backstop — not the primary signal — we keep it wide
+ * enough that ordinary long tools (slow Bash, large edits) don't trip
+ * it. If Notification coverage is high, you can raise this further or
+ * remove the timer entirely.
  */
-export const PRE_TOOL_USE_AWAITING_INPUT_MS = 5_000;
+export const CLAUDE_PRE_TOOL_USE_FALLBACK_MS = 30_000;
+
+/**
+ * Codex: PreToolUse silence window before we flag `turn_state` as
+ * `"awaiting_input"`.
+ *
+ * Codex does NOT emit a `Notification` hook for approval prompts — its
+ * approval UI is pure terminal output. So the hook pipeline has no
+ * direct way to know "user is being asked to approve this exec" apart
+ * from observing "Codex ran PreToolUse, then nothing happened for a
+ * while".
+ *
+ * 20 s is a compromise: fast enough that a real approval prompt makes
+ * the pet react within a sensible window, slow enough that ordinary
+ * Codex Bash commands (tests, long builds) don't false-positive too
+ * often. If you want to eliminate false positives, raise this to 30s+
+ * at the cost of delayed pet reactions; if you can wire up a real
+ * Codex approval signal, delete this timer in favor of that signal.
+ */
+export const CODEX_PRE_TOOL_USE_AWAITING_INPUT_MS = 20_000;
 
 /**
  * Fallback cleanup: if a PreToolUse has been pending for this long

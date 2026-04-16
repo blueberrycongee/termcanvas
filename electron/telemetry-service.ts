@@ -22,12 +22,13 @@ import type {
 } from "../shared/telemetry.ts";
 import type { SessionInfo } from "../shared/sessions.ts";
 import {
+  CLAUDE_PRE_TOOL_USE_FALLBACK_MS,
+  CODEX_PRE_TOOL_USE_AWAITING_INPUT_MS,
   DEFAULT_CLAUDE_STALL_MS,
   DEFAULT_CODEX_STALL_MS,
   DEFAULT_PROCESS_POLL_INTERVAL_MS,
   DEFAULT_SESSION_HEARTBEAT_MS,
   DEFAULT_SESSION_POLL_INTERVAL_MS,
-  PRE_TOOL_USE_AWAITING_INPUT_MS,
   PRE_TOOL_USE_STALE_RESET_MS,
 } from "../shared/lifecycleThresholds.ts";
 
@@ -1078,7 +1079,7 @@ export class TelemetryService {
         });
         break;
 
-      case "PreToolUse":
+      case "PreToolUse": {
         if (state.pendingPreToolUse) {
           console.warn(
             `[Telemetry] Missed PostToolUse for terminal=${terminalId} (new PreToolUse arrived while pending)`,
@@ -1095,17 +1096,49 @@ export class TelemetryService {
         state.snapshot.last_meaningful_progress_at = at;
         state.snapshot.foreground_tool = event.tool_name as string | undefined;
         state.lastHookToolAt = this.now();
+        // Provider-specific fallback timer. For Claude Code the primary
+        // signal is the Notification hook (see below); for Codex there is
+        // no approval hook, so the timer is the heuristic we rely on.
+        const fallbackMs =
+          state.snapshot.provider === "codex"
+            ? CODEX_PRE_TOOL_USE_AWAITING_INPUT_MS
+            : CLAUDE_PRE_TOOL_USE_FALLBACK_MS;
         state.awaitingInputTimer = setTimeout(() => {
           state.awaitingInputTimer = null;
           if (state.pendingPreToolUse) {
             state.snapshot.turn_state = "awaiting_input";
             this.updateDerivedStatus(state, { force: true });
           }
-        }, PRE_TOOL_USE_AWAITING_INPUT_MS);
+        }, fallbackMs);
         this.appendEvent(state, at, "session", "hook_pre_tool", {
           tool_name: event.tool_name ?? null,
         });
         break;
+      }
+
+      case "Notification": {
+        // Claude Code's Notification hook is the authoritative signal
+        // that the user's attention is required — it fires for both
+        // tool-permission prompts and for "Claude has been idle waiting
+        // for your input". Flipping turn_state lets the pet react
+        // instantly instead of after the PreToolUse fallback window.
+        //
+        // Codex does not emit this hook, so Codex paths never reach
+        // here; it relies on the PreToolUse fallback timer instead.
+        const message =
+          typeof event.message === "string" ? event.message : undefined;
+        if (state.awaitingInputTimer) {
+          clearTimeout(state.awaitingInputTimer);
+          state.awaitingInputTimer = null;
+        }
+        state.snapshot.turn_state = "awaiting_input";
+        state.snapshot.last_meaningful_progress_at = at;
+        this.appendEvent(state, at, "session", "hook_notification", {
+          message: message ?? null,
+        });
+        this.updateDerivedStatus(state, { force: true });
+        break;
+      }
 
       case "PostToolUse":
         if (state.awaitingInputTimer) {
