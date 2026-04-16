@@ -1,14 +1,27 @@
 import { useEffect, useRef } from "react";
 import { useProjectStore } from "../stores/projectStore";
+import { useCompletionSeenStore } from "../stores/completionSeenStore";
 import { useTerminalRuntimeStateStore } from "../stores/terminalRuntimeStateStore";
+import { useTerminalRuntimeStore } from "../terminal/terminalRuntimeStore";
 import { usePetStore } from "./petStore";
-import type { AttentionPriority } from "./petStore";
 import type { PetEvent } from "./stateMachine";
 import {
   getTerminalTitleBarTarget,
   getTerminalInsideTarget,
 } from "./petMovement";
 import type { TerminalData } from "../types";
+import type {
+  TerminalTelemetrySnapshot,
+  WorkflowTelemetrySnapshot,
+} from "../../shared/telemetry";
+import {
+  deriveAttentionFromTelemetryTransition,
+  derivePetEventFromTelemetryTransition,
+  derivePetEventFromWorkflowTransition,
+  isTelemetryProgressing,
+  samePetRelevantTelemetry,
+  shouldClearAttentionFromTelemetryTransition,
+} from "./eventMappings";
 
 // --- Helpers ---
 
@@ -45,12 +58,111 @@ function findTerminalById(terminalId: string): TerminalData | null {
   return null;
 }
 
-const ATTENTION_MESSAGES: Record<AttentionPriority, string> = {
-  error: "✗",
-  stuck: "⚠",
-  approval: "⏳",
-  success: "✓",
-};
+const PET_EVENT_PRIORITY: PetEvent["type"][] = [
+  "DISPATCH_FAILED",
+  "TASK_ERROR",
+  "WORKER_STUCK",
+  "STALL",
+  "WORKFLOW_COMPLETED",
+  "TASK_SUCCESS",
+  "TURN_COMPLETE",
+  "WORKFLOW_STARTED",
+  "TOOL_RUNNING",
+  "AGENT_THINKING",
+  "TOOL_PENDING",
+];
+
+type RuntimeTerminalSnapshots = ReturnType<
+  typeof useTerminalRuntimeStore.getState
+>["terminals"];
+
+interface WorkflowContext {
+  key: string;
+  workflowId: string;
+  repoPath: string;
+}
+
+function dispatchHighestPriorityPetEvent(
+  dispatch: (event: PetEvent) => void,
+  events: PetEvent[],
+) {
+  if (events.length === 0) return;
+
+  for (const type of PET_EVENT_PRIORITY) {
+    const event = events.find((candidate) => candidate.type === type);
+    if (event) {
+      dispatch(event);
+      return;
+    }
+  }
+}
+
+function movePetToTerminalTitleBar(
+  terminalId: string,
+  focusedId: string | null,
+  setMoveTarget: (target: {
+    x: number;
+    y: number;
+    terminalId?: string;
+    onTitleBar?: boolean;
+  } | null) => void,
+) {
+  const terminal = findTerminalById(terminalId);
+  if (!terminal || terminal.stashed) return;
+
+  setMoveTarget({
+    ...getTerminalTitleBarTarget(terminal, terminalId === focusedId),
+    terminalId: terminal.id,
+  });
+}
+
+function findActiveTelemetryTerminalId(
+  terminals: RuntimeTerminalSnapshots,
+): string | null {
+  for (const [terminalId, snapshot] of Object.entries(terminals)) {
+    if (isTelemetryProgressing(snapshot.telemetry)) {
+      return terminalId;
+    }
+  }
+  return null;
+}
+
+function collectWorkflowContexts(
+  terminals: RuntimeTerminalSnapshots,
+): WorkflowContext[] {
+  const contexts = new Map<string, WorkflowContext>();
+
+  for (const snapshot of Object.values(terminals)) {
+    const telemetry = snapshot.telemetry;
+    if (!telemetry?.workflow_id || !telemetry.repo_path) continue;
+
+    const key = `${telemetry.repo_path}::${telemetry.workflow_id}`;
+    if (contexts.has(key)) continue;
+    contexts.set(key, {
+      key,
+      workflowId: telemetry.workflow_id,
+      repoPath: telemetry.repo_path,
+    });
+  }
+
+  return [...contexts.values()];
+}
+
+function hasSeenCompletion(terminalId: string): boolean {
+  return useCompletionSeenStore.getState().seenTerminalIds.has(terminalId);
+}
+
+function isCompletedTerminal(terminalId: string): boolean {
+  const telemetry = useTerminalRuntimeStore.getState().terminals[terminalId]
+    ?.telemetry;
+  if (telemetry?.turn_state === "turn_complete") {
+    return true;
+  }
+
+  const status = useTerminalRuntimeStateStore.getState().terminals[terminalId]
+    ?.status;
+  return status === "completed" || status === "success";
+}
 
 function movePetToAttention() {
   const { currentAttention } = usePetStore.getState();
@@ -79,9 +191,16 @@ export function usePetEventBridge() {
   const clearAttentionForTerminal = usePetStore(
     (s) => s.clearAttentionForTerminal,
   );
+  const markCompletionSeen = useCompletionSeenStore((s) => s.markSeen);
 
   const prevTerminalCount = useRef(0);
   const prevStatuses = useRef<Record<string, string>>({});
+  const prevTelemetry = useRef<Record<string, TerminalTelemetrySnapshot>>({});
+  const prevWorkflowSnapshots = useRef<
+    Record<string, WorkflowTelemetrySnapshot | null>
+  >({});
+  const workflowRequestSeq = useRef(0);
+  const triggerWorkflowRefresh = useRef<(() => void) | null>(null);
   const idleTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevFocusedId = useRef<string | null>(null);
 
@@ -167,6 +286,7 @@ export function usePetEventBridge() {
         switch (newStatus) {
           case "active":
           case "running":
+            clearAttentionForTerminal(id);
             events.push({ type: "AGENT_THINKING" });
             break;
           case "waiting":
@@ -176,19 +296,21 @@ export function usePetEventBridge() {
                 terminalId: id,
                 label,
                 priority: "approval",
-                message: `${ATTENTION_MESSAGES.approval} ${label}`,
+                message: `⏳ ${label}`,
               });
             }
             break;
           case "success":
           case "completed":
             events.push({ type: "TASK_SUCCESS" });
-            if (!isFocused) {
+            if (isFocused) {
+              markCompletionSeen(id);
+            } else if (!hasSeenCompletion(id)) {
               enqueueAttention({
                 terminalId: id,
                 label,
                 priority: "success",
-                message: `${ATTENTION_MESSAGES.success} ${label}`,
+                message: `✓ ${label}`,
               });
             }
             break;
@@ -199,7 +321,7 @@ export function usePetEventBridge() {
                 terminalId: id,
                 label,
                 priority: "error",
-                message: `${ATTENTION_MESSAGES.error} ${label}`,
+                message: `✗ ${label}`,
               });
             }
             break;
@@ -208,22 +330,7 @@ export function usePetEventBridge() {
         prevStatuses.current[id] = newStatus;
       }
 
-      // Dispatch only the highest-priority pet event
-      if (events.length > 0) {
-        const priority: PetEvent["type"][] = [
-          "TASK_ERROR",
-          "TASK_SUCCESS",
-          "AGENT_THINKING",
-          "TOOL_PENDING",
-        ];
-        for (const p of priority) {
-          const ev = events.find((e) => e.type === p);
-          if (ev) {
-            dispatch(ev);
-            break;
-          }
-        }
-      }
+      dispatchHighestPriorityPetEvent(dispatch, events);
 
       // Move pet toward active terminal (only if no attention pending)
       const petState = usePetStore.getState();
@@ -235,20 +342,150 @@ export function usePetEventBridge() {
         )?.[0];
 
         if (activeId) {
-          const terminal = findTerminalById(activeId);
-          if (terminal && !terminal.stashed) {
-            const isTargetFocused = activeId === focusedId;
-            setMoveTarget({
-              ...getTerminalTitleBarTarget(terminal, isTargetFocused),
-              terminalId: terminal.id,
-            });
-          }
+          movePetToTerminalTitleBar(activeId, focusedId, setMoveTarget);
         }
       }
     });
 
     return unsub;
-  }, [dispatch, setMoveTarget, enqueueAttention]);
+  }, [
+    clearAttentionForTerminal,
+    dispatch,
+    enqueueAttention,
+    markCompletionSeen,
+    setMoveTarget,
+  ]);
+
+  // Track terminal telemetry changes → dispatch richer pet events
+  useEffect(() => {
+    const unsub = useTerminalRuntimeStore.subscribe((state) => {
+      const events: PetEvent[] = [];
+      const focusedId = getFocusedTerminalId();
+      const nextTelemetry: Record<string, TerminalTelemetrySnapshot> = {};
+      let workflowContextChanged = false;
+
+      for (const [id, snapshot] of Object.entries(state.terminals)) {
+        const telemetry = snapshot.telemetry;
+        if (!telemetry) continue;
+
+        nextTelemetry[id] = telemetry;
+        const prev = prevTelemetry.current[id];
+        if (samePetRelevantTelemetry(prev, telemetry)) continue;
+
+        const isFocused = id === focusedId;
+        const label = getTerminalLabel(id);
+        const event = derivePetEventFromTelemetryTransition(prev, telemetry);
+        const seenCompletion = hasSeenCompletion(id);
+        const attention = deriveAttentionFromTelemetryTransition(prev, telemetry, {
+          terminalId: id,
+          label,
+          focused: isFocused,
+          seenCompletion,
+        });
+
+        if (isFocused && telemetry.turn_state === "turn_complete") {
+          markCompletionSeen(id);
+        }
+        if (shouldClearAttentionFromTelemetryTransition(prev, telemetry)) {
+          clearAttentionForTerminal(id);
+        }
+        if (attention) {
+          enqueueAttention(attention);
+        }
+        if (event) {
+          events.push(event);
+        }
+        if (
+          prev?.workflow_id !== telemetry.workflow_id ||
+          prev?.repo_path !== telemetry.repo_path
+        ) {
+          workflowContextChanged = true;
+        }
+      }
+
+      prevTelemetry.current = nextTelemetry;
+      dispatchHighestPriorityPetEvent(dispatch, events);
+
+      const petState = usePetStore.getState();
+      if (petState.currentAttention) {
+        movePetToAttention();
+      } else {
+        const activeId = findActiveTelemetryTerminalId(state.terminals);
+        if (activeId) {
+          movePetToTerminalTitleBar(activeId, focusedId, setMoveTarget);
+        }
+      }
+
+      if (workflowContextChanged) {
+        triggerWorkflowRefresh.current?.();
+      }
+    });
+
+    return unsub;
+  }, [
+    clearAttentionForTerminal,
+    dispatch,
+    enqueueAttention,
+    markCompletionSeen,
+    setMoveTarget,
+  ]);
+
+  // Track workflow telemetry → commanding / triumph / dispatch failure
+  useEffect(() => {
+    let disposed = false;
+
+    const refreshWorkflowStates = () => {
+      if (!window.termcanvas?.telemetry?.getWorkflow) return;
+
+      const requestId = ++workflowRequestSeq.current;
+      const contexts = collectWorkflowContexts(
+        useTerminalRuntimeStore.getState().terminals,
+      );
+
+      if (contexts.length === 0) {
+        prevWorkflowSnapshots.current = {};
+        return;
+      }
+
+      void Promise.all(
+        contexts.map(async (context) => ({
+          key: context.key,
+          snapshot: await window.termcanvas.telemetry
+            .getWorkflow(context.workflowId, context.repoPath)
+            .catch(() => null),
+        })),
+      ).then((results) => {
+        if (disposed || workflowRequestSeq.current !== requestId) return;
+
+        const events: PetEvent[] = [];
+        const nextSnapshots: Record<string, WorkflowTelemetrySnapshot | null> =
+          {};
+
+        for (const { key, snapshot } of results) {
+          if (!snapshot) continue;
+          nextSnapshots[key] = snapshot;
+          const prev = prevWorkflowSnapshots.current[key];
+          const event = derivePetEventFromWorkflowTransition(prev, snapshot);
+          if (event) {
+            events.push(event);
+          }
+        }
+
+        prevWorkflowSnapshots.current = nextSnapshots;
+        dispatchHighestPriorityPetEvent(dispatch, events);
+      });
+    };
+
+    triggerWorkflowRefresh.current = refreshWorkflowStates;
+    refreshWorkflowStates();
+
+    const interval = setInterval(refreshWorkflowStates, 5000);
+    return () => {
+      disposed = true;
+      triggerWorkflowRefresh.current = null;
+      clearInterval(interval);
+    };
+  }, [dispatch]);
 
   // Track user focus changes → auto-acknowledge attention + smart positioning
   useEffect(() => {
@@ -264,6 +501,9 @@ export function usePetEventBridge() {
         petState.currentAttention &&
         focusedId === petState.currentAttention.terminalId
       ) {
+        if (focusedId && petState.currentAttention.priority === "success") {
+          markCompletionSeen(focusedId);
+        }
         acknowledgeAttention();
 
         // After acknowledging, drive pet to next attention terminal or run away
@@ -276,10 +516,22 @@ export function usePetEventBridge() {
         }
         return;
       }
+
+      if (focusedId && isCompletedTerminal(focusedId)) {
+        markCompletionSeen(focusedId);
+      }
     });
 
     return unsub;
-  }, [setMoveTarget, acknowledgeAttention]);
+  }, [setMoveTarget, acknowledgeAttention, markCompletionSeen]);
+
+  // Track app close → goodbye animation
+  useEffect(() => {
+    if (!window.termcanvas?.app?.onBeforeClose) return;
+    return window.termcanvas.app.onBeforeClose(() => {
+      dispatch({ type: "APP_SHUTDOWN" });
+    });
+  }, [dispatch]);
 
   // Idle timer — drives TIMER events for sleep transitions
   useEffect(() => {
