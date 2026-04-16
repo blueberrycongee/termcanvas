@@ -4,7 +4,10 @@ import { useTerminalRuntimeStateStore } from "../stores/terminalRuntimeStateStor
 import { usePetStore } from "./petStore";
 import type { AttentionPriority } from "./petStore";
 import type { PetEvent } from "./stateMachine";
-import { getTerminalTitleBarTarget } from "./petMovement";
+import {
+  getTerminalTitleBarTarget,
+  getTerminalInsideTarget,
+} from "./petMovement";
 import type { TerminalData } from "../types";
 
 // --- Helpers ---
@@ -56,11 +59,9 @@ function movePetToAttention() {
   const terminal = findTerminalById(currentAttention.terminalId);
   if (!terminal) return;
 
-  const focusedId = getFocusedTerminalId();
-  const isTargetFocused = focusedId === currentAttention.terminalId;
-
+  // Attention: pet goes INSIDE the terminal to clearly mark which one needs focus
   usePetStore.getState().setMoveTarget({
-    ...getTerminalTitleBarTarget(terminal, isTargetFocused),
+    ...getTerminalInsideTarget(terminal),
     terminalId: currentAttention.terminalId,
   });
 }
@@ -265,37 +266,15 @@ export function usePetEventBridge() {
       ) {
         acknowledgeAttention();
 
-        // After acknowledging, drive pet to next attention (or stay)
+        // After acknowledging, drive pet to next attention terminal or run away
         const nextState = usePetStore.getState();
         if (nextState.currentAttention) {
           movePetToAttention();
         } else {
-          // No more attention items — reposition to edge on the focused terminal
-          if (focusedId) {
-            const terminal = findTerminalById(focusedId);
-            if (terminal) {
-              setMoveTarget({
-                ...getTerminalTitleBarTarget(terminal, true),
-                terminalId: focusedId,
-              });
-            }
-          }
+          // Queue empty — pet runs away from the terminal, back to idle
+          setMoveTarget(null);
         }
         return;
-      }
-
-      // Smart positioning: if pet is on the newly focused terminal, slide to edge
-      if (
-        focusedId &&
-        petState.moveTarget?.terminalId === focusedId
-      ) {
-        const terminal = findTerminalById(focusedId);
-        if (terminal) {
-          setMoveTarget({
-            ...getTerminalTitleBarTarget(terminal, true),
-            terminalId: focusedId,
-          });
-        }
       }
     });
 

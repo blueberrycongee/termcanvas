@@ -71,3 +71,23 @@ export function getTerminalTitleBarTarget(
     onTitleBar: true,
   };
 }
+
+/**
+ * Get a move target inside a terminal's content area (center).
+ * Used for attention notifications — the pet stands inside the terminal
+ * to clearly indicate which one needs the user's focus.
+ */
+export function getTerminalInsideTarget(
+  terminal: { x: number; y: number; width: number; height: number },
+): PetMoveTarget {
+  return {
+    x: terminal.x + terminal.width / 2 - PET_HALF_SIZE,
+    y:
+      terminal.y +
+      TITLE_BAR_HEIGHT +
+      (terminal.height - TITLE_BAR_HEIGHT) / 2 -
+      PET_HALF_SIZE,
+    terminalId: undefined,
+    onTitleBar: false,
+  };
+}
