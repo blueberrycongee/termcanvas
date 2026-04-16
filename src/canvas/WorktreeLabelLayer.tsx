@@ -592,17 +592,21 @@ export function WorktreeLabelLayer() {
       const el = dragLabelRef.current;
       if (el) el.style.transform = "translate(0, -100%)";
 
-      if (!active.moved) return;
+      if (active.moved) {
+        suppressClickUntilRef.current = performance.now() + 250;
+      }
 
-      suppressClickUntilRef.current = performance.now() + 250;
-
-      // Commit final positions to the store.
+      // Commit final positions to the store.  Even without dragging,
+      // pointerdown already snapped terminals to compact positions via
+      // setNodes — sync the store so panToWorktree reads correct coords.
       const vp = viewportRef.current;
-      const delta = screenDeltaToCanvasDelta(
-        e.clientX - active.startClientX,
-        e.clientY - active.startClientY,
-        vp,
-      );
+      const delta = active.moved
+        ? screenDeltaToCanvasDelta(
+            e.clientX - active.startClientX,
+            e.clientY - active.startClientY,
+            vp,
+          )
+        : { x: 0, y: 0 };
       const finalAnchorX = active.anchorX + delta.x;
       const finalAnchorY = active.anchorY + delta.y;
 
