@@ -18,6 +18,7 @@ import {
   retryTimedOutAssignment,
 } from "./retry.ts";
 import { captureRunShellPid } from "./process-identity.ts";
+import { checkTerminalAlive } from "./terminal-liveness.ts";
 import { loadRole, type RoleTerminal } from "./roles/loader.ts";
 import { SUPPORTED_AGENT_TYPES } from "./agent-selection.ts";
 import { writeRunTask } from "./run-task.ts";
@@ -112,12 +113,7 @@ function destroyTerminalFn(deps?: WorkbenchDependencies) {
 }
 function checkTerminalAliveFn(deps?: WorkbenchDependencies): (id: string) => boolean | null {
   if (deps?.checkTerminalAlive) return deps.checkTerminalAlive;
-  return (_id: string) => {
-    try {
-      if (!isTermCanvasRunning()) return null;
-      return null; // cannot check without telemetry import cycle
-    } catch { return null; }
-  };
+  return checkTerminalAlive;
 }
 
 // --- ID generation ---
