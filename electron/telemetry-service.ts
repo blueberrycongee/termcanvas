@@ -539,7 +539,30 @@ export class TelemetryService {
       state.snapshot.worktree_path = input.worktreePath;
     }
     if (input.provider !== undefined) {
+      const previousProvider = state.snapshot.provider;
+      const upgradingToAgent =
+        previousProvider === "unknown" &&
+        (input.provider === "claude" ||
+          input.provider === "codex" ||
+          input.provider === "wuu");
       state.snapshot.provider = input.provider;
+      if (upgradingToAgent) {
+        // Between terminal creation (provider "unknown") and CLI
+        // detection upgrading us to an agent type, ps-driven state
+        // treats the terminal like a shell: descendant churn bumps
+        // last_meaningful_progress_at, and the descendant command
+        // leaks into foreground_tool. Once we realise this is an
+        // agent, those values are noise — they reflect the agent's
+        // infrastructure booting up (MCP daemons, shell wrapper
+        // process), not the agent doing work. Leaving them in place
+        // persistently traps derived_status in "progressing" even
+        // when the agent never received a prompt. Reset them so the
+        // agent lifecycle starts from a clean slate and only real
+        // signals (session events, hooks) can promote it back to
+        // active states.
+        state.snapshot.last_meaningful_progress_at = undefined;
+        state.snapshot.foreground_tool = undefined;
+      }
     }
     state.snapshot.workflow_id = input.workflowId ?? state.snapshot.workflow_id;
     state.snapshot.assignment_id = input.assignmentId ?? state.snapshot.assignment_id;

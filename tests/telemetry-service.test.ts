@@ -1118,3 +1118,78 @@ test(
     service.dispose();
   },
 );
+
+test(
+  "provider upgrade from unknown to codex clears ps-derived state captured during the unknown window",
+  () => {
+    // Regression observed via DevTools telemetry dump: opening a fresh
+    // Codex terminal went through a brief window where
+    // `snapshot.provider === "unknown"` before CLI detection upgraded
+    // it. During that window the ps gate treated the terminal as a
+    // plain shell and bumped `last_meaningful_progress_at` on every
+    // descendant change — so by the time we knew it was Codex, the
+    // progress clock was already set, and `deriveTelemetryStatus` kept
+    // returning "progressing" via the stall-window check, painting the
+    // session panel green "thinking" even though the user had never
+    // typed a prompt.
+    let nowMs = Date.parse("2026-04-16T00:00:00.000Z");
+    const service = new TelemetryService({
+      now: () => nowMs,
+      processPollIntervalMs: 0,
+    });
+    // Step 1: terminal registers with provider=unknown (the real
+    // registration path for terminalType=shell in main.ts:371).
+    service.registerTerminal({
+      terminalId: "codex-upgrade",
+      worktreePath: "/repo",
+      provider: "unknown",
+    });
+    service.recordPtyCreated({
+      terminalId: "codex-upgrade",
+      ptyId: 1,
+      shellPid: 50,
+    });
+
+    // Step 2: a ps snapshot lands while we still think it's a shell.
+    // Shell-mode ps churn is allowed to bump progress AND set
+    // foreground_tool — that's correct for actual shells.
+    service.recordProcessSnapshot(
+      "codex-upgrade",
+      {
+        descendantProcesses: [
+          { pid: 50, command: "bash", cli_type: null },
+          { pid: 60, command: "npx @playwright/mcp-server", cli_type: null },
+        ],
+        foregroundTool: "npx @playwright/mcp-server",
+      },
+      "2026-04-16T00:00:01.000Z",
+    );
+    const afterPs = service.getTerminalSnapshot("codex-upgrade");
+    // Sanity check: pre-upgrade state has the shell-mode signals set.
+    assert.equal(afterPs?.foreground_tool, "npx @playwright/mcp-server");
+    assert.equal(
+      afterPs?.last_meaningful_progress_at,
+      "2026-04-16T00:00:01.000Z",
+    );
+
+    // Step 3: CLI detection finishes, renderer calls telemetry.updateTerminal
+    // with provider=codex. This is the moment my fix engages.
+    service.updateTerminal({
+      terminalId: "codex-upgrade",
+      provider: "codex",
+    });
+
+    const upgraded = service.getTerminalSnapshot("codex-upgrade");
+    // Those shell-mode signals were Codex's MCP daemon / boot noise,
+    // not real work. Both must be cleared so the agent lifecycle
+    // starts from a clean slate.
+    assert.equal(upgraded?.foreground_tool, undefined);
+    assert.equal(upgraded?.last_meaningful_progress_at, undefined);
+    assert.equal(upgraded?.provider, "codex");
+    // And the derived_status is back to a neutral "starting" instead of
+    // the bogus "progressing" the stale progress timestamp used to
+    // create.
+    assert.notEqual(upgraded?.derived_status, "progressing");
+    service.dispose();
+  },
+);
