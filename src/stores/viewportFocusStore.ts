@@ -14,10 +14,14 @@ import { create } from "zustand";
 interface ViewportFocusStore {
   zoomedOutTerminalId: string | null;
   setZoomedOutTerminalId: (terminalId: string | null) => void;
+  fitAllScale: number | null;
+  setFitAllScale: (scale: number) => void;
 }
 
 export const useViewportFocusStore = create<ViewportFocusStore>((set) => ({
   zoomedOutTerminalId: null,
   setZoomedOutTerminalId: (terminalId) =>
     set({ zoomedOutTerminalId: terminalId }),
+  fitAllScale: null,
+  setFitAllScale: (scale) => set({ fitAllScale: scale }),
 }));

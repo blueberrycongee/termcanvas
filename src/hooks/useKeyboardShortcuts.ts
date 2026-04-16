@@ -169,6 +169,7 @@ function zoomToFitAll() {
   const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
   const viewH = window.innerHeight - toolbarH - padding * 2;
   const scale = Math.min(1, viewW / contentW, viewH / contentH);
+  useViewportFocusStore.getState().setFitAllScale(scale);
   const x = -minX * scale + padding;
   const y = -minY * scale + padding + toolbarH;
   useCanvasStore.getState().animateTo(x, y, scale);
@@ -599,7 +600,6 @@ export function useKeyboardShortcuts() {
         );
         return;
       }
-
     };
 
     window.addEventListener("keydown", handler, true);

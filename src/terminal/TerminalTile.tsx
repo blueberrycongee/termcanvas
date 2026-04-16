@@ -43,6 +43,7 @@ import {
   scheduleTerminalFocus,
 } from "./focusScheduler";
 import { useSidebarDragStore } from "../stores/sidebarDragStore";
+import { useViewportFocusStore } from "../stores/viewportFocusStore";
 import { TERMINAL_TYPE_CONFIG } from "./terminalTypeConfig";
 import { AgentRenderer } from "../components/agent/AgentRenderer";
 
@@ -215,6 +216,12 @@ export function TerminalTile({
   const useAgentRenderer = false; // TODO: re-enable when agent renderer is ready
   const isSummarizing = useIsSummarizing(terminal.id);
   const sidebarDragActive = useSidebarDragStore((s) => s.active);
+  const viewportScale = useCanvasStore((s) => s.viewport.scale);
+  const fitAllScale = useViewportFocusStore((s) => s.fitAllScale);
+  const isZoomedOut =
+    fitAllScale !== null &&
+    viewportScale <= fitAllScale * 1.2 &&
+    !terminal.focused;
   const liveRuntimeState = useResolvedTerminalRuntimeState(terminal);
   const liveTerminal = {
     ...terminal,
@@ -708,6 +715,12 @@ export function TerminalTile({
       }}
       onClick={(e) => {
         e.stopPropagation();
+        if (isZoomedOut) {
+          activateTerminalInScene(projectId, worktreeId, terminal.id);
+          panToTerminal(terminal.id);
+          useViewportFocusStore.getState().setZoomedOutTerminalId(null);
+          return;
+        }
         activateTerminalInScene(projectId, worktreeId, terminal.id, {
           focusInput: false,
         });
