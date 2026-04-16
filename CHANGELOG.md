@@ -2,6 +2,26 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.28.1] - 2026-04-16
+
+### Added
+- Canvas: click anywhere on a terminal tile to zoom in when zoomed out (Cmd+E), using fit-all scale as adaptive threshold
+
+### Fixed
+- Canvas: commit compact positions to store on label click without drag
+- Terminal: prevent stale "Copied" toast from re-appearing on re-mount after zoom-to-fit
+- UI: refine terminal focus indicator from hard ring to soft glow
+- Focus: make spatial focus cycling (Cmd+]/Cmd+[) worktree-group-aware
+
+### Added (zh-CN)
+- 画布：缩小状态下（Cmd+E）单击终端 tile 任意位置即可放大聚焦，阈值基于 fit-all 缩放自适应
+
+### Fixed (zh-CN)
+- 画布：点击标签（无拖拽）时正确提交紧凑布局位置
+- 终端：修复 zoom-to-fit 后重新挂载时"已复制"提示错误重现
+- UI：终端聚焦指示器从硬边框改为柔和光晕
+- 聚焦：Cmd+]/Cmd+[ 空间导航现在按 worktree 分组循环
+
 ## [0.28.0] - 2026-04-16
 
 ### Added
