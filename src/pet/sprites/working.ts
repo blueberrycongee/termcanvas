@@ -1,16 +1,16 @@
 import { C, _ } from "./colors";
 import { idleFrames } from "./idle";
 
-// Working capybara — determined expression, slight forward lean
+// Working capybara — concentrated stare (wide pupil), neutral face, slight forward lean.
 
 const work0: (string | null)[][] = idleFrames[0].map((row, y) => {
   if (y === 6) {
-    // Determined eyes — wider (2px) + no shine
-    return row.map((px, x) =>
-      px === C.eye ? C.eye :
-      px === C.eyeShine ? C.eye : // shine becomes second eye pixel
-      px,
-    );
+    // Determined eyes — 2px pupil (no shine)
+    return row.map((px) => (px === C.eyeShine ? C.eye : px));
+  }
+  if (y === 7) {
+    // Drop the rosy blush — focused, not happy
+    return row.map((px) => (px === C.blush ? C.body : px));
   }
   return row;
 });
