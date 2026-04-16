@@ -440,6 +440,7 @@ function buildBaseSnapshot(
     session_attach_confidence: "none",
     turn_state: "unknown",
     pty_alive: false,
+    shell_pid: null,
     descendant_processes: [],
     active_tool_calls: 0,
     task_status: "unknown",
@@ -509,6 +510,7 @@ export class TelemetryService {
     }
     if (input.shellPid !== undefined) {
       state.shellPid = input.shellPid;
+      state.snapshot.shell_pid = input.shellPid;
     }
     return this.getTerminalSnapshot(input.terminalId)!;
   }
@@ -536,6 +538,7 @@ export class TelemetryService {
     }
     if (input.shellPid !== undefined) {
       state.shellPid = input.shellPid;
+      state.snapshot.shell_pid = input.shellPid;
     }
     this.updateDerivedStatus(state);
     return cloneSnapshot(state.snapshot);
@@ -553,6 +556,7 @@ export class TelemetryService {
     }
     state.ptyId = input.ptyId;
     state.shellPid = input.shellPid ?? state.shellPid;
+    state.snapshot.shell_pid = state.shellPid;
     state.activeToolCalls.clear();
     state.lastTerminalTurnAtMs = null;
     state.snapshot.pty_alive = true;
@@ -1463,6 +1467,7 @@ export class TelemetryService {
     const state = this.ensureState(terminalId);
     this.stopProcessPolling(state);
     state.shellPid = shellPid;
+    state.snapshot.shell_pid = shellPid;
     const poll = async () => {
       try {
         const snapshot = await getProcessSnapshot(shellPid);

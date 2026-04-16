@@ -46,6 +46,23 @@ export interface AssignmentError {
   at: string;
 }
 
+export interface AssignmentProcessIdentity {
+  /**
+   * PID of the PTY's login shell at dispatch time. The agent CLI is a
+   * descendant of this PID. Captured from telemetry on a best-effort basis;
+   * absent when the telemetry service is unreachable or the PTY had not yet
+   * spawned its shell at capture time.
+   */
+  shell_pid: number | null;
+  /**
+   * ISO timestamp at which shell_pid was observed. Together with shell_pid,
+   * forms the fingerprint a reconcile pass uses to distinguish a still-alive
+   * worker from a kernel-recycled PID: if /proc/<pid> exists but its start
+   * time is far later than captured_at, the PID has been reused.
+   */
+  captured_at: string;
+}
+
 export interface AssignmentRun {
   id: string;
   terminal_id: string;
@@ -65,6 +82,14 @@ export interface AssignmentRun {
   session_id?: string;
   session_file?: string;
   session_provider?: string;
+
+  /**
+   * Durable process identity for this run. Optional for forward compatibility:
+   * runs written before this field existed have no identity, and runs where
+   * capture failed also lack it. Reconcile logic treats a missing identity as
+   * "unknown liveness — ask the user instead of acting autonomously".
+   */
+  process_identity?: AssignmentProcessIdentity;
 }
 
 export interface AssignmentResult {

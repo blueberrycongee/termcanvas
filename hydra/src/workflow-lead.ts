@@ -17,6 +17,7 @@ import {
   hasAssignmentTimedOut,
   retryTimedOutAssignment,
 } from "./retry.ts";
+import { captureRunShellPid } from "./process-identity.ts";
 import { loadRole, type RoleTerminal } from "./roles/loader.ts";
 import { SUPPORTED_AGENT_TYPES } from "./agent-selection.ts";
 import { writeRunTask } from "./run-task.ts";
@@ -291,6 +292,11 @@ async function dispatchAssignment(
       prompt: dispatchResult.prompt, taskFile: runArtifacts.task_file, resultFile: runArtifacts.result_file,
       artifactDir: runArtifacts.artifact_dir, startedAt: now(),
     });
+    // Best-effort: persist the PTY shell pid so a future reconcile pass can
+    // tell a live worker from a recycled-PID impostor. Skips silently when
+    // telemetry is unreachable or the shell has not spawned yet — the
+    // reconcile path treats a missing identity as "ask the user".
+    captureRunShellPid(manager, assignment.id, runId);
     await stateMachine.markInProgress(assignment.id, { tickId, runId });
     return { status: "dispatched", terminalId: dispatchResult.terminalId };
   } catch (error) {

@@ -83,6 +83,10 @@ export interface TerminalTelemetrySnapshot {
   turn_state: TelemetryTurnState;
   turn_started_at?: string;
   pty_alive: boolean;
+  // PID of the PTY's direct child (the login shell). Populated asynchronously
+  // after the renderer spawns the PTY, so it may be null for a short window
+  // after terminalCreate. Stable once set for the lifetime of the shell.
+  shell_pid: number | null;
   exit_code?: number;
   last_output_at?: string;
   last_input_at?: string;

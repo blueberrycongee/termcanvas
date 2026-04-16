@@ -6,6 +6,7 @@ import type {
 import type { AssignmentManager } from "./assignment/manager.ts";
 import type { AssignmentStateMachine } from "./assignment/state-machine.ts";
 import type { AssignmentRecord, AssignmentRun } from "./assignment/types.ts";
+import { captureRunShellPid } from "./process-identity.ts";
 
 export interface RegisterDispatchAttemptInput {
   runId: string;
@@ -171,6 +172,10 @@ export async function retryTimedOutAssignment(
       startedAt: dispatchStartedAt,
       retryOfRunId: previousRunId ?? undefined,
     });
+    // Best-effort process identity capture — see workflow-lead.ts dispatch
+    // for rationale. Retries get the same treatment so every in-flight run
+    // in assignment.json carries a reconcile anchor.
+    captureRunShellPid(dependencies.manager, input.assignmentId, input.runId);
     await dependencies.stateMachine.markInProgress(input.assignmentId, {
       tickId: retryTickId,
       runId: input.runId,
