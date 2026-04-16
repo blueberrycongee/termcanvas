@@ -362,15 +362,19 @@ test("telemetry service updates meaningful progress from token growth and proces
   // Agent terminal in "in_turn" with no active tool call: descendants
   // are infrastructure noise (MCP servers, build subprocesses spawned
   // by the agent's previous step that haven't died yet), not the tool
-  // the agent is currently running. Keep foreground_tool unset.
+  // the agent is currently running. Keep foreground_tool unset and do
+  // NOT bump last_meaningful_progress_at — the session events above
+  // already set it to 01.000Z, and ps churn from idle daemons is not
+  // progress.
   assert.equal(snapshot?.foreground_tool, undefined);
   assert.equal(
     snapshot?.last_meaningful_progress_at,
-    "2026-03-26T00:00:03.000Z",
+    "2026-03-26T00:00:01.000Z",
   );
 
   nowMs = Date.parse("2026-03-26T00:00:04.000Z");
   snapshot = service.getTerminalSnapshot("terminal-1");
+  // Still progressing — via the session-event heartbeat check, not ps.
   assert.equal(snapshot?.derived_status, "progressing");
 });
 
@@ -1021,6 +1025,96 @@ test(
 
     const snap = service.getTerminalSnapshot("shell-1");
     assert.equal(snap?.foreground_tool, "vim README.md");
+    service.dispose();
+  },
+);
+
+test(
+  "fresh Codex with MCP daemons and no user input does not show as progressing",
+  () => {
+    // Regression: even after the foreground_tool fix, opening a fresh
+    // Codex terminal with playwright-mcp configured kept the session
+    // panel green-"thinking" persistently. Cause: ps churn (MCP server
+    // spawning its own child processes: Chromium, service workers…) was
+    // bumping last_meaningful_progress_at every poll, which kept
+    // derived_status = "progressing" via the stall-threshold window.
+    // Nothing actually stopped "progressing" because the agent had
+    // never even received a prompt.
+    let nowMs = Date.parse("2026-04-16T00:00:00.000Z");
+    const service = new TelemetryService({
+      now: () => nowMs,
+      processPollIntervalMs: 0,
+    });
+    service.registerTerminal({
+      terminalId: "codex-fresh",
+      worktreePath: "/repo",
+      provider: "codex",
+    });
+    service.recordPtyCreated({
+      terminalId: "codex-fresh",
+      ptyId: 42,
+      shellPid: 100,
+    });
+    // Session attaches once hooks fire SessionStart, but the user has
+    // not typed a prompt, so no session events have landed yet.
+    service.recordSessionAttached({
+      terminalId: "codex-fresh",
+      provider: "codex",
+      sessionId: "sess",
+      confidence: "strong",
+    });
+    // Banner output from Codex boot — sets last_output_at. This used
+    // to be enough to trip stall_candidate on its own.
+    service.recordPtyOutput(
+      "codex-fresh",
+      "Codex CLI v0.52 — type to begin\n",
+      "2026-04-16T00:00:01.000Z",
+    );
+    // Repeated ps snapshots as MCP server boots and spawns its children.
+    for (let i = 0; i < 5; i += 1) {
+      const at = `2026-04-16T00:00:0${2 + i}.000Z`;
+      nowMs = Date.parse(at);
+      service.recordProcessSnapshot(
+        "codex-fresh",
+        {
+          descendantProcesses: [
+            { pid: 100, command: "codex", cli_type: "codex" },
+            {
+              pid: 200 + i,
+              command: "npx @playwright/mcp-server",
+              cli_type: null,
+            },
+            // Mock one of Playwright's Chromium descendants appearing
+            // after the first few polls — the kind of churn that used
+            // to masquerade as meaningful progress.
+            ...(i >= 2
+              ? [
+                  {
+                    pid: 300 + i,
+                    command: "/usr/bin/chromium --headless",
+                    cli_type: null,
+                  },
+                ]
+              : []),
+          ],
+          foregroundTool:
+            i >= 2
+              ? "/usr/bin/chromium --headless"
+              : "npx @playwright/mcp-server",
+        },
+        at,
+      );
+    }
+
+    const snap = service.getTerminalSnapshot("codex-fresh");
+    // The descendant tree never got written into foreground_tool …
+    assert.equal(snap?.foreground_tool, undefined);
+    // … and ps-only churn did not bump the progress clock.
+    assert.equal(snap?.last_meaningful_progress_at, undefined);
+    // Which means derived_status stays in the neutral "starting" state,
+    // and the session panel renders it as idle (gray) rather than the
+    // previous persistent green-"thinking" or yellow-"running mcp".
+    assert.equal(snap?.derived_status, "starting");
     service.dispose();
   },
 );

@@ -268,7 +268,25 @@ export function deriveTelemetryStatus(
     }
   }
 
-  if (snapshot.last_output_at || snapshot.last_input_at) {
+  // PTY output alone isn't evidence of a stall — a freshly-opened Codex
+  // or Claude prints a banner before the user has typed anything, and we
+  // shouldn't fire the yellow "attention / stall" badge on a terminal
+  // that has never even been asked to do work. For agent terminals,
+  // require some signal that the agent actually tried to progress.
+  // Shell terminals keep the looser behaviour: their ps descendants
+  // reliably bump meaningful_progress, and without that, PTY output is
+  // the only stall signal we have.
+  const isAgentSnapshot =
+    snapshot.provider === "claude" ||
+    snapshot.provider === "codex" ||
+    snapshot.provider === "wuu";
+  const hasAgentActivity =
+    !!snapshot.last_session_event_at ||
+    snapshot.active_tool_calls > 0 ||
+    !!snapshot.last_meaningful_progress_at;
+  const stallEligible = !isAgentSnapshot || hasAgentActivity;
+
+  if ((snapshot.last_output_at || snapshot.last_input_at) && stallEligible) {
     return "stall_candidate";
   }
 
@@ -901,7 +919,19 @@ export class TelemetryService {
       state.snapshot.foreground_tool = undefined;
     }
 
-    if (hasMeaningfulChange) {
+    // Whether ps churn counts as "meaningful progress" depends on the
+    // same gate as foreground_tool. A shell's descendant processes ARE
+    // the signal, but an agent's descendants (MCP servers spawning
+    // their own children, Playwright's Chromium tree churning, etc.)
+    // would otherwise keep `last_meaningful_progress_at` refreshed
+    // forever, which feeds derived_status="progressing" and paints the
+    // panel green "thinking" on a freshly opened Codex that literally
+    // hasn't been asked to do anything. Genuine agent work still gets
+    // tracked through session events and hook-set timestamps — those
+    // don't flow through this branch.
+    const processChangeCountsAsProgress =
+      !isAgentTerminal || hasActiveHookTool || hasActiveSessionTool;
+    if (hasMeaningfulChange && processChangeCountsAsProgress) {
       state.snapshot.last_meaningful_progress_at = timestamp;
     }
 
