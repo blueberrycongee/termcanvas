@@ -80,6 +80,40 @@ function spawnDust(): Particle[] {
   ];
 }
 
+function spawnWalkDust(facingRight: boolean): Particle {
+  const now = Date.now();
+  // Trailing foot = opposite of the facing direction.
+  const trailX = facingRight ? 18 : PET_SIZE - 18;
+  return {
+    id: `walkdust-${now}-${Math.random().toString(36).slice(2, 5)}`,
+    kind: "dust" as const,
+    ox: trailX,
+    oy: PET_SIZE - 14,
+    dx: facingRight ? -8 : 8,
+    dy: -2,
+    spawnedAt: now,
+    durationMs: 420,
+  };
+}
+
+function spawnIdleEmote(): Particle {
+  const now = Date.now();
+  const roll = Math.random();
+  const kind: Particle["kind"] =
+    roll < 0.45 ? "heart" : roll < 0.85 ? "note" : "star";
+  const dxSign = Math.random() < 0.5 ? -1 : 1;
+  return {
+    id: `emote-${now}-${Math.random().toString(36).slice(2, 5)}`,
+    kind,
+    ox: PET_SIZE / 2 + (Math.random() - 0.5) * 10,
+    oy: 18 + Math.random() * 4,
+    dx: dxSign * (4 + Math.random() * 10),
+    dy: -28 - Math.random() * 10,
+    spawnedAt: now,
+    durationMs: 1400,
+  };
+}
+
 export function PetOverlay() {
   usePetEventBridge();
 
@@ -108,11 +142,16 @@ export function PetOverlay() {
 
   const animFrameRef = useRef<number>(0);
   const lastFrameTimeRef = useRef(0);
+  const lastWalkDustRef = useRef(0);
 
   const [particles, setParticles] = useState<Particle[]>([]);
 
   const spawnParticles = useCallback((batch: Particle[]) => {
     setParticles((prev) => [...prev, ...batch]);
+  }, []);
+
+  const spawnParticle = useCallback((p: Particle) => {
+    setParticles((prev) => [...prev, p]);
   }, []);
 
   // Main animation loop
@@ -144,6 +183,12 @@ export function PetOverlay() {
         } else if (!state.isMoving) {
           setIsMoving(true);
         }
+
+        // Drop a small dust puff behind the trailing foot while walking
+        if (!result.arrived && timestamp - lastWalkDustRef.current > 420) {
+          lastWalkDustRef.current = timestamp;
+          spawnParticle(spawnWalkDust(result.facingRight));
+        }
       }
 
       animFrameRef.current = requestAnimationFrame(tick);
@@ -155,7 +200,44 @@ export function PetOverlay() {
       running = false;
       cancelAnimationFrame(animFrameRef.current);
     };
-  }, [advanceFrame, setPosition, setMoveTarget, setIsMoving, setFacingRight]);
+  }, [
+    advanceFrame,
+    setPosition,
+    setMoveTarget,
+    setIsMoving,
+    setFacingRight,
+    spawnParticle,
+  ]);
+
+  // Random idle emote — while the pet is peacefully idling, occasionally
+  // drift a heart, music note, or sparkle upward to signal personality.
+  useEffect(() => {
+    if (stateInfo.state !== "idle" || isMoving) return;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+
+    const scheduleNext = () => {
+      if (cancelled) return;
+      const delay = 7000 + Math.random() * 11000;
+      timeoutId = setTimeout(() => {
+        if (cancelled) return;
+        spawnParticle(spawnIdleEmote());
+        scheduleNext();
+      }, delay);
+    };
+
+    // First emote arrives sooner the first time so the pet feels alive quickly
+    timeoutId = setTimeout(() => {
+      if (cancelled) return;
+      spawnParticle(spawnIdleEmote());
+      scheduleNext();
+    }, 3500 + Math.random() * 5000);
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [stateInfo.state, isMoving, spawnParticle]);
 
   // Prune expired particles periodically
   useEffect(() => {
@@ -290,7 +372,7 @@ export function PetOverlay() {
           fill="transparent"
         />
 
-        {/* Sleeping Z particles */}
+        {/* Sleeping Z particles + spa yuzu on head (onsen capybara tribute) */}
         {displayState === "sleeping" && (
           <g>
             {zzzOffsets.map((offset, i) => {
@@ -311,6 +393,21 @@ export function PetOverlay() {
                 </text>
               );
             })}
+            {/* Pixel yuzu perched on the sleeping head (col ~14, above row 8) */}
+            <g transform="translate(54, 22)">
+              {/* leaf */}
+              <rect x={3} y={0} width={3} height={2} fill={C.yuzuLeaf} />
+              <rect x={4} y={2} width={1} height={2} fill={C.yuzuLeaf} />
+              {/* citrus body */}
+              <rect x={2} y={4} width={6} height={2} fill={C.yuzu} />
+              <rect x={1} y={6} width={8} height={4} fill={C.yuzu} />
+              <rect x={2} y={10} width={6} height={2} fill={C.yuzu} />
+              {/* shading */}
+              <rect x={6} y={6} width={2} height={4} fill={C.yuzuShade} />
+              <rect x={5} y={10} width={3} height={1} fill={C.yuzuShade} />
+              {/* highlight */}
+              <rect x={2} y={6} width={1} height={1} fill="#FFEBA0" />
+            </g>
           </g>
         )}
 
@@ -336,18 +433,31 @@ export function PetOverlay() {
           </g>
         )}
 
-        {/* Confused question mark */}
+        {/* Confused — a bobbing question mark plus a faint ghost behind it */}
         {displayState === "confused" && (
-          <text
-            x={PET_SIZE + 4}
-            y={-2}
-            fontSize={14}
-            fill={C.sparkle}
-            fontFamily="monospace"
-            fontWeight="bold"
-          >
-            ?
-          </text>
+          <g>
+            <text
+              x={PET_SIZE + 4}
+              y={-2 + Math.sin(Date.now() / 260) * 1.5}
+              fontSize={10}
+              fill={C.sparkle}
+              opacity={0.35}
+              fontFamily="monospace"
+              fontWeight="bold"
+            >
+              ?
+            </text>
+            <text
+              x={PET_SIZE + 6}
+              y={-6 + Math.sin(Date.now() / 220) * 2}
+              fontSize={14}
+              fill={C.sparkle}
+              fontFamily="monospace"
+              fontWeight="bold"
+            >
+              ?
+            </text>
+          </g>
         )}
 
         {/* Particle overlay (hearts / dust / notes) */}
