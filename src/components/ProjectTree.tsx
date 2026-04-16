@@ -468,7 +468,13 @@ function ProjectRow({
         role="button"
         tabIndex={0}
         className="group w-full flex items-center gap-1.5 px-3 py-1 text-left cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors"
-        onClick={handleActivate}
+        onClick={() => {
+          // Match worktree rows: clicking anywhere on the project row should
+          // both focus it and toggle collapse, instead of forcing the user to
+          // aim for the small chevron.
+          handleActivate();
+          toggle(project.projectId);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
