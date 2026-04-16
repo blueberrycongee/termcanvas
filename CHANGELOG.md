@@ -2,6 +2,24 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.28.2] - 2026-04-16
+
+### Added
+- Pet: attention queue with priority-based terminal notifications, plus attention movement that brings the capybara inside the target terminal instead of parking on the title bar
+
+### Fixed
+- Terminal: overview mode (Cmd+E) now keeps single-click focused for immediate typing, uses double-click anywhere on the terminal to zoom back in, and suppresses accidental xterm text selection during overview navigation
+- UI: remove the focused terminal side glow and keep the focus state indicated by border only
+- Pet: refine capybara sprite shading, contour, detail, and movement sizing to match the larger sprite scale
+
+### Added (zh-CN)
+- 桌宠：新增按优先级排队的终端提醒气泡；提醒时水豚会进入目标终端内部，而不是停在标题栏上
+
+### Fixed (zh-CN)
+- 终端：修复概览模式（Cmd+E）交互，单击后可立即输入，双击终端任意区域即可放大，并抑制导航时误触发 xterm 文本选区
+- UI：移除终端聚焦时两侧的光晕，仅保留边框作为聚焦指示
+- 桌宠：优化水豚精灵图的阴影、轮廓、细节和移动尺寸，使其与放大后的 sprite 比例一致
+
 ## [0.28.1] - 2026-04-16
 
 ### Added
