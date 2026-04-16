@@ -690,7 +690,11 @@ export function TerminalTile({
         boxShadow: dragOver
           ? "0 0 0 2px var(--accent), 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent)"
           : terminal.focused
-            ? "0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 8px color-mix(in srgb, var(--accent) 15%, transparent)"
+            ? "0 0 20px color-mix(in srgb, var(--accent) 12%, transparent)"
+            : undefined,
+        borderColor:
+          !dragOver && terminal.focused
+            ? "color-mix(in srgb, var(--accent) 55%, var(--border))"
             : undefined,
         outline: "none",
       }}
