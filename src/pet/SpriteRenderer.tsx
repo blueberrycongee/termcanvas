@@ -1,8 +1,9 @@
 import { memo, useMemo } from "react";
 import type { SpriteFrame } from "./sprites";
+import { PET_PIXEL_SIZE, SPRITE_GRID_SIZE } from "./constants";
 
-const PIXEL_SIZE = 2; // Each sprite pixel = 2 screen pixels → 24×2 = 48px pet
-const GRID_SIZE = 24;
+const PIXEL_SIZE = PET_PIXEL_SIZE;
+const GRID_SIZE = SPRITE_GRID_SIZE;
 
 interface SpriteRendererProps {
   frame: SpriteFrame;

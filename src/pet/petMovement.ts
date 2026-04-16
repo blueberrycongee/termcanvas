@@ -1,4 +1,5 @@
 import type { PetPosition, PetMoveTarget } from "./petStore";
+import { PET_HALF_SIZE, PET_SIZE } from "./constants";
 
 const MOVE_SPEED = 1.5; // pixels per frame (canvas world space)
 const ARRIVAL_THRESHOLD = 4;
@@ -15,7 +16,7 @@ export function stepToward(
   target: PetMoveTarget,
 ): MovementResult {
   const targetY = target.onTitleBar
-    ? target.y - TITLE_BAR_HEIGHT - 48 // sit on top of the title bar (48 = pet height)
+    ? target.y - TITLE_BAR_HEIGHT - PET_SIZE
     : target.y;
 
   const dx = target.x - current.x;
@@ -61,8 +62,8 @@ export function getTerminalTitleBarTarget(
   edge?: boolean,
 ): PetMoveTarget {
   const petX = edge
-    ? terminal.x + terminal.width - 48 - 8 // right edge, 8px margin from right
-    : terminal.x + terminal.width / 2 - 24; // center (48/2 = 24)
+    ? terminal.x + terminal.width - PET_SIZE - 8
+    : terminal.x + terminal.width / 2 - PET_HALF_SIZE;
   return {
     x: petX,
     y: terminal.y,

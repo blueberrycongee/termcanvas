@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { usePetStore } from "./petStore";
 import type { AttentionPriority } from "./petStore";
 import { useCanvasStore } from "../stores/canvasStore";
-import { SpriteRenderer, PIXEL_SIZE, GRID_SIZE } from "./SpriteRenderer";
+import { SpriteRenderer } from "./SpriteRenderer";
 import { getCurrentFrame, getFrameInterval } from "./sprites";
 import { stepToward } from "./petMovement";
 import { usePetEventBridge } from "./eventBridge";
@@ -13,8 +13,7 @@ import {
 import { C } from "./sprites/colors";
 import { zzzOffsets } from "./sprites/sleeping";
 import { sparklePositions } from "./sprites/celebrating";
-
-const PET_SIZE = GRID_SIZE * PIXEL_SIZE; // 48px
+import { PET_SIZE } from "./constants";
 
 const PRIORITY_COLORS: Record<AttentionPriority, string> = {
   error: "#EF4444",
