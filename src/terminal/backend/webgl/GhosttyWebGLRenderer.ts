@@ -195,12 +195,17 @@ export class GhosttyWebGLRenderer {
       options.devicePixelRatio ?? window.devicePixelRatio ?? 1;
 
     const gl = canvas.getContext("webgl2", {
-      alpha: false,
+      // `alpha: true` + manual clear-to-opaque fragment matches xterm's
+      // addon-webgl layout and avoids an Electron quirk where `alpha:
+      // false` canvases can land on the compositor without picking up
+      // the last-drawn frame (we see `#EAE8E5` host bleed-through even
+      // though our draw calls ran without GL errors).
+      alpha: true,
       antialias: false,
       depth: false,
       stencil: false,
       premultipliedAlpha: true,
-      preserveDrawingBuffer: false,
+      preserveDrawingBuffer: true,
     });
     if (!gl) {
       throw new Error(

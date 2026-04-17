@@ -323,6 +323,15 @@ function installWebGLRenderer(
 
   const webglCanvas = document.createElement("canvas");
   webglCanvas.style.display = "block";
+  // Pin the canvas to the host's stacking context above the textarea
+  // (which gets position:absolute;opacity:0 but is sibling-after-us in
+  // DOM order). If some global CSS on `.tc-xterm-host > canvas` or
+  // similar shipped an opacity:0 / visibility:hidden rule we didn't
+  // anticipate, these override them inline.
+  webglCanvas.style.position = "relative";
+  webglCanvas.style.zIndex = "1";
+  webglCanvas.style.opacity = "1";
+  webglCanvas.style.visibility = "visible";
 
   const parent = oldCanvas.parentElement;
   if (!parent) {
@@ -402,6 +411,32 @@ function installWebGLRenderer(
       "[ghostty-webgl] startRenderLoop missing on Terminal — nothing will paint",
     );
   }
+
+  // Sanity check after a frame has had time to paint. If our canvas
+  // isn't reaching the compositor, we want to see which CSS property
+  // is wrong rather than guess.
+  requestAnimationFrame(() => {
+    const style = getComputedStyle(webglCanvas);
+    const rect = webglCanvas.getBoundingClientRect();
+    console.debug("[ghostty-webgl] post-install canvas state", {
+      inDom: webglCanvas.isConnected,
+      parentTag: webglCanvas.parentElement?.tagName,
+      parentClass: webglCanvas.parentElement?.className,
+      width: webglCanvas.width,
+      height: webglCanvas.height,
+      rectWidth: rect.width,
+      rectHeight: rect.height,
+      rectLeft: rect.left,
+      rectTop: rect.top,
+      display: style.display,
+      visibility: style.visibility,
+      opacity: style.opacity,
+      zIndex: style.zIndex,
+      position: style.position,
+      filter: style.filter,
+      transform: style.transform,
+    });
+  });
 }
 
 /**
