@@ -1132,11 +1132,13 @@ function applyGhosttyTheme(
   term.options.theme = theme;
 
   // Direct renderer access — this is the workaround. setTheme rebuilds the
-  // 16-slot ANSI palette; render(forceAll=true) repaints every visible
-  // cell with the new colours.
+  // 16-slot ANSI palette; clear() wipes the canvas with the new background
+  // so non-text pixels (gaps, scrollbar track) don't keep the old colour;
+  // render(forceAll=true) repaints every visible cell.
   const internals = term as unknown as {
     renderer?: {
       setTheme?: (t: ITheme) => void;
+      clear?: () => void;
       render?: (
         buffer: unknown,
         forceAll: boolean,
@@ -1148,16 +1150,28 @@ function applyGhosttyTheme(
     wasmTerm?: unknown;
     viewportY?: number;
   };
-  internals.renderer?.setTheme?.(theme);
-  if (internals.renderer?.render && internals.wasmTerm) {
-    internals.renderer.render(
-      internals.wasmTerm,
-      true,
-      internals.viewportY ?? 0,
-      term,
-      0,
-    );
-  }
+  const renderer = internals.renderer;
+  const wasmTerm = internals.wasmTerm;
+  console.debug(
+    "[ghostty-wasm] applyGhosttyTheme",
+    "bg=", theme.background,
+    "hasRenderer=", !!renderer,
+    "hasSetTheme=", !!renderer?.setTheme,
+    "hasClear=", !!renderer?.clear,
+    "hasRender=", !!renderer?.render,
+    "hasWasmTerm=", !!wasmTerm,
+  );
+  if (!renderer || !wasmTerm) return;
+
+  renderer.setTheme?.(theme);
+  renderer.clear?.();
+  renderer.render?.(
+    wasmTerm,
+    true,
+    internals.viewportY ?? 0,
+    term,
+    0,
+  );
 
   // Host background so the sub-cell remainder strip between canvas and
   // tile edges blends with the new theme instead of flashing the app's
@@ -1191,9 +1205,24 @@ function applyThemeToRuntime(
 // related fix, every already-attached tile picks it up on the next toggle
 // without needing to be torn down and recreated. The per-runtime closure
 // would have frozen the old implementation at tile-creation time.
+console.debug(
+  "[terminalRuntimeStore] installing module-level theme subscription",
+);
 useThemeStore.subscribe((state) => {
   const theme = XTERM_THEMES[state.theme];
-  for (const runtime of runtimeRegistry.values()) {
+  const runtimes = [...runtimeRegistry.values()];
+  const byKind = runtimes.reduce<Record<string, number>>((acc, r) => {
+    const key = r.backendKind ?? "null";
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {});
+  console.debug(
+    "[terminalRuntimeStore] theme subscription fired",
+    "theme=", state.theme,
+    "runtimeCount=", runtimes.length,
+    "byKind=", byKind,
+  );
+  for (const runtime of runtimes) {
     applyThemeToRuntime(runtime, theme);
   }
 });
