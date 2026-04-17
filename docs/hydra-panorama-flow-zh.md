@@ -1,4 +1,4 @@
-# Hydra 工作流全景图
+# Hydra Workbench 全景图
 
 ## 1. 模式选择
 
@@ -27,15 +27,16 @@ flowchart TD
     classDef file fill:#6b6b6b,stroke:#4a4a4a,color:#fff,font-style:italic
     classDef fail fill:#d0021b,stroke:#a00116,color:#fff,font-weight:bold
 
-    START([workflow 已创建]):::state --> DISPATCH["Lead: hydra dispatch"]:::hydra
+    START([workbench 已创建]):::state --> DISPATCH["Lead: hydra dispatch"]:::hydra
     DISPATCH --> WORKER["worker 终端<br/>执行 task.md"]:::agent
     WORKER --> FILES["写入 report.md<br/>+ result.json"]:::file
     FILES --> WATCH["Lead: hydra watch"]:::hydra
     WATCH --> DECIDE{DecisionPoint}:::decision
 
-    DECIDE -- "node_completed" --> ACTION{Lead 动作}:::decision
-    DECIDE -- "node_failed" --> FAIL_OR_RESET["hydra fail<br/>或 hydra reset"]:::fail
-    DECIDE -- "watch_timeout" --> INSPECT["hydra status + telemetry"]:::hydra
+    DECIDE -- "dispatch_completed" --> ACTION{Lead 动作}:::decision
+    DECIDE -- "dispatch_failed" --> FAIL_OR_RESET["hydra fail<br/>或 hydra reset"]:::fail
+    DECIDE -- "stall_advisory" --> INSPECT["hydra status + telemetry"]:::hydra
+    DECIDE -- "watch_timeout" --> INSPECT
     DECIDE -- "batch_completed" --> BATCH{还有后续吗?}:::decision
 
     ACTION -- "继续追问" --> ASK["hydra ask"]:::hydra
@@ -44,18 +45,18 @@ flowchart TD
     ACTION -- "返工" --> RESET["hydra reset"]:::hydra
     RESET --> REDISPATCH["hydra redispatch"]:::hydra
     REDISPATCH --> WORKER
-    ACTION -- "分发后续 / 并行节点" --> MORE["hydra dispatch"]:::hydra
+    ACTION -- "分发后续 / 并行 dispatch" --> MORE["hydra dispatch"]:::hydra
     MORE --> WATCH
-    ACTION -- "结束 workflow" --> COMPLETE["hydra complete"]:::state
+    ACTION -- "结束 workbench" --> COMPLETE["hydra complete"]:::state
 
     APPROVE --> AFTER_APPROVE{要继续分发吗?}:::decision
     AFTER_APPROVE -- "要" --> MORE
     AFTER_APPROVE -- "暂时不要" --> WATCH
 
-    BATCH -- "分发 newly eligible 节点" --> MORE
+    BATCH -- "分发 newly eligible dispatch" --> MORE
     BATCH -- "合并并行分支" --> MERGE["hydra merge"]:::hydra
     MERGE --> WATCH
-    BATCH -- "workflow 已完成" --> COMPLETE
+    BATCH -- "workbench 已完成" --> COMPLETE
 
     INSPECT --> WATCH
     FAIL_OR_RESET --> WATCH
@@ -89,17 +90,17 @@ flowchart LR
     classDef state fill:#f8e71c,stroke:#c5b800,color:#1a1a1a,font-weight:bold
     classDef agent fill:#7ed321,stroke:#5a9e18,color:#fff,font-weight:bold
 
-    subgraph WF[".hydra/workflows/<workflowId>"]
-        WJ["workflow.json<br/>workflow 元数据 + DAG"]:::state
+    subgraph WB[".hydra/workbenches/&lt;workbenchId&gt;"]
+        WJ["workbench.json<br/>workbench 元数据 + DAG"]:::state
         LEDGER["ledger.jsonl<br/>决策审计日志"]:::file
-        INPUT["inputs/intent.md<br/>workflow intent"]:::file
-        NODE["nodes/<nodeId>/intent.md<br/>节点 intent"]:::file
-        FEEDBACK["nodes/<nodeId>/feedback.md<br/>Lead 反馈"]:::file
-        AJ["assignments/<assignmentId>/assignment.json<br/>assignment 状态"]:::state
-        TASK["assignments/<assignmentId>/runs/<runId>/task.md<br/>本轮任务单"]:::file
-        REPORT["assignments/<assignmentId>/runs/<runId>/report.md<br/>人类可读报告"]:::file
-        RESULT["assignments/<assignmentId>/runs/<runId>/result.json<br/>机器路由门禁"]:::file
-        OUT["outputs/summary.md<br/>workflow 总结"]:::file
+        INPUT["inputs/intent.md<br/>workbench intent"]:::file
+        NODE["dispatches/&lt;dispatchId&gt;/intent.md<br/>dispatch intent"]:::file
+        FEEDBACK["dispatches/&lt;dispatchId&gt;/feedback.md<br/>Lead 反馈"]:::file
+        AJ["assignments/&lt;assignmentId&gt;/assignment.json<br/>assignment 状态"]:::state
+        TASK["assignments/&lt;assignmentId&gt;/runs/&lt;runId&gt;/task.md<br/>本轮任务单"]:::file
+        REPORT["assignments/&lt;assignmentId&gt;/runs/&lt;runId&gt;/report.md<br/>人类可读报告"]:::file
+        RESULT["assignments/&lt;assignmentId&gt;/runs/&lt;runId&gt;/result.json<br/>机器路由门禁"]:::file
+        OUT["outputs/summary.md<br/>workbench 总结"]:::file
     end
 
     WJ --> NODE
@@ -119,6 +120,7 @@ flowchart LR
 
 - `hydra watch` 是 Lead 的决策循环。
 - `report.md` 负责解释发生了什么；`result.json` 负责告诉 Hydra 怎么路由。
-- Role 文件锁定节点的 CLI / model / reasoning 配置。
+- Role 文件锁定 dispatch 的 CLI / model / reasoning 配置。
 - `hydra ask` 是轻量追问；`hydra reset` 是明确返工。
 - retry = 新 run id + 新输出目录。
+- `stall_advisory` 不是失败——它是 liveness 探针在提示"worker 还活着但没推进"。Lead 自行决定：继续等 / reset / 人肉接手。
