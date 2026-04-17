@@ -1193,3 +1193,75 @@ test(
     service.dispose();
   },
 );
+
+test(
+  "SessionStart hook attaching clears ps-contaminated state even without a provider flip",
+  () => {
+    // Observed via DevTools: a Claude terminal registered with
+    // provider="unknown" (because its terminalType wasn't "claude" at
+    // registration time — e.g. created as shell that will be upgraded
+    // later). ps bumped last_meaningful_progress_at during the unknown
+    // window. Then Claude fired SessionStart with session_id, which
+    // hit recordHookEvent SessionStart:
+    //     const provider = state.snapshot.provider || "claude"
+    // That "|| 'claude'" fallback only triggers for empty/null/undefined —
+    // "unknown" is truthy, so the provider passed to
+    // recordSessionAttached stays "unknown". My earlier unknown→agent
+    // fix keys off the provider flip and therefore does NOT engage
+    // here. The panel stayed green briefly until a later hook-session
+    // upgrade path finally flipped provider→claude.
+    //
+    // Root fix: recordSessionAttached itself is a strong enough signal
+    // that this is now an agent terminal. On first attach, clear ps
+    // contamination regardless of what provider the caller passed.
+    const service = new TelemetryService({ processPollIntervalMs: 0 });
+    service.registerTerminal({
+      terminalId: "claude-shell-upgrade",
+      worktreePath: "/repo",
+      // No provider → defaults to "unknown" (matches the registerTerminal
+      // path in main.ts:371 for terminalType="shell").
+    });
+    service.recordPtyCreated({
+      terminalId: "claude-shell-upgrade",
+      ptyId: 9,
+      shellPid: 77,
+    });
+    // ps fires while we still think it's a shell.
+    service.recordProcessSnapshot(
+      "claude-shell-upgrade",
+      {
+        descendantProcesses: [
+          { pid: 77, command: "bash", cli_type: null },
+          { pid: 88, command: "node claude-agent", cli_type: null },
+        ],
+        foregroundTool: "node claude-agent",
+      },
+      "2026-04-16T00:00:01.000Z",
+    );
+    const beforeAttach = service.getTerminalSnapshot("claude-shell-upgrade");
+    assert.equal(beforeAttach?.foreground_tool, "node claude-agent");
+    assert.equal(
+      beforeAttach?.last_meaningful_progress_at,
+      "2026-04-16T00:00:01.000Z",
+    );
+
+    // SessionStart hook arrives with session_id. recordHookEvent passes
+    // state.snapshot.provider (still "unknown") through to
+    // recordSessionAttached — the fallback "|| 'claude'" doesn't trigger
+    // because "unknown" is truthy. So the attach happens while provider
+    // is still "unknown", which is the path the old fix missed.
+    service.recordHookEvent("claude-shell-upgrade", {
+      hook_event_name: "SessionStart",
+      session_id: "sess-claude",
+    });
+
+    const afterAttach = service.getTerminalSnapshot("claude-shell-upgrade");
+    assert.equal(afterAttach?.session_attached, true);
+    // The key assertions: attach itself clears ps noise even though
+    // provider didn't transition unknown→agent in this path.
+    assert.equal(afterAttach?.foreground_tool, undefined);
+    assert.equal(afterAttach?.last_meaningful_progress_at, undefined);
+    assert.notEqual(afterAttach?.derived_status, "progressing");
+    service.dispose();
+  },
+);
