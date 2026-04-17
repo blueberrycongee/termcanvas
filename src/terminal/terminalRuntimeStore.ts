@@ -1817,6 +1817,15 @@ export function attachTerminalContainer(
   }
 
   if (!runtime.xterm) {
+    if (runtime.rendererPromise) {
+      // An async renderer init is already in flight (ghostty WASM load).
+      // React strict-mode double-invokes effects, which would otherwise
+      // kick off a second backend here — ending with two canvases fighting
+      // for the same container. Just ensure the host sits in the latest
+      // container and let the pending init finish.
+      attachTerminalHost(runtime, container);
+      return;
+    }
     createTerminalRenderer(runtime, container);
     return;
   }

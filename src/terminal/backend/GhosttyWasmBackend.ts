@@ -87,6 +87,19 @@ export class GhosttyWasmBackend implements TerminalBackend {
 
     const fitAddon = new GhosttyFitAddon();
     term.loadAddon(fitAddon);
+    // ghostty-web sizes its canvas strictly to cols×charWidth × rows×charHeight
+    // — it does NOT auto-fill the parent. Without an explicit fit here, the
+    // canvas stays at the default 80×24 pixels and looks like a tiny terminal
+    // parked in the top-left corner of the tile. fit() once now using the
+    // container's first-layout dimensions, and observeResize() hooks up a
+    // ResizeObserver so subsequent tile geometry changes re-fit us.
+    try {
+      fitAddon.fit();
+    } catch {
+      // proposeDimensions returns undefined if the host hasn't laid out yet;
+      // the observer we wire next will pick it up as soon as size is real.
+    }
+    fitAddon.observeResize();
 
     // ghostty-web paints onto a canvas inside the container. Treat the
     // container as the host and the canvas as the screen element so
