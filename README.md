@@ -158,7 +158,7 @@ For Claude/Codex task automation, start a fresh terminal with `termcanvas termin
 
 Hydra is TermCanvas's terminal orchestration toolkit for Lead-driven workflows and isolated direct workers. It coordinates **git worktrees**, **assignment/run file contracts**, and the **telemetry truth layer** without taking control away from the agent sessions themselves.
 
-Hydra is now **Lead-driven**. One main terminal owns the workflow, reads the codebase, and decides what to do at each decision point. Worker terminals stay autonomous. Workflow state lives under repo-local `.hydra/workflows/`, and the authoritative contract is on disk: `inputs/intent.md`, `nodes/<nodeId>/intent.md`, `report.md`, `result.json`, and `ledger.jsonl`. Terminal prose is advisory only; validated `result.json` is the machine gate.
+Hydra is now **Lead-driven**. One main terminal owns the workbench, reads the codebase, and decides what to do at each decision point. Worker terminals stay autonomous. Workbench state lives under repo-local `.hydra/workbenches/`, and the authoritative contract is on disk: `inputs/intent.md`, `dispatches/<dispatchId>/intent.md`, `report.md`, `result.json`, and `ledger.jsonl`. Terminal prose is advisory only; validated `result.json` is the machine gate.
 
 Role-driven workflows currently target **Claude/Codex** through the Hydra role registry. If you only need one isolated worker without a Lead-driven DAG, use `hydra spawn` instead.
 
@@ -183,17 +183,17 @@ hydra init-repo
 
 hydra init --intent "Add OAuth login" --repo .
 
-hydra dispatch --workflow <workflow-id> --node dev --role dev \
+hydra dispatch --workbench <id> --dispatch dev --role dev \
   --intent "Implement OAuth login and the tests that cover it" --repo .
 
-hydra watch --workflow <workflow-id> --repo .
+hydra watch --workbench <id> --repo .
 
-hydra dispatch --workflow <workflow-id> --node review --role reviewer \
+hydra dispatch --workbench <id> --dispatch review --role reviewer \
   --intent "Independent review of the OAuth change" \
   --depends-on dev --repo .
 
-hydra watch --workflow <workflow-id> --repo .
-hydra complete --workflow <workflow-id> --repo .
+hydra watch --workbench <id> --repo .
+hydra complete --workbench <id> --repo .
 ```
 
 Role files choose the CLI / model / reasoning profile. The caller chooses the `role`; Hydra resolves the terminal from that role definition.
@@ -204,27 +204,27 @@ Role files choose the CLI / model / reasoning profile. The caller chooses the `r
 ```
 Usage: hydra <command> [options]
 
-Lead-driven workflow:
-  init        Create a workflow context
-  dispatch    Dispatch a node into a workflow
+Lead-driven workbench:
+  init        Create a workbench context
+  dispatch    Dispatch a unit of work into a workbench
   watch       Wait until a decision point is reached
-  redispatch  Re-run an eligible/reset node
-  approve     Mark a node output as approved
-  reset       Reset a node (and downstream by default) for rework
-  ask         Ask a completed node a follow-up question via session resume
-  merge       Merge completed parallel node branches
-  complete    Mark a workflow as completed
-  fail        Mark a workflow as failed
+  redispatch  Re-run an eligible/reset dispatch
+  approve     Mark a dispatch output as approved
+  reset       Reset a dispatch (and downstream by default) for rework
+  ask         Ask a completed dispatch a follow-up question via session resume
+  merge       Merge completed parallel dispatch branches
+  complete    Mark a workbench as completed
+  fail        Mark a workbench as failed
 
 Inspection:
-  status      Show structured workflow + assignment state
-  ledger      Show workflow event log
-  list        List direct spawned agents (pass --workflows for workflows)
+  status      Show structured workbench + assignment state
+  ledger      Show workbench event log
+  list        List direct spawned agents (pass --workbenches for workbenches)
   list-roles  Show available role definitions
 
 Housekeeping:
   spawn      Create one direct isolated worker terminal
-  cleanup    Clean up workflow state or direct spawned workers
+  cleanup    Clean up workbench state or direct spawned workers
   init-repo  Sync Hydra instructions into CLAUDE.md and AGENTS.md
 ```
 
@@ -237,40 +237,40 @@ Housekeeping:
 # Repo setup
 hydra init-repo
 
-# Start a Lead-driven workflow
+# Start a Lead-driven workbench
 hydra init --intent "fix the login bug" --repo .
 
-# Dispatch a node and wait for the decision point
-hydra dispatch --workflow <workflow-id> --node dev --role dev \
+# Dispatch a unit of work and wait for the decision point
+hydra dispatch --workbench <id> --dispatch dev --role dev \
   --intent "Fix the login bug and add regression coverage" --repo .
-hydra watch --workflow <workflow-id> --repo .
+hydra watch --workbench <id> --repo .
 
-# Ask a completed node a follow-up question without re-running it
-hydra ask --workflow <workflow-id> --node dev \
+# Ask a completed dispatch a follow-up question without re-running it
+hydra ask --workbench <id> --dispatch dev \
   --message "Why did you change the session validation path?" --repo .
 
-# Send a node back for rework
-hydra reset --workflow <workflow-id> --node dev \
+# Send a dispatch back for rework
+hydra reset --workbench <id> --dispatch dev \
   --feedback "The fix regressed the refresh-token path. Rework it." --repo .
-hydra redispatch --workflow <workflow-id> --node dev --repo .
+hydra redispatch --workbench <id> --dispatch dev --repo .
 
 # Direct isolated worker
 hydra spawn --task "investigate the flaky CI failure" --repo .
 
 # Inspection
-hydra status --workflow <workflow-id> --repo .
-hydra ledger --workflow <workflow-id> --repo .
-hydra list --workflows --repo .
+hydra status --workbench <id> --repo .
+hydra ledger --workbench <id> --repo .
+hydra list --workbenches --repo .
 hydra list-roles --repo .
 
 # Cleanup
-hydra cleanup --workflow <workflow-id> --repo . --force
+hydra cleanup --workbench <id> --repo . --force
 hydra cleanup <agent-id> --force
 ```
 
 </details>
 
-Lead-driven workflows advance through validated `result.json` evidence inside `.hydra/workflows/`. The telemetry truth layer provides real-time `turn_state`, `last_meaningful_progress_at`, `derived_status`, and session attachment data — used by both the UI and Hydra's watch / retry / health-check paths.
+Lead-driven workbenches advance through validated `result.json` evidence inside `.hydra/workbenches/`. The telemetry truth layer provides real-time `turn_state`, `last_meaningful_progress_at`, `derived_status`, and session attachment data — used by both the UI and Hydra's watch / retry / health-check paths.
 
 **Typical workflow:** write a PRD → run `hydra init-repo` once → let the Lead choose direct work vs `spawn` vs `init/dispatch/watch` → monitor via `hydra watch` or the canvas UI → read `report.md` before approving / resetting / completing. See [Hydra Orchestration Guide](docs/hydra-orchestration.md) for the control-plane details, and the [Hydra Panoramic Flowchart](docs/hydra-panorama-flow.md) for the updated state / file model.
 

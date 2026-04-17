@@ -157,7 +157,7 @@ termcanvas diff ~/my-repo --summary
 
 Hydra 是 TermCanvas 的终端编排工具，用于 Lead 驱动 workflow 和直接隔离 worker。它负责协调 **git worktree**、**assignment/run 文件契约** 以及 **telemetry 真相层**，但不会接管 agent 会话本身。
 
-Hydra 现在是 **Lead 驱动** 的。一个主终端负责读代码、做决策、推进 workflow；worker 终端保持自治。Workflow 状态保存在仓库内的 `.hydra/workflows/` 目录下，权威契约也都在磁盘上：`inputs/intent.md`、`nodes/<nodeId>/intent.md`、`report.md`、`result.json`、`ledger.jsonl`。终端输出只作参考；经过验证的 `result.json` 才是机器门禁。
+Hydra 现在是 **Lead 驱动** 的。一个主终端负责读代码、做决策、推进 workbench；worker 终端保持自治。Workbench 状态保存在仓库内的 `.hydra/workbenches/` 目录下，权威契约也都在磁盘上：`inputs/intent.md`、`dispatches/<dispatchId>/intent.md`、`report.md`、`result.json`、`ledger.jsonl`。终端输出只作参考；经过验证的 `result.json` 才是机器门禁。
 
 基于 role 的 workflow 目前主要面向 **Claude/Codex**。如果你只需要一个隔离 worker，而不需要 Lead 驱动的 DAG，就用 `hydra spawn`。
 
@@ -182,17 +182,17 @@ hydra init-repo
 
 hydra init --intent "Add OAuth login" --repo .
 
-hydra dispatch --workflow <workflow-id> --node dev --role dev \
+hydra dispatch --workbench <id> --dispatch dev --role dev \
   --intent "实现 OAuth 登录并补上覆盖它的测试" --repo .
 
-hydra watch --workflow <workflow-id> --repo .
+hydra watch --workbench <id> --repo .
 
-hydra dispatch --workflow <workflow-id> --node review --role reviewer \
+hydra dispatch --workbench <id> --dispatch review --role reviewer \
   --intent "独立审查这次 OAuth 改动" \
   --depends-on dev --repo .
 
-hydra watch --workflow <workflow-id> --repo .
-hydra complete --workflow <workflow-id> --repo .
+hydra watch --workbench <id> --repo .
+hydra complete --workbench <id> --repo .
 ```
 
 Role 文件会决定 CLI / model / reasoning 组合。调用方只负责选择 `role`；终端如何启动由 Hydra 根据 role 定义解析。
@@ -203,27 +203,27 @@ Role 文件会决定 CLI / model / reasoning 组合。调用方只负责选择 `
 ```
 用法: hydra <command> [options]
 
-Lead 驱动 workflow:
-  init        创建 workflow 上下文
-  dispatch    向 workflow 分发一个节点
+Lead 驱动 workbench:
+  init        创建 workbench 上下文
+  dispatch    向 workbench 分发一个任务单元
   watch       等待下一个 decision point
-  redispatch  重新执行一个 eligible / reset 节点
-  approve     将节点产物标记为已批准
-  reset       将节点（默认连同下游）退回重做
-  ask         基于已完成节点的 session 继续追问
-  merge       合并已完成的并行节点分支
-  complete    将 workflow 标记为完成
-  fail        将 workflow 标记为失败
+  redispatch  重新执行一个 eligible / reset dispatch
+  approve     将 dispatch 产物标记为已批准
+  reset       将 dispatch（默认连同下游）退回重做
+  ask         基于已完成 dispatch 的 session 继续追问
+  merge       合并已完成的并行 dispatch 分支
+  complete    将 workbench 标记为完成
+  fail        将 workbench 标记为失败
 
 检查类:
-  status      查看结构化 workflow + assignment 状态
-  ledger      查看 workflow 事件日志
-  list        列出直接 spawn 的 worker（加 --workflows 可列 workflow）
+  status      查看结构化 workbench + assignment 状态
+  ledger      查看 workbench 事件日志
+  list        列出直接 spawn 的 worker（加 --workbenches 可列 workbench）
   list-roles  查看可用 role 定义
 
 维护类:
   spawn      创建一个直接隔离 worker
-  cleanup    清理 workflow 状态或直接 spawn 的 worker
+  cleanup    清理 workbench 状态或直接 spawn 的 worker
   init-repo  将 Hydra 指令同步到 CLAUDE.md 和 AGENTS.md
 ```
 
@@ -236,40 +236,40 @@ Lead 驱动 workflow:
 # 仓库初始化
 hydra init-repo
 
-# 启动一个 Lead 驱动 workflow
+# 启动一个 Lead 驱动 workbench
 hydra init --intent "fix the login bug" --repo .
 
-# 分发节点并等待 decision point
-hydra dispatch --workflow <workflow-id> --node dev --role dev \
+# 分发任务单元并等待 decision point
+hydra dispatch --workbench <id> --dispatch dev --role dev \
   --intent "修复登录 bug 并补上回归覆盖" --repo .
-hydra watch --workflow <workflow-id> --repo .
+hydra watch --workbench <id> --repo .
 
-# 对已完成节点追加追问，不重跑
-hydra ask --workflow <workflow-id> --node dev \
+# 对已完成 dispatch 追加追问，不重跑
+hydra ask --workbench <id> --dispatch dev \
   --message "为什么你改了 session 校验路径？" --repo .
 
-# 让节点返工
-hydra reset --workflow <workflow-id> --node dev \
+# 让 dispatch 返工
+hydra reset --workbench <id> --dispatch dev \
   --feedback "这个修复把 refresh-token 路径弄回归了，重新处理。" --repo .
-hydra redispatch --workflow <workflow-id> --node dev --repo .
+hydra redispatch --workbench <id> --dispatch dev --repo .
 
 # 直接隔离 worker
 hydra spawn --task "investigate the flaky CI failure" --repo .
 
 # 状态检查
-hydra status --workflow <workflow-id> --repo .
-hydra ledger --workflow <workflow-id> --repo .
-hydra list --workflows --repo .
+hydra status --workbench <id> --repo .
+hydra ledger --workbench <id> --repo .
+hydra list --workbenches --repo .
 hydra list-roles --repo .
 
 # 清理
-hydra cleanup --workflow <workflow-id> --repo . --force
+hydra cleanup --workbench <id> --repo . --force
 hydra cleanup <agent-id> --force
 ```
 
 </details>
 
-Lead 驱动 workflow 只会在 `.hydra/workflows/` 里的 `result.json` 通过校验后前进。Telemetry 真相层会补充 `turn_state`、`last_meaningful_progress_at`、`derived_status` 和 session 绑定信息，既给 UI 用，也给 Hydra 的 watch / retry / 健康检查路径用。
+Lead 驱动 workbench 只会在 `.hydra/workbenches/` 里的 `result.json` 通过校验后前进。Telemetry 真相层会补充 `turn_state`、`last_meaningful_progress_at`、`derived_status` 和 session 绑定信息，既给 UI 用，也给 Hydra 的 watch / retry / 健康检查路径用。
 
 **典型工作流：** 先写 PRD → 先跑一次 `hydra init-repo` → 让 Lead 在“直接做 / spawn / init+dispatch+watch”之间做选择 → 通过 `hydra watch` 或画布 UI 观察 → 在读完 `report.md` 后再决定 approve / reset / complete。更多控制面细节见 [Hydra 编排指南](docs/hydra-orchestration.md)，状态和文件模型见 [Hydra 全景流程图](docs/hydra-panorama-flow-zh.md)。
 
