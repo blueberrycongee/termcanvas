@@ -218,6 +218,22 @@ export class GhosttyWebGLRenderer {
   private disposed = false;
   private loggedFirstFrame = false;
 
+  // Frame-skip state. ghostty-web's Terminal drives render() on every
+  // rAF tick (~60 Hz) regardless of whether anything changed, which is
+  // the right policy for its simple Canvas2D renderer because the
+  // render itself is cheap. Our pipeline has a heavier critical path
+  // (rebuild cell-color Uint8Array, rebuild per-instance buffer,
+  // two uploads to GPU) that doesn't need to run when the grid is
+  // idle. Compare the current frame's signal-inputs against the last
+  // frame's; if nothing material changed, return early without any
+  // WASM reads or GPU work.
+  private lastCursorX = -1;
+  private lastCursorY = -1;
+  private lastViewportY = -1;
+  private lastSelectionSig = "";
+  private lastForceAll = true;
+  private lastHoveredHyperlinkId = 0;
+
   constructor(canvas: HTMLCanvasElement, options: RendererOptions) {
     this.canvas = canvas;
     this.fontFamily = options.fontFamily;
@@ -234,7 +250,12 @@ export class GhosttyWebGLRenderer {
       depth: false,
       stencil: false,
       premultipliedAlpha: true,
-      preserveDrawingBuffer: false,
+      // Preserve the backing buffer across rAF frames so the frame-
+      // skip path (render() early-returns when nothing changed)
+      // continues to show the last rendered frame. Without this,
+      // Chromium may discard after composite and the tile flickers
+      // between the last good frame and a blank one.
+      preserveDrawingBuffer: true,
     });
     if (!gl) {
       throw new Error(
@@ -245,6 +266,7 @@ export class GhosttyWebGLRenderer {
 
     this.atlas = new GlyphAtlas(gl);
     this.atlas.setFont(this.fontFamily, this.fontSize, this.devicePixelRatio);
+    this.warmAtlas();
 
     this.bgProgram = linkProgram(gl, CELL_BG_VERTEX_SHADER, CELL_BG_FRAGMENT_SHADER);
     this.textProgram = linkProgram(
@@ -333,6 +355,29 @@ export class GhosttyWebGLRenderer {
       throw new Error(`[webgl] missing uniform "${name}"`);
     }
     return loc;
+  }
+
+  /**
+   * Rasterize the printable ASCII range into the atlas up front.
+   *
+   * A fresh Codex/Claude frame pushes ~100 distinct glyphs on first
+   * render (nerdfont icons aside, the base UI alone uses every ASCII
+   * symbol plus box-drawing characters). Rasterizing them lazily in
+   * the hot path means each new glyph costs a measureText + fillText
+   * + getImageData + texSubImage2D, and ~100 of those stack up to a
+   * visible "stall on first frame" when switching to the ghostty-wasm
+   * backend.
+   *
+   * Pre-warming ASCII up front moves that cost to tile creation time
+   * (where it's amortised against WASM init anyway) and leaves only
+   * the genuinely-new glyphs (CJK, emoji, nerdfont) for the hot
+   * path. Bold + italic variants are NOT pre-warmed — they're less
+   * common and would triple the init cost.
+   */
+  private warmAtlas(): void {
+    for (let code = 0x20; code <= 0x7e; code += 1) {
+      this.atlas.getOrRasterize(String.fromCharCode(code), 0);
+    }
   }
 
   // Renderer interface expected by ghostty-web's Terminal:
@@ -451,7 +496,7 @@ export class GhosttyWebGLRenderer {
    */
   render(
     wasmTerm: WasmTerm,
-    _forceAll: boolean,
+    forceAll: boolean,
     viewportY: number,
     scrollback: ScrollbackSource,
     _scrollbarOpacity: number,
@@ -462,12 +507,12 @@ export class GhosttyWebGLRenderer {
     const { cols, rows } = wasmTerm.getDimensions();
     const wantWidth = cols * metrics.cellWidth;
     const wantHeight = rows * metrics.cellHeight;
-    if (
+    const resized =
       cols !== this.cols ||
       rows !== this.rows ||
       this.canvas.width !== wantWidth ||
-      this.canvas.height !== wantHeight
-    ) {
+      this.canvas.height !== wantHeight;
+    if (resized) {
       this.resize(cols, rows);
     }
 
@@ -475,6 +520,49 @@ export class GhosttyWebGLRenderer {
     const cellH = metrics.cellHeight;
     const canvasW = this.canvas.width;
     const canvasH = this.canvas.height;
+
+    // --- Frame-skip check ---
+    // Compute a signal-set: (row-dirty mask | cursor | viewport |
+    // selection | forceAll | hyperlink hover). If all are unchanged
+    // from the last frame, the on-screen pixels already reflect the
+    // current state and we have nothing to do. Skipping here avoids
+    // a full WASM row walk, Uint8Array rewrite, instance rebuild,
+    // and two GPU uploads per rAF — the bulk of the steady-state
+    // cost when Codex/Claude/vim is idle.
+    const cursor = wasmTerm.getCursor();
+    const selCoords = this.selectionManager?.hasSelection()
+      ? this.selectionManager.getSelectionCoords()
+      : null;
+    const selSig = selCoords
+      ? `${selCoords.startRow},${selCoords.startCol}-${selCoords.endRow},${selCoords.endCol}`
+      : "";
+    let anyDirty = forceAll || resized;
+    if (!anyDirty) {
+      for (let y = 0; y < rows; y += 1) {
+        if (wasmTerm.isRowDirty(y)) {
+          anyDirty = true;
+          break;
+        }
+      }
+    }
+    const cursorMoved =
+      cursor.x !== this.lastCursorX || cursor.y !== this.lastCursorY;
+    const viewportChanged = viewportY !== this.lastViewportY;
+    const selectionChanged = selSig !== this.lastSelectionSig;
+    const hyperlinkChanged =
+      this.hoveredHyperlinkId !== this.lastHoveredHyperlinkId;
+    const stateChanged =
+      anyDirty ||
+      cursorMoved ||
+      viewportChanged ||
+      selectionChanged ||
+      hyperlinkChanged;
+    if (!stateChanged && this.loggedFirstFrame) {
+      // Update `lastForceAll` too so a transition false->true->false
+      // from the outer caller is caught.
+      this.lastForceAll = forceAll;
+      return;
+    }
 
     this.clear();
 
@@ -524,12 +612,11 @@ export class GhosttyWebGLRenderer {
     }
 
     // Cursor overlay — drawn as a text instance with no atlas, so it
-    // paints a solid quad on top of the glyph.
-    if (viewportY === 0) {
-      const cursor = wasmTerm.getCursor();
-      if (cursor.visible) {
-        this.emitCursorInstance(cursor.x, cursor.y, cellW, cellH, instances);
-      }
+    // paints a solid quad on top of the glyph. Use the cursor we
+    // already read above for the skip check so we don't hit WASM twice
+    // per frame.
+    if (viewportY === 0 && cursor.visible) {
+      this.emitCursorInstance(cursor.x, cursor.y, cellW, cellH, instances);
     }
 
     this.uploadCellColors(cols, rows);
@@ -559,6 +646,15 @@ export class GhosttyWebGLRenderer {
         instanceCount: instances.length / (INSTANCE_BYTES / 4),
       });
     }
+
+    // Record signal-inputs so the next frame can skip if nothing
+    // material changes.
+    this.lastCursorX = cursor.x;
+    this.lastCursorY = cursor.y;
+    this.lastViewportY = viewportY;
+    this.lastSelectionSig = selSig;
+    this.lastForceAll = forceAll;
+    this.lastHoveredHyperlinkId = this.hoveredHyperlinkId;
 
     wasmTerm.clearDirty();
   }
