@@ -4,6 +4,11 @@ import type { Terminal as XtermTerminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { ImageAddon } from "@xterm/addon-image";
 import { SerializeAddon } from "@xterm/addon-serialize";
+import { GhosttyWasmBackend } from "./backend/GhosttyWasmBackend";
+import type {
+  CompatibleTerminal,
+  TerminalBackendKind,
+} from "./backend/TerminalBackend";
 import {
   acquireWebGL,
   releaseWebGL,
@@ -91,6 +96,12 @@ interface ManagedTerminalRuntime {
   activityThrottled: boolean;
   attachedContainer: HTMLDivElement | null;
   attachOptions: AttachOptions | null;
+  /**
+   * Which backend this terminal is using. Frozen per-terminal once the
+   * renderer is built — preference changes only affect newly-created tiles,
+   * not live ones. `null` means the renderer hasn't been constructed yet.
+   */
+  backendKind: TerminalBackendKind | null;
   cliOverride: ReturnType<
     typeof usePreferencesStore.getState
   >["cliCommands"][TerminalType];
@@ -99,6 +110,12 @@ interface ManagedTerminalRuntime {
   detectTimer: ReturnType<typeof setTimeout> | null;
   disposed: boolean;
   fitAddon: FitAddon | null;
+  /**
+   * Populated only when `backendKind === "ghostty-wasm"`. Holds the backend
+   * wrapper so we can call backend-specific operations (fit, dispose) that
+   * don't fit cleanly behind the CompatibleTerminal surface.
+   */
+  ghosttyBackend: GhosttyWasmBackend | null;
   globalDisposers: Array<() => void>;
   hasRespawned: boolean;
   hostElement: HTMLDivElement | null;
@@ -109,6 +126,14 @@ interface ManagedTerminalRuntime {
   ptyId: number | null;
   ptyPromise: Promise<void> | null;
   previewAnsi: string;
+  /**
+   * Resolves once the renderer for this runtime is actually ready to
+   * receive writes. For xterm this resolves immediately (renderer is
+   * synchronous); for ghostty-wasm it resolves after WASM init finishes.
+   * Code paths that need a guaranteed-live `runtime.xterm` should await
+   * this before touching it.
+   */
+  rendererPromise: Promise<void> | null;
   hookFallbackTimer: ReturnType<typeof setTimeout> | null;
   lastPushAt: number;
   lastTurnCompletedAt: number;
@@ -128,7 +153,14 @@ interface ManagedTerminalRuntime {
   waitingTimer: ReturnType<typeof setTimeout> | null;
   wasResumeAttempt: boolean;
   watchedSessionId: string | null;
-  xterm: XtermTerminal | null;
+  /**
+   * The active terminal handle. Typed as CompatibleTerminal so both xterm
+   * and Ghostty-backed terminals can live behind this slot — the full
+   * xterm.js Terminal is still assignable here because CompatibleTerminal
+   * is a structural subset of it, but downstream code must limit itself to
+   * the shared surface if it wants to work under both backends.
+   */
+  xterm: CompatibleTerminal | null;
 }
 
 type XtermTerminalConstructor = new (
@@ -620,8 +652,15 @@ function ensureRuntimeWebGL(runtime: ManagedTerminalRuntime) {
   if (!runtime.xterm) {
     return false;
   }
-
-  return acquireWebGL(runtime.meta.terminal.id, runtime.xterm);
+  // WebGL pool is xterm-specific — it loads `@xterm/addon-webgl` against a
+  // real xterm.js Terminal. Ghostty's Canvas renderer draws its own canvas
+  // and has no addon surface for this path to attach to. Runtimes with an
+  // un-set backendKind are treated as xterm-backed for backward
+  // compatibility with existing tests that poke runtime.xterm directly.
+  if (runtime.backendKind === "ghostty-wasm") {
+    return false;
+  }
+  return acquireWebGL(runtime.meta.terminal.id, runtime.xterm as XtermTerminal);
 }
 
 function scheduleRuntimeRefresh(callback: () => void) {
@@ -808,6 +847,9 @@ function detachTerminalRenderer(runtime: ManagedTerminalRuntime) {
   runtime.xterm = null;
   runtime.fitAddon = null;
   runtime.serializeAddon = null;
+  runtime.ghosttyBackend = null;
+  runtime.backendKind = null;
+  runtime.rendererPromise = null;
   removeTerminalHost(runtime);
 }
 
@@ -853,14 +895,20 @@ function wireInteractiveBindings(runtime: ManagedTerminalRuntime) {
 function syncAttachedTerminalGeometry(runtime: ManagedTerminalRuntime) {
   if (
     !runtime.xterm ||
-    !runtime.fitAddon ||
     runtime.ptyId === null ||
     !shouldFitAttachedRuntime(runtime)
   ) {
     return;
   }
 
-  runtime.fitAddon.fit();
+  if (runtime.backendKind === "ghostty-wasm" && runtime.ghosttyBackend) {
+    runtime.ghosttyBackend.fit();
+  } else if (runtime.fitAddon) {
+    runtime.fitAddon.fit();
+  } else {
+    return;
+  }
+
   window.termcanvas.terminal.resize(
     runtime.ptyId,
     runtime.xterm.cols,
@@ -869,6 +917,35 @@ function syncAttachedTerminalGeometry(runtime: ManagedTerminalRuntime) {
 }
 
 function createTerminalRenderer(
+  runtime: ManagedTerminalRuntime,
+  container: HTMLDivElement,
+) {
+  const preferences = usePreferencesStore.getState();
+  if (preferences.terminalBackend === "ghostty-wasm") {
+    createGhosttyRenderer(runtime, container);
+    return;
+  }
+  createXtermRenderer(runtime, container);
+}
+
+function customKeyHandlerFor(runtime: ManagedTerminalRuntime) {
+  return (event: KeyboardEvent): boolean => {
+    if (event.type === "keydown" && isRegisteredAppShortcutEvent(event)) {
+      return false;
+    }
+
+    if (event.type === "keydown" && event.metaKey) {
+      if (event.key === "Backspace" && runtime.ptyId !== null) {
+        window.termcanvas.terminal.input(runtime.ptyId, "\x15");
+      }
+      return false;
+    }
+
+    return true;
+  };
+}
+
+function createXtermRenderer(
   runtime: ManagedTerminalRuntime,
   container: HTMLDivElement,
 ) {
@@ -901,24 +978,13 @@ function createTerminalRenderer(
     xterm.loadAddon(new ImageAddon());
   } catch {}
 
-  xterm.attachCustomKeyEventHandler((event) => {
-    if (event.type === "keydown" && isRegisteredAppShortcutEvent(event)) {
-      return false;
-    }
-
-    if (event.type === "keydown" && event.metaKey) {
-      if (event.key === "Backspace" && runtime.ptyId !== null) {
-        window.termcanvas.terminal.input(runtime.ptyId, "\x15");
-      }
-      return false;
-    }
-
-    return true;
-  });
+  xterm.attachCustomKeyEventHandler(customKeyHandlerFor(runtime));
 
   runtime.xterm = xterm;
   runtime.fitAddon = fitAddon;
   runtime.serializeAddon = serializeAddon;
+  runtime.backendKind = "xterm";
+  runtime.rendererPromise = Promise.resolve();
   ensureRuntimeWebGL(runtime);
 
   registerTerminal(runtime.meta.terminal.id, xterm, serializeAddon);
@@ -933,8 +999,68 @@ function createTerminalRenderer(
   wireRendererBindings(runtime, host);
   scheduleRuntimeRefresh(() => {
     syncAttachedTerminalGeometry(runtime);
-    runtime.xterm?.refresh(0, (runtime.xterm?.rows ?? 1) - 1);
+    runtime.xterm?.refresh?.(0, (runtime.xterm?.rows ?? 1) - 1);
   });
+}
+
+function createGhosttyRenderer(
+  runtime: ManagedTerminalRuntime,
+  container: HTMLDivElement,
+) {
+  const theme = useThemeStore.getState().theme;
+  const preferences = usePreferencesStore.getState();
+  const host = attachTerminalHost(runtime, container);
+  if (!host) {
+    return;
+  }
+
+  runtime.backendKind = "ghostty-wasm";
+  // Mark the renderer as "coming" so callers that explicitly await
+  // readiness (fit, refresh, write) don't race the async init.
+  runtime.rendererPromise = (async () => {
+    try {
+      const backend = await GhosttyWasmBackend.create({
+        container: host,
+        cursorBlink: true,
+        fontFamily: buildFontFamily(preferences.terminalFontFamily),
+        fontSize: preferences.terminalFontSize,
+        minimumContrastRatio: preferences.minimumContrastRatio,
+        scrollback: 50_000,
+        theme: XTERM_THEMES[theme],
+      });
+
+      if (runtime.disposed) {
+        backend.terminal.dispose();
+        return;
+      }
+
+      backend.terminal.attachCustomKeyEventHandler(customKeyHandlerFor(runtime));
+      runtime.ghosttyBackend = backend;
+      runtime.xterm = backend.terminal;
+
+      if (runtime.previewAnsi) {
+        backend.terminal.write(runtime.previewAnsi, () => {
+          if (!runtime.disposed) {
+            backend.terminal.scrollToBottom();
+          }
+        });
+      }
+
+      wireRendererBindings(runtime, host);
+      scheduleRuntimeRefresh(() => {
+        syncAttachedTerminalGeometry(runtime);
+      });
+    } catch (error) {
+      notify(
+        "error",
+        `Failed to initialise Ghostty terminal backend: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      runtime.rendererPromise = null;
+      runtime.backendKind = null;
+    }
+  })();
 }
 
 function clearRuntimeTimers(runtime: ManagedTerminalRuntime) {
@@ -956,11 +1082,26 @@ function clearRuntimeTimers(runtime: ManagedTerminalRuntime) {
   }
 }
 
+function refitActiveBackend(runtime: ManagedTerminalRuntime) {
+  if (!shouldFitAttachedRuntime(runtime)) {
+    return;
+  }
+  if (runtime.backendKind === "ghostty-wasm" && runtime.ghosttyBackend) {
+    runtime.ghosttyBackend.fit();
+    return;
+  }
+  runtime.fitAddon?.fit();
+}
+
 function setupRuntimeSubscriptions(runtime: ManagedTerminalRuntime) {
   const themeUnsubscribe = useThemeStore.subscribe((state) => {
     if (runtime.xterm) {
       runtime.xterm.options.theme = XTERM_THEMES[state.theme];
-      runtime.xterm.refresh(0, runtime.xterm.rows - 1);
+      // Xterm needs an explicit refresh; Ghostty's renderer runs its own
+      // frame loop that picks up the new palette on the next tick, so its
+      // CompatibleTerminal exposes refresh as a no-op and this call is
+      // safe for both paths.
+      runtime.xterm.refresh?.(0, runtime.xterm.rows - 1);
     }
 
     if (runtime.ptyId !== null) {
@@ -976,23 +1117,19 @@ function setupRuntimeSubscriptions(runtime: ManagedTerminalRuntime) {
     const family = buildFontFamily(state.terminalFontFamily);
     if (runtime.xterm.options.fontFamily !== family) {
       runtime.xterm.options.fontFamily = family;
-      if (shouldFitAttachedRuntime(runtime)) {
-        runtime.fitAddon?.fit();
-      }
+      refitActiveBackend(runtime);
     }
 
     if (runtime.xterm.options.fontSize !== state.terminalFontSize) {
       runtime.xterm.options.fontSize = state.terminalFontSize;
-      if (shouldFitAttachedRuntime(runtime)) {
-        runtime.fitAddon?.fit();
-      }
+      refitActiveBackend(runtime);
     }
 
     if (
       runtime.xterm.options.minimumContrastRatio !== state.minimumContrastRatio
     ) {
       runtime.xterm.options.minimumContrastRatio = state.minimumContrastRatio;
-      runtime.xterm.refresh(0, runtime.xterm.rows - 1);
+      runtime.xterm.refresh?.(0, runtime.xterm.rows - 1);
     }
   });
 
@@ -1167,6 +1304,7 @@ function buildTerminalRuntime(
     activityThrottled: false,
     attachedContainer: null,
     attachOptions: null,
+    backendKind: null,
     cliOverride:
       usePreferencesStore.getState().cliCommands[resolvedMeta.terminal.type] ??
       undefined,
@@ -1175,6 +1313,7 @@ function buildTerminalRuntime(
     detectTimer: null,
     disposed: false,
     fitAddon: null,
+    ghosttyBackend: null,
     globalDisposers: [],
     hasRespawned: false,
     hostElement: null,
@@ -1185,6 +1324,7 @@ function buildTerminalRuntime(
     ptyId: resolvedMeta.terminal.ptyId,
     ptyPromise: null,
     previewAnsi: clampPreviewAnsi(resolvedMeta.terminal.scrollback ?? ""),
+    rendererPromise: null,
     hookFallbackTimer: null,
     lastPushAt: 0,
     lastTurnCompletedAt: 0,
@@ -1678,7 +1818,7 @@ export function attachTerminalContainer(
   wireRendererBindings(runtime, host);
   scheduleRuntimeRefresh(() => {
     syncAttachedTerminalGeometry(runtime);
-    runtime.xterm?.refresh(0, (runtime.xterm?.rows ?? 1) - 1);
+    runtime.xterm?.refresh?.(0, (runtime.xterm?.rows ?? 1) - 1);
   });
 }
 
@@ -1693,11 +1833,18 @@ export function detachTerminalContainer(terminalId: string) {
 
 export function fitTerminalRuntime(terminalId: string) {
   const runtime = runtimeRegistry.get(terminalId);
-  if (!runtime?.xterm || !runtime.fitAddon || runtime.ptyId === null) {
+  if (!runtime?.xterm || runtime.ptyId === null) {
     return;
   }
 
-  runtime.fitAddon.fit();
+  if (runtime.backendKind === "ghostty-wasm" && runtime.ghosttyBackend) {
+    runtime.ghosttyBackend.fit();
+  } else if (runtime.fitAddon) {
+    runtime.fitAddon.fit();
+  } else {
+    return;
+  }
+
   window.termcanvas.terminal.resize(
     runtime.ptyId,
     runtime.xterm.cols,

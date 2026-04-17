@@ -2,6 +2,11 @@ import { create } from "zustand";
 import type { TerminalType } from "../types/index.ts";
 import type { AgentProviderConfig } from "../agentProviders";
 import { defaultProviderConfig, getPreset, PROVIDER_PRESETS } from "../agentProviders";
+import {
+  DEFAULT_TERMINAL_BACKEND,
+  isTerminalBackendKind,
+  type TerminalBackendKind,
+} from "../terminal/backend/TerminalBackend.ts";
 
 const DEFAULT_BLUR = 0;
 const DEFAULT_FONT_SIZE = 13;
@@ -25,6 +30,7 @@ interface PreferencesStore {
   petEnabled: boolean;
   summaryCli: "claude" | "codex";
   minimumContrastRatio: number;
+  terminalBackend: TerminalBackendKind;
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
 
   agentConfig: AgentProviderConfig;
@@ -41,6 +47,7 @@ interface PreferencesStore {
   setGlobalSearchEnabled: (value: boolean) => void;
   setPetEnabled: (value: boolean) => void;
   setSummaryCli: (value: "claude" | "codex") => void;
+  setTerminalBackend: (value: TerminalBackendKind) => void;
   setCli: (type: TerminalType, config: CliCommandConfig | null) => void;
   setAgentConfig: (config: AgentProviderConfig) => void;
   patchAgentConfig: (patch: Partial<AgentProviderConfig>) => void;
@@ -62,6 +69,7 @@ interface SavedPrefs {
   petEnabled: boolean;
   summaryCli: "claude" | "codex";
   minimumContrastRatio: number;
+  terminalBackend: TerminalBackendKind;
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
   agentConfig: AgentProviderConfig;
 }
@@ -144,6 +152,11 @@ function loadPreferences(): SavedPrefs {
       const mcr = parsed.minimumContrastRatio;
       if (typeof mcr === "number" && mcr >= 1 && mcr <= 7) minimumContrastRatio = mcr;
 
+      let terminalBackend: TerminalBackendKind = DEFAULT_TERMINAL_BACKEND;
+      if (isTerminalBackendKind(parsed.terminalBackend)) {
+        terminalBackend = parsed.terminalBackend;
+      }
+
       const cliCommands: Partial<Record<TerminalType, CliCommandConfig>> = {};
       if (parsed.cliCommands && typeof parsed.cliCommands === "object") {
         for (const [key, val] of Object.entries(parsed.cliCommands)) {
@@ -167,6 +180,7 @@ function loadPreferences(): SavedPrefs {
         petEnabled,
         summaryCli,
         minimumContrastRatio,
+        terminalBackend,
         cliCommands,
         agentConfig,
       };
@@ -185,6 +199,7 @@ function loadPreferences(): SavedPrefs {
     petEnabled: false,
     summaryCli: "claude",
     minimumContrastRatio: DEFAULT_MIN_CONTRAST,
+    terminalBackend: DEFAULT_TERMINAL_BACKEND,
     cliCommands: {},
     agentConfig: defaultProviderConfig(),
   };
@@ -283,6 +298,7 @@ function getSaveState(state: PreferencesStore): SavedPrefs {
     petEnabled: state.petEnabled,
     summaryCli: state.summaryCli,
     minimumContrastRatio: state.minimumContrastRatio,
+    terminalBackend: state.terminalBackend,
     cliCommands: state.cliCommands,
     agentConfig: state.agentConfig,
   };
@@ -302,6 +318,7 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   petEnabled: initialPrefs.petEnabled,
   summaryCli: initialPrefs.summaryCli,
   minimumContrastRatio: initialPrefs.minimumContrastRatio,
+  terminalBackend: initialPrefs.terminalBackend,
   cliCommands: initialPrefs.cliCommands,
   agentConfig: initialPrefs.agentConfig,
   apiKeyReady: false,
@@ -352,6 +369,10 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   setSummaryCli: (value) => {
     set({ summaryCli: value });
     savePreferences(getSaveState({ ...get(), summaryCli: value }));
+  },
+  setTerminalBackend: (value) => {
+    set({ terminalBackend: value });
+    savePreferences(getSaveState({ ...get(), terminalBackend: value }));
   },
   setCli: (type, config) => {
     const current = { ...get().cliCommands };
