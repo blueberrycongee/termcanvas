@@ -2,6 +2,50 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.29.0] - 2026-04-17
+
+### Added
+- Terminal: new terminals stick to your preferred size — the first manual resize is learned and used for every subsequent "+ Terminal", regardless of sidebar width or collapse state
+- Pet: refreshed capybara sprites with more expressive face, contour, and animation cadence
+- Pet: ground shadow + heart/dust particle system for richer visual feedback
+- Pet: richer idle behaviors including emotes, walk dust, bobbing question marks, and a spa-yuzu scene
+- Pet: offline sprite preview script (`pet-preview`) for inspecting animations without running the app
+- Telemetry: event-driven `awaiting_input` detection for Claude and Codex, replacing timer-based polling with signal-driven accuracy
+- Hydra: PTY shell pid and capture time now persisted on each assignment run for post-hoc debugging
+- Hydra: surfaces `stall_advisory` as a DecisionPoint to the Lead when a worker stops making progress
+
+### Fixed
+- Telemetry: first session attach now discards any `ps`-contaminated state left by previous unknown-provider detection
+- Telemetry: derived state is reset when a terminal's provider flips from unknown to a known agent, preventing stale indicators
+- Telemetry: MCP daemon churn no longer masquerades as agent progress or active tool calls
+- Hydra: cleanup guarded against non-Lead callers to prevent orphaned workbench state
+- Hydra: dispatch prompt strengthened; skill install failures now surface to the Lead instead of failing silently
+- Hydra: watch loop probes PTY liveness directly rather than inferring it from polling cadence
+
+### Changed
+- Internal: every timing threshold centralized into `shared/lifecycleThresholds` so behavior adjustments don't require hunting through the codebase
+
+### Added (zh-CN)
+- 终端：新建终端会保持你的偏好尺寸——第一次手动调整大小后会被记住，后续每次「+ Terminal」都用这个尺寸，不再被侧边栏宽度或折叠状态影响
+- 桌宠：水豚精灵图重绘，面部表情、轮廓、动画节奏更丰富
+- 桌宠：新增地面阴影和爱心/灰尘粒子系统，视觉反馈更丰富
+- 桌宠：新增更多闲置行为，包括表情动作、走路灰尘、头顶冒问号、柚子温泉场景
+- 桌宠：新增离线精灵图预览脚本（`pet-preview`），不启动应用也能查看动画
+- 遥测：Claude 和 Codex 的 `awaiting_input` 检测改为事件驱动，替代基于计时器的轮询，更准确
+- Hydra：每次分派运行都记录 PTY shell pid 和捕获时间，方便事后排查
+- Hydra：当 worker 停止推进时，向 Lead 暴露 `stall_advisory` DecisionPoint
+
+### Fixed (zh-CN)
+- 遥测：首次会话接入时会清除之前未知 provider 检测留下的 `ps` 污染状态
+- 遥测：当终端 provider 从未知翻转到已知 agent 时会重置派生状态，避免指示器陈旧
+- 遥测：MCP 守护进程的抖动不再被误判为 agent 进度或工具调用
+- Hydra：清理流程防护非 Lead 调用方，防止遗留 workbench 状态
+- Hydra：加强分派 prompt；技能安装失败现在会暴露给 Lead，不再静默失败
+- Hydra：watch 循环直接探测 PTY 活性，而非根据轮询节奏推断
+
+### Changed (zh-CN)
+- 内部：所有时间阈值集中到 `shared/lifecycleThresholds`，行为调整不用再满代码库找
+
 ## [0.28.3] - 2026-04-16
 
 ### Added
