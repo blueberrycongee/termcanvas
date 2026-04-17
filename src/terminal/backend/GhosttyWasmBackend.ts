@@ -12,6 +12,7 @@ import type {
   TerminalBackend,
   TerminalDisposable,
 } from "./TerminalBackend.ts";
+import { GhosttyWebGLRenderer } from "./webgl/GhosttyWebGLRenderer.ts";
 
 /**
  * One-time bootstrap of the ghostty-web WASM module. Terminal instances
@@ -108,6 +109,17 @@ export class GhosttyWasmBackend implements TerminalBackend {
     options.container.removeAttribute("contenteditable");
     options.container.removeAttribute("role");
     options.container.removeAttribute("aria-multiline");
+
+    // Swap out ghostty-web's Canvas2D renderer for our WebGL2 one.
+    // ghostty-web ships `fillText`-per-cell Canvas2D rendering which is
+    // functionally correct but visually rough — no glyph atlas, no
+    // sub-frame stability, and with a full screen of coloured cells
+    // (Claude/Codex UIs) perf drops into the tens of ms per frame.
+    // Our WebGL pipeline batches the whole viewport into two draw calls
+    // and caches glyphs in a GPU atlas. The rest of ghostty-web's
+    // Terminal (VT parser, input handler, selection manager, link
+    // detector, wheel scroll) is renderer-agnostic and stays put.
+    installWebGLRenderer(term, options);
 
     // ghostty-web parks its IME textarea at (0,0) with opacity:0 + clipPath,
     // intending for it to be invisible. Chromium on Electron renders the
@@ -236,6 +248,160 @@ export class GhosttyWasmBackend implements TerminalBackend {
 }
 
 /**
+ * Replace ghostty-web's Canvas2D renderer on an already-opened Terminal
+ * with our own WebGL2 renderer.
+ *
+ * Why post-open() instead of a cleaner factory: ghostty-web's public API
+ * doesn't take a renderer constructor — the Terminal class wires its
+ * own `CanvasRenderer` inside `open()`. We let it finish the full wiring
+ * pass (canvas creation, SelectionManager, InputHandler, LinkDetector,
+ * wheel/mouse listeners attached to the host element, initial render
+ * call, startRenderLoop) and then surgically replace the renderer. The
+ * peripheral subsystems don't care which renderer is active — they only
+ * talk to it through the interface documented by `GhosttyWebGLRenderer`
+ * (getCanvas / getMetrics / setSelectionManager / setHoveredHyperlinkId
+ * / setHoveredLinkRange / render / resize / dispose / charWidth /
+ * charHeight / setFontSize / setFontFamily / setCursorStyle /
+ * setCursorBlink / clear).
+ *
+ * Steps:
+ *  1. Cancel the Terminal's running rAF loop so the old Canvas2D
+ *     renderer stops painting during the swap.
+ *  2. Pull the original canvas out of the DOM and inject our WebGL
+ *     canvas in its place. Keep the host-element event listeners
+ *     (wheel, mousedown, etc.) intact — they're on the host, not the
+ *     canvas.
+ *  3. Replay the per-canvas click/touch listeners ghostty-web attaches
+ *     to refocus the textarea; those WERE on the old canvas.
+ *  4. Dispose the old renderer, assign `term.renderer = webglRenderer`.
+ *     Hand the selection manager ghostty-web set up during open() to
+ *     our renderer so it can overlay selection highlights.
+ *  5. Kick `startRenderLoop` back up — it closes over `this.renderer`
+ *     so the loop body now calls our render().
+ */
+function installWebGLRenderer(
+  term: GhosttyTerminal,
+  options: CreateBackendOptions,
+): void {
+  type InternalTerminal = {
+    renderer?: {
+      getCanvas?: () => HTMLCanvasElement;
+      dispose?: () => void;
+      setSelectionManager?: (manager: unknown) => void;
+    };
+    canvas?: HTMLCanvasElement;
+    textarea?: HTMLTextAreaElement;
+    animationFrameId?: number;
+    selectionManager?: unknown;
+    startRenderLoop?: () => void;
+    cols: number;
+    rows: number;
+  };
+  const internal = term as unknown as InternalTerminal;
+
+  const oldCanvas = internal.canvas ?? internal.renderer?.getCanvas?.();
+  const oldRenderer = internal.renderer;
+  if (!oldCanvas || !oldRenderer) {
+    // If ghostty-web didn't hand us a canvas / renderer there's nothing
+    // to swap; leaving the default in place means the user sees
+    // Canvas2D output which is still functional. Better than throwing.
+    return;
+  }
+
+  // Stop the running rAF loop. The loop closes over `this` and calls
+  // `this.renderer.render(...)`, so we'd race our swap against an
+  // in-flight draw otherwise.
+  if (typeof internal.animationFrameId === "number") {
+    cancelAnimationFrame(internal.animationFrameId);
+    internal.animationFrameId = undefined;
+  }
+
+  // Create the replacement canvas. Keep the same display:block so the
+  // host element's sizing behaviour matches.
+  const webglCanvas = document.createElement("canvas");
+  webglCanvas.style.display = "block";
+
+  const parent = oldCanvas.parentElement;
+  if (!parent) {
+    // Old canvas was already detached. Drop to Canvas2D silently.
+    return;
+  }
+  parent.insertBefore(webglCanvas, oldCanvas);
+  parent.removeChild(oldCanvas);
+
+  // Re-register the mousedown/touchend focus listeners that ghostty-web
+  // attached to its canvas. Selection uses the host-element listeners,
+  // which survived because the host is still the tile div we were
+  // opened into.
+  const textarea = internal.textarea;
+  if (textarea) {
+    const refocus = (event: Event) => {
+      event.preventDefault();
+      textarea.focus();
+    };
+    webglCanvas.addEventListener("mousedown", refocus);
+    webglCanvas.addEventListener("touchend", refocus);
+  }
+
+  let renderer: GhosttyWebGLRenderer;
+  try {
+    renderer = new GhosttyWebGLRenderer(webglCanvas, {
+      fontSize: options.fontSize ?? 15,
+      fontFamily: options.fontFamily ?? "monospace",
+      theme: options.theme ?? {},
+      cursorStyle: "bar",
+      cursorBlink: options.cursorBlink ?? true,
+      devicePixelRatio: window.devicePixelRatio ?? 1,
+    });
+  } catch (error) {
+    console.error(
+      "[ghostty-wasm] WebGL renderer init failed, keeping Canvas2D:",
+      error,
+    );
+    // Put the original canvas back and bail. The Terminal's render
+    // loop already cancelled; we could restart it, but in practice a
+    // WebGL init failure means no WebGL2 available and the whole
+    // ghostty-wasm path is going to be rough anyway.
+    parent.insertBefore(oldCanvas, webglCanvas);
+    parent.removeChild(webglCanvas);
+    if (internal.startRenderLoop) {
+      internal.startRenderLoop();
+    }
+    return;
+  }
+
+  renderer.resize(internal.cols, internal.rows);
+
+  // Hand our renderer any existing selection manager so it can paint
+  // selection overlays on the next frame.
+  if (internal.selectionManager) {
+    renderer.setSelectionManager(
+      internal.selectionManager as Parameters<
+        GhosttyWebGLRenderer["setSelectionManager"]
+      >[0],
+    );
+  }
+
+  try {
+    oldRenderer.dispose?.();
+  } catch {
+    // ghostty-web's Canvas2D renderer dispose is safe but guard
+    // against future renderer implementations throwing — swallowing
+    // here is correct because we're mid-swap and can't recover.
+  }
+
+  internal.canvas = webglCanvas;
+  internal.renderer = renderer as unknown as InternalTerminal["renderer"];
+
+  // Restart the Terminal's own render loop. It's a rAF self-recursion
+  // that reads `this.renderer` each tick, so our swap above means it
+  // calls our render() from here on.
+  if (internal.startRenderLoop) {
+    internal.startRenderLoop();
+  }
+}
+
+/**
  * Wrap ghostty-web's `Terminal` in the structural subset that TermCanvas
  * depends on. This is a thin facade: delegate everything, normalise a few
  * shape differences with xterm.js (the no-op `refresh`, a tolerant
@@ -250,15 +416,22 @@ function adaptGhosttyTerminal(
       return term.options.theme as ITheme | undefined;
     },
     set theme(value: ITheme | undefined) {
-      // Intentionally minimal. The real theme-swap workaround lives in the
-      // runtime store's module-level `applyGhosttyTheme` helper so that
-      // updating the hack reaches already-live tiles (see the runtime store
-      // for details). This setter still assigns `term.options.theme` so the
-      // ghostty-web Terminal's own record of the active theme stays
-      // consistent for any future ghostty-web version that actually
-      // implements handleOptionChange for "theme".
+      // Assigns `term.options.theme` so the ghostty-web Terminal's
+      // record of the active theme stays consistent. The live theme-
+      // swap limitation (existing cells keep baked RGB from their
+      // original palette) is documented on `applyThemeToRuntime` in
+      // the runtime store. Our WebGL renderer also picks up the new
+      // theme on next frame for any new content it draws.
       if (!value) return;
       term.options.theme = value;
+      // Forward the new theme to the WebGL renderer so freshly-drawn
+      // cells, the cursor, and selection overlays switch immediately.
+      // Existing cell contents still carry their old-palette RGB — see
+      // the runtime store's block comment for the architectural reason.
+      const renderer = (term as unknown as {
+        renderer?: { setTheme?: (t: ITheme) => void };
+      }).renderer;
+      renderer?.setTheme?.(value);
     },
     get fontFamily() {
       return term.options.fontFamily;
