@@ -47,14 +47,7 @@ export class GhosttyWasmBackend implements TerminalBackend {
   readonly hostElement: HTMLElement;
   readonly screenElement: HTMLElement;
 
-  /**
-   * Exposed so module-level helpers in the runtime store can reach the
-   * underlying ghostty-web Terminal (options, renderer, wasmTerm) to apply
-   * fixes that bypass ghostty-web's incomplete public API — e.g. the
-   * theme-swap workaround lives outside this class so updating it flows
-   * through to already-live tiles, not just freshly-constructed ones.
-   */
-  readonly ghosttyTerminal: GhosttyTerminal;
+  private readonly ghosttyTerminal: GhosttyTerminal;
   private readonly fitAddon: GhosttyFitAddon;
   private readonly forceFit: () => void;
   private readonly resizeObserver: ResizeObserver | null;

@@ -1106,79 +1106,159 @@ function refitActiveBackend(runtime: ManagedTerminalRuntime) {
 }
 
 /**
- * Apply a theme to a Ghostty-backed runtime, bypassing ghostty-web's own
- * `options.theme` setter.
+ * Rebuild a Ghostty tile's backend against a new theme.
  *
- * Why this lives at module scope rather than in the backend's adapter:
- * ghostty-web v0.4.0's `Terminal.handleOptionChange` has an explicit TODO
- * for "theme" — it only emits a console.warn and does nothing else. So
- * assigning `term.options.theme` leaves the canvas painted with the old
- * palette. The workaround (reach into CanvasRenderer.setTheme + force a
- * full re-render) has to live somewhere. If we put it inside the
- * adapter's `set theme` closure, every tile captures the closure at
- * creation time and later fixes only reach newly-created tiles — hot
- * reloads and version bumps would leave existing tiles permanently on
- * the broken path. A module-level helper called from a single global
- * subscription, by contrast, updates every live tile the next time the
- * user toggles a theme, no tile teardown required.
+ * Why a full rebuild instead of an in-place palette swap:
+ * ghostty-web v0.4.0 (and the ghostty-vt WASM core under it) resolves
+ * palette indexes to raw RGB at *write* time and stores the resolved
+ * triple on the cell. Once a cell is written, its colour is frozen —
+ * there's no cell-level API, and no WASM export, that can re-resolve
+ * existing cells against a new palette. `renderer.setTheme` only swaps
+ * `theme.background/selection/cursor` (which affect gaps and overlays)
+ * plus the *renderer's* copy of the 16-slot palette; cells never read
+ * from that copy, so shell / agent / TUI output rendered under the old
+ * theme keeps its old-theme colours indefinitely. For Claude/Codex
+ * full-screen UIs where every cell carries an explicit background, that
+ * means the tile looks unchanged after a toggle.
+ *
+ * The only fix we can land in *this* repo is to tear the Terminal down
+ * and rebuild it with the new theme applied at creation time. The PTY
+ * stays alive (it's on `runtime`, not on the Terminal), so the agent
+ * process is undisturbed. We issue a no-op PTY resize after attach to
+ * poke SIGWINCH, which most TUIs use as a cue to repaint — so the tile
+ * is back to filled content within a frame or two of the swap.
+ *
+ * Trade-offs baked in:
+ *  - scrollback/viewport visible in the tile is lost (no way to re-ink
+ *    it without the original palette index, which is the exact info
+ *    ghostty's WASM threw away);
+ *  - an overlay with the new theme's background masks the swap so the
+ *    user sees a colour fade rather than a flash of empty DOM;
+ *  - keyboard focus on the tile's textarea is restored after the new
+ *    backend is live.
+ *
+ * This path only runs from the module-level theme subscription. Any
+ * future fix to the recreate logic reaches every live tile on the next
+ * toggle (the subscription reads the current module's function at call
+ * time), so a dev tweak here doesn't require tearing tiles down by hand.
  */
-function applyGhosttyTheme(
-  backend: GhosttyWasmBackend,
-  theme: ITheme,
-): void {
-  const term = backend.ghosttyTerminal;
-  // Keep ghostty-web's own record consistent for any future version that
-  // implements option handling for "theme".
-  term.options.theme = theme;
+async function recreateGhosttyBackendForTheme(
+  runtime: ManagedTerminalRuntime,
+  nextTheme: ITheme,
+): Promise<void> {
+  const oldBackend = runtime.ghosttyBackend;
+  const container = runtime.attachedContainer;
+  const host = runtime.hostElement;
+  if (!oldBackend || !container || !host) return;
 
-  // Direct renderer access — this is the workaround. setTheme rebuilds the
-  // 16-slot ANSI palette; clear() wipes the canvas with the new background
-  // so non-text pixels (gaps, scrollbar track) don't keep the old colour;
-  // render(forceAll=true) repaints every visible cell.
-  const internals = term as unknown as {
-    renderer?: {
-      setTheme?: (t: ITheme) => void;
-      clear?: () => void;
-      render?: (
-        buffer: unknown,
-        forceAll: boolean,
-        viewportY: number,
-        scrollback: unknown,
-        scrollbarOpacity: number,
-      ) => void;
-    };
-    wasmTerm?: unknown;
-    viewportY?: number;
-  };
-  const renderer = internals.renderer;
-  const wasmTerm = internals.wasmTerm;
-  console.debug(
-    "[ghostty-wasm] applyGhosttyTheme",
-    "bg=", theme.background,
-    "hasRenderer=", !!renderer,
-    "hasSetTheme=", !!renderer?.setTheme,
-    "hasClear=", !!renderer?.clear,
-    "hasRender=", !!renderer?.render,
-    "hasWasmTerm=", !!wasmTerm,
-  );
-  if (!renderer || !wasmTerm) return;
+  const preferences = usePreferencesStore.getState();
+  const hadFocus =
+    host.contains(document.activeElement) ||
+    document.activeElement === host;
 
-  renderer.setTheme?.(theme);
-  renderer.clear?.();
-  renderer.render?.(
-    wasmTerm,
-    true,
-    internals.viewportY ?? 0,
-    term,
-    0,
-  );
-
-  // Host background so the sub-cell remainder strip between canvas and
-  // tile edges blends with the new theme instead of flashing the app's
-  // generic surface colour.
-  if (theme.background) {
-    backend.hostElement.style.backgroundColor = theme.background;
+  // Paint an overlay that already uses the new theme's background colour
+  // so the intermediate "empty host" frame between dispose and open is
+  // invisible to the user. position:absolute over the host; fades out
+  // once the new backend has painted at least once.
+  const overlay = document.createElement("div");
+  overlay.style.position = "absolute";
+  overlay.style.inset = "0";
+  overlay.style.backgroundColor = nextTheme.background ?? "#000000";
+  overlay.style.zIndex = "9999";
+  overlay.style.pointerEvents = "none";
+  overlay.style.transition = "opacity 120ms ease-out";
+  overlay.style.opacity = "1";
+  // Host may not be positioned; the overlay needs it to be.
+  const hostPositionBefore = host.style.position;
+  if (!hostPositionBefore || hostPositionBefore === "static") {
+    host.style.position = "relative";
   }
+  host.appendChild(overlay);
+
+  disposeRendererBindings(runtime);
+  oldBackend.terminal.dispose();
+  runtime.xterm = null;
+  runtime.ghosttyBackend = null;
+  // Overlay was appended to host; dispose removed canvas/textarea but kept
+  // the host div itself. Keep backendKind set so the subscription knows
+  // this is still a ghostty tile while the new backend is being built.
+  runtime.rendererPromise = (async () => {
+    try {
+      const backend = await GhosttyWasmBackend.create({
+        container: host,
+        cursorBlink: true,
+        fontFamily: buildFontFamily(preferences.terminalFontFamily),
+        fontSize: preferences.terminalFontSize,
+        minimumContrastRatio: preferences.minimumContrastRatio,
+        scrollback: 50_000,
+        theme: nextTheme,
+      });
+
+      if (runtime.disposed) {
+        backend.terminal.dispose();
+        return;
+      }
+
+      backend.terminal.attachCustomKeyEventHandler(
+        customKeyHandlerFor(runtime),
+      );
+      runtime.ghosttyBackend = backend;
+      runtime.xterm = backend.terminal;
+
+      // Re-append overlay after `backend.terminal.open()` may have
+      // `replaceChildren()`-wiped the host. If the overlay is gone we
+      // re-create it so the fade-out completes uniformly; if it's still
+      // there (ghostty didn't touch it), we reuse it.
+      if (!host.contains(overlay)) {
+        host.appendChild(overlay);
+      }
+
+      wireRendererBindings(runtime, host);
+      scheduleRuntimeRefresh(() => {
+        syncAttachedTerminalGeometry(runtime);
+      });
+
+      // Force SIGWINCH to the PTY so Claude / Codex / vim / tmux / shell
+      // repaint the full frame with the new theme's colours. Toggling by
+      // one row is cheap and universally interpreted as a genuine size
+      // change by TUI apps.
+      if (runtime.ptyId !== null) {
+        const cols = backend.terminal.cols;
+        const rows = backend.terminal.rows;
+        window.termcanvas.terminal.resize(runtime.ptyId, cols, rows + 1);
+        window.termcanvas.terminal.resize(runtime.ptyId, cols, rows);
+      }
+
+      if (hadFocus) {
+        backend.terminal.focus();
+      }
+    } catch (error) {
+      notify(
+        "error",
+        `Failed to re-theme Ghostty terminal backend: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      runtime.rendererPromise = null;
+      runtime.backendKind = null;
+    } finally {
+      // Two rAFs to ensure at least one paint has landed behind the
+      // overlay, then fade out. The fade masks any lingering gap
+      // between "new backend mounted" and "SIGWINCH-driven repaint
+      // arrived from the PTY".
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          overlay.style.opacity = "0";
+          setTimeout(() => {
+            overlay.remove();
+            if (hostPositionBefore === "" || hostPositionBefore === "static") {
+              host.style.position = hostPositionBefore;
+            }
+          }, 160);
+        });
+      });
+    }
+  })();
 }
 
 function applyThemeToRuntime(
@@ -1188,8 +1268,11 @@ function applyThemeToRuntime(
   if (runtime.disposed) return;
 
   if (runtime.backendKind === "ghostty-wasm" && runtime.ghosttyBackend) {
-    applyGhosttyTheme(runtime.ghosttyBackend, theme);
+    void recreateGhosttyBackendForTheme(runtime, theme);
   } else if (runtime.xterm) {
+    // xterm stores palette indexes + colour-mode tags on each cell, so a
+    // theme swap + refresh re-paints live cells against the new palette
+    // without any teardown.
     runtime.xterm.options.theme = theme;
     runtime.xterm.refresh?.(0, runtime.xterm.rows - 1);
   }
@@ -1205,24 +1288,9 @@ function applyThemeToRuntime(
 // related fix, every already-attached tile picks it up on the next toggle
 // without needing to be torn down and recreated. The per-runtime closure
 // would have frozen the old implementation at tile-creation time.
-console.debug(
-  "[terminalRuntimeStore] installing module-level theme subscription",
-);
 useThemeStore.subscribe((state) => {
   const theme = XTERM_THEMES[state.theme];
-  const runtimes = [...runtimeRegistry.values()];
-  const byKind = runtimes.reduce<Record<string, number>>((acc, r) => {
-    const key = r.backendKind ?? "null";
-    acc[key] = (acc[key] ?? 0) + 1;
-    return acc;
-  }, {});
-  console.debug(
-    "[terminalRuntimeStore] theme subscription fired",
-    "theme=", state.theme,
-    "runtimeCount=", runtimes.length,
-    "byKind=", byKind,
-  );
-  for (const runtime of runtimes) {
+  for (const runtime of runtimeRegistry.values()) {
     applyThemeToRuntime(runtime, theme);
   }
 });
