@@ -187,11 +187,27 @@ export function createTerminal(
   origin: TerminalOrigin = "user",
   parentTerminalId?: string,
 ): TerminalData {
-  // Recompute based on current panel insets so every creation path (right
-  // session panel "+", cmd+t, ProjectTree, agent-driven) gets the same
-  // panel-aware size instead of the stale default left over from module load.
-  recomputeTileDimensions();
-  const { w, h } = useTileDimensionsStore.getState();
+  // Sticky default: once the user has manually resized a terminal, use
+  // that size for every subsequent creation. This decouples new-terminal
+  // size from the current sidebar state (left-panel width, right-panel
+  // collapsed, …) — otherwise two `+ Terminal` clicks on either side of
+  // opening the session panel produce visibly different-sized tiles.
+  //
+  // Fallback path (never resized) still uses the panel-aware computed
+  // default from tileDimensionsStore, so a fresh install gets a sensible
+  // size on first launch.
+  const stored = usePreferencesStore.getState().defaultTerminalSize;
+  let w: number;
+  let h: number;
+  if (stored) {
+    w = stored.w;
+    h = stored.h;
+  } else {
+    recomputeTileDimensions();
+    const dims = useTileDimensionsStore.getState();
+    w = dims.w;
+    h = dims.h;
+  }
   return {
     id: generateId(),
     title: title ?? (type === "shell" ? "Terminal" : type),

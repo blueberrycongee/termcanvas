@@ -13,6 +13,11 @@ export interface CliCommandConfig {
   args: string[];
 }
 
+export interface StoredTerminalSize {
+  w: number;
+  h: number;
+}
+
 interface PreferencesStore {
   animationBlur: number;
   terminalFontSize: number;
@@ -26,6 +31,15 @@ interface PreferencesStore {
   summaryCli: "claude" | "codex";
   minimumContrastRatio: number;
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
+  /**
+   * User's preferred default size for newly-created terminals. Populated
+   * the first time the user resizes a terminal; null/undefined means
+   * "fall back to the panel-aware computed default". Decoupling the
+   * default from the current sidebar state is the whole point — otherwise
+   * opening the right panel between two `+ Terminal` clicks makes them
+   * different sizes.
+   */
+  defaultTerminalSize: StoredTerminalSize | null;
 
   agentConfig: AgentProviderConfig;
   apiKeyReady: boolean;
@@ -44,6 +58,7 @@ interface PreferencesStore {
   setCli: (type: TerminalType, config: CliCommandConfig | null) => void;
   setAgentConfig: (config: AgentProviderConfig) => void;
   patchAgentConfig: (patch: Partial<AgentProviderConfig>) => void;
+  setDefaultTerminalSize: (size: StoredTerminalSize | null) => void;
 }
 
 const STORAGE_KEY = "termcanvas-preferences";
@@ -63,7 +78,31 @@ interface SavedPrefs {
   summaryCli: "claude" | "codex";
   minimumContrastRatio: number;
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
+  defaultTerminalSize: StoredTerminalSize | null;
   agentConfig: AgentProviderConfig;
+}
+
+// Sanity bounds for persisted default size — guards against a corrupt
+// localStorage entry, NOT meant to restrict what the user can save from a
+// drag-resize. The user's actual resize handle allows arbitrary sizes;
+// these just reject implausible values like 10 × 10 or 50_000 × 50_000.
+const PREF_SIZE_MIN_W = 200;
+const PREF_SIZE_MAX_W = 4000;
+const PREF_SIZE_MIN_H = 120;
+const PREF_SIZE_MAX_H = 3000;
+
+export function sanitizeStoredTerminalSize(
+  value: unknown,
+): StoredTerminalSize | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  const w = raw.w;
+  const h = raw.h;
+  if (typeof w !== "number" || typeof h !== "number") return null;
+  if (!Number.isFinite(w) || !Number.isFinite(h)) return null;
+  if (w < PREF_SIZE_MIN_W || w > PREF_SIZE_MAX_W) return null;
+  if (h < PREF_SIZE_MIN_H || h > PREF_SIZE_MAX_H) return null;
+  return { w: Math.round(w), h: Math.round(h) };
 }
 
 function migrateOldAgentFields(parsed: Record<string, unknown>): AgentProviderConfig {
@@ -154,6 +193,9 @@ function loadPreferences(): SavedPrefs {
       }
 
       const agentConfig = loadAgentConfig(parsed);
+      const defaultTerminalSize = sanitizeStoredTerminalSize(
+        parsed.defaultTerminalSize,
+      );
 
       return {
         animationBlur: blur,
@@ -168,6 +210,7 @@ function loadPreferences(): SavedPrefs {
         summaryCli,
         minimumContrastRatio,
         cliCommands,
+        defaultTerminalSize,
         agentConfig,
       };
     }
@@ -186,6 +229,7 @@ function loadPreferences(): SavedPrefs {
     summaryCli: "claude",
     minimumContrastRatio: DEFAULT_MIN_CONTRAST,
     cliCommands: {},
+    defaultTerminalSize: null,
     agentConfig: defaultProviderConfig(),
   };
 }
@@ -284,6 +328,7 @@ function getSaveState(state: PreferencesStore): SavedPrefs {
     summaryCli: state.summaryCli,
     minimumContrastRatio: state.minimumContrastRatio,
     cliCommands: state.cliCommands,
+    defaultTerminalSize: state.defaultTerminalSize,
     agentConfig: state.agentConfig,
   };
 }
@@ -303,6 +348,7 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   summaryCli: initialPrefs.summaryCli,
   minimumContrastRatio: initialPrefs.minimumContrastRatio,
   cliCommands: initialPrefs.cliCommands,
+  defaultTerminalSize: initialPrefs.defaultTerminalSize,
   agentConfig: initialPrefs.agentConfig,
   apiKeyReady: false,
 
@@ -372,5 +418,12 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
     const updated = { ...current, ...patch };
     set({ agentConfig: updated });
     savePreferences(getSaveState({ ...get(), agentConfig: updated }));
+  },
+  setDefaultTerminalSize: (size) => {
+    const sanitized = size === null ? null : sanitizeStoredTerminalSize(size);
+    set({ defaultTerminalSize: sanitized });
+    savePreferences(
+      getSaveState({ ...get(), defaultTerminalSize: sanitized }),
+    );
   },
 }));

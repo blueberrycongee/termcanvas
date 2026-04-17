@@ -88,3 +88,59 @@ test("preferences ignore removed smart render settings while preserving supporte
   assert.equal("smartRenderEnabled" in raw, false);
   assert.equal(raw.animationBlur, 0);
 });
+
+test("preferences default terminal size defaults to null (fresh install)", async () => {
+  installLocalStorage();
+  const { usePreferencesStore } = await loadPreferencesStoreModule(
+    "default-terminal-size-fresh",
+  );
+  assert.equal(usePreferencesStore.getState().defaultTerminalSize, null);
+});
+
+test("preferences persist and sanitize defaultTerminalSize", async () => {
+  installLocalStorage();
+  const { usePreferencesStore } = await loadPreferencesStoreModule(
+    "default-terminal-size-set",
+  );
+  const store = usePreferencesStore.getState();
+
+  // Normal value — writes through.
+  store.setDefaultTerminalSize({ w: 820, h: 560 });
+  assert.deepEqual(
+    usePreferencesStore.getState().defaultTerminalSize,
+    { w: 820, h: 560 },
+  );
+  const persistedA = JSON.parse(localStorage.getItem("termcanvas-preferences")!);
+  assert.deepEqual(persistedA.defaultTerminalSize, { w: 820, h: 560 });
+
+  // Fractional values get rounded by the sanitizer.
+  store.setDefaultTerminalSize({ w: 640.4, h: 480.9 });
+  assert.deepEqual(
+    usePreferencesStore.getState().defaultTerminalSize,
+    { w: 640, h: 481 },
+  );
+
+  // Implausible values are rejected → stored as null so the caller falls
+  // back to the panel-aware computed default instead of a broken size.
+  store.setDefaultTerminalSize({ w: 10, h: 10 });
+  assert.equal(usePreferencesStore.getState().defaultTerminalSize, null);
+
+  // Explicit null resets.
+  store.setDefaultTerminalSize({ w: 900, h: 600 });
+  store.setDefaultTerminalSize(null);
+  assert.equal(usePreferencesStore.getState().defaultTerminalSize, null);
+});
+
+test("preferences ignore corrupt defaultTerminalSize on load", async () => {
+  installLocalStorage(
+    JSON.stringify({
+      animationBlur: 0,
+      defaultTerminalSize: { w: "huge", h: null },
+    }),
+  );
+  const { usePreferencesStore } = await loadPreferencesStoreModule(
+    "default-terminal-size-corrupt",
+  );
+  assert.equal(usePreferencesStore.getState().defaultTerminalSize, null);
+});
+

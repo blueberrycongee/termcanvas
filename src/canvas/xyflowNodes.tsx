@@ -7,6 +7,7 @@ import {
 } from "@xyflow/react";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
+import { usePreferencesStore } from "../stores/preferencesStore";
 import { TerminalTile } from "../terminal/TerminalTile";
 import {
   resolveTerminalMountMode,
@@ -155,6 +156,15 @@ function TerminalNode({ data }: NodeProps<TerminalFlowNode>) {
         snappedW,
         snappedH,
       );
+
+      // Remember this as the user's preferred size for future new
+      // terminals. Sanitizer in preferencesStore rejects implausible
+      // values (e.g. near-zero), so we can write unconditionally here
+      // and not worry about corrupting the pref from an accidental
+      // zero-sized resize.
+      usePreferencesStore
+        .getState()
+        .setDefaultTerminalSize({ w: snappedW, h: snappedH });
 
       // Resolve collisions after resize
       const projects = useProjectStore.getState().projects;
