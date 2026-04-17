@@ -85,6 +85,17 @@ export class GhosttyWasmBackend implements TerminalBackend {
     options.container.replaceChildren();
     term.open(options.container);
 
+    // ghostty-web parks its IME textarea at (0,0) with opacity:0 + clipPath,
+    // intending for it to be invisible. Chromium on Electron renders the
+    // native text caret outside the opacity stack, so the caret leaks
+    // through as a blinking bar in the top-left of the tile. Kill it
+    // explicitly — caret-color doesn't affect the terminal's drawn cursor
+    // (that's painted on the canvas), only the textarea's own.
+    const textarea = options.container.querySelector("textarea");
+    if (textarea instanceof HTMLTextAreaElement) {
+      textarea.style.caretColor = "transparent";
+    }
+
     const fitAddon = new GhosttyFitAddon();
     term.loadAddon(fitAddon);
     // ghostty-web sizes its canvas strictly to cols×charWidth × rows×charHeight
