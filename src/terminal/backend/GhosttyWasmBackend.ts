@@ -215,7 +215,14 @@ function adaptGhosttyTerminal(term: GhosttyTerminal): CompatibleTerminal {
       void _addon;
     },
     attachCustomKeyEventHandler(handler) {
-      term.attachCustomKeyEventHandler(handler);
+      // xterm.js and ghostty-web have OPPOSITE semantics for this return
+      // value. xterm reads `true` as "xterm should process this key"; the
+      // whole of TermCanvas speaks that dialect. ghostty-web (see
+      // InputHandler.handleKeyDown in the bundled source) reads `true` as
+      // "skip processing, preventDefault()". Feed the caller's xterm-style
+      // return value through a negation so the handler keeps working when
+      // we swap backends.
+      term.attachCustomKeyEventHandler((event) => !handler(event));
     },
     onData(listener): TerminalDisposable {
       return term.onData(listener);
