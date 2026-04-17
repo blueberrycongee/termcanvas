@@ -66,16 +66,25 @@ npm run dev
 
 Infinite canvas — pan, zoom, and arrange terminals freely. Three-layer hierarchy: projects contain worktrees, worktrees contain terminals. New worktrees appear automatically as you create them.
 
-Double-click a terminal title bar to zoom-to-fit. Drag to reorder. Box-select multiple terminals. Save your entire layout to a `.termcanvas` file.
+Double-click a terminal title bar to zoom-to-fit. Drag to reorder. Box-select multiple terminals. Draw and annotate freely on the canvas itself with the Free Canvas tool — sketches, callouts, and grouping lines live alongside your terminals. Save your entire layout to a `.termcanvas` file.
 
 ### AI Coding Agents
 
 First-class support for **Claude Code**, **Codex**, **Kimi**, **Gemini**, and **OpenCode**.
 
 - **Live status & completion glow** — see at a glance whether an agent is working, waiting, or done
-- **Telemetry truth layer** — real-time turn state, tool activity, and progress tracking per agent; stall detection, advisory badges, and structured snapshots for both UI and Hydra
+- **Event-driven telemetry** — Claude Code and Codex stream `awaiting_input`, tool activity, and turn state via lifecycle hooks, so status transitions land in-frame rather than on a polling delay
+- **Telemetry truth layer** — turn state, tool activity, stall detection, advisory badges, and structured snapshots shared between the UI and Hydra
 - **Session resume** — close and reopen an agent terminal without losing context
 - **Inline diff cards** — review an agent's changes without leaving the canvas
+
+### Pet
+
+A desktop capybara (opt-in) that tracks your agents via telemetry and reacts: working, waiting, stuck, stall, completed, spa. Uses the same truth layer as the status glow, so its reactions are as accurate as the badges. Walk dust, heart particles, ground shadow, and a handful of idle emotes for a bit of companion texture during long runs.
+
+### Sessions Panel
+
+Session panel renders as a tree: projects → worktrees → agent sessions. Collapse / expand whole projects, jump to a running session's terminal, inspect session metadata, resume by click. Git status badges on worktrees reflect the live file-tree state.
 
 ### Git
 
@@ -83,7 +92,7 @@ Built-in Git panel in the left sidebar — commit history, diff viewer, and git 
 
 ### Terminals
 
-Shell, lazygit, and tmux terminals live alongside AI agents on the same canvas. Star important terminals and cycle through them with <kbd>⌘</kbd> <kbd>J</kbd> / <kbd>K</kbd>. Four size presets, customizable titles, per-agent CLI override.
+Shell, lazygit, and tmux terminals live alongside AI agents on the same canvas. Star important terminals and cycle through them with <kbd>⌘</kbd> <kbd>J</kbd> / <kbd>K</kbd>. Four size presets, customizable titles, per-agent CLI override. New terminals pick up your sticky preferred size — the first manual resize is learned and used for every subsequent "+ Terminal" click, independent of sidebar state.
 
 ### Usage Tracking
 

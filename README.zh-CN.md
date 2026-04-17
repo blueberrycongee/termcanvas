@@ -64,16 +64,25 @@ npm run dev
 
 无限画布——自由平移、缩放、排列终端。三层层级：项目包含 worktree，worktree 包含终端。新建 worktree 时自动出现在画布上。
 
-双击终端标题栏缩放适配。拖拽排序。框选多个终端。将完整布局保存为 `.termcanvas` 文件。
+双击终端标题栏缩放适配。拖拽排序。框选多个终端。用 Free Canvas 工具直接在画布上手绘和标注——草图、批注、分组线与终端同屏共存。将完整布局保存为 `.termcanvas` 文件。
 
 ### AI 编程 Agent
 
 原生支持 **Claude Code**、**Codex**、**Kimi**、**Gemini**、**OpenCode**。
 
 - **实时状态与完成闪光** —— 一眼看到 agent 正在工作、等待还是已完成
-- **Telemetry 真相层** —— 实时 turn 状态、工具活动、进度追踪；卡顿检测、状态徽章、结构化快照，同时服务 UI 和 Hydra
+- **事件驱动 telemetry** —— Claude Code 和 Codex 通过 lifecycle hooks 直接推送 `awaiting_input`、工具活动、turn 状态，状态翻转即时生效，不再受轮询延迟拖累
+- **Telemetry 真相层** —— turn 状态、工具活动、卡顿检测、状态徽章、结构化快照，同时服务 UI 和 Hydra
 - **会话恢复** —— 关闭并重新打开 agent 终端，不丢失上下文
 - **内联 diff 卡片** —— 不离开画布就能审查 agent 的代码变更
+
+### 桌宠
+
+可选的水豚桌宠，会根据 telemetry 实时反馈 agent 状态：工作中、等待、卡住、停滞、完成、泡澡等。数据来源和状态徽章一致，因此反应一样准。配有走路扬尘、爱心粒子、地面阴影和多种闲置表情，让长时间跑 agent 的陪伴感更好一点。
+
+### 会话面板
+
+会话面板以树形呈现：项目 → worktree → agent 会话。项目整体可折叠展开，点击即可跳到对应终端、查看 session 元数据、基于 session 继续追问。worktree 节点带 git 状态徽章，实时反映文件树状态。
 
 ### Git
 
@@ -81,7 +90,7 @@ npm run dev
 
 ### 终端
 
-Shell、lazygit、tmux 与 AI agent 共存于同一画布。星标重要终端，用 <kbd>⌘</kbd> <kbd>J</kbd> / <kbd>K</kbd> 快速切换。四种尺寸预设、自定义标题、逐 agent CLI 路径覆盖。
+Shell、lazygit、tmux 与 AI agent 共存于同一画布。星标重要终端，用 <kbd>⌘</kbd> <kbd>J</kbd> / <kbd>K</kbd> 快速切换。四种尺寸预设、自定义标题、逐 agent CLI 路径覆盖。新建终端会保持你的偏好尺寸——第一次手动调整后即固定为默认，后续「+ Terminal」均沿用，与侧边栏状态无关。
 
 ### 用量追踪
 
