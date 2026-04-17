@@ -255,15 +255,54 @@ function adaptGhosttyTerminal(
       return term.options.theme as ITheme | undefined;
     },
     set theme(value: ITheme | undefined) {
-      if (value) {
-        term.options.theme = value;
-        // Keep the host's background colour in sync so the sub-cell
-        // remainder strip between the canvas and the host's edges blends
-        // into the theme instead of showing the app's generic surface
-        // colour through it.
-        if (value.background) {
-          hostElement.style.backgroundColor = value.background;
-        }
+      if (!value) return;
+
+      // HACK (not the long-term plan): ghostty-web v0.4.0's own
+      // Terminal.handleOptionChange does nothing for "theme" beyond
+      // logging `theme changes after open() are not yet fully supported`.
+      // Setting term.options.theme alone leaves the canvas frozen on the
+      // old palette — the user sees the host switch between light/dark
+      // while the terminal content stays in the previous theme.
+      //
+      // Reach past the public API into the CanvasRenderer to rebuild the
+      // palette and force a full redraw. Keep term.options.theme assigned
+      // too so future ghostty-web versions that implement the option
+      // handler see the right value. This workaround goes away when we
+      // replace ghostty-web's renderer with our own — see the PR for the
+      // follow-up plan.
+      term.options.theme = value;
+
+      const internals = term as unknown as {
+        renderer?: {
+          setTheme?: (theme: ITheme) => void;
+          render?: (
+            buffer: unknown,
+            forceAll: boolean,
+            viewportY: number,
+            scrollback: unknown,
+            scrollbarOpacity: number,
+          ) => void;
+        };
+        wasmTerm?: unknown;
+        viewportY?: number;
+      };
+
+      internals.renderer?.setTheme?.(value);
+      if (internals.renderer?.render && internals.wasmTerm) {
+        internals.renderer.render(
+          internals.wasmTerm,
+          true,
+          internals.viewportY ?? 0,
+          term,
+          0,
+        );
+      }
+
+      // Keep the host's background colour in sync so the sub-cell remainder
+      // strip between the canvas and the host's edges blends into the theme
+      // instead of showing the app's generic surface colour through it.
+      if (value.background) {
+        hostElement.style.backgroundColor = value.background;
       }
     },
     get fontFamily() {
