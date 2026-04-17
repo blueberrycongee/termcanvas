@@ -319,7 +319,7 @@ function ProviderDropdown({ value, onChange }: { value: string; onChange: (id: s
 
 export function SettingsModal({ onClose }: Props) {
   const { locale, setLocale } = useLocaleStore();
-  const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize, terminalFontFamily, setTerminalFontFamily, composerEnabled, setComposerEnabled, drawingEnabled, setDrawingEnabled, browserEnabled, setBrowserEnabled, summaryEnabled, setSummaryEnabled, globalSearchEnabled, setGlobalSearchEnabled, petEnabled, setPetEnabled, summaryCli, setSummaryCli, minimumContrastRatio, setMinimumContrastRatio, agentConfig, patchAgentConfig, setAgentConfig } = usePreferencesStore();
+  const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize, terminalFontFamily, setTerminalFontFamily, composerEnabled, setComposerEnabled, drawingEnabled, setDrawingEnabled, browserEnabled, setBrowserEnabled, summaryEnabled, setSummaryEnabled, globalSearchEnabled, setGlobalSearchEnabled, petEnabled, setPetEnabled, summaryCli, setSummaryCli, minimumContrastRatio, setMinimumContrastRatio, terminalBackend, setTerminalBackend, agentConfig, patchAgentConfig, setAgentConfig } = usePreferencesStore();
   const [fontSizeDraft, setFontSizeDraft] = useState(terminalFontSize);
   const { shortcuts, setShortcut, resetAll } = useShortcutStore();
   const [downloadedFonts, setDownloadedFonts] = useState<Set<string>>(new Set());
@@ -700,6 +700,32 @@ export function SettingsModal({ onClose }: Props) {
                   >
                     {minimumContrastRatio <= 1 ? t.setting_off : `${minimumContrastRatio.toFixed(1)}`}
                   </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[13px] text-[var(--text-secondary)]">
+                    Terminal backend
+                  </span>
+                  <span className="text-[11px] text-[var(--text-muted)]">
+                    Ghostty (WASM) is experimental. New tiles use the selected
+                    backend; existing tiles keep whatever they were created with.
+                  </span>
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    className={terminalBackend === "xterm" ? activeBtn : inactiveBtn}
+                    onClick={() => setTerminalBackend("xterm")}
+                  >
+                    xterm
+                  </button>
+                  <button
+                    className={terminalBackend === "ghostty-wasm" ? activeBtn : inactiveBtn}
+                    onClick={() => setTerminalBackend("ghostty-wasm")}
+                  >
+                    ghostty
+                  </button>
                 </div>
               </div>
 
