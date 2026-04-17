@@ -1,39 +1,36 @@
 /**
- * GLSL shaders for the WebGL2 terminal renderer. Adapted from
- * Ghostty's `cell_text.v.glsl` / `cell_text.f.glsl` / `cell_bg.f.glsl`
- * (see `thirdparty/ghostty/src/renderer/shaders/glsl/`), translated
- * from OpenGL 4.3 to WebGL2-compatible ES 3.00 GLSL:
+ * GLSL shaders for the WebGL2 terminal renderer.
  *
- *  - `layout(binding = N)` → set sampler uniform via
- *    `gl.uniform1i(loc, textureUnit)` CPU-side.
- *  - `sampler2DRect` → `sampler2D` + `texelFetch` for exact pixel
- *    sampling (or `texture()` with normalised coords since we
- *    pre-compute UVs on CPU from glyph atlas coords).
- *  - SSBOs (`layout(binding, std430) readonly buffer`) → either UBOs
- *    or a 2D texture carrying cell colours. We use the texture route
- *    for background cells because UBO size caps out at 64 KB in
- *    WebGL2, which is too small for a 4K-cell grid.
+ * Earlier iteration ran gamma-correct (linearize inputs / unlinearize
+ * outputs). Looked right in theory, but the clear-color + bg-pass
+ * output path was inconsistent — clearColor fed a linear RGB tuple
+ * straight into the display framebuffer while the text fragment
+ * unlinearized before output. Result was a grid where background
+ * cells appeared dimmer than the surrounding clear area, glyphs
+ * looked washed out, and the overall tile had a weird gray cast
+ * the user called out.
  *
- * Pipeline stages (mirrors Ghostty):
- *  1. `cell_bg` — full-screen triangle that samples per-cell colours
- *     from a texture and emits them as fragments. One draw call for
- *     the whole grid background.
- *  2. `cell_text` — instanced draw of per-glyph quads. Each instance
- *     carries `(glyph_atlas_pos, glyph_size, bearings, grid_pos,
- *     color, flags)`. Vertex ID (0..3) expands to the four corners
- *     via a triangle strip.
- *  3. `cursor` — a single quad drawn in the cursor's style, on top.
+ * Pragmatic simplification: stay in sRGB throughout. Display
+ * framebuffers in WebGL2 default contexts are not sRGB-aware, so the
+ * shader output IS the displayed byte. Gamma-correct blending at
+ * glyph edges is a real improvement (see Ghostty's cell_text.f.glsl
+ * `use_linear_correction` path) but we'll reintroduce it only after
+ * the baseline display is correct — edge AA is a fix on top of
+ * "colours are right", not a substitute for it.
  *
- * Colour handling follows Ghostty: all inputs are assumed sRGB-
- * encoded, linearized into the shader for blending, then unlinearized
- * to sRGB on output. Gives correct antialiasing edges regardless of
- * whether the system framebuffer is sRGB-aware.
+ * Vertex shader also simplifies: `bearings` are now stored in the
+ * atlas as direct offsets from the cell's top-left to the glyph's
+ * top-left ink pixel. No inversion in the shader. The Ghostty
+ * convention (bearings.y = distance from cell bottom to glyph top)
+ * makes sense when you're integrating with FreeType which reports
+ * bearings from the baseline up; our Canvas2D-based atlas natively
+ * knows the cell-top-to-ink-top distance, so we skip the conversion
+ * and let the shader be trivial.
  */
 
 export const CELL_BG_VERTEX_SHADER = /* glsl */ `#version 300 es
 precision highp float;
 
-// Triangle strip covering NDC [-1,1] — 4 verts, one call, no buffer.
 void main() {
   vec2 corner = vec2(
     float((gl_VertexID & 1) == 1),
@@ -47,33 +44,17 @@ export const CELL_BG_FRAGMENT_SHADER = /* glsl */ `#version 300 es
 precision highp float;
 precision highp usampler2D;
 
-uniform usampler2D u_cellColors; // R8UI×4 texture, packed RGBA per cell
-uniform vec2 u_cellSize;        // device pixels
-uniform vec2 u_screenSize;      // device pixels
-uniform ivec2 u_gridSize;       // cols, rows
-uniform vec4 u_globalBg;        // theme.background, linearized
+uniform usampler2D u_cellColors; // RGBA8UI per cell, sRGB bytes
+uniform vec2 u_cellSize;
+uniform vec2 u_screenSize;
+uniform ivec2 u_gridSize;
+uniform vec4 u_globalBg;         // sRGB 0..1
 
 out vec4 outColor;
 
-vec4 linearize(vec4 srgb) {
-  bvec3 cutoff = lessThanEqual(srgb.rgb, vec3(0.04045));
-  vec3 higher = pow((srgb.rgb + vec3(0.055)) / vec3(1.055), vec3(2.4));
-  vec3 lower = srgb.rgb / vec3(12.92);
-  return vec4(mix(higher, lower, cutoff), srgb.a);
-}
-
-vec4 unlinearize(vec4 linear) {
-  bvec3 cutoff = lessThanEqual(linear.rgb, vec3(0.0031308));
-  vec3 higher = pow(linear.rgb, vec3(1.0 / 2.4)) * vec3(1.055) - vec3(0.055);
-  vec3 lower = linear.rgb * vec3(12.92);
-  return vec4(mix(higher, lower, cutoff), linear.a);
-}
-
 void main() {
-  // Compute grid cell from screen position. gl_FragCoord has (0,0) at
-  // bottom-left in WebGL but Ghostty's bg shader uses top-left origin
-  // via layout(origin_upper_left). We don't have that in WebGL2, so
-  // flip Y CPU-side by reading rows in reverse.
+  // gl_FragCoord has (0,0) at bottom-left in WebGL; our grid coords
+  // are top-left origin. Flip Y so cell (0, 0) is at the top row.
   vec2 pixel = gl_FragCoord.xy;
   pixel.y = u_screenSize.y - pixel.y;
 
@@ -84,19 +65,20 @@ void main() {
     return;
   }
 
-  // Cell bg stored as non-premultiplied sRGB 8-bit RGBA. Pull, linearize,
-  // premultiply.
   uvec4 packed = texelFetch(u_cellColors, cell, 0);
   vec4 cellBg = vec4(packed) / 255.0;
-  // sentinel (0,0,0,0) = "default"; fall back to theme.background.
   if (cellBg.a == 0.0) {
+    // Sentinel: cell uses default theme bg.
     outColor = u_globalBg;
     return;
   }
-  cellBg = linearize(cellBg);
-  cellBg.rgb *= cellBg.a;
-  // Composite onto theme.background (already linear + premultiplied).
-  outColor = cellBg + u_globalBg * (1.0 - cellBg.a);
+  // Composite sRGB over sRGB. Non-physically-correct at partial
+  // transparency but that's also what xterm.js / ghostty-web's own
+  // Canvas2D renderer did; keeps visuals predictable.
+  outColor = vec4(
+    cellBg.rgb * cellBg.a + u_globalBg.rgb * (1.0 - cellBg.a),
+    1.0
+  );
 }
 `;
 
@@ -105,33 +87,20 @@ precision highp float;
 
 layout(location = 0) in uvec2 a_glyph_pos;    // atlas top-left (device px)
 layout(location = 1) in uvec2 a_glyph_size;   // atlas tile size (device px)
-layout(location = 2) in ivec2 a_bearings;     // glyph offset from cell top-left
+layout(location = 2) in ivec2 a_bearings;     // direct offsets from cell TL to glyph TL
 layout(location = 3) in uvec2 a_grid_pos;     // cell (col, row)
 layout(location = 4) in uvec4 a_color;        // RGBA 0..255, sRGB
-layout(location = 5) in uint a_flags;         // see Flags below
+layout(location = 5) in uint a_flags;
 
-uniform vec2 u_cellSize;      // device pixels per cell
-uniform vec2 u_screenSize;    // device pixels
-uniform ivec2 u_atlasSize;    // device pixels
-uniform float u_cellHeight;   // device pixels; same as u_cellSize.y but explicit
+uniform vec2 u_cellSize;
+uniform vec2 u_screenSize;
+uniform ivec2 u_atlasSize;
 
-out vec2 v_uv;               // atlas UV (0..1)
-flat out vec4 v_color;       // linear premultiplied
+out vec2 v_uv;
+flat out vec4 v_color;
 flat out uint v_flags;
 
-const uint FLAG_COLOR_GLYPH = 1u;
-const uint FLAG_IS_UNDERLINE = 2u;
-const uint FLAG_IS_STRIKETHROUGH = 4u;
-
-vec4 linearize(vec4 srgb) {
-  bvec3 cutoff = lessThanEqual(srgb.rgb, vec3(0.04045));
-  vec3 higher = pow((srgb.rgb + vec3(0.055)) / vec3(1.055), vec3(2.4));
-  vec3 lower = srgb.rgb / vec3(12.92);
-  return vec4(mix(higher, lower, cutoff), srgb.a);
-}
-
 void main() {
-  // Four-corner triangle strip: 0=TL, 1=TR, 2=BL, 3=BR
   vec2 corner = vec2(
     float((gl_VertexID & 1) == 1),
     float((gl_VertexID & 2) == 2)
@@ -139,28 +108,20 @@ void main() {
 
   vec2 glyph_size = vec2(a_glyph_size);
   vec2 cell_origin = vec2(a_grid_pos) * u_cellSize;
-
-  // Glyph's top-left in the cell: bearingX right from cell-left,
-  // (cellHeight - bearingY) down from cell-top (so the glyph's
-  // baseline sits at cell_top + cellHeight - 0 = cell_bottom... no,
-  // baseline sits at bearingY pixels below the glyph top).
   vec2 offset = vec2(a_bearings);
-  offset.y = u_cellHeight - offset.y;
 
+  // Bearings are direct top-left offsets — no cell-height subtraction.
   vec2 pixel = cell_origin + glyph_size * corner + offset;
-  // Convert device pixels → clip space. Origin top-left.
   vec2 clip = (pixel / u_screenSize) * 2.0 - 1.0;
   clip.y = -clip.y;
   gl_Position = vec4(clip, 0.0, 1.0);
 
-  // Atlas UV, exact pixel coords mapped into [0..1].
   vec2 atlas_pos = vec2(a_glyph_pos) + glyph_size * corner;
   v_uv = atlas_pos / vec2(u_atlasSize);
 
-  // Color: sRGB bytes → linear premultiplied.
-  vec4 srgb = vec4(a_color) / 255.0;
-  v_color = linearize(srgb);
-  v_color.rgb *= v_color.a;
+  // sRGB 0..1, non-premultiplied. Fragment shader premultiplies with
+  // coverage and emits sRGB unchanged.
+  v_color = vec4(a_color) / 255.0;
   v_flags = a_flags;
 }
 `;
@@ -168,7 +129,7 @@ void main() {
 export const CELL_TEXT_FRAGMENT_SHADER = /* glsl */ `#version 300 es
 precision highp float;
 
-uniform sampler2D u_atlas;     // grayscale R8 coverage
+uniform sampler2D u_atlas;
 
 in vec2 v_uv;
 flat in vec4 v_color;
@@ -176,36 +137,21 @@ flat in uint v_flags;
 
 out vec4 outColor;
 
-vec4 unlinearize(vec4 linear) {
-  bvec3 cutoff = lessThanEqual(linear.rgb, vec3(0.0031308));
-  vec3 higher = pow(linear.rgb, vec3(1.0 / 2.4)) * vec3(1.055) - vec3(0.055);
-  vec3 lower = linear.rgb * vec3(12.92);
-  return vec4(mix(higher, lower, cutoff), linear.a);
-}
+const uint FLAG_IS_UNDERLINE = 2u;
+const uint FLAG_IS_STRIKETHROUGH = 4u;
 
 void main() {
-  // Underline / strikethrough quads come through the same pipeline
-  // but ignore the atlas — v_uv would sample outside any glyph and
-  // we want solid fill, so we bypass atlas sampling.
-  if ((v_flags & 2u) != 0u || (v_flags & 4u) != 0u) {
-    outColor = unlinearize(v_color);
+  if ((v_flags & FLAG_IS_UNDERLINE) != 0u ||
+      (v_flags & FLAG_IS_STRIKETHROUGH) != 0u) {
+    // Solid fill (cursor, underline, strikethrough). Pre-multiply
+    // inline so the gl.blendFunc(ONE, ONE_MINUS_SRC_ALPHA) contract
+    // stays consistent across both paths.
+    outColor = vec4(v_color.rgb * v_color.a, v_color.a);
     return;
   }
-
   float coverage = texture(u_atlas, v_uv).r;
-  vec4 linear_premul = v_color * coverage;
-  // Unlinearize for output. Since alpha is premultiplied, divide out,
-  // unlinearize RGB, re-multiply. Matches Ghostty's non-linear
-  // blending path.
-  if (linear_premul.a > 0.0) {
-    vec4 color = linear_premul;
-    color.rgb /= color.a;
-    color = unlinearize(color);
-    color.rgb *= color.a;
-    outColor = color;
-  } else {
-    outColor = vec4(0.0);
-  }
+  float alpha = v_color.a * coverage;
+  outColor = vec4(v_color.rgb * alpha, alpha);
 }
 `;
 

@@ -139,16 +139,15 @@ function parseColor(
   return fallback;
 }
 
-function srgbToLinear(c: number): number {
-  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-}
-
-function linearizeAndPremul(
+// No-op helper: kept in case we reintroduce gamma-correct blending
+// on a subsequent phase. The fragment shaders currently stay in sRGB
+// end to end, so conversion lives neither here nor in the shader.
+function srgbPremul(
   c: [number, number, number, number],
 ): [number, number, number, number] {
-  const r = srgbToLinear(c[0]) * c[3];
-  const g = srgbToLinear(c[1]) * c[3];
-  const b = srgbToLinear(c[2]) * c[3];
+  const r = c[0] * c[3];
+  const g = c[1] * c[3];
+  const b = c[2] * c[3];
   return [r, g, b, c[3]];
 }
 
@@ -174,7 +173,6 @@ export class GhosttyWebGLRenderer {
   private readonly uTxCellSize: WebGLUniformLocation;
   private readonly uTxScreenSize: WebGLUniformLocation;
   private readonly uTxAtlasSize: WebGLUniformLocation;
-  private readonly uTxCellHeight: WebGLUniformLocation;
 
   // Cell bg texture — one RGBA8 texel per cell, updated per frame.
   private cellColorTexture: WebGLTexture;
@@ -265,7 +263,6 @@ export class GhosttyWebGLRenderer {
     this.uTxCellSize = this.mustGetUniform(this.textProgram, "u_cellSize");
     this.uTxScreenSize = this.mustGetUniform(this.textProgram, "u_screenSize");
     this.uTxAtlasSize = this.mustGetUniform(this.textProgram, "u_atlasSize");
-    this.uTxCellHeight = this.mustGetUniform(this.textProgram, "u_cellHeight");
 
     // Cell bg color texture (sized per-resize).
     const cellTex = gl.createTexture();
@@ -380,9 +377,14 @@ export class GhosttyWebGLRenderer {
   }
 
   clear(): void {
+    // clearColor is an sRGB tuple going straight to the display
+    // framebuffer; matches what the bg/text shaders emit. If we
+    // linearize here the cleared regions look dimmer than the
+    // bg-pass-filled regions, which was the "whole tile looks gray"
+    // bug before this commit.
     const bg = parseColor(this.theme.background, [0, 0, 0, 1]);
-    const lin = linearizeAndPremul(bg);
-    this.gl.clearColor(lin[0], lin[1], lin[2], lin[3]);
+    const pre = srgbPremul(bg);
+    this.gl.clearColor(pre[0], pre[1], pre[2], pre[3]);
     this.gl.clear(this.gl.COLOR_BUFFER_BIT);
   }
 
@@ -708,14 +710,15 @@ export class GhosttyWebGLRenderer {
       if (cell.flags & FLAG_UNDERLINE) {
         const m = this.atlas.getMetrics();
         const thickness = Math.max(1, Math.floor(m.cellHeight * 0.06));
-        const yOffset = m.baseline + 2;
+        // Underline strip top = baseline + 2 (2 px breathing room).
+        const yOffset = Math.min(m.baseline + 2, m.cellHeight - thickness);
         this.pushTextInstance(instances, {
           atlasX: 0,
           atlasY: 0,
           glyphW: m.cellWidth * (cell.width === 2 ? 2 : 1),
           glyphH: thickness,
           bearingX: 0,
-          bearingY: m.cellHeight - yOffset,
+          bearingY: yOffset,
           col: x,
           row: displayRow,
           color,
@@ -725,14 +728,15 @@ export class GhosttyWebGLRenderer {
       if (cell.flags & FLAG_STRIKETHROUGH) {
         const m = this.atlas.getMetrics();
         const thickness = Math.max(1, Math.floor(m.cellHeight * 0.06));
-        const yOffset = Math.floor(m.cellHeight / 2);
+        // Strikethrough through the glyph mid-height: baseline - ascent/2.
+        const yOffset = Math.max(0, m.baseline - Math.floor(m.ascent / 2));
         this.pushTextInstance(instances, {
           atlasX: 0,
           atlasY: 0,
           glyphW: m.cellWidth * (cell.width === 2 ? 2 : 1),
           glyphH: thickness,
           bearingX: 0,
-          bearingY: m.cellHeight - yOffset,
+          bearingY: yOffset,
           col: x,
           row: displayRow,
           color,
@@ -788,22 +792,32 @@ export class GhosttyWebGLRenderer {
       Math.round(color[2] * 255),
       Math.round(color[3] * 255),
     ];
-    let w = cellW,
-      h = cellH,
-      bx = 0,
-      by = cellH;
+    let w: number;
+    let h: number;
+    let bx: number;
+    let by: number;
     switch (this.cursorStyle) {
       case "block":
         w = cellW;
         h = cellH;
+        bx = 0;
+        by = 0;
         break;
       case "underline":
+        w = cellW;
         h = Math.max(2, Math.floor(cellH * 0.15));
-        by = h;
+        bx = 0;
+        // Position the underline cursor flush against the cell
+        // bottom: `cell_origin + (0, cellH - h)` → top of the
+        // underline strip.
+        by = cellH - h;
         break;
       case "bar":
       default:
         w = Math.max(2, Math.floor(cellW * 0.15));
+        h = cellH;
+        bx = 0;
+        by = 0;
         break;
     }
     this.pushTextInstance(instances, {
@@ -816,7 +830,7 @@ export class GhosttyWebGLRenderer {
       col,
       row,
       color: colorBytes,
-      flags: INST_FLAG_IS_UNDERLINE, // reuse "no-atlas" flag path
+      flags: INST_FLAG_IS_UNDERLINE, // reuse "no-atlas" solid-fill path
     });
   }
 
@@ -878,8 +892,8 @@ export class GhosttyWebGLRenderer {
     gl.uniform2i(this.uBgGridSize, cols, rows);
 
     const bg = parseColor(this.theme.background, [0, 0, 0, 1]);
-    const lin = linearizeAndPremul(bg);
-    gl.uniform4f(this.uBgGlobalBg, lin[0], lin[1], lin[2], lin[3]);
+    const pre = srgbPremul(bg);
+    gl.uniform4f(this.uBgGlobalBg, pre[0], pre[1], pre[2], pre[3]);
     // 4-vert triangle strip covering the whole clip space.
     gl.bindVertexArray(null);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -933,7 +947,6 @@ export class GhosttyWebGLRenderer {
     gl.uniform2f(this.uTxCellSize, cellW, cellH);
     gl.uniform2f(this.uTxScreenSize, canvasW, canvasH);
     gl.uniform2i(this.uTxAtlasSize, this.atlas.size, this.atlas.size);
-    gl.uniform1f(this.uTxCellHeight, cellH);
 
     gl.bindVertexArray(this.textVao);
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, instanceCount);

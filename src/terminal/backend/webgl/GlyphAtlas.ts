@@ -230,25 +230,30 @@ export class GlyphAtlas {
     const advanceCells =
       advanceWidth > this.metricsCache.cellWidth * 1.3 ? 2 : 1;
 
-    // Actual glyph bbox — may be smaller than the cell (narrow glyphs),
-    // extend above the cell (accents), or extend below (descenders).
-    // Use the bounding-box metrics so we capture the full ink rect,
-    // including the marks.
-    const glyphAscent = Math.ceil(rawMetrics.actualBoundingBoxAscent);
-    const glyphDescent = Math.ceil(rawMetrics.actualBoundingBoxDescent);
-    const glyphLeft = Math.ceil(rawMetrics.actualBoundingBoxLeft);
-    const glyphRight = Math.ceil(rawMetrics.actualBoundingBoxRight);
+    // Ink bounding box. actualBoundingBox{Left,Right,Ascent,Descent}
+    // are distances (all positive) from the fillText origin to the
+    // ink extremes. Some fonts have quirky values — a glyph whose
+    // bbox extends left of origin (italic overhang) gives
+    // actualBoundingBoxLeft > 0; a glyph whose bbox starts to the
+    // right of origin gives actualBoundingBoxLeft < 0 (we floor to
+    // zero to keep atlas coords non-negative and track the
+    // difference via bearingX below).
+    const inkLeft = rawMetrics.actualBoundingBoxLeft; // positive = ink extends left of pen
+    const inkAscent = rawMetrics.actualBoundingBoxAscent;
+    const inkDescent = rawMetrics.actualBoundingBoxDescent;
+    const inkRight = rawMetrics.actualBoundingBoxRight;
 
-    const glyphWidth = Math.max(1, glyphLeft + glyphRight);
-    const glyphHeight = Math.max(1, glyphAscent + glyphDescent);
-
-    // Rasterize into the offscreen canvas at glyphWidth × glyphHeight.
-    // Origin: we draw the glyph with fillText at (glyphLeft,
-    // glyphAscent) so (0, 0) of the raster canvas maps to
-    // (-glyphLeft, -glyphAscent) of the glyph's baseline origin.
-    const pad = 1;
-    const tileWidth = glyphWidth + pad * 2;
-    const tileHeight = glyphHeight + pad * 2;
+    // Pixel-integer box that contains the ink with a 1-px safety pad
+    // so linear sampling at the quad edges doesn't pick up a
+    // neighbouring shelf's glyph.
+    const padTop = 1;
+    const padLeft = 1;
+    const padRight = 1;
+    const padBottom = 1;
+    const inkWidthPx = Math.ceil(inkLeft + inkRight);
+    const inkHeightPx = Math.ceil(inkAscent + inkDescent);
+    const tileWidth = Math.max(1, inkWidthPx) + padLeft + padRight;
+    const tileHeight = Math.max(1, inkHeightPx) + padTop + padBottom;
 
     if (
       this.rasterCanvas.width < tileWidth ||
@@ -262,9 +267,11 @@ export class GlyphAtlas {
 
     ctx.clearRect(0, 0, tileWidth, tileHeight);
     ctx.fillStyle = "#ffffff";
-    ctx.fillText(text, pad + glyphLeft, pad + glyphAscent);
+    // fillText at (padLeft + inkLeft, padTop + inkAscent) places the
+    // glyph so its leftmost ink column lands at x=padLeft and its top
+    // ink row lands at y=padTop in the tile.
+    ctx.fillText(text, padLeft + inkLeft, padTop + inkAscent);
 
-    // Allocate atlas spot.
     if (!this.ensureShelfSpace(tileWidth, tileHeight)) {
       return null;
     }
@@ -272,15 +279,10 @@ export class GlyphAtlas {
     const atlasY = this.shelfY;
     this.shelfX += tileWidth + SHELF_PADDING;
 
-    // Extract the alpha channel from the rasterized pixels into an R8
-    // upload. Canvas2D rasterizes to premultiplied RGBA; since we
-    // filled in white, every non-zero pixel's alpha equals its luma,
-    // so we can just pull alpha directly for coverage.
     const imageData = ctx.getImageData(0, 0, tileWidth, tileHeight);
     const pixels = imageData.data;
     const coverage = new Uint8Array(tileWidth * tileHeight);
     for (let i = 0, o = 0; i < pixels.length; i += 4, o += 1) {
-      // Alpha is the pre-multiplied coverage for a white source.
       coverage[o] = pixels[i + 3];
     }
 
@@ -301,19 +303,35 @@ export class GlyphAtlas {
       coverage,
     );
 
-    // Bearings (Ghostty convention):
-    //  - bearingX is the horizontal offset from the cell's left edge to
-    //    the glyph's left edge. Same as glyphLeft (positive = ink
-    //    starts inside the cell).
-    //  - bearingY is the vertical offset from the baseline UP to the
-    //    glyph's top, i.e. the glyph's ascender height. Positive.
+    // Offsets *from cell top-left* to the top-left of the ink. These
+    // are what the vertex shader adds to `cell_origin` to place the
+    // glyph quad — no inversion, no cell-height subtraction, just
+    // direct offsets. This replaces the previous Ghostty-cell_size-
+    // minus-bearingY gymnastics, which was fighting a confusing
+    // convention mismatch and produced visibly unaligned prompts.
+    //
+    // The ink starts at tile's (padLeft, padTop). If we position the
+    // tile's top-left at `cell_origin + (inkLeft_from_cell_origin -
+    // padLeft, inkTop_from_cell_origin - padTop)`, the ink lines up.
+    // `inkLeft_from_cell_origin` is 0 for monospace glyphs that don't
+    // overhang; we pass it through as `offsetX` anyway so italic
+    // overhang renders.
+    // `inkTop_from_cell_origin` = baseline_in_cell - inkAscent.
+    const inkLeftFromCell = -rawMetrics.actualBoundingBoxLeft;
+    const inkTopFromCell =
+      this.metricsCache.baseline - rawMetrics.actualBoundingBoxAscent;
+
     const entry: GlyphEntry = {
-      atlasX: atlasX + pad,
-      atlasY: atlasY + pad,
-      width: glyphWidth,
-      height: glyphHeight,
-      bearingX: -glyphLeft,
-      bearingY: glyphAscent,
+      atlasX: atlasX + padLeft,
+      atlasY: atlasY + padTop,
+      width: Math.max(1, inkWidthPx),
+      height: Math.max(1, inkHeightPx),
+      // `bearingX` and `bearingY` here are expressed as direct
+      // cell-origin offsets — the shader consumes them via
+      // `pixel = cell_origin + glyph_size * corner + vec2(bearingX, bearingY)`
+      // with no inversion needed.
+      bearingX: Math.round(inkLeftFromCell),
+      bearingY: Math.round(inkTopFromCell),
       advance: advanceCells,
       isColor: false,
     };
