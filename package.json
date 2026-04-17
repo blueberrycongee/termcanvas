@@ -54,6 +54,7 @@
     "adm-zip": "^0.5.16",
     "electron-updater": "^6.8.3",
     "geist": "^1.7.0",
+    "ghostty-web": "^0.4.0",
     "marked": "^17.0.4",
     "node-pty": "^1.1.0",
     "perfect-freehand": "^1.2.3",
