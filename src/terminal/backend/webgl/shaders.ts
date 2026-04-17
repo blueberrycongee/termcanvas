@@ -75,8 +75,15 @@ void main() {
   // Grayscale coverage from the atlas's alpha channel. RGB channels
   // in the atlas carry the rasterized colour (white, since we tint
   // CPU-side), which we ignore here — the fg tint comes from v_color.
-  float coverage = texture(u_atlas, v_uv).a;
-  outColor = vec4(v_color.rgb, v_color.a * coverage);
+  //
+  // Pre-multiply alpha: the gl.blendFunc is (ONE, ONE_MINUS_SRC_ALPHA),
+  // which expects src.rgb to already carry the alpha factor. Without
+  // the multiply, partial-coverage pixels at glyph edges add
+  // unscaled fg colour on top of the background — each character ends
+  // up ringed by a too-bright halo that visually reads as a white
+  // background behind the character.
+  float alpha = v_color.a * texture(u_atlas, v_uv).a;
+  outColor = vec4(v_color.rgb * alpha, alpha);
 }
 `;
 

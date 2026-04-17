@@ -324,11 +324,8 @@ export class GhosttyWebGLRenderer {
   }
 
   clear(): void {
-    // TEMP diagnostic: bright red. If the tile shows red, the WebGL
-    // pipeline is compositing correctly and we can move the
-    // investigation to per-cell bg quads. If still white, the canvas
-    // context itself isn't reaching the compositor.
-    this.gl.clearColor(1.0, 0.0, 0.0, 1.0);
+    const bg = parseColor(this.theme.background, [0, 0, 0, 1]);
+    this.gl.clearColor(bg[0], bg[1], bg[2], bg[3]);
     this.gl.clear(this.gl.COLOR_BUFFER_BIT);
   }
 
@@ -503,10 +500,44 @@ export class GhosttyWebGLRenderer {
     if (!this.loggedDrawCounts) {
       this.loggedDrawCounts = true;
       const err = gl.getError();
+      // Sample the first 5 non-empty cells from row 0 to see what
+      // RGB values actually got stored by the WASM. User reports
+      // pure-white character backgrounds; if bg_r/g/b are e.g. (234,
+      // 232, 228) we know the theme got baked in and the render
+      // path is correct-but-ugly; if (255, 255, 255) something else
+      // is setting explicit white.
+      const sampleLine = wasmTerm.getLine(0) ?? [];
+      const samples: Array<{
+        x: number;
+        codepoint: number;
+        flags: number;
+        fg: string;
+        bg: string;
+      }> = [];
+      for (let x = 0; x < sampleLine.length && samples.length < 5; x += 1) {
+        const cell = sampleLine[x];
+        if (!cell) continue;
+        if (
+          cell.codepoint === 0 &&
+          cell.bg_r === 0 &&
+          cell.bg_g === 0 &&
+          cell.bg_b === 0
+        ) {
+          continue;
+        }
+        samples.push({
+          x,
+          codepoint: cell.codepoint,
+          flags: cell.flags,
+          fg: `${cell.fg_r},${cell.fg_g},${cell.fg_b}`,
+          bg: `${cell.bg_r},${cell.bg_g},${cell.bg_b}`,
+        });
+      }
       console.debug("[ghostty-webgl] first render() draw stats", {
         bgVerts: bgVerts.length / 6,
         glyphVerts: glyphVerts.length / 8,
         glError: err,
+        sampleCells: samples,
       });
     }
 
