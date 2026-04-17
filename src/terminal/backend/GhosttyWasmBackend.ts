@@ -85,6 +85,22 @@ export class GhosttyWasmBackend implements TerminalBackend {
     options.container.replaceChildren();
     term.open(options.container);
 
+    // ghostty-web's Terminal.open unconditionally sets `contenteditable=true`
+    // on the element it was opened into AND `Terminal.focus()` focuses that
+    // same element (not the IME textarea sitting inside it). Result on
+    // Chromium: keystrokes get inserted as DOM text nodes into the host div
+    // — you can literally watch "claude" show up as live text between the
+    // canvas and the host's edge. The beforeinput listener ghostty-web
+    // installs to suppress that insertion doesn't always fire in Electron.
+    //
+    // Strip the contenteditable attribute so the host is no longer a text
+    // sink. IME still flows because the real input target is the textarea
+    // ghostty-web creates as a sibling of the canvas, and the composition
+    // events fire on that textarea regardless of the host's state.
+    options.container.removeAttribute("contenteditable");
+    options.container.removeAttribute("role");
+    options.container.removeAttribute("aria-multiline");
+
     // ghostty-web parks its IME textarea at (0,0) with opacity:0 + clipPath,
     // intending for it to be invisible. Chromium on Electron renders the
     // native text caret outside the opacity stack, so the caret leaks
@@ -232,7 +248,21 @@ function adaptGhosttyTerminal(term: GhosttyTerminal): CompatibleTerminal {
       // xterm's focus takes { preventScroll }; ghostty-web's focus ignores
       // args. Calling blur/focus keeps scroll stable enough for now.
       void options;
-      term.focus();
+      // ghostty-web's default Terminal.focus() focuses `this.element` (the
+      // host div), which is the wrong target — the host is either
+      // contenteditable (capturing key input as DOM text) or merely
+      // tabindex=0 (not producing beforeinput/IME events at all). The
+      // *real* input target is the hidden IME textarea, which is where
+      // ghostty-web's InputHandler expects key and composition events to
+      // flow from. Focus it directly so typing reaches the terminal.
+      const textarea = (term as unknown as {
+        textarea?: HTMLTextAreaElement;
+      }).textarea;
+      if (textarea) {
+        textarea.focus();
+      } else {
+        term.focus();
+      }
     },
     blur() {
       term.blur();
