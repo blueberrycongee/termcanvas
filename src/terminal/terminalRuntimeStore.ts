@@ -829,13 +829,25 @@ function wireRendererBindings(
   wireInteractiveBindings(runtime);
 }
 
+function serializeRuntimeBuffer(
+  runtime: ManagedTerminalRuntime,
+): string | null {
+  if (runtime.serializeAddon) {
+    return runtime.serializeAddon.serialize();
+  }
+  if (runtime.ghosttyBackend) {
+    return runtime.ghosttyBackend.serialize();
+  }
+  return null;
+}
+
 function detachTerminalRenderer(runtime: ManagedTerminalRuntime) {
   if (!runtime.xterm) {
     removeTerminalHost(runtime);
     return;
   }
 
-  const serialized = runtime.serializeAddon?.serialize();
+  const serialized = serializeRuntimeBuffer(runtime);
   if (serialized) {
     pushPreview(runtime, serialized);
   }
@@ -860,7 +872,7 @@ function parkTerminalRenderer(runtime: ManagedTerminalRuntime) {
   }
 
   runtime.xterm.blur();
-  const serialized = runtime.serializeAddon?.serialize();
+  const serialized = serializeRuntimeBuffer(runtime);
   if (serialized) {
     pushPreview(runtime, serialized);
   }

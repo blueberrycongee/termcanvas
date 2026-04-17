@@ -5,6 +5,7 @@ import {
   init as initGhosttyWeb,
 } from "ghostty-web";
 
+import { serializeGhosttyTerminal } from "./serializeGhostty.ts";
 import type {
   CompatibleTerminal,
   CreateBackendOptions,
@@ -106,11 +107,14 @@ export class GhosttyWasmBackend implements TerminalBackend {
 
   serialize(): string | null {
     if (this.disposed) return null;
-    // TODO(ghostty-wasm): translate wasmTerm's scrollback + active screen
-    // into ANSI to match SerializeAddon output. Returning null is correct
-    // for now — it tells the runtime store to fall back to its pre-existing
-    // ANSI preview buffer, which is still written by the PTY stream.
-    return null;
+    const wasmTerm = this.ghosttyTerminal.wasmTerm;
+    if (!wasmTerm) return null;
+    try {
+      return serializeGhosttyTerminal(wasmTerm);
+    } catch (error) {
+      console.error("[ghostty-wasm] serialize failed:", error);
+      return null;
+    }
   }
 }
 

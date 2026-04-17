@@ -1,5 +1,7 @@
 import type { Ghostty, GhosttyTerminal, GhosttyCell } from "ghostty-web";
 
+import { serializeGhosttyTerminal } from "./serializeGhostty.ts";
+
 export interface GhosttyWasmCoreOptions {
   cols: number;
   rows: number;
@@ -179,6 +181,15 @@ export class GhosttyWasmCore {
       lines.push(trimRight ? line.replace(/\s+$/u, "") : line);
     }
     return lines;
+  }
+
+  /**
+   * Serialize scrollback + active screen as ANSI that can be replayed on
+   * any VT backend. See `serializeGhosttyTerminal` for details.
+   */
+  serialize(): string {
+    this.assertAlive();
+    return serializeGhosttyTerminal(this.#terminal);
   }
 
   dispose(): void {
