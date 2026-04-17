@@ -233,6 +233,54 @@ export class GhosttyWasmBackend implements TerminalBackend {
       return null;
     }
   }
+
+  /**
+   * Read back the subset of terminal state that should survive a
+   * theme-swap rebuild. ghostty-web doesn't let us *transfer* the WASM
+   * state across Terminal instances (there is no create_from_snapshot);
+   * the next best thing is to emit VT escape sequences that re-drive the
+   * new Terminal's WASM into the same modes. The agent process doesn't
+   * know we restarted, so if the new Terminal's modes don't match what
+   * the agent believes, subsequent output lands in the wrong screen /
+   * mis-parses as a different protocol. Mouse tracking, alt screen, and
+   * bracketed paste in particular all change how subsequent bytes are
+   * interpreted.
+   */
+  snapshotReplayableState(): string {
+    if (this.disposed) return "";
+    const wasmTerm = this.ghosttyTerminal.wasmTerm as
+      | {
+          isAlternateScreen?: () => boolean;
+          getMode?: (mode: number, ansi: boolean) => boolean;
+        }
+      | undefined;
+    if (!wasmTerm) return "";
+    const parts: string[] = [];
+    // DEC private modes. Order roughly matches how TUIs set them up:
+    // enter alt screen first (so everything else applies to the active
+    // screen the agent expects), then per-behaviour toggles.
+    if (wasmTerm.isAlternateScreen?.()) {
+      parts.push("\x1b[?1049h");
+    }
+    const getMode = (mode: number): boolean =>
+      wasmTerm.getMode?.(mode, false) ?? false;
+    // Cursor visibility — default is visible; only emit the suppress if
+    // the agent had turned it off.
+    if (!getMode(25)) {
+      parts.push("\x1b[?25l");
+    }
+    // Mouse tracking flavours. These are mutually exclusive in practice
+    // but TUIs sometimes enable several at once to handle old hosts;
+    // re-enable whatever was on.
+    if (getMode(1000)) parts.push("\x1b[?1000h");
+    if (getMode(1002)) parts.push("\x1b[?1002h");
+    if (getMode(1003)) parts.push("\x1b[?1003h");
+    if (getMode(1006)) parts.push("\x1b[?1006h");
+    if (getMode(1015)) parts.push("\x1b[?1015h");
+    if (getMode(1004)) parts.push("\x1b[?1004h");
+    if (getMode(2004)) parts.push("\x1b[?2004h");
+    return parts.join("");
+  }
 }
 
 /**

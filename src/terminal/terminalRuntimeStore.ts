@@ -161,6 +161,16 @@ interface ManagedTerminalRuntime {
    * the shared surface if it wants to work under both backends.
    */
   xterm: CompatibleTerminal | null;
+  /**
+   * When non-null, PTY output goes into this string instead of
+   * `runtime.xterm.write`. Used during a ghostty-wasm theme-swap
+   * rebuild — the old Terminal has been disposed and the new one isn't
+   * ready yet, and dropping escape-sequence bytes during that window
+   * corrupts the downstream terminal state (alt screen on/off, cursor
+   * modes, colour SGR deltas, etc.). The buffer is flushed to the new
+   * Terminal once it's open and saved mode state has been replayed.
+   */
+  pendingOutput: string | null;
 }
 
 type XtermTerminalConstructor = new (
@@ -1121,26 +1131,39 @@ function refitActiveBackend(runtime: ManagedTerminalRuntime) {
  * full-screen UIs where every cell carries an explicit background, that
  * means the tile looks unchanged after a toggle.
  *
- * The only fix we can land in *this* repo is to tear the Terminal down
- * and rebuild it with the new theme applied at creation time. The PTY
- * stays alive (it's on `runtime`, not on the Terminal), so the agent
- * process is undisturbed. We issue a no-op PTY resize after attach to
- * poke SIGWINCH, which most TUIs use as a cue to repaint — so the tile
- * is back to filled content within a frame or two of the swap.
+ * The rebuild has to preserve three things or it breaks the agent:
+ *  1. Any PTY output that arrives *during* the async rebuild. The old
+ *     Terminal is gone, the new one is still booting WASM — if we drop
+ *     bytes, we can split an escape sequence in half, strand an alt-
+ *     screen toggle without its exit, or lose a mid-SGR parameter list,
+ *     any of which wedges the new Terminal's parser in a state the
+ *     agent didn't intend. `runtime.pendingOutput` buffers the stream
+ *     during the window and flushes it to the new Terminal in order.
+ *  2. Replayable terminal modes — alt screen, mouse tracking, bracketed
+ *     paste, focus events, cursor visibility. The agent process doesn't
+ *     know we restarted the view and will keep writing under those
+ *     assumptions; if the new Terminal defaults to primary screen /
+ *     cursor visible / no mouse tracking, the agent's next writes land
+ *     on the wrong screen or are parsed as text instead of mouse
+ *     events. `snapshotReplayableState()` on the old backend emits the
+ *     right DEC-private mode set sequences to re-prime the new WASM
+ *     before the buffered output flushes.
+ *  3. A repaint trigger. ghostty-web's WASM buffer is empty after
+ *     create() — no scrollback, no visible frame. We can't re-ink it
+ *     (the palette index on the original cells is gone), so we nudge
+ *     the PTY with a no-op resize to fire SIGWINCH. Most TUIs
+ *     (Claude/Codex/vim/shell) repaint from their own model in response
+ *     and the tile refills within a frame or two.
  *
- * Trade-offs baked in:
- *  - scrollback/viewport visible in the tile is lost (no way to re-ink
- *    it without the original palette index, which is the exact info
- *    ghostty's WASM threw away);
- *  - an overlay with the new theme's background masks the swap so the
- *    user sees a colour fade rather than a flash of empty DOM;
- *  - keyboard focus on the tile's textarea is restored after the new
- *    backend is live.
+ * An overlay with the new theme background masks the dispose→open→
+ * replay window so the user sees a colour fade instead of an empty
+ * host div. Focus is restored to the new textarea if the old tile had
+ * focus when the swap began.
  *
- * This path only runs from the module-level theme subscription. Any
- * future fix to the recreate logic reaches every live tile on the next
+ * This path runs from the module-level theme subscription. Future
+ * adjustments to the recreate logic reach every live tile on the next
  * toggle (the subscription reads the current module's function at call
- * time), so a dev tweak here doesn't require tearing tiles down by hand.
+ * time), so a tweak here doesn't require tearing tiles down by hand.
  */
 async function recreateGhosttyBackendForTheme(
   runtime: ManagedTerminalRuntime,
@@ -1151,10 +1174,21 @@ async function recreateGhosttyBackendForTheme(
   const host = runtime.hostElement;
   if (!oldBackend || !container || !host) return;
 
+  // A swap triggered while another swap is mid-flight (e.g. user flips the
+  // toggle twice before the first rebuild resolves) would race on
+  // `runtime.ghosttyBackend` / `runtime.pendingOutput`. The in-flight
+  // rebuild will already use `nextTheme` once the theme store settled on
+  // the latest value; bailing keeps the state machine single-owner.
+  if (runtime.pendingOutput !== null) return;
+
   const preferences = usePreferencesStore.getState();
   const hadFocus =
     host.contains(document.activeElement) ||
     document.activeElement === host;
+
+  // Capture mode state BEFORE disposing — after dispose() frees the WASM
+  // handle, there's nothing left to read from.
+  const replayableState = oldBackend.snapshotReplayableState();
 
   // Paint an overlay that already uses the new theme's background colour
   // so the intermediate "empty host" frame between dispose and open is
@@ -1174,6 +1208,11 @@ async function recreateGhosttyBackendForTheme(
     host.style.position = "relative";
   }
   host.appendChild(overlay);
+
+  // Start buffering PTY output before we tear down. `handleRuntimeOutput`
+  // checks this field and appends to the string when it's non-null
+  // instead of forwarding to a Terminal that may be gone or not ready.
+  runtime.pendingOutput = "";
 
   disposeRendererBindings(runtime);
   oldBackend.terminal.dispose();
@@ -1213,6 +1252,23 @@ async function recreateGhosttyBackendForTheme(
         host.appendChild(overlay);
       }
 
+      // Replay: prime the WASM with the old terminal's modes, then flush
+      // whatever the PTY wrote while the view was off. Order matters:
+      // modes first so any mode-dependent bytes in the buffered stream
+      // (e.g. SGR mouse coords that arrived after the agent enabled 1006
+      // mouse tracking) parse the same way the agent intended. The
+      // buffered stream itself is written as a single `write()` so the
+      // ghostty-web parser sees one contiguous byte stream, not chunks
+      // that might split an escape sequence in transit.
+      if (replayableState) {
+        backend.terminal.write(replayableState);
+      }
+      const buffered = runtime.pendingOutput ?? "";
+      runtime.pendingOutput = null;
+      if (buffered) {
+        backend.terminal.write(buffered);
+      }
+
       wireRendererBindings(runtime, host);
       scheduleRuntimeRefresh(() => {
         syncAttachedTerminalGeometry(runtime);
@@ -1221,7 +1277,9 @@ async function recreateGhosttyBackendForTheme(
       // Force SIGWINCH to the PTY so Claude / Codex / vim / tmux / shell
       // repaint the full frame with the new theme's colours. Toggling by
       // one row is cheap and universally interpreted as a genuine size
-      // change by TUI apps.
+      // change by TUI apps. Has to come *after* the replay so the PTY's
+      // subsequent write (the agent's redraw) lands in the correct alt-
+      // screen / mouse-mode state.
       if (runtime.ptyId !== null) {
         const cols = backend.terminal.cols;
         const rows = backend.terminal.rows;
@@ -1233,6 +1291,12 @@ async function recreateGhosttyBackendForTheme(
         backend.terminal.focus();
       }
     } catch (error) {
+      // The rebuild failed, but the PTY is still alive and we've been
+      // swallowing its output into `pendingOutput`. Release the buffer
+      // so future `handleRuntimeOutput` calls go back to the no-op
+      // write path — the terminal view stays blank but the PTY is not
+      // wedged and the user can reset the tile manually.
+      runtime.pendingOutput = null;
       notify(
         "error",
         `Failed to re-theme Ghostty terminal backend: ${
@@ -1446,7 +1510,18 @@ function triggerDetection(runtime: ManagedTerminalRuntime) {
 
 function handleRuntimeOutput(runtime: ManagedTerminalRuntime, data: string) {
   appendPreview(runtime, data);
-  runtime.xterm?.write(data);
+  if (runtime.pendingOutput !== null) {
+    // A ghostty-wasm theme-swap rebuild is in progress. Silently dropping
+    // bytes here corrupts the downstream terminal state: any unpaired
+    // escape-sequence fragment (partial CSI, half of an SGR, an alt-screen
+    // toggle without its matching exit) leaves the new Terminal in an
+    // inconsistent parse state once it's live. Buffer instead; the swap
+    // flushes this back into `runtime.xterm.write` in order as soon as
+    // the new backend is ready.
+    runtime.pendingOutput += data;
+  } else {
+    runtime.xterm?.write(data);
+  }
   triggerDetection(runtime);
 
   if (!runtime.activityThrottled) {
@@ -1543,6 +1618,7 @@ function buildTerminalRuntime(
       ),
     watchedSessionId: null,
     xterm: null,
+    pendingOutput: null,
   };
 
   updateRuntimeSnapshot(resolvedMeta.terminal.id, {
