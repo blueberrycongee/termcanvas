@@ -88,17 +88,41 @@ export class GhosttyWasmBackend implements TerminalBackend {
     const fitAddon = new GhosttyFitAddon();
     term.loadAddon(fitAddon);
     // ghostty-web sizes its canvas strictly to cols×charWidth × rows×charHeight
-    // — it does NOT auto-fill the parent. Without an explicit fit here, the
-    // canvas stays at the default 80×24 pixels and looks like a tiny terminal
-    // parked in the top-left corner of the tile. fit() once now using the
-    // container's first-layout dimensions, and observeResize() hooks up a
-    // ResizeObserver so subsequent tile geometry changes re-fit us.
-    try {
-      fitAddon.fit();
-    } catch {
-      // proposeDimensions returns undefined if the host hasn't laid out yet;
-      // the observer we wire next will pick it up as soon as size is real.
-    }
+    // — it does NOT auto-fill the parent. ghostty-web's own FitAddon.fit
+    // short-circuits when the container's clientWidth is 0 (which it often is
+    // during the same microtask Terminal.open() runs in), and its
+    // observeResize ResizeObserver has a 100 ms debounce that gets reset by
+    // React Flow's layout churn — together they can leave the canvas stuck
+    // at the default 80×24 long enough that the user sees a "tiny terminal
+    // parked in the top-left" before anything corrects it.
+    //
+    // Bypass both: take the measurement ourselves from the host element on
+    // the next two frame boundaries, and drive `term.resize()` directly so
+    // the initial sizing is correct regardless of what the fit plugin or
+    // its observer do.
+    const forceFit = () => {
+      const rect = options.container.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      const renderer = (term as unknown as {
+        renderer?: { getMetrics?: () => { width: number; height: number } };
+      }).renderer;
+      const metrics = renderer?.getMetrics?.();
+      if (!metrics || metrics.width <= 0 || metrics.height <= 0) return;
+      // Match the FitAddon's "reserve room for a scrollbar" heuristic (8 px
+      // is the default in ghostty-web's FitAddon) without reaching into
+      // ghostty internals for the exact constant.
+      const cols = Math.max(2, Math.floor((rect.width - 8) / metrics.width));
+      const rows = Math.max(2, Math.floor(rect.height / metrics.height));
+      if (cols === term.cols && rows === term.rows) return;
+      term.resize(cols, rows);
+    };
+    // One immediate attempt, then one after layout settles, then hand off to
+    // the plugin's observer for any future container resizes.
+    forceFit();
+    requestAnimationFrame(() => {
+      forceFit();
+      setTimeout(forceFit, 50);
+    });
     fitAddon.observeResize();
 
     // ghostty-web paints onto a canvas inside the container. Treat the
