@@ -161,16 +161,6 @@ interface ManagedTerminalRuntime {
    * the shared surface if it wants to work under both backends.
    */
   xterm: CompatibleTerminal | null;
-  /**
-   * When non-null, PTY output goes into this string instead of
-   * `runtime.xterm.write`. Used during a ghostty-wasm theme-swap
-   * rebuild — the old Terminal has been disposed and the new one isn't
-   * ready yet, and dropping escape-sequence bytes during that window
-   * corrupts the downstream terminal state (alt screen on/off, cursor
-   * modes, colour SGR deltas, etc.). The buffer is flushed to the new
-   * Terminal once it's open and saved mode state has been replayed.
-   */
-  pendingOutput: string | null;
 }
 
 type XtermTerminalConstructor = new (
@@ -1116,215 +1106,59 @@ function refitActiveBackend(runtime: ManagedTerminalRuntime) {
 }
 
 /**
- * Rebuild a Ghostty tile's backend against a new theme.
+ * Apply a theme change to a live runtime.
  *
- * Why a full rebuild instead of an in-place palette swap:
- * ghostty-web v0.4.0 (and the ghostty-vt WASM core under it) resolves
- * palette indexes to raw RGB at *write* time and stores the resolved
- * triple on the cell. Once a cell is written, its colour is frozen —
- * there's no cell-level API, and no WASM export, that can re-resolve
- * existing cells against a new palette. `renderer.setTheme` only swaps
- * `theme.background/selection/cursor` (which affect gaps and overlays)
- * plus the *renderer's* copy of the 16-slot palette; cells never read
- * from that copy, so shell / agent / TUI output rendered under the old
- * theme keeps its old-theme colours indefinitely. For Claude/Codex
- * full-screen UIs where every cell carries an explicit background, that
- * means the tile looks unchanged after a toggle.
+ * ---
+ * KNOWN LIMITATION (deliberately accepted, not a bug):
  *
- * The rebuild has to preserve three things or it breaks the agent:
- *  1. Any PTY output that arrives *during* the async rebuild. The old
- *     Terminal is gone, the new one is still booting WASM — if we drop
- *     bytes, we can split an escape sequence in half, strand an alt-
- *     screen toggle without its exit, or lose a mid-SGR parameter list,
- *     any of which wedges the new Terminal's parser in a state the
- *     agent didn't intend. `runtime.pendingOutput` buffers the stream
- *     during the window and flushes it to the new Terminal in order.
- *  2. Replayable terminal modes — alt screen, mouse tracking, bracketed
- *     paste, focus events, cursor visibility. The agent process doesn't
- *     know we restarted the view and will keep writing under those
- *     assumptions; if the new Terminal defaults to primary screen /
- *     cursor visible / no mouse tracking, the agent's next writes land
- *     on the wrong screen or are parsed as text instead of mouse
- *     events. `snapshotReplayableState()` on the old backend emits the
- *     right DEC-private mode set sequences to re-prime the new WASM
- *     before the buffered output flushes.
- *  3. A repaint trigger. ghostty-web's WASM buffer is empty after
- *     create() — no scrollback, no visible frame. We can't re-ink it
- *     (the palette index on the original cells is gone), so we nudge
- *     the PTY with a no-op resize to fire SIGWINCH. Most TUIs
- *     (Claude/Codex/vim/shell) repaint from their own model in response
- *     and the tile refills within a frame or two.
+ * For ghostty-wasm tiles, a theme toggle will *not* re-colour content
+ * already on screen. The tile's default background, cursor, and
+ * selection highlight pick up the new theme, but every text cell, every
+ * colored prompt, and every Claude/Codex UI element keeps its original
+ * palette — the one that was active when that cell was written.
  *
- * An overlay with the new theme background masks the dispose→open→
- * replay window so the user sees a colour fade instead of an empty
- * host div. Focus is restored to the new textarea if the old tile had
- * focus when the swap began.
+ * Why: ghostty-web v0.4.0 (and the ghostty-vt WASM core it wraps)
+ * resolves palette indexes into raw RGB at VT-parse time and stores
+ * only the resolved triple on the cell. There is no cell-level palette
+ * index retained, no per-cell "default colour" tag, and no WASM export
+ * that would let us walk the grid and re-colour cells against a new
+ * palette. The information needed to do a retroactive theme swap is
+ * erased at write time.
  *
- * This path runs from the module-level theme subscription. Future
- * adjustments to the recreate logic reach every live tile on the next
- * toggle (the subscription reads the current module's function at call
- * time), so a tweak here doesn't require tearing tiles down by hand.
+ * Ghostty's cell layout is a performance choice (one lookup per cell
+ * at write time vs. one lookup per cell per frame in the render loop)
+ * and it makes theme hot-swap a cross-cutting Zig/WASM change rather
+ * than a TypeScript patch — well outside this repo's blast radius.
+ *
+ * We tried two workarounds before landing here and both have been
+ * rejected:
+ *
+ *   - In-place palette swap via renderer.setTheme() + clear() + forced
+ *     full render. Updates gaps, cursor, and selection, but leaves every
+ *     cell painted against the old palette because cells read from
+ *     their own stored RGB, not from the renderer's palette array. For
+ *     Claude/Codex full-screen UIs where every cell has an explicit
+ *     background, the tile looked identical after the toggle.
+ *
+ *   - Full Terminal dispose + recreate with PTY output buffered across
+ *     the rebuild + DEC-mode replay + SIGWINCH poke to force the agent
+ *     to redraw. This got further — it restored the visual theme for
+ *     content the agent redrew after the toggle — but in practice it
+ *     still produced broken frames (lost escape-sequence state, agents
+ *     that didn't fully redraw on SIGWINCH, empty tiles sitting idle).
+ *     The cost of the rebuild outweighed the benefit for our typical
+ *     workload (long-lived coding-agent tiles), so we reverted it.
+ *
+ * Decision: ghostty tiles use the one piece of the renderer API that
+ * *does* live-update — the host element's background and the
+ * renderer's own theme object (affects gap, cursor, selection) — and
+ * leave cell colours alone. A future ghostty-web version that exposes
+ * a WASM palette-remap would let us drop this compromise; until then,
+ * the xterm backend remains the correct choice for users who value
+ * theme hot-swap over Ghostty's VT stability. The backend picker in
+ * Settings makes that trade-off explicit.
+ * ---
  */
-async function recreateGhosttyBackendForTheme(
-  runtime: ManagedTerminalRuntime,
-  nextTheme: ITheme,
-): Promise<void> {
-  const oldBackend = runtime.ghosttyBackend;
-  const container = runtime.attachedContainer;
-  const host = runtime.hostElement;
-  if (!oldBackend || !container || !host) return;
-
-  // A swap triggered while another swap is mid-flight (e.g. user flips the
-  // toggle twice before the first rebuild resolves) would race on
-  // `runtime.ghosttyBackend` / `runtime.pendingOutput`. The in-flight
-  // rebuild will already use `nextTheme` once the theme store settled on
-  // the latest value; bailing keeps the state machine single-owner.
-  if (runtime.pendingOutput !== null) return;
-
-  const preferences = usePreferencesStore.getState();
-  const hadFocus =
-    host.contains(document.activeElement) ||
-    document.activeElement === host;
-
-  // Capture mode state BEFORE disposing — after dispose() frees the WASM
-  // handle, there's nothing left to read from.
-  const replayableState = oldBackend.snapshotReplayableState();
-
-  // Paint an overlay that already uses the new theme's background colour
-  // so the intermediate "empty host" frame between dispose and open is
-  // invisible to the user. position:absolute over the host; fades out
-  // once the new backend has painted at least once.
-  const overlay = document.createElement("div");
-  overlay.style.position = "absolute";
-  overlay.style.inset = "0";
-  overlay.style.backgroundColor = nextTheme.background ?? "#000000";
-  overlay.style.zIndex = "9999";
-  overlay.style.pointerEvents = "none";
-  overlay.style.transition = "opacity 120ms ease-out";
-  overlay.style.opacity = "1";
-  // Host may not be positioned; the overlay needs it to be.
-  const hostPositionBefore = host.style.position;
-  if (!hostPositionBefore || hostPositionBefore === "static") {
-    host.style.position = "relative";
-  }
-  host.appendChild(overlay);
-
-  // Start buffering PTY output before we tear down. `handleRuntimeOutput`
-  // checks this field and appends to the string when it's non-null
-  // instead of forwarding to a Terminal that may be gone or not ready.
-  runtime.pendingOutput = "";
-
-  disposeRendererBindings(runtime);
-  oldBackend.terminal.dispose();
-  runtime.xterm = null;
-  runtime.ghosttyBackend = null;
-  // Overlay was appended to host; dispose removed canvas/textarea but kept
-  // the host div itself. Keep backendKind set so the subscription knows
-  // this is still a ghostty tile while the new backend is being built.
-  runtime.rendererPromise = (async () => {
-    try {
-      const backend = await GhosttyWasmBackend.create({
-        container: host,
-        cursorBlink: true,
-        fontFamily: buildFontFamily(preferences.terminalFontFamily),
-        fontSize: preferences.terminalFontSize,
-        minimumContrastRatio: preferences.minimumContrastRatio,
-        scrollback: 50_000,
-        theme: nextTheme,
-      });
-
-      if (runtime.disposed) {
-        backend.terminal.dispose();
-        return;
-      }
-
-      backend.terminal.attachCustomKeyEventHandler(
-        customKeyHandlerFor(runtime),
-      );
-      runtime.ghosttyBackend = backend;
-      runtime.xterm = backend.terminal;
-
-      // Re-append overlay after `backend.terminal.open()` may have
-      // `replaceChildren()`-wiped the host. If the overlay is gone we
-      // re-create it so the fade-out completes uniformly; if it's still
-      // there (ghostty didn't touch it), we reuse it.
-      if (!host.contains(overlay)) {
-        host.appendChild(overlay);
-      }
-
-      // Replay: prime the WASM with the old terminal's modes, then flush
-      // whatever the PTY wrote while the view was off. Order matters:
-      // modes first so any mode-dependent bytes in the buffered stream
-      // (e.g. SGR mouse coords that arrived after the agent enabled 1006
-      // mouse tracking) parse the same way the agent intended. The
-      // buffered stream itself is written as a single `write()` so the
-      // ghostty-web parser sees one contiguous byte stream, not chunks
-      // that might split an escape sequence in transit.
-      if (replayableState) {
-        backend.terminal.write(replayableState);
-      }
-      const buffered = runtime.pendingOutput ?? "";
-      runtime.pendingOutput = null;
-      if (buffered) {
-        backend.terminal.write(buffered);
-      }
-
-      wireRendererBindings(runtime, host);
-      scheduleRuntimeRefresh(() => {
-        syncAttachedTerminalGeometry(runtime);
-      });
-
-      // Force SIGWINCH to the PTY so Claude / Codex / vim / tmux / shell
-      // repaint the full frame with the new theme's colours. Toggling by
-      // one row is cheap and universally interpreted as a genuine size
-      // change by TUI apps. Has to come *after* the replay so the PTY's
-      // subsequent write (the agent's redraw) lands in the correct alt-
-      // screen / mouse-mode state.
-      if (runtime.ptyId !== null) {
-        const cols = backend.terminal.cols;
-        const rows = backend.terminal.rows;
-        window.termcanvas.terminal.resize(runtime.ptyId, cols, rows + 1);
-        window.termcanvas.terminal.resize(runtime.ptyId, cols, rows);
-      }
-
-      if (hadFocus) {
-        backend.terminal.focus();
-      }
-    } catch (error) {
-      // The rebuild failed, but the PTY is still alive and we've been
-      // swallowing its output into `pendingOutput`. Release the buffer
-      // so future `handleRuntimeOutput` calls go back to the no-op
-      // write path — the terminal view stays blank but the PTY is not
-      // wedged and the user can reset the tile manually.
-      runtime.pendingOutput = null;
-      notify(
-        "error",
-        `Failed to re-theme Ghostty terminal backend: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-      runtime.rendererPromise = null;
-      runtime.backendKind = null;
-    } finally {
-      // Two rAFs to ensure at least one paint has landed behind the
-      // overlay, then fade out. The fade masks any lingering gap
-      // between "new backend mounted" and "SIGWINCH-driven repaint
-      // arrived from the PTY".
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          overlay.style.opacity = "0";
-          setTimeout(() => {
-            overlay.remove();
-            if (hostPositionBefore === "" || hostPositionBefore === "static") {
-              host.style.position = hostPositionBefore;
-            }
-          }, 160);
-        });
-      });
-    }
-  })();
-}
-
 function applyThemeToRuntime(
   runtime: ManagedTerminalRuntime,
   theme: ITheme,
@@ -1332,7 +1166,20 @@ function applyThemeToRuntime(
   if (runtime.disposed) return;
 
   if (runtime.backendKind === "ghostty-wasm" && runtime.ghosttyBackend) {
-    void recreateGhosttyBackendForTheme(runtime, theme);
+    // The assignment triggers ghostty-web's own options proxy, which
+    // only updates renderer.theme.background/selection/cursor plus the
+    // renderer's palette array. Existing cells keep their baked RGB
+    // (see block comment above). This isn't ideal but it IS the
+    // correct behaviour for this backend version.
+    runtime.ghosttyBackend.terminal.options.theme = theme;
+    // Repaint the host div in the new theme's background colour so the
+    // sub-cell remainder strip between the canvas edge and the tile
+    // edge blends with the new palette rather than flashing the app's
+    // generic surface colour.
+    if (theme.background) {
+      runtime.ghosttyBackend.hostElement.style.backgroundColor =
+        theme.background;
+    }
   } else if (runtime.xterm) {
     // xterm stores palette indexes + colour-mode tags on each cell, so a
     // theme swap + refresh re-paints live cells against the new palette
@@ -1510,18 +1357,7 @@ function triggerDetection(runtime: ManagedTerminalRuntime) {
 
 function handleRuntimeOutput(runtime: ManagedTerminalRuntime, data: string) {
   appendPreview(runtime, data);
-  if (runtime.pendingOutput !== null) {
-    // A ghostty-wasm theme-swap rebuild is in progress. Silently dropping
-    // bytes here corrupts the downstream terminal state: any unpaired
-    // escape-sequence fragment (partial CSI, half of an SGR, an alt-screen
-    // toggle without its matching exit) leaves the new Terminal in an
-    // inconsistent parse state once it's live. Buffer instead; the swap
-    // flushes this back into `runtime.xterm.write` in order as soon as
-    // the new backend is ready.
-    runtime.pendingOutput += data;
-  } else {
-    runtime.xterm?.write(data);
-  }
+  runtime.xterm?.write(data);
   triggerDetection(runtime);
 
   if (!runtime.activityThrottled) {
@@ -1618,7 +1454,6 @@ function buildTerminalRuntime(
       ),
     watchedSessionId: null,
     xterm: null,
-    pendingOutput: null,
   };
 
   updateRuntimeSnapshot(resolvedMeta.terminal.id, {

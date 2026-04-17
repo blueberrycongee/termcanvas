@@ -711,6 +711,8 @@ export function SettingsModal({ onClose }: Props) {
                   <span className="text-[11px] text-[var(--text-muted)]">
                     Ghostty (WASM) is experimental. New tiles use the selected
                     backend; existing tiles keep whatever they were created with.
+                    Ghostty does not re-colour existing content on
+                    light/dark toggle — pick xterm if that matters to you.
                   </span>
                 </div>
                 <div className="flex gap-1">
