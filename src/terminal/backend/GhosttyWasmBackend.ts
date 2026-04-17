@@ -296,43 +296,42 @@ function installWebGLRenderer(
     startRenderLoop?: () => void;
     cols: number;
     rows: number;
+    isOpen?: boolean;
   };
   const internal = term as unknown as InternalTerminal;
+
+  console.debug("[ghostty-webgl] install:start", {
+    hasCanvas: !!internal.canvas,
+    hasRenderer: !!internal.renderer,
+    hasStartRenderLoop: typeof internal.startRenderLoop,
+    isOpen: internal.isOpen,
+    cols: internal.cols,
+    rows: internal.rows,
+  });
 
   const oldCanvas = internal.canvas ?? internal.renderer?.getCanvas?.();
   const oldRenderer = internal.renderer;
   if (!oldCanvas || !oldRenderer) {
-    // If ghostty-web didn't hand us a canvas / renderer there's nothing
-    // to swap; leaving the default in place means the user sees
-    // Canvas2D output which is still functional. Better than throwing.
+    console.warn("[ghostty-webgl] install:bail no canvas/renderer");
     return;
   }
 
-  // Stop the running rAF loop. The loop closes over `this` and calls
-  // `this.renderer.render(...)`, so we'd race our swap against an
-  // in-flight draw otherwise.
   if (typeof internal.animationFrameId === "number") {
     cancelAnimationFrame(internal.animationFrameId);
     internal.animationFrameId = undefined;
   }
 
-  // Create the replacement canvas. Keep the same display:block so the
-  // host element's sizing behaviour matches.
   const webglCanvas = document.createElement("canvas");
   webglCanvas.style.display = "block";
 
   const parent = oldCanvas.parentElement;
   if (!parent) {
-    // Old canvas was already detached. Drop to Canvas2D silently.
+    console.warn("[ghostty-webgl] install:bail old canvas has no parent");
     return;
   }
   parent.insertBefore(webglCanvas, oldCanvas);
   parent.removeChild(oldCanvas);
 
-  // Re-register the mousedown/touchend focus listeners that ghostty-web
-  // attached to its canvas. Selection uses the host-element listeners,
-  // which survived because the host is still the tile div we were
-  // opened into.
   const textarea = internal.textarea;
   if (textarea) {
     const refocus = (event: Event) => {
@@ -355,25 +354,27 @@ function installWebGLRenderer(
     });
   } catch (error) {
     console.error(
-      "[ghostty-wasm] WebGL renderer init failed, keeping Canvas2D:",
+      "[ghostty-webgl] renderer constructor threw, rolling back:",
       error,
     );
-    // Put the original canvas back and bail. The Terminal's render
-    // loop already cancelled; we could restart it, but in practice a
-    // WebGL init failure means no WebGL2 available and the whole
-    // ghostty-wasm path is going to be rough anyway.
     parent.insertBefore(oldCanvas, webglCanvas);
     parent.removeChild(webglCanvas);
     if (internal.startRenderLoop) {
-      internal.startRenderLoop();
+      internal.startRenderLoop.call(term);
     }
     return;
   }
 
   renderer.resize(internal.cols, internal.rows);
+  console.debug("[ghostty-webgl] renderer ready", {
+    canvasW: webglCanvas.width,
+    canvasH: webglCanvas.height,
+    styleW: webglCanvas.style.width,
+    styleH: webglCanvas.style.height,
+    cols: internal.cols,
+    rows: internal.rows,
+  });
 
-  // Hand our renderer any existing selection manager so it can paint
-  // selection overlays on the next frame.
   if (internal.selectionManager) {
     renderer.setSelectionManager(
       internal.selectionManager as Parameters<
@@ -384,20 +385,22 @@ function installWebGLRenderer(
 
   try {
     oldRenderer.dispose?.();
-  } catch {
-    // ghostty-web's Canvas2D renderer dispose is safe but guard
-    // against future renderer implementations throwing — swallowing
-    // here is correct because we're mid-swap and can't recover.
-  }
+  } catch {}
 
   internal.canvas = webglCanvas;
   internal.renderer = renderer as unknown as InternalTerminal["renderer"];
 
-  // Restart the Terminal's own render loop. It's a rAF self-recursion
-  // that reads `this.renderer` each tick, so our swap above means it
-  // calls our render() from here on.
   if (internal.startRenderLoop) {
-    internal.startRenderLoop();
+    console.debug("[ghostty-webgl] restarting Terminal render loop");
+    // `.call(term)` so the method's `this` is the Terminal, not
+    // the InternalTerminal alias. Prototype method lookup would still
+    // work via `internal.startRenderLoop()` but explicit `.call` makes
+    // the intent clear.
+    internal.startRenderLoop.call(term);
+  } else {
+    console.error(
+      "[ghostty-webgl] startRenderLoop missing on Terminal — nothing will paint",
+    );
   }
 }
 

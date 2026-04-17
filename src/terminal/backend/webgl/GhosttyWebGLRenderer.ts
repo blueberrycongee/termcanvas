@@ -181,6 +181,8 @@ export class GhosttyWebGLRenderer {
   } | null = null;
 
   private disposed = false;
+  private loggedFirstFrame = false;
+  private loggedDrawCounts = false;
 
   constructor(canvas: HTMLCanvasElement, options: RendererOptions) {
     this.canvas = canvas;
@@ -408,6 +410,20 @@ export class GhosttyWebGLRenderer {
       baseline: metrics.baseline,
     };
 
+    if (!this.loggedFirstFrame) {
+      this.loggedFirstFrame = true;
+      console.debug("[ghostty-webgl] first render()", {
+        cols,
+        rows,
+        viewportY,
+        metrics,
+        dims,
+        gl: gl ? "present" : "missing",
+        atlasSize: this.atlas.size,
+        theme: this.theme,
+      });
+    }
+
     this.clear();
 
     // Gather cells: either from viewport (no scroll) or scrollback +
@@ -459,6 +475,16 @@ export class GhosttyWebGLRenderer {
     }
     if (glyphVerts.length > 0) {
       this.uploadAndDrawGlyphs(glyphVerts);
+    }
+
+    if (!this.loggedDrawCounts) {
+      this.loggedDrawCounts = true;
+      const err = gl.getError();
+      console.debug("[ghostty-webgl] first render() draw stats", {
+        bgVerts: bgVerts.length / 6,
+        glyphVerts: glyphVerts.length / 8,
+        glError: err,
+      });
     }
 
     wasmTerm.clearDirty();
