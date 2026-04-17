@@ -680,11 +680,26 @@ export class TelemetryService {
   recordSessionAttached(input: SessionAttachInput): void {
     const state = this.ensureState(input.terminalId);
     const timestamp = input.at ?? isoNow(this.now);
+    const firstAttach = !state.snapshot.session_attached;
     state.snapshot.provider = input.provider;
     state.snapshot.session_attached = true;
     state.snapshot.session_attach_confidence = input.confidence;
     state.snapshot.session_id = input.sessionId;
     state.snapshot.session_file = input.sessionFile;
+    if (firstAttach) {
+      // Until this moment we didn't know the terminal was a real agent,
+      // so ps-driven state treated it like a shell: any descendant
+      // churn between terminal creation and session-attach bumped
+      // last_meaningful_progress_at, and the descendant command leaked
+      // into foreground_tool. Those values are infrastructure noise
+      // (shell wrapper, MCP daemons booting, CLI banner output), not
+      // agent work. Clear them so derived_status starts clean the
+      // instant we recognise this as an agent session; real work will
+      // refill them through primeSessionFromTail / future session
+      // events / hook events.
+      state.snapshot.last_meaningful_progress_at = undefined;
+      state.snapshot.foreground_tool = undefined;
+    }
     this.appendEvent(state, timestamp, "session", "session_attached", {
       provider: input.provider,
       session_id: input.sessionId,
