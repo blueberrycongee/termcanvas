@@ -67,9 +67,13 @@ export class GhosttyWasmBackend implements TerminalBackend {
     this.screenElement = screenElement;
     this.forceFit = forceFit;
     this.resizeObserver = resizeObserver;
-    this.terminal = adaptGhosttyTerminal(ghosttyTerminal, () => {
-      this.resizeObserver?.disconnect();
-    });
+    this.terminal = adaptGhosttyTerminal(
+      ghosttyTerminal,
+      hostElement,
+      () => {
+        this.resizeObserver?.disconnect();
+      },
+    );
   }
 
   static async create(
@@ -120,6 +124,16 @@ export class GhosttyWasmBackend implements TerminalBackend {
       textarea.style.caretColor = "transparent";
     }
 
+    // ghostty-web's canvas is always sized to an integer number of cells
+    // (cols × charWidth × rows × charHeight). Whatever doesn't fit in an
+    // integer number of cells stays as a bare strip of host background on
+    // the right/bottom of the tile. Paint the host background with the
+    // terminal's background colour so that remainder strip is visually
+    // continuous with the canvas.
+    if (options.theme?.background) {
+      options.container.style.backgroundColor = options.theme.background;
+    }
+
     const fitAddon = new GhosttyFitAddon();
     term.loadAddon(fitAddon);
     // ghostty-web sizes its canvas strictly to cols×charWidth × rows×charHeight
@@ -143,10 +157,12 @@ export class GhosttyWasmBackend implements TerminalBackend {
       }).renderer;
       const metrics = renderer?.getMetrics?.();
       if (!metrics || metrics.width <= 0 || metrics.height <= 0) return;
-      // Match the FitAddon's "reserve room for a scrollbar" heuristic (8 px
-      // is the default in ghostty-web's FitAddon) without reaching into
-      // ghostty internals for the exact constant.
-      const cols = Math.max(2, Math.floor((rect.width - 8) / metrics.width));
+      // Ghostty-web's canvas renderer paints its own scrollbar *inside* the
+      // canvas, so — unlike xterm.js's WebGL canvas — we don't need to
+      // reserve any extra pixels on the right. Claiming the full width
+      // squeezes one more column of real estate out of the tile and keeps
+      // the remainder strip (from sub-cell fractions) as small as possible.
+      const cols = Math.max(2, Math.floor(rect.width / metrics.width));
       const rows = Math.max(2, Math.floor(rect.height / metrics.height));
       if (cols === term.cols && rows === term.rows) return;
       term.resize(cols, rows);
@@ -231,6 +247,7 @@ export class GhosttyWasmBackend implements TerminalBackend {
  */
 function adaptGhosttyTerminal(
   term: GhosttyTerminal,
+  hostElement: HTMLElement,
   onDispose?: () => void,
 ): CompatibleTerminal {
   const optionsProxy: CompatibleTerminal["options"] = {
@@ -240,6 +257,13 @@ function adaptGhosttyTerminal(
     set theme(value: ITheme | undefined) {
       if (value) {
         term.options.theme = value;
+        // Keep the host's background colour in sync so the sub-cell
+        // remainder strip between the canvas and the host's edges blends
+        // into the theme instead of showing the app's generic surface
+        // colour through it.
+        if (value.background) {
+          hostElement.style.backgroundColor = value.background;
+        }
       }
     },
     get fontFamily() {
