@@ -49,6 +49,8 @@ export class GhosttyWasmBackend implements TerminalBackend {
 
   private readonly ghosttyTerminal: GhosttyTerminal;
   private readonly fitAddon: GhosttyFitAddon;
+  private readonly forceFit: () => void;
+  private readonly resizeObserver: ResizeObserver | null;
   private disposed = false;
 
   private constructor(
@@ -56,12 +58,18 @@ export class GhosttyWasmBackend implements TerminalBackend {
     fitAddon: GhosttyFitAddon,
     hostElement: HTMLElement,
     screenElement: HTMLElement,
+    forceFit: () => void,
+    resizeObserver: ResizeObserver | null,
   ) {
     this.ghosttyTerminal = ghosttyTerminal;
     this.fitAddon = fitAddon;
     this.hostElement = hostElement;
     this.screenElement = screenElement;
-    this.terminal = adaptGhosttyTerminal(ghosttyTerminal);
+    this.forceFit = forceFit;
+    this.resizeObserver = resizeObserver;
+    this.terminal = adaptGhosttyTerminal(ghosttyTerminal, () => {
+      this.resizeObserver?.disconnect();
+    });
   }
 
   static async create(
@@ -143,14 +151,29 @@ export class GhosttyWasmBackend implements TerminalBackend {
       if (cols === term.cols && rows === term.rows) return;
       term.resize(cols, rows);
     };
-    // One immediate attempt, then one after layout settles, then hand off to
-    // the plugin's observer for any future container resizes.
+    // Attach our OWN ResizeObserver instead of fitAddon.observeResize. The
+    // plugin's observer runs fit() through a 100 ms debounce plus a 50 ms
+    // `_isResizing` latch, and in practice both can swallow the initial
+    // fire on React Flow-backed tiles — the user sees a small canvas
+    // parked in the top-left until they manually drag the tile to a new
+    // size. A bare observer driving our own forceFit has no debounce and
+    // no latch, so every layout change (including the first one after
+    // mount) routes straight to a resize.
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver === "function") {
+      resizeObserver = new ResizeObserver(() => forceFit());
+      resizeObserver.observe(options.container);
+    }
+    // The observer fires once on .observe() with the element's current size,
+    // but only after layout settles. Cover the window before that first
+    // callback with a scheduled sweep so the first paint isn't a tiny
+    // default-sized canvas.
     forceFit();
     requestAnimationFrame(() => {
       forceFit();
       setTimeout(forceFit, 50);
+      setTimeout(forceFit, 200);
     });
-    fitAddon.observeResize();
 
     // ghostty-web paints onto a canvas inside the container. Treat the
     // container as the host and the canvas as the screen element so
@@ -161,12 +184,30 @@ export class GhosttyWasmBackend implements TerminalBackend {
       (options.container.querySelector("canvas") as HTMLElement | null) ??
       options.container;
 
-    return new GhosttyWasmBackend(term, fitAddon, hostElement, screenElement);
+    return new GhosttyWasmBackend(
+      term,
+      fitAddon,
+      hostElement,
+      screenElement,
+      forceFit,
+      resizeObserver,
+    );
   }
 
   fit(): void {
     if (this.disposed) return;
-    this.fitAddon.fit();
+    // Use our own measurement path (the same one our ResizeObserver drives)
+    // rather than the plugin's fit. The plugin's fit has been observed to
+    // short-circuit early in the tile's lifetime (see the observer rationale
+    // in create()).
+    this.forceFit();
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.resizeObserver?.disconnect();
+    this.ghosttyTerminal.dispose();
   }
 
   serialize(): string | null {
@@ -188,7 +229,10 @@ export class GhosttyWasmBackend implements TerminalBackend {
  * shape differences with xterm.js (the no-op `refresh`, a tolerant
  * `loadAddon`, coerced `options` getters/setters).
  */
-function adaptGhosttyTerminal(term: GhosttyTerminal): CompatibleTerminal {
+function adaptGhosttyTerminal(
+  term: GhosttyTerminal,
+  onDispose?: () => void,
+): CompatibleTerminal {
   const optionsProxy: CompatibleTerminal["options"] = {
     get theme() {
       return term.options.theme as ITheme | undefined;
@@ -277,6 +321,7 @@ function adaptGhosttyTerminal(term: GhosttyTerminal): CompatibleTerminal {
       term.scrollToBottom();
     },
     dispose() {
+      onDispose?.();
       term.dispose();
     },
     refresh(_start, _end) {
