@@ -4,8 +4,8 @@
 
 ### Detection Flow
 
-1. Every terminal output (`onData`) triggers a debounced 3-second timer (`terminalRuntimeStore.ts:753`).
-2. Timer fires → IPC call to main process → `detectCli(shellPid)` (`process-detector.ts:299`).
+1. Every terminal output (`onData`) triggers a debounced 3-second timer (`src/terminal/terminalRuntimeStore.ts`).
+2. Timer fires → IPC call to main process → `detectCli(shellPid)` (`electron/process-detector.ts`).
 3. `detectCli` spawns a child process:
    - macOS/Linux: `ps -eo pid,ppid,args` (returns **all** system processes)
    - Windows: `Get-CimInstance Win32_Process | ConvertTo-Json` (returns **all** system processes)
