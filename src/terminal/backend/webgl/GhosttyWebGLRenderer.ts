@@ -407,7 +407,22 @@ export class GhosttyWebGLRenderer {
     const gl = this.gl;
     const metrics = this.atlas.getMetrics();
     const { cols, rows } = wasmTerm.getDimensions();
-    if (cols !== this.cols || rows !== this.rows) {
+    const wantWidth = cols * metrics.cellWidth;
+    const wantHeight = rows * metrics.cellHeight;
+    // Re-sync on every frame. ghostty-web's Terminal.resize overrides
+    // canvas.width/height post-hoc using `getMetrics() * cols/rows` —
+    // since our getMetrics reports CSS-pixel values (so forceFit can
+    // compute cols from a CSS-pixel bounding rect), ghostty's override
+    // shrinks canvas.width by a factor of DPR, leaving the backing
+    // buffer half the size our gl.viewport expects. We re-assert the
+    // device-pixel size every frame so the framebuffer and viewport
+    // stay in lockstep.
+    if (
+      cols !== this.cols ||
+      rows !== this.rows ||
+      this.canvas.width !== wantWidth ||
+      this.canvas.height !== wantHeight
+    ) {
       this.resize(cols, rows);
     }
     const dims = {
