@@ -319,8 +319,11 @@ export class GhosttyWebGLRenderer {
   }
 
   clear(): void {
-    const bg = parseColor(this.theme.background, [0, 0, 0, 1]);
-    this.gl.clearColor(bg[0], bg[1], bg[2], bg[3]);
+    // TEMP diagnostic: bright red. If the tile shows red, the WebGL
+    // pipeline is compositing correctly and we can move the
+    // investigation to per-cell bg quads. If still white, the canvas
+    // context itself isn't reaching the compositor.
+    this.gl.clearColor(1.0, 0.0, 0.0, 1.0);
     this.gl.clear(this.gl.COLOR_BUFFER_BIT);
   }
 
