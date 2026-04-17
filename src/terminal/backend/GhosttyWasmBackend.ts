@@ -47,7 +47,14 @@ export class GhosttyWasmBackend implements TerminalBackend {
   readonly hostElement: HTMLElement;
   readonly screenElement: HTMLElement;
 
-  private readonly ghosttyTerminal: GhosttyTerminal;
+  /**
+   * Exposed so module-level helpers in the runtime store can reach the
+   * underlying ghostty-web Terminal (options, renderer, wasmTerm) to apply
+   * fixes that bypass ghostty-web's incomplete public API — e.g. the
+   * theme-swap workaround lives outside this class so updating it flows
+   * through to already-live tiles, not just freshly-constructed ones.
+   */
+  readonly ghosttyTerminal: GhosttyTerminal;
   private readonly fitAddon: GhosttyFitAddon;
   private readonly forceFit: () => void;
   private readonly resizeObserver: ResizeObserver | null;
@@ -67,13 +74,9 @@ export class GhosttyWasmBackend implements TerminalBackend {
     this.screenElement = screenElement;
     this.forceFit = forceFit;
     this.resizeObserver = resizeObserver;
-    this.terminal = adaptGhosttyTerminal(
-      ghosttyTerminal,
-      hostElement,
-      () => {
-        this.resizeObserver?.disconnect();
-      },
-    );
+    this.terminal = adaptGhosttyTerminal(ghosttyTerminal, () => {
+      this.resizeObserver?.disconnect();
+    });
   }
 
   static async create(
@@ -247,7 +250,6 @@ export class GhosttyWasmBackend implements TerminalBackend {
  */
 function adaptGhosttyTerminal(
   term: GhosttyTerminal,
-  hostElement: HTMLElement,
   onDispose?: () => void,
 ): CompatibleTerminal {
   const optionsProxy: CompatibleTerminal["options"] = {
@@ -255,55 +257,15 @@ function adaptGhosttyTerminal(
       return term.options.theme as ITheme | undefined;
     },
     set theme(value: ITheme | undefined) {
+      // Intentionally minimal. The real theme-swap workaround lives in the
+      // runtime store's module-level `applyGhosttyTheme` helper so that
+      // updating the hack reaches already-live tiles (see the runtime store
+      // for details). This setter still assigns `term.options.theme` so the
+      // ghostty-web Terminal's own record of the active theme stays
+      // consistent for any future ghostty-web version that actually
+      // implements handleOptionChange for "theme".
       if (!value) return;
-
-      // HACK (not the long-term plan): ghostty-web v0.4.0's own
-      // Terminal.handleOptionChange does nothing for "theme" beyond
-      // logging `theme changes after open() are not yet fully supported`.
-      // Setting term.options.theme alone leaves the canvas frozen on the
-      // old palette — the user sees the host switch between light/dark
-      // while the terminal content stays in the previous theme.
-      //
-      // Reach past the public API into the CanvasRenderer to rebuild the
-      // palette and force a full redraw. Keep term.options.theme assigned
-      // too so future ghostty-web versions that implement the option
-      // handler see the right value. This workaround goes away when we
-      // replace ghostty-web's renderer with our own — see the PR for the
-      // follow-up plan.
       term.options.theme = value;
-
-      const internals = term as unknown as {
-        renderer?: {
-          setTheme?: (theme: ITheme) => void;
-          render?: (
-            buffer: unknown,
-            forceAll: boolean,
-            viewportY: number,
-            scrollback: unknown,
-            scrollbarOpacity: number,
-          ) => void;
-        };
-        wasmTerm?: unknown;
-        viewportY?: number;
-      };
-
-      internals.renderer?.setTheme?.(value);
-      if (internals.renderer?.render && internals.wasmTerm) {
-        internals.renderer.render(
-          internals.wasmTerm,
-          true,
-          internals.viewportY ?? 0,
-          term,
-          0,
-        );
-      }
-
-      // Keep the host's background colour in sync so the sub-cell remainder
-      // strip between the canvas and the host's edges blends into the theme
-      // instead of showing the app's generic surface colour through it.
-      if (value.background) {
-        hostElement.style.backgroundColor = value.background;
-      }
     },
     get fontFamily() {
       return term.options.fontFamily;

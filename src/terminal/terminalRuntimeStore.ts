@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import * as xtermModule from "@xterm/xterm";
-import type { Terminal as XtermTerminal } from "@xterm/xterm";
+import type { ITheme, Terminal as XtermTerminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { ImageAddon } from "@xterm/addon-image";
 import { SerializeAddon } from "@xterm/addon-serialize";
@@ -1105,22 +1105,100 @@ function refitActiveBackend(runtime: ManagedTerminalRuntime) {
   runtime.fitAddon?.fit();
 }
 
+/**
+ * Apply a theme to a Ghostty-backed runtime, bypassing ghostty-web's own
+ * `options.theme` setter.
+ *
+ * Why this lives at module scope rather than in the backend's adapter:
+ * ghostty-web v0.4.0's `Terminal.handleOptionChange` has an explicit TODO
+ * for "theme" — it only emits a console.warn and does nothing else. So
+ * assigning `term.options.theme` leaves the canvas painted with the old
+ * palette. The workaround (reach into CanvasRenderer.setTheme + force a
+ * full re-render) has to live somewhere. If we put it inside the
+ * adapter's `set theme` closure, every tile captures the closure at
+ * creation time and later fixes only reach newly-created tiles — hot
+ * reloads and version bumps would leave existing tiles permanently on
+ * the broken path. A module-level helper called from a single global
+ * subscription, by contrast, updates every live tile the next time the
+ * user toggles a theme, no tile teardown required.
+ */
+function applyGhosttyTheme(
+  backend: GhosttyWasmBackend,
+  theme: ITheme,
+): void {
+  const term = backend.ghosttyTerminal;
+  // Keep ghostty-web's own record consistent for any future version that
+  // implements option handling for "theme".
+  term.options.theme = theme;
+
+  // Direct renderer access — this is the workaround. setTheme rebuilds the
+  // 16-slot ANSI palette; render(forceAll=true) repaints every visible
+  // cell with the new colours.
+  const internals = term as unknown as {
+    renderer?: {
+      setTheme?: (t: ITheme) => void;
+      render?: (
+        buffer: unknown,
+        forceAll: boolean,
+        viewportY: number,
+        scrollback: unknown,
+        scrollbarOpacity: number,
+      ) => void;
+    };
+    wasmTerm?: unknown;
+    viewportY?: number;
+  };
+  internals.renderer?.setTheme?.(theme);
+  if (internals.renderer?.render && internals.wasmTerm) {
+    internals.renderer.render(
+      internals.wasmTerm,
+      true,
+      internals.viewportY ?? 0,
+      term,
+      0,
+    );
+  }
+
+  // Host background so the sub-cell remainder strip between canvas and
+  // tile edges blends with the new theme instead of flashing the app's
+  // generic surface colour.
+  if (theme.background) {
+    backend.hostElement.style.backgroundColor = theme.background;
+  }
+}
+
+function applyThemeToRuntime(
+  runtime: ManagedTerminalRuntime,
+  theme: ITheme,
+): void {
+  if (runtime.disposed) return;
+
+  if (runtime.backendKind === "ghostty-wasm" && runtime.ghosttyBackend) {
+    applyGhosttyTheme(runtime.ghosttyBackend, theme);
+  } else if (runtime.xterm) {
+    runtime.xterm.options.theme = theme;
+    runtime.xterm.refresh?.(0, runtime.xterm.rows - 1);
+  }
+
+  if (runtime.ptyId !== null) {
+    window.termcanvas.terminal.notifyThemeChanged(runtime.ptyId);
+  }
+}
+
+// One global subscription fans the theme change out to every live runtime
+// in the registry. Replacing the per-runtime subscription that used to live
+// in `setupRuntimeSubscriptions` means that when this file ships a theme-
+// related fix, every already-attached tile picks it up on the next toggle
+// without needing to be torn down and recreated. The per-runtime closure
+// would have frozen the old implementation at tile-creation time.
+useThemeStore.subscribe((state) => {
+  const theme = XTERM_THEMES[state.theme];
+  for (const runtime of runtimeRegistry.values()) {
+    applyThemeToRuntime(runtime, theme);
+  }
+});
+
 function setupRuntimeSubscriptions(runtime: ManagedTerminalRuntime) {
-  const themeUnsubscribe = useThemeStore.subscribe((state) => {
-    if (runtime.xterm) {
-      runtime.xterm.options.theme = XTERM_THEMES[state.theme];
-      // Xterm needs an explicit refresh; Ghostty's renderer runs its own
-      // frame loop that picks up the new palette on the next tick, so its
-      // CompatibleTerminal exposes refresh as a no-op and this call is
-      // safe for both paths.
-      runtime.xterm.refresh?.(0, runtime.xterm.rows - 1);
-    }
-
-    if (runtime.ptyId !== null) {
-      window.termcanvas.terminal.notifyThemeChanged(runtime.ptyId);
-    }
-  });
-
   const preferencesUnsubscribe = usePreferencesStore.subscribe((state) => {
     if (!runtime.xterm) {
       return;
@@ -1145,7 +1223,9 @@ function setupRuntimeSubscriptions(runtime: ManagedTerminalRuntime) {
     }
   });
 
-  runtime.globalDisposers.push(themeUnsubscribe, preferencesUnsubscribe);
+  // Theme updates are delivered by the module-level subscription above; no
+  // per-runtime theme unsubscribe to track here.
+  runtime.globalDisposers.push(preferencesUnsubscribe);
 }
 
 function refreshTelemetry(runtime: ManagedTerminalRuntime) {
