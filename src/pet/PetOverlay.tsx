@@ -127,6 +127,9 @@ export function PetOverlay() {
   const bubbleText = usePetStore((s) => s.bubbleText);
   const currentAttention = usePetStore((s) => s.currentAttention);
   const attentionQueue = usePetStore((s) => s.attentionQueue);
+  const isGrabbed = usePetStore((s) => s.isGrabbed);
+  const isThrown = usePetStore((s) => s.isThrown);
+  const rotation = usePetStore((s) => s.rotation);
   const dispatch = usePetStore((s) => s.dispatch);
   const setPosition = usePetStore((s) => s.setPosition);
   const setMoveTarget = usePetStore((s) => s.setMoveTarget);
@@ -134,6 +137,11 @@ export function PetOverlay() {
   const setFacingRight = usePetStore((s) => s.setFacingRight);
   const advanceFrame = usePetStore((s) => s.advanceFrame);
   const showSpeechBubble = usePetStore((s) => s.showSpeechBubble);
+  const grabPet = usePetStore((s) => s.grabPet);
+  const dragPetTo = usePetStore((s) => s.dragPetTo);
+  const releasePet = usePetStore((s) => s.releasePet);
+  const tickThrow = usePetStore((s) => s.tickThrow);
+  const landThrow = usePetStore((s) => s.landThrow);
 
   const viewport = useCanvasStore((s) => s.viewport);
   const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
@@ -157,9 +165,12 @@ export function PetOverlay() {
   // Main animation loop
   useEffect(() => {
     let running = true;
+    let lastTickTime = performance.now();
 
     function tick(timestamp: number) {
       if (!running) return;
+      const dt = timestamp - lastTickTime;
+      lastTickTime = timestamp;
 
       const state = usePetStore.getState();
       const interval = getFrameInterval(
@@ -171,7 +182,37 @@ export function PetOverlay() {
         advanceFrame();
       }
 
-      // Movement
+      // Grabbed: user is holding the pet via mouse. All auto-move
+      // paths below must be inert; position is driven entirely by
+      // the grab/drag pointer handlers below.
+      if (state.isGrabbed) {
+        animFrameRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
+      // Thrown: simulate friction-decayed linear motion until the
+      // velocity drops below a land threshold, then land with a
+      // dust puff and hand control back to the normal loop.
+      if (state.isThrown) {
+        tickThrow(dt);
+        const next = usePetStore.getState();
+        const speed = Math.hypot(next.velocity.vx, next.velocity.vy);
+        // Emit walk dust periodically while skidding; reads as
+        // ground friction.
+        if (speed > 60 && timestamp - lastWalkDustRef.current > 90) {
+          lastWalkDustRef.current = timestamp;
+          spawnParticle(spawnWalkDust(next.facingRight));
+        }
+        if (speed < 12) {
+          // Land: one last dust poof + state reset.
+          spawnParticles(spawnDust());
+          landThrow();
+        }
+        animFrameRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
+      // Normal auto-move path (idle wander, attention chases, etc.).
       if (state.moveTarget) {
         const result = stepToward(state.position, state.moveTarget);
         setPosition(result.position);
@@ -207,6 +248,9 @@ export function PetOverlay() {
     setIsMoving,
     setFacingRight,
     spawnParticle,
+    spawnParticles,
+    tickThrow,
+    landThrow,
   ]);
 
   // Random idle emote — while the pet is peacefully idling, occasionally
@@ -270,7 +314,9 @@ export function PetOverlay() {
     prevCelebrateFrameRef.current = frameIdx;
   }, [animationFrame, stateInfo.state, spawnParticles]);
 
-  // Click handler
+  // Click handler — fires only when a press ends without meaningful
+  // drag. Kept as a stable callback so we can trigger it from the
+  // pointer-up path without re-registering listeners.
   const handleClick = useCallback(() => {
     dispatch({ type: "CLICK" });
     spawnParticles(spawnHearts());
@@ -292,6 +338,188 @@ export function PetOverlay() {
       2000,
     );
   }, [dispatch, showSpeechBubble, spawnParticles]);
+
+  // --- Grab / drag / throw state (pointer-driven) ---
+  //
+  // Kept as refs rather than React state because these values update
+  // on every mousemove (~60–120 Hz); re-rendering the whole overlay
+  // at that rate just to track pointer history would waste a lot of
+  // work. React state is only touched when we actually want a
+  // re-render (grab start, release, land).
+  const grabStateRef = useRef<{
+    active: boolean;
+    downAt: number;
+    downX: number;
+    downY: number;
+    // Offset from pet's top-left to where the cursor grabbed it, in
+    // world units. Lets us preserve the relative grip point so the
+    // cursor doesn't "snap" to the pet's origin.
+    offsetX: number;
+    offsetY: number;
+    // Ring buffer of recent (time, worldX, worldY) samples for the
+    // velocity calculation at release. Keeping a small window keeps
+    // "flick" responsive without over-weighting old samples.
+    samples: Array<{ t: number; x: number; y: number }>;
+    // Set to true once the pointer has moved beyond DRAG_THRESHOLD
+    // — below that, we treat pointerup as a click rather than a
+    // throw, preserving the existing heart-spawn / speech-bubble
+    // easter egg.
+    movedPastThreshold: boolean;
+  }>({
+    active: false,
+    downAt: 0,
+    downX: 0,
+    downY: 0,
+    offsetX: 0,
+    offsetY: 0,
+    samples: [],
+    movedPastThreshold: false,
+  });
+
+  const DRAG_THRESHOLD_PX = 5; // screen pixels
+  const VELOCITY_WINDOW_MS = 80; // how far back we look for release velocity
+  const MAX_THROW_SPEED = 2400; // world-units-per-second clamp
+
+  // Convert a window-space mouse event to world coordinates (the
+  // space the pet's `position` lives in). The overlay SVG is
+  // anchored at `left: leftInset, top: 0`, and the viewport transform
+  // (pan + zoom) sits on top of that. We resolve these at call time
+  // via `useCanvasStore.getState()` rather than closing over the
+  // hook-subscribed values — this callback fires on every pointermove
+  // and we don't want a stale snapshot if the viewport changes
+  // mid-drag.
+  const clientToWorld = useCallback((clientX: number, clientY: number) => {
+    const canvas = useCanvasStore.getState();
+    const inset = getCanvasLeftInset(
+      canvas.leftPanelCollapsed,
+      canvas.leftPanelWidth,
+    );
+    const sx = clientX - inset;
+    const sy = clientY;
+    return {
+      x: (sx - canvas.viewport.x) / canvas.viewport.scale,
+      y: (sy - canvas.viewport.y) / canvas.viewport.scale,
+    };
+  }, []);
+
+  const handlePetPointerDown = useCallback(
+    (event: React.PointerEvent<SVGGElement>) => {
+      // Only primary button (left mouse / touch).
+      if (event.button !== 0) return;
+      event.stopPropagation();
+      event.preventDefault();
+
+      const world = clientToWorld(event.clientX, event.clientY);
+      const state = usePetStore.getState();
+
+      grabStateRef.current = {
+        active: true,
+        downAt: performance.now(),
+        downX: event.clientX,
+        downY: event.clientY,
+        offsetX: world.x - state.position.x,
+        offsetY: world.y - state.position.y,
+        samples: [{ t: performance.now(), x: world.x, y: world.y }],
+        movedPastThreshold: false,
+      };
+
+      // Engage grab state immediately — even before the user has
+      // moved. This means the visual tilt + auto-move pause happens
+      // on mousedown, which reads as "ok, I've picked it up".
+      grabPet();
+
+      // Capture pointer so subsequent pointermove / pointerup land
+      // on this element even if the cursor leaves the SVG bounds.
+      (event.currentTarget as SVGGElement).setPointerCapture(event.pointerId);
+    },
+    [clientToWorld, grabPet],
+  );
+
+  const handlePetPointerMove = useCallback(
+    (event: React.PointerEvent<SVGGElement>) => {
+      const grab = grabStateRef.current;
+      if (!grab.active) return;
+
+      const dx = event.clientX - grab.downX;
+      const dy = event.clientY - grab.downY;
+      if (
+        !grab.movedPastThreshold &&
+        Math.hypot(dx, dy) > DRAG_THRESHOLD_PX
+      ) {
+        grab.movedPastThreshold = true;
+      }
+
+      const world = clientToWorld(event.clientX, event.clientY);
+      const petPos = {
+        x: world.x - grab.offsetX,
+        y: world.y - grab.offsetY,
+      };
+      dragPetTo(petPos);
+
+      // Trim samples older than the velocity window.
+      const nowT = performance.now();
+      grab.samples.push({ t: nowT, x: world.x, y: world.y });
+      while (
+        grab.samples.length > 2 &&
+        nowT - grab.samples[0].t > VELOCITY_WINDOW_MS
+      ) {
+        grab.samples.shift();
+      }
+    },
+    [clientToWorld, dragPetTo],
+  );
+
+  const handlePetPointerUp = useCallback(
+    (event: React.PointerEvent<SVGGElement>) => {
+      const grab = grabStateRef.current;
+      if (!grab.active) return;
+      grab.active = false;
+
+      try {
+        (event.currentTarget as SVGGElement).releasePointerCapture(
+          event.pointerId,
+        );
+      } catch {
+        // Pointer capture may already be lost (e.g. window blur); fine.
+      }
+
+      if (!grab.movedPastThreshold) {
+        // Treat as click — preserves the original tap behaviour.
+        // Revert grab visuals so the heart-spawn renders normally.
+        landThrow();
+        handleClick();
+        return;
+      }
+
+      // Compute velocity from the recent sample window.
+      const samples = grab.samples;
+      let vx = 0;
+      let vy = 0;
+      if (samples.length >= 2) {
+        const first = samples[0];
+        const last = samples[samples.length - 1];
+        const dtSec = Math.max(1, last.t - first.t) / 1000;
+        vx = (last.x - first.x) / dtSec;
+        vy = (last.y - first.y) / dtSec;
+        const speed = Math.hypot(vx, vy);
+        if (speed > MAX_THROW_SPEED) {
+          const k = MAX_THROW_SPEED / speed;
+          vx *= k;
+          vy *= k;
+        }
+      }
+
+      // Below a minimum fling threshold, just drop in place — no
+      // throw animation, no dust. Reads as "gently put down".
+      if (Math.hypot(vx, vy) < 30) {
+        landThrow();
+        return;
+      }
+
+      releasePet(vx, vy);
+    },
+    [handleClick, landThrow, releasePet],
+  );
 
   // Transform pet world coordinates to screen coordinates
   const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
@@ -341,9 +569,20 @@ export function PetOverlay() {
       }}
     >
       <g
-        transform={`translate(${screenX}, ${screenY}) scale(${scale})`}
-        style={{ cursor: "pointer", pointerEvents: "auto" }}
-        onClick={handleClick}
+        transform={`translate(${screenX}, ${screenY}) scale(${scale}) rotate(${
+          (rotation * 180) / Math.PI
+        } ${PET_SIZE / 2} ${PET_SIZE / 2})`}
+        style={{
+          cursor: isGrabbed ? "grabbing" : isThrown ? "default" : "grab",
+          pointerEvents: "auto",
+          // Subtle scale bump while held tells the user "you've got
+          // it" without needing a whole new sprite.
+          transition: isThrown ? "none" : "transform 80ms ease-out",
+        }}
+        onPointerDown={handlePetPointerDown}
+        onPointerMove={handlePetPointerMove}
+        onPointerUp={handlePetPointerUp}
+        onPointerCancel={handlePetPointerUp}
       >
         {/* Ground shadow — drawn first so it sits behind the pet */}
         {showShadow && (
