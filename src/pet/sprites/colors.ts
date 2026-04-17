@@ -50,7 +50,6 @@ export const C = {
   // UI
   bubble: "#FFFFFF",
   bubbleBorder: "#D1D5DB",
-  shadow: "rgba(0, 0, 0, 0.22)", // ground shadow ellipse
 } as const;
 
 // Transparent pixel

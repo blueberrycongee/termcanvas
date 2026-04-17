@@ -23,12 +23,6 @@ const PRIORITY_COLORS: Record<AttentionPriority, string> = {
   success: "#10B981",
 };
 
-// State names that place the pet in a lying/compacted pose — skip the shadow there.
-const SHADOW_SKIP: Record<string, boolean> = {
-  sleeping: true,
-  goodbye: true,
-};
-
 // Celebrating cadence: [crouch, peak, peak, crouch, landing, landing]
 // We trigger a dust puff when the frame index crosses INTO `landing`.
 const CELEBRATING_LANDING_FRAME = 4;
@@ -544,16 +538,6 @@ export function PetOverlay() {
   const attnText = currentAttention?.message ?? "";
   const attnBubbleWidth = Math.max(50, attnText.length * 7 + 16);
 
-  // Ground shadow gets smaller when airborne (celebrate peak frames)
-  let shadowScale = 1;
-  if (displayState === "celebrating" || displayState === "triumph") {
-    const frameIdx = animationFrame % 6;
-    // peak frames are 1 and 2 — shadow shrinks at the top of the jump
-    if (frameIdx === 1 || frameIdx === 2) shadowScale = 0.55;
-    else if (frameIdx === 0 || frameIdx === 3) shadowScale = 0.8;
-  }
-  const showShadow = !SHADOW_SKIP[displayState];
-
   return (
     <svg
       width={svgWidth}
@@ -584,17 +568,6 @@ export function PetOverlay() {
         onPointerUp={handlePetPointerUp}
         onPointerCancel={handlePetPointerUp}
       >
-        {/* Ground shadow — drawn first so it sits behind the pet */}
-        {showShadow && (
-          <ellipse
-            cx={PET_SIZE / 2}
-            cy={PET_SIZE - 6}
-            rx={PET_SIZE * 0.34 * shadowScale}
-            ry={4 * shadowScale}
-            fill={C.shadow}
-          />
-        )}
-
         <SpriteRenderer
           frame={frame}
           x={0}
