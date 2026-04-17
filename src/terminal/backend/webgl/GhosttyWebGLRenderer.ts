@@ -1,51 +1,52 @@
 /**
- * WebGL2 renderer that drops into ghostty-web's Terminal class in place
- * of its built-in Canvas2D renderer. Keeps the Terminal's other
- * subsystems (input handler, selection manager, link detector, wheel
- * scrolling) untouched — those don't care about the rendering backend,
- * only the VT parser state underneath.
+ * WebGL2 terminal renderer, architecture adapted from Ghostty's native
+ * OpenGL backend (`thirdparty/ghostty/src/renderer/opengl/` and
+ * shaders at `.../shaders/glsl/`). We reimplement the render graph in
+ * TypeScript and substitute WebGL2-available APIs for the pieces that
+ * need desktop-OpenGL features Ghostty relies on:
  *
- * Pipeline per frame:
- *  1. Read cell grid from `wasmTerm.getViewport()` (or `getScrollbackLine`
- *     if the viewport is scrolled up).
- *  2. For every non-space, non-default-bg cell: push a background quad
- *     (2 triangles, 6 verts) into a CPU-side buffer.
- *  3. For every cell with a codepoint: look up (or rasterize) the glyph
- *     in the atlas, push a textured quad.
- *  4. Issue two `drawArrays` calls: backgrounds first, glyphs second.
- *     One state change between them (bind atlas texture + switch
- *     program). The whole grid at 200×50 = 10 000 cells × 6 verts ≈
- *     60 000 verts per batch — trivial for any GPU shipped in the
- *     last decade.
- *  5. Cursor & selection overlays emit additional quads into the bg
- *     buffer; the z-order is draw order, so selection lives between
- *     backgrounds and glyphs, cursor on top.
+ *  - Cell backgrounds: a single full-screen triangle strip. Fragment
+ *    shader samples a `usampler2D` carrying one RGBA8 texel per cell,
+ *    indexed by derived grid coords. Ghostty uses an SSBO here;
+ *    WebGL2 has no SSBO, but a texture gives us the same effect and
+ *    costs ~4 bytes per cell per frame to upload.
+ *  - Cell text: instanced rendering, 4 verts per glyph via triangle
+ *    strip. Per-instance attributes mirror Ghostty's `CellText`
+ *    struct (`glyph_pos`, `glyph_size`, `bearings`, `grid_pos`,
+ *    `color`, `flags`). Vertex shader uses bearings to place the
+ *    glyph quad inside the cell, not the cell-sized tile the MVP
+ *    was using — gives pixel-perfect glyph positioning with
+ *    ascenders/descenders drawn where they actually belong.
+ *  - Colour: all inputs sRGB bytes. Shader linearizes for blend,
+ *    unlinearizes for output. Eliminates the halo/edge-brightening
+ *    bug our MVP's grayscale-blend path suffered from and matches
+ *    Ghostty's default `cell_text.f.glsl` path.
+ *  - Cursor: emitted as an extra "glyph" instance with the cursor
+ *    colour and the FLAG_IS_BLOCK/UNDERLINE/BAR bit; fragment shader
+ *    bypasses atlas sampling for these.
+ *  - Underline / strikethrough: same trick — emit an instance with
+ *    a line-primitive flag; fragment fills solid instead of sampling
+ *    the atlas.
  *
- * This MVP deliberately ignores:
- *  - Font shaping (harfbuzz) — one glyph per codepoint, no ligatures.
- *  - Complex scripts — Arabic / Devanagari fall back to per-codepoint
- *    rendering which looks wrong but doesn't crash.
- *  - Subpixel LCD antialiasing — atlas is grayscale-covered for now.
- *  - Emoji / colour font fallback — Canvas2D's font fallback gets us
- *    partway (macOS emoji renders via Apple Color Emoji through
- *    system font fallback) but without a proper fallback chain this
- *    is fragile.
- *
- * When in doubt, the existing canvas renderer's rendering semantics
- * (see `node_modules/ghostty-web/dist/ghostty-web.js` around the
- * `render()` and `renderLine()` calls) are the reference — we try to
- * match cell-level behaviour so switching renderers is invisible to
- * Terminal subsystems.
+ * What's still not here (follow-up phases):
+ *  - Font shaping via harfbuzz-wasm for ligatures.
+ *  - Colour glyph atlas for emoji.
+ *  - Minimum contrast ratio enforcement (Ghostty has this but it
+ *    interacts with theme.foreground semantics that we haven't wired
+ *    through the cell data yet).
+ *  - Box-drawing character precision (Ghostty generates these
+ *    procedurally in its own atlas; we fall back to font rendering).
+ *  - Image protocols.
  */
 
 import type { GhosttyCell } from "ghostty-web";
 
-import { GlyphAtlas, type GlyphMetrics } from "./GlyphAtlas.ts";
+import { GlyphAtlas, type FontMetrics } from "./GlyphAtlas.ts";
 import {
-  BG_FRAGMENT_SHADER,
-  BG_VERTEX_SHADER,
-  GLYPH_FRAGMENT_SHADER,
-  GLYPH_VERTEX_SHADER,
+  CELL_BG_FRAGMENT_SHADER,
+  CELL_BG_VERTEX_SHADER,
+  CELL_TEXT_FRAGMENT_SHADER,
+  CELL_TEXT_VERTEX_SHADER,
   linkProgram,
 } from "./shaders.ts";
 
@@ -66,13 +67,11 @@ interface RendererOptions {
   devicePixelRatio?: number;
 }
 
-/** Interface compatible with ghostty-web's `IScrollbackProvider`. */
 interface ScrollbackSource {
   getScrollbackLength(): number;
   getScrollbackLine(offset: number): GhosttyCell[] | null;
 }
 
-/** Subset of ghostty-web's `WasmTerminal` we consume. */
 interface WasmTerm {
   getViewport(): GhosttyCell[];
   getLine(y: number): GhosttyCell[] | null;
@@ -91,7 +90,25 @@ const FLAG_INVERSE = 16;
 const FLAG_INVISIBLE = 64;
 const FLAG_FAINT = 128;
 
-/** Parse a CSS color string into [r, g, b, a] in 0..1. */
+// Instance struct flags (matches fragment shader constants)
+const INST_FLAG_IS_UNDERLINE = 2;
+const INST_FLAG_IS_STRIKETHROUGH = 4;
+
+// Per-instance CellText attribute struct, laid out to match
+// `a_glyph_pos/a_glyph_size/a_bearings/a_grid_pos/a_color/a_flags`:
+//   uvec2 glyph_pos   (8 bytes)
+//   uvec2 glyph_size  (8 bytes)
+//   ivec2 bearings    (8 bytes, i32×2 — we could use i16×2 but keep
+//                     i32 because vertexAttribIPointer doesn't allow
+//                     non-4-byte stride alignment for i16 in WebGL2)
+//   uvec2 grid_pos    (8 bytes, u32×2 for the same reason)
+//   uvec4 color       (4 bytes, u8×4)
+//   uint  flags       (4 bytes)
+// Total: 40 bytes per instance. Packable to 32 with i16 grid + u8 flags
+// but we're nowhere near bandwidth-bound so clarity wins.
+const INSTANCE_FLOATS = 0;
+const INSTANCE_BYTES = 40;
+
 function parseColor(
   css: string | undefined,
   fallback: [number, number, number, number],
@@ -122,27 +139,54 @@ function parseColor(
   return fallback;
 }
 
+function srgbToLinear(c: number): number {
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+function linearizeAndPremul(
+  c: [number, number, number, number],
+): [number, number, number, number] {
+  const r = srgbToLinear(c[0]) * c[3];
+  const g = srgbToLinear(c[1]) * c[3];
+  const b = srgbToLinear(c[2]) * c[3];
+  return [r, g, b, c[3]];
+}
+
 export class GhosttyWebGLRenderer {
   readonly canvas: HTMLCanvasElement;
 
   private readonly gl: WebGL2RenderingContext;
   private readonly atlas: GlyphAtlas;
 
+  // Programs
   private readonly bgProgram: WebGLProgram;
-  private readonly glyphProgram: WebGLProgram;
-  private readonly bgVao: WebGLVertexArrayObject;
-  private readonly glyphVao: WebGLVertexArrayObject;
-  private readonly bgBuffer: WebGLBuffer;
-  private readonly glyphBuffer: WebGLBuffer;
-  private readonly glyphAtlasUniform: WebGLUniformLocation;
+  private readonly textProgram: WebGLProgram;
 
-  /**
-   * CPU-side vertex scratch buffers. Grown on demand, never shrunk —
-   * a terminal's cell count is bounded by the window size and the
-   * steady state converges quickly.
-   */
-  private bgVerts = new Float32Array(0);
-  private glyphVerts = new Float32Array(0);
+  // BG program uniforms
+  private readonly uBgCellColors: WebGLUniformLocation;
+  private readonly uBgCellSize: WebGLUniformLocation;
+  private readonly uBgScreenSize: WebGLUniformLocation;
+  private readonly uBgGridSize: WebGLUniformLocation;
+  private readonly uBgGlobalBg: WebGLUniformLocation;
+
+  // Text program uniforms
+  private readonly uTxAtlas: WebGLUniformLocation;
+  private readonly uTxCellSize: WebGLUniformLocation;
+  private readonly uTxScreenSize: WebGLUniformLocation;
+  private readonly uTxAtlasSize: WebGLUniformLocation;
+  private readonly uTxCellHeight: WebGLUniformLocation;
+
+  // Cell bg texture — one RGBA8 texel per cell, updated per frame.
+  private cellColorTexture: WebGLTexture;
+  private cellColorBuffer = new Uint8Array(0);
+  private cellColorWidth = 0;
+  private cellColorHeight = 0;
+
+  // Instance buffer for text glyphs.
+  private readonly textVao: WebGLVertexArrayObject;
+  private readonly textInstanceBuffer: WebGLBuffer;
+  private instanceBuffer = new ArrayBuffer(0);
+  private instanceView = new DataView(this.instanceBuffer);
 
   private cols = 80;
   private rows = 24;
@@ -153,10 +197,6 @@ export class GhosttyWebGLRenderer {
   private theme: Theme;
   private devicePixelRatio: number;
 
-  // Selection manager is installed by ghostty-web's Terminal.open().
-  // We accept it but don't use its dirty-row tracking — we redraw the
-  // selection from current coords on every frame, which is cheap and
-  // avoids a stale-region bug class.
   private selectionManager: {
     hasSelection(): boolean;
     getSelectionCoords(): {
@@ -169,10 +209,7 @@ export class GhosttyWebGLRenderer {
     clearDirtySelectionRows(): void;
   } | null = null;
 
-  // Link detector hooks for hover underline. We accept the values but
-  // MVP does not draw the hover underline yet.
   hoveredHyperlinkId = 0;
-  private previousHoveredHyperlinkId = 0;
   private hoveredLinkRange: {
     startX: number;
     startY: number;
@@ -182,7 +219,6 @@ export class GhosttyWebGLRenderer {
 
   private disposed = false;
   private loggedFirstFrame = false;
-  private loggedDrawCounts = false;
 
   constructor(canvas: HTMLCanvasElement, options: RendererOptions) {
     this.canvas = canvas;
@@ -195,17 +231,12 @@ export class GhosttyWebGLRenderer {
       options.devicePixelRatio ?? window.devicePixelRatio ?? 1;
 
     const gl = canvas.getContext("webgl2", {
-      // `alpha: true` + manual clear-to-opaque fragment matches xterm's
-      // addon-webgl layout and avoids an Electron quirk where `alpha:
-      // false` canvases can land on the compositor without picking up
-      // the last-drawn frame (we see `#EAE8E5` host bleed-through even
-      // though our draw calls ran without GL errors).
       alpha: true,
       antialias: false,
       depth: false,
       stencil: false,
       premultipliedAlpha: true,
-      preserveDrawingBuffer: true,
+      preserveDrawingBuffer: false,
     });
     if (!gl) {
       throw new Error(
@@ -217,74 +248,97 @@ export class GhosttyWebGLRenderer {
     this.atlas = new GlyphAtlas(gl);
     this.atlas.setFont(this.fontFamily, this.fontSize, this.devicePixelRatio);
 
-    this.bgProgram = linkProgram(gl, BG_VERTEX_SHADER, BG_FRAGMENT_SHADER);
-    this.glyphProgram = linkProgram(
+    this.bgProgram = linkProgram(gl, CELL_BG_VERTEX_SHADER, CELL_BG_FRAGMENT_SHADER);
+    this.textProgram = linkProgram(
       gl,
-      GLYPH_VERTEX_SHADER,
-      GLYPH_FRAGMENT_SHADER,
+      CELL_TEXT_VERTEX_SHADER,
+      CELL_TEXT_FRAGMENT_SHADER,
     );
 
-    const glyphAtlasUniform = gl.getUniformLocation(
-      this.glyphProgram,
-      "u_atlas",
-    );
-    if (!glyphAtlasUniform) {
-      throw new Error("[webgl] missing u_atlas uniform");
+    this.uBgCellColors = this.mustGetUniform(this.bgProgram, "u_cellColors");
+    this.uBgCellSize = this.mustGetUniform(this.bgProgram, "u_cellSize");
+    this.uBgScreenSize = this.mustGetUniform(this.bgProgram, "u_screenSize");
+    this.uBgGridSize = this.mustGetUniform(this.bgProgram, "u_gridSize");
+    this.uBgGlobalBg = this.mustGetUniform(this.bgProgram, "u_globalBg");
+
+    this.uTxAtlas = this.mustGetUniform(this.textProgram, "u_atlas");
+    this.uTxCellSize = this.mustGetUniform(this.textProgram, "u_cellSize");
+    this.uTxScreenSize = this.mustGetUniform(this.textProgram, "u_screenSize");
+    this.uTxAtlasSize = this.mustGetUniform(this.textProgram, "u_atlasSize");
+    this.uTxCellHeight = this.mustGetUniform(this.textProgram, "u_cellHeight");
+
+    // Cell bg color texture (sized per-resize).
+    const cellTex = gl.createTexture();
+    if (!cellTex) throw new Error("[webgl] cell bg texture alloc failed");
+    this.cellColorTexture = cellTex;
+    gl.bindTexture(gl.TEXTURE_2D, cellTex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    // Instance VAO for the text pipeline.
+    const textVao = gl.createVertexArray();
+    const textInstanceBuffer = gl.createBuffer();
+    if (!textVao || !textInstanceBuffer) {
+      throw new Error("[webgl] text vao/buffer alloc failed");
     }
-    this.glyphAtlasUniform = glyphAtlasUniform;
+    this.textVao = textVao;
+    this.textInstanceBuffer = textInstanceBuffer;
 
-    // Background VAO: (vec2 pos, vec4 color) per vertex, interleaved.
-    const bgVao = gl.createVertexArray();
-    const bgBuffer = gl.createBuffer();
-    if (!bgVao || !bgBuffer) throw new Error("[webgl] vao/vbo alloc failed");
-    this.bgVao = bgVao;
-    this.bgBuffer = bgBuffer;
-    gl.bindVertexArray(bgVao);
-    gl.bindBuffer(gl.ARRAY_BUFFER, bgBuffer);
-    const bgStride = 6 * 4; // 2 floats pos + 4 floats color
-    const bgPosLoc = gl.getAttribLocation(this.bgProgram, "a_position");
-    const bgColorLoc = gl.getAttribLocation(this.bgProgram, "a_color");
-    gl.enableVertexAttribArray(bgPosLoc);
-    gl.vertexAttribPointer(bgPosLoc, 2, gl.FLOAT, false, bgStride, 0);
-    gl.enableVertexAttribArray(bgColorLoc);
-    gl.vertexAttribPointer(bgColorLoc, 4, gl.FLOAT, false, bgStride, 2 * 4);
+    gl.bindVertexArray(textVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, textInstanceBuffer);
 
-    // Glyph VAO: (vec2 pos, vec2 uv, vec4 color).
-    const glyphVao = gl.createVertexArray();
-    const glyphBuffer = gl.createBuffer();
-    if (!glyphVao || !glyphBuffer) {
-      throw new Error("[webgl] vao/vbo alloc failed");
-    }
-    this.glyphVao = glyphVao;
-    this.glyphBuffer = glyphBuffer;
-    gl.bindVertexArray(glyphVao);
-    gl.bindBuffer(gl.ARRAY_BUFFER, glyphBuffer);
-    const glyphStride = 8 * 4; // 2 pos + 2 uv + 4 color
-    const glyphPosLoc = gl.getAttribLocation(this.glyphProgram, "a_position");
-    const glyphUvLoc = gl.getAttribLocation(this.glyphProgram, "a_uv");
-    const glyphColorLoc = gl.getAttribLocation(this.glyphProgram, "a_color");
-    gl.enableVertexAttribArray(glyphPosLoc);
-    gl.vertexAttribPointer(glyphPosLoc, 2, gl.FLOAT, false, glyphStride, 0);
-    gl.enableVertexAttribArray(glyphUvLoc);
-    gl.vertexAttribPointer(glyphUvLoc, 2, gl.FLOAT, false, glyphStride, 2 * 4);
-    gl.enableVertexAttribArray(glyphColorLoc);
-    gl.vertexAttribPointer(
-      glyphColorLoc,
-      4,
-      gl.FLOAT,
-      false,
-      glyphStride,
-      4 * 4,
-    );
+    // Attribute layout must match INSTANCE_BYTES + shader inputs.
+    // Offsets in bytes:
+    //   0:  uvec2 glyph_pos  (u32×2)
+    //   8:  uvec2 glyph_size (u32×2)
+    //  16:  ivec2 bearings   (i32×2)
+    //  24:  uvec2 grid_pos   (u32×2)
+    //  32:  uvec4 color      (u8×4)
+    //  36:  uint  flags      (u32)
+    const enableInstAttrib = (
+      loc: number,
+      size: number,
+      type: number,
+      offset: number,
+      integer: boolean,
+    ) => {
+      if (loc < 0) return;
+      gl.enableVertexAttribArray(loc);
+      if (integer) {
+        gl.vertexAttribIPointer(loc, size, type, INSTANCE_BYTES, offset);
+      } else {
+        gl.vertexAttribPointer(loc, size, type, false, INSTANCE_BYTES, offset);
+      }
+      gl.vertexAttribDivisor(loc, 1);
+    };
+    enableInstAttrib(0, 2, gl.UNSIGNED_INT, 0, true);
+    enableInstAttrib(1, 2, gl.UNSIGNED_INT, 8, true);
+    enableInstAttrib(2, 2, gl.INT, 16, true);
+    enableInstAttrib(3, 2, gl.UNSIGNED_INT, 24, true);
+    enableInstAttrib(4, 4, gl.UNSIGNED_BYTE, 32, true);
+    enableInstAttrib(5, 1, gl.UNSIGNED_INT, 36, true);
 
     gl.bindVertexArray(null);
 
     gl.enable(gl.BLEND);
+    // Pre-multiplied alpha blending throughout.
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.disable(gl.DEPTH_TEST);
+    // Clear color set per-frame to the linearized theme background so
+    // edge pixels around the grid match the grid.
   }
 
-  // Renderer interface expected by ghostty-web's Terminal follows.
+  private mustGetUniform(program: WebGLProgram, name: string): WebGLUniformLocation {
+    const loc = this.gl.getUniformLocation(program, name);
+    if (!loc) {
+      throw new Error(`[webgl] missing uniform "${name}"`);
+    }
+    return loc;
+  }
+
+  // Renderer interface expected by ghostty-web's Terminal:
 
   getCanvas(): HTMLCanvasElement {
     return this.canvas;
@@ -292,7 +346,6 @@ export class GhosttyWebGLRenderer {
 
   getMetrics(): { width: number; height: number; baseline: number } {
     const m = this.atlas.getMetrics();
-    // Terminal expects CSS-pixel metrics; we store device-pixel ones.
     const dpr = this.devicePixelRatio;
     return {
       width: m.cellWidth / dpr,
@@ -321,11 +374,15 @@ export class GhosttyWebGLRenderer {
     this.canvas.width = cols * m.cellWidth;
     this.canvas.height = rows * m.cellHeight;
     this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+
+    // Reallocate cell bg texture to match grid size.
+    this.reallocCellColorTexture(cols, rows);
   }
 
   clear(): void {
     const bg = parseColor(this.theme.background, [0, 0, 0, 1]);
-    this.gl.clearColor(bg[0], bg[1], bg[2], bg[3]);
+    const lin = linearizeAndPremul(bg);
+    this.gl.clearColor(lin[0], lin[1], lin[2], lin[3]);
     this.gl.clear(this.gl.COLOR_BUFFER_BIT);
   }
 
@@ -358,7 +415,6 @@ export class GhosttyWebGLRenderer {
   }
 
   setHoveredHyperlinkId(id: number): void {
-    this.previousHoveredHyperlinkId = this.hoveredHyperlinkId;
     this.hoveredHyperlinkId = id;
   }
 
@@ -378,20 +434,18 @@ export class GhosttyWebGLRenderer {
     this.disposed = true;
     const gl = this.gl;
     this.atlas.dispose();
-    gl.deleteVertexArray(this.bgVao);
-    gl.deleteVertexArray(this.glyphVao);
-    gl.deleteBuffer(this.bgBuffer);
-    gl.deleteBuffer(this.glyphBuffer);
     gl.deleteProgram(this.bgProgram);
-    gl.deleteProgram(this.glyphProgram);
+    gl.deleteProgram(this.textProgram);
+    gl.deleteTexture(this.cellColorTexture);
+    gl.deleteVertexArray(this.textVao);
+    gl.deleteBuffer(this.textInstanceBuffer);
   }
 
   /**
-   * Main render entry. ghostty-web's Terminal calls this every rAF
-   * with the current wasmTerm and viewport scroll position. We ignore
-   * `forceAll` (we always repaint the whole viewport — it's cheaper
-   * than reasoning about dirty rows at this grid size) and
-   * `scrollbarOpacity` (scrollbar is not drawn in MVP).
+   * Main render entry — ghostty-web's Terminal calls this on every
+   * rAF tick. We rebuild the cell bg texture + glyph instance buffer
+   * from the current wasmTerm state, then issue two draw calls:
+   * cell_bg (full-screen triangle strip) + cell_text (instanced strip).
    */
   render(
     wasmTerm: WasmTerm,
@@ -406,14 +460,6 @@ export class GhosttyWebGLRenderer {
     const { cols, rows } = wasmTerm.getDimensions();
     const wantWidth = cols * metrics.cellWidth;
     const wantHeight = rows * metrics.cellHeight;
-    // Re-sync on every frame. ghostty-web's Terminal.resize overrides
-    // canvas.width/height post-hoc using `getMetrics() * cols/rows` —
-    // since our getMetrics reports CSS-pixel values (so forceFit can
-    // compute cols from a CSS-pixel bounding rect), ghostty's override
-    // shrinks canvas.width by a factor of DPR, leaving the backing
-    // buffer half the size our gl.viewport expects. We re-assert the
-    // device-pixel size every frame so the framebuffer and viewport
-    // stay in lockstep.
     if (
       cols !== this.cols ||
       rows !== this.rows ||
@@ -422,157 +468,164 @@ export class GhosttyWebGLRenderer {
     ) {
       this.resize(cols, rows);
     }
-    const dims = {
-      canvasW: this.canvas.width,
-      canvasH: this.canvas.height,
-      cellW: metrics.cellWidth,
-      cellH: metrics.cellHeight,
-      baseline: metrics.baseline,
-    };
+
+    const cellW = metrics.cellWidth;
+    const cellH = metrics.cellHeight;
+    const canvasW = this.canvas.width;
+    const canvasH = this.canvas.height;
+
+    this.clear();
+
+    // --- Build per-cell data ---
+    this.resetCellColorBuffer(cols, rows);
+    const instances: number[] = [];
+
+    const defaultFg = parseColor(this.theme.foreground, [0.9, 0.9, 0.9, 1]);
+    const defaultFgBytes: [number, number, number, number] = [
+      Math.round(defaultFg[0] * 255),
+      Math.round(defaultFg[1] * 255),
+      Math.round(defaultFg[2] * 255),
+      255,
+    ];
+
+    const scrollbackLen = scrollback.getScrollbackLength();
+    for (let y = 0; y < rows; y += 1) {
+      let line: GhosttyCell[] | null = null;
+      let sourceRow = y;
+      if (viewportY > 0) {
+        if (y < viewportY && scrollbackLen > 0) {
+          const idx = scrollbackLen - Math.floor(viewportY) + y;
+          line = scrollback.getScrollbackLine(idx);
+        } else {
+          sourceRow = y - Math.floor(viewportY);
+          line = wasmTerm.getLine(sourceRow);
+        }
+      } else {
+        line = wasmTerm.getLine(y);
+      }
+      if (!line) continue;
+      this.emitLineData(
+        line,
+        y,
+        sourceRow,
+        wasmTerm,
+        defaultFgBytes,
+        instances,
+        cols,
+      );
+    }
+
+    // Selection overlay as cell bg overwrites.
+    if (this.selectionManager?.hasSelection()) {
+      this.overlaySelection(viewportY, cols, rows);
+      this.selectionManager.clearDirtySelectionRows?.();
+    }
+
+    // Cursor overlay — drawn as a text instance with no atlas, so it
+    // paints a solid quad on top of the glyph.
+    if (viewportY === 0) {
+      const cursor = wasmTerm.getCursor();
+      if (cursor.visible) {
+        this.emitCursorInstance(cursor.x, cursor.y, cellW, cellH, instances);
+      }
+    }
+
+    this.uploadCellColors(cols, rows);
+
+    // --- Draw pass 1: cell backgrounds ---
+    this.drawCellBackgrounds(cellW, cellH, canvasW, canvasH, cols, rows);
+
+    // --- Draw pass 2: glyphs + underline + cursor ---
+    this.drawTextInstances(
+      instances,
+      cellW,
+      cellH,
+      canvasW,
+      canvasH,
+    );
 
     if (!this.loggedFirstFrame) {
       this.loggedFirstFrame = true;
       console.debug("[ghostty-webgl] first render()", {
         cols,
         rows,
-        viewportY,
-        metrics,
-        dims,
-        gl: gl ? "present" : "missing",
+        canvasW,
+        canvasH,
+        cellW,
+        cellH,
         atlasSize: this.atlas.size,
-        theme: this.theme,
-      });
-    }
-
-    this.clear();
-
-    // Gather cells: either from viewport (no scroll) or scrollback +
-    // partial viewport (scrolled up).
-    const bgVerts: number[] = [];
-    const glyphVerts: number[] = [];
-
-    const scrollbackLen = scrollback.getScrollbackLength();
-
-    for (let y = 0; y < rows; y += 1) {
-      let line: GhosttyCell[] | null = null;
-      let lineRow = y;
-      if (viewportY > 0) {
-        if (y < viewportY && scrollbackLen > 0) {
-          const idx = scrollbackLen - Math.floor(viewportY) + y;
-          line = scrollback.getScrollbackLine(idx);
-        } else {
-          lineRow = y - Math.floor(viewportY);
-          line = wasmTerm.getLine(lineRow);
-        }
-      } else {
-        line = wasmTerm.getLine(y);
-      }
-      if (!line) continue;
-
-      this.emitLine(line, y, lineRow, wasmTerm, bgVerts, glyphVerts, dims);
-    }
-
-    // Selection overlay — emits into the bg buffer so it paints
-    // between cell-bg and glyphs. Slight translucency so cells'
-    // backgrounds still show through.
-    if (this.selectionManager?.hasSelection()) {
-      this.emitSelection(viewportY, bgVerts, dims);
-      this.selectionManager.clearDirtySelectionRows?.();
-    }
-
-    // Cursor overlay — paints on top of cell bg; glyphs (which come
-    // next) will render text over it too, so a block cursor behind an
-    // inverted-foreground text cell lights up correctly.
-    if (viewportY === 0) {
-      const cursor = wasmTerm.getCursor();
-      if (cursor.visible) {
-        this.emitCursor(cursor.x, cursor.y, bgVerts, dims);
-      }
-    }
-
-    if (bgVerts.length > 0) {
-      this.uploadAndDrawBackgrounds(bgVerts);
-    }
-    if (glyphVerts.length > 0) {
-      this.uploadAndDrawGlyphs(glyphVerts);
-    }
-
-    if (!this.loggedDrawCounts) {
-      this.loggedDrawCounts = true;
-      const err = gl.getError();
-      // Sample the first 5 non-empty cells from row 0 to see what
-      // RGB values actually got stored by the WASM. User reports
-      // pure-white character backgrounds; if bg_r/g/b are e.g. (234,
-      // 232, 228) we know the theme got baked in and the render
-      // path is correct-but-ugly; if (255, 255, 255) something else
-      // is setting explicit white.
-      const sampleLine = wasmTerm.getLine(0) ?? [];
-      const samples: Array<{
-        x: number;
-        codepoint: number;
-        flags: number;
-        fg: string;
-        bg: string;
-      }> = [];
-      for (let x = 0; x < sampleLine.length && samples.length < 5; x += 1) {
-        const cell = sampleLine[x];
-        if (!cell) continue;
-        if (
-          cell.codepoint === 0 &&
-          cell.bg_r === 0 &&
-          cell.bg_g === 0 &&
-          cell.bg_b === 0
-        ) {
-          continue;
-        }
-        samples.push({
-          x,
-          codepoint: cell.codepoint,
-          flags: cell.flags,
-          fg: `${cell.fg_r},${cell.fg_g},${cell.fg_b}`,
-          bg: `${cell.bg_r},${cell.bg_g},${cell.bg_b}`,
-        });
-      }
-      console.debug("[ghostty-webgl] first render() draw stats", {
-        bgVerts: bgVerts.length / 6,
-        glyphVerts: glyphVerts.length / 8,
-        glError: err,
-        sampleCells: samples,
+        instanceCount: instances.length / (INSTANCE_BYTES / 4),
       });
     }
 
     wasmTerm.clearDirty();
   }
 
-  private emitLine(
+  // Cell color buffer is a Uint8Array(cols * rows * 4) in RGBA order.
+  private resetCellColorBuffer(cols: number, rows: number): void {
+    const need = cols * rows * 4;
+    if (this.cellColorBuffer.length !== need) {
+      this.cellColorBuffer = new Uint8Array(need);
+    } else {
+      this.cellColorBuffer.fill(0);
+    }
+  }
+
+  private reallocCellColorTexture(cols: number, rows: number): void {
+    if (cols === this.cellColorWidth && rows === this.cellColorHeight) return;
+    this.cellColorWidth = cols;
+    this.cellColorHeight = rows;
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D, this.cellColorTexture);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA8UI,
+      cols,
+      rows,
+      0,
+      gl.RGBA_INTEGER,
+      gl.UNSIGNED_BYTE,
+      null,
+    );
+  }
+
+  private uploadCellColors(cols: number, rows: number): void {
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D, this.cellColorTexture);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texSubImage2D(
+      gl.TEXTURE_2D,
+      0,
+      0,
+      0,
+      cols,
+      rows,
+      gl.RGBA_INTEGER,
+      gl.UNSIGNED_BYTE,
+      this.cellColorBuffer,
+    );
+  }
+
+  private emitLineData(
     line: GhosttyCell[],
     displayRow: number,
     sourceRow: number,
     wasmTerm: WasmTerm,
-    bgVerts: number[],
-    glyphVerts: number[],
-    dims: {
-      canvasW: number;
-      canvasH: number;
-      cellW: number;
-      cellH: number;
-      baseline: number;
-    },
+    defaultFg: [number, number, number, number],
+    instances: number[],
+    cols: number,
   ): void {
-    const defaultFg = parseColor(this.theme.foreground, [0.9, 0.9, 0.9, 1]);
-    for (let x = 0; x < line.length; x += 1) {
+    for (let x = 0; x < line.length && x < cols; x += 1) {
       const cell = line[x];
-      if (!cell || cell.width === 0) continue; // skip wide-char follower
+      if (!cell || cell.width === 0) continue;
 
-      // Background quad — only emitted if cell carries an explicit
-      // non-default colour (r|g|b != 0). Default bg is the canvas
-      // clear colour, already painted in `clear()`.
-      let bgR = cell.bg_r,
-        bgG = cell.bg_g,
-        bgB = cell.bg_b;
       let fgR = cell.fg_r,
         fgG = cell.fg_g,
         fgB = cell.fg_b;
+      let bgR = cell.bg_r,
+        bgG = cell.bg_g,
+        bgB = cell.bg_b;
       if (cell.flags & FLAG_INVERSE) {
         const tr = bgR,
           tg = bgG,
@@ -584,296 +637,305 @@ export class GhosttyWebGLRenderer {
         fgG = tg;
         fgB = tb;
       }
-      const cellSpan = Math.max(1, cell.width);
-      if (bgR !== 0 || bgG !== 0 || bgB !== 0) {
-        this.pushCellBackground(
-          x,
-          displayRow,
-          cellSpan,
-          [bgR / 255, bgG / 255, bgB / 255, 1],
-          bgVerts,
-          dims,
-        );
+
+      const hasExplicitBg = bgR !== 0 || bgG !== 0 || bgB !== 0;
+      if (hasExplicitBg) {
+        const off = (displayRow * cols + x) * 4;
+        this.cellColorBuffer[off + 0] = bgR;
+        this.cellColorBuffer[off + 1] = bgG;
+        this.cellColorBuffer[off + 2] = bgB;
+        this.cellColorBuffer[off + 3] = 255;
+        if (cell.width === 2 && x + 1 < cols) {
+          const off2 = (displayRow * cols + x + 1) * 4;
+          this.cellColorBuffer[off2 + 0] = bgR;
+          this.cellColorBuffer[off2 + 1] = bgG;
+          this.cellColorBuffer[off2 + 2] = bgB;
+          this.cellColorBuffer[off2 + 3] = 255;
+        }
       }
 
       if (cell.flags & FLAG_INVISIBLE) continue;
+      if (cell.codepoint === 0 && cell.grapheme_len === 0) continue;
 
-      // Glyph: prefer the WASM's getGraphemeString (handles clusters,
-      // emoji, combining marks) when available, otherwise fall back to
-      // the raw codepoint.
       let text: string;
       if (cell.grapheme_len > 0 && wasmTerm.getGraphemeString) {
         text = wasmTerm.getGraphemeString(sourceRow, x);
-      } else if (cell.codepoint === 0) {
-        continue; // blank cell
       } else {
         text = String.fromCodePoint(cell.codepoint);
       }
-      if (!text || text === " ") continue;
-
-      const entry = this.atlas.getOrRasterize(text, cell.flags & 0b11);
-      if (!entry) continue;
-
-      let textFg: [number, number, number, number];
-      if (fgR === 0 && fgG === 0 && fgB === 0) {
-        textFg = defaultFg;
-      } else {
-        textFg = [fgR / 255, fgG / 255, fgB / 255, 1];
+      if (!text || text === " ") {
+        // Underline / strikethrough on a space still need rendering.
+        if (
+          cell.flags & (FLAG_UNDERLINE | FLAG_STRIKETHROUGH)
+        ) {
+          // fall through to emit line primitives below
+        } else {
+          continue;
+        }
       }
-      if (cell.flags & FLAG_FAINT) {
-        textFg = [textFg[0], textFg[1], textFg[2], textFg[3] * 0.5];
+
+      const entry = text && text !== " "
+        ? this.atlas.getOrRasterize(text, cell.flags & 0b11)
+        : null;
+
+      const fgRgba: [number, number, number, number] =
+        fgR === 0 && fgG === 0 && fgB === 0
+          ? defaultFg
+          : [fgR, fgG, fgB, 255];
+      const fgAlpha = cell.flags & FLAG_FAINT ? 128 : 255;
+      const color: [number, number, number, number] = [
+        fgRgba[0],
+        fgRgba[1],
+        fgRgba[2],
+        fgAlpha,
+      ];
+
+      if (entry) {
+        this.pushTextInstance(instances, {
+          atlasX: entry.atlasX,
+          atlasY: entry.atlasY,
+          glyphW: entry.width,
+          glyphH: entry.height,
+          bearingX: entry.bearingX,
+          bearingY: entry.bearingY,
+          col: x,
+          row: displayRow,
+          color,
+          flags: 0,
+        });
       }
-      this.pushGlyphQuad(x, displayRow, entry, textFg, glyphVerts, dims);
 
       if (cell.flags & FLAG_UNDERLINE) {
-        this.pushUnderline(x, displayRow, cellSpan, textFg, bgVerts, dims);
+        const m = this.atlas.getMetrics();
+        const thickness = Math.max(1, Math.floor(m.cellHeight * 0.06));
+        const yOffset = m.baseline + 2;
+        this.pushTextInstance(instances, {
+          atlasX: 0,
+          atlasY: 0,
+          glyphW: m.cellWidth * (cell.width === 2 ? 2 : 1),
+          glyphH: thickness,
+          bearingX: 0,
+          bearingY: m.cellHeight - yOffset,
+          col: x,
+          row: displayRow,
+          color,
+          flags: INST_FLAG_IS_UNDERLINE,
+        });
       }
       if (cell.flags & FLAG_STRIKETHROUGH) {
-        this.pushStrikethrough(x, displayRow, cellSpan, textFg, bgVerts, dims);
+        const m = this.atlas.getMetrics();
+        const thickness = Math.max(1, Math.floor(m.cellHeight * 0.06));
+        const yOffset = Math.floor(m.cellHeight / 2);
+        this.pushTextInstance(instances, {
+          atlasX: 0,
+          atlasY: 0,
+          glyphW: m.cellWidth * (cell.width === 2 ? 2 : 1),
+          glyphH: thickness,
+          bearingX: 0,
+          bearingY: m.cellHeight - yOffset,
+          col: x,
+          row: displayRow,
+          color,
+          flags: INST_FLAG_IS_STRIKETHROUGH,
+        });
       }
     }
   }
 
-  private emitSelection(
+  private overlaySelection(
     viewportY: number,
-    bgVerts: number[],
-    dims: {
-      canvasW: number;
-      canvasH: number;
-      cellW: number;
-      cellH: number;
-      baseline: number;
-    },
+    cols: number,
+    rows: number,
   ): void {
     const coords = this.selectionManager?.getSelectionCoords?.();
     if (!coords) return;
-    const color = parseColor(
+    const selColor = parseColor(
       this.theme.selectionBackground,
       [0.4, 0.6, 0.9, 0.3],
     );
+    const r = Math.round(selColor[0] * 255);
+    const g = Math.round(selColor[1] * 255);
+    const b = Math.round(selColor[2] * 255);
+    const a = Math.round(selColor[3] * 255);
+
     const { startRow, startCol, endRow, endCol } = coords;
     for (let y = startRow; y <= endRow; y += 1) {
       const displayRow = y - Math.floor(viewportY);
-      if (displayRow < 0 || displayRow >= this.rows) continue;
+      if (displayRow < 0 || displayRow >= rows) continue;
       const colA = y === startRow ? startCol : 0;
-      const colB = y === endRow ? endCol : this.cols;
-      if (colB <= colA) continue;
-      this.pushCellBackground(
-        colA,
-        displayRow,
-        colB - colA,
-        color,
-        bgVerts,
-        dims,
-      );
+      const colB = y === endRow ? endCol : cols;
+      for (let x = colA; x < colB; x += 1) {
+        const off = (displayRow * cols + x) * 4;
+        this.cellColorBuffer[off + 0] = r;
+        this.cellColorBuffer[off + 1] = g;
+        this.cellColorBuffer[off + 2] = b;
+        this.cellColorBuffer[off + 3] = a;
+      }
     }
   }
 
-  private emitCursor(
-    cursorX: number,
-    cursorY: number,
-    bgVerts: number[],
-    dims: {
-      canvasW: number;
-      canvasH: number;
-      cellW: number;
-      cellH: number;
-      baseline: number;
-    },
+  private emitCursorInstance(
+    col: number,
+    row: number,
+    cellW: number,
+    cellH: number,
+    instances: number[],
   ): void {
     const color = parseColor(this.theme.cursor, [0.9, 0.9, 0.9, 1]);
-    const pxLeft = cursorX * dims.cellW;
-    const pxTop = cursorY * dims.cellH;
+    const colorBytes: [number, number, number, number] = [
+      Math.round(color[0] * 255),
+      Math.round(color[1] * 255),
+      Math.round(color[2] * 255),
+      Math.round(color[3] * 255),
+    ];
+    let w = cellW,
+      h = cellH,
+      bx = 0,
+      by = cellH;
     switch (this.cursorStyle) {
       case "block":
-        this.pushPixelQuad(
-          pxLeft,
-          pxTop,
-          dims.cellW,
-          dims.cellH,
-          color,
-          bgVerts,
-          dims,
-        );
+        w = cellW;
+        h = cellH;
         break;
-      case "underline": {
-        const h = Math.max(2, Math.floor(dims.cellH * 0.15));
-        this.pushPixelQuad(
-          pxLeft,
-          pxTop + dims.cellH - h,
-          dims.cellW,
-          h,
-          color,
-          bgVerts,
-          dims,
-        );
+      case "underline":
+        h = Math.max(2, Math.floor(cellH * 0.15));
+        by = h;
         break;
-      }
       case "bar":
-      default: {
-        const w = Math.max(2, Math.floor(dims.cellW * 0.15));
-        this.pushPixelQuad(pxLeft, pxTop, w, dims.cellH, color, bgVerts, dims);
+      default:
+        w = Math.max(2, Math.floor(cellW * 0.15));
         break;
-      }
     }
+    this.pushTextInstance(instances, {
+      atlasX: 0,
+      atlasY: 0,
+      glyphW: w,
+      glyphH: h,
+      bearingX: bx,
+      bearingY: by,
+      col,
+      row,
+      color: colorBytes,
+      flags: INST_FLAG_IS_UNDERLINE, // reuse "no-atlas" flag path
+    });
   }
 
-  private pushCellBackground(
-    col: number,
-    row: number,
-    cells: number,
-    color: [number, number, number, number],
-    out: number[],
-    dims: { cellW: number; cellH: number; canvasW: number; canvasH: number },
-  ): void {
-    this.pushPixelQuad(
-      col * dims.cellW,
-      row * dims.cellH,
-      cells * dims.cellW,
-      dims.cellH,
-      color,
-      out,
-      dims,
-    );
-  }
-
-  private pushUnderline(
-    col: number,
-    row: number,
-    cells: number,
-    color: [number, number, number, number],
-    out: number[],
-    dims: {
-      cellW: number;
-      cellH: number;
-      baseline: number;
-      canvasW: number;
-      canvasH: number;
+  private pushTextInstance(
+    instances: number[],
+    inst: {
+      atlasX: number;
+      atlasY: number;
+      glyphW: number;
+      glyphH: number;
+      bearingX: number;
+      bearingY: number;
+      col: number;
+      row: number;
+      color: [number, number, number, number];
+      flags: number;
     },
   ): void {
-    const thickness = Math.max(1, Math.floor(dims.cellH * 0.06));
-    this.pushPixelQuad(
-      col * dims.cellW,
-      row * dims.cellH + dims.baseline + 2,
-      cells * dims.cellW,
-      thickness,
-      color,
-      out,
-      dims,
+    // We'll convert this to bytes in a single pass when we upload;
+    // here we just accumulate as (u32, i32, u8×4) tuples stored as
+    // numbers so we don't allocate intermediate typed arrays.
+    // Encoded inline: 10 u32-equivalents per instance = 40 bytes.
+    //   [glyph_x, glyph_y, glyph_w, glyph_h, bearing_x, bearing_y,
+    //    grid_x, grid_y, color_rgba_packed, flags]
+    const colorPacked =
+      (inst.color[0] & 0xff) |
+      ((inst.color[1] & 0xff) << 8) |
+      ((inst.color[2] & 0xff) << 16) |
+      ((inst.color[3] & 0xff) << 24);
+    instances.push(
+      inst.atlasX,
+      inst.atlasY,
+      inst.glyphW,
+      inst.glyphH,
+      inst.bearingX,
+      inst.bearingY,
+      inst.col,
+      inst.row,
+      colorPacked,
+      inst.flags,
     );
   }
 
-  private pushStrikethrough(
-    col: number,
-    row: number,
-    cells: number,
-    color: [number, number, number, number],
-    out: number[],
-    dims: { cellW: number; cellH: number; canvasW: number; canvasH: number },
+  private drawCellBackgrounds(
+    cellW: number,
+    cellH: number,
+    canvasW: number,
+    canvasH: number,
+    cols: number,
+    rows: number,
   ): void {
-    const thickness = Math.max(1, Math.floor(dims.cellH * 0.06));
-    this.pushPixelQuad(
-      col * dims.cellW,
-      row * dims.cellH + Math.floor(dims.cellH / 2),
-      cells * dims.cellW,
-      thickness,
-      color,
-      out,
-      dims,
-    );
-  }
-
-  private pushPixelQuad(
-    px: number,
-    py: number,
-    w: number,
-    h: number,
-    color: [number, number, number, number],
-    out: number[],
-    dims: { canvasW: number; canvasH: number },
-  ): void {
-    // Convert pixel coords → clip space. Y flips because WebGL's
-    // origin is bottom-left.
-    const x0 = (px / dims.canvasW) * 2 - 1;
-    const x1 = ((px + w) / dims.canvasW) * 2 - 1;
-    const y0 = 1 - (py / dims.canvasH) * 2;
-    const y1 = 1 - ((py + h) / dims.canvasH) * 2;
-    const [r, g, b, a] = color;
-    // Two triangles making a quad: (x0,y0)(x1,y0)(x0,y1) + (x1,y0)(x1,y1)(x0,y1)
-    out.push(x0, y0, r, g, b, a);
-    out.push(x1, y0, r, g, b, a);
-    out.push(x0, y1, r, g, b, a);
-    out.push(x1, y0, r, g, b, a);
-    out.push(x1, y1, r, g, b, a);
-    out.push(x0, y1, r, g, b, a);
-  }
-
-  private pushGlyphQuad(
-    col: number,
-    row: number,
-    entry: { atlasX: number; atlasY: number; width: number; height: number },
-    color: [number, number, number, number],
-    out: number[],
-    dims: { cellW: number; cellH: number; canvasW: number; canvasH: number },
-  ): void {
-    const pxLeft = col * dims.cellW + entry.atlasX * 0 + 0; // cell origin
-    const pxTop = row * dims.cellH;
-    const x0 = (pxLeft / dims.canvasW) * 2 - 1;
-    const x1 = ((pxLeft + entry.width) / dims.canvasW) * 2 - 1;
-    const y0 = 1 - (pxTop / dims.canvasH) * 2;
-    const y1 = 1 - ((pxTop + entry.height) / dims.canvasH) * 2;
-    const atlasSize = this.atlas.size;
-    const u0 = entry.atlasX / atlasSize;
-    const u1 = (entry.atlasX + entry.width) / atlasSize;
-    const v0 = entry.atlasY / atlasSize;
-    const v1 = (entry.atlasY + entry.height) / atlasSize;
-    const [r, g, b, a] = color;
-    out.push(x0, y0, u0, v0, r, g, b, a);
-    out.push(x1, y0, u1, v0, r, g, b, a);
-    out.push(x0, y1, u0, v1, r, g, b, a);
-    out.push(x1, y0, u1, v0, r, g, b, a);
-    out.push(x1, y1, u1, v1, r, g, b, a);
-    out.push(x0, y1, u0, v1, r, g, b, a);
-  }
-
-  private uploadAndDrawBackgrounds(verts: number[]): void {
     const gl = this.gl;
-    if (this.bgVerts.length < verts.length) {
-      this.bgVerts = new Float32Array(verts.length);
-    }
-    this.bgVerts.set(verts);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.bgBuffer);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      this.bgVerts,
-      gl.DYNAMIC_DRAW,
-      0,
-      verts.length,
-    );
     gl.useProgram(this.bgProgram);
-    gl.bindVertexArray(this.bgVao);
-    gl.drawArrays(gl.TRIANGLES, 0, verts.length / 6);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.cellColorTexture);
+    gl.uniform1i(this.uBgCellColors, 0);
+    gl.uniform2f(this.uBgCellSize, cellW, cellH);
+    gl.uniform2f(this.uBgScreenSize, canvasW, canvasH);
+    gl.uniform2i(this.uBgGridSize, cols, rows);
+
+    const bg = parseColor(this.theme.background, [0, 0, 0, 1]);
+    const lin = linearizeAndPremul(bg);
+    gl.uniform4f(this.uBgGlobalBg, lin[0], lin[1], lin[2], lin[3]);
+    // 4-vert triangle strip covering the whole clip space.
+    gl.bindVertexArray(null);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
-  private uploadAndDrawGlyphs(verts: number[]): void {
+  private drawTextInstances(
+    instances: number[],
+    cellW: number,
+    cellH: number,
+    canvasW: number,
+    canvasH: number,
+  ): void {
+    if (instances.length === 0) return;
     const gl = this.gl;
-    if (this.glyphVerts.length < verts.length) {
-      this.glyphVerts = new Float32Array(verts.length);
+
+    const instanceCount = instances.length / 10;
+    const byteSize = instanceCount * INSTANCE_BYTES;
+    if (this.instanceBuffer.byteLength < byteSize) {
+      this.instanceBuffer = new ArrayBuffer(byteSize);
+      this.instanceView = new DataView(this.instanceBuffer);
     }
-    this.glyphVerts.set(verts);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.glyphBuffer);
+    // Layout: for each instance, write
+    //  u32×2 (glyph_pos), u32×2 (glyph_size), i32×2 (bearings),
+    //  u32×2 (grid_pos), u8×4 (color), u32 (flags)
+    for (let i = 0; i < instanceCount; i += 1) {
+      const src = i * 10;
+      const dst = i * INSTANCE_BYTES;
+      this.instanceView.setUint32(dst + 0, instances[src + 0], true);
+      this.instanceView.setUint32(dst + 4, instances[src + 1], true);
+      this.instanceView.setUint32(dst + 8, instances[src + 2], true);
+      this.instanceView.setUint32(dst + 12, instances[src + 3], true);
+      this.instanceView.setInt32(dst + 16, instances[src + 4], true);
+      this.instanceView.setInt32(dst + 20, instances[src + 5], true);
+      this.instanceView.setUint32(dst + 24, instances[src + 6], true);
+      this.instanceView.setUint32(dst + 28, instances[src + 7], true);
+      this.instanceView.setUint32(dst + 32, instances[src + 8], true);
+      this.instanceView.setUint32(dst + 36, instances[src + 9], true);
+    }
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.textInstanceBuffer);
     gl.bufferData(
       gl.ARRAY_BUFFER,
-      this.glyphVerts,
+      new Uint8Array(this.instanceBuffer, 0, byteSize),
       gl.DYNAMIC_DRAW,
-      0,
-      verts.length,
     );
-    gl.useProgram(this.glyphProgram);
-    gl.bindVertexArray(this.glyphVao);
+
+    gl.useProgram(this.textProgram);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.atlas.texture);
-    gl.uniform1i(this.glyphAtlasUniform, 0);
-    gl.drawArrays(gl.TRIANGLES, 0, verts.length / 8);
+    gl.uniform1i(this.uTxAtlas, 0);
+    gl.uniform2f(this.uTxCellSize, cellW, cellH);
+    gl.uniform2f(this.uTxScreenSize, canvasW, canvasH);
+    gl.uniform2i(this.uTxAtlasSize, this.atlas.size, this.atlas.size);
+    gl.uniform1f(this.uTxCellHeight, cellH);
+
+    gl.bindVertexArray(this.textVao);
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, instanceCount);
   }
 }

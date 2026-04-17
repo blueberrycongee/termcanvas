@@ -1,66 +1,67 @@
 /**
- * On-demand glyph rasterizer + texture atlas for the WebGL terminal
- * renderer. Rasterizes each distinct (codepoint, bold, italic) triple
- * into a packed RGBA texture the first time the renderer encounters
- * it; subsequent uses are atlas lookups.
+ * Glyph atlas modelled after Ghostty's native atlas, adapted for the
+ * browser via `OffscreenCanvas` rasterization and a WebGL2 R8 texture.
  *
- * Design:
- *  - Single POT (power-of-two) texture, subregion-uploaded via
- *    `gl.texSubImage2D` as new glyphs arrive. Starting at 1024² — one
- *    row fits ~60 glyphs at 16px, plenty for ASCII + common CJK spill
- *    before resize. We grow to 2048² on overflow.
- *  - Shelf-packing: glyphs flow left-to-right on the current shelf,
- *    wrap to a new shelf when they don't fit. Worst-case density is
- *    modest but we're glyph-budgeted in practice, not byte-budgeted.
- *  - Cells are RGBA so we can bake either grayscale coverage (alpha
- *    channel only) or subpixel LCD triplets (R/G/B channels) without
- *    re-plumbing the shader. MVP uses grayscale (alpha) coverage;
- *    subpixel LCD is a later phase.
- *  - One rasterization "pool" per font face (family + size). Changing
- *    either triggers a full reset, because glyph metrics would be
- *    invalidated and the renderer recomputes cell-grid geometry from
- *    the atlas's new metrics anyway.
+ * Changes from the MVP:
+ *  - Stores each glyph at its *natural* bounding box, not at cell size.
+ *    Reduces wasted atlas space and lets the renderer position glyphs
+ *    using font bearings (ascenders reach above the baseline,
+ *    descenders below; wide glyphs span two cells; empty margins
+ *    aren't wasted). Matches Ghostty's `CellText` per-instance layout
+ *    (`glyph_pos`, `glyph_size`, `bearings`) so our vertex shader can
+ *    mirror `cell_text.v.glsl`.
+ *  - R8 (single-channel red) texture for grayscale coverage. Ghostty
+ *    uses the same layout for its grayscale atlas; means 4x less
+ *    texture memory and a simpler fragment shader.
+ *  - Tracks font metrics (cellWidth/Height from "MMMM" advance +
+ *    measured ascent/descent) so the renderer can lay out grid cells
+ *    without asking the atlas to pad glyphs.
+ *  - Cache keyed by `(text, bold, italic)`; font change invalidates
+ *    the whole cache because bearings are per-size.
  */
 
 const ATLAS_INITIAL_SIZE = 1024;
 const ATLAS_MAX_SIZE = 4096;
 const SHELF_PADDING = 1;
 
-export interface GlyphMetrics {
-  /** Distance from baseline to top of cell — matches CSS font metrics. */
+export interface FontMetrics {
+  /** Distance from baseline up to cap-height. Device pixels. */
   ascent: number;
-  /** Cell width (monospace advance), device pixels. */
+  /** Distance from baseline down to descender bottom. Device pixels. */
+  descent: number;
+  /** Monospace advance width. Device pixels. */
   cellWidth: number;
-  /** Cell height, device pixels. */
+  /** Full cell height = ceil(max(ascent+descent, fontPx×1.2)). */
   cellHeight: number;
-  /** Baseline offset inside the cell, from top, device pixels. */
+  /** Baseline offset inside cell, from cell top. Device pixels. */
   baseline: number;
 }
 
 export interface GlyphEntry {
-  /** Texel x (device pixels), top-left of glyph in atlas. */
+  /** Top-left position of glyph in the atlas, device pixels. */
   atlasX: number;
   atlasY: number;
-  /** Width / height of this glyph's atlas tile, device pixels. */
+  /** Glyph bbox dimensions in the atlas, device pixels. */
   width: number;
   height: number;
   /**
-   * Offset from the cell's top-left to the glyph's top-left, device
-   * pixels. Varies per glyph — descenders, accents, wide CJK; renderer
-   * adds this to the cell position when it builds the vertex quad.
+   * Bearings — distance from the cell origin (top-left) to the glyph's
+   * top-left. Matches Ghostty's convention: positive `bearingX` pushes
+   * right, positive `bearingY` is the glyph's top above the baseline.
+   * The renderer computes glyph screen position as:
+   *   glyph_top_left = cell_top_left + vec2(bearingX, cellHeight - bearingY)
    */
-  offsetX: number;
-  offsetY: number;
-  /** Advance in cells — 1 for ASCII, 2 for CJK/fullwidth. */
+  bearingX: number;
+  bearingY: number;
+  /** Advance in cells — 1 for narrow, 2 for wide (CJK/fullwidth). */
   advance: number;
+  /** Set when the glyph is a colour emoji (later phase). */
+  isColor: boolean;
 }
 
 type GlyphKey = string;
 
 function makeKey(text: string, flags: number): GlyphKey {
-  // Flags we actually distinguish at rasterization time: bold, italic.
-  // Other SGR bits (inverse, underline, strikethrough, faint) are
-  // applied in the shader / cell geometry, not baked into the glyph.
   return `${flags & 0b11}:${text}`;
 }
 
@@ -80,26 +81,27 @@ export class GlyphAtlas {
   private fontFamily = "monospace";
   private fontSize = 15;
   private devicePixelRatio = 1;
-  private metrics: GlyphMetrics;
+  private metricsCache: FontMetrics;
 
   constructor(gl: WebGL2RenderingContext) {
     this.gl = gl;
 
     const texture = gl.createTexture();
-    if (!texture) {
-      throw new Error("[webgl] failed to create atlas texture");
-    }
+    if (!texture) throw new Error("[webgl] atlas texture alloc failed");
     this.texture = texture;
 
     gl.bindTexture(gl.TEXTURE_2D, texture);
+    // R8: single-channel unsigned byte, perfect for grayscale coverage.
+    // Using LINEAR filtering so DPR fractional offsets blend cleanly;
+    // NEAREST would show seams at sub-pixel glyph quad positions.
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
-      gl.RGBA,
+      gl.R8,
       this.atlasSize,
       this.atlasSize,
       0,
-      gl.RGBA,
+      gl.RED,
       gl.UNSIGNED_BYTE,
       null,
     );
@@ -108,27 +110,24 @@ export class GlyphAtlas {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-    this.rasterCanvas = new OffscreenCanvas(256, 64);
+    // Rasterization scratchpad — sized up to ~2× expected glyph dims
+    // so we don't spend cycles reallocating on every large glyph.
+    this.rasterCanvas = new OffscreenCanvas(128, 64);
     const ctx = this.rasterCanvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) throw new Error("[webgl] no 2d context for glyph rasterizer");
     this.rasterCtx = ctx;
 
-    this.metrics = this.measureFont();
+    this.metricsCache = this.measureFont();
   }
 
   get size(): number {
     return this.atlasSize;
   }
 
-  getMetrics(): GlyphMetrics {
-    return this.metrics;
+  getMetrics(): FontMetrics {
+    return this.metricsCache;
   }
 
-  /**
-   * Set font params. Triggers a full atlas reset if anything changed,
-   * because cached glyphs were rasterized at the previous size and are
-   * no longer meaningful.
-   */
   setFont(family: string, sizeCssPx: number, dpr: number): void {
     if (
       family === this.fontFamily &&
@@ -140,8 +139,8 @@ export class GlyphAtlas {
     this.fontFamily = family;
     this.fontSize = sizeCssPx;
     this.devicePixelRatio = dpr;
+    this.metricsCache = this.measureFont();
     this.reset();
-    this.metrics = this.measureFont();
   }
 
   getOrRasterize(text: string, flags: number): GlyphEntry | null {
@@ -151,18 +150,14 @@ export class GlyphAtlas {
     return this.rasterize(text, flags, key);
   }
 
-  /** Drop every cached glyph and zero the texture. */
   reset(): void {
     this.cache.clear();
     this.shelfX = SHELF_PADDING;
     this.shelfY = SHELF_PADDING;
     this.shelfHeight = 0;
-
     const gl = this.gl;
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
-    // Zero-fill the current atlas. texImage2D with null does this on
-    // most implementations but not all — be explicit with a buffer.
-    const blank = new Uint8Array(this.atlasSize * this.atlasSize * 4);
+    const blank = new Uint8Array(this.atlasSize * this.atlasSize);
     gl.texSubImage2D(
       gl.TEXTURE_2D,
       0,
@@ -170,7 +165,7 @@ export class GlyphAtlas {
       0,
       this.atlasSize,
       this.atlasSize,
-      gl.RGBA,
+      gl.RED,
       gl.UNSIGNED_BYTE,
       blank,
     );
@@ -181,25 +176,32 @@ export class GlyphAtlas {
     this.cache.clear();
   }
 
-  private measureFont(): GlyphMetrics {
+  private measureFont(): FontMetrics {
     const dpr = this.devicePixelRatio;
     const pixelSize = this.fontSize * dpr;
     this.rasterCtx.font = `${pixelSize}px ${this.fontFamily}`;
     this.rasterCtx.textBaseline = "alphabetic";
-    const metrics = this.rasterCtx.measureText("MMMM");
-    const advance = metrics.width / 4;
-    const ascent = metrics.actualBoundingBoxAscent;
-    const descent = metrics.actualBoundingBoxDescent;
-    // Cell height: prefer font metrics-based height but clamp to a
-    // line-height multiple of the font size so capital letters and
-    // descenders both fit. CSS convention is ~1.2–1.4x font size.
+
+    // Monospace advance from 4-char average — more stable than
+    // measuring a single glyph, which varies across fonts.
+    const advanceMetrics = this.rasterCtx.measureText("MMMM");
+    const advance = advanceMetrics.width / 4;
+
+    // Ascent/descent from a glyph-full sample so we include
+    // descenders and accents.
+    const sample = this.rasterCtx.measureText("ygj|M");
+    const ascent = sample.actualBoundingBoxAscent;
+    const descent = sample.actualBoundingBoxDescent;
+
     const cellHeight = Math.ceil(Math.max(ascent + descent, pixelSize * 1.2));
-    // Baseline goes where the font ascent reaches; centre any extra
-    // leading so content sits mid-cell.
+    // Baseline centred in the extra leading so ascenders and descenders
+    // both clear the cell edges.
     const leading = cellHeight - (ascent + descent);
     const baseline = Math.floor(ascent + leading / 2);
+
     return {
       ascent,
+      descent,
       cellWidth: Math.ceil(advance),
       cellHeight,
       baseline,
@@ -223,42 +225,46 @@ export class GlyphAtlas {
     ctx.font = fontSpec;
     ctx.textBaseline = "alphabetic";
 
-    // Measure to find exact bounds. measureText is cheap; the advance
-    // tells us glyph width (for wide chars like 中, measures > cellWidth
-    // so we'll allocate two cells worth).
-    const metrics = ctx.measureText(text);
-    const advanceWidth = Math.max(1, Math.ceil(metrics.width));
-    const advance = advanceWidth > this.metrics.cellWidth * 1.3 ? 2 : 1;
-    const tileWidth = advance * this.metrics.cellWidth;
-    const tileHeight = this.metrics.cellHeight;
+    const rawMetrics = ctx.measureText(text);
+    const advanceWidth = Math.max(1, rawMetrics.width);
+    const advanceCells =
+      advanceWidth > this.metricsCache.cellWidth * 1.3 ? 2 : 1;
 
-    // Resize the raster canvas if necessary. Use a tile slightly
-    // larger than the atlas cell so descenders / accents don't clip
-    // at the edges; we'll copy out the full tile.
+    // Actual glyph bbox — may be smaller than the cell (narrow glyphs),
+    // extend above the cell (accents), or extend below (descenders).
+    // Use the bounding-box metrics so we capture the full ink rect,
+    // including the marks.
+    const glyphAscent = Math.ceil(rawMetrics.actualBoundingBoxAscent);
+    const glyphDescent = Math.ceil(rawMetrics.actualBoundingBoxDescent);
+    const glyphLeft = Math.ceil(rawMetrics.actualBoundingBoxLeft);
+    const glyphRight = Math.ceil(rawMetrics.actualBoundingBoxRight);
+
+    const glyphWidth = Math.max(1, glyphLeft + glyphRight);
+    const glyphHeight = Math.max(1, glyphAscent + glyphDescent);
+
+    // Rasterize into the offscreen canvas at glyphWidth × glyphHeight.
+    // Origin: we draw the glyph with fillText at (glyphLeft,
+    // glyphAscent) so (0, 0) of the raster canvas maps to
+    // (-glyphLeft, -glyphAscent) of the glyph's baseline origin.
+    const pad = 1;
+    const tileWidth = glyphWidth + pad * 2;
+    const tileHeight = glyphHeight + pad * 2;
+
     if (
       this.rasterCanvas.width < tileWidth ||
       this.rasterCanvas.height < tileHeight
     ) {
-      this.rasterCanvas.width = Math.max(
-        this.rasterCanvas.width,
-        tileWidth + 8,
-      );
-      this.rasterCanvas.height = Math.max(
-        this.rasterCanvas.height,
-        tileHeight + 8,
-      );
-      // Canvas resize zeros the font — reapply.
+      this.rasterCanvas.width = Math.max(this.rasterCanvas.width, tileWidth);
+      this.rasterCanvas.height = Math.max(this.rasterCanvas.height, tileHeight);
       ctx.font = fontSpec;
       ctx.textBaseline = "alphabetic";
     }
 
-    // Clear, paint white text on transparent bg. Colour is applied in
-    // the shader by multiplying the sampled alpha with the cell's fg.
     ctx.clearRect(0, 0, tileWidth, tileHeight);
     ctx.fillStyle = "#ffffff";
-    ctx.fillText(text, 0, this.metrics.baseline);
+    ctx.fillText(text, pad + glyphLeft, pad + glyphAscent);
 
-    // Find a spot on the atlas shelf.
+    // Allocate atlas spot.
     if (!this.ensureShelfSpace(tileWidth, tileHeight)) {
       return null;
     }
@@ -266,12 +272,23 @@ export class GlyphAtlas {
     const atlasY = this.shelfY;
     this.shelfX += tileWidth + SHELF_PADDING;
 
-    // Pull pixels out of the raster canvas and upload as subregion.
+    // Extract the alpha channel from the rasterized pixels into an R8
+    // upload. Canvas2D rasterizes to premultiplied RGBA; since we
+    // filled in white, every non-zero pixel's alpha equals its luma,
+    // so we can just pull alpha directly for coverage.
     const imageData = ctx.getImageData(0, 0, tileWidth, tileHeight);
+    const pixels = imageData.data;
+    const coverage = new Uint8Array(tileWidth * tileHeight);
+    for (let i = 0, o = 0; i < pixels.length; i += 4, o += 1) {
+      // Alpha is the pre-multiplied coverage for a white source.
+      coverage[o] = pixels[i + 3];
+    }
+
     const gl = this.gl;
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
     gl.texSubImage2D(
       gl.TEXTURE_2D,
       0,
@@ -279,26 +296,32 @@ export class GlyphAtlas {
       atlasY,
       tileWidth,
       tileHeight,
-      gl.RGBA,
+      gl.RED,
       gl.UNSIGNED_BYTE,
-      imageData.data,
+      coverage,
     );
 
+    // Bearings (Ghostty convention):
+    //  - bearingX is the horizontal offset from the cell's left edge to
+    //    the glyph's left edge. Same as glyphLeft (positive = ink
+    //    starts inside the cell).
+    //  - bearingY is the vertical offset from the baseline UP to the
+    //    glyph's top, i.e. the glyph's ascender height. Positive.
     const entry: GlyphEntry = {
-      atlasX,
-      atlasY,
-      width: tileWidth,
-      height: tileHeight,
-      offsetX: 0,
-      offsetY: 0,
-      advance,
+      atlasX: atlasX + pad,
+      atlasY: atlasY + pad,
+      width: glyphWidth,
+      height: glyphHeight,
+      bearingX: -glyphLeft,
+      bearingY: glyphAscent,
+      advance: advanceCells,
+      isColor: false,
     };
     this.cache.set(key, entry);
     return entry;
   }
 
   private ensureShelfSpace(tileWidth: number, tileHeight: number): boolean {
-    // Will this glyph fit on the current shelf?
     if (
       this.shelfX + tileWidth + SHELF_PADDING <= this.atlasSize &&
       this.shelfY + tileHeight + SHELF_PADDING <= this.atlasSize
@@ -306,7 +329,6 @@ export class GlyphAtlas {
       this.shelfHeight = Math.max(this.shelfHeight, tileHeight);
       return true;
     }
-    // Close the current shelf and start a new one below.
     this.shelfY += this.shelfHeight + SHELF_PADDING;
     this.shelfX = SHELF_PADDING;
     this.shelfHeight = 0;
@@ -314,14 +336,10 @@ export class GlyphAtlas {
       this.shelfHeight = tileHeight;
       return true;
     }
-    // Atlas full — try to grow.
     if (this.atlasSize < ATLAS_MAX_SIZE) {
       this.grow();
       return this.ensureShelfSpace(tileWidth, tileHeight);
     }
-    // At max size; evict everything and start over. Caller gets a
-    // fresh atlas but loses the cache — acceptable for an overflow
-    // event in the MVP; a LRU later would be nicer.
     this.reset();
     return this.ensureShelfSpace(tileWidth, tileHeight);
   }
@@ -333,16 +351,14 @@ export class GlyphAtlas {
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
-      gl.RGBA,
+      gl.R8,
       this.atlasSize,
       this.atlasSize,
       0,
-      gl.RGBA,
+      gl.RED,
       gl.UNSIGNED_BYTE,
       null,
     );
-    // Grown atlas is empty — the cache is stale (absolute coords) so
-    // drop it. Glyphs re-rasterize on next access.
     this.cache.clear();
     this.shelfX = SHELF_PADDING;
     this.shelfY = SHELF_PADDING;
