@@ -125,6 +125,7 @@ import {
 } from "./git-info";
 import { createMenu } from "./menu";
 import { isSelectAllShortcutInput } from "./select-all-shortcut";
+import { isReloadShortcutInput } from "./reload-shortcut";
 import { TelemetryService } from "./telemetry-service";
 import { HookReceiver } from "./hook-receiver";
 import {
@@ -276,6 +277,11 @@ function createWindow() {
   });
 
   mainWindow.webContents.on("before-input-event", (event, input) => {
+    if (!isDev && isReloadShortcutInput(input)) {
+      event.preventDefault();
+      return;
+    }
+
     if (!isSelectAllShortcutInput(input)) {
       return;
     }

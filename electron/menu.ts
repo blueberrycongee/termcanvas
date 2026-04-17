@@ -2,6 +2,7 @@ import { app, Menu, BrowserWindow, dialog } from "electron";
 
 export function createMenu(mainWindow: BrowserWindow) {
   const isMac = process.platform === "darwin";
+  const isDev = !!process.env.VITE_DEV_SERVER_URL;
 
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(isMac
@@ -60,10 +61,14 @@ export function createMenu(mainWindow: BrowserWindow) {
     {
       label: "View",
       submenu: [
-        { role: "reload" as const },
-        { role: "forceReload" as const },
-        { role: "toggleDevTools" as const },
-        { type: "separator" as const },
+        ...(isDev
+          ? [
+              { role: "reload" as const },
+              { role: "forceReload" as const },
+              { role: "toggleDevTools" as const },
+              { type: "separator" as const },
+            ]
+          : []),
         { role: "resetZoom" as const },
         { role: "zoomIn" as const },
         { role: "zoomOut" as const },
