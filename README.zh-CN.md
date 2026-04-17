@@ -118,7 +118,6 @@ Usage: termcanvas <project|terminal|telemetry|diff|state> <command> [args]
           [--prompt <text>] [--parent-terminal <id>] [--auto-approve]
   terminal list [--worktree <path>]            列出终端
   terminal status <id>                         获取终端状态
-  terminal input <id> <text>                   向终端发送文本输入
   terminal output <id> [--lines N]             读取终端输出（默认 50 行）
   terminal destroy <id>                        销毁终端
 

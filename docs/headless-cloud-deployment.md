@@ -97,11 +97,19 @@ Example flow:
 ```bash
 termcanvas project add /workspace/my-repo
 
-termcanvas workflow run \
-  --repo /workspace/my-repo \
-  --worktree /workspace/my-repo \
-  --all-type codex \
-  --task "Audit and fix the failing API path"
+# Create a Lead-driven workflow, then dispatch a node into it.
+# The `termcanvas workflow` HTTP CLI keeps the legacy `--node`
+# naming even though the underlying `hydra` binary now speaks
+# `--dispatch`; the ids refer to the same thing.
+termcanvas workflow init \
+  --intent "Audit and fix the failing API path" \
+  --repo /workspace/my-repo
+
+termcanvas workflow dispatch <workflow-id> \
+  --node dev \
+  --role dev \
+  --intent "Audit and fix the failing API path" \
+  --repo /workspace/my-repo
 
 termcanvas workflow list --repo /workspace/my-repo
 termcanvas workflow status <workflow-id> --repo /workspace/my-repo
