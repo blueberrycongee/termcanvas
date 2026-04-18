@@ -141,6 +141,7 @@ export function PetOverlay() {
   const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
   const rightPanelCollapsed = useCanvasStore((s) => s.rightPanelCollapsed);
+  const rightPanelWidth = useCanvasStore((s) => s.rightPanelWidth);
 
   const animFrameRef = useRef<number>(0);
   const lastFrameTimeRef = useRef(0);
@@ -517,7 +518,7 @@ export function PetOverlay() {
 
   // Transform pet world coordinates to screen coordinates
   const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
-  const rightInset = getCanvasRightInset(rightPanelCollapsed);
+  const rightInset = getCanvasRightInset(rightPanelCollapsed, rightPanelWidth);
   const svgWidth = Math.max(0, window.innerWidth - leftInset - rightInset);
   const svgHeight = window.innerHeight;
 

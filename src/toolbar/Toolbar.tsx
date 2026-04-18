@@ -45,6 +45,7 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
     setViewport,
     resetViewport,
     rightPanelCollapsed,
+    rightPanelWidth,
     leftPanelCollapsed,
     leftPanelWidth,
   } = useCanvasStore();
@@ -79,14 +80,14 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
     }
     const contentW = maxX - minX;
     const contentH = maxY - minY;
-    const rightOffset = getCanvasRightInset(rightPanelCollapsed);
+    const rightOffset = getCanvasRightInset(rightPanelCollapsed, rightPanelWidth);
     const viewW = window.innerWidth - rightOffset - padding * 2;
     const viewH = window.innerHeight - TOOLBAR_HEIGHT - padding * 2;
     const scale = Math.min(1, viewW / contentW, viewH / contentH);
     const x = -minX * scale + padding;
     const y = -minY * scale + padding + TOOLBAR_HEIGHT;
     setViewport({ x, y, scale });
-  }, [projects, rightPanelCollapsed, setViewport]);
+  }, [projects, rightPanelCollapsed, rightPanelWidth, setViewport]);
 
   const applyStepZoom = useCallback(
     (direction: "in" | "out") => {
@@ -95,6 +96,7 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
         leftPanelCollapsed,
         leftPanelWidth,
         rightPanelCollapsed,
+        rightPanelWidth,
         topInset: TOOLBAR_HEIGHT,
       });
 
@@ -113,6 +115,7 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
       leftPanelCollapsed,
       leftPanelWidth,
       rightPanelCollapsed,
+      rightPanelWidth,
       setViewport,
       viewport,
     ],
@@ -397,7 +400,7 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
                     getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth) +
                     (window.innerWidth -
                       getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth) -
-                      getCanvasRightInset(rightPanelCollapsed)) /
+                      getCanvasRightInset(rightPanelCollapsed, rightPanelWidth)) /
                       2;
                   const x = (-viewport.x + canvasCenterX) / scale - 400;
                   const y =

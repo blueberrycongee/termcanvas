@@ -210,6 +210,7 @@ export function DrawingLayer() {
   const leftPanelCollapsed = useCanvasStore((state) => state.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((state) => state.leftPanelWidth);
   const rightPanelCollapsed = useCanvasStore((state) => state.rightPanelCollapsed);
+  const rightPanelWidth = useCanvasStore((state) => state.rightPanelWidth);
   const projects = useProjectStore((state) => state.projects);
   const selectedItems = useSelectionStore((state) => state.selectedItems);
   const selectedAnnotationIds = useMemo(
@@ -418,7 +419,7 @@ export function DrawingLayer() {
 
   const isDrawing = tool !== "select";
   const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
-  const rightInset = getCanvasRightInset(rightPanelCollapsed);
+  const rightInset = getCanvasRightInset(rightPanelCollapsed, rightPanelWidth);
   const { width, height } = getDrawingLayerViewportSize(
     leftInset,
     rightInset,

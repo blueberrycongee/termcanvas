@@ -137,6 +137,7 @@ export function createTerminalInScene({
           canvasState.rightPanelCollapsed,
           canvasState.leftPanelCollapsed,
           canvasState.leftPanelWidth,
+          canvasState.rightPanelWidth,
         )
       : undefined;
   const placement = pickPlacement({

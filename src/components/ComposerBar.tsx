@@ -6,7 +6,7 @@ import {
 } from "../stores/projectStore";
 import { useComposerStore } from "../stores/composerStore";
 import { useNotificationStore } from "../stores/notificationStore";
-import { useCanvasStore, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
+import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { useTerminalRuntimeStateStore } from "../stores/terminalRuntimeStateStore";
 import { getComposerAdapter } from "../terminal/cliConfig";
 import { filterSlashCommands } from "../terminal/slashCommands";
@@ -127,7 +127,9 @@ export function ComposerBar() {
   const projects = useProjectStore((s) => s.projects);
   const terminalRuntimeStates = useTerminalRuntimeStateStore((s) => s.terminals);
   const composerLeft = 0;
-  const composerRight = useCanvasStore((s) => s.rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH);
+  const composerRight = useCanvasStore((s) =>
+    s.rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : s.rightPanelWidth,
+  );
   const isRenameMode = mode === "renameTerminalTitle";
 
   const supportedTerminals = useMemo(

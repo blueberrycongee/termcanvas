@@ -37,9 +37,13 @@ export function panToWorktree(projectId: string, worktreeId: string): void {
   const sizeW = maxX - minX;
   const sizeH = maxY - minY;
 
-  const { rightPanelCollapsed, leftPanelCollapsed, leftPanelWidth } =
-    useCanvasStore.getState();
-  const rightOffset = getCanvasRightInset(rightPanelCollapsed);
+  const {
+    rightPanelCollapsed,
+    rightPanelWidth,
+    leftPanelCollapsed,
+    leftPanelWidth,
+  } = useCanvasStore.getState();
+  const rightOffset = getCanvasRightInset(rightPanelCollapsed, rightPanelWidth);
   const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
   const padding = 60;
   const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;

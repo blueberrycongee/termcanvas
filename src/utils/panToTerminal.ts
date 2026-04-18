@@ -69,9 +69,14 @@ export function panToTerminal(
   const absH = terminal.height;
 
   const canvasState = useCanvasStore.getState();
-  const { rightPanelCollapsed, leftPanelCollapsed, leftPanelWidth, viewport } =
-    canvasState;
-  const rightOffset = getCanvasRightInset(rightPanelCollapsed);
+  const {
+    rightPanelCollapsed,
+    rightPanelWidth,
+    leftPanelCollapsed,
+    leftPanelWidth,
+    viewport,
+  } = canvasState;
+  const rightOffset = getCanvasRightInset(rightPanelCollapsed, rightPanelWidth);
   const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
   const padding = 40;
   const topInset = 56;

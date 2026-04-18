@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useMemo, useState } from "react";
+import { marked } from "marked";
 import { useSessionStore } from "../stores/sessionStore";
 import { useT } from "../i18n/useT";
 import type { TimelineEvent } from "../../shared/sessions";
@@ -8,6 +9,29 @@ import { createTerminalInScene } from "../actions/terminalSceneActions";
 import { createTerminal } from "../stores/projectStore";
 import { panToTerminal } from "../utils/panToTerminal";
 import type { TerminalType } from "../types";
+
+// Claude and Codex both emit markdown in their user-facing prose.
+// Rendering it as literal whitespace-preserved text turned headings,
+// code fences, bullet lists and inline code into wall-of-text noise.
+// `marked` is already a dependency (also used by LeftPanel's preview),
+// so we reuse it for the transcript. Synchronous parse keeps the
+// render path simple — no suspense boundaries, no loading flashes.
+const markdownClassName =
+  "prose prose-sm prose-invert max-w-none text-[13px] leading-relaxed text-[var(--text-primary)] " +
+  "[&_h1]:text-[15px] [&_h1]:font-semibold [&_h1]:mt-3 [&_h1]:mb-1.5 " +
+  "[&_h2]:text-[14px] [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 " +
+  "[&_h3]:text-[13px] [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 " +
+  "[&_p]:my-1.5 [&_ul]:pl-4 [&_ol]:pl-4 [&_li]:my-0.5 " +
+  "[&_a]:text-[var(--accent)] [&_a]:cursor-pointer " +
+  "[&_code]:text-[var(--amber)] [&_code]:bg-[var(--bg)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[11px] " +
+  "[&_pre]:bg-[var(--bg)] [&_pre]:rounded-md [&_pre]:p-2.5 [&_pre]:text-[11px] [&_pre]:overflow-x-auto " +
+  "[&_pre_code]:bg-transparent [&_pre_code]:p-0 " +
+  "[&_blockquote]:border-l-2 [&_blockquote]:border-[var(--border-hover)] [&_blockquote]:pl-3 [&_blockquote]:text-[var(--text-muted)] " +
+  "[&_hr]:border-[var(--border)]";
+
+function renderMarkdown(text: string): string {
+  return marked.parse(text, { async: false, breaks: true }) as string;
+}
 
 /*
  * Replay as a chat transcript.
@@ -359,9 +383,10 @@ function UserBubble({
             {formatTimestamp(event.timestamp)}
           </span>
         </div>
-        <div className="text-[13px] leading-relaxed text-[var(--text-primary)] whitespace-pre-wrap break-words">
-          {event.textPreview}
-        </div>
+        <div
+          className={markdownClassName}
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(event.textPreview) }}
+        />
       </div>
     </button>
   );
@@ -390,9 +415,10 @@ function AssistantTextRow({
             : "transparent",
         }}
       >
-        <div className="text-[13px] leading-relaxed text-[var(--text-primary)] whitespace-pre-wrap break-words">
-          {event.textPreview}
-        </div>
+        <div
+          className={markdownClassName}
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(event.textPreview) }}
+        />
       </div>
     </button>
   );

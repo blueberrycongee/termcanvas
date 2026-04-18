@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useT } from "../i18n/useT";
 import { useShortcutStore, formatShortcut } from "../stores/shortcutStore";
-import { useCanvasStore, RIGHT_PANEL_WIDTH, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
+import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { shouldIgnoreShortcutTarget } from "../hooks/shortcutTarget";
 
 const platform = window.termcanvas?.app.platform ?? "darwin";
@@ -11,6 +11,7 @@ export function ShortcutHints() {
   const t = useT();
   const shortcuts = useShortcutStore((s) => s.shortcuts);
   const rightPanelCollapsed = useCanvasStore((s) => s.rightPanelCollapsed);
+  const rightPanelWidth = useCanvasStore((s) => s.rightPanelWidth);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -49,7 +50,7 @@ export function ShortcutHints() {
     { key: shortcuts.clearFocus, desc: t.shortcut_clear_focus },
   ];
 
-  const rightOffset = (rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH) + 16;
+  const rightOffset = (rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : rightPanelWidth) + 16;
 
   return (
     <div

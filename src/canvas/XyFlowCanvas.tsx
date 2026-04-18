@@ -101,12 +101,14 @@ function TerminalRuntimeLayer({
   projects,
   viewport,
   rightPanelCollapsed,
+  rightPanelWidth,
   leftPanelCollapsed,
   leftPanelWidth,
 }: {
   projects: ReturnType<typeof useProjectStore.getState>["projects"];
   viewport: ReturnType<typeof useCanvasStore.getState>["viewport"];
   rightPanelCollapsed: boolean;
+  rightPanelWidth: number;
   leftPanelCollapsed: boolean;
   leftPanelWidth: number;
 }) {
@@ -216,6 +218,7 @@ function TerminalRuntimeLayer({
         rightPanelCollapsed,
         leftPanelCollapsed,
         leftPanelWidth,
+        rightPanelWidth,
       );
       setTerminalRuntimeMode(
         entry.terminal.id,
@@ -230,6 +233,7 @@ function TerminalRuntimeLayer({
     leftPanelWidth,
     projects,
     rightPanelCollapsed,
+    rightPanelWidth,
     terminalEntries,
     viewport,
   ]);
@@ -261,6 +265,7 @@ function XyFlowCanvasInner() {
     (state) => state.leftPanelCollapsed,
   );
   const leftPanelWidth = useCanvasStore((state) => state.leftPanelWidth);
+  const rightPanelWidth = useCanvasStore((state) => state.rightPanelWidth);
   const projects = useProjectStore((state) => state.projects);
   const drawingEnabled = usePreferencesStore((state) => state.drawingEnabled);
   const petEnabled = usePreferencesStore((state) => state.petEnabled);
@@ -526,6 +531,7 @@ function XyFlowCanvasInner() {
         projects={projects}
         viewport={viewport}
         rightPanelCollapsed={rightPanelCollapsed}
+        rightPanelWidth={rightPanelWidth}
         leftPanelCollapsed={leftPanelCollapsed}
         leftPanelWidth={leftPanelWidth}
       />

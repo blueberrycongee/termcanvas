@@ -10,7 +10,13 @@ export interface CanvasViewportAdapter {
   getViewport: () => Viewport;
 }
 
-export const RIGHT_PANEL_WIDTH = 240;
+// Default right-panel width when the user hasn't customised it.
+// Previously a hard-coded 240 px that was used directly everywhere. It
+// still exists as `RIGHT_PANEL_WIDTH` (aliased below) for a handful of
+// external/legacy imports, but UI code should read the dynamic
+// `rightPanelWidth` from the store so drag-resize works.
+export const DEFAULT_RIGHT_PANEL_WIDTH = 360;
+export const RIGHT_PANEL_WIDTH = DEFAULT_RIGHT_PANEL_WIDTH;
 export const COLLAPSED_TAB_WIDTH = 32;
 
 interface CanvasStore {
@@ -19,6 +25,7 @@ interface CanvasStore {
   focusLevel: FocusLevel;
   rightPanelCollapsed: boolean;
   rightPanelActiveTab: RightPanelTab;
+  rightPanelWidth: number;
   leftPanelCollapsed: boolean;
   leftPanelWidth: number;
   leftPanelActiveTab: LeftPanelTab;
@@ -33,6 +40,7 @@ interface CanvasStore {
   cycleFocusLevel: () => void;
   setRightPanelCollapsed: (collapsed: boolean) => void;
   setRightPanelActiveTab: (tab: RightPanelTab) => void;
+  setRightPanelWidth: (width: number) => void;
   setLeftPanelCollapsed: (collapsed: boolean) => void;
   setLeftPanelWidth: (width: number) => void;
   setLeftPanelActiveTab: (tab: LeftPanelTab) => void;
@@ -72,6 +80,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   focusLevel: "terminal" as FocusLevel,
   rightPanelCollapsed: true,
   rightPanelActiveTab: "sessions" as RightPanelTab,
+  rightPanelWidth: DEFAULT_RIGHT_PANEL_WIDTH,
   leftPanelCollapsed: true,
   leftPanelWidth: 280,
   leftPanelActiveTab: "files" as LeftPanelTab,
@@ -104,6 +113,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
   setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
   setRightPanelActiveTab: (tab) => set({ rightPanelActiveTab: tab }),
+  setRightPanelWidth: (width) => {
+    set({ rightPanelWidth: width });
+    markDirty();
+  },
   setLeftPanelCollapsed: (collapsed) => {
     set({ leftPanelCollapsed: collapsed });
     markDirty();

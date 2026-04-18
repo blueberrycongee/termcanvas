@@ -38,10 +38,14 @@ export const useTileDimensionsStore = create<TileDimensionsState>(() => ({
 }));
 
 export function recomputeTileDimensions() {
-  const { leftPanelCollapsed, leftPanelWidth, rightPanelCollapsed } =
-    useCanvasStore.getState();
+  const {
+    leftPanelCollapsed,
+    leftPanelWidth,
+    rightPanelCollapsed,
+    rightPanelWidth,
+  } = useCanvasStore.getState();
   const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
-  const rightOffset = getCanvasRightInset(rightPanelCollapsed);
+  const rightOffset = getCanvasRightInset(rightPanelCollapsed, rightPanelWidth);
   const dims = computeTileDimensions(
     window.innerWidth,
     window.innerHeight,
@@ -66,7 +70,8 @@ useCanvasStore.subscribe((state, prev) => {
   if (
     state.leftPanelCollapsed !== prev.leftPanelCollapsed ||
     state.leftPanelWidth !== prev.leftPanelWidth ||
-    state.rightPanelCollapsed !== prev.rightPanelCollapsed
+    state.rightPanelCollapsed !== prev.rightPanelCollapsed ||
+    state.rightPanelWidth !== prev.rightPanelWidth
   ) {
     recomputeTileDimensions();
   }

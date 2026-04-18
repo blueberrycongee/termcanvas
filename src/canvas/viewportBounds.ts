@@ -1,11 +1,11 @@
 import type { Viewport } from "../types";
-import {
-  COLLAPSED_TAB_WIDTH,
-  RIGHT_PANEL_WIDTH,
-} from "../stores/canvasStore";
+import { COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 
-export function getCanvasRightInset(rightPanelCollapsed: boolean) {
-  return rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH;
+export function getCanvasRightInset(
+  rightPanelCollapsed: boolean,
+  rightPanelWidth: number,
+) {
+  return rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : rightPanelWidth;
 }
 
 export function getCanvasLeftInset(
@@ -66,9 +66,10 @@ export function getVisibleCanvasWorldRect(
   rightPanelCollapsed: boolean,
   leftPanelCollapsed: boolean,
   leftPanelWidth: number,
+  rightPanelWidth: number,
 ): { x: number; y: number; w: number; h: number } {
   const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
-  const rightInset = getCanvasRightInset(rightPanelCollapsed);
+  const rightInset = getCanvasRightInset(rightPanelCollapsed, rightPanelWidth);
   const screenW = Math.max(
     0,
     window.innerWidth - leftInset - rightInset,
@@ -90,6 +91,7 @@ export function rectIntersectsCanvasViewport(
   rightPanelCollapsed: boolean,
   leftPanelCollapsed: boolean,
   leftPanelWidth: number,
+  rightPanelWidth: number,
   margin = 120,
 ) {
   const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
@@ -97,7 +99,9 @@ export function rectIntersectsCanvasViewport(
   const top = -viewport.y / viewport.scale - margin;
   const right =
     left +
-    (window.innerWidth - leftInset - getCanvasRightInset(rightPanelCollapsed)) /
+    (window.innerWidth -
+      leftInset -
+      getCanvasRightInset(rightPanelCollapsed, rightPanelWidth)) /
       viewport.scale +
     margin * 2;
   const bottom = top + window.innerHeight / viewport.scale + margin * 2;

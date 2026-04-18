@@ -4,7 +4,6 @@ import { MessageInput } from "./MessageInput";
 import type { BubbleMessage } from "./types";
 import {
   useCanvasStore,
-  RIGHT_PANEL_WIDTH,
   COLLAPSED_TAB_WIDTH,
 } from "../../stores/canvasStore";
 import { useAgentBubbleStore } from "../../stores/agentBubbleStore";
@@ -73,7 +72,8 @@ const edgeCursors: Record<string, string> = {
 export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const rightPanelCollapsed = useCanvasStore((s) => s.rightPanelCollapsed);
-  const minRight = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH;
+  const rightPanelWidth = useCanvasStore((s) => s.rightPanelWidth);
+  const minRight = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : rightPanelWidth;
 
   const sessions = useAgentBubbleStore((s) => s.sessions);
   const activeSessionId = useAgentBubbleStore((s) => s.activeSessionId);
@@ -93,7 +93,7 @@ export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProp
 
   const [size, setSize] = useState({ w: INITIAL_WIDTH, h: INITIAL_HEIGHT });
   const [pos, setPos] = useState(() =>
-    clampPos(128, 16, INITIAL_WIDTH, INITIAL_HEIGHT, rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : RIGHT_PANEL_WIDTH),
+    clampPos(128, 16, INITIAL_WIDTH, INITIAL_HEIGHT, rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : rightPanelWidth),
   );
 
   // ESC to collapse — only when focus is inside the panel

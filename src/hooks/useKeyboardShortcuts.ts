@@ -142,8 +142,12 @@ export function navigateToTerminalWithViewport(
 
 function zoomToFitAll() {
   const { projects } = useProjectStore.getState();
-  const { rightPanelCollapsed, leftPanelCollapsed, leftPanelWidth } =
-    useCanvasStore.getState();
+  const {
+    rightPanelCollapsed,
+    rightPanelWidth,
+    leftPanelCollapsed,
+    leftPanelWidth,
+  } = useCanvasStore.getState();
   if (projects.length === 0) return;
   const padding = 80;
   const toolbarH = 44;
@@ -164,7 +168,7 @@ function zoomToFitAll() {
   }
   const contentW = maxX - minX;
   const contentH = maxY - minY;
-  const rightOffset = getCanvasRightInset(rightPanelCollapsed);
+  const rightOffset = getCanvasRightInset(rightPanelCollapsed, rightPanelWidth);
   const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
   const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
   const viewH = window.innerHeight - toolbarH - padding * 2;
@@ -222,8 +226,9 @@ async function handleAddProject(t: ReturnType<typeof useT>) {
   const {
     viewport: { scale },
     rightPanelCollapsed,
+    rightPanelWidth,
   } = useCanvasStore.getState();
-  const rightOffset = getCanvasRightInset(rightPanelCollapsed);
+  const rightOffset = getCanvasRightInset(rightPanelCollapsed, rightPanelWidth);
   const screenCenterX = (window.innerWidth - rightOffset) / 2;
   const screenCenterY = window.innerHeight / 2;
   const targetX =

@@ -8,7 +8,6 @@ import {
 } from "../stores/projectStore";
 import {
   useCanvasStore,
-  RIGHT_PANEL_WIDTH,
   COLLAPSED_TAB_WIDTH,
 } from "../stores/canvasStore";
 import { panToTerminal } from "../utils/panToTerminal";
@@ -161,6 +160,7 @@ export function FamilyTreeOverlay() {
   const projects = useProjectStore((s) => s.projects);
   const viewport = useCanvasStore((s) => s.viewport);
   const rightPanelCollapsed = useCanvasStore((s) => s.rightPanelCollapsed);
+  const rightPanelWidth = useCanvasStore((s) => s.rightPanelWidth);
   const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -233,7 +233,7 @@ export function FamilyTreeOverlay() {
 
   const panelWidth = rightPanelCollapsed
     ? COLLAPSED_TAB_WIDTH
-    : RIGHT_PANEL_WIDTH;
+    : rightPanelWidth;
   const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
   const safeLeft = leftInset + OVERLAY_MARGIN;
   const safeTop = TOOLBAR_HEIGHT + OVERLAY_MARGIN;

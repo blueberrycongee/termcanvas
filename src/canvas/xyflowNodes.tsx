@@ -39,6 +39,7 @@ function TerminalNode({ data }: NodeProps<TerminalFlowNode>) {
     (state) => state.leftPanelCollapsed,
   );
   const leftPanelWidth = useCanvasStore((state) => state.leftPanelWidth);
+  const rightPanelWidth = useCanvasStore((state) => state.rightPanelWidth);
 
   const terminal = useProjectStore(
     useCallback(
@@ -81,6 +82,7 @@ function TerminalNode({ data }: NodeProps<TerminalFlowNode>) {
       rightPanelCollapsed,
       leftPanelCollapsed,
       leftPanelWidth,
+      rightPanelWidth,
     );
   }, [
     terminal,
@@ -88,6 +90,7 @@ function TerminalNode({ data }: NodeProps<TerminalFlowNode>) {
     rightPanelCollapsed,
     leftPanelCollapsed,
     leftPanelWidth,
+    rightPanelWidth,
   ]);
 
   const lodMode = useTerminalRuntimeStore(

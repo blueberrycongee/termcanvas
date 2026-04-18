@@ -87,15 +87,17 @@ export function getViewportCenterClientPoint({
   leftPanelCollapsed,
   leftPanelWidth,
   rightPanelCollapsed,
+  rightPanelWidth,
   topInset = 0,
 }: {
   leftPanelCollapsed: boolean;
   leftPanelWidth: number;
   rightPanelCollapsed: boolean;
+  rightPanelWidth: number;
   topInset?: number;
 }) {
   const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
-  const rightInset = getCanvasRightInset(rightPanelCollapsed);
+  const rightInset = getCanvasRightInset(rightPanelCollapsed, rightPanelWidth);
   const visibleWidth = window.innerWidth - leftInset - rightInset;
   const visibleHeight = window.innerHeight - topInset;
 

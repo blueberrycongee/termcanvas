@@ -30,6 +30,7 @@ export function ClusterToolbar() {
   const rightPanelCollapsed = useCanvasStore(
     (state) => state.rightPanelCollapsed,
   );
+  const rightPanelWidth = useCanvasStore((state) => state.rightPanelWidth);
 
   const handlePick = useCallback(
     (rule: ClusterRule) => {
@@ -61,7 +62,7 @@ export function ClusterToolbar() {
     };
   }, [open]);
 
-  const rightInset = getCanvasRightInset(rightPanelCollapsed) + 16;
+  const rightInset = getCanvasRightInset(rightPanelCollapsed, rightPanelWidth) + 16;
 
   return (
     <div
