@@ -262,7 +262,6 @@ export function TokenHeatmap({ animate, data, onVisible }: TokenHeatmapProps): R
 
       <div className="mt-2 flex gap-[3px]">
         <div className="flex flex-col gap-[3px] shrink-0 mr-0.5">
-          <div style={{ height: HEATMAP_LAYOUT.monthLabelRowHeight }} />
           {Array.from({ length: 7 }, (_, row) => (
             <div
               key={row}
@@ -276,6 +275,9 @@ export function TokenHeatmap({ animate, data, onVisible }: TokenHeatmapProps): R
               {LABEL_ROWS.includes(row) ? WEEKDAY_LABELS[row] : ""}
             </div>
           ))}
+          {/* Spacer to align the weekday column with the month
+              labels below the grid. */}
+          <div style={{ height: HEATMAP_LAYOUT.monthLabelRowHeight }} />
         </div>
 
         <div className="flex flex-col gap-[3px]">
@@ -286,31 +288,6 @@ export function TokenHeatmap({ animate, data, onVisible }: TokenHeatmapProps): R
             heatmap benefits from 80 px squares, it just looked
             broken. Natural width packs the ribbon tight.
           */}
-          <div
-            className="grid"
-            style={{
-              gridTemplateColumns: `repeat(${weeks}, ${HEATMAP_LAYOUT.cellSize}px)`,
-              height: HEATMAP_LAYOUT.monthLabelRowHeight,
-              gap: HEATMAP_LAYOUT.gridGap,
-              alignItems: "end",
-            }}
-          >
-            {monthLabels.map((m) => (
-              <span
-                key={`month-${m.column}`}
-                className="text-[8px] text-[var(--text-faint)]"
-                style={{
-                  gridColumn: m.column + 1,
-                  gridRow: 1,
-                  lineHeight: `${HEATMAP_LAYOUT.monthLabelLineHeight}px`,
-                  fontFamily: '"Geist Mono", monospace',
-                }}
-              >
-                {t.usage_cal_months_short[m.month]}
-              </span>
-            ))}
-          </div>
-
           <div
             className="grid"
             style={{
@@ -346,6 +323,41 @@ export function TokenHeatmap({ animate, data, onVisible }: TokenHeatmapProps): R
                 );
               }),
             )}
+          </div>
+
+          {/*
+            Month labels moved BELOW the grid so the heatmap's time
+            axis lands at the same spot every other chart puts its
+            time axis (under the data). Previously the labels sat
+            on top, which made them read as a title rather than an
+            axis and misaligned with MonthlyTrendChart's bottom
+            labels in the overlay. alignItems: start pins the text
+            right under the last cell row instead of centring it in
+            the row height.
+          */}
+          <div
+            className="grid"
+            style={{
+              gridTemplateColumns: `repeat(${weeks}, ${HEATMAP_LAYOUT.cellSize}px)`,
+              height: HEATMAP_LAYOUT.monthLabelRowHeight,
+              gap: HEATMAP_LAYOUT.gridGap,
+              alignItems: "start",
+            }}
+          >
+            {monthLabels.map((m) => (
+              <span
+                key={`month-${m.column}`}
+                className="text-[8px] text-[var(--text-faint)]"
+                style={{
+                  gridColumn: m.column + 1,
+                  gridRow: 1,
+                  lineHeight: `${HEATMAP_LAYOUT.monthLabelLineHeight}px`,
+                  fontFamily: '"Geist Mono", monospace',
+                }}
+              >
+                {t.usage_cal_months_short[m.month]}
+              </span>
+            ))}
           </div>
         </div>
       </div>
