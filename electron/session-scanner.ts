@@ -144,7 +144,14 @@ export class SessionScanner {
           }
 
           const isLive = now - stat.mtimeMs < LIVE_THRESHOLD_MS;
-          const sessionId = path.basename(filePath, ".jsonl");
+          // Codex's resume-able id is inside the JSONL; its filename
+          // stem (`rollout-<ts>-<uuid>`) isn't what `codex resume`
+          // accepts. Claude uses the filename directly.
+          const sessionId =
+            type === "codex"
+              ? this.readCodexSessionId(filePath) ??
+                path.basename(filePath, ".jsonl")
+              : path.basename(filePath, ".jsonl");
           const projectDir = this.resolveProjectDir(filePath, type, sessionId);
           const tail = this.readTail(filePath, stat.size);
           const parsed = this.parseTail(tail, type);
@@ -252,8 +259,15 @@ export class SessionScanner {
   async loadReplay(filePath: string): Promise<ReplayTimeline> {
     const content = await fsp.readFile(filePath, "utf-8");
     const lines = content.split("\n").filter(Boolean);
-    const sessionId = path.basename(filePath, ".jsonl");
     const type = this.detectSessionType(filePath, lines);
+    // For Codex, the real resume-able sessionId lives inside
+    // session_meta.payload.id — not the filename stem. Claude uses
+    // the filename as its ID so falling back is correct there.
+    const sessionId =
+      type === "codex"
+        ? this.readCodexSessionId(filePath, lines) ??
+          path.basename(filePath, ".jsonl")
+        : path.basename(filePath, ".jsonl");
     const projectDir = this.resolveProjectDir(filePath, type, sessionId, lines);
     const events: TimelineEvent[] = [];
     const editIndices: Array<{ index: number; filePath: string }> = [];
@@ -685,6 +699,34 @@ export class SessionScanner {
         const raw = JSON.parse(line) as Record<string, unknown>;
         if (typeof raw.cwd === "string" && raw.cwd) {
           return raw.cwd;
+        }
+      } catch {}
+    }
+    return null;
+  }
+
+  /**
+   * Codex stores its session ID in `session_meta.payload.id`. The
+   * file is named `rollout-<ts>-<uuid>.jsonl` — the stem is NOT a
+   * valid argument for `codex resume`. Prefer `payload.id`; callers
+   * can fall back to the filename stem when it's absent.
+   */
+  private readCodexSessionId(
+    filePath: string,
+    lines?: string[],
+  ): string | null {
+    const sourceLines = lines ?? this.readHeadLines(filePath, 20);
+    for (const line of sourceLines) {
+      if (!line.trim()) continue;
+      try {
+        const raw = JSON.parse(line) as Record<string, unknown>;
+        const payload = this.getObject(raw.payload);
+        if (
+          raw.type === "session_meta" &&
+          typeof payload?.id === "string" &&
+          payload.id
+        ) {
+          return payload.id;
         }
       } catch {}
     }

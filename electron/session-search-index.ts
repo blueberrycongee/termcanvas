@@ -102,9 +102,15 @@ function encodeProjectPathForClaude(projectDir: string): string {
 async function readFirstPromptAndMeta(
   filePath: string,
   provider: "claude" | "codex",
-): Promise<{ firstPrompt: string; codexCwd: string | null; claudeCwd: string | null }> {
+): Promise<{
+  firstPrompt: string;
+  codexCwd: string | null;
+  codexSessionId: string | null;
+  claudeCwd: string | null;
+}> {
   let firstPrompt = "";
   let codexCwd: string | null = null;
+  let codexSessionId: string | null = null;
   let claudeCwd: string | null = null;
   let linesRead = 0;
 
@@ -124,11 +130,20 @@ async function readFirstPromptAndMeta(
         continue;
       }
 
-      // Codex: session_meta carries cwd as the project dir.
-      if (provider === "codex" && codexCwd === null && raw.type === "session_meta") {
+      // Codex: session_meta carries both the cwd (project dir) and
+      // the real session id. The filename stem is `rollout-<ts>-<uuid>`
+      // but `codex resume <id>` expects `payload.id` from inside the
+      // file — mixing them up is why every Codex Resume used to
+      // print "[Session expired, starting fresh...]".
+      if (provider === "codex" && raw.type === "session_meta") {
         const payload = raw.payload as Record<string, unknown> | undefined;
-        if (payload && typeof payload.cwd === "string") {
-          codexCwd = payload.cwd;
+        if (payload) {
+          if (codexCwd === null && typeof payload.cwd === "string") {
+            codexCwd = payload.cwd;
+          }
+          if (codexSessionId === null && typeof payload.id === "string") {
+            codexSessionId = payload.id;
+          }
         }
       }
 
@@ -196,7 +211,7 @@ async function readFirstPromptAndMeta(
       if (
         firstPrompt &&
         ((provider === "claude" && claudeCwd !== null) ||
-          (provider === "codex" && codexCwd !== null))
+          (provider === "codex" && codexCwd !== null && codexSessionId !== null))
       ) {
         break;
       }
@@ -206,7 +221,7 @@ async function readFirstPromptAndMeta(
     stream.destroy();
   }
 
-  return { firstPrompt, codexCwd, claudeCwd };
+  return { firstPrompt, codexCwd, codexSessionId, claudeCwd };
 }
 
 function extractClaudeUserText(source: unknown): string {
@@ -284,10 +299,8 @@ async function buildEntry(
       return cached.entry;
     }
 
-    const { firstPrompt, codexCwd, claudeCwd } = await readFirstPromptAndMeta(
-      filePath,
-      provider,
-    );
+    const { firstPrompt, codexCwd, codexSessionId, claudeCwd } =
+      await readFirstPromptAndMeta(filePath, provider);
 
     // Prefer the cwd recorded inside the JSONL for both providers —
     // that's a real absolute path. Fall back to the dash-decoded
@@ -302,10 +315,19 @@ async function buildEntry(
             : "")
         : codexCwd ?? "";
 
+    // Codex session ID lives inside `session_meta.payload.id`, NOT
+    // the filename (which is `rollout-<ts>-<uuid>`). `codex resume`
+    // only accepts the real id. Claude's filename IS its sessionId
+    // so the fallback is correct there.
+    const resolvedSessionId =
+      provider === "codex" && codexSessionId
+        ? codexSessionId
+        : path.basename(filePath, ".jsonl");
+
     if (!projectDir) return null;
 
     const entry: SessionSearchEntry = {
-      sessionId: path.basename(filePath, ".jsonl"),
+      sessionId: resolvedSessionId,
       provider,
       projectDir,
       filePath,
