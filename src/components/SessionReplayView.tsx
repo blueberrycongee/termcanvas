@@ -114,6 +114,27 @@ function providerFromFilePath(filePath: string): TerminalType | null {
 }
 
 /**
+ * CLI command the user can run to resume the session from their own
+ * terminal (i.e. outside the in-app Resume button). Two providers need
+ * two different flag conventions:
+ *
+ *   claude  →  `claude --resume <id>`
+ *   codex   →  `codex resume <id>`
+ *
+ * Returns `null` when the provider is unknown — we fall back to just
+ * surfacing the raw ID so the user can at least grep / paste it by
+ * hand.
+ */
+function buildResumeCommand(
+  provider: TerminalType | null,
+  sessionId: string,
+): string | null {
+  if (provider === "claude") return `claude --resume ${sessionId}`;
+  if (provider === "codex") return `codex resume ${sessionId}`;
+  return null;
+}
+
+/**
  * A single conversation turn. `userEvent` may be null for events
  * before the first user message (session headers, system setup).
  */
@@ -260,6 +281,11 @@ function TopicHeader({
   provider,
   age,
   messageCount,
+  sessionId,
+  resumeCommand,
+  onCopyResume,
+  copyCmdTooltip,
+  copyIdTooltip,
   resumeDisabled,
   resumeTooltip,
   resumeLabel,
@@ -272,6 +298,11 @@ function TopicHeader({
   provider: string;
   age: string;
   messageCount: number;
+  sessionId: string;
+  resumeCommand: string | null;
+  onCopyResume: () => void;
+  copyCmdTooltip: string;
+  copyIdTooltip: string;
   resumeDisabled: boolean;
   resumeTooltip: string;
   resumeLabel: string;
@@ -325,6 +356,55 @@ function TopicHeader({
             <span>·</span>
             <span>{messageCount} msgs</span>
           </div>
+          {/*
+            Shell command the user can paste into their own terminal if
+            they don't want to resume via the in-app button. Showing
+            the full command (not just an ID) answers the "ok great, I
+            see this — now how do I actually resume it?" question in
+            the most literal way possible. Click anywhere on the row to
+            copy; tooltip signals the interaction. Falls back to the
+            raw session id for unknown providers (wuu / future agents).
+          */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onCopyResume();
+            }}
+            className="mt-1.5 flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors hover:bg-[var(--surface-hover)] cursor-pointer"
+            style={{ fontFamily: '"Geist Mono", monospace' }}
+            title={resumeCommand ? copyCmdTooltip : copyIdTooltip}
+          >
+            <span className="shrink-0 text-[10px] text-[var(--text-faint)]">
+              {resumeCommand ? "$" : "id"}
+            </span>
+            <span className="flex-1 truncate text-[11px] text-[var(--text-secondary)]">
+              {resumeCommand ?? sessionId}
+            </span>
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 12 12"
+              fill="none"
+              className="shrink-0 text-[var(--text-muted)]"
+            >
+              <rect
+                x="3.5"
+                y="1.5"
+                width="6"
+                height="7.5"
+                rx="1"
+                stroke="currentColor"
+                strokeWidth="1.1"
+              />
+              <path
+                d="M2.5 3.5v6.5a1 1 0 001 1H8"
+                stroke="currentColor"
+                strokeWidth="1.1"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
         </div>
         <button
           className="mt-0.5 shrink-0 inline-flex h-6 items-center gap-1 rounded-md px-2 text-[10px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
@@ -864,10 +944,24 @@ export function SessionReplayView() {
 
   const topicEvent = timeline.events.find((e) => e.type === "user_prompt");
   const topic = topicEvent?.textPreview ?? "";
-  const provider = providerFromFilePath(timeline.filePath) ?? "agent";
+  const providerType = providerFromFilePath(timeline.filePath);
+  const provider = providerType ?? "agent";
   const age = formatRelativeAge(timeline.startedAt || timeline.endedAt || "");
   const progress =
     timeline.events.length > 1 ? currentIndex / (timeline.events.length - 1) : 0;
+  const resumeCommand = buildResumeCommand(providerType, timeline.sessionId);
+
+  const handleCopyResume = () => {
+    const text = resumeCommand ?? timeline.sessionId;
+    void navigator.clipboard.writeText(text).catch(() => {});
+    notify(
+      "info",
+      (resumeCommand
+        ? (t.session_replay_resume_cmd_copied as unknown as string)
+        : (t.session_replay_resume_id_copied as unknown as string)) ??
+        "Copied",
+    );
+  };
 
   const assignCurrentRef = (
     el: HTMLElement | null,
@@ -884,6 +978,17 @@ export function SessionReplayView() {
         provider={provider}
         age={age}
         messageCount={timeline.events.length}
+        sessionId={timeline.sessionId}
+        resumeCommand={resumeCommand}
+        onCopyResume={handleCopyResume}
+        copyCmdTooltip={
+          (t.session_replay_resume_cmd_tooltip as unknown as string) ??
+          "Click to copy resume command"
+        }
+        copyIdTooltip={
+          (t.session_replay_resume_id_tooltip as unknown as string) ??
+          "Click to copy session ID"
+        }
         resumeDisabled={!resumeTarget}
         resumeTooltip={
           resumeTarget
