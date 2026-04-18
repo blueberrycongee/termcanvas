@@ -165,6 +165,17 @@ export class ProjectScanner {
 
       return parseWorktreesOutput(output, dirPath);
     } catch {
+      // Git failed. Disambiguate two cases before falling back:
+      //   (a) dirPath no longer exists — project was deleted
+      //       externally (`rm -rf /path/to/project`). Return [] so
+      //       the 5-second worktree watcher / syncWorktrees prunes
+      //       the project from the store instead of inheriting a
+      //       ghost entry.
+      //   (b) dirPath exists but isn't a git repo — user added a
+      //       plain directory as a project. Keep the legacy
+      //       behaviour of surfacing the dir itself as a single
+      //       "main" worktree so the project stays usable.
+      if (!existsSync(dirPath)) return [];
       return [
         {
           path: dirPath,
@@ -184,6 +195,8 @@ export class ProjectScanner {
       ]);
       return parseWorktreesOutput(output, dirPath);
     } catch {
+      // See sync variant above for the two-case rationale.
+      if (!existsSync(dirPath)) return [];
       return [
         {
           path: dirPath,
