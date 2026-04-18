@@ -1,7 +1,13 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useMemo } from "react";
 import { useSessionStore } from "../stores/sessionStore";
 import { useT } from "../i18n/useT";
 import type { TimelineEvent } from "../../shared/sessions";
+import { useProjectStore } from "../stores/projectStore";
+import { useNotificationStore } from "../stores/notificationStore";
+import { createTerminalInScene } from "../actions/terminalSceneActions";
+import { createTerminal } from "../stores/projectStore";
+import { panToTerminal } from "../utils/panToTerminal";
+import type { TerminalType } from "../types";
 
 const EVENT_ICONS: Record<TimelineEvent["type"], string> = {
   user_prompt: "▶",
@@ -75,6 +81,20 @@ function TimelineRow({
 
 const SPEEDS = [1, 2, 4, 8];
 
+/**
+ * Infer the agent provider ("claude" | "codex" | …) from the path of
+ * the session's JSONL file. Claude stores sessions under
+ * `~/.claude/projects/**`; Codex under `~/.codex/sessions/**`. This
+ * path-based detection keeps ReplayTimeline provider-agnostic so the
+ * upstream scanner doesn't have to pipe one more field through.
+ */
+function providerFromFilePath(filePath: string): TerminalType | null {
+  const normalized = filePath.replace(/\\/g, "/");
+  if (normalized.includes("/.claude/")) return "claude";
+  if (normalized.includes("/.codex/")) return "codex";
+  return null;
+}
+
 export function SessionReplayView() {
   const timeline = useSessionStore((s) => s.replayTimeline);
   const replayError = useSessionStore((s) => s.replayError);
@@ -88,10 +108,77 @@ export function SessionReplayView() {
   const togglePlayback = useSessionStore((s) => s.togglePlayback);
   const stopPlayback = useSessionStore((s) => s.stopPlayback);
   const setSpeed = useSessionStore((s) => s.setSpeed);
+  const { notify } = useNotificationStore();
   const t = useT();
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const currentRef = useRef<HTMLDivElement>(null);
+
+  // Resolve the replay's project/worktree from the canvas state. Only
+  // worktrees with a path exactly matching the replay's `projectDir`
+  // can host a Resume — we don't want to invent a worktree on the
+  // user's behalf, and a close-but-not-exact match (e.g. the user
+  // moved the project) would silently resume in the wrong place.
+  //
+  // Guard against the project not being on the canvas at all; in that
+  // case the Resume button stays disabled with an explanatory tooltip
+  // rather than being hidden — less surprising than a UI element that
+  // only sometimes appears.
+  const resumeTarget = useMemo(() => {
+    if (!timeline) return null;
+    const provider = providerFromFilePath(timeline.filePath);
+    if (!provider) return null;
+    const projects = useProjectStore.getState().projects;
+    for (const project of projects) {
+      for (const worktree of project.worktrees) {
+        if (worktree.path === timeline.projectDir) {
+          return {
+            provider,
+            projectId: project.id,
+            worktreeId: worktree.id,
+            sessionId: timeline.sessionId,
+          };
+        }
+      }
+    }
+    return null;
+  }, [timeline]);
+
+  const handleResume = useCallback(() => {
+    if (!resumeTarget) return;
+    // Build a fresh terminal bound to this session. Runtime store
+    // picks `sessionId` up in `spawnPty` and routes it through each
+    // agent's `resumeArgs()` (`--resume <id>` for claude, `resume
+    // <id>` for codex, etc. — see src/terminal/cliConfig.ts).
+    const base = createTerminal(
+      resumeTarget.provider,
+      undefined,
+      undefined,
+      undefined,
+      "user",
+    );
+    base.sessionId = resumeTarget.sessionId;
+
+    const created = createTerminalInScene({
+      projectId: resumeTarget.projectId,
+      worktreeId: resumeTarget.worktreeId,
+      terminal: base,
+      origin: "user",
+    });
+
+    // Leave the replay immediately — the user's attention is on the
+    // live terminal they just resumed into. Pan the canvas so that
+    // terminal is centered & focused; also gives the user a clear
+    // signal that the click went somewhere.
+    exitReplay();
+    panToTerminal(created.id);
+
+    notify(
+      "info",
+      (t.session_replay_resume_toast as unknown as string) ??
+        `Resumed session in new ${resumeTarget.provider} terminal`,
+    );
+  }, [resumeTarget, exitReplay, notify, t]);
 
   useEffect(() => {
     currentRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -157,6 +244,7 @@ export function SessionReplayView() {
         <button
           className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
           onClick={exitReplay}
+          title={(t.sessions_load_error_back as unknown as string) ?? "Back"}
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path d="M8 1L3 6l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -170,6 +258,39 @@ export function SessionReplayView() {
             {timeline.events.length} {t.sessions_events} · {Math.round(timeline.totalTokens / 1000)}k {t.sessions_tokens}
           </div>
         </div>
+        {/*
+          Resume action. Small accent-coloured button with an inline
+          glyph + label — the primary affordance of the replay view
+          (read context → jump back into it), so it sits top-right
+          where the user looks after finishing reading the header.
+          Disabled state kicks in when the project isn't on the canvas
+          (we refuse to invent a worktree on the user's behalf). The
+          tooltip explains the disabled case so the button is still
+          discoverable.
+        */}
+        <button
+          className="shrink-0 inline-flex h-6 items-center gap-1 rounded-md px-2 text-[10px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          style={{
+            color: resumeTarget ? "var(--accent)" : "var(--text-muted)",
+            backgroundColor: resumeTarget
+              ? "color-mix(in srgb, var(--accent) 12%, transparent)"
+              : "transparent",
+          }}
+          onClick={handleResume}
+          disabled={!resumeTarget}
+          title={
+            resumeTarget
+              ? ((t.session_replay_resume_tooltip as unknown as string) ??
+                  `Resume in a new ${resumeTarget.provider} terminal (--resume ${resumeTarget.sessionId.slice(0, 8)})`)
+              : ((t.session_replay_resume_unavailable as unknown as string) ??
+                  "Add this project to the canvas to resume")
+          }
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+            <path d="M2 1l6 4-6 4V1z" fill="currentColor" />
+          </svg>
+          <span>{(t.session_replay_resume as unknown as string) ?? "Resume"}</span>
+        </button>
       </div>
 
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-1 py-1">
