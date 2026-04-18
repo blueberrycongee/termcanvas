@@ -900,6 +900,127 @@ test(
 );
 
 test(
+  "Session turn_complete from JSONL clears awaiting_input when Stop hook never arrives",
+  () => {
+    // Regression for the "session panel stuck red after Codex reply ends"
+    // bug. Scenario: PreToolUse fires → Codex-specific 20 s fallback
+    // timer flips turn_state to awaiting_input → Codex keeps reasoning
+    // and the turn wraps, but the Stop hook is absent (user declined
+    // exec approval; Codex moved on without emitting PostToolUse, then
+    // the Stop hook socket was racy / the hook pipeline dropped it).
+    // The only signal the turn is over is the session JSONL writing
+    // `turn_complete`. Previously that update was blocked by
+    // `preserveAwaitingInput`, leaving the tile red for up to 5 minutes
+    // until the stale-pending-hook safety net kicked in.
+    mock.timers.enable(["setTimeout"]);
+    try {
+      let nowMs = Date.parse("2026-04-17T00:00:00.000Z");
+      const service = new TelemetryService({
+        now: () => nowMs,
+        processPollIntervalMs: 0,
+      });
+      service.registerTerminal({
+        terminalId: "codex-2",
+        worktreePath: "/repo",
+        provider: "codex",
+      });
+      service.recordHookEvent("codex-2", {
+        hook_event_name: "SessionStart",
+        session_id: "codex-sess-2",
+      });
+      service.recordHookEvent("codex-2", {
+        hook_event_name: "PreToolUse",
+        session_id: "codex-sess-2",
+        tool_name: "Bash",
+      });
+
+      // Let the 20 s fallback fire so we're parked at awaiting_input
+      // with pendingPreToolUse still true.
+      mock.timers.tick(CODEX_PRE_TOOL_USE_AWAITING_INPUT_MS + 1);
+      nowMs += CODEX_PRE_TOOL_USE_AWAITING_INPUT_MS + 1;
+      assert.equal(
+        service.getTerminalSnapshot("codex-2")?.turn_state,
+        "awaiting_input",
+      );
+      assert.equal(service.getTerminalSnapshot("codex-2")?.pending_tool_use_at
+        ? true
+        : false, true);
+
+      // No Stop hook. Session JSONL instead reports the turn ended.
+      // This should win over the stale pending-hook state.
+      nowMs += 500;
+      service.recordSessionTelemetry("codex-2", [
+        {
+          at: new Date(nowMs).toISOString(),
+          event_type: "agent_message",
+          turn_state: "turn_complete",
+          meaningful_progress: true,
+        },
+      ]);
+
+      const snap = service.getTerminalSnapshot("codex-2");
+      assert.equal(snap?.turn_state, "turn_complete");
+      // Side effect: pending hook state is reconciled so subsequent
+      // renders don't mis-attribute the tile to any tool.
+      assert.equal(snap?.pending_tool_use_at, undefined);
+
+      service.dispose();
+    } finally {
+      mock.timers.reset();
+    }
+  },
+);
+
+test(
+  "SessionEnd releases awaiting_input if we were parked there",
+  () => {
+    // Secondary path for the stuck-red-badge bug: a Codex / Claude
+    // session can end without emitting Stop (SIGINT, process crash,
+    // user closes CLI). Before this fix, SessionEnd cleared the
+    // pending hook bookkeeping but left turn_state at awaiting_input
+    // — the session panel kept showing red for a dead terminal.
+    mock.timers.enable(["setTimeout"]);
+    try {
+      let nowMs = Date.parse("2026-04-17T01:00:00.000Z");
+      const service = new TelemetryService({
+        now: () => nowMs,
+        processPollIntervalMs: 0,
+      });
+      service.registerTerminal({
+        terminalId: "codex-3",
+        worktreePath: "/repo",
+        provider: "codex",
+      });
+      service.recordHookEvent("codex-3", {
+        hook_event_name: "SessionStart",
+        session_id: "codex-sess-3",
+      });
+      service.recordHookEvent("codex-3", {
+        hook_event_name: "PreToolUse",
+        session_id: "codex-sess-3",
+        tool_name: "Bash",
+      });
+      mock.timers.tick(CODEX_PRE_TOOL_USE_AWAITING_INPUT_MS + 1);
+      nowMs += CODEX_PRE_TOOL_USE_AWAITING_INPUT_MS + 1;
+      assert.equal(
+        service.getTerminalSnapshot("codex-3")?.turn_state,
+        "awaiting_input",
+      );
+
+      service.recordHookEvent("codex-3", { hook_event_name: "SessionEnd" });
+
+      const snap = service.getTerminalSnapshot("codex-3");
+      assert.equal(snap?.turn_state, "turn_aborted");
+      assert.equal(snap?.pending_tool_use_at, undefined);
+
+      service.dispose();
+    } finally {
+      mock.timers.reset();
+    }
+  },
+);
+
+test(
   "Codex with idle MCP daemon descendants does not get foreground_tool polluted",
   () => {
     // Regression: opening a Codex terminal configured with playwright-mcp

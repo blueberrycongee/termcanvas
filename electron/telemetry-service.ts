@@ -789,12 +789,23 @@ export class TelemetryService {
       state.snapshot.active_tool_calls = state.activeToolCalls.size;
 
       if (event.turn_state) {
-        // Preserve awaiting_input set by the 5s timer — JSONL events
-        // written before the permission dialog can arrive late via the
-        // session poller and would otherwise clobber the state.
+        // Preserve awaiting_input set by the PreToolUse fallback timer
+        // — late-arriving JSONL events written before the permission
+        // dialog showed up would otherwise clobber the state with a
+        // stale `in_turn` / `tool_running`.
+        //
+        // BUT: terminal turn states (`turn_complete` / `turn_aborted`)
+        // are always authoritative. If the session JSONL says the
+        // turn ended, any PreToolUse we had queued is moot — the hook
+        // pipeline may have missed a PostToolUse (Codex path: user
+        // declined exec approval, Codex kept reasoning, never fired
+        // PostToolUse; Stop hook racy or absent). Without this escape
+        // hatch the tile sits at red `awaiting_input` until the 5-
+        // minute `PRE_TOOL_USE_STALE_RESET_MS` safety net clears it.
         const preserveAwaitingInput =
           state.pendingPreToolUse &&
-          state.snapshot.turn_state === "awaiting_input";
+          state.snapshot.turn_state === "awaiting_input" &&
+          !isTerminalTurnState(event.turn_state);
         const preserveTerminalTurnState =
           isTerminalTurnState(state.snapshot.turn_state) &&
           isActiveTurnState(event.turn_state) &&
@@ -808,6 +819,20 @@ export class TelemetryService {
             Number.isFinite(eventAtMs)
           ) {
             state.lastTerminalTurnAtMs = eventAtMs;
+            // The turn is over per JSONL; anything the hook pipeline
+            // left half-open (pendingPreToolUse + its fallback timer,
+            // pending_tool_use_at) will never get reconciled by a
+            // hook because the turn won't emit more hooks. Clean up
+            // now so the next render matches the authoritative "turn
+            // ended" state.
+            if (state.pendingPreToolUse) {
+              state.pendingPreToolUse = false;
+              state.snapshot.pending_tool_use_at = undefined;
+              if (state.awaitingInputTimer) {
+                clearTimeout(state.awaitingInputTimer);
+                state.awaitingInputTimer = null;
+              }
+            }
           }
         }
       }
@@ -1290,11 +1315,25 @@ export class TelemetryService {
         break;
 
       case "SessionEnd":
+        if (state.awaitingInputTimer) {
+          clearTimeout(state.awaitingInputTimer);
+          state.awaitingInputTimer = null;
+        }
         state.pendingPreToolUse = false;
         state.snapshot.pending_tool_use_at = undefined;
         state.activeToolCalls.clear();
         state.snapshot.active_tool_calls = 0;
         state.snapshot.foreground_tool = undefined;
+        // If the session ends while we were still flagged
+        // `awaiting_input` (timer fired before a tool completed, then
+        // the session wrapped without Stop/PostToolUse), that signal
+        // is now stale — no user approval is reachable with the
+        // session gone. Drive the turn state to a terminal value so
+        // the session panel drops the red attention badge.
+        if (state.snapshot.turn_state === "awaiting_input") {
+          state.snapshot.turn_state = "turn_aborted";
+          state.lastTerminalTurnAtMs = this.now();
+        }
         this.appendEvent(state, at, "session", "hook_session_end", {
           reason: event.reason ?? null,
         });
