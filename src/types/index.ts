@@ -665,6 +665,23 @@ export interface TermCanvasAPI {
         fileSize: number;
       }>
     >;
+    listSessionsPage: (
+      projectDirs: string[],
+      options: { limit: number; offset?: number },
+    ) => Promise<{
+      entries: Array<{
+        sessionId: string;
+        provider: "claude" | "codex";
+        projectDir: string;
+        filePath: string;
+        firstPrompt: string;
+        startedAt: string;
+        lastActivityAt: string;
+        estimatedMessageCount: number;
+        fileSize: number;
+      }>;
+      total: number;
+    }>;
   };
   state: {
     load: () => Promise<PersistedCanvasState | null>;

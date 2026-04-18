@@ -393,6 +393,34 @@ contextBridge.exposeInMainWorld("termcanvas", {
           fileSize: number;
         }>
       >,
+    /**
+     * Paginated variant — only parses the slice the caller is about
+     * to render, which is what the history browse UI wants. Cmd+K
+     * still uses `listSessions` because fuzzy matching needs every
+     * title at once.
+     */
+    listSessionsPage: (
+      projectDirs: string[],
+      options: { limit: number; offset?: number },
+    ) =>
+      ipcRenderer.invoke(
+        "search:sessions:list-page",
+        projectDirs,
+        options,
+      ) as Promise<{
+        entries: Array<{
+          sessionId: string;
+          provider: "claude" | "codex";
+          projectDir: string;
+          filePath: string;
+          firstPrompt: string;
+          startedAt: string;
+          lastActivityAt: string;
+          estimatedMessageCount: number;
+          fileSize: number;
+        }>;
+        total: number;
+      }>,
   },
   state: {
     load: () => ipcRenderer.invoke("state:load"),

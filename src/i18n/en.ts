@@ -508,6 +508,7 @@ export const en = {
   sessions_history_loading: "Loading past sessions…",
   sessions_history_empty: "No past sessions in this canvas yet.",
   sessions_history_more_hint: "older sessions — use Cmd+K to find specific ones",
+  sessions_history_load_more: "Load more",
   sessions_panel_title: "Projects",
   sessions_inspector: "Inspector",
   sessions_recent_trace: "Recent Trace",

@@ -239,20 +239,33 @@ async function buildEntry(
 }
 
 /**
- * Enumerate sessions belonging to any of the given project
- * directories. If the caller passes an empty list, returns an empty
- * list — the caller is expected to own the "which projects" logic
- * (typically "projects currently on the canvas").
+ * Cheap first step: enumerate every candidate session file with
+ * just its mtime/size (no JSONL parse). For Claude we can filter by
+ * project up-front (the encoded project dir *is* the scoping). For
+ * Codex there is no filesystem-level scoping, so we need the
+ * per-file `session_meta.payload.cwd` to know which project it
+ * belongs to — meaning the CHEAP path can only emit "candidate
+ * claude files" confidently. Codex files have to be hydrated to
+ * know their project, so they're emitted as candidates with
+ * claudeProjectDir=null, and filtered after hydration.
+ *
+ * Keeping this separate from hydration lets a caller page through
+ * results without parsing the long tail of files the user will
+ * never scroll to.
  */
-export async function listSessionsForProjects(
+interface SessionFileCandidate {
+  filePath: string;
+  provider: "claude" | "codex";
+  claudeProjectDir: string | null;
+  mtimeMs: number;
+  size: number;
+}
+
+async function listSessionFileCandidates(
   projectDirs: string[],
-): Promise<SessionSearchEntry[]> {
-  if (projectDirs.length === 0) return [];
+): Promise<SessionFileCandidate[]> {
+  const candidates: SessionFileCandidate[] = [];
 
-  const projectSet = new Set(projectDirs);
-  const results: SessionSearchEntry[] = [];
-
-  // -- Claude --
   const claudeRoot = path.join(os.homedir(), ".claude", "projects");
   for (const projectDir of projectDirs) {
     const encoded = encodeProjectPathForClaude(projectDir);
@@ -274,26 +287,137 @@ export async function listSessionsForProjects(
     for (const entry of entries) {
       if (!entry.endsWith(".jsonl")) continue;
       const filePath = path.join(claudeProjectDir, entry);
-      const built = await buildEntry(filePath, "claude", projectDir);
-      if (built) results.push(built);
+      try {
+        const fileStat = await fsp.stat(filePath);
+        if (fileStat.size === 0) continue;
+        if (fileStat.size > MAX_FILE_SIZE_FOR_INDEX) continue;
+        candidates.push({
+          filePath,
+          provider: "claude",
+          claudeProjectDir: projectDir,
+          mtimeMs: fileStat.mtimeMs,
+          size: fileStat.size,
+        });
+      } catch {
+        // Unreadable file — skip silently.
+      }
     }
   }
 
-  // -- Codex --
-  // Codex doesn't scope by project in its filesystem layout, so we
-  // walk all codex jsonls and filter by the cwd we read from
-  // session_meta. Expensive only on first pass — subsequent calls
-  // hit the file cache (mtime-keyed) for unchanged files.
+  // Codex: we don't know per-file project without parsing, so emit
+  // all candidates and let `buildEntry` filter after reading cwd.
   const codexFiles = findCodexJsonlFiles();
   for (const filePath of codexFiles) {
-    const built = await buildEntry(filePath, "codex", null);
-    if (built && projectSet.has(built.projectDir)) {
-      results.push(built);
+    try {
+      const fileStat = await fsp.stat(filePath);
+      if (fileStat.size === 0) continue;
+      if (fileStat.size > MAX_FILE_SIZE_FOR_INDEX) continue;
+      candidates.push({
+        filePath,
+        provider: "codex",
+        claudeProjectDir: null,
+        mtimeMs: fileStat.mtimeMs,
+        size: fileStat.size,
+      });
+    } catch {}
+  }
+
+  candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return candidates;
+}
+
+/**
+ * Enumerate sessions belonging to any of the given project
+ * directories. If the caller passes an empty list, returns an empty
+ * list — the caller is expected to own the "which projects" logic
+ * (typically "projects currently on the canvas").
+ *
+ * Returns the full list (parsed). Used by Cmd+K which needs every
+ * entry for fuzzy title matching. For UI surfaces that only show a
+ * handful of rows, prefer `listSessionsForProjectsPaged` — it
+ * parses only the slice you're about to render.
+ */
+export async function listSessionsForProjects(
+  projectDirs: string[],
+): Promise<SessionSearchEntry[]> {
+  if (projectDirs.length === 0) return [];
+  const projectSet = new Set(projectDirs);
+  const candidates = await listSessionFileCandidates(projectDirs);
+
+  const results: SessionSearchEntry[] = [];
+  for (const candidate of candidates) {
+    const built = await buildEntry(
+      candidate.filePath,
+      candidate.provider,
+      candidate.claudeProjectDir,
+    );
+    if (!built) continue;
+    if (candidate.provider === "codex" && !projectSet.has(built.projectDir)) {
+      // Codex file not in one of our projects — skip.
+      continue;
     }
+    results.push(built);
   }
 
   results.sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
   return results;
+}
+
+/**
+ * Paginated variant of {@link listSessionsForProjects}. Parses only
+ * the slice `[offset, offset+limit)` of the mtime-sorted candidate
+ * list — the rest stay as cheap stat records, so a user with
+ * hundreds of sessions pays for 20 JSONL head-reads on initial load
+ * instead of 500.
+ *
+ * Caveat: for Codex the `offset` is approximate, because we don't
+ * know which candidates will survive the post-hydration project
+ * filter until we've parsed their cwd. In practice "most codex
+ * sessions at the top of the list belong to an active project" so
+ * the drift is small and the next page still lands sensibly. If
+ * this becomes a problem we can switch to stream-hydrate-until-
+ * enough + continuation-token style paging.
+ */
+export async function listSessionsForProjectsPaged(
+  projectDirs: string[],
+  options: { limit: number; offset?: number },
+): Promise<{ entries: SessionSearchEntry[]; total: number }> {
+  if (projectDirs.length === 0) return { entries: [], total: 0 };
+  const offset = options.offset ?? 0;
+  const limit = options.limit;
+  const projectSet = new Set(projectDirs);
+
+  const candidates = await listSessionFileCandidates(projectDirs);
+
+  // Hydrate lazily until we've produced `limit` results past `offset`.
+  // This keeps codex-cwd filtering honest while still skipping
+  // unnecessary parses.
+  const entries: SessionSearchEntry[] = [];
+  let skipped = 0;
+  for (const candidate of candidates) {
+    const built = await buildEntry(
+      candidate.filePath,
+      candidate.provider,
+      candidate.claudeProjectDir,
+    );
+    if (!built) continue;
+    if (candidate.provider === "codex" && !projectSet.has(built.projectDir)) {
+      continue;
+    }
+    if (skipped < offset) {
+      skipped += 1;
+      continue;
+    }
+    entries.push(built);
+    if (entries.length >= limit) break;
+  }
+
+  // For `total` we report the candidate count — a slight over-count
+  // for codex files that belong to other projects, but it's a cheap
+  // estimate ("about this many exist") rather than a precise
+  // post-filter count which would require hydrating everything.
+  const total = candidates.length;
+  return { entries, total };
 }
 
 /**

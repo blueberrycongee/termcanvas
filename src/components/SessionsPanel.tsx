@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSessionStore } from "../stores/sessionStore";
 import { SessionReplayView } from "./SessionReplayView";
 import { useT } from "../i18n/useT";
@@ -38,7 +38,11 @@ interface HistorySessionEntry {
   fileSize: number;
 }
 
-const HISTORY_DISPLAY_LIMIT = 20;
+// Size of each lazy-loaded batch. Initial render shows one page; we
+// request the next page when the user scrolls past the 5th-from-last
+// row so there's no visible loading gap during steady scrolling.
+const HISTORY_PAGE_SIZE = 20;
+const HISTORY_PREFETCH_TRIGGER_ROWS = 5;
 
 const STATUS_COLORS: Record<CanvasTerminalState, string> = {
   attention: "#ef4444",
@@ -393,30 +397,37 @@ function HistorySection({
 }) {
   const [expanded, setExpanded] = useState(true);
   const [entries, setEntries] = useState<HistorySessionEntry[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  // Pull the list whenever the canvas project set changes. Mtime
-  // caching on the main process makes this cheap (sub-ms for warm
-  // entries); we don't debounce here because projectDirs only
-  // changes when the user adds/removes projects or worktrees, not
-  // on every store write.
+  const projectDirsKey = projectDirs.join("|");
+
+  // Initial page load whenever the canvas project set changes.
+  // Only request HISTORY_PAGE_SIZE rows — the heavy JSONL parse is
+  // now scoped to what's actually about to render, not the long
+  // tail (mtime-sorted so the rows that appear first ARE the ones
+  // most likely to matter).
   useEffect(() => {
-    if (!window.termcanvas?.search?.listSessions) return;
+    if (!window.termcanvas?.search?.listSessionsPage) return;
     if (projectDirs.length === 0) {
       setEntries([]);
+      setTotal(0);
       return;
     }
     let cancelled = false;
     setLoading(true);
     void window.termcanvas.search
-      .listSessions(projectDirs)
-      .then((rows) => {
+      .listSessionsPage(projectDirs, { limit: HISTORY_PAGE_SIZE, offset: 0 })
+      .then((page) => {
         if (cancelled) return;
-        setEntries(rows);
+        setEntries(page.entries);
+        setTotal(page.total);
       })
       .catch(() => {
         if (cancelled) return;
         setEntries([]);
+        setTotal(0);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -424,9 +435,67 @@ function HistorySection({
     return () => {
       cancelled = true;
     };
-  }, [projectDirs.join("|")]);
+  }, [projectDirsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const shownEntries = entries.slice(0, HISTORY_DISPLAY_LIMIT);
+  const loadMore = useCallback(() => {
+    if (!window.termcanvas?.search?.listSessionsPage) return;
+    if (loadingMore) return;
+    if (entries.length >= total) return;
+    setLoadingMore(true);
+    void window.termcanvas.search
+      .listSessionsPage(projectDirs, {
+        limit: HISTORY_PAGE_SIZE,
+        offset: entries.length,
+      })
+      .then((page) => {
+        // Dedupe in case the page boundary hit an mtime shift that
+        // re-exposed an already-loaded file. Keyed by sessionId.
+        setEntries((prev) => {
+          const seen = new Set(prev.map((e) => e.sessionId));
+          const merged = [...prev];
+          for (const e of page.entries) {
+            if (!seen.has(e.sessionId)) merged.push(e);
+          }
+          return merged;
+        });
+        setTotal(page.total);
+      })
+      .catch(() => {
+        // Silently swallow — the user can still click "Load more"
+        // again. A banner would be more noise than it's worth for a
+        // transient read failure.
+      })
+      .finally(() => setLoadingMore(false));
+  }, [projectDirs, entries.length, loadingMore, total]);
+
+  // Prefetch trigger: once the user scrolls such that the 5th-from-
+  // last row is in view, start fetching the next page. No explicit
+  // "Load more" click needed — the button below exists as a visible
+  // fallback and keyboard escape hatch, not as the primary action.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!expanded) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    if (entries.length === 0) return;
+    if (entries.length >= total) return;
+    const observer = new IntersectionObserver(
+      (records) => {
+        for (const record of records) {
+          if (record.isIntersecting) {
+            loadMore();
+            break;
+          }
+        }
+      },
+      { rootMargin: "64px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [expanded, entries.length, total, loadMore]);
+
+  const hasMore = entries.length < total;
+  const sentinelIndex = Math.max(0, entries.length - HISTORY_PREFETCH_TRIGGER_ROWS);
 
   return (
     <div className="border-t border-[var(--border)]">
@@ -451,10 +520,14 @@ function HistorySection({
           {(t.sessions_history_title as unknown as string) ?? "History"}
         </span>
         <span
-          className="ml-auto text-[10px] text-[var(--text-faint)]"
+          className="ml-auto text-[10px] text-[var(--text-faint)] tabular-nums"
           style={{ fontFamily: '"Geist Mono", monospace' }}
         >
-          {loading ? "…" : entries.length}
+          {loading && entries.length === 0
+            ? "…"
+            : total > entries.length
+              ? `${entries.length}/${total}`
+              : entries.length}
         </span>
       </button>
       {expanded && (
@@ -471,50 +544,59 @@ function HistorySection({
             </div>
           ) : (
             <div className="flex flex-col">
-              {shownEntries.map((entry) => (
-                <button
-                  key={entry.sessionId}
-                  className="group flex items-start gap-2 px-3 py-1.5 text-left hover:bg-[var(--sidebar-hover)]"
-                  onClick={() => onOpen(entry.filePath)}
-                  title={entry.firstPrompt}
-                >
-                  <span
-                    className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
-                    style={{
-                      backgroundColor:
-                        entry.provider === "claude" ? "#f59e0b" : "#10b981",
-                    }}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[11px] text-[var(--text-primary)]">
-                      {entry.firstPrompt ||
-                        `(session ${entry.sessionId.slice(0, 8)})`}
-                    </div>
-                    <div
-                      className="mt-0.5 flex items-center gap-1.5 text-[9px] text-[var(--text-faint)]"
-                      style={{ fontFamily: '"Geist Mono", monospace' }}
-                    >
-                      <span className="truncate">
-                        {historyProjectName(entry.projectDir)}
-                      </span>
-                      <span>·</span>
-                      <span>{entry.provider}</span>
-                      <span>·</span>
-                      <span className="tabular-nums">
-                        {formatHistoryAge(entry.lastActivityAt)}
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-              {entries.length > HISTORY_DISPLAY_LIMIT && (
+              {entries.map((entry, idx) => (
                 <div
-                  className="px-3 py-1.5 text-[9px] text-[var(--text-faint)]"
-                  style={{ fontFamily: '"Geist Mono", monospace' }}
+                  key={entry.sessionId}
+                  ref={idx === sentinelIndex ? sentinelRef : undefined}
                 >
-                  {(t.sessions_history_more_hint as unknown as string) ??
-                    `+${entries.length - HISTORY_DISPLAY_LIMIT} older — use Cmd+K to find specific sessions`}
+                  <button
+                    className="group flex w-full items-start gap-2 px-3 py-1.5 text-left hover:bg-[var(--sidebar-hover)]"
+                    onClick={() => onOpen(entry.filePath)}
+                    title={entry.firstPrompt}
+                  >
+                    <span
+                      className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{
+                        backgroundColor:
+                          entry.provider === "claude" ? "#f59e0b" : "#10b981",
+                      }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[11px] text-[var(--text-primary)]">
+                        {entry.firstPrompt ||
+                          `(session ${entry.sessionId.slice(0, 8)})`}
+                      </div>
+                      <div
+                        className="mt-0.5 flex items-center gap-1.5 text-[9px] text-[var(--text-faint)]"
+                        style={{ fontFamily: '"Geist Mono", monospace' }}
+                      >
+                        <span className="truncate">
+                          {historyProjectName(entry.projectDir)}
+                        </span>
+                        <span>·</span>
+                        <span>{entry.provider}</span>
+                        <span>·</span>
+                        <span className="tabular-nums">
+                          {formatHistoryAge(entry.lastActivityAt)}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
                 </div>
+              ))}
+              {hasMore && (
+                <button
+                  className="px-3 py-2 text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] text-left hover:bg-[var(--sidebar-hover)] cursor-pointer disabled:cursor-default"
+                  style={{ fontFamily: '"Geist Mono", monospace' }}
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                >
+                  {loadingMore
+                    ? ((t.sessions_history_loading as unknown as string) ??
+                        "Loading…")
+                    : ((t.sessions_history_load_more as unknown as string) ??
+                        `Load more (${total - entries.length} left)`)}
+                </button>
               )}
             </div>
           )}

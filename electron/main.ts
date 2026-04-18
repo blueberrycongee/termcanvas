@@ -81,6 +81,7 @@ import { getProjectDiff } from "./git-diff";
 import { searchFileContents, searchSessionContents } from "./search-handlers";
 import {
   listSessionsForProjects,
+  listSessionsForProjectsPaged,
   type SessionSearchEntry,
 } from "./session-search-index";
 import {
@@ -1029,6 +1030,24 @@ function setupIpc() {
         return await listSessionsForProjects(projectDirs ?? []);
       } catch {
         return [];
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "search:sessions:list-page",
+    async (
+      _event,
+      projectDirs: string[],
+      options: { limit: number; offset?: number },
+    ): Promise<{ entries: SessionSearchEntry[]; total: number }> => {
+      try {
+        return await listSessionsForProjectsPaged(
+          projectDirs ?? [],
+          options,
+        );
+      } catch {
+        return { entries: [], total: 0 };
       }
     },
   );

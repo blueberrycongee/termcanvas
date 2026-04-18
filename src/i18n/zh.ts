@@ -498,6 +498,7 @@ export const zh = {
   sessions_history_loading: "加载历史会话中…",
   sessions_history_empty: "画布下暂无历史会话",
   sessions_history_more_hint: "更早的会话 — 可用 Cmd+K 精确查找",
+  sessions_history_load_more: "加载更多",
   sessions_panel_title: "项目",
   sessions_inspector: "详情",
   sessions_recent_trace: "最近 Trace",
