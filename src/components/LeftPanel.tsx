@@ -144,18 +144,26 @@ export function LeftPanel() {
   if (collapsed) {
     return (
       <div
-        className="fixed left-0 z-40 bg-[var(--surface)] border-r border-[var(--border)] flex flex-col items-center pt-3 gap-1"
+        className="fixed left-0 z-40 bg-[var(--surface)] border-r border-[var(--border)] flex flex-col items-center pt-3 gap-1 cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors duration-150"
         style={{ top: 44, height: "calc(100vh - 44px)", width: COLLAPSED_TAB_WIDTH }}
+        onClick={() => setCollapsed(false)}
+        title={t.sessions_panel_title}
       >
         {/*
-          Collapsed-state "+" shortcut — keeps the core promise
-          (1-click add-project) honest even when the panel is
-          narrow.
+          The whole 32-px bar is the expand hit-area — clicking the
+          tiny chevron button alone was too fiddly, so hovering the
+          strip highlights it and any click (outside the "+" button)
+          expands. The "+" stays as an in-bar shortcut for 1-click
+          add-project; it stops propagation so clicking it doesn't
+          also expand the panel.
         */}
         <button
           className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-150 disabled:opacity-50"
           disabled={addingProject}
-          onClick={handleAddProject}
+          onClick={(e) => {
+            e.stopPropagation();
+            void handleAddProject();
+          }}
           title={t.shortcut_add_project}
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -167,13 +175,14 @@ export function LeftPanel() {
             />
           </svg>
         </button>
-        <div className="mt-auto mb-3">
-          <button
-            className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors duration-150"
-            onClick={() => setCollapsed(false)}
-            title={t.sessions_panel_title}
-          >
-            {/* Points RIGHT — expanding grows the left panel rightward. */}
+        <div className="mt-auto mb-3 pointer-events-none">
+          {/*
+            Visual affordance only — the chevron hints "click to
+            expand". pointer-events-none so clicks pass through to
+            the bar's onClick handler (no double-trigger needed).
+            Points RIGHT — expanding grows the left panel rightward.
+          */}
+          <div className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)]">
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
               <path
                 d="M3 2L7 5L3 8"
@@ -183,7 +192,7 @@ export function LeftPanel() {
                 strokeLinejoin="round"
               />
             </svg>
-          </button>
+          </div>
         </div>
       </div>
     );
