@@ -48,6 +48,19 @@ const REPLAY_TEXT_MAX_CHARS = 16_000;
  * no "first prompt" captured for the browse list).
  */
 export function stripSyntheticUserBlocks(text: string): string {
+  // Signature-based early-out for messages that are ENTIRELY the
+  // framework's first-turn injection. Codex's real-world format
+  // (seen in rollout-*.jsonl v0.121) is a `response_item` user
+  // message whose first input_text block starts with
+  //   "# AGENTS.md instructions for /path/to/project"
+  // …and contains nothing else the user typed. There's no wrapping
+  // tag to strip, so content-based cleanup can't help — we just
+  // recognise the signature and discard the whole block. Claude's
+  // equivalent uses CLAUDE.md; match both.
+  if (/^\s*#\s*(CLAUDE|AGENTS)\.md\s+instructions\s+for\s+/i.test(text)) {
+    return "";
+  }
+
   let out = text
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, "")
     .replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/gi, "")
@@ -57,11 +70,14 @@ export function stripSyntheticUserBlocks(text: string): string {
     .replace(/<command-args>[\s\S]*?<\/command-args>/gi, "")
     .replace(/<command-stdout>[\s\S]*?<\/command-stdout>/gi, "")
     .replace(/<command-type>[\s\S]*?<\/command-type>/gi, "")
-    // Codex wraps AGENTS.md / developer instructions in a family of
-    // XML-ish tags depending on version. These are the ones I've
-    // seen; widen if we find more. Non-greedy, multiline so the
-    // whole content gets snipped out whether it's on one line or
-    // many.
+    // Codex per-turn envelope tags. These can appear on their own
+    // or alongside the user's real text in the SAME message, so
+    // they're handled by substring removal (not "whole message is
+    // noise"). Non-greedy, multiline.
+    .replace(/<environment_context>[\s\S]*?<\/environment_context>/gi, "")
+    .replace(/<permissions[_ -]instructions>[\s\S]*?<\/permissions[_ -]instructions>/gi, "")
+    .replace(/<collaboration_mode>[\s\S]*?<\/collaboration_mode>/gi, "")
+    .replace(/<skills_instructions>[\s\S]*?<\/skills_instructions>/gi, "")
     .replace(/<user_instructions>[\s\S]*?<\/user_instructions>/gi, "")
     .replace(/<user-instructions>[\s\S]*?<\/user-instructions>/gi, "")
     .replace(/<agents_md>[\s\S]*?<\/agents_md>/gi, "")
@@ -71,13 +87,10 @@ export function stripSyntheticUserBlocks(text: string): string {
     .replace(/<project-context>[\s\S]*?<\/project-context>/gi, "")
     .trim();
 
-  // Fallback: some Codex versions inject a markdown-style heading
-  // followed by the file content (e.g. "# AGENTS.md\n..."). If the
-  // trimmed text *starts* with a CLAUDE.md / AGENTS.md reference and
-  // the first few hundred characters look like file-content prose
-  // rather than a question, drop up to the first blank-line boundary
-  // and use what's after. Conservative — we only skip when the
-  // opener unambiguously names the file.
+  // Fallback: a CLAUDE.md heading block without the "instructions
+  // for" suffix. Conservative — we only skip when the opener
+  // unambiguously names the file and there's a blank-line break
+  // before the rest.
   const headingRe = /^(#\s*)?(CLAUDE|AGENTS)\.md\b[\s\S]*?\n\s*\n/i;
   const stripped = out.replace(headingRe, "").trim();
   if (stripped.length > 0 && stripped !== out) out = stripped;
@@ -499,12 +512,15 @@ export class SessionScanner {
       }
     }
 
-    // Codex. Apply the same synthetic-block stripping as the Claude
-    // branch above — Codex wraps AGENTS.md injections in
-    // `<system-reminder>` tags on the first user turn just like
-    // Claude does with CLAUDE.md. Without this the replay topic
-    // would show the project instructions instead of the actual
-    // first question.
+    // Codex. Same synthetic-block stripping as the Claude branch
+    // above. Codex has a more awkward shape: `response_item`
+    // messages can carry MULTIPLE `input_text` blocks in one
+    // message — the first is usually the AGENTS.md injection, a
+    // second is `<environment_context>…</environment_context>`, and
+    // only if the user actually typed something does a third
+    // non-synthetic block appear. So we iterate the content array
+    // and return the first block that survives stripping, instead
+    // of grabbing block[0] and calling it the prompt.
     const payload = this.getObject(raw.payload);
     if (!payload) return "";
     if (
@@ -520,9 +536,28 @@ export class SessionScanner {
       payload.type === "message" &&
       payload.role === "user"
     ) {
-      const text = this.extractTextFromContent(payload.content);
-      const cleaned = stripSyntheticUserBlocks(text);
-      return cleaned ? cleaned.slice(0, REPLAY_TEXT_MAX_CHARS) : "";
+      const content = payload.content;
+      if (Array.isArray(content)) {
+        for (const block of content) {
+          if (!block || typeof block !== "object") continue;
+          const entry = block as Record<string, unknown>;
+          const text =
+            typeof entry.text === "string"
+              ? entry.text
+              : typeof entry.content === "string"
+                ? entry.content
+                : "";
+          if (!text) continue;
+          const cleaned = stripSyntheticUserBlocks(text);
+          if (cleaned) return cleaned.slice(0, REPLAY_TEXT_MAX_CHARS);
+        }
+        return "";
+      }
+      if (typeof content === "string") {
+        const cleaned = stripSyntheticUserBlocks(content);
+        return cleaned ? cleaned.slice(0, REPLAY_TEXT_MAX_CHARS) : "";
+      }
+      return "";
     }
     return "";
   }

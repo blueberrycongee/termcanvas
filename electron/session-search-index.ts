@@ -73,7 +73,7 @@ interface CacheEntry {
  * moved, so users see the fix without having to touch their
  * session files.
  */
-const FIRST_PROMPT_SCHEMA_VERSION = 3;
+const FIRST_PROMPT_SCHEMA_VERSION = 4;
 
 const fileCache = new Map<string, CacheEntry>();
 
@@ -155,28 +155,29 @@ async function readFirstPromptAndMeta(
       }
 
       // Codex: user_message payload OR response_item with role user.
-      // Same synthetic-block stripping — Codex injects AGENTS.md
-      // content via `<system-reminder>` wrappers on the first turn
-      // just like Claude does with CLAUDE.md.
+      // For `response_item` messages the `content` array can carry
+      // multiple `input_text` blocks — first is typically the
+      // AGENTS.md injection, second is `<environment_context>…`,
+      // and the real user prompt (if any) is only in a third block.
+      // Iterate rather than grabbing block[0], otherwise the
+      // AGENTS.md injection masks a real question typed in the same
+      // turn.
       if (provider === "codex" && !firstPrompt) {
         const payload = raw.payload as Record<string, unknown> | undefined;
-        let rawPrompt = "";
         if (
           raw.type === "event_msg" &&
           payload?.type === "user_message" &&
           typeof payload.message === "string"
         ) {
-          rawPrompt = payload.message;
+          const cleaned = stripSyntheticUserBlocks(payload.message);
+          if (cleaned) firstPrompt = cleaned.slice(0, FIRST_PROMPT_MAX_LENGTH);
         } else if (
           raw.type === "response_item" &&
           payload?.type === "message" &&
           payload.role === "user"
         ) {
-          rawPrompt = extractCodexContentText(payload.content);
-        }
-        if (rawPrompt) {
-          const cleaned = stripSyntheticUserBlocks(rawPrompt);
-          if (cleaned) firstPrompt = cleaned.slice(0, FIRST_PROMPT_MAX_LENGTH);
+          const candidate = pickRealCodexText(payload.content);
+          if (candidate) firstPrompt = candidate.slice(0, FIRST_PROMPT_MAX_LENGTH);
         }
       }
 
@@ -213,6 +214,36 @@ function extractCodexContentText(content: unknown): string {
     const entry = block as Record<string, unknown>;
     if (typeof entry.text === "string") return entry.text;
     if (typeof entry.content === "string") return entry.content;
+  }
+  return "";
+}
+
+/**
+ * Iterate every text-bearing block in a Codex message's `content`
+ * array, strip synthetic framework wrappers from each, and return
+ * the first one that still has real content. Needed because the
+ * AGENTS.md and <environment_context> injections live in dedicated
+ * `input_text` blocks alongside the user's real text — grabbing
+ * block[0] would always return the AGENTS.md text and mask the
+ * real question.
+ */
+function pickRealCodexText(content: unknown): string {
+  if (typeof content === "string") {
+    return stripSyntheticUserBlocks(content);
+  }
+  if (!Array.isArray(content)) return "";
+  for (const block of content) {
+    if (!block || typeof block !== "object") continue;
+    const entry = block as Record<string, unknown>;
+    const text =
+      typeof entry.text === "string"
+        ? entry.text
+        : typeof entry.content === "string"
+          ? entry.content
+          : "";
+    if (!text) continue;
+    const cleaned = stripSyntheticUserBlocks(text);
+    if (cleaned) return cleaned;
   }
   return "";
 }
