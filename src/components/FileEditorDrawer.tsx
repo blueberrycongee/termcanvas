@@ -29,6 +29,73 @@ const MonacoEditor = lazy(async () => {
     import("@monaco-editor/react"),
   ]);
   reactMod.loader.config({ monaco: monacoMod });
+
+  // Register app-tinted Monaco themes. vs-dark's #1e1e1e and vs's
+  // white don't match our palette (warm charcoal / warm cream) —
+  // inherit the tokenisation from the base themes and only override
+  // the structural colours (bg / gutter / selection / border). Keeps
+  // syntax highlighting intact, drops the mismatched chrome.
+  monacoMod.editor.defineTheme("termcanvas-dark", {
+    base: "vs-dark",
+    inherit: true,
+    rules: [],
+    colors: {
+      "editor.background": "#1a1918",
+      "editor.foreground": "#e4e2df",
+      "editorLineNumber.foreground": "#5a5754",
+      "editorLineNumber.activeForeground": "#918e89",
+      "editor.lineHighlightBackground": "#222120",
+      "editor.lineHighlightBorder": "#00000000",
+      "editorCursor.foreground": "#e4e2df",
+      "editor.selectionBackground": "#5b9ef540",
+      "editor.inactiveSelectionBackground": "#5b9ef525",
+      "editor.selectionHighlightBackground": "#5b9ef520",
+      "editor.wordHighlightBackground": "#5b9ef518",
+      "editor.findMatchBackground": "#d4a24e55",
+      "editor.findMatchHighlightBackground": "#d4a24e25",
+      "editorGutter.background": "#1a1918",
+      "editorWidget.background": "#222120",
+      "editorWidget.border": "#333231",
+      "editorIndentGuide.background": "#333231",
+      "editorIndentGuide.activeBackground": "#43423f",
+      "editorBracketMatch.background": "#5b9ef520",
+      "editorBracketMatch.border": "#5b9ef555",
+      "scrollbarSlider.background": "#43423f55",
+      "scrollbarSlider.hoverBackground": "#43423f90",
+      "scrollbarSlider.activeBackground": "#43423fcc",
+    },
+  });
+  monacoMod.editor.defineTheme("termcanvas-light", {
+    base: "vs",
+    inherit: true,
+    rules: [],
+    colors: {
+      "editor.background": "#eae8e4",
+      "editor.foreground": "#1c1917",
+      "editorLineNumber.foreground": "#a8a39b",
+      "editorLineNumber.activeForeground": "#57534e",
+      "editor.lineHighlightBackground": "#f3f2ef",
+      "editor.lineHighlightBorder": "#00000000",
+      "editorCursor.foreground": "#1c1917",
+      "editor.selectionBackground": "#2563eb30",
+      "editor.inactiveSelectionBackground": "#2563eb18",
+      "editor.selectionHighlightBackground": "#2563eb15",
+      "editor.wordHighlightBackground": "#2563eb12",
+      "editor.findMatchBackground": "#d9770655",
+      "editor.findMatchHighlightBackground": "#d9770625",
+      "editorGutter.background": "#eae8e4",
+      "editorWidget.background": "#f3f2ef",
+      "editorWidget.border": "#dbd8d3",
+      "editorIndentGuide.background": "#dbd8d3",
+      "editorIndentGuide.activeBackground": "#c9c5bf",
+      "editorBracketMatch.background": "#2563eb18",
+      "editorBracketMatch.border": "#2563eb55",
+      "scrollbarSlider.background": "#c9c5bf55",
+      "scrollbarSlider.hoverBackground": "#c9c5bf90",
+      "scrollbarSlider.activeBackground": "#c9c5bfcc",
+    },
+  });
+
   return { default: reactMod.default };
 });
 
@@ -365,7 +432,7 @@ export function FileEditorDrawer() {
               path={path}
               value={content}
               language={guessLanguage(path)}
-              theme={theme === "dark" ? "vs-dark" : "vs"}
+              theme={theme === "dark" ? "termcanvas-dark" : "termcanvas-light"}
               onChange={(v) => setContent(v ?? "")}
               onMount={(editor, monaco) => {
                 editorRef.current = editor;
