@@ -1398,20 +1398,33 @@ export function GitContent({
   }
 
   if (!isGitRepo) {
+    // Top-aligned, full-width block instead of a vertically-and-
+    // horizontally centred card. The centred version floated in the
+    // middle of the panel with a 260 px cap, which meant (a) at the
+    // LeftPanel minimum of 200 px the card's max-width exceeded the
+    // panel and the CTA button wrapped past the gutter, and (b) the
+    // content didn't align with any of the other sidebar sections
+    // (every other LeftPanel body pins content to the top-left).
+    // Matches the spacing convention of the empty "No commits yet"
+    // placeholder below — left-aligned, small mono copy, subtle
+    // action.
     return (
-      <div className="flex flex-1 items-center justify-center p-4">
-        <div className="w-full max-w-[260px]">
+      <div className="flex flex-1 flex-col overflow-y-auto">
+        <div className="px-3 py-3">
           <div
-            className="text-[13px] text-[var(--text-primary)]"
+            className="text-[12px] font-medium text-[var(--text-primary)]"
             style={MONO_STYLE}
           >
             {t.git_not_repository}
           </div>
-          <p className="mt-1 text-[11px] leading-5 text-[var(--text-muted)]">
+          <p
+            className="mt-1 text-[11px] leading-5 text-[var(--text-muted)]"
+            style={MONO_STYLE}
+          >
             {t.git_not_repository_hint}
           </p>
           <button
-            className="mt-3 inline-flex h-7 items-center rounded-md border px-3 text-[11px] text-[var(--text-primary)] transition-colors duration-150 hover:bg-[var(--surface-hover)] disabled:opacity-60"
+            className="mt-2 inline-flex h-7 items-center rounded-md border px-3 text-[11px] text-[var(--text-primary)] transition-colors duration-150 hover:bg-[var(--surface-hover)] disabled:opacity-60"
             style={{ ...MONO_STYLE, borderColor: "var(--border)" }}
             disabled={initializingRepo}
             onClick={async () => {
@@ -1760,7 +1773,17 @@ export function GitContent({
       <CollapsibleGroup
         title={t.git_history}
         count={commits.length}
-        defaultExpanded={totalChanges === 0}
+        // History defaults to expanded. The previous logic was
+        // `totalChanges === 0` — collapse history whenever there
+        // were uncommitted changes. The intent was "prioritize the
+        // changes view when there's work to do", but in practice
+        // most projects have at least one uncommitted file most of
+        // the time, so the panel almost never showed history without
+        // an extra click. The Changes panel above is already
+        // height-capped at 40%, so history has dedicated space
+        // either way; defaulting to expanded means a freshly-focused
+        // project shows recent commits without a click.
+        defaultExpanded
         className="flex-1 min-h-0 flex flex-col"
       >
         {commits.length === 0 ? (
