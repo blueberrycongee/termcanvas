@@ -1,9 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { useSearchStore, type SearchCategory, type SearchResult } from "../stores/searchStore";
 import { useT } from "../i18n/useT";
-import { collectSyncResults, collectAsyncResults } from "./SearchModal/searchProviders";
+import {
+  collectSyncResults,
+  collectSessionResults,
+  collectAsyncResults,
+} from "./SearchModal/searchProviders";
 import { executeResult } from "./SearchModal/resultNavigation";
+import { useProjectStore } from "../stores/projectStore";
 
 const MONO_STYLE = { fontFamily: '"Geist Mono", monospace' } as const;
 
@@ -48,8 +53,17 @@ function IconSearch({ size = 16 }: { size?: number }) {
 
 export function SearchModal() {
   const t = useT() as Record<string, unknown>;
-  const { open, query, results, selectedIndex, loading } = useSearchStore();
-  const { closeSearch, setQuery, setResults, setSelectedIndex, selectNext, selectPrev, setLoading } = useSearchStore();
+  const { open, query, results, selectedIndex, loading, scope } = useSearchStore();
+  const {
+    closeSearch,
+    setQuery,
+    setResults,
+    setSelectedIndex,
+    selectNext,
+    selectPrev,
+    setLoading,
+    toggleScope,
+  } = useSearchStore();
 
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -70,21 +84,77 @@ export function SearchModal() {
     }
   }, [open]);
 
-  // Sync search on query change
+  // Derive which project dirs the current scope covers. Recomputes
+  // on scope flip because the session provider re-runs from the
+  // effect below. "current" needs a focused terminal to make sense;
+  // if none is focused we quietly fall back to "all" instead of
+  // returning an empty list, which would hide all session results
+  // and confuse the user. Focus is modelled as a boolean on each
+  // terminal (not a top-level id), so we walk the tree to find it.
+  const projectDirs = useMemo(() => {
+    const { projects } = useProjectStore.getState();
+    const allDirs = projects.flatMap((p) =>
+      p.worktrees.map((w) => w.path),
+    );
+    if (scope === "all") return allDirs;
+    for (const p of projects) {
+      for (const w of p.worktrees) {
+        if (w.terminals.some((term) => term.focused)) {
+          return [w.path];
+        }
+      }
+    }
+    return allDirs;
+  }, [scope, open]);
+
+  const currentProjectLabel = useMemo(() => {
+    if (scope === "all") {
+      return (t.search_scope_all_label as string) ?? `All canvas (${projectDirs.length})`;
+    }
+    if (projectDirs.length === 1) {
+      const segments = projectDirs[0].split(/[\\/]/).filter(Boolean);
+      return segments[segments.length - 1] ?? projectDirs[0];
+    }
+    return (t.search_scope_all_label as string) ?? `All canvas (${projectDirs.length})`;
+  }, [scope, projectDirs, t]);
+
+  // Run search on query / scope change.
   useEffect(() => {
     if (!open) return;
+
+    // Tier 1 (sync, in-memory): actions / terminals / git. Instant.
     const syncResults = collectSyncResults(query, t);
     setResults(syncResults);
 
-    // Async search for longer queries
+    // Tier 1b (sessions): async IPC but still metadata-only (mtime-
+    // cached first-prompt index). Fires on every query change
+    // including empty query — when empty, the provider returns the
+    // most-recent N sessions so opening Cmd+K gives a useful
+    // starting list without forcing the user to type.
+    let cancelled = false;
+    const runSessions = async () => {
+      const sessionResults = await collectSessionResults(query, projectDirs);
+      if (cancelled) return;
+      const current = useSearchStore.getState().results;
+      const existingIds = new Set(current.map((r) => r.id));
+      const merged = [...current, ...sessionResults.filter((r) => !existingIds.has(r.id))];
+      setResults(merged);
+    };
+    void runSessions();
+
+    // Tier 2 (async IPC, grep): only when user typed something
+    // substantial. Debounced 300 ms after last keystroke. File
+    // search is scoped to the first project in the current scope;
+    // session content grep is global (the backend already handles
+    // its own scoping).
     if (asyncTimerRef.current) clearTimeout(asyncTimerRef.current);
     if (query.length >= 3) {
       setLoading(true);
       asyncTimerRef.current = setTimeout(async () => {
-        const asyncResults = await collectAsyncResults(query);
+        const asyncResults = await collectAsyncResults(query, projectDirs);
+        if (cancelled) return;
         if (asyncResults.length > 0) {
           const current = useSearchStore.getState().results;
-          // Merge: add async results that aren't already present
           const existingIds = new Set(current.map((r) => r.id));
           const newResults = asyncResults.filter((r) => !existingIds.has(r.id));
           if (newResults.length > 0) {
@@ -96,9 +166,10 @@ export function SearchModal() {
     }
 
     return () => {
+      cancelled = true;
       if (asyncTimerRef.current) clearTimeout(asyncTimerRef.current);
     };
-  }, [query, open]);
+  }, [query, open, scope, projectDirs]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -137,10 +208,15 @@ export function SearchModal() {
       }
       if (e.key === "Tab") {
         e.preventDefault();
+        // Tab flips scope between "this project" and "all canvas".
+        // Deliberately not Shift+Tab distinction — only two modes,
+        // one key is enough. The scope label in the footer reflects
+        // the current state; pressing Tab again flips back.
+        toggleScope();
         return;
       }
     },
-    [closeSearch, selectNext, selectPrev, results, selectedIndex],
+    [closeSearch, selectNext, selectPrev, results, selectedIndex, toggleScope],
   );
 
   // Group results by category
@@ -295,14 +371,74 @@ export function SearchModal() {
               </div>
             ))
           )}
-          {!query.trim() && (
+          {!query.trim() && results.length === 0 && !loading && (
             <div
               className="px-4 py-8 text-center text-[12px]"
               style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
             >
-              {(t.search_placeholder as string) ?? "Type to search..."}
+              {(t.search_empty_hint as string) ??
+                "Type to find a past session, a terminal, a branch, or an action."}
             </div>
           )}
+        </div>
+
+        {/* Footer: scope indicator + key hints.
+            One-line affordance that teaches Tab without a tutorial.
+            The scope badge is left-weighted so it reads as a filter
+            applied to the search above it; the keybind hints are
+            right-aligned and compact. Matches the footer convention
+            used by Linear / Superhuman / Raycast Cmd+K. */}
+        <div
+          className="flex items-center justify-between border-t px-3 py-2 text-[10px]"
+          style={{ ...MONO_STYLE, borderColor: "var(--border)", color: "var(--text-faint)" }}
+        >
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-flex h-5 items-center rounded-md border px-2 text-[10px]"
+              style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
+            >
+              <span
+                className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: scope === "current" ? "var(--accent)" : "var(--text-muted)" }}
+              />
+              {currentProjectLabel}
+            </span>
+            <span className="hidden sm:inline">
+              <kbd
+                className="rounded border px-1 py-0.5"
+                style={{ borderColor: "var(--border)" }}
+              >
+                Tab
+              </kbd>
+              <span className="ml-1">
+                {(t.search_footer_toggle_scope as string) ?? "toggle scope"}
+              </span>
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span>
+              <kbd
+                className="rounded border px-1 py-0.5"
+                style={{ borderColor: "var(--border)" }}
+              >
+                ↵
+              </kbd>
+              <span className="ml-1">
+                {(t.search_footer_open as string) ?? "open"}
+              </span>
+            </span>
+            <span>
+              <kbd
+                className="rounded border px-1 py-0.5"
+                style={{ borderColor: "var(--border)" }}
+              >
+                ↑↓
+              </kbd>
+              <span className="ml-1">
+                {(t.search_footer_navigate as string) ?? "navigate"}
+              </span>
+            </span>
+          </div>
         </div>
       </div>
     </div>

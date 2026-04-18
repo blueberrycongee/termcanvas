@@ -27,14 +27,28 @@ export interface SearchResult {
   data: SearchResultData;
 }
 
+/**
+ * Scope of the session lookup, togglable with Tab inside the palette.
+ *
+ * - "current": restrict to the project that owns the currently-focused
+ *   terminal tile. Matches the most common flow — "I remember asking
+ *   Claude about X in this project, find it". If no terminal is
+ *   focused, this falls back to "all" transparently (the palette's
+ *   scope controller handles that, not the store).
+ * - "all": every project currently on the canvas. Useful when you
+ *   can't remember which project the session belonged to.
+ */
+export type SearchScope = "current" | "all";
+
 interface SearchStore {
   open: boolean;
   query: string;
   results: SearchResult[];
   selectedIndex: number;
   loading: boolean;
+  scope: SearchScope;
 
-  openSearch: () => void;
+  openSearch: (scope?: SearchScope) => void;
   closeSearch: () => void;
   setQuery: (query: string) => void;
   setResults: (results: SearchResult[]) => void;
@@ -42,6 +56,8 @@ interface SearchStore {
   selectNext: () => void;
   selectPrev: () => void;
   setLoading: (loading: boolean) => void;
+  toggleScope: () => void;
+  setScope: (scope: SearchScope) => void;
 }
 
 export const useSearchStore = create<SearchStore>((set, get) => ({
@@ -50,8 +66,17 @@ export const useSearchStore = create<SearchStore>((set, get) => ({
   results: [],
   selectedIndex: 0,
   loading: false,
+  scope: "current",
 
-  openSearch: () => set({ open: true, query: "", results: [], selectedIndex: 0, loading: false }),
+  openSearch: (scope) =>
+    set({
+      open: true,
+      query: "",
+      results: [],
+      selectedIndex: 0,
+      loading: false,
+      scope: scope ?? get().scope,
+    }),
   closeSearch: () => set({ open: false }),
   setQuery: (query) => set({ query, selectedIndex: 0 }),
   setResults: (results) => {
@@ -70,4 +95,15 @@ export const useSearchStore = create<SearchStore>((set, get) => ({
     set({ selectedIndex: (selectedIndex - 1 + results.length) % results.length });
   },
   setLoading: (loading) => set({ loading }),
+  toggleScope: () =>
+    set((state) => ({
+      scope: state.scope === "current" ? "all" : "current",
+      // Scope change re-qualifies what's in `results`; clearing keeps
+      // the list in sync with the new scope. The provider re-runs on
+      // the next render tick via the palette's effect.
+      results: [],
+      selectedIndex: 0,
+    })),
+  setScope: (scope) =>
+    set({ scope, results: [], selectedIndex: 0 }),
 }));
