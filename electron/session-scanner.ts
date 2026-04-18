@@ -474,6 +474,12 @@ export class SessionScanner {
       }
     }
 
+    // Codex. Apply the same synthetic-block stripping as the Claude
+    // branch above — Codex wraps AGENTS.md injections in
+    // `<system-reminder>` tags on the first user turn just like
+    // Claude does with CLAUDE.md. Without this the replay topic
+    // would show the project instructions instead of the actual
+    // first question.
     const payload = this.getObject(raw.payload);
     if (!payload) return "";
     if (
@@ -481,14 +487,17 @@ export class SessionScanner {
       payload.type === "user_message" &&
       typeof payload.message === "string"
     ) {
-      return payload.message.slice(0, REPLAY_TEXT_MAX_CHARS);
+      const cleaned = stripSyntheticUserBlocks(payload.message);
+      return cleaned ? cleaned.slice(0, REPLAY_TEXT_MAX_CHARS) : "";
     }
     if (
       raw.type === "response_item" &&
       payload.type === "message" &&
       payload.role === "user"
     ) {
-      return this.extractTextFromContent(payload.content);
+      const text = this.extractTextFromContent(payload.content);
+      const cleaned = stripSyntheticUserBlocks(text);
+      return cleaned ? cleaned.slice(0, REPLAY_TEXT_MAX_CHARS) : "";
     }
     return "";
   }
