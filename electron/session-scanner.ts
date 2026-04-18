@@ -654,10 +654,41 @@ export class SessionScanner {
     lines?: string[],
   ): string {
     if (type === "claude") {
-      return path.basename(path.dirname(filePath));
+      // Claude records include a top-level `cwd` field on each line
+      // with the real absolute working directory. Read that — it's
+      // what downstream code (e.g. the Resume button's worktree
+      // lookup) needs to match against a canvas worktree.path.
+      // Fall back to the dash-decoded directory name if no record
+      // carries a cwd (corrupt/empty file): `-Users-foo-bar` →
+      // `/Users/foo/bar`. Lossy for projects with literal dashes in
+      // their paths but strictly better than returning the encoded
+      // form which would never match any real worktree.
+      const cwd = this.readClaudeProjectDir(filePath, lines);
+      if (cwd) return cwd;
+      const encoded = path.basename(path.dirname(filePath));
+      return encoded.startsWith("-")
+        ? `/${encoded.slice(1).replace(/-/g, "/")}`
+        : encoded.replace(/-/g, "/");
     }
 
     return this.readCodexProjectDir(filePath, lines) ?? sessionId;
+  }
+
+  private readClaudeProjectDir(
+    filePath: string,
+    lines?: string[],
+  ): string | null {
+    const sourceLines = lines ?? this.readHeadLines(filePath, 20);
+    for (const line of sourceLines) {
+      if (!line.trim()) continue;
+      try {
+        const raw = JSON.parse(line) as Record<string, unknown>;
+        if (typeof raw.cwd === "string" && raw.cwd) {
+          return raw.cwd;
+        }
+      } catch {}
+    }
+    return null;
   }
 
   private readCodexProjectDir(

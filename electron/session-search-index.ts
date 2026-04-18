@@ -102,9 +102,10 @@ function encodeProjectPathForClaude(projectDir: string): string {
 async function readFirstPromptAndMeta(
   filePath: string,
   provider: "claude" | "codex",
-): Promise<{ firstPrompt: string; codexCwd: string | null }> {
+): Promise<{ firstPrompt: string; codexCwd: string | null; claudeCwd: string | null }> {
   let firstPrompt = "";
   let codexCwd: string | null = null;
+  let claudeCwd: string | null = null;
   let linesRead = 0;
 
   const stream = fs.createReadStream(filePath, { encoding: "utf-8" });
@@ -129,6 +130,16 @@ async function readFirstPromptAndMeta(
         if (payload && typeof payload.cwd === "string") {
           codexCwd = payload.cwd;
         }
+      }
+
+      // Claude: each record has a top-level `cwd` field with the
+      // real absolute working directory. Grab the first one we see.
+      // Without this, downstream code falls back to the dash-encoded
+      // directory name (e.g. "-Users-foo-bar") which breaks the
+      // "Continue" button — it compares against worktree.path which
+      // holds a real absolute path, so matches always failed.
+      if (provider === "claude" && claudeCwd === null && typeof raw.cwd === "string" && raw.cwd) {
+        claudeCwd = raw.cwd;
       }
 
       // Claude: first message with `type === "user"` and non-tool
@@ -182,14 +193,20 @@ async function readFirstPromptAndMeta(
       }
 
       // Short-circuit once we have everything we needed.
-      if (firstPrompt && (provider === "claude" || codexCwd !== null)) break;
+      if (
+        firstPrompt &&
+        ((provider === "claude" && claudeCwd !== null) ||
+          (provider === "codex" && codexCwd !== null))
+      ) {
+        break;
+      }
     }
   } finally {
     rl.close();
     stream.destroy();
   }
 
-  return { firstPrompt, codexCwd };
+  return { firstPrompt, codexCwd, claudeCwd };
 }
 
 function extractClaudeUserText(source: unknown): string {
@@ -267,14 +284,22 @@ async function buildEntry(
       return cached.entry;
     }
 
-    const { firstPrompt, codexCwd } = await readFirstPromptAndMeta(
+    const { firstPrompt, codexCwd, claudeCwd } = await readFirstPromptAndMeta(
       filePath,
       provider,
     );
 
+    // Prefer the cwd recorded inside the JSONL for both providers —
+    // that's a real absolute path. Fall back to the dash-decoded
+    // directory name for Claude sessions that somehow lack a cwd
+    // record (corrupt old files etc.); decoding is lossy but better
+    // than an empty string that would drop the entry.
     const projectDir =
       provider === "claude"
-        ? claudeProjectDir ?? ""
+        ? claudeCwd ??
+          (claudeProjectDir
+            ? decodeClaudeEncodedPath(path.basename(claudeProjectDir))
+            : "")
         : codexCwd ?? "";
 
     if (!projectDir) return null;
