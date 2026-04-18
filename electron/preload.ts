@@ -373,6 +373,26 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("search:session-contents", query) as Promise<
         Array<{ sessionId: string; filePath: string; lineNumber: number; preview: string }>
       >,
+    /**
+     * List past sessions belonging to any of the given project
+     * directories. Backed by an mtime-keyed cache on the main
+     * process, so repeated calls for the same project paths only
+     * re-parse files that actually changed.
+     */
+    listSessions: (projectDirs: string[]) =>
+      ipcRenderer.invoke("search:sessions:list", projectDirs) as Promise<
+        Array<{
+          sessionId: string;
+          provider: "claude" | "codex";
+          projectDir: string;
+          filePath: string;
+          firstPrompt: string;
+          startedAt: string;
+          lastActivityAt: string;
+          estimatedMessageCount: number;
+          fileSize: number;
+        }>
+      >,
   },
   state: {
     load: () => ipcRenderer.invoke("state:load"),

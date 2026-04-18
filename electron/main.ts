@@ -80,6 +80,10 @@ import type { ComposerSubmitRequest } from "../src/types";
 import { getProjectDiff } from "./git-diff";
 import { searchFileContents, searchSessionContents } from "./search-handlers";
 import {
+  listSessionsForProjects,
+  type SessionSearchEntry,
+} from "./session-search-index";
+import {
   checkoutGitRef,
   createCommit,
   discardFiles,
@@ -1015,6 +1019,17 @@ function setupIpc() {
       try {
         return await searchSessionContents(query);
       } catch { return []; }
+    },
+  );
+
+  ipcMain.handle(
+    "search:sessions:list",
+    async (_event, projectDirs: string[]): Promise<SessionSearchEntry[]> => {
+      try {
+        return await listSessionsForProjects(projectDirs ?? []);
+      } catch {
+        return [];
+      }
     },
   );
 
