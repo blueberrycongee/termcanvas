@@ -2,6 +2,42 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.30.0] - 2026-04-18
+
+### Added
+- Editor: full-canvas Monaco drawer — click any file in the right panel to open it in a real VSCode-style editor with syntax highlighting, Cmd+S save, dirty tracking, and a two-level half/full width toggle. Replaces the cramped preview tab
+- Left panel: project management + session history in one place. "+" button (in the header and in the collapsed strip) adds a project in a single click; History section below ProjectTree lists past Claude/Codex sessions scoped to the current canvas
+- Canvas-gap overlay system: Usage dashboard and Session replay now render as panels anchored in the gap between the left and right side panels, so both nav surfaces stay visible while you read code, dashboards, or transcripts. Three tenants (Usage / File Editor / Session Replay) are mutually exclusive in that slot
+
+### Fixed
+- Sessions: Claude Resume button is no longer grayed out — projectDir now reads the real `cwd` from inside the Claude JSONL instead of the dash-encoded directory name, so worktree matching succeeds
+- Sessions: Codex Resume actually resumes the past session now — sessionId is extracted from `session_meta.payload.id` (which `codex resume` accepts) instead of the filename stem (which Codex rejected, falling back to a fresh session)
+- Sessions: Resume closes the replay drawer before panning, so the newly spawned terminal is visible on the canvas instead of being hidden behind the drawer
+- Left panel: the entire collapsed sidebar strip is now a click target — previously only the small chevron at the bottom expanded it
+- Usage: overlay sizing tightened — individual components (stat cards, quota meters, device rows) no longer stretch beyond their readable width; the dashboard auto-hides when the canvas gap falls below a usable threshold and reappears when the side panels are narrowed again
+- Usage: aligned chart heights and axis margins so side-by-side cards match; removed duplicate section titles; heatmap extended to a full year and centred within its card
+
+### Changed
+- Layout: the left and right panels swapped responsibilities. Files / Diff / Git / Memory tabs moved to the right panel (resizable, collapsible). The left panel is now dedicated to project management + history
+- Sessions: replay view is now a left-anchored drawer that pulls out from the right edge of the left panel, with half / full expand levels. The old full-screen modal is gone — the session list lives in the left panel and stays visible while a replay plays
+
+### Added (zh-CN)
+- 编辑器:全画布 Monaco 抽屉 —— 在右侧栏 Files 里点任意文件,会像 VSCode 那样打开一个真正的编辑器,带语法高亮、Cmd+S 保存、脏状态跟踪、半屏/全屏切换。取代了之前拥挤的 preview tab
+- 左侧栏:项目管理 + 会话历史二合一。标题栏 + 折叠态都有「+」按钮,一键加项目;ProjectTree 下方是 History 区,列出当前 canvas 范围内的过往 Claude/Codex 会话
+- Canvas-gap 抽屉体系:Usage 仪表盘、会话回放不再是全屏弹窗,而是锚定在左右栏之间的那块区域里,两边导航始终可见。Usage / 文件编辑器 / 会话回放三者在这块空间里互斥,同一时刻只显示一个
+
+### Fixed (zh-CN)
+- 会话:Claude 的 Resume 按钮不再全灰 —— projectDir 现在从 Claude JSONL 里直接读真实 `cwd`,而不是用 dash 编码的目录名,worktree 匹配成功
+- 会话:Codex Resume 终于真能续接了 —— sessionId 从 `session_meta.payload.id` 里取(这是 `codex resume` 接受的 id),不再用文件名 stem(Codex 拒收,然后 fallback 成全新会话)
+- 会话:点 Resume 后会先关闭回放抽屉再 pan 到新 terminal,不会出现"新 terminal 生成但被抽屉挡住看不见"的情况
+- 左侧栏:折叠态整条竖条都可点击展开 —— 之前只有底部那个小箭头能展开
+- Usage:面板尺寸收紧 —— StatCard / Quota / Devices 不会再被撑到远超可读宽度;canvas gap 太窄时仪表盘自动消失,缩回左右栏后重新出现
+- Usage:并排卡片高度和横轴 margin 统一对齐;去掉了重复的 section 标题;热力图扩展到整年并在卡片内水平居中
+
+### Changed (zh-CN)
+- 布局:左右栏职能对调。Files / Diff / Git / Memory 四个 tab 搬到右侧栏(可拖宽、可折叠),左侧栏专门负责项目管理 + 历史
+- 会话:回放从全屏 modal 改成左锚定抽屉,从左栏右边缘划出,支持半屏/全屏两级。历史列表留在左栏持续可见,边看回放边切 session 不用关抽屉
+
 ## [0.29.0] - 2026-04-17
 
 ### Added
