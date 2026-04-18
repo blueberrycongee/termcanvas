@@ -185,7 +185,7 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
   const t = useT();
   const { entries, expandedDirs, toggleDir, refreshDir, loading } =
     useWorktreeFiles(worktreePath);
-  const previewFile = useCanvasStore((s) => s.rightPanelPreviewFile);
+  const previewFile = useCanvasStore((s) => s.fileEditorPath);
 
   const { changedFiles, stagedFiles } = useGitStatus(worktreePath);
 

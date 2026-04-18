@@ -13,9 +13,9 @@ export function executeResult(result: SearchResult): void {
       break;
 
     case "file":
-      useCanvasStore.getState().setRightPanelCollapsed(false);
-      useCanvasStore.getState().setRightPanelActiveTab("preview");
-      useCanvasStore.getState().setRightPanelPreviewFile(data.filePath);
+      // Files open in the FileEditorDrawer (full-canvas Monaco) — the
+      // old "preview" right-panel tab is gone.
+      useCanvasStore.getState().openFileEditor(data.filePath);
       break;
 
     case "terminal":

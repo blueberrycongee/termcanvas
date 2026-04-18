@@ -622,6 +622,14 @@ export const en = {
     `Project "${name}" deleted from disk`,
   panel_project_delete_failed: (err: string) =>
     `Failed to delete project: ${err}`,
+
+  file_editor_save: "Save",
+  file_editor_saving: "saving…",
+  file_editor_dirty: "Unsaved changes",
+  file_editor_maximize: "Maximize",
+  file_editor_restore: "Restore",
+  file_editor_close: "Close",
+  file_editor_discard_confirm: "Discard unsaved changes?",
 } as const;
 
 export type TranslationKey = keyof typeof en;

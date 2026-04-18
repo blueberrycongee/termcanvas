@@ -5,11 +5,16 @@ import { useWorkspaceStore } from "./workspaceStore";
 export type FocusLevel = "terminal" | "starred" | "worktree";
 /**
  * Tabs shown in the RIGHT panel — the code-navigation surface
- * (Files / Diff / Preview / Git / Memory). Previously these lived
- * in the LEFT panel under `LeftPanelTab`; they moved to the right
- * when the left panel became the project-management surface.
+ * (Files / Diff / Git / Memory). Previously these lived in the LEFT
+ * panel under `LeftPanelTab`; they moved to the right when the left
+ * panel became the project-management surface.
+ *
+ * "preview" used to be a fallback tab that took over when the user
+ * clicked a file. That tab is gone — file previews/edits happen in
+ * the FileEditor drawer (Monaco) that slides over the canvas,
+ * driven by `fileEditorPath` below.
  */
-export type RightPanelTab = "files" | "diff" | "preview" | "git" | "memory";
+export type RightPanelTab = "files" | "diff" | "git" | "memory";
 /** @deprecated kept as alias — LeftPanelTab is the same set under its new home. */
 export type LeftPanelTab = RightPanelTab;
 export interface CanvasViewportAdapter {
@@ -33,13 +38,20 @@ interface CanvasStore {
   rightPanelCollapsed: boolean;
   rightPanelActiveTab: RightPanelTab;
   rightPanelWidth: number;
-  /**
-   * `rightPanelPreviewFile` is the click-to-preview target for the
-   * Preview tab; it lived on the left panel before the refactor.
-   */
-  rightPanelPreviewFile: string | null;
   leftPanelCollapsed: boolean;
   leftPanelWidth: number;
+  /**
+   * File path currently open in the full-canvas Monaco drawer.
+   * `null` means the drawer is closed. Persisted only in-memory —
+   * closing the app drops the "last open file" state.
+   */
+  fileEditorPath: string | null;
+  /**
+   * Two-level drawer: level-1 (false) covers the right panel + half
+   * the canvas so terminals stay partially visible; level-2 (true)
+   * covers the entire canvas area (still leaves the left panel).
+   */
+  fileEditorExpanded: boolean;
   // Usage was previously cramped in the right panel as a tab. It's
   // now a full-screen overlay (see UsageOverlay) — a boolean is
   // enough: "is the dashboard visible right now?".
@@ -59,7 +71,10 @@ interface CanvasStore {
   setRightPanelCollapsed: (collapsed: boolean) => void;
   setRightPanelActiveTab: (tab: RightPanelTab) => void;
   setRightPanelWidth: (width: number) => void;
-  setRightPanelPreviewFile: (filePath: string | null) => void;
+  openFileEditor: (filePath: string) => void;
+  closeFileEditor: () => void;
+  toggleFileEditorExpanded: () => void;
+  setFileEditorExpanded: (expanded: boolean) => void;
   openUsageOverlay: () => void;
   closeUsageOverlay: () => void;
   toggleUsageOverlay: () => void;
@@ -104,9 +119,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   rightPanelCollapsed: true,
   rightPanelActiveTab: "files" as RightPanelTab,
   rightPanelWidth: DEFAULT_RIGHT_PANEL_WIDTH,
-  rightPanelPreviewFile: null,
   leftPanelCollapsed: true,
   leftPanelWidth: 280,
+  fileEditorPath: null,
+  fileEditorExpanded: false,
   usageOverlayOpen: false,
   sessionsOverlayOpen: false,
 
@@ -147,8 +163,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set({ rightPanelWidth: width });
     markDirty();
   },
-  setRightPanelPreviewFile: (filePath) =>
-    set({ rightPanelPreviewFile: filePath }),
+  openFileEditor: (filePath) => set({ fileEditorPath: filePath }),
+  closeFileEditor: () =>
+    set({ fileEditorPath: null, fileEditorExpanded: false }),
+  toggleFileEditorExpanded: () =>
+    set((state) => ({ fileEditorExpanded: !state.fileEditorExpanded })),
+  setFileEditorExpanded: (expanded) => set({ fileEditorExpanded: expanded }),
   openUsageOverlay: () => set({ usageOverlayOpen: true }),
   closeUsageOverlay: () => set({ usageOverlayOpen: false }),
   toggleUsageOverlay: () =>

@@ -6,7 +6,6 @@ import { useNotificationStore } from "../stores/notificationStore";
 import { FilesContent } from "./RightPanel/FilesContent";
 import { DiffContent } from "./RightPanel/DiffContent";
 import { GitContent } from "./RightPanel/GitContent";
-import { PreviewContent } from "./RightPanel/PreviewContent";
 import { MemoryContent } from "./RightPanel/MemoryContent";
 import { HydraSetupPopup } from "./HydraSetupPopup";
 import { panToTerminal } from "../utils/panToTerminal";
@@ -82,11 +81,9 @@ export function RightPanel() {
   const collapsed = useCanvasStore((s) => s.rightPanelCollapsed);
   const width = useCanvasStore((s) => s.rightPanelWidth);
   const activeTab = useCanvasStore((s) => s.rightPanelActiveTab);
-  const previewFile = useCanvasStore((s) => s.rightPanelPreviewFile);
   const setCollapsed = useCanvasStore((s) => s.setRightPanelCollapsed);
   const setWidth = useCanvasStore((s) => s.setRightPanelWidth);
   const setActiveTab = useCanvasStore((s) => s.setRightPanelActiveTab);
-  const setPreviewFile = useCanvasStore((s) => s.setRightPanelPreviewFile);
   const notify = useNotificationStore((s) => s.notify);
 
   const focusedWorktreeId = useProjectStore((s) => s.focusedWorktreeId);
@@ -359,21 +356,17 @@ export function RightPanel() {
     [width, setWidth]
   );
 
-  const prevTabRef = useRef<RightPanelTab>("files");
+  const openFileEditor = useCanvasStore((s) => s.openFileEditor);
 
   const handleFileClick = useCallback(
     (filePath: string) => {
-      if (activeTab !== "preview") prevTabRef.current = activeTab;
-      setPreviewFile(filePath);
-      setActiveTab("preview");
+      // Files now open in the full-canvas FileEditorDrawer (Monaco),
+      // not a preview tab. Keeps readable width and makes save/edit
+      // first-class.
+      openFileEditor(filePath);
     },
-    [activeTab, setPreviewFile, setActiveTab]
+    [openFileEditor]
   );
-
-  const handlePreviewClose = useCallback(() => {
-    setPreviewFile(null);
-    setActiveTab(prevTabRef.current);
-  }, [setPreviewFile, setActiveTab]);
 
   const handleEnableHydra = useCallback(async () => {
     if (!focusedProject) {
@@ -607,7 +600,6 @@ export function RightPanel() {
           </div>
         )}
         {activeTab === "files" && <FilesContent worktreePath={effectiveWorktreePath} onFileClick={handleFileClick} />}
-        {activeTab === "preview" && <PreviewContent filePath={previewFile} onClose={handlePreviewClose} onNavigate={handleFileClick} />}
         {showRepoContextPlaceholder ? (
           <div className="flex flex-1 items-center justify-center">
             <div

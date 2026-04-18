@@ -608,4 +608,12 @@ export const zh = {
   panel_project_delete_button_busy: "删除中…",
   panel_project_deleted: (name: string) => `已从磁盘删除项目 "${name}"`,
   panel_project_delete_failed: (err: string) => `删除项目失败:${err}`,
+
+  file_editor_save: "保存",
+  file_editor_saving: "保存中…",
+  file_editor_dirty: "有未保存的修改",
+  file_editor_maximize: "最大化",
+  file_editor_restore: "还原",
+  file_editor_close: "关闭",
+  file_editor_discard_confirm: "确定放弃未保存的修改吗?",
 } as const;
