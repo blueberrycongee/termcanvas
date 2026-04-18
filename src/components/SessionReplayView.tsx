@@ -101,14 +101,34 @@ interface Turn {
 
 /**
  * Logical assistant block — what we actually render in-flow inside a
- * turn. Tool pairs (tool_use + immediately following tool_result)
- * collapse to a single node so the result stays attached to its call.
+ * turn.
+ *
+ * Tool runs are collected into a single group: Claude and Codex
+ * typically emit N tool_use events followed by N tool_result events
+ * (the agent batches calls, the harness returns them in order). An
+ * earlier rendering emitted one "pill" per tool and one row per
+ * result, which flooded the transcript with low-signal chrome and
+ * buried the actual prose. The reader usually only cares that the
+ * agent "did some lookups" — the specific tools are noise unless they
+ * want to dig in. So we collapse the whole run into one block with a
+ * count, and let the reader expand it to see individual calls (and
+ * expand each call further to see input / output).
+ *
+ * Pairing tool_use → tool_result is done by position within the run
+ * rather than by call_id because the existing TimelineEvent shape
+ * doesn't carry call_ids; the interleaved pattern is stable enough
+ * in practice that index-pairing yields the right grouping.
  */
+interface ToolGroupItem {
+  tool: TimelineEvent;
+  result?: TimelineEvent;
+}
+
 interface AssistantNode {
-  type: "text" | "thinking" | "tool" | "error";
+  type: "text" | "thinking" | "tool_group" | "error";
   index: number;
   primary: TimelineEvent;
-  paired?: TimelineEvent;
+  items?: ToolGroupItem[];
 }
 
 function buildTurns(events: TimelineEvent[]): Turn[] {
@@ -139,27 +159,49 @@ function buildTurns(events: TimelineEvent[]): Turn[] {
 
 function buildAssistantNodes(events: TimelineEvent[]): AssistantNode[] {
   const nodes: AssistantNode[] = [];
-  for (let i = 0; i < events.length; i += 1) {
+  let i = 0;
+  while (i < events.length) {
     const ev = events[i];
-    if (ev.type === "tool_use") {
-      const next = events[i + 1];
-      const paired = next?.type === "tool_result" ? next : undefined;
-      nodes.push({
-        type: "tool",
-        index: ev.index,
-        primary: ev,
-        paired,
-      });
-      if (paired) i += 1;
-    } else if (ev.type === "assistant_text") {
+
+    if (ev.type === "tool_use" || ev.type === "tool_result") {
+      // Greedily consume the contiguous tool run (any mix of
+      // tool_use / tool_result events) into one group node. Pair the
+      // k-th tool_use with the k-th tool_result within the run.
+      const tools: TimelineEvent[] = [];
+      const results: TimelineEvent[] = [];
+      let j = i;
+      while (j < events.length) {
+        const e = events[j];
+        if (e.type === "tool_use") tools.push(e);
+        else if (e.type === "tool_result") results.push(e);
+        else break;
+        j += 1;
+      }
+      if (tools.length > 0) {
+        const items: ToolGroupItem[] = tools.map((tool, k) => ({
+          tool,
+          result: results[k],
+        }));
+        nodes.push({
+          type: "tool_group",
+          index: tools[0].index,
+          primary: tools[0],
+          items,
+        });
+      }
+      i = j;
+      continue;
+    }
+
+    if (ev.type === "assistant_text") {
       nodes.push({ type: "text", index: ev.index, primary: ev });
     } else if (ev.type === "thinking") {
       nodes.push({ type: "thinking", index: ev.index, primary: ev });
     } else if (ev.type === "error") {
       nodes.push({ type: "error", index: ev.index, primary: ev });
     }
-    // tool_result without a preceding tool_use (orphaned) is dropped;
-    // turn_complete is metadata, not content — also dropped.
+    // turn_complete is metadata, not content — dropped.
+    i += 1;
   }
   return nodes;
 }
@@ -394,32 +436,49 @@ function ThinkingRow({
   );
 }
 
-function ToolPill({
-  node,
+function summarizeToolNames(items: ToolGroupItem[]): string {
+  // Build a "Read · Grep · Edit" style summary, collapsing duplicates
+  // with a count. Cap at three distinct names to keep the pill header
+  // on one line; the rest get folded into "+N more".
+  const counts = new Map<string, number>();
+  const order: string[] = [];
+  for (const item of items) {
+    const name = toolVerb(item.tool.toolName);
+    if (!counts.has(name)) order.push(name);
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  const first = order.slice(0, 3).map((name) => {
+    const c = counts.get(name) ?? 1;
+    return c > 1 ? `${name} ×${c}` : name;
+  });
+  const rest = order.length - 3;
+  if (rest > 0) first.push(`+${rest} more`);
+  return first.join(" · ");
+}
+
+function ToolSubItem({
+  item,
   isCurrent,
   expanded,
   onToggle,
   onClick,
 }: {
-  node: AssistantNode;
+  item: ToolGroupItem;
   isCurrent: boolean;
   expanded: boolean;
   onToggle: () => void;
   onClick: () => void;
 }) {
-  const tool = node.primary;
-  const verb = toolVerb(tool.toolName);
-  const subject = toolSubjectHint(tool);
+  const verb = toolVerb(item.tool.toolName);
+  const subject = toolSubjectHint(item.tool);
   return (
     <div
-      className="rounded-md border px-2 py-1.5 transition-colors"
+      className="rounded px-2 py-1 transition-colors"
       style={{
-        borderColor: isCurrent ? "var(--accent)" : "var(--border)",
         backgroundColor: isCurrent
           ? "color-mix(in srgb, var(--accent) 6%, transparent)"
-          : "color-mix(in srgb, var(--text-muted) 4%, transparent)",
+          : "transparent",
       }}
-      data-current={isCurrent || undefined}
     >
       <button
         className="flex w-full items-center gap-1.5 text-left cursor-pointer"
@@ -429,12 +488,15 @@ function ToolPill({
           onToggle();
         }}
       >
-        <span className="shrink-0 text-[10px]" style={{ color: "#f59e0b" }}>
+        <span className="shrink-0 text-[9px] text-[var(--text-faint)]">
           {expanded ? "▾" : "▸"}
         </span>
         <span
-          className="shrink-0 text-[11px] font-medium"
-          style={{ fontFamily: '"Geist Mono", monospace', color: "var(--text-primary)" }}
+          className="shrink-0 text-[10px] font-medium"
+          style={{
+            fontFamily: '"Geist Mono", monospace',
+            color: "var(--text-secondary)",
+          }}
         >
           {verb}
         </span>
@@ -446,17 +508,10 @@ function ToolPill({
             {subject}
           </span>
         )}
-        <span className="flex-1" />
-        <span
-          className="shrink-0 text-[9px] tabular-nums text-[var(--text-faint)]"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-        >
-          {formatTimestamp(tool.timestamp)}
-        </span>
       </button>
       {expanded && (
-        <div className="mt-2 space-y-2 border-t border-[var(--border)] pt-2">
-          {tool.textPreview && (
+        <div className="mt-1.5 space-y-1.5 border-t border-[var(--border)] pt-1.5 pl-3">
+          {item.tool.textPreview && (
             <div>
               <div
                 className="mb-0.5 text-[9px] uppercase tracking-wider text-[var(--text-faint)]"
@@ -468,11 +523,11 @@ function ToolPill({
                 className="whitespace-pre-wrap break-words text-[11px] leading-snug text-[var(--text-secondary)]"
                 style={{ fontFamily: '"Geist Mono", monospace' }}
               >
-                {tool.textPreview}
+                {item.tool.textPreview}
               </pre>
             </div>
           )}
-          {node.paired?.textPreview && (
+          {item.result?.textPreview && (
             <div>
               <div
                 className="mb-0.5 text-[9px] uppercase tracking-wider text-[var(--text-faint)]"
@@ -484,10 +539,109 @@ function ToolPill({
                 className="whitespace-pre-wrap break-words text-[11px] leading-snug text-[var(--text-secondary)]"
                 style={{ fontFamily: '"Geist Mono", monospace' }}
               >
-                {node.paired.textPreview}
+                {item.result.textPreview}
               </pre>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ToolGroup({
+  node,
+  currentIndex,
+  expanded,
+  onToggle,
+  expandedItems,
+  onToggleItem,
+  onSeek,
+}: {
+  node: AssistantNode;
+  currentIndex: number;
+  expanded: boolean;
+  onToggle: () => void;
+  expandedItems: Set<number>;
+  onToggleItem: (index: number) => void;
+  onSeek: (index: number) => void;
+}) {
+  const items = node.items ?? [];
+  const isGroupCurrent = items.some(
+    (it) => it.tool.index === currentIndex || it.result?.index === currentIndex,
+  );
+  const count = items.length;
+  const summary = count === 1
+    ? `${toolVerb(items[0].tool.toolName)}${
+        toolSubjectHint(items[0].tool) ? " " + toolSubjectHint(items[0].tool) : ""
+      }`
+    : summarizeToolNames(items);
+
+  return (
+    <div
+      className="rounded-md border px-2 py-1.5 transition-colors"
+      style={{
+        borderColor: isGroupCurrent ? "var(--accent)" : "var(--border)",
+        backgroundColor: isGroupCurrent
+          ? "color-mix(in srgb, var(--accent) 6%, transparent)"
+          : "color-mix(in srgb, var(--text-muted) 4%, transparent)",
+      }}
+      data-current={isGroupCurrent || undefined}
+    >
+      <button
+        className="flex w-full items-center gap-1.5 text-left cursor-pointer"
+        onClick={(e) => {
+          e.stopPropagation();
+          onSeek(node.index);
+          onToggle();
+        }}
+      >
+        <span className="shrink-0 text-[10px]" style={{ color: "#f59e0b" }}>
+          {expanded ? "▾" : "▸"}
+        </span>
+        {count > 1 && (
+          <span
+            className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]"
+            style={{ fontFamily: '"Geist Mono", monospace' }}
+          >
+            {count} tools
+          </span>
+        )}
+        <span
+          className="truncate text-[11px]"
+          style={{
+            fontFamily: '"Geist Mono", monospace',
+            color: count === 1 ? "var(--text-primary)" : "var(--text-muted)",
+            fontWeight: count === 1 ? 500 : 400,
+          }}
+        >
+          {summary}
+        </span>
+        <span className="flex-1" />
+        <span
+          className="shrink-0 text-[9px] tabular-nums text-[var(--text-faint)]"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          {formatTimestamp(node.primary.timestamp)}
+        </span>
+      </button>
+      {expanded && (
+        <div className="mt-2 space-y-0.5 border-t border-[var(--border)] pt-2">
+          {items.map((item) => {
+            const isItemCurrent =
+              item.tool.index === currentIndex ||
+              item.result?.index === currentIndex;
+            return (
+              <ToolSubItem
+                key={item.tool.index}
+                item={item}
+                isCurrent={isItemCurrent}
+                expanded={expandedItems.has(item.tool.index)}
+                onToggle={() => onToggleItem(item.tool.index)}
+                onClick={() => onSeek(item.tool.index)}
+              />
+            );
+          })}
         </div>
       )}
     </div>
@@ -561,7 +715,21 @@ export function SessionReplayView() {
   // expands pills if the user flips it after already reading the
   // prose. Same design pattern as Slack's "show more" affordance.
   const [showThinking, setShowThinking] = useState(false);
+  // Tool groups (the whole run) vs individual tool items inside an
+  // expanded group have independent collapsed/expanded state. Keep
+  // them in separate sets keyed by the first-tool's timeline index
+  // so re-renders don't clobber one when toggling the other.
+  const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
   const [expandedTools, setExpandedTools] = useState<Set<number>>(new Set());
+
+  const toggleGroup = useCallback((index: number) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }, []);
 
   const toggleTool = useCallback((index: number) => {
     setExpandedTools((prev) => {
@@ -731,9 +899,31 @@ export function SessionReplayView() {
               {nodes.length > 0 && (
                 <div className="space-y-1.5">
                   {nodes.map((node) => {
-                    const isCurrent =
-                      node.index === currentIndex ||
-                      node.paired?.index === currentIndex;
+                    if (node.type === "tool_group") {
+                      const items = node.items ?? [];
+                      const isCurrent = items.some(
+                        (it) =>
+                          it.tool.index === currentIndex ||
+                          it.result?.index === currentIndex,
+                      );
+                      const attachRef = (el: HTMLElement | null) =>
+                        assignCurrentRef(el, isCurrent);
+                      return (
+                        <div key={node.index} ref={attachRef}>
+                          <ToolGroup
+                            node={node}
+                            currentIndex={currentIndex}
+                            expanded={expandedGroups.has(node.index)}
+                            onToggle={() => toggleGroup(node.index)}
+                            expandedItems={expandedTools}
+                            onToggleItem={toggleTool}
+                            onSeek={seekTo}
+                          />
+                        </div>
+                      );
+                    }
+
+                    const isCurrent = node.index === currentIndex;
                     const attachRef = (el: HTMLElement | null) =>
                       assignCurrentRef(el, isCurrent);
 
@@ -755,19 +945,6 @@ export function SessionReplayView() {
                           <ThinkingRow
                             event={node.primary}
                             isCurrent={isCurrent}
-                            onClick={() => seekTo(node.index)}
-                          />
-                        </div>
-                      );
-                    }
-                    if (node.type === "tool") {
-                      return (
-                        <div key={node.index} ref={attachRef}>
-                          <ToolPill
-                            node={node}
-                            isCurrent={isCurrent}
-                            expanded={expandedTools.has(node.index)}
-                            onToggle={() => toggleTool(node.index)}
                             onClick={() => seekTo(node.index)}
                           />
                         </div>

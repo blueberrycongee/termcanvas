@@ -407,17 +407,28 @@ export class SessionScanner {
   }
 
   private extractUserPromptText(raw: Record<string, unknown>): string {
-    const message = raw.message as Record<string, unknown> | undefined;
-    if (message) {
-      const content = message.content;
-      if (typeof content === "string") return content.slice(0, REPLAY_TEXT_MAX_CHARS);
-      if (Array.isArray(content)) {
-        for (const block of content) {
-          if (!block || typeof block !== "object") continue;
-          const entry = block as Record<string, unknown>;
-          if (entry.type === "text" && typeof entry.text === "string")
-            return entry.text.slice(0, REPLAY_TEXT_MAX_CHARS);
-          if (entry.type === "tool_result") continue;
+    // Claude stores both user input AND assistant replies in the same
+    // `message.content` shape (a text block). The only thing that
+    // distinguishes them is the outer `raw.type` ("user" vs "assistant").
+    // Without that guard, every assistant text line would be mis-tagged
+    // as a user prompt *and* also come through as an assistant_text event,
+    // causing every agent reply to render twice in the replay — once
+    // incorrectly as a "you" bubble, once correctly as assistant prose.
+    // That's exactly the "I can't tell my messages from the agent's" bug.
+    if (raw.type === "user") {
+      const message = raw.message as Record<string, unknown> | undefined;
+      if (message) {
+        const content = message.content;
+        if (typeof content === "string")
+          return content.slice(0, REPLAY_TEXT_MAX_CHARS);
+        if (Array.isArray(content)) {
+          for (const block of content) {
+            if (!block || typeof block !== "object") continue;
+            const entry = block as Record<string, unknown>;
+            if (entry.type === "text" && typeof entry.text === "string")
+              return entry.text.slice(0, REPLAY_TEXT_MAX_CHARS);
+            if (entry.type === "tool_result") continue;
+          }
         }
       }
     }
