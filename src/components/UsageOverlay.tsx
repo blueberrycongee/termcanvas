@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useUsageStore } from "../stores/usageStore";
-import { useCanvasStore } from "../stores/canvasStore";
+import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { useAuthStore } from "../stores/authStore";
 import { useQuotaStore } from "../stores/quotaStore";
 import { useCodexQuotaStore } from "../stores/codexQuotaStore";
@@ -127,6 +127,10 @@ function SectionCard({
 export function UsageOverlay() {
   const open = useCanvasStore((s) => s.usageOverlayOpen);
   const close = useCanvasStore((s) => s.closeUsageOverlay);
+  const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
+  const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
+  const rightPanelCollapsed = useCanvasStore((s) => s.rightPanelCollapsed);
+  const rightPanelWidth = useCanvasStore((s) => s.rightPanelWidth);
   const t = useT();
 
   const {
@@ -266,23 +270,32 @@ export function UsageOverlay() {
 
   if (!open) return null;
 
+  const leftInset = leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
+  const rightInset = rightPanelCollapsed
+    ? COLLAPSED_TAB_WIDTH
+    : rightPanelWidth;
+
   return (
+    /*
+      Usage used to be a full-screen modal with backdrop blur; it's
+      now a panel pinned to the canvas gap between the left + right
+      side panels, mirroring FileEditorDrawer's level-2 geometry.
+      Both panels stay visible so the dashboard feels like a canvas
+      mode rather than a context-stealing overlay.
+    */
     <div
-      className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto usage-overlay-enter"
-      onClick={close}
+      className="fixed z-[55] bg-[var(--bg)] overflow-y-auto usage-overlay-enter"
+      style={{
+        top: 44,
+        left: leftInset,
+        right: rightInset,
+        height: "calc(100vh - 44px)",
+      }}
       role="dialog"
-      aria-modal="true"
+      aria-modal="false"
       aria-label={t.usage_title}
     >
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 bg-[var(--bg)]/85 backdrop-blur-sm"
-      />
-
-      <div
-        className="relative w-full max-w-6xl mx-auto my-8 px-6"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="relative w-full max-w-6xl mx-auto px-6 py-8">
         {/* Header */}
         <div className="flex items-center gap-3 mb-4">
           <h1

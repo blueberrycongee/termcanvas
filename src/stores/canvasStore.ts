@@ -163,16 +163,30 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set({ rightPanelWidth: width });
     markDirty();
   },
-  openFileEditor: (filePath) => set({ fileEditorPath: filePath }),
+  // File editor + Usage share the canvas-gap area (between left and
+  // right panels). Opening one closes the other so they never fight
+  // for the same pixels.
+  openFileEditor: (filePath) =>
+    set({ fileEditorPath: filePath, usageOverlayOpen: false }),
   closeFileEditor: () =>
     set({ fileEditorPath: null, fileEditorExpanded: false }),
   toggleFileEditorExpanded: () =>
     set((state) => ({ fileEditorExpanded: !state.fileEditorExpanded })),
   setFileEditorExpanded: (expanded) => set({ fileEditorExpanded: expanded }),
-  openUsageOverlay: () => set({ usageOverlayOpen: true }),
+  openUsageOverlay: () =>
+    set({ usageOverlayOpen: true, fileEditorPath: null, fileEditorExpanded: false }),
   closeUsageOverlay: () => set({ usageOverlayOpen: false }),
   toggleUsageOverlay: () =>
-    set((state) => ({ usageOverlayOpen: !state.usageOverlayOpen })),
+    set((state) => ({
+      usageOverlayOpen: !state.usageOverlayOpen,
+      // If we're turning Usage ON, evict the drawer; turning it OFF
+      // leaves the drawer alone (it was already closed by the open
+      // path above if both were invoked).
+      fileEditorPath: !state.usageOverlayOpen ? null : state.fileEditorPath,
+      fileEditorExpanded: !state.usageOverlayOpen
+        ? false
+        : state.fileEditorExpanded,
+    })),
   openSessionsOverlay: () => set({ sessionsOverlayOpen: true }),
   closeSessionsOverlay: () => set({ sessionsOverlayOpen: false }),
   toggleSessionsOverlay: () =>
