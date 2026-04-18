@@ -68,27 +68,54 @@ const MonacoEditor = lazy(async () => {
   monacoMod.editor.defineTheme("termcanvas-light", {
     base: "vs",
     inherit: true,
-    rules: [],
+    rules: [
+      // vs's default syntax colours are pitched for pure #ffffff.
+      // On our warm cream they read over-saturated and clashy.
+      // Warm them down across the board — these are the tokens
+      // Monaco actually emits in practice for the languages we
+      // care about (ts/js/json/md/py/rs/go/sh).
+      { token: "comment", foreground: "8a857f", fontStyle: "italic" },
+      { token: "keyword", foreground: "7c3aed" },
+      { token: "storage", foreground: "7c3aed" },
+      { token: "string", foreground: "15803d" },
+      { token: "number", foreground: "a16207" },
+      { token: "regexp", foreground: "b45309" },
+      { token: "type", foreground: "0f766e" },
+      { token: "type.identifier", foreground: "0f766e" },
+      { token: "variable", foreground: "1c1917" },
+      { token: "variable.predefined", foreground: "9a3412" },
+      { token: "function", foreground: "1d4ed8" },
+      { token: "constant", foreground: "9a3412" },
+      { token: "tag", foreground: "b91c1c" },
+      { token: "attribute.name", foreground: "7c2d12" },
+      { token: "attribute.value", foreground: "15803d" },
+      { token: "operator", foreground: "44403c" },
+      { token: "delimiter", foreground: "57534e" },
+    ],
     colors: {
-      "editor.background": "#eae8e4",
+      // Use --surface (#f3f2ef) for the editor surface — brighter
+      // than --bg so code doesn't feel like it's sitting on a
+      // dirty-cream background, while still clearly part of the
+      // warm palette (not the stock stark white).
+      "editor.background": "#f3f2ef",
       "editor.foreground": "#1c1917",
-      "editorLineNumber.foreground": "#a8a39b",
+      "editorLineNumber.foreground": "#b2aba3",
       "editorLineNumber.activeForeground": "#57534e",
-      "editor.lineHighlightBackground": "#f3f2ef",
+      "editor.lineHighlightBackground": "#eae8e4",
       "editor.lineHighlightBorder": "#00000000",
       "editorCursor.foreground": "#1c1917",
-      "editor.selectionBackground": "#2563eb30",
-      "editor.inactiveSelectionBackground": "#2563eb18",
-      "editor.selectionHighlightBackground": "#2563eb15",
-      "editor.wordHighlightBackground": "#2563eb12",
+      "editor.selectionBackground": "#2563eb25",
+      "editor.inactiveSelectionBackground": "#2563eb12",
+      "editor.selectionHighlightBackground": "#2563eb10",
+      "editor.wordHighlightBackground": "#2563eb10",
       "editor.findMatchBackground": "#d9770655",
       "editor.findMatchHighlightBackground": "#d9770625",
-      "editorGutter.background": "#eae8e4",
-      "editorWidget.background": "#f3f2ef",
+      "editorGutter.background": "#f3f2ef",
+      "editorWidget.background": "#eae8e4",
       "editorWidget.border": "#dbd8d3",
-      "editorIndentGuide.background": "#dbd8d3",
+      "editorIndentGuide.background": "#e5e3df",
       "editorIndentGuide.activeBackground": "#c9c5bf",
-      "editorBracketMatch.background": "#2563eb18",
+      "editorBracketMatch.background": "#2563eb15",
       "editorBracketMatch.border": "#2563eb55",
       "scrollbarSlider.background": "#c9c5bf55",
       "scrollbarSlider.hoverBackground": "#c9c5bf90",
