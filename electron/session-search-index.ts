@@ -62,7 +62,18 @@ export interface SessionSearchEntry {
 interface CacheEntry {
   entry: SessionSearchEntry;
   mtimeMs: number;
+  schemaVersion: number;
 }
+
+/**
+ * Bump whenever the extraction logic changes in a way that makes
+ * previously-cached entries wrong (e.g. when we start stripping a
+ * new synthetic wrapper from "first prompt"). Entries tagged with
+ * an older schema are recomputed even when the file's mtime hasn't
+ * moved, so users see the fix without having to touch their
+ * session files.
+ */
+const FIRST_PROMPT_SCHEMA_VERSION = 3;
 
 const fileCache = new Map<string, CacheEntry>();
 
@@ -217,7 +228,11 @@ async function buildEntry(
     if (stat.size > MAX_FILE_SIZE_FOR_INDEX) return null;
 
     const cached = fileCache.get(filePath);
-    if (cached && cached.mtimeMs === stat.mtimeMs) {
+    if (
+      cached &&
+      cached.mtimeMs === stat.mtimeMs &&
+      cached.schemaVersion === FIRST_PROMPT_SCHEMA_VERSION
+    ) {
       return cached.entry;
     }
 
@@ -248,7 +263,11 @@ async function buildEntry(
       fileSize: stat.size,
     };
 
-    fileCache.set(filePath, { entry, mtimeMs: stat.mtimeMs });
+    fileCache.set(filePath, {
+      entry,
+      mtimeMs: stat.mtimeMs,
+      schemaVersion: FIRST_PROMPT_SCHEMA_VERSION,
+    });
     return entry;
   } catch {
     return null;

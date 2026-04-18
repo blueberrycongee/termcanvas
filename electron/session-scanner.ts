@@ -48,7 +48,7 @@ const REPLAY_TEXT_MAX_CHARS = 16_000;
  * no "first prompt" captured for the browse list).
  */
 export function stripSyntheticUserBlocks(text: string): string {
-  return text
+  let out = text
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, "")
     .replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/gi, "")
     .replace(/<local-command-stdout>[\s\S]*?<\/local-command-stdout>/gi, "")
@@ -57,7 +57,32 @@ export function stripSyntheticUserBlocks(text: string): string {
     .replace(/<command-args>[\s\S]*?<\/command-args>/gi, "")
     .replace(/<command-stdout>[\s\S]*?<\/command-stdout>/gi, "")
     .replace(/<command-type>[\s\S]*?<\/command-type>/gi, "")
+    // Codex wraps AGENTS.md / developer instructions in a family of
+    // XML-ish tags depending on version. These are the ones I've
+    // seen; widen if we find more. Non-greedy, multiline so the
+    // whole content gets snipped out whether it's on one line or
+    // many.
+    .replace(/<user_instructions>[\s\S]*?<\/user_instructions>/gi, "")
+    .replace(/<user-instructions>[\s\S]*?<\/user-instructions>/gi, "")
+    .replace(/<agents_md>[\s\S]*?<\/agents_md>/gi, "")
+    .replace(/<agent_instructions>[\s\S]*?<\/agent_instructions>/gi, "")
+    .replace(/<developer>[\s\S]*?<\/developer>/gi, "")
+    .replace(/<project_context>[\s\S]*?<\/project_context>/gi, "")
+    .replace(/<project-context>[\s\S]*?<\/project-context>/gi, "")
     .trim();
+
+  // Fallback: some Codex versions inject a markdown-style heading
+  // followed by the file content (e.g. "# AGENTS.md\n..."). If the
+  // trimmed text *starts* with a CLAUDE.md / AGENTS.md reference and
+  // the first few hundred characters look like file-content prose
+  // rather than a question, drop up to the first blank-line boundary
+  // and use what's after. Conservative — we only skip when the
+  // opener unambiguously names the file.
+  const headingRe = /^(#\s*)?(CLAUDE|AGENTS)\.md\b[\s\S]*?\n\s*\n/i;
+  const stripped = out.replace(headingRe, "").trim();
+  if (stripped.length > 0 && stripped !== out) out = stripped;
+
+  return out;
 }
 
 export class SessionScanner {
