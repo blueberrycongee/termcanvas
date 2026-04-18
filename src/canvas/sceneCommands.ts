@@ -113,12 +113,12 @@ export async function addProjectFromDirectoryPath(
 
   // When the canvas is empty, dropping a project only registers it in
   // state — there is no visible change on the canvas itself. Auto-open
-  // the right-side sessions panel so the user can actually see the new
-  // project/worktree tree and pick where to launch a terminal.
+  // the LEFT panel (project list) so the user can actually see the
+  // new project/worktree tree and pick where to launch a terminal.
+  // (Pre-refactor this opened the right panel's "sessions" tab; the
+  // list moved to the left panel.)
   if (wasEmpty) {
-    const canvas = useCanvasStore.getState();
-    canvas.setRightPanelActiveTab("sessions");
-    canvas.setRightPanelCollapsed(false);
+    useCanvasStore.getState().setLeftPanelCollapsed(false);
   }
 
   if (options.notifyAdded) {

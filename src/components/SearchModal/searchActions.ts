@@ -46,8 +46,8 @@ export function getActionDefs(): ActionDef[] {
       titleKey: "search_action_tab_files",
       keywords: ["files", "explorer", "文件"],
       perform: () => {
-        useCanvasStore.getState().setLeftPanelCollapsed(false);
-        useCanvasStore.getState().setLeftPanelActiveTab("files");
+        useCanvasStore.getState().setRightPanelCollapsed(false);
+        useCanvasStore.getState().setRightPanelActiveTab("files");
       },
     },
     {
@@ -55,8 +55,8 @@ export function getActionDefs(): ActionDef[] {
       titleKey: "search_action_tab_git",
       keywords: ["git", "source control", "版本"],
       perform: () => {
-        useCanvasStore.getState().setLeftPanelCollapsed(false);
-        useCanvasStore.getState().setLeftPanelActiveTab("git");
+        useCanvasStore.getState().setRightPanelCollapsed(false);
+        useCanvasStore.getState().setRightPanelActiveTab("git");
       },
     },
     {
@@ -64,8 +64,8 @@ export function getActionDefs(): ActionDef[] {
       titleKey: "search_action_tab_diff",
       keywords: ["diff", "changes", "差异"],
       perform: () => {
-        useCanvasStore.getState().setLeftPanelCollapsed(false);
-        useCanvasStore.getState().setLeftPanelActiveTab("diff");
+        useCanvasStore.getState().setRightPanelCollapsed(false);
+        useCanvasStore.getState().setRightPanelActiveTab("diff");
       },
     },
     {
@@ -73,8 +73,8 @@ export function getActionDefs(): ActionDef[] {
       titleKey: "search_action_tab_memory",
       keywords: ["memory", "context", "记忆"],
       perform: () => {
-        useCanvasStore.getState().setLeftPanelCollapsed(false);
-        useCanvasStore.getState().setLeftPanelActiveTab("memory");
+        useCanvasStore.getState().setRightPanelCollapsed(false);
+        useCanvasStore.getState().setRightPanelActiveTab("memory");
       },
     },
   ];

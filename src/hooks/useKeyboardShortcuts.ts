@@ -360,14 +360,13 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // `toggleRightPanel` (Cmd+/) used to collapse/expand the right
-      // panel. The panel is gone — repurpose the keystroke to open
-      // the Sessions overlay, which is the closest replacement and
-      // keeps existing muscle memory working instead of silently
-      // doing nothing.
+      // `toggleRightPanel` (Cmd+/) collapses/expands the right panel
+      // — which now hosts the Files/Diff/Git/Memory tabs (it used to
+      // live on the left before project management moved there).
       if (matchesShortcut(e, shortcuts.toggleRightPanel)) {
         consumeShortcut();
-        useCanvasStore.getState().toggleSessionsOverlay();
+        const s = useCanvasStore.getState();
+        s.setRightPanelCollapsed(!s.rightPanelCollapsed);
         return;
       }
 

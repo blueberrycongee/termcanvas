@@ -120,7 +120,7 @@ function formatTerminalActivity(
   }
 }
 
-function TerminalCard({
+export function TerminalCard({
   item,
   t,
   compact = false,

@@ -3,8 +3,15 @@ import type { Viewport } from "../types";
 import { useWorkspaceStore } from "./workspaceStore";
 
 export type FocusLevel = "terminal" | "starred" | "worktree";
-export type LeftPanelTab = "files" | "diff" | "preview" | "git" | "memory";
-export type RightPanelTab = "usage" | "sessions";
+/**
+ * Tabs shown in the RIGHT panel — the code-navigation surface
+ * (Files / Diff / Preview / Git / Memory). Previously these lived
+ * in the LEFT panel under `LeftPanelTab`; they moved to the right
+ * when the left panel became the project-management surface.
+ */
+export type RightPanelTab = "files" | "diff" | "preview" | "git" | "memory";
+/** @deprecated kept as alias — LeftPanelTab is the same set under its new home. */
+export type LeftPanelTab = RightPanelTab;
 export interface CanvasViewportAdapter {
   setViewport: (viewport: Viewport, options?: { duration?: number }) => void;
   getViewport: () => Viewport;
@@ -26,10 +33,13 @@ interface CanvasStore {
   rightPanelCollapsed: boolean;
   rightPanelActiveTab: RightPanelTab;
   rightPanelWidth: number;
+  /**
+   * `rightPanelPreviewFile` is the click-to-preview target for the
+   * Preview tab; it lived on the left panel before the refactor.
+   */
+  rightPanelPreviewFile: string | null;
   leftPanelCollapsed: boolean;
   leftPanelWidth: number;
-  leftPanelActiveTab: LeftPanelTab;
-  leftPanelPreviewFile: string | null;
   // Usage was previously cramped in the right panel as a tab. It's
   // now a full-screen overlay (see UsageOverlay) — a boolean is
   // enough: "is the dashboard visible right now?".
@@ -49,6 +59,7 @@ interface CanvasStore {
   setRightPanelCollapsed: (collapsed: boolean) => void;
   setRightPanelActiveTab: (tab: RightPanelTab) => void;
   setRightPanelWidth: (width: number) => void;
+  setRightPanelPreviewFile: (filePath: string | null) => void;
   openUsageOverlay: () => void;
   closeUsageOverlay: () => void;
   toggleUsageOverlay: () => void;
@@ -57,8 +68,6 @@ interface CanvasStore {
   toggleSessionsOverlay: () => void;
   setLeftPanelCollapsed: (collapsed: boolean) => void;
   setLeftPanelWidth: (width: number) => void;
-  setLeftPanelActiveTab: (tab: LeftPanelTab) => void;
-  setLeftPanelPreviewFile: (filePath: string | null) => void;
   animateTo: (x: number, y: number, scale?: number) => void;
 }
 
@@ -93,12 +102,11 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   isAnimating: false,
   focusLevel: "terminal" as FocusLevel,
   rightPanelCollapsed: true,
-  rightPanelActiveTab: "sessions" as RightPanelTab,
+  rightPanelActiveTab: "files" as RightPanelTab,
   rightPanelWidth: DEFAULT_RIGHT_PANEL_WIDTH,
+  rightPanelPreviewFile: null,
   leftPanelCollapsed: true,
   leftPanelWidth: 280,
-  leftPanelActiveTab: "files" as LeftPanelTab,
-  leftPanelPreviewFile: null,
   usageOverlayOpen: false,
   sessionsOverlayOpen: false,
 
@@ -127,12 +135,20 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const next = order[(order.indexOf(current) + 1) % order.length];
     set({ focusLevel: next });
   },
-  setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
-  setRightPanelActiveTab: (tab) => set({ rightPanelActiveTab: tab }),
+  setRightPanelCollapsed: (collapsed) => {
+    set({ rightPanelCollapsed: collapsed });
+    markDirty();
+  },
+  setRightPanelActiveTab: (tab) => {
+    set({ rightPanelActiveTab: tab });
+    markDirty();
+  },
   setRightPanelWidth: (width) => {
     set({ rightPanelWidth: width });
     markDirty();
   },
+  setRightPanelPreviewFile: (filePath) =>
+    set({ rightPanelPreviewFile: filePath }),
   openUsageOverlay: () => set({ usageOverlayOpen: true }),
   closeUsageOverlay: () => set({ usageOverlayOpen: false }),
   toggleUsageOverlay: () =>
@@ -149,11 +165,6 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set({ leftPanelWidth: width });
     markDirty();
   },
-  setLeftPanelActiveTab: (tab) => {
-    set({ leftPanelActiveTab: tab });
-    markDirty();
-  },
-  setLeftPanelPreviewFile: (filePath) => set({ leftPanelPreviewFile: filePath }),
 
   setViewport: (partial) => {
     const nextViewport = { ...get().viewport, ...partial };

@@ -13,9 +13,9 @@ export function executeResult(result: SearchResult): void {
       break;
 
     case "file":
-      useCanvasStore.getState().setLeftPanelCollapsed(false);
-      useCanvasStore.getState().setLeftPanelActiveTab("preview");
-      useCanvasStore.getState().setLeftPanelPreviewFile(data.filePath);
+      useCanvasStore.getState().setRightPanelCollapsed(false);
+      useCanvasStore.getState().setRightPanelActiveTab("preview");
+      useCanvasStore.getState().setRightPanelPreviewFile(data.filePath);
       break;
 
     case "terminal":
@@ -23,27 +23,29 @@ export function executeResult(result: SearchResult): void {
       break;
 
     case "git-commit":
-      useCanvasStore.getState().setLeftPanelCollapsed(false);
-      useCanvasStore.getState().setLeftPanelActiveTab("git");
+      useCanvasStore.getState().setRightPanelCollapsed(false);
+      useCanvasStore.getState().setRightPanelActiveTab("git");
       window.dispatchEvent(
         new CustomEvent("termcanvas:select-git-commit", { detail: data.hash }),
       );
       break;
 
     case "git-branch":
-      useCanvasStore.getState().setLeftPanelCollapsed(false);
-      useCanvasStore.getState().setLeftPanelActiveTab("git");
+      useCanvasStore.getState().setRightPanelCollapsed(false);
+      useCanvasStore.getState().setRightPanelActiveTab("git");
       break;
 
     case "session":
-      useCanvasStore.getState().setRightPanelCollapsed(false);
-      useCanvasStore.getState().setRightPanelActiveTab("sessions");
+      // Sessions live in the full-screen overlay now (no longer a
+      // right-panel tab). Open the overlay and let it pick up the
+      // loaded replay.
+      useCanvasStore.getState().openSessionsOverlay();
       useSessionStore.getState().loadReplay(data.filePath);
       break;
 
     case "memory":
-      useCanvasStore.getState().setLeftPanelCollapsed(false);
-      useCanvasStore.getState().setLeftPanelActiveTab("memory");
+      useCanvasStore.getState().setRightPanelCollapsed(false);
+      useCanvasStore.getState().setRightPanelActiveTab("memory");
       break;
   }
 

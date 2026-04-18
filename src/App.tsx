@@ -4,6 +4,7 @@ import { addProjectFromDirectoryPath } from "./canvas/sceneCommands";
 import { Toolbar } from "./toolbar/Toolbar";
 import { NotificationToast } from "./components/NotificationToast";
 import { LeftPanel } from "./components/LeftPanel";
+import { RightPanel } from "./components/RightPanel";
 import { initUpdaterListeners, useUpdaterStore } from "./stores/updaterStore";
 import { ComposerBar } from "./components/ComposerBar";
 import { usePreferencesStore, hydrateApiKey } from "./stores/preferencesStore";
@@ -581,6 +582,7 @@ export function App() {
           label HUD in the canvas top-left. Re-enable when ready. */}
       {/* <Hub /> */}
       <LeftPanel />
+      <RightPanel />
       <CanvasRoot />
       {drawingEnabled && <DrawingPanel />}
       <CompletionGlow />
