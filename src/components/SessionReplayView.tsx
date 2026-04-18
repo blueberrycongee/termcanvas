@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useMemo, useState } from "react";
 import { marked } from "marked";
 import { useSessionStore } from "../stores/sessionStore";
+import { useCanvasStore } from "../stores/canvasStore";
 import { useT } from "../i18n/useT";
 import type { TimelineEvent } from "../../shared/sessions";
 import { useProjectStore } from "../stores/projectStore";
@@ -801,6 +802,7 @@ export function SessionReplayView() {
   const isPlaying = useSessionStore((s) => s.replayIsPlaying);
   const speed = useSessionStore((s) => s.replaySpeed);
   const exitReplay = useSessionStore((s) => s.exitReplay);
+  const closeSessionsOverlay = useCanvasStore((s) => s.closeSessionsOverlay);
   const seekTo = useSessionStore((s) => s.seekTo);
   const stepForward = useSessionStore((s) => s.stepForward);
   const stepBackward = useSessionStore((s) => s.stepBackward);
@@ -878,14 +880,20 @@ export function SessionReplayView() {
       origin: "user",
     });
 
+    // Close the replay drawer BEFORE panning. In the old full-screen
+    // modal, exitReplay was enough — modal dismissed itself. Now the
+    // drawer is a left-anchored canvas-gap panel that covers ~60% of
+    // the canvas; leaving it open means the brand-new terminal spawns
+    // and pans underneath the drawer, invisible to the user.
     exitReplay();
+    closeSessionsOverlay();
     panToTerminal(created.id);
     notify(
       "info",
       (t.session_replay_resume_toast as unknown as string) ??
         `Resumed session in new ${resumeTarget.provider} terminal`,
     );
-  }, [resumeTarget, exitReplay, notify, t]);
+  }, [resumeTarget, exitReplay, closeSessionsOverlay, notify, t]);
 
   // Scroll the current-highlighted element into view when it changes.
   // Applies to both click-seek and playback. Smooth scroll works well
