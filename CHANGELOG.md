@@ -6,6 +6,7 @@ All notable changes to TermCanvas will be documented in this file.
 
 ### Added
 - Editor: full-canvas Monaco drawer — click any file in the right panel to open it in a real VSCode-style editor with syntax highlighting, Cmd+S save, dirty tracking, and a two-level half/full width toggle. Replaces the cramped preview tab
+- Editor: custom Monaco themes tuned to the app's warm palette — dark mode uses the charcoal `#1a1918` surface (not VSCode's stock cool grey); light mode gets an overhauled syntax palette (warm violet keywords, green strings, amber numbers, teal types) that reads naturally on the cream surface instead of the over-saturated stock vs colours
 - Left panel: project management + session history in one place. "+" button (in the header and in the collapsed strip) adds a project in a single click; History section below ProjectTree lists past Claude/Codex sessions scoped to the current canvas
 - Canvas-gap overlay system: Usage dashboard and Session replay now render as panels anchored in the gap between the left and right side panels, so both nav surfaces stay visible while you read code, dashboards, or transcripts. Three tenants (Usage / File Editor / Session Replay) are mutually exclusive in that slot
 
@@ -23,6 +24,7 @@ All notable changes to TermCanvas will be documented in this file.
 
 ### Added (zh-CN)
 - 编辑器:全画布 Monaco 抽屉 —— 在右侧栏 Files 里点任意文件,会像 VSCode 那样打开一个真正的编辑器,带语法高亮、Cmd+S 保存、脏状态跟踪、半屏/全屏切换。取代了之前拥挤的 preview tab
+- 编辑器:自定义 Monaco 主题匹配 app 暖色调 —— 暗色用 charcoal `#1a1918`(不是 VSCode 原生的冷灰);亮色重做了整套语法色(warm violet 关键字、green 字符串、amber 数字、teal 类型),在 cream 背景上读起来自然,不会像原版 vs 那样饱和度过高显脏
 - 左侧栏:项目管理 + 会话历史二合一。标题栏 + 折叠态都有「+」按钮,一键加项目;ProjectTree 下方是 History 区,列出当前 canvas 范围内的过往 Claude/Codex 会话
 - Canvas-gap 抽屉体系:Usage 仪表盘、会话回放不再是全屏弹窗,而是锚定在左右栏之间的那块区域里,两边导航始终可见。Usage / 文件编辑器 / 会话回放三者在这块空间里互斥,同一时刻只显示一个
 
