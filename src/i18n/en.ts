@@ -175,8 +175,11 @@ export const en = {
   global_search_toggle: "Global Search (Cmd+K)",
   global_search_toggle_desc: "Experimental. Search across files, sessions, commits, memory, and actions",
   search_placeholder: "Search everything\u2026",
+  search_placeholder_browse:
+    "Type to filter, or browse recent sessions below",
   search_no_results: "No results found",
   search_empty_hint: "Type to find a past session, a terminal, a branch, or an action.",
+  search_category_sessions_recent: "Recent sessions",
   search_scope_all_label: "All canvas",
   search_footer_toggle_scope: "toggle scope",
   search_footer_open: "open",

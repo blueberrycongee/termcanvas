@@ -285,13 +285,24 @@ export function SearchModal() {
           <span style={{ color: "var(--text-muted)" }}>
             <IconSearch />
           </span>
+          {/*
+            Placeholder shifts between "browse" and "search" modes.
+            When the palette is freshly opened and the user hasn't
+            typed, they're effectively browsing the recent-sessions
+            list; the placeholder reminds them that they can either
+            scroll or start typing to filter. Once they type, the
+            placeholder is invisible so the wording doesn't matter.
+          */}
           <input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onCompositionStart={() => { composingRef.current = true; }}
             onCompositionEnd={() => { composingRef.current = false; }}
-            placeholder={(t.search_placeholder as string) ?? "Search everything..."}
+            placeholder={
+              (t.search_placeholder_browse as string) ??
+              "Type to filter, or browse recent sessions below"
+            }
             className="min-w-0 flex-1 bg-transparent text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none"
             style={MONO_STYLE}
             autoComplete="off"
@@ -331,7 +342,19 @@ export function SearchModal() {
                     backgroundColor: "var(--bg)",
                   }}
                 >
-                  {(t[CATEGORY_LABEL_KEYS[category]] as string) ?? category}
+                  {/*
+                    For the session category, switch the header
+                    between "Recent sessions" (empty-query browse
+                    mode) and "Sessions" (query-filtered mode).
+                    Small wording change, big signal shift — tells
+                    the user the rows below are curated-recent
+                    rather than matches of a query that didn't
+                    happen.
+                  */}
+                  {category === "session" && !query.trim()
+                    ? ((t.search_category_sessions_recent as string) ??
+                        "Recent sessions")
+                    : ((t[CATEGORY_LABEL_KEYS[category]] as string) ?? category)}
                 </div>
                 {items.map((result) => {
                   const globalIdx = flatResults.indexOf(result);
