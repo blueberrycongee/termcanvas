@@ -98,12 +98,13 @@ export const useSearchStore = create<SearchStore>((set, get) => ({
   toggleScope: () =>
     set((state) => ({
       scope: state.scope === "current" ? "all" : "current",
-      // Scope change re-qualifies what's in `results`; clearing keeps
-      // the list in sync with the new scope. The provider re-runs on
-      // the next render tick via the palette's effect.
-      results: [],
+      // Don't clear `results` here — the palette's effect will
+      // repopulate once the new scope's session listing resolves,
+      // and keeping the old list visible during that ~ms avoids a
+      // brief empty-state flash on every Tab press. `selectedIndex`
+      // resets to 0 so the old selection (which may reference a
+      // session no longer in scope) doesn't point at a stale row.
       selectedIndex: 0,
     })),
-  setScope: (scope) =>
-    set({ scope, results: [], selectedIndex: 0 }),
+  setScope: (scope) => set({ scope, selectedIndex: 0 }),
 }));

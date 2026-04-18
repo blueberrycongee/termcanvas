@@ -119,34 +119,53 @@ export function SearchModal() {
   }, [scope, projectDirs, t]);
 
   // Run search on query / scope change.
+  //
+  // Flicker-avoidance invariant: at most ONE setResults call per
+  // keystroke in the fast path (Tier 1 + Tier 1b), and only after
+  // BOTH are ready. Previously the effect fired `setResults(sync)`
+  // synchronously and then `setResults([...sync, ...sessions])` in
+  // the session IPC's microtask — React painted the intermediate
+  // sync-only snapshot, the session rows blinked out and back in
+  // every keystroke. Awaiting the session promise before the first
+  // commit means the old-query results remain on screen until the
+  // new merged list is fully built, which is both faster (no
+  // double reconciliation) and stable-looking.
+  //
+  // The Tier 2 ripgrep path still uses a second setResults because
+  // it genuinely adds new rows several hundred ms after the fast
+  // path settles — that's a content append, not a replacement, and
+  // doesn't cause a flicker because it only extends the list.
   useEffect(() => {
     if (!open) return;
-
-    // Tier 1 (sync, in-memory): actions / terminals / git. Instant.
-    const syncResults = collectSyncResults(query, t);
-    setResults(syncResults);
-
-    // Tier 1b (sessions): async IPC but still metadata-only (mtime-
-    // cached first-prompt index). Fires on every query change
-    // including empty query — when empty, the provider returns the
-    // most-recent N sessions so opening Cmd+K gives a useful
-    // starting list without forcing the user to type.
     let cancelled = false;
-    const runSessions = async () => {
+
+    const runFastPath = async () => {
+      const syncResults = collectSyncResults(query, t);
+      // Session listing hits the mtime-keyed main-process cache;
+      // typical latency is sub-ms once warm, 100–200 ms on first
+      // open when the index builds. Either way the UI keeps the
+      // previous query's results visible until this resolves.
       const sessionResults = await collectSessionResults(query, projectDirs);
       if (cancelled) return;
-      const current = useSearchStore.getState().results;
-      const existingIds = new Set(current.map((r) => r.id));
-      const merged = [...current, ...sessionResults.filter((r) => !existingIds.has(r.id))];
+
+      const merged: SearchResult[] = [...syncResults];
+      const seen = new Set(merged.map((r) => r.id));
+      for (const r of sessionResults) {
+        if (!seen.has(r.id)) {
+          merged.push(r);
+          seen.add(r.id);
+        }
+      }
       setResults(merged);
     };
-    void runSessions();
+    void runFastPath();
 
     // Tier 2 (async IPC, grep): only when user typed something
     // substantial. Debounced 300 ms after last keystroke. File
     // search is scoped to the first project in the current scope;
     // session content grep is global (the backend already handles
-    // its own scoping).
+    // its own scoping). Merges additively so the fast-path results
+    // stay put.
     if (asyncTimerRef.current) clearTimeout(asyncTimerRef.current);
     if (query.length >= 3) {
       setLoading(true);
