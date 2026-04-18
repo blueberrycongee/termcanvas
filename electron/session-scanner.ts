@@ -20,6 +20,16 @@ const LIVE_THRESHOLD_MS = 60_000;
 const HISTORY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const FIND_TIMEOUT_MS = 5_000;
 const TAIL_BYTES = 65536;
+// Per-message cap for replay-timeline content. The old 200-char cap
+// was fine for "a one-line preview in a sidebar list" but turned the
+// full-fidelity replay into a chopped-off log — users couldn't
+// actually read a conversation end-to-end because every message got
+// truncated mid-sentence. 16 KB comfortably covers the 95th-
+// percentile assistant response and keeps a ceiling so a runaway
+// tool output (e.g. `cat` on a big file) can't pull 500 KB of string
+// into every timeline event. Anything past this gets slice-truncated;
+// the UI treats that as acceptable lossy display.
+const REPLAY_TEXT_MAX_CHARS = 16_000;
 
 export class SessionScanner {
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -350,7 +360,7 @@ export class SessionScanner {
       (payload.type === "user_message" || payload.type === "agent_message") &&
       typeof payload.message === "string"
     ) {
-      return payload.message.slice(0, 200);
+      return payload.message.slice(0, REPLAY_TEXT_MAX_CHARS);
     }
 
     if (raw.type !== "response_item") {
@@ -376,12 +386,12 @@ export class SessionScanner {
       if (typeof input?.file_path === "string") return input.file_path;
       if (typeof input?.path === "string") return input.path;
       if (typeof payload.arguments === "string")
-        return payload.arguments.slice(0, 200);
+        return payload.arguments.slice(0, REPLAY_TEXT_MAX_CHARS);
       if (
         typeof payload.input === "string" &&
         event.tool_name !== "apply_patch"
       ) {
-        return payload.input.slice(0, 200);
+        return payload.input.slice(0, REPLAY_TEXT_MAX_CHARS);
       }
     }
 
@@ -390,7 +400,7 @@ export class SessionScanner {
         payload.type === "custom_tool_call_output") &&
       typeof payload.output === "string"
     ) {
-      return payload.output.slice(0, 200);
+      return payload.output.slice(0, REPLAY_TEXT_MAX_CHARS);
     }
 
     return "";
@@ -400,13 +410,13 @@ export class SessionScanner {
     const message = raw.message as Record<string, unknown> | undefined;
     if (message) {
       const content = message.content;
-      if (typeof content === "string") return content.slice(0, 200);
+      if (typeof content === "string") return content.slice(0, REPLAY_TEXT_MAX_CHARS);
       if (Array.isArray(content)) {
         for (const block of content) {
           if (!block || typeof block !== "object") continue;
           const entry = block as Record<string, unknown>;
           if (entry.type === "text" && typeof entry.text === "string")
-            return entry.text.slice(0, 200);
+            return entry.text.slice(0, REPLAY_TEXT_MAX_CHARS);
           if (entry.type === "tool_result") continue;
         }
       }
@@ -419,7 +429,7 @@ export class SessionScanner {
       payload.type === "user_message" &&
       typeof payload.message === "string"
     ) {
-      return payload.message.slice(0, 200);
+      return payload.message.slice(0, REPLAY_TEXT_MAX_CHARS);
     }
     if (
       raw.type === "response_item" &&
@@ -558,15 +568,15 @@ export class SessionScanner {
   }
 
   private extractTextFromContent(content: unknown): string {
-    if (typeof content === "string") return content.slice(0, 200);
+    if (typeof content === "string") return content.slice(0, REPLAY_TEXT_MAX_CHARS);
     if (!Array.isArray(content)) return "";
     for (const block of content) {
       if (!block || typeof block !== "object") continue;
       const entry = block as Record<string, unknown>;
-      if (typeof entry.text === "string") return entry.text.slice(0, 200);
+      if (typeof entry.text === "string") return entry.text.slice(0, REPLAY_TEXT_MAX_CHARS);
       if (typeof entry.thinking === "string")
-        return entry.thinking.slice(0, 200);
-      if (typeof entry.content === "string") return entry.content.slice(0, 200);
+        return entry.thinking.slice(0, REPLAY_TEXT_MAX_CHARS);
+      if (typeof entry.content === "string") return entry.content.slice(0, REPLAY_TEXT_MAX_CHARS);
     }
     return "";
   }
