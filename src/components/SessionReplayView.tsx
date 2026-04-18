@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useMemo } from "react";
+import { useEffect, useRef, useCallback, useMemo, useState } from "react";
 import { useSessionStore } from "../stores/sessionStore";
 import { useT } from "../i18n/useT";
 import type { TimelineEvent } from "../../shared/sessions";
@@ -9,28 +9,64 @@ import { createTerminal } from "../stores/projectStore";
 import { panToTerminal } from "../utils/panToTerminal";
 import type { TerminalType } from "../types";
 
-const EVENT_ICONS: Record<TimelineEvent["type"], string> = {
-  user_prompt: "▶",
-  assistant_text: "◆",
-  thinking: "◌",
-  tool_use: "⚙",
-  tool_result: "✓",
-  turn_complete: "●",
-  error: "✗",
-};
-
-const EVENT_COLORS: Record<TimelineEvent["type"], string> = {
-  user_prompt: "var(--accent)",
-  assistant_text: "var(--text-primary)",
-  thinking: "var(--text-muted)",
-  tool_use: "#f59e0b",
-  tool_result: "#22c55e",
-  turn_complete: "var(--text-faint)",
-  error: "#ef4444",
-};
+/*
+ * Replay as a chat transcript.
+ *
+ * Old design: every event was rendered as a uniform 10 px sidebar
+ * row (user prompts, assistant prose, tool calls, tool results,
+ * thinking — all at the same visual weight). Reading a real
+ * conversation end-to-end was miserable because the actual dialog
+ * was buried in a wall of identically-sized telemetry lines.
+ *
+ * New design prioritizes what a human reading back a session cares
+ * about most (topic → own questions → agent replies → tool noise,
+ * in that order):
+ *
+ *   Layer 1 — Topic header.
+ *     First user prompt promoted to a big title; meta line beneath.
+ *     The first thing on screen answers "what is this conversation
+ *     about?" without any scrolling.
+ *
+ *   Layer 2 — Chat body.
+ *     User prompts:  accent-bordered left rail, prose-sized text,
+ *                    no timestamp clutter on the same line.
+ *     Assistant text: plain prose, clear separation from tools.
+ *     Tool calls:    single-line collapsed pills (verb + brief
+ *                    subject + optional file path). Click to expand
+ *                    input + output. Default COLLAPSED so they
+ *                    don't chop up the prose flow.
+ *     tool_result:   never a top-level row; appears only inside its
+ *                    parent tool pill's expanded detail.
+ *     thinking:      hidden by default behind a toggle.
+ *
+ *   Layer 3 — Playback footer.
+ *     Thin progress bar + compact play/pause/seek + speed + show-
+ *     details toggle. Demoted from "primary UI" to "occasional tool".
+ *
+ * The existing currentIndex / isPlaying / seekTo state machine is
+ * preserved — this is a presentational rewrite, not a state model
+ * change. currentIndex highlights whichever rendered block contains
+ * it (user bubble, tool pill, assistant text block, etc.) and auto-
+ * scrolls during playback.
+ */
 
 function formatTimestamp(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatRelativeAge(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return "";
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}y ago`;
 }
 
 function projectName(projectDir: string): string {
@@ -42,7 +78,213 @@ function projectName(projectDir: string): string {
   return projectDir.replace(/^-/, "").split("-").pop() || projectDir;
 }
 
-function TimelineRow({
+/**
+ * Infer the agent provider ("claude" | "codex" | …) from the path of
+ * the session's JSONL file.
+ */
+function providerFromFilePath(filePath: string): TerminalType | null {
+  const normalized = filePath.replace(/\\/g, "/");
+  if (normalized.includes("/.claude/")) return "claude";
+  if (normalized.includes("/.codex/")) return "codex";
+  return null;
+}
+
+/**
+ * A single conversation turn. `userEvent` may be null for events
+ * before the first user message (session headers, system setup).
+ */
+interface Turn {
+  startIndex: number;
+  userEvent: TimelineEvent | null;
+  assistantEvents: TimelineEvent[];
+}
+
+/**
+ * Logical assistant block — what we actually render in-flow inside a
+ * turn. Tool pairs (tool_use + immediately following tool_result)
+ * collapse to a single node so the result stays attached to its call.
+ */
+interface AssistantNode {
+  type: "text" | "thinking" | "tool" | "error";
+  index: number;
+  primary: TimelineEvent;
+  paired?: TimelineEvent;
+}
+
+function buildTurns(events: TimelineEvent[]): Turn[] {
+  const turns: Turn[] = [];
+  let current: Turn | null = null;
+  for (const event of events) {
+    if (event.type === "user_prompt") {
+      if (current) turns.push(current);
+      current = {
+        startIndex: event.index,
+        userEvent: event,
+        assistantEvents: [],
+      };
+    } else {
+      if (!current) {
+        current = {
+          startIndex: event.index,
+          userEvent: null,
+          assistantEvents: [],
+        };
+      }
+      current.assistantEvents.push(event);
+    }
+  }
+  if (current) turns.push(current);
+  return turns;
+}
+
+function buildAssistantNodes(events: TimelineEvent[]): AssistantNode[] {
+  const nodes: AssistantNode[] = [];
+  for (let i = 0; i < events.length; i += 1) {
+    const ev = events[i];
+    if (ev.type === "tool_use") {
+      const next = events[i + 1];
+      const paired = next?.type === "tool_result" ? next : undefined;
+      nodes.push({
+        type: "tool",
+        index: ev.index,
+        primary: ev,
+        paired,
+      });
+      if (paired) i += 1;
+    } else if (ev.type === "assistant_text") {
+      nodes.push({ type: "text", index: ev.index, primary: ev });
+    } else if (ev.type === "thinking") {
+      nodes.push({ type: "thinking", index: ev.index, primary: ev });
+    } else if (ev.type === "error") {
+      nodes.push({ type: "error", index: ev.index, primary: ev });
+    }
+    // tool_result without a preceding tool_use (orphaned) is dropped;
+    // turn_complete is metadata, not content — also dropped.
+  }
+  return nodes;
+}
+
+function toolVerb(toolName: string | undefined): string {
+  if (!toolName) return "Tool";
+  // Claude tool names come Pascal-cased ("Read", "Edit", "Bash"),
+  // codex as snake_case function names. Normalize lightly for display
+  // without losing the identifier meaning.
+  return toolName;
+}
+
+function toolSubjectHint(event: TimelineEvent): string {
+  // Prefer the detected file path (most user-recognisable anchor),
+  // fall back to the first line of the tool input preview.
+  if (event.filePath) {
+    return event.filePath.split(/[\\/]/).filter(Boolean).pop() ?? event.filePath;
+  }
+  if (event.textPreview) {
+    const firstLine = event.textPreview.split("\n", 1)[0].trim();
+    if (firstLine.length > 80) return firstLine.slice(0, 80) + "…";
+    return firstLine;
+  }
+  return "";
+}
+
+/* ------------ Layer-1: topic header ------------------------------- */
+
+function TopicHeader({
+  topic,
+  project,
+  provider,
+  age,
+  messageCount,
+  resumeDisabled,
+  resumeTooltip,
+  resumeLabel,
+  onBack,
+  onResume,
+  backLabel,
+}: {
+  topic: string;
+  project: string;
+  provider: string;
+  age: string;
+  messageCount: number;
+  resumeDisabled: boolean;
+  resumeTooltip: string;
+  resumeLabel: string;
+  onBack: () => void;
+  onResume: () => void;
+  backLabel: string;
+}) {
+  return (
+    <div className="shrink-0 border-b border-[var(--border)] px-3 py-3">
+      <div className="flex items-start gap-2">
+        <button
+          className="mt-0.5 shrink-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+          onClick={onBack}
+          title={backLabel}
+        >
+          <svg width="14" height="14" viewBox="0 0 12 12" fill="none">
+            <path
+              d="M8 1L3 6l5 5"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+        <div className="flex-1 min-w-0">
+          {/*
+            Topic = first user prompt. line-clamp-2 keeps the header
+            bounded even for wordy first turns; hover tooltip gives
+            the full content if clamping hides the tail. 14 px prose
+            with accent colour announces it as "the thing this
+            conversation is about" without needing any chrome.
+          */}
+          <div
+            className="text-[14px] font-medium leading-snug text-[var(--text-primary)] line-clamp-2"
+            title={topic}
+          >
+            {topic || (
+              <span className="italic text-[var(--text-muted)]">(no prompt captured)</span>
+            )}
+          </div>
+          <div
+            className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-[var(--text-faint)]"
+            style={{ fontFamily: '"Geist Mono", monospace' }}
+          >
+            <span>{project}</span>
+            <span>·</span>
+            <span>{provider}</span>
+            <span>·</span>
+            <span>{age}</span>
+            <span>·</span>
+            <span>{messageCount} msgs</span>
+          </div>
+        </div>
+        <button
+          className="mt-0.5 shrink-0 inline-flex h-6 items-center gap-1 rounded-md px-2 text-[10px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          style={{
+            color: !resumeDisabled ? "var(--accent)" : "var(--text-muted)",
+            backgroundColor: !resumeDisabled
+              ? "color-mix(in srgb, var(--accent) 12%, transparent)"
+              : "transparent",
+          }}
+          onClick={onResume}
+          disabled={resumeDisabled}
+          title={resumeTooltip}
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+            <path d="M2 1l6 4-6 4V1z" fill="currentColor" />
+          </svg>
+          <span>{resumeLabel}</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ------------ Layer-2: chat content ------------------------------- */
+
+function UserBubble({
   event,
   isCurrent,
   onClick,
@@ -53,47 +295,244 @@ function TimelineRow({
 }) {
   return (
     <button
-      className={`w-full px-2 py-1 flex items-start gap-1.5 text-left cursor-pointer rounded text-[10px] transition-colors ${
-        isCurrent ? "bg-[var(--surface-hover)]" : "hover:bg-[var(--sidebar-hover)]"
-      }`}
+      className="group w-full text-left block"
       onClick={onClick}
+      data-current={isCurrent || undefined}
     >
-      <span className="shrink-0 w-3 text-center" style={{ color: EVENT_COLORS[event.type] }}>
-        {EVENT_ICONS[event.type]}
-      </span>
-      <div className="flex-1 min-w-0">
-        <div className="truncate" style={{ color: isCurrent ? "var(--text-primary)" : "var(--text-secondary)" }}>
-          {event.toolName ? `${event.toolName}` : event.type.replace("_", " ")}
-          {event.filePath && (
-            <span className="text-[var(--text-faint)]"> {event.filePath.split("/").pop()}</span>
-          )}
+      <div
+        className="rounded-md border-l-[3px] px-3 py-2 transition-colors"
+        style={{
+          borderColor: isCurrent ? "var(--accent)" : "color-mix(in srgb, var(--accent) 40%, transparent)",
+          backgroundColor: isCurrent
+            ? "color-mix(in srgb, var(--accent) 8%, transparent)"
+            : "color-mix(in srgb, var(--accent) 3%, transparent)",
+        }}
+      >
+        <div
+          className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-wider"
+          style={{ fontFamily: '"Geist Mono", monospace', color: "var(--accent)" }}
+        >
+          <span>you</span>
+          <span className="text-[var(--text-faint)] normal-case tracking-normal">
+            {formatTimestamp(event.timestamp)}
+          </span>
         </div>
-        {event.textPreview && (
-          <div className="truncate text-[var(--text-faint)]">{event.textPreview}</div>
-        )}
+        <div className="text-[13px] leading-relaxed text-[var(--text-primary)] whitespace-pre-wrap break-words">
+          {event.textPreview}
+        </div>
       </div>
-      <span className="shrink-0 text-[var(--text-faint)] tabular-nums">
-        {formatTimestamp(event.timestamp)}
-      </span>
     </button>
   );
 }
 
-const SPEEDS = [1, 2, 4, 8];
-
-/**
- * Infer the agent provider ("claude" | "codex" | …) from the path of
- * the session's JSONL file. Claude stores sessions under
- * `~/.claude/projects/**`; Codex under `~/.codex/sessions/**`. This
- * path-based detection keeps ReplayTimeline provider-agnostic so the
- * upstream scanner doesn't have to pipe one more field through.
- */
-function providerFromFilePath(filePath: string): TerminalType | null {
-  const normalized = filePath.replace(/\\/g, "/");
-  if (normalized.includes("/.claude/")) return "claude";
-  if (normalized.includes("/.codex/")) return "codex";
-  return null;
+function AssistantTextRow({
+  event,
+  isCurrent,
+  onClick,
+}: {
+  event: TimelineEvent;
+  isCurrent: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className="w-full text-left"
+      onClick={onClick}
+      data-current={isCurrent || undefined}
+    >
+      <div
+        className="rounded-md px-3 py-2 transition-colors"
+        style={{
+          backgroundColor: isCurrent
+            ? "color-mix(in srgb, var(--text-muted) 10%, transparent)"
+            : "transparent",
+        }}
+      >
+        <div className="text-[13px] leading-relaxed text-[var(--text-primary)] whitespace-pre-wrap break-words">
+          {event.textPreview}
+        </div>
+      </div>
+    </button>
+  );
 }
+
+function ThinkingRow({
+  event,
+  isCurrent,
+  onClick,
+}: {
+  event: TimelineEvent;
+  isCurrent: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className="w-full text-left"
+      onClick={onClick}
+      data-current={isCurrent || undefined}
+    >
+      <div
+        className="rounded-md px-3 py-1.5 transition-colors border-l-[2px]"
+        style={{
+          borderColor: "color-mix(in srgb, var(--text-muted) 40%, transparent)",
+          backgroundColor: isCurrent
+            ? "color-mix(in srgb, var(--text-muted) 6%, transparent)"
+            : "transparent",
+        }}
+      >
+        <div
+          className="mb-0.5 text-[9px] uppercase tracking-wider text-[var(--text-faint)]"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          thinking
+        </div>
+        <div className="text-[12px] italic leading-relaxed text-[var(--text-muted)] whitespace-pre-wrap break-words">
+          {event.textPreview}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function ToolPill({
+  node,
+  isCurrent,
+  expanded,
+  onToggle,
+  onClick,
+}: {
+  node: AssistantNode;
+  isCurrent: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+  onClick: () => void;
+}) {
+  const tool = node.primary;
+  const verb = toolVerb(tool.toolName);
+  const subject = toolSubjectHint(tool);
+  return (
+    <div
+      className="rounded-md border px-2 py-1.5 transition-colors"
+      style={{
+        borderColor: isCurrent ? "var(--accent)" : "var(--border)",
+        backgroundColor: isCurrent
+          ? "color-mix(in srgb, var(--accent) 6%, transparent)"
+          : "color-mix(in srgb, var(--text-muted) 4%, transparent)",
+      }}
+      data-current={isCurrent || undefined}
+    >
+      <button
+        className="flex w-full items-center gap-1.5 text-left cursor-pointer"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClick();
+          onToggle();
+        }}
+      >
+        <span className="shrink-0 text-[10px]" style={{ color: "#f59e0b" }}>
+          {expanded ? "▾" : "▸"}
+        </span>
+        <span
+          className="shrink-0 text-[11px] font-medium"
+          style={{ fontFamily: '"Geist Mono", monospace', color: "var(--text-primary)" }}
+        >
+          {verb}
+        </span>
+        {subject && (
+          <span
+            className="truncate text-[10px] text-[var(--text-muted)]"
+            style={{ fontFamily: '"Geist Mono", monospace' }}
+          >
+            {subject}
+          </span>
+        )}
+        <span className="flex-1" />
+        <span
+          className="shrink-0 text-[9px] tabular-nums text-[var(--text-faint)]"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          {formatTimestamp(tool.timestamp)}
+        </span>
+      </button>
+      {expanded && (
+        <div className="mt-2 space-y-2 border-t border-[var(--border)] pt-2">
+          {tool.textPreview && (
+            <div>
+              <div
+                className="mb-0.5 text-[9px] uppercase tracking-wider text-[var(--text-faint)]"
+                style={{ fontFamily: '"Geist Mono", monospace' }}
+              >
+                input
+              </div>
+              <pre
+                className="whitespace-pre-wrap break-words text-[11px] leading-snug text-[var(--text-secondary)]"
+                style={{ fontFamily: '"Geist Mono", monospace' }}
+              >
+                {tool.textPreview}
+              </pre>
+            </div>
+          )}
+          {node.paired?.textPreview && (
+            <div>
+              <div
+                className="mb-0.5 text-[9px] uppercase tracking-wider text-[var(--text-faint)]"
+                style={{ fontFamily: '"Geist Mono", monospace' }}
+              >
+                output
+              </div>
+              <pre
+                className="whitespace-pre-wrap break-words text-[11px] leading-snug text-[var(--text-secondary)]"
+                style={{ fontFamily: '"Geist Mono", monospace' }}
+              >
+                {node.paired.textPreview}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ErrorRow({
+  event,
+  isCurrent,
+  onClick,
+}: {
+  event: TimelineEvent;
+  isCurrent: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className="w-full text-left"
+      onClick={onClick}
+      data-current={isCurrent || undefined}
+    >
+      <div
+        className="rounded-md border px-2 py-1.5 transition-colors"
+        style={{
+          borderColor: "#ef4444",
+          backgroundColor: "color-mix(in srgb, #ef4444 6%, transparent)",
+        }}
+      >
+        <div
+          className="mb-0.5 text-[9px] uppercase tracking-wider"
+          style={{ fontFamily: '"Geist Mono", monospace', color: "#ef4444" }}
+        >
+          error
+        </div>
+        <div className="text-[12px] text-[var(--text-primary)] whitespace-pre-wrap break-words">
+          {event.textPreview}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+/* ------------ Main component -------------------------------------- */
+
+const SPEEDS = [1, 2, 4, 8];
 
 export function SessionReplayView() {
   const timeline = useSessionStore((s) => s.replayTimeline);
@@ -112,18 +551,27 @@ export function SessionReplayView() {
   const t = useT();
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const currentRef = useRef<HTMLDivElement>(null);
+  const currentRef = useRef<HTMLElement | null>(null);
 
-  // Resolve the replay's project/worktree from the canvas state. Only
-  // worktrees with a path exactly matching the replay's `projectDir`
-  // can host a Resume — we don't want to invent a worktree on the
-  // user's behalf, and a close-but-not-exact match (e.g. the user
-  // moved the project) would silently resume in the wrong place.
-  //
-  // Guard against the project not being on the canvas at all; in that
-  // case the Resume button stays disabled with an explanatory tooltip
-  // rather than being hidden — less surprising than a UI element that
-  // only sometimes appears.
+  // View toggles. Kept as local component state (not in the session
+  // store) — they're purely ergonomic read-mode preferences, don't
+  // need to round-trip through IPC or persist across sessions. Tool
+  // pills stay collapsed by default even when "details" is on; the
+  // toggle affects visibility of thinking rows only, plus it auto-
+  // expands pills if the user flips it after already reading the
+  // prose. Same design pattern as Slack's "show more" affordance.
+  const [showThinking, setShowThinking] = useState(false);
+  const [expandedTools, setExpandedTools] = useState<Set<number>>(new Set());
+
+  const toggleTool = useCallback((index: number) => {
+    setExpandedTools((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }, []);
+
   const resumeTarget = useMemo(() => {
     if (!timeline) return null;
     const provider = providerFromFilePath(timeline.filePath);
@@ -146,17 +594,7 @@ export function SessionReplayView() {
 
   const handleResume = useCallback(() => {
     if (!resumeTarget) return;
-    // Build a fresh terminal bound to this session. Runtime store
-    // picks `sessionId` up in `spawnPty` and routes it through each
-    // agent's `resumeArgs()` (`--resume <id>` for claude, `resume
-    // <id>` for codex, etc. — see src/terminal/cliConfig.ts).
-    const base = createTerminal(
-      resumeTarget.provider,
-      undefined,
-      undefined,
-      undefined,
-      "user",
-    );
+    const base = createTerminal(resumeTarget.provider, undefined, undefined, undefined, "user");
     base.sessionId = resumeTarget.sessionId;
 
     const created = createTerminalInScene({
@@ -166,13 +604,8 @@ export function SessionReplayView() {
       origin: "user",
     });
 
-    // Leave the replay immediately — the user's attention is on the
-    // live terminal they just resumed into. Pan the canvas so that
-    // terminal is centered & focused; also gives the user a clear
-    // signal that the click went somewhere.
     exitReplay();
     panToTerminal(created.id);
-
     notify(
       "info",
       (t.session_replay_resume_toast as unknown as string) ??
@@ -180,28 +613,25 @@ export function SessionReplayView() {
     );
   }, [resumeTarget, exitReplay, notify, t]);
 
+  // Scroll the current-highlighted element into view when it changes.
+  // Applies to both click-seek and playback. Smooth scroll works well
+  // for small gaps; large jumps fall back to "nearest" behaviour.
   useEffect(() => {
     currentRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [currentIndex]);
 
   useEffect(() => {
     if (!isPlaying || !timeline) return;
-
     const events = timeline.events;
     if (currentIndex >= events.length - 1) {
       stopPlayback();
       return;
     }
-
     const current = events[currentIndex];
     const next = events[currentIndex + 1];
     const realDelta = new Date(next.timestamp).getTime() - new Date(current.timestamp).getTime();
     const interval = Math.max(50, Math.min(2000, realDelta / speed));
-
-    const timer = setTimeout(() => {
-      stepForward();
-    }, interval);
-
+    const timer = setTimeout(() => stepForward(), interval);
     return () => clearTimeout(timer);
   }, [isPlaying, currentIndex, speed, timeline, stepForward, stopPlayback]);
 
@@ -215,6 +645,9 @@ export function SessionReplayView() {
     [timeline, seekTo],
   );
 
+  const turns = useMemo(() => (timeline ? buildTurns(timeline.events) : []), [timeline]);
+
+  // Loading / error panels — same shape as before.
   if (!timeline) {
     return (
       <div className="flex flex-col h-full items-center justify-center gap-2">
@@ -235,77 +668,133 @@ export function SessionReplayView() {
     );
   }
 
-  const projectDir = timeline.projectDir;
-  const progress = timeline.events.length > 1 ? currentIndex / (timeline.events.length - 1) : 0;
+  const topicEvent = timeline.events.find((e) => e.type === "user_prompt");
+  const topic = topicEvent?.textPreview ?? "";
+  const provider = providerFromFilePath(timeline.filePath) ?? "agent";
+  const age = formatRelativeAge(timeline.startedAt || timeline.endedAt || "");
+  const progress =
+    timeline.events.length > 1 ? currentIndex / (timeline.events.length - 1) : 0;
+
+  const assignCurrentRef = (
+    el: HTMLElement | null,
+    isCurrent: boolean,
+  ) => {
+    if (isCurrent && el) currentRef.current = el;
+  };
 
   return (
     <div className="flex flex-col h-full">
-      <div className="shrink-0 px-2 py-2 border-b border-[var(--border)] flex items-center gap-2">
-        <button
-          className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
-          onClick={exitReplay}
-          title={(t.sessions_load_error_back as unknown as string) ?? "Back"}
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M8 1L3 6l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-        <div className="flex-1 min-w-0">
-          <div className="text-[11px] font-medium truncate">
-            {projectName(projectDir)}
-          </div>
-          <div className="text-[9px] text-[var(--text-faint)]">
-            {timeline.events.length} {t.sessions_events} · {Math.round(timeline.totalTokens / 1000)}k {t.sessions_tokens}
-          </div>
-        </div>
-        {/*
-          Resume action. Small accent-coloured button with an inline
-          glyph + label — the primary affordance of the replay view
-          (read context → jump back into it), so it sits top-right
-          where the user looks after finishing reading the header.
-          Disabled state kicks in when the project isn't on the canvas
-          (we refuse to invent a worktree on the user's behalf). The
-          tooltip explains the disabled case so the button is still
-          discoverable.
-        */}
-        <button
-          className="shrink-0 inline-flex h-6 items-center gap-1 rounded-md px-2 text-[10px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-          style={{
-            color: resumeTarget ? "var(--accent)" : "var(--text-muted)",
-            backgroundColor: resumeTarget
-              ? "color-mix(in srgb, var(--accent) 12%, transparent)"
-              : "transparent",
-          }}
-          onClick={handleResume}
-          disabled={!resumeTarget}
-          title={
-            resumeTarget
-              ? ((t.session_replay_resume_tooltip as unknown as string) ??
-                  `Resume in a new ${resumeTarget.provider} terminal (--resume ${resumeTarget.sessionId.slice(0, 8)})`)
-              : ((t.session_replay_resume_unavailable as unknown as string) ??
-                  "Add this project to the canvas to resume")
-          }
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M2 1l6 4-6 4V1z" fill="currentColor" />
-          </svg>
-          <span>{(t.session_replay_resume as unknown as string) ?? "Resume"}</span>
-        </button>
+      <TopicHeader
+        topic={topic}
+        project={projectName(timeline.projectDir)}
+        provider={provider}
+        age={age}
+        messageCount={timeline.events.length}
+        resumeDisabled={!resumeTarget}
+        resumeTooltip={
+          resumeTarget
+            ? ((t.session_replay_resume_tooltip as unknown as string) ??
+                `Resume in a new ${resumeTarget.provider} terminal (--resume ${resumeTarget.sessionId.slice(0, 8)})`)
+            : ((t.session_replay_resume_unavailable as unknown as string) ??
+                "Add this project to the canvas to resume")
+        }
+        resumeLabel={(t.session_replay_resume as unknown as string) ?? "Resume"}
+        onBack={exitReplay}
+        onResume={handleResume}
+        backLabel={(t.sessions_load_error_back as unknown as string) ?? "Back"}
+      />
+
+      <div
+        ref={scrollRef}
+        className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-4"
+      >
+        {turns.map((turn, turnIdx) => {
+          const nodes = buildAssistantNodes(turn.assistantEvents);
+          return (
+            <div
+              key={`turn-${turn.startIndex}-${turnIdx}`}
+              className="space-y-2"
+            >
+              {turn.userEvent && (
+                <div
+                  ref={(el) =>
+                    assignCurrentRef(el, turn.userEvent!.index === currentIndex)
+                  }
+                >
+                  <UserBubble
+                    event={turn.userEvent}
+                    isCurrent={turn.userEvent.index === currentIndex}
+                    onClick={() => seekTo(turn.userEvent!.index)}
+                  />
+                </div>
+              )}
+              {nodes.length > 0 && (
+                <div className="space-y-1.5">
+                  {nodes.map((node) => {
+                    const isCurrent =
+                      node.index === currentIndex ||
+                      node.paired?.index === currentIndex;
+                    const attachRef = (el: HTMLElement | null) =>
+                      assignCurrentRef(el, isCurrent);
+
+                    if (node.type === "text") {
+                      return (
+                        <div key={node.index} ref={attachRef}>
+                          <AssistantTextRow
+                            event={node.primary}
+                            isCurrent={isCurrent}
+                            onClick={() => seekTo(node.index)}
+                          />
+                        </div>
+                      );
+                    }
+                    if (node.type === "thinking") {
+                      if (!showThinking) return null;
+                      return (
+                        <div key={node.index} ref={attachRef}>
+                          <ThinkingRow
+                            event={node.primary}
+                            isCurrent={isCurrent}
+                            onClick={() => seekTo(node.index)}
+                          />
+                        </div>
+                      );
+                    }
+                    if (node.type === "tool") {
+                      return (
+                        <div key={node.index} ref={attachRef}>
+                          <ToolPill
+                            node={node}
+                            isCurrent={isCurrent}
+                            expanded={expandedTools.has(node.index)}
+                            onToggle={() => toggleTool(node.index)}
+                            onClick={() => seekTo(node.index)}
+                          />
+                        </div>
+                      );
+                    }
+                    if (node.type === "error") {
+                      return (
+                        <div key={node.index} ref={attachRef}>
+                          <ErrorRow
+                            event={node.primary}
+                            isCurrent={isCurrent}
+                            onClick={() => seekTo(node.index)}
+                          />
+                        </div>
+                      );
+                    }
+                    return null;
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-1 py-1">
-        {timeline.events.map((event) => (
-          <div key={event.index} ref={event.index === currentIndex ? currentRef : undefined}>
-            <TimelineRow
-              event={event}
-              isCurrent={event.index === currentIndex}
-              onClick={() => seekTo(event.index)}
-            />
-          </div>
-        ))}
-      </div>
-
-      <div className="shrink-0 border-t border-[var(--border)] px-2 py-1.5">
+      {/* ------------ Layer-3: compact footer --------------------- */}
+      <div className="shrink-0 border-t border-[var(--border)] px-3 py-1.5">
         <div
           className="h-1 bg-[var(--border)] rounded-full mb-1.5 cursor-pointer"
           onClick={handleProgressClick}
@@ -317,27 +806,69 @@ export function SessionReplayView() {
         </div>
 
         <div className="flex items-center gap-1">
-          <button className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer" onClick={() => seekTo(0)}>
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 2v6M8 2L4 5l4 3V2z" fill="currentColor"/></svg>
+          <button
+            className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+            onClick={() => seekTo(0)}
+            title="First"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M2 2v6M8 2L4 5l4 3V2z" fill="currentColor" />
+            </svg>
           </button>
-          <button className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer" onClick={stepBackward}>
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M7 2L3 5l4 3V2z" fill="currentColor"/></svg>
+          <button
+            className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+            onClick={stepBackward}
+            title="Previous"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M7 2L3 5l4 3V2z" fill="currentColor" />
+            </svg>
           </button>
-          <button className="p-1 text-[var(--text-primary)] cursor-pointer" onClick={togglePlayback}>
+          <button
+            className="p-1 text-[var(--text-primary)] cursor-pointer"
+            onClick={togglePlayback}
+            title={isPlaying ? "Pause" : "Play"}
+          >
             {isPlaying ? (
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="2" y="2" width="3" height="8" rx="0.5" fill="currentColor"/><rect x="7" y="2" width="3" height="8" rx="0.5" fill="currentColor"/></svg>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <rect x="2" y="2" width="3" height="8" rx="0.5" fill="currentColor" />
+                <rect x="7" y="2" width="3" height="8" rx="0.5" fill="currentColor" />
+              </svg>
             ) : (
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 1.5l7 4.5-7 4.5V1.5z" fill="currentColor"/></svg>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M3 1.5l7 4.5-7 4.5V1.5z" fill="currentColor" />
+              </svg>
             )}
           </button>
-          <button className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer" onClick={stepForward}>
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3 2l4 3-4 3V2z" fill="currentColor"/></svg>
+          <button
+            className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+            onClick={stepForward}
+            title="Next"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M3 2l4 3-4 3V2z" fill="currentColor" />
+            </svg>
           </button>
-          <button className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer" onClick={() => seekTo(timeline.events.length - 1)}>
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M8 2v6M2 2l4 3-4 3V2z" fill="currentColor"/></svg>
+          <button
+            className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+            onClick={() => seekTo(timeline.events.length - 1)}
+            title="Last"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M8 2v6M2 2l4 3-4 3V2z" fill="currentColor" />
+            </svg>
           </button>
 
           <div className="flex-1" />
+
+          <button
+            className="text-[9px] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer px-1"
+            style={{ fontFamily: '"Geist Mono", monospace' }}
+            onClick={() => setShowThinking((v) => !v)}
+            title="Show internal reasoning (thinking blocks)"
+          >
+            {showThinking ? "● thinking" : "○ thinking"}
+          </button>
 
           <button
             className="text-[9px] tabular-nums text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer px-1"
@@ -346,11 +877,15 @@ export function SessionReplayView() {
               const idx = SPEEDS.indexOf(speed);
               setSpeed(SPEEDS[(idx + 1) % SPEEDS.length]);
             }}
+            title="Playback speed"
           >
             {speed}x
           </button>
 
-          <span className="text-[9px] tabular-nums text-[var(--text-faint)]" style={{ fontFamily: '"Geist Mono", monospace' }}>
+          <span
+            className="text-[9px] tabular-nums text-[var(--text-faint)]"
+            style={{ fontFamily: '"Geist Mono", monospace' }}
+          >
             {currentIndex + 1}/{timeline.events.length}
           </span>
         </div>
