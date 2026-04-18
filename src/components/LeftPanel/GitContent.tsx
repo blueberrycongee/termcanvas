@@ -579,12 +579,30 @@ function StashSection({
         <div className="px-4 py-2 text-[10px] text-[var(--text-faint)]" style={MONO_STYLE}>{t.git_stash_empty}</div>
       ) : stashes.map((s) => (
         <div key={s.index} className="group flex items-center gap-1.5 mx-1 px-3 py-1 rounded-md hover:bg-[var(--surface-hover)]" style={{ minHeight: 26 }}>
-          <div className="min-w-0 flex-1">
-            <span className="truncate text-[11px]" style={{ ...MONO_STYLE, color: "var(--text-primary)" }}>
-              {s.message || `stash@{${s.index}}`}
-            </span>
-          </div>
-          <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/*
+            `truncate` (overflow:hidden + text-overflow:ellipsis +
+            white-space:nowrap) only takes effect on a block-level
+            element with a bounded width. The previous layout nested a
+            plain inline <span> inside a `min-w-0 flex-1` wrapper —
+            the wrapper was constrained, but the span stayed inline
+            and kept painting to the right past the button area,
+            under the opacity-hidden Pop / Apply / Drop buttons whose
+            layout width is always reserved. Matches the
+            `flex-1 truncate` pattern used on every other truncating
+            row in this file (file tree nodes, commit subjects,
+            branch names).
+
+            `title` carries the full stash message so the ellipsis
+            doesn't amount to lost information on hover.
+          */}
+          <span
+            className="flex-1 truncate text-[11px]"
+            style={{ ...MONO_STYLE, color: "var(--text-primary)" }}
+            title={s.message || `stash@{${s.index}}`}
+          >
+            {s.message || `stash@{${s.index}}`}
+          </span>
+          <span className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
             <button title={t.git_stash_pop} onClick={async () => { try { await onStashPop(s.index); } catch (err) { notify("error", t.git_stash_failed(String(err))); } }} className="rounded px-1 text-[9px] hover:bg-[var(--surface-hover)]" style={{ ...MONO_STYLE, color: "var(--cyan)" }}>Pop</button>
             <button title={t.git_stash_apply} onClick={async () => { try { await onStashApply(s.index); } catch (err) { notify("error", t.git_stash_failed(String(err))); } }} className="rounded px-1 text-[9px] hover:bg-[var(--surface-hover)]" style={{ ...MONO_STYLE, color: "var(--text-secondary)" }}>Apply</button>
             <button title={t.git_stash_drop} onClick={async () => { try { await onStashDrop(s.index); } catch (err) { notify("error", t.git_stash_failed(String(err))); } }} className="rounded px-1 text-[9px] hover:bg-[var(--surface-hover)]" style={{ ...MONO_STYLE, color: "var(--red)" }}>Drop</button>
