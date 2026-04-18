@@ -37,6 +37,7 @@ import os from "node:os";
 import readline from "node:readline";
 
 import { findCodexJsonlFiles } from "./usage-collector.ts";
+import { stripSyntheticUserBlocks } from "./session-scanner.ts";
 
 export interface SessionSearchEntry {
   sessionId: string;
@@ -120,8 +121,14 @@ async function readFirstPromptAndMeta(
       }
 
       // Claude: first message with `type === "user"` and non-tool
-      // content blocks is the prompt.
+      // content blocks is the prompt. Skip synthetic messages:
+      //  - isMeta:true (command banners, caveats)
+      //  - messages whose content is entirely <system-reminder>
+      //    wrappers (that's where CLAUDE.md auto-injection lands —
+      //    we don't want the project instructions to masquerade as
+      //    "the first thing the user asked").
       if (provider === "claude" && !firstPrompt) {
+        if (raw.isMeta === true) continue;
         const message = raw.message as Record<string, unknown> | undefined;
         const messageRole = message?.role ?? raw.type;
         if (
@@ -129,26 +136,36 @@ async function readFirstPromptAndMeta(
           raw.type === "user"
         ) {
           const extracted = extractClaudeUserText(message ?? raw);
-          if (extracted) firstPrompt = extracted.slice(0, FIRST_PROMPT_MAX_LENGTH);
+          if (extracted) {
+            const cleaned = stripSyntheticUserBlocks(extracted);
+            if (cleaned) firstPrompt = cleaned.slice(0, FIRST_PROMPT_MAX_LENGTH);
+          }
         }
       }
 
       // Codex: user_message payload OR response_item with role user.
+      // Same synthetic-block stripping — Codex injects AGENTS.md
+      // content via `<system-reminder>` wrappers on the first turn
+      // just like Claude does with CLAUDE.md.
       if (provider === "codex" && !firstPrompt) {
         const payload = raw.payload as Record<string, unknown> | undefined;
+        let rawPrompt = "";
         if (
           raw.type === "event_msg" &&
           payload?.type === "user_message" &&
           typeof payload.message === "string"
         ) {
-          firstPrompt = payload.message.slice(0, FIRST_PROMPT_MAX_LENGTH);
+          rawPrompt = payload.message;
         } else if (
           raw.type === "response_item" &&
           payload?.type === "message" &&
           payload.role === "user"
         ) {
-          const text = extractCodexContentText(payload.content);
-          if (text) firstPrompt = text.slice(0, FIRST_PROMPT_MAX_LENGTH);
+          rawPrompt = extractCodexContentText(payload.content);
+        }
+        if (rawPrompt) {
+          const cleaned = stripSyntheticUserBlocks(rawPrompt);
+          if (cleaned) firstPrompt = cleaned.slice(0, FIRST_PROMPT_MAX_LENGTH);
         }
       }
 

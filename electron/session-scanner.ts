@@ -31,6 +31,35 @@ const TAIL_BYTES = 65536;
 // the UI treats that as acceptable lossy display.
 const REPLAY_TEXT_MAX_CHARS = 16_000;
 
+/**
+ * Remove the noise Claude Code / Codex inject into user messages:
+ *
+ *  - `<system-reminder>...</system-reminder>` wrappers, which is
+ *    where CLAUDE.md / AGENTS.md content lands on the first user
+ *    turn. Users who saw these as the "first prompt" complained —
+ *    it hid the actual question they asked.
+ *  - `<local-command-caveat>`, `<command-name>`, `<command-message>`,
+ *    `<command-args>`, `<command-stdout>`, `<command-type>` blocks
+ *    that the `/resume`, `/compact`, and other slash-command flows
+ *    emit as pseudo-user messages. They're housekeeping, not prose.
+ *
+ * If nothing is left after stripping, the message is treated as
+ * entirely synthetic and skipped (no user_prompt event emitted,
+ * no "first prompt" captured for the browse list).
+ */
+export function stripSyntheticUserBlocks(text: string): string {
+  return text
+    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, "")
+    .replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/gi, "")
+    .replace(/<local-command-stdout>[\s\S]*?<\/local-command-stdout>/gi, "")
+    .replace(/<command-name>[\s\S]*?<\/command-name>/gi, "")
+    .replace(/<command-message>[\s\S]*?<\/command-message>/gi, "")
+    .replace(/<command-args>[\s\S]*?<\/command-args>/gi, "")
+    .replace(/<command-stdout>[\s\S]*?<\/command-stdout>/gi, "")
+    .replace(/<command-type>[\s\S]*?<\/command-type>/gi, "")
+    .trim();
+}
+
 export class SessionScanner {
   private timer: ReturnType<typeof setInterval> | null = null;
   private sessions: SessionInfo[] = [];
@@ -416,19 +445,31 @@ export class SessionScanner {
     // incorrectly as a "you" bubble, once correctly as assistant prose.
     // That's exactly the "I can't tell my messages from the agent's" bug.
     if (raw.type === "user") {
+      // `isMeta: true` marks synthetic caveats / command banners that
+      // Claude Code injects (e.g. "<local-command-caveat>", the
+      // /resume/compact command headers). They aren't real user text
+      // and shouldn't become topic headers in the replay view.
+      if (raw.isMeta === true) return "";
       const message = raw.message as Record<string, unknown> | undefined;
       if (message) {
         const content = message.content;
-        if (typeof content === "string")
-          return content.slice(0, REPLAY_TEXT_MAX_CHARS);
-        if (Array.isArray(content)) {
+        let rawText = "";
+        if (typeof content === "string") {
+          rawText = content;
+        } else if (Array.isArray(content)) {
           for (const block of content) {
             if (!block || typeof block !== "object") continue;
             const entry = block as Record<string, unknown>;
-            if (entry.type === "text" && typeof entry.text === "string")
-              return entry.text.slice(0, REPLAY_TEXT_MAX_CHARS);
+            if (entry.type === "text" && typeof entry.text === "string") {
+              rawText = entry.text;
+              break;
+            }
             if (entry.type === "tool_result") continue;
           }
+        }
+        if (rawText) {
+          const cleaned = stripSyntheticUserBlocks(rawText);
+          if (cleaned) return cleaned.slice(0, REPLAY_TEXT_MAX_CHARS);
         }
       }
     }
