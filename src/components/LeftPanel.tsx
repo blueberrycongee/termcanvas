@@ -11,24 +11,24 @@ import { panToTerminal } from "../utils/panToTerminal";
 import { promptAndAddProjectToScene } from "../canvas/sceneCommands";
 import { buildProjectTree } from "./sessionPanelModel";
 import { ProjectTree } from "./ProjectTree";
-import { TerminalCard } from "./SessionsPanel";
+import { TerminalCard, HistorySection } from "./SessionsPanel";
 import { IconButton } from "./ui/IconButton";
 
 /*
- * Left panel — project-management surface.
+ * Left panel — project management + session history.
  *
- * Before this refactor, the left panel hosted the code-navigation
- * tabs (Files / Diff / Git / Memory). Those moved to RightPanel when
- * the SessionsPanel's project tree was promoted to a first-class,
- * always-visible surface: adding a project used to take two clicks
- * (Cmd+Shift+H to open Sessions overlay, then "+" in its header),
- * and that friction made project management feel hidden.
+ * Two stacked sections:
+ *   1. ProjectTree: live projects / worktrees / terminals. Click a
+ *      terminal row to pan the canvas to it. Header has the "+"
+ *      add-project button.
+ *   2. HistorySection: past Claude/Codex sessions. Click a row to
+ *      open the replay drawer (slides out from this panel's right
+ *      edge, occupies the canvas gap).
  *
- * This panel is deliberately narrower in purpose than SessionsPanel:
- * - Header: title + "+" button (the whole point — 1-click add).
- * - Body: ProjectTree only. No HistorySection, no Inspector.
- * Historical session browsing and replay still live in
- * SessionsOverlay (Cmd+Shift+H).
+ * The list-of-past-sessions used to live in the full-screen
+ * SessionsOverlay alongside the replay. Surfacing it here makes
+ * browse→replay a one-click journey and gives the replay drawer
+ * more room for the transcript.
  */
 
 export function LeftPanel() {
@@ -42,6 +42,8 @@ export function LeftPanel() {
   const runtimeTerminals = useTerminalRuntimeStore((s) => s.terminals);
   const liveSessions = useSessionStore((s) => s.liveSessions);
   const historySessions = useSessionStore((s) => s.historySessions);
+  const loadReplay = useSessionStore((s) => s.loadReplay);
+  const openSessions = useCanvasStore((s) => s.openSessionsOverlay);
   const seenTerminalIds = useCompletionSeenStore((s) => s.seenTerminalIds);
 
   const [addingProject, setAddingProject] = useState(false);
@@ -86,6 +88,25 @@ export function LeftPanel() {
     [projects, telemetryByTerminalId, sessionsById, seenTerminalIds],
   );
   const hasAnyProjects = projectTree.length > 0;
+
+  // Scope for the history section — every absolute worktree path on
+  // the canvas. Used to filter historical sessions to the current
+  // workspace.
+  const canvasProjectDirs = useMemo(
+    () => projects.flatMap((p) => p.worktrees.map((w) => w.path)),
+    [projects],
+  );
+
+  const handleOpenReplay = useCallback(
+    (filePath: string) => {
+      // `openSessionsOverlay` enforces canvas-gap mutual exclusion
+      // (file editor + usage get evicted), then the drawer renders
+      // whatever `sessionStore.loadReplay` produces.
+      openSessions();
+      loadReplay(filePath);
+    },
+    [openSessions, loadReplay],
+  );
 
   // When the panel collapses or expands, re-centre the focused
   // terminal in the canvas (matches the right-panel behaviour).
@@ -273,6 +294,11 @@ export function LeftPanel() {
             {t.sessions_no_canvas_items}
           </div>
         )}
+        <HistorySection
+          projectDirs={canvasProjectDirs}
+          onOpen={handleOpenReplay}
+          t={t}
+        />
       </div>
 
       <div

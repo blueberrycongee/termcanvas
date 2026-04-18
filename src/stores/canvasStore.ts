@@ -52,14 +52,14 @@ interface CanvasStore {
    * covers the entire canvas area (still leaves the left panel).
    */
   fileEditorExpanded: boolean;
-  // Usage was previously cramped in the right panel as a tab. It's
-  // now a full-screen overlay (see UsageOverlay) — a boolean is
-  // enough: "is the dashboard visible right now?".
+  // Usage, Sessions, and the File Editor all share the canvas-gap
+  // area between the left and right side panels; at most one is
+  // visible at a time (mutual exclusion enforced in their setters).
+  // Each carries an `expanded` flag for two-level (half vs full)
+  // geometry — except Usage which is single-level.
   usageOverlayOpen: boolean;
-  // Same treatment for Sessions. The right panel retired once
-  // Sessions moved to its own overlay too — there's no panel left
-  // to host them.
   sessionsOverlayOpen: boolean;
+  sessionsOverlayExpanded: boolean;
   registerViewportAdapter: (adapter: CanvasViewportAdapter | null) => void;
   restoreViewport: (viewport: Viewport) => void;
   setViewport: (viewport: Partial<Viewport>) => void;
@@ -81,6 +81,8 @@ interface CanvasStore {
   openSessionsOverlay: () => void;
   closeSessionsOverlay: () => void;
   toggleSessionsOverlay: () => void;
+  toggleSessionsOverlayExpanded: () => void;
+  setSessionsOverlayExpanded: (expanded: boolean) => void;
   setLeftPanelCollapsed: (collapsed: boolean) => void;
   setLeftPanelWidth: (width: number) => void;
   animateTo: (x: number, y: number, scale?: number) => void;
@@ -125,6 +127,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   fileEditorExpanded: false,
   usageOverlayOpen: false,
   sessionsOverlayOpen: false,
+  sessionsOverlayExpanded: false,
 
   registerViewportAdapter: (adapter) => {
     activeViewportAdapter = adapter;
@@ -163,34 +166,71 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set({ rightPanelWidth: width });
     markDirty();
   },
-  // File editor + Usage share the canvas-gap area (between left and
-  // right panels). Opening one closes the other so they never fight
+  // File editor, Usage, and Sessions replay all share the canvas-gap
+  // area between the left and right panels. At most one is visible
+  // at a time — opening one evicts the others so they never fight
   // for the same pixels.
   openFileEditor: (filePath) =>
-    set({ fileEditorPath: filePath, usageOverlayOpen: false }),
+    set({
+      fileEditorPath: filePath,
+      usageOverlayOpen: false,
+      sessionsOverlayOpen: false,
+      sessionsOverlayExpanded: false,
+    }),
   closeFileEditor: () =>
     set({ fileEditorPath: null, fileEditorExpanded: false }),
   toggleFileEditorExpanded: () =>
     set((state) => ({ fileEditorExpanded: !state.fileEditorExpanded })),
   setFileEditorExpanded: (expanded) => set({ fileEditorExpanded: expanded }),
   openUsageOverlay: () =>
-    set({ usageOverlayOpen: true, fileEditorPath: null, fileEditorExpanded: false }),
+    set({
+      usageOverlayOpen: true,
+      fileEditorPath: null,
+      fileEditorExpanded: false,
+      sessionsOverlayOpen: false,
+      sessionsOverlayExpanded: false,
+    }),
   closeUsageOverlay: () => set({ usageOverlayOpen: false }),
   toggleUsageOverlay: () =>
-    set((state) => ({
-      usageOverlayOpen: !state.usageOverlayOpen,
-      // If we're turning Usage ON, evict the drawer; turning it OFF
-      // leaves the drawer alone (it was already closed by the open
-      // path above if both were invoked).
-      fileEditorPath: !state.usageOverlayOpen ? null : state.fileEditorPath,
-      fileEditorExpanded: !state.usageOverlayOpen
-        ? false
-        : state.fileEditorExpanded,
-    })),
-  openSessionsOverlay: () => set({ sessionsOverlayOpen: true }),
-  closeSessionsOverlay: () => set({ sessionsOverlayOpen: false }),
+    set((state) => {
+      const nextOpen = !state.usageOverlayOpen;
+      if (!nextOpen) return { usageOverlayOpen: false };
+      return {
+        usageOverlayOpen: true,
+        fileEditorPath: null,
+        fileEditorExpanded: false,
+        sessionsOverlayOpen: false,
+        sessionsOverlayExpanded: false,
+      };
+    }),
+  openSessionsOverlay: () =>
+    set({
+      sessionsOverlayOpen: true,
+      fileEditorPath: null,
+      fileEditorExpanded: false,
+      usageOverlayOpen: false,
+    }),
+  closeSessionsOverlay: () =>
+    set({ sessionsOverlayOpen: false, sessionsOverlayExpanded: false }),
   toggleSessionsOverlay: () =>
-    set((state) => ({ sessionsOverlayOpen: !state.sessionsOverlayOpen })),
+    set((state) => {
+      const nextOpen = !state.sessionsOverlayOpen;
+      if (!nextOpen) {
+        return { sessionsOverlayOpen: false, sessionsOverlayExpanded: false };
+      }
+      return {
+        sessionsOverlayOpen: true,
+        fileEditorPath: null,
+        fileEditorExpanded: false,
+        usageOverlayOpen: false,
+      };
+    }),
+  toggleSessionsOverlayExpanded: () =>
+    set((state) => ({
+      sessionsOverlayExpanded: !state.sessionsOverlayExpanded,
+    })),
+  setSessionsOverlayExpanded: (expanded) =>
+    set({ sessionsOverlayExpanded: expanded }),
   setLeftPanelCollapsed: (collapsed) => {
     set({ leftPanelCollapsed: collapsed });
     markDirty();

@@ -386,7 +386,7 @@ function historyProjectName(dir: string): string {
  * never see (same lesson as the git history section we fixed
  * earlier).
  */
-function HistorySection({
+export function HistorySection({
   projectDirs,
   onOpen,
   t,

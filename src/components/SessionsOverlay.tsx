@@ -1,41 +1,49 @@
 import { useEffect } from "react";
-import { useCanvasStore } from "../stores/canvasStore";
+import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { useSessionStore } from "../stores/sessionStore";
 import { useT } from "../i18n/useT";
-import { SessionsPanel } from "./SessionsPanel";
 import { SessionReplayView } from "./SessionReplayView";
 
 /*
- * Sessions, full-screen.
+ * Session replay drawer — left-anchored.
  *
- * Replaces the right-panel home for the sessions list and replay
- * view. Layout is a split pane:
+ * The list side of the old SessionsOverlay moved to the LEFT panel's
+ * HistorySection: clicking a past session row there calls
+ * openSessionsOverlay + loadReplay, and this drawer slides out from
+ * the right edge of the left panel to show the transcript.
  *
- *   ┌──────────────────────┬─────────────────────────────────────┐
- *   │ Live + projects +    │                                     │
- *   │ history list         │        SessionReplayView            │
- *   │ (≈360 px)            │        (flex-1, wide for prose)     │
- *   │                      │                                     │
- *   │                      │   OR empty state when nothing is    │
- *   │                      │   loaded yet.                       │
- *   └──────────────────────┴─────────────────────────────────────┘
+ * Geometry mirrors FileEditorDrawer but anchored left:
+ *   level-1: min(60vw, canvas-gap) — replay + other surfaces visible
+ *   level-2: full canvas-gap — immersive read mode
  *
- * Rationale: the previous right-panel UX made "browse the history"
- * and "read a transcript" mutually exclusive — opening a replay
- * took over the entire narrow column, and going back to the list
- * meant closing the replay. A split pane lets the user click
- * around different sessions without losing context, and gives the
- * replay the width it actually needs to read comfortably.
+ * Both levels leave the right panel (Files/Diff/Git/Memory) visible,
+ * so the user can cross-reference code against the replay.
  *
- * The list side reuses `<SessionsPanel stayInListMode />`, which
- * otherwise self-swaps into replay mode when a session is loaded.
- * In the overlay we want the list to stay mounted so the user can
- * pick another session from it.
+ * Sits in the same canvas-gap "slot" as Usage and FileEditorDrawer —
+ * canvasStore enforces mutual exclusion so opening one closes the
+ * others.
  */
+
+const TOOLBAR_HEIGHT = 44;
+
+/**
+ * Below this gap width the drawer is too cramped to read. Matches
+ * UsageOverlay's auto-hide threshold so the three canvas-gap
+ * tenants behave the same under tight layouts.
+ */
+const SESSIONS_MIN_GAP_PX = 640;
 
 export function SessionsOverlay() {
   const open = useCanvasStore((s) => s.sessionsOverlayOpen);
+  const expanded = useCanvasStore((s) => s.sessionsOverlayExpanded);
   const close = useCanvasStore((s) => s.closeSessionsOverlay);
+  const toggleExpanded = useCanvasStore(
+    (s) => s.toggleSessionsOverlayExpanded,
+  );
+  const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
+  const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
+  const rightPanelCollapsed = useCanvasStore((s) => s.rightPanelCollapsed);
+  const rightPanelWidth = useCanvasStore((s) => s.rightPanelWidth);
   const replayTimeline = useSessionStore((s) => s.replayTimeline);
   const replayError = useSessionStore((s) => s.replayError);
   const t = useT();
@@ -44,16 +52,8 @@ export function SessionsOverlay() {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        // If a replay is loaded, first Esc pops it back to "no
-        // selection"; a second Esc closes the overlay. Matches how
-        // most two-pane readers handle it (Mail, Slack search,
-        // etc.) — "Esc = step back one level".
-        if (replayTimeline || replayError) {
-          useSessionStore.getState().exitReplay();
-          e.preventDefault();
-          e.stopPropagation();
-          return;
-        }
+        // No second step any more — the list lives in the left panel
+        // and stays visible regardless. Esc just closes the replay.
         e.preventDefault();
         e.stopPropagation();
         close();
@@ -61,88 +61,137 @@ export function SessionsOverlay() {
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [open, close, replayTimeline, replayError]);
+  }, [open, close]);
 
   if (!open) return null;
+
+  const leftInset = leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
+  const rightInset = rightPanelCollapsed
+    ? COLLAPSED_TAB_WIDTH
+    : rightPanelWidth;
+
+  // Auto-hide when canvas gap is too narrow — same contract as
+  // UsageOverlay. Store state stays open, so shrinking the side
+  // panels brings the drawer back instantly.
+  if (
+    typeof window !== "undefined" &&
+    window.innerWidth - leftInset - rightInset < SESSIONS_MIN_GAP_PX
+  ) {
+    return null;
+  }
+
+  const gapMax = `calc(100vw - ${leftInset}px - ${rightInset}px)`;
+  const widthStyle = expanded ? gapMax : `min(60vw, ${gapMax})`;
 
   const hasReplay = replayTimeline !== null || replayError !== null;
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex usage-overlay-enter"
+      className="fixed z-[55] bg-[var(--bg)] border-l border-r border-[var(--border)] shadow-2xl flex flex-col usage-overlay-enter"
+      style={{
+        top: TOOLBAR_HEIGHT,
+        left: leftInset,
+        height: `calc(100vh - ${TOOLBAR_HEIGHT}px)`,
+        width: widthStyle,
+        transition:
+          "width 180ms cubic-bezier(0.4, 0, 0.2, 1), left 180ms cubic-bezier(0.4, 0, 0.2, 1)",
+      }}
       role="dialog"
-      aria-modal="true"
+      aria-modal="false"
       aria-label={t.sessions_tab}
-      onClick={close}
     >
-      {/* Backdrop */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 bg-[var(--bg)]/85 backdrop-blur-sm"
-      />
+      {/* Header */}
+      <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-[var(--border)] bg-[var(--surface)]">
+        <span
+          className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-primary)] font-medium"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          {t.sessions_tab}
+        </span>
+        <div className="flex-1" />
+        <span
+          className="text-[10px] text-[var(--text-faint)]"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          Esc
+        </span>
+        <button
+          className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
+          onClick={toggleExpanded}
+          title={
+            expanded
+              ? t.file_editor_restore ?? "Restore"
+              : t.file_editor_maximize ?? "Maximize"
+          }
+        >
+          {expanded ? (
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <rect
+                x="3.5"
+                y="1.5"
+                width="6"
+                height="6"
+                rx="0.5"
+                stroke="currentColor"
+                strokeWidth="1.1"
+              />
+              <rect
+                x="1.5"
+                y="4.5"
+                width="6"
+                height="6"
+                rx="0.5"
+                stroke="currentColor"
+                strokeWidth="1.1"
+                fill="var(--surface)"
+              />
+            </svg>
+          ) : (
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <rect
+                x="1.5"
+                y="1.5"
+                width="9"
+                height="9"
+                rx="0.5"
+                stroke="currentColor"
+                strokeWidth="1.1"
+              />
+            </svg>
+          )}
+        </button>
+        <button
+          className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
+          onClick={close}
+          aria-label={t.right_panel_collapse}
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+            <path
+              d="M2.5 2.5L7.5 7.5M7.5 2.5L2.5 7.5"
+              stroke="currentColor"
+              strokeWidth="1.3"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      </div>
 
-      {/* Main container */}
-      <div
-        className="relative flex flex-1 m-6 rounded-lg border border-[var(--border)] bg-[var(--surface)] overflow-hidden shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Left: list pane */}
-        <div className="w-[360px] shrink-0 flex flex-col border-r border-[var(--border)] bg-[var(--sidebar)]">
-          <div className="shrink-0 flex items-center border-b border-[var(--border)] h-[34px] px-3">
-            <span
-              className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-primary)] font-medium"
-              style={{ fontFamily: '"Geist Mono", monospace' }}
-            >
-              {t.sessions_tab}
-            </span>
+      {/* Body */}
+      <div className="flex-1 min-h-0">
+        {hasReplay ? (
+          <SessionReplayView />
+        ) : (
+          <div className="h-full flex flex-col items-center justify-center gap-2 px-8 text-center">
+            <div className="text-[13px] text-[var(--text-muted)]">
+              {(t.sessions_overlay_empty_title as unknown as string) ??
+                "Pick a session on the left"}
+            </div>
+            <div className="text-[11px] text-[var(--text-faint)] max-w-sm leading-relaxed">
+              {(t.sessions_overlay_empty_hint as unknown as string) ??
+                "Browse past conversations in the left panel's History section. Click any row to replay the full transcript here."}
+            </div>
           </div>
-          <div className="flex-1 min-h-0">
-            <SessionsPanel stayInListMode />
-          </div>
-        </div>
-
-        {/* Right: replay pane */}
-        <div className="flex-1 min-w-0 flex flex-col">
-          <div className="shrink-0 flex items-center justify-end border-b border-[var(--border)] h-[34px] px-3 gap-2">
-            <span
-              className="text-[10px] text-[var(--text-faint)]"
-              style={{ fontFamily: '"Geist Mono", monospace' }}
-            >
-              Esc
-            </span>
-            <button
-              type="button"
-              onClick={close}
-              className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-              aria-label={t.right_panel_collapse}
-            >
-              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                <path
-                  d="M3 3l6 6M9 3l-6 6"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
-          </div>
-          <div className="flex-1 min-h-0">
-            {hasReplay ? (
-              <SessionReplayView />
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center gap-2 px-8 text-center">
-                <div className="text-[13px] text-[var(--text-muted)]">
-                  {(t.sessions_overlay_empty_title as unknown as string) ??
-                    "Pick a session on the left"}
-                </div>
-                <div className="text-[11px] text-[var(--text-faint)] max-w-sm leading-relaxed">
-                  {(t.sessions_overlay_empty_hint as unknown as string) ??
-                    "Browse live or past conversations in the list. Click any row to replay the full transcript here."}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
