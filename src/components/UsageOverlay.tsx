@@ -29,6 +29,19 @@ import {
  */
 const ROW2_CHART_HEIGHT = 56;
 
+/**
+ * Minimum usable width for the dashboard. Below this the 4-card
+ * stat strip wraps into a cramped mess and the 2-col chart row
+ * gets unreadable. When the canvas gap falls below this, the
+ * panel hides silently (the store's open-flag stays set so the
+ * panel reappears when the gap re-opens).
+ *
+ * Picked by eyeballing: stat strip needs ~640 px to stay on one
+ * row (4 × 140 + 3 gutters + 48 px padding). 640 is the smallest
+ * the layout doesn't start folding in on itself.
+ */
+const USAGE_MIN_GAP_PX = 640;
+
 /*
  * Usage, full-screen.
  *
@@ -155,6 +168,17 @@ export function UsageOverlay() {
 
   const [animKey, setAnimKey] = useState(0);
   const prevDateRef = useRef(date);
+  // Bump on window resize so the auto-hide check (which reads
+  // window.innerWidth) re-evaluates when the viewport itself shrinks
+  // without the side panels changing. Cheap — handler just nudges
+  // state.
+  const [, setResizeTick] = useState(0);
+  useEffect(() => {
+    if (!open) return;
+    const onResize = () => setResizeTick((n) => n + 1);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [open]);
 
   useEffect(() => {
     if (prevDateRef.current !== date) {
@@ -275,6 +299,20 @@ export function UsageOverlay() {
     ? COLLAPSED_TAB_WIDTH
     : rightPanelWidth;
 
+  /*
+    Auto-hide when the canvas gap gets too cramped. Below the
+    threshold the dashboard's charts compress into unreadable
+    slivers — better to silently yield the space. The store state
+    stays `usageOverlayOpen = true`, so the panel reappears the
+    moment the user narrows a side panel and the gap re-opens.
+  */
+  if (
+    typeof window !== "undefined" &&
+    window.innerWidth - leftInset - rightInset < USAGE_MIN_GAP_PX
+  ) {
+    return null;
+  }
+
   return (
     /*
       Usage used to be a full-screen modal with backdrop blur; it's
@@ -295,7 +333,7 @@ export function UsageOverlay() {
       aria-modal="false"
       aria-label={t.usage_title}
     >
-      <div className="relative w-full max-w-6xl mx-auto px-6 py-8">
+      <div className="relative w-full max-w-4xl mx-auto px-6 py-8">
         {/* Header */}
         <div className="flex items-center gap-3 mb-4">
           <h1
