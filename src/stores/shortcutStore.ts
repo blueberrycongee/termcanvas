@@ -15,6 +15,7 @@ export interface ShortcutMap {
   toggleRightPanel: string;
   toggleStarFocused: string;
   globalSearch: string;
+  toggleUsageOverlay: string;
 }
 
 const LEGACY_DEFAULT_SHORTCUTS: ShortcutMap = {
@@ -31,6 +32,7 @@ const LEGACY_DEFAULT_SHORTCUTS: ShortcutMap = {
   toggleRightPanel: "mod+/",
   toggleStarFocused: "mod+f",
   globalSearch: "mod+k",
+  toggleUsageOverlay: "mod+shift+u",
 };
 
 const ALT_DEFAULT_SHORTCUTS: ShortcutMap = {
@@ -47,6 +49,7 @@ const ALT_DEFAULT_SHORTCUTS: ShortcutMap = {
   toggleRightPanel: "alt+/",
   toggleStarFocused: "alt+f",
   globalSearch: "alt+k",
+  toggleUsageOverlay: "alt+shift+u",
 };
 
 export const DEFAULT_SHORTCUTS: ShortcutMap = { ...LEGACY_DEFAULT_SHORTCUTS };

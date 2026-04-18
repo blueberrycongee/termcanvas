@@ -30,6 +30,10 @@ interface CanvasStore {
   leftPanelWidth: number;
   leftPanelActiveTab: LeftPanelTab;
   leftPanelPreviewFile: string | null;
+  // Usage was previously cramped in the right panel as a tab. It's
+  // now a full-screen overlay (see UsageOverlay) — a boolean is
+  // enough: "is the dashboard visible right now?".
+  usageOverlayOpen: boolean;
   registerViewportAdapter: (adapter: CanvasViewportAdapter | null) => void;
   restoreViewport: (viewport: Viewport) => void;
   setViewport: (viewport: Partial<Viewport>) => void;
@@ -41,6 +45,9 @@ interface CanvasStore {
   setRightPanelCollapsed: (collapsed: boolean) => void;
   setRightPanelActiveTab: (tab: RightPanelTab) => void;
   setRightPanelWidth: (width: number) => void;
+  openUsageOverlay: () => void;
+  closeUsageOverlay: () => void;
+  toggleUsageOverlay: () => void;
   setLeftPanelCollapsed: (collapsed: boolean) => void;
   setLeftPanelWidth: (width: number) => void;
   setLeftPanelActiveTab: (tab: LeftPanelTab) => void;
@@ -85,6 +92,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   leftPanelWidth: 280,
   leftPanelActiveTab: "files" as LeftPanelTab,
   leftPanelPreviewFile: null,
+  usageOverlayOpen: false,
 
   registerViewportAdapter: (adapter) => {
     activeViewportAdapter = adapter;
@@ -117,6 +125,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set({ rightPanelWidth: width });
     markDirty();
   },
+  openUsageOverlay: () => set({ usageOverlayOpen: true }),
+  closeUsageOverlay: () => set({ usageOverlayOpen: false }),
+  toggleUsageOverlay: () =>
+    set((state) => ({ usageOverlayOpen: !state.usageOverlayOpen })),
   setLeftPanelCollapsed: (collapsed) => {
     set({ leftPanelCollapsed: collapsed });
     markDirty();

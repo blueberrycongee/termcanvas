@@ -271,6 +271,15 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      // Usage overlay — same "works from terminal focus" treatment as
+      // search. Shift-modifier means a plain "u" keystroke inside the
+      // terminal is never swallowed.
+      if (matchesShortcut(e, shortcuts.toggleUsageOverlay)) {
+        consumeShortcut();
+        useCanvasStore.getState().toggleUsageOverlay();
+        return;
+      }
+
       if (shouldIgnoreShortcutTarget(e)) {
         return;
       }

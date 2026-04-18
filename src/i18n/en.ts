@@ -257,6 +257,7 @@ export const en = {
   shortcut_cycle_focus_level: "Cycle focus level",
   shortcut_toggle_sidebar: "Toggle sidebar",
   shortcut_toggle_right_panel: "Toggle right panel",
+  shortcut_toggle_usage_overlay: "Open usage dashboard",
   shortcut_new_terminal: "New terminal",
   shortcut_rename_terminal_title: "Rename terminal",
   shortcut_close_focused: "Close focused",

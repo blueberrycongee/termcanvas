@@ -30,6 +30,7 @@ const SHORTCUT_KEYS: { key: keyof ShortcutMap; labelKey: string }[] = [
   { key: "addProject", labelKey: "shortcut_add_project" },
   { key: "cycleFocusLevel", labelKey: "shortcut_cycle_focus_level" },
   { key: "toggleRightPanel", labelKey: "shortcut_toggle_right_panel" },
+  { key: "toggleUsageOverlay", labelKey: "shortcut_toggle_usage_overlay" },
   { key: "newTerminal", labelKey: "shortcut_new_terminal" },
   { key: "saveWorkspace", labelKey: "shortcut_save_workspace" },
   { key: "saveWorkspaceAs", labelKey: "shortcut_save_workspace_as" },

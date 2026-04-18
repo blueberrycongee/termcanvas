@@ -251,6 +251,7 @@ export const zh = {
   shortcut_cycle_focus_level: "切换聚焦层级",
   shortcut_toggle_sidebar: "切换侧栏",
   shortcut_toggle_right_panel: "切换右侧面板",
+  shortcut_toggle_usage_overlay: "打开用量面板",
   shortcut_new_terminal: "新建终端",
   shortcut_rename_terminal_title: "重命名终端",
   shortcut_close_focused: "关闭当前",

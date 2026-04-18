@@ -14,19 +14,25 @@ import { QuotaSection } from "./usage/QuotaSection";
 import { mergeUsageHeatmaps } from "./usage/heatmap-utils";
 import { useQuotaStore } from "../stores/quotaStore";
 import { useCodexQuotaStore } from "../stores/codexQuotaStore";
-import type { UsageSummary, ProjectUsage, ModelUsage } from "../types";
+import type {
+  UsageSummary,
+  CloudUsageSummary,
+  ProjectUsage,
+  ModelUsage,
+} from "../types";
+import type { HeatmapEntry } from "../stores/usageStore";
 
-function fmtCost(c: number): string {
+export function fmtCost(c: number): string {
   return c >= 1 ? `$${c.toFixed(2)}` : `$${c.toFixed(3)}`;
 }
 
-function fmtTokens(n: number): string {
+export function fmtTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
 }
 
-function pct(value: number, total: number): string {
+export function pct(value: number, total: number): string {
   if (total === 0) return "0%";
   return `${Math.round((value / total) * 100)}%`;
 }
@@ -185,7 +191,7 @@ function CollapsibleSection({
   );
 }
 
-function SummarySection({ t, summary, monthlyData }: { t: ReturnType<typeof useT>; summary: UsageSummary; monthlyData?: { cost: number } }) {
+export function SummarySection({ t, summary, monthlyData }: { t: ReturnType<typeof useT>; summary: UsageSummary; monthlyData?: { cost: number } }) {
   const animatedCost = useAnimatedNumber(summary.totalCost);
 
   return (
@@ -225,7 +231,7 @@ function SummarySection({ t, summary, monthlyData }: { t: ReturnType<typeof useT
   );
 }
 
-function TimelineSection({
+export function TimelineSection({
   t,
   summary,
   animate,
@@ -246,7 +252,7 @@ function TimelineSection({
   );
 }
 
-function CacheRateSection({
+export function CacheRateSection({
   t,
   summary,
   animate,
@@ -334,7 +340,7 @@ function CacheRateSection({
   );
 }
 
-function ProjectsContent({
+export function ProjectsContent({
   t,
   projects,
   totalCost,
@@ -384,7 +390,7 @@ function ProjectsContent({
   );
 }
 
-function ModelsContent({
+export function ModelsContent({
   t,
   models,
   animate,
@@ -442,6 +448,67 @@ function ModelsContent({
       })}
     </div>
   );
+}
+
+/**
+ * Merge local ingest + cloud-sync usage summaries into the best
+ * "what happened today" view. Both the sidebar UsagePanel and the
+ * full-screen UsageOverlay use this — pulling it out keeps the two
+ * renderers in exact agreement about which number wins when the two
+ * data sources disagree (the pricier of the two, to avoid
+ * undercounting during cloud lag).
+ */
+export function deriveActiveUsage({
+  isLoggedIn,
+  summary,
+  cloudSummary,
+  heatmapData,
+  cloudHeatmapData,
+}: {
+  isLoggedIn: boolean;
+  summary: UsageSummary | null;
+  cloudSummary: CloudUsageSummary | null;
+  heatmapData: Record<string, HeatmapEntry> | null;
+  cloudHeatmapData: Record<string, HeatmapEntry> | null;
+}): {
+  activeSummary: UsageSummary | null;
+  activeHeatmap: Record<string, HeatmapEntry> | null;
+} {
+  let activeSummary: UsageSummary | null;
+  if (isLoggedIn && cloudSummary && summary) {
+    const localBucketMap = new Map(summary.buckets.map((b) => [b.hourStart, b]));
+    const mergedBuckets = cloudSummary.buckets.map((cb) => {
+      const lb = localBucketMap.get(cb.hourStart);
+      if (!lb || cb.cost >= lb.cost) return cb;
+      return lb;
+    });
+    for (const lb of summary.buckets) {
+      if (!mergedBuckets.some((b) => b.hourStart === lb.hourStart)) {
+        mergedBuckets.push(lb);
+      }
+    }
+    mergedBuckets.sort((a, b) => a.hourStart - b.hourStart);
+
+    activeSummary = {
+      ...cloudSummary,
+      sessions: Math.max(cloudSummary.sessions, summary.sessions),
+      totalInput: Math.max(cloudSummary.totalInput, summary.totalInput),
+      totalOutput: Math.max(cloudSummary.totalOutput, summary.totalOutput),
+      totalCost: Math.max(cloudSummary.totalCost, summary.totalCost),
+      buckets: mergedBuckets,
+    };
+  } else {
+    activeSummary = isLoggedIn && cloudSummary ? cloudSummary : summary;
+  }
+
+  let activeHeatmap: Record<string, HeatmapEntry> | null;
+  if (isLoggedIn && cloudHeatmapData && heatmapData) {
+    activeHeatmap = mergeUsageHeatmaps(heatmapData, cloudHeatmapData);
+  } else {
+    activeHeatmap = isLoggedIn && cloudHeatmapData ? cloudHeatmapData : heatmapData;
+  }
+
+  return { activeSummary, activeHeatmap };
 }
 
 export function UsagePanel() {
@@ -506,38 +573,13 @@ export function UsagePanel() {
     [fetchUsage, fetchCloud, isLoggedIn],
   );
 
-  const activeSummary = (() => {
-    if (isLoggedIn && cloudSummary && summary) {
-      const localBucketMap = new Map(summary.buckets.map((b) => [b.hourStart, b]));
-      const mergedBuckets = cloudSummary.buckets.map((cb) => {
-        const lb = localBucketMap.get(cb.hourStart);
-        if (!lb || cb.cost >= lb.cost) return cb;
-        return lb;
-      });
-      for (const lb of summary.buckets) {
-        if (!mergedBuckets.some((b) => b.hourStart === lb.hourStart)) {
-          mergedBuckets.push(lb);
-        }
-      }
-      mergedBuckets.sort((a, b) => a.hourStart - b.hourStart);
-
-      return {
-        ...cloudSummary,
-        sessions: Math.max(cloudSummary.sessions, summary.sessions),
-        totalInput: Math.max(cloudSummary.totalInput, summary.totalInput),
-        totalOutput: Math.max(cloudSummary.totalOutput, summary.totalOutput),
-        totalCost: Math.max(cloudSummary.totalCost, summary.totalCost),
-        buckets: mergedBuckets,
-      };
-    }
-    return isLoggedIn && cloudSummary ? cloudSummary : summary;
-  })();
-  const activeHeatmap = (() => {
-    if (isLoggedIn && cloudHeatmapData && heatmapData) {
-      return mergeUsageHeatmaps(heatmapData, cloudHeatmapData);
-    }
-    return isLoggedIn && cloudHeatmapData ? cloudHeatmapData : heatmapData;
-  })();
+  const { activeSummary, activeHeatmap } = deriveActiveUsage({
+    isLoggedIn,
+    summary,
+    cloudSummary,
+    heatmapData,
+    cloudHeatmapData,
+  });
 
   let monthlyCost = 0;
   if (activeHeatmap) {

@@ -15,6 +15,7 @@ import { initSessionStoreIPC } from "./stores/sessionStore";
 import { StashBox } from "./components/StashBox";
 import { WelcomePopup } from "./components/WelcomePopup";
 import { SearchModal } from "./components/SearchModal";
+import { UsageOverlay } from "./components/UsageOverlay";
 import {
   closeTerminalInScene,
   createTerminalInScene,
@@ -589,6 +590,7 @@ export function App() {
       {composerEnabled && <ComposerBar />}
       <NotificationToast />
       {globalSearchEnabled && <SearchModal />}
+      <UsageOverlay />
       {showCloseDialog && (
         <CloseDialog
           onSave={handleSave}
