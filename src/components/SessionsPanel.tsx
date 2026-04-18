@@ -22,6 +22,24 @@ import { promptAndAddProjectToScene } from "../canvas/sceneCommands";
 import { closeTerminalInScene } from "../actions/terminalSceneActions";
 import { IconButton } from "./ui/IconButton";
 
+/**
+ * Descriptor returned by `search:sessions:list`. Kept local to avoid
+ * exporting a shared interface just for this panel.
+ */
+interface HistorySessionEntry {
+  sessionId: string;
+  provider: "claude" | "codex";
+  projectDir: string;
+  filePath: string;
+  firstPrompt: string;
+  startedAt: string;
+  lastActivityAt: string;
+  estimatedMessageCount: number;
+  fileSize: number;
+}
+
+const HISTORY_DISPLAY_LIMIT = 20;
+
 const STATUS_COLORS: Record<CanvasTerminalState, string> = {
   attention: "#ef4444",
   running: "#f59e0b",
@@ -318,6 +336,194 @@ function Inspector({
   );
 }
 
+/**
+ * Relative-age label that matches the search palette's format so the
+ * Sessions panel's history rows and Cmd+K's session rows read the
+ * same.
+ */
+function formatHistoryAge(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return "";
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}y ago`;
+}
+
+function historyProjectName(dir: string): string {
+  return dir.split(/[\\/]/).filter(Boolean).pop() ?? dir;
+}
+
+/**
+ * History browse section.
+ *
+ * Sits below the project tree in the right-side Sessions panel. Lists
+ * the past agent sessions belonging to every project currently on the
+ * canvas, sorted most-recent-first. Answers the "I don't remember
+ * what I'm looking for — just show me what's been happening" need
+ * directly, without requiring the user to open Cmd+K and type.
+ *
+ * Data path: shares the mtime-keyed metadata index in the main
+ * process (`search:sessions:list`) with the Cmd+K palette, so
+ * opening the sidebar doesn't trigger extra JSONL reads — whichever
+ * surface asks first warms the cache for both. Scope is "every
+ * canvas worktree" — deliberately wider than a per-worktree filter
+ * so users browsing the sidebar don't have to fiddle with scope;
+ * Cmd+K keeps the scope-switcher for the targeted-search flow.
+ *
+ * Default expanded because "browsing" is the purpose; defaulting
+ * collapsed would make the section a hidden feature most users
+ * never see (same lesson as the git history section we fixed
+ * earlier).
+ */
+function HistorySection({
+  projectDirs,
+  onOpen,
+  t,
+}: {
+  projectDirs: string[];
+  onOpen: (filePath: string) => void;
+  t: ReturnType<typeof useT>;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const [entries, setEntries] = useState<HistorySessionEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Pull the list whenever the canvas project set changes. Mtime
+  // caching on the main process makes this cheap (sub-ms for warm
+  // entries); we don't debounce here because projectDirs only
+  // changes when the user adds/removes projects or worktrees, not
+  // on every store write.
+  useEffect(() => {
+    if (!window.termcanvas?.search?.listSessions) return;
+    if (projectDirs.length === 0) {
+      setEntries([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    void window.termcanvas.search
+      .listSessions(projectDirs)
+      .then((rows) => {
+        if (cancelled) return;
+        setEntries(rows);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setEntries([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectDirs.join("|")]);
+
+  const shownEntries = entries.slice(0, HISTORY_DISPLAY_LIMIT);
+
+  return (
+    <div className="border-t border-[var(--border)]">
+      <button
+        className="flex w-full items-center gap-1.5 px-3 py-2 text-left hover:bg-[var(--sidebar-hover)]"
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          fill="none"
+          className={`shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`}
+          style={{ color: "var(--text-muted)" }}
+        >
+          <path d="M3 2l4 3-4 3V2z" fill="currentColor" />
+        </svg>
+        <span
+          className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          {(t.sessions_history_title as unknown as string) ?? "History"}
+        </span>
+        <span
+          className="ml-auto text-[10px] text-[var(--text-faint)]"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          {loading ? "…" : entries.length}
+        </span>
+      </button>
+      {expanded && (
+        <div className="pb-2">
+          {entries.length === 0 ? (
+            <div
+              className="px-4 py-3 text-center text-[10px] text-[var(--text-faint)]"
+              style={{ fontFamily: '"Geist Mono", monospace' }}
+            >
+              {loading
+                ? ((t.sessions_history_loading as unknown as string) ?? "Loading…")
+                : ((t.sessions_history_empty as unknown as string) ??
+                    "No past sessions in this canvas yet.")}
+            </div>
+          ) : (
+            <div className="flex flex-col">
+              {shownEntries.map((entry) => (
+                <button
+                  key={entry.sessionId}
+                  className="group flex items-start gap-2 px-3 py-1.5 text-left hover:bg-[var(--sidebar-hover)]"
+                  onClick={() => onOpen(entry.filePath)}
+                  title={entry.firstPrompt}
+                >
+                  <span
+                    className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
+                    style={{
+                      backgroundColor:
+                        entry.provider === "claude" ? "#f59e0b" : "#10b981",
+                    }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[11px] text-[var(--text-primary)]">
+                      {entry.firstPrompt ||
+                        `(session ${entry.sessionId.slice(0, 8)})`}
+                    </div>
+                    <div
+                      className="mt-0.5 flex items-center gap-1.5 text-[9px] text-[var(--text-faint)]"
+                      style={{ fontFamily: '"Geist Mono", monospace' }}
+                    >
+                      <span className="truncate">
+                        {historyProjectName(entry.projectDir)}
+                      </span>
+                      <span>·</span>
+                      <span>{entry.provider}</span>
+                      <span>·</span>
+                      <span className="tabular-nums">
+                        {formatHistoryAge(entry.lastActivityAt)}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+              {entries.length > HISTORY_DISPLAY_LIMIT && (
+                <div
+                  className="px-3 py-1.5 text-[9px] text-[var(--text-faint)]"
+                  style={{ fontFamily: '"Geist Mono", monospace' }}
+                >
+                  {(t.sessions_history_more_hint as unknown as string) ??
+                    `+${entries.length - HISTORY_DISPLAY_LIMIT} older — use Cmd+K to find specific sessions`}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SessionsPanel() {
   const panelView = useSessionStore((s) => s.panelView);
   const liveSessions = useSessionStore((s) => s.liveSessions);
@@ -375,6 +581,14 @@ export function SessionsPanel() {
   );
 
   const hasAnyTerminals = projectTree.length > 0;
+
+  // List of absolute worktree paths currently on the canvas. Used as
+  // the scope for the history browse section below. Recomputed only
+  // when the projects store shape changes, not on every canvas tick.
+  const canvasProjectDirs = useMemo(
+    () => projects.flatMap((p) => p.worktrees.map((w) => w.path)),
+    [projects],
+  );
 
   useEffect(() => {
     if (sections.focused?.state === "done") {
@@ -483,6 +697,19 @@ export function SessionsPanel() {
             {t.sessions_no_canvas_items}
           </div>
         )}
+
+        {/*
+          Past-session browse surface. Lives below the live project
+          tree so the scroll pattern is "what's live now" → "what's
+          been before" — same reading order as a chat app's "threads"
+          list. Shares the Cmd+K session index via the
+          listSessions IPC; no extra file reads.
+        */}
+        <HistorySection
+          projectDirs={canvasProjectDirs}
+          onOpen={loadReplay}
+          t={t}
+        />
       </div>
 
       {inspectedItem && (
