@@ -194,6 +194,31 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
 
             <button
               className={iconButton}
+              onClick={() =>
+                useCanvasStore.getState().openSessionsOverlay()
+              }
+              title={t.sessions_tab}
+              aria-label={t.sessions_tab}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <circle
+                  cx="4"
+                  cy="7"
+                  r="2.5"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                />
+                <path
+                  d="M7.5 4.5h4M7.5 7h3M7.5 9.5h2"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+
+            <button
+              className={iconButton}
               onClick={() => useCanvasStore.getState().openUsageOverlay()}
               title={t.usage_title}
               aria-label={t.usage_title}

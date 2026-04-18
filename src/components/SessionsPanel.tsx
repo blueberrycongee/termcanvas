@@ -606,7 +606,17 @@ function HistorySection({
   );
 }
 
-export function SessionsPanel() {
+export function SessionsPanel({
+  stayInListMode = false,
+}: {
+  /**
+   * When true, the component never swaps itself into replay view
+   * even if `panelView === "replay"`. Used by SessionsOverlay,
+   * which renders the replay in a second pane side-by-side with
+   * this list and needs the list to keep rendering at all times.
+   */
+  stayInListMode?: boolean;
+} = {}) {
   const panelView = useSessionStore((s) => s.panelView);
   const liveSessions = useSessionStore((s) => s.liveSessions);
   const historySessions = useSessionStore((s) => s.historySessions);
@@ -721,7 +731,7 @@ export function SessionsPanel() {
     }
   }, [addingProject, t]);
 
-  if (panelView === "replay") {
+  if (panelView === "replay" && !stayInListMode) {
     return <SessionReplayView />;
   }
 

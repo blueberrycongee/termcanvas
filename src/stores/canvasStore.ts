@@ -34,6 +34,10 @@ interface CanvasStore {
   // now a full-screen overlay (see UsageOverlay) — a boolean is
   // enough: "is the dashboard visible right now?".
   usageOverlayOpen: boolean;
+  // Same treatment for Sessions. The right panel retired once
+  // Sessions moved to its own overlay too — there's no panel left
+  // to host them.
+  sessionsOverlayOpen: boolean;
   registerViewportAdapter: (adapter: CanvasViewportAdapter | null) => void;
   restoreViewport: (viewport: Viewport) => void;
   setViewport: (viewport: Partial<Viewport>) => void;
@@ -48,6 +52,9 @@ interface CanvasStore {
   openUsageOverlay: () => void;
   closeUsageOverlay: () => void;
   toggleUsageOverlay: () => void;
+  openSessionsOverlay: () => void;
+  closeSessionsOverlay: () => void;
+  toggleSessionsOverlay: () => void;
   setLeftPanelCollapsed: (collapsed: boolean) => void;
   setLeftPanelWidth: (width: number) => void;
   setLeftPanelActiveTab: (tab: LeftPanelTab) => void;
@@ -93,6 +100,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   leftPanelActiveTab: "files" as LeftPanelTab,
   leftPanelPreviewFile: null,
   usageOverlayOpen: false,
+  sessionsOverlayOpen: false,
 
   registerViewportAdapter: (adapter) => {
     activeViewportAdapter = adapter;
@@ -129,6 +137,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   closeUsageOverlay: () => set({ usageOverlayOpen: false }),
   toggleUsageOverlay: () =>
     set((state) => ({ usageOverlayOpen: !state.usageOverlayOpen })),
+  openSessionsOverlay: () => set({ sessionsOverlayOpen: true }),
+  closeSessionsOverlay: () => set({ sessionsOverlayOpen: false }),
+  toggleSessionsOverlay: () =>
+    set((state) => ({ sessionsOverlayOpen: !state.sessionsOverlayOpen })),
   setLeftPanelCollapsed: (collapsed) => {
     set({ leftPanelCollapsed: collapsed });
     markDirty();

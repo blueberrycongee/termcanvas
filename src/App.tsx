@@ -10,12 +10,12 @@ import { usePreferencesStore, hydrateApiKey } from "./stores/preferencesStore";
 import { DrawingPanel } from "./toolbar/DrawingPanel";
 import { ShortcutHints } from "./components/ShortcutHints";
 import { CompletionGlow } from "./components/CompletionGlow";
-import { RightPanel } from "./components/RightPanel";
 import { initSessionStoreIPC } from "./stores/sessionStore";
 import { StashBox } from "./components/StashBox";
 import { WelcomePopup } from "./components/WelcomePopup";
 import { SearchModal } from "./components/SearchModal";
 import { UsageOverlay } from "./components/UsageOverlay";
+import { SessionsOverlay } from "./components/SessionsOverlay";
 import {
   closeTerminalInScene,
   createTerminalInScene,
@@ -585,12 +585,12 @@ export function App() {
       {drawingEnabled && <DrawingPanel />}
       <CompletionGlow />
       <ShortcutHints />
-      <RightPanel />
       <StashBox />
       {composerEnabled && <ComposerBar />}
       <NotificationToast />
       {globalSearchEnabled && <SearchModal />}
       <UsageOverlay />
+      <SessionsOverlay />
       {showCloseDialog && (
         <CloseDialog
           onSave={handleSave}

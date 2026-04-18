@@ -1,11 +1,15 @@
 import type { Viewport } from "../types";
 import { COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 
+// Right panel was retired when Usage + Sessions moved to full-screen
+// overlays. Keep the function signature to avoid a rewrite sweep
+// across every caller, but it now always returns 0 — the canvas
+// extends to the window's right edge. Params are unused.
 export function getCanvasRightInset(
-  rightPanelCollapsed: boolean,
-  rightPanelWidth: number,
+  _rightPanelCollapsed: boolean,
+  _rightPanelWidth: number,
 ) {
-  return rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : rightPanelWidth;
+  return 0;
 }
 
 export function getCanvasLeftInset(

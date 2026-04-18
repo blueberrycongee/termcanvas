@@ -258,6 +258,7 @@ export const en = {
   shortcut_toggle_sidebar: "Toggle sidebar",
   shortcut_toggle_right_panel: "Toggle right panel",
   shortcut_toggle_usage_overlay: "Open usage dashboard",
+  shortcut_toggle_sessions_overlay: "Open sessions library",
   shortcut_new_terminal: "New terminal",
   shortcut_rename_terminal_title: "Rename terminal",
   shortcut_close_focused: "Close focused",
@@ -509,6 +510,9 @@ export const en = {
   sessions_history_empty: "No past sessions in this canvas yet.",
   sessions_history_more_hint: "older sessions — use Cmd+K to find specific ones",
   sessions_history_load_more: "Load more",
+  sessions_overlay_empty_title: "Pick a session on the left",
+  sessions_overlay_empty_hint:
+    "Browse live or past conversations in the list. Click any row to replay the full transcript here.",
   sessions_panel_title: "Projects",
   sessions_inspector: "Inspector",
   sessions_recent_trace: "Recent Trace",

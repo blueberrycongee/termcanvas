@@ -280,6 +280,14 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      // Sessions overlay — same treatment. Cmd+Shift+H ("history").
+      // Kept off Cmd+Shift+S because mod+shift+s is saveWorkspaceAs.
+      if (matchesShortcut(e, shortcuts.toggleSessionsOverlay)) {
+        consumeShortcut();
+        useCanvasStore.getState().toggleSessionsOverlay();
+        return;
+      }
+
       if (shouldIgnoreShortcutTarget(e)) {
         return;
       }
@@ -352,10 +360,14 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      // `toggleRightPanel` (Cmd+/) used to collapse/expand the right
+      // panel. The panel is gone — repurpose the keystroke to open
+      // the Sessions overlay, which is the closest replacement and
+      // keeps existing muscle memory working instead of silently
+      // doing nothing.
       if (matchesShortcut(e, shortcuts.toggleRightPanel)) {
         consumeShortcut();
-        const store = useCanvasStore.getState();
-        store.setRightPanelCollapsed(!store.rightPanelCollapsed);
+        useCanvasStore.getState().toggleSessionsOverlay();
         return;
       }
 

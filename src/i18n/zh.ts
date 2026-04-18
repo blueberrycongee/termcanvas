@@ -252,6 +252,7 @@ export const zh = {
   shortcut_toggle_sidebar: "切换侧栏",
   shortcut_toggle_right_panel: "切换右侧面板",
   shortcut_toggle_usage_overlay: "打开用量面板",
+  shortcut_toggle_sessions_overlay: "打开会话库",
   shortcut_new_terminal: "新建终端",
   shortcut_rename_terminal_title: "重命名终端",
   shortcut_close_focused: "关闭当前",
@@ -499,6 +500,9 @@ export const zh = {
   sessions_history_empty: "画布下暂无历史会话",
   sessions_history_more_hint: "更早的会话 — 可用 Cmd+K 精确查找",
   sessions_history_load_more: "加载更多",
+  sessions_overlay_empty_title: "请在左侧选择一个会话",
+  sessions_overlay_empty_hint:
+    "左侧可以浏览当前的和历史的会话,点击任意一条,完整对话就会在这里回放。",
   sessions_panel_title: "项目",
   sessions_inspector: "详情",
   sessions_recent_trace: "最近 Trace",
