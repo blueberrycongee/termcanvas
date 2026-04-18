@@ -107,6 +107,8 @@ export function FileEditorDrawer() {
   const toggleExpanded = useCanvasStore((s) => s.toggleFileEditorExpanded);
   const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
+  const rightPanelCollapsed = useCanvasStore((s) => s.rightPanelCollapsed);
+  const rightPanelWidth = useCanvasStore((s) => s.rightPanelWidth);
   const theme = useThemeStore((s) => s.theme);
 
   const [content, setContent] = useState("");
@@ -203,25 +205,36 @@ export function FileEditorDrawer() {
   if (!open || !path) return null;
 
   const leftInset = leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
-  // Width: level-1 is 60% of the full viewport (in practice that
-  // leaves ~40% of canvas visible for most layouts); level-2 fills
-  // everything except the left panel. Using vw keeps the math
-  // decoupled from dynamic panel resizing.
+  const rightInset = rightPanelCollapsed
+    ? COLLAPSED_TAB_WIDTH
+    : rightPanelWidth;
+  // Drawer is anchored so its RIGHT edge sits flush against the
+  // LEFT edge of the right panel — the drawer pulls out from the
+  // right panel's seam, leaving that panel fully visible so the
+  // user can keep browsing Files/Diff/Git while reading code.
+  //
+  // Level-1 width: 55% of viewport width, but never wider than the
+  // actual canvas gap (leftInset + rightInset subtracted). On tight
+  // layouts this naturally shrinks.
+  // Level-2 width: fills the entire gap between the two panels.
+  const gapMax = `calc(100vw - ${leftInset}px - ${rightInset}px)`;
   const widthStyle = expanded
-    ? `calc(100vw - ${leftInset}px)`
-    : "min(60vw, calc(100vw - " + leftInset + "px))";
+    ? gapMax
+    : `min(55vw, ${gapMax})`;
 
   const fileName = path.split("/").pop() ?? path;
   const relPath = path;
 
   return (
     <div
-      className="fixed right-0 z-50 bg-[var(--bg)] border-l border-[var(--border)] shadow-2xl flex flex-col"
+      className="fixed z-50 bg-[var(--bg)] border-l border-r border-[var(--border)] shadow-2xl flex flex-col"
       style={{
         top: TOOLBAR_HEIGHT,
+        right: rightInset,
         height: `calc(100vh - ${TOOLBAR_HEIGHT}px)`,
         width: widthStyle,
-        transition: "width 180ms cubic-bezier(0.4, 0, 0.2, 1)",
+        transition:
+          "width 180ms cubic-bezier(0.4, 0, 0.2, 1), right 180ms cubic-bezier(0.4, 0, 0.2, 1)",
       }}
       role="dialog"
       aria-modal="false"
