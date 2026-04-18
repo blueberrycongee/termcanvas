@@ -21,6 +21,14 @@ import {
   fmtCost,
 } from "./UsagePanel";
 
+/**
+ * Shared height for Row 2's hourly sparkline and the 30-day trend
+ * chart. Must match between the two so their bar areas line up and
+ * their x-axis labels render at the same Y position — otherwise the
+ * side-by-side cards look visibly mismatched.
+ */
+const ROW2_CHART_HEIGHT = 56;
+
 /*
  * Usage, full-screen.
  *
@@ -307,14 +315,19 @@ export function UsageOverlay() {
           </button>
         </div>
 
-        {/* Control strip */}
+        {/* Control strip — DateNavigator is rendered bare so its own
+            "USAGE" label + border-b don't fight with this card's
+            chrome. Vertical padding (py-1.5) matches the inner
+            heights of Insights/Login so the three controls sit on a
+            shared baseline. */}
         <div className="mb-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
-          <div className="flex items-center gap-3 px-2 py-1">
+          <div className="flex items-center gap-3 px-3 py-1.5">
             <div className="flex-1 min-w-0">
               <DateNavigator
                 date={date}
                 cachedDates={cachedDates}
                 onDateChange={handleDateChange}
+                bare
               />
             </div>
             <InsightsButton compact />
@@ -370,7 +383,10 @@ export function UsageOverlay() {
 
             {/* Row 2: Two time-zoom charts side by side. Hourly on
                 left answers "when within today?", monthly on right
-                answers "how does today compare to the past month?". */}
+                answers "how does today compare to the past month?".
+                Both charts share the same bar-area height so their
+                x-axes land on the same baseline and the two cards
+                come out the same height. */}
             <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
               <SectionCard title={t.usage_timeline}>
                 <div className="px-3 py-2.5">
@@ -378,6 +394,7 @@ export function UsageOverlay() {
                     buckets={activeSummary.buckets}
                     animate={true}
                     date={activeSummary.date}
+                    heightPx={ROW2_CHART_HEIGHT}
                   />
                 </div>
               </SectionCard>
@@ -392,6 +409,7 @@ export function UsageOverlay() {
                     focusDate={date}
                     days={30}
                     animate={true}
+                    heightPx={ROW2_CHART_HEIGHT}
                   />
                 </div>
               </SectionCard>
@@ -400,12 +418,22 @@ export function UsageOverlay() {
             {/* Row 3: Three narrow bar-chart columns. These
                 components (cache/projects/models) are designed for
                 ~320 px — packing three across keeps each at its
-                sweet spot instead of stretching one to 1000 px. */}
+                sweet spot instead of stretching one to 1000 px.
+                CacheRateSection is rendered in `bare` mode so its
+                first bar lines up vertically with the first row of
+                Projects/Models; otherwise its internal title +
+                margin pushed content ~20 px lower than its
+                neighbours and the row looked ragged. */}
             <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
               {summary && (
                 <SectionCard title={t.usage_cache_rate}>
                   <div className="px-3 py-2.5">
-                    <CacheRateSection t={t} summary={summary} animate={true} />
+                    <CacheRateSection
+                      t={t}
+                      summary={summary}
+                      animate={true}
+                      bare
+                    />
                   </div>
                 </SectionCard>
               )}
@@ -442,11 +470,18 @@ export function UsageOverlay() {
             </SectionCard>
 
             {/* Row 5: Heatmap full-width. A calendar ribbon is
-                fundamentally wide. */}
+                fundamentally wide. In the overlay we show a full
+                year (size="large") so the ribbon actually uses the
+                card's width instead of stranding ~800 px of empty
+                space to the right, and we render the heatmap in
+                `bare` mode to avoid a second "Token Heatmap" title
+                inside SectionCard's title bar. */}
             <SectionCard title={t.usage_heatmap}>
               <TokenHeatmap
                 animate={true}
                 data={activeHeatmap ?? undefined}
+                bare
+                size="large"
               />
             </SectionCard>
 

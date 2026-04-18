@@ -17,9 +17,16 @@ interface SparklineChartProps {
   buckets: UsageBucket[];
   animate: boolean;
   date?: string;
+  /**
+   * Height of the bar area in pixels. Defaults to 40 for the narrow
+   * sidebar. The overlay uses a taller value so sparkline and
+   * MonthlyTrendChart share the same chart height and their x-axes
+   * land on the same line when rendered side-by-side.
+   */
+  heightPx?: number;
 }
 
-export function SparklineChart({ buckets, animate, date }: SparklineChartProps) {
+export function SparklineChart({ buckets, animate, date, heightPx = 40 }: SparklineChartProps) {
   const t = useT();
   const [hovered, setHovered] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -32,7 +39,7 @@ export function SparklineChart({ buckets, animate, date }: SparklineChartProps) 
 
   return (
     <div ref={containerRef} className="relative">
-      <div className="flex items-end gap-px h-10">
+      <div className="flex items-end gap-px" style={{ height: heightPx }}>
         {buckets.map((b, i) => {
           const h = max > 0 ? Math.max(0, (b.cost / max) * 100) : 0;
           const isFuture = isToday && b.hourStart > currentHour;
@@ -76,7 +83,7 @@ export function SparklineChart({ buckets, animate, date }: SparklineChartProps) 
       )}
 
       <div
-        className="flex justify-between mt-0.5 text-[9px] text-[var(--text-faint)]"
+        className="flex justify-between mt-1 text-[9px] text-[var(--text-faint)]"
         style={{ fontFamily: '"Geist Mono", monospace' }}
       >
         <span>00</span>

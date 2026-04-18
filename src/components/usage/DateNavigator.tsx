@@ -171,9 +171,18 @@ interface DateNavigatorProps {
   cachedDates: Record<string, boolean>;
   onDateChange: (dateStr: string) => void;
   onCollapse?: () => void;
+  /**
+   * Drop the outer padding, border-b, leading icon and "USAGE" label.
+   * Used by the full-screen overlay where this navigator lives inside
+   * a shared control-strip card alongside Insights + Login buttons,
+   * and a top-level "Usage" heading already sits above the strip —
+   * so the built-in "USAGE" label and trailing border are redundant
+   * clutter there.
+   */
+  bare?: boolean;
 }
 
-export function DateNavigator({ date, cachedDates, onDateChange, onCollapse }: DateNavigatorProps) {
+export function DateNavigator({ date, cachedDates, onDateChange, onCollapse, bare = false }: DateNavigatorProps) {
   const t = useT();
   const [calendarOpen, setCalendarOpen] = useState(false);
   const today = todayStr();
@@ -183,20 +192,28 @@ export function DateNavigator({ date, cachedDates, onDateChange, onCollapse }: D
 
   const displayDate = `${t.usage_cal_months_short[parsed.getMonth()]} ${parsed.getDate()}`;
 
+  const wrapperClass = bare
+    ? "relative shrink-0"
+    : "relative px-3 py-2 shrink-0 border-b border-[var(--border)]";
+
   return (
-    <div className="relative px-3 py-2 shrink-0 border-b border-[var(--border)]">
+    <div className={wrapperClass}>
       <div className="flex items-center gap-1">
-        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" className="text-[var(--text-muted)] shrink-0">
-          <rect x="1.5" y="3" width="3" height="8" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
-          <rect x="5.5" y="5" width="3" height="6" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
-          <rect x="9.5" y="1" width="3" height="10" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
-        </svg>
-        <span
-          className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mr-auto"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-        >
-          {t.usage_title}
-        </span>
+        {!bare && (
+          <>
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" className="text-[var(--text-muted)] shrink-0">
+              <rect x="1.5" y="3" width="3" height="8" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+              <rect x="5.5" y="5" width="3" height="6" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+              <rect x="9.5" y="1" width="3" height="10" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+            </svg>
+            <span
+              className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mr-auto"
+              style={{ fontFamily: '"Geist Mono", monospace' }}
+            >
+              {t.usage_title}
+            </span>
+          </>
+        )}
 
         <button
           onClick={() => onDateChange(addDays(date, -1))}

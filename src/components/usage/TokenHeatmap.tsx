@@ -22,6 +22,7 @@ function fmtTokens(n: number): string {
 }
 
 const HEATMAP_DAYS = 91;
+const HEATMAP_DAYS_LARGE = 364;
 const COLOR_LEVELS = [
   "var(--border)",               // level 0: no data
   "color-mix(in srgb, var(--accent) 20%, transparent)",  // level 1
@@ -42,14 +43,17 @@ interface MonthLabel {
   column: number;
 }
 
-function buildGrid(data: Record<string, HeatmapEntry>): {
+function buildGrid(
+  data: Record<string, HeatmapEntry>,
+  totalDaysSpan: number = HEATMAP_DAYS,
+): {
   cells: (CellData | null)[][];
   weeks: number;
   monthLabels: MonthLabel[];
 } {
   const today = new Date();
   const startDate = new Date(today);
-  startDate.setDate(startDate.getDate() - (HEATMAP_DAYS - 1));
+  startDate.setDate(startDate.getDate() - (totalDaysSpan - 1));
 
   // Heatmap columns are weeks; align to Sunday so each column is a full Sun–Sat week
   const startDay = startDate.getDay();
@@ -181,9 +185,26 @@ interface TokenHeatmapProps {
   /** When provided, overrides the store's local-only heatmapData (e.g. merged local+cloud). */
   data?: Record<string, HeatmapEntry>;
   onVisible?: () => void;
+  /**
+   * Skip the component's own outer padding + title span. Used by the
+   * full-screen overlay where SectionCard already renders both.
+   */
+  bare?: boolean;
+  /**
+   * "default" (≈13 weeks) for the narrow sidebar; "large" (≈52 weeks,
+   * a full year) for the overlay where the card is wide and a short
+   * ribbon leaves most of the card empty.
+   */
+  size?: "default" | "large";
 }
 
-export function TokenHeatmap({ animate, data, onVisible }: TokenHeatmapProps): React.ReactElement {
+export function TokenHeatmap({
+  animate,
+  data,
+  onVisible,
+  bare = false,
+  size = "default",
+}: TokenHeatmapProps): React.ReactElement {
   const t = useT();
   const { heatmapData, heatmapLoading, heatmapError, fetch: fetchDay } = useUsageStore();
   const [hoveredCell, setHoveredCell] = useState<CellData | null>(null);
@@ -213,7 +234,11 @@ export function TokenHeatmap({ animate, data, onVisible }: TokenHeatmapProps): R
   }, [onVisible]);
 
   const effectiveData = data ?? heatmapData;
-  const { cells, weeks, monthLabels } = useMemo(() => buildGrid(effectiveData), [effectiveData]);
+  const daysSpan = size === "large" ? HEATMAP_DAYS_LARGE : HEATMAP_DAYS;
+  const { cells, weeks, monthLabels } = useMemo(
+    () => buildGrid(effectiveData, daysSpan),
+    [effectiveData, daysSpan],
+  );
 
   const handleCellClick = (cell: CellData) => {
     fetchDay(cell.dateStr);
@@ -232,35 +257,56 @@ export function TokenHeatmap({ animate, data, onVisible }: TokenHeatmapProps): R
   const WEEKDAY_LABELS = t.usage_cal_weekdays;
   const LABEL_ROWS = [1, 3, 5]; // Mon, Wed, Fri
 
+  const outerClass = "px-3 py-2.5";
+
   if (heatmapLoading) {
     return (
-      <div className="px-3 py-2.5">
-        <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
-          {t.usage_heatmap}
-        </span>
-        <div className="mt-2 text-[10px] text-[var(--text-faint)]">{t.usage_heatmap_loading}</div>
+      <div className={outerClass}>
+        {!bare && (
+          <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
+            {t.usage_heatmap}
+          </span>
+        )}
+        <div className={`${bare ? "" : "mt-2"} text-[10px] text-[var(--text-faint)]`}>
+          {t.usage_heatmap_loading}
+        </div>
       </div>
     );
   }
 
   if (heatmapError) {
     return (
-      <div className="px-3 py-2.5">
-        <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
-          {t.usage_heatmap}
-        </span>
-        <div className="mt-2 text-[10px] text-[var(--red)]">{t.usage_heatmap_error}</div>
+      <div className={outerClass}>
+        {!bare && (
+          <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
+            {t.usage_heatmap}
+          </span>
+        )}
+        <div className={`${bare ? "" : "mt-2"} text-[10px] text-[var(--red)]`}>
+          {t.usage_heatmap_error}
+        </div>
       </div>
     );
   }
 
   return (
-    <div ref={containerRef} className="px-3 py-2.5">
-      <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
-        {t.usage_heatmap}
-      </span>
+    <div ref={containerRef} className={outerClass}>
+      {!bare && (
+        <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
+          {t.usage_heatmap}
+        </span>
+      )}
 
-      <div className="mt-2 flex gap-[3px]">
+      {/*
+        Centered wrapper so a ribbon narrower than the card doesn't
+        hug the left edge with an ocean of empty space to the right.
+        In bare (overlay) mode the grid + legend both sit in an
+        inline-block that's centered inside the card — the legend
+        aligns with the grid's right edge, not the card's.
+      */}
+      <div className={bare ? "flex justify-center" : undefined}>
+      <div className={bare ? "inline-block" : undefined}>
+      <div className={`${bare ? "" : "mt-2 "}flex gap-[3px]`}>
         <div className="flex flex-col gap-[3px] shrink-0 mr-0.5">
           {Array.from({ length: 7 }, (_, row) => (
             <div
@@ -382,6 +428,8 @@ export function TokenHeatmap({ animate, data, onVisible }: TokenHeatmapProps): R
         >
           {t.usage_heatmap_more}
         </span>
+      </div>
+      </div>
       </div>
 
       {hoveredCell && hoveredRect && <HeatmapTooltip cell={hoveredCell} triggerRect={hoveredRect} />}

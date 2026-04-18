@@ -256,10 +256,17 @@ export function CacheRateSection({
   t,
   summary,
   animate,
+  bare = false,
 }: {
   t: ReturnType<typeof useT>;
   summary: UsageSummary;
   animate: boolean;
+  /**
+   * When true, skip the outer px-3/py-2.5 wrapper and the internal
+   * title span. Used by the full-screen overlay where SectionCard
+   * already owns both the title bar and the content padding.
+   */
+  bare?: boolean;
 }) {
   const clients: { label: string; input: number; cacheRead: number; cacheCreate: number }[] = [];
   let claudeInput = 0, claudeCacheRead = 0, claudeCacheCreate = 0;
@@ -308,34 +315,40 @@ export function CacheRateSection({
 
   const showRows = clients.length > 1 ? rows : [rows[0]];
 
+  const body = (
+    <div className="flex flex-col gap-1.5">
+      {showRows.map((row, i) => (
+        <HoverDetail
+          key={row.label}
+          tooltip={
+            <div className="text-[10px] text-[var(--text-secondary)] tabular-nums" style={{ fontFamily: '"Geist Mono", monospace' }}>
+              Cache Read: {fmtTokens(row.cacheRead)} / Total: {fmtTokens(row.totalInput)}
+            </div>
+          }
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-[var(--text-muted)] w-12 shrink-0 truncate">{row.label}</span>
+            <Bar value={row.rate * 100} max={100} color="#eab308" animate={animate} delay={i * 60} />
+            <span
+              className="text-[10px] text-[var(--text-muted)] shrink-0 w-8 text-right tabular-nums"
+              style={{ fontFamily: '"Geist Mono", monospace' }}
+            >
+              {Math.round(row.rate * 100)}%
+            </span>
+          </div>
+        </HoverDetail>
+      ))}
+    </div>
+  );
+
+  if (bare) return body;
+
   return (
     <div className="px-3 py-2.5">
       <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
         {t.usage_cache_rate}
       </span>
-      <div className="mt-2 flex flex-col gap-1.5">
-        {showRows.map((row, i) => (
-          <HoverDetail
-            key={row.label}
-            tooltip={
-              <div className="text-[10px] text-[var(--text-secondary)] tabular-nums" style={{ fontFamily: '"Geist Mono", monospace' }}>
-                Cache Read: {fmtTokens(row.cacheRead)} / Total: {fmtTokens(row.totalInput)}
-              </div>
-            }
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-[var(--text-muted)] w-12 shrink-0 truncate">{row.label}</span>
-              <Bar value={row.rate * 100} max={100} color="#eab308" animate={animate} delay={i * 60} />
-              <span
-                className="text-[10px] text-[var(--text-muted)] shrink-0 w-8 text-right tabular-nums"
-                style={{ fontFamily: '"Geist Mono", monospace' }}
-              >
-                {Math.round(row.rate * 100)}%
-              </span>
-            </div>
-          </HoverDetail>
-        ))}
-      </div>
+      <div className="mt-2">{body}</div>
     </div>
   );
 }

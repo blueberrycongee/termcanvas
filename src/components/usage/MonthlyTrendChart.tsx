@@ -43,6 +43,8 @@ interface Props {
   /** Number of days to render. Default 30. */
   days?: number;
   animate?: boolean;
+  /** Height of the bar area in pixels. See SparklineChart for rationale. */
+  heightPx?: number;
 }
 
 export function MonthlyTrendChart({
@@ -50,6 +52,7 @@ export function MonthlyTrendChart({
   focusDate,
   days = 30,
   animate = true,
+  heightPx = 64,
 }: Props) {
   const [hovered, setHovered] = useState<number | null>(null);
 
@@ -87,7 +90,7 @@ export function MonthlyTrendChart({
 
   return (
     <div className="relative">
-      <div className="flex items-end gap-[2px] h-16">
+      <div className="flex items-end gap-[2px]" style={{ height: heightPx }}>
         {bars.map((b, i) => {
           const h = max > 0 ? (b.cost / max) * 100 : 0;
           const active = b.cost > 0 && !b.isFuture;
