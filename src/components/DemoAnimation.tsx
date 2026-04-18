@@ -2,12 +2,18 @@ import { useState, useEffect, useRef } from "react";
 
 export interface DemoAnimationProps {
   autoplay?: boolean;
-  shortcuts?: {
+  /**
+   * Per-field shortcut overrides. Missing fields fall back to the
+   * `DEFAULT_SHORTCUTS` constant, so callers only need to pass the
+   * shortcuts they actually care about binding to user prefs.
+   */
+  shortcuts?: Partial<{
     clearFocus: string;
     nextTerminal: string;
     prevTerminal: string;
     addProject: string;
-  };
+    openUsage: string;
+  }>;
 }
 
 const DEFAULT_SHORTCUTS = {
@@ -15,6 +21,7 @@ const DEFAULT_SHORTCUTS = {
   nextTerminal: "⌘ ]",
   prevTerminal: "⌘ [",
   addProject: "⌘ O",
+  openUsage: "⌘⇧ U",
 };
 
 function Bi({ en: e, zh: z }: { en: string; zh: string }) {
@@ -75,8 +82,9 @@ const PHASES = [
   { en: "Switch", zh: "切换" },
   { en: "Unfocus", zh: "取消" },
   { en: "Zoom", zh: "缩放" },
-  { en: "Sidebar", zh: "侧栏" },
-  { en: "Panel", zh: "面板" },
+  { en: "Project", zh: "项目" },
+  { en: "Code", zh: "代码" },
+  { en: "Replay", zh: "回放" },
   { en: "Done", zh: "完成" },
 ] as const;
 
@@ -172,23 +180,215 @@ function DemoTile({
   );
 }
 
-function DemoSidebar({ expanded, activeTab }: { expanded: boolean; activeTab: "files" | "git" }) {
+const HISTORY_ENTRIES = [
+  { provider: "claude", title: "Add session history to sidebar", age: "2m" },
+  { provider: "codex", title: "Fix Codex resume id", age: "18m" },
+  { provider: "claude", title: "Monaco drawer theme tint", age: "1h" },
+  { provider: "codex", title: "Swap panels: files to right", age: "3h" },
+] as const;
+
+/*
+ * Left panel — v0.30 project management + history.
+ *
+ * Always visible; collapsing it isn't part of the demo story.
+ * Mirrors the real LeftPanel layout: header with "+" button,
+ * ProjectTree expanded, HistorySection below. Phase 5 highlights
+ * the "+" button; Phase 7 highlights a history row.
+ */
+function DemoLeftPanel({
+  addProjectHot,
+  historyHot,
+  showSecondProject,
+  historyExpanded,
+}: {
+  addProjectHot: boolean;
+  historyHot: number; // -1 = none, else index
+  showSecondProject: boolean;
+  historyExpanded: boolean;
+}) {
   return (
     <div
       className="shrink-0 flex flex-col border-r border-[var(--border)] overflow-hidden"
+      style={{ width: 140, background: "var(--sidebar)" }}
+    >
+      {/* Header */}
+      <div
+        className="shrink-0 flex items-center justify-between px-2 py-1.5 border-b"
+        style={{ borderColor: "var(--border)" }}
+      >
+        <span
+          className="text-[7px] uppercase tracking-widest font-medium"
+          style={{ color: "var(--text-muted)", fontFamily: '"Geist Mono", monospace' }}
+        >
+          Sessions
+        </span>
+        <div
+          className="w-3.5 h-3.5 rounded flex items-center justify-center transition-all duration-200"
+          style={{
+            background: addProjectHot ? "var(--accent)" : "transparent",
+            border: `1px solid ${addProjectHot ? "var(--accent)" : "var(--border)"}`,
+            color: addProjectHot ? "var(--bg)" : "var(--text-muted)",
+            boxShadow: addProjectHot ? "0 0 8px rgba(91,158,245,0.6)" : "none",
+          }}
+        >
+          <svg width="7" height="7" viewBox="0 0 12 12" fill="none">
+            <path d="M6 2V10M2 6H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </div>
+      </div>
+
+      {/* Projects */}
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+        <div className="px-1.5 pt-1.5 flex flex-col gap-0.5">
+          {/* First project */}
+          <div className="flex items-center gap-1">
+            <span className="text-[7px]" style={{ color: "var(--accent)" }}>▼</span>
+            <span className="text-[8px] font-medium" style={{ color: "var(--text-primary)" }}>
+              termcanvas
+            </span>
+          </div>
+          <div className="flex items-center gap-1 pl-2">
+            <span className="text-[7px]" style={{ color: "var(--accent)" }}>▼</span>
+            <div className="w-[3px] h-[5px] rounded-full" style={{ background: "var(--green)" }} />
+            <span className="text-[7px]" style={{ color: "var(--text-muted)" }}>main</span>
+          </div>
+          {TERMINALS.map((t) => (
+            <div key={t.name} className="flex items-center gap-1 pl-5">
+              <div className="w-1 h-1 rounded-full" style={{ background: t.color }} />
+              <span className="text-[7px] text-[var(--text-muted)]">{t.name}</span>
+            </div>
+          ))}
+
+          {/* Second project (added in Phase 5) */}
+          <div
+            style={{
+              opacity: showSecondProject ? 1 : 0,
+              transform: showSecondProject ? "translateY(0)" : "translateY(-4px)",
+              transition: "opacity 300ms ease-out, transform 300ms ease-out",
+              overflow: "hidden",
+              maxHeight: showSecondProject ? 32 : 0,
+            }}
+          >
+            <div className="flex items-center gap-1 mt-1">
+              <span className="text-[7px]" style={{ color: "var(--accent)" }}>▼</span>
+              <span className="text-[8px] font-medium" style={{ color: "var(--text-primary)" }}>
+                my-app
+              </span>
+            </div>
+            <div className="flex items-center gap-1 pl-2">
+              <div className="w-[3px] h-[5px] rounded-full" style={{ background: "var(--cyan)" }} />
+              <span className="text-[7px]" style={{ color: "var(--text-muted)" }}>main</span>
+            </div>
+          </div>
+        </div>
+
+        {/* History section (bottom) */}
+        <div
+          className="mt-auto border-t border-[var(--border)]"
+          style={{ background: "var(--sidebar)" }}
+        >
+          <div
+            className="flex items-center gap-1 px-2 py-1"
+            style={{ background: historyExpanded ? "var(--surface)" : "transparent" }}
+          >
+            <span
+              className="text-[7px]"
+              style={{
+                color: "var(--text-muted)",
+                transform: historyExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                transition: "transform 200ms",
+              }}
+            >
+              ▶
+            </span>
+            <span
+              className="text-[7px] uppercase tracking-widest"
+              style={{ color: "var(--text-muted)", fontFamily: '"Geist Mono", monospace' }}
+            >
+              History
+            </span>
+          </div>
+          {historyExpanded && (
+            <div className="px-1.5 pb-1.5 flex flex-col">
+              {HISTORY_ENTRIES.map((h, i) => (
+                <div
+                  key={i}
+                  className="flex items-start gap-1 px-1 py-0.5 rounded transition-colors duration-150"
+                  style={{
+                    background:
+                      historyHot === i ? "rgba(91,158,245,0.18)" : "transparent",
+                  }}
+                >
+                  <span
+                    className="mt-[3px] w-1 h-1 rounded-full shrink-0"
+                    style={{
+                      background: h.provider === "claude" ? "var(--amber)" : "var(--green)",
+                    }}
+                  />
+                  <div className="min-w-0 flex-1 flex flex-col">
+                    <span
+                      className="text-[7px] truncate"
+                      style={{
+                        color:
+                          historyHot === i
+                            ? "var(--text-primary)"
+                            : "var(--text-secondary)",
+                      }}
+                    >
+                      {h.title}
+                    </span>
+                    <span className="text-[6px] text-[var(--text-faint)]">
+                      {h.provider} · {h.age}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/*
+ * Right panel — v0.30 code-nav tabs (Files / Diff / Git / Memory).
+ * Starts collapsed (thin strip of icons); Phase 6 expands it to
+ * show the Files tab with a file list, then Phase 6 again hovers a
+ * file which triggers the Monaco drawer overlay.
+ */
+function DemoRightPanel({
+  expanded,
+  activeTab,
+  hotFile,
+}: {
+  expanded: boolean;
+  activeTab: "files" | "diff" | "git";
+  hotFile: string | null;
+}) {
+  const tabIcons = [
+    { key: "files", label: "Files" },
+    { key: "diff", label: "Diff" },
+    { key: "git", label: "Git" },
+    { key: "memory", label: "Mem" },
+  ] as const;
+
+  return (
+    <div
+      className="shrink-0 flex flex-col border-l border-[var(--border)] overflow-hidden"
       style={{
-        width: expanded ? 150 : 32,
-        background: "var(--sidebar)",
-        transition: "width 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+        width: expanded ? 140 : 26,
+        background: expanded ? "var(--surface)" : "var(--sidebar)",
+        transition: "width 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94), background 200ms",
       }}
     >
       {expanded ? (
-        <div className="flex flex-col h-full" style={{ width: 150 }}>
-          <div className="flex gap-0.5 p-1 mx-1 mt-1.5 rounded-md" style={{ background: "var(--bg)" }}>
-            {[{ key: "files", label: "Files" }, { key: "git", label: "Git" }].map((tab) => (
+        <>
+          <div className="shrink-0 flex gap-0.5 p-1 mx-1 mt-1.5 rounded-md" style={{ background: "var(--bg)" }}>
+            {tabIcons.map((tab) => (
               <div
                 key={tab.key}
-                className="flex-1 text-center py-0.5 rounded text-[8px]"
+                className="flex-1 text-center py-0.5 rounded text-[7px]"
                 style={{
                   background: activeTab === tab.key ? "var(--surface-hover)" : "transparent",
                   color: activeTab === tab.key ? "var(--text-primary)" : "var(--text-muted)",
@@ -199,137 +399,48 @@ function DemoSidebar({ expanded, activeTab }: { expanded: boolean; activeTab: "f
               </div>
             ))}
           </div>
-          {activeTab === "files" ? (
-            <div className="flex-1 min-h-0 px-1.5 pt-2 flex flex-col gap-0.5 overflow-hidden">
-              <div className="flex items-center gap-1">
-                <span className="text-[7px]" style={{ color: "var(--accent)" }}>▼</span>
-                <span className="text-[8px] font-medium" style={{ color: "var(--text-secondary)" }}>src</span>
-              </div>
-              {["main.ts", "app.tsx", "index.css", "layout.ts", "types.ts"].map((f) => (
-                <div key={f} className="pl-3 flex items-center gap-1">
-                  <div className="w-1 h-1 rounded-full" style={{ background: "var(--text-faint)" }} />
-                  <span className="text-[7px] text-[var(--text-muted)]">{f}</span>
-                </div>
-              ))}
-              <div className="flex items-center gap-1 mt-0.5">
-                <span className="text-[7px]" style={{ color: "var(--accent)" }}>▼</span>
-                <span className="text-[8px] font-medium" style={{ color: "var(--text-secondary)" }}>components</span>
-              </div>
-              {["App.tsx", "Hub.tsx", "Panel.tsx"].map((f) => (
-                <div key={f} className="pl-3 flex items-center gap-1">
-                  <div className="w-1 h-1 rounded-full" style={{ background: "var(--text-faint)" }} />
-                  <span className="text-[7px] text-[var(--text-muted)]">{f}</span>
-                </div>
-              ))}
-              <div className="flex items-center gap-1 mt-0.5">
-                <span className="text-[7px]" style={{ color: "var(--text-faint)" }}>▶</span>
-                <span className="text-[8px]" style={{ color: "var(--text-secondary)" }}>stores</span>
-              </div>
-              <div className="flex items-center gap-1 mt-0.5">
-                <span className="text-[7px]" style={{ color: "var(--text-faint)" }}>▶</span>
-                <span className="text-[8px]" style={{ color: "var(--text-secondary)" }}>tests</span>
-              </div>
-              <div className="flex items-center gap-1 mt-0.5">
-                <span className="text-[7px]" style={{ color: "var(--text-faint)" }}>▶</span>
-                <span className="text-[8px]" style={{ color: "var(--text-secondary)" }}>hooks</span>
-              </div>
-              <div className="mt-1.5 flex flex-col gap-0.5">
-                {["package.json", "tsconfig.json", "vite.config.ts", ".gitignore", "README.md"].map((f) => (
-                  <div key={f} className="flex items-center gap-1">
-                    <div className="w-1 h-1 rounded-full" style={{ background: "var(--text-faint)" }} />
-                    <span className="text-[7px] text-[var(--text-muted)]">{f}</span>
-                  </div>
-                ))}
-              </div>
+          <div className="flex-1 min-h-0 px-1.5 pt-2 flex flex-col gap-0.5 overflow-hidden">
+            <div className="flex items-center gap-1">
+              <span className="text-[7px]" style={{ color: "var(--accent)" }}>▼</span>
+              <span className="text-[7px] font-medium" style={{ color: "var(--text-secondary)" }}>src</span>
             </div>
-          ) : (
-            <div className="flex-1 min-h-0 px-1.5 pt-2 flex flex-col gap-1.5 overflow-hidden">
-              <div>
-                <span className="text-[7px] font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                  Branch
+            {["App.tsx", "LeftPanel.tsx", "RightPanel.tsx", "FileEditorDrawer.tsx", "UsageOverlay.tsx"].map((f) => (
+              <div
+                key={f}
+                className="pl-3 flex items-center gap-1 rounded transition-colors duration-150"
+                style={{
+                  background: hotFile === f ? "rgba(91,158,245,0.18)" : "transparent",
+                }}
+              >
+                <div className="w-1 h-1 rounded-full" style={{ background: "var(--text-faint)" }} />
+                <span
+                  className="text-[7px]"
+                  style={{
+                    color: hotFile === f ? "var(--text-primary)" : "var(--text-muted)",
+                  }}
+                >
+                  {f}
                 </span>
-                <div className="mt-0.5 flex items-center gap-1 px-1 py-0.5 rounded" style={{ background: "var(--surface)" }}>
-                  <div className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--green)" }} />
-                  <span className="text-[8px] font-medium" style={{ color: "var(--text-primary)" }}>main</span>
-                </div>
               </div>
-
-              <div>
-                <span className="text-[7px] font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                  Status
-                </span>
-                <div className="mt-0.5 flex flex-col gap-0.5">
-                  {[
-                    { file: "app.tsx", badge: "M", color: "var(--amber)" },
-                    { file: "index.css", badge: "M", color: "var(--amber)" },
-                    { file: "utils.ts", badge: "A", color: "var(--green)" },
-                  ].map((f) => (
-                    <div key={f.file} className="flex items-center gap-1">
-                      <span
-                        className="text-[6px] font-bold rounded px-0.5"
-                        style={{ background: f.color, color: "var(--bg)", minWidth: 10, textAlign: "center" }}
-                      >
-                        {f.badge}
-                      </span>
-                      <span className="text-[7px] text-[var(--text-muted)]">{f.file}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <span className="text-[7px] font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                  Commits
-                </span>
-                <div className="mt-0.5 flex flex-col gap-1">
-                  {[
-                    { hash: "a3f21c", msg: "feat: add panel", time: "2m" },
-                    { hash: "8d4e0b", msg: "fix: layout shift", time: "18m" },
-                    { hash: "c72a1f", msg: "refactor: stores", time: "1h" },
-                    { hash: "19be3d", msg: "chore: deps update", time: "3h" },
-                    { hash: "f0c84a", msg: "feat: sidebar tabs", time: "5h" },
-                    { hash: "6e21b7", msg: "fix: scroll reset", time: "8h" },
-                  ].map((c) => (
-                    <div key={c.hash} className="flex flex-col">
-                      <div className="flex items-center gap-1">
-                        <span className="text-[7px] font-medium" style={{ color: "var(--accent)", fontFamily: '"Geist Mono", monospace' }}>
-                          {c.hash}
-                        </span>
-                        <span className="text-[6px]" style={{ color: "var(--text-faint)" }}>{c.time}</span>
-                      </div>
-                      <span className="text-[7px] text-[var(--text-muted)] truncate">{c.msg}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        </>
       ) : (
-        <div className="flex flex-col items-center pt-2 gap-1.5" style={{ width: 32 }}>
-          {[
-            { color: "var(--accent)", active: true },
-            { color: "var(--text-muted)", active: false },
-            { color: "var(--text-muted)", active: false },
-            { color: "var(--text-muted)", active: false },
-          ].map((item, i) => (
+        <div className="flex flex-col items-center pt-2 gap-2">
+          {tabIcons.map((tab, i) => (
             <div
-              key={i}
-              className="rounded"
+              key={tab.key}
+              className="w-3.5 h-3.5 rounded"
               style={{
-                width: 14,
-                height: 14,
-                background: item.active ? "var(--surface-hover)" : "transparent",
-                border: `1px solid ${item.active ? "var(--border)" : "transparent"}`,
+                background: i === 0 ? "var(--surface-hover)" : "transparent",
+                border: `1px solid ${i === 0 ? "var(--border)" : "transparent"}`,
+                opacity: i === 0 ? 1 : 0.45,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <div
-                className="rounded-sm"
-                style={{ width: 8, height: 8, background: item.color, opacity: item.active ? 1 : 0.4 }}
-              />
+              <div className="w-[7px] h-[7px] rounded-sm" style={{ background: "var(--text-muted)" }} />
             </div>
           ))}
         </div>
@@ -338,224 +449,236 @@ function DemoSidebar({ expanded, activeTab }: { expanded: boolean; activeTab: "f
   );
 }
 
-function DemoProjectContainer({ visible }: { visible: boolean }) {
+/*
+ * Monaco editor drawer — right-anchored overlay. Slides in from the
+ * LEFT edge of the right panel, covers ~60% of the canvas area. In
+ * the demo we fake the editor surface with colour-tinted line mocks
+ * matching our app-tinted Monaco themes.
+ */
+function DemoMonacoDrawer({ open }: { open: boolean }) {
+  const lines = [
+    { tokens: [["keyword", "import"], ["txt", " { useCanvasStore } "], ["keyword", "from"], ["str", " \"./stores\""], ["txt", ";"]] },
+    { tokens: [["keyword", "export"], ["keyword", " function"], ["fn", " FileEditorDrawer"], ["txt", "() {"]] },
+    { tokens: [["txt", "  "], ["keyword", "const"], ["txt", " path = useCanvasStore(s => s."], ["fn", "fileEditorPath"], ["txt", ");"]] },
+    { tokens: [["txt", "  "], ["keyword", "const"], ["txt", " expanded = useCanvasStore(s => s."], ["fn", "fileEditorExpanded"], ["txt", ");"]] },
+    { tokens: [] },
+    { tokens: [["txt", "  "], ["keyword", "if"], ["txt", " (!path) "], ["keyword", "return null"], ["txt", ";"]] },
+    { tokens: [] },
+    { tokens: [["txt", "  "], ["keyword", "return"], ["txt", " ("]] },
+    { tokens: [["txt", "    <Drawer anchor="], ["str", "\"right\""], ["txt", " width={expanded ? "], ["num", "\"100%\""], ["txt", " : "], ["num", "\"60vw\""], ["txt", "}>"]] },
+    { tokens: [["txt", "      <MonacoEditor path={path} "], ["attr", "theme"], ["txt", "={"], ["str", "\"termcanvas-dark\""], ["txt", "} />"]] },
+    { tokens: [["txt", "    </Drawer>"]] },
+    { tokens: [["txt", "  );"]] },
+    { tokens: [["txt", "}"]] },
+  ];
+  const colorFor = (tok: string) => {
+    switch (tok) {
+      case "keyword": return "var(--purple)";
+      case "fn": return "var(--accent)";
+      case "str": return "var(--green)";
+      case "num": return "var(--amber)";
+      case "attr": return "var(--cyan)";
+      default: return "var(--text-secondary)";
+    }
+  };
   return (
     <div
-      className="absolute rounded-md border"
+      className="absolute top-0 bottom-0 flex flex-col overflow-hidden border-l border-r border-[var(--border)]"
       style={{
-        right: 24,
-        top: 24,
-        width: 160,
-        opacity: visible ? 1 : 0,
-        transform: visible ? "scale(1) translateY(0)" : "scale(0.9) translateY(8px)",
-        transition: "all 300ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+        right: 26,
+        width: open ? "62%" : 0,
         background: "var(--bg)",
-        borderColor: visible ? "var(--accent)" : "var(--border)",
-        boxShadow: visible ? "0 0 12px rgba(91,158,245,0.3)" : "none",
-        zIndex: 45,
+        boxShadow: open ? "-4px 0 16px rgba(0,0,0,0.25)" : "none",
+        transition: "width 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+        zIndex: 40,
       }}
     >
-      <div
-        className="flex items-center gap-1.5 px-2 py-1 border-b"
-        style={{ borderColor: "var(--border)" }}
-      >
-        <span className="text-[7px] font-medium" style={{ color: "var(--accent)" }}>
-          PROJECT
-        </span>
-        <span className="text-[8px] text-[var(--text-secondary)]">my-app</span>
-      </div>
-      <div className="p-1.5 flex flex-col gap-1">
-        <div
-          className="rounded border px-1.5 py-1"
-          style={{ borderColor: "var(--border)", background: "var(--surface)" }}
-        >
-          <div className="flex items-center gap-1 mb-1">
-            <div className="w-[3px] h-[5px] rounded-full" style={{ background: "var(--cyan)" }} />
-            <span className="text-[7px] text-[var(--text-muted)]">main</span>
+      {open && (
+        <>
+          {/* Header */}
+          <div
+            className="shrink-0 flex items-center gap-1.5 px-2 py-1 border-b"
+            style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+          >
+            <span
+              className="text-[8px] font-medium"
+              style={{ color: "var(--text-primary)", fontFamily: '"Geist Mono", monospace' }}
+            >
+              FileEditorDrawer.tsx
+            </span>
+            <span className="w-1 h-1 rounded-full shrink-0" style={{ background: "var(--accent)" }} />
+            <span className="ml-auto text-[7px]" style={{ color: "var(--text-muted)" }}>⌘S</span>
           </div>
-          <div className="rounded" style={{ height: 20, background: "var(--surface-hover)", opacity: 0.5 }} />
-        </div>
-        <div
-          className="rounded border px-1.5 py-1"
-          style={{ borderColor: "var(--border)", background: "var(--surface)" }}
-        >
-          <div className="flex items-center gap-1">
-            <div className="w-[3px] h-[5px] rounded-full" style={{ background: "var(--amber)" }} />
-            <span className="text-[7px] text-[var(--text-muted)]">feat/login</span>
+          {/* Editor body */}
+          <div className="flex-1 min-h-0 px-2 py-1.5 overflow-hidden">
+            {lines.map((line, i) => (
+              <div key={i} className="flex items-center gap-2 leading-tight" style={{ height: 11 }}>
+                <span
+                  className="text-[6px] text-right shrink-0"
+                  style={{ color: "var(--text-faint)", width: 10, fontFamily: '"Geist Mono", monospace' }}
+                >
+                  {i + 1}
+                </span>
+                <span
+                  className="text-[7px] whitespace-pre"
+                  style={{ fontFamily: '"Geist Mono", monospace' }}
+                >
+                  {line.tokens.length === 0 ? (
+                    "\u00a0"
+                  ) : (
+                    line.tokens.map(([tok, txt], j) => (
+                      <span key={j} style={{ color: colorFor(tok) }}>{txt}</span>
+                    ))
+                  )}
+                </span>
+              </div>
+            ))}
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }
 
-function DemoPanel({
-  visible,
-  content,
-}: {
-  visible: boolean;
-  content: "usage" | "hydra";
-}) {
+/*
+ * Session replay drawer — left-anchored overlay. Slides in from the
+ * RIGHT edge of the left panel. Mocks the replay view with two
+ * chat bubbles + a resume button.
+ */
+function DemoReplayDrawer({ open }: { open: boolean }) {
   return (
-    <div className="shrink-0 flex overflow-hidden" style={{ width: visible ? 180 : 24, transition: "width 300ms ease-out" }}>
-      {/* Collapsed tab — always rendered, shown when panel is hidden */}
-      <div
-        className="shrink-0 flex flex-col items-center pt-2 gap-1.5 border-l border-[var(--border)]"
-        style={{
-          width: visible ? 0 : 24,
-          overflow: "hidden",
-          background: "var(--sidebar)",
-          transition: "width 300ms ease-out",
-        }}
-      >
-        <svg width="10" height="10" viewBox="0 0 14 14" fill="none" style={{ color: "var(--text-muted)", flexShrink: 0 }}>
-          <rect x="1.5" y="3" width="3" height="8" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
-          <rect x="5.5" y="5" width="3" height="6" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
-          <rect x="9.5" y="1" width="3" height="10" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
-        </svg>
-        <span
-          className="text-[6px] uppercase tracking-widest"
-          style={{ writingMode: "vertical-lr", color: "var(--text-muted)", fontFamily: '"Geist Mono", monospace' }}
-        >
-          usage
-        </span>
-      </div>
-      <div
-        className="h-full border-l border-[var(--border)]"
-        style={{
-          width: visible ? 180 : 0,
-          overflow: "hidden",
-          background: "var(--surface)",
-          transition: "width 300ms ease-out",
-        }}
-      >
-        {content === "usage" ? (
-          <div className="p-3 flex flex-col gap-2.5">
-            <div className="flex items-baseline justify-between">
-              <span className="text-[7px] font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                Today
-              </span>
-              <span className="text-[14px] font-semibold" style={{ color: "var(--amber)", fontFamily: '"Geist Mono", monospace' }}>
-                $4.82
+    <div
+      className="absolute top-0 bottom-0 flex flex-col overflow-hidden border-l border-r border-[var(--border)]"
+      style={{
+        left: 140,
+        width: open ? "62%" : 0,
+        background: "var(--bg)",
+        boxShadow: open ? "4px 0 16px rgba(0,0,0,0.25)" : "none",
+        transition: "width 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+        zIndex: 40,
+      }}
+    >
+      {open && (
+        <>
+          <div
+            className="shrink-0 flex items-center gap-1.5 px-2 py-1 border-b"
+            style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+          >
+            <span
+              className="text-[7px] uppercase tracking-widest"
+              style={{ color: "var(--text-primary)", fontFamily: '"Geist Mono", monospace' }}
+            >
+              Replay
+            </span>
+            <span className="ml-auto text-[7px]" style={{ color: "var(--text-muted)" }}>Esc</span>
+          </div>
+          <div className="flex-1 min-h-0 px-2 py-2 flex flex-col gap-1.5 overflow-hidden">
+            <div
+              className="self-end rounded-md px-1.5 py-1"
+              style={{ background: "var(--surface)", maxWidth: "80%" }}
+            >
+              <span className="text-[7px]" style={{ color: "var(--text-primary)" }}>
+                Add session history to sidebar
               </span>
             </div>
-
-            <div className="flex items-end gap-[3px]" style={{ height: 48 }}>
-              {[12, 18, 14, 22, 28, 20, 35, 30, 42, 38, 48, 44].map((h, i) => (
-                <div
-                  key={i}
-                  className="rounded-sm flex-1"
-                  style={{
-                    height: h,
-                    background: i >= 10 ? "var(--amber)" : "var(--accent)",
-                    opacity: 0.25 + (i / 12) * 0.5,
-                  }}
-                />
-              ))}
-            </div>
-
-            <div className="flex items-center justify-between" style={{ borderTop: "1px solid var(--border)", paddingTop: 6 }}>
-              <span className="text-[7px]" style={{ color: "var(--text-muted)" }}>Tokens</span>
-              <span className="text-[8px] font-medium" style={{ color: "var(--text-secondary)", fontFamily: '"Geist Mono", monospace' }}>
-                128.4k
+            <div
+              className="self-start rounded-md px-1.5 py-1"
+              style={{ background: "var(--surface)", maxWidth: "85%" }}
+            >
+              <span className="text-[7px]" style={{ color: "var(--text-secondary)", lineHeight: 1.45 }}>
+                I'll extract HistorySection from SessionsPanel and mount it below ProjectTree in the left panel…
               </span>
             </div>
-
-            <div className="flex flex-col gap-1.5">
-              {[
-                { label: "opus", pct: 72, color: "var(--accent)" },
-                { label: "sonnet", pct: 45, color: "var(--cyan)" },
-                { label: "haiku", pct: 18, color: "var(--green)" },
-              ].map((m) => (
-                <div key={m.label} className="flex items-center gap-1.5">
-                  <span className="text-[7px] w-8 text-right" style={{ color: "var(--text-muted)" }}>{m.label}</span>
-                  <div className="flex-1 rounded-full overflow-hidden" style={{ height: 4, background: "var(--border)" }}>
-                    <div className="h-full rounded-full" style={{ width: `${m.pct}%`, background: m.color, opacity: 0.7 }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex items-center justify-between" style={{ borderTop: "1px solid var(--border)", paddingTop: 6 }}>
-              <span className="text-[7px]" style={{ color: "var(--text-muted)" }}>This week</span>
-              <span className="text-[9px] font-medium" style={{ color: "var(--text-secondary)", fontFamily: '"Geist Mono", monospace' }}>
-                $31.50
+            <div
+              className="self-start rounded-md px-1.5 py-1 flex items-center gap-1"
+              style={{ background: "rgba(91,158,245,0.12)", border: "1px solid rgba(91,158,245,0.4)" }}
+            >
+              <svg width="6" height="6" viewBox="0 0 10 10" fill="none">
+                <path d="M2 1l6 4-6 4V1z" fill="var(--accent)" />
+              </svg>
+              <span className="text-[7px]" style={{ color: "var(--accent)" }}>
+                Continue in new terminal
               </span>
-            </div>
-
-            <div className="flex flex-col gap-1" style={{ borderTop: "1px solid var(--border)", paddingTop: 6 }}>
-              <span className="text-[7px] font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                Sessions
-              </span>
-              {[
-                { time: "2m ago", tokens: "12.1k", cost: "$0.48" },
-                { time: "18m ago", tokens: "8.7k", cost: "$0.31" },
-                { time: "1h ago", tokens: "24.3k", cost: "$1.02" },
-                { time: "3h ago", tokens: "6.2k", cost: "$0.22" },
-              ].map((s, i) => (
-                <div key={i} className="flex items-center justify-between py-0.5">
-                  <span className="text-[7px]" style={{ color: "var(--text-faint)" }}>{s.time}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[7px]" style={{ color: "var(--text-muted)" }}>{s.tokens}</span>
-                    <span className="text-[7px] font-medium" style={{ color: "var(--text-secondary)", fontFamily: '"Geist Mono", monospace' }}>{s.cost}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex items-end gap-[2px]" style={{ borderTop: "1px solid var(--border)", paddingTop: 6, height: 32 }}>
-              {[3, 5, 4, 8, 6, 10, 7, 12, 9, 14, 11, 16, 13, 18, 20, 15, 22, 19, 24, 21, 28, 25].map((h, i) => (
-                <div
-                  key={i}
-                  className="flex-1 rounded-sm"
-                  style={{
-                    height: h,
-                    background: "var(--cyan)",
-                    opacity: 0.15 + (i / 22) * 0.35,
-                  }}
-                />
-              ))}
             </div>
           </div>
-        ) : (
-          <div className="p-3 flex flex-col gap-3">
-            {[0.5, 0.4].map((op, i) => (
+        </>
+      )}
+    </div>
+  );
+}
+
+/*
+ * Usage dashboard panel — canvas-gap tenant, occupies the space
+ * between the left and right panels. Single level, no expand.
+ * Shown in the "Done" phase as a quick teaser of the dashboard.
+ */
+function DemoUsagePanel({ open }: { open: boolean }) {
+  return (
+    <div
+      className="absolute top-0 bottom-0 flex flex-col overflow-hidden"
+      style={{
+        left: 140,
+        right: 26,
+        background: "var(--bg)",
+        opacity: open ? 1 : 0,
+        pointerEvents: open ? "auto" : "none",
+        transition: "opacity 220ms ease-out",
+        zIndex: 38,
+      }}
+    >
+      {open && (
+        <div className="h-full flex flex-col px-4 py-3 gap-2">
+          <div className="flex items-center justify-between">
+            <span
+              className="text-[9px] font-semibold"
+              style={{ color: "var(--text-primary)", letterSpacing: "-0.01em" }}
+            >
+              Usage
+            </span>
+            <span className="text-[7px]" style={{ color: "var(--text-muted)" }}>Esc</span>
+          </div>
+          <div className="grid grid-cols-4 gap-1.5">
+            {[
+              { label: "Today", value: "$4.82" },
+              { label: "MTD", value: "$62.1" },
+              { label: "Avg", value: "$3.1" },
+              { label: "Proj", value: "$96.3" },
+            ].map((s) => (
+              <div
+                key={s.label}
+                className="rounded border px-1.5 py-1"
+                style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+              >
+                <div className="text-[6px] uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
+                  {s.label}
+                </div>
+                <div
+                  className="text-[9px] font-semibold"
+                  style={{ color: "var(--text-primary)", fontFamily: '"Geist Mono", monospace' }}
+                >
+                  {s.value}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div
+            className="flex-1 min-h-0 rounded border px-2 py-1.5 flex items-end gap-[2px]"
+            style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+          >
+            {[8, 14, 10, 20, 24, 18, 30, 26, 36, 32, 42, 38, 48, 44, 52, 46, 58, 50].map((h, i) => (
               <div
                 key={i}
-                className="rounded-full"
-                style={{
-                  height: 14,
-                  width: i === 0 ? "70%" : "50%",
-                  background: "var(--green)",
-                  opacity: op,
-                }}
+                className="flex-1 rounded-sm"
+                style={{ height: h, background: "var(--accent)", opacity: 0.3 + (i / 18) * 0.6 }}
               />
             ))}
-            <div
-              className="rounded-full"
-              style={{
-                height: 6,
-                width: "100%",
-                background: "var(--text-faint)",
-                opacity: 0.3,
-                overflow: "hidden",
-              }}
-            >
-              <div
-                className="h-full rounded-full"
-                style={{
-                  width: "65%",
-                  background: "var(--accent)",
-                  opacity: 0.6,
-                }}
-              />
-            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
+
 
 function KeystrokePopup({
   keys,
@@ -712,11 +835,20 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
   const [focusedTile, setFocusedTile] = useState(-1);
   const [tilesVisible, setTilesVisible] = useState([false, false, false, false]);
   const [canvasTransform, setCanvasTransform] = useState({ x: 0, y: 0, scale: 1 });
-  const [panelVisible, setPanelVisible] = useState(false);
-  const [sidebarExpanded, setSidebarExpanded] = useState(false);
-  const [sidebarTab, setSidebarTab] = useState<"files" | "git">("files");
-  const [newProject, setNewProject] = useState(false);
-  const [panelContent, setPanelContent] = useState<"usage" | "hydra">("usage");
+  // Right panel starts collapsed; Phase 6 expands it and opens the
+  // Monaco drawer. "activeTab" stays on "files" for the whole demo.
+  const [rightPanelExpanded, setRightPanelExpanded] = useState(false);
+  const [rightPanelTab] = useState<"files" | "diff" | "git">("files");
+  const [hotFile, setHotFile] = useState<string | null>(null);
+  const [monacoOpen, setMonacoOpen] = useState(false);
+  // Left panel state.
+  const [addProjectHot, setAddProjectHot] = useState(false);
+  const [secondProjectShown, setSecondProjectShown] = useState(false);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [historyHot, setHistoryHot] = useState(-1);
+  const [replayOpen, setReplayOpen] = useState(false);
+  // Usage dashboard (shown during Done phase as a capstone).
+  const [usageOpen, setUsageOpen] = useState(false);
   const [popupKeys, setPopupKeys] = useState<[string, string]>(["", ""]);
   const [popupVisible, setPopupVisible] = useState(0);
   const [popupLabel, setPopupLabel] = useState<{ en: string; zh: string } | null>(null);
@@ -749,11 +881,15 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
     setPopupKeys(["", ""]);
     setPopupVisible(0);
     setPopupLabel(null);
-    setPanelVisible(false);
-    setSidebarExpanded(false);
-    setSidebarTab("files");
-    setNewProject(false);
-    setPanelContent("usage");
+    setRightPanelExpanded(false);
+    setHotFile(null);
+    setMonacoOpen(false);
+    setAddProjectHot(false);
+    setSecondProjectShown(false);
+    setHistoryExpanded(false);
+    setHistoryHot(-1);
+    setReplayOpen(false);
+    setUsageOpen(false);
     setIsDragging(false);
     setCursorVisible(false);
     setCursorPos(getCanvasCenter());
@@ -792,33 +928,90 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
       setIsDragging(false);
       setCursorVisible(false);
       clearKeys();
-      setPanelContent("usage");
       if (phase === 0) {
         resetState();
       } else if (phase === 1) {
         setTilesVisible([true, true, true, true]);
         setFocusedTile(-1);
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
-        setPanelVisible(false);
-      } else if (phase === 2) {
+        setRightPanelExpanded(false);
+        setMonacoOpen(false);
+        setReplayOpen(false);
+        setUsageOpen(false);
+      } else if (phase === 2 || phase === 3) {
         setTilesVisible([true, true, true, true]);
-        setFocusedTile(0);
+        setFocusedTile(phase === 3 ? 0 : 0);
         setCanvasTransform({ x: -TILE_OFFSETS[0].x, y: -TILE_OFFSETS[0].y, scale: 1.8 });
-        setPanelVisible(false);
-      } else if (phase === 3) {
-        setTilesVisible([true, true, true, true]);
-        setFocusedTile(0);
-        setCanvasTransform({ x: -TILE_OFFSETS[0].x, y: -TILE_OFFSETS[0].y, scale: 1.8 });
-        setPanelVisible(false);
-      } else if (phase >= 4 && phase <= 7) {
+        setRightPanelExpanded(false);
+        setMonacoOpen(false);
+        setReplayOpen(false);
+        setUsageOpen(false);
+      } else if (phase === 4) {
         setTilesVisible([true, true, true, true]);
         setFocusedTile(-1);
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
-        setSidebarExpanded(phase >= 6);
-        setPanelVisible(phase === 7);
-        setNewProject(false);
-        setCursorVisible(phase === 4 || phase === 5 || phase === 6);
-        if (phase === 4) setCursorPos(getCanvasCenter());
+        setRightPanelExpanded(false);
+        setMonacoOpen(false);
+        setReplayOpen(false);
+        setUsageOpen(false);
+        setCursorVisible(true);
+        setCursorPos(getCanvasCenter());
+      } else if (phase === 5) {
+        // Project phase: cursor is heading to the left panel's "+".
+        setTilesVisible([true, true, true, true]);
+        setFocusedTile(-1);
+        setCanvasTransform({ x: 0, y: 0, scale: 1 });
+        setRightPanelExpanded(false);
+        setMonacoOpen(false);
+        setReplayOpen(false);
+        setUsageOpen(false);
+        setAddProjectHot(false);
+        setSecondProjectShown(false);
+        setCursorVisible(true);
+        setCursorPos(getCanvasCenter());
+      } else if (phase === 6) {
+        // Code phase: left panel shows both projects (carryover from
+        // Phase 5). Right panel is still collapsed; Monaco closed.
+        setTilesVisible([true, true, true, true]);
+        setFocusedTile(-1);
+        setCanvasTransform({ x: 0, y: 0, scale: 1 });
+        setSecondProjectShown(true);
+        setRightPanelExpanded(false);
+        setHotFile(null);
+        setMonacoOpen(false);
+        setReplayOpen(false);
+        setUsageOpen(false);
+        setCursorVisible(true);
+        setCursorPos(getCanvasCenter());
+      } else if (phase === 7) {
+        // Replay phase: Monaco drawer was open — now it closes so the
+        // replay drawer can take its slot. Right panel stays expanded
+        // to show what the user last interacted with.
+        setTilesVisible([true, true, true, true]);
+        setFocusedTile(-1);
+        setCanvasTransform({ x: 0, y: 0, scale: 1 });
+        setSecondProjectShown(true);
+        setRightPanelExpanded(true);
+        setHotFile(null);
+        setMonacoOpen(false);
+        setHistoryExpanded(false);
+        setHistoryHot(-1);
+        setReplayOpen(false);
+        setUsageOpen(false);
+        setCursorVisible(true);
+        setCursorPos(getCanvasCenter());
+      } else if (phase === 8) {
+        // Done: capstone — show the Usage dashboard in the canvas gap.
+        setTilesVisible([true, true, true, true]);
+        setFocusedTile(-1);
+        setCanvasTransform({ x: 0, y: 0, scale: 1 });
+        setSecondProjectShown(true);
+        setRightPanelExpanded(false);
+        setMonacoOpen(false);
+        setReplayOpen(false);
+        setHistoryExpanded(true);
+        setHistoryHot(-1);
+        setUsageOpen(false);
       }
     };
 
@@ -905,40 +1098,89 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
         await delay(800);
 
       } else if (phase === 5) {
+        // Phase 5 — Project. Cursor flies to the left panel's "+",
+        // highlights it, and a new project card animates into the
+        // tree below the existing one.
         setCursorVisible(true);
-        setSidebarTab("files");
-        setCursorPos({ x: 16, y: 100 });
-        await delay(800);
+        setCursorPos(getCanvasCenter());
+        await delay(300);
         if (cancelled()) return;
-        setSidebarExpanded(true);
-        await delay(1500);
-        if (cancelled()) return;
-        setCursorPos({ x: 115, y: 12 });
-        await delay(700);
-        if (cancelled()) return;
-        setSidebarTab("git");
-        await delay(1500);
-
-      } else if (phase === 6) {
-        setCursorVisible(true);
-        const el = canvasRef.current;
-        const rightEdge = el ? el.offsetLeft + el.clientWidth - 10 : 400;
-        setCursorPos({ x: rightEdge, y: 100 });
-        await delay(800);
-        if (cancelled()) return;
-        setPanelVisible(true);
-        setPanelContent("usage");
-        await delay(2000);
-
-      } else if (phase === 7) {
-        setSidebarExpanded(false);
-        setPanelVisible(false);
-        await delay(400);
-        if (cancelled()) return;
+        // Move cursor to the "+" button (top-right of left panel).
+        setCursorPos({ x: 125, y: 10 });
         await showKeys(splitShortcut(sc.addProject), { en: "Add Project", zh: "添加项目" });
         if (cancelled()) return;
-        setNewProject(true);
-        await delay(1200);
+        setAddProjectHot(true);
+        await delay(500);
+        if (cancelled()) return;
+        setSecondProjectShown(true);
+        await delay(900);
+        if (cancelled()) return;
+        setAddProjectHot(false);
+        await delay(400);
+
+      } else if (phase === 6) {
+        // Phase 6 — Code. Cursor heads to the right panel's
+        // collapsed strip, expands it, hovers a file, and the
+        // Monaco drawer slides in from the right edge.
+        setCursorVisible(true);
+        setCursorPos(getCanvasCenter());
+        const el = canvasRef.current;
+        const rightStripX = el ? el.offsetLeft + el.clientWidth - 13 : 400;
+        await delay(200);
+        if (cancelled()) return;
+        // Move to right panel strip.
+        setCursorPos({ x: rightStripX, y: 50 });
+        await delay(500);
+        if (cancelled()) return;
+        // Expand right panel.
+        setRightPanelExpanded(true);
+        await showKeys(["Click", "单击"], { en: "Files tab", zh: "文件面板" });
+        if (cancelled()) return;
+        // Hover a file.
+        setCursorPos({ x: rightStripX - 60, y: 80 });
+        await delay(500);
+        if (cancelled()) return;
+        setHotFile("FileEditorDrawer.tsx");
+        await delay(400);
+        if (cancelled()) return;
+        // Open Monaco drawer.
+        setMonacoOpen(true);
+        await delay(1600);
+
+      } else if (phase === 7) {
+        // Phase 7 — Replay. History section expands in the left
+        // panel, cursor clicks a past session row, replay drawer
+        // slides in from the left panel's right edge.
+        setCursorVisible(true);
+        setCursorPos(getCanvasCenter());
+        await delay(200);
+        if (cancelled()) return;
+        // Move cursor to History header at bottom of left panel.
+        setCursorPos({ x: 40, y: 170 });
+        await delay(500);
+        if (cancelled()) return;
+        setHistoryExpanded(true);
+        await delay(600);
+        if (cancelled()) return;
+        // Move to a history row and click.
+        setCursorPos({ x: 80, y: 210 });
+        await delay(500);
+        if (cancelled()) return;
+        setHistoryHot(0);
+        await showKeys(["Click", "单击"], { en: "Open Replay", zh: "打开回放" });
+        if (cancelled()) return;
+        setReplayOpen(true);
+        await delay(1600);
+
+      } else if (phase === 8) {
+        // Phase 8 — Done. Close the replay drawer and show the
+        // Usage dashboard in the same canvas-gap slot, proving the
+        // three-tenant pattern (Monaco / Replay / Usage) share one
+        // space with mutual exclusion.
+        await showKeys(splitShortcut(sc.openUsage), { en: "Open Usage", zh: "打开用量" });
+        if (cancelled()) return;
+        setUsageOpen(true);
+        await delay(1800);
       }
 
       if (!cancelled()) {
@@ -1004,7 +1246,12 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
   return (
     <>
       <div className="flex flex-1 min-h-0 relative">
-        <DemoSidebar expanded={sidebarExpanded} activeTab={sidebarTab} />
+        <DemoLeftPanel
+          addProjectHot={addProjectHot}
+          historyHot={historyHot}
+          showSecondProject={secondProjectShown}
+          historyExpanded={historyExpanded}
+        />
 
         <div className="flex-1 min-w-0 flex flex-col">
           <div
@@ -1076,12 +1323,23 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
               </div>
             </div>
 
-            <DemoProjectContainer visible={newProject} />
+            {/* Canvas-gap drawers — Monaco (right-anchored), Replay
+                (left-anchored), Usage (full gap). All three occupy
+                the same slot in the real app; the demo only shows
+                one at a time per phase. */}
+            <DemoMonacoDrawer open={monacoOpen} />
+            <DemoReplayDrawer open={replayOpen} />
+            <DemoUsagePanel open={usageOpen} />
+
             <KeystrokePopup keys={popupKeys} visibleCount={popupVisible} label={popupLabel} />
           </div>
         </div>
 
-        <DemoPanel visible={panelVisible} content={panelContent} />
+        <DemoRightPanel
+          expanded={rightPanelExpanded}
+          activeTab={rightPanelTab}
+          hotFile={hotFile}
+        />
         <DemoCursor pos={cursorPos} dragging={isDragging} visible={cursorVisible} />
       </div>
 
