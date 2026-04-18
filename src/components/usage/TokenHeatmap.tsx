@@ -278,13 +278,21 @@ export function TokenHeatmap({ animate, data, onVisible }: TokenHeatmapProps): R
           ))}
         </div>
 
-        <div className="flex-1 min-w-0 flex flex-col gap-[3px]">
+        <div className="flex flex-col gap-[3px]">
+          {/*
+            Fixed column width (cellSize px) instead of 1fr. The
+            parent row used to be flex-1 which stretched each cell
+            to ~80 px on a 1100 px overlay — nothing about a
+            heatmap benefits from 80 px squares, it just looked
+            broken. Natural width packs the ribbon tight.
+          */}
           <div
             className="grid"
             style={{
-              gridTemplateColumns: `repeat(${weeks}, 1fr)`,
+              gridTemplateColumns: `repeat(${weeks}, ${HEATMAP_LAYOUT.cellSize}px)`,
               height: HEATMAP_LAYOUT.monthLabelRowHeight,
               gap: HEATMAP_LAYOUT.gridGap,
+              alignItems: "end",
             }}
           >
             {monthLabels.map((m) => (
@@ -306,7 +314,7 @@ export function TokenHeatmap({ animate, data, onVisible }: TokenHeatmapProps): R
           <div
             className="grid"
             style={{
-              gridTemplateColumns: `repeat(${weeks}, 1fr)`,
+              gridTemplateColumns: `repeat(${weeks}, ${HEATMAP_LAYOUT.cellSize}px)`,
               gridTemplateRows: `repeat(7, ${HEATMAP_LAYOUT.cellSize}px)`,
               gap: HEATMAP_LAYOUT.gridGap,
             }}
