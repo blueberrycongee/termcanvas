@@ -365,7 +365,15 @@ export class SessionScanner {
       case "assistant_message":
         return "assistant_text";
       case "agent_message":
-        return "assistant_text";
+        // Codex writes assistant turns TWICE in the JSONL: once as a
+        // streaming `event_msg/agent_message` (lifecycle signal) and
+        // once as a finalized `response_item/message/role=assistant`
+        // (the canonical record). Both mapped to `assistant_text`
+        // previously, which duplicated every assistant message in
+        // the replay. Prefer the response_item path — it carries
+        // full content in a stable shape. This one becomes a no-op
+        // for the timeline.
+        return null;
       case "message":
         return event.role === "assistant" ? "assistant_text" : null;
       case "turn_complete":
@@ -521,16 +529,16 @@ export class SessionScanner {
     // non-synthetic block appear. So we iterate the content array
     // and return the first block that survives stripping, instead
     // of grabbing block[0] and calling it the prompt.
+    //
+    // Also note: we deliberately DO NOT handle
+    // `event_msg/user_message` here. Codex writes every user turn
+    // twice — once as the streaming `event_msg` and once as a
+    // finalized `response_item/message/role=user`. Handling both
+    // would emit two `user_prompt` events per message and is where
+    // the "everything duplicates" Codex bug came from. The
+    // response_item is the canonical record; rely on it alone.
     const payload = this.getObject(raw.payload);
     if (!payload) return "";
-    if (
-      raw.type === "event_msg" &&
-      payload.type === "user_message" &&
-      typeof payload.message === "string"
-    ) {
-      const cleaned = stripSyntheticUserBlocks(payload.message);
-      return cleaned ? cleaned.slice(0, REPLAY_TEXT_MAX_CHARS) : "";
-    }
     if (
       raw.type === "response_item" &&
       payload.type === "message" &&
