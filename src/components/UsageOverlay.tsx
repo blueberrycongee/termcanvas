@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useUsageStore } from "../stores/usageStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useAuthStore } from "../stores/authStore";
@@ -12,38 +12,83 @@ import { InsightsButton } from "./usage/InsightsButton";
 import { LoginButton } from "./LoginButton";
 import { DeviceBreakdown } from "./usage/DeviceBreakdown";
 import { QuotaSection } from "./usage/QuotaSection";
+import { MonthlyTrendChart } from "./usage/MonthlyTrendChart";
 import {
-  SummarySection,
-  TimelineSection,
   CacheRateSection,
   ProjectsContent,
   ModelsContent,
   deriveActiveUsage,
+  fmtCost,
 } from "./UsagePanel";
 
 /*
  * Usage, full-screen.
  *
- * Lives side-by-side with UsagePanel but intentionally diverges on
- * layout philosophy: the sidebar version is a tall narrow column
- * designed for at-a-glance monitoring while the canvas does the
- * real work; this overlay takes over the whole window so the user
- * can actually read charts and pivot across projects/models/cache
- * without squinting. Entering the overlay is an intentional action
- * (Cmd+Shift+U or the toolbar chart button) — not a passive peek.
+ * An earlier version composed a single-column right-sidebar layout
+ * at overlay width, which left charts floating in awkward empty
+ * space — they were designed for 260 px and looked sparse at 600 px.
  *
- * The data pipeline is identical to UsagePanel (same stores, same
- * `deriveActiveUsage` merge). What changes is the grid. A 12-column
- * flex/grid arrangement lets each section pick its own natural
- * width:
- *   • SparklineChart wants to be WIDE (time on x-axis)
- *   • SummarySection and Quota are compact boxes
- *   • Projects / Models / Cache are medium-width lists
- *   • TokenHeatmap is a wide ribbon (weeks × days)
+ * This version keeps every chart at its natural width and uses the
+ * extra horizontal room to pack MORE information in, rather than
+ * stretching the same few charts thinner.
  *
- * Closing: Esc, click-on-backdrop, or the ✕ button. All three need
- * to be reachable — modal-fatigue etiquette.
+ * Reading order top-to-bottom:
+ *
+ *   1. Stat strip (4 cards):  today / month-to-date / daily avg /
+ *                             end-of-month projection
+ *                             — the numbers you open the dashboard
+ *                             to check.
+ *   2. Today's hourly spark + monthly daily bars (side by side)
+ *                             — two complementary time zooms.
+ *   3. Cache rate · projects · models (three narrow columns)
+ *                             — tight bar charts, best at ~320 px.
+ *   4. Quota                  — subscription budget meters, full row.
+ *   5. Heatmap                — year-at-a-glance calendar ribbon.
+ *   6. Devices (logged-in only) — multi-device breakdown.
  */
+
+function StatCard({
+  label,
+  value,
+  sub,
+  subTone = "faint",
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  subTone?: "faint" | "muted" | "accent";
+}) {
+  const subColor =
+    subTone === "accent"
+      ? "var(--accent)"
+      : subTone === "muted"
+        ? "var(--text-muted)"
+        : "var(--text-faint)";
+  return (
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5">
+      <div
+        className="text-[9px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium"
+        style={{ fontFamily: '"Geist Mono", monospace' }}
+      >
+        {label}
+      </div>
+      <div
+        className="mt-1 text-[20px] font-semibold text-[var(--text-primary)] tabular-nums leading-none"
+        style={{ fontFamily: '"Geist Mono", monospace', letterSpacing: "-0.02em" }}
+      >
+        {value}
+      </div>
+      {sub && (
+        <div
+          className="mt-1 text-[10px] tabular-nums"
+          style={{ fontFamily: '"Geist Mono", monospace', color: subColor }}
+        >
+          {sub}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SectionCard({
   title,
@@ -106,10 +151,6 @@ export function UsageOverlay() {
     }
   }, [date]);
 
-  // Same polling strategy as the sidebar: fetch on open, refresh
-  // every 5 minutes while open. Skip the first fetch if data is
-  // already fresh (<30s old) so rapid toggling doesn't re-spam the
-  // ingest pipeline.
   const lastFetchRef = useRef(0);
   useEffect(() => {
     if (!open) return;
@@ -119,6 +160,11 @@ export function UsageOverlay() {
     void quotaFetch();
     void codexQuotaFetch();
     if (isLoggedIn) void fetchCloud();
+    // Also fetch heatmap on overlay open — MonthlyTrend and calendar
+    // both need it, and the sidebar's lazy-on-visible pattern doesn't
+    // apply here (everything renders at once).
+    void fetchHeatmap();
+    if (isLoggedIn) void fetchCloudHeatmap();
     const interval = setInterval(() => {
       lastFetchRef.current = Date.now();
       void fetchUsage();
@@ -133,6 +179,7 @@ export function UsageOverlay() {
     open,
     isLoggedIn,
     fetchUsage,
+    fetchHeatmap,
     quotaFetch,
     codexQuotaFetch,
     fetchCloud,
@@ -143,10 +190,6 @@ export function UsageOverlay() {
     if (summary) quotaOnCostChanged(summary.totalCost);
   }, [summary?.totalCost, quotaOnCostChanged]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Esc to close. Capture phase + stopPropagation so a keystroke
-  // inside the overlay (e.g. a focused button) can still opt out by
-  // calling preventDefault, but other app-level listeners don't also
-  // react to the same Esc (e.g. clearing the terminal focus).
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -168,8 +211,6 @@ export function UsageOverlay() {
     [fetchUsage, fetchCloud, isLoggedIn],
   );
 
-  if (!open) return null;
-
   const { activeSummary, activeHeatmap } = deriveActiveUsage({
     isLoggedIn,
     summary,
@@ -178,14 +219,44 @@ export function UsageOverlay() {
     cloudHeatmapData,
   });
 
-  let monthlyCost = 0;
-  if (activeHeatmap) {
-    const monthPrefix = date.slice(0, 7);
-    for (const [d, entry] of Object.entries(activeHeatmap)) {
-      if (d.startsWith(monthPrefix)) monthlyCost += entry.cost;
+  // Month-to-date + daily-average + projection. Derived from the
+  // heatmap (one cost entry per day) for the calendar month the
+  // viewing date belongs to.
+  const monthStats = useMemo(() => {
+    if (!activeHeatmap) {
+      return { mtd: 0, daysWithData: 0, dailyAvg: 0, projection: 0 };
     }
-  }
-  const monthlyData = monthlyCost > 0 ? { cost: monthlyCost } : undefined;
+    const monthPrefix = date.slice(0, 7); // YYYY-MM
+    let mtd = 0;
+    let daysWithData = 0;
+    for (const [d, entry] of Object.entries(activeHeatmap)) {
+      if (!d.startsWith(monthPrefix)) continue;
+      if (entry.cost > 0) {
+        mtd += entry.cost;
+        daysWithData += 1;
+      }
+    }
+    // Days elapsed in the viewing month so the "daily average" reads
+    // as "per active day" rather than "per calendar day" — feels more
+    // honest for people whose usage is bursty.
+    const dailyAvg = daysWithData > 0 ? mtd / daysWithData : 0;
+    const viewDate = new Date(date);
+    const year = viewDate.getFullYear();
+    const monthIdx = viewDate.getMonth();
+    const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
+    const now = new Date();
+    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const isCurrentMonth = todayKey.startsWith(monthPrefix);
+    const dayOfMonth = isCurrentMonth ? now.getDate() : daysInMonth;
+    const remainingDays = Math.max(0, daysInMonth - dayOfMonth);
+    const projection =
+      daysWithData > 0 && isCurrentMonth
+        ? mtd + dailyAvg * remainingDays
+        : mtd;
+    return { mtd, daysWithData, dailyAvg, projection };
+  }, [activeHeatmap, date]);
+
+  if (!open) return null;
 
   return (
     <div
@@ -195,18 +266,16 @@ export function UsageOverlay() {
       aria-modal="true"
       aria-label={t.usage_title}
     >
-      {/* Backdrop */}
       <div
         aria-hidden="true"
         className="absolute inset-0 bg-[var(--bg)]/85 backdrop-blur-sm"
       />
 
-      {/* Main content — stop propagation so clicks inside don't close */}
       <div
         className="relative w-full max-w-6xl mx-auto my-8 px-6"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header row */}
+        {/* Header */}
         <div className="flex items-center gap-3 mb-4">
           <h1
             className="text-[18px] font-semibold text-[var(--text-primary)]"
@@ -238,8 +307,8 @@ export function UsageOverlay() {
           </button>
         </div>
 
-        {/* Control strip: date + insights + login */}
-        <SectionCard className="mb-4">
+        {/* Control strip */}
+        <div className="mb-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
           <div className="flex items-center gap-3 px-2 py-1">
             <div className="flex-1 min-w-0">
               <DateNavigator
@@ -251,7 +320,7 @@ export function UsageOverlay() {
             <InsightsButton compact />
             <LoginButton />
           </div>
-        </SectionCard>
+        </div>
 
         {loading && !activeSummary ? (
           <div className="px-4 py-8 text-center text-[11px] text-[var(--text-faint)]">
@@ -259,75 +328,129 @@ export function UsageOverlay() {
           </div>
         ) : activeSummary ? (
           <div key={animKey} className="space-y-4">
-            {/* Row 1: Summary + Timeline (summary narrow, timeline wide) */}
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-[minmax(260px,1fr)_2fr]">
-              <SectionCard>
-                <SummarySection
-                  t={t}
-                  summary={activeSummary}
-                  monthlyData={monthlyData}
-                />
+            {/* Row 1: Four-card stat strip. Each card sits at its
+                natural narrow width (~240 px) — the container's
+                extra width is absorbed by the gutter between
+                cards rather than stretching the card internals. */}
+            <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+              <StatCard
+                label={(t.usage_stat_today as unknown as string) ?? "Today"}
+                value={fmtCost(activeSummary.totalCost)}
+                sub={`${activeSummary.sessions} ${t.usage_sessions} · ${activeSummary.totalOutput >= 1000 ? `${(activeSummary.totalOutput / 1000).toFixed(1)}K` : activeSummary.totalOutput} out`}
+              />
+              <StatCard
+                label={(t.usage_stat_mtd as unknown as string) ?? "Month to date"}
+                value={fmtCost(monthStats.mtd)}
+                sub={
+                  monthStats.daysWithData > 0
+                    ? `${monthStats.daysWithData} ${(t.usage_stat_active_days as unknown as string) ?? "active days"}`
+                    : undefined
+                }
+              />
+              <StatCard
+                label={(t.usage_stat_daily_avg as unknown as string) ?? "Daily avg"}
+                value={fmtCost(monthStats.dailyAvg)}
+                sub={(t.usage_stat_per_active_day as unknown as string) ?? "per active day"}
+              />
+              <StatCard
+                label={
+                  (t.usage_stat_projection as unknown as string) ??
+                  "Projected month"
+                }
+                value={fmtCost(monthStats.projection)}
+                sub={
+                  monthStats.projection > monthStats.mtd
+                    ? `+${fmtCost(monthStats.projection - monthStats.mtd)} ${(t.usage_stat_to_go as unknown as string) ?? "to go"}`
+                    : (t.usage_stat_end_of_month as unknown as string) ??
+                      "end of month"
+                }
+                subTone={monthStats.projection > monthStats.mtd ? "accent" : "faint"}
+              />
+            </div>
+
+            {/* Row 2: Two time-zoom charts side by side. Hourly on
+                left answers "when within today?", monthly on right
+                answers "how does today compare to the past month?". */}
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+              <SectionCard title={t.usage_timeline}>
+                <div className="px-3 py-2.5">
+                  <SparklineChart
+                    buckets={activeSummary.buckets}
+                    animate={true}
+                    date={activeSummary.date}
+                  />
+                </div>
               </SectionCard>
-              <SectionCard>
-                <TimelineSection t={t} summary={activeSummary} animate={true} />
+              <SectionCard
+                title={
+                  (t.usage_month_trend as unknown as string) ?? "Last 30 days"
+                }
+              >
+                <div className="px-3 py-2.5">
+                  <MonthlyTrendChart
+                    heatmap={activeHeatmap}
+                    focusDate={date}
+                    days={30}
+                    animate={true}
+                  />
+                </div>
               </SectionCard>
             </div>
 
-            {/* Row 2: Quota + Cache rate */}
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-              <SectionCard>
-                <QuotaSection />
-              </SectionCard>
+            {/* Row 3: Three narrow bar-chart columns. These
+                components (cache/projects/models) are designed for
+                ~320 px — packing three across keeps each at its
+                sweet spot instead of stretching one to 1000 px. */}
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
               {summary && (
-                <SectionCard>
-                  <CacheRateSection t={t} summary={summary} animate={true} />
+                <SectionCard title={t.usage_cache_rate}>
+                  <div className="px-3 py-2.5">
+                    <CacheRateSection t={t} summary={summary} animate={true} />
+                  </div>
+                </SectionCard>
+              )}
+              {activeSummary.projects.length > 0 && (
+                <SectionCard title={t.usage_projects}>
+                  <div className="px-3 py-2.5">
+                    <ProjectsContent
+                      t={t}
+                      projects={activeSummary.projects}
+                      totalCost={activeSummary.totalCost}
+                      animate={true}
+                    />
+                  </div>
+                </SectionCard>
+              )}
+              {activeSummary.models.length > 0 && (
+                <SectionCard title={t.usage_models}>
+                  <div className="px-3 py-2.5">
+                    <ModelsContent
+                      t={t}
+                      models={activeSummary.models}
+                      animate={true}
+                    />
+                  </div>
                 </SectionCard>
               )}
             </div>
 
-            {/* Row 3: Projects + Models */}
-            {(activeSummary.projects.length > 0 ||
-              activeSummary.models.length > 0) && (
-              <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-                {activeSummary.projects.length > 0 && (
-                  <SectionCard title={t.usage_projects}>
-                    <div className="px-3 py-2.5">
-                      <ProjectsContent
-                        t={t}
-                        projects={activeSummary.projects}
-                        totalCost={activeSummary.totalCost}
-                        animate={true}
-                      />
-                    </div>
-                  </SectionCard>
-                )}
-                {activeSummary.models.length > 0 && (
-                  <SectionCard title={t.usage_models}>
-                    <div className="px-3 py-2.5">
-                      <ModelsContent
-                        t={t}
-                        models={activeSummary.models}
-                        animate={true}
-                      />
-                    </div>
-                  </SectionCard>
-                )}
-              </div>
-            )}
+            {/* Row 4: Quota full-width. The budget meters carry a
+                single data series per subscription — making them
+                narrower wouldn't add density, just truncate labels. */}
+            <SectionCard>
+              <QuotaSection />
+            </SectionCard>
 
-            {/* Row 4: Heatmap (full width — fundamentally wide) */}
+            {/* Row 5: Heatmap full-width. A calendar ribbon is
+                fundamentally wide. */}
             <SectionCard title={t.usage_heatmap}>
               <TokenHeatmap
                 animate={true}
                 data={activeHeatmap ?? undefined}
-                onVisible={() => {
-                  void fetchHeatmap();
-                  if (isLoggedIn) void fetchCloudHeatmap();
-                }}
               />
             </SectionCard>
 
-            {/* Row 5: Devices (only if logged in and multi-device data) */}
+            {/* Row 6: Multi-device breakdown, logged-in only. */}
             {isLoggedIn &&
               cloudSummary &&
               cloudSummary.devices.length > 0 && (
