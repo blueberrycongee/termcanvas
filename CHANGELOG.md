@@ -2,6 +2,40 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.30.2] - 2026-04-19
+
+### Added
+- File editor drawer now renders images: PNG, JPG/JPEG, GIF (animated), WebP, BMP, ICO, AVIF, APNG. Clicking an image in the Files tree or a search result previews it centered in the drawer with a transparent-checkerboard backdrop so alpha is visible. The per-file size cap is split — text stays at 512 KB, images go up to 10 MB so typical screenshots / GIFs open instead of silently failing
+- Bilingual user guide at `docs/user-guide.md` + `docs/user-guide.zh.md`, linked from both READMEs. Walks through every non-obvious interaction (⌘E focus chain with double-click-to-zoom, drag-to-stash, right-click menus per surface, session resume fallback, canvas-gap drawer mutex, etc.)
+
+### Changed
+- Left and right side panels animate their expand / collapse with a 240 ms width ease and a crossfade between the narrow strip and the full surface. Nothing reflows mid-animation; the transition is suppressed while the resize handle is dragged so width still tracks the pointer 1:1
+- Settings modal reorganised from 3 tabs into 5, each answering one question:
+  - **General** — language, CLI integration toggle, app version + update
+  - **Appearance** — font size, font family, animation, blur, minimum contrast
+  - **Features** — composer, drawing tools, browser, terminal summary + its CLI picker, global search, canvas pet
+  - **Agent** — API section (provider / format / base URL / key / model) + CLI Tools section (per-agent command paths)
+  - **Shortcuts** — unchanged
+
+### Fixed
+- Memory tab's knowledge-graph nodes no longer shake for five seconds every time you enter the tab or a memory file is saved. The force simulation moved from the render loop (restarted on every `graph` reference change) to a one-shot offline `relaxLayout()`
+
+### Added (zh-CN)
+- 文件编辑器抽屉可以渲染图片了:PNG、JPG/JPEG、GIF(动图可播)、WebP、BMP、ICO、AVIF、APNG。在 Files 树或搜索结果里点图片,会在抽屉里居中预览,带透明棋盘底所以 alpha 能看见。单文件大小上限按类型拆分:文本保持 512 KB,图片放到 10 MB,常见截图 / GIF 不再被默默拦截
+- 双语用户指南 `docs/user-guide.md` + `docs/user-guide.zh.md`,两份 README 都在顶部加了链接。把每个不说就发现不了的小交互都写清楚了(⌘E 聚焦连环 + 双击放大、拖到 stash、每类界面的右键菜单、会话续接回退、canvas-gap 抽屉互斥等等)
+
+### Changed (zh-CN)
+- 左右栏展开 / 折叠现在是 240 ms 宽度缓动 + 折叠条和完整面板之间的交叉淡入。动画中途不会 reflow;拖动 resize 把手时关闭过渡,宽度 1:1 跟着指针走
+- 设置面板从 3 tab 重排成 5 tab,每个 tab 回答一件事:
+  - **通用** — 语言、CLI 集成开关、app 版本 + 更新
+  - **外观** — 字号、字体、动画、模糊、最小对比度
+  - **功能** — composer、绘图、浏览器、终端总结 + CLI 选择器、全局搜索、水豚
+  - **Agent** — API(provider / 格式 / base URL / key / model)+ CLI Tools(各 agent 命令路径)
+  - **快捷键** — 保持不变
+
+### Fixed (zh-CN)
+- Memory tab 的知识图节点不再每次切进 tab 或 memory 文件保存时抖 5 秒。力场模拟从 render 循环(每次 `graph` 引用变都重跑)移到了离线一次性 `relaxLayout()`
+
 ## [0.30.1] - 2026-04-18
 
 ### Changed
