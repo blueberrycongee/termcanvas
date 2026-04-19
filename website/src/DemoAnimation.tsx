@@ -196,6 +196,7 @@ const HISTORY_ENTRIES = [
  * the "+" button; Phase 7 highlights a history row.
  */
 function DemoLeftPanel({
+  expanded,
   addProjectHot,
   historyHot,
   showSecondProject,
@@ -204,6 +205,12 @@ function DemoLeftPanel({
   historyHeaderRef,
   firstHistoryRowRef,
 }: {
+  /**
+   * When false, shows a 32-px collapsed strip with just a "+" icon
+   * and an expand chevron — matches the real LeftPanel's collapsed
+   * state. When true, shows the full project tree + history.
+   */
+  expanded: boolean;
   addProjectHot: boolean;
   historyHot: number; // -1 = none, else index
   showSecondProject: boolean;
@@ -212,10 +219,55 @@ function DemoLeftPanel({
   historyHeaderRef?: React.RefObject<HTMLDivElement | null>;
   firstHistoryRowRef?: React.RefObject<HTMLDivElement | null>;
 }) {
+  if (!expanded) {
+    return (
+      <div
+        className="shrink-0 flex flex-col items-center pt-2 gap-1.5 border-r border-[var(--border)] overflow-hidden"
+        style={{
+          width: 32,
+          background: "var(--sidebar)",
+          transition: "width 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+        }}
+      >
+        {/* "+" button — primary action even when collapsed. */}
+        <div
+          ref={addButtonRef}
+          className="w-3.5 h-3.5 rounded flex items-center justify-center transition-all duration-200"
+          style={{
+            background: addProjectHot ? "var(--accent)" : "transparent",
+            border: `1px solid ${addProjectHot ? "var(--accent)" : "var(--border)"}`,
+            color: addProjectHot ? "var(--bg)" : "var(--text-muted)",
+            boxShadow: addProjectHot ? "0 0 8px rgba(91,158,245,0.6)" : "none",
+          }}
+        >
+          <svg width="7" height="7" viewBox="0 0 12 12" fill="none">
+            <path d="M6 2V10M2 6H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </div>
+        <div className="mt-auto mb-2">
+          {/* Expand chevron, pointing right. */}
+          <svg width="7" height="7" viewBox="0 0 10 10" fill="none">
+            <path
+              d="M3 2L7 5L3 8"
+              stroke="var(--text-muted)"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className="shrink-0 flex flex-col border-r border-[var(--border)] overflow-hidden"
-      style={{ width: 140, background: "var(--sidebar)" }}
+      style={{
+        width: 140,
+        background: "var(--sidebar)",
+        transition: "width 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+      }}
     >
       {/* Header */}
       <div
@@ -367,23 +419,22 @@ function DemoLeftPanel({
  * file which triggers the Monaco drawer overlay.
  */
 function DemoRightPanel({
-  visible,
   expanded,
   activeTab,
   hotFile,
   hotFileRef,
+  stripRef,
 }: {
   /**
-   * Whether the right panel is rendered at all. The demo hides it
-   * in phases 0-5 (narrative hasn't reached "look at code" yet),
-   * then slides it in for Phase 6 — prevents the panel's collapsed
-   * strip reading as mystery chrome before it gets any story beat.
+   * Always rendered — mirrors the real app where the code-nav
+   * panel is visible as a 26-px strip even when collapsed. Phase 6
+   * flips this to true on click, expanding to show the Files tree.
    */
-  visible: boolean;
   expanded: boolean;
   activeTab: "files" | "diff" | "git";
   hotFile: string | null;
   hotFileRef?: React.RefObject<HTMLDivElement | null>;
+  stripRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   const tabIcons = [
     { key: "files", label: "Files" },
@@ -394,9 +445,10 @@ function DemoRightPanel({
 
   return (
     <div
+      ref={stripRef}
       className="shrink-0 flex flex-col border-l border-[var(--border)] overflow-hidden"
       style={{
-        width: !visible ? 0 : expanded ? 140 : 26,
+        width: expanded ? 140 : 26,
         background: expanded ? "var(--surface)" : "var(--sidebar)",
         transition: "width 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94), background 200ms",
       }}
@@ -647,13 +699,56 @@ function DemoReplayDrawer({ open }: { open: boolean }) {
  * between the left and right panels. Single level, no expand.
  * Shown in the "Done" phase as a quick teaser of the dashboard.
  */
+/*
+ * Usage dashboard — mirrors the real UsageOverlay at demo scale.
+ * Stat strip → two charts → 3-column bar lists → quota → heatmap.
+ * Everything is static mock data, but the section structure +
+ * proportions match so the viewer recognises it as the same
+ * dashboard they'd see in-app (just shrunk).
+ */
 function DemoUsagePanel({ open }: { open: boolean }) {
+  // 24 hourly buckets for the sparkline. Curve simulates a real
+  // workday: quiet morning, ramp into mid-afternoon peak, taper.
+  const hourly = [
+    2, 1, 1, 0, 0, 2, 6, 12, 18, 24, 20, 28,
+    34, 30, 42, 38, 46, 44, 32, 28, 18, 10, 6, 3,
+  ];
+  const hourlyMax = Math.max(...hourly);
+  // 30 daily buckets for the trend chart.
+  const trend = [
+    4, 7, 5, 9, 6, 12, 8, 14, 10, 16, 11, 18, 13, 20, 14,
+    22, 17, 26, 20, 28, 22, 30, 24, 34, 27, 38, 30, 40, 32, 44,
+  ];
+  const trendMax = Math.max(...trend);
+  const cacheRows = [
+    { label: "Overall", pct: 82, color: "#eab308" },
+    { label: "Claude", pct: 88, color: "#eab308" },
+    { label: "Codex", pct: 74, color: "#eab308" },
+  ];
+  const projectRows = [
+    { label: "termcanvas", pct: 68, color: "var(--accent)" },
+    { label: "hydra", pct: 42, color: "var(--accent)" },
+    { label: "browse", pct: 20, color: "var(--accent)" },
+  ];
+  const modelRows = [
+    { label: "opus-4", pct: 72, color: "#f97316" },
+    { label: "sonnet-4", pct: 48, color: "#a855f7" },
+    { label: "haiku-4", pct: 24, color: "#06b6d4" },
+    { label: "codex", pct: 36, color: "#8b5cf6" },
+  ];
+  // 14×7 heatmap grid (14 weeks back).
+  const heatmapCells: number[] = [];
+  for (let i = 0; i < 14 * 7; i += 1) {
+    // Bias toward low values with occasional high days, to look
+    // like a real activity history.
+    const r = Math.sin(i * 1.31) * 0.5 + 0.5;
+    heatmapCells.push(r < 0.35 ? 0 : r < 0.55 ? 1 : r < 0.75 ? 2 : r < 0.9 ? 3 : 4);
+  }
+
   return (
     <div
       className="absolute top-0 bottom-0 flex flex-col overflow-hidden"
       style={{
-        // Fills the canvas entirely — canvas already sits between
-        // the left and right panels, so `inset-0` is the full gap.
         left: 0,
         right: 0,
         background: "var(--bg)",
@@ -664,51 +759,282 @@ function DemoUsagePanel({ open }: { open: boolean }) {
       }}
     >
       {open && (
-        <div className="h-full flex flex-col px-4 py-3 gap-2">
-          <div className="flex items-center justify-between">
+        <div className="h-full flex flex-col px-3 py-2 gap-1.5 overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between shrink-0">
             <span
-              className="text-[9px] font-semibold"
+              className="text-[10px] font-semibold"
               style={{ color: "var(--text-primary)", letterSpacing: "-0.01em" }}
             >
               Usage
             </span>
-            <span className="text-[7px]" style={{ color: "var(--text-muted)" }}>Esc</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[7px]" style={{ color: "var(--text-muted)" }}>
+                Apr 18
+              </span>
+              <span className="text-[7px]" style={{ color: "var(--text-faint)" }}>Esc</span>
+            </div>
           </div>
-          <div className="grid grid-cols-4 gap-1.5">
+
+          {/* Row 1: stat strip */}
+          <div className="grid grid-cols-4 gap-1 shrink-0">
             {[
-              { label: "Today", value: "$4.82" },
-              { label: "MTD", value: "$62.1" },
-              { label: "Avg", value: "$3.1" },
-              { label: "Proj", value: "$96.3" },
+              { label: "Today", value: "$4.82", sub: "12 sessions" },
+              { label: "MTD", value: "$62.1", sub: "18 active days" },
+              { label: "Daily avg", value: "$3.45", sub: "per active day" },
+              { label: "Projected", value: "$96.3", sub: "+$34.2 to go", accent: true },
             ].map((s) => (
               <div
                 key={s.label}
                 className="rounded border px-1.5 py-1"
                 style={{ borderColor: "var(--border)", background: "var(--surface)" }}
               >
-                <div className="text-[6px] uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
+                <div
+                  className="text-[6px] uppercase tracking-widest"
+                  style={{ color: "var(--text-muted)", fontFamily: '"Geist Mono", monospace' }}
+                >
                   {s.label}
                 </div>
                 <div
-                  className="text-[9px] font-semibold"
-                  style={{ color: "var(--text-primary)", fontFamily: '"Geist Mono", monospace' }}
+                  className="text-[10px] font-semibold leading-none mt-0.5"
+                  style={{
+                    color: "var(--text-primary)",
+                    fontFamily: '"Geist Mono", monospace',
+                    letterSpacing: "-0.02em",
+                  }}
                 >
                   {s.value}
+                </div>
+                <div
+                  className="text-[6px] mt-0.5"
+                  style={{
+                    color: s.accent ? "var(--accent)" : "var(--text-faint)",
+                    fontFamily: '"Geist Mono", monospace',
+                  }}
+                >
+                  {s.sub}
                 </div>
               </div>
             ))}
           </div>
+
+          {/* Row 2: two charts side by side (hourly + 30-day trend) */}
+          <div className="grid grid-cols-2 gap-1 shrink-0">
+            {[
+              { title: "Timeline (today)", data: hourly, max: hourlyMax, labels: ["00", "06", "12", "18", "24"] },
+              { title: "Last 30 days", data: trend, max: trendMax, labels: ["Mar 20", "Mar 27", "Apr 3", "Apr 10", "Apr 18"] },
+            ].map((chart) => (
+              <div
+                key={chart.title}
+                className="rounded border"
+                style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+              >
+                <div
+                  className="px-1.5 py-1 border-b text-[6px] uppercase tracking-widest"
+                  style={{
+                    borderColor: "var(--border)",
+                    color: "var(--text-muted)",
+                    fontFamily: '"Geist Mono", monospace',
+                  }}
+                >
+                  {chart.title}
+                </div>
+                <div className="px-1.5 py-1">
+                  <div className="flex items-end gap-[1px]" style={{ height: 28 }}>
+                    {chart.data.map((v, i) => (
+                      <div
+                        key={i}
+                        className="flex-1 rounded-sm"
+                        style={{
+                          height: `${(v / chart.max) * 100}%`,
+                          background: "var(--accent)",
+                          opacity: 0.4 + (v / chart.max) * 0.55,
+                          minHeight: 2,
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <div
+                    className="flex justify-between mt-0.5 text-[6px]"
+                    style={{ color: "var(--text-faint)", fontFamily: '"Geist Mono", monospace' }}
+                  >
+                    {chart.labels.map((l) => (
+                      <span key={l}>{l}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Row 3: three-column bar lists — cache rate, projects, models */}
+          <div className="grid grid-cols-3 gap-1 shrink-0">
+            {[
+              { title: "Cache rate", rows: cacheRows, right: "%" as const },
+              { title: "Projects", rows: projectRows, right: "%" as const },
+              { title: "Models", rows: modelRows, right: "%" as const },
+            ].map((col) => (
+              <div
+                key={col.title}
+                className="rounded border"
+                style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+              >
+                <div
+                  className="px-1.5 py-1 border-b text-[6px] uppercase tracking-widest"
+                  style={{
+                    borderColor: "var(--border)",
+                    color: "var(--text-muted)",
+                    fontFamily: '"Geist Mono", monospace',
+                  }}
+                >
+                  {col.title}
+                </div>
+                <div className="px-1.5 py-1 flex flex-col gap-[3px]">
+                  {col.rows.map((r) => (
+                    <div key={r.label} className="flex items-center gap-1">
+                      <span
+                        className="text-[6px] shrink-0 truncate"
+                        style={{ color: "var(--text-muted)", width: 26, fontFamily: '"Geist Mono", monospace' }}
+                      >
+                        {r.label}
+                      </span>
+                      <div
+                        className="flex-1 rounded-full overflow-hidden"
+                        style={{ height: 3, background: "var(--border)" }}
+                      >
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${r.pct}%`, background: r.color, opacity: 0.8 }}
+                        />
+                      </div>
+                      <span
+                        className="text-[6px] shrink-0 tabular-nums"
+                        style={{ color: "var(--text-muted)", width: 10, textAlign: "right", fontFamily: '"Geist Mono", monospace' }}
+                      >
+                        {r.pct}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Row 4: quota meters */}
           <div
-            className="flex-1 min-h-0 rounded border px-2 py-1.5 flex items-end gap-[2px]"
+            className="rounded border px-1.5 py-1 shrink-0"
             style={{ borderColor: "var(--border)", background: "var(--surface)" }}
           >
-            {[8, 14, 10, 20, 24, 18, 30, 26, 36, 32, 42, 38, 48, 44, 52, 46, 58, 50].map((h, i) => (
+            <div
+              className="text-[6px] uppercase tracking-widest"
+              style={{ color: "var(--text-muted)", fontFamily: '"Geist Mono", monospace' }}
+            >
+              Quotas
+            </div>
+            <div className="mt-1 flex flex-col gap-1">
+              {[
+                { label: "Claude 5h", pct: 48, color: "#22c55e", reset: "3:12" },
+                { label: "Claude 7d", pct: 72, color: "#eab308", reset: "2d 14h" },
+                { label: "Codex 5h", pct: 22, color: "#22c55e", reset: "4:41" },
+              ].map((q) => (
+                <div key={q.label} className="flex items-center gap-1">
+                  <span
+                    className="text-[6px] shrink-0"
+                    style={{ color: "var(--text-muted)", width: 46, fontFamily: '"Geist Mono", monospace' }}
+                  >
+                    {q.label}
+                  </span>
+                  <div
+                    className="flex-1 rounded-full overflow-hidden"
+                    style={{ height: 3, background: "var(--border)" }}
+                  >
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${q.pct}%`, background: q.color, opacity: 0.85 }}
+                    />
+                  </div>
+                  <span
+                    className="text-[6px] shrink-0 tabular-nums"
+                    style={{ color: "var(--text-muted)", width: 20, textAlign: "right", fontFamily: '"Geist Mono", monospace' }}
+                  >
+                    {q.pct}%
+                  </span>
+                  <span
+                    className="text-[6px] shrink-0 tabular-nums"
+                    style={{ color: "var(--text-faint)", width: 24, textAlign: "right", fontFamily: '"Geist Mono", monospace' }}
+                  >
+                    {q.reset}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Row 5: heatmap calendar ribbon */}
+          <div
+            className="rounded border px-1.5 py-1 flex-1 min-h-0"
+            style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+          >
+            <div className="flex items-center justify-between">
+              <span
+                className="text-[6px] uppercase tracking-widest"
+                style={{ color: "var(--text-muted)", fontFamily: '"Geist Mono", monospace' }}
+              >
+                Heatmap
+              </span>
+              <div className="flex items-center gap-[2px]">
+                <span
+                  className="text-[6px]"
+                  style={{ color: "var(--text-faint)", fontFamily: '"Geist Mono", monospace' }}
+                >
+                  less
+                </span>
+                {[0, 1, 2, 3, 4].map((lvl) => (
+                  <div
+                    key={lvl}
+                    className="rounded-[1px]"
+                    style={{
+                      width: 5,
+                      height: 5,
+                      background:
+                        lvl === 0
+                          ? "var(--border)"
+                          : `color-mix(in srgb, var(--accent) ${20 + lvl * 20}%, transparent)`,
+                    }}
+                  />
+                ))}
+                <span
+                  className="text-[6px]"
+                  style={{ color: "var(--text-faint)", fontFamily: '"Geist Mono", monospace' }}
+                >
+                  more
+                </span>
+              </div>
+            </div>
+            <div className="mt-1 flex items-center justify-center">
               <div
-                key={i}
-                className="flex-1 rounded-sm"
-                style={{ height: h, background: "var(--accent)", opacity: 0.3 + (i / 18) * 0.6 }}
-              />
-            ))}
+                className="grid"
+                style={{
+                  gridTemplateColumns: "repeat(14, 5px)",
+                  gridTemplateRows: "repeat(7, 5px)",
+                  gap: 2,
+                  gridAutoFlow: "column",
+                }}
+              >
+                {heatmapCells.map((level, i) => (
+                  <div
+                    key={i}
+                    className="rounded-[1px]"
+                    style={{
+                      background:
+                        level === 0
+                          ? "var(--border)"
+                          : `color-mix(in srgb, var(--accent) ${20 + level * 20}%, transparent)`,
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -874,6 +1200,7 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
   const historyHeaderRef = useRef<HTMLDivElement | null>(null);
   const firstHistoryRowRef = useRef<HTMLDivElement | null>(null);
   const hotFileRowRef = useRef<HTMLDivElement | null>(null);
+  const rightStripRef = useRef<HTMLDivElement | null>(null);
 
   const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
   const [cursorVisible, setCursorVisible] = useState(false);
@@ -881,11 +1208,10 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
   const [focusedTile, setFocusedTile] = useState(-1);
   const [tilesVisible, setTilesVisible] = useState([false, false, false, false]);
   const [canvasTransform, setCanvasTransform] = useState({ x: 0, y: 0, scale: 1 });
-  // Right panel is hidden in phases 0-5 (story hasn't reached the
-  // code-nav surface yet — its collapsed strip would read as mystery
-  // chrome). Phase 6 slides it in already-expanded; phases 7-8 keep
-  // it expanded as the stable "code nav is here" visual context.
-  const [rightPanelVisible, setRightPanelVisible] = useState(false);
+  // Both side panels default collapsed (thin strips with icons),
+  // matching how the real app boots. Phases flip them to expanded
+  // as the cursor interacts: phase 5 → left, phase 6 → right.
+  const [leftPanelExpanded, setLeftPanelExpanded] = useState(false);
   const [rightPanelExpanded, setRightPanelExpanded] = useState(false);
   const [rightPanelTab] = useState<"files" | "diff" | "git">("files");
   const [hotFile, setHotFile] = useState<string | null>(null);
@@ -930,7 +1256,7 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
     setPopupKeys(["", ""]);
     setPopupVisible(0);
     setPopupLabel(null);
-    setRightPanelVisible(false);
+    setLeftPanelExpanded(false);
     setRightPanelExpanded(false);
     setHotFile(null);
     setMonacoOpen(false);
@@ -1005,39 +1331,45 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
         setTilesVisible([true, true, true, true]);
         setFocusedTile(-1);
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
-        setRightPanelVisible(false);
+        setLeftPanelExpanded(false);
         setRightPanelExpanded(false);
       } else if (phase === 2 || phase === 3) {
         setTilesVisible([true, true, true, true]);
         setFocusedTile(0);
         setCanvasTransform({ x: -TILE_OFFSETS[0].x, y: -TILE_OFFSETS[0].y, scale: 1.8 });
-        setRightPanelVisible(false);
+        setLeftPanelExpanded(false);
         setRightPanelExpanded(false);
       } else if (phase === 4) {
         setTilesVisible([true, true, true, true]);
         setFocusedTile(-1);
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
-        setRightPanelVisible(false);
+        setLeftPanelExpanded(false);
         setRightPanelExpanded(false);
         setCursorVisible(true);
         setCursorPos(getCanvasCenter());
       } else if (phase === 5) {
+        // Phase 5 setup: both panels still collapsed — we're about
+        // to click the left panel's "+" which both adds a project
+        // AND expands the panel.
         setTilesVisible([true, true, true, true]);
         setFocusedTile(-1);
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
-        setRightPanelVisible(false);
+        setLeftPanelExpanded(false);
         setRightPanelExpanded(false);
         setAddProjectHot(false);
         setSecondProjectShown(false);
         setCursorVisible(true);
         setCursorPos(getCanvasCenter());
       } else if (phase === 6) {
+        // Phase 6 setup: left panel stays expanded (carryover from
+        // Phase 5) showing the two projects. Right panel still
+        // collapsed — about to click its strip to expand.
         setTilesVisible([true, true, true, true]);
         setFocusedTile(-1);
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
+        setLeftPanelExpanded(true);
         setSecondProjectShown(true);
-        setRightPanelVisible(true);
-        setRightPanelExpanded(true);
+        setRightPanelExpanded(false);
         setHotFile(null);
         setHistoryExpanded(false);
         setHistoryHot(-1);
@@ -1047,8 +1379,8 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
         setTilesVisible([true, true, true, true]);
         setFocusedTile(-1);
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
+        setLeftPanelExpanded(true);
         setSecondProjectShown(true);
-        setRightPanelVisible(true);
         setRightPanelExpanded(true);
         setHotFile(null);
         setHistoryExpanded(false);
@@ -1059,8 +1391,8 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
         setTilesVisible([true, true, true, true]);
         setFocusedTile(-1);
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
+        setLeftPanelExpanded(true);
         setSecondProjectShown(true);
-        setRightPanelVisible(true);
         setRightPanelExpanded(true);
         setHistoryExpanded(true);
         setHistoryHot(-1);
@@ -1150,10 +1482,10 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
         await delay(800);
 
       } else if (phase === 5) {
-        // Phase 5 — Project. Cursor flies to the left panel's "+"
-        // button (measured from the addButtonRef) — hardcoded px
-        // coords used to drift relative to the actual DOM position,
-        // so now we read getBoundingClientRect at animation time.
+        // Phase 5 — Project. Left panel starts collapsed (32-px
+        // strip). Cursor goes to its "+" button, clicks:
+        //   1. panel expands to 140 px
+        //   2. a second project slides into the tree
         setCursorVisible(true);
         setCursorPos(getCanvasCenter());
         await delay(250);
@@ -1163,6 +1495,9 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
         await showKeys(splitShortcut(sc.addProject), { en: "Add Project", zh: "添加项目" });
         if (cancelled()) return;
         setAddProjectHot(true);
+        await delay(350);
+        if (cancelled()) return;
+        setLeftPanelExpanded(true);
         await delay(450);
         if (cancelled()) return;
         setSecondProjectShown(true);
@@ -1172,20 +1507,28 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
         await delay(400);
 
       } else if (phase === 6) {
-        // Phase 6 — Code. Right panel slid in expanded during
-        // setup; cursor moves straight to a file row and the Monaco
-        // drawer opens. Position comes from hotFileRowRef so it
-        // lands on the correct row regardless of container width.
+        // Phase 6 — Code. Right panel starts collapsed. Cursor
+        // goes to its strip, clicks:
+        //   1. right panel expands to 140 px
+        //   2. cursor moves to a file row
+        //   3. Monaco drawer slides in from the right
         setCursorVisible(true);
         setCursorPos(getCanvasCenter());
         await delay(250);
         if (cancelled()) return;
+        const stripTarget = posOfElement(rightStripRef.current);
+        if (stripTarget) setCursorPos(stripTarget);
+        await showKeys(["Click", "单击"], { en: "Files tab", zh: "文件面板" });
+        if (cancelled()) return;
+        setRightPanelExpanded(true);
+        await delay(450);
+        if (cancelled()) return;
         const fileTarget = posOfElement(hotFileRowRef.current);
         if (fileTarget) setCursorPos(fileTarget);
-        await delay(400);
+        await delay(350);
         if (cancelled()) return;
         setHotFile("FileEditorDrawer.tsx");
-        await showKeys(["Click", "单击"], { en: "Open File", zh: "打开文件" });
+        await delay(200);
         if (cancelled()) return;
         setMonacoOpen(true);
         await delay(1600);
@@ -1292,6 +1635,7 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
     <>
       <div ref={stageRef} className="flex flex-1 min-h-0 relative">
         <DemoLeftPanel
+          expanded={leftPanelExpanded}
           addProjectHot={addProjectHot}
           historyHot={historyHot}
           showSecondProject={secondProjectShown}
@@ -1386,11 +1730,11 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
         </div>
 
         <DemoRightPanel
-          visible={rightPanelVisible}
           expanded={rightPanelExpanded}
           activeTab={rightPanelTab}
           hotFile={hotFile}
           hotFileRef={hotFileRowRef}
+          stripRef={rightStripRef}
         />
         <DemoCursor pos={cursorPos} dragging={isDragging} visible={cursorVisible} />
       </div>
