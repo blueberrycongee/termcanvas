@@ -409,8 +409,12 @@ export function RightPanel() {
   ) : null;
 
   const dragging = useSidebarDragStore((s) => s.active);
-  // Silky expand/collapse: single stable root with animated width,
-  // collapsed strip and expanded surface crossfading inside.
+  // Animate the outer width on expand/collapse; pause the transition
+  // while the resize handle drags so width tracks the pointer 1:1.
+  // The inner surface is conditionally rendered — only one of the
+  // two states is ever in the DOM, so there are no persistent
+  // compositor layers that can get stuck unpainted after a
+  // foreground/background switch.
   const displayedWidth = collapsed ? COLLAPSED_TAB_WIDTH : width;
   const widthTransition = dragging
     ? undefined
@@ -435,66 +439,55 @@ export function RightPanel() {
         setCollapsed(false);
       }}
     >
-      {/* Collapsed strip — anchored to the right edge so its icons
-          stay visible as the panel narrows. */}
-      <div
-        className="absolute inset-y-0 right-0 flex flex-col items-center pt-3 gap-1 cursor-pointer hover:bg-[var(--sidebar-hover)]"
-        style={{
-          width: COLLAPSED_TAB_WIDTH,
-          opacity: collapsed ? 1 : 0,
-          pointerEvents: collapsed ? "auto" : "none",
-          transition: "opacity 140ms ease-out",
-          transitionDelay: collapsed ? "90ms" : "0ms",
-        }}
-        onClick={() => setCollapsed(false)}
-      >
-        {TAB_CONFIG.map(({ id, icon: Icon }) => (
-          <button
-            key={id}
-            className={`flex items-center justify-center w-6 h-6 rounded-md transition-colors duration-150 ${
-              activeTab === id
-                ? "text-[var(--accent)]"
-                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-            }`}
-            title={t[`left_panel_${id}` as keyof typeof t] as string}
-            onClick={(e) => {
-              e.stopPropagation();
-              setActiveTab(id);
-              setCollapsed(false);
-            }}
-          >
-            <Icon size={14} />
-          </button>
-        ))}
-        <div className="mt-auto mb-3">
-          <button
-            className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors duration-150"
-            onClick={(e) => {
-              e.stopPropagation();
-              setCollapsed(false);
-            }}
-          >
-            {/* Points LEFT — clicking expands the right panel leftward. */}
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path d="M7 2L3 5L7 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
+      {collapsed ? (
+        // Collapsed strip — anchored to the right edge so its icons
+        // stay visible as the panel narrows.
+        <div
+          className="absolute inset-y-0 right-0 flex flex-col items-center pt-3 gap-1 cursor-pointer hover:bg-[var(--sidebar-hover)]"
+          style={{ width: COLLAPSED_TAB_WIDTH }}
+          onClick={() => setCollapsed(false)}
+        >
+          {TAB_CONFIG.map(({ id, icon: Icon }) => (
+            <button
+              key={id}
+              className={`flex items-center justify-center w-6 h-6 rounded-md transition-colors duration-150 ${
+                activeTab === id
+                  ? "text-[var(--accent)]"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              }`}
+              title={t[`left_panel_${id}` as keyof typeof t] as string}
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveTab(id);
+                setCollapsed(false);
+              }}
+            >
+              <Icon size={14} />
+            </button>
+          ))}
+          <div className="mt-auto mb-3">
+            <button
+              className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors duration-150"
+              onClick={(e) => {
+                e.stopPropagation();
+                setCollapsed(false);
+              }}
+            >
+              {/* Points LEFT — clicking expands the right panel leftward. */}
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path d="M7 2L3 5L7 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
         </div>
-      </div>
-
-      {/* Expanded surface — anchored to the right edge and laid out
-          at its full user-width so content does not reflow during
-          the width animation. */}
-      <div
-        className="absolute inset-y-0 right-0 flex flex-col"
-        style={{
-          width,
-          opacity: collapsed ? 0 : 1,
-          pointerEvents: collapsed ? "none" : "auto",
-          transition: dragging ? undefined : "opacity 160ms ease-out",
-          transitionDelay: collapsed ? "0ms" : "90ms",
-        }}
-      >
+      ) : (
+        // Expanded surface — laid out at the user-configured width so
+        // content does not reflow while the outer width animates;
+        // the outer overflow-hidden clips it during the transition.
+        <div
+          className="absolute inset-y-0 right-0 flex flex-col"
+          style={{ width }}
+        >
       <div className="shrink-0 px-2 pt-2 pb-1.5">
         <div className="flex items-center gap-0.5 rounded-lg bg-[var(--bg)] p-0.5">
           {TAB_CONFIG.map(({ id, icon: Icon, labelKey }) => {
@@ -663,7 +656,8 @@ export function RightPanel() {
       >
         <div className="absolute left-0 top-0 w-px h-full bg-[var(--border)] group-hover/resize:bg-[var(--accent)] group-hover/resize:opacity-70 transition-colors duration-150" />
       </div>
-      </div>
+        </div>
+      )}
     </div>
     </>
   );
