@@ -74,11 +74,10 @@ export function zoomAtClientPoint({
     leftPanelCollapsed,
     leftPanelWidth,
   );
+  const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
 
-  // Canvas is at `left: 0` — client x maps directly to canvas-local x, no
-  // need to subtract a panel inset.
   return {
-    x: clientX - worldPoint.x * scale,
+    x: clientX - leftInset - worldPoint.x * scale,
     y: clientY - worldPoint.y * scale,
     scale,
   };

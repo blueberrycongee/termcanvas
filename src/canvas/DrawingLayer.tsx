@@ -31,16 +31,13 @@ import {
 } from "./viewportBounds";
 
 export function getDrawingLayerViewportSize(
-  _leftInset: number,
-  _rightInset: number,
+  leftInset: number,
+  rightInset: number,
   innerWidth: number,
   innerHeight: number,
 ): { width: number; height: number } {
-  // Drawing layer spans the full viewport (canvas is at left: 0); side
-  // panels overlay it rather than push it. Insets remain in the signature
-  // for call-site symmetry with other viewport helpers.
   return {
-    width: Math.max(0, innerWidth),
+    width: Math.max(0, innerWidth - leftInset - rightInset),
     height: Math.max(0, innerHeight),
   };
 }
@@ -432,8 +429,9 @@ export function DrawingLayer() {
 
   return (
     <svg
-      className="fixed inset-0"
+      className="fixed top-0 bottom-0"
       style={{
+        left: leftInset,
         width,
         height,
         display: "block",
