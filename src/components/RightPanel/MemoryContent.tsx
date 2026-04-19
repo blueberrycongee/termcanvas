@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from "react";
-import { useMemoryStore } from "../../stores/memoryStore";
+import { useMemoryStore, positionKey } from "../../stores/memoryStore";
 import { useT } from "../../i18n/useT";
 
 const themeCache = { theme: "", vars: {} as Record<string, string> };
@@ -45,9 +45,69 @@ interface GraphNodePos {
   mtime: number;
   x: number;
   y: number;
-  vx: number;
-  vy: number;
   emphasis: number; // 0..1 animated
+}
+
+// Run the force simulation offscreen to a stable configuration before
+// the nodes are ever painted. The previous implementation stepped the
+// simulation inside the render loop for the first 300 animation frames,
+// which meant every mount (tab switch, scan-on-change event, etc.) made
+// the whole graph visibly fly around for five seconds. Relaying out
+// synchronously here, then caching the result in the store, means the
+// user sees a settled graph on first paint and subsequent visits.
+function relaxLayout(
+  positions: Map<string, { x: number; y: number; vx: number; vy: number }>,
+  edges: Array<{ source: string; target: string }>,
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+  iterations: number,
+): void {
+  const keys = Array.from(positions.keys());
+  for (let iter = 0; iter < iterations; iter++) {
+    for (let i = 0; i < keys.length; i++) {
+      const ni = positions.get(keys[i])!;
+      for (let j = i + 1; j < keys.length; j++) {
+        const nj = positions.get(keys[j])!;
+        const dx = nj.x - ni.x;
+        const dy = nj.y - ni.y;
+        const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+        const force = 1200 / (dist * dist);
+        const fx = (dx / dist) * force;
+        const fy = (dy / dist) * force;
+        ni.vx -= fx;
+        ni.vy -= fy;
+        nj.vx += fx;
+        nj.vy += fy;
+      }
+    }
+    for (const e of edges) {
+      const s = positions.get(e.source);
+      const t = positions.get(e.target);
+      if (!s || !t) continue;
+      const dx = t.x - s.x;
+      const dy = t.y - s.y;
+      const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+      const force = (dist - 100) * 0.01;
+      const fx = (dx / dist) * force;
+      const fy = (dy / dist) * force;
+      s.vx += fx;
+      s.vy += fy;
+      t.vx -= fx;
+      t.vy -= fy;
+    }
+    for (const p of positions.values()) {
+      p.vx += (cx - p.x) * 0.004;
+      p.vy += (cy - p.y) * 0.004;
+      p.vx *= 0.86;
+      p.vy *= 0.86;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.x = Math.max(24, Math.min(w - 24, p.x));
+      p.y = Math.max(24, Math.min(h - 24, p.y));
+    }
+  }
 }
 
 function MemoryGraph({
@@ -66,6 +126,7 @@ function MemoryGraph({
       mtime: number;
     }>;
     edges: Array<{ source: string; target: string }>;
+    dirPath: string;
   };
   selectedNode: string | null;
   onSelectNode: (fileName: string | null) => void;
@@ -94,30 +155,84 @@ function MemoryGraph({
     [graph.edges],
   );
 
+  // Build (or reuse) stable positions whenever the set of nodes or
+  // edges changes. We DON'T reset every node on every graph update
+  // — nodes already laid out keep their coordinates, only genuinely
+  // new files get seeded around the circle and relaxed alongside
+  // their neighbours. This is what eliminates the "nodes shake when
+  // you click into memory" behaviour: there is no ongoing physics
+  // loop to restart.
   useEffect(() => {
     const w = containerRef.current?.clientWidth ?? 300;
     const h = containerRef.current?.clientHeight ?? 300;
     const cx = w / 2;
     const cy = h / 2;
+    const dirPath = graph.dirPath;
+    const cache = useMemoryStore.getState().nodePositions;
+
+    const working = new Map<
+      string,
+      { x: number; y: number; vx: number; vy: number }
+    >();
+    const freshlySeeded: string[] = [];
     const nonIndex = graph.nodes.filter((n) => n.type !== "index");
 
-    nodesRef.current = graph.nodes.map((n) => {
+    for (const n of graph.nodes) {
+      const key = positionKey(dirPath, n.fileName);
+      const cached = cache.get(key);
+      if (cached) {
+        working.set(n.fileName, { x: cached.x, y: cached.y, vx: 0, vy: 0 });
+        continue;
+      }
       if (n.type === "index") {
-        return { ...n, x: cx, y: cy, vx: 0, vy: 0, emphasis: 0 };
+        working.set(n.fileName, { x: cx, y: cy, vx: 0, vy: 0 });
+        freshlySeeded.push(n.fileName);
+        continue;
       }
       const i = nonIndex.indexOf(n);
       const angle = (2 * Math.PI * i) / Math.max(nonIndex.length, 1);
       const r = Math.min(w, h) * 0.28;
-      return {
-        ...n,
+      working.set(n.fileName, {
         x: cx + r * Math.cos(angle),
         y: cy + r * Math.sin(angle),
         vx: 0,
         vy: 0,
-        emphasis: 0,
+      });
+      freshlySeeded.push(n.fileName);
+    }
+
+    // Only relax when something actually changed layout-wise —
+    // otherwise every memory.onChanged event (file save, etc.)
+    // would re-run the simulation even though the graph is
+    // identical. A short pass (150 iters) is enough to integrate
+    // new nodes without visibly jostling the ones we reused.
+    if (freshlySeeded.length > 0 && w > 0 && h > 0) {
+      relaxLayout(working, graph.edges, cx, cy, w, h, 150);
+      const toCache: Array<[string, { x: number; y: number }]> = [];
+      for (const [fileName, p] of working) {
+        toCache.push([
+          positionKey(dirPath, fileName),
+          { x: p.x, y: p.y },
+        ]);
+      }
+      useMemoryStore.getState().mergeNodePositions(toCache);
+    }
+
+    // Preserve emphasis across re-layouts so hover/selection
+    // highlights don't flicker.
+    const prevEmphasis = new Map(
+      nodesRef.current.map((n) => [n.fileName, n.emphasis]),
+    );
+    nodesRef.current = graph.nodes.map((n) => {
+      const p = working.get(n.fileName)!;
+      return {
+        ...n,
+        x: p.x,
+        y: p.y,
+        emphasis: prevEmphasis.get(n.fileName) ?? 0,
       };
     });
-  }, [graph.nodes]);
+  }, [graph.dirPath, graph.nodes, graph.edges]);
 
   const nodeBaseAlpha = useCallback((mtime: number): number => {
     const ageMs = Date.now() - mtime;
@@ -151,7 +266,6 @@ function MemoryGraph({
     }));
 
     let running = true;
-    let frame = 0;
 
     const tick = () => {
       const focusNode = hoveredNodeRef.current ?? selectedNodeRef.current;
@@ -179,48 +293,10 @@ function MemoryGraph({
       const dpr = window.devicePixelRatio || 1;
       const w = canvas.width / dpr;
       const h = canvas.height / dpr;
-      const cx = w / 2;
-      const cy = h / 2;
 
-      if (frame < 300) {
-        for (let i = 0; i < nodes.length; i++) {
-          for (let j = i + 1; j < nodes.length; j++) {
-            const dx = nodes[j].x - nodes[i].x;
-            const dy = nodes[j].y - nodes[i].y;
-            const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
-            const force = 1200 / (dist * dist);
-            const fx = (dx / dist) * force;
-            const fy = (dy / dist) * force;
-            nodes[i].vx -= fx;
-            nodes[i].vy -= fy;
-            nodes[j].vx += fx;
-            nodes[j].vy += fy;
-          }
-        }
-        for (const edge of edgeRefs) {
-          if (!edge.source || !edge.target) continue;
-          const dx = edge.target.x - edge.source.x;
-          const dy = edge.target.y - edge.source.y;
-          const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
-          const force = (dist - 100) * 0.01;
-          const fx = (dx / dist) * force;
-          const fy = (dy / dist) * force;
-          edge.source.vx += fx;
-          edge.source.vy += fy;
-          edge.target.vx -= fx;
-          edge.target.vy -= fy;
-        }
-        for (const node of nodes) {
-          node.vx += (cx - node.x) * 0.004;
-          node.vy += (cy - node.y) * 0.004;
-          node.vx *= 0.86;
-          node.vy *= 0.86;
-          node.x += node.vx;
-          node.y += node.vy;
-          node.x = Math.max(24, Math.min(w - 24, node.x));
-          node.y = Math.max(24, Math.min(h - 24, node.y));
-        }
-      }
+      // Positions are pre-relaxed in the layout effect above and
+      // cached in the store, so the render loop only handles paint
+      // + emphasis smoothing — no live physics.
 
       for (const node of nodes) {
         const isFocused =
@@ -352,7 +428,6 @@ function MemoryGraph({
       ctx.globalAlpha = 1;
       ctx.restore();
 
-      frame++;
       animRef.current = requestAnimationFrame(tick);
     };
 
