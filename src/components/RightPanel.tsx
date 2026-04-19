@@ -408,61 +408,93 @@ export function RightPanel() {
     />
   ) : null;
 
-  if (collapsed) {
-    return (
-      <>
-        {hydraPopup}
-        <div
-          className="fixed right-0 z-40 bg-[var(--surface)] border-l border-[var(--border)] flex flex-col items-center pt-3 gap-1 cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors duration-150"
-          style={{ top: 44, height: "calc(100vh - 44px)", width: COLLAPSED_TAB_WIDTH }}
-          onClick={() => setCollapsed(false)}
-          onDragOver={(e) => {
-            if (!Array.from(e.dataTransfer.types).includes("Files")) return;
-            e.preventDefault();
-            setActiveTab("files");
-            setCollapsed(false);
-          }}
-        >
-          {TAB_CONFIG.map(({ id, icon: Icon }) => (
-            <button
-              key={id}
-              className={`flex items-center justify-center w-6 h-6 rounded-md transition-colors duration-150 ${
-                activeTab === id
-                  ? "text-[var(--accent)]"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-              }`}
-              title={t[`left_panel_${id}` as keyof typeof t] as string}
-              onClick={() => {
-                setActiveTab(id);
-                setCollapsed(false);
-              }}
-            >
-              <Icon size={14} />
-            </button>
-          ))}
-          <div className="mt-auto mb-3">
-            <button
-              className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors duration-150"
-              onClick={() => setCollapsed(false)}
-            >
-              {/* Points LEFT — clicking expands the right panel leftward. */}
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                <path d="M7 2L3 5L7 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </>
-    );
-  }
+  const dragging = useSidebarDragStore((s) => s.active);
+  // Silky expand/collapse: single stable root with animated width,
+  // collapsed strip and expanded surface crossfading inside.
+  const displayedWidth = collapsed ? COLLAPSED_TAB_WIDTH : width;
+  const widthTransition = dragging
+    ? undefined
+    : "width 240ms cubic-bezier(0.22, 0.61, 0.36, 1)";
 
   return (
     <>
     {hydraPopup}
     <div
-      className="fixed right-0 z-40 bg-[var(--surface)] border-l border-[var(--border)] flex flex-col"
-      style={{ top: 44, height: "calc(100vh - 44px)", width }}
+      className="fixed right-0 z-40 bg-[var(--surface)] border-l border-[var(--border)] overflow-hidden"
+      style={{
+        top: 44,
+        height: "calc(100vh - 44px)",
+        width: displayedWidth,
+        transition: widthTransition,
+      }}
+      onDragOver={(e) => {
+        if (!collapsed) return;
+        if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+        e.preventDefault();
+        setActiveTab("files");
+        setCollapsed(false);
+      }}
     >
+      {/* Collapsed strip — anchored to the right edge so its icons
+          stay visible as the panel narrows. */}
+      <div
+        className="absolute inset-y-0 right-0 flex flex-col items-center pt-3 gap-1 cursor-pointer hover:bg-[var(--sidebar-hover)]"
+        style={{
+          width: COLLAPSED_TAB_WIDTH,
+          opacity: collapsed ? 1 : 0,
+          pointerEvents: collapsed ? "auto" : "none",
+          transition: "opacity 140ms ease-out",
+          transitionDelay: collapsed ? "90ms" : "0ms",
+        }}
+        onClick={() => setCollapsed(false)}
+      >
+        {TAB_CONFIG.map(({ id, icon: Icon }) => (
+          <button
+            key={id}
+            className={`flex items-center justify-center w-6 h-6 rounded-md transition-colors duration-150 ${
+              activeTab === id
+                ? "text-[var(--accent)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+            }`}
+            title={t[`left_panel_${id}` as keyof typeof t] as string}
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveTab(id);
+              setCollapsed(false);
+            }}
+          >
+            <Icon size={14} />
+          </button>
+        ))}
+        <div className="mt-auto mb-3">
+          <button
+            className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors duration-150"
+            onClick={(e) => {
+              e.stopPropagation();
+              setCollapsed(false);
+            }}
+          >
+            {/* Points LEFT — clicking expands the right panel leftward. */}
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M7 2L3 5L7 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Expanded surface — anchored to the right edge and laid out
+          at its full user-width so content does not reflow during
+          the width animation. */}
+      <div
+        className="absolute inset-y-0 right-0 flex flex-col"
+        style={{
+          width,
+          opacity: collapsed ? 0 : 1,
+          pointerEvents: collapsed ? "none" : "auto",
+          transition: dragging ? undefined : "opacity 160ms ease-out",
+          transitionDelay: collapsed ? "0ms" : "90ms",
+        }}
+      >
       <div className="shrink-0 px-2 pt-2 pb-1.5">
         <div className="flex items-center gap-0.5 rounded-lg bg-[var(--bg)] p-0.5">
           {TAB_CONFIG.map(({ id, icon: Icon, labelKey }) => {
@@ -630,6 +662,7 @@ export function RightPanel() {
         onPointerDown={handleResizeStart}
       >
         <div className="absolute left-0 top-0 w-px h-full bg-[var(--border)] group-hover/resize:bg-[var(--accent)] group-hover/resize:opacity-70 transition-colors duration-150" />
+      </div>
       </div>
     </div>
     </>

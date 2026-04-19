@@ -162,22 +162,41 @@ export function LeftPanel() {
     [width, setWidth]
   );
 
-  if (collapsed) {
-    return (
+  const dragging = useSidebarDragStore((s) => s.active);
+  // Silky expand/collapse: animate the outer width, crossfade the two
+  // inner surfaces. Disable the transition while the resize handle is
+  // being dragged so width tracks the pointer 1:1. Collapsed surface
+  // fades in slightly after width starts shrinking; expanded surface
+  // fades in slightly after width finishes growing — hides the
+  // reflow inside.
+  const displayedWidth = collapsed ? COLLAPSED_TAB_WIDTH : width;
+  const widthTransition = dragging
+    ? undefined
+    : "width 240ms cubic-bezier(0.22, 0.61, 0.36, 1)";
+
+  return (
+    <div
+      className="fixed left-0 z-40 bg-[var(--surface)] border-r border-[var(--border)] overflow-hidden"
+      style={{
+        top: 44,
+        height: "calc(100vh - 44px)",
+        width: displayedWidth,
+        transition: widthTransition,
+      }}
+    >
+      {/* Collapsed strip — narrow bar with a "+" and a chevron hint. */}
       <div
-        className="fixed left-0 z-40 bg-[var(--surface)] border-r border-[var(--border)] flex flex-col items-center pt-3 gap-1 cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors duration-150"
-        style={{ top: 44, height: "calc(100vh - 44px)", width: COLLAPSED_TAB_WIDTH }}
+        className="absolute inset-y-0 left-0 flex flex-col items-center pt-3 gap-1 cursor-pointer hover:bg-[var(--sidebar-hover)]"
+        style={{
+          width: COLLAPSED_TAB_WIDTH,
+          opacity: collapsed ? 1 : 0,
+          pointerEvents: collapsed ? "auto" : "none",
+          transition: "opacity 140ms ease-out",
+          transitionDelay: collapsed ? "90ms" : "0ms",
+        }}
         onClick={() => setCollapsed(false)}
         title={t.sessions_panel_title}
       >
-        {/*
-          The whole 32-px bar is the expand hit-area — clicking the
-          tiny chevron button alone was too fiddly, so hovering the
-          strip highlights it and any click (outside the "+" button)
-          expands. The "+" stays as an in-bar shortcut for 1-click
-          add-project; it stops propagation so clicking it doesn't
-          also expand the panel.
-        */}
         <button
           className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-150 disabled:opacity-50"
           disabled={addingProject}
@@ -197,12 +216,6 @@ export function LeftPanel() {
           </svg>
         </button>
         <div className="mt-auto mb-3 pointer-events-none">
-          {/*
-            Visual affordance only — the chevron hints "click to
-            expand". pointer-events-none so clicks pass through to
-            the bar's onClick handler (no double-trigger needed).
-            Points RIGHT — expanding grows the left panel rightward.
-          */}
           <div className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)]">
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
               <path
@@ -216,96 +229,103 @@ export function LeftPanel() {
           </div>
         </div>
       </div>
-    );
-  }
 
-  return (
-    <div
-      className="fixed left-0 z-40 bg-[var(--surface)] border-r border-[var(--border)] flex flex-col"
-      style={{ top: 44, height: "calc(100vh - 44px)", width }}
-    >
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] shrink-0">
-        <span
-          className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-        >
-          {t.sessions_panel_title}
-        </span>
-        <div className="flex items-center gap-1">
-          <IconButton
-            size="md"
-            tone="neutral"
-            label={t.shortcut_add_project}
-            busy={addingProject}
-            onClick={handleAddProject}
-          >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 12 12"
-              fill="none"
-              className="shrink-0"
-            >
-              <path
-                d="M6 2V10M2 6H10"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </IconButton>
-          <button
-            className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors duration-150"
-            onClick={() => setCollapsed(true)}
-            title={t.right_panel_collapse}
-          >
-            {/* Points LEFT — collapsing shrinks the left panel leftward. */}
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path
-                d="M7 2L3 5L7 8"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        <ProjectTree
-          projects={projectTree}
-          renderTerminal={(item) => (
-            <TerminalCard
-              key={item.terminalId}
-              item={item}
-              t={t}
-              compact
-              hideLocation
-              unseenDone={
-                item.state === "done" && !seenTerminalIds.has(item.terminalId)
-              }
-            />
-          )}
-        />
-        {!hasAnyProjects && (
-          <div className="flex-1 px-4 py-6 text-[11px] text-[var(--text-faint)] text-center">
-            {t.sessions_no_canvas_items}
-          </div>
-        )}
-        <HistorySection
-          projectDirs={canvasProjectDirs}
-          onOpen={handleOpenReplay}
-          t={t}
-        />
-      </div>
-
+      {/* Expanded surface — always laid out at its full user-width so
+          content does not squash during the width animation. Clipped
+          by the outer overflow-hidden. */}
       <div
-        className="absolute top-0 right-0 w-1.5 h-full cursor-ew-resize group/resize"
-        onPointerDown={handleResizeStart}
+        className="absolute inset-y-0 left-0 flex flex-col"
+        style={{
+          width,
+          opacity: collapsed ? 0 : 1,
+          pointerEvents: collapsed ? "none" : "auto",
+          transition: dragging ? undefined : "opacity 160ms ease-out",
+          transitionDelay: collapsed ? "0ms" : "90ms",
+        }}
       >
-        <div className="absolute right-0 top-0 w-px h-full bg-[var(--border)] group-hover/resize:bg-[var(--accent)] group-hover/resize:opacity-70 transition-colors duration-150" />
+        <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] shrink-0">
+          <span
+            className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium"
+            style={{ fontFamily: '"Geist Mono", monospace' }}
+          >
+            {t.sessions_panel_title}
+          </span>
+          <div className="flex items-center gap-1">
+            <IconButton
+              size="md"
+              tone="neutral"
+              label={t.shortcut_add_project}
+              busy={addingProject}
+              onClick={handleAddProject}
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                fill="none"
+                className="shrink-0"
+              >
+                <path
+                  d="M6 2V10M2 6H10"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </IconButton>
+            <button
+              className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors duration-150"
+              onClick={() => setCollapsed(true)}
+              title={t.right_panel_collapse}
+            >
+              {/* Points LEFT — collapsing shrinks the left panel leftward. */}
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path
+                  d="M7 2L3 5L7 8"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <ProjectTree
+            projects={projectTree}
+            renderTerminal={(item) => (
+              <TerminalCard
+                key={item.terminalId}
+                item={item}
+                t={t}
+                compact
+                hideLocation
+                unseenDone={
+                  item.state === "done" && !seenTerminalIds.has(item.terminalId)
+                }
+              />
+            )}
+          />
+          {!hasAnyProjects && (
+            <div className="flex-1 px-4 py-6 text-[11px] text-[var(--text-faint)] text-center">
+              {t.sessions_no_canvas_items}
+            </div>
+          )}
+          <HistorySection
+            projectDirs={canvasProjectDirs}
+            onOpen={handleOpenReplay}
+            t={t}
+          />
+        </div>
+
+        <div
+          className="absolute top-0 right-0 w-1.5 h-full cursor-ew-resize group/resize"
+          onPointerDown={handleResizeStart}
+        >
+          <div className="absolute right-0 top-0 w-px h-full bg-[var(--border)] group-hover/resize:bg-[var(--accent)] group-hover/resize:opacity-70 transition-colors duration-150" />
+        </div>
       </div>
     </div>
   );
