@@ -2,6 +2,20 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.30.3] - 2026-04-19
+
+### Fixed
+- Terminals sometimes showed blank or garbled glyphs after switching back to the app from another window, waking the laptop from sleep, or on cold start. Root cause was the WebGL glyph atlas going stale without the GPU firing any signal. The fix rebuilds the atlas automatically on the four triggers that most commonly invalidate it: `window.focus` (catches Cmd+Tab back, lid-close-and-reopen, screen lock/unlock), initial tile attach after the host has laid out, theme change, and font / size / contrast change
+
+### Added
+- Toolbar "Refresh terminal rendering" button (circular-arrow icon, immediately left of the dark/light toggle). One-click rebuild of every terminal's glyph atlas — a manual escape hatch for the rare edge cases the automatic triggers can't detect (driver partial crash, GPU hot-swap, etc.). Replaces the old workaround of toggling the theme to force a redraw
+
+### Fixed (zh-CN)
+- 终端偶尔会在从其他窗口切回 app、笔记本唤醒后、或冷启动时显示空白 / 错位字符。根因是 WebGL 字形 atlas 缓存在 GPU 无事件通知的情况下变质。现在在四种最常触发失效的信号上自动重建 atlas:`window.focus`(涵盖 Cmd+Tab 返回、合盖唤醒、锁屏解锁)、tile 初次 attach 后 layout 完成、主题切换、字体 / 字号 / 对比度改动
+
+### Added (zh-CN)
+- 工具栏新增"刷新终端渲染"按钮(圆形箭头图标,紧挨亮暗切换按钮左边)。一键重建所有终端的字形 atlas —— 给自动信号抓不到的罕见场景(驱动局部崩、macOS GPU 热切换等)留个手动出口。替代之前"靠切主题当 workaround"的做法
+
 ## [0.30.2] - 2026-04-19
 
 ### Added
