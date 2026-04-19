@@ -2,6 +2,26 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.30.1] - 2026-04-18
+
+### Changed
+- Welcome demo rewritten for the v0.30 layout: shows project management + "+" in the left panel, code navigation + Monaco editor drawer on the right, session replay as a left-anchored drawer, Usage dashboard as a canvas-gap panel. Both side panels now demo their collapsed → expanded transitions on click, matching how the app actually boots
+- Welcome demo Usage mock is now a dense five-row dashboard (4-card stat strip → hourly + 30-day charts → cache / projects / models bar lists → quota meters → heatmap ribbon) so it looks like the real UsageOverlay at small scale instead of a sparse placeholder
+- Typography hierarchy across agent surfaces (agent chat, ChatPanel, MessageBubble, AgentStatusBar, ThinkingBlock, Hub, Diff, StatusBadges): semantic type tokens (tc-display / title / body / ui / label / eyebrow / caption, tc-mono / num) replace ad-hoc px sizes and hardcoded zinc greys so the agent subsystem no longer drifts from the rest of the app under either theme
+
+### Fixed
+- Demo: drawer animations start flush against the panel seam instead of leaving a thin grey vertical line (border-l + border-r stacking at width=0 rendered as 2-px chrome)
+- Demo: cursor click positions measured from DOM refs rather than hardcoded pixels, so they land on the correct targets regardless of container width
+
+### Changed (zh-CN)
+- 欢迎 demo 对齐 v0.30 布局重做:展示左栏项目管理 + 「+」、右栏代码导航 + Monaco 编辑器抽屉、会话回放作为左锚定抽屉、Usage 仪表盘作为 canvas-gap 面板;两侧栏都按真实 app 启动状态从折叠条开始,演示被点击后展开
+- Demo 里的 Usage mock 现在是密集的五行仪表盘(4 张 stat 卡 → 并排的今日小时和 30 天趋势图 → 缓存率/项目/模型三列 bar → quota 条 → 热力图),小尺寸下也能看出是真实的 UsageOverlay,而不是稀疏占位
+- agent 系列界面(agent chat、ChatPanel、MessageBubble、AgentStatusBar、ThinkingBlock、Hub、Diff、StatusBadges)引入排版层级,用语义化 type token(tc-display / title / body / ui / label / eyebrow / caption、tc-mono / num)替换临时的 px 尺寸和硬编码的 zinc 灰,两种主题下 agent 子系统不再与 app 其他部分"跑调"
+
+### Fixed (zh-CN)
+- Demo:抽屉展开动画从面板接缝处贴边展开,不再留下一道灰色竖线(关闭状态 border-l + border-r 叠在一起渲染成 2px 假 chrome)
+- Demo:光标点击位置改成从 DOM ref 量出,不再是硬编码 px,任何容器宽度下都能落在正确的目标上
+
 ## [0.30.0] - 2026-04-18
 
 ### Added
