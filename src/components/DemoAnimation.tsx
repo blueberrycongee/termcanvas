@@ -200,11 +200,17 @@ function DemoLeftPanel({
   historyHot,
   showSecondProject,
   historyExpanded,
+  addButtonRef,
+  historyHeaderRef,
+  firstHistoryRowRef,
 }: {
   addProjectHot: boolean;
   historyHot: number; // -1 = none, else index
   showSecondProject: boolean;
   historyExpanded: boolean;
+  addButtonRef?: React.RefObject<HTMLDivElement | null>;
+  historyHeaderRef?: React.RefObject<HTMLDivElement | null>;
+  firstHistoryRowRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   return (
     <div
@@ -223,6 +229,7 @@ function DemoLeftPanel({
           Sessions
         </span>
         <div
+          ref={addButtonRef}
           className="w-3.5 h-3.5 rounded flex items-center justify-center transition-all duration-200"
           style={{
             background: addProjectHot ? "var(--accent)" : "transparent",
@@ -288,6 +295,7 @@ function DemoLeftPanel({
           style={{ background: "var(--sidebar)" }}
         >
           <div
+            ref={historyHeaderRef}
             className="flex items-center gap-1 px-2 py-1"
             style={{ background: historyExpanded ? "var(--surface)" : "transparent" }}
           >
@@ -313,6 +321,7 @@ function DemoLeftPanel({
               {HISTORY_ENTRIES.map((h, i) => (
                 <div
                   key={i}
+                  ref={i === 0 ? firstHistoryRowRef : undefined}
                   className="flex items-start gap-1 px-1 py-0.5 rounded transition-colors duration-150"
                   style={{
                     background:
@@ -358,13 +367,23 @@ function DemoLeftPanel({
  * file which triggers the Monaco drawer overlay.
  */
 function DemoRightPanel({
+  visible,
   expanded,
   activeTab,
   hotFile,
+  hotFileRef,
 }: {
+  /**
+   * Whether the right panel is rendered at all. The demo hides it
+   * in phases 0-5 (narrative hasn't reached "look at code" yet),
+   * then slides it in for Phase 6 — prevents the panel's collapsed
+   * strip reading as mystery chrome before it gets any story beat.
+   */
+  visible: boolean;
   expanded: boolean;
   activeTab: "files" | "diff" | "git";
   hotFile: string | null;
+  hotFileRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   const tabIcons = [
     { key: "files", label: "Files" },
@@ -377,7 +396,7 @@ function DemoRightPanel({
     <div
       className="shrink-0 flex flex-col border-l border-[var(--border)] overflow-hidden"
       style={{
-        width: expanded ? 140 : 26,
+        width: !visible ? 0 : expanded ? 140 : 26,
         background: expanded ? "var(--surface)" : "var(--sidebar)",
         transition: "width 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94), background 200ms",
       }}
@@ -407,6 +426,7 @@ function DemoRightPanel({
             {["App.tsx", "LeftPanel.tsx", "RightPanel.tsx", "FileEditorDrawer.tsx", "UsageOverlay.tsx"].map((f) => (
               <div
                 key={f}
+                ref={f === "FileEditorDrawer.tsx" ? hotFileRef : undefined}
                 className="pl-3 flex items-center gap-1 rounded transition-colors duration-150"
                 style={{
                   background: hotFile === f ? "rgba(91,158,245,0.18)" : "transparent",
@@ -456,6 +476,11 @@ function DemoRightPanel({
  * matching our app-tinted Monaco themes.
  */
 function DemoMonacoDrawer({ open }: { open: boolean }) {
+  // Borders only when open — otherwise the drawer's `border-l` +
+  // `border-r` stack on top of each other at width=0 and render as
+  // a 2-px grey vertical line floating in the canvas, which reads
+  // as unexplained chrome to a first-time viewer.
+  const borderClasses = open ? "border-l border-r border-[var(--border)]" : "";
   const lines = [
     { tokens: [["keyword", "import"], ["txt", " { useCanvasStore } "], ["keyword", "from"], ["str", " \"./stores\""], ["txt", ";"]] },
     { tokens: [["keyword", "export"], ["keyword", " function"], ["fn", " FileEditorDrawer"], ["txt", "() {"]] },
@@ -483,9 +508,12 @@ function DemoMonacoDrawer({ open }: { open: boolean }) {
   };
   return (
     <div
-      className="absolute top-0 bottom-0 flex flex-col overflow-hidden border-l border-r border-[var(--border)]"
+      className={`absolute top-0 bottom-0 flex flex-col overflow-hidden ${borderClasses}`}
       style={{
-        right: 26,
+        // Anchored to the canvas's right edge — which is already the
+        // right panel's left edge because the canvas is sandwiched
+        // between the two panels via flex layout. No extra offset.
+        right: 0,
         width: open ? "62%" : 0,
         background: "var(--bg)",
         boxShadow: open ? "-4px 0 16px rgba(0,0,0,0.25)" : "none",
@@ -546,11 +574,18 @@ function DemoMonacoDrawer({ open }: { open: boolean }) {
  * chat bubbles + a resume button.
  */
 function DemoReplayDrawer({ open }: { open: boolean }) {
+  // See DemoMonacoDrawer — borders only when open, otherwise the
+  // collapsed 0-px drawer renders as a 2-px grey line glued to the
+  // left panel's right edge.
+  const borderClasses = open ? "border-l border-r border-[var(--border)]" : "";
   return (
     <div
-      className="absolute top-0 bottom-0 flex flex-col overflow-hidden border-l border-r border-[var(--border)]"
+      className={`absolute top-0 bottom-0 flex flex-col overflow-hidden ${borderClasses}`}
       style={{
-        left: 140,
+        // Anchored to the canvas's left edge — canvas sits right
+        // after the left panel, so left: 0 lines up flush with the
+        // left panel's right edge. No extra offset.
+        left: 0,
         width: open ? "62%" : 0,
         background: "var(--bg)",
         boxShadow: open ? "4px 0 16px rgba(0,0,0,0.25)" : "none",
@@ -617,8 +652,10 @@ function DemoUsagePanel({ open }: { open: boolean }) {
     <div
       className="absolute top-0 bottom-0 flex flex-col overflow-hidden"
       style={{
-        left: 140,
-        right: 26,
+        // Fills the canvas entirely — canvas already sits between
+        // the left and right panels, so `inset-0` is the full gap.
+        left: 0,
+        right: 0,
         background: "var(--bg)",
         opacity: open ? 1 : 0,
         pointerEvents: open ? "auto" : "none",
@@ -828,6 +865,15 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
   shortcutsRef.current = mergedShortcuts;
 
   const canvasRef = useRef<HTMLDivElement>(null);
+  // Refs for interactive click targets. Phases use these to compute
+  // cursor positions via getBoundingClientRect instead of hardcoded
+  // px coords — robust across container widths (welcome popup caps
+  // at 800 px but the website can be narrower).
+  const stageRef = useRef<HTMLDivElement>(null);
+  const addButtonRef = useRef<HTMLDivElement | null>(null);
+  const historyHeaderRef = useRef<HTMLDivElement | null>(null);
+  const firstHistoryRowRef = useRef<HTMLDivElement | null>(null);
+  const hotFileRowRef = useRef<HTMLDivElement | null>(null);
 
   const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
   const [cursorVisible, setCursorVisible] = useState(false);
@@ -835,8 +881,11 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
   const [focusedTile, setFocusedTile] = useState(-1);
   const [tilesVisible, setTilesVisible] = useState([false, false, false, false]);
   const [canvasTransform, setCanvasTransform] = useState({ x: 0, y: 0, scale: 1 });
-  // Right panel starts collapsed; Phase 6 expands it and opens the
-  // Monaco drawer. "activeTab" stays on "files" for the whole demo.
+  // Right panel is hidden in phases 0-5 (story hasn't reached the
+  // code-nav surface yet — its collapsed strip would read as mystery
+  // chrome). Phase 6 slides it in already-expanded; phases 7-8 keep
+  // it expanded as the stable "code nav is here" visual context.
+  const [rightPanelVisible, setRightPanelVisible] = useState(false);
   const [rightPanelExpanded, setRightPanelExpanded] = useState(false);
   const [rightPanelTab] = useState<"files" | "diff" | "git">("files");
   const [hotFile, setHotFile] = useState<string | null>(null);
@@ -881,6 +930,7 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
     setPopupKeys(["", ""]);
     setPopupVisible(0);
     setPopupLabel(null);
+    setRightPanelVisible(false);
     setRightPanelExpanded(false);
     setHotFile(null);
     setMonacoOpen(false);
@@ -893,6 +943,24 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
     setIsDragging(false);
     setCursorVisible(false);
     setCursorPos(getCanvasCenter());
+  };
+
+  /**
+   * Compute cursor coordinates (in the stage container's local
+   * coord system) that land on the center of the given DOM element.
+   * Returns `null` when the element isn't mounted yet.
+   */
+  const posOfElement = (
+    el: HTMLElement | null,
+  ): { x: number; y: number } | null => {
+    const stage = stageRef.current;
+    if (!el || !stage) return null;
+    const stageRect = stage.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    return {
+      x: elRect.left - stageRect.left + elRect.width / 2,
+      y: elRect.top - stageRect.top + elRect.height / 2,
+    };
   };
 
   useEffect(() => {
@@ -928,90 +996,74 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
       setIsDragging(false);
       setCursorVisible(false);
       clearKeys();
+      setMonacoOpen(false);
+      setReplayOpen(false);
+      setUsageOpen(false);
       if (phase === 0) {
         resetState();
       } else if (phase === 1) {
         setTilesVisible([true, true, true, true]);
         setFocusedTile(-1);
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
+        setRightPanelVisible(false);
         setRightPanelExpanded(false);
-        setMonacoOpen(false);
-        setReplayOpen(false);
-        setUsageOpen(false);
       } else if (phase === 2 || phase === 3) {
         setTilesVisible([true, true, true, true]);
-        setFocusedTile(phase === 3 ? 0 : 0);
+        setFocusedTile(0);
         setCanvasTransform({ x: -TILE_OFFSETS[0].x, y: -TILE_OFFSETS[0].y, scale: 1.8 });
+        setRightPanelVisible(false);
         setRightPanelExpanded(false);
-        setMonacoOpen(false);
-        setReplayOpen(false);
-        setUsageOpen(false);
       } else if (phase === 4) {
         setTilesVisible([true, true, true, true]);
         setFocusedTile(-1);
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
+        setRightPanelVisible(false);
         setRightPanelExpanded(false);
-        setMonacoOpen(false);
-        setReplayOpen(false);
-        setUsageOpen(false);
         setCursorVisible(true);
         setCursorPos(getCanvasCenter());
       } else if (phase === 5) {
-        // Project phase: cursor is heading to the left panel's "+".
         setTilesVisible([true, true, true, true]);
         setFocusedTile(-1);
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
+        setRightPanelVisible(false);
         setRightPanelExpanded(false);
-        setMonacoOpen(false);
-        setReplayOpen(false);
-        setUsageOpen(false);
         setAddProjectHot(false);
         setSecondProjectShown(false);
         setCursorVisible(true);
         setCursorPos(getCanvasCenter());
       } else if (phase === 6) {
-        // Code phase: left panel shows both projects (carryover from
-        // Phase 5). Right panel is still collapsed; Monaco closed.
         setTilesVisible([true, true, true, true]);
         setFocusedTile(-1);
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
         setSecondProjectShown(true);
-        setRightPanelExpanded(false);
+        setRightPanelVisible(true);
+        setRightPanelExpanded(true);
         setHotFile(null);
-        setMonacoOpen(false);
-        setReplayOpen(false);
-        setUsageOpen(false);
+        setHistoryExpanded(false);
+        setHistoryHot(-1);
         setCursorVisible(true);
         setCursorPos(getCanvasCenter());
       } else if (phase === 7) {
-        // Replay phase: Monaco drawer was open — now it closes so the
-        // replay drawer can take its slot. Right panel stays expanded
-        // to show what the user last interacted with.
         setTilesVisible([true, true, true, true]);
         setFocusedTile(-1);
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
         setSecondProjectShown(true);
+        setRightPanelVisible(true);
         setRightPanelExpanded(true);
         setHotFile(null);
-        setMonacoOpen(false);
         setHistoryExpanded(false);
         setHistoryHot(-1);
-        setReplayOpen(false);
-        setUsageOpen(false);
         setCursorVisible(true);
         setCursorPos(getCanvasCenter());
       } else if (phase === 8) {
-        // Done: capstone — show the Usage dashboard in the canvas gap.
         setTilesVisible([true, true, true, true]);
         setFocusedTile(-1);
         setCanvasTransform({ x: 0, y: 0, scale: 1 });
         setSecondProjectShown(true);
-        setRightPanelExpanded(false);
-        setMonacoOpen(false);
-        setReplayOpen(false);
+        setRightPanelVisible(true);
+        setRightPanelExpanded(true);
         setHistoryExpanded(true);
         setHistoryHot(-1);
-        setUsageOpen(false);
       }
     };
 
@@ -1098,19 +1150,20 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
         await delay(800);
 
       } else if (phase === 5) {
-        // Phase 5 — Project. Cursor flies to the left panel's "+",
-        // highlights it, and a new project card animates into the
-        // tree below the existing one.
+        // Phase 5 — Project. Cursor flies to the left panel's "+"
+        // button (measured from the addButtonRef) — hardcoded px
+        // coords used to drift relative to the actual DOM position,
+        // so now we read getBoundingClientRect at animation time.
         setCursorVisible(true);
         setCursorPos(getCanvasCenter());
-        await delay(300);
+        await delay(250);
         if (cancelled()) return;
-        // Move cursor to the "+" button (top-right of left panel).
-        setCursorPos({ x: 125, y: 10 });
+        const addTarget = posOfElement(addButtonRef.current);
+        if (addTarget) setCursorPos(addTarget);
         await showKeys(splitShortcut(sc.addProject), { en: "Add Project", zh: "添加项目" });
         if (cancelled()) return;
         setAddProjectHot(true);
-        await delay(500);
+        await delay(450);
         if (cancelled()) return;
         setSecondProjectShown(true);
         await delay(900);
@@ -1119,52 +1172,44 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
         await delay(400);
 
       } else if (phase === 6) {
-        // Phase 6 — Code. Cursor heads to the right panel's
-        // collapsed strip, expands it, hovers a file, and the
-        // Monaco drawer slides in from the right edge.
+        // Phase 6 — Code. Right panel slid in expanded during
+        // setup; cursor moves straight to a file row and the Monaco
+        // drawer opens. Position comes from hotFileRowRef so it
+        // lands on the correct row regardless of container width.
         setCursorVisible(true);
         setCursorPos(getCanvasCenter());
-        const el = canvasRef.current;
-        const rightStripX = el ? el.offsetLeft + el.clientWidth - 13 : 400;
-        await delay(200);
+        await delay(250);
         if (cancelled()) return;
-        // Move to right panel strip.
-        setCursorPos({ x: rightStripX, y: 50 });
-        await delay(500);
-        if (cancelled()) return;
-        // Expand right panel.
-        setRightPanelExpanded(true);
-        await showKeys(["Click", "单击"], { en: "Files tab", zh: "文件面板" });
-        if (cancelled()) return;
-        // Hover a file.
-        setCursorPos({ x: rightStripX - 60, y: 80 });
-        await delay(500);
-        if (cancelled()) return;
-        setHotFile("FileEditorDrawer.tsx");
+        const fileTarget = posOfElement(hotFileRowRef.current);
+        if (fileTarget) setCursorPos(fileTarget);
         await delay(400);
         if (cancelled()) return;
-        // Open Monaco drawer.
+        setHotFile("FileEditorDrawer.tsx");
+        await showKeys(["Click", "单击"], { en: "Open File", zh: "打开文件" });
+        if (cancelled()) return;
         setMonacoOpen(true);
         await delay(1600);
 
       } else if (phase === 7) {
-        // Phase 7 — Replay. History section expands in the left
-        // panel, cursor clicks a past session row, replay drawer
-        // slides in from the left panel's right edge.
+        // Phase 7 — Replay. Cursor moves to the bottom of the left
+        // panel where the History header sits, triggers it to
+        // expand, then clicks the first row. Both coords measured
+        // from refs — the History section is pushed to the bottom
+        // by `mt-auto` so its y depends on panel height.
         setCursorVisible(true);
         setCursorPos(getCanvasCenter());
-        await delay(200);
+        await delay(250);
         if (cancelled()) return;
-        // Move cursor to History header at bottom of left panel.
-        setCursorPos({ x: 40, y: 170 });
-        await delay(500);
+        const headerTarget = posOfElement(historyHeaderRef.current);
+        if (headerTarget) setCursorPos(headerTarget);
+        await delay(450);
         if (cancelled()) return;
         setHistoryExpanded(true);
-        await delay(600);
+        await delay(350);
         if (cancelled()) return;
-        // Move to a history row and click.
-        setCursorPos({ x: 80, y: 210 });
-        await delay(500);
+        const rowTarget = posOfElement(firstHistoryRowRef.current);
+        if (rowTarget) setCursorPos(rowTarget);
+        await delay(400);
         if (cancelled()) return;
         setHistoryHot(0);
         await showKeys(["Click", "单击"], { en: "Open Replay", zh: "打开回放" });
@@ -1173,10 +1218,10 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
         await delay(1600);
 
       } else if (phase === 8) {
-        // Phase 8 — Done. Close the replay drawer and show the
-        // Usage dashboard in the same canvas-gap slot, proving the
-        // three-tenant pattern (Monaco / Replay / Usage) share one
-        // space with mutual exclusion.
+        // Phase 8 — Done. Replay drawer closes (setup) and the
+        // Usage dashboard fades in via the shortcut. Demonstrates
+        // the canvas-gap mutual-exclusion: same slot, different
+        // tenant.
         await showKeys(splitShortcut(sc.openUsage), { en: "Open Usage", zh: "打开用量" });
         if (cancelled()) return;
         setUsageOpen(true);
@@ -1245,12 +1290,15 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
 
   return (
     <>
-      <div className="flex flex-1 min-h-0 relative">
+      <div ref={stageRef} className="flex flex-1 min-h-0 relative">
         <DemoLeftPanel
           addProjectHot={addProjectHot}
           historyHot={historyHot}
           showSecondProject={secondProjectShown}
           historyExpanded={historyExpanded}
+          addButtonRef={addButtonRef}
+          historyHeaderRef={historyHeaderRef}
+          firstHistoryRowRef={firstHistoryRowRef}
         />
 
         <div className="flex-1 min-w-0 flex flex-col">
@@ -1324,9 +1372,11 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
             </div>
 
             {/* Canvas-gap drawers — Monaco (right-anchored), Replay
-                (left-anchored), Usage (full gap). All three occupy
-                the same slot in the real app; the demo only shows
-                one at a time per phase. */}
+                (left-anchored), Usage (full canvas). All three
+                occupy the same slot in the real app; the demo
+                only shows one at a time per phase. Rendered inside
+                the canvas div so `left: 0` / `right: 0` line up
+                flush with the two side panels automatically. */}
             <DemoMonacoDrawer open={monacoOpen} />
             <DemoReplayDrawer open={replayOpen} />
             <DemoUsagePanel open={usageOpen} />
@@ -1336,9 +1386,11 @@ export function DemoAnimation({ autoplay = false, shortcuts }: DemoAnimationProp
         </div>
 
         <DemoRightPanel
+          visible={rightPanelVisible}
           expanded={rightPanelExpanded}
           activeTab={rightPanelTab}
           hotFile={hotFile}
+          hotFileRef={hotFileRowRef}
         />
         <DemoCursor pos={cursorPos} dragging={isDragging} visible={cursorVisible} />
       </div>
