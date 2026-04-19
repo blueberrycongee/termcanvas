@@ -486,6 +486,7 @@ export class MacCustomUpdater {
   private pendingUpdate: PendingUpdate | null = null;
   private downloading = false;
   private installing = false;
+  private locationWarningSent = false;
 
   constructor(window: BrowserWindow) {
     this.window = window;
@@ -510,7 +511,17 @@ export class MacCustomUpdater {
     if (this.downloading) return;
 
     // Skip updates when the .app is on a read-only volume (e.g. mounted DMG)
-    if (!isAppLocationWritable()) return;
+    // or in a TCC-restricted location like ~/Downloads. Notify the UI once so
+    // the user knows why auto-update is silently unavailable.
+    if (!isAppLocationWritable()) {
+      if (!this.locationWarningSent) {
+        this.locationWarningSent = true;
+        sendToWindow(this.window, "updater:location-warning", {
+          bundlePath: getAppBundlePath(),
+        });
+      }
+      return;
+    }
 
     try {
       const ymlUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest/download/latest-mac.yml`;
