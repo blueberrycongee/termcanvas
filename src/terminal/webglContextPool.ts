@@ -14,41 +14,42 @@ const entries = new Map<string, PoolEntry>();
 let focusedId: string | null = null;
 
 /**
- * Atlas recovery — addresses the "silent corruption" case where the
- * WebGL renderer's glyph atlas goes visually wrong without the GPU
- * driver firing `webglcontextlost`. Symptoms: patches of the terminal
- * look smeared / repeating / off-palette; selecting text locally
- * fixes the selected region (xterm's selection-aware path redraws
- * that range without consulting the cached atlas); a theme toggle
- * fully fixes it (that path rebuilds the atlas from scratch).
+ * Atlas recovery.
  *
- * ghostty-web's own theme-swap bug prompted us to understand this
- * pipeline in depth (see the block comment on `applyThemeToRuntime`
- * in terminalRuntimeStore) but the corruption itself is an
- * xterm + GPU-driver interaction, not a ghostty issue.
+ * Observed pre-0.30.2:
+ *   - After the app has been away for a long time, returning to a
+ *     terminal shows garbled characters.
+ *   - No `webglcontextlost` event is fired while the corruption is
+ *     happening.
+ *   - Manual workaround (full): toggling the theme restores all
+ *     glyphs.
+ *   - Manual workaround (local): selecting a range of text
+ *     restores that range; unselected regions stay garbled.
  *
- * Since the driver gives no signal when the cache gets corrupted, we
- * can't detect it. What we CAN do is proactively call
- * `WebglAddon.clearTextureAtlas()` on events that commonly correlate
- * with atlas invalidation:
+ * Fix (0.30.2+): call `WebglAddon.clearTextureAtlas()` on three
+ * signals that correlate with "returning after being away":
  *
- *   1. devicePixelRatio change — macOS external monitor swap, OS
- *      scale adjust, browser zoom. The atlas was rasterized at the
- *      previous DPR; all cached glyphs are now wrong-resolution.
- *   2. document visibility flip hidden→visible — long background
- *      tabs have their GPU textures evicted on most drivers; the
- *      texture IDs may still be valid from JS's perspective but
- *      point at undefined GPU memory.
+ *   1. `devicePixelRatio` change — external monitor swap, OS scale
+ *      change, browser zoom.
+ *   2. `document.visibilityState` flip hidden→visible — window
+ *      minimise, Electron-level hide + show. Does NOT fire on
+ *      plain Cmd+Tab between apps in Electron; the document stays
+ *      "visible" through app-switch.
+ *   3. `window` focus regained — Cmd+Tab back, lid close + open,
+ *      screen lock + unlock, macOS Space switch back.
  *
- * `clearTextureAtlas` just drops the cache and schedules a viewport
- * redraw on the next rAF tick — it's cheap, non-tearing, and
- * invisible to the user when the atlas was already correct. So
- * being aggressive about calling it is the right trade-off.
+ * Observed post-0.30.2:
+ *   - Short Cmd+Tab round-trips: no user-visible change (no flash,
+ *     no blank frame, no rerender flicker).
+ *   - Long-absence case has not been re-tested in this pass.
  *
- * Additional manual hook: `rebuildAllAtlases()` is exported for
- * future integration (e.g. a "fix rendering" keyboard shortcut or
- * a telemetry-triggered rebuild) without the caller having to peek
- * into the pool directly.
+ * See also `applyThemeToRuntime` in terminalRuntimeStore for the
+ * ghostty-web theme-swap investigation that prompted us to read
+ * through this pipeline.
+ *
+ * Manual escape hatch: `rebuildTerminalAtlas()` is exported and
+ * wired to the toolbar "Refresh terminal rendering" button for
+ * corruption modes these three signals don't catch.
  */
 function rebuildAllAtlases(): void {
   for (const entry of entries.values()) {
@@ -104,10 +105,10 @@ function installAtlasRecoveryListeners(): void {
     dprMql.addEventListener("change", onDprChange);
   }
 
-  // Visibility listener. Fires on every tab-switch-back; cheap
-  // enough that we don't gate it on "was hidden long enough for
-  // the GPU to evict textures" — clearTextureAtlas is a no-op
-  // for an already-correct cache.
+  // Visibility listener. Fires on hidden→visible transitions:
+  // window minimise + restore, Electron-level hide + show.
+  // Does NOT fire on Cmd+Tab between apps — the focus listener
+  // below covers that path.
   if (
     typeof document !== "undefined" &&
     typeof document.addEventListener === "function"
@@ -119,19 +120,13 @@ function installAtlasRecoveryListeners(): void {
     });
   }
 
-  // Window focus listener. In Electron, plain Cmd+Tab / Alt+Tab
-  // between apps does NOT fire `visibilitychange` — the window
-  // stays "visible" from the document's perspective even though
-  // the OS may have de-prioritised GPU resources while focus was
-  // elsewhere. Focus is the canonical "user came back to this
-  // app" signal; pair it with visibility to cover both
-  // minimise-and-restore and app-switch round-trips.
-  //
-  // Also catches:
-  //   - Lid close + reopen (focus lost on sleep, regained on wake)
+  // Focus listener. Covers paths visibilitychange doesn't:
+  //   - Cmd+Tab / Alt+Tab between apps (document stays "visible"
+  //     through app-switch in Electron)
+  //   - Lid close + reopen
   //   - Screen lock + unlock
-  //   - macOS Space switch away and back (when Spaces move focus
-  //     rather than hiding the window)
+  //   - macOS Space switch back (when Spaces move focus rather
+  //     than hiding the window)
   if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
     window.addEventListener("focus", () => {
       rebuildAllAtlases();
