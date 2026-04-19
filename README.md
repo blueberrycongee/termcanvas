@@ -31,6 +31,8 @@ It organizes everything in a **Project → Worktree → Terminal** hierarchy tha
 
 <p align="right"><a href="./README.zh-CN.md">中文文档 →</a></p>
 
+> **New to TermCanvas?** Read the full [**User Guide**](./docs/user-guide.md) — every interaction explained, every keyboard shortcut, plus the non-obvious tricks (⌘E focus chain, drag-to-stash, session replay, etc.).
+
 ---
 
 ## Quick Start

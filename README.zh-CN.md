@@ -29,6 +29,8 @@ TermCanvas 把你所有的终端铺在一张无限空间画布上——不再有
 
 <p align="right"><a href="./README.md">English →</a></p>
 
+> **第一次用 TermCanvas?** 先读完整的[**用户指南**](./docs/user-guide.zh.md) —— 每个交互都讲清楚、每个快捷键都列出来,加上那些不告诉你就永远发现不了的小细节(⌘E 聚焦连环、拖到 stash、会话回放等等)。
+
 ---
 
 ## 快速开始
