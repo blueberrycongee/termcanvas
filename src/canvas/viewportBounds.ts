@@ -18,16 +18,25 @@ export function getCanvasLeftInset(
   return leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
 }
 
+// The canvas container sits at `left: 0`; left/right side panels overlay it
+// rather than push it. Coordinate conversions therefore only need
+// viewport.x / viewport.y / scale — no panel insets.
+//
+// (Panel-inset params were previously required here; the callers still pass
+// them via the older signatures so we accept and ignore them until the
+// call-sites are tidied up. See getVisibleCanvasWorldRect /
+// rectIntersectsCanvasViewport below, which still use insets to model the
+// VISIBLE — non-occluded — area.)
+
 export function canvasPointToScreenPoint(
   x: number,
   y: number,
   viewport: Viewport,
-  leftPanelCollapsed: boolean,
-  leftPanelWidth: number,
+  _leftPanelCollapsed?: boolean,
+  _leftPanelWidth?: number,
 ) {
-  const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
   return {
-    x: leftInset + viewport.x + x * viewport.scale,
+    x: viewport.x + x * viewport.scale,
     y: viewport.y + y * viewport.scale,
   };
 }
@@ -36,12 +45,11 @@ export function screenPointToCanvasPoint(
   clientX: number,
   clientY: number,
   viewport: Viewport,
-  leftPanelCollapsed: boolean,
-  leftPanelWidth: number,
+  _leftPanelCollapsed?: boolean,
+  _leftPanelWidth?: number,
 ) {
-  const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
   return {
-    x: (clientX - leftInset - viewport.x) / viewport.scale,
+    x: (clientX - viewport.x) / viewport.scale,
     y: (clientY - viewport.y) / viewport.scale,
   };
 }

@@ -41,10 +41,7 @@ import {
 import { fromFlowViewport, toFlowViewport } from "./viewportAdapter";
 import { buildCanvasFlowNodes } from "./nodeProjection";
 import { xyflowNodeTypes, type CanvasFlowNode } from "./xyflowNodes";
-import {
-  getCanvasLeftInset,
-  rectIntersectsCanvasViewport,
-} from "./viewportBounds";
+import { rectIntersectsCanvasViewport } from "./viewportBounds";
 import { clampScale, zoomAtClientPoint } from "./viewportZoom";
 import { resolveCollisions } from "./collisionResolver";
 import { WorktreeLabelLayer } from "./WorktreeLabelLayer";
@@ -273,7 +270,6 @@ function XyFlowCanvasInner() {
   const drawingTool = useDrawingStore((state) => state.tool);
   const { handleMouseDown: handleBoxSelectMouseDown } = useBoxSelect();
   const layoutKey = useMemo(() => buildLayoutKey(projects), [projects]);
-  const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
   const isDrawing = drawingEnabled && drawingTool !== "select";
 
   const reactFlow = useReactFlow();
@@ -520,8 +516,7 @@ function XyFlowCanvasInner() {
 
   return (
     <div
-      className={`fixed top-0 right-0 bottom-0 overflow-hidden canvas-bg ${isDrawing ? "cursor-crosshair" : ""}`}
-      style={{ left: leftOffset }}
+      className={`fixed inset-0 overflow-hidden canvas-bg ${isDrawing ? "cursor-crosshair" : ""}`}
       onMouseDownCapture={handleBoxSelectMouseDown}
       onWheelCapture={handleWheelCapture}
       onDragOver={handleDragOver}
