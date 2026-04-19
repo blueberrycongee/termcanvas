@@ -163,12 +163,12 @@ export function LeftPanel() {
   );
 
   const dragging = useSidebarDragStore((s) => s.active);
-  // Silky expand/collapse: animate the outer width, crossfade the two
-  // inner surfaces. Disable the transition while the resize handle is
-  // being dragged so width tracks the pointer 1:1. Collapsed surface
-  // fades in slightly after width starts shrinking; expanded surface
-  // fades in slightly after width finishes growing — hides the
-  // reflow inside.
+  // Animate the outer width on expand/collapse; pause the transition
+  // while the resize handle drags so width tracks the pointer 1:1.
+  // The inner surface is conditionally rendered — only one of the
+  // two states is ever in the DOM, so there are no persistent
+  // compositor layers that can get stuck unpainted after a
+  // foreground/background switch.
   const displayedWidth = collapsed ? COLLAPSED_TAB_WIDTH : width;
   const widthTransition = dragging
     ? undefined
@@ -184,65 +184,54 @@ export function LeftPanel() {
         transition: widthTransition,
       }}
     >
-      {/* Collapsed strip — narrow bar with a "+" and a chevron hint. */}
-      <div
-        className="absolute inset-y-0 left-0 flex flex-col items-center pt-3 gap-1 cursor-pointer hover:bg-[var(--sidebar-hover)]"
-        style={{
-          width: COLLAPSED_TAB_WIDTH,
-          opacity: collapsed ? 1 : 0,
-          pointerEvents: collapsed ? "auto" : "none",
-          transition: "opacity 140ms ease-out",
-          transitionDelay: collapsed ? "90ms" : "0ms",
-        }}
-        onClick={() => setCollapsed(false)}
-        title={t.sessions_panel_title}
-      >
-        <button
-          className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-150 disabled:opacity-50"
-          disabled={addingProject}
-          onClick={(e) => {
-            e.stopPropagation();
-            void handleAddProject();
-          }}
-          title={t.shortcut_add_project}
+      {collapsed ? (
+        // Collapsed strip — narrow bar with a "+" and a chevron hint.
+        <div
+          className="absolute inset-y-0 left-0 flex flex-col items-center pt-3 gap-1 cursor-pointer hover:bg-[var(--sidebar-hover)]"
+          style={{ width: COLLAPSED_TAB_WIDTH }}
+          onClick={() => setCollapsed(false)}
+          title={t.sessions_panel_title}
         >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path
-              d="M6 2V10M2 6H10"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
-        <div className="mt-auto mb-3 pointer-events-none">
-          <div className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)]">
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <button
+            className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-150 disabled:opacity-50"
+            disabled={addingProject}
+            onClick={(e) => {
+              e.stopPropagation();
+              void handleAddProject();
+            }}
+            title={t.shortcut_add_project}
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path
-                d="M3 2L7 5L3 8"
+                d="M6 2V10M2 6H10"
                 stroke="currentColor"
-                strokeWidth="1.2"
+                strokeWidth="1.5"
                 strokeLinecap="round"
-                strokeLinejoin="round"
               />
             </svg>
+          </button>
+          <div className="mt-auto mb-3 pointer-events-none">
+            <div className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)]">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path
+                  d="M3 2L7 5L3 8"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* Expanded surface — always laid out at its full user-width so
-          content does not squash during the width animation. Clipped
-          by the outer overflow-hidden. */}
-      <div
-        className="absolute inset-y-0 left-0 flex flex-col"
-        style={{
-          width,
-          opacity: collapsed ? 0 : 1,
-          pointerEvents: collapsed ? "none" : "auto",
-          transition: dragging ? undefined : "opacity 160ms ease-out",
-          transitionDelay: collapsed ? "0ms" : "90ms",
-        }}
-      >
+      ) : (
+        // Expanded surface — laid out at the user-configured width so
+        // content does not reflow while the outer width animates;
+        // the outer overflow-hidden clips it during the transition.
+        <div
+          className="absolute inset-y-0 left-0 flex flex-col"
+          style={{ width }}
+        >
         <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] shrink-0">
           <span
             className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium"
@@ -326,7 +315,8 @@ export function LeftPanel() {
         >
           <div className="absolute right-0 top-0 w-px h-full bg-[var(--border)] group-hover/resize:bg-[var(--accent)] group-hover/resize:opacity-70 transition-colors duration-150" />
         </div>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
