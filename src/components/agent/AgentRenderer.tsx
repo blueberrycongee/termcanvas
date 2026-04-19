@@ -349,8 +349,13 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
 
   return (
     <div
-      className={`flex flex-col overflow-hidden ${isDark ? "bg-zinc-900 text-zinc-100" : "bg-white text-zinc-900"}`}
-      style={{ height, width }}
+      className="flex flex-col overflow-hidden"
+      style={{
+        height,
+        width,
+        background: "var(--bg)",
+        color: "var(--text-primary)",
+      }}
     >
       <AgentStatusBar
         generating={running}
@@ -366,15 +371,20 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
         className="flex-1 min-h-0 overflow-y-auto"
         onScroll={handleScroll}
       >
-        <div className="px-4 py-3 space-y-1">
+        <div className="px-4 py-3 space-y-1.5">
           {segments.map((seg, i) => {
             switch (seg.kind) {
               case "user":
                 return (
-                  <div key={i} className="flex justify-end my-2">
-                    <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
-                      isDark ? "bg-zinc-700 text-zinc-100" : "bg-zinc-200 text-zinc-900"
-                    }`}>
+                  <div key={i} className="flex justify-end my-2.5">
+                    <div
+                      className="tc-body-sm max-w-[82%] rounded-lg px-3 py-2 whitespace-pre-wrap"
+                      style={{
+                        background: "var(--accent-soft)",
+                        color: "var(--text-primary)",
+                        border: "1px solid color-mix(in srgb, var(--accent) 22%, transparent)",
+                      }}
+                    >
                       {seg.text}
                     </div>
                   </div>
@@ -400,7 +410,10 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
             }
           })}
           {segments.length === 0 && !running && (
-            <div className={`flex items-center justify-center h-32 text-sm ${isDark ? "text-zinc-600" : "text-zinc-400"}`}>
+            <div
+              className="tc-label flex items-center justify-center h-32"
+              style={{ color: "var(--text-faint)" }}
+            >
               Send a message to start
             </div>
           )}
@@ -409,15 +422,20 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
 
       {/* Error banners */}
       {errors.length > 0 && (
-        <div className="shrink-0 px-3 space-y-1">
+        <div className="shrink-0 px-3 space-y-1 pb-1">
           {errors.map((err) => (
             <div
               key={err.id}
-              className="flex items-start gap-2 px-3 py-2 rounded-md bg-red-500/15 border border-red-500/30 text-red-400 text-xs"
+              className="flex items-start gap-2 px-3 py-2 rounded-md tc-label"
+              style={{
+                background: "var(--red-soft)",
+                border: "1px solid color-mix(in srgb, var(--red) 30%, transparent)",
+                color: "var(--red)",
+              }}
             >
               <span className="flex-1 min-w-0 break-words">{err.message}</span>
               <button
-                className="shrink-0 hover:text-red-300 transition-colors duration-150"
+                className="shrink-0 transition-opacity hover:opacity-70"
                 onClick={() => dismissError(err.id)}
                 aria-label="Dismiss error"
               >
@@ -433,14 +451,16 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
       {userScrolledUp && (
         <div className="relative shrink-0">
           <button
-            className={`absolute bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs shadow-lg transition-colors duration-150 ${
-              isDark
-                ? "bg-zinc-700/80 text-zinc-300 hover:bg-zinc-600/90"
-                : "bg-zinc-200/80 text-zinc-700 hover:bg-zinc-300/90"
-            } backdrop-blur-sm`}
+            className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full tc-label backdrop-blur-md transition-opacity hover:opacity-90"
+            style={{
+              background: "color-mix(in srgb, var(--surface) 86%, transparent)",
+              color: "var(--text-secondary)",
+              border: "1px solid var(--border)",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.18)",
+            }}
             onClick={scrollToBottom}
           >
-            {hasNewMessages ? "New messages" : "Scroll to bottom"}
+            {hasNewMessages ? "↓ New messages" : "↓ Scroll to bottom"}
           </button>
         </div>
       )}

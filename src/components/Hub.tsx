@@ -164,16 +164,16 @@ export function Hub() {
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1.5 px-2.5 py-1 rounded-md
+        className="flex items-center gap-1.5 px-2.5 h-7 rounded-md
           border border-[var(--border)] bg-[var(--surface)]
-          text-[var(--text-secondary)] text-[12px]
+          tc-ui
           hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]
           transition-colors duration-150 cursor-pointer pointer-events-auto"
         style={{ transition: `colors 150ms, transform 280ms ${expanded ? SPRING_IN : SPRING_OUT}` }}
         title={`${levelLabel} (${levelShortcut})`}
       >
-        <span className="text-[var(--text-muted)] text-[11px]">{LEVEL_ICONS[focusLevel]}</span>
-        <span className="max-w-[180px] truncate">{currentTarget}</span>
+        <span className="text-[var(--text-muted)]" style={{ fontSize: "11px" }}>{LEVEL_ICONS[focusLevel]}</span>
+        <span className="max-w-[180px] truncate" style={{ color: "var(--text-primary)" }}>{currentTarget}</span>
         <svg
           width="8" height="8" viewBox="0 0 8 8"
           className="text-[var(--text-muted)] ml-0.5"
@@ -204,14 +204,14 @@ export function Hub() {
             : "none",
         }}
       >
-        <div className="px-3 py-1.5 text-[10px] text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--border)] flex items-center justify-between">
+        <div className="px-3 py-1.5 tc-eyebrow border-b border-[var(--border)] flex items-center justify-between">
           <span>{levelLabel}</span>
-          <span className="text-[var(--text-faint)]">{levelShortcut}</span>
+          <span className="tc-mono" style={{ color: "var(--text-faint)", letterSpacing: 0 }}>{levelShortcut}</span>
         </div>
 
         <div className="overflow-y-auto py-0.5" style={{ maxHeight: 260 }}>
           {targets.length === 0 ? (
-            <div className="px-3 py-2 text-[12px] text-[var(--text-muted)]">
+            <div className="px-3 py-2 tc-label" style={{ color: "var(--text-faint)" }}>
               {t["hub.empty"]}
             </div>
           ) : (
@@ -220,11 +220,11 @@ export function Hub() {
                 key={target.id}
                 ref={(el) => { itemRefs.current[i] = el; }}
                 onClick={() => selectTarget(target)}
-                className={`w-full text-left px-3 py-1.5 text-[12px] cursor-pointer
+                className={`w-full text-left px-3 py-1.5 tc-ui cursor-pointer
                   transition-colors duration-75 truncate
                   ${i === selectedIndex
-                    ? "bg-[var(--accent)]/15 text-[var(--text-primary)]"
-                    : "text-[var(--text-secondary)] hover:bg-[var(--border)]/50 hover:text-[var(--text-primary)]"
+                    ? "bg-[var(--accent-soft)] text-[var(--text-primary)]"
+                    : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
                   }`}
               >
                 {target.label}

@@ -33,7 +33,7 @@ export function DiffContent({ worktreePath }: Props) {
   if (!worktreePath) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <span className="text-[var(--text-muted)] text-[11px]">{t.no_worktree_selected}</span>
+        <span className="tc-label" style={{ color: "var(--text-faint)" }}>{t.no_worktree_selected}</span>
       </div>
     );
   }
@@ -41,7 +41,7 @@ export function DiffContent({ worktreePath }: Props) {
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <span className="text-[var(--text-muted)] text-[11px]">{t.loading}</span>
+        <span className="tc-label" style={{ color: "var(--text-muted)" }}>{t.loading}</span>
       </div>
     );
   }
@@ -49,7 +49,7 @@ export function DiffContent({ worktreePath }: Props) {
   if (fileDiffs.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <span className="text-[var(--text-muted)] text-[11px]">{t.no_changes}</span>
+        <span className="tc-label" style={{ color: "var(--text-faint)" }}>{t.no_changes}</span>
       </div>
     );
   }
@@ -59,21 +59,21 @@ export function DiffContent({ worktreePath }: Props) {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="px-3 py-2.5 border-b border-[var(--border)] shrink-0 flex items-center justify-between gap-2">
-        <span className="text-[11px] font-medium text-[var(--text-secondary)]">
-          {t.file_count(fileDiffs.length)}
-          <span className="ml-1.5" style={{ color: "var(--cyan)" }}>+{totalAdd}</span>
-          <span className="ml-1" style={{ color: "var(--red)" }}>-{totalDel}</span>
+      <div className="px-3 py-2 border-b border-[var(--border)] shrink-0 flex items-center justify-between gap-2">
+        <span className="tc-eyebrow flex items-center gap-2">
+          <span style={{ color: "var(--text-secondary)" }}>{t.file_count(fileDiffs.length)}</span>
+          <span className="tc-mono tc-num" style={{ color: "var(--cyan)", letterSpacing: 0 }}>+{totalAdd}</span>
+          <span className="tc-mono tc-num" style={{ color: "var(--red)", letterSpacing: 0 }}>−{totalDel}</span>
         </span>
         {refreshing && (
           <span
-            className="shrink-0 h-2 w-2 rounded-full animate-pulse"
+            className="shrink-0 h-1.5 w-1.5 rounded-full animate-pulse"
             style={{ backgroundColor: "var(--accent)" }}
             title={t.loading}
           />
         )}
       </div>
-      <div className="flex-1 overflow-auto min-h-0" style={{ fontFamily: '"Geist Mono", monospace', fontSize: 11 }}>
+      <div className="flex-1 overflow-auto min-h-0">
         {fileDiffs.map((fd) => (
           <div key={fd.file.name}>
             <button
@@ -89,13 +89,23 @@ export function DiffContent({ worktreePath }: Props) {
               >
                 <path d="M2 1L6 4L2 7" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              <span className="text-[var(--text-primary)] truncate flex-1">{fd.file.name}</span>
+              <span
+                className="tc-mono truncate flex-1"
+                style={{
+                  fontSize: "12px",
+                  color: "var(--text-primary)",
+                }}
+              >
+                {fd.file.name}
+              </span>
               {fd.file.binary ? (
-                <span className="text-[var(--text-muted)] text-[11px] shrink-0">{t.binary_label}</span>
+                <span className="tc-caption shrink-0" style={{ color: "var(--text-muted)" }}>
+                  {t.binary_label}
+                </span>
               ) : (
                 <>
-                  <span className="shrink-0" style={{ color: "var(--cyan)" }}>+{fd.file.additions}</span>
-                  <span className="shrink-0" style={{ color: "var(--red)" }}>-{fd.file.deletions}</span>
+                  <span className="tc-caption tc-mono tc-num shrink-0" style={{ color: "var(--cyan)" }}>+{fd.file.additions}</span>
+                  <span className="tc-caption tc-mono tc-num shrink-0" style={{ color: "var(--red)" }}>−{fd.file.deletions}</span>
                   <ChangeBar additions={fd.file.additions} deletions={fd.file.deletions} />
                 </>
               )}
@@ -124,20 +134,28 @@ export function DiffContent({ worktreePath }: Props) {
                 ) : fd.file.binary ? (
                   <div className="px-3 py-3 text-[var(--text-muted)] text-center">{t.binary_changed}</div>
                 ) : (
-                  <pre className="px-3 py-1 leading-relaxed" style={{ width: "fit-content", minWidth: "100%" }}>
+                  <pre
+                    className="tc-mono px-3 py-1.5"
+                    style={{
+                      width: "fit-content",
+                      minWidth: "100%",
+                      fontSize: "11.5px",
+                      lineHeight: "var(--leading-relaxed)",
+                    }}
+                  >
                     {fd.hunks.join("\n").split("\n").map((line, i) => {
                       let color = "var(--text-secondary)";
                       let bg = "transparent";
                       if (line.startsWith("+") && !line.startsWith("+++")) {
                         color = "var(--cyan)";
-                        bg = "rgba(80, 227, 194, 0.12)";
+                        bg = "var(--cyan-soft)";
                       } else if (line.startsWith("-") && !line.startsWith("---")) {
                         color = "var(--red)";
-                        bg = "rgba(238, 0, 0, 0.12)";
+                        bg = "var(--red-soft)";
                       } else if (line.startsWith("@@")) {
                         color = "var(--accent)";
                       } else if (line.startsWith("index ") || line.startsWith("---") || line.startsWith("+++")) {
-                        color = "var(--text-muted)";
+                        color = "var(--text-faint)";
                       }
                       return <div key={i} style={{ color, backgroundColor: bg }}>{line || " "}</div>;
                     })}

@@ -245,10 +245,10 @@ export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProp
             <button
               key={s.id}
               data-active-tab={s.id === activeSessionId ? "" : undefined}
-              className={`group flex items-center gap-1 shrink-0 max-w-[140px] rounded px-2 py-1 text-[11px] leading-tight transition-colors duration-100 ${
+              className={`group flex items-center gap-1 shrink-0 max-w-[140px] rounded px-2 py-1 tc-label transition-colors duration-100 ${
                 s.id === activeSessionId
-                  ? "bg-[var(--surface-hover)] text-[var(--text-primary)]"
-                  : "text-[var(--text-faint)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]/50"
+                  ? "bg-[var(--surface-hover)] text-[var(--text-primary)] font-medium"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]/50"
               }`}
               onClick={() => switchSession(s.id)}
               onAuxClick={(e) => {

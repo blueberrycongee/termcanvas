@@ -25,31 +25,73 @@ function formatCost(usd: number): string {
   return `$${usd.toFixed(2)}`;
 }
 
+function Sep() {
+  return (
+    <span
+      aria-hidden
+      className="inline-block w-[3px] h-[3px] rounded-full opacity-60"
+      style={{ background: "var(--text-faint)" }}
+    />
+  );
+}
+
 export function AgentStatusBar({
   generating,
   tokenUsage,
   model,
   costUsd,
   durationMs,
-  isDark,
 }: AgentStatusBarProps) {
   return (
-    <div className={`shrink-0 flex items-center gap-3 px-3 py-1 border-b text-[10px] ${
-      isDark ? "border-zinc-700 bg-zinc-900 text-zinc-500" : "border-zinc-200 bg-zinc-50 text-zinc-400"
-    }`}>
-      {generating && (
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          Generating…
+    <div
+      className="shrink-0 flex items-center gap-2 px-3 h-7"
+      style={{
+        background: "var(--bg)",
+        borderBottom: "1px solid var(--border)",
+      }}
+    >
+      {generating ? (
+        <span className="flex items-center gap-1.5 tc-label" style={{ color: "var(--text-secondary)" }}>
+          <span
+            className="inline-block w-1.5 h-1.5 rounded-full status-pulse"
+            style={{ background: "var(--accent)" }}
+          />
+          Generating
         </span>
+      ) : (
+        <span className="tc-label" style={{ color: "var(--text-faint)" }}>Idle</span>
       )}
-      {model && <span className="truncate">{model}</span>}
-      <span className="ml-auto flex items-center gap-3">
+      {model && (
+        <>
+          <Sep />
+          <span className="tc-label tc-mono truncate" title={model} style={{ color: "var(--text-muted)" }}>
+            {model}
+          </span>
+        </>
+      )}
+
+      <span className="ml-auto flex items-center gap-2">
         {tokenUsage && (
-          <span>{formatTokens(tokenUsage.input)} in / {formatTokens(tokenUsage.output)} out</span>
+          <span className="tc-caption tc-num tc-mono" style={{ color: "var(--text-muted)" }}>
+            {formatTokens(tokenUsage.input)}↑ {formatTokens(tokenUsage.output)}↓
+          </span>
         )}
-        {costUsd != null && <span>{formatCost(costUsd)}</span>}
-        {durationMs != null && <span>{formatDuration(durationMs)}</span>}
+        {costUsd != null && (
+          <>
+            <Sep />
+            <span className="tc-caption tc-num tc-mono" style={{ color: "var(--text-muted)" }}>
+              {formatCost(costUsd)}
+            </span>
+          </>
+        )}
+        {durationMs != null && (
+          <>
+            <Sep />
+            <span className="tc-caption tc-num tc-mono" style={{ color: "var(--text-faint)" }}>
+              {formatDuration(durationMs)}
+            </span>
+          </>
+        )}
       </span>
     </div>
   );

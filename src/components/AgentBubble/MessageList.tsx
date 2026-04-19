@@ -14,8 +14,29 @@ function MessageBubble({ message }: { message: BubbleMessage }) {
 
   if (isStatus) {
     return (
-      <div className="flex justify-center py-1">
-        <span className="text-[11px] text-[var(--text-faint)]">{message.content}</span>
+      <div className="flex justify-center py-1.5">
+        <span className="tc-caption" style={{ color: "var(--text-faint)" }}>
+          {message.content}
+        </span>
+      </div>
+    );
+  }
+
+  if (isToolRelated) {
+    return (
+      <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+        <div
+          className="tc-mono max-w-[88%] rounded-md px-2.5 py-1.5"
+          style={{
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            color: "var(--text-secondary)",
+            fontSize: "11.5px",
+            lineHeight: "var(--leading-relaxed)",
+          }}
+        >
+          {message.content}
+        </div>
       </div>
     );
   }
@@ -23,12 +44,19 @@ function MessageBubble({ message }: { message: BubbleMessage }) {
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[85%] rounded-lg px-3 py-2 text-[13px] leading-relaxed ${
+        className="tc-body-sm max-w-[85%] rounded-lg px-3 py-2 whitespace-pre-wrap"
+        style={
           isUser
-            ? "bg-[var(--accent)] text-white"
-            : "bg-[var(--bg)] border border-[var(--border)] text-[var(--text-primary)]"
-        }`}
-        style={isToolRelated ? { fontFamily: '"Geist Mono", monospace', fontSize: 12 } : undefined}
+            ? {
+                background: "var(--accent)",
+                color: "white",
+              }
+            : {
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                color: "var(--text-primary)",
+              }
+        }
       >
         {message.content}
       </div>
@@ -56,16 +84,17 @@ export function MessageList({ messages }: MessageListProps) {
       {messages.length === 0 ? (
         <div className="flex items-center justify-center h-full px-6">
           {!apiKeyReady ? null : agentApiKey ? (
-            <p className="text-[11px] text-[var(--text-faint)] text-center leading-relaxed">
+            <p className="tc-label text-center" style={{ color: "var(--text-faint)" }}>
               Send a message to start an agent task
             </p>
           ) : (
             <div className="flex flex-col items-center gap-2">
-              <p className="text-[11px] text-[var(--text-faint)] text-center leading-relaxed">
+              <p className="tc-label text-center" style={{ color: "var(--text-faint)" }}>
                 Configure an API key to get started
               </p>
               <button
-                className="text-[11px] text-[var(--accent)] hover:underline"
+                className="tc-ui hover:underline"
+                style={{ color: "var(--accent)" }}
                 onClick={() => openSettings("general")}
               >
                 Open Settings

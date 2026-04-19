@@ -43,9 +43,12 @@
   --text-muted: #7a7773;
   --text-faint: #3e3c39;
   --accent: #5b9ef5;
+  --accent-soft: rgba(91, 158, 245, 0.14);
   --red: #e87272;
+  --red-soft: rgba(232, 114, 114, 0.16);
   --amber: #d4a24e;
   --cyan: #6cc4b0;
+  --cyan-soft: rgba(108, 196, 176, 0.16);
   --green: #4ade80;
   --purple: #9b7ad8;
   --radius: 8px;
@@ -65,13 +68,43 @@
   --text-muted: #6b6660;
   --text-faint: #c4c0ba;
   --accent: #2563eb;
+  --accent-soft: rgba(37, 99, 235, 0.12);
   --red: #dc2626;
+  --red-soft: rgba(220, 38, 38, 0.12);
   --amber: #d97706;
   --cyan: #0d9488;
+  --cyan-soft: rgba(13, 148, 136, 0.14);
   --green: #16a34a;
   --purple: #7c3aed;
   --radius: 8px;
   color-scheme: light;
+}
+
+:root {
+  /* ── Type scale ─────────────────────────────────────────── */
+  --text-tiny: 10px;   /* eyebrow / micro caption */
+  --text-xs: 11px;     /* tertiary metadata, status */
+  --text-sm: 12px;     /* secondary UI controls */
+  --text-base: 13px;   /* default body */
+  --text-md: 14px;     /* primary reading content */
+  --text-lg: 16px;     /* section title */
+  --text-xl: 20px;     /* display */
+
+  /* ── Line heights ────────────────────────────────────────── */
+  --leading-tight: 1.25;
+  --leading-snug: 1.4;
+  --leading-normal: 1.55;
+  --leading-relaxed: 1.65;
+
+  /* ── Tracking ────────────────────────────────────────────── */
+  --tracking-display: -0.012em;
+  --tracking-title: -0.005em;
+  --tracking-eyebrow: 0.085em;
+
+  /* ── Weights ─────────────────────────────────────────────── */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
 }
 
 body {
@@ -84,9 +117,81 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "ss03", "cv11", "zero";
   background: var(--bg);
   color: var(--text-primary);
 }
+
+/* ───────────────────────────────────────────────────────────
+   Semantic typography roles
+   Each role defines size + weight + tracking + leading + color.
+   Compose with `tc-color-*` overrides only when truly needed.
+   Keeps every text decision answerable to "what role am I?"
+   ─────────────────────────────────────────────────────────── */
+.tc-display {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-display);
+  line-height: var(--leading-tight);
+  color: var(--text-primary);
+}
+.tc-title {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-title);
+  line-height: var(--leading-snug);
+  color: var(--text-primary);
+}
+.tc-body {
+  font-size: var(--text-md);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-normal);
+  color: var(--text-primary);
+}
+.tc-body-sm {
+  font-size: var(--text-base);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-normal);
+  color: var(--text-primary);
+}
+.tc-ui {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-snug);
+  color: var(--text-secondary);
+}
+.tc-label {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-snug);
+  color: var(--text-muted);
+}
+.tc-eyebrow {
+  font-size: var(--text-tiny);
+  font-weight: var(--weight-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-eyebrow);
+  color: var(--text-muted);
+}
+.tc-caption {
+  font-size: var(--text-tiny);
+  line-height: var(--leading-snug);
+  color: var(--text-faint);
+}
+
+/* Color overrides — apply on top of a role to shift emphasis */
+.tc-color-primary { color: var(--text-primary); }
+.tc-color-secondary { color: var(--text-secondary); }
+.tc-color-muted { color: var(--text-muted); }
+.tc-color-faint { color: var(--text-faint); }
+.tc-color-accent { color: var(--accent); }
+
+/* Treatments */
+.tc-mono {
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-feature-settings: "ss03", "zero";
+}
+.tc-num { font-variant-numeric: tabular-nums; }
 
 .canvas-bg {
   background-color: var(--bg);

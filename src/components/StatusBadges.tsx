@@ -1,11 +1,11 @@
 import type { StatusSummary } from "./sessionPanelModel";
 
 const BADGE_COLORS: { key: keyof StatusSummary; color: string }[] = [
-  { key: "attention", color: "#ef4444" },
-  { key: "running", color: "#f59e0b" },
-  { key: "freshDone", color: "#3b82f6" },
-  { key: "done", color: "#6b7280" },
-  { key: "idle", color: "#94a3b8" },
+  { key: "attention", color: "var(--red)" },
+  { key: "running", color: "var(--amber)" },
+  { key: "freshDone", color: "var(--accent)" },
+  { key: "done", color: "var(--text-muted)" },
+  { key: "idle", color: "var(--text-faint)" },
 ];
 
 export function StatusBadges({ summary }: { summary: StatusSummary }) {
@@ -14,14 +14,14 @@ export function StatusBadges({ summary }: { summary: StatusSummary }) {
       {BADGE_COLORS.map(
         ({ key, color }) =>
           summary[key] > 0 && (
-            <span key={key} className="flex items-center gap-0.5">
+            <span key={key} className="flex items-center gap-1">
               <span
                 className="w-1.5 h-1.5 rounded-full inline-block"
                 style={{ backgroundColor: color }}
               />
               <span
-                className="text-[9px] tabular-nums text-[var(--text-muted)]"
-                style={{ fontFamily: '"Geist Mono", monospace' }}
+                className="tc-caption tc-num tc-mono"
+                style={{ color: "var(--text-muted)" }}
               >
                 {summary[key]}
               </span>
