@@ -120,14 +120,23 @@ export function rectIntersectsCanvasViewport(
 const PAN_SAFE_PADDING = 40;
 
 /**
- * Compute a clamped horizontal viewport translation that centres an object
- * on the full screen, then shifts just enough so neither panel occludes it.
+ * Compute a horizontal viewport translation that places the object at a
+ * fixed distance from the left-panel edge, then clamps so neither panel
+ * occludes it.
+ *
+ * The base term deliberately omits `leftInset`: the viewport translation
+ * target should not react to left-panel width changes. This keeps the two
+ * sidebar-toggle paths visually symmetric — a sidebar toggle only needs
+ * to animate the panel's own width, not ALSO race a 400 ms viewport pan
+ * against the 240 ms panel transition. The object naturally shifts with
+ * the panel's inner edge because `leftInset` is still added when the
+ * viewport is projected to screen coordinates (see `canvasPointToScreenPoint`).
  *
  * @param objectX   – world-space left edge of the object
  * @param objectW   – world-space width of the object
  * @param scale     – current zoom scale
- * @param leftInset – screen-space left panel width (px)
- * @param rightInset – screen-space right panel width (px)
+ * @param leftInset – screen-space left panel width (px) — only used for clamping
+ * @param rightInset – screen-space right panel width (px) — only used for clamping
  */
 export function clampCenterX(
   objectX: number,
@@ -137,7 +146,7 @@ export function clampCenterX(
   rightInset: number,
 ): number {
   const objectCenterWorld = objectX + objectW / 2;
-  let cx = window.innerWidth / 2 - leftInset - objectCenterWorld * scale;
+  let cx = window.innerWidth / 2 - objectCenterWorld * scale;
 
   // Visible canvas area: 0 … (window.innerWidth - leftInset - rightInset)
 
