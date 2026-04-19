@@ -85,7 +85,12 @@ interface CanvasStore {
   setSessionsOverlayExpanded: (expanded: boolean) => void;
   setLeftPanelCollapsed: (collapsed: boolean) => void;
   setLeftPanelWidth: (width: number) => void;
-  animateTo: (x: number, y: number, scale?: number) => void;
+  animateTo: (
+    x: number,
+    y: number,
+    scale?: number,
+    opts?: { duration?: number; easing?: (t: number) => number },
+  ) => void;
 }
 
 const DEFAULT_VIEWPORT: Viewport = { x: 0, y: 0, scale: 1 };
@@ -279,7 +284,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     markDirty();
   },
 
-  animateTo: (targetX, targetY, targetScale) => {
+  animateTo: (targetX, targetY, targetScale, opts) => {
     const { viewport } = get();
     const startX = viewport.x;
     const startY = viewport.y;
@@ -301,13 +306,15 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set({ isAnimating: true });
 
     const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+    const duration = opts?.duration ?? ANIM_DURATION;
+    const easing = opts?.easing ?? easeOutCubic;
 
     const tick = (now: number) => {
       if (myId !== animationId) return; // superseded by a newer animation
 
       const elapsed = now - startTime;
-      const progress = Math.min(1, elapsed / ANIM_DURATION);
-      const t = easeOutCubic(progress);
+      const progress = Math.min(1, elapsed / duration);
+      const t = easing(progress);
 
       const nextViewport = {
         x: startX + (targetX - startX) * t,

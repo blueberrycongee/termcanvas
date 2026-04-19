@@ -18,6 +18,8 @@ import {
 interface PanToTerminalOptions {
   immediate?: boolean;
   preserveScale?: boolean;
+  duration?: number;
+  easing?: (t: number) => number;
 }
 
 function findTerminal(terminalId: string) {
@@ -94,7 +96,10 @@ export function panToTerminal(
   if (opts?.immediate) {
     useCanvasStore.getState().setViewport({ x: centerX, y: centerY, scale });
   } else {
-    useCanvasStore.getState().animateTo(centerX, centerY, scale);
+    useCanvasStore.getState().animateTo(centerX, centerY, scale, {
+      duration: opts?.duration,
+      easing: opts?.easing,
+    });
   }
 
   const shouldFocusTerminal = !isAlreadyFocused(terminalId);

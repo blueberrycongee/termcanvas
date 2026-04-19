@@ -21,6 +21,11 @@ import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useDrawingStore } from "../stores/drawingStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
+import { useSidebarDragStore } from "../stores/sidebarDragStore";
+import {
+  PANEL_TRANSITION_DURATION_MS,
+  PANEL_TRANSITION_EASING_CSS,
+} from "../utils/panelAnimation";
 import { useT } from "../i18n/useT";
 import { FamilyTreeOverlay } from "../components/FamilyTreeOverlay";
 import { BoxSelectOverlay } from "./BoxSelectOverlay";
@@ -274,6 +279,7 @@ function XyFlowCanvasInner() {
   const { handleMouseDown: handleBoxSelectMouseDown } = useBoxSelect();
   const layoutKey = useMemo(() => buildLayoutKey(projects), [projects]);
   const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  const sidebarDragging = useSidebarDragStore((s) => s.active);
   const isDrawing = drawingEnabled && drawingTool !== "select";
 
   const reactFlow = useReactFlow();
@@ -521,7 +527,12 @@ function XyFlowCanvasInner() {
   return (
     <div
       className={`fixed top-0 right-0 bottom-0 overflow-hidden canvas-bg ${isDrawing ? "cursor-crosshair" : ""}`}
-      style={{ left: leftOffset }}
+      style={{
+        left: leftOffset,
+        transition: sidebarDragging
+          ? undefined
+          : `left ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}`,
+      }}
       onMouseDownCapture={handleBoxSelectMouseDown}
       onWheelCapture={handleWheelCapture}
       onDragOver={handleDragOver}

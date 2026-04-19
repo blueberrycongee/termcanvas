@@ -29,6 +29,11 @@ import {
   getCanvasRightInset,
   screenPointToCanvasPoint,
 } from "./viewportBounds";
+import { useSidebarDragStore } from "../stores/sidebarDragStore";
+import {
+  PANEL_TRANSITION_DURATION_MS,
+  PANEL_TRANSITION_EASING_CSS,
+} from "../utils/panelAnimation";
 
 export function getDrawingLayerViewportSize(
   leftInset: number,
@@ -211,6 +216,7 @@ export function DrawingLayer() {
   const leftPanelWidth = useCanvasStore((state) => state.leftPanelWidth);
   const rightPanelCollapsed = useCanvasStore((state) => state.rightPanelCollapsed);
   const rightPanelWidth = useCanvasStore((state) => state.rightPanelWidth);
+  const sidebarDragging = useSidebarDragStore((state) => state.active);
   const projects = useProjectStore((state) => state.projects);
   const selectedItems = useSelectionStore((state) => state.selectedItems);
   const selectedAnnotationIds = useMemo(
@@ -438,6 +444,9 @@ export function DrawingLayer() {
         pointerEvents: isDrawing ? "auto" : "none",
         cursor: isDrawing ? "crosshair" : "default",
         zIndex: isDrawing ? 30 : 20,
+        transition: sidebarDragging
+          ? undefined
+          : `left ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}, width ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}`,
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}

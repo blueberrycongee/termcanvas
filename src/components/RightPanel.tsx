@@ -9,6 +9,10 @@ import { GitContent } from "./RightPanel/GitContent";
 import { MemoryContent } from "./RightPanel/MemoryContent";
 import { HydraSetupPopup } from "./HydraSetupPopup";
 import { panToTerminal } from "../utils/panToTerminal";
+import {
+  PANEL_TRANSITION_DURATION_MS,
+  PANEL_TRANSITION_EASING_FN,
+} from "../utils/panelAnimation";
 import { useSidebarDragStore } from "../stores/sidebarDragStore";
 import { useViewportFocusStore } from "../stores/viewportFocusStore";
 import type { RightPanelTab } from "../stores/canvasStore";
@@ -110,6 +114,10 @@ export function RightPanel() {
   >(new Map());
   const repoMenuRef = useRef<HTMLDivElement>(null);
 
+  // When the panel collapses or expands, re-centre the focused
+  // terminal in the canvas. Use the same duration / easing as the
+  // panel width transition so the viewport pan stays in lockstep
+  // with the CSS-animated panel + canvas edges.
   const prevCollapsedRef = useRef(collapsed);
   useEffect(() => {
     if (prevCollapsedRef.current === collapsed) return;
@@ -118,7 +126,12 @@ export function RightPanel() {
       .flatMap((p) => p.worktrees)
       .flatMap((w) => w.terminals)
       .find((t) => t.focused)?.id;
-    if (tid) panToTerminal(tid);
+    if (tid) {
+      panToTerminal(tid, {
+        duration: PANEL_TRANSITION_DURATION_MS,
+        easing: PANEL_TRANSITION_EASING_FN,
+      });
+    }
   }, [collapsed, projects]);
 
   const focusedProject = useMemo(() => {

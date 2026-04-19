@@ -8,6 +8,10 @@ import { useT } from "../i18n/useT";
 import { useSidebarDragStore } from "../stores/sidebarDragStore";
 import { useViewportFocusStore } from "../stores/viewportFocusStore";
 import { panToTerminal } from "../utils/panToTerminal";
+import {
+  PANEL_TRANSITION_DURATION_MS,
+  PANEL_TRANSITION_EASING_FN,
+} from "../utils/panelAnimation";
 import { promptAndAddProjectToScene } from "../canvas/sceneCommands";
 import { buildProjectTree } from "./sessionPanelModel";
 import { ProjectTree } from "./ProjectTree";
@@ -109,7 +113,9 @@ export function LeftPanel() {
   );
 
   // When the panel collapses or expands, re-centre the focused
-  // terminal in the canvas (matches the right-panel behaviour).
+  // terminal in the canvas. Use the same duration / easing as the
+  // panel width transition so the viewport pan stays in lockstep
+  // with the CSS-animated panel + canvas edges.
   const prevCollapsedRef = useRef(collapsed);
   useEffect(() => {
     if (prevCollapsedRef.current === collapsed) return;
@@ -118,7 +124,12 @@ export function LeftPanel() {
       .flatMap((p) => p.worktrees)
       .flatMap((w) => w.terminals)
       .find((term) => term.focused)?.id;
-    if (tid) panToTerminal(tid);
+    if (tid) {
+      panToTerminal(tid, {
+        duration: PANEL_TRANSITION_DURATION_MS,
+        easing: PANEL_TRANSITION_EASING_FN,
+      });
+    }
   }, [collapsed, projects]);
 
   const handleResizeStart = useCallback(
