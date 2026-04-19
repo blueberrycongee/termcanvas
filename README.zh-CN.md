@@ -37,6 +37,12 @@ TermCanvas 把你所有的终端铺在一张无限空间画布上——不再有
 
 **下载** —— 从 [GitHub Releases](https://github.com/blueberrycongee/termcanvas/releases) 获取最新构建。
 
+> [!IMPORTANT]
+> **Apple Silicon（M 系列）Mac 用户请下载文件名带 `arm64` 的版本**
+> 文件名**带** `arm64` 的（例如 `TermCanvas-X.Y.Z-arm64.dmg`、`TermCanvas-X.Y.Z-arm64-mac.zip`）是 Apple Silicon 原生版本。**不带** `arm64` 的是 Intel (x64) 版本 —— 在 M 系列 Mac 上虽然能通过 Rosetta 2 启动，但画布 pan/zoom 会有明显卡顿。
+>
+> 安装后验证：打开**活动监视器**（Activity Monitor），找到 TermCanvas，看**种类**列 —— 应该显示 **Apple**，而不是 **Intel**。如果是 Intel，删除 app 后重新下载带 `arm64` 的版本。
+
 > [!WARNING]
 > **macOS 未签名应用提示**
 > 如果 macOS 提示 TermCanvas“已损坏”，或因为应用未签名而阻止启动，先清除 quarantine 属性再重试：

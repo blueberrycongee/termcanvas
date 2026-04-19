@@ -39,6 +39,12 @@ It organizes everything in a **Project → Worktree → Terminal** hierarchy tha
 
 **Download** — grab the latest build from [GitHub Releases](https://github.com/blueberrycongee/termcanvas/releases).
 
+> [!IMPORTANT]
+> **Apple Silicon (M-series) Macs — pick the file with `arm64` in its name**
+> Files **with** `arm64` in the filename (e.g. `TermCanvas-X.Y.Z-arm64.dmg`, `TermCanvas-X.Y.Z-arm64-mac.zip`) are native Apple Silicon builds. Files **without** `arm64` are Intel (x64) builds — they'll still launch on M-series Macs via Rosetta 2, but you'll see noticeable lag when panning/zooming the canvas.
+>
+> To verify after install: open **Activity Monitor**, find TermCanvas, and check the **Kind** column — it should say **Apple**, not **Intel**. If it says Intel, delete the app and redownload the `arm64` variant.
+
 > [!WARNING]
 > **macOS note for unsigned builds**
 > If macOS says TermCanvas is damaged or blocks launch because the app is unsigned, clear the quarantine attribute and try again:
