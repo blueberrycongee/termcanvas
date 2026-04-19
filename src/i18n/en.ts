@@ -341,6 +341,8 @@ export const en = {
     `Downloading ${Math.round(percent)}%`,
   update_up_to_date: "Up to date",
   update_restart_short: "Restart & Update",
+  update_location_warning:
+    "Auto-update disabled: move TermCanvas to /Applications to receive updates.",
 
   agent_provider: "Agent Provider",
   agent_model: "Agent Model",

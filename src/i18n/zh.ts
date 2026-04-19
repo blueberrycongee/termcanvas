@@ -331,6 +331,8 @@ export const zh = {
     `下载中 ${Math.round(percent)}%`,
   update_up_to_date: "已是最新",
   update_restart_short: "重启并更新",
+  update_location_warning:
+    "自动更新已禁用：请将 TermCanvas 移动到 /Applications 目录以接收更新。",
 
   agent_provider: "Agent 提供商",
   agent_model: "Agent 模型",

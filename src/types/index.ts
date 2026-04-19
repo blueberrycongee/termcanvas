@@ -938,6 +938,9 @@ export interface TermCanvasAPI {
       callback: (info: UpdateEventInfo) => void,
     ) => () => void;
     onError: (callback: (error: { message: string }) => void) => () => void;
+    onLocationWarning?: (
+      callback: (info: { bundlePath: string }) => void,
+    ) => () => void;
   };
 }
 

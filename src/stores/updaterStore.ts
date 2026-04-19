@@ -1,5 +1,9 @@
 import { create } from "zustand";
 import type { UpdateEventInfo } from "../types";
+import { useNotificationStore } from "./notificationStore";
+import { useLocaleStore } from "./localeStore";
+import { en } from "../i18n/en";
+import { zh } from "../i18n/zh";
 
 export type UpdateStatus = "idle" | "checking" | "downloading" | "ready" | "error";
 
@@ -61,6 +65,18 @@ export function initUpdaterListeners(): () => void {
       useUpdaterStore.setState({ status: "error", errorMessage: error.message });
     }),
   );
+
+  if (window.termcanvas.updater.onLocationWarning) {
+    cleanups.push(
+      window.termcanvas.updater.onLocationWarning(() => {
+        const locale = useLocaleStore.getState().locale;
+        const dict = locale === "zh" ? { ...en, ...zh } : en;
+        useNotificationStore
+          .getState()
+          .notify("warn", dict.update_location_warning);
+      }),
+    );
+  }
 
   return () => cleanups.forEach((fn) => fn());
 }

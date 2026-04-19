@@ -739,6 +739,17 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.on("updater:error", listener);
       return () => ipcRenderer.removeListener("updater:error", listener);
     },
+    onLocationWarning: (
+      callback: (info: { bundlePath: string }) => void,
+    ) => {
+      const listener = (
+        _e: Electron.IpcRendererEvent,
+        info: { bundlePath: string },
+      ) => callback(info);
+      ipcRenderer.on("updater:location-warning", listener);
+      return () =>
+        ipcRenderer.removeListener("updater:location-warning", listener);
+    },
   },
   hooks: {
     getSocketPath: () =>
