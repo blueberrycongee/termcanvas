@@ -95,7 +95,7 @@ export function MessageList({ messages }: MessageListProps) {
               <button
                 className="tc-ui hover:underline"
                 style={{ color: "var(--accent)" }}
-                onClick={() => openSettings("general")}
+                onClick={() => openSettings("agent")}
               >
                 Open Settings
               </button>

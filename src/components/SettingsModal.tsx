@@ -491,7 +491,7 @@ export function SettingsModal({ onClose }: Props) {
           </button>
         </div>
 
-        <div className="flex gap-0 px-6 mt-3 border-b border-[var(--border)]">
+        <div className="flex gap-0 px-6 mt-3 border-b border-[var(--border)] overflow-x-auto">
           <button
             className={tabBtn(tab === "general")}
             onClick={() => setTab("general")}
@@ -499,16 +499,28 @@ export function SettingsModal({ onClose }: Props) {
             {t.settings_general}
           </button>
           <button
+            className={tabBtn(tab === "appearance")}
+            onClick={() => setTab("appearance")}
+          >
+            {t.settings_appearance}
+          </button>
+          <button
+            className={tabBtn(tab === "features")}
+            onClick={() => setTab("features")}
+          >
+            {t.settings_features}
+          </button>
+          <button
+            className={tabBtn(tab === "agent")}
+            onClick={() => setTab("agent")}
+          >
+            {t.settings_agent}
+          </button>
+          <button
             className={tabBtn(tab === "shortcuts")}
             onClick={() => setTab("shortcuts")}
           >
             {t.settings_shortcuts}
-          </button>
-          <button
-            className={tabBtn(tab === "agents")}
-            onClick={() => setTab("agents")}
-          >
-            {t.settings_agents}
           </button>
         </div>
 
@@ -535,6 +547,66 @@ export function SettingsModal({ onClose }: Props) {
                 </div>
               </div>
 
+              {cliRegistered !== null && (
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[13px] text-[var(--text-secondary)]">
+                      {t.cli_label}
+                    </span>
+                    <div
+                      className="flex items-center gap-2 text-[11px]"
+                      aria-live="polite"
+                    >
+                      <span className="text-[var(--text-muted)]">
+                        {cliStatusText}
+                      </span>
+                      <span
+                        className={`inline-flex h-1.5 w-1.5 rounded-full bg-[var(--accent)] transition-opacity duration-150 motion-safe:animate-pulse ${
+                          cliBusyLabel ? "opacity-100" : "opacity-0"
+                        }`}
+                        aria-label={cliBusyLabel ?? undefined}
+                        title={cliBusyLabel ?? undefined}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      className={effectiveCliRegistered ? activeBtn : inactiveBtn}
+                      disabled={cliLoading || effectiveCliRegistered === true}
+                      onClick={() => void handleCliIntegrationToggle(true)}
+                    >
+                      {t.setting_on}
+                    </button>
+                    <button
+                      className={!effectiveCliRegistered ? activeBtn : inactiveBtn}
+                      disabled={cliLoading || effectiveCliRegistered === false}
+                      onClick={() => void handleCliIntegrationToggle(false)}
+                    >
+                      {t.setting_off}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-1 flex items-center justify-between border-t border-[var(--border)] pt-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-[12px] text-[var(--text-muted)]">
+                    {t.settings_version}
+                  </span>
+                  <span
+                    className="rounded-md bg-[var(--surface)] px-2 py-1 text-[11px] text-[var(--text-secondary)]"
+                    style={{ fontFamily: '"Geist Mono", monospace' }}
+                  >
+                    v{appVersion ?? "unknown"}
+                  </span>
+                </div>
+                <UpdateCheckButton />
+              </div>
+            </div>
+          )}
+
+          {tab === "appearance" && (
+            <div className="flex flex-col gap-5">
               <div className="flex items-center justify-between">
                 <span className="text-[13px] text-[var(--text-secondary)]">
                   {t.terminal_font_size}
@@ -704,7 +776,11 @@ export function SettingsModal({ onClose }: Props) {
                   </span>
                 </div>
               </div>
+            </div>
+          )}
 
+          {tab === "features" && (
+            <div className="flex flex-col gap-5">
               <div className="flex items-center justify-between">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[13px] text-[var(--text-secondary)]">
@@ -881,6 +957,17 @@ export function SettingsModal({ onClose }: Props) {
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {tab === "agent" && (
+            <div className="flex flex-col gap-5">
+              <div
+                className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-faint)] font-medium"
+                style={{ fontFamily: '"Geist Mono", monospace' }}
+              >
+                {t.settings_section_agent_api}
+              </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-[13px] text-[var(--text-secondary)]">
@@ -961,61 +1048,14 @@ export function SettingsModal({ onClose }: Props) {
                 />
               </div>
 
-              {cliRegistered !== null && (
-                <div className="flex items-center justify-between">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[13px] text-[var(--text-secondary)]">
-                      {t.cli_label}
-                    </span>
-                    <div
-                      className="flex items-center gap-2 text-[11px]"
-                      aria-live="polite"
-                    >
-                      <span className="text-[var(--text-muted)]">
-                        {cliStatusText}
-                      </span>
-                      <span
-                        className={`inline-flex h-1.5 w-1.5 rounded-full bg-[var(--accent)] transition-opacity duration-150 motion-safe:animate-pulse ${
-                          cliBusyLabel ? "opacity-100" : "opacity-0"
-                        }`}
-                        aria-label={cliBusyLabel ?? undefined}
-                        title={cliBusyLabel ?? undefined}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex gap-1">
-                    <button
-                      className={effectiveCliRegistered ? activeBtn : inactiveBtn}
-                      disabled={cliLoading || effectiveCliRegistered === true}
-                      onClick={() => void handleCliIntegrationToggle(true)}
-                    >
-                      {t.setting_on}
-                    </button>
-                    <button
-                      className={!effectiveCliRegistered ? activeBtn : inactiveBtn}
-                      disabled={cliLoading || effectiveCliRegistered === false}
-                      onClick={() => void handleCliIntegrationToggle(false)}
-                    >
-                      {t.setting_off}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-1 flex items-center justify-between border-t border-[var(--border)] pt-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-[12px] text-[var(--text-muted)]">
-                    {t.settings_version}
-                  </span>
-                  <span
-                    className="rounded-md bg-[var(--surface)] px-2 py-1 text-[11px] text-[var(--text-secondary)]"
-                    style={{ fontFamily: '"Geist Mono", monospace' }}
-                  >
-                    v{appVersion ?? "unknown"}
-                  </span>
-                </div>
-                <UpdateCheckButton />
+              <div
+                className="mt-2 border-t border-[var(--border)] pt-5 text-[10px] uppercase tracking-[0.12em] text-[var(--text-faint)] font-medium"
+                style={{ fontFamily: '"Geist Mono", monospace' }}
+              >
+                {t.settings_section_agent_cli}
               </div>
+
+              <AgentsTabContent />
             </div>
           )}
 
@@ -1047,8 +1087,6 @@ export function SettingsModal({ onClose }: Props) {
               </div>
             </div>
           )}
-
-          {tab === "agents" && <AgentsTabContent />}
         </div>
       </div>
     </div>

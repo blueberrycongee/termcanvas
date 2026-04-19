@@ -269,7 +269,13 @@ export const zh = {
   project_compact_focus_required: "请先聚焦一个项目、工作树或终端",
 
   settings_general: "通用",
+  settings_appearance: "外观",
+  settings_features: "功能",
+  settings_agent: "Agent",
   settings_shortcuts: "快捷键",
+  settings_section_agent_api: "API",
+  settings_section_agent_cli: "CLI 工具",
+  settings_section_system: "系统",
   settings_version: "版本",
   theme_dark: "深色",
   theme_light: "浅色",

@@ -276,7 +276,13 @@ export const en = {
     "Focus a project, worktree, or terminal first",
 
   settings_general: "General",
+  settings_appearance: "Appearance",
+  settings_features: "Features",
+  settings_agent: "Agent",
   settings_shortcuts: "Shortcuts",
+  settings_section_agent_api: "API",
+  settings_section_agent_cli: "CLI Tools",
+  settings_section_system: "System",
   settings_version: "Version",
   theme_dark: "Dark",
   theme_light: "Light",
