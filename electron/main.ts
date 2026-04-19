@@ -1231,6 +1231,10 @@ function setupIpc() {
     ".gif",
     ".svg",
     ".webp",
+    ".bmp",
+    ".ico",
+    ".avif",
+    ".apng",
   ]);
   const MIME_MAP_FS: Record<string, string> = {
     ".png": "image/png",
@@ -1239,8 +1243,17 @@ function setupIpc() {
     ".gif": "image/gif",
     ".svg": "image/svg+xml",
     ".webp": "image/webp",
+    ".bmp": "image/bmp",
+    ".ico": "image/x-icon",
+    ".avif": "image/avif",
+    ".apng": "image/apng",
   };
+  // 512 KB is fine for text files but tiny for images — a typical
+  // screenshot is 1-2 MB and GIFs easily hit 5-10 MB. Use a separate
+  // larger cap for images so clicking an image in the file tree
+  // isn't silently blocked most of the time.
   const MAX_FILE_SIZE = 512 * 1024;
+  const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 
   ipcMain.handle("fs:list-dir", (_event, dirPath: string) => {
     try {
@@ -1261,13 +1274,19 @@ function setupIpc() {
   ipcMain.handle("fs:read-file", (_event, filePath: string) => {
     try {
       const stat = fs.statSync(filePath);
-      if (stat.size > MAX_FILE_SIZE) {
+      const ext = path.extname(filePath).toLowerCase();
+      const isImage = IMAGE_EXTS_FS.has(ext);
+      // Image files get a 10-MB ceiling since a 5-MB GIF or
+      // 2-MB screenshot is perfectly normal and rejecting those
+      // just makes the editor look broken. Text keeps the tight
+      // 512-KB cap.
+      const ceiling = isImage ? MAX_IMAGE_SIZE : MAX_FILE_SIZE;
+      if (stat.size > ceiling) {
         const sizeMB = (stat.size / (1024 * 1024)).toFixed(1);
         return { error: "too-large", size: `${sizeMB} MB` };
       }
 
-      const ext = path.extname(filePath).toLowerCase();
-      if (IMAGE_EXTS_FS.has(ext)) {
+      if (isImage) {
         const buf = fs.readFileSync(filePath);
         const mime = MIME_MAP_FS[ext] ?? "image/png";
         return {

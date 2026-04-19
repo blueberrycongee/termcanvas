@@ -182,10 +182,11 @@ function guessLanguage(path: string): string {
 
 interface FileReadSuccess {
   content: string;
-  type?: string;
+  type?: "text" | "markdown" | "image" | "binary" | string;
 }
 interface FileReadError {
   error: string;
+  size?: string;
 }
 type FileReadResult = FileReadSuccess | FileReadError;
 
@@ -210,6 +211,10 @@ export function FileEditorDrawer() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // File type decides what we render in the body: text → Monaco
+  // (editable + savable), image → <img>, binary → placeholder.
+  // The IPC returns the label alongside the content.
+  const [fileKind, setFileKind] = useState<"text" | "image" | "binary">("text");
   const editorRef = useRef<MonacoNs.editor.IStandaloneCodeEditor | null>(null);
 
   const dirty = content !== originalContent;
@@ -231,12 +236,24 @@ export function FileEditorDrawer() {
       .then((result: FileReadResult) => {
         if (cancelled) return;
         if (isReadSuccess(result)) {
-          setContent(result.content);
-          setOriginalContent(result.content);
+          // The backend may also return a success-shaped result with
+          // no `content` for binary files (e.g. `{ type: "binary" }`);
+          // guard that so we don't crash the reducer with undefined.
+          const payload = result.content ?? "";
+          setContent(payload);
+          setOriginalContent(payload);
+          if (result.type === "image") setFileKind("image");
+          else if (result.type === "binary") setFileKind("binary");
+          else setFileKind("text");
         } else {
           setContent("");
           setOriginalContent("");
-          setLoadError(result.error || "read failed");
+          setFileKind("text");
+          // "too-large" carries a size hint — fold it into the user-
+          // visible message so the UI can say "File too large (12 MB)".
+          const sizeHint =
+            result.error === "too-large" && result.size ? ` (${result.size})` : "";
+          setLoadError((result.error || "read failed") + sizeHint);
         }
         setLoading(false);
       })
@@ -244,6 +261,7 @@ export function FileEditorDrawer() {
         if (cancelled) return;
         setContent("");
         setOriginalContent("");
+        setFileKind("text");
         setLoadError(err instanceof Error ? err.message : String(err));
         setLoading(false);
       });
@@ -362,9 +380,16 @@ export function FileEditorDrawer() {
         <button
           className="flex items-center gap-1 px-2 h-6 rounded-md text-[10px] font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors disabled:opacity-50"
           onClick={() => void handleSave()}
-          disabled={!dirty || saving}
+          // Save is only meaningful for text — image / binary modes
+          // have no editable buffer, so we hide the button outright
+          // instead of leaving it as a disabled stub that suggests
+          // "save would do something if only…".
+          disabled={!dirty || saving || fileKind !== "text"}
+          style={{
+            fontFamily: '"Geist Mono", monospace',
+            display: fileKind === "text" ? undefined : "none",
+          }}
           title={t.file_editor_save ?? "Save (⌘S)"}
-          style={{ fontFamily: '"Geist Mono", monospace' }}
         >
           {saving
             ? t.file_editor_saving ?? "saving…"
@@ -447,7 +472,48 @@ export function FileEditorDrawer() {
             {loadError}
           </div>
         )}
-        {!loadError && (
+        {!loadError && !loading && fileKind === "image" && (
+          // Image preview — centred, bounded to the drawer's content
+          // area so huge screenshots don't blow out the layout. The
+          // checkerboard backdrop makes PNG / WebP transparency
+          // visible. Zoom level is a fixed fit-to-box; no pan/zoom
+          // yet (keep the drawer simple — Monaco is the star).
+          <div
+            className="absolute inset-0 flex items-center justify-center overflow-auto"
+            style={{
+              backgroundImage:
+                "linear-gradient(45deg, var(--border) 25%, transparent 25%), " +
+                "linear-gradient(-45deg, var(--border) 25%, transparent 25%), " +
+                "linear-gradient(45deg, transparent 75%, var(--border) 75%), " +
+                "linear-gradient(-45deg, transparent 75%, var(--border) 75%)",
+              backgroundSize: "16px 16px",
+              backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0",
+            }}
+          >
+            <img
+              src={content}
+              alt={path.split("/").pop() ?? "image"}
+              className="max-w-full max-h-full object-contain"
+              style={{ imageRendering: "auto" }}
+              draggable={false}
+            />
+          </div>
+        )}
+        {!loadError && !loading && fileKind === "binary" && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-8 text-center">
+            <div
+              className="text-[12px] text-[var(--text-muted)]"
+              style={{ fontFamily: '"Geist Mono", monospace' }}
+            >
+              {t.file_editor_binary_title ?? "Binary file"}
+            </div>
+            <div className="text-[10px] text-[var(--text-faint)] max-w-sm leading-relaxed">
+              {t.file_editor_binary_hint ??
+                "This file isn't text or a supported image format, so the editor can't render it."}
+            </div>
+          </div>
+        )}
+        {!loadError && !loading && fileKind === "text" && (
           <Suspense
             fallback={
               <div className="absolute inset-0 flex items-center justify-center text-[11px] text-[var(--text-faint)]">

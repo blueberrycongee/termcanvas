@@ -616,4 +616,6 @@ export const zh = {
   file_editor_restore: "还原",
   file_editor_close: "关闭",
   file_editor_discard_confirm: "确定放弃未保存的修改吗?",
+  file_editor_binary_title: "二进制文件",
+  file_editor_binary_hint: "这不是文本,也不是支持的图片格式,编辑器无法渲染。",
 } as const;
