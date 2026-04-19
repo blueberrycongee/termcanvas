@@ -148,24 +148,6 @@ import { mergeAndDedupeSessions } from "./session-list.ts";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// node-pty's Windows backend queues resize/write calls in `_deferreds` until
-// the named-pipe socket connects. If the underlying winpty agent has already
-// exited by the time the queue is flushed, the replayed call throws from
-// inside a `Socket` event handler — past any try/catch at the call site.
-// See microsoft/node-pty#375. Swallow only those exact strings; rethrow
-// anything else so real crashes still surface.
-process.on("uncaughtException", (error) => {
-  const message = error instanceof Error ? error.message : String(error);
-  if (
-    /Cannot resize a pty that has already exited/.test(message) ||
-    /Cannot write to a pty that has already exited/.test(message)
-  ) {
-    console.warn("[PtyManager] swallowed post-exit node-pty error:", message);
-    return;
-  }
-  throw error;
-});
-
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
 if (isDev) {
   app.setPath("userData", path.join(app.getPath("appData"), "termcanvas-dev"));
@@ -321,6 +303,10 @@ function createWindow() {
     rendererReady = false;
   });
   mainWindow.on("focus", () => {
+    // macOS re-activation can leave compositor-backed sidebar layers stale
+    // until the next input-driven repaint. Force a full redraw on focus so
+    // fixed/overflow-hidden panels repaint immediately.
+    mainWindow?.webContents.invalidate();
     for (const dirPath of fileTreeWatcher.getWatchedDirs()) {
       sendToWindow(mainWindow, "fs:dir-changed", dirPath);
     }

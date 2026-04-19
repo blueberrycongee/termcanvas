@@ -18,6 +18,24 @@ export function unregisterTerminal(id: string) {
   registry.delete(id);
 }
 
+function refreshViewport(xterm: Terminal) {
+  const lastRow = Math.max(0, xterm.rows - 1);
+  xterm.refresh(0, lastRow);
+}
+
+export function refreshRegisteredTerminalViewports(id?: string) {
+  if (id) {
+    const entry = registry.get(id);
+    if (!entry) return;
+    refreshViewport(entry.xterm);
+    return;
+  }
+
+  for (const entry of registry.values()) {
+    refreshViewport(entry.xterm);
+  }
+}
+
 export function serializeTerminal(id: string): string | null {
   const entry = registry.get(id);
   if (!entry) return null;

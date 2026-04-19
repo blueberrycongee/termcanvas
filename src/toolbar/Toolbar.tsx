@@ -7,6 +7,7 @@ import { useUpdaterStore } from "../stores/updaterStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useSettingsModalStore } from "../stores/settingsModalStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { refreshRegisteredTerminalViewports } from "../terminal/terminalRegistry";
 import { rebuildTerminalAtlas } from "../terminal/webglContextPool";
 import { SettingsModal } from "../components/SettingsModal";
 import { UpdateModal } from "../components/UpdateModal";
@@ -257,13 +258,16 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
 
             <button
               className={iconButton}
-              onClick={() => rebuildTerminalAtlas()}
+              onClick={() => {
+                rebuildTerminalAtlas();
+                refreshRegisteredTerminalViewports();
+              }}
               title={t.refresh_renderer ?? "Refresh terminal rendering"}
               aria-label={t.refresh_renderer ?? "Refresh terminal rendering"}
             >
               {/* Circular-arrow refresh glyph. Clicking drops every
-                  terminal's cached glyph atlas and triggers a
-                  re-rasterisation on the next frame — the manual
+                  terminal's cached glyph atlas and forces an
+                  immediate viewport redraw — the manual
                   escape hatch for edge cases the automatic
                   rebuild listeners can't detect. */}
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">

@@ -758,6 +758,49 @@ test("reattaching a parked runtime reacquires WebGL after the pool evicts it", a
   }
 });
 
+test("manual terminal viewport refresh redraws registered xterms immediately", async () => {
+  const {
+    registerTerminal,
+    refreshRegisteredTerminalViewports,
+    unregisterTerminal,
+  } = await import("../src/terminal/terminalRegistry.ts");
+  const first = createMockXterm();
+  const second = createMockXterm();
+  const serializeAddon = {
+    serialize() {
+      return "live buffer";
+    },
+  };
+
+  try {
+    registerTerminal(
+      "terminal-1",
+      first.xterm as unknown as import("@xterm/xterm").Terminal,
+      serializeAddon as unknown as import("@xterm/addon-serialize").SerializeAddon,
+    );
+    registerTerminal(
+      "terminal-2",
+      second.xterm as unknown as import("@xterm/xterm").Terminal,
+      serializeAddon as unknown as import("@xterm/addon-serialize").SerializeAddon,
+    );
+
+    refreshRegisteredTerminalViewports("terminal-1");
+    assert.equal(first.stats.refreshCalls, 1);
+    assert.equal(second.stats.refreshCalls, 0);
+
+    refreshRegisteredTerminalViewports();
+    assert.equal(first.stats.refreshCalls, 2);
+    assert.equal(second.stats.refreshCalls, 1);
+
+    refreshRegisteredTerminalViewports("missing-terminal");
+    assert.equal(first.stats.refreshCalls, 2);
+    assert.equal(second.stats.refreshCalls, 1);
+  } finally {
+    unregisterTerminal("terminal-1");
+    unregisterTerminal("terminal-2");
+  }
+});
+
 test("codex SessionStart hook cancels fallback polling and preserves the exact session", async () => {
   const mockWindow = installRuntimeGlobals();
   const { useProjectStore } = await import("../src/stores/projectStore.ts");
