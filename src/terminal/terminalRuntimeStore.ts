@@ -8,6 +8,7 @@ import {
   acquireWebGL,
   releaseWebGL,
   touch as touchWebGL,
+  rebuildTerminalAtlas,
 } from "./webglContextPool";
 import {
   registerTerminal,
@@ -933,6 +934,14 @@ function createTerminalRenderer(
   wireRendererBindings(runtime, host);
   scheduleRuntimeRefresh(() => {
     syncAttachedTerminalGeometry(runtime);
+    // Rebuild the glyph atlas now that the host has laid out at its
+    // real size. The WebGL addon attached a frame ago based on
+    // whatever dimensions the host had at mount, which for tiles
+    // spawned into a flex-sized container is often 0×0 or a stale
+    // pre-reflow size — atlas rasterised at wrong DPR / dimensions,
+    // glyphs appear blank or misaligned until something else
+    // invalidates the cache (e.g. a theme toggle).
+    rebuildTerminalAtlas(runtime.meta.terminal.id);
     runtime.xterm?.refresh(0, (runtime.xterm?.rows ?? 1) - 1);
   });
 }
@@ -960,6 +969,14 @@ function setupRuntimeSubscriptions(runtime: ManagedTerminalRuntime) {
   const themeUnsubscribe = useThemeStore.subscribe((state) => {
     if (runtime.xterm) {
       runtime.xterm.options.theme = XTERM_THEMES[state.theme];
+      // Theme change inverts fg/bg colours — every cached glyph in
+      // the atlas was rasterised against the previous theme's text
+      // colour and is now visually wrong. Drop the cache so the
+      // next frame re-rasterises in the new palette. Without this,
+      // xterm.refresh() alone would redraw using stale atlas
+      // entries and text would look ghostly / off-palette until
+      // each glyph naturally churns out of the cache.
+      rebuildTerminalAtlas(runtime.meta.terminal.id);
       runtime.xterm.refresh(0, runtime.xterm.rows - 1);
     }
 
@@ -974,8 +991,14 @@ function setupRuntimeSubscriptions(runtime: ManagedTerminalRuntime) {
     }
 
     const family = buildFontFamily(state.terminalFontFamily);
+    // Font family / size / contrast changes all invalidate every
+    // cached glyph in the atlas (wrong face, wrong dimensions, or
+    // wrong foreground colour after contrast adjustment). Track
+    // whether we touched any of them and rebuild once at the end.
+    let atlasInvalidated = false;
     if (runtime.xterm.options.fontFamily !== family) {
       runtime.xterm.options.fontFamily = family;
+      atlasInvalidated = true;
       if (shouldFitAttachedRuntime(runtime)) {
         runtime.fitAddon?.fit();
       }
@@ -983,6 +1006,7 @@ function setupRuntimeSubscriptions(runtime: ManagedTerminalRuntime) {
 
     if (runtime.xterm.options.fontSize !== state.terminalFontSize) {
       runtime.xterm.options.fontSize = state.terminalFontSize;
+      atlasInvalidated = true;
       if (shouldFitAttachedRuntime(runtime)) {
         runtime.fitAddon?.fit();
       }
@@ -992,7 +1016,12 @@ function setupRuntimeSubscriptions(runtime: ManagedTerminalRuntime) {
       runtime.xterm.options.minimumContrastRatio !== state.minimumContrastRatio
     ) {
       runtime.xterm.options.minimumContrastRatio = state.minimumContrastRatio;
+      atlasInvalidated = true;
       runtime.xterm.refresh(0, runtime.xterm.rows - 1);
+    }
+
+    if (atlasInvalidated) {
+      rebuildTerminalAtlas(runtime.meta.terminal.id);
     }
   });
 
@@ -1678,6 +1707,14 @@ export function attachTerminalContainer(
   wireRendererBindings(runtime, host);
   scheduleRuntimeRefresh(() => {
     syncAttachedTerminalGeometry(runtime);
+    // Rebuild the glyph atlas now that the host has laid out at its
+    // real size. The WebGL addon attached a frame ago based on
+    // whatever dimensions the host had at mount, which for tiles
+    // spawned into a flex-sized container is often 0×0 or a stale
+    // pre-reflow size — atlas rasterised at wrong DPR / dimensions,
+    // glyphs appear blank or misaligned until something else
+    // invalidates the cache (e.g. a theme toggle).
+    rebuildTerminalAtlas(runtime.meta.terminal.id);
     runtime.xterm?.refresh(0, (runtime.xterm?.rows ?? 1) - 1);
   });
 }

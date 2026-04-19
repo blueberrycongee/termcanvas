@@ -118,6 +118,25 @@ function installAtlasRecoveryListeners(): void {
       }
     });
   }
+
+  // Window focus listener. In Electron, plain Cmd+Tab / Alt+Tab
+  // between apps does NOT fire `visibilitychange` — the window
+  // stays "visible" from the document's perspective even though
+  // the OS may have de-prioritised GPU resources while focus was
+  // elsewhere. Focus is the canonical "user came back to this
+  // app" signal; pair it with visibility to cover both
+  // minimise-and-restore and app-switch round-trips.
+  //
+  // Also catches:
+  //   - Lid close + reopen (focus lost on sleep, regained on wake)
+  //   - Screen lock + unlock
+  //   - macOS Space switch away and back (when Spaces move focus
+  //     rather than hiding the window)
+  if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+    window.addEventListener("focus", () => {
+      rebuildAllAtlases();
+    });
+  }
 }
 
 export function acquireWebGL(terminalId: string, xterm: Terminal): boolean {

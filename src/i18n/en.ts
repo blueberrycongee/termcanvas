@@ -639,6 +639,8 @@ export const en = {
   file_editor_binary_title: "Binary file",
   file_editor_binary_hint:
     "This file isn't text or a supported image format, so the editor can't render it.",
+
+  refresh_renderer: "Refresh terminal rendering",
 } as const;
 
 export type TranslationKey = keyof typeof en;
