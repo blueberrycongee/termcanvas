@@ -1,9 +1,5 @@
 import { HydraError } from "./errors.ts";
-import {
-  findProjectByPath,
-  isTermCanvasRunning,
-  terminalCreate,
-} from "./termcanvas.ts";
+import { getRuntime } from "./runtime/index.ts";
 
 export interface DispatchCreateOnlyRequest {
   workbenchId: string;
@@ -57,9 +53,30 @@ export interface DispatcherDependencies {
 }
 
 const DEFAULT_DEPENDENCIES: DispatcherDependencies = {
-  isTermCanvasRunning,
-  findProjectByPath,
-  terminalCreate,
+  isTermCanvasRunning: () => getRuntime().isAvailable(),
+  findProjectByPath: (repoPath) => getRuntime().findProjectByPath(repoPath),
+  terminalCreate: (
+    worktreePath,
+    type,
+    prompt,
+    autoApprove,
+    parentTerminalId,
+    workbenchId,
+    assignmentId,
+    repoPath,
+    resumeSessionId,
+  ) =>
+    getRuntime().terminalCreate({
+      worktreePath,
+      type,
+      prompt: prompt ?? "",
+      autoApprove,
+      parentTerminalId,
+      workbenchId,
+      assignmentId,
+      repoPath,
+      resumeSessionId,
+    }),
 };
 
 export function buildCreateOnlyPrompt(
@@ -79,8 +96,8 @@ export async function dispatchCreateOnly(
   dependencies: DispatcherDependencies = DEFAULT_DEPENDENCIES,
 ): Promise<DispatchCreateOnlyResult> {
   if (!dependencies.isTermCanvasRunning()) {
-    throw new HydraError("TermCanvas is not running", {
-      errorCode: "DISPATCH_TERMCANVAS_NOT_RUNNING",
+    throw new HydraError("Hydra runtime is not available (TermCanvas not running and standalone runtime unavailable)", {
+      errorCode: "DISPATCH_RUNTIME_UNAVAILABLE",
       stage: "dispatcher.preflight",
       ids: {
         workbench_id: request.workbenchId,
@@ -91,8 +108,8 @@ export async function dispatchCreateOnly(
 
   const project = dependencies.findProjectByPath(request.repoPath);
   if (!project) {
-    throw new HydraError(`Repo not found on TermCanvas canvas: ${request.repoPath}`, {
-      errorCode: "DISPATCH_REPO_NOT_ON_CANVAS",
+    throw new HydraError(`Repo not tracked by active runtime: ${request.repoPath}`, {
+      errorCode: "DISPATCH_REPO_NOT_TRACKED",
       stage: "dispatcher.preflight",
       ids: {
         workbench_id: request.workbenchId,

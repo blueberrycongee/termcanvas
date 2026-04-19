@@ -1,5 +1,5 @@
 import type { AssignmentManager } from "./assignment/manager.ts";
-import { telemetryTerminal } from "./termcanvas.ts";
+import { getRuntime } from "./runtime/index.ts";
 
 /**
  * Durable process-identity capture for dispatched runs.
@@ -30,7 +30,7 @@ export interface ProcessIdentityDependencies {
 
 function defaultTelemetry(terminalId: string): { shell_pid?: number | null } | null {
   try {
-    return telemetryTerminal(terminalId) as { shell_pid?: number | null } | null;
+    return getRuntime().telemetryTerminal(terminalId);
   } catch {
     // Telemetry unreachable (e.g. TermCanvas not running) — swallow and let
     // the caller skip identity capture rather than fail the dispatch itself.

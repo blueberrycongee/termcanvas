@@ -42,14 +42,7 @@ import {
   type Dispatch,
   type WorkbenchRecord,
 } from "./workflow-store.ts";
-import {
-  ensureProjectTracked,
-  findProjectByPath,
-  isTermCanvasRunning,
-  projectRescan,
-  telemetryTerminal,
-  terminalDestroy,
-} from "./termcanvas.ts";
+import { getRuntime } from "./runtime/index.ts";
 import { buildGitWorktreeAddArgs, validateWorktreePath } from "./spawn.ts";
 import {
   getDispatchFeedbackFile,
@@ -108,12 +101,12 @@ function sleepFn(deps?: WorkbenchDependencies) {
 function syncProjectFn(deps?: WorkbenchDependencies) {
   if (deps?.syncProject) return deps.syncProject;
   if (deps?.dispatchCreateOnly) return (_: string) => {};
-  return ensureProjectTracked;
+  return (repoPath: string) => { getRuntime().ensureProjectTracked(repoPath); };
 }
 function destroyTerminalFn(deps?: WorkbenchDependencies) {
   if (deps?.destroyTerminal) return deps.destroyTerminal;
   if (deps?.dispatchCreateOnly) return (_: string) => {};
-  return terminalDestroy;
+  return (terminalId: string) => { getRuntime().terminalDestroy(terminalId); };
 }
 function checkTerminalAliveFn(deps?: WorkbenchDependencies): (id: string) => boolean | null {
   if (deps?.checkTerminalAlive) return deps.checkTerminalAlive;
@@ -159,8 +152,8 @@ function prepareWorkbenchWorkspace(
   const branch = `hydra/${workbenchId}`;
   const worktreePath = path.join(repo, ".worktrees", workbenchId);
   execFileSync("git", buildGitWorktreeAddArgs(branch, worktreePath, baseBranch), { cwd: repo, encoding: "utf-8" });
-  const project = findProjectByPath(repo);
-  if (project) { projectRescan(project.id); } else { syncProjectFn(deps)(repo); }
+  // Either way, ask the runtime to track / rescan the repo.
+  getRuntime().syncProject(repo);
   return { worktreePath, branch, baseBranch, ownWorktree: true };
 }
 
@@ -211,11 +204,11 @@ async function destroyAssignmentTerminal(
   // Storing the session_id lets a future dispatch resume the same context.
   if (!run.session_id) {
     try {
-      const telemetry = telemetryTerminal(run.terminal_id);
+      const telemetry = getRuntime().telemetryTerminal(run.terminal_id);
       if (telemetry?.session_id) {
         run.session_id = telemetry.session_id;
-        run.session_file = telemetry.session_file;
-        run.session_provider = telemetry.provider;
+        run.session_file = telemetry.session_file ?? undefined;
+        run.session_provider = telemetry.provider ?? undefined;
         const manager = new AssignmentManager(repoPath, assignment.workbench_id);
         manager.save(assignment);
       }
@@ -359,12 +352,16 @@ export async function initWorkbench(
   const repoPath = path.resolve(options.repoPath);
   const workbenchId = generateWorkbenchId();
 
-  // Lead identity comes from the calling terminal. Without it, the workbench
-  // has no owner and lead-guard cannot enforce single-Lead semantics.
-  const leadTerminalId = process.env.TERMCANVAS_TERMINAL_ID;
+  // Lead identity comes from the active runtime. TermCanvas sources it
+  // from TERMCANVAS_TERMINAL_ID on the calling terminal; Standalone uses
+  // HYDRA_LEAD_ID or a stable synthesized id. Either way, without a lead
+  // id the workbench has no owner and lead-guard cannot enforce
+  // single-Lead semantics — so we reject.
+  const leadTerminalId = getRuntime().getCurrentLeadId();
   if (!leadTerminalId) {
     throw new HydraError(
-      "Cannot init workbench: TERMCANVAS_TERMINAL_ID is not set. The Lead must be a TermCanvas terminal.",
+      "Cannot init workbench: the active runtime did not produce a lead id. " +
+        "Run inside a TermCanvas terminal or set HYDRA_LEAD_ID for standalone mode.",
       { errorCode: "WORKBENCH_NO_LEAD", stage: "workbench.init" },
     );
   }

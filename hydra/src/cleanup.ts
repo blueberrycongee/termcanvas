@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import { loadAgent, listAgents, deleteAgent } from "./store.ts";
-import { isTermCanvasRunning, terminalDestroy, terminalStatus } from "./termcanvas.ts";
+import { getRuntime } from "./runtime/index.ts";
 import { AssignmentManager } from "./assignment/manager.ts";
 import { loadWorkbench } from "./workflow-store.ts";
 import { ensureLeadCaller } from "./lead-guard.ts";
@@ -88,9 +88,10 @@ function cleanupOne(agentId: string, force: boolean): void {
     return;
   }
 
-  if (isTermCanvasRunning()) {
+  const runtime = getRuntime();
+  if (runtime.isAvailable()) {
     try {
-      const { status } = terminalStatus(record.terminalId);
+      const { status } = runtime.terminalStatus(record.terminalId);
       if (isLiveTerminalStatus(status) && !force) {
         console.error(
           `Agent ${agentId} is still running (status: ${status}). Use --force to clean up anyway.`,
@@ -102,7 +103,7 @@ function cleanupOne(agentId: string, force: boolean): void {
     }
 
     try {
-      terminalDestroy(record.terminalId);
+      runtime.terminalDestroy(record.terminalId);
     } catch {
       // Already destroyed
     }
@@ -150,7 +151,8 @@ export function cleanupWorkbench(workbenchId: string, repo: string, force: boole
 
   const manager = new AssignmentManager(repo, workbenchId);
 
-  if (isTermCanvasRunning()) {
+  const runtime = getRuntime();
+  if (runtime.isAvailable()) {
     for (const dispatchId of Object.keys(workflow.dispatches)) {
       const assignment = manager.load(dispatchId);
       const activeRun = assignment?.active_run_id
@@ -161,7 +163,7 @@ export function cleanupWorkbench(workbenchId: string, repo: string, force: boole
 
       if (!force) {
         try {
-          const { status } = terminalStatus(terminalId);
+          const { status } = runtime.terminalStatus(terminalId);
           if (isLiveTerminalStatus(status)) {
             console.error(
               `Workbench ${workbenchId} has a running terminal (${terminalId}, status: ${status}). Use --force to clean up anyway.`,
@@ -174,7 +176,7 @@ export function cleanupWorkbench(workbenchId: string, repo: string, force: boole
       }
 
       try {
-        terminalDestroy(terminalId);
+        runtime.terminalDestroy(terminalId);
       } catch {
         // terminal already gone
       }

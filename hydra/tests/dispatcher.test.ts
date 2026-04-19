@@ -126,7 +126,7 @@ test("dispatchCreateOnly forwards resumeSessionId to terminalCreate", async () =
   assert.equal(terminalCall.args[8], "claude-session-xyz");
 });
 
-test("dispatchCreateOnly fails when TermCanvas is not running", async () => {
+test("dispatchCreateOnly fails when the runtime is not available", async () => {
   await assert.rejects(
     () =>
       dispatchCreateOnly(
@@ -152,13 +152,13 @@ test("dispatchCreateOnly fails when TermCanvas is not running", async () => {
       ),
     (error: unknown) => {
       assert.ok(error instanceof Error);
-      assert.equal((error as Error & { errorCode?: string }).errorCode, "DISPATCH_TERMCANVAS_NOT_RUNNING");
+      assert.equal((error as Error & { errorCode?: string }).errorCode, "DISPATCH_RUNTIME_UNAVAILABLE");
       return true;
     },
   );
 });
 
-test("dispatchCreateOnly fails when the repo is not on the canvas", async () => {
+test("dispatchCreateOnly fails when the repo is not tracked by the runtime", async () => {
   await assert.rejects(
     () =>
       dispatchCreateOnly(
@@ -182,7 +182,7 @@ test("dispatchCreateOnly fails when the repo is not on the canvas", async () => 
       ),
     (error: unknown) => {
       assert.ok(error instanceof Error);
-      assert.equal((error as Error & { errorCode?: string }).errorCode, "DISPATCH_REPO_NOT_ON_CANVAS");
+      assert.equal((error as Error & { errorCode?: string }).errorCode, "DISPATCH_REPO_NOT_TRACKED");
       return true;
     },
   );

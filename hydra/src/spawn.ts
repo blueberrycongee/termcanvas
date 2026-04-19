@@ -1,10 +1,7 @@
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import crypto from "node:crypto";
-import {
-  ensureProjectTracked,
-  projectRescan,
-} from "./termcanvas.ts";
+import { getRuntime } from "./runtime/index.ts";
 import { AGENT_STORE_SCHEMA_VERSION, saveAgent } from "./store.ts";
 import { writeRunTask } from "./run-task.ts";
 import { dispatchCreateOnly } from "./dispatcher.ts";
@@ -198,8 +195,9 @@ export async function spawn(args: string[]): Promise<void> {
     ownWorktree = true;
   }
 
-  const project = ensureProjectTracked(repo);
-  projectRescan(project.id);
+  const runtime = getRuntime();
+  runtime.ensureProjectTracked(repo);
+  runtime.syncProject(repo);
 
   const taskRun = writeRunTask({
     repoPath: repo,
@@ -234,7 +232,7 @@ export async function spawn(args: string[]): Promise<void> {
     skills: [],
   });
 
-  const parentTerminalId = process.env.TERMCANVAS_TERMINAL_ID;
+  const parentTerminalId = runtime.getCurrentLeadId();
   const dispatch = await dispatchCreateOnly({
     workbenchId: workflowId,
     assignmentId,

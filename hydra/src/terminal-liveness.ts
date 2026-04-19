@@ -1,5 +1,5 @@
 import type { TelemetryDerivedStatus } from "../../shared/telemetry.ts";
-import { isTermCanvasRunning, telemetryTerminal } from "./termcanvas.ts";
+import { getRuntime } from "./runtime/index.ts";
 
 /**
  * Telemetry-backed probes used by the watch loop.
@@ -44,9 +44,9 @@ export interface TelemetrySnapshotProbe {
 }
 
 const DEFAULT_DEPENDENCIES: TerminalLivenessDependencies = {
-  isTermCanvasRunning,
+  isTermCanvasRunning: () => getRuntime().isAvailable(),
   telemetryTerminal: (id) =>
-    telemetryTerminal(id) as TelemetrySnapshotProbe | null,
+    getRuntime().telemetryTerminal(id) as TelemetrySnapshotProbe | null,
 };
 
 export function checkTerminalAlive(
