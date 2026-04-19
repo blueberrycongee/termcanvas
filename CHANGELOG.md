@@ -2,6 +2,14 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.30.5] - 2026-04-19
+
+### Fixed
+- Windows 11: resuming a session could crash the whole app with an `A JavaScript error occurred in the main process` dialog reading `Error: Cannot resize a pty that has already exited`. node-pty's Windows backend queues `resize()` calls in an internal `_deferreds` list until the named-pipe socket connects; if the underlying winpty agent has already exited by the time the queue is flushed, the replayed call throws from inside a `Socket` event handler, past any try/catch at the call site (see microsoft/node-pty#375). Main process now installs a narrow `uncaughtException` handler that swallows only that exact error (and the matching `Cannot write to a pty that has already exited` variant) and rethrows everything else. Note: this stops the crash dialog — the tab whose pty already died is still dead and needs to be closed and reopened; it does not fix the underlying node-pty race
+
+### Fixed (zh-CN)
+- Win11 下续接会话时整个 app 会崩出 `A JavaScript error occurred in the main process` 弹窗,内容是 `Error: Cannot resize a pty that has already exited`。node-pty 的 Windows 后端会把 `resize()` 调用排进内部 `_deferreds` 队列,等命名管道 socket 连上之后再回放;如果此时底层 winpty agent 已经退出,回放的调用会从 `Socket` 事件回调里同步抛错,已脱离调用点的 try/catch(见 microsoft/node-pty#375)。主进程现在装了一个只针对这条错误(以及同类的 `Cannot write to a pty that has already exited`)的 `uncaughtException` handler,命中就 warn 一行吞掉,其他异常原样 rethrow。注意:这只阻止崩溃弹窗——那个已经死掉的终端 tab 还是死的,需要手动关掉重开;node-pty 本身的竞态没有修
+
 ## [0.30.4] - 2026-04-19
 
 ### Fixed
