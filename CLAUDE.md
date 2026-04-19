@@ -74,7 +74,7 @@ Workflow control:
 Telemetry polling:
 1. Treat `hydra watch` as the main polling loop; do not infer progress from terminal prose alone.
 2. Before deciding wait / retry / takeover, query:
-   - `termcanvas telemetry get --workflow <workbenchId> --repo .` (the termcanvas HTTP CLI keeps the `--workflow` flag even though hydra itself renamed the concept to `workbench`; pass the workbench id to `--workflow`)
+   - `termcanvas telemetry get --workbench <workbenchId> --repo .`
    - `termcanvas telemetry get --terminal <terminalId>`
    - `termcanvas telemetry events --terminal <terminalId> --limit 20`
 3. Trust `derived_status` and `task_status` as the primary decision signals.

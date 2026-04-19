@@ -1353,7 +1353,7 @@ export async function askDispatch(
     cli: latestRunRecord.agent_type,
     sessionId,
     message: options.message,
-    workdir: workbench.worktree_path,
+    workdir: disp.worktree_path ?? workbench.worktree_path,
     timeoutMs: options.timeoutMs,
   });
 

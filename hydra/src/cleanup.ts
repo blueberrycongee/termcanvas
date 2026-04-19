@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { loadAgent, listAgents, deleteAgent } from "./store.ts";
 import { getRuntime } from "./runtime/index.ts";
@@ -81,6 +82,26 @@ export function isLiveTerminalStatus(status: string): boolean {
   );
 }
 
+function isHydraManagedDispatchWorkspace(
+  repoPath: string,
+  worktreePath: string | undefined,
+  branch: string | undefined,
+): boolean {
+  if (!worktreePath || !branch) {
+    return false;
+  }
+
+  const hydraWorktreesRoot = path.join(path.resolve(repoPath), ".worktrees");
+  const resolvedWorktree = path.resolve(worktreePath);
+  const relative = path.relative(hydraWorktreesRoot, resolvedWorktree);
+
+  return (
+    branch.startsWith("hydra/") &&
+    !relative.startsWith("..") &&
+    !path.isAbsolute(relative)
+  );
+}
+
 function cleanupOne(agentId: string, force: boolean): void {
   const record = loadAgent(agentId);
   if (!record) {
@@ -150,10 +171,31 @@ export function cleanupWorkbench(workbenchId: string, repo: string, force: boole
   ensureLeadCaller(workflow);
 
   const manager = new AssignmentManager(repo, workbenchId);
+  const dispatchWorktrees = new Set<string>();
+  const dispatchBranches = new Set<string>();
+  const workflowWorktree = path.resolve(workflow.worktree_path);
 
   const runtime = getRuntime();
   if (runtime.isAvailable()) {
     for (const dispatchId of Object.keys(workflow.dispatches)) {
+      const dispatch = workflow.dispatches[dispatchId];
+      if (
+        isHydraManagedDispatchWorkspace(
+          workflow.repo_path,
+          dispatch?.worktree_path,
+          dispatch?.worktree_branch,
+        ) &&
+        dispatch.worktree_path
+      ) {
+        const resolvedDispatchWorktree = path.resolve(dispatch.worktree_path);
+        if (resolvedDispatchWorktree !== workflowWorktree) {
+          dispatchWorktrees.add(resolvedDispatchWorktree);
+        }
+        if (dispatch.worktree_branch) {
+          dispatchBranches.add(dispatch.worktree_branch);
+        }
+      }
+
       const assignment = manager.load(dispatchId);
       const activeRun = assignment?.active_run_id
         ? assignment.runs.find((run) => run.id === assignment.active_run_id)
@@ -180,6 +222,31 @@ export function cleanupWorkbench(workbenchId: string, repo: string, force: boole
       } catch {
         // terminal already gone
       }
+    }
+  }
+
+  // Dispatch-scoped worktrees are only safe to remove when Hydra created
+  // them under the repo's managed `.worktrees/` area on a `hydra/*` branch.
+  // Arbitrary user-provided worktree paths are out of scope for cleanup.
+  for (const worktreePath of dispatchWorktrees) {
+    try {
+      execFileSync("git", buildGitWorktreeRemoveArgs(worktreePath), {
+        cwd: workflow.repo_path,
+        stdio: "pipe",
+      });
+    } catch {
+      // worktree already removed
+    }
+  }
+
+  for (const branch of dispatchBranches) {
+    try {
+      execFileSync("git", buildGitBranchDeleteArgs(branch), {
+        cwd: workflow.repo_path,
+        stdio: "pipe",
+      });
+    } catch {
+      // branch already removed
     }
   }
 
