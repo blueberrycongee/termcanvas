@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { useReactFlow } from "@xyflow/react";
 import type { ProjectData } from "../types";
 import { useProjectStore } from "../stores/projectStore";
@@ -53,7 +53,6 @@ import { focusWorktreeInScene } from "../actions/sceneSelectionActions";
  */
 
 const HUD_THRESHOLD = 0.7;
-const FADE_END = 0.3;
 const LOD_THRESHOLD = 0.15;
 
 // Pixel-space gap to leave between two stacked labels.
@@ -212,19 +211,9 @@ function clusterOpacity(
   hasFocus: boolean,
 ): number {
   if (scale >= HUD_THRESHOLD) return 0;
-  const fadeProgress = Math.min(
-    1,
-    Math.max(0, (HUD_THRESHOLD - scale) / (HUD_THRESHOLD - FADE_END)),
-  );
-  let dim: number;
-  if (isFocused || isHovered) {
-    dim = 1;
-  } else if (hasFocus) {
-    dim = 0.35;
-  } else {
-    dim = 0.85;
-  }
-  return fadeProgress * dim;
+  if (isFocused || isHovered) return 1;
+  if (hasFocus) return 0.35;
+  return 0.85;
 }
 
 function estimateLabelWidth(text: string): number {
@@ -303,8 +292,7 @@ const LABEL_BASE_STYLE = {
   backdropFilter: "blur(4px)",
   WebkitBackdropFilter: "blur(4px)",
   boxShadow: "0 1px 2px rgba(0,0,0,0.25)",
-  transition:
-    "opacity 120ms ease-out, transform 120ms ease-out, background-color 120ms ease-out",
+  transition: "background-color 120ms ease-out",
 } as const;
 
 interface ClusterEntry {
@@ -586,19 +574,14 @@ export function WorktreeLabelLayer() {
       window.removeEventListener("pointerup", finishDrag);
       window.removeEventListener("pointercancel", finishDrag);
       dragStateRef.current = null;
-      setIsDragging(false);
 
-      // Reset label transform.
+      // Capture label element before the re-render detaches its ref.
       const el = dragLabelRef.current;
-      if (el) el.style.transform = "translate(0, -100%)";
 
       if (active.moved) {
         suppressClickUntilRef.current = performance.now() + 250;
       }
 
-      // Commit final positions to the store.  Even without dragging,
-      // pointerdown already snapped terminals to compact positions via
-      // setNodes — sync the store so panToWorktree reads correct coords.
       const vp = viewportRef.current;
       const delta = active.moved
         ? screenDeltaToCanvasDelta(
@@ -623,7 +606,16 @@ export function WorktreeLabelLayer() {
           y: snap(finalAnchorY + offset.y),
         };
       });
-      useProjectStore.getState().updateTerminalPositions(updates);
+
+      // Flush store + drag-flag together so React commits the new left/top
+      // BEFORE we clear the imperative transform — otherwise the label paints
+      // one frame at the old anchor position and visibly snaps back to start.
+      flushSync(() => {
+        useProjectStore.getState().updateTerminalPositions(updates);
+        setIsDragging(false);
+      });
+
+      if (el) el.style.transform = "translate(0, -100%)";
 
       // Resolve collisions with all other terminals.
       const allProjects = useProjectStore.getState().projects;
