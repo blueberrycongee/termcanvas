@@ -22,6 +22,7 @@ import { loadWorkbench, WORKBENCH_STATE_SCHEMA_VERSION } from "../src/workflow-s
 import { RESULT_SCHEMA_VERSION } from "../src/protocol.ts";
 import { readLedger } from "../src/ledger.ts";
 import { AssignmentManager } from "../src/assignment/manager.ts";
+import { resetRuntime, setRuntime } from "../src/runtime/index.ts";
 
 // Set TERMCANVAS_TERMINAL_ID so initWorkflow + lead-guard accept the test as Lead
 process.env.TERMCANVAS_TERMINAL_ID = "terminal-test-lead";
@@ -731,6 +732,71 @@ test("watchUntilDecision exposes pre-captured session info on the completed Deci
     assert.ok(completed);
     assert.equal((completed.event as { session_id?: string }).session_id, "claude-session-abc123");
   } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("watchUntilDecision preserves completed assignment state when session info is captured during terminal teardown", async () => {
+  const repo = makeTestRepo();
+  const deps = mockDeps();
+  try {
+    const init = await initWorkbench({ intent: "Test", repoPath: repo, worktreePath: repo }, deps);
+    const dispatched = await dispatch({
+      repoPath: repo,
+      workbenchId: init.workbench_id,
+      dispatchId: "dev",
+      role: "reviewer",
+      intent: "Implement feature",
+    }, deps);
+
+    const manager = new AssignmentManager(repo, init.workbench_id);
+    const assignment = manager.load(dispatched.dispatch_id)!;
+    const run = assignment.runs[0]!;
+    fs.writeFileSync(run.result_file, JSON.stringify({
+      schema_version: RESULT_SCHEMA_VERSION,
+      workbench_id: init.workbench_id,
+      assignment_id: dispatched.dispatch_id,
+      run_id: run.id,
+      outcome: "completed",
+      report_file: "report.md",
+    }, null, 2), "utf-8");
+
+    setRuntime({
+      name: "standalone",
+      isAvailable: () => true,
+      getCurrentLeadId: () => process.env.TERMCANVAS_TERMINAL_ID,
+      ensureProjectTracked: (repoPath: string) => ({ id: repoPath, path: repoPath }),
+      syncProject: () => {},
+      findProjectByPath: (repoPath: string) => ({ id: repoPath, path: repoPath }),
+      terminalCreate: () => {
+        throw new Error("terminalCreate should not be called in this test");
+      },
+      terminalStatus: () => ({ id: run.terminal_id, status: "success", ptyId: null }),
+      terminalDestroy: () => {},
+      telemetryTerminal: (terminalId: string) => terminalId === run.terminal_id
+        ? {
+            session_id: "codex-session-captured-on-destroy",
+            session_file: "/tmp/codex-session.json",
+            provider: "codex",
+          }
+        : null,
+    });
+
+    const decision = await watchUntilDecision({
+      repoPath: repo,
+      workbenchId: init.workbench_id,
+      timeoutMs: 5000,
+    }, deps);
+
+    assert.equal(decision.type, "dispatch_completed");
+    const reloaded = manager.load(dispatched.dispatch_id)!;
+    assert.equal(reloaded.status, "completed");
+    assert.equal(reloaded.result?.outcome, "completed");
+    assert.equal(reloaded.runs[0]?.status, "completed");
+    assert.equal(reloaded.runs[0]?.session_id, "codex-session-captured-on-destroy");
+    assert.equal(reloaded.runs[0]?.session_provider, "codex");
+  } finally {
+    resetRuntime();
     fs.rmSync(repo, { recursive: true, force: true });
   }
 });

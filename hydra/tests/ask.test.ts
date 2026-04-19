@@ -93,7 +93,7 @@ test("askFollowUp (claude) builds the --resume --fork-session argv and parses th
   assert.ok(result.durationMs >= 0);
 });
 
-test("askFollowUp (codex) builds `exec resume <id>` subcommand and parses item.completed agent_message events", async () => {
+test("askFollowUp (codex) builds `exec resume <id>` without --cd and parses item.completed agent_message events", async () => {
   const { spawnImpl, calls, lastChild } = makeSpawnImpl();
   const promise = askFollowUp({
     cli: "codex",
@@ -124,15 +124,18 @@ test("askFollowUp (codex) builds `exec resume <id>` subcommand and parses item.c
   child.emitExit(0);
   const result = await promise;
 
-  // argv shape: `codex exec resume <sid> --dangerously-bypass... --skip-git-repo-check --cd <workdir> --json <msg>`
+  // argv shape: `codex exec resume <sid> --dangerously-bypass... --skip-git-repo-check --json <msg>`
   assert.equal(calls[0].shell, "codex");
   assert.deepEqual(calls[0].args.slice(0, 3), ["exec", "resume", "codex-thread-999"]);
   assert.ok(calls[0].args.includes("--dangerously-bypass-approvals-and-sandbox"));
   assert.ok(calls[0].args.includes("--skip-git-repo-check"));
-  assert.ok(calls[0].args.includes("--cd"));
-  assert.equal(calls[0].args[calls[0].args.indexOf("--cd") + 1], "/tmp/workdir");
+  assert.ok(
+    !calls[0].args.includes("--cd"),
+    "codex exec resume inherits the subprocess cwd and no longer accepts --cd",
+  );
   assert.ok(calls[0].args.includes("--json"));
   assert.equal(calls[0].args[calls[0].args.length - 1], "what exact files did you touch?");
+  assert.equal(calls[0].cwd, "/tmp/workdir");
 
   // Answer must come only from agent_message items, not reasoning items.
   assert.equal(result.answer, "I touched src/auth.ts and tests/auth.test.ts.");

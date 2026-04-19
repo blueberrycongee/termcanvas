@@ -210,7 +210,17 @@ async function destroyAssignmentTerminal(
         run.session_file = telemetry.session_file ?? undefined;
         run.session_provider = telemetry.provider ?? undefined;
         const manager = new AssignmentManager(repoPath, assignment.workbench_id);
-        manager.save(assignment);
+        const freshAssignment = manager.load(assignment.id);
+        const assignmentToSave = freshAssignment ?? assignment;
+        const targetRun = freshAssignment
+          ? assignmentToSave.runs.find((candidate) => candidate.id === run.id) ?? latestRun(assignmentToSave)
+          : run;
+        if (targetRun) {
+          targetRun.session_id = telemetry.session_id;
+          targetRun.session_file = telemetry.session_file ?? undefined;
+          targetRun.session_provider = telemetry.provider ?? undefined;
+          manager.save(assignmentToSave);
+        }
       }
     } catch {}
   }

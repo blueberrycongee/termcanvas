@@ -22,10 +22,12 @@ import type { AgentType } from "./assignment/types.ts";
  *     - `--fork-session` branches off a new session id, leaving the
  *       original session file pristine. Lead + Reviewer can ask questions
  *       without polluting Dev's canonical history.
- *   codex:  `codex exec resume <sid> --json --skip-git-repo-check --cd <workdir> <msg>`
+ *   codex:  `codex exec resume <sid> --json --skip-git-repo-check <msg>`
  *     - codex has no headless fork today (openai/codex#13537 unmerged).
  *       The follow-up appends to the original session — the asymmetry
  *       is documented and accepted.
+ *     - `codex exec resume` no longer accepts `--cd`; the subprocess cwd
+ *       controls the resumed agent's working directory.
  */
 
 export interface AskFollowUpOptions {
@@ -33,8 +35,9 @@ export interface AskFollowUpOptions {
   sessionId: string;
   message: string;
   /**
-   * Absolute path to run the subprocess in. For codex this is also
-   * passed as --cd so codex's agent workspace root matches.
+   * Absolute path to run the subprocess in. For codex resume this must be
+   * the target workspace because the CLI now inherits cwd instead of
+   * accepting a separate `--cd` flag.
    */
   workdir: string;
   /**
@@ -89,7 +92,6 @@ function buildAskArgv(
         "exec", "resume", sessionId,
         "--dangerously-bypass-approvals-and-sandbox",
         "--skip-git-repo-check",
-        "--cd", workdir,
         "--json",
         message,
       ],

@@ -366,7 +366,7 @@ test("standalone workflow lifecycle runs without TermCanvas and asks in the disp
     assert.equal(status.workbench.id, init.workbench_id);
     assert.equal(status.workbench.status, "active");
     assert.equal(status.assignments[0]?.id, "dev");
-    assert.equal(status.assignments[0]?.status, "in_progress");
+    assert.equal(status.assignments[0]?.status, "completed");
 
     const ledger = readJsonLines<{ event: { type: string } }>(
       runHydra(["ledger", "--workbench", init.workbench_id, "--repo", repo, "--json"], env),
