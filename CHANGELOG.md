@@ -2,6 +2,26 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.30.4] - 2026-04-19
+
+### Fixed
+- Left and right side panels sometimes rendered as blank until a mouse hover repainted them — most visible after returning to the app from the background. The panels were built as two absolute-positioned surfaces swapped via opposing `opacity` transitions; Chromium could promote each into an independent compositor layer, and those layers fell out of paint sync on foreground/background switch. Replaced with conditional rendering — only the currently-active state (collapsed icon strip OR expanded surface) mounts in the DOM at any time
+- Collapsing or expanding the LEFT side panel made the canvas terminals shake horizontally instead of the clean shrink/grow the right panel already produced. Three animations were running on different clocks (panel width CSS 240 ms cubic-bezier, canvas container `left` React snap with no transition, viewport `animateTo` 400 ms easeOutCubic JS). All of them now share the same 240 ms cubic-bezier curve — both the CSS string and a matching JS easing function, defined once in `src/utils/panelAnimation.ts` — so the compensating terms cancel at every frame. Terminals stay put; the middle area just widens / narrows cleanly on both sides
+- Worktree labels no longer snap back to their original position after you drop them (#140)
+- Updater now surfaces a toast when the app is in a location that blocks auto-update (e.g. Downloads folder, read-only volume) instead of silently skipping (#139)
+
+### Changed
+- README warns Apple Silicon users to pick the arm64 build — the x64 build runs under Rosetta 2 on M-series Macs with measurable battery / performance cost
+
+### Fixed (zh-CN)
+- 左右侧栏偶尔展示成空白,只有鼠标移上去才重绘出现内容——最典型是从后台切回 app 之后。面板原本由两个 `absolute` 层用相反的 `opacity` 过渡做 crossfade,Chromium 可以把每一层提升成独立合成层,在前后台切换时这些层的重绘不一定同步。改成条件渲染:每一时刻只挂载当前状态(折叠图标条或展开面板)
+- 折叠/展开**左**侧栏时画布里的终端会横向晃动一下,不像右侧栏那样干净地"缩小/放大"。原因是三条动画跑在三条不同时钟上(面板 width 走 240ms CSS cubic-bezier、画布容器 `left` 是 React 瞬跳没过渡、viewport `animateTo` 走 400ms easeOutCubic JS)。现在全部对齐到同一条 240ms cubic-bezier 曲线——CSS 字符串和 JS 缓动函数在 `src/utils/panelAnimation.ts` 里是同源定义——每帧补偿项精确抵消。终端不再晃,中间区域就是干净地从两侧变窄/变宽
+- worktree 标签拖拽放下后不会弹回原位了(#140)
+- 当 app 装在阻止自动更新的位置(如 Downloads 文件夹、只读卷)时,updater 现在弹 toast 提示而不是静默跳过更新(#139)
+
+### Changed (zh-CN)
+- README 提示 Apple Silicon 用户下载 arm64 版本——x64 版在 M 系 Mac 上走 Rosetta 2,耗电和性能都有可感知的差距
+
 ## [0.30.3] - 2026-04-19
 
 ### Fixed
