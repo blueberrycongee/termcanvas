@@ -162,6 +162,44 @@ function isClaudeToolResultEvent(
   return event.event_type === "tool_result" && event.role === "user";
 }
 
+function shouldMarkClaudeNotificationAwaitingInput(
+  event: {
+    notification_type?: unknown;
+    message?: unknown;
+  },
+  pendingPreToolUse: boolean,
+): boolean {
+  const notificationType =
+    typeof event.notification_type === "string"
+      ? event.notification_type
+      : undefined;
+
+  if (
+    notificationType === "permission_prompt" ||
+    notificationType === "elicitation_dialog"
+  ) {
+    return true;
+  }
+
+  if (
+    notificationType === "idle_prompt" ||
+    notificationType === "auth_success"
+  ) {
+    return false;
+  }
+
+  if (pendingPreToolUse) {
+    return true;
+  }
+
+  const message =
+    typeof event.message === "string" ? event.message.toLowerCase() : "";
+  return (
+    message.includes("needs your permission") ||
+    message.includes("requires your permission")
+  );
+}
+
 function toSessionProvider(
   provider: TelemetryProvider,
 ): "claude" | "codex" | "wuu" | null {
@@ -1284,26 +1322,39 @@ export class TelemetryService {
       }
 
       case "Notification": {
-        // Claude Code's Notification hook is the authoritative signal
-        // that the user's attention is required — it fires for both
-        // tool-permission prompts and for "Claude has been idle waiting
-        // for your input". Flipping turn_state lets the pet react
-        // instantly instead of after the PreToolUse fallback window.
+        // Claude Code multiplexes several notification flavors through
+        // the same hook. Only the ones that actually block on user
+        // action should surface as awaiting_input; generic completion /
+        // auth notices must not resurrect a finished turn into a red
+        // attention state.
         //
         // Codex does not emit this hook, so Codex paths never reach
         // here; it relies on the PreToolUse fallback timer instead.
         const message =
           typeof event.message === "string" ? event.message : undefined;
-        if (state.awaitingInputTimer) {
-          clearTimeout(state.awaitingInputTimer);
-          state.awaitingInputTimer = null;
+        const notificationType =
+          typeof event.notification_type === "string"
+            ? event.notification_type
+            : undefined;
+        const awaitingInput = shouldMarkClaudeNotificationAwaitingInput(
+          event,
+          state.pendingPreToolUse,
+        );
+        if (awaitingInput) {
+          if (state.awaitingInputTimer) {
+            clearTimeout(state.awaitingInputTimer);
+            state.awaitingInputTimer = null;
+          }
+          state.snapshot.turn_state = "awaiting_input";
+          state.snapshot.last_meaningful_progress_at = at;
         }
-        state.snapshot.turn_state = "awaiting_input";
-        state.snapshot.last_meaningful_progress_at = at;
         this.appendEvent(state, at, "session", "hook_notification", {
           message: message ?? null,
+          notification_type: notificationType ?? null,
         });
-        this.updateDerivedStatus(state, { force: true });
+        if (awaitingInput) {
+          this.updateDerivedStatus(state, { force: true });
+        }
         break;
       }
 

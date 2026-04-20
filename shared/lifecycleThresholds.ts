@@ -224,12 +224,13 @@ export const DEFAULT_SESSION_POLL_INTERVAL_MS = 10_000;
  * Claude Code: fallback silence window after `PreToolUse` before we
  * assume the agent is blocked on user approval.
  *
- * Claude Code emits a `Notification` hook the moment a tool prompt
- * needs user approval (see `recordHookEvent` → `"Notification"`), and
- * that hook is the primary signal for flipping `turn_state` to
- * `"awaiting_input"`. This timer is ONLY a safety net for the rare
- * case where a Notification doesn't fire (older Claude Code builds,
- * hook drop, or a brand-new prompt flavor we haven't seen).
+ * Claude Code emits a `Notification` hook when a permission / user
+ * elicitation prompt needs attention (see `recordHookEvent` →
+ * `"Notification"`), and that hook is the primary signal for flipping
+ * `turn_state` to `"awaiting_input"`. This timer is ONLY a safety net
+ * for the rare case where a Notification doesn't fire (older Claude
+ * Code builds, hook drop, or a brand-new prompt flavor we haven't
+ * seen).
  *
  * Because it's a backstop — not the primary signal — we keep it wide
  * enough that ordinary long tools (slow Bash, large edits) don't trip

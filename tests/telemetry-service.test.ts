@@ -807,6 +807,7 @@ test("Claude Notification hook flips turn_state to awaiting_input immediately", 
     service.recordHookEvent("claude-1", {
       hook_event_name: "Notification",
       session_id: "sess-1",
+      notification_type: "permission_prompt",
       message: "Claude needs your permission to use Bash",
     });
     assert.equal(
@@ -833,6 +834,87 @@ test("Claude Notification hook flips turn_state to awaiting_input immediately", 
     mock.timers.reset();
   }
 });
+
+test(
+  "Claude idle_prompt notification does not resurrect a completed turn",
+  () => {
+    let nowMs = Date.parse("2026-04-20T02:00:00.000Z");
+    const service = new TelemetryService({
+      now: () => nowMs,
+      processPollIntervalMs: 0,
+    });
+    service.registerTerminal({
+      terminalId: "claude-idle-prompt",
+      worktreePath: "/repo",
+      provider: "claude",
+    });
+    service.recordHookEvent("claude-idle-prompt", {
+      hook_event_name: "SessionStart",
+      session_id: "sess-idle",
+    });
+    service.recordHookEvent("claude-idle-prompt", {
+      hook_event_name: "UserPromptSubmit",
+      session_id: "sess-idle",
+    });
+    service.recordHookEvent("claude-idle-prompt", {
+      hook_event_name: "Stop",
+      session_id: "sess-idle",
+    });
+
+    assert.equal(
+      service.getTerminalSnapshot("claude-idle-prompt")?.turn_state,
+      "turn_complete",
+    );
+
+    nowMs += 60_000;
+    service.recordHookEvent("claude-idle-prompt", {
+      hook_event_name: "Notification",
+      session_id: "sess-idle",
+      notification_type: "idle_prompt",
+      message: "Claude has been idle waiting for your input",
+    });
+
+    const snapshot = service.getTerminalSnapshot("claude-idle-prompt");
+    assert.equal(snapshot?.turn_state, "turn_complete");
+
+    service.dispose();
+  },
+);
+
+test(
+  "Claude auth-success notification does not mark awaiting_input",
+  () => {
+    const service = new TelemetryService({ processPollIntervalMs: 0 });
+    service.registerTerminal({
+      terminalId: "claude-auth-success",
+      worktreePath: "/repo",
+      provider: "claude",
+    });
+    service.recordHookEvent("claude-auth-success", {
+      hook_event_name: "SessionStart",
+      session_id: "sess-auth",
+    });
+    service.recordHookEvent("claude-auth-success", {
+      hook_event_name: "UserPromptSubmit",
+      session_id: "sess-auth",
+    });
+    service.recordHookEvent("claude-auth-success", {
+      hook_event_name: "Stop",
+      session_id: "sess-auth",
+    });
+    service.recordHookEvent("claude-auth-success", {
+      hook_event_name: "Notification",
+      session_id: "sess-auth",
+      notification_type: "auth_success",
+      message: "Task completed successfully",
+    });
+
+    const snapshot = service.getTerminalSnapshot("claude-auth-success");
+    assert.equal(snapshot?.turn_state, "turn_complete");
+
+    service.dispose();
+  },
+);
 
 test(
   "Claude PreToolUse without Notification only falls back after the long window",
