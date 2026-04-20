@@ -65,7 +65,7 @@ export interface ProjectGroup {
 const GENERIC_TERMINAL_TITLES =
   /^(terminal|shell|claude|codex|kimi|gemini|opencode|wuu|lazygit|tmux)$/i;
 
-function isCanvasTerminal(
+export function isCanvasTerminal(
   terminal: Pick<TerminalData, "minimized" | "stashed">,
 ): boolean {
   return !terminal.minimized && !terminal.stashed;
@@ -194,6 +194,16 @@ function deriveStateFromTelemetry(
     };
   }
 
+  if (telemetry.derived_status === "awaiting_contract") {
+    return {
+      state: telemetry.foreground_tool ? "running" : "thinking",
+      activityAt,
+      turnStartedAt,
+      currentTool: telemetry.foreground_tool,
+      sessionFilePath: telemetry.session_file,
+    };
+  }
+
   if (telemetry.turn_state === "turn_complete") {
     return {
       state: "done",
@@ -204,10 +214,7 @@ function deriveStateFromTelemetry(
     };
   }
 
-  if (
-    telemetry.derived_status === "progressing" ||
-    telemetry.derived_status === "awaiting_contract"
-  ) {
+  if (telemetry.derived_status === "progressing") {
     return {
       state: telemetry.foreground_tool ? "running" : "thinking",
       activityAt,
@@ -292,7 +299,7 @@ function deriveStateFromTerminal(
   }
 }
 
-function deriveTerminalState(
+export function deriveTerminalState(
   terminal: Pick<TerminalData, "status" | "sessionId">,
   telemetry: TerminalTelemetrySnapshot | null | undefined,
   session: SessionInfo | undefined,
@@ -306,7 +313,13 @@ function deriveTerminalState(
   | "attentionReason"
 > {
   if (telemetry) {
-    return deriveStateFromTelemetry(telemetry);
+    const derived = deriveStateFromTelemetry(telemetry);
+    // Race window: Path B (hook:stop-failure → setStatus('error')) may arrive before
+    // Path A (telemetry IPC) updates derived_status. Override stale telemetry state.
+    if (terminal.status === "error" && derived.state !== "attention") {
+      return { ...derived, state: "attention", attentionReason: "error" };
+    }
+    return derived;
   }
 
   if (session) {

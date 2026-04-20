@@ -1,28 +1,43 @@
-import { useRef, useState, useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useProjectStore } from "../stores/projectStore";
-import {
-  resolveTerminalWithRuntimeState,
-  useTerminalRuntimeStateStore,
-} from "../stores/terminalRuntimeStateStore";
+import { useTerminalRuntimeStore } from "../terminal/terminalRuntimeStore";
+import { useSessionStore } from "../stores/sessionStore";
+import { resolveTerminalWithRuntimeState } from "../stores/terminalRuntimeStateStore";
+import { useCompletionSeenStore } from "../stores/completionSeenStore";
+import { deriveTerminalState, isCanvasTerminal } from "./sessionPanelModel";
 
 export function CompletionGlow() {
   const projects = useProjectStore((s) => s.projects);
-  const terminalRuntimeStates = useTerminalRuntimeStateStore((s) => s.terminals);
-  const seenRef = useRef(new Set<string>());
-  const [, forceUpdate] = useState(0);
+  const runtimeTerminals = useTerminalRuntimeStore((s) => s.terminals);
+  const liveSessions = useSessionStore((s) => s.liveSessions);
+  const historySessions = useSessionStore((s) => s.historySessions);
+  const seenTerminalIds = useCompletionSeenStore((s) => s.seenTerminalIds);
+  const markSeen = useCompletionSeenStore((s) => s.markSeen);
+  const syncActiveDoneIds = useCompletionSeenStore((s) => s.syncActiveDoneIds);
 
-  const terminals: { id: string; status: string; focused: boolean }[] = [];
+  const sessionsById = useMemo(() => {
+    const map = new Map<string, (typeof liveSessions)[number]>();
+    for (const session of [...historySessions, ...liveSessions]) {
+      map.set(session.sessionId, session);
+    }
+    return map;
+  }, [historySessions, liveSessions]);
+
+  const terminals: { id: string; state: string; focused: boolean }[] = [];
   for (const p of projects) {
     for (const w of p.worktrees) {
       for (const t of w.terminals) {
-        const liveTerminal = resolveTerminalWithRuntimeState(
-          t,
-          terminalRuntimeStates[t.id],
-        );
+        const resolved = resolveTerminalWithRuntimeState(t);
+        if (!isCanvasTerminal(resolved)) continue;
+        const telemetry = runtimeTerminals[resolved.id]?.telemetry ?? null;
+        const session = resolved.sessionId
+          ? sessionsById.get(resolved.sessionId)
+          : undefined;
+        const derived = deriveTerminalState(resolved, telemetry, session);
         terminals.push({
-          id: liveTerminal.id,
-          status: liveTerminal.status,
-          focused: liveTerminal.focused,
+          id: resolved.id,
+          state: derived.state,
+          focused: resolved.focused,
         });
       }
     }
@@ -33,30 +48,23 @@ export function CompletionGlow() {
   useEffect(() => {
     if (focusedIdx === -1) return;
     const focused = terminals[focusedIdx];
-    if (focused.status === "completed" && !seenRef.current.has(focused.id)) {
-      seenRef.current.add(focused.id);
-      forceUpdate((n) => n + 1);
+    if (focused.state === "done" && !seenTerminalIds.has(focused.id)) {
+      markSeen(focused.id);
     }
   });
 
   useEffect(() => {
-    const seen = seenRef.current;
-    let changed = false;
-    for (const id of seen) {
-      const t = terminals.find((t) => t.id === id);
-      if (!t || t.status !== "completed") {
-        seen.delete(id);
-        changed = true;
-      }
-    }
-    if (changed) forceUpdate((n) => n + 1);
+    const activeDoneIds = terminals
+      .filter((t) => t.state === "done")
+      .map((t) => t.id);
+    syncActiveDoneIds(activeDoneIds);
   });
 
   // Navigation is circular (nextTerminal wraps around), so the glow
   // direction must account for wrap-around.  "Left" means prevTerminal
   // would reach an unseen completed terminal; "right" means nextTerminal
-  const unseen = (t: { id: string; status: string }) =>
-    t.status === "completed" && !seenRef.current.has(t.id);
+  const unseen = (t: { id: string; state: string }) =>
+    t.state === "done" && !seenTerminalIds.has(t.id);
 
   let showLeft = false;
   let showRight = false;
