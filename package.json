@@ -1,6 +1,7 @@
 {
   "name": "termcanvas",
   "version": "0.30.6",
+  "packageManager": "pnpm@10.33.0",
   "description": "An infinite canvas desktop app for visually managing terminals",
   "main": "dist-electron/main.js",
   "bin": {
@@ -14,7 +15,7 @@
     "preview": "vite preview",
     "generate:icons": "python3 scripts/generate-icons.py",
     "pet:preview": "tsx scripts/pet-preview.ts > /tmp/pet-preview.html && echo 'Open /tmp/pet-preview.html in a browser'",
-    "postinstall": "electron-builder install-app-deps && npx playwright install chromium",
+    "postinstall": "node scripts/postinstall.mjs",
     "typecheck": "tsc --noEmit",
     "typecheck:headless": "tsc --noEmit -p tsconfig.headless.json",
     "build:headless": "tsc -p tsconfig.headless.build.json",
@@ -81,6 +82,8 @@
     "better-blockmap": "^2.0.1",
     "electron": "^41.0.2",
     "electron-builder": "^26.8.1",
+    "electron-builder-squirrel-windows": "^26.8.1",
+    "esbuild": "^0.27.7",
     "tailwindcss": "^4.2.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",

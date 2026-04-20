@@ -34,8 +34,8 @@ Phase 2: SWE-bench Docker Evaluation
 ## Quick Start
 
 ```bash
+pnpm install
 cd eval
-npm install
 pip install swebench pyarrow
 
 # Download task set
@@ -121,6 +121,6 @@ eval/
 ## Development
 
 ```bash
-npm run typecheck
+pnpm --dir eval typecheck
 node --experimental-strip-types --no-warnings --test tests/*.test.ts
 ```

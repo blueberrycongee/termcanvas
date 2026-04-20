@@ -177,7 +177,7 @@ Run the local acceptance harness:
 
 ```bash
 cd hydra
-npm run e2e:acceptance -- --repo /absolute/path/to/repo --report /absolute/path/to/report.md
+pnpm e2e:acceptance -- --repo /absolute/path/to/repo --report /absolute/path/to/report.md
 ```
 
 The acceptance harness exercises the Lead-driven control plane:

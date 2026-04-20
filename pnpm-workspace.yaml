@@ -1,0 +1,12 @@
+packages:
+  - agent
+  - browse
+  - eval
+  - hydra
+  - website
+
+allowBuilds:
+  electron: true
+  esbuild: true
+  electron-winstaller: true
+  node-pty: true
