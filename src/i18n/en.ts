@@ -292,7 +292,11 @@ export const en = {
   terminal_renderer_dom: "DOM",
   terminal_renderer_webgl: "WebGL",
   terminal_renderer_desc:
-    "DOM is slower but more reliable. WebGL is faster, but may corrupt glyphs on some systems.",
+    "WebGL is the default and faster. If terminal rendering looks wrong, switch to DOM. If DOM feels too slow, switch back to WebGL.",
+  terminal_renderer_webgl_failed:
+    "WebGL terminal rendering is unavailable. Switch to DOM in Settings > Appearance.",
+  terminal_renderer_webgl_context_lost:
+    "WebGL terminal rendering lost its graphics context. If it keeps happening, switch to DOM in Settings > Appearance.",
   font_builtin: "Built-in",
   font_downloaded: "Downloaded",
   font_download: "Download",

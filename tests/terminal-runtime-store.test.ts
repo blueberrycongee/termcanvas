@@ -574,6 +574,7 @@ test("terminal renderer preference can release and reacquire WebGL on a live run
     const { stats, xterm } = createMockXterm();
     runtime.xterm = xterm as unknown as typeof runtime.xterm;
 
+    usePreferencesStore.getState().setTerminalRenderer("dom");
     usePreferencesStore.getState().setTerminalRenderer("webgl");
     assert.equal(stats.loadAddonCalls, 1);
 
@@ -585,6 +586,45 @@ test("terminal renderer preference can release and reacquire WebGL on a live run
     useProjectStore.setState(previousProjectState);
     usePreferencesStore.setState(previousPreferencesState);
     releaseWebGL("terminal-1");
+  }
+});
+
+test("acquireWebGL warns users to switch renderers when WebGL is unavailable", async () => {
+  installRuntimeGlobals();
+  const { useLocaleStore } = await import("../src/stores/localeStore.ts");
+  const { useNotificationStore } = await import("../src/stores/notificationStore.ts");
+  const { acquireWebGL, releaseWebGL } = await import("../src/terminal/webglContextPool.ts");
+  const previousLocaleState = useLocaleStore.getState();
+  const previousNotificationState = useNotificationStore.getState();
+  let notified: { message: string; type: "error" | "info" | "warn" } | null = null;
+
+  try {
+    useLocaleStore.setState({ locale: "en" });
+    useNotificationStore.setState({
+      notifications: [],
+      notify: (type, message) => {
+        notified = { type, message };
+      },
+    });
+
+    const xterm = {
+      cols: 80,
+      rows: 24,
+      loadAddon() {
+        throw new Error("WebGL unsupported");
+      },
+    };
+
+    assert.equal(acquireWebGL("terminal-1", xterm as never), false);
+    assert.deepEqual(notified, {
+      type: "warn",
+      message:
+        "WebGL terminal rendering is unavailable. Switch to DOM in Settings > Appearance.",
+    });
+  } finally {
+    releaseWebGL("terminal-1");
+    useLocaleStore.setState(previousLocaleState);
+    useNotificationStore.setState(previousNotificationState);
   }
 });
 

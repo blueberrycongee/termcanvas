@@ -285,7 +285,11 @@ export const zh = {
   terminal_renderer_dom: "DOM",
   terminal_renderer_webgl: "WebGL",
   terminal_renderer_desc:
-    "DOM 更慢但更稳定。WebGL 更快，但在部分系统上可能出现字形损坏。",
+    "WebGL 更快，也是默认选项；如果终端渲染异常，就切到 DOM；如果 DOM 太慢，再切回 WebGL。",
+  terminal_renderer_webgl_failed:
+    "当前系统无法使用 WebGL 终端渲染。请到“设置 > 外观”切换到 DOM。",
+  terminal_renderer_webgl_context_lost:
+    "WebGL 终端渲染丢失了图形上下文。如果反复出现，请到“设置 > 外观”切换到 DOM。",
   font_builtin: "内置",
   font_downloaded: "已下载",
   font_download: "下载",

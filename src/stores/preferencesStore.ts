@@ -166,9 +166,9 @@ function loadPreferences(): SavedPrefs {
       const ff = parsed.terminalFontFamily;
       if (typeof ff === "string" && ff.length > 0) fontFamily = ff;
 
-      let terminalRenderer: TerminalRendererMode = "dom";
-      if (parsed.terminalRenderer === "webgl") {
-        terminalRenderer = "webgl";
+      let terminalRenderer: TerminalRendererMode = "webgl";
+      if (parsed.terminalRenderer === "dom") {
+        terminalRenderer = "dom";
       }
 
       let composerEnabled = false;
@@ -238,7 +238,7 @@ function loadPreferences(): SavedPrefs {
     animationBlur: DEFAULT_BLUR,
     terminalFontSize: DEFAULT_FONT_SIZE,
     terminalFontFamily: "geist-mono",
-    terminalRenderer: "dom",
+    terminalRenderer: "webgl",
     composerEnabled: false,
     drawingEnabled: false,
     browserEnabled: false,

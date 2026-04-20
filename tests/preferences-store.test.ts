@@ -38,7 +38,7 @@ test("preferences default animation blur is off", async () => {
   const { usePreferencesStore } = await loadPreferencesStoreModule("default-off");
 
   assert.equal(usePreferencesStore.getState().animationBlur, 0);
-  assert.equal(usePreferencesStore.getState().terminalRenderer, "dom");
+  assert.equal(usePreferencesStore.getState().terminalRenderer, "webgl");
   assert.equal(usePreferencesStore.getState().completionGlowEnabled, false);
 });
 
@@ -72,7 +72,7 @@ test("preferences stores and retrieves cliCommands", async () => {
   assert.deepEqual(usePreferencesStore.getState().cliCommands, {});
 });
 
-test("preferences persist terminal renderer mode and default to dom for unknown values", async () => {
+test("preferences persist terminal renderer mode and default to webgl for unknown values", async () => {
   installLocalStorage(
     JSON.stringify({
       terminalRenderer: "mystery-backend",
@@ -84,7 +84,7 @@ test("preferences persist terminal renderer mode and default to dom for unknown 
   );
   const store = usePreferencesStore.getState();
 
-  assert.equal(store.terminalRenderer, "dom");
+  assert.equal(store.terminalRenderer, "webgl");
 
   store.setTerminalRenderer("webgl");
   assert.equal(usePreferencesStore.getState().terminalRenderer, "webgl");

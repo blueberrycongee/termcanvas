@@ -1,6 +1,9 @@
 import type { Terminal } from "@xterm/xterm";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { useNotificationStore } from "../stores/notificationStore";
+import { useLocaleStore } from "../stores/localeStore";
+import { en } from "../i18n/en";
+import { zh } from "../i18n/zh";
 import { recordRenderDiagnostic } from "./renderDiagnostics";
 
 interface PoolEntry {
@@ -11,8 +14,12 @@ interface PoolEntry {
 }
 
 const MAX_CONTEXTS = 16;
+const WEBGL_NOTIFICATION_THROTTLE_MS = 60_000;
+const WEBGL_UNAVAILABLE_NOTICE_KEY = "tc:webgl-unavailable-notice-at";
+const WEBGL_CONTEXT_LOST_NOTICE_KEY = "tc:webgl-context-lost-notice-at";
 const entries = new Map<string, PoolEntry>();
 let focusedId: string | null = null;
+const dictionaries = { en, zh } as const;
 
 function getPoolDiagnosticData(): Record<string, unknown> {
   return {
@@ -40,6 +47,50 @@ function recordWebGLDiagnostic(
 
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function getT() {
+  const locale = useLocaleStore.getState().locale;
+  return { ...en, ...dictionaries[locale] };
+}
+
+function shouldNotifyWebGLIssue(storageKey: string): boolean {
+  try {
+    const raw = localStorage.getItem(storageKey);
+    const lastNotifiedAt = raw ? Number.parseInt(raw, 10) : 0;
+    if (
+      Number.isFinite(lastNotifiedAt) &&
+      lastNotifiedAt > 0 &&
+      Date.now() - lastNotifiedAt < WEBGL_NOTIFICATION_THROTTLE_MS
+    ) {
+      return false;
+    }
+    localStorage.setItem(storageKey, String(Date.now()));
+  } catch {
+    // Ignore storage failures and still show the notice once.
+  }
+
+  return true;
+}
+
+function notifyWebGLFallbackHint(
+  kind: "context_lost" | "unavailable",
+): void {
+  const storageKey =
+    kind === "context_lost"
+      ? WEBGL_CONTEXT_LOST_NOTICE_KEY
+      : WEBGL_UNAVAILABLE_NOTICE_KEY;
+  if (!shouldNotifyWebGLIssue(storageKey)) {
+    return;
+  }
+
+  const t = getT();
+  useNotificationStore.getState().notify(
+    "warn",
+    kind === "context_lost"
+      ? t.terminal_renderer_webgl_context_lost
+      : t.terminal_renderer_webgl_failed,
+  );
 }
 
 /**
@@ -209,7 +260,7 @@ export function acquireWebGL(terminalId: string, xterm: Terminal): boolean {
       recordWebGLDiagnostic("webgl_context_lost", terminalId, {
         context_loss_count: count,
       });
-      useNotificationStore.getState().notify("warn", `WebGL context lost for terminal ${terminalId} (total: ${count})`);
+      notifyWebGLFallbackHint("context_lost");
       addon.dispose();
       entries.delete(terminalId);
     });
@@ -229,6 +280,7 @@ export function acquireWebGL(terminalId: string, xterm: Terminal): boolean {
     recordWebGLDiagnostic("webgl_acquire_failed", terminalId, {
       error: formatError(error),
     });
+    notifyWebGLFallbackHint("unavailable");
     return false;
   }
 }

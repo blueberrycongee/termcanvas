@@ -771,7 +771,7 @@ export function SettingsModal({ onClose }: Props) {
                   </span>
                 </div>
                 <div className="inline-flex shrink-0 rounded-md border border-[var(--border)] p-0.5">
-                  {(["dom", "webgl"] as const).map((mode) => {
+                  {(["webgl", "dom"] as const).map((mode) => {
                     const selected = terminalRenderer === mode;
                     return (
                       <button
