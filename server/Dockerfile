@@ -9,7 +9,7 @@ RUN corepack enable
 WORKDIR /app
 
 # Install build dependencies
-COPY package.json pnpm-lock.yaml .npmrc ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # Copy source
@@ -43,7 +43,7 @@ WORKDIR /app
 
 # Install production dependencies without running the root postinstall, then
 # rebuild node-pty explicitly for the target image.
-COPY package.json pnpm-lock.yaml .npmrc ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 RUN pnpm install --prod --frozen-lockfile --ignore-scripts \
   && pnpm rebuild node-pty
 
