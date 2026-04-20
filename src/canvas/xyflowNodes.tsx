@@ -9,10 +9,7 @@ import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { TerminalTile } from "../terminal/TerminalTile";
-import {
-  resolveTerminalMountMode,
-  shouldRenderTerminalTile,
-} from "../terminal/terminalRuntimePolicy";
+import { resolveTerminalMountMode } from "../terminal/terminalRuntimePolicy";
 import {
   fitTerminalRuntime,
   useTerminalRuntimeStore,
@@ -219,10 +216,6 @@ function TerminalNode({ data }: NodeProps<TerminalFlowNode>) {
   );
 
   if (!terminal || !worktree) {
-    return null;
-  }
-
-  if (!shouldRenderTerminalTile({ focused: terminal.focused, visible })) {
     return null;
   }
 

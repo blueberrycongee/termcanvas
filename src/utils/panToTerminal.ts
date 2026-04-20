@@ -14,6 +14,7 @@ import {
   setTrackSidebar,
   recomputeTileDimensions,
 } from "../stores/tileDimensionsStore";
+import { recordRenderDiagnostic } from "../terminal/renderDiagnostics";
 
 interface PanToTerminalOptions {
   immediate?: boolean;
@@ -60,6 +61,10 @@ export function panToTerminal(
 
   const found = findTerminal(terminalId);
   if (!found) {
+    recordRenderDiagnostic({
+      kind: "pan_to_terminal_missing",
+      terminalId,
+    });
     console.warn(`[panToTerminal] terminal ${terminalId} not found`);
     return;
   }
@@ -92,6 +97,30 @@ export function panToTerminal(
   const centerX = clampCenterX(absX, absW, scale, leftOffset, rightOffset);
   const centerY =
     -(absY + absH / 2) * scale + (topInset + window.innerHeight) / 2;
+  const shouldFocusTerminal = !isAlreadyFocused(terminalId);
+
+  recordRenderDiagnostic({
+    kind: "pan_to_terminal",
+    terminalId,
+    data: {
+      immediate: opts?.immediate ?? false,
+      preserve_scale: opts?.preserveScale ?? false,
+      project_id: projectId,
+      should_focus_terminal: shouldFocusTerminal,
+      target_viewport: {
+        scale,
+        x: centerX,
+        y: centerY,
+      },
+      terminal_rect: {
+        height: absH,
+        width: absW,
+        x: absX,
+        y: absY,
+      },
+      worktree_id: worktreeId,
+    },
+  });
 
   if (opts?.immediate) {
     useCanvasStore.getState().setViewport({ x: centerX, y: centerY, scale });
@@ -102,7 +131,6 @@ export function panToTerminal(
     });
   }
 
-  const shouldFocusTerminal = !isAlreadyFocused(terminalId);
   if (shouldFocusTerminal) {
     focusTerminalInScene(terminalId);
     activateTerminalInScene(projectId, worktreeId, terminalId);

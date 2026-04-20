@@ -21,16 +21,6 @@ export function resolveTerminalMountMode({
   return "parked";
 }
 
-export function shouldRenderTerminalTile({
-  focused,
-  visible,
-}: {
-  focused: boolean;
-  visible: boolean;
-}): boolean {
-  return focused || visible;
-}
-
 export function clampPreviewAnsi(serialized: string): string {
   if (serialized.length <= MAX_PREVIEW_ANSI_CHARS) {
     return serialized;

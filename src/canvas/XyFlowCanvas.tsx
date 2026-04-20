@@ -169,7 +169,10 @@ function TerminalRuntimeLayer({
     const stashedIds = getStashedTerminalIds(projects);
     for (const terminalId of managedTerminalIdsRef.current) {
       if (!nextTerminalIds.has(terminalId) && !stashedIds.has(terminalId)) {
-        destroyTerminalRuntime(terminalId);
+        destroyTerminalRuntime(terminalId, {
+          caller: "TerminalRuntimeLayer.runtimeMetasEffect",
+          reason: "terminal_removed_from_runtime_metas",
+        });
       }
     }
 
@@ -210,7 +213,10 @@ function TerminalRuntimeLayer({
       for (const worktree of project.worktrees) {
         for (const terminal of worktree.terminals) {
           if (!visibleEntryIds.has(terminal.id)) {
-            setTerminalRuntimeMode(terminal.id, "parked");
+            setTerminalRuntimeMode(terminal.id, "parked", {
+              caller: "TerminalRuntimeLayer.visibilityEffect",
+              reason: "terminal_missing_from_visible_entries",
+            });
           }
         }
       }
@@ -231,6 +237,13 @@ function TerminalRuntimeLayer({
           focused: entry.terminal.focused,
           visible,
         }),
+        {
+          caller: "TerminalRuntimeLayer.visibilityEffect",
+          detail: {
+            visible,
+          },
+          reason: "viewport_visibility_recomputed",
+        },
       );
     }
   }, [
@@ -246,7 +259,10 @@ function TerminalRuntimeLayer({
   useEffect(
     () => () => {
       for (const terminalId of managedTerminalIdsRef.current) {
-        destroyTerminalRuntime(terminalId);
+        destroyTerminalRuntime(terminalId, {
+          caller: "TerminalRuntimeLayer.cleanup",
+          reason: "terminal_runtime_layer_unmount",
+        });
       }
 
       for (const terminalId of publishedTerminalIdsRef.current) {
@@ -583,7 +599,10 @@ function XyFlowCanvasInner() {
         zoomOnPinch={false}
         minZoom={0.1}
         maxZoom={2}
-        onlyRenderVisibleElements
+        // Runtime park/live policy already downshifts offscreen terminals to
+        // preview mode. Letting React Flow also cull offscreen nodes causes
+        // TerminalTile remount churn during viewport animation and focus
+        // cycling, which in turn destabilizes xterm/WebGL lifecycle.
         preventScrolling
       >
         <Background gap={20} size={1} color="var(--border)" />

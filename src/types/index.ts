@@ -4,6 +4,10 @@ import type {
   TerminalTelemetrySnapshot,
   WorkflowTelemetrySnapshot,
 } from "../../shared/telemetry";
+import type {
+  RenderDiagnosticEventInput,
+  RenderDiagnosticsLogInfo,
+} from "../../shared/render-diagnostics";
 
 export * from "./scene";
 
@@ -523,6 +527,10 @@ export interface TermCanvasAPI {
         snapshot: TerminalTelemetrySnapshot;
       }) => void,
     ) => () => void;
+  };
+  diagnostics: {
+    recordRenderEvent: (input: RenderDiagnosticEventInput) => Promise<void>;
+    getRenderLogInfo: () => Promise<RenderDiagnosticsLogInfo>;
   };
   project: {
     selectDirectory: () => Promise<string | null>;

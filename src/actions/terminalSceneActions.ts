@@ -8,6 +8,7 @@ import {
   useProjectStore,
 } from "../stores/projectStore";
 import { destroyTerminalRuntime } from "../terminal/terminalRuntimeStore";
+import { recordRenderDiagnostic } from "../terminal/renderDiagnostics";
 import { pickPlacement } from "../canvas/terminalPlacement";
 import { useCanvasStore } from "../stores/canvasStore";
 import { getVisibleCanvasWorldRect } from "../canvas/viewportBounds";
@@ -181,6 +182,14 @@ export function focusTerminalInScene(
   terminalId: string | null,
   options?: { focusComposer?: boolean; focusInput?: boolean },
 ): void {
+  recordRenderDiagnostic({
+    kind: "focus_terminal_in_scene",
+    terminalId: terminalId ?? undefined,
+    data: {
+      focus_composer: options?.focusComposer ?? false,
+      focus_input: options?.focusInput ?? false,
+    },
+  });
   useProjectStore.getState().setFocusedTerminal(terminalId, options);
 }
 
@@ -189,7 +198,10 @@ export function closeTerminalInScene(
   worktreeId: string,
   terminalId: string,
 ): void {
-  destroyTerminalRuntime(terminalId);
+  destroyTerminalRuntime(terminalId, {
+    caller: "closeTerminalInScene",
+    reason: "close_terminal",
+  });
   useProjectStore.getState().removeTerminal(projectId, worktreeId, terminalId);
 }
 

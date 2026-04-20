@@ -318,7 +318,10 @@ function cleanupRemovedTerminalIds(terminalIds: string[]) {
 
   const runtimeState = useTerminalRuntimeStateStore.getState();
   for (const terminalId of uniqueTerminalIds) {
-    destroyTerminalRuntime(terminalId);
+    destroyTerminalRuntime(terminalId, {
+      caller: "cleanupRemovedTerminalIds",
+      reason: "terminal_removed_from_project_store",
+    });
     runtimeState.clearTerminal(terminalId);
   }
 }

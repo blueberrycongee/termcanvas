@@ -1,6 +1,7 @@
 import type { Terminal } from "@xterm/xterm";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { useNotificationStore } from "../stores/notificationStore";
+import { recordRenderDiagnostic } from "./renderDiagnostics";
 
 interface PoolEntry {
   terminalId: string;
@@ -13,49 +14,74 @@ const MAX_CONTEXTS = 16;
 const entries = new Map<string, PoolEntry>();
 let focusedId: string | null = null;
 
+function getPoolDiagnosticData(): Record<string, unknown> {
+  return {
+    focused_terminal_id: focusedId,
+    max_contexts: MAX_CONTEXTS,
+    pool_size: entries.size,
+    tracked_terminal_ids: [...entries.keys()],
+  };
+}
+
+function recordWebGLDiagnostic(
+  kind: string,
+  terminalId?: string,
+  data: Record<string, unknown> = {},
+): void {
+  recordRenderDiagnostic({
+    kind,
+    terminalId,
+    data: {
+      ...getPoolDiagnosticData(),
+      ...data,
+    },
+  });
+}
+
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /**
  * Atlas recovery.
  *
- * Observed pre-0.30.2:
- *   - After the app has been away for a long time, returning to a
- *     terminal shows garbled characters.
- *   - No `webglcontextlost` event is fired while the corruption is
- *     happening.
- *   - Manual workaround (full): toggling the theme restores all
- *     glyphs.
- *   - Manual workaround (local): selecting a range of text
- *     restores that range; unselected regions stay garbled.
+ * Current evidence:
+ *   - The WebGL glyph atlas can become visually wrong without any
+ *     `webglcontextlost` event.
+ *   - Theme toggle fully restores it, and local selection redraw can
+ *     restore only the selected range, so the bug behaves like stale
+ *     atlas contents rather than bad terminal data.
+ *   - Window-level return-from-background is only one trigger. Recent
+ *     diagnostics also show corruption around focus, layout, and
+ *     viewport-scale churn while the window is still visible.
  *
- * Fix (0.30.2+): call `WebglAddon.clearTextureAtlas()` on three
- * signals that correlate with "returning after being away":
+ * Responsibility split:
+ *   - This module owns app-wide invalidation signals that do not need
+ *     terminal lifecycle context:
+ *       1. `devicePixelRatio` change
+ *       2. `document.visibilityState` hidden→visible
+ *       3. `window` focus regained
+ *   - Per-terminal recovery for create / attach / focus / settled
+ *     viewport scale lives in `terminalRuntimeStore` and `TerminalTile`,
+ *     because those paths depend on runtime attachment state and canvas
+ *     animation state.
  *
- *   1. `devicePixelRatio` change — external monitor swap, OS scale
- *      change, browser zoom.
- *   2. `document.visibilityState` flip hidden→visible — window
- *      minimise, Electron-level hide + show. Does NOT fire on
- *      plain Cmd+Tab between apps in Electron; the document stays
- *      "visible" through app-switch.
- *   3. `window` focus regained — Cmd+Tab back, lid close + open,
- *      screen lock + unlock, macOS Space switch back.
- *
- * Observed post-0.30.2:
- *   - Short Cmd+Tab round-trips: no user-visible change (no flash,
- *     no blank frame, no rerender flicker).
- *   - Long-absence case has not been re-tested in this pass.
- *
- * See also `applyThemeToRuntime` in terminalRuntimeStore for the
- * ghostty-web theme-swap investigation that prompted us to read
- * through this pipeline.
- *
- * Manual escape hatch: `rebuildTerminalAtlas()` is exported and
- * wired to the toolbar "Refresh terminal rendering" button for
- * corruption modes these three signals don't catch.
+ * Manual escape hatch: `rebuildTerminalAtlas()` stays exported for the
+ * toolbar "Refresh terminal rendering" action and any future targeted
+ * diagnostics.
  */
-function rebuildAllAtlases(): void {
+function rebuildAllAtlases(reason = "unspecified"): void {
+  recordWebGLDiagnostic("render_atlas_rebuild_all", undefined, {
+    reason,
+  });
   for (const entry of entries.values()) {
     try {
       entry.addon.clearTextureAtlas();
-    } catch {
+    } catch (error) {
+      recordWebGLDiagnostic("render_atlas_rebuild_failed", entry.terminalId, {
+        error: formatError(error),
+        reason,
+      });
       // Addon may be mid-disposal or the underlying context
       // genuinely dead; swallow and let the next lifecycle event
       // (context loss, attach) handle it.
@@ -63,16 +89,31 @@ function rebuildAllAtlases(): void {
   }
 }
 
-export function rebuildTerminalAtlas(terminalId?: string): void {
+export function rebuildTerminalAtlas(
+  terminalId?: string,
+  reason = "unspecified",
+): void {
   if (!terminalId) {
-    rebuildAllAtlases();
+    rebuildAllAtlases(reason);
     return;
   }
   const entry = entries.get(terminalId);
-  if (!entry) return;
+  if (!entry) {
+    recordWebGLDiagnostic("render_atlas_rebuild_skipped", terminalId, {
+      reason,
+    });
+    return;
+  }
+  recordWebGLDiagnostic("render_atlas_rebuild", terminalId, {
+    reason,
+  });
   try {
     entry.addon.clearTextureAtlas();
-  } catch {
+  } catch (error) {
+    recordWebGLDiagnostic("render_atlas_rebuild_failed", terminalId, {
+      error: formatError(error),
+      reason,
+    });
     // Swallow — same reasoning as above.
   }
 }
@@ -97,7 +138,7 @@ function installAtlasRecoveryListeners(): void {
       window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
     let dprMql = buildDprMql();
     const onDprChange = () => {
-      rebuildAllAtlases();
+      rebuildAllAtlases("device_pixel_ratio_change");
       dprMql.removeEventListener("change", onDprChange);
       dprMql = buildDprMql();
       dprMql.addEventListener("change", onDprChange);
@@ -115,7 +156,7 @@ function installAtlasRecoveryListeners(): void {
   ) {
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
-        rebuildAllAtlases();
+        rebuildAllAtlases("document_visible");
       }
     });
   }
@@ -129,7 +170,7 @@ function installAtlasRecoveryListeners(): void {
   //     than hiding the window)
   if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
     window.addEventListener("focus", () => {
-      rebuildAllAtlases();
+      rebuildAllAtlases("window_focus");
     });
   }
 }
@@ -143,6 +184,10 @@ export function acquireWebGL(terminalId: string, xterm: Terminal): boolean {
 
   if (entries.has(terminalId)) {
     touch(terminalId);
+    recordWebGLDiagnostic("webgl_acquire_reused", terminalId, {
+      cols: xterm.cols,
+      rows: xterm.rows,
+    });
     return true;
   }
 
@@ -150,12 +195,20 @@ export function acquireWebGL(terminalId: string, xterm: Terminal): boolean {
     evictLRU();
   }
 
+  recordWebGLDiagnostic("webgl_acquire_attempt", terminalId, {
+    cols: xterm.cols,
+    rows: xterm.rows,
+  });
+
   try {
     const addon = new WebglAddon();
     addon.onContextLoss(() => {
       const count = (parseInt(localStorage.getItem("tc:webgl-loss-count") ?? "0", 10) || 0) + 1;
       localStorage.setItem("tc:webgl-loss-count", String(count));
       localStorage.setItem("tc:webgl-loss-last", new Date().toISOString());
+      recordWebGLDiagnostic("webgl_context_lost", terminalId, {
+        context_loss_count: count,
+      });
       useNotificationStore.getState().notify("warn", `WebGL context lost for terminal ${terminalId} (total: ${count})`);
       addon.dispose();
       entries.delete(terminalId);
@@ -167,8 +220,15 @@ export function acquireWebGL(terminalId: string, xterm: Terminal): boolean {
       xterm,
       lastUsed: Date.now(),
     });
+    recordWebGLDiagnostic("webgl_acquire_success", terminalId, {
+      cols: xterm.cols,
+      rows: xterm.rows,
+    });
     return true;
-  } catch {
+  } catch (error) {
+    recordWebGLDiagnostic("webgl_acquire_failed", terminalId, {
+      error: formatError(error),
+    });
     return false;
   }
 }
@@ -181,6 +241,7 @@ export function releaseWebGL(terminalId: string): void {
     } catch {
     }
     entries.delete(terminalId);
+    recordWebGLDiagnostic("webgl_release", terminalId);
   }
   if (focusedId === terminalId) {
     focusedId = null;
@@ -193,6 +254,7 @@ export function touch(terminalId: string): void {
     entry.lastUsed = Date.now();
   }
   focusedId = terminalId;
+  recordWebGLDiagnostic("webgl_touch", terminalId);
 }
 
 function evictLRU(): void {
@@ -204,6 +266,9 @@ function evictLRU(): void {
     }
   }
   if (oldest) {
+    recordWebGLDiagnostic("webgl_evict_lru", oldest.terminalId, {
+      last_used: oldest.lastUsed,
+    });
     try {
       oldest.addon.dispose();
     } catch {

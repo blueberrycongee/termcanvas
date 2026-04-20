@@ -119,6 +119,7 @@ function createMockXterm() {
     blurCalls: 0,
     disposeCalls: 0,
     fitCalls: 0,
+    focusCalls: 0,
     inputBindingDisposeCalls: 0,
     loadAddonCalls: 0,
     refreshCalls: 0,
@@ -139,7 +140,9 @@ function createMockXterm() {
     dispose() {
       stats.disposeCalls += 1;
     },
-    focus() {},
+    focus() {
+      stats.focusCalls += 1;
+    },
     getSelection() {
       return "";
     },
@@ -741,6 +744,80 @@ test("selectAllTerminalRuntime selects the focused xterm buffer", async () => {
   } finally {
     destroyAllTerminalRuntimes();
     useProjectStore.setState(previousState);
+  }
+});
+
+test("focusTerminalRuntime refreshes scaled WebGL terminals after focus", async () => {
+  const mockWindow = installRuntimeGlobals();
+  const { useCanvasStore } = await import("../src/stores/canvasStore.ts");
+  const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const {
+    destroyAllTerminalRuntimes,
+    ensureTerminalRuntime,
+    focusTerminalRuntime,
+    getTerminalRuntime,
+  } = await import("../src/terminal/terminalRuntimeStore.ts");
+  const previousProjectState = useProjectStore.getState();
+  const previousCanvasState = useCanvasStore.getState();
+
+  destroyAllTerminalRuntimes();
+
+  try {
+    seedProjectState(useProjectStore);
+    useCanvasStore.setState({
+      isAnimating: false,
+      viewport: { x: 0, y: 0, scale: 0.6 },
+    });
+
+    mockWindow.termcanvas = {
+      terminal: {
+        create: async () => 42,
+        destroy: async () => {},
+        input() {},
+        onExit() {
+          return () => {};
+        },
+        onOutput() {
+          return () => {};
+        },
+        resize() {},
+      },
+      session: {
+        onTurnComplete() {
+          return () => {};
+        },
+      },
+    };
+
+    ensureTerminalRuntime({
+      projectId: "project-1",
+      terminal: useProjectStore.getState().projects[0].worktrees[0].terminals[0],
+      worktreeId: "worktree-1",
+      worktreePath: "/tmp/project-1",
+    });
+
+    const runtime = getTerminalRuntime("terminal-1");
+    assert.ok(runtime);
+    if (!runtime) {
+      return;
+    }
+
+    const { stats, xterm } = createMockXterm();
+    runtime.rendererMode = "webgl";
+    runtime.xterm = xterm as unknown as typeof runtime.xterm;
+
+    assert.equal(focusTerminalRuntime("terminal-1"), true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.equal(stats.focusCalls, 1);
+    assert.equal(stats.refreshCalls, 1);
+  } finally {
+    destroyAllTerminalRuntimes();
+    useProjectStore.setState(previousProjectState);
+    useCanvasStore.setState({
+      isAnimating: previousCanvasState.isAnimating,
+      viewport: previousCanvasState.viewport,
+    });
   }
 });
 

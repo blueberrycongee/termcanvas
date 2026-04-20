@@ -38,6 +38,7 @@ import { snapshotStateWithRefresh } from "../snapshotState";
 import { updateWindowTitle } from "../titleHelper";
 import { panToTerminal } from "../utils/panToTerminal";
 import { panToWorktree } from "../utils/panToWorktree";
+import { recordRenderDiagnostic } from "../terminal/renderDiagnostics";
 import {
   getCanvasRightInset,
   getCanvasLeftInset,
@@ -130,8 +131,18 @@ export function navigateToTerminalWithViewport(
 ): string | null {
   const pan = options.pan ?? panToTerminal;
   const zoom = options.zoom ?? zoomToTerminal;
+  const keepScale = options.zoomedOutTerminalId !== null;
 
-  if (options.zoomedOutTerminalId !== null) {
+  recordRenderDiagnostic({
+    kind: "navigate_terminal_with_viewport",
+    terminalId,
+    data: {
+      preserve_scale: keepScale,
+      zoomed_out_terminal_id: options.zoomedOutTerminalId,
+    },
+  });
+
+  if (keepScale) {
     pan(terminalId, { preserveScale: true });
     return terminalId;
   }
@@ -582,6 +593,19 @@ export function useKeyboardShortcuts() {
         const nextIndex =
           currentIndex === -1 ? 0 : (currentIndex + 1) % terminalList.length;
         const next = terminalList[nextIndex];
+        recordRenderDiagnostic({
+          kind: "shortcut_cycle_terminal",
+          terminalId: next.terminalId,
+          data: {
+            current_terminal_id:
+              currentIndex === -1
+                ? null
+                : terminalList[currentIndex]?.terminalId ?? null,
+            direction: "next",
+            focus_level: level,
+            terminal_count: terminalList.length,
+          },
+        });
         focusTerminalInScene(next.terminalId);
         setZoomedOutTerminalId(
           navigateToTerminalWithViewport(next.terminalId, {
@@ -617,6 +641,19 @@ export function useKeyboardShortcuts() {
         const prevIndex =
           currentIndex <= 0 ? terminalList.length - 1 : currentIndex - 1;
         const prev = terminalList[prevIndex];
+        recordRenderDiagnostic({
+          kind: "shortcut_cycle_terminal",
+          terminalId: prev.terminalId,
+          data: {
+            current_terminal_id:
+              currentIndex === -1
+                ? null
+                : terminalList[currentIndex]?.terminalId ?? null,
+            direction: "prev",
+            focus_level: level,
+            terminal_count: terminalList.length,
+          },
+        });
         focusTerminalInScene(prev.terminalId);
         setZoomedOutTerminalId(
           navigateToTerminalWithViewport(prev.terminalId, {

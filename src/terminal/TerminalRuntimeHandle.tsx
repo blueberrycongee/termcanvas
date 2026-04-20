@@ -40,7 +40,13 @@ export function TerminalRuntimeHandle({
           ),
         );
       if (!isStashed) {
-        destroyTerminalRuntime(terminal.id);
+        destroyTerminalRuntime(terminal.id, {
+          caller: "TerminalRuntimeHandle.cleanup",
+          detail: {
+            is_stashed: isStashed,
+          },
+          reason: "terminal_runtime_handle_unmount",
+        });
       }
     };
   }, [projectId, terminal.id, worktreeId, worktreePath]);

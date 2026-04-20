@@ -1,4 +1,8 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
+import type {
+  RenderDiagnosticEventInput,
+  RenderDiagnosticsLogInfo,
+} from "../shared/render-diagnostics";
 
 contextBridge.exposeInMainWorld("termcanvas", {
   terminal: {
@@ -149,6 +153,14 @@ contextBridge.exposeInMainWorld("termcanvas", {
       return () =>
         ipcRenderer.removeListener("telemetry:snapshot-changed", listener);
     },
+  },
+  diagnostics: {
+    recordRenderEvent: (input: RenderDiagnosticEventInput) =>
+      ipcRenderer.invoke("diagnostics:record-render-event", input) as Promise<void>,
+    getRenderLogInfo: () =>
+      ipcRenderer.invoke(
+        "diagnostics:get-render-log-info",
+      ) as Promise<RenderDiagnosticsLogInfo>,
   },
   project: {
     selectDirectory: () => ipcRenderer.invoke("project:select-directory"),

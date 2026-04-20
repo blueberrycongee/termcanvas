@@ -132,6 +132,7 @@ import { createMenu } from "./menu";
 import { isSelectAllShortcutInput } from "./select-all-shortcut";
 import { isReloadShortcutInput } from "./reload-shortcut";
 import { TelemetryService } from "./telemetry-service";
+import { createRenderDiagnosticsLogger } from "./render-diagnostics";
 import { HookReceiver } from "./hook-receiver";
 import {
   findBestClaudeSession,
@@ -144,6 +145,7 @@ import {
 import { AgentService, type AgentConfig } from "./agent-service";
 import { SessionScanner } from "./session-scanner.ts";
 import { mergeAndDedupeSessions } from "./session-list.ts";
+import type { RenderDiagnosticEventInput } from "../shared/render-diagnostics";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -204,6 +206,7 @@ const telemetryService = new TelemetryService({
 });
 const agentService = new AgentService();
 const sessionScanner = new SessionScanner();
+const renderDiagnostics = createRenderDiagnosticsLogger(app.getPath("userData"));
 let hookSocketPath: string | null = null;
 const hookReceiver = new HookReceiver((event) => {
   telemetryService.recordHookEvent(event.terminal_id, event);
@@ -269,6 +272,11 @@ function createWindow() {
         titleBarStyle: "hidden" as const,
       }),
   });
+  const windowId = mainWindow.id;
+  renderDiagnostics.recordMainEvent("browser_window_created", {
+    isDev,
+    window_id: windowId,
+  });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
@@ -299,10 +307,17 @@ function createWindow() {
     mainWindow?.show();
   });
   mainWindow.on("closed", () => {
+    renderDiagnostics.recordMainEvent("browser_window_closed", {
+      window_id: windowId,
+    });
     mainWindow = null;
     rendererReady = false;
   });
   mainWindow.on("focus", () => {
+    renderDiagnostics.recordMainEvent("browser_window_focus", {
+      window_id: windowId,
+      visible: mainWindow?.isVisible() ?? null,
+    });
     // macOS re-activation can leave compositor-backed sidebar layers stale
     // until the next input-driven repaint. Force a full redraw on focus so
     // fixed/overflow-hidden panels repaint immediately.
@@ -310,6 +325,32 @@ function createWindow() {
     for (const dirPath of fileTreeWatcher.getWatchedDirs()) {
       sendToWindow(mainWindow, "fs:dir-changed", dirPath);
     }
+  });
+  mainWindow.on("blur", () => {
+    renderDiagnostics.recordMainEvent("browser_window_blur", {
+      window_id: windowId,
+      visible: mainWindow?.isVisible() ?? null,
+    });
+  });
+  mainWindow.on("show", () => {
+    renderDiagnostics.recordMainEvent("browser_window_show", {
+      window_id: windowId,
+    });
+  });
+  mainWindow.on("hide", () => {
+    renderDiagnostics.recordMainEvent("browser_window_hide", {
+      window_id: windowId,
+    });
+  });
+  mainWindow.on("minimize", () => {
+    renderDiagnostics.recordMainEvent("browser_window_minimize", {
+      window_id: windowId,
+    });
+  });
+  mainWindow.on("restore", () => {
+    renderDiagnostics.recordMainEvent("browser_window_restore", {
+      window_id: windowId,
+    });
   });
 
   createMenu(mainWindow);
@@ -323,6 +364,10 @@ function createWindow() {
 
   let rendererReady = false;
   mainWindow.webContents.on("did-finish-load", async () => {
+    renderDiagnostics.recordMainEvent("renderer_did_finish_load", {
+      renderer_ready_before_load: rendererReady,
+      window_id: windowId,
+    });
     if (rendererReady) {
       console.warn("[PtyManager] renderer reloaded – destroying orphaned PTYs");
       await ptyManager.destroyAll();
@@ -337,6 +382,10 @@ function createWindow() {
     }
   });
   mainWindow.on("close", (e) => {
+    renderDiagnostics.recordMainEvent("browser_window_close_requested", {
+      renderer_ready: rendererReady,
+      window_id: windowId,
+    });
     if (forceClose || !mainWindow || !rendererReady) return;
     e.preventDefault();
     sendToWindow(mainWindow, "app:before-close");
@@ -1145,6 +1194,17 @@ function setupIpc() {
     },
   );
 
+  ipcMain.handle(
+    "diagnostics:record-render-event",
+    (_event, input: RenderDiagnosticEventInput) => {
+      renderDiagnostics.recordRendererEvent(input);
+    },
+  );
+
+  ipcMain.handle("diagnostics:get-render-log-info", () => {
+    return renderDiagnostics.getLogInfo();
+  });
+
   ipcMain.handle("hook:get-socket-path", () => hookSocketPath);
   ipcMain.handle("hook:get-health", () => hookReceiver.getHealth());
 
@@ -1869,6 +1929,12 @@ if (process.defaultApp) {
 }
 
 app.whenReady().then(async () => {
+  renderDiagnostics.recordMainEvent("app_ready", {
+    app_version: app.getVersion(),
+    isDev,
+    platform: process.platform,
+    user_data_path: app.getPath("userData"),
+  });
   app.on("web-contents-created", (_event, contents) => {
     if (contents.getType() === "webview") {
       contents.setWindowOpenHandler(({ url }) => {
@@ -1960,6 +2026,9 @@ app.whenReady().then(async () => {
 });
 
 app.on("will-quit", () => {
+  renderDiagnostics.recordMainEvent("app_will_quit", {
+    platform: process.platform,
+  });
   hookReceiver.stop();
   stopAutoUpdater();
   apiServer.stop();
