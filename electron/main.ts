@@ -80,10 +80,13 @@ import type { ComposerSubmitRequest } from "../src/types";
 import { getProjectDiff } from "./git-diff";
 import { searchFileContents, searchSessionContents } from "./search-handlers";
 import {
+  invalidateSessionIndexForFile,
   listSessionsForProjects,
   listSessionsForProjectsPaged,
   type SessionSearchEntry,
 } from "./session-search-index";
+import { buildSessionHistoryScope, diffSessionHistoryScopes } from "./session-history-events.ts";
+import type { SessionHistoryChangedEvent } from "../shared/sessions.ts";
 import {
   checkoutGitRef,
   createCommit,
@@ -179,6 +182,20 @@ function cleanupPortFile() {
   try {
     fs.unlinkSync(PORT_FILE);
   } catch {}
+}
+
+function emitSessionHistoryChanged(payload: SessionHistoryChangedEvent) {
+  const projectDirs = payload.projectDirs
+    .map((dir) => dir.trim())
+    .filter(Boolean);
+  if (projectDirs.length === 0) {
+    return;
+  }
+
+  sendToWindow(mainWindow, "session-history:changed", {
+    ...payload,
+    projectDirs,
+  });
 }
 
 const HIDDEN_DIRS = new Set([".git"]);
@@ -1142,6 +1159,13 @@ function setupIpc() {
         confidence: input.confidence,
         sessionFile: sessionFile ?? undefined,
       });
+      if (sessionFile) {
+        invalidateSessionIndexForFile(sessionFile);
+        emitSessionHistoryChanged({
+          reason: "session_attached",
+          projectDirs: [input.cwd],
+        });
+      }
       return {
         ok: sessionFile !== null,
         sessionFile,
@@ -1150,7 +1174,15 @@ function setupIpc() {
   );
 
   ipcMain.handle("telemetry:detach-session", (_event, terminalId: string) => {
+    const snapshot = telemetryService.getTerminalSnapshot(terminalId);
     telemetryService.detachSessionSource(terminalId);
+    if (snapshot?.session_file) {
+      invalidateSessionIndexForFile(snapshot.session_file);
+    }
+    emitSessionHistoryChanged({
+      reason: "session_detached",
+      projectDirs: snapshot?.worktree_path ? [snapshot.worktree_path] : [],
+    });
   });
 
   ipcMain.handle(
@@ -1956,10 +1988,25 @@ app.whenReady().then(async () => {
     hookSocketPath = null;
     console.error("[HookReceiver] Startup disabled:", error);
   }
+  let previousSessionHistoryScope = new Map<string, string>();
   sessionScanner.start((sessions) => {
+    const nextSessionHistoryScope = buildSessionHistoryScope(sessions);
+    const { projectDirs, invalidatedFilePaths } = diffSessionHistoryScopes(
+      previousSessionHistoryScope,
+      nextSessionHistoryScope,
+    );
+    previousSessionHistoryScope = nextSessionHistoryScope;
+    for (const filePath of invalidatedFilePaths) {
+      invalidateSessionIndexForFile(filePath);
+    }
+
     const managed = telemetryService.getManagedSessions();
     const merged = mergeAndDedupeSessions(managed, sessions);
     sendToWindow(mainWindow, "sessions:list-changed", merged);
+    emitSessionHistoryChanged({
+      reason: "session_scan_changed",
+      projectDirs,
+    });
   });
   ensureCliLinks();
   syncCliIntegrationOnStartup({

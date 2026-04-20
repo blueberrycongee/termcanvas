@@ -8,6 +8,7 @@ import type {
   RenderDiagnosticEventInput,
   RenderDiagnosticsLogInfo,
 } from "../../shared/render-diagnostics";
+import type { SessionHistoryChangedEvent } from "../../shared/sessions";
 
 export * from "./scene";
 
@@ -923,6 +924,9 @@ export interface TermCanvasAPI {
       callback: (
         sessions: import("../../shared/sessions").SessionInfo[],
       ) => void,
+    ) => () => void;
+    onHistoryChanged: (
+      callback: (payload: SessionHistoryChangedEvent) => void,
     ) => () => void;
     loadReplay: (
       filePath: string,

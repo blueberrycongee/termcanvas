@@ -3,6 +3,7 @@ import type {
   RenderDiagnosticEventInput,
   RenderDiagnosticsLogInfo,
 } from "../shared/render-diagnostics";
+import type { SessionHistoryChangedEvent } from "../shared/sessions";
 
 contextBridge.exposeInMainWorld("termcanvas", {
   terminal: {
@@ -836,6 +837,17 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.on("sessions:list-changed", listener);
       return () =>
         ipcRenderer.removeListener("sessions:list-changed", listener);
+    },
+    onHistoryChanged: (
+      callback: (payload: SessionHistoryChangedEvent) => void,
+    ) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        payload: SessionHistoryChangedEvent,
+      ) => callback(payload);
+      ipcRenderer.on("session-history:changed", listener);
+      return () =>
+        ipcRenderer.removeListener("session-history:changed", listener);
     },
     loadReplay: (filePath: string) =>
       ipcRenderer.invoke("sessions:load-replay", filePath),

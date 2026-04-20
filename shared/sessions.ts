@@ -12,6 +12,14 @@ export interface SessionInfo {
   tokenTotal: number;
 }
 
+export interface SessionHistoryChangedEvent {
+  reason:
+    | "session_attached"
+    | "session_detached"
+    | "session_scan_changed";
+  projectDirs: string[];
+}
+
 export interface TimelineEvent {
   index: number;
   timestamp: string;
