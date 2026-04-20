@@ -182,12 +182,85 @@ test("parseCodexSession clamps input to zero when cached exceeds total", () => {
   fs.rmSync(path.dirname(filePath), { recursive: true });
 });
 
+test("parseCodexSession ignores model_provider aliases and uses turn_context model", () => {
+  const filePath = writeCodexJsonl([
+    {
+      timestamp: "2026-03-20T10:00:00Z",
+      type: "session_meta",
+      payload: {
+        cwd: "/tmp/test-project",
+        model_provider: "gmn",
+      },
+    },
+    {
+      timestamp: "2026-03-20T10:00:30Z",
+      type: "turn_context",
+      payload: {
+        model: "gpt-5.4",
+      },
+    },
+    {
+      timestamp: "2026-03-20T10:01:00Z",
+      type: "event_msg",
+      payload: {
+        type: "token_count",
+        info: {
+          total_token_usage: {
+            input_tokens: 100_000,
+            cached_input_tokens: 80_000,
+            output_tokens: 5_000,
+            total_tokens: 105_000,
+          },
+        },
+      },
+    },
+  ]);
+
+  const { records } = parseCodexSession(
+    filePath,
+    "2026-03-20T00:00:00",
+    "2026-03-21T00:00:00",
+  );
+
+  assert.equal(records.length, 1);
+  assert.equal(records[0].model, "gpt-5.4");
+
+  fs.rmSync(path.dirname(filePath), { recursive: true });
+});
+
 test("computeCost applies codex pricing correctly", () => {
   const cost = computeCost("codex", 20_000, 5_000, 80_000, 0, 0);
 
   const expected = (20_000 / 1e6) * 1.50
                  + (5_000 / 1e6) * 6.00
                  + (80_000 / 1e6) * 0.375;
+  assert.equal(Math.abs(cost - expected) < 1e-10, true);
+});
+
+test("computeCost applies official gpt-5.4 pricing for Codex CLI sessions", () => {
+  const cost = computeCost("gpt-5.4", 20_000, 5_000, 80_000, 0, 0);
+
+  const expected = (20_000 / 1e6) * 2.50
+                 + (5_000 / 1e6) * 15.00
+                 + (80_000 / 1e6) * 0.25;
+  assert.equal(Math.abs(cost - expected) < 1e-10, true);
+});
+
+test("computeCost uses longest prefix match for Codex model snapshots", () => {
+  const cost = computeCost("gpt-5.1-codex-mini-2026-04-01", 10_000, 2_000, 40_000, 0, 0);
+
+  const expected = (10_000 / 1e6) * 0.25
+                 + (2_000 / 1e6) * 2.00
+                 + (40_000 / 1e6) * 0.025;
+  assert.equal(Math.abs(cost - expected) < 1e-10, true);
+});
+
+test("computeCost applies gpt-5.4 long-context multipliers above 272k input tokens", () => {
+  const cost = computeCost("gpt-5.4", 120_000, 8_000, 160_001, 0, 0);
+
+  const expected = (120_000 / 1e6) * 2.50 * 2
+                 + (160_001 / 1e6) * 0.25 * 2
+                 + (8_000 / 1e6) * 15.00 * 1.5;
   assert.equal(Math.abs(cost - expected) < 1e-10, true);
 });
 

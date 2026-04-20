@@ -3,12 +3,82 @@ import path from "path";
 import os from "os";
 import { TERMCANVAS_DIR } from "./state-persistence.ts";
 
-const PRICING: Record<string, { input: number; output: number; cache_read: number; cache_create_5m: number; cache_create_1h: number }> = {
-  "claude-opus-4-6":   { input: 5.00, output: 25.00, cache_read: 0.50, cache_create_5m: 6.25,  cache_create_1h: 10.00 },
-  "claude-sonnet-4-6": { input: 3.00, output: 15.00, cache_read: 0.30, cache_create_5m: 3.75,  cache_create_1h: 6.00 },
-  "claude-haiku-4-5":  { input: 1.00, output:  5.00, cache_read: 0.10, cache_create_5m: 1.25,  cache_create_1h: 2.00 },
-  codex:               { input: 1.50, output:  6.00, cache_read: 0.375, cache_create_5m: 1.50,  cache_create_1h: 1.50 },
-  default:             { input: 5.00, output: 25.00, cache_read: 0.50, cache_create_5m: 6.25,  cache_create_1h: 10.00 },
+interface Pricing {
+  input: number;
+  output: number;
+  cache_read: number;
+  cache_create_5m: number;
+  cache_create_1h: number;
+  long_context_threshold_tokens?: number;
+  long_context_input_multiplier?: number;
+  long_context_output_multiplier?: number;
+}
+
+function claudePricing(
+  input: number,
+  output: number,
+  cacheRead: number,
+  cacheCreate5m: number,
+  cacheCreate1h: number,
+): Pricing {
+  return {
+    input,
+    output,
+    cache_read: cacheRead,
+    cache_create_5m: cacheCreate5m,
+    cache_create_1h: cacheCreate1h,
+  };
+}
+
+function openaiPricing(
+  input: number,
+  cacheRead: number,
+  output: number,
+  extras: Pick<
+    Pricing,
+    | "long_context_threshold_tokens"
+    | "long_context_input_multiplier"
+    | "long_context_output_multiplier"
+  > = {},
+): Pricing {
+  return {
+    input,
+    output,
+    cache_read: cacheRead,
+    cache_create_5m: 0,
+    cache_create_1h: 0,
+    ...extras,
+  };
+}
+
+const PRICING: Record<string, Pricing> = {
+  "claude-opus-4-6": claudePricing(5.00, 25.00, 0.50, 6.25, 10.00),
+  "claude-sonnet-4-6": claudePricing(3.00, 15.00, 0.30, 3.75, 6.00),
+  "claude-haiku-4-5": claudePricing(1.00, 5.00, 0.10, 1.25, 2.00),
+  "gpt-5.4": openaiPricing(2.50, 0.25, 15.00, {
+    long_context_threshold_tokens: 272_000,
+    long_context_input_multiplier: 2,
+    long_context_output_multiplier: 1.5,
+  }),
+  "gpt-5.4-mini": openaiPricing(0.75, 0.075, 4.50),
+  "gpt-5.4-nano": openaiPricing(0.20, 0.02, 1.25),
+  "gpt-5.3-codex": openaiPricing(1.75, 0.175, 14.00),
+  "gpt-5.2-codex": openaiPricing(1.75, 0.175, 14.00),
+  "gpt-5.2": openaiPricing(1.75, 0.175, 14.00),
+  "gpt-5.1-codex-mini": openaiPricing(0.25, 0.025, 2.00),
+  "gpt-5.1-codex-max": openaiPricing(1.25, 0.125, 10.00),
+  "gpt-5.1-codex": openaiPricing(1.25, 0.125, 10.00),
+  "gpt-5.1": openaiPricing(1.25, 0.125, 10.00),
+  "gpt-5-codex": openaiPricing(1.25, 0.125, 10.00),
+  "gpt-5-mini": openaiPricing(0.25, 0.025, 2.00),
+  "gpt-5-nano": openaiPricing(0.05, 0.005, 0.40),
+  "gpt-5": openaiPricing(1.25, 0.125, 10.00),
+  "gpt-4o-mini": openaiPricing(0.15, 0.075, 0.60),
+  "gpt-4o": openaiPricing(2.50, 1.25, 10.00),
+  "o4-mini": openaiPricing(1.10, 0.275, 4.40),
+  o3: openaiPricing(2.00, 0.50, 8.00),
+  codex: openaiPricing(1.50, 0.375, 6.00),
+  default: claudePricing(5.00, 25.00, 0.50, 6.25, 10.00),
 };
 
 export interface UsageRecord {
@@ -118,19 +188,32 @@ function perfLog(label: string, details: Record<string, unknown>) {
 
 function matchPricing(model: string) {
   if (PRICING[model]) return PRICING[model];
-  for (const key of Object.keys(PRICING)) {
-    if (key !== "default" && model.startsWith(key)) return PRICING[key];
+  for (const key of Object.keys(PRICING)
+    .filter((candidate) => candidate !== "default")
+    .sort((a, b) => b.length - a.length)) {
+    if (model.startsWith(key)) return PRICING[key];
   }
   return PRICING.default;
 }
 
 export function computeCost(model: string, input: number, output: number, cacheRead: number, cacheCreate5m: number, cacheCreate1h: number): number {
   const p = matchPricing(model);
-  return (input / 1e6) * p.input
-       + (output / 1e6) * p.output
-       + (cacheRead / 1e6) * p.cache_read
-       + (cacheCreate5m / 1e6) * p.cache_create_5m
-       + (cacheCreate1h / 1e6) * p.cache_create_1h;
+  const totalInputTokens = input + cacheRead + cacheCreate5m + cacheCreate1h;
+  const useLongContextRate =
+    p.long_context_threshold_tokens !== undefined &&
+    totalInputTokens > p.long_context_threshold_tokens;
+  const inputMultiplier = useLongContextRate
+    ? (p.long_context_input_multiplier ?? 1)
+    : 1;
+  const outputMultiplier = useLongContextRate
+    ? (p.long_context_output_multiplier ?? 1)
+    : 1;
+
+  return (input / 1e6) * p.input * inputMultiplier
+       + (output / 1e6) * p.output * outputMultiplier
+       + (cacheRead / 1e6) * p.cache_read * inputMultiplier
+       + (cacheCreate5m / 1e6) * p.cache_create_5m * inputMultiplier
+       + (cacheCreate1h / 1e6) * p.cache_create_1h * inputMultiplier;
 }
 
 function toLocalDateString(date: Date): string {
@@ -460,9 +543,6 @@ export function parseCodexSession(
     if (obj.type === "session_meta") {
       const payload = obj.payload as Record<string, unknown> | undefined;
       if (payload?.cwd) projectPath = payload.cwd as string;
-      if (typeof payload?.model_provider === "string" && payload.model_provider) {
-        currentModel = payload.model_provider;
-      }
       continue;
     }
 
