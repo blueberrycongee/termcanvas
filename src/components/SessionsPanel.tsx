@@ -21,6 +21,7 @@ import { useCompletionSeenStore } from "../stores/completionSeenStore";
 import { promptAndAddProjectToScene } from "../canvas/sceneCommands";
 import { closeTerminalInScene } from "../actions/terminalSceneActions";
 import { IconButton } from "./ui/IconButton";
+import { shouldRefreshHistorySection } from "./historySectionModel";
 
 /**
  * Descriptor returned by `search:sessions:list`. Kept local to avoid
@@ -43,6 +44,7 @@ interface HistorySessionEntry {
 // row so there's no visible loading gap during steady scrolling.
 const HISTORY_PAGE_SIZE = 20;
 const HISTORY_PREFETCH_TRIGGER_ROWS = 5;
+const HISTORY_REFRESH_DEBOUNCE_MS = 120;
 
 const STATUS_COLORS: Record<CanvasTerminalState, string> = {
   attention: "#ef4444",
@@ -400,8 +402,10 @@ export function HistorySection({
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshVersion, setRefreshVersion] = useState(0);
 
   const projectDirsKey = projectDirs.join("|");
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Initial page load whenever the canvas project set changes.
   // Only request HISTORY_PAGE_SIZE rows — the heavy JSONL parse is
@@ -434,6 +438,34 @@ export function HistorySection({
       });
     return () => {
       cancelled = true;
+    };
+  }, [projectDirsKey, refreshVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!window.termcanvas?.sessions?.onHistoryChanged) return;
+
+    const unsubscribe = window.termcanvas.sessions.onHistoryChanged((payload) => {
+      if (
+        !shouldRefreshHistorySection(projectDirs, payload.projectDirs)
+      ) {
+        return;
+      }
+
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+      refreshTimerRef.current = setTimeout(() => {
+        refreshTimerRef.current = null;
+        setRefreshVersion((version) => version + 1);
+      }, HISTORY_REFRESH_DEBOUNCE_MS);
+    });
+
+    return () => {
+      unsubscribe();
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
     };
   }, [projectDirsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
