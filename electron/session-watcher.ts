@@ -1,12 +1,106 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { createRequire } from "node:module";
 import type { NormalizedSessionTelemetryEvent, TelemetryTurnState } from "../shared/telemetry.ts";
 
 export type SessionType = "claude" | "codex" | "wuu";
 
 interface CompletionSignal {
   completed: boolean;
+}
+
+interface SqliteStatement {
+  get(...params: unknown[]): unknown;
+}
+
+interface SqliteDatabase {
+  prepare(sql: string): SqliteStatement;
+  close(): void;
+}
+
+type DatabaseSyncCtor = new (
+  filePath: string,
+  options?: { readonly?: boolean },
+) => SqliteDatabase;
+
+const require = createRequire(import.meta.url);
+let cachedDatabaseSyncCtor: DatabaseSyncCtor | null | undefined;
+
+function getDatabaseSyncCtor(): DatabaseSyncCtor | null {
+  if (cachedDatabaseSyncCtor !== undefined) {
+    return cachedDatabaseSyncCtor;
+  }
+
+  try {
+    const mod = require("node:sqlite") as { DatabaseSync?: DatabaseSyncCtor };
+    cachedDatabaseSyncCtor =
+      typeof mod.DatabaseSync === "function" ? mod.DatabaseSync : null;
+  } catch {
+    cachedDatabaseSyncCtor = null;
+  }
+
+  return cachedDatabaseSyncCtor;
+}
+
+function getCodexStateDbPath(homeDir = os.homedir()): string | null {
+  const codexDir = path.join(homeDir, ".codex");
+  let entries: string[];
+  try {
+    entries = fs.readdirSync(codexDir);
+  } catch {
+    return null;
+  }
+
+  const candidates = entries
+    .map((entry) => {
+      const match = /^state_(\d+)\.sqlite$/.exec(entry);
+      if (!match) return null;
+      return {
+        filePath: path.join(codexDir, entry),
+        version: Number.parseInt(match[1] ?? "", 10),
+      };
+    })
+    .filter(
+      (candidate): candidate is { filePath: string; version: number } =>
+        candidate !== null && Number.isFinite(candidate.version),
+    )
+    .sort((left, right) => right.version - left.version);
+
+  return candidates[0]?.filePath ?? null;
+}
+
+function resolveCodexSessionFileFromStateDb(
+  sessionId: string,
+  homeDir = os.homedir(),
+): string | null {
+  const dbPath = getCodexStateDbPath(homeDir);
+  if (!dbPath || !fs.existsSync(dbPath)) {
+    return null;
+  }
+
+  const DatabaseSync = getDatabaseSyncCtor();
+  if (!DatabaseSync) {
+    return null;
+  }
+
+  let db: SqliteDatabase | null = null;
+  try {
+    db = new DatabaseSync(dbPath, { readonly: true });
+    const row = db.prepare(`
+      SELECT rollout_path
+      FROM threads
+      WHERE id = ? AND archived = 0
+      LIMIT 1
+    `).get(sessionId) as { rollout_path?: string } | undefined;
+    return typeof row?.rollout_path === "string" && row.rollout_path.length > 0
+      ? row.rollout_path
+      : null;
+  } catch {
+    return null;
+  } finally {
+    db?.close();
+  }
 }
 
 function getObject(value: unknown): Record<string, unknown> | null {
@@ -147,6 +241,14 @@ export function resolveSessionFile(
   }
 
   if (type === "codex") {
+    // Codex can emit SessionStart before the JSONL is created. The state db
+    // already knows the eventual rollout_path, which lets watchers attach to
+    // the parent directory immediately instead of failing one-shot resolution.
+    const fromStateDb = resolveCodexSessionFileFromStateDb(sessionId, home);
+    if (fromStateDb) {
+      return fromStateDb;
+    }
+
     const sessionsDir = path.join(home, ".codex", "sessions");
     try {
       const now = new Date();

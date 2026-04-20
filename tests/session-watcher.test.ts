@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { DatabaseSync } from "node:sqlite";
 
 import {
   checkTurnComplete,
   parseSessionTelemetryLine,
+  resolveSessionFile,
   toClaudeProjectKey,
 } from "../electron/session-watcher.ts";
 
@@ -18,6 +20,61 @@ function withTempFile(content: string, fn: (filePath: string) => void) {
     fn(filePath);
   } finally {
     fs.rmSync(dir, { recursive: true });
+  }
+}
+
+function withTempHome(fn: (homeDir: string) => void): void {
+  const homeDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "session-watcher-home-"),
+  );
+  const previousHome = process.env.HOME;
+  process.env.HOME = homeDir;
+  try {
+    fn(homeDir);
+  } finally {
+    if (previousHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = previousHome;
+    }
+    fs.rmSync(homeDir, { recursive: true, force: true });
+  }
+}
+
+function writeStateDbThread(
+  homeDir: string,
+  input: {
+    sessionId: string;
+    cwd: string;
+    rolloutPath: string;
+  },
+): void {
+  const dbPath = path.join(homeDir, ".codex", "state_5.sqlite");
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  const db = new DatabaseSync(dbPath);
+  try {
+    db.exec(`
+      CREATE TABLE threads (
+        id TEXT PRIMARY KEY,
+        rollout_path TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        cwd TEXT NOT NULL,
+        archived INTEGER NOT NULL DEFAULT 0
+      )
+    `);
+    db.prepare(`
+      INSERT INTO threads (id, rollout_path, created_at, updated_at, cwd, archived)
+      VALUES (?, ?, ?, ?, ?, 0)
+    `).run(
+      input.sessionId,
+      input.rolloutPath,
+      1775339237,
+      1775339238,
+      input.cwd,
+    );
+  } finally {
+    db.close();
   }
 }
 
@@ -85,6 +142,33 @@ test("codex: detects task_complete event", () => {
   withTempFile(jsonl, (filePath) => {
     const result = checkTurnComplete(filePath, "codex");
     assert.equal(result.completed, true);
+  });
+});
+
+test("codex resolveSessionFile prefers rollout_path from state db before the file exists", () => {
+  withTempHome((homeDir) => {
+    const sessionId = "db-session";
+    const rolloutPath = path.join(
+      homeDir,
+      ".codex",
+      "sessions",
+      "2026",
+      "04",
+      "20",
+      `rollout-2026-04-20T03-00-00-${sessionId}.jsonl`,
+    );
+
+    writeStateDbThread(homeDir, {
+      sessionId,
+      cwd: "/tmp/project-db",
+      rolloutPath,
+    });
+
+    assert.equal(fs.existsSync(rolloutPath), false);
+    assert.equal(
+      resolveSessionFile(sessionId, "codex", "/tmp/project-db"),
+      rolloutPath,
+    );
   });
 });
 
