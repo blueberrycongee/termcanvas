@@ -1,11 +1,16 @@
 # TermCanvas Cloud — Headless Server
 FROM node:22-slim AS builder
 
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+
+RUN corepack enable
+
 WORKDIR /app
 
 # Install build dependencies
-COPY package.json package-lock.json* ./
-RUN npm ci --ignore-scripts
+COPY package.json pnpm-lock.yaml .npmrc ./
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # Copy source
 COPY tsconfig.headless.build.json ./
@@ -18,11 +23,16 @@ COPY electron/pty-manager.ts electron/pty-launch.ts electron/telemetry-service.t
 COPY shared/ shared/
 
 # Build
-RUN npx tsc -p tsconfig.headless.build.json
+RUN pnpm exec tsc -p tsconfig.headless.build.json
 
 # Compile production-only dependencies in a disposable layer so the final
 # image does not need build-essential or python.
 FROM node:22-slim AS prod-deps
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+
+RUN corepack enable
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
@@ -31,9 +41,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install production dependencies (node-pty needs native build)
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev
+# Install production dependencies without running the root postinstall, then
+# rebuild node-pty explicitly for the target image.
+COPY package.json pnpm-lock.yaml .npmrc ./
+RUN pnpm install --prod --frozen-lockfile --ignore-scripts \
+  && pnpm rebuild node-pty
 
 # --- Runtime ---
 FROM node:22-slim
@@ -48,7 +60,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
+COPY package.json pnpm-lock.yaml ./
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist-headless/ dist-headless/
 

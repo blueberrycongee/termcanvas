@@ -156,7 +156,7 @@ export async function startServer(port = 0): Promise<{
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         const hint = message.includes("Executable doesn't exist")
-          ? "Chromium is not installed. Run: npx playwright install chromium"
+          ? "Chromium is not installed. Run: pnpm exec playwright install chromium"
           : `failed to start browser: ${message}`;
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ ok: false, error: hint }));

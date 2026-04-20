@@ -7,8 +7,8 @@ Thank you for your interest in contributing! Here's how to get started.
 ```bash
 git clone https://github.com/blueberrycongee/termcanvas.git
 cd termcanvas
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 ## Workflow
@@ -18,8 +18,8 @@ npm run dev
 3. Run type checking before submitting:
 
 ```bash
-npx tsc --noEmit
-npm run build
+pnpm typecheck
+pnpm build
 ```
 
 4. Open a Pull Request against `main`.

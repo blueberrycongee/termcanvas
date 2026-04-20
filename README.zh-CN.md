@@ -58,8 +58,8 @@ TermCanvas 把你所有的终端铺在一张无限空间画布上——不再有
 ```bash
 git clone https://github.com/blueberrycongee/termcanvas.git
 cd termcanvas
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 **安装命令行工具** —— 启动应用后，进入 设置 → 通用 → 命令行工具，点击注册。这会将 `termcanvas` 和 `hydra` 添加到你的 PATH。

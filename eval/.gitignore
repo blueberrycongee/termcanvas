@@ -15,7 +15,6 @@ logs/
 # SWE-bench report files
 *.json
 !package.json
-!package-lock.json
 !tsconfig.json
 
 # Parquet cache

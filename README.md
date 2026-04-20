@@ -60,8 +60,8 @@ It organizes everything in a **Project → Worktree → Terminal** hierarchy tha
 ```bash
 git clone https://github.com/blueberrycongee/termcanvas.git
 cd termcanvas
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 **Install CLI tools** — after launching the app, go to Settings → General → Command line interface and click Register. This adds `termcanvas` and `hydra` to your PATH.

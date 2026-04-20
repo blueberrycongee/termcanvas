@@ -47,7 +47,7 @@ const TERMINALS = [
     name: "build",
     color: "var(--amber)",
     lines: [
-      { text: "$ npm run build", color: "var(--text-muted)" },
+      { text: "$ pnpm build", color: "var(--text-muted)" },
       { text: "✓ built in 1.2s", color: "var(--green)" },
     ],
   },
@@ -63,7 +63,7 @@ const TERMINALS = [
     name: "test",
     color: "var(--green)",
     lines: [
-      { text: "$ npm test", color: "var(--text-muted)" },
+      { text: "$ pnpm test", color: "var(--text-muted)" },
       { text: "4 passing (12ms)", color: "var(--green)" },
     ],
   },

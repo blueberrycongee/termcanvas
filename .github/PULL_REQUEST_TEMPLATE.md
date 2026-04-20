@@ -8,6 +8,6 @@ Brief description of what this PR does.
 
 ## Test plan
 
-- [ ] `npm run typecheck` passes
-- [ ] `npm run build` succeeds
+- [ ] `pnpm typecheck` passes
+- [ ] `pnpm build` succeeds
 - [ ] Manual testing in Electron
