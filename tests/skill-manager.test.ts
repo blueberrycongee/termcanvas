@@ -47,6 +47,11 @@ function readManifest(home: string, provider: string) {
   }
 }
 
+function readClaudeSettings(home: string) {
+  const p = path.join(home, ".claude", "settings.json");
+  return JSON.parse(fs.readFileSync(p, "utf-8"));
+}
+
 test("installSkillLinks creates symlinks for all skills including hydra", () => {
   const { home, sourceDir } = makeTempEnv();
   assert.equal(
@@ -206,6 +211,49 @@ test("version upgrade adds new skills from bundle", () => {
 
   assert.equal(fs.existsSync(link(home, "claude", "new-skill")), true);
   assert.equal(fs.existsSync(link(home, "codex", "new-skill")), true);
+});
+
+test("installSkillLinks creates Claude lifecycle hooks including Notification", () => {
+  const { home, sourceDir } = makeTempEnv();
+  installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+
+  const settings = readClaudeSettings(home);
+  assert.equal(settings.enabledPlugins?.["termcanvas@termcanvas"], true);
+
+  for (const event of [
+    "SessionStart",
+    "Stop",
+    "StopFailure",
+    "SessionEnd",
+    "PreToolUse",
+    "Notification",
+    "PostToolUse",
+    "PostToolUseFailure",
+    "UserPromptSubmit",
+    "SubagentStart",
+    "SubagentStop",
+    "PreCompact",
+    "PostCompact",
+  ]) {
+    const entries = settings.hooks?.[event] ?? [];
+    const lifecycleHooks = entries
+      .flatMap((entry: { hooks?: Array<{ command?: string; async?: boolean }> }) =>
+        entry.hooks ?? [],
+      )
+      .filter((hook) => hook.command?.includes("termcanvas-hook.mjs"));
+
+    assert.equal(
+      lifecycleHooks.length,
+      1,
+      `missing lifecycle hook entry for ${event}`,
+    );
+
+    if (event === "SessionStart") {
+      assert.equal(lifecycleHooks[0]?.async, undefined);
+    } else {
+      assert.equal(lifecycleHooks[0]?.async, true);
+    }
+  }
 });
 
 test("skips non-symlink entries (user-managed directories)", () => {

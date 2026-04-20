@@ -156,6 +156,12 @@ function isActiveTurnState(state: TelemetryTurnState): boolean {
   );
 }
 
+function isClaudeToolResultEvent(
+  event: NormalizedSessionTelemetryEvent,
+): boolean {
+  return event.event_type === "tool_result" && event.role === "user";
+}
+
 function toSessionProvider(
   provider: TelemetryProvider,
 ): "claude" | "codex" | "wuu" | null {
@@ -787,6 +793,29 @@ export class TelemetryService {
         }
       }
       state.snapshot.active_tool_calls = state.activeToolCalls.size;
+
+      if (
+        state.snapshot.provider === "claude" &&
+        state.pendingPreToolUse &&
+        isClaudeToolResultEvent(event)
+      ) {
+        // Claude only writes `tool_result` after the approval gate is
+        // past and the tool has returned (or been launched async). If
+        // PostToolUse never arrives, this session event is still
+        // authoritative enough to retire the pending PreToolUse state.
+        state.pendingPreToolUse = false;
+        state.snapshot.pending_tool_use_at = undefined;
+        if (state.awaitingInputTimer) {
+          clearTimeout(state.awaitingInputTimer);
+          state.awaitingInputTimer = null;
+        }
+        if (
+          state.activeToolCalls.size === 0 &&
+          event.turn_state !== "tool_running"
+        ) {
+          state.snapshot.foreground_tool = undefined;
+        }
+      }
 
       if (event.turn_state) {
         // Preserve awaiting_input set by the PreToolUse fallback timer

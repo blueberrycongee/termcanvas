@@ -859,6 +859,64 @@ test(
 );
 
 test(
+  "Claude tool_result clears awaiting_input when PostToolUse never arrives",
+  () => {
+    mock.timers.enable(["setTimeout"]);
+    try {
+      let nowMs = Date.parse("2026-04-20T00:00:00.000Z");
+      const service = new TelemetryService({
+        now: () => nowMs,
+        processPollIntervalMs: 0,
+      });
+      service.registerTerminal({
+        terminalId: "claude-3",
+        worktreePath: "/repo",
+        provider: "claude",
+      });
+      service.recordHookEvent("claude-3", {
+        hook_event_name: "SessionStart",
+        session_id: "sess-3",
+      });
+      service.recordHookEvent("claude-3", {
+        hook_event_name: "PreToolUse",
+        session_id: "sess-3",
+        tool_name: "Bash",
+      });
+
+      mock.timers.tick(CLAUDE_PRE_TOOL_USE_FALLBACK_MS + 1);
+      nowMs += CLAUDE_PRE_TOOL_USE_FALLBACK_MS + 1;
+      assert.equal(
+        service.getTerminalSnapshot("claude-3")?.turn_state,
+        "awaiting_input",
+      );
+      assert.equal(
+        service.getTerminalSnapshot("claude-3")?.foreground_tool,
+        "Bash",
+      );
+
+      service.recordSessionTelemetry("claude-3", [
+        {
+          at: new Date(nowMs + 500).toISOString(),
+          event_type: "tool_result",
+          role: "user",
+          turn_state: "in_turn",
+          meaningful_progress: true,
+        },
+      ]);
+
+      const snapshot = service.getTerminalSnapshot("claude-3");
+      assert.equal(snapshot?.turn_state, "in_turn");
+      assert.equal(snapshot?.pending_tool_use_at, undefined);
+      assert.equal(snapshot?.foreground_tool, undefined);
+
+      service.dispose();
+    } finally {
+      mock.timers.reset();
+    }
+  },
+);
+
+test(
   "Codex PreToolUse uses the codex-specific silence window for awaiting_input",
   () => {
     mock.timers.enable(["setTimeout"]);

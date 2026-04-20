@@ -370,6 +370,7 @@ const LIFECYCLE_HOOK_EVENTS = [
   "StopFailure",
   "SessionEnd",
   "PreToolUse",
+  "Notification",
   "PostToolUse",
   "PostToolUseFailure",
   "UserPromptSubmit",
