@@ -804,6 +804,30 @@ export class TelemetryService {
     const state = this.terminals.get(terminalId);
     if (!state) return;
     this.stopSessionTracking(state);
+    state.sessionFile = null;
+    state.sessionOffset = 0;
+    state.sessionRemainder = "";
+    state.activeToolCalls.clear();
+    state.pendingPreToolUse = false;
+    state.pendingPreToolUseAt = 0;
+    if (state.awaitingInputTimer) {
+      clearTimeout(state.awaitingInputTimer);
+      state.awaitingInputTimer = null;
+    }
+    state.snapshot.session_attached = false;
+    state.snapshot.session_attach_confidence = "none";
+    state.snapshot.session_id = undefined;
+    state.snapshot.session_file = undefined;
+    state.snapshot.first_user_prompt = undefined;
+    state.snapshot.last_session_event_at = undefined;
+    state.snapshot.last_session_event_kind = undefined;
+    state.snapshot.turn_state = "unknown";
+    state.snapshot.turn_started_at = undefined;
+    state.snapshot.foreground_tool = undefined;
+    state.snapshot.active_tool_calls = 0;
+    state.snapshot.pending_tool_use_at = undefined;
+    state.snapshot.last_tool_event_at = undefined;
+    this.updateDerivedStatus(state, { force: true });
   }
 
   recordSessionTelemetry(

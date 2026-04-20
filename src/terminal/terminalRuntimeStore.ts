@@ -232,6 +232,9 @@ function sameTelemetrySnapshot(
     left.derived_status === right.derived_status &&
     left.provider === right.provider &&
     left.session_attached === right.session_attached &&
+    left.session_id === right.session_id &&
+    left.session_file === right.session_file &&
+    left.first_user_prompt === right.first_user_prompt &&
     left.last_meaningful_progress_at === right.last_meaningful_progress_at &&
     left.last_session_event_at === right.last_session_event_at &&
     left.last_session_event_kind === right.last_session_event_kind &&

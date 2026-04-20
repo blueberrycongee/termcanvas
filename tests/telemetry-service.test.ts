@@ -694,6 +694,49 @@ test("attachSessionSource extracts first_user_prompt from wuu session files", ()
   }
 });
 
+test("detachSessionSource clears stale session identity and first_user_prompt", () => {
+  const tmpDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "termcanvas-telemetry-detach-session-"),
+  );
+  const sessionFile = path.join(tmpDir, "session.jsonl");
+  writeSessionJsonl(
+    sessionFile,
+    "旧会话的第一句话不应该在 detach 之后继续挂在左侧",
+  );
+
+  const service = new TelemetryService({ processPollIntervalMs: 0 });
+  try {
+    service.registerTerminal({
+      terminalId: "terminal-1",
+      worktreePath: "/tmp/project",
+      provider: "codex",
+    });
+
+    service.attachSessionSource({
+      terminalId: "terminal-1",
+      provider: "codex",
+      sessionId: "session-1",
+      confidence: "strong",
+      sessionFile,
+    });
+
+    service.detachSessionSource("terminal-1");
+
+    const snapshot = service.getTerminalSnapshot("terminal-1");
+    assert.equal(snapshot?.session_attached, false);
+    assert.equal(snapshot?.session_attach_confidence, "none");
+    assert.equal(snapshot?.session_id, undefined);
+    assert.equal(snapshot?.session_file, undefined);
+    assert.equal(snapshot?.first_user_prompt, undefined);
+    assert.equal(snapshot?.turn_state, "unknown");
+    assert.equal(snapshot?.foreground_tool, undefined);
+    assert.equal(snapshot?.active_tool_calls, 0);
+  } finally {
+    service.dispose();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
 test("deriveTelemetryStatus returns progressing when active_tool_calls > 0", () => {
   const status = deriveTelemetryStatus(
     {

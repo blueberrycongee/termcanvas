@@ -1414,3 +1414,151 @@ test("wuu polling attaches the discovered session to telemetry", async () => {
     useProjectStore.setState(previousProjectState);
   }
 });
+
+test("push telemetry updates replace a live terminal's first_user_prompt when the session changes", async () => {
+  const mockWindow = installRuntimeGlobals();
+  const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const {
+    destroyAllTerminalRuntimes,
+    ensureTerminalRuntime,
+    useTerminalRuntimeStore,
+  } = await import("../src/terminal/terminalRuntimeStore.ts");
+  const previousProjectState = useProjectStore.getState();
+  let snapshotListener:
+    | ((payload: { terminalId: string; snapshot: Record<string, unknown> }) => void)
+    | null = null;
+
+  destroyAllTerminalRuntimes();
+
+  try {
+    seedProjectState(useProjectStore, {
+      ...createTerminal(),
+      title: "codex",
+      type: "codex",
+    });
+
+    mockWindow.termcanvas = {
+      hooks: {
+        onSessionStarted() {
+          return () => {};
+        },
+        onStopFailure() {
+          return () => {};
+        },
+        onTurnComplete() {
+          return () => {};
+        },
+      },
+      session: {
+        getBypassState: async () => false,
+        getCodexLatest: async () => "baseline-session",
+        onTurnComplete() {
+          return () => {};
+        },
+        unwatch: async () => {},
+        watch: async () => ({ ok: true }),
+      },
+      telemetry: {
+        attachSession: async () => ({ ok: true, sessionFile: null }),
+        detachSession: async () => {},
+        getTerminal: async () => null,
+        onSnapshotChanged(
+          callback: (payload: {
+            terminalId: string;
+            snapshot: Record<string, unknown>;
+          }) => void,
+        ) {
+          snapshotListener = callback;
+          return () => {
+            if (snapshotListener === callback) {
+              snapshotListener = null;
+            }
+          };
+        },
+      },
+      terminal: {
+        create: async () => 42,
+        destroy: async () => {},
+        input() {},
+        notifyThemeChanged() {},
+        onExit() {
+          return () => {};
+        },
+        onOutput() {
+          return () => {};
+        },
+        resize() {},
+      },
+    };
+
+    ensureTerminalRuntime({
+      projectId: "project-1",
+      terminal: useProjectStore.getState().projects[0].worktrees[0].terminals[0],
+      worktreeId: "worktree-1",
+      worktreePath: "/tmp/project-1",
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    assert.ok(snapshotListener, "runtime should subscribe to telemetry push updates");
+
+    snapshotListener?.({
+      terminalId: "terminal-1",
+      snapshot: {
+        terminal_id: "terminal-1",
+        worktree_path: "/tmp/project-1",
+        provider: "codex",
+        session_attached: true,
+        session_attach_confidence: "strong",
+        session_id: "session-old",
+        session_file: "/tmp/session-old.jsonl",
+        first_user_prompt: "旧会话标题",
+        turn_state: "turn_complete",
+        pty_alive: true,
+        descendant_processes: [],
+        active_tool_calls: 0,
+        task_status: "idle",
+        task_status_source: "turn_state",
+        result_exists: false,
+        derived_status: "idle",
+      },
+    });
+
+    assert.equal(
+      useTerminalRuntimeStore.getState().terminals["terminal-1"]?.telemetry
+        ?.first_user_prompt,
+      "旧会话标题",
+    );
+
+    snapshotListener?.({
+      terminalId: "terminal-1",
+      snapshot: {
+        terminal_id: "terminal-1",
+        worktree_path: "/tmp/project-1",
+        provider: "codex",
+        session_attached: true,
+        session_attach_confidence: "strong",
+        session_id: "session-new",
+        session_file: "/tmp/session-new.jsonl",
+        first_user_prompt: "新会话标题",
+        turn_state: "turn_complete",
+        pty_alive: true,
+        descendant_processes: [],
+        active_tool_calls: 0,
+        task_status: "idle",
+        task_status_source: "turn_state",
+        result_exists: false,
+        derived_status: "idle",
+      },
+    });
+
+    const telemetry =
+      useTerminalRuntimeStore.getState().terminals["terminal-1"]?.telemetry;
+    assert.equal(telemetry?.session_id, "session-new");
+    assert.equal(telemetry?.session_file, "/tmp/session-new.jsonl");
+    assert.equal(telemetry?.first_user_prompt, "新会话标题");
+  } finally {
+    destroyAllTerminalRuntimes();
+    useProjectStore.setState(previousProjectState);
+  }
+});
