@@ -31,6 +31,21 @@ test("validateRunResult accepts a valid result", () => {
   assert.equal(result.report_file, "report.md");
 });
 
+test("validateRunResult coerces a numeric assignment_id to string", () => {
+  const result = validateRunResult(
+    {
+      ...buildValidResult(),
+      assignment_id: 1,
+    },
+    {
+      ...EXPECTED_IDS,
+      assignment_id: "1",
+    },
+  );
+
+  assert.equal(result.assignment_id, "1");
+});
+
 test("validateRunResult rejects invalid outcome", () => {
   const invalid = {
     ...buildValidResult(),
