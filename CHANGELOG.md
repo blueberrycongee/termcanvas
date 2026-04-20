@@ -2,6 +2,14 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.30.6] - 2026-04-20
+
+### Fixed
+- Terminal glyph corruption during `⌘E` overview transitions and `⌘[` / `⌘]` focus cycling is now significantly reduced. Two lifecycle changes landed together: scene-internal terminals no longer get parked just because they temporarily fall outside the viewport during a camera animation, and when a viewport animation settles the app now runs one recovery pass across every attached live WebGL terminal instead of only the source / target tile. This removes the most disruptive remount churn from the transition path and closes a gap where non-focused live terminals could still keep a stale WebGL atlas after the animation finished
+
+### Fixed (zh-CN)
+- `⌘E` overview 切换和 `⌘[` / `⌘]` 终端切换过程里的字形损坏现象现在明显减少。这次一起改了两条生命周期策略:只要 terminal 还在 scene 里,就不会因为 viewport 动画期间短暂移出可视区域而被 park;同时 viewport 动画结束后,不再只修 source / target terminal,而是会对所有已 attach 的 live WebGL terminal 统一跑一轮 recovery。这样既去掉了过渡路径里最扰人的 remount 抖动,也补上了"非聚焦但仍然 live 的 terminal 在动画结束后 atlas 仍然陈旧"这条缺口
+
 ## [0.30.5] - 2026-04-19
 
 ### Fixed
