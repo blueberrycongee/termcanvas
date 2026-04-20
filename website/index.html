@@ -21,11 +21,22 @@
 </head>
 <body>
   <nav id="topnav">
-    <button id="lang-toggle" aria-label="Switch language">中文</button>
+    <div class="nav-inner">
+      <span class="nav-brand">TermCanvas</span>
+      <div class="nav-actions">
+        <a href="https://github.com/blueberrycongee/termcanvas" class="nav-link">GitHub</a>
+        <button id="lang-toggle" aria-label="Switch language">中文</button>
+      </div>
+    </div>
   </nav>
+
   <section id="hero">
+    <span class="section-label hero-label">v2.0 · Infinite Terminal Canvas</span>
     <div id="ascii-logo"></div>
-    <h1>TermCanvas</h1>
+    <h1 class="hero-title">
+      <span class="hero-line">Term</span>
+      <span class="hero-line hero-line-indent">Canvas</span>
+    </h1>
     <p class="tagline" data-i18n="tagline">Your terminals, on an infinite canvas.</p>
     <div class="hero-buttons">
       <a href="https://github.com/blueberrycongee/termcanvas/releases" class="btn btn-primary" data-i18n="download">Download</a>
@@ -34,53 +45,72 @@
     <div class="scroll-indicator">&#8595;</div>
   </section>
 
-  <section id="screenshot">
-    <div id="demo-animation" style="max-width: 860px; width: 100%; margin: 0 auto; padding: 0 2rem;"></div>
+  <div class="section-divider"></div>
+
+  <section id="spatial-demo">
+    <div class="section-header">
+      <span class="section-label">Spatial View</span>
+      <h2 class="section-title">Your terminals,<br>in infinite space.</h2>
+    </div>
+    <div id="spatial-canvas-container">
+      <canvas id="spatial-canvas"></canvas>
+    </div>
+    <p class="spatial-hint">Hover to explore &middot; Scroll to zoom</p>
   </section>
 
+  <div class="section-divider"></div>
+
   <section id="features">
-    <h2 data-i18n="features">Features</h2>
+    <div class="section-header">
+      <span class="section-label" data-i18n="features">Capabilities</span>
+      <h2 class="section-title">Built for AI-native<br>development.</h2>
+    </div>
     <div class="features-grid">
       <div class="feature-card">
-        <div class="feature-icon">&#9633;</div>
+        <span class="feature-number">01</span>
         <h3 data-i18n="f1-title">Infinite Canvas</h3>
         <p data-i18n="f1-desc">Pan, zoom, and arrange your terminals freely on a spatial canvas. No more tabs or split panes.</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">&#9678;</div>
+        <span class="feature-number">02</span>
         <h3 data-i18n="f2-title">AI Agents</h3>
         <p data-i18n="f2-desc">Run Claude Code, Codex, Gemini, Kimi, and OpenCode side by side. See their status at a glance.</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">&#9654;</div>
+        <span class="feature-number">03</span>
         <h3 data-i18n="f3-title">Composer</h3>
         <p data-i18n="f3-desc">A unified input bar that sends prompts to the focused agent, with image paste support.</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">&#9636;</div>
+        <span class="feature-number">04</span>
         <h3 data-i18n="f4-title">Usage Tracking</h3>
         <p data-i18n="f4-desc">Token cost dashboard with per-project and per-model breakdown. Know what you're spending.</p>
       </div>
     </div>
   </section>
 
+  <div class="section-divider"></div>
+
   <section id="cta">
-    <div class="hero-buttons">
+    <div class="section-header">
+      <span class="section-label">Get Started</span>
+      <h2 class="section-title">Ready to paint<br>with terminals?</h2>
+    </div>
+    <div class="cta-buttons">
       <a href="https://github.com/blueberrycongee/termcanvas/releases" class="btn btn-primary" data-i18n="download">Download</a>
-      <a href="https://github.com/blueberrycongee/termcanvas" class="btn btn-secondary">GitHub</a>
+      <a href="https://github.com/blueberrycongee/termcanvas" class="btn btn-secondary">View on GitHub</a>
     </div>
     <p class="cta-sub" data-i18n="cta-sub">MIT Licensed &middot; Open Source</p>
   </section>
 
   <footer>
-    <a href="https://github.com/blueberrycongee/termcanvas">GitHub</a>
-    &nbsp;&middot;&nbsp;
-    <span>MIT License</span>
-    &nbsp;&middot;&nbsp;
-    <span>TermCanvas</span>
+    <div class="footer-inner">
+      <span>TermCanvas</span>
+      <a href="https://github.com/blueberrycongee/termcanvas">GitHub</a>
+      <span>MIT License</span>
+    </div>
   </footer>
 
   <script type="module" src="/src/main.js"></script>
-  <script type="module" src="/src/demo-mount.tsx"></script>
 </body>
 </html>
