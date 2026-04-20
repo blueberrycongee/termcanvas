@@ -118,6 +118,32 @@ test("deriveTelemetryStatus marks awaiting_contract after turn completion", () =
   assert.equal(status, "awaiting_contract");
 });
 
+test("deriveTelemetryStatus keeps completed turns idle instead of stalling", () => {
+  const now = Date.parse("2026-03-26T00:20:00.000Z");
+  const status = deriveTelemetryStatus(
+    {
+      terminal_id: "terminal-1",
+      worktree_path: "/tmp/project",
+      provider: "claude",
+      session_attached: true,
+      session_attach_confidence: "medium",
+      turn_state: "turn_complete",
+      pty_alive: true,
+      descendant_processes: [],
+      active_tool_calls: 0,
+      result_exists: false,
+      last_output_at: "2026-03-26T00:00:05.000Z",
+      last_input_at: "2026-03-26T00:00:01.000Z",
+      last_session_event_at: "2026-03-26T00:00:05.000Z",
+      last_meaningful_progress_at: "2026-03-26T00:00:05.000Z",
+      derived_status: "starting",
+    },
+    now,
+  );
+
+  assert.equal(status, "idle");
+});
+
 test("deriveTelemetryStatus keeps codex as progressing when session events are fresh", () => {
   const now = Date.parse("2026-03-26T00:10:00.000Z");
   const status = deriveTelemetryStatus(

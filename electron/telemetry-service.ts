@@ -208,6 +208,13 @@ export function deriveTelemetryStatus(
   }
 
   if (
+    snapshot.turn_state === "turn_complete" ||
+    snapshot.turn_state === "turn_aborted"
+  ) {
+    return "idle";
+  }
+
+  if (
     !snapshot.session_attached &&
     !snapshot.last_input_at &&
     !snapshot.last_output_at &&
