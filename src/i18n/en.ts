@@ -288,6 +288,11 @@ export const en = {
   theme_light: "Light",
   terminal_font_size: "Terminal font size",
   terminal_font: "Terminal font",
+  terminal_renderer: "Terminal renderer",
+  terminal_renderer_dom: "DOM",
+  terminal_renderer_webgl: "WebGL",
+  terminal_renderer_desc:
+    "DOM is slower but more reliable. WebGL is faster, but may corrupt glyphs on some systems.",
   font_builtin: "Built-in",
   font_downloaded: "Downloaded",
   font_download: "Download",

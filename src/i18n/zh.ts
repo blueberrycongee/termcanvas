@@ -281,6 +281,11 @@ export const zh = {
   theme_light: "浅色",
   terminal_font_size: "终端字体大小",
   terminal_font: "终端字体",
+  terminal_renderer: "终端渲染器",
+  terminal_renderer_dom: "DOM",
+  terminal_renderer_webgl: "WebGL",
+  terminal_renderer_desc:
+    "DOM 更慢但更稳定。WebGL 更快，但在部分系统上可能出现字形损坏。",
   font_builtin: "内置",
   font_downloaded: "已下载",
   font_download: "下载",

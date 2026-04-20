@@ -321,7 +321,7 @@ function ProviderDropdown({ value, onChange }: { value: string; onChange: (id: s
 
 export function SettingsModal({ onClose }: Props) {
   const { locale, setLocale } = useLocaleStore();
-  const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize, terminalFontFamily, setTerminalFontFamily, composerEnabled, setComposerEnabled, drawingEnabled, setDrawingEnabled, browserEnabled, setBrowserEnabled, summaryEnabled, setSummaryEnabled, globalSearchEnabled, setGlobalSearchEnabled, petEnabled, setPetEnabled, summaryCli, setSummaryCli, minimumContrastRatio, setMinimumContrastRatio, agentConfig, patchAgentConfig, setAgentConfig } = usePreferencesStore();
+  const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize, terminalFontFamily, setTerminalFontFamily, terminalRenderer, setTerminalRenderer, composerEnabled, setComposerEnabled, drawingEnabled, setDrawingEnabled, browserEnabled, setBrowserEnabled, summaryEnabled, setSummaryEnabled, globalSearchEnabled, setGlobalSearchEnabled, petEnabled, setPetEnabled, summaryCli, setSummaryCli, minimumContrastRatio, setMinimumContrastRatio, agentConfig, patchAgentConfig, setAgentConfig } = usePreferencesStore();
   const [fontSizeDraft, setFontSizeDraft] = useState(terminalFontSize);
   const { shortcuts, setShortcut, resetAll } = useShortcutStore();
   const [downloadedFonts, setDownloadedFonts] = useState<Set<string>>(new Set());
@@ -726,6 +726,37 @@ export function SettingsModal({ onClose }: Props) {
                           )}
                         </div>
                       </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[13px] text-[var(--text-secondary)]">
+                    {t.terminal_renderer}
+                  </span>
+                  <span className="max-w-[320px] text-[12px] leading-5 text-[var(--text-muted)]">
+                    {t.terminal_renderer_desc}
+                  </span>
+                </div>
+                <div className="inline-flex shrink-0 rounded-md border border-[var(--border)] p-0.5">
+                  {(["dom", "webgl"] as const).map((mode) => {
+                    const selected = terminalRenderer === mode;
+                    return (
+                      <button
+                        key={mode}
+                        className={`rounded px-2.5 py-1 text-[12px] transition-colors duration-100 ${
+                          selected
+                            ? "bg-[var(--accent)]/15 text-[var(--text-primary)]"
+                            : "text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                        }`}
+                        onClick={() => setTerminalRenderer(mode)}
+                      >
+                        {mode === "dom"
+                          ? t.terminal_renderer_dom
+                          : t.terminal_renderer_webgl}
+                      </button>
                     );
                   })}
                 </div>
