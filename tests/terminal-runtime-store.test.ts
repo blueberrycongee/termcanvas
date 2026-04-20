@@ -517,6 +517,74 @@ test("parked runtimes apply font preference updates without fitting against the 
   }
 });
 
+test("terminal renderer preference can release and reacquire WebGL on a live runtime", async () => {
+  const mockWindow = installRuntimeGlobals();
+  const { usePreferencesStore } = await import("../src/stores/preferencesStore.ts");
+  const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const { releaseWebGL } = await import("../src/terminal/webglContextPool.ts");
+  const {
+    destroyAllTerminalRuntimes,
+    ensureTerminalRuntime,
+    getTerminalRuntime,
+  } = await import("../src/terminal/terminalRuntimeStore.ts");
+  const previousProjectState = useProjectStore.getState();
+  const previousPreferencesState = usePreferencesStore.getState();
+
+  destroyAllTerminalRuntimes();
+
+  try {
+    seedProjectState(useProjectStore);
+    mockWindow.termcanvas = {
+      terminal: {
+        create: async () => 42,
+        destroy: async () => {},
+        input() {},
+        notifyThemeChanged() {},
+        onExit() {
+          return () => {};
+        },
+        onOutput() {
+          return () => {};
+        },
+        resize() {},
+      },
+      session: {
+        onTurnComplete() {
+          return () => {};
+        },
+      },
+    };
+
+    ensureTerminalRuntime({
+      projectId: "project-1",
+      terminal: useProjectStore.getState().projects[0].worktrees[0].terminals[0],
+      worktreeId: "worktree-1",
+      worktreePath: "/tmp/project-1",
+    });
+
+    const runtime = getTerminalRuntime("terminal-1");
+    assert.ok(runtime);
+    if (!runtime) {
+      return;
+    }
+
+    const { stats, xterm } = createMockXterm();
+    runtime.xterm = xterm as unknown as typeof runtime.xterm;
+
+    usePreferencesStore.getState().setTerminalRenderer("webgl");
+    assert.equal(stats.loadAddonCalls, 1);
+
+    usePreferencesStore.getState().setTerminalRenderer("dom");
+    usePreferencesStore.getState().setTerminalRenderer("webgl");
+    assert.equal(stats.loadAddonCalls, 2);
+  } finally {
+    destroyAllTerminalRuntimes();
+    useProjectStore.setState(previousProjectState);
+    usePreferencesStore.setState(previousPreferencesState);
+    releaseWebGL("terminal-1");
+  }
+});
+
 test("starting a parked runtime does not fit or resize the hidden terminal host", async () => {
   const mockWindow = installRuntimeGlobals();
   const { useProjectStore } = await import("../src/stores/projectStore.ts");
@@ -678,6 +746,7 @@ test("selectAllTerminalRuntime selects the focused xterm buffer", async () => {
 
 test("reattaching a parked runtime reacquires WebGL after the pool evicts it", async () => {
   const mockWindow = installRuntimeGlobals();
+  const { usePreferencesStore } = await import("../src/stores/preferencesStore.ts");
   const { useProjectStore } = await import("../src/stores/projectStore.ts");
   const { acquireWebGL, releaseWebGL } = await import("../src/terminal/webglContextPool.ts");
   const {
@@ -689,10 +758,12 @@ test("reattaching a parked runtime reacquires WebGL after the pool evicts it", a
     setTerminalRuntimeMode,
   } = await import("../src/terminal/terminalRuntimeStore.ts");
   const previousState = useProjectStore.getState();
+  const previousPreferencesState = usePreferencesStore.getState();
 
   destroyAllTerminalRuntimes();
 
   try {
+    usePreferencesStore.getState().setTerminalRenderer("webgl");
     seedProjectState(useProjectStore);
 
     ensureTerminalRuntime({
@@ -754,6 +825,7 @@ test("reattaching a parked runtime reacquires WebGL after the pool evicts it", a
   } finally {
     destroyAllTerminalRuntimes();
     useProjectStore.setState(previousState);
+    usePreferencesStore.setState(previousPreferencesState);
     releaseWebGL("terminal-1");
   }
 });

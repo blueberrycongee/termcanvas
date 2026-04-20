@@ -38,6 +38,7 @@ test("preferences default animation blur is off", async () => {
   const { usePreferencesStore } = await loadPreferencesStoreModule("default-off");
 
   assert.equal(usePreferencesStore.getState().animationBlur, 0);
+  assert.equal(usePreferencesStore.getState().terminalRenderer, "dom");
 });
 
 test("preferences migrate legacy enabled blur booleans to the legacy intensity", async () => {
@@ -68,6 +69,27 @@ test("preferences stores and retrieves cliCommands", async () => {
 
   store.setCli("claude", null);
   assert.deepEqual(usePreferencesStore.getState().cliCommands, {});
+});
+
+test("preferences persist terminal renderer mode and default to dom for unknown values", async () => {
+  installLocalStorage(
+    JSON.stringify({
+      terminalRenderer: "mystery-backend",
+    }),
+  );
+
+  const { usePreferencesStore } = await loadPreferencesStoreModule(
+    "terminal-renderer",
+  );
+  const store = usePreferencesStore.getState();
+
+  assert.equal(store.terminalRenderer, "dom");
+
+  store.setTerminalRenderer("webgl");
+  assert.equal(usePreferencesStore.getState().terminalRenderer, "webgl");
+
+  const raw = JSON.parse(localStorage.getItem("termcanvas-preferences")!);
+  assert.equal(raw.terminalRenderer, "webgl");
 });
 
 test("preferences ignore removed smart render settings while preserving supported values", async () => {
@@ -143,4 +165,3 @@ test("preferences ignore corrupt defaultTerminalSize on load", async () => {
   );
   assert.equal(usePreferencesStore.getState().defaultTerminalSize, null);
 });
-

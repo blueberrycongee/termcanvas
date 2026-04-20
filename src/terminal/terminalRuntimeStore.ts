@@ -16,7 +16,10 @@ import {
   unregisterTerminal,
 } from "./terminalRegistry";
 import { useNotificationStore } from "../stores/notificationStore";
-import { usePreferencesStore } from "../stores/preferencesStore";
+import {
+  usePreferencesStore,
+  type TerminalRendererMode,
+} from "../stores/preferencesStore";
 import { useProjectStore } from "../stores/projectStore";
 import { getTerminalDisplayTitle } from "../stores/terminalState";
 import {
@@ -110,6 +113,7 @@ interface ManagedTerminalRuntime {
   ptyId: number | null;
   ptyPromise: Promise<void> | null;
   previewAnsi: string;
+  rendererMode: TerminalRendererMode;
   hookFallbackTimer: ReturnType<typeof setTimeout> | null;
   lastPushAt: number;
   lastTurnCompletedAt: number;
@@ -625,6 +629,19 @@ function ensureRuntimeWebGL(runtime: ManagedTerminalRuntime) {
   return acquireWebGL(runtime.meta.terminal.id, runtime.xterm);
 }
 
+function syncRuntimeRenderer(runtime: ManagedTerminalRuntime) {
+  if (!runtime.xterm) {
+    return false;
+  }
+
+  if (runtime.rendererMode === "webgl") {
+    return ensureRuntimeWebGL(runtime);
+  }
+
+  releaseWebGL(runtime.meta.terminal.id);
+  return true;
+}
+
 function scheduleRuntimeRefresh(callback: () => void) {
   if (typeof requestAnimationFrame === "function") {
     requestAnimationFrame(callback);
@@ -920,7 +937,7 @@ function createTerminalRenderer(
   runtime.xterm = xterm;
   runtime.fitAddon = fitAddon;
   runtime.serializeAddon = serializeAddon;
-  ensureRuntimeWebGL(runtime);
+  syncRuntimeRenderer(runtime);
 
   registerTerminal(runtime.meta.terminal.id, xterm, serializeAddon);
   if (runtime.previewAnsi) {
@@ -988,6 +1005,11 @@ function setupRuntimeSubscriptions(runtime: ManagedTerminalRuntime) {
   const preferencesUnsubscribe = usePreferencesStore.subscribe((state) => {
     if (!runtime.xterm) {
       return;
+    }
+
+    if (runtime.rendererMode !== state.terminalRenderer) {
+      runtime.rendererMode = state.terminalRenderer;
+      syncRuntimeRenderer(runtime);
     }
 
     const family = buildFontFamily(state.terminalFontFamily);
@@ -1214,6 +1236,7 @@ function buildTerminalRuntime(
     ptyId: resolvedMeta.terminal.ptyId,
     ptyPromise: null,
     previewAnsi: clampPreviewAnsi(resolvedMeta.terminal.scrollback ?? ""),
+    rendererMode: usePreferencesStore.getState().terminalRenderer,
     hookFallbackTimer: null,
     lastPushAt: 0,
     lastTurnCompletedAt: 0,
@@ -1703,7 +1726,7 @@ export function attachTerminalContainer(
     return;
   }
 
-  ensureRuntimeWebGL(runtime);
+  syncRuntimeRenderer(runtime);
   wireRendererBindings(runtime, host);
   scheduleRuntimeRefresh(() => {
     syncAttachedTerminalGeometry(runtime);

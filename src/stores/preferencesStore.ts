@@ -8,6 +8,8 @@ const DEFAULT_FONT_SIZE = 13;
 const DEFAULT_MIN_CONTRAST = 1;
 const LEGACY_ENABLED_BLUR = 1.5;
 
+export type TerminalRendererMode = "dom" | "webgl";
+
 export interface CliCommandConfig {
   command: string;
   args: string[];
@@ -22,6 +24,7 @@ interface PreferencesStore {
   animationBlur: number;
   terminalFontSize: number;
   terminalFontFamily: string;
+  terminalRenderer: TerminalRendererMode;
   composerEnabled: boolean;
   drawingEnabled: boolean;
   browserEnabled: boolean;
@@ -48,6 +51,7 @@ interface PreferencesStore {
   setMinimumContrastRatio: (value: number) => void;
   setTerminalFontSize: (value: number) => void;
   setTerminalFontFamily: (fontId: string) => void;
+  setTerminalRenderer: (mode: TerminalRendererMode) => void;
   setComposerEnabled: (value: boolean) => void;
   setDrawingEnabled: (value: boolean) => void;
   setBrowserEnabled: (value: boolean) => void;
@@ -69,6 +73,7 @@ interface SavedPrefs {
   animationBlur: number;
   terminalFontSize: number;
   terminalFontFamily: string;
+  terminalRenderer: TerminalRendererMode;
   composerEnabled: boolean;
   drawingEnabled: boolean;
   browserEnabled: boolean;
@@ -158,6 +163,11 @@ function loadPreferences(): SavedPrefs {
       const ff = parsed.terminalFontFamily;
       if (typeof ff === "string" && ff.length > 0) fontFamily = ff;
 
+      let terminalRenderer: TerminalRendererMode = "dom";
+      if (parsed.terminalRenderer === "webgl") {
+        terminalRenderer = "webgl";
+      }
+
       let composerEnabled = false;
       if (parsed.composerEnabled === true) composerEnabled = true;
 
@@ -201,6 +211,7 @@ function loadPreferences(): SavedPrefs {
         animationBlur: blur,
         terminalFontSize: fontSize,
         terminalFontFamily: fontFamily,
+        terminalRenderer,
         composerEnabled,
         drawingEnabled,
         browserEnabled,
@@ -220,6 +231,7 @@ function loadPreferences(): SavedPrefs {
     animationBlur: DEFAULT_BLUR,
     terminalFontSize: DEFAULT_FONT_SIZE,
     terminalFontFamily: "geist-mono",
+    terminalRenderer: "dom",
     composerEnabled: false,
     drawingEnabled: false,
     browserEnabled: false,
@@ -319,6 +331,7 @@ function getSaveState(state: PreferencesStore): SavedPrefs {
     animationBlur: state.animationBlur,
     terminalFontSize: state.terminalFontSize,
     terminalFontFamily: state.terminalFontFamily,
+    terminalRenderer: state.terminalRenderer,
     composerEnabled: state.composerEnabled,
     drawingEnabled: state.drawingEnabled,
     browserEnabled: state.browserEnabled,
@@ -339,6 +352,7 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   animationBlur: initialPrefs.animationBlur,
   terminalFontSize: initialPrefs.terminalFontSize,
   terminalFontFamily: initialPrefs.terminalFontFamily,
+  terminalRenderer: initialPrefs.terminalRenderer,
   composerEnabled: initialPrefs.composerEnabled,
   drawingEnabled: initialPrefs.drawingEnabled,
   browserEnabled: initialPrefs.browserEnabled,
@@ -370,6 +384,10 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   setTerminalFontFamily: (fontId) => {
     set({ terminalFontFamily: fontId });
     savePreferences(getSaveState({ ...get(), terminalFontFamily: fontId }));
+  },
+  setTerminalRenderer: (mode) => {
+    set({ terminalRenderer: mode });
+    savePreferences(getSaveState({ ...get(), terminalRenderer: mode }));
   },
   setComposerEnabled: (value) => {
     set({ composerEnabled: value });
