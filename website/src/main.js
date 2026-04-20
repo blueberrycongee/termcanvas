@@ -1,7 +1,11 @@
-import { init } from "./ascii-logo.js";
+import { init as initAsciiLogo } from "./ascii-logo.js";
+import { init as initSpatialCanvas } from "./spatial-canvas.js";
 
-const container = document.getElementById("ascii-logo");
-if (container) init(container);
+const asciiContainer = document.getElementById("ascii-logo");
+if (asciiContainer) initAsciiLogo(asciiContainer);
+
+const spatialContainer = document.getElementById("spatial-canvas-container");
+if (spatialContainer) initSpatialCanvas(spatialContainer);
 
 const zh = {
   tagline: "你的终端，铺在无限画布上。",
