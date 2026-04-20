@@ -779,6 +779,22 @@ export function recoverTerminalRuntimeRenderer(
   scheduleRuntimeRendererRecovery(terminalId, reason);
 }
 
+export function recoverLiveTerminalRuntimeRenderers(reason: string): void {
+  for (const [terminalId, runtime] of runtimeRegistry) {
+    if (
+      runtime.disposed ||
+      runtime.mode !== "live" ||
+      runtime.rendererMode !== "webgl" ||
+      !runtime.xterm ||
+      !runtime.attachedContainer
+    ) {
+      continue;
+    }
+
+    scheduleRuntimeRendererRecovery(terminalId, reason);
+  }
+}
+
 function ensureParkingRoot(): HTMLDivElement | null {
   if (typeof document === "undefined") {
     return null;

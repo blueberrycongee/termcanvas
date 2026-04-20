@@ -27,13 +27,13 @@ test("visible non-focused terminals stay live", () => {
   );
 });
 
-test("offscreen non-focused terminals are parked instead of unmounted", () => {
+test("offscreen non-focused terminals stay live while still in the scene", () => {
   assert.equal(
     resolveTerminalMountMode({
       focused: false,
       visible: false,
     }),
-    "parked",
+    "live",
   );
 });
 

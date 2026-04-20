@@ -40,6 +40,7 @@ import {
 import { resolveTerminalMountMode } from "../terminal/terminalRuntimePolicy";
 import {
   destroyTerminalRuntime,
+  recoverLiveTerminalRuntimeRenderers,
   setTerminalRuntimeMode,
   updateTerminalRuntime,
 } from "../terminal/terminalRuntimeStore";
@@ -297,6 +298,7 @@ function XyFlowCanvasInner() {
   const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
   const sidebarDragging = useSidebarDragStore((s) => s.active);
   const isDrawing = drawingEnabled && drawingTool !== "select";
+  const previousAnimatingRef = useRef(isAnimating);
 
   const reactFlow = useReactFlow();
   const [contextMenu, setContextMenu] = useState<{
@@ -539,6 +541,20 @@ function XyFlowCanvasInner() {
     },
     [leftPanelCollapsed, leftPanelWidth, viewport],
   );
+
+  useEffect(() => {
+    const wasAnimating = previousAnimatingRef.current;
+    previousAnimatingRef.current = isAnimating;
+
+    if (!wasAnimating || isAnimating) {
+      return;
+    }
+
+    // Viewport animations transform every mounted xterm, including the tiles
+    // that did not participate in the focus change. Run one settled recovery
+    // for all attached live WebGL runtimes when the canvas calms down.
+    recoverLiveTerminalRuntimeRenderers("all_live_canvas_animation_settled");
+  }, [isAnimating]);
 
   return (
     <div

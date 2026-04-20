@@ -821,6 +821,133 @@ test("focusTerminalRuntime refreshes scaled WebGL terminals after focus", async 
   }
 });
 
+test("recoverLiveTerminalRuntimeRenderers refreshes only attached live webgl runtimes", async () => {
+  const mockWindow = installRuntimeGlobals();
+  const { useProjectStore } = await import("../src/stores/projectStore.ts");
+  const {
+    destroyAllTerminalRuntimes,
+    ensureTerminalRuntime,
+    getTerminalRuntime,
+    recoverLiveTerminalRuntimeRenderers,
+    setTerminalRuntimeMode,
+  } = await import("../src/terminal/terminalRuntimeStore.ts");
+  const previousProjectState = useProjectStore.getState();
+
+  destroyAllTerminalRuntimes();
+
+  try {
+    mockWindow.termcanvas = {
+      session: {
+        onTurnComplete() {
+          return () => {};
+        },
+      },
+      terminal: {
+        create: async () => 100,
+        destroy: async () => {},
+        input() {},
+        onExit() {
+          return () => {};
+        },
+        onOutput() {
+          return () => {};
+        },
+        resize() {},
+      },
+    };
+
+    const terminals = [
+      createTerminal(),
+      {
+        ...createTerminal(),
+        focused: false,
+        id: "terminal-2",
+        ptyId: 43,
+      },
+      {
+        ...createTerminal(),
+        focused: false,
+        id: "terminal-3",
+        ptyId: 44,
+      },
+    ];
+
+    useProjectStore.setState({
+      focusedProjectId: "project-1",
+      focusedWorktreeId: "worktree-1",
+      projects: [
+        {
+          id: "project-1",
+          name: "Project One",
+          path: "/tmp/project-1",
+          position: { x: 0, y: 0 },
+          collapsed: false,
+          zIndex: 0,
+          worktrees: [
+            {
+              id: "worktree-1",
+              name: "main",
+              path: "/tmp/project-1",
+              position: { x: 0, y: 0 },
+              collapsed: false,
+              terminals,
+            },
+          ],
+        },
+      ],
+    });
+
+    for (const terminal of terminals) {
+      ensureTerminalRuntime({
+        projectId: "project-1",
+        terminal,
+        worktreeId: "worktree-1",
+        worktreePath: "/tmp/project-1",
+      });
+    }
+
+    const runtime1 = getTerminalRuntime("terminal-1");
+    const runtime2 = getTerminalRuntime("terminal-2");
+    const runtime3 = getTerminalRuntime("terminal-3");
+    assert.ok(runtime1);
+    assert.ok(runtime2);
+    assert.ok(runtime3);
+    if (!runtime1 || !runtime2 || !runtime3) {
+      return;
+    }
+
+    const container1 = createFakeContainer();
+    const container2 = createFakeContainer();
+    const container3 = createFakeContainer();
+    const mock1 = createMockXterm();
+    const mock2 = createMockXterm();
+    const mock3 = createMockXterm();
+
+    runtime1.attachedContainer = container1 as unknown as HTMLDivElement;
+    runtime1.rendererMode = "webgl";
+    runtime1.xterm = mock1.xterm as unknown as typeof runtime1.xterm;
+
+    runtime2.attachedContainer = container2 as unknown as HTMLDivElement;
+    runtime2.rendererMode = "webgl";
+    runtime2.xterm = mock2.xterm as unknown as typeof runtime2.xterm;
+
+    runtime3.attachedContainer = container3 as unknown as HTMLDivElement;
+    runtime3.rendererMode = "dom";
+    runtime3.xterm = mock3.xterm as unknown as typeof runtime3.xterm;
+
+    setTerminalRuntimeMode("terminal-2", "parked");
+    recoverLiveTerminalRuntimeRenderers("test_all_live_canvas_animation_settled");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.equal(mock1.stats.refreshCalls, 1);
+    assert.equal(mock2.stats.refreshCalls, 0);
+    assert.equal(mock3.stats.refreshCalls, 0);
+  } finally {
+    destroyAllTerminalRuntimes();
+    useProjectStore.setState(previousProjectState);
+  }
+});
+
 test("reattaching a parked runtime reacquires WebGL after the pool evicts it", async () => {
   const mockWindow = installRuntimeGlobals();
   const { usePreferencesStore } = await import("../src/stores/preferencesStore.ts");

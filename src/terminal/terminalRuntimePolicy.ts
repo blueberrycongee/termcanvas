@@ -7,18 +7,15 @@ const MAX_PREVIEW_ANSI_CHARS = 200_000;
 const MAX_PREVIEW_TEXT_CHARS = 8_000;
 const ANSI_BOUNDARY_SCAN_CHARS = 64;
 
-export function resolveTerminalMountMode({
-  focused,
-  visible,
-}: {
+export function resolveTerminalMountMode(_input: {
   focused: boolean;
   visible: boolean;
 }): TerminalMountMode {
-  if (focused || visible) {
-    return "live";
-  }
-
-  return "parked";
+  // Viewport visibility is too volatile for a stateful xterm surface.
+  // Keep every terminal that is still present in the scene live; callers
+  // should only switch to parked/evicted when the terminal actually leaves
+  // the active scene or the renderer is explicitly reclaimed.
+  return "live";
 }
 
 export function clampPreviewAnsi(serialized: string): string {
