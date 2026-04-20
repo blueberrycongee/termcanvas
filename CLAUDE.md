@@ -3,6 +3,8 @@
 ## Project Overview
 - Electron terminal app, primary stack: TypeScript. Use TypeScript for all new code unless otherwise specified.
 - Primary languages: TypeScript (main), Python (secondary). Use TypeScript conventions unless working in a Python project. JSON config files are common.
+- Workspace package manager: `pnpm`. Use `pnpm` for install/run/build/test commands unless a task explicitly requires another tool.
+- Lockfile policy: `pnpm-lock.yaml` is the source of truth. Do not add or update `package-lock.json`.
 
 ## General Guidelines
 - When the user suggests a specific approach or tool (e.g., 'use Hydra', 'use Codex CLI'), follow their suggestion directly instead of trying alternatives like curl or manual workarounds.

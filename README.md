@@ -57,6 +57,8 @@ It organizes everything in a **Project → Worktree → Terminal** hierarchy tha
 
 **Build from source:**
 
+This workspace uses `pnpm`, and `pnpm-lock.yaml` is the canonical lockfile.
+
 ```bash
 git clone https://github.com/blueberrycongee/termcanvas.git
 cd termcanvas

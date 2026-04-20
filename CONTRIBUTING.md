@@ -4,6 +4,8 @@ Thank you for your interest in contributing! Here's how to get started.
 
 ## Development Setup
 
+This workspace uses `pnpm`. Please use `pnpm` commands in examples and keep `pnpm-lock.yaml` as the canonical lockfile.
+
 ```bash
 git clone https://github.com/blueberrycongee/termcanvas.git
 cd termcanvas
@@ -23,6 +25,8 @@ pnpm build
 ```
 
 4. Open a Pull Request against `main`.
+
+Do not add `package-lock.json` files back to the repo as part of routine dependency changes.
 
 ## Commit Convention
 

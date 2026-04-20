@@ -55,6 +55,8 @@ TermCanvas 把你所有的终端铺在一张无限空间画布上——不再有
 
 **从源码构建：**
 
+这个仓库现在统一使用 `pnpm`，并以 `pnpm-lock.yaml` 作为唯一锁文件。
+
 ```bash
 git clone https://github.com/blueberrycongee/termcanvas.git
 cd termcanvas
