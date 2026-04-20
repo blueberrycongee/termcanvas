@@ -38,7 +38,7 @@ export interface RunResult {
   run_id: string;
 
   outcome: RunOutcome;
-  report_file: string;       // path to report.md (relative to result.json's dir or absolute)
+  report_file: string; // path to report.md (relative to result.json's dir or absolute)
 
   /**
    * Required when outcome === "stuck"; rejected otherwise. Lets Lead route
@@ -56,9 +56,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function extractIds(value: unknown): Record<string, string> {
   if (!isRecord(value)) return {};
   const ids: Record<string, string> = {};
-  if (typeof value.workbench_id === "string" && value.workbench_id) ids.workbench_id = value.workbench_id;
-  if (typeof value.assignment_id === "string" && value.assignment_id) ids.assignment_id = value.assignment_id;
-  if (typeof value.run_id === "string" && value.run_id) ids.run_id = value.run_id;
+  if (typeof value.workbench_id === "string" && value.workbench_id)
+    ids.workbench_id = value.workbench_id;
+  if (typeof value.assignment_id === "string" && value.assignment_id)
+    ids.assignment_id = value.assignment_id;
+  if (typeof value.run_id === "string" && value.run_id)
+    ids.run_id = value.run_id;
   return ids;
 }
 
@@ -70,13 +73,24 @@ function failValidation(message: string, value: unknown): never {
   });
 }
 
-function expectRecord(value: unknown, field: string, root: unknown): Record<string, unknown> {
-  if (!isRecord(value)) failValidation(`Invalid ${field}: expected an object`, root);
+function expectRecord(
+  value: unknown,
+  field: string,
+  root: unknown,
+): Record<string, unknown> {
+  if (!isRecord(value))
+    failValidation(`Invalid ${field}: expected an object`, root);
   return value;
 }
 
-function expectString(record: Record<string, unknown>, field: string, root: unknown): string {
-  const value = record[field];
+function expectString(
+  record: Record<string, unknown>,
+  field: string,
+  root: unknown,
+): string {
+  const raw = record[field];
+  // Coerce numbers to strings — codex sometimes writes numeric IDs as JSON numbers.
+  const value = typeof raw === "number" ? String(raw) : raw;
   if (typeof value !== "string" || value.trim() === "") {
     failValidation(`Invalid ${field}: expected a non-empty string`, root);
   }
@@ -85,10 +99,16 @@ function expectString(record: Record<string, unknown>, field: string, root: unkn
 
 const VALID_OUTCOMES = new Set<RunOutcome>(["completed", "stuck", "error"]);
 
-function validateOutcome(record: Record<string, unknown>, root: unknown): RunOutcome {
+function validateOutcome(
+  record: Record<string, unknown>,
+  root: unknown,
+): RunOutcome {
   const value = expectString(record, "outcome", root);
   if (!VALID_OUTCOMES.has(value as RunOutcome)) {
-    failValidation(`Invalid outcome: ${value}. Expected one of: ${[...VALID_OUTCOMES].join(", ")}`, root);
+    failValidation(
+      `Invalid outcome: ${value}. Expected one of: ${[...VALID_OUTCOMES].join(", ")}`,
+      root,
+    );
   }
   return value as RunOutcome;
 }
@@ -152,10 +172,16 @@ export function validateRunResult(
   };
 
   if (validated.workbench_id !== expected.workbench_id) {
-    failValidation("Invalid workbench_id: result does not match workbench", value);
+    failValidation(
+      "Invalid workbench_id: result does not match workbench",
+      value,
+    );
   }
   if (validated.assignment_id !== expected.assignment_id) {
-    failValidation("Invalid assignment_id: result does not match assignment", value);
+    failValidation(
+      "Invalid assignment_id: result does not match assignment",
+      value,
+    );
   }
   if (validated.run_id !== expected.run_id) {
     failValidation("Invalid run_id: result does not match active run", value);
