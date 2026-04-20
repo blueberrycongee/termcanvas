@@ -49,6 +49,8 @@ export function LeftPanel() {
   const loadReplay = useSessionStore((s) => s.loadReplay);
   const openSessions = useCanvasStore((s) => s.openSessionsOverlay);
   const seenTerminalIds = useCompletionSeenStore((s) => s.seenTerminalIds);
+  const markCompletionSeen = useCompletionSeenStore((s) => s.markSeen);
+  const syncActiveDoneIds = useCompletionSeenStore((s) => s.syncActiveDoneIds);
 
   const [addingProject, setAddingProject] = useState(false);
 
@@ -92,6 +94,31 @@ export function LeftPanel() {
     [projects, telemetryByTerminalId, sessionsById, seenTerminalIds],
   );
   const hasAnyProjects = projectTree.length > 0;
+
+  // Bug 4: trim seenTerminalIds to only currently-done terminals so
+  // a re-completed terminal shows the blue dot again.
+  useEffect(() => {
+    const allTerminals = projectTree.flatMap((pg) =>
+      pg.worktrees.flatMap((wt) => wt.terminals),
+    );
+    const doneIds = allTerminals
+      .filter((t) => t.state === "done")
+      .map((t) => t.terminalId);
+    syncActiveDoneIds(doneIds);
+  }, [projectTree, syncActiveDoneIds]);
+
+  // Bug 5: mark seen when the focused terminal in LeftPanel is done.
+  useEffect(() => {
+    const allTerminals = projectTree.flatMap((pg) =>
+      pg.worktrees.flatMap((wt) => wt.terminals),
+    );
+    const focusedDone = allTerminals.find(
+      (t) => t.focused && t.state === "done",
+    );
+    if (focusedDone) {
+      markCompletionSeen(focusedDone.terminalId);
+    }
+  }, [projectTree, markCompletionSeen]);
 
   // Scope for the history section — every absolute worktree path on
   // the canvas. Used to filter historical sessions to the current
@@ -150,10 +177,13 @@ export function LeftPanel() {
         handle.removeEventListener("pointerup", cleanup);
         handle.removeEventListener("pointercancel", cleanup);
         handle.removeEventListener("lostpointercapture", cleanup);
-        try { handle.releasePointerCapture(pid); } catch {}
+        try {
+          handle.releasePointerCapture(pid);
+        } catch {}
         useSidebarDragStore.getState().setActive(false);
-        const tid = useProjectStore.getState().projects
-          .flatMap((p) => p.worktrees)
+        const tid = useProjectStore
+          .getState()
+          .projects.flatMap((p) => p.worktrees)
           .flatMap((w) => w.terminals)
           .find((term) => term.focused)?.id;
         if (tid) {
@@ -170,7 +200,7 @@ export function LeftPanel() {
       handle.addEventListener("pointercancel", cleanup);
       handle.addEventListener("lostpointercapture", cleanup);
     },
-    [width, setWidth]
+    [width, setWidth],
   );
 
   const dragging = useSidebarDragStore((s) => s.active);
@@ -243,89 +273,90 @@ export function LeftPanel() {
           className="absolute inset-y-0 left-0 flex flex-col"
           style={{ width }}
         >
-        <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] shrink-0">
-          <span
-            className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium"
-            style={{ fontFamily: '"Geist Mono", monospace' }}
-          >
-            {t.sessions_panel_title}
-          </span>
-          <div className="flex items-center gap-1">
-            <IconButton
-              size="md"
-              tone="neutral"
-              label={t.shortcut_add_project}
-              busy={addingProject}
-              onClick={handleAddProject}
+          <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] shrink-0">
+            <span
+              className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium"
+              style={{ fontFamily: '"Geist Mono", monospace' }}
             >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 12 12"
-                fill="none"
-                className="shrink-0"
+              {t.sessions_panel_title}
+            </span>
+            <div className="flex items-center gap-1">
+              <IconButton
+                size="md"
+                tone="neutral"
+                label={t.shortcut_add_project}
+                busy={addingProject}
+                onClick={handleAddProject}
               >
-                <path
-                  d="M6 2V10M2 6H10"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </IconButton>
-            <button
-              className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors duration-150"
-              onClick={() => setCollapsed(true)}
-              title={t.right_panel_collapse}
-            >
-              {/* Points LEFT — collapsing shrinks the left panel leftward. */}
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                <path
-                  d="M7 2L3 5L7 8"
-                  stroke="currentColor"
-                  strokeWidth="1.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          <ProjectTree
-            projects={projectTree}
-            renderTerminal={(item) => (
-              <TerminalCard
-                key={item.terminalId}
-                item={item}
-                t={t}
-                compact
-                hideLocation
-                unseenDone={
-                  item.state === "done" && !seenTerminalIds.has(item.terminalId)
-                }
-              />
-            )}
-          />
-          {!hasAnyProjects && (
-            <div className="flex-1 px-4 py-6 text-[11px] text-[var(--text-faint)] text-center">
-              {t.sessions_no_canvas_items}
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  className="shrink-0"
+                >
+                  <path
+                    d="M6 2V10M2 6H10"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </IconButton>
+              <button
+                className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors duration-150"
+                onClick={() => setCollapsed(true)}
+                title={t.right_panel_collapse}
+              >
+                {/* Points LEFT — collapsing shrinks the left panel leftward. */}
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path
+                    d="M7 2L3 5L7 8"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
             </div>
-          )}
-          <HistorySection
-            projectDirs={canvasProjectDirs}
-            onOpen={handleOpenReplay}
-            t={t}
-          />
-        </div>
+          </div>
 
-        <div
-          className="absolute top-0 right-0 w-1.5 h-full cursor-ew-resize group/resize"
-          onPointerDown={handleResizeStart}
-        >
-          <div className="absolute right-0 top-0 w-px h-full bg-[var(--border)] group-hover/resize:bg-[var(--accent)] group-hover/resize:opacity-70 transition-colors duration-150" />
-        </div>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <ProjectTree
+              projects={projectTree}
+              renderTerminal={(item) => (
+                <TerminalCard
+                  key={item.terminalId}
+                  item={item}
+                  t={t}
+                  compact
+                  hideLocation
+                  unseenDone={
+                    item.state === "done" &&
+                    !seenTerminalIds.has(item.terminalId)
+                  }
+                />
+              )}
+            />
+            {!hasAnyProjects && (
+              <div className="flex-1 px-4 py-6 text-[11px] text-[var(--text-faint)] text-center">
+                {t.sessions_no_canvas_items}
+              </div>
+            )}
+            <HistorySection
+              projectDirs={canvasProjectDirs}
+              onOpen={handleOpenReplay}
+              t={t}
+            />
+          </div>
+
+          <div
+            className="absolute top-0 right-0 w-1.5 h-full cursor-ew-resize group/resize"
+            onPointerDown={handleResizeStart}
+          >
+            <div className="absolute right-0 top-0 w-px h-full bg-[var(--border)] group-hover/resize:bg-[var(--accent)] group-hover/resize:opacity-70 transition-colors duration-150" />
+          </div>
         </div>
       )}
     </div>
