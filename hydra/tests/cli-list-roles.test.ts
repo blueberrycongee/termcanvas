@@ -30,7 +30,7 @@ function makeTmpRepo(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "hydra-list-roles-"));
 }
 
-test("hydra list-roles outputs JSON containing all 3 builtin roles", async () => {
+test("hydra list-roles outputs JSON containing all builtin roles", async () => {
   const repo = makeTmpRepo();
   const cap = captureStdout();
   try {
@@ -42,8 +42,15 @@ test("hydra list-roles outputs JSON containing all 3 builtin roles", async () =>
       source: string;
     }>;
     const names = parsed.map((row) => row.name).sort();
-    // Builtin lineup after the Lead/Dev/Reviewer formalization.
-    assert.deepEqual(names, ["dev", "lead", "reviewer"]);
+    // Current builtin lineup after the role registry expansion.
+    assert.deepEqual(names, [
+      "designer",
+      "dev",
+      "janitor",
+      "lead",
+      "qa",
+      "reviewer",
+    ]);
 
     // Each row carries the metadata Lead actually consumes.
     for (const row of parsed) {
