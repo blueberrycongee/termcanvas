@@ -304,6 +304,9 @@ export const zh = {
   browser_toggle_desc: "实验性功能。开启后会在顶部工具栏显示打开浏览器按钮",
   pet_toggle: "画布桌宠",
   pet_toggle_desc: "实验性功能。一只像素风卡皮巴拉，会对终端和工作流事件做出反应",
+  completion_glow_toggle: "完成终端边缘提示",
+  completion_glow_toggle_desc:
+    "实验性功能。当左右两侧仍有已结束但未查看的终端时，高亮对应屏幕边缘",
   summary_toggle: "终端自动摘要",
   summary_toggle_desc:
     "实验性功能。为 CLI 终端自动生成一行 AI 摘要，可能增加 token 用量",

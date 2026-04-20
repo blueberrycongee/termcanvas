@@ -321,7 +321,37 @@ function ProviderDropdown({ value, onChange }: { value: string; onChange: (id: s
 
 export function SettingsModal({ onClose }: Props) {
   const { locale, setLocale } = useLocaleStore();
-  const { animationBlur, setAnimationBlur, terminalFontSize, setTerminalFontSize, terminalFontFamily, setTerminalFontFamily, terminalRenderer, setTerminalRenderer, composerEnabled, setComposerEnabled, drawingEnabled, setDrawingEnabled, browserEnabled, setBrowserEnabled, summaryEnabled, setSummaryEnabled, globalSearchEnabled, setGlobalSearchEnabled, petEnabled, setPetEnabled, summaryCli, setSummaryCli, minimumContrastRatio, setMinimumContrastRatio, agentConfig, patchAgentConfig, setAgentConfig } = usePreferencesStore();
+  const {
+    animationBlur,
+    setAnimationBlur,
+    terminalFontSize,
+    setTerminalFontSize,
+    terminalFontFamily,
+    setTerminalFontFamily,
+    terminalRenderer,
+    setTerminalRenderer,
+    composerEnabled,
+    setComposerEnabled,
+    drawingEnabled,
+    setDrawingEnabled,
+    browserEnabled,
+    setBrowserEnabled,
+    summaryEnabled,
+    setSummaryEnabled,
+    globalSearchEnabled,
+    setGlobalSearchEnabled,
+    petEnabled,
+    setPetEnabled,
+    completionGlowEnabled,
+    setCompletionGlowEnabled,
+    summaryCli,
+    setSummaryCli,
+    minimumContrastRatio,
+    setMinimumContrastRatio,
+    agentConfig,
+    patchAgentConfig,
+    setAgentConfig,
+  } = usePreferencesStore();
   const [fontSizeDraft, setFontSizeDraft] = useState(terminalFontSize);
   const { shortcuts, setShortcut, resetAll } = useShortcutStore();
   const [downloadedFonts, setDownloadedFonts] = useState<Set<string>>(new Set());
@@ -983,6 +1013,31 @@ export function SettingsModal({ onClose }: Props) {
                   <button
                     className={!petEnabled ? activeBtn : inactiveBtn}
                     onClick={() => setPetEnabled(false)}
+                  >
+                    {t.setting_off}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[13px] text-[var(--text-secondary)]">
+                    {t.completion_glow_toggle}
+                  </span>
+                  <span className="text-[11px] text-[var(--text-muted)]">
+                    {t.completion_glow_toggle_desc}
+                  </span>
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    className={completionGlowEnabled ? activeBtn : inactiveBtn}
+                    onClick={() => setCompletionGlowEnabled(true)}
+                  >
+                    {t.setting_on}
+                  </button>
+                  <button
+                    className={!completionGlowEnabled ? activeBtn : inactiveBtn}
+                    onClick={() => setCompletionGlowEnabled(false)}
                   >
                     {t.setting_off}
                   </button>

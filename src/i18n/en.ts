@@ -314,6 +314,9 @@ export const en = {
   pet_toggle: "Canvas pet",
   pet_toggle_desc:
     "Experimental. A pixel-art capybara that reacts to terminal and workflow events",
+  completion_glow_toggle: "Completed terminal edge glow",
+  completion_glow_toggle_desc:
+    "Experimental. Highlights the left or right screen edge when completed terminals still need attention",
   summary_toggle: "Terminal auto-summary",
   summary_toggle_desc:
     "Experimental. AI-generated one-line summaries for CLI terminals. May increase token usage.",

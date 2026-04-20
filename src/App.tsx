@@ -390,6 +390,9 @@ export function App() {
   const globalSearchEnabled = usePreferencesStore((s) => s.globalSearchEnabled);
   const drawingEnabled = usePreferencesStore((s) => s.drawingEnabled);
   const summaryEnabled = usePreferencesStore((s) => s.summaryEnabled);
+  const completionGlowEnabled = usePreferencesStore(
+    (s) => s.completionGlowEnabled,
+  );
   const { showCloseDialog, handleSave, handleDiscard, handleCancel } =
     useCloseHandler();
 
@@ -586,7 +589,7 @@ export function App() {
       <RightPanel />
       <CanvasRoot />
       {drawingEnabled && <DrawingPanel />}
-      <CompletionGlow />
+      {completionGlowEnabled && <CompletionGlow />}
       <ShortcutHints />
       <StashBox />
       {composerEnabled && <ComposerBar />}

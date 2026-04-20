@@ -39,6 +39,7 @@ test("preferences default animation blur is off", async () => {
 
   assert.equal(usePreferencesStore.getState().animationBlur, 0);
   assert.equal(usePreferencesStore.getState().terminalRenderer, "dom");
+  assert.equal(usePreferencesStore.getState().completionGlowEnabled, false);
 });
 
 test("preferences migrate legacy enabled blur booleans to the legacy intensity", async () => {
@@ -164,4 +165,21 @@ test("preferences ignore corrupt defaultTerminalSize on load", async () => {
     "default-terminal-size-corrupt",
   );
   assert.equal(usePreferencesStore.getState().defaultTerminalSize, null);
+});
+
+test("preferences persist completed terminal edge glow toggle", async () => {
+  installLocalStorage();
+
+  const { usePreferencesStore } = await loadPreferencesStoreModule(
+    "completion-glow-toggle",
+  );
+  const store = usePreferencesStore.getState();
+
+  assert.equal(store.completionGlowEnabled, false);
+
+  store.setCompletionGlowEnabled(true);
+  assert.equal(usePreferencesStore.getState().completionGlowEnabled, true);
+
+  const raw = JSON.parse(localStorage.getItem("termcanvas-preferences")!);
+  assert.equal(raw.completionGlowEnabled, true);
 });
