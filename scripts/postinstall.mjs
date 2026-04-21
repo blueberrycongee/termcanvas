@@ -13,8 +13,10 @@ function isProductionOnlyInstall() {
 }
 
 function run(bin, args) {
-  const command = process.platform === "win32" ? `${bin}.cmd` : bin;
-  const result = spawnSync(command, args, { stdio: "inherit" });
+  const result = spawnSync(bin, args, {
+    stdio: "inherit",
+    shell: process.platform === "win32",
+  });
   if (result.error) throw result.error;
   if ((result.status ?? 1) !== 0) process.exit(result.status ?? 1);
 }
