@@ -448,3 +448,56 @@ test("findBestWuuSession picks the newest indexed session created after launch",
     fs.rmSync(workspaceDir, { recursive: true, force: true });
   }
 });
+
+import { createHash } from "node:crypto";
+import { findBestKimiSession } from "../electron/session-discovery.ts";
+
+test("findBestKimiSession resolves from metadata and filters by startedAt", () => {
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-kimi-discovery-"));
+  try {
+    const sessionsRoot = path.join(homeDir, ".kimi", "sessions");
+    const cwd = "/Users/test/project";
+    const cwdHash = createHash("md5").update(cwd).digest("hex");
+    const sessionsDir = path.join(sessionsRoot, cwdHash);
+
+    // Write metadata
+    const metadataPath = path.join(homeDir, ".kimi", "kimi.json");
+    fs.mkdirSync(path.dirname(metadataPath), { recursive: true });
+    fs.writeFileSync(
+      metadataPath,
+      JSON.stringify({
+        work_dirs: [{ path: cwd, sessions_dir: sessionsDir }],
+      }),
+      "utf-8",
+    );
+
+    // Create two sessions
+    const oldSessionDir = path.join(sessionsDir, "old-session-uuid");
+    const newSessionDir = path.join(sessionsDir, "new-session-uuid");
+    fs.mkdirSync(oldSessionDir, { recursive: true });
+    fs.mkdirSync(newSessionDir, { recursive: true });
+
+    const oldContext = path.join(oldSessionDir, "context.jsonl");
+    const newContext = path.join(newSessionDir, "context.jsonl");
+    fs.writeFileSync(oldContext, JSON.stringify({ role: "user", content: "hi" }) + "\n", "utf-8");
+    fs.writeFileSync(newContext, JSON.stringify({ role: "user", content: "hello" }) + "\n", "utf-8");
+
+    // Make old file older
+    const oldTime = Date.now() - 60_000;
+    fs.utimesSync(oldContext, oldTime / 1000, oldTime / 1000);
+
+    const found = findBestKimiSession(cwd, undefined, homeDir);
+    assert.ok(found);
+    assert.equal(found?.sessionId, "new-session-uuid");
+    assert.equal(found?.confidence, "weak");
+
+    // With startedAt filter
+    const startedAt = new Date(oldTime + 30_000).toISOString();
+    const found2 = findBestKimiSession(cwd, startedAt, homeDir);
+    assert.ok(found2);
+    assert.equal(found2?.sessionId, "new-session-uuid");
+    assert.equal(found2?.confidence, "medium");
+  } finally {
+    fs.rmSync(homeDir, { recursive: true, force: true });
+  }
+});

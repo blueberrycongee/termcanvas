@@ -110,7 +110,7 @@ export function collectSyncResults(
 
 interface SessionIndexEntry {
   sessionId: string;
-  provider: "claude" | "codex";
+  provider: "claude" | "codex" | "kimi";
   projectDir: string;
   filePath: string;
   firstPrompt: string;

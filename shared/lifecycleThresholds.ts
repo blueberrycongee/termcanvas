@@ -173,6 +173,12 @@ export const DEFAULT_CLAUDE_STALL_MS = 45_000;
 export const DEFAULT_CODEX_STALL_MS = 180_000;
 
 /**
+ * Kimi: same semantic as Claude. Kimi responses are typically fast but
+ * tool invocations can vary. 60 s is a conservative compromise.
+ */
+export const DEFAULT_KIMI_STALL_MS = 60_000;
+
+/**
  * Advisory stall thresholds used by the hydra watch loop when deciding
  * whether to surface a stall_advisory DecisionPoint. The *_STALL_MS
  * constants drive UI status ("stall_candidate"), which is deliberately
@@ -193,6 +199,8 @@ export const DEFAULT_CLAUDE_STALL_ADVISORY_MS =
   DEFAULT_CLAUDE_STALL_MS * STALL_ADVISORY_MULTIPLIER;
 export const DEFAULT_CODEX_STALL_ADVISORY_MS =
   DEFAULT_CODEX_STALL_MS * STALL_ADVISORY_MULTIPLIER;
+export const DEFAULT_KIMI_STALL_ADVISORY_MS =
+  DEFAULT_KIMI_STALL_MS * STALL_ADVISORY_MULTIPLIER;
 
 /**
  * Session heartbeat staleness: how long a `turn_state: "in_turn"`

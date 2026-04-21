@@ -450,3 +450,78 @@ test("wuu telemetry parser tracks tool lifecycle and final assistant completion"
     },
   ]);
 });
+
+test("kimi: detects completion when assistant has no tool_calls", () => {
+  const jsonl = [
+    JSON.stringify({ role: "user", content: "hello" }),
+    JSON.stringify({ role: "assistant", content: "hi there" }),
+  ].join("\n");
+
+  withTempFile(jsonl, (filePath) => {
+    const result = checkTurnComplete(filePath, "kimi");
+    assert.equal(result.completed, true);
+  });
+});
+
+test("kimi: not completed when assistant has pending tool_calls", () => {
+  const jsonl = [
+    JSON.stringify({ role: "user", content: "hello" }),
+    JSON.stringify({
+      role: "assistant",
+      content: "",
+      tool_calls: [{ id: "call-1", type: "function", function: { name: "read_file" } }],
+    }),
+  ].join("\n");
+
+  withTempFile(jsonl, (filePath) => {
+    const result = checkTurnComplete(filePath, "kimi");
+    assert.equal(result.completed, false);
+  });
+});
+
+test("kimi: not completed when last message is user", () => {
+  const jsonl = [
+    JSON.stringify({ role: "assistant", content: "hi" }),
+    JSON.stringify({ role: "user", content: "hello" }),
+  ].join("\n");
+
+  withTempFile(jsonl, (filePath) => {
+    const result = checkTurnComplete(filePath, "kimi");
+    assert.equal(result.completed, false);
+  });
+});
+
+test("kimi telemetry parser tracks tool lifecycle and assistant completion", () => {
+  const lines = [
+    JSON.stringify({ role: "user", content: "run test", timestamp: "2026-04-11T10:00:00Z" }),
+    JSON.stringify({
+      role: "assistant",
+      content: "I'll run that",
+      tool_calls: [{ id: "call-1", type: "function", function: { name: "exec" } }],
+      timestamp: "2026-04-11T10:00:01Z",
+    }),
+    JSON.stringify({ role: "tool", content: "ok", tool_call_id: "call-1", timestamp: "2026-04-11T10:00:02Z" }),
+    JSON.stringify({ role: "assistant", content: "Done", timestamp: "2026-04-11T10:00:03Z" }),
+  ];
+
+  const events = lines.flatMap((line) => parseSessionTelemetryLine(line, "kimi"));
+  assert.equal(events.length, 5);
+
+  const [userMsg, toolStart, toolEnd, assistantReply] = [
+    events.filter((e) => e.event_type === "user_message"),
+    events.filter((e) => e.event_type === "tool_use"),
+    events.filter((e) => e.event_type === "tool_result"),
+    events.filter((e) => e.event_type === "assistant_message"),
+  ];
+
+  assert.equal(userMsg.length, 1);
+  assert.equal(toolStart.length, 1);
+  assert.equal(toolEnd.length, 1);
+  assert.equal(assistantReply.length, 2); // one after tool_start, one final
+
+  assert.equal(toolStart[0]?.lifecycle, "start");
+  assert.equal(toolStart[0]?.tool_name, "exec");
+  assert.equal(toolEnd[0]?.lifecycle, "end");
+  assert.equal(toolEnd[0]?.call_id, "call-1");
+  assert.equal(assistantReply[1]?.turn_state, "turn_complete");
+});

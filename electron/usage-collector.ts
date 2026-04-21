@@ -437,6 +437,45 @@ export function findCodexJsonlFiles(): string[] {
   return files;
 }
 
+export function findKimiSessionFiles(): Array<{ sessionId: string; filePath: string }> {
+  const home = os.homedir();
+  const sessionsRoot = path.join(home, ".kimi", "sessions");
+  const results: Array<{ sessionId: string; filePath: string }> = [];
+  if (!fs.existsSync(sessionsRoot)) {
+    return results;
+  }
+
+  try {
+    const hashDirs = fs.readdirSync(sessionsRoot);
+    for (const hashDir of hashDirs) {
+      const fullHashDir = path.join(sessionsRoot, hashDir);
+      try {
+        const stat = fs.statSync(fullHashDir);
+        if (!stat.isDirectory()) continue;
+      } catch { continue; }
+
+      let entries: string[];
+      try {
+        entries = fs.readdirSync(fullHashDir);
+      } catch { continue; }
+
+      for (const entry of entries) {
+        const sessionDir = path.join(fullHashDir, entry);
+        try {
+          const s = fs.statSync(sessionDir);
+          if (!s.isDirectory()) continue;
+        } catch { continue; }
+        const contextFile = path.join(sessionDir, "context.jsonl");
+        if (fs.existsSync(contextFile)) {
+          results.push({ sessionId: entry, filePath: contextFile });
+        }
+      }
+    }
+  } catch { /* skip */ }
+
+  return results;
+}
+
 export function parseClaudeSession(
   filePath: string,
   utcStart: string,

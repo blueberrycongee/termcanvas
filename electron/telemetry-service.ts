@@ -26,6 +26,7 @@ import {
   CODEX_PRE_TOOL_USE_AWAITING_INPUT_MS,
   DEFAULT_CLAUDE_STALL_MS,
   DEFAULT_CODEX_STALL_MS,
+  DEFAULT_KIMI_STALL_MS,
   DEFAULT_PROCESS_POLL_INTERVAL_MS,
   DEFAULT_SESSION_HEARTBEAT_MS,
   DEFAULT_SESSION_POLL_INTERVAL_MS,
@@ -202,8 +203,8 @@ function shouldMarkClaudeNotificationAwaitingInput(
 
 function toSessionProvider(
   provider: TelemetryProvider,
-): "claude" | "codex" | "wuu" | null {
-  if (provider === "claude" || provider === "codex" || provider === "wuu") {
+): "claude" | "codex" | "kimi" | "wuu" | null {
+  if (provider === "claude" || provider === "codex" || provider === "kimi" || provider === "wuu") {
     return provider;
   }
   return null;
@@ -219,7 +220,9 @@ export function deriveTelemetryStatus(
     stallThresholdMs ??
     (snapshot.provider === "codex"
       ? DEFAULT_CODEX_STALL_MS
-      : DEFAULT_CLAUDE_STALL_MS);
+      : snapshot.provider === "kimi"
+        ? DEFAULT_KIMI_STALL_MS
+        : DEFAULT_CLAUDE_STALL_MS);
 
   if (!snapshot.pty_alive) {
     return "exited";
@@ -330,6 +333,7 @@ export function deriveTelemetryStatus(
   const isAgentSnapshot =
     snapshot.provider === "claude" ||
     snapshot.provider === "codex" ||
+    snapshot.provider === "kimi" ||
     snapshot.provider === "wuu";
   const hasAgentActivity =
     !!snapshot.last_session_event_at ||
@@ -595,6 +599,7 @@ export class TelemetryService {
         previousProvider === "unknown" &&
         (input.provider === "claude" ||
           input.provider === "codex" ||
+          input.provider === "kimi" ||
           input.provider === "wuu");
       state.snapshot.provider = input.provider;
       if (upgradingToAgent) {

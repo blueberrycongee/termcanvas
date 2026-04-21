@@ -41,7 +41,7 @@ import { stripSyntheticUserBlocks } from "./session-scanner.ts";
 
 export interface SessionSearchEntry {
   sessionId: string;
-  provider: "claude" | "codex";
+  provider: "claude" | "codex" | "kimi";
   /**
    * Canonicalised absolute path of the project the session belongs to.
    * For Claude, reconstructed from the encoded dir name. For Codex,
@@ -101,17 +101,19 @@ function encodeProjectPathForClaude(projectDir: string): string {
  */
 async function readFirstPromptAndMeta(
   filePath: string,
-  provider: "claude" | "codex",
+  provider: "claude" | "codex" | "kimi",
 ): Promise<{
   firstPrompt: string;
   codexCwd: string | null;
   codexSessionId: string | null;
   claudeCwd: string | null;
+  kimiCwd: string | null;
 }> {
   let firstPrompt = "";
   let codexCwd: string | null = null;
   let codexSessionId: string | null = null;
   let claudeCwd: string | null = null;
+  let kimiCwd: string | null = null;
   let linesRead = 0;
 
   const stream = fs.createReadStream(filePath, { encoding: "utf-8" });
@@ -207,11 +209,21 @@ async function readFirstPromptAndMeta(
         }
       }
 
+      // Kimi: context.jsonl stores standard OpenAI-format messages.
+      if (provider === "kimi" && !firstPrompt && raw.role === "user") {
+        const text = extractKimiUserText(raw.content);
+        if (text) {
+          const cleaned = stripSyntheticUserBlocks(text);
+          if (cleaned) firstPrompt = cleaned.slice(0, FIRST_PROMPT_MAX_LENGTH);
+        }
+      }
+
       // Short-circuit once we have everything we needed.
       if (
         firstPrompt &&
         ((provider === "claude" && claudeCwd !== null) ||
-          (provider === "codex" && codexCwd !== null && codexSessionId !== null))
+          (provider === "codex" && codexCwd !== null && codexSessionId !== null) ||
+          (provider === "kimi" && kimiCwd !== null))
       ) {
         break;
       }
@@ -221,7 +233,18 @@ async function readFirstPromptAndMeta(
     stream.destroy();
   }
 
-  return { firstPrompt, codexCwd, codexSessionId, claudeCwd };
+  return { firstPrompt, codexCwd, codexSessionId, claudeCwd, kimiCwd };
+}
+
+function extractKimiUserText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  for (const block of content) {
+    if (!block || typeof block !== "object") continue;
+    const entry = block as Record<string, unknown>;
+    if (entry.type === "text" && typeof entry.text === "string") return entry.text;
+  }
+  return "";
 }
 
 function extractClaudeUserText(source: unknown): string {
@@ -282,7 +305,7 @@ function pickRealCodexText(content: unknown): string {
 
 async function buildEntry(
   filePath: string,
-  provider: "claude" | "codex",
+  provider: "claude" | "codex" | "kimi",
   claudeProjectDir: string | null,
 ): Promise<SessionSearchEntry | null> {
   try {
@@ -299,7 +322,7 @@ async function buildEntry(
       return cached.entry;
     }
 
-    const { firstPrompt, codexCwd, codexSessionId, claudeCwd } =
+    const { firstPrompt, codexCwd, codexSessionId, claudeCwd, kimiCwd } =
       await readFirstPromptAndMeta(filePath, provider);
 
     // Prefer the cwd recorded inside the JSONL for both providers —
@@ -313,7 +336,9 @@ async function buildEntry(
           (claudeProjectDir
             ? decodeClaudeEncodedPath(path.basename(claudeProjectDir))
             : "")
-        : codexCwd ?? "";
+        : provider === "kimi"
+          ? kimiCwd ?? ""
+          : codexCwd ?? "";
 
     // Codex session ID lives inside `session_meta.payload.id`, NOT
     // the filename (which is `rollout-<ts>-<uuid>`). `codex resume`
@@ -322,7 +347,9 @@ async function buildEntry(
     const resolvedSessionId =
       provider === "codex" && codexSessionId
         ? codexSessionId
-        : path.basename(filePath, ".jsonl");
+        : provider === "kimi"
+          ? path.basename(path.dirname(filePath))
+          : path.basename(filePath, ".jsonl");
 
     if (!projectDir) return null;
 
@@ -369,7 +396,7 @@ async function buildEntry(
  */
 interface SessionFileCandidate {
   filePath: string;
-  provider: "claude" | "codex";
+  provider: "claude" | "codex" | "kimi";
   claudeProjectDir: string | null;
   mtimeMs: number;
   size: number;
@@ -436,6 +463,23 @@ async function listSessionFileCandidates(
     } catch {}
   }
 
+  // Kimi: emit all candidates; project dir is resolved from metadata.
+  const kimiFiles = findKimiSessionFiles();
+  for (const { filePath } of kimiFiles) {
+    try {
+      const fileStat = await fsp.stat(filePath);
+      if (fileStat.size === 0) continue;
+      if (fileStat.size > MAX_FILE_SIZE_FOR_INDEX) continue;
+      candidates.push({
+        filePath,
+        provider: "kimi",
+        claudeProjectDir: null,
+        mtimeMs: fileStat.mtimeMs,
+        size: fileStat.size,
+      });
+    } catch {}
+  }
+
   candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
   return candidates;
 }
@@ -466,8 +510,11 @@ export async function listSessionsForProjects(
       candidate.claudeProjectDir,
     );
     if (!built) continue;
-    if (candidate.provider === "codex" && !projectSet.has(built.projectDir)) {
-      // Codex file not in one of our projects — skip.
+    if (
+      (candidate.provider === "codex" || candidate.provider === "kimi") &&
+      !projectSet.has(built.projectDir)
+    ) {
+      // Codex/Kimi file not in one of our projects — skip.
       continue;
     }
     results.push(built);

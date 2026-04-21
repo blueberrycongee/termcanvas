@@ -29,7 +29,7 @@ import { shouldRefreshHistorySection } from "./historySectionModel";
  */
 interface HistorySessionEntry {
   sessionId: string;
-  provider: "claude" | "codex";
+  provider: "claude" | "codex" | "kimi";
   projectDir: string;
   filePath: string;
   firstPrompt: string;

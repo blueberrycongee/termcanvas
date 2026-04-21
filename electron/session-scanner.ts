@@ -13,7 +13,7 @@ import type {
   ReplayTimeline,
 } from "../shared/sessions.ts";
 import type { NormalizedSessionTelemetryEvent } from "../shared/telemetry.ts";
-import { findCodexJsonlFiles } from "./usage-collector.ts";
+import { findCodexJsonlFiles, findKimiSessionFiles } from "./usage-collector.ts";
 
 const SCAN_INTERVAL = 10_000;
 const LIVE_THRESHOLD_MS = 60_000;
@@ -134,6 +134,10 @@ export class SessionScanner {
           filePath,
           type: "codex" as const,
         })),
+        ...findKimiSessionFiles().map((entry) => ({
+          filePath: entry.filePath,
+          type: "kimi" as const,
+        })),
       ];
 
       for (const { filePath, type } of files) {
@@ -151,7 +155,9 @@ export class SessionScanner {
             type === "codex"
               ? this.readCodexSessionId(filePath) ??
                 path.basename(filePath, ".jsonl")
-              : path.basename(filePath, ".jsonl");
+              : type === "kimi"
+                ? path.basename(path.dirname(filePath))
+                : path.basename(filePath, ".jsonl");
           const projectDir = this.resolveProjectDir(filePath, type, sessionId);
           const tail = this.readTail(filePath, stat.size);
           const parsed = this.parseTail(tail, type);
@@ -634,6 +640,7 @@ export class SessionScanner {
     const normalizedPath = filePath.replace(/\\/g, "/");
     if (normalizedPath.includes("/.codex/")) return "codex";
     if (normalizedPath.includes("/.claude/")) return "claude";
+    if (normalizedPath.includes("/.kimi/")) return "kimi";
 
     for (const line of lines.slice(0, 20)) {
       try {
@@ -683,6 +690,10 @@ export class SessionScanner {
       return encoded.startsWith("-")
         ? `/${encoded.slice(1).replace(/-/g, "/")}`
         : encoded.replace(/-/g, "/");
+    }
+
+    if (type === "kimi") {
+      return this.readKimiProjectDir(filePath) ?? sessionId;
     }
 
     return this.readCodexProjectDir(filePath, lines) ?? sessionId;
@@ -752,6 +763,34 @@ export class SessionScanner {
         }
       } catch {}
     }
+    return null;
+  }
+
+  private readKimiProjectDir(filePath: string): string | null {
+    try {
+      const home = os.homedir();
+      const metadataPath = path.join(home, ".kimi", "kimi.json");
+      const metadata = JSON.parse(fs.readFileSync(metadataPath, "utf-8")) as {
+        work_dirs?: Array<{ path: string; sessions_dir?: string }>;
+      };
+      const sessionsDir = path.dirname(path.dirname(filePath));
+      for (const wd of metadata.work_dirs ?? []) {
+        if (wd.sessions_dir === sessionsDir) {
+          return wd.path;
+        }
+      }
+      // Fallback: reverse the md5 hash lookup is impossible, so try to
+      // match the session dir basename against known hashes.
+      const dirBasename = path.basename(sessionsDir);
+      for (const wd of metadata.work_dirs ?? []) {
+        if (!wd.path) continue;
+        const crypto = require("node:crypto");
+        const hash = crypto.createHash("md5").update(wd.path).digest("hex");
+        if (hash === dirBasename || `${wd.kaos ?? "local"}_${hash}` === dirBasename) {
+          return wd.path;
+        }
+      }
+    } catch {}
     return null;
   }
 

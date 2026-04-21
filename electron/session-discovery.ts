@@ -738,6 +738,96 @@ export function findBestClaudeSession(
   return { sessionId, filePath, confidence };
 }
 
+function getKimiSessionsDir(cwd: string, homeDir = os.homedir()): string | null {
+  const metadataPath = path.join(homeDir, ".kimi", "kimi.json");
+  try {
+    const metadata = JSON.parse(fs.readFileSync(metadataPath, "utf-8")) as {
+      work_dirs?: Array<{ path: string; sessions_dir?: string }>;
+    };
+    const workDirs = metadata.work_dirs ?? [];
+    for (const wd of workDirs) {
+      if (wd.path === cwd && wd.sessions_dir) {
+        return wd.sessions_dir;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  // Fallback: compute from path hash
+  const crypto = require("node:crypto");
+  const pathMd5 = crypto.createHash("md5").update(cwd).digest("hex");
+  const fallbackDir = path.join(homeDir, ".kimi", "sessions", pathMd5);
+  if (fs.existsSync(fallbackDir)) {
+    return fallbackDir;
+  }
+  return null;
+}
+
+function listKimiSessionFiles(sessionsDir: string): Array<{
+  sessionId: string;
+  filePath: string;
+  anchorMs: number;
+}> {
+  let entries: string[];
+  try {
+    entries = fs.readdirSync(sessionsDir);
+  } catch {
+    return [];
+  }
+
+  return entries
+    .map((entry) => {
+      const sessionDir = path.join(sessionsDir, entry);
+      const contextFile = path.join(sessionDir, "context.jsonl");
+      try {
+        const stat = fs.statSync(contextFile);
+        return {
+          sessionId: entry,
+          filePath: contextFile,
+          anchorMs: stat.mtimeMs,
+        };
+      } catch {
+        return null;
+      }
+    })
+    .filter(
+      (entry): entry is { sessionId: string; filePath: string; anchorMs: number } =>
+        entry !== null,
+    )
+    .sort((left, right) => right.anchorMs - left.anchorMs)
+    .slice(0, 32);
+}
+
+export function findBestKimiSession(
+  cwd: string,
+  startedAt?: string,
+  homeDir = os.homedir(),
+): FoundSession | null {
+  const sessionsDir = getKimiSessionsDir(cwd, homeDir);
+  if (!sessionsDir) {
+    return null;
+  }
+
+  const startedMs = startedAt ? new Date(startedAt).getTime() : NaN;
+  const lowerBoundMs =
+    Number.isFinite(startedMs) ? startedMs - 1_000 : Number.NEGATIVE_INFINITY;
+
+  const candidates = listKimiSessionFiles(sessionsDir)
+    .filter((entry) => entry.anchorMs >= lowerBoundMs)
+    .sort((left, right) => right.anchorMs - left.anchorMs);
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const { sessionId, filePath } = candidates[0];
+  return {
+    sessionId,
+    filePath,
+    confidence: Number.isFinite(startedMs) ? "medium" : "weak",
+  };
+}
+
 const CHUNK_BYTES = 64 * 1024;
 const MAX_SCAN_BYTES = 512 * 1024;
 

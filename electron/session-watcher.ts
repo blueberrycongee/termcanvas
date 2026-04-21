@@ -4,7 +4,7 @@ import os from "os";
 import { createRequire } from "node:module";
 import type { NormalizedSessionTelemetryEvent, TelemetryTurnState } from "../shared/telemetry.ts";
 
-export type SessionType = "claude" | "codex" | "wuu";
+export type SessionType = "claude" | "codex" | "kimi" | "wuu";
 
 interface CompletionSignal {
   completed: boolean;
@@ -170,7 +170,7 @@ export function checkTurnComplete(
 
   const lines = content.split("\n").filter((l) => l.trim().length > 0);
 
-  const startIndex = type === "wuu" ? 0 : Math.max(0, lines.length - 5);
+  const startIndex = type === "wuu" || type === "kimi" ? 0 : Math.max(0, lines.length - 5);
   for (let i = lines.length - 1; i >= startIndex; i--) {
     let parsed: Record<string, unknown>;
     try {
@@ -219,9 +219,55 @@ export function checkTurnComplete(
         return { completed: false };
       }
     }
+
+    if (type === "kimi") {
+      const role = getString(parsed.role);
+      if (role === "system") {
+        continue;
+      }
+      if (role === "assistant") {
+        const toolCalls = Array.isArray(parsed.tool_calls) ? parsed.tool_calls : [];
+        if (toolCalls.length > 0) {
+          return { completed: false };
+        }
+        return { completed: extractTextContent(parsed.content).trim().length > 0 };
+      }
+      if (role === "tool" || role === "user") {
+        return { completed: false };
+      }
+    }
   }
 
   return { completed: false };
+}
+
+function resolveKimiSessionFile(sessionId: string, cwd: string): string | null {
+  const home = os.homedir();
+  const metadataPath = path.join(home, ".kimi", "kimi.json");
+  try {
+    const metadata = JSON.parse(fs.readFileSync(metadataPath, "utf-8")) as {
+      work_dirs?: Array<{ path: string; sessions_dir?: string }>;
+    };
+    const workDirs = metadata.work_dirs ?? [];
+    for (const wd of workDirs) {
+      if (wd.path === cwd && wd.sessions_dir) {
+        const filePath = path.join(wd.sessions_dir, sessionId, "context.jsonl");
+        if (fs.existsSync(filePath)) {
+          return filePath;
+        }
+      }
+    }
+    // Fallback: compute sessions_dir from path hash (matches kimi-cli logic)
+    const crypto = require("node:crypto");
+    const pathMd5 = crypto.createHash("md5").update(cwd).digest("hex");
+    const fallbackPath = path.join(home, ".kimi", "sessions", pathMd5, sessionId, "context.jsonl");
+    if (fs.existsSync(fallbackPath)) {
+      return fallbackPath;
+    }
+  } catch {
+    // ignore
+  }
+  return null;
 }
 
 export function toClaudeProjectKey(cwd: string): string {
@@ -271,6 +317,10 @@ export function resolveSessionFile(
 
   if (type === "wuu") {
     return path.join(cwd, ".wuu", "sessions", sessionId + ".jsonl");
+  }
+
+  if (type === "kimi") {
+    return resolveKimiSessionFile(sessionId, cwd);
   }
 
   return null;
@@ -502,6 +552,72 @@ export function parseSessionTelemetryLine(
           at,
           event_type: eventType,
           role: "system",
+          meaningful_progress: true,
+        }),
+      ];
+    }
+
+    return [];
+  }
+
+  if (type === "kimi") {
+    const role = getString(parsed.role);
+    if (role === "user") {
+      const text = extractTextContent(parsed.content);
+      if (!text.trim()) return [];
+      return [
+        buildEvent({
+          at,
+          event_type: "user_message",
+          role: "user",
+          turn_state: "in_turn",
+        }),
+      ];
+    }
+
+    if (role === "assistant") {
+      const events: NormalizedSessionTelemetryEvent[] = [];
+      const toolCalls = Array.isArray(parsed.tool_calls) ? parsed.tool_calls : [];
+
+      for (const callEntry of toolCalls) {
+        const call = getObject(callEntry);
+        if (!call) continue;
+        events.push(buildEvent({
+          at,
+          event_type: "tool_use",
+          role: "assistant",
+          tool_name: getString(call.function?.name) ?? getString(call.name),
+          call_id: getString(call.id),
+          lifecycle: "start",
+          turn_state: "tool_running",
+          meaningful_progress: true,
+        }));
+      }
+
+      const text = extractTextContent(parsed.content);
+      if (text.trim()) {
+        events.push(buildEvent({
+          at,
+          event_type: "assistant_message",
+          role: "assistant",
+          turn_state: toolCalls.length > 0 ? "in_turn" : "turn_complete",
+          meaningful_progress: true,
+        }));
+      }
+
+      return events;
+    }
+
+    if (role === "tool") {
+      return [
+        buildEvent({
+          at,
+          event_type: "tool_result",
+          role: "tool",
+          tool_name: getString(parsed.name),
+          call_id: getString(parsed.tool_call_id),
+          lifecycle: "end",
+          turn_state: "in_turn",
           meaningful_progress: true,
         }),
       ];
