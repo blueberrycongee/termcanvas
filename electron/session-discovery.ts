@@ -487,16 +487,10 @@ export function findBestCodexSession(
     return { sessionId, filePath, confidence };
   }
 
-  const latestSessionId = readLatestCodexSessionId(homeDir);
-  if (!latestSessionId) {
-    return null;
-  }
-
-  return {
-    sessionId: latestSessionId,
-    filePath: recentFileMap.get(latestSessionId)?.filePath ?? "",
-    confidence: "weak",
-  };
+  // Do not fall back to the globally latest Codex session here. Auto-attach
+  // only has cwd + launch time as identity; if those don't yield a match,
+  // binding some other terminal's newest session is worse than timing out.
+  return null;
 }
 
 function getWuuSessionsDir(cwd: string): string {

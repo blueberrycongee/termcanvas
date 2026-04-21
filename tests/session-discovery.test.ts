@@ -351,7 +351,7 @@ test("findBestCodexSession falls back to a bounded recent file scan when index i
   });
 });
 
-test("findBestCodexSession keeps a weak latest-id fallback when no cwd match is available", () => {
+test("findBestCodexSession returns null when no cwd match is available", () => {
   withTempHome((homeDir) => {
     const now = new Date().toISOString();
 
@@ -362,11 +362,8 @@ test("findBestCodexSession keeps a weak latest-id fallback when no cwd match is 
 
     const found = findBestCodexSession("/tmp/missing-project", now, homeDir);
 
-    assert.deepEqual(found, {
-      sessionId: "latest-session",
-      filePath: latestFile,
-      confidence: "weak",
-    });
+    assert.equal(found, null);
+    assert.ok(latestFile);
   });
 });
 
