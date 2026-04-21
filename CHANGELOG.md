@@ -2,6 +2,26 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.31.0] - 2026-04-21
+
+### Added
+- `feat(session): add Kimi CLI support across session pipeline` — 为 Kimi CLI 添加跨 session 管线的支持
+
+### Fixed
+- `fix(session): use findKimi instead of getKimiLatest for Kimi session attachment` — Kimi session 附件改用 findKimi 而非 getKimiLatest
+- `fix(renderer): 修复 WebGL 终端乱码问题` — 修复 WebGL 终端乱码问题
+- `fix(ci): run postinstall bins via shell on windows` — Windows 上通过 shell 运行 postinstall 脚本
+- `fix(session): remove weak fallback in findBestCodexSession` — 移除 findBestCodexSession 的 weak fallback，当 cwd 匹配失败时返回 null 而非绑定到全局最新 session
+
+### Added (zh-CN)
+- 为 Kimi CLI 添加跨 session 管线的支持
+
+### Fixed (zh-CN)
+- Kimi session 附件改用 findKimi 而非 getKimiLatest
+- 修复 WebGL 终端乱码问题
+- Windows 上通过 shell 运行 postinstall 脚本
+- 移除 findBestCodexSession 的 weak fallback，当 cwd 匹配失败时返回 null 而非绑定到全局最新 session
+
 ## [0.30.7] - 2026-04-21
 
 ### Fixed
