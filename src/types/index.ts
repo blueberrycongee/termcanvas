@@ -439,9 +439,7 @@ export interface TermCanvasAPI {
     notifyThemeChanged: (ptyId: number) => void;
     onOutput: (callback: (ptyId: number, data: string) => void) => () => void;
     onExit: (callback: (ptyId: number, exitCode: number) => void) => () => void;
-    detectCli: (
-      ptyId: number,
-    ) => Promise<{
+    detectCli: (ptyId: number) => Promise<{
       cliType: TerminalType;
       pid?: number;
       sessionName?: string;
@@ -485,7 +483,14 @@ export interface TermCanvasAPI {
       cwd: string,
     ) => Promise<boolean>;
     getClaudeByPid: (pid: number) => Promise<string | null>;
-    getKimiLatest: (cwd: string) => Promise<string | null>;
+    findKimi: (
+      cwd: string,
+      startedAt?: string,
+    ) => Promise<{
+      sessionId: string;
+      filePath: string;
+      confidence: "medium" | "weak";
+    } | null>;
     watch: (
       type: string,
       sessionId: string,
@@ -497,7 +502,7 @@ export interface TermCanvasAPI {
   telemetry: {
     attachSession: (input: {
       terminalId: string;
-      provider: "claude" | "codex" | "wuu";
+      provider: "claude" | "codex" | "kimi" | "wuu";
       sessionId: string;
       cwd: string;
       confidence: "strong" | "medium" | "weak";
@@ -506,7 +511,7 @@ export interface TermCanvasAPI {
     updateTerminal: (input: {
       terminalId: string;
       worktreePath?: string;
-      provider?: "claude" | "codex" | "wuu" | "unknown";
+      provider?: "claude" | "codex" | "kimi" | "wuu" | "unknown";
       ptyId?: number | null;
       shellPid?: number | null;
     }) => Promise<TerminalTelemetrySnapshot>;
@@ -615,23 +620,52 @@ export interface TermCanvasAPI {
     fetch: (worktreePath: string, remote?: string) => Promise<string>;
     // Stash
     stashList: (worktreePath: string) => Promise<GitStashEntry[]>;
-    stashCreate: (worktreePath: string, message: string, includeUntracked: boolean) => Promise<void>;
+    stashCreate: (
+      worktreePath: string,
+      message: string,
+      includeUntracked: boolean,
+    ) => Promise<void>;
     stashApply: (worktreePath: string, index: number) => Promise<void>;
     stashPop: (worktreePath: string, index: number) => Promise<void>;
     stashDrop: (worktreePath: string, index: number) => Promise<void>;
     // Branch management
-    branchCreate: (worktreePath: string, name: string, startPoint?: string) => Promise<void>;
-    branchDelete: (worktreePath: string, name: string, force: boolean) => Promise<void>;
-    branchRename: (worktreePath: string, oldName: string, newName: string) => Promise<void>;
+    branchCreate: (
+      worktreePath: string,
+      name: string,
+      startPoint?: string,
+    ) => Promise<void>;
+    branchDelete: (
+      worktreePath: string,
+      name: string,
+      force: boolean,
+    ) => Promise<void>;
+    branchRename: (
+      worktreePath: string,
+      oldName: string,
+      newName: string,
+    ) => Promise<void>;
     // Tags
     tagList: (worktreePath: string) => Promise<GitTagInfo[]>;
-    tagCreate: (worktreePath: string, name: string, ref: string, message?: string) => Promise<void>;
+    tagCreate: (
+      worktreePath: string,
+      name: string,
+      ref: string,
+      message?: string,
+    ) => Promise<void>;
     tagDelete: (worktreePath: string, name: string) => Promise<void>;
     // Remotes
     remoteList: (worktreePath: string) => Promise<GitRemoteInfo[]>;
-    remoteAdd: (worktreePath: string, name: string, url: string) => Promise<void>;
+    remoteAdd: (
+      worktreePath: string,
+      name: string,
+      url: string,
+    ) => Promise<void>;
     remoteRemove: (worktreePath: string, name: string) => Promise<void>;
-    remoteRename: (worktreePath: string, oldName: string, newName: string) => Promise<void>;
+    remoteRename: (
+      worktreePath: string,
+      oldName: string,
+      newName: string,
+    ) => Promise<void>;
     // Merge / Rebase / Cherry-pick
     merge: (worktreePath: string, ref: string) => Promise<string>;
     mergeAbort: (worktreePath: string) => Promise<void>;
@@ -642,9 +676,21 @@ export interface TermCanvasAPI {
     cherryPickAbort: (worktreePath: string) => Promise<void>;
     mergeState: (worktreePath: string) => Promise<GitMergeState>;
     // File diff & partial staging
-    fileDiff: (worktreePath: string, filePath: string, staged: boolean) => Promise<GitFileDiff>;
-    stageHunk: (worktreePath: string, filePath: string, hunkHeader: string) => Promise<void>;
-    unstageHunk: (worktreePath: string, filePath: string, hunkHeader: string) => Promise<void>;
+    fileDiff: (
+      worktreePath: string,
+      filePath: string,
+      staged: boolean,
+    ) => Promise<GitFileDiff>;
+    stageHunk: (
+      worktreePath: string,
+      filePath: string,
+      hunkHeader: string,
+    ) => Promise<void>;
+    unstageHunk: (
+      worktreePath: string,
+      filePath: string,
+      hunkHeader: string,
+    ) => Promise<void>;
     // Blame
     blame: (worktreePath: string, filePath: string) => Promise<GitBlameEntry[]>;
     // Events
@@ -655,16 +701,24 @@ export interface TermCanvasAPI {
     ) => () => void;
   };
   search: {
-    fileContents: (query: string, worktreePath?: string) => Promise<
-      Array<{ filePath: string; line: number; preview: string }>
-    >;
-    sessionContents: (query: string) => Promise<
-      Array<{ sessionId: string; filePath: string; lineNumber: number; preview: string }>
+    fileContents: (
+      query: string,
+      worktreePath?: string,
+    ) => Promise<Array<{ filePath: string; line: number; preview: string }>>;
+    sessionContents: (
+      query: string,
+    ) => Promise<
+      Array<{
+        sessionId: string;
+        filePath: string;
+        lineNumber: number;
+        preview: string;
+      }>
     >;
     listSessions: (projectDirs: string[]) => Promise<
       Array<{
         sessionId: string;
-        provider: "claude" | "codex";
+        provider: "claude" | "codex" | "kimi";
         projectDir: string;
         filePath: string;
         firstPrompt: string;
@@ -680,7 +734,7 @@ export interface TermCanvasAPI {
     ) => Promise<{
       entries: Array<{
         sessionId: string;
-        provider: "claude" | "codex";
+        provider: "claude" | "codex" | "kimi";
         projectDir: string;
         filePath: string;
         firstPrompt: string;

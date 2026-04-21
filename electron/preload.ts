@@ -88,10 +88,12 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("session:get-claude-by-pid", pid) as Promise<
         string | null
       >,
-    getKimiLatest: (cwd: string) =>
-      ipcRenderer.invoke("session:get-kimi-latest", cwd) as Promise<
-        string | null
-      >,
+    findKimi: (cwd: string, startedAt?: string) =>
+      ipcRenderer.invoke("session:find-kimi", cwd, startedAt) as Promise<{
+        sessionId: string;
+        filePath: string;
+        confidence: "medium" | "weak";
+      } | null>,
     watch: (type: string, sessionId: string, cwd: string) =>
       ipcRenderer.invoke("session:watch", type, sessionId, cwd) as Promise<{
         ok: boolean;
@@ -157,7 +159,10 @@ contextBridge.exposeInMainWorld("termcanvas", {
   },
   diagnostics: {
     recordRenderEvent: (input: RenderDiagnosticEventInput) =>
-      ipcRenderer.invoke("diagnostics:record-render-event", input) as Promise<void>,
+      ipcRenderer.invoke(
+        "diagnostics:record-render-event",
+        input,
+      ) as Promise<void>,
     getRenderLogInfo: () =>
       ipcRenderer.invoke(
         "diagnostics:get-render-log-info",
@@ -185,11 +190,7 @@ contextBridge.exposeInMainWorld("termcanvas", {
           }
         | { ok: false; error: string }
       >,
-    removeWorktree: (
-      repoPath: string,
-      worktreePath: string,
-      force?: boolean,
-    ) =>
+    removeWorktree: (repoPath: string, worktreePath: string, force?: boolean) =>
       ipcRenderer.invoke(
         "project:remove-worktree",
         repoPath,
@@ -281,28 +282,71 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("git:stash-list", worktreePath) as Promise<
         import("../src/types").GitStashEntry[]
       >,
-    stashCreate: (worktreePath: string, message: string, includeUntracked: boolean) =>
-      ipcRenderer.invoke("git:stash-create", worktreePath, message, includeUntracked) as Promise<void>,
+    stashCreate: (
+      worktreePath: string,
+      message: string,
+      includeUntracked: boolean,
+    ) =>
+      ipcRenderer.invoke(
+        "git:stash-create",
+        worktreePath,
+        message,
+        includeUntracked,
+      ) as Promise<void>,
     stashApply: (worktreePath: string, index: number) =>
-      ipcRenderer.invoke("git:stash-apply", worktreePath, index) as Promise<void>,
+      ipcRenderer.invoke(
+        "git:stash-apply",
+        worktreePath,
+        index,
+      ) as Promise<void>,
     stashPop: (worktreePath: string, index: number) =>
       ipcRenderer.invoke("git:stash-pop", worktreePath, index) as Promise<void>,
     stashDrop: (worktreePath: string, index: number) =>
-      ipcRenderer.invoke("git:stash-drop", worktreePath, index) as Promise<void>,
+      ipcRenderer.invoke(
+        "git:stash-drop",
+        worktreePath,
+        index,
+      ) as Promise<void>,
     // Branch management
     branchCreate: (worktreePath: string, name: string, startPoint?: string) =>
-      ipcRenderer.invoke("git:branch-create", worktreePath, name, startPoint) as Promise<void>,
+      ipcRenderer.invoke(
+        "git:branch-create",
+        worktreePath,
+        name,
+        startPoint,
+      ) as Promise<void>,
     branchDelete: (worktreePath: string, name: string, force: boolean) =>
-      ipcRenderer.invoke("git:branch-delete", worktreePath, name, force) as Promise<void>,
+      ipcRenderer.invoke(
+        "git:branch-delete",
+        worktreePath,
+        name,
+        force,
+      ) as Promise<void>,
     branchRename: (worktreePath: string, oldName: string, newName: string) =>
-      ipcRenderer.invoke("git:branch-rename", worktreePath, oldName, newName) as Promise<void>,
+      ipcRenderer.invoke(
+        "git:branch-rename",
+        worktreePath,
+        oldName,
+        newName,
+      ) as Promise<void>,
     // Tags
     tagList: (worktreePath: string) =>
       ipcRenderer.invoke("git:tag-list", worktreePath) as Promise<
         import("../src/types").GitTagInfo[]
       >,
-    tagCreate: (worktreePath: string, name: string, ref: string, message?: string) =>
-      ipcRenderer.invoke("git:tag-create", worktreePath, name, ref, message) as Promise<void>,
+    tagCreate: (
+      worktreePath: string,
+      name: string,
+      ref: string,
+      message?: string,
+    ) =>
+      ipcRenderer.invoke(
+        "git:tag-create",
+        worktreePath,
+        name,
+        ref,
+        message,
+      ) as Promise<void>,
     tagDelete: (worktreePath: string, name: string) =>
       ipcRenderer.invoke("git:tag-delete", worktreePath, name) as Promise<void>,
     // Remotes
@@ -311,11 +355,25 @@ contextBridge.exposeInMainWorld("termcanvas", {
         import("../src/types").GitRemoteInfo[]
       >,
     remoteAdd: (worktreePath: string, name: string, url: string) =>
-      ipcRenderer.invoke("git:remote-add", worktreePath, name, url) as Promise<void>,
+      ipcRenderer.invoke(
+        "git:remote-add",
+        worktreePath,
+        name,
+        url,
+      ) as Promise<void>,
     remoteRemove: (worktreePath: string, name: string) =>
-      ipcRenderer.invoke("git:remote-remove", worktreePath, name) as Promise<void>,
+      ipcRenderer.invoke(
+        "git:remote-remove",
+        worktreePath,
+        name,
+      ) as Promise<void>,
     remoteRename: (worktreePath: string, oldName: string, newName: string) =>
-      ipcRenderer.invoke("git:remote-rename", worktreePath, oldName, newName) as Promise<void>,
+      ipcRenderer.invoke(
+        "git:remote-rename",
+        worktreePath,
+        oldName,
+        newName,
+      ) as Promise<void>,
     // Merge / Rebase / Cherry-pick
     merge: (worktreePath: string, ref: string) =>
       ipcRenderer.invoke("git:merge", worktreePath, ref) as Promise<string>,
@@ -326,24 +384,47 @@ contextBridge.exposeInMainWorld("termcanvas", {
     rebaseAbort: (worktreePath: string) =>
       ipcRenderer.invoke("git:rebase-abort", worktreePath) as Promise<void>,
     rebaseContinue: (worktreePath: string) =>
-      ipcRenderer.invoke("git:rebase-continue", worktreePath) as Promise<string>,
+      ipcRenderer.invoke(
+        "git:rebase-continue",
+        worktreePath,
+      ) as Promise<string>,
     cherryPick: (worktreePath: string, hash: string) =>
-      ipcRenderer.invoke("git:cherry-pick", worktreePath, hash) as Promise<string>,
+      ipcRenderer.invoke(
+        "git:cherry-pick",
+        worktreePath,
+        hash,
+      ) as Promise<string>,
     cherryPickAbort: (worktreePath: string) =>
-      ipcRenderer.invoke("git:cherry-pick-abort", worktreePath) as Promise<void>,
+      ipcRenderer.invoke(
+        "git:cherry-pick-abort",
+        worktreePath,
+      ) as Promise<void>,
     mergeState: (worktreePath: string) =>
       ipcRenderer.invoke("git:merge-state", worktreePath) as Promise<
         import("../src/types").GitMergeState
       >,
     // File diff & partial staging
     fileDiff: (worktreePath: string, filePath: string, staged: boolean) =>
-      ipcRenderer.invoke("git:file-diff", worktreePath, filePath, staged) as Promise<
-        import("../src/types").GitFileDiff
-      >,
+      ipcRenderer.invoke(
+        "git:file-diff",
+        worktreePath,
+        filePath,
+        staged,
+      ) as Promise<import("../src/types").GitFileDiff>,
     stageHunk: (worktreePath: string, filePath: string, hunkHeader: string) =>
-      ipcRenderer.invoke("git:stage-hunk", worktreePath, filePath, hunkHeader) as Promise<void>,
+      ipcRenderer.invoke(
+        "git:stage-hunk",
+        worktreePath,
+        filePath,
+        hunkHeader,
+      ) as Promise<void>,
     unstageHunk: (worktreePath: string, filePath: string, hunkHeader: string) =>
-      ipcRenderer.invoke("git:unstage-hunk", worktreePath, filePath, hunkHeader) as Promise<void>,
+      ipcRenderer.invoke(
+        "git:unstage-hunk",
+        worktreePath,
+        filePath,
+        hunkHeader,
+      ) as Promise<void>,
     // Blame
     blame: (worktreePath: string, filePath: string) =>
       ipcRenderer.invoke("git:blame", worktreePath, filePath) as Promise<
@@ -379,12 +460,19 @@ contextBridge.exposeInMainWorld("termcanvas", {
   },
   search: {
     fileContents: (query: string, worktreePath?: string) =>
-      ipcRenderer.invoke("search:file-contents", query, worktreePath) as Promise<
-        Array<{ filePath: string; line: number; preview: string }>
-      >,
+      ipcRenderer.invoke(
+        "search:file-contents",
+        query,
+        worktreePath,
+      ) as Promise<Array<{ filePath: string; line: number; preview: string }>>,
     sessionContents: (query: string) =>
       ipcRenderer.invoke("search:session-contents", query) as Promise<
-        Array<{ sessionId: string; filePath: string; lineNumber: number; preview: string }>
+        Array<{
+          sessionId: string;
+          filePath: string;
+          lineNumber: number;
+          preview: string;
+        }>
       >,
     /**
      * List past sessions belonging to any of the given project
@@ -752,9 +840,7 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.on("updater:error", listener);
       return () => ipcRenderer.removeListener("updater:error", listener);
     },
-    onLocationWarning: (
-      callback: (info: { bundlePath: string }) => void,
-    ) => {
+    onLocationWarning: (callback: (info: { bundlePath: string }) => void) => {
       const listener = (
         _e: Electron.IpcRendererEvent,
         info: { bundlePath: string },

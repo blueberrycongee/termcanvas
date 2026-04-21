@@ -85,7 +85,10 @@ import {
   listSessionsForProjectsPaged,
   type SessionSearchEntry,
 } from "./session-search-index";
-import { buildSessionHistoryScope, diffSessionHistoryScopes } from "./session-history-events.ts";
+import {
+  buildSessionHistoryScope,
+  diffSessionHistoryScopes,
+} from "./session-history-events.ts";
 import type { SessionHistoryChangedEvent } from "../shared/sessions.ts";
 import {
   checkoutGitRef,
@@ -140,6 +143,7 @@ import { HookReceiver } from "./hook-receiver";
 import {
   findBestClaudeSession,
   findBestCodexSession,
+  findBestKimiSession,
   findBestWuuSession,
   readClaudeSessionPermissionMode,
   readCodexSessionBypassState,
@@ -223,7 +227,9 @@ const telemetryService = new TelemetryService({
 });
 const agentService = new AgentService();
 const sessionScanner = new SessionScanner();
-const renderDiagnostics = createRenderDiagnosticsLogger(app.getPath("userData"));
+const renderDiagnostics = createRenderDiagnosticsLogger(
+  app.getPath("userData"),
+);
 let hookSocketPath: string | null = null;
 const hookReceiver = new HookReceiver((event) => {
   telemetryService.recordHookEvent(event.terminal_id, event);
@@ -454,8 +460,8 @@ function setupIpc() {
         worktreePath: options.cwd,
         provider:
           options.terminalType === "claude" ||
-            options.terminalType === "codex" ||
-            options.terminalType === "wuu"
+          options.terminalType === "codex" ||
+          options.terminalType === "wuu"
             ? options.terminalType
             : "unknown",
         workflowId: options.workflowId,
@@ -576,9 +582,19 @@ function setupIpc() {
     },
   );
 
-  ipcMain.handle("session:find-wuu", (_event, cwd: string, startedAt?: string) => {
-    return findBestWuuSession(cwd, startedAt);
-  });
+  ipcMain.handle(
+    "session:find-wuu",
+    (_event, cwd: string, startedAt?: string) => {
+      return findBestWuuSession(cwd, startedAt);
+    },
+  );
+
+  ipcMain.handle(
+    "session:find-kimi",
+    (_event, cwd: string, startedAt?: string) => {
+      return findBestKimiSession(cwd, startedAt);
+    },
+  );
 
   ipcMain.handle(
     "session:get-permission-mode",
@@ -602,25 +618,6 @@ function setupIpc() {
       return false;
     },
   );
-
-  ipcMain.handle("session:get-kimi-latest", (_event, cwd: string) => {
-    try {
-      // Kimi stores sessions under ~/.kimi/sessions/{cwd_hash}/{session_uuid}/
-      const sessionsDir = path.join(os.homedir(), ".kimi", "sessions");
-      if (!fs.existsSync(sessionsDir)) return null;
-      const hashDirs = fs.readdirSync(sessionsDir);
-      for (const hashDir of hashDirs.reverse()) {
-        const fullPath = path.join(sessionsDir, hashDir);
-        const uuids = fs.readdirSync(fullPath);
-        if (uuids.length > 0) {
-          return uuids[uuids.length - 1];
-        }
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  });
 
   ipcMain.handle("project:select-directory", async () => {
     const result = await dialog.showOpenDialog(mainWindow!, {
@@ -711,12 +708,7 @@ function setupIpc() {
 
   ipcMain.handle(
     "project:remove-worktree",
-    async (
-      _event,
-      repoPath: string,
-      worktreePath: string,
-      force?: boolean,
-    ) => {
+    async (_event, repoPath: string, worktreePath: string, force?: boolean) => {
       const resolvedRepo = path.resolve(repoPath);
       const resolvedWorktree = path.resolve(worktreePath);
 
@@ -902,12 +894,21 @@ function setupIpc() {
   );
 
   ipcMain.handle("git:stash-list", async (_event, worktreePath: string) => {
-    try { return await listStashes(worktreePath); } catch { return []; }
+    try {
+      return await listStashes(worktreePath);
+    } catch {
+      return [];
+    }
   });
 
   ipcMain.handle(
     "git:stash-create",
-    async (_event, worktreePath: string, message: string, includeUntracked: boolean) => {
+    async (
+      _event,
+      worktreePath: string,
+      message: string,
+      includeUntracked: boolean,
+    ) => {
       return createStash(worktreePath, message, includeUntracked);
     },
   );
@@ -955,12 +956,22 @@ function setupIpc() {
   );
 
   ipcMain.handle("git:tag-list", async (_event, worktreePath: string) => {
-    try { return await listTags(worktreePath); } catch { return []; }
+    try {
+      return await listTags(worktreePath);
+    } catch {
+      return [];
+    }
   });
 
   ipcMain.handle(
     "git:tag-create",
-    async (_event, worktreePath: string, name: string, ref: string, message?: string) => {
+    async (
+      _event,
+      worktreePath: string,
+      name: string,
+      ref: string,
+      message?: string,
+    ) => {
       return createTag(worktreePath, name, ref, message);
     },
   );
@@ -973,7 +984,11 @@ function setupIpc() {
   );
 
   ipcMain.handle("git:remote-list", async (_event, worktreePath: string) => {
-    try { return await listRemotes(worktreePath); } catch { return []; }
+    try {
+      return await listRemotes(worktreePath);
+    } catch {
+      return [];
+    }
   });
 
   ipcMain.handle(
@@ -1026,9 +1041,12 @@ function setupIpc() {
     return gitRebaseAbort(worktreePath);
   });
 
-  ipcMain.handle("git:rebase-continue", async (_event, worktreePath: string) => {
-    return gitRebaseContinue(worktreePath);
-  });
+  ipcMain.handle(
+    "git:rebase-continue",
+    async (_event, worktreePath: string) => {
+      return gitRebaseContinue(worktreePath);
+    },
+  );
 
   ipcMain.handle(
     "git:cherry-pick",
@@ -1037,9 +1055,12 @@ function setupIpc() {
     },
   );
 
-  ipcMain.handle("git:cherry-pick-abort", async (_event, worktreePath: string) => {
-    return gitCherryPickAbort(worktreePath);
-  });
+  ipcMain.handle(
+    "git:cherry-pick-abort",
+    async (_event, worktreePath: string) => {
+      return gitCherryPickAbort(worktreePath);
+    },
+  );
 
   ipcMain.handle("git:merge-state", async (_event, worktreePath: string) => {
     return getMergeState(worktreePath);
@@ -1054,14 +1075,24 @@ function setupIpc() {
 
   ipcMain.handle(
     "git:stage-hunk",
-    async (_event, worktreePath: string, filePath: string, hunkHeader: string) => {
+    async (
+      _event,
+      worktreePath: string,
+      filePath: string,
+      hunkHeader: string,
+    ) => {
       return stageHunk(worktreePath, filePath, hunkHeader);
     },
   );
 
   ipcMain.handle(
     "git:unstage-hunk",
-    async (_event, worktreePath: string, filePath: string, hunkHeader: string) => {
+    async (
+      _event,
+      worktreePath: string,
+      filePath: string,
+      hunkHeader: string,
+    ) => {
       return unstageHunk(worktreePath, filePath, hunkHeader);
     },
   );
@@ -1080,18 +1111,19 @@ function setupIpc() {
     async (_event, query: string, worktreePath?: string) => {
       try {
         return await searchFileContents(worktreePath ?? "", query);
-      } catch { return []; }
+      } catch {
+        return [];
+      }
     },
   );
 
-  ipcMain.handle(
-    "search:session-contents",
-    async (_event, query: string) => {
-      try {
-        return await searchSessionContents(query);
-      } catch { return []; }
-    },
-  );
+  ipcMain.handle("search:session-contents", async (_event, query: string) => {
+    try {
+      return await searchSessionContents(query);
+    } catch {
+      return [];
+    }
+  });
 
   ipcMain.handle(
     "search:sessions:list",
@@ -1112,10 +1144,7 @@ function setupIpc() {
       options: { limit: number; offset?: number },
     ): Promise<{ entries: SessionSearchEntry[]; total: number }> => {
       try {
-        return await listSessionsForProjectsPaged(
-          projectDirs ?? [],
-          options,
-        );
+        return await listSessionsForProjectsPaged(projectDirs ?? [], options);
       } catch {
         return { entries: [], total: 0 };
       }
@@ -1141,7 +1170,7 @@ function setupIpc() {
       _event,
       input: {
         terminalId: string;
-        provider: "claude" | "codex" | "wuu";
+        provider: "claude" | "codex" | "kimi" | "wuu";
         sessionId: string;
         cwd: string;
         confidence: "strong" | "medium" | "weak";

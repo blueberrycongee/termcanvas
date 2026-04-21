@@ -175,8 +175,10 @@ const XtermTerminalConstructor = (xtermRuntimeModule.Terminal ??
 
 function isSessionTelemetryProvider(
   type: TerminalType,
-): type is "claude" | "codex" | "wuu" {
-  return type === "claude" || type === "codex" || type === "wuu";
+): type is "claude" | "codex" | "kimi" | "wuu" {
+  return (
+    type === "claude" || type === "codex" || type === "kimi" || type === "wuu"
+  );
 }
 
 export const useTerminalRuntimeStore = create<TerminalRuntimeStoreState>(
@@ -378,7 +380,12 @@ async function pollSessionId(
       sessionId = candidate?.sessionId ?? null;
       confidence = candidate?.confidence;
     } else if (cliType === "kimi") {
-      sessionId = await window.termcanvas.session.getKimiLatest(worktreePath);
+      const candidate = await window.termcanvas.session.findKimi(
+        worktreePath,
+        startedAt,
+      );
+      sessionId = candidate?.sessionId ?? null;
+      confidence = candidate?.confidence;
     } else if (cliType === "wuu") {
       const candidate = await window.termcanvas.session.findWuu(
         worktreePath,
@@ -1483,7 +1490,10 @@ async function spawnPty(
     setPtyId(runtime, ptyId);
     setStatus(runtime, "running");
 
-    if (resumeSessionId && isSessionTelemetryProvider(runtime.meta.terminal.type)) {
+    if (
+      resumeSessionId &&
+      isSessionTelemetryProvider(runtime.meta.terminal.type)
+    ) {
       watchSession(runtime, runtime.meta.terminal.type, resumeSessionId);
     }
 
