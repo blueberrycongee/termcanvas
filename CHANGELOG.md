@@ -2,6 +2,14 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.30.7] - 2026-04-21
+
+### Fixed
+- Live session rows in the left panel no longer keep a stale session identity after a terminal detaches from its session or switches to a new one. Detach now clears the terminal's session-backed telemetry state (`session_id`, `session_file`, first-user-prompt, turn/tool fields), and renderer-side telemetry diffing now treats session identity fields as meaningful changes, so a pushed snapshot from a new session cannot be collapsed as "unchanged" and leave the old session title stuck on the tile
+
+### Fixed (zh-CN)
+- 左侧 live session 列表不再在 terminal 与 session 解绑或切到新 session 后继续挂着旧会话身份。现在 detach 会真正清空 terminal 上由 session 驱动的 telemetry 状态(`session_id`、`session_file`、首条用户 prompt、turn/tool 字段),同时 renderer 侧的 telemetry diff 也把这些 session identity 字段视为有效变化,所以新 session 推过来的 snapshot 不会再被当成"没变"吞掉,旧会话标题也不会继续黏在 tile 上
+
 ## [0.30.6] - 2026-04-20
 
 ### Fixed
