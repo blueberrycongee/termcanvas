@@ -33,7 +33,6 @@ import {
   focusTerminalRuntime,
   getTerminalPtyId,
   getTerminalRuntime,
-  recoverTerminalRuntimeRenderer,
   touchTerminalRuntime,
   useTerminalRuntimeStore,
 } from "./terminalRuntimeStore";
@@ -194,8 +193,6 @@ export function TerminalTile({
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tileRef = useRef<HTMLDivElement>(null);
   const settledFitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const settledViewportRecoveryTimerRef =
-    useRef<ReturnType<typeof setTimeout> | null>(null);
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
   const containerRef = useCallback((node: HTMLDivElement | null) => {
     setContainerEl(node);
@@ -220,12 +217,10 @@ export function TerminalTile({
   const useAgentRenderer = false; // TODO: re-enable when agent renderer is ready
   const latestLodModeRef = useRef(lodMode);
   const latestContainerElRef = useRef<HTMLDivElement | null>(containerEl);
-  const previousFocusedRef = useRef(terminal.focused);
   latestLodModeRef.current = lodMode;
   latestContainerElRef.current = containerEl;
   const isSummarizing = useIsSummarizing(terminal.id);
   const sidebarDragActive = useSidebarDragStore((s) => s.active);
-  const canvasAnimating = useCanvasStore((s) => s.isAnimating);
   const viewportScale = useCanvasStore((s) => s.viewport.scale);
   const zoomedOutTerminalId = useViewportFocusStore((s) => s.zoomedOutTerminalId);
   const fitAllScale = useViewportFocusStore((s) => s.fitAllScale);
@@ -331,9 +326,6 @@ export function TerminalTile({
     () => () => {
       if (settledFitTimerRef.current) {
         clearTimeout(settledFitTimerRef.current);
-      }
-      if (settledViewportRecoveryTimerRef.current) {
-        clearTimeout(settledViewportRecoveryTimerRef.current);
       }
       if (copiedTimerRef.current) {
         clearTimeout(copiedTimerRef.current);
@@ -503,7 +495,6 @@ export function TerminalTile({
   }, [isAgent, sidebarDragActive, terminal.id, containerEl]);
 
   const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
-  const terminalRendererMode = usePreferencesStore((s) => s.terminalRenderer);
   const focusLiveTerminal = useCallback(() => {
     const tile = tileRef.current;
     if (!tile || tile.getClientRects().length === 0) {
@@ -543,86 +534,6 @@ export function TerminalTile({
     terminal.focused,
     terminal.id,
     terminal.type,
-  ]);
-
-  useEffect(() => {
-    if (settledViewportRecoveryTimerRef.current) {
-      clearTimeout(settledViewportRecoveryTimerRef.current);
-      settledViewportRecoveryTimerRef.current = null;
-    }
-
-    if (
-      lodMode !== "live" ||
-      !terminal.focused ||
-      terminalRendererMode !== "webgl" ||
-      Math.abs(viewportScale - 1) <= 0.001
-    ) {
-      return;
-    }
-
-    // Scale-only transitions such as cmd+e overview do not necessarily
-    // refocus the xterm. If this tile stays focused through the zoom,
-    // run one settled recovery after the viewport calms down.
-    settledViewportRecoveryTimerRef.current = setTimeout(() => {
-      settledViewportRecoveryTimerRef.current = null;
-      recoverTerminalRuntimeRenderer(
-        terminal.id,
-        isOverviewMode
-          ? "focused_overview_scale_settled"
-          : "focused_viewport_scale_settled",
-      );
-    }, 120);
-
-    return () => {
-      if (settledViewportRecoveryTimerRef.current) {
-        clearTimeout(settledViewportRecoveryTimerRef.current);
-        settledViewportRecoveryTimerRef.current = null;
-      }
-    };
-  }, [
-    isOverviewMode,
-    lodMode,
-    terminal.focused,
-    terminal.id,
-    terminalRendererMode,
-    viewportScale,
-  ]);
-
-  useEffect(() => {
-    const wasFocused = previousFocusedRef.current;
-    previousFocusedRef.current = terminal.focused;
-
-    if (
-      !wasFocused ||
-      terminal.focused ||
-      lodMode !== "live" ||
-      terminalRendererMode !== "webgl"
-    ) {
-      return;
-    }
-
-    const blurRecoveryReasons: string[] = [];
-    if (canvasAnimating) {
-      blurRecoveryReasons.push("canvas_animating");
-    }
-    if (Math.abs(viewportScale - 1) > 0.001) {
-      blurRecoveryReasons.push("viewport_scaled");
-    }
-    if (blurRecoveryReasons.length === 0) {
-      return;
-    }
-
-    recoverTerminalRuntimeRenderer(
-      terminal.id,
-      `blur:${blurRecoveryReasons.join(",")}`,
-    );
-  }, [
-    canvasAnimating,
-    lodMode,
-    terminal.focused,
-    terminal.id,
-    terminalRendererMode,
-    viewportScale,
   ]);
 
   useEffect(() => {

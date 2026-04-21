@@ -93,59 +93,24 @@ function notifyWebGLFallbackHint(
   );
 }
 
-/**
- * Atlas recovery.
- *
- * Current evidence:
- *   - The WebGL glyph atlas can become visually wrong without any
- *     `webglcontextlost` event.
- *   - Theme toggle fully restores it, and local selection redraw can
- *     restore only the selected range, so the bug behaves like stale
- *     atlas contents rather than bad terminal data.
- *   - Window-level return-from-background is only one trigger. Recent
- *     diagnostics also show corruption around focus, layout, and
- *     viewport-scale churn while the window is still visible.
- *
- * Responsibility split:
- *   - This module owns app-wide invalidation signals that do not need
- *     terminal lifecycle context:
- *       1. `devicePixelRatio` change
- *       2. `document.visibilityState` hidden→visible
- *       3. `window` focus regained
- *   - Per-terminal recovery for create / attach / focus / settled
- *     viewport scale lives in `terminalRuntimeStore` and `TerminalTile`,
- *     because those paths depend on runtime attachment state and canvas
- *     animation state.
- *
- * Manual escape hatch: `rebuildTerminalAtlas()` stays exported for the
- * toolbar "Refresh terminal rendering" action and any future targeted
- * diagnostics.
- */
-function rebuildAllAtlases(reason = "unspecified"): void {
-  recordWebGLDiagnostic("render_atlas_rebuild_all", undefined, {
-    reason,
-  });
-  for (const entry of entries.values()) {
-    try {
-      entry.addon.clearTextureAtlas();
-    } catch (error) {
-      recordWebGLDiagnostic("render_atlas_rebuild_failed", entry.terminalId, {
-        error: formatError(error),
-        reason,
-      });
-      // Addon may be mid-disposal or the underlying context
-      // genuinely dead; swallow and let the next lifecycle event
-      // (context loss, attach) handle it.
-    }
-  }
-}
-
 export function rebuildTerminalAtlas(
   terminalId?: string,
   reason = "unspecified",
 ): void {
   if (!terminalId) {
-    rebuildAllAtlases(reason);
+    recordWebGLDiagnostic("render_atlas_rebuild_all", undefined, {
+      reason,
+    });
+    for (const entry of entries.values()) {
+      try {
+        entry.addon.clearTextureAtlas();
+      } catch (error) {
+        recordWebGLDiagnostic("render_atlas_rebuild_failed", entry.terminalId, {
+          error: formatError(error),
+          reason,
+        });
+      }
+    }
     return;
   }
   const entry = entries.get(terminalId);
@@ -165,74 +130,10 @@ export function rebuildTerminalAtlas(
       error: formatError(error),
       reason,
     });
-    // Swallow — same reasoning as above.
-  }
-}
-
-let atlasRecoveryInstalled = false;
-function installAtlasRecoveryListeners(): void {
-  if (atlasRecoveryInstalled) return;
-  atlasRecoveryInstalled = true;
-
-  // Feature-gate on the specific APIs we need, not just `window`.
-  // Test environments (node --test against jsdom-like stubs) have
-  // `window` and `document` but not `matchMedia`, so the naive
-  // `typeof window !== 'undefined'` guard is insufficient.
-
-  // DPR-change listener. matchMedia is the only reliable way to
-  // detect `window.devicePixelRatio` transitions from JS; the MQL
-  // fires `change` exactly when `dppx` crosses the threshold, at
-  // which point we re-subscribe at the new value so the next
-  // transition still fires. Kept alive for the lifetime of the app.
-  if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
-    const buildDprMql = () =>
-      window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-    let dprMql = buildDprMql();
-    const onDprChange = () => {
-      rebuildAllAtlases("device_pixel_ratio_change");
-      dprMql.removeEventListener("change", onDprChange);
-      dprMql = buildDprMql();
-      dprMql.addEventListener("change", onDprChange);
-    };
-    dprMql.addEventListener("change", onDprChange);
-  }
-
-  // Visibility listener. Fires on hidden→visible transitions:
-  // window minimise + restore, Electron-level hide + show.
-  // Does NOT fire on Cmd+Tab between apps — the focus listener
-  // below covers that path.
-  if (
-    typeof document !== "undefined" &&
-    typeof document.addEventListener === "function"
-  ) {
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") {
-        rebuildAllAtlases("document_visible");
-      }
-    });
-  }
-
-  // Focus listener. Covers paths visibilitychange doesn't:
-  //   - Cmd+Tab / Alt+Tab between apps (document stays "visible"
-  //     through app-switch in Electron)
-  //   - Lid close + reopen
-  //   - Screen lock + unlock
-  //   - macOS Space switch back (when Spaces move focus rather
-  //     than hiding the window)
-  if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
-    window.addEventListener("focus", () => {
-      rebuildAllAtlases("window_focus");
-    });
   }
 }
 
 export function acquireWebGL(terminalId: string, xterm: Terminal): boolean {
-  // Install atlas-recovery listeners on first use. Lazy because the
-  // module may be imported in environments without `window` (tests,
-  // headless builds); deferring to first acquire skips the feature
-  // entirely in those environments instead of erroring.
-  installAtlasRecoveryListeners();
-
   if (entries.has(terminalId)) {
     touch(terminalId);
     recordWebGLDiagnostic("webgl_acquire_reused", terminalId, {

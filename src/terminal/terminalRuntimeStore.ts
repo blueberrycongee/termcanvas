@@ -38,7 +38,6 @@ import { getTerminalLaunchOptions, getTerminalPromptArgs } from "./cliConfig";
 import { buildFontFamily } from "./fontRegistry";
 import { useLocaleStore } from "../stores/localeStore";
 import { isRegisteredAppShortcutEvent } from "../stores/shortcutStore";
-import { useCanvasStore } from "../stores/canvasStore";
 import { en } from "../i18n/en";
 import { zh } from "../i18n/zh";
 import type { TerminalTelemetrySnapshot } from "../../shared/telemetry";
@@ -752,52 +751,6 @@ function scheduleRuntimeRefresh(callback: () => void) {
   setTimeout(callback, 0);
 }
 
-function scheduleRuntimeRendererRecovery(
-  terminalId: string,
-  reason: string,
-): void {
-  scheduleRuntimeRefresh(() => {
-    const runtime = runtimeRegistry.get(terminalId);
-    if (
-      !runtime ||
-      runtime.disposed ||
-      !runtime.xterm ||
-      runtime.rendererMode !== "webgl"
-    ) {
-      return;
-    }
-
-    rebuildTerminalAtlas(terminalId, reason);
-    runtime.xterm.refresh(0, Math.max((runtime.xterm.rows ?? 1) - 1, 0));
-    recordRuntimeDiagnostic(runtime, "terminal_runtime_renderer_recovery", {
-      reason,
-    });
-  });
-}
-
-export function recoverTerminalRuntimeRenderer(
-  terminalId: string,
-  reason: string,
-): void {
-  scheduleRuntimeRendererRecovery(terminalId, reason);
-}
-
-export function recoverLiveTerminalRuntimeRenderers(reason: string): void {
-  for (const [terminalId, runtime] of runtimeRegistry) {
-    if (
-      runtime.disposed ||
-      runtime.mode !== "live" ||
-      runtime.rendererMode !== "webgl" ||
-      !runtime.xterm ||
-      !runtime.attachedContainer
-    ) {
-      continue;
-    }
-
-    scheduleRuntimeRendererRecovery(terminalId, reason);
-  }
-}
-
 function ensureParkingRoot(): HTMLDivElement | null {
   if (typeof document === "undefined") {
     return null;
@@ -1003,6 +956,7 @@ function parkTerminalRenderer(
   }
 
   disposeRendererBindings(runtime);
+  releaseWebGL(runtime.meta.terminal.id);
   parkTerminalHost(runtime);
 }
 
@@ -1114,18 +1068,7 @@ function createTerminalRenderer(
   wireRendererBindings(runtime, host);
   scheduleRuntimeRefresh(() => {
     syncAttachedTerminalGeometry(runtime);
-    // First recovery pass: the host has now laid out at a real size.
-    // WebGL often attached one frame too early, so the first atlas can
-    // be built against 0x0 or pre-reflow geometry.
-    rebuildTerminalAtlas(runtime.meta.terminal.id, "create_renderer_layout");
     runtime.xterm?.refresh(0, (runtime.xterm?.rows ?? 1) - 1);
-    // A brand-new terminal can still flash a bad frame while the
-    // surrounding viewport animation settles, so run one more pass on
-    // the next frame to close that transient window quickly.
-    scheduleRuntimeRendererRecovery(
-      runtime.meta.terminal.id,
-      "create_renderer_layout_settled",
-    );
   });
 }
 
@@ -1915,15 +1858,7 @@ export function attachTerminalContainer(
   wireRendererBindings(runtime, host);
   scheduleRuntimeRefresh(() => {
     syncAttachedTerminalGeometry(runtime);
-    // First recovery pass after reattach: the host has a real size
-    // again, so drop any atlas that was built against parking / stale
-    // geometry.
-    rebuildTerminalAtlas(runtime.meta.terminal.id, "attach_container_layout");
     runtime.xterm?.refresh(0, (runtime.xterm?.rows ?? 1) - 1);
-    scheduleRuntimeRendererRecovery(
-      runtime.meta.terminal.id,
-      "attach_container_layout_settled",
-    );
   });
 }
 
@@ -1963,50 +1898,8 @@ export function focusTerminalRuntime(terminalId: string): boolean {
     return false;
   }
 
-  const canvasState = useCanvasStore.getState();
-  const focusRecoveryReasons: string[] = [];
-  // Focus by itself is usually cheap, but when the canvas is animating
-  // or scaled away from 1:1 we have repeatedly seen stale WebGL glyphs
-  // surface on the next frame. Treat those as high-risk focus paths.
-  if (runtime.rendererMode === "webgl") {
-    if (canvasState.isAnimating) {
-      focusRecoveryReasons.push("canvas_animating");
-    }
-    if (Math.abs(canvasState.viewport.scale - 1) > 0.001) {
-      focusRecoveryReasons.push("viewport_scaled");
-    }
-  }
-
-  recordRuntimeDiagnostic(runtime, "terminal_runtime_focus", {
-    focus_recovery_reason:
-      focusRecoveryReasons.length > 0 ? focusRecoveryReasons.join(",") : null,
-  });
+  recordRuntimeDiagnostic(runtime, "terminal_runtime_focus");
   runtime.xterm.focus();
-
-  if (focusRecoveryReasons.length > 0) {
-    const focusRecoveryReason = focusRecoveryReasons.join(",");
-    scheduleRuntimeRefresh(() => {
-      const liveRuntime = runtimeRegistry.get(terminalId);
-      if (
-        !liveRuntime ||
-        liveRuntime.disposed ||
-        !liveRuntime.xterm ||
-        liveRuntime.rendererMode !== "webgl"
-      ) {
-        return;
-      }
-
-      rebuildTerminalAtlas(terminalId, `focus:${focusRecoveryReason}`);
-      liveRuntime.xterm.refresh(
-        0,
-        Math.max((liveRuntime.xterm.rows ?? 1) - 1, 0),
-      );
-      recordRuntimeDiagnostic(liveRuntime, "terminal_runtime_focus_recovery", {
-        reason: focusRecoveryReason,
-      });
-    });
-  }
-
   return true;
 }
 
