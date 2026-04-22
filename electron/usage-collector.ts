@@ -78,8 +78,8 @@ const PRICING: Record<string, Pricing> = {
   "o4-mini": openaiPricing(1.10, 0.275, 4.40),
   o3: openaiPricing(2.00, 0.50, 8.00),
   codex: openaiPricing(1.50, 0.375, 6.00),
-  kimi: openaiPricing(0.50, 0.10, 2.00),
-  wuu: claudePricing(3.00, 15.00, 0.30, 3.75, 6.00),
+  kimi: openaiPricing(0.60, 0.15, 2.50),
+  wuu: openaiPricing(0.60, 0.15, 2.50),
   default: claudePricing(5.00, 25.00, 0.50, 6.25, 10.00),
 };
 
