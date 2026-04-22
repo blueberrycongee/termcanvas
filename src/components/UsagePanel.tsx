@@ -275,6 +275,8 @@ export function CacheRateSection({
   const clients: { label: string; input: number; cacheRead: number; cacheCreate: number }[] = [];
   let claudeInput = 0, claudeCacheRead = 0, claudeCacheCreate = 0;
   let codexInput = 0, codexCacheRead = 0, codexCacheCreate = 0;
+  let kimiInput = 0, kimiCacheRead = 0, kimiCacheCreate = 0;
+  let wuuInput = 0, wuuCacheRead = 0, wuuCacheCreate = 0;
 
   for (const m of summary.models) {
     const cc = m.cacheCreate5m + m.cacheCreate1h;
@@ -282,6 +284,14 @@ export function CacheRateSection({
       codexInput += m.input;
       codexCacheRead += m.cacheRead;
       codexCacheCreate += cc;
+    } else if (m.model === "kimi") {
+      kimiInput += m.input;
+      kimiCacheRead += m.cacheRead;
+      kimiCacheCreate += cc;
+    } else if (m.model === "wuu") {
+      wuuInput += m.input;
+      wuuCacheRead += m.cacheRead;
+      wuuCacheCreate += cc;
     } else {
       claudeInput += m.input;
       claudeCacheRead += m.cacheRead;
@@ -294,6 +304,12 @@ export function CacheRateSection({
   }
   if (codexInput + codexCacheRead + codexCacheCreate > 0) {
     clients.push({ label: "Codex", input: codexInput, cacheRead: codexCacheRead, cacheCreate: codexCacheCreate });
+  }
+  if (kimiInput + kimiCacheRead + kimiCacheCreate > 0) {
+    clients.push({ label: "Kimi", input: kimiInput, cacheRead: kimiCacheRead, cacheCreate: kimiCacheCreate });
+  }
+  if (wuuInput + wuuCacheRead + wuuCacheCreate > 0) {
+    clients.push({ label: "Wuu", input: wuuInput, cacheRead: wuuCacheRead, cacheCreate: wuuCacheCreate });
   }
 
   const overallInput = summary.totalInput;
@@ -420,6 +436,8 @@ export function ModelsContent({
     "claude-sonnet-4-6": "var(--purple)",
     "claude-haiku-4-5": "var(--cyan)",
     codex: "#8b5cf6",
+    kimi: "#ef4444",
+    wuu: "#22c55e",
   };
 
   return (

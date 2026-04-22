@@ -78,6 +78,8 @@ const PRICING: Record<string, Pricing> = {
   "o4-mini": openaiPricing(1.10, 0.275, 4.40),
   o3: openaiPricing(2.00, 0.50, 8.00),
   codex: openaiPricing(1.50, 0.375, 6.00),
+  kimi: openaiPricing(0.50, 0.10, 2.00),
+  wuu: claudePricing(3.00, 15.00, 0.30, 3.75, 6.00),
   default: claudePricing(5.00, 25.00, 0.50, 6.25, 10.00),
 };
 
@@ -179,6 +181,16 @@ let heatmapDiskCache: HeatmapDiskCache | null = null;
 
 function yieldToEventLoop(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
+}
+
+function getObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function getString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
 }
 
 function perfLog(label: string, details: Record<string, unknown>) {
@@ -476,6 +488,179 @@ export function findKimiSessionFiles(): Array<{ sessionId: string; filePath: str
   return results;
 }
 
+export function findKimiWireFiles(): string[] {
+  const home = os.homedir();
+  const sessionsRoot = path.join(home, ".kimi", "sessions");
+  const files: string[] = [];
+  if (!fs.existsSync(sessionsRoot)) {
+    return files;
+  }
+
+  try {
+    const hashDirs = fs.readdirSync(sessionsRoot);
+    for (const hashDir of hashDirs) {
+      const fullHashDir = path.join(sessionsRoot, hashDir);
+      try {
+        const stat = fs.statSync(fullHashDir);
+        if (!stat.isDirectory()) continue;
+      } catch { continue; }
+
+      let entries: string[];
+      try {
+        entries = fs.readdirSync(fullHashDir);
+      } catch { continue; }
+
+      for (const entry of entries) {
+        const sessionDir = path.join(fullHashDir, entry);
+        try {
+          const s = fs.statSync(sessionDir);
+          if (!s.isDirectory()) continue;
+        } catch { continue; }
+        const wireFile = path.join(sessionDir, "wire.jsonl");
+        if (fs.existsSync(wireFile)) {
+          files.push(wireFile);
+        }
+      }
+    }
+  } catch { /* skip */ }
+
+  return files;
+}
+
+export function parseKimiWireFile(
+  filePath: string,
+  utcStart: string,
+  utcEnd: string,
+): { records: UsageRecord[]; projectPath: string } {
+  let content: string;
+  try {
+    content = fs.readFileSync(filePath, "utf-8");
+  } catch {
+    return { records: [], projectPath: "" };
+  }
+
+  const records: UsageRecord[] = [];
+  let eventIndex = 0;
+
+  for (const line of content.split("\n")) {
+    if (!line) continue;
+    let obj: Record<string, unknown>;
+    try {
+      obj = JSON.parse(line);
+    } catch { continue; }
+
+    const message = getObject(obj.message);
+    if (!message) continue;
+    if (message.type !== "StatusUpdate") continue;
+
+    const payload = getObject(message.payload);
+    if (!payload) continue;
+
+    const tokenUsage = getObject(payload.token_usage);
+    if (!tokenUsage) continue;
+
+    const ts = obj.timestamp;
+    if (typeof ts !== "number") continue;
+    const tsClean = new Date(ts * 1000).toISOString().replace("Z", "").split(".")[0];
+    if (tsClean < utcStart || tsClean >= utcEnd) continue;
+
+    const inputOther = (tokenUsage.input_other as number) ?? 0;
+    const output = (tokenUsage.output as number) ?? 0;
+    const cacheRead = (tokenUsage.input_cache_read as number) ?? 0;
+    const cacheCreate = (tokenUsage.input_cache_creation as number) ?? 0;
+
+    records.push({
+      ts: tsClean,
+      msgId: `${path.basename(path.dirname(filePath))}:status:${eventIndex}`,
+      model: "kimi",
+      input: inputOther,
+      output,
+      cacheRead,
+      cacheCreate5m: cacheCreate,
+      cacheCreate1h: 0,
+      projectPath: "",
+    });
+    eventIndex += 1;
+  }
+
+  return { records, projectPath: "" };
+}
+
+export function findWuuSessionFiles(): string[] {
+  const home = os.homedir();
+  const sessionsDir = path.join(home, ".wuu", "sessions");
+  const files: string[] = [];
+  if (!fs.existsSync(sessionsDir)) {
+    return files;
+  }
+
+  try {
+    const entries = fs.readdirSync(sessionsDir);
+    for (const entry of entries) {
+      if (!entry.endsWith(".jsonl")) continue;
+      const filePath = path.join(sessionsDir, entry);
+      try {
+        const stat = fs.statSync(filePath);
+        if (!stat.isFile()) continue;
+      } catch { continue; }
+      files.push(filePath);
+    }
+  } catch { /* skip */ }
+
+  return files;
+}
+
+export function parseWuuSession(
+  filePath: string,
+  utcStart: string,
+  utcEnd: string,
+): { records: UsageRecord[]; projectPath: string } {
+  let content: string;
+  try {
+    content = fs.readFileSync(filePath, "utf-8");
+  } catch {
+    return { records: [], projectPath: "" };
+  }
+
+  const records: UsageRecord[] = [];
+  let eventIndex = 0;
+
+  for (const line of content.split("\n")) {
+    if (!line) continue;
+    let obj: Record<string, unknown>;
+    try {
+      obj = JSON.parse(line);
+    } catch { continue; }
+
+    const role = getString(obj.role);
+    const contentType = getString(obj.content);
+    if (role !== "meta" || contentType !== "token_usage") continue;
+
+    const at = getString(obj.at);
+    if (!at) continue;
+    const tsClean = at.replace("Z", "").split(".")[0];
+    if (tsClean < utcStart || tsClean >= utcEnd) continue;
+
+    const inputTokens = (obj.input_tokens as number) ?? 0;
+    const outputTokens = (obj.output_tokens as number) ?? 0;
+
+    records.push({
+      ts: tsClean,
+      msgId: `${path.basename(filePath, ".jsonl")}:usage:${eventIndex}`,
+      model: "wuu",
+      input: inputTokens,
+      output: outputTokens,
+      cacheRead: 0,
+      cacheCreate5m: 0,
+      cacheCreate1h: 0,
+      projectPath: "",
+    });
+    eventIndex += 1;
+  }
+
+  return { records, projectPath: "" };
+}
+
 export function parseClaudeSession(
   filePath: string,
   utcStart: string,
@@ -687,6 +872,8 @@ export async function collectHeatmapData(): Promise<Record<string, { tokens: num
 
   const claudeFiles = findClaudeJsonlFiles();
   const codexFiles = findCodexJsonlFiles();
+  const kimiWireFiles = findKimiWireFiles();
+  const wuuFiles = findWuuSessionFiles();
   const diskCache = loadHeatmapDiskCache();
   let cacheDirty = false;
   const livePaths = new Set<string>();
@@ -763,6 +950,72 @@ export async function collectHeatmapData(): Promise<Record<string, { tokens: num
     cacheDirty = true;
   }
 
+  for (let i = 0; i < kimiWireFiles.length; i++) {
+    if (i > 0) await yieldToEventLoop();
+    const f = kimiWireFiles[i];
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(f);
+      livePaths.add(f);
+      const mtimeLocal = new Date(stat.mtimeMs + tzOffsetHours * 3600_000);
+      const mtimeDate = mtimeLocal.toISOString().split("T")[0];
+      if (mtimeDate < startDateStr) continue;
+    } catch { continue; }
+
+    const cached = diskCache.files[f];
+    if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+      mergeHeatmapDays(result, cached.days);
+      reusedFiles += 1;
+      continue;
+    }
+
+    const entry = buildHeatmapEntry(
+      f,
+      (fp, us, ue) => parseKimiWireFile(fp, us, ue).records,
+      utcStart,
+      utcEnd,
+      tzOffsetHours,
+      stat,
+    );
+    diskCache.files[f] = entry;
+    mergeHeatmapDays(result, entry.days);
+    parsedFiles += 1;
+    cacheDirty = true;
+  }
+
+  for (let i = 0; i < wuuFiles.length; i++) {
+    if (i > 0) await yieldToEventLoop();
+    const f = wuuFiles[i];
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(f);
+      livePaths.add(f);
+      const mtimeLocal = new Date(stat.mtimeMs + tzOffsetHours * 3600_000);
+      const mtimeDate = mtimeLocal.toISOString().split("T")[0];
+      if (mtimeDate < startDateStr) continue;
+    } catch { continue; }
+
+    const cached = diskCache.files[f];
+    if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+      mergeHeatmapDays(result, cached.days);
+      reusedFiles += 1;
+      continue;
+    }
+
+    const entry = buildHeatmapEntry(
+      f,
+      (fp, us, ue) => parseWuuSession(fp, us, ue).records,
+      utcStart,
+      utcEnd,
+      tzOffsetHours,
+      stat,
+    );
+    diskCache.files[f] = entry;
+    mergeHeatmapDays(result, entry.days);
+    parsedFiles += 1;
+    cacheDirty = true;
+  }
+
   for (const filePath of Object.keys(diskCache.files)) {
     if (!livePaths.has(filePath)) {
       delete diskCache.files[filePath];
@@ -779,6 +1032,8 @@ export async function collectHeatmapData(): Promise<Record<string, { tokens: num
     ms: Date.now() - startedAt,
     claudeFiles: claudeFiles.length,
     codexFiles: codexFiles.length,
+    kimiFiles: kimiWireFiles.length,
+    wuuFiles: wuuFiles.length,
     reusedFiles,
     parsedFiles,
   });
@@ -837,6 +1092,42 @@ export async function collectUsage(
     } catch { continue; }
 
     const { records } = parseCodexSession(f, utcStart, utcEnd);
+    if (records.length > 0) {
+      allRecords.push(...records);
+      sessionPaths.add(f);
+    }
+  }
+
+  const kimiWireFiles = findKimiWireFiles();
+  for (let i = 0; i < kimiWireFiles.length; i++) {
+    if (i > 0) await yieldToEventLoop();
+    const f = kimiWireFiles[i];
+    try {
+      const mtime = fs.statSync(f).mtimeMs;
+      const mtimeLocal = new Date(mtime + tzOffsetHours * 3600_000);
+      const mtimeDate = mtimeLocal.toISOString().split("T")[0];
+      if (mtimeDate < dateStr) continue;
+    } catch { continue; }
+
+    const { records } = parseKimiWireFile(f, utcStart, utcEnd);
+    if (records.length > 0) {
+      allRecords.push(...records);
+      sessionPaths.add(f);
+    }
+  }
+
+  const wuuFiles = findWuuSessionFiles();
+  for (let i = 0; i < wuuFiles.length; i++) {
+    if (i > 0) await yieldToEventLoop();
+    const f = wuuFiles[i];
+    try {
+      const mtime = fs.statSync(f).mtimeMs;
+      const mtimeLocal = new Date(mtime + tzOffsetHours * 3600_000);
+      const mtimeDate = mtimeLocal.toISOString().split("T")[0];
+      if (mtimeDate < dateStr) continue;
+    } catch { continue; }
+
+    const { records } = parseWuuSession(f, utcStart, utcEnd);
     if (records.length > 0) {
       allRecords.push(...records);
       sessionPaths.add(f);

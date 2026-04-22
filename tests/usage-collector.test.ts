@@ -8,6 +8,8 @@ import {
   computeCost,
   parseClaudeSession,
   parseCodexSession,
+  parseKimiWireFile,
+  parseWuuSession,
   shouldReuseTimedCache,
   shouldReuseUsageSummary,
 } from "../electron/usage-collector.ts";
@@ -378,4 +380,64 @@ test("parseClaudeSession preserves normal project path (no worktree)", () => {
   } finally {
     fs.rmSync(dir, { recursive: true });
   }
+});
+
+
+test("parseKimiWireFile accumulates StatusUpdate token_usage records", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "kimi-test-"));
+  const sessionDir = path.join(tmpDir, "test-session");
+  fs.mkdirSync(sessionDir, { recursive: true });
+  const wirePath = path.join(sessionDir, "wire.jsonl");
+
+  const lines = [
+    JSON.stringify({ timestamp: 1775348199.587724, message: { type: "StatusUpdate", payload: { token_usage: { input_other: 4235, output: 69, input_cache_read: 4608, input_cache_creation: 0 } } } }),
+    JSON.stringify({ timestamp: 1775348201.33165, message: { type: "StatusUpdate", payload: { token_usage: { input_other: 315, output: 69, input_cache_read: 8704, input_cache_creation: 0 } } } }),
+    JSON.stringify({ timestamp: 1775348204.4787781, message: { type: "ToolResult", payload: { tool_call_id: "ReadFile:1" } } }),
+  ];
+  fs.writeFileSync(wirePath, lines.join("\n"));
+
+  const { records } = parseKimiWireFile(
+    wirePath,
+    "2026-04-01T00:00:00",
+    "2026-04-10T00:00:00",
+  );
+
+  assert.equal(records.length, 2);
+  assert.equal(records[0].model, "kimi");
+  assert.equal(records[0].input, 4235);
+  assert.equal(records[0].output, 69);
+  assert.equal(records[0].cacheRead, 4608);
+  assert.equal(records[1].input, 315);
+  assert.equal(records[1].output, 69);
+  assert.equal(records[1].cacheRead, 8704);
+
+  fs.rmSync(tmpDir, { recursive: true });
+});
+
+test("parseWuuSession accumulates meta token_usage records", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "wuu-test-"));
+  const filePath = path.join(tmpDir, "20260413-161133-7209.jsonl");
+
+  const lines = [
+    JSON.stringify({ role: "user", content: "hello", at: "2026-04-13T08:11:35.702832Z" }),
+    JSON.stringify({ role: "assistant", content: "hi", at: "2026-04-13T08:11:52.229692Z" }),
+    JSON.stringify({ role: "meta", content: "token_usage", at: "2026-04-13T08:11:52.230198Z", input_tokens: 2667, output_tokens: 14 }),
+    JSON.stringify({ role: "meta", content: "token_usage", at: "2026-04-13T08:12:00.000000Z", input_tokens: 100, output_tokens: 50 }),
+  ];
+  fs.writeFileSync(filePath, lines.join("\n"));
+
+  const { records } = parseWuuSession(
+    filePath,
+    "2026-04-13T00:00:00",
+    "2026-04-14T00:00:00",
+  );
+
+  assert.equal(records.length, 2);
+  assert.equal(records[0].model, "wuu");
+  assert.equal(records[0].input, 2667);
+  assert.equal(records[0].output, 14);
+  assert.equal(records[1].input, 100);
+  assert.equal(records[1].output, 50);
+
+  fs.rmSync(tmpDir, { recursive: true });
 });
