@@ -2,6 +2,14 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.31.1] - 2026-04-22
+
+### Fixed
+- Left panel history and `⌘K` session search appeared completely empty on 0.31.0 even when local session files existed, and replay could not resolve a session for any terminal. The Kimi CLI integration added in 0.31.0 called `findKimiSessionFiles()` inside `electron/session-search-index.ts#listSessionFileCandidates` without importing it, so every call to `listSessionsForProjects` / `listSessionsForProjectsPaged` threw a `ReferenceError`. The main-process IPC handlers had bare `catch {}` blocks that silently returned `{ entries: [], total: 0 }`, making the regression look like "no sessions exist" instead of an error. Import restored; both IPC handlers now log the error instead of swallowing it so the next regression of this shape is not invisible. Two related type errors from the same Kimi commit were also fixed in `session-scanner.ts` (undefined `wd.kaos` fallback short-circuit) and `session-watcher.ts` (unnarrowed `call.function.name` access)
+
+### Fixed (zh-CN)
+- 0.31.0 下即使本地有完整 session 文件,左侧历史面板和 `⌘K` session 搜索也完全空白,任何 terminal 都无法 replay。原因是 0.31.0 引入的 Kimi CLI 集成在 `electron/session-search-index.ts#listSessionFileCandidates` 里调用了 `findKimiSessionFiles()` 却没 import,每次 `listSessionsForProjects` / `listSessionsForProjectsPaged` 都会抛 `ReferenceError`;而主进程 IPC handler 用了裸 `catch {}` 静默返回 `{ entries: [], total: 0 }`,把这个回归伪装成"本地没有 session"。补上 import,并把两处 `catch {}` 换成带 `console.error` 的版本——这个形状的回归下次不会再隐身。顺带修掉同一次 Kimi 提交留下的两处类型错误:`session-scanner.ts` 里引用了不存在的 `wd.kaos` 字段导致条件永远走不到,`session-watcher.ts` 读 `call.function.name` 没做收窄
+
 ## [0.31.0] - 2026-04-21
 
 ### Added
