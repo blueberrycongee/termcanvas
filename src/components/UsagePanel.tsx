@@ -146,7 +146,7 @@ function HoverDetail({ children, tooltip }: { children: React.ReactNode; tooltip
             transform: "translateX(-50%)",
           }}
         >
-          <div className="rounded-md px-2 py-1 border border-[var(--border)] bg-[var(--surface)] shadow-lg">
+          <div className="rounded-md px-2.5 py-1.5 border border-[var(--border)] bg-[var(--surface)] shadow-lg">
             {tooltip}
           </div>
         </div>,
@@ -182,48 +182,54 @@ function CollapsibleSection({
         >
           <path d="M2 1L6 4L2 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
-          {title}
-        </span>
+        <span className="tc-eyebrow">{title}</span>
       </button>
       {open && <div className="mt-2">{children}</div>}
     </div>
   );
 }
 
-export function SummarySection({ t, summary, monthlyData }: { t: ReturnType<typeof useT>; summary: UsageSummary; monthlyData?: { cost: number } }) {
+export function SummarySection({
+  t,
+  summary,
+  monthlyData,
+}: {
+  t: ReturnType<typeof useT>;
+  summary: UsageSummary;
+  monthlyData?: { cost: number; dailyAvg?: number };
+}) {
   const animatedCost = useAnimatedNumber(summary.totalCost);
 
   return (
-    <div className="px-3 pt-2 pb-3">
-      <div className="flex items-baseline justify-between">
-        <span
-          className="text-[24px] font-semibold text-[var(--text-primary)] tabular-nums"
-          style={{ fontFamily: '"Geist Mono", monospace', letterSpacing: "-0.02em" }}
-        >
-          {fmtCost(animatedCost)}
-        </span>
-        <span className="text-[11px] text-[var(--text-faint)] tabular-nums" style={{ fontFamily: '"Geist Mono", monospace' }}>
+    <div className="px-3 pt-2.5 pb-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="tc-stat-lg">{fmtCost(animatedCost)}</span>
+        <span className="tc-caption tc-mono tc-num">
           ≈ ¥{Math.round(summary.totalCost * 7.28)}
         </span>
       </div>
-      <div
-        className="flex gap-3 mt-1.5 text-[11px] text-[var(--text-muted)]"
-        style={{ fontFamily: '"Geist Mono", monospace' }}
-      >
-        <span>{t.usage_sessions}: {summary.sessions}</span>
+      <div className="flex items-center gap-2 mt-2 tc-caption tc-mono tc-num">
+        <span>
+          {summary.sessions} {t.usage_sessions}
+        </span>
         <span className="text-[var(--text-faint)]">·</span>
-        <span>{t.usage_output}: {fmtTokens(summary.totalOutput)}</span>
+        <span>{fmtTokens(summary.totalOutput)} {t.usage_output}</span>
       </div>
       {monthlyData && monthlyData.cost > 0 && (
-        <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--border)]">
-          <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">{t.usage_monthly}</span>
-          <div
-            className="flex items-baseline gap-2 text-[11px] tabular-nums"
-            style={{ fontFamily: '"Geist Mono", monospace' }}
-          >
-            <span className="text-[var(--text-secondary)] font-medium">{fmtCost(monthlyData.cost)}</span>
-            <span className="text-[var(--text-faint)]">≈ ¥{Math.round(monthlyData.cost * 7.28)}</span>
+        <div className="mt-2.5 pt-2.5 border-t border-[var(--border)] flex items-center justify-between">
+          <span className="tc-eyebrow">{t.usage_monthly}</span>
+          <div className="flex items-baseline gap-2 tc-caption tc-mono tc-num">
+            <span className="text-[var(--text-secondary)] font-medium">
+              {fmtCost(monthlyData.cost)}
+            </span>
+            {monthlyData.dailyAvg !== undefined && monthlyData.dailyAvg > 0 && (
+              <>
+                <span className="text-[var(--text-faint)]">·</span>
+                <span className="text-[var(--text-faint)]">
+                  ∅ {fmtCost(monthlyData.dailyAvg)}
+                </span>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -242,9 +248,7 @@ export function TimelineSection({
 }) {
   return (
     <div className="px-3 py-2.5">
-      <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
-        {t.usage_timeline}
-      </span>
+      <span className="tc-eyebrow">{t.usage_timeline}</span>
       <div className="mt-2">
         <SparklineChart buckets={summary.buckets} animate={animate} date={summary.date} />
       </div>
@@ -321,18 +325,15 @@ export function CacheRateSection({
         <HoverDetail
           key={row.label}
           tooltip={
-            <div className="text-[10px] text-[var(--text-secondary)] tabular-nums" style={{ fontFamily: '"Geist Mono", monospace' }}>
+            <div className="text-[10px] text-[var(--text-secondary)] tc-mono tc-num">
               Cache Read: {fmtTokens(row.cacheRead)} / Total: {fmtTokens(row.totalInput)}
             </div>
           }
         >
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-[var(--text-muted)] w-12 shrink-0 truncate">{row.label}</span>
-            <Bar value={row.rate * 100} max={100} color="#eab308" animate={animate} delay={i * 60} />
-            <span
-              className="text-[10px] text-[var(--text-muted)] shrink-0 w-8 text-right tabular-nums"
-              style={{ fontFamily: '"Geist Mono", monospace' }}
-            >
+            <Bar value={row.rate * 100} max={100} color="var(--amber)" animate={animate} delay={i * 60} />
+            <span className="text-[10px] text-[var(--text-muted)] shrink-0 w-8 text-right tc-mono tc-num">
               {Math.round(row.rate * 100)}%
             </span>
           </div>
@@ -345,9 +346,7 @@ export function CacheRateSection({
 
   return (
     <div className="px-3 py-2.5">
-      <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
-        {t.usage_cache_rate}
-      </span>
+      <span className="tc-eyebrow">{t.usage_cache_rate}</span>
       <div className="mt-2">{body}</div>
     </div>
   );
@@ -373,7 +372,7 @@ export function ProjectsContent({
         <HoverDetail
           key={p.path}
           tooltip={
-            <div className="text-[10px] tabular-nums" style={{ fontFamily: '"Geist Mono", monospace' }}>
+            <div className="text-[10px] tc-mono tc-num">
               <span className="text-[var(--text-secondary)]">{fmtCost(p.cost)}</span>
               <span className="text-[var(--text-faint)] mx-1">·</span>
               <span className="text-[var(--text-muted)]">{p.calls} {t.usage_calls}</span>
@@ -390,10 +389,7 @@ export function ProjectsContent({
               {p.name}
             </span>
             <Bar value={p.cost} max={maxCost} color="var(--accent)" animate={animate} delay={i * 60} />
-            <span
-              className="text-[10px] text-[var(--text-muted)] shrink-0 w-8 text-right tabular-nums"
-              style={{ fontFamily: '"Geist Mono", monospace' }}
-            >
+            <span className="text-[10px] text-[var(--text-muted)] shrink-0 w-8 text-right tc-mono tc-num">
               {pct(p.cost, totalCost)}
             </span>
           </div>
@@ -415,10 +411,14 @@ export function ModelsContent({
   if (models.length === 0) return null;
   const maxCost = Math.max(...models.map((m) => m.cost), 0.001);
 
+  // Per-model hues. Distinct from the semantic token palette on
+  // purpose — these are *categorical* colors (one hue per family),
+  // not status colors. Centralised here so the overlay and sidebar
+  // agree, and so theme tweaks can adjust all of them in one spot.
   const MODEL_COLORS: Record<string, string> = {
     "claude-opus-4-6": "#f97316",
-    "claude-sonnet-4-6": "#a855f7",
-    "claude-haiku-4-5": "#06b6d4",
+    "claude-sonnet-4-6": "var(--purple)",
+    "claude-haiku-4-5": "var(--cyan)",
     codex: "#8b5cf6",
   };
 
@@ -426,12 +426,12 @@ export function ModelsContent({
     <div className="flex flex-col gap-1.5">
       {models.map((m, i) => {
         const shortName = m.model.replace("claude-", "").replace(/-/g, " ");
-        const color = MODEL_COLORS[m.model] ?? "#6b7280";
+        const color = MODEL_COLORS[m.model] ?? "var(--text-muted)";
         return (
           <HoverDetail
             key={m.model}
             tooltip={
-              <div className="text-[10px] tabular-nums" style={{ fontFamily: '"Geist Mono", monospace' }}>
+              <div className="text-[10px] tc-mono tc-num">
                 <div className="text-[var(--text-secondary)]">{m.model}</div>
                 <div className="text-[var(--text-muted)] mt-0.5">
                   {fmtCost(m.cost)}
@@ -449,10 +449,7 @@ export function ModelsContent({
                 {shortName}
               </span>
               <Bar value={m.cost} max={maxCost} color={color} animate={animate} delay={i * 60} />
-              <span
-                className="text-[10px] text-[var(--text-muted)] shrink-0 tabular-nums"
-                style={{ fontFamily: '"Geist Mono", monospace' }}
-              >
+              <span className="text-[10px] text-[var(--text-muted)] shrink-0 tc-mono tc-num">
                 {fmtCost(m.cost)}
               </span>
             </div>
@@ -595,13 +592,24 @@ export function UsagePanel() {
   });
 
   let monthlyCost = 0;
+  let daysWithData = 0;
   if (activeHeatmap) {
     const monthPrefix = date.slice(0, 7);
     for (const [d, entry] of Object.entries(activeHeatmap)) {
-      if (d.startsWith(monthPrefix)) monthlyCost += entry.cost;
+      if (!d.startsWith(monthPrefix)) continue;
+      if (entry.cost > 0) {
+        monthlyCost += entry.cost;
+        daysWithData += 1;
+      }
     }
   }
-  const monthlyData = monthlyCost > 0 ? { cost: monthlyCost } : undefined;
+  const monthlyData =
+    monthlyCost > 0
+      ? {
+          cost: monthlyCost,
+          dailyAvg: daysWithData > 0 ? monthlyCost / daysWithData : 0,
+        }
+      : undefined;
 
   return (
     <div className="flex flex-col h-full">
@@ -624,9 +632,7 @@ export function UsagePanel() {
 
       <div className="flex-1 min-h-0 overflow-y-auto">
         {loading && !activeSummary ? (
-          <div className="px-3 py-4 text-[11px] text-[var(--text-faint)]">
-            {t.loading}
-          </div>
+          <div className="px-3 py-4 tc-caption">{t.loading}</div>
         ) : activeSummary ? (
           <div key={animKey} className="flex flex-col pb-3">
             <div className="usage-section-enter" style={{ animationDelay: "0ms" }}>
@@ -673,7 +679,7 @@ export function UsagePanel() {
             {isLoggedIn && !cloudSummary && (
               <>
                 <div className="mx-3 h-px bg-[var(--border)]" />
-                <div className="px-3 py-2 text-[10px] text-[var(--text-faint)]">{t.auth_cloud_error}</div>
+                <div className="px-3 py-2 tc-caption">{t.auth_cloud_error}</div>
               </>
             )}
             <div className="mx-3 h-px bg-[var(--border)]" />
@@ -691,9 +697,7 @@ export function UsagePanel() {
             </div>
           </div>
         ) : (
-          <div className="px-3 py-4 text-[11px] text-[var(--text-faint)]">
-            {t.usage_no_data}
-          </div>
+          <div className="px-3 py-4 tc-caption">{t.usage_no_data}</div>
         )}
       </div>
     </div>

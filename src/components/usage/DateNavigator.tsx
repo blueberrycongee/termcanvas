@@ -206,12 +206,7 @@ export function DateNavigator({ date, cachedDates, onDateChange, onCollapse, bar
               <rect x="5.5" y="5" width="3" height="6" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
               <rect x="9.5" y="1" width="3" height="10" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
             </svg>
-            <span
-              className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mr-auto"
-              style={{ fontFamily: '"Geist Mono", monospace' }}
-            >
-              {t.usage_title}
-            </span>
+            <span className="tc-eyebrow tc-mono mr-auto">{t.usage_title}</span>
           </>
         )}
 
@@ -227,8 +222,7 @@ export function DateNavigator({ date, cachedDates, onDateChange, onCollapse, bar
         {/* Date label — click opens calendar */}
         <button
           onClick={() => setCalendarOpen(!calendarOpen)}
-          className="text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors px-1 py-0.5 rounded hover:bg-[var(--surface-hover)]"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
+          className="text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors px-1.5 py-0.5 rounded hover:bg-[var(--surface-hover)] tc-mono tc-num"
         >
           {displayDate}
         </button>

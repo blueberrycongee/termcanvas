@@ -82,10 +82,7 @@ export function SparklineChart({ buckets, animate, date, heightPx = 40 }: Sparkl
         />
       )}
 
-      <div
-        className="flex justify-between mt-1 text-[9px] text-[var(--text-faint)]"
-        style={{ fontFamily: '"Geist Mono", monospace' }}
-      >
+      <div className="flex justify-between mt-1.5 text-[9px] text-[var(--text-faint)] tc-mono tc-num">
         <span>00</span>
         <span>06</span>
         <span>12</span>
@@ -136,18 +133,15 @@ function SparklineTooltip({ bucket, index, totalBars, containerRef, callsLabel }
         transform: "translateX(-50%)",
       }}
     >
-      <div
-        className="rounded-md px-2 py-1.5 border border-[var(--border)] bg-[var(--surface)] shadow-lg whitespace-nowrap"
-        style={{ fontFamily: '"Geist Mono", monospace' }}
-      >
+      <div className="rounded-md px-2.5 py-1.5 border border-[var(--border)] bg-[var(--surface)] shadow-lg whitespace-nowrap tc-mono tc-num">
         <div className="text-[10px] text-[var(--text-secondary)] font-medium">{bucket.label}</div>
         <div className="flex items-center gap-2 mt-0.5">
           <span className="text-[10px] text-[var(--text-primary)]">{fmtCost(bucket.cost)}</span>
-          <span className="text-[9px] text-[var(--text-muted)]">·</span>
+          <span className="text-[9px] text-[var(--text-faint)]">·</span>
           <span className="text-[10px] text-[var(--text-muted)]">{bucket.calls} {callsLabel}</span>
           {totalTokens > 0 && (
             <>
-              <span className="text-[9px] text-[var(--text-muted)]">·</span>
+              <span className="text-[9px] text-[var(--text-faint)]">·</span>
               <span className="text-[10px] text-[var(--text-muted)]">{fmtTokens(totalTokens)}t</span>
             </>
           )}

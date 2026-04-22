@@ -90,6 +90,12 @@
   --text-lg: 16px;     /* section title */
   --text-xl: 20px;     /* display */
 
+  /* Numeric-display sizes, used for the big cost/stat figures. They
+     carry their own sizes rather than reusing --text-* because mono
+     tabular numerals look oversized at a given point size vs sans. */
+  --text-stat-lg: 22px; /* sidebar summary */
+  --text-stat-xl: 26px; /* overlay hero stat */
+
   /* ── Line heights ────────────────────────────────────────── */
   --leading-tight: 1.25;
   --leading-snug: 1.4;
@@ -99,6 +105,7 @@
   /* ── Tracking ────────────────────────────────────────────── */
   --tracking-display: -0.012em;
   --tracking-title: -0.005em;
+  --tracking-number: -0.02em;
   --tracking-eyebrow: 0.085em;
 
   /* ── Weights ─────────────────────────────────────────────── */
@@ -185,6 +192,31 @@ body {
 .tc-color-muted { color: var(--text-muted); }
 .tc-color-faint { color: var(--text-faint); }
 .tc-color-accent { color: var(--accent); }
+
+/* Numeric-display roles. Self-contained: already mono + tabular-nums
+   + tight tracking. Use these for the large cost/stat figures so
+   every such number in the app has the same visual rhythm without
+   repeating the same four classes at every site. */
+.tc-stat-xl {
+  font-size: var(--text-stat-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-number);
+  line-height: 1;
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-feature-settings: "ss03", "zero";
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+.tc-stat-lg {
+  font-size: var(--text-stat-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-number);
+  line-height: 1;
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-feature-settings: "ss03", "zero";
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
 
 /* Treatments */
 .tc-mono {

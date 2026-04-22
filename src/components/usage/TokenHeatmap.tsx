@@ -21,8 +21,16 @@ function fmtTokens(n: number): string {
   return String(n);
 }
 
-const HEATMAP_DAYS = 91;
-const HEATMAP_DAYS_LARGE = 364;
+const HEATMAP_DAYS = 91;            // ≈13 weeks, sidebar / narrow overlay
+const HEATMAP_DAYS_MEDIUM = 182;    // ≈26 weeks, mid-width overlay
+const HEATMAP_DAYS_LARGE = 364;     // ≈52 weeks, wide overlay
+
+// Approximate min inline-size required to render a given span
+// without squeezing. 12px cell + 3px gap = 15px per week, plus the
+// 14px weekday label column + 4px outer margin.
+const HEATMAP_WIDTH_LARGE = 820;
+const HEATMAP_WIDTH_MEDIUM = 420;
+
 const COLOR_LEVELS = [
   "var(--border)",               // level 0: no data
   "color-mix(in srgb, var(--accent) 20%, transparent)",  // level 1
@@ -164,10 +172,7 @@ function HeatmapTooltip({ cell, triggerRect }: TooltipProps) {
         transform: "translateX(-50%)",
       }}
     >
-      <div
-        className="rounded-md px-2 py-1.5 border border-[var(--border)] bg-[var(--surface)] shadow-lg whitespace-nowrap"
-        style={{ fontFamily: '"Geist Mono", monospace' }}
-      >
+      <div className="rounded-md px-2.5 py-1.5 border border-[var(--border)] bg-[var(--surface)] shadow-lg whitespace-nowrap tc-mono tc-num">
         <div className="text-[10px] text-[var(--text-secondary)] font-medium">{dateLabel}</div>
         <div className="flex items-center gap-2 mt-0.5 text-[10px]">
           <span className="text-[var(--text-primary)]">{fmtTokens(cell.entry?.tokens ?? 0)} {t.usage_tokens_label}</span>
@@ -191,11 +196,16 @@ interface TokenHeatmapProps {
    */
   bare?: boolean;
   /**
-   * "default" (≈13 weeks) for the narrow sidebar; "large" (≈52 weeks,
-   * a full year) for the overlay where the card is wide and a short
-   * ribbon leaves most of the card empty.
+   * `"default"` (≈13 weeks, for the narrow sidebar), `"large"`
+   * (≈52 weeks, for a wide overlay), or `"auto"` to pick the
+   * longest span that actually fits the card's inline size. Auto is
+   * the right choice for container-query layouts where the heatmap
+   * card's width is driven by the enclosing grid rather than a
+   * prop — at 420–820 px of inline room it shows a 26-week ribbon
+   * instead of either clipping the full year or stranding half the
+   * card empty.
    */
-  size?: "default" | "large";
+  size?: "default" | "large" | "auto";
 }
 
 export function TokenHeatmap({
@@ -212,6 +222,13 @@ export function TokenHeatmap({
   const cellRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
   const requestedRef = useRef(false);
+
+  // Measured inline size of the heatmap card — feeds the auto-span
+  // decision below. Starts null; we read it synchronously on first
+  // layout via useLayoutEffect so the first paint already picks the
+  // correct span instead of mounting at 13 weeks and then popping to
+  // 52 once the ResizeObserver fires.
+  const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
 
   useEffect(() => {
     if (!containerRef.current || requestedRef.current) return;
@@ -233,8 +250,30 @@ export function TokenHeatmap({
     return () => observer.disconnect();
   }, [onVisible]);
 
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    setMeasuredWidth(el.getBoundingClientRect().width);
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setMeasuredWidth(entry.contentRect.width);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const effectiveData = data ?? heatmapData;
-  const daysSpan = size === "large" ? HEATMAP_DAYS_LARGE : HEATMAP_DAYS;
+  const daysSpan = useMemo(() => {
+    if (size === "large") return HEATMAP_DAYS_LARGE;
+    if (size === "default") return HEATMAP_DAYS;
+    // auto — pick the biggest span that fits; fall back to large
+    // while we haven't measured yet (common case in the overlay).
+    const w = measuredWidth ?? HEATMAP_WIDTH_LARGE;
+    if (w >= HEATMAP_WIDTH_LARGE) return HEATMAP_DAYS_LARGE;
+    if (w >= HEATMAP_WIDTH_MEDIUM) return HEATMAP_DAYS_MEDIUM;
+    return HEATMAP_DAYS;
+  }, [size, measuredWidth]);
   const { cells, weeks, monthLabels } = useMemo(
     () => buildGrid(effectiveData, daysSpan),
     [effectiveData, daysSpan],
@@ -257,17 +296,13 @@ export function TokenHeatmap({
   const WEEKDAY_LABELS = t.usage_cal_weekdays;
   const LABEL_ROWS = [1, 3, 5]; // Mon, Wed, Fri
 
-  const outerClass = "px-3 py-2.5";
+  const outerClass = bare ? "px-4 py-3" : "px-3 py-2.5";
 
   if (heatmapLoading) {
     return (
       <div className={outerClass}>
-        {!bare && (
-          <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
-            {t.usage_heatmap}
-          </span>
-        )}
-        <div className={`${bare ? "" : "mt-2"} text-[10px] text-[var(--text-faint)]`}>
+        {!bare && <span className="tc-eyebrow">{t.usage_heatmap}</span>}
+        <div className={`${bare ? "" : "mt-2"} tc-caption`}>
           {t.usage_heatmap_loading}
         </div>
       </div>
@@ -277,12 +312,8 @@ export function TokenHeatmap({
   if (heatmapError) {
     return (
       <div className={outerClass}>
-        {!bare && (
-          <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
-            {t.usage_heatmap}
-          </span>
-        )}
-        <div className={`${bare ? "" : "mt-2"} text-[10px] text-[var(--red)]`}>
+        {!bare && <span className="tc-eyebrow">{t.usage_heatmap}</span>}
+        <div className={`${bare ? "" : "mt-2"} text-[10px]`} style={{ color: "var(--red)" }}>
           {t.usage_heatmap_error}
         </div>
       </div>
@@ -291,11 +322,7 @@ export function TokenHeatmap({
 
   return (
     <div ref={containerRef} className={outerClass}>
-      {!bare && (
-        <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
-          {t.usage_heatmap}
-        </span>
-      )}
+      {!bare && <span className="tc-eyebrow">{t.usage_heatmap}</span>}
 
       {/*
         Centered wrapper so a ribbon narrower than the card doesn't
@@ -311,11 +338,10 @@ export function TokenHeatmap({
           {Array.from({ length: 7 }, (_, row) => (
             <div
               key={row}
-              className="flex items-center justify-end text-[8px] text-[var(--text-faint)]"
+              className="flex items-center justify-end text-[8px] text-[var(--text-faint)] tc-mono"
               style={{
                 width: HEATMAP_LAYOUT.weekdayLabelWidth,
                 height: HEATMAP_LAYOUT.cellSize,
-                fontFamily: '"Geist Mono", monospace',
               }}
             >
               {LABEL_ROWS.includes(row) ? WEEKDAY_LABELS[row] : ""}
@@ -393,12 +419,11 @@ export function TokenHeatmap({
             {monthLabels.map((m) => (
               <span
                 key={`month-${m.column}`}
-                className="text-[8px] text-[var(--text-faint)]"
+                className="text-[8px] text-[var(--text-faint)] tc-mono"
                 style={{
                   gridColumn: m.column + 1,
                   gridRow: 1,
                   lineHeight: `${HEATMAP_LAYOUT.monthLabelLineHeight}px`,
-                  fontFamily: '"Geist Mono", monospace',
                 }}
               >
                 {t.usage_cal_months_short[m.month]}
@@ -408,11 +433,8 @@ export function TokenHeatmap({
         </div>
       </div>
 
-      <div className="flex items-center justify-end gap-1 mt-1.5">
-        <span
-          className="text-[8px] text-[var(--text-faint)]"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-        >
+      <div className="flex items-center justify-end gap-1 mt-2">
+        <span className="text-[8px] text-[var(--text-faint)] tc-mono">
           {t.usage_heatmap_less}
         </span>
         {COLOR_LEVELS.map((color, i) => (
@@ -422,10 +444,7 @@ export function TokenHeatmap({
             style={{ width: 8, height: 8, backgroundColor: color }}
           />
         ))}
-        <span
-          className="text-[8px] text-[var(--text-faint)]"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-        >
+        <span className="text-[8px] text-[var(--text-faint)] tc-mono">
           {t.usage_heatmap_more}
         </span>
       </div>

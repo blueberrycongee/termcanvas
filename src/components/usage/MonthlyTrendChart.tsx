@@ -124,10 +124,7 @@ export function MonthlyTrendChart({
         })}
       </div>
 
-      <div
-        className="mt-1 flex justify-between text-[9px] text-[var(--text-faint)] tabular-nums"
-        style={{ fontFamily: '"Geist Mono", monospace' }}
-      >
+      <div className="mt-1.5 flex justify-between text-[9px] text-[var(--text-faint)] tc-mono tc-num">
         {bars.map((b, i) =>
           labelIndices.has(i) ? (
             <span key={b.date}>
@@ -138,10 +135,7 @@ export function MonthlyTrendChart({
       </div>
 
       {hovered !== null && bars[hovered] && bars[hovered].cost > 0 && (
-        <div
-          className="absolute top-0 right-0 text-[10px] tabular-nums bg-[var(--surface)] border border-[var(--border)] rounded px-1.5 py-0.5 pointer-events-none"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-        >
+        <div className="absolute top-0 right-0 text-[10px] bg-[var(--surface)] border border-[var(--border)] rounded px-2 py-0.5 pointer-events-none tc-mono tc-num">
           <span className="text-[var(--text-secondary)]">
             {bars[hovered].date}
           </span>

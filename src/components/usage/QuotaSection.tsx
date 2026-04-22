@@ -18,9 +18,11 @@ function formatCountdown(resetsAt: string): string {
 }
 
 function barColor(utilization: number): string {
-  if (utilization > 0.8) return "#ef4444";
-  if (utilization > 0.5) return "#eab308";
-  return "#22c55e";
+  // Semantic thresholds: red ≥80%, amber ≥50%, green below. Tokens
+  // come from index.css so light/dark themes get matched hues.
+  if (utilization > 0.8) return "var(--red)";
+  if (utilization > 0.5) return "var(--amber)";
+  return "var(--green)";
 }
 
 function QuotaBar({ utilization }: { utilization: number }) {
@@ -57,9 +59,7 @@ function ProviderQuotaSection({
   return (
     <div>
       <div className="flex items-center gap-1.5">
-        <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
-          {title}
-        </span>
+        <span className="tc-eyebrow">{title}</span>
         {error === "rate_limited" && quota && (
           <span className="text-[10px] text-[var(--text-faint)]" title="Rate limited, showing cached data">
             &#9203;
@@ -68,28 +68,22 @@ function ProviderQuotaSection({
       </div>
 
       {loading && !quota ? (
-        <div className="mt-2 text-[10px] text-[var(--text-faint)]">{t.loading}</div>
+        <div className="mt-2 tc-caption">{t.loading}</div>
       ) : quota ? (
-        <div className="mt-2 flex flex-col gap-2">
+        <div className="mt-2 flex flex-col gap-2.5">
           <div>
             <div className="flex items-center gap-2">
-              <span
-                className="text-[10px] text-[var(--text-muted)] w-6 shrink-0 tabular-nums"
-                style={{ fontFamily: '"Geist Mono", monospace' }}
-              >
+              <span className="text-[10px] text-[var(--text-muted)] w-6 shrink-0 tc-mono tc-num">
                 {t.usage_quota_5h}
               </span>
               <QuotaBar utilization={quota.fiveHour.utilization} />
-              <span
-                className="text-[10px] text-[var(--text-muted)] shrink-0 w-8 text-right tabular-nums"
-                style={{ fontFamily: '"Geist Mono", monospace' }}
-              >
+              <span className="text-[10px] text-[var(--text-muted)] shrink-0 w-10 text-right tc-mono tc-num">
                 {Math.round(quota.fiveHour.utilization * 100)}%
               </span>
             </div>
             <div
-              className="text-[9px] text-[var(--text-faint)] mt-0.5 tabular-nums"
-              style={{ fontFamily: '"Geist Mono", monospace', paddingLeft: 32 }}
+              className="text-[9px] text-[var(--text-faint)] mt-0.5 tc-mono tc-num"
+              style={{ paddingLeft: 32 }}
             >
               {t.usage_quota_resets} {formatCountdown(quota.fiveHour.resetsAt)}
             </div>
@@ -97,30 +91,24 @@ function ProviderQuotaSection({
 
           <div>
             <div className="flex items-center gap-2">
-              <span
-                className="text-[10px] text-[var(--text-muted)] w-6 shrink-0 tabular-nums"
-                style={{ fontFamily: '"Geist Mono", monospace' }}
-              >
+              <span className="text-[10px] text-[var(--text-muted)] w-6 shrink-0 tc-mono tc-num">
                 {t.usage_quota_7d}
               </span>
               <QuotaBar utilization={quota.sevenDay.utilization} />
-              <span
-                className="text-[10px] text-[var(--text-muted)] shrink-0 w-8 text-right tabular-nums"
-                style={{ fontFamily: '"Geist Mono", monospace' }}
-              >
+              <span className="text-[10px] text-[var(--text-muted)] shrink-0 w-10 text-right tc-mono tc-num">
                 {Math.round(quota.sevenDay.utilization * 100)}%
               </span>
             </div>
             <div
-              className="text-[9px] text-[var(--text-faint)] mt-0.5 tabular-nums"
-              style={{ fontFamily: '"Geist Mono", monospace', paddingLeft: 32 }}
+              className="text-[9px] text-[var(--text-faint)] mt-0.5 tc-mono tc-num"
+              style={{ paddingLeft: 32 }}
             >
               {t.usage_quota_resets} {formatCountdown(quota.sevenDay.resetsAt)}
             </div>
           </div>
         </div>
       ) : error ? (
-        <div className="mt-2 text-[10px] text-[var(--text-faint)]">
+        <div className="mt-2 tc-caption">
           {error === "rate_limited" ? t.usage_quota_rate_limited : t.usage_quota_unavailable}
         </div>
       ) : null}
