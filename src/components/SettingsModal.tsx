@@ -554,9 +554,9 @@ export function SettingsModal({ onClose }: Props) {
           </button>
         </div>
 
-        <div className="px-6 py-5 min-h-[280px] max-h-[60vh] overflow-y-auto">
+        <div className="px-6 py-5 min-h-[280px] max-h-[60vh] overflow-y-auto flex flex-col">
           {tab === "general" && (
-            <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-5 flex-1">
               <div className="flex items-center justify-between">
                 <span className="text-[13px] text-[var(--text-secondary)]">
                   {t.language}
@@ -618,7 +618,7 @@ export function SettingsModal({ onClose }: Props) {
                 </div>
               )}
 
-              <div className="mt-1 flex items-center justify-between border-t border-[var(--border)] pt-4">
+              <div className="mt-auto flex items-center justify-between border-t border-[var(--border)] pt-4">
                 <div className="flex items-center gap-2">
                   <span className="text-[12px] text-[var(--text-muted)]">
                     {t.settings_version}
