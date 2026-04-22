@@ -582,11 +582,14 @@ export function parseSessionTelemetryLine(
       for (const callEntry of toolCalls) {
         const call = getObject(callEntry);
         if (!call) continue;
+        // call.function is unknown — need to narrow to a record
+        // before reaching for `.name`, otherwise TS balks.
+        const fn = getObject(call.function);
         events.push(buildEvent({
           at,
           event_type: "tool_use",
           role: "assistant",
-          tool_name: getString(call.function?.name) ?? getString(call.name),
+          tool_name: getString(fn?.name) ?? getString(call.name),
           call_id: getString(call.id),
           lifecycle: "start",
           turn_state: "tool_running",

@@ -1130,7 +1130,13 @@ function setupIpc() {
     async (_event, projectDirs: string[]): Promise<SessionSearchEntry[]> => {
       try {
         return await listSessionsForProjects(projectDirs ?? []);
-      } catch {
+      } catch (err) {
+        // Surface to main-process logs rather than silently returning
+        // an empty list — a bug in listSessionsForProjects used to
+        // look exactly like "no history exists", which made the
+        // `findKimiSessionFiles` missing-import regression in v0.31.0
+        // almost impossible to track down.
+        console.error("[search:sessions:list] failed", err);
         return [];
       }
     },
@@ -1145,7 +1151,8 @@ function setupIpc() {
     ): Promise<{ entries: SessionSearchEntry[]; total: number }> => {
       try {
         return await listSessionsForProjectsPaged(projectDirs ?? [], options);
-      } catch {
+      } catch (err) {
+        console.error("[search:sessions:list-page] failed", err);
         return { entries: [], total: 0 };
       }
     },

@@ -779,14 +779,20 @@ export class SessionScanner {
           return wd.path;
         }
       }
-      // Fallback: reverse the md5 hash lookup is impossible, so try to
-      // match the session dir basename against known hashes.
+      // Fallback: reverse the md5 hash lookup is impossible, so try
+      // to match the session dir basename against known hashes. Kimi
+      // names session dirs either by bare hash or `local_<hash>`
+      // depending on version; cover both. (The original code tried
+      // to read `wd.kaos` here, but no such field exists on the
+      // metadata schema — it silently fell back to "local" every
+      // time and the type error was invisible because electron/ is
+      // not in the main tsconfig's include.)
       const dirBasename = path.basename(sessionsDir);
       for (const wd of metadata.work_dirs ?? []) {
         if (!wd.path) continue;
         const crypto = require("node:crypto");
         const hash = crypto.createHash("md5").update(wd.path).digest("hex");
-        if (hash === dirBasename || `${wd.kaos ?? "local"}_${hash}` === dirBasename) {
+        if (hash === dirBasename || `local_${hash}` === dirBasename) {
           return wd.path;
         }
       }

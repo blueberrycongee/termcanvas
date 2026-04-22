@@ -36,7 +36,7 @@ import path from "node:path";
 import os from "node:os";
 import readline from "node:readline";
 
-import { findCodexJsonlFiles } from "./usage-collector.ts";
+import { findCodexJsonlFiles, findKimiSessionFiles } from "./usage-collector.ts";
 import { stripSyntheticUserBlocks } from "./session-scanner.ts";
 
 export interface SessionSearchEntry {
