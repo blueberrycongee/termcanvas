@@ -971,7 +971,7 @@ export async function collectHeatmapData(): Promise<Record<string, { tokens: num
 
     const entry = buildHeatmapEntry(
       f,
-      (fp, us, ue) => parseKimiWireFile(fp, us, ue).records,
+      (fp, us, ue) => parseKimiWireFile(fp, us, ue),
       utcStart,
       utcEnd,
       tzOffsetHours,
@@ -1004,7 +1004,7 @@ export async function collectHeatmapData(): Promise<Record<string, { tokens: num
 
     const entry = buildHeatmapEntry(
       f,
-      (fp, us, ue) => parseWuuSession(fp, us, ue).records,
+      (fp, us, ue) => parseWuuSession(fp, us, ue),
       utcStart,
       utcEnd,
       tzOffsetHours,
