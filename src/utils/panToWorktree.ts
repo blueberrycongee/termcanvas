@@ -1,17 +1,27 @@
 import { selectWorktreeInScene } from "../actions/sceneSelectionActions";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
+import { useViewportFocusStore } from "../stores/viewportFocusStore";
 import {
   getCanvasRightInset,
   getCanvasLeftInset,
   clampCenterX,
 } from "../canvas/viewportBounds";
 
+interface PanToWorktreeOptions {
+  /** When true, enter overview mode so double-clicking a terminal zooms into it. */
+  enterOverview?: boolean;
+}
+
 /**
  * Animate the canvas viewport to center on the given worktree.
  * Computes bounds from all non-stashed terminals in the worktree.
  */
-export function panToWorktree(projectId: string, worktreeId: string): void {
+export function panToWorktree(
+  projectId: string,
+  worktreeId: string,
+  options?: PanToWorktreeOptions,
+): void {
   const { projects } = useProjectStore.getState();
   const project = projects.find((p) => p.id === projectId);
   if (!project) return;
@@ -55,4 +65,9 @@ export function panToWorktree(projectId: string, worktreeId: string): void {
 
   useCanvasStore.getState().animateTo(centerX, centerY, scale);
   selectWorktreeInScene(projectId, worktreeId);
+
+  if (options?.enterOverview) {
+    useViewportFocusStore.getState().setFitAllScale(scale);
+    useViewportFocusStore.getState().setZoomedOutTerminalId(terminals[0].id);
+  }
 }

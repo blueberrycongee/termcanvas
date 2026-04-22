@@ -703,7 +703,9 @@ export function WorktreeLabelLayer() {
               // to whichever worktree happened to be focused before.
               if (entry.worktreeId) {
                 focusWorktreeInScene(entry.projectId, entry.worktreeId);
-                panToWorktree(entry.projectId, entry.worktreeId);
+                panToWorktree(entry.projectId, entry.worktreeId, {
+                  enterOverview: true,
+                });
               } else if (useLodMode) {
                 // LOD project label: pan to and focus the first populated
                 // worktree so a follow-up cmd+t still has a valid target.

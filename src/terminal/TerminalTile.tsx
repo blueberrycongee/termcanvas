@@ -24,6 +24,8 @@ import { useResolvedTerminalRuntimeState } from "../stores/terminalRuntimeStateS
 import { useT } from "../i18n/useT";
 import { getComposerAdapter } from "./cliConfig";
 import { panToTerminal } from "../utils/panToTerminal";
+import { panToWorktree } from "../utils/panToWorktree";
+import { focusWorktreeInScene } from "../actions/sceneSelectionActions";
 import { requestSummary, useIsSummarizing } from "./summaryScheduler";
 import {
   attachTerminalContainer,
@@ -827,9 +829,18 @@ export function TerminalTile({
         </span>
         <HierarchyBadges terminal={terminal} />
         <span
-          className="shrink-0 whitespace-nowrap text-[11px] text-[var(--text-muted)]"
+          className="shrink-0 whitespace-nowrap text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--border)] rounded px-1 py-0.5 transition-colors duration-150 cursor-pointer"
           style={{ fontFamily: '"Geist Mono", monospace' }}
           title={headerContextLabel}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            focusWorktreeInScene(projectId, worktreeId);
+            panToWorktree(projectId, worktreeId, { enterOverview: true });
+            const canvas = useCanvasStore.getState();
+            canvas.setRightPanelCollapsed(false);
+            canvas.setRightPanelActiveTab("files");
+          }}
         >
           {headerContextLabel}
         </span>
