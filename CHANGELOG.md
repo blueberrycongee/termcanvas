@@ -2,6 +2,14 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.32.2] - 2026-04-24
+
+### Fixed
+- macOS release builds now use ad hoc signing instead of skipping code signing entirely. This keeps the bundle identity as `com.blueberrycongee.termcanvas` and produces a `codesign --verify`-valid app, which avoids the unstable Screen Recording and Accessibility permission behavior seen in unsigned builds.
+
+### Fixed (zh-CN)
+- macOS release build 现在使用 ad hoc 签名,不再完全跳过代码签名。这样 bundle identity 会保持为 `com.blueberrycongee.termcanvas`,并产出可通过 `codesign --verify` 的 app,避免未签名构建下录屏和辅助功能权限不稳定的问题。
+
 ## [0.32.1] - 2026-04-24
 
 ### Fixed
