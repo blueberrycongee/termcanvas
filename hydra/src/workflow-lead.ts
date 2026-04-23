@@ -203,6 +203,23 @@ async function destroyAssignmentTerminal(
   // process dies but the Claude/Codex session file persists on disk.
   // Storing the session_id lets a future dispatch resume the same context.
   if (!run.session_id) {
+    // In standalone mode the session_id is extracted from stdout JSON which
+    // is only available after the subprocess exits naturally. If the process
+    // is still running (result.json written but claude hasn't flushed stdout
+    // yet), wait briefly for it to exit on its own before killing it.
+    const runtime = getRuntime();
+    if (runtime.name === "standalone") {
+      const status = runtime.terminalStatus(run.terminal_id);
+      if (status.status === "running") {
+        const deadline = Date.now() + 15_000;
+        const graceSleep = sleepFn(deps);
+        while (Date.now() < deadline) {
+          await graceSleep(1_000);
+          const fresh = runtime.terminalStatus(run.terminal_id);
+          if (fresh.status !== "running") break;
+        }
+      }
+    }
     try {
       const telemetry = getRuntime().telemetryTerminal(run.terminal_id);
       if (telemetry?.session_id) {
