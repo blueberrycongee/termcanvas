@@ -605,6 +605,7 @@ function XyFlowCanvasInner() {
         // TerminalTile remount churn during viewport animation and focus
         // cycling, which in turn destabilizes xterm/WebGL lifecycle.
         preventScrolling
+        proOptions={{ hideAttribution: true }}
       >
         <Background gap={20} size={1} color="var(--border)" />
       </ReactFlow>
