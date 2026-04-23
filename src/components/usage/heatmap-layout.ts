@@ -10,6 +10,6 @@ export const HEATMAP_LAYOUT = {
   weekdayLabelWidth: 14,
 } as const;
 
-export function hasMonthLabelBottomClearance(layout = HEATMAP_LAYOUT): boolean {
-  return layout.monthLabelRowHeight - layout.monthLabelLineHeight >= layout.gridGap;
+export function hasTightMonthLabelRow(layout = HEATMAP_LAYOUT): boolean {
+  return layout.monthLabelRowHeight === layout.monthLabelLineHeight;
 }
