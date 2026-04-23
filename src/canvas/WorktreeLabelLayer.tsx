@@ -335,19 +335,15 @@ function computeCompactOffsets(
   const offsets = new Map<string, { x: number; y: number }>();
   if (terminals.length === 0) return offsets;
 
-  // Simple packing: lay out in rows, wrapping when width exceeds ~2 tiles.
-  const maxRowWidth =
-    terminals.length === 1
-      ? Infinity
-      : terminals.reduce((sum, t) => sum + t.width, 0) / 2 +
-        COMPACT_GAP * (terminals.length - 1);
+  const columns =
+    terminals.length <= 2 ? terminals.length : terminals.length <= 6 ? 3 : 4;
 
   let curX = 0;
   let curY = 0;
   let rowHeight = 0;
 
-  for (const t of terminals) {
-    if (curX > 0 && curX + t.width > maxRowWidth) {
+  terminals.forEach((t, index) => {
+    if (index > 0 && index % columns === 0) {
       curX = 0;
       curY += rowHeight + COMPACT_GAP;
       rowHeight = 0;
@@ -355,7 +351,7 @@ function computeCompactOffsets(
     offsets.set(t.id, { x: curX, y: curY });
     curX += t.width + COMPACT_GAP;
     rowHeight = Math.max(rowHeight, t.height);
-  }
+  });
 
   return offsets;
 }
