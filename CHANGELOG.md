@@ -2,6 +2,18 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.32.1] - 2026-04-24
+
+### Fixed
+- Dragging a worktree label to compact its terminals now lays them out horizontally first instead of collapsing into a tall vertical stack.
+- Hydra standalone workers now get a short natural-exit grace period after writing `result.json`, so stdout telemetry can flush the `session_id` before cleanup and `hydra ask` can resume the session reliably.
+- Usage cost estimates now explicitly include GPT-5.5 and Claude Opus 4.7 pricing.
+
+### Fixed (zh-CN)
+- 拖动 worktree label 来 compact terminals 时,现在会优先横向排列,不再容易收成很高的竖向栈。
+- Hydra standalone worker 写出 `result.json` 后,现在会短暂等待进程自然退出,让 stdout telemetry 有机会 flush `session_id`;清理后 `hydra ask` 也能稳定续接 session。
+- Usage 成本估算现在显式支持 GPT-5.5 和 Claude Opus 4.7 价格。
+
 ## [0.32.0] - 2026-04-23
 
 ### Added
