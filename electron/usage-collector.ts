@@ -52,9 +52,11 @@ function openaiPricing(
 }
 
 const PRICING: Record<string, Pricing> = {
+  "claude-opus-4-7": claudePricing(5.00, 25.00, 0.50, 6.25, 10.00),
   "claude-opus-4-6": claudePricing(5.00, 25.00, 0.50, 6.25, 10.00),
   "claude-sonnet-4-6": claudePricing(3.00, 15.00, 0.30, 3.75, 6.00),
   "claude-haiku-4-5": claudePricing(1.00, 5.00, 0.10, 1.25, 2.00),
+  "gpt-5.5": openaiPricing(5.00, 0.50, 30.00),
   "gpt-5.4": openaiPricing(2.50, 0.25, 15.00, {
     long_context_threshold_tokens: 272_000,
     long_context_input_multiplier: 2,

@@ -248,6 +248,26 @@ test("computeCost applies official gpt-5.4 pricing for Codex CLI sessions", () =
   assert.equal(Math.abs(cost - expected) < 1e-10, true);
 });
 
+test("computeCost applies official gpt-5.5 pricing for Codex CLI sessions", () => {
+  const cost = computeCost("gpt-5.5", 20_000, 5_000, 80_000, 0, 0);
+
+  const expected = (20_000 / 1e6) * 5.00
+                 + (5_000 / 1e6) * 30.00
+                 + (80_000 / 1e6) * 0.50;
+  assert.equal(Math.abs(cost - expected) < 1e-10, true);
+});
+
+test("computeCost applies official claude-opus-4-7 pricing", () => {
+  const cost = computeCost("claude-opus-4-7", 20_000, 5_000, 80_000, 10_000, 4_000);
+
+  const expected = (20_000 / 1e6) * 5.00
+                 + (5_000 / 1e6) * 25.00
+                 + (80_000 / 1e6) * 0.50
+                 + (10_000 / 1e6) * 6.25
+                 + (4_000 / 1e6) * 10.00;
+  assert.equal(Math.abs(cost - expected) < 1e-10, true);
+});
+
 test("computeCost uses longest prefix match for Codex model snapshots", () => {
   const cost = computeCost("gpt-5.1-codex-mini-2026-04-01", 10_000, 2_000, 40_000, 0, 0);
 
