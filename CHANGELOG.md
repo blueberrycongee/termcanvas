@@ -2,6 +2,26 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.32.0] - 2026-04-23
+
+### Added
+- Usage now includes Kimi and WUU sessions: Kimi `wire.jsonl` `StatusUpdate.token_usage` events and WUU `meta` `token_usage` records are scanned into daily summaries, heatmaps, cache-rate rows, and model breakdowns.
+- Clicking a worktree label, either on the canvas or in a terminal header, now enters that worktree's overview mode so double-clicking a terminal zooms into it, matching the `⌘E` overview flow.
+
+### Fixed
+- Kimi and WUU usage cost estimates now use the Moonshot API-aligned rates instead of the initial rough defaults.
+- Kimi/WUU heatmap parsing now returns the wrapper records correctly, so their token usage contributes to heatmap totals.
+- The Settings general tab keeps the app version row pinned to the bottom instead of drifting into the main settings content.
+
+### Added (zh-CN)
+- Usage 现在会统计 Kimi 和 WUU session:Kimi 的 `wire.jsonl` `StatusUpdate.token_usage` 事件、WUU 的 `meta` `token_usage` 记录会进入每日汇总、热力图、缓存率行和模型拆分。
+- 点击画布上的 worktree label 或 terminal header 里的 worktree label,现在会进入该 worktree 的 overview mode;随后双击任一 terminal 会 zoom in,行为与 `⌘E` overview 流程一致。
+
+### Fixed (zh-CN)
+- Kimi 和 WUU 的 usage 成本估算现在使用对齐 Moonshot API 的价格,不再使用最初的粗略默认值。
+- Kimi/WUU 的 heatmap 解析现在会正确返回 wrapper records,它们的 token usage 会计入热力图总量。
+- Settings 的 General tab 会把 app version 行固定在底部,不再漂到主要设置内容里。
+
 ## [0.31.1] - 2026-04-22
 
 ### Fixed
