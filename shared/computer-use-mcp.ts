@@ -41,6 +41,17 @@ function buildComputerUseMcpServerConfig({
   };
 }
 
+function tomlString(value: string): string {
+  return JSON.stringify(value);
+}
+
+function tomlInlineTable(values: Record<string, string>): string {
+  const entries = Object.entries(values).map(
+    ([key, value]) => `${key} = ${tomlString(value)}`,
+  );
+  return `{ ${entries.join(", ")} }`;
+}
+
 function getCodexMcpConfigArgs(options: ComputerUseMcpConfigOptions): string[] {
   return [
     "-c",
@@ -48,7 +59,7 @@ function getCodexMcpConfigArgs(options: ComputerUseMcpConfigOptions): string[] {
     "-c",
     `mcp_servers.computer-use.args=${JSON.stringify([options.mcpServerPath])}`,
     "-c",
-    `mcp_servers.computer-use.env=${JSON.stringify(buildComputerUseMcpServerEnv(options))}`,
+    `mcp_servers.computer-use.env=${tomlInlineTable(buildComputerUseMcpServerEnv(options))}`,
   ];
 }
 

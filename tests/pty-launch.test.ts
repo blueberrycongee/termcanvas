@@ -313,10 +313,7 @@ test("buildLaunchSpec injects Computer Use MCP config into Codex argv", async ()
     "-c",
     `mcp_servers.computer-use.args=${JSON.stringify([mcpServer])}`,
     "-c",
-    `mcp_servers.computer-use.env=${JSON.stringify({
-      TERMCANVAS_COMPUTER_USE_STATE_FILE: stateFile,
-      TERMCANVAS_COMPUTER_USE_INSTRUCTIONS: instructionsFile,
-    })}`,
+    `mcp_servers.computer-use.env={ TERMCANVAS_COMPUTER_USE_STATE_FILE = ${JSON.stringify(stateFile)}, TERMCANVAS_COMPUTER_USE_INSTRUCTIONS = ${JSON.stringify(instructionsFile)} }`,
   ]);
   assert.deepEqual(launch.args.slice(6), ["resume", "session-42"]);
   assert.equal(launch.env.TERMCANVAS_COMPUTER_USE_ENABLED, "1");
@@ -361,10 +358,7 @@ test("buildLaunchSpec injects Computer Use MCP config into Codex before helper i
     "-c",
     `mcp_servers.computer-use.args=${JSON.stringify([mcpServer])}`,
     "-c",
-    `mcp_servers.computer-use.env=${JSON.stringify({
-      TERMCANVAS_COMPUTER_USE_STATE_FILE: stateFile,
-      TERMCANVAS_COMPUTER_USE_INSTRUCTIONS: instructionsFile,
-    })}`,
+    `mcp_servers.computer-use.env={ TERMCANVAS_COMPUTER_USE_STATE_FILE = ${JSON.stringify(stateFile)}, TERMCANVAS_COMPUTER_USE_INSTRUCTIONS = ${JSON.stringify(instructionsFile)} }`,
   ]);
   assert.equal(launch.env.TERMCANVAS_COMPUTER_USE_STATE_FILE, stateFile);
   assert.equal(launch.env.TERMCANVAS_COMPUTER_USE_INSTRUCTIONS, instructionsFile);
