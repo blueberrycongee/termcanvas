@@ -10,6 +10,7 @@ import {
   buildProjectTree,
   type CanvasTerminalItem,
   type CanvasTerminalState,
+  type StashedTerminalItem,
 } from "./sessionPanelModel";
 import { ProjectTree } from "./ProjectTree";
 import {
@@ -139,33 +140,13 @@ export function TerminalCard({
   hideLocation?: boolean;
   unseenDone?: boolean;
 }) {
-  const stashed = item.stashed ?? false;
-
   const subtitleParts = [
-    stashed ? t.stash_box : null,
     !hideLocation && item.locationLabel && item.locationLabel !== item.title
       ? item.locationLabel
       : null,
-    !stashed ? formatTerminalActivity(item, t) : null,
-    !stashed ? formatItemTime(item) : null,
+    formatTerminalActivity(item, t),
+    formatItemTime(item),
   ].filter(Boolean);
-
-  const handleClick = () => {
-    if (stashed) {
-      unstashTerminalInScene(item.terminalId);
-    } else {
-      panToTerminal(item.terminalId);
-    }
-  };
-
-  const handleClose = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (stashed) {
-      destroyStashedTerminalInScene(item.terminalId);
-    } else {
-      closeTerminalInScene(item.projectId, item.worktreeId, item.terminalId);
-    }
-  };
 
   return (
     <div
@@ -177,15 +158,14 @@ export function TerminalCard({
         item.focused
           ? "bg-[var(--surface-hover)] ring-1 ring-[var(--accent)]/35"
           : "bg-[var(--surface)] hover:bg-[var(--sidebar-hover)]"
-      } ${stashed ? "opacity-45" : ""}`}
-      onClick={handleClick}
+      }`}
+      onClick={() => panToTerminal(item.terminalId)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          handleClick();
+          panToTerminal(item.terminalId);
         }
       }}
-      title={stashed ? t.stash_restore : undefined}
     >
       <div
         className="w-2 h-2 rounded-full shrink-0"
@@ -202,9 +182,12 @@ export function TerminalCard({
       <IconButton
         size="sm"
         tone="danger"
-        label={stashed ? t.stash_destroy : t.panel_close_terminal}
+        label={t.panel_close_terminal}
         className="opacity-0 group-hover:opacity-100 transition-opacity"
-        onClick={handleClose}
+        onClick={(e) => {
+          e.stopPropagation();
+          closeTerminalInScene(item.projectId, item.worktreeId, item.terminalId);
+        }}
       >
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
           <path
@@ -356,6 +339,93 @@ function Inspector({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+export function StashedSection({
+  items,
+  t,
+}: {
+  items: StashedTerminalItem[];
+  t: ReturnType<typeof useT>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="border-t border-[var(--border)]">
+      <button
+        className="flex w-full items-center gap-1.5 px-3 py-2 text-left hover:bg-[var(--sidebar-hover)]"
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          fill="none"
+          className={`shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`}
+          style={{ color: "var(--text-muted)" }}
+        >
+          <path d="M3 2l4 3-4 3V2z" fill="currentColor" />
+        </svg>
+        <span
+          className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          {t.stash_box}
+        </span>
+        <span
+          className="ml-auto text-[10px] text-[var(--text-faint)] tabular-nums"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          {items.length}
+        </span>
+      </button>
+      {expanded && (
+        <div className="pb-2 flex flex-col gap-0.5 px-2">
+          {items.map((item) => (
+            <div
+              key={item.terminalId}
+              className="group flex items-center gap-2 rounded-md px-2 py-1.5 bg-[var(--surface)] hover:bg-[var(--sidebar-hover)] transition-colors"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] font-medium truncate text-[var(--text-secondary)]">
+                  {item.title}
+                </div>
+                <div className="text-[10px] text-[var(--text-faint)] truncate">
+                  {item.originLabel}
+                </div>
+              </div>
+              <button
+                className="shrink-0 px-1.5 py-0.5 text-[9px] rounded border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
+                onClick={() => unstashTerminalInScene(item.terminalId)}
+                title={t.stash_restore}
+              >
+                {t.stash_restore}
+              </button>
+              <IconButton
+                size="sm"
+                tone="danger"
+                label={t.stash_destroy}
+                onClick={() =>
+                  destroyStashedTerminalInScene(item.terminalId)
+                }
+              >
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path
+                    d="M2 2L8 8M8 2L2 8"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </IconButton>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -707,7 +777,7 @@ export function SessionsPanel({
       ),
     [projects, sessionsById, telemetryByTerminalId],
   );
-  const projectTree = useMemo(
+  const projectTreeResult = useMemo(
     () =>
       buildProjectTree(
         projects,
@@ -717,6 +787,8 @@ export function SessionsPanel({
       ),
     [projects, telemetryByTerminalId, sessionsById, seenTerminalIds],
   );
+  const projectTree = projectTreeResult.projects;
+  const stashedItems = projectTreeResult.stashed;
   const inspectedItem = useMemo(
     () => pickInspectedTerminal(sections),
     [sections],
@@ -828,7 +900,6 @@ export function SessionsPanel({
               compact
               hideLocation
               unseenDone={
-                !item.stashed &&
                 item.state === "done" &&
                 !seenTerminalIds.has(item.terminalId)
               }
@@ -842,13 +913,8 @@ export function SessionsPanel({
           </div>
         )}
 
-        {/*
-          Past-session browse surface. Lives below the live project
-          tree so the scroll pattern is "what's live now" → "what's
-          been before" — same reading order as a chat app's "threads"
-          list. Shares the Cmd+K session index via the
-          listSessions IPC; no extra file reads.
-        */}
+        <StashedSection items={stashedItems} t={t} />
+
         <HistorySection
           projectDirs={canvasProjectDirs}
           onOpen={loadReplay}
