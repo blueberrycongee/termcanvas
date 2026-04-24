@@ -28,11 +28,21 @@ fs.rmSync(outputDir, { recursive: true, force: true });
 fs.mkdirSync(mcpOutputDir, { recursive: true });
 
 run(pnpm, ["--filter", "termcanvas-computer-use-mcp", "build"]);
-fs.cpSync(
-  path.join(root, "mcp", "computer-use-server", "dist"),
-  mcpOutputDir,
-  { recursive: true },
+run(pnpm, [
+  "exec",
+  "esbuild",
+  path.join(root, "mcp", "computer-use-server", "src", "index.ts"),
+  "--bundle",
+  "--platform=node",
+  "--format=esm",
+  "--target=node22",
+  `--outfile=${path.join(mcpOutputDir, "index.js")}`,
+]);
+fs.writeFileSync(
+  path.join(mcpOutputDir, "package.json"),
+  JSON.stringify({ type: "module" }, null, 2) + "\n",
 );
+fs.chmodSync(path.join(mcpOutputDir, "index.js"), 0o755);
 
 if (process.platform === "darwin") {
   const swiftArgs = [
