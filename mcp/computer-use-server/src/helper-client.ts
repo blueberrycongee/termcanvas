@@ -1,16 +1,81 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
 const DEFAULT_PORT = 17394;
 const REQUEST_TIMEOUT_MS = 30_000;
+
+export interface HelperConnection {
+  port: number;
+  token: string;
+  stateFilePath: string;
+}
+
+function defaultStateFilePath(): string {
+  return path.join(os.homedir(), ".termcanvas", "computer-use", "state.json");
+}
+
+function parsePort(value: unknown): number | null {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : NaN;
+  if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 65535) {
+    return null;
+  }
+  return parsed;
+}
+
+export function resolveHelperConnection(
+  env: NodeJS.ProcessEnv = process.env,
+  readFileSync: (
+    file: string,
+    encoding: BufferEncoding,
+  ) => string = fs.readFileSync,
+): HelperConnection {
+  const stateFilePath =
+    env.TERMCANVAS_COMPUTER_USE_STATE_FILE?.trim() || defaultStateFilePath();
+
+  try {
+    const data = JSON.parse(readFileSync(stateFilePath, "utf-8")) as {
+      enabled?: unknown;
+      port?: unknown;
+      token?: unknown;
+    };
+    const statePort = parsePort(data.port);
+    if (
+      data.enabled !== false &&
+      statePort !== null &&
+      typeof data.token === "string" &&
+      data.token.length > 0
+    ) {
+      return {
+        port: statePort,
+        token: data.token,
+        stateFilePath,
+      };
+    }
+  } catch {
+    // Missing or invalid state is expected when Computer Use is disabled.
+  }
+
+  return {
+    port: parsePort(env.TERMCANVAS_CU_PORT) ?? DEFAULT_PORT,
+    token: env.TERMCANVAS_CU_TOKEN ?? "",
+    stateFilePath,
+  };
+}
 
 export class HelperClient {
   private baseUrl: string;
   private token: string;
 
   constructor() {
-    const port = process.env.TERMCANVAS_CU_PORT
-      ? parseInt(process.env.TERMCANVAS_CU_PORT, 10)
-      : DEFAULT_PORT;
-    this.token = process.env.TERMCANVAS_CU_TOKEN ?? "";
-    this.baseUrl = `http://127.0.0.1:${port}`;
+    const connection = resolveHelperConnection();
+    this.token = connection.token;
+    this.baseUrl = `http://127.0.0.1:${connection.port}`;
   }
 
   async get(endpoint: string): Promise<unknown> {

@@ -361,6 +361,8 @@ export class ComputerUseManager {
   private async writeStateFile(): Promise<void> {
     const dir = getStateDir();
     fs.mkdirSync(dir, { recursive: true });
+    const statePath = getStateFilePath();
+    const tmpPath = `${statePath}.tmp.${process.pid}`;
 
     const data: StateFileData = {
       enabled: true,
@@ -370,7 +372,14 @@ export class ComputerUseManager {
       helper_path: this.resolveHelperPath(),
     };
 
-    fs.writeFileSync(getStateFilePath(), JSON.stringify(data, null, 2), "utf-8");
+    fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), {
+      encoding: "utf-8",
+      mode: 0o600,
+    });
+    if (process.platform !== "win32") {
+      fs.chmodSync(tmpPath, 0o600);
+    }
+    fs.renameSync(tmpPath, statePath);
   }
 
   private async removeStateFile(): Promise<void> {

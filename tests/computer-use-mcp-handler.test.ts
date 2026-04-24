@@ -5,7 +5,10 @@ import os from "node:os";
 import path from "node:path";
 
 import { handleToolCall } from "../mcp/computer-use-server/src/handler.ts";
-import type { HelperClient } from "../mcp/computer-use-server/src/helper-client.ts";
+import {
+  resolveHelperConnection,
+  type HelperClient,
+} from "../mcp/computer-use-server/src/helper-client.ts";
 
 class FakeHelperClient {
   posts: Array<{ endpoint: string; body?: unknown }> = [];
@@ -111,4 +114,44 @@ test("computer use MCP supports new set_value and secondary action tools", async
       body: { app_name: "Notes", element: 3, action: "AXShowMenu" },
     },
   ]);
+});
+
+test("computer use helper client reads port and token from state file", () => {
+  const stateFile = "/tmp/termcanvas-cu-state.json";
+  const connection = resolveHelperConnection(
+    {
+      TERMCANVAS_COMPUTER_USE_STATE_FILE: stateFile,
+      TERMCANVAS_CU_PORT: "11111",
+      TERMCANVAS_CU_TOKEN: "env-token",
+    },
+    (file) => {
+      assert.equal(file, stateFile);
+      return JSON.stringify({ enabled: true, port: 17492, token: "state-token" });
+    },
+  );
+
+  assert.deepEqual(connection, {
+    port: 17492,
+    token: "state-token",
+    stateFilePath: stateFile,
+  });
+});
+
+test("computer use helper client falls back to legacy env when state file is unavailable", () => {
+  const connection = resolveHelperConnection(
+    {
+      TERMCANVAS_COMPUTER_USE_STATE_FILE: "/tmp/missing-state.json",
+      TERMCANVAS_CU_PORT: "11111",
+      TERMCANVAS_CU_TOKEN: "env-token",
+    },
+    () => {
+      throw new Error("missing");
+    },
+  );
+
+  assert.deepEqual(connection, {
+    port: 11111,
+    token: "env-token",
+    stateFilePath: "/tmp/missing-state.json",
+  });
 });

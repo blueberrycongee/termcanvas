@@ -6,6 +6,10 @@ import {
   getTermCanvasDataDir,
   type TermCanvasInstance,
 } from "../shared/termcanvas-instance";
+import {
+  getComputerUseMcpConfigArgs,
+  isComputerUseMcpProvider,
+} from "../shared/computer-use-mcp";
 
 export interface PtyLaunchOptions {
   cwd: string;
@@ -458,58 +462,6 @@ function resolveInstructionsPath(
   return null;
 }
 
-function buildComputerUseMcpServerConfig(
-  mcpServerPath: string,
-  port: string,
-  token: string,
-) {
-  return {
-    command: "node",
-    args: [mcpServerPath],
-    env: {
-      TERMCANVAS_CU_PORT: port,
-      TERMCANVAS_CU_TOKEN: token,
-    },
-  };
-}
-
-function getCodexMcpConfigArgs(
-  mcpServerPath: string,
-  port: string,
-  token: string,
-): string[] {
-  return [
-    "-c",
-    'mcp_servers.computer-use.command="node"',
-    "-c",
-    `mcp_servers.computer-use.args=${JSON.stringify([mcpServerPath])}`,
-    "-c",
-    `mcp_servers.computer-use.env=${JSON.stringify({
-      TERMCANVAS_CU_PORT: port,
-      TERMCANVAS_CU_TOKEN: token,
-    })}`,
-  ];
-}
-
-function getClaudeMcpConfigArgs(
-  mcpServerPath: string,
-  port: string,
-  token: string,
-): string[] {
-  return [
-    "--mcp-config",
-    JSON.stringify({
-      mcpServers: {
-        "computer-use": buildComputerUseMcpServerConfig(
-          mcpServerPath,
-          port,
-          token,
-        ),
-      },
-    }),
-  ];
-}
-
 export class PtyLaunchError extends Error {
   readonly code: string;
   readonly command: string;
@@ -559,51 +511,49 @@ export async function buildLaunchSpec(
 
   let launchArgs = options.args ?? [];
 
-  const agentTypes = new Set(["claude", "codex", "kimi", "gemini", "opencode", "wuu"]);
-  if (options.terminalType && agentTypes.has(options.terminalType)) {
-    const cuStateFile = path.join(deps.homeDir(), ".termcanvas", "computer-use", "state.json");
+  const computerUseAwareTypes = new Set([
+    "shell",
+    "claude",
+    "codex",
+    "kimi",
+    "gemini",
+    "opencode",
+    "wuu",
+  ]);
+  const agentTypes = new Set([
+    "claude",
+    "codex",
+    "kimi",
+    "gemini",
+    "opencode",
+    "wuu",
+  ]);
+  if (options.terminalType && computerUseAwareTypes.has(options.terminalType)) {
+    const cuStateFile = path.join(
+      deps.homeDir(),
+      ".termcanvas",
+      "computer-use",
+      "state.json",
+    );
     if (deps.existsSync(cuStateFile)) {
       shellEnv.TERMCANVAS_COMPUTER_USE_ENABLED = "1";
       shellEnv.TERMCANVAS_COMPUTER_USE_STATE_FILE = cuStateFile;
-      try {
-        const cuState = JSON.parse(deps.readFileSync(cuStateFile, "utf-8"));
-        if (cuState.port) shellEnv.TERMCANVAS_CU_PORT = String(cuState.port);
-        if (cuState.token) shellEnv.TERMCANVAS_CU_TOKEN = cuState.token;
-      } catch {
-        // State file unreadable — CU env vars omitted
-      }
 
-      if (
-        options.terminalType === "claude" ||
-        options.terminalType === "codex"
-      ) {
+      if (isComputerUseMcpProvider(options.terminalType)) {
         const mcpServerPath = resolveMcpServerPath(deps.existsSync);
-        if (
-          mcpServerPath &&
-          shellEnv.TERMCANVAS_CU_PORT &&
-          shellEnv.TERMCANVAS_CU_TOKEN
-        ) {
-          if (options.terminalType === "claude") {
-            launchArgs = [
-              ...getClaudeMcpConfigArgs(
+        if (mcpServerPath) {
+          launchArgs = [
+            ...getComputerUseMcpConfigArgs(
+              options.terminalType,
+              {
                 mcpServerPath,
-                shellEnv.TERMCANVAS_CU_PORT,
-                shellEnv.TERMCANVAS_CU_TOKEN,
-              ),
-              ...launchArgs,
-            ];
-          } else {
-            launchArgs = [
-              ...getCodexMcpConfigArgs(
-                mcpServerPath,
-                shellEnv.TERMCANVAS_CU_PORT,
-                shellEnv.TERMCANVAS_CU_TOKEN,
-              ),
-              ...launchArgs,
-            ];
-          }
+                stateFilePath: cuStateFile,
+              },
+            ),
+            ...launchArgs,
+          ];
         }
-      } else {
+      } else if (agentTypes.has(options.terminalType)) {
         const instructionsPath = resolveInstructionsPath(deps.existsSync);
         if (instructionsPath) {
           shellEnv.TERMCANVAS_COMPUTER_USE_INSTRUCTIONS = instructionsPath;
