@@ -78,7 +78,7 @@ async function httpRequest(
         path: urlPath,
         method,
         headers: {
-          Authorization: `Bearer ${token}`,
+          "X-Token": token,
           "Content-Type": "application/json",
         },
         timeout: 3000,

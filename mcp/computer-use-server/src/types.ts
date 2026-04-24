@@ -1,5 +1,6 @@
 export interface HealthResponse {
-  status: string;
+  ok: boolean;
+  version: string;
 }
 
 export interface StatusResponse {

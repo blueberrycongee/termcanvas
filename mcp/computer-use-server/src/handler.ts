@@ -66,7 +66,7 @@ async function handleStatus(client: HelperClient): Promise<CallToolResult> {
 
   try {
     const health = (await client.get("health")) as HealthResponse;
-    healthy = health.status === "ok";
+    healthy = health.ok === true;
   } catch {
     return textResult({
       healthy: false,

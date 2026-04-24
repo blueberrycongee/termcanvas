@@ -1,6 +1,8 @@
 import http from "http";
 import https from "https";
 import fs from "fs";
+import os from "os";
+import path from "path";
 import { resolveTermCanvasPortFile } from "../shared/termcanvas-instance";
 
 const CONNECTION_TIMEOUT_MS = 10_000;
@@ -705,7 +707,7 @@ async function main() {
         if (jsonFlag) console.log(JSON.stringify(result, null, 2));
         else console.log("Computer Use stopped.");
       } else if (command === "list-apps" || command === "get-app-state" || command === "click" || command === "type" || command === "press-key") {
-        const stateFilePath = require("path").join(require("os").homedir(), ".termcanvas", "computer-use", "state.json");
+        const stateFilePath = path.join(os.homedir(), ".termcanvas", "computer-use", "state.json");
         let cuState: { port: number; token: string };
         try {
           cuState = JSON.parse(fs.readFileSync(stateFilePath, "utf-8"));
