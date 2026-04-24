@@ -19,7 +19,11 @@ import {
 } from "./sessionInspectorModel";
 import { useCompletionSeenStore } from "../stores/completionSeenStore";
 import { promptAndAddProjectToScene } from "../canvas/sceneCommands";
-import { closeTerminalInScene } from "../actions/terminalSceneActions";
+import {
+  closeTerminalInScene,
+  unstashTerminalInScene,
+  destroyStashedTerminalInScene,
+} from "../actions/terminalSceneActions";
 import { IconButton } from "./ui/IconButton";
 import { shouldRefreshHistorySection } from "./historySectionModel";
 
@@ -135,13 +139,33 @@ export function TerminalCard({
   hideLocation?: boolean;
   unseenDone?: boolean;
 }) {
+  const stashed = item.stashed ?? false;
+
   const subtitleParts = [
+    stashed ? t.stash_box : null,
     !hideLocation && item.locationLabel && item.locationLabel !== item.title
       ? item.locationLabel
       : null,
-    formatTerminalActivity(item, t),
-    formatItemTime(item),
+    !stashed ? formatTerminalActivity(item, t) : null,
+    !stashed ? formatItemTime(item) : null,
   ].filter(Boolean);
+
+  const handleClick = () => {
+    if (stashed) {
+      unstashTerminalInScene(item.terminalId);
+    } else {
+      panToTerminal(item.terminalId);
+    }
+  };
+
+  const handleClose = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (stashed) {
+      destroyStashedTerminalInScene(item.terminalId);
+    } else {
+      closeTerminalInScene(item.projectId, item.worktreeId, item.terminalId);
+    }
+  };
 
   return (
     <div
@@ -153,14 +177,15 @@ export function TerminalCard({
         item.focused
           ? "bg-[var(--surface-hover)] ring-1 ring-[var(--accent)]/35"
           : "bg-[var(--surface)] hover:bg-[var(--sidebar-hover)]"
-      }`}
-      onClick={() => panToTerminal(item.terminalId)}
+      } ${stashed ? "opacity-45" : ""}`}
+      onClick={handleClick}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          panToTerminal(item.terminalId);
+          handleClick();
         }
       }}
+      title={stashed ? t.stash_restore : undefined}
     >
       <div
         className="w-2 h-2 rounded-full shrink-0"
@@ -177,16 +202,9 @@ export function TerminalCard({
       <IconButton
         size="sm"
         tone="danger"
-        label={t.panel_close_terminal}
+        label={stashed ? t.stash_destroy : t.panel_close_terminal}
         className="opacity-0 group-hover:opacity-100 transition-opacity"
-        onClick={(e) => {
-          e.stopPropagation();
-          closeTerminalInScene(
-            item.projectId,
-            item.worktreeId,
-            item.terminalId,
-          );
-        }}
+        onClick={handleClose}
       >
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
           <path
@@ -810,7 +828,9 @@ export function SessionsPanel({
               compact
               hideLocation
               unseenDone={
-                item.state === "done" && !seenTerminalIds.has(item.terminalId)
+                !item.stashed &&
+                item.state === "done" &&
+                !seenTerminalIds.has(item.terminalId)
               }
             />
           )}

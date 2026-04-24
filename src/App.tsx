@@ -13,7 +13,6 @@ import { DrawingPanel } from "./toolbar/DrawingPanel";
 import { ShortcutHints } from "./components/ShortcutHints";
 import { CompletionGlow } from "./components/CompletionGlow";
 import { initSessionStoreIPC } from "./stores/sessionStore";
-import { StashBox } from "./components/StashBox";
 import { WelcomePopup } from "./components/WelcomePopup";
 import { SearchModal } from "./components/SearchModal";
 import { UsageOverlay } from "./components/UsageOverlay";
@@ -591,7 +590,6 @@ export function App() {
       {drawingEnabled && <DrawingPanel />}
       {completionGlowEnabled && <CompletionGlow />}
       <ShortcutHints />
-      <StashBox />
       {composerEnabled && <ComposerBar />}
       <NotificationToast />
       {globalSearchEnabled && <SearchModal />}

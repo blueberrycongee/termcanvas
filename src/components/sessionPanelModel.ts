@@ -21,6 +21,7 @@ export interface CanvasTerminalItem {
   title: string;
   locationLabel: string;
   focused: boolean;
+  stashed?: boolean;
   state: CanvasTerminalState;
   activityAt?: string;
   turnStartedAt?: string;
@@ -384,7 +385,7 @@ export function buildProjectTree(
       for (const terminal of worktree.terminals) {
         const resolvedTerminal = resolveTerminalWithRuntimeState(terminal);
 
-        if (!isCanvasTerminal(resolvedTerminal)) {
+        if (resolvedTerminal.minimized) {
           continue;
         }
 
@@ -420,6 +421,7 @@ export function buildProjectTree(
           title,
           locationLabel,
           focused: resolvedTerminal.focused,
+          stashed: resolvedTerminal.stashed,
           state: derived.state,
           activityAt: derived.activityAt,
           turnStartedAt: derived.turnStartedAt,
@@ -433,7 +435,10 @@ export function buildProjectTree(
         worktreeName: worktree.name,
         worktreePath: worktree.path,
         isMain: worktree.path === project.path,
-        statusSummary: computeStatusSummary(terminals, seenTerminalIds),
+        statusSummary: computeStatusSummary(
+          terminals.filter((t) => !t.stashed),
+          seenTerminalIds,
+        ),
         terminals,
       });
     }
@@ -444,7 +449,10 @@ export function buildProjectTree(
       projectId: project.id,
       projectName: project.name,
       projectPath: project.path,
-      statusSummary: computeStatusSummary(allTerminals, seenTerminalIds),
+      statusSummary: computeStatusSummary(
+        allTerminals.filter((t) => !t.stashed),
+        seenTerminalIds,
+      ),
       worktrees: worktreeGroups,
       flat: worktreeGroups.length === 1,
     });

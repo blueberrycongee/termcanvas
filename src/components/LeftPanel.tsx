@@ -102,7 +102,7 @@ export function LeftPanel() {
       pg.worktrees.flatMap((wt) => wt.terminals),
     );
     const doneIds = allTerminals
-      .filter((t) => t.state === "done")
+      .filter((t) => !t.stashed && t.state === "done")
       .map((t) => t.terminalId);
     syncActiveDoneIds(doneIds);
   }, [projectTree, syncActiveDoneIds]);
@@ -333,6 +333,7 @@ export function LeftPanel() {
                   compact
                   hideLocation
                   unseenDone={
+                    !item.stashed &&
                     item.state === "done" &&
                     !seenTerminalIds.has(item.terminalId)
                   }
