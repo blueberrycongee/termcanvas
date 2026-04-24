@@ -285,6 +285,20 @@ export const zh = {
   computer_use_granted: "已授权",
   computer_use_not_granted: "未授权",
   computer_use_open_settings: "打开系统设置",
+  computer_use_refresh_status: "重新检测",
+  computer_use_permission_repair_title: "修复 macOS 权限",
+  computer_use_permission_repair_desc:
+    "TermCanvas 以 helper 的实际检测结果为准。如果系统设置里已经有 TermCanvas 或 computer-use-helper，但这里仍显示未授权，请先移除旧条目再重新添加。",
+  computer_use_permission_repair_step_open:
+    "打开“辅助功能”和“屏幕录制 / 录屏与系统音频”两个权限页。",
+  computer_use_permission_repair_step_remove:
+    "如果已有 TermCanvas 或 computer-use-helper，先选中它并点击减号移除。",
+  computer_use_permission_repair_step_add_app:
+    "添加并启用 /Applications/TermCanvas.app。",
+  computer_use_permission_repair_step_add_helper:
+    "添加并启用 /Applications/TermCanvas.app/Contents/Resources/computer-use-helper。",
+  computer_use_permission_repair_step_refresh:
+    "macOS 接受更改后，回到这里点击重新检测。",
   computer_use_stop_btn: "停止电脑操控",
   settings_section_agent_api: "API",
   settings_section_agent_cli: "CLI 工具",

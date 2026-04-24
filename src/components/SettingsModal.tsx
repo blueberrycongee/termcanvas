@@ -364,6 +364,8 @@ function ComputerUseTabContent() {
     if (granted === null) return "bg-[var(--text-muted)]";
     return granted ? "bg-[var(--green,#4ade80)]" : "bg-[var(--amber,#fbbf24)]";
   };
+  const missingPermission =
+    accessibilityGranted === false || screenRecordingGranted === false;
 
   return (
     <div className="flex flex-col gap-5">
@@ -456,13 +458,37 @@ function ComputerUseTabContent() {
         </div>
       </div>
 
-      {(!accessibilityGranted || !screenRecordingGranted) && (
-        <button
-          className="self-start text-[12px] text-[var(--accent)] hover:underline"
-          onClick={openPermissions}
-        >
-          {t.computer_use_open_settings}
-        </button>
+      {missingPermission && (
+        <div className="rounded-lg border border-[var(--amber,#fbbf24)]/30 bg-[var(--amber,#fbbf24)]/10 px-3 py-3 text-[12px] text-[var(--text-secondary)]">
+          <div className="mb-1 font-medium text-[var(--text-primary)]">
+            {t.computer_use_permission_repair_title}
+          </div>
+          <p className="mb-2 leading-relaxed">
+            {t.computer_use_permission_repair_desc}
+          </p>
+          <ol className="list-decimal space-y-1 pl-4 leading-relaxed">
+            <li>{t.computer_use_permission_repair_step_open}</li>
+            <li>{t.computer_use_permission_repair_step_remove}</li>
+            <li>{t.computer_use_permission_repair_step_add_app}</li>
+            <li>{t.computer_use_permission_repair_step_add_helper}</li>
+            <li>{t.computer_use_permission_repair_step_refresh}</li>
+          </ol>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <button
+              className="text-[12px] text-[var(--accent)] hover:underline"
+              onClick={openPermissions}
+            >
+              {t.computer_use_open_settings}
+            </button>
+            <button
+              className="text-[12px] text-[var(--accent)] hover:underline disabled:text-[var(--text-muted)] disabled:no-underline"
+              disabled={loading}
+              onClick={() => void fetchStatus()}
+            >
+              {t.computer_use_refresh_status}
+            </button>
+          </div>
+        </div>
       )}
 
       {enabled && (

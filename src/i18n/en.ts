@@ -292,6 +292,20 @@ export const en = {
   computer_use_granted: "Granted",
   computer_use_not_granted: "Not Granted",
   computer_use_open_settings: "Open System Settings",
+  computer_use_refresh_status: "Refresh Status",
+  computer_use_permission_repair_title: "Repair macOS permissions",
+  computer_use_permission_repair_desc:
+    "TermCanvas checks the helper directly. If System Settings already shows TermCanvas or computer-use-helper but this page still says Not Granted, remove the stale entries before adding them again.",
+  computer_use_permission_repair_step_open:
+    "Open both Accessibility and Screen Recording / Screen & System Audio Recording.",
+  computer_use_permission_repair_step_remove:
+    "If TermCanvas or computer-use-helper already exists, select it and remove it with the minus button.",
+  computer_use_permission_repair_step_add_app:
+    "Add and enable /Applications/TermCanvas.app.",
+  computer_use_permission_repair_step_add_helper:
+    "Add and enable /Applications/TermCanvas.app/Contents/Resources/computer-use-helper.",
+  computer_use_permission_repair_step_refresh:
+    "Return here and refresh status after macOS accepts the changes.",
   computer_use_stop_btn: "Stop Computer Use",
   settings_section_agent_api: "API",
   settings_section_agent_cli: "CLI Tools",
