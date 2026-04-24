@@ -60,7 +60,7 @@ enum AXTree {
             screenshot: screenshot,
             screenshotPixelSize: screenshot?.pixelSize,
             screenshotScale: screenshot?.scale,
-            windowFrame: windows.first?.frame,
+            windowFrame: screenshot?.windowFrame ?? Self.primaryFrame(from: windows),
             coordinateSpace: "screen"
         )
     }
@@ -114,10 +114,12 @@ enum AXTree {
     static func primaryWindowFrame(pid: Int32) -> Frame? {
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
-        guard let firstWindow = getAXArray(app, attribute: kAXWindowsAttribute).first else {
-            return nil
+        let frames = getAXArray(app, attribute: kAXWindowsAttribute)
+            .compactMap { getFrame($0) }
+            .filter { $0.width > 0 && $0.height > 0 }
+        return frames.max { lhs, rhs in
+            lhs.width * lhs.height < rhs.width * rhs.height
         }
-        return getFrame(firstWindow)
     }
 
     static func getElementPosition(_ element: AXUIElement) -> CGPoint? {
@@ -237,6 +239,15 @@ enum AXTree {
             ))
         }
         return nodes
+    }
+
+    private static func primaryFrame(from windows: [WindowInfo]) -> Frame? {
+        return windows
+            .map { $0.frame }
+            .filter { $0.width > 0 && $0.height > 0 }
+            .max { lhs, rhs in
+                lhs.width * lhs.height < rhs.width * rhs.height
+            }
     }
 
     private static func resolveChildByIndex(

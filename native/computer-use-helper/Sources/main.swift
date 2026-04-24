@@ -367,21 +367,24 @@ func resolvePoint(
         return nil
     }
 
-    if coordinateSpace == "screenshot" || coordinateSpace == "window" {
+    if coordinateSpace == "screenshot" {
+        guard let resolvedPid = resolvePid(pid: pid, appName: appName),
+              let screenshot = Screenshot.captureWindow(pid: resolvedPid, windowFrame: nil),
+              let frame = screenshot.windowFrame,
+              screenshot.scale > 0
+        else {
+            return nil
+        }
+        return CGPoint(x: frame.x + x / screenshot.scale, y: frame.y + y / screenshot.scale)
+    }
+
+    if coordinateSpace == "window" {
         guard let resolvedPid = resolvePid(pid: pid, appName: appName),
               let frame = AXTree.primaryWindowFrame(pid: resolvedPid)
         else {
             return nil
         }
-        let scale: Double
-        if coordinateSpace == "screenshot",
-           let screenshot = Screenshot.captureWindow(pid: resolvedPid, windowFrame: frame),
-           screenshot.scale > 0 {
-            scale = screenshot.scale
-        } else {
-            scale = 1
-        }
-        return CGPoint(x: frame.x + x / scale, y: frame.y + y / scale)
+        return CGPoint(x: frame.x + x, y: frame.y + y)
     }
 
     return CGPoint(x: x, y: y)

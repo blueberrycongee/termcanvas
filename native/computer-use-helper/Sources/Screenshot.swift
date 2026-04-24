@@ -19,6 +19,7 @@ enum Screenshot {
         }
 
         var targetWindowID: CGWindowID?
+        var targetWindowFrame: Frame?
         for window in windowList {
             guard let ownerPID = window[kCGWindowOwnerPID as String] as? Int32,
                   ownerPID == pid,
@@ -28,6 +29,7 @@ enum Screenshot {
             let layer = window[kCGWindowLayer as String] as? Int ?? 0
             if layer == 0 {
                 targetWindowID = CGWindowID(windowID)
+                targetWindowFrame = frameFromCGWindowBounds(window[kCGWindowBounds as String])
                 break
             }
         }
@@ -57,8 +59,9 @@ enum Screenshot {
         guard CGImageDestinationFinalize(dest) else { return nil }
 
         let pixelSize = PixelSize(width: image.width, height: image.height)
+        let capturedFrame = targetWindowFrame ?? windowFrame
         let scale: Double
-        if let frame = windowFrame, frame.width > 0 {
+        if let frame = capturedFrame, frame.width > 0 {
             scale = Double(image.width) / frame.width
         } else {
             scale = 1
@@ -68,8 +71,23 @@ enum Screenshot {
             path: path,
             pixelSize: pixelSize,
             scale: scale,
-            windowFrame: windowFrame,
+            windowFrame: capturedFrame,
             coordinateSpace: "screenshot"
+        )
+    }
+
+    private static func frameFromCGWindowBounds(_ value: Any?) -> Frame? {
+        guard let bounds = value as? [String: Any],
+              let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary)
+        else {
+            return nil
+        }
+
+        return Frame(
+            x: rect.origin.x,
+            y: rect.origin.y,
+            width: rect.width,
+            height: rect.height
         )
     }
 }
