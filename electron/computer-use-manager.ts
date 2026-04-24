@@ -157,6 +157,8 @@ export class ComputerUseManager {
         error: null,
       });
 
+      await this.requestPermissions();
+
       const perms = await this.checkPermissions();
       this.updateState({
         accessibilityGranted: perms.accessibility,
@@ -262,9 +264,31 @@ export class ComputerUseManager {
     }
   }
 
+  async requestPermissions(): Promise<void> {
+    if (!this.port || !this.token) {
+      return;
+    }
+
+    const resp = await httpRequest(
+      "POST",
+      this.port,
+      "/request_permissions",
+      this.token,
+    );
+    const data = JSON.parse(resp.body);
+    this.updateState({
+      accessibilityGranted: data.accessibility_granted ?? false,
+      screenRecordingGranted: data.screen_recording_granted ?? false,
+    });
+  }
+
   openPermissions(): void {
+    void this.requestPermissions();
     shell.openExternal(
       "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+    );
+    shell.openExternal(
+      "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
     );
   }
 

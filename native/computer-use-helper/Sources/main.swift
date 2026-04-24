@@ -69,6 +69,9 @@ func route(method: String, path: String, body: Data?) -> (Int, Data) {
         case "/status":
             return ok(handleStatus())
 
+        case "/request_permissions":
+            return ok(handleRequestPermissions())
+
         case "/list_apps":
             return ok(ListAppsResponse(apps: AppLister.listApps()))
 
@@ -143,6 +146,25 @@ func route(method: String, path: String, body: Data?) -> (Int, Data) {
 func handleStatus() -> StatusResponse {
     let axTrusted = AXIsProcessTrusted()
     let screenGranted = CGPreflightScreenCaptureAccess()
+    return StatusResponse(accessibilityGranted: axTrusted, screenRecordingGranted: screenGranted)
+}
+
+func handleRequestPermissions() -> StatusResponse {
+    var axTrusted = false
+    var screenGranted = false
+
+    DispatchQueue.main.sync {
+        let options = [
+            kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true,
+        ] as CFDictionary
+        axTrusted = AXIsProcessTrustedWithOptions(options)
+
+        screenGranted = CGPreflightScreenCaptureAccess()
+        if !screenGranted {
+            screenGranted = CGRequestScreenCaptureAccess()
+        }
+    }
+
     return StatusResponse(accessibilityGranted: axTrusted, screenRecordingGranted: screenGranted)
 }
 
