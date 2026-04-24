@@ -5,7 +5,7 @@ const ACTION_GUARDRAIL =
   "Before acting, call get_app_state for the target app in this turn. After acting, call get_app_state again and verify the UI changed before reporting success.";
 
 const COORDINATE_GUARDRAIL =
-  "coordinate_space=screenshot is only for coordinates read from the current get_app_state screenshot for the same app. Do not use browser, Playwright, full-screen, or stale screenshot coordinates as screenshot coordinates.";
+  "coordinate_space=screenshot is only for coordinates read from the current get_app_state screenshot for the same app. Pass capture_id from that screenshot when available so stale coordinates can be rejected. Do not use browser, Playwright, full-screen, or stale screenshot coordinates as screenshot coordinates.";
 
 export const tools: Tool[] = [
   {
@@ -65,7 +65,7 @@ export const tools: Tool[] = [
   {
     name: "get_app_state",
     description:
-      "Observe before acting: start an app use session if needed, then get the app key-window state, indexed Accessibility tree, and returned window screenshot. Use this for local macOS apps; do not use browser or Playwright screenshots for desktop apps. Prefer bundle_id or pid from list_apps for localized or ambiguous apps. If the tree is empty or sparse, re-activate/open the app and observe again before declaring a limitation.",
+      "Observe before acting: start an app use session if needed, then get the app key-window state, indexed Accessibility tree, and returned window screenshot. Use this for local macOS apps; do not use browser or Playwright screenshots for desktop apps. Prefer bundle_id or pid from list_apps for localized or ambiguous apps. If the tree is empty or sparse, re-activate/open the app and observe again before declaring a limitation. Coordinate fallbacks should pass the returned screenshot capture_id.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -123,6 +123,11 @@ export const tools: Tool[] = [
           type: "string",
           enum: ["screen", "window", "screenshot"],
           description: "Coordinate space for x/y. Defaults to screen.",
+        },
+        capture_id: {
+          type: "string",
+          description:
+            "Capture ID from the current get_app_state screenshot. Use with coordinate_space=screenshot to reject stale screenshot coordinates.",
         },
         click_count: {
           type: "number",
@@ -229,6 +234,11 @@ export const tools: Tool[] = [
           enum: ["screen", "window", "screenshot"],
           description: "Coordinate space for x/y. Defaults to screen.",
         },
+        capture_id: {
+          type: "string",
+          description:
+            "Capture ID from the current get_app_state screenshot. Use with coordinate_space=screenshot to reject stale screenshot coordinates.",
+        },
       },
       required: ["direction"],
     },
@@ -258,6 +268,11 @@ export const tools: Tool[] = [
           type: "string",
           enum: ["screen", "window", "screenshot"],
           description: "Coordinate space for coordinates. Defaults to screen.",
+        },
+        capture_id: {
+          type: "string",
+          description:
+            "Capture ID from the current get_app_state screenshot. Use with coordinate_space=screenshot to reject stale screenshot coordinates.",
         },
       },
     },

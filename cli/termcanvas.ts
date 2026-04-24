@@ -835,9 +835,11 @@ async function main() {
           const x = numberFlag("--x");
           const y = numberFlag("--y");
           const coordinateSpace = flagValue("--coordinate-space");
+          const captureId = flagValue("--capture-id");
           if (x !== undefined) body.x = x;
           if (y !== undefined) body.y = y;
           if (coordinateSpace !== undefined) body.coordinate_space = coordinateSpace;
+          if (captureId !== undefined) body.capture_id = captureId;
         };
         const helperRequest = (endpoint: string, body?: unknown): Promise<unknown> => {
           return new Promise((resolve, reject) => {

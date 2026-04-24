@@ -19,7 +19,7 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 7. Choose actions in this order: direct AX action/value, AX element click/scroll/drag, keyboard navigation/input, screenshot-coordinate fallback.
 8. Prefer direct AX operations over simulated input. Use `set_value` for writable text fields and `perform_secondary_action` for exposed actions such as `AXPress`, `AXShowMenu`, or other actions listed on the element.
 9. Use keyboard input when AX exposes focusable controls but not a direct action: focus the target field/control first, then use `type_text` or `press_key`.
-10. Use screenshots to understand visual state. Use screenshot coordinates only as the last resort for canvas-rendered or non-AX UI. When using coordinates read from the returned `get_app_state` screenshot, set `coordinate_space="screenshot"`.
+10. Use screenshots to understand visual state. Use screenshot coordinates only as the last resort for canvas-rendered or non-AX UI. When using coordinates read from the returned `get_app_state` screenshot, set `coordinate_space="screenshot"` and pass the returned `capture_id` when available.
 11. After every action, call `get_app_state` again and verify the expected UI state changed. Do not say the task is complete until the latest observed state supports it.
 12. Ask the user before destructive or privacy-sensitive actions, purchases, sending messages, sharing data, changing security settings, or anything that could have real-world side effects beyond ordinary navigation/playback.
 
@@ -83,7 +83,8 @@ Coordinates are allowed, but they are the fallback path:
 2. Use `coordinate_space="screenshot"` only for positions read from the screenshot returned by `get_app_state` for the same app and same observation.
 3. Keep coordinate actions small and verify immediately afterward.
 4. If the window moves, resizes, or focus changes, discard old coordinates and call `get_app_state` again.
-5. Do not pass coordinates from browser screenshots, Playwright screenshots, full-screen screenshots, screenshots from other tools, or stale screenshots as `coordinate_space="screenshot"`. Use only coordinates from the current `get_app_state` screenshot, or use `coordinate_space="screen"` when you have actual screen coordinates.
+5. Pass the returned screenshot `capture_id` with coordinate actions when available. If a stale `capture_id` is rejected, call `get_app_state` again and retry with the current screenshot.
+6. Do not pass coordinates from browser screenshots, Playwright screenshots, full-screen screenshots, screenshots from other tools, or stale screenshots as `coordinate_space="screenshot"`. Use only coordinates from the current `get_app_state` screenshot, or use `coordinate_space="screen"` when you have actual screen coordinates.
 
 ## Completion Standard
 

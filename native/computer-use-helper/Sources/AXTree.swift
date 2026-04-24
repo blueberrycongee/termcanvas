@@ -58,6 +58,7 @@ enum AXTree {
             accessibilityTree: accessibilityTree,
             screenshotPath: screenshot?.path,
             screenshot: screenshot,
+            screenshotCaptureId: screenshot?.captureId,
             screenshotPixelSize: screenshot?.pixelSize,
             screenshotScale: screenshot?.scale,
             windowFrame: screenshot?.windowFrame ?? Self.primaryFrame(from: windows),

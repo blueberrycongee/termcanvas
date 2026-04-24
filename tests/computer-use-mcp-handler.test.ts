@@ -47,6 +47,8 @@ class FakeHelperClient {
         elements: [{ index: 0, role: "AXButton", actions: ["AXPress"] }],
         accessibility_tree: [],
         screenshot_path: this.screenshotPath,
+        screenshot_capture_id: "42:7:123",
+        screenshot: { capture_id: "42:7:123" },
         screenshot_scale: 2,
       };
     }
@@ -126,6 +128,7 @@ test("computer use MCP exposes operating instructions as a tool", async () => {
   assert.match(result.content[0].text as string, /Do not use browser automation, Playwright, or browser screenshots/);
   assert.match(result.content[0].text as string, /do not guess English app names on a non-English system/);
   assert.match(result.content[0].text as string, /Empty windows or missing screenshots can be transient/);
+  assert.match(result.content[0].text as string, /capture_id/);
   assert.match(result.content[0].text as string, /After every action/);
 });
 
@@ -145,7 +148,7 @@ test("computer use MCP status includes usage guidance", async () => {
   ]);
   assert.match(
     status.usage_guidance.protocol.join("\n"),
-    /coordinate_space=screenshot is valid only for coordinates read from the current get_app_state screenshot/,
+    /pass capture_id when available so stale coordinates can be rejected/,
   );
 });
 
@@ -191,6 +194,8 @@ test("computer use MCP tool descriptions teach the AX-first protocol", () => {
   assert.match(descriptions.open_app, /exact localized name returned by list_apps/);
   assert.match(descriptions.click, /coordinates are the last resort/);
   assert.match(descriptions.click, /Do not use browser, Playwright, full-screen, or stale screenshot coordinates/);
+  assert.match(descriptions.click, /Pass capture_id from that screenshot/);
+  assert.match(descriptions.get_app_state, /returned screenshot capture_id/);
   assert.match(descriptions.set_value, /Prefer this over keyboard typing/);
   assert.match(descriptions.type_text, /After acting, call get_app_state again/);
 });

@@ -45,6 +45,7 @@ export interface AppState {
   accessibility_tree?: Record<string, unknown>[];
   screenshot_path?: string;
   screenshot?: Record<string, unknown>;
+  screenshot_capture_id?: string;
   screenshot_pixel_size?: Record<string, unknown>;
   screenshot_scale?: number;
   window_frame?: Record<string, unknown>;
@@ -59,6 +60,7 @@ export interface ClickParams {
   app_name?: string;
   x?: number;
   y?: number;
+  capture_id?: string;
   coordinate_space?: string;
   button?: "left" | "right" | "double";
   mouse_button?: "left" | "right" | "double";
@@ -101,6 +103,7 @@ export interface ScrollParams {
   app_name?: string;
   direction?: "up" | "down" | "left" | "right";
   amount?: number;
+  capture_id?: string;
   coordinate_space?: string;
 }
 
@@ -119,6 +122,7 @@ export interface DragParams {
   to_element?: number;
   pid?: number;
   app_name?: string;
+  capture_id?: string;
   coordinate_space?: string;
 }
 

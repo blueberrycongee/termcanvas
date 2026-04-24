@@ -21,7 +21,7 @@ export const COMPUTER_USE_STATUS_GUIDANCE = {
     "If get_app_state is empty or sparse, re-activate/open the app, retry with bundle_id or pid, increase max_depth if needed, and observe again before declaring the app inaccessible.",
     "Prefer AX element indexes from get_app_state for perform_secondary_action, set_value, click, scroll, and drag.",
     "Use keyboard input when AX exposes focusable controls but not direct actions.",
-    "Use coordinate actions only as a last resort. coordinate_space=screenshot is valid only for coordinates read from the current get_app_state screenshot, not browser, Playwright, full-screen, or stale screenshots.",
+    "Use coordinate actions only as a last resort. coordinate_space=screenshot is valid only for coordinates read from the current get_app_state screenshot; pass capture_id when available so stale coordinates can be rejected. Do not use browser, Playwright, full-screen, or stale screenshots.",
     "After every action, call get_app_state again and verify the observed UI before reporting success.",
   ],
 };
@@ -36,7 +36,7 @@ Use this MCP server for local Mac desktop automation. Follow the AX-first protoc
 4. Call list_apps, then prefer the returned bundle_id or pid with open_app and get_app_state.
 5. Call get_app_state before acting. If it is empty or sparse, re-activate and observe again before declaring a limitation.
 6. Prefer indexed Accessibility elements and semantic AX actions from get_app_state.
-7. Use the returned screenshot for observation and use screenshot coordinates only as the last resort.
+7. Use the returned screenshot for observation and use screenshot coordinates only as the last resort. Pass capture_id with screenshot-coordinate actions when available.
 8. After every action, call get_app_state again and verify the result before reporting success.
 `;
 

@@ -5,6 +5,14 @@ import UniformTypeIdentifiers
 
 enum Screenshot {
     private static let outputDir = "/tmp/termcanvas-cu"
+    private static let lock = NSLock()
+    private static var latestByPid: [Int32: ScreenshotInfo] = [:]
+
+    static func latestCapture(pid: Int32) -> ScreenshotInfo? {
+        lock.lock()
+        defer { lock.unlock() }
+        return latestByPid[pid]
+    }
 
     static func captureWindow(pid: Int32, windowFrame: Frame?) -> ScreenshotInfo? {
         let fm = FileManager.default
@@ -46,6 +54,7 @@ enum Screenshot {
         }
 
         let timestamp = Int(Date().timeIntervalSince1970 * 1000)
+        let captureId = "\(pid):\(windowID):\(timestamp)"
         let path = "\(outputDir)/\(pid)_\(timestamp).png"
         let url = URL(fileURLWithPath: path) as CFURL
 
@@ -67,13 +76,18 @@ enum Screenshot {
             scale = 1
         }
 
-        return ScreenshotInfo(
+        let info = ScreenshotInfo(
+            captureId: captureId,
             path: path,
             pixelSize: pixelSize,
             scale: scale,
             windowFrame: capturedFrame,
             coordinateSpace: "screenshot"
         )
+        lock.lock()
+        latestByPid[pid] = info
+        lock.unlock()
+        return info
     }
 
     private static func frameFromCGWindowBounds(_ value: Any?) -> Frame? {

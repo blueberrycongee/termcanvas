@@ -190,14 +190,19 @@ func handleClick(_ req: ClickRequest) -> (Int, Data) {
     }
 
     AppLister.activate(pid: resolvePid(pid: req.pid, appName: req.appName))
-    if let point = resolvePoint(
+    let point = resolvePoint(
         x: req.x,
         y: req.y,
+        captureId: req.captureId,
         coordinateSpace: req.coordinateSpace,
         pid: req.pid,
         appName: req.appName
-    ) {
-        clickRepeated(x: point.x, y: point.y, button: button, clickCount: clickCount)
+    )
+    if let error = point.error {
+        return ok(OkResponse(ok: false, error: error))
+    }
+    if let resolvedPoint = point.point {
+        clickRepeated(x: resolvedPoint.x, y: resolvedPoint.y, button: button, clickCount: clickCount)
         return ok(OkResponse())
     }
 
@@ -262,15 +267,20 @@ func handleScroll(_ req: ScrollRequest) -> (Int, Data) {
     }
 
     AppLister.activate(pid: resolvePid(pid: req.pid, appName: req.appName))
-    if let point = resolvePoint(
+    let point = resolvePoint(
         x: req.x,
         y: req.y,
+        captureId: req.captureId,
         coordinateSpace: req.coordinateSpace,
         pid: req.pid,
         appName: req.appName
-    ) {
+    )
+    if let error = point.error {
+        return ok(OkResponse(ok: false, error: error))
+    }
+    if let resolvedPoint = point.point {
         InputSimulator.scroll(
-            x: point.x, y: point.y,
+            x: resolvedPoint.x, y: resolvedPoint.y,
             dx: Int32(req.dx ?? 0),
             dy: Int32(req.dy ?? 0)
         )
@@ -308,12 +318,17 @@ func handleDrag(_ req: DragRequest) -> (Int, Data) {
 
     if let fx = fromX, let fy = fromY, let tx = toX, let ty = toY {
         AppLister.activate(pid: resolvePid(pid: req.pid, appName: req.appName))
-        let fromPoint = resolvePoint(x: fx, y: fy, coordinateSpace: req.coordinateSpace,
-                                     pid: req.pid, appName: req.appName)
-            ?? CGPoint(x: fx, y: fy)
-        let toPoint = resolvePoint(x: tx, y: ty, coordinateSpace: req.coordinateSpace,
-                                   pid: req.pid, appName: req.appName)
-            ?? CGPoint(x: tx, y: ty)
+        let fromResolution = resolvePoint(x: fx, y: fy, captureId: req.captureId,
+                                          coordinateSpace: req.coordinateSpace,
+                                          pid: req.pid, appName: req.appName)
+        let toResolution = resolvePoint(x: tx, y: ty, captureId: req.captureId,
+                                        coordinateSpace: req.coordinateSpace,
+                                        pid: req.pid, appName: req.appName)
+        if let error = fromResolution.error ?? toResolution.error {
+            return ok(OkResponse(ok: false, error: error))
+        }
+        let fromPoint = fromResolution.point ?? CGPoint(x: fx, y: fy)
+        let toPoint = toResolution.point ?? CGPoint(x: tx, y: ty)
         InputSimulator.stopRequested = false
         InputSimulator.drag(fromX: fromPoint.x, fromY: fromPoint.y,
                             toX: toPoint.x, toY: toPoint.y)
@@ -359,35 +374,61 @@ func resolveElement(
 func resolvePoint(
     x: Double?,
     y: Double?,
+    captureId: String?,
     coordinateSpace: String?,
     pid: Int32?,
     appName: String?
-) -> CGPoint? {
+) -> (point: CGPoint?, error: String?) {
     guard let x = x, let y = y else {
-        return nil
+        return (nil, nil)
     }
 
     if coordinateSpace == "screenshot" {
-        guard let resolvedPid = resolvePid(pid: pid, appName: appName),
-              let screenshot = Screenshot.captureWindow(pid: resolvedPid, windowFrame: nil),
+        guard let resolvedPid = resolvePid(pid: pid, appName: appName) else {
+            return (nil, "screenshot coordinates require pid or app_name")
+        }
+
+        let screenshot: ScreenshotInfo?
+        if let captureId = captureId {
+            guard let latest = Screenshot.latestCapture(pid: resolvedPid) else {
+                return (nil, "No current screenshot capture for target app. Call get_app_state again and retry with the returned capture_id.")
+            }
+            guard latest.captureId == captureId else {
+                return (nil, "Stale screenshot capture_id. Call get_app_state again and retry with the current capture_id.")
+            }
+            screenshot = latest
+        } else {
+            screenshot = Screenshot.latestCapture(pid: resolvedPid)
+                ?? Screenshot.captureWindow(pid: resolvedPid, windowFrame: nil)
+        }
+
+        guard let screenshot = screenshot,
               let frame = screenshot.windowFrame,
               screenshot.scale > 0
         else {
-            return nil
+            return (nil, "No current screenshot capture for target app. Call get_app_state again.")
         }
-        return CGPoint(x: frame.x + x / screenshot.scale, y: frame.y + y / screenshot.scale)
+        if x < 0 || y < 0 ||
+            x >= Double(screenshot.pixelSize.width) ||
+            y >= Double(screenshot.pixelSize.height) {
+            return (
+                nil,
+                "screenshot coordinates are outside the latest capture bounds (\(screenshot.pixelSize.width)x\(screenshot.pixelSize.height)). Call get_app_state again and retry."
+            )
+        }
+        return (CGPoint(x: frame.x + x / screenshot.scale, y: frame.y + y / screenshot.scale), nil)
     }
 
     if coordinateSpace == "window" {
         guard let resolvedPid = resolvePid(pid: pid, appName: appName),
               let frame = AXTree.primaryWindowFrame(pid: resolvedPid)
         else {
-            return nil
+            return (nil, "window coordinates require pid/app_name with an accessible window")
         }
-        return CGPoint(x: frame.x + x, y: frame.y + y)
+        return (CGPoint(x: frame.x + x, y: frame.y + y), nil)
     }
 
-    return CGPoint(x: x, y: y)
+    return (CGPoint(x: x, y: y), nil)
 }
 
 func clickRepeated(x: Double, y: Double, button: String, clickCount: Int) {

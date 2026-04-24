@@ -80,6 +80,7 @@ struct PixelSize: Codable {
 }
 
 struct ScreenshotInfo: Codable {
+    let captureId: String
     let path: String
     let pixelSize: PixelSize
     let scale: Double
@@ -137,6 +138,7 @@ struct AppStateResponse: Codable {
     let accessibilityTree: [AccessibilityNode]
     let screenshotPath: String?
     let screenshot: ScreenshotInfo?
+    let screenshotCaptureId: String?
     let screenshotPixelSize: PixelSize?
     let screenshotScale: Double?
     let windowFrame: Frame?
@@ -152,6 +154,7 @@ struct ClickRequest: Codable {
     let appName: String?
     let x: Double?
     let y: Double?
+    let captureId: String?
     let coordinateSpace: String?
     let button: String?
     let mouseButton: String?
@@ -202,6 +205,7 @@ struct ScrollRequest: Codable {
     let appName: String?
     let direction: String?
     let amount: Double?
+    let captureId: String?
     let coordinateSpace: String?
 }
 
@@ -222,6 +226,7 @@ struct DragRequest: Codable {
     let toElement: Int?
     let pid: Int32?
     let appName: String?
+    let captureId: String?
     let coordinateSpace: String?
 }
 
