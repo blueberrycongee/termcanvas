@@ -175,13 +175,13 @@ func handleClick(_ req: ClickRequest) -> (Int, Data) {
     if let resolved = resolveElement(pid: req.pid, appName: req.appName,
                                      elementId: req.elementId, element: req.element) {
         let element = resolved.element
-        guard let center = AXTree.getElementCenter(element) else {
-            if button == "left" {
-                let result = AXTree.performAction(element, action: kAXPressAction as String)
-                if result == .success {
-                    return ok(OkResponse())
-                }
+        if button == "left" && clickCount == 1 {
+            let result = AXTree.performAction(element, action: kAXPressAction as String)
+            if result == .success {
+                return ok(OkResponse())
             }
+        }
+        guard let center = AXTree.getElementCenter(element) else {
             return ok(OkResponse(ok: false, error: "Cannot determine element position"))
         }
         AppLister.activate(pid: resolved.pid)
