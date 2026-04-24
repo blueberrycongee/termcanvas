@@ -706,7 +706,19 @@ async function main() {
         const result = await request("POST", "/api/computer-use/stop");
         if (jsonFlag) console.log(JSON.stringify(result, null, 2));
         else console.log("Computer Use stopped.");
-      } else if (command === "list-apps" || command === "get-app-state" || command === "click" || command === "type" || command === "press-key") {
+      } else if (
+        command === "list-apps" ||
+        command === "open-app" ||
+        command === "get-app-state" ||
+        command === "click" ||
+        command === "set-value" ||
+        command === "perform-secondary-action" ||
+        command === "type" ||
+        command === "type-text" ||
+        command === "press-key" ||
+        command === "scroll" ||
+        command === "drag"
+      ) {
         const stateFilePath = path.join(os.homedir(), ".termcanvas", "computer-use", "state.json");
         let cuState: { port: number; token: string };
         try {
@@ -715,8 +727,79 @@ async function main() {
           console.error("Computer Use helper is not running (no state file found).");
           process.exit(1);
         }
-        const helperRequest = (endpoint: string, body?: unknown) => {
-          return new Promise<any>((resolve, reject) => {
+        const flagValue = (name: string) => {
+          const idx = rest.indexOf(name);
+          return idx >= 0 ? rest[idx + 1] : undefined;
+        };
+        const firstFlagValue = (...names: string[]) => {
+          for (const name of names) {
+            const value = flagValue(name);
+            if (value !== undefined) return value;
+          }
+          return undefined;
+        };
+        const numberFlag = (...names: string[]) => {
+          const value = firstFlagValue(...names);
+          if (value === undefined) return undefined;
+          const parsed = Number(value);
+          if (!Number.isFinite(parsed)) {
+            console.error(`${names[0]} must be a number`);
+            process.exit(1);
+          }
+          return parsed;
+        };
+        const integerFlag = (...names: string[]) => {
+          const parsed = numberFlag(...names);
+          if (parsed === undefined) return undefined;
+          if (!Number.isInteger(parsed)) {
+            console.error(`${names[0]} must be an integer`);
+            process.exit(1);
+          }
+          return parsed;
+        };
+        const booleanFlag = (...names: string[]) => {
+          const value = firstFlagValue(...names);
+          if (value === undefined) return undefined;
+          const normalized = value.toLowerCase();
+          if (["1", "true", "yes"].includes(normalized)) return true;
+          if (["0", "false", "no"].includes(normalized)) return false;
+          console.error(`${names[0]} must be true or false`);
+          process.exit(1);
+        };
+        const requireFlag = (...names: string[]) => {
+          const value = firstFlagValue(...names);
+          if (!value) {
+            console.error(`${names[0]} is required`);
+            process.exit(1);
+          }
+          return value;
+        };
+        const addTarget = (body: Record<string, unknown>) => {
+          const appName = firstFlagValue("--app-name", "--app", "--bundle-id");
+          const pid = integerFlag("--pid");
+          if (appName !== undefined) body.app_name = appName;
+          if (pid !== undefined) body.pid = pid;
+        };
+        const addElement = (body: Record<string, unknown>) => {
+          const element = flagValue("--element");
+          const elementId = flagValue("--element-id");
+          if (element !== undefined) {
+            const parsed = Number(element);
+            if (Number.isInteger(parsed)) body.element = parsed;
+            else body.element_id = element;
+          }
+          if (elementId !== undefined) body.element_id = elementId;
+        };
+        const addCoordinates = (body: Record<string, unknown>) => {
+          const x = numberFlag("--x");
+          const y = numberFlag("--y");
+          const coordinateSpace = flagValue("--coordinate-space");
+          if (x !== undefined) body.x = x;
+          if (y !== undefined) body.y = y;
+          if (coordinateSpace !== undefined) body.coordinate_space = coordinateSpace;
+        };
+        const helperRequest = (endpoint: string, body?: unknown): Promise<unknown> => {
+          return new Promise((resolve, reject) => {
             const data = body ? JSON.stringify(body) : "{}";
             const req = http.request(
               {
@@ -748,43 +831,102 @@ async function main() {
         if (command === "list-apps") {
           const result = await helperRequest("/list_apps");
           console.log(JSON.stringify(result, null, 2));
+        } else if (command === "open-app") {
+          const body: Record<string, unknown> = {};
+          const bundleId = flagValue("--bundle-id");
+          const name = firstFlagValue("--name", "--app-name", "--app");
+          if (bundleId !== undefined) body.bundle_id = bundleId;
+          if (name !== undefined) body.name = name;
+          const result = await helperRequest("/open_app", body);
+          console.log(JSON.stringify(result, null, 2));
         } else if (command === "get-app-state") {
-          const pidIdx = rest.indexOf("--pid");
-          const pid = pidIdx >= 0 ? parseInt(rest[pidIdx + 1], 10) : undefined;
-          if (!pid) { console.error("--pid is required"); process.exit(1); }
-          const result = await helperRequest("/get_app_state", { pid });
+          const body: Record<string, unknown> = {
+            include_screenshot: booleanFlag("--include-screenshot") ?? true,
+          };
+          addTarget(body);
+          const maxDepth = integerFlag("--max-depth");
+          if (maxDepth !== undefined) body.max_depth = maxDepth;
+          if (body.pid === undefined && body.app_name === undefined) {
+            console.error("--app-name or --pid is required");
+            process.exit(1);
+          }
+          const result = await helperRequest("/get_app_state", body);
           console.log(JSON.stringify(result, null, 2));
         } else if (command === "click") {
-          const elemIdx = rest.indexOf("--element");
-          const pidIdx = rest.indexOf("--pid");
-          const xIdx = rest.indexOf("--x");
-          const yIdx = rest.indexOf("--y");
           const body: Record<string, unknown> = {};
-          if (elemIdx >= 0) {
-            body.element_id = rest[elemIdx + 1];
-            body.pid = pidIdx >= 0 ? parseInt(rest[pidIdx + 1], 10) : undefined;
-          } else if (xIdx >= 0 && yIdx >= 0) {
-            body.x = parseInt(rest[xIdx + 1], 10);
-            body.y = parseInt(rest[yIdx + 1], 10);
-            body.coordinate_space = "screen";
-          }
+          addTarget(body);
+          addElement(body);
+          addCoordinates(body);
+          const clickCount = integerFlag("--click-count");
+          const mouseButton = flagValue("--mouse-button");
+          if (clickCount !== undefined) body.click_count = clickCount;
+          if (mouseButton !== undefined) body.mouse_button = mouseButton;
           const result = await helperRequest("/click", body);
           console.log(JSON.stringify(result, null, 2));
+        } else if (command === "set-value") {
+          const body: Record<string, unknown> = { value: requireFlag("--value") };
+          addTarget(body);
+          addElement(body);
+          const result = await helperRequest("/set_value", body);
+          console.log(JSON.stringify(result, null, 2));
+        } else if (command === "perform-secondary-action") {
+          const body: Record<string, unknown> = { action: requireFlag("--action") };
+          addTarget(body);
+          addElement(body);
+          const result = await helperRequest("/perform_secondary_action", body);
+          console.log(JSON.stringify(result, null, 2));
         } else if (command === "type") {
-          const textIdx = rest.indexOf("--text");
-          const text = textIdx >= 0 ? rest[textIdx + 1] : undefined;
-          if (!text) { console.error("--text is required"); process.exit(1); }
-          const result = await helperRequest("/type_text", { text });
+          const result = await helperRequest("/type_text", { text: requireFlag("--text") });
+          console.log(JSON.stringify(result, null, 2));
+        } else if (command === "type-text") {
+          const result = await helperRequest("/type_text", { text: requireFlag("--text") });
           console.log(JSON.stringify(result, null, 2));
         } else if (command === "press-key") {
-          const keyIdx = rest.indexOf("--key");
-          const key = keyIdx >= 0 ? rest[keyIdx + 1] : undefined;
-          if (!key) { console.error("--key is required"); process.exit(1); }
-          const result = await helperRequest("/press_key", { key });
+          const result = await helperRequest("/press_key", { key: requireFlag("--key") });
+          console.log(JSON.stringify(result, null, 2));
+        } else if (command === "scroll") {
+          const body: Record<string, unknown> = {};
+          addTarget(body);
+          addElement(body);
+          addCoordinates(body);
+          const direction = flagValue("--direction");
+          const amount = numberFlag("--amount");
+          const dx = numberFlag("--dx");
+          const dy = numberFlag("--dy");
+          if (direction !== undefined) body.direction = direction;
+          if (amount !== undefined) body.amount = amount;
+          if (dx !== undefined) body.dx = dx;
+          if (dy !== undefined) body.dy = dy;
+          const result = await helperRequest("/scroll", body);
+          console.log(JSON.stringify(result, null, 2));
+        } else if (command === "drag") {
+          const body: Record<string, unknown> = {};
+          addTarget(body);
+          const startX = numberFlag("--start-x", "--from-x");
+          const startY = numberFlag("--start-y", "--from-y");
+          const endX = numberFlag("--end-x", "--to-x");
+          const endY = numberFlag("--end-y", "--to-y");
+          const fromElement = integerFlag("--from-element");
+          const toElement = integerFlag("--to-element");
+          const fromElementId = flagValue("--from-element-id");
+          const toElementId = flagValue("--to-element-id");
+          const coordinateSpace = flagValue("--coordinate-space");
+          if (startX !== undefined) body.start_x = startX;
+          if (startY !== undefined) body.start_y = startY;
+          if (endX !== undefined) body.end_x = endX;
+          if (endY !== undefined) body.end_y = endY;
+          if (fromElement !== undefined) body.from_element = fromElement;
+          if (toElement !== undefined) body.to_element = toElement;
+          if (fromElementId !== undefined) body.from_element_id = fromElementId;
+          if (toElementId !== undefined) body.to_element_id = toElementId;
+          if (coordinateSpace !== undefined) body.coordinate_space = coordinateSpace;
+          const result = await helperRequest("/drag", body);
           console.log(JSON.stringify(result, null, 2));
         }
       } else {
-        console.log("Usage: termcanvas computer-use <status|enable|disable|stop|list-apps|get-app-state|click|type|press-key> [args]");
+        console.log(
+          "Usage: termcanvas computer-use <status|enable|disable|stop|list-apps|open-app|get-app-state|click|set-value|perform-secondary-action|type|type-text|press-key|scroll|drag> [args]",
+        );
       }
     } else if (group === "state") {
       const state = await request("GET", "/state");
