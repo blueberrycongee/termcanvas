@@ -235,10 +235,6 @@ function TerminalNode({ data }: NodeProps<TerminalFlowNode>) {
           background: "var(--surface)",
           borderColor: "var(--border-hover)",
         }}
-        lineStyle={{
-          borderWidth: 1,
-          borderColor: "var(--border-hover)",
-        }}
         onResize={handleResize}
         onResizeEnd={handleResizeEnd}
       />
