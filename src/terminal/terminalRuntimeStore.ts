@@ -4,6 +4,7 @@ import type { Terminal as XtermTerminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { ImageAddon } from "@xterm/addon-image";
 import { SerializeAddon } from "@xterm/addon-serialize";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import {
   acquireWebGL,
   releaseWebGL,
@@ -1042,6 +1043,12 @@ function createTerminalRenderer(
   try {
     xterm.loadAddon(new ImageAddon());
   } catch {}
+
+  xterm.loadAddon(
+    new WebLinksAddon((_event, uri) => {
+      window.open(uri);
+    }),
+  );
 
   xterm.attachCustomKeyEventHandler((event) => {
     if (event.type === "keydown" && isRegisteredAppShortcutEvent(event)) {
