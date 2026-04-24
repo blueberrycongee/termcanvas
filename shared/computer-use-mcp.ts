@@ -11,6 +11,9 @@ type ComputerUseMcpEnvOptions = Pick<
   "stateFilePath" | "instructionsFilePath"
 >;
 
+const CODEX_COMPUTER_USE_MCP_SERVER_NAME = "computer-use";
+const CLAUDE_COMPUTER_USE_MCP_SERVER_NAME = "termcanvas-computer-use";
+
 export function isComputerUseMcpProvider(
   value: string,
 ): value is ComputerUseMcpProvider {
@@ -55,11 +58,11 @@ function tomlInlineTable(values: Record<string, string>): string {
 function getCodexMcpConfigArgs(options: ComputerUseMcpConfigOptions): string[] {
   return [
     "-c",
-    'mcp_servers.computer-use.command="node"',
+    `mcp_servers.${CODEX_COMPUTER_USE_MCP_SERVER_NAME}.command="node"`,
     "-c",
-    `mcp_servers.computer-use.args=${JSON.stringify([options.mcpServerPath])}`,
+    `mcp_servers.${CODEX_COMPUTER_USE_MCP_SERVER_NAME}.args=${JSON.stringify([options.mcpServerPath])}`,
     "-c",
-    `mcp_servers.computer-use.env=${tomlInlineTable(buildComputerUseMcpServerEnv(options))}`,
+    `mcp_servers.${CODEX_COMPUTER_USE_MCP_SERVER_NAME}.env=${tomlInlineTable(buildComputerUseMcpServerEnv(options))}`,
   ];
 }
 
@@ -68,7 +71,8 @@ function getClaudeMcpConfigArgs(options: ComputerUseMcpConfigOptions): string[] 
     "--mcp-config",
     JSON.stringify({
       mcpServers: {
-        "computer-use": buildComputerUseMcpServerConfig(options),
+        [CLAUDE_COMPUTER_USE_MCP_SERVER_NAME]:
+          buildComputerUseMcpServerConfig(options),
       },
     }),
   ];

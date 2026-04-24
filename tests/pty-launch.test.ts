@@ -403,7 +403,7 @@ test("buildLaunchSpec injects Computer Use MCP config into Claude argv", async (
   assert.equal(launch.args[0], "--mcp-config");
   assert.deepEqual(JSON.parse(launch.args[1]), {
     mcpServers: {
-      "computer-use": {
+      "termcanvas-computer-use": {
         command: "node",
         args: [mcpServer],
         env: {
