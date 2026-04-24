@@ -131,7 +131,7 @@ enum InputSimulator {
 
         if let scrollEvent = CGEvent(
             scrollWheelEvent2Source: nil, units: .pixel,
-            wheelCount: 2, wheel1: dy, wheel2: dx
+            wheelCount: 2, wheel1: dy, wheel2: dx, wheel3: 0
         ) {
             scrollEvent.post(tap: .cghidEventTap)
         }

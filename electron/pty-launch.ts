@@ -412,6 +412,48 @@ const defaultDeps: LaunchResolverDeps = {
   },
 };
 
+function resolveMcpServerPath(
+  existsSync: (file: string) => boolean,
+): string | null {
+  const devPath = path.join(
+    process.cwd(),
+    "mcp",
+    "computer-use-server",
+    "dist",
+    "index.js",
+  );
+  if (existsSync(devPath)) return devPath;
+
+  const prodPath = path.join(
+    process.resourcesPath,
+    "mcp-computer-use-server",
+    "index.js",
+  );
+  if (existsSync(prodPath)) return prodPath;
+
+  return null;
+}
+
+function resolveInstructionsPath(
+  existsSync: (file: string) => boolean,
+): string | null {
+  const devPath = path.join(
+    process.cwd(),
+    "skills",
+    "computer-use-instructions.md",
+  );
+  if (existsSync(devPath)) return devPath;
+
+  const prodPath = path.join(
+    process.resourcesPath,
+    "skills",
+    "computer-use-instructions.md",
+  );
+  if (existsSync(prodPath)) return prodPath;
+
+  return null;
+}
+
 export class PtyLaunchError extends Error {
   readonly code: string;
   readonly command: string;
@@ -471,6 +513,40 @@ export async function buildLaunchSpec(
         if (cuState.token) shellEnv.TERMCANVAS_CU_TOKEN = cuState.token;
       } catch {
         // State file unreadable — CU env vars omitted
+      }
+
+      if (
+        options.terminalType === "claude" ||
+        options.terminalType === "codex"
+      ) {
+        const mcpServerPath = resolveMcpServerPath(deps.existsSync);
+        if (
+          mcpServerPath &&
+          shellEnv.TERMCANVAS_CU_PORT &&
+          shellEnv.TERMCANVAS_CU_TOKEN
+        ) {
+          const mcpConfig = {
+            "termcanvas-computer-use": {
+              command: "node",
+              args: [mcpServerPath],
+              env: {
+                TERMCANVAS_CU_PORT: shellEnv.TERMCANVAS_CU_PORT,
+                TERMCANVAS_CU_TOKEN: shellEnv.TERMCANVAS_CU_TOKEN,
+              },
+            },
+          };
+          const mcpConfigJson = JSON.stringify(mcpConfig);
+          if (options.terminalType === "claude") {
+            shellEnv.CLAUDE_MCP_SERVERS = mcpConfigJson;
+          } else {
+            shellEnv.CODEX_MCP_SERVERS = mcpConfigJson;
+          }
+        }
+      } else {
+        const instructionsPath = resolveInstructionsPath(deps.existsSync);
+        if (instructionsPath) {
+          shellEnv.TERMCANVAS_COMPUTER_USE_INSTRUCTIONS = instructionsPath;
+        }
       }
     }
   }

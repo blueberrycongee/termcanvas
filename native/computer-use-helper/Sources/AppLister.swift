@@ -53,7 +53,7 @@ enum AppLister {
         var resultError: Error?
 
         let config = NSWorkspace.OpenConfiguration()
-        config.activatesApplication = true
+        config.activates = true
 
         NSWorkspace.shared.openApplication(at: url, configuration: config) { app, error in
             resultApp = app
