@@ -33,6 +33,7 @@ import { CanvasCardLayer } from "./CanvasCardLayer";
 import { DrawingLayer } from "./DrawingLayer";
 import { PetOverlay } from "../pet/PetOverlay";
 import { useBoxSelect } from "../hooks/useBoxSelect";
+import { useTrackpadSwipeFocus } from "./trackpadSwipeFocus";
 import {
   publishTerminalGeometry,
   unpublishTerminalGeometry,
@@ -298,6 +299,8 @@ function XyFlowCanvasInner() {
   const sidebarDragging = useSidebarDragStore((s) => s.active);
   const isDrawing = drawingEnabled && drawingTool !== "select";
   const previousAnimatingRef = useRef(isAnimating);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
+  useTrackpadSwipeFocus(canvasContainerRef);
 
   const reactFlow = useReactFlow();
   const [contextMenu, setContextMenu] = useState<{
@@ -543,6 +546,7 @@ function XyFlowCanvasInner() {
 
   return (
     <div
+      ref={canvasContainerRef}
       className={`fixed top-0 right-0 bottom-0 overflow-hidden canvas-bg ${isDrawing ? "cursor-crosshair" : ""}`}
       style={{
         left: leftOffset,

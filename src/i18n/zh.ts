@@ -324,6 +324,9 @@ export const zh = {
   completion_glow_toggle: "完成终端边缘提示",
   completion_glow_toggle_desc:
     "实验性功能。当左右两侧仍有已结束但未查看的终端时，高亮对应屏幕边缘",
+  trackpad_swipe_focus_toggle: "触控板滑动切换聚焦",
+  trackpad_swipe_focus_toggle_desc:
+    "实验性功能。在画布上使用双指横向滑动，在聚焦终端和全景视图之间切换",
   summary_toggle: "终端自动摘要",
   summary_toggle_desc:
     "实验性功能。为 CLI 终端自动生成一行 AI 摘要，可能增加 token 用量",

@@ -504,6 +504,8 @@ export function SettingsModal({ onClose }: Props) {
     setPetEnabled,
     completionGlowEnabled,
     setCompletionGlowEnabled,
+    trackpadSwipeFocusEnabled,
+    setTrackpadSwipeFocusEnabled,
     summaryCli,
     setSummaryCli,
     minimumContrastRatio,
@@ -1209,6 +1211,33 @@ export function SettingsModal({ onClose }: Props) {
                   </button>
                 </div>
               </div>
+
+              {isMac && (
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[13px] text-[var(--text-secondary)]">
+                      {t.trackpad_swipe_focus_toggle}
+                    </span>
+                    <span className="text-[11px] text-[var(--text-muted)]">
+                      {t.trackpad_swipe_focus_toggle_desc}
+                    </span>
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      className={trackpadSwipeFocusEnabled ? activeBtn : inactiveBtn}
+                      onClick={() => setTrackpadSwipeFocusEnabled(true)}
+                    >
+                      {t.setting_on}
+                    </button>
+                    <button
+                      className={!trackpadSwipeFocusEnabled ? activeBtn : inactiveBtn}
+                      onClick={() => setTrackpadSwipeFocusEnabled(false)}
+                    >
+                      {t.setting_off}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

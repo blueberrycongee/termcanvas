@@ -1,8 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useViewportFocusStore } from "../stores/viewportFocusStore";
 import { deleteSelectedSceneItems } from "../actions/sceneDeleteActions";
 import {
-  activateTerminalInScene,
   activateWorktreeInScene,
   focusWorktreeInScene,
 } from "../actions/sceneSelectionActions";
@@ -38,6 +37,7 @@ import { snapshotStateWithRefresh } from "../snapshotState";
 import { updateWindowTitle } from "../titleHelper";
 import { panToTerminal } from "../utils/panToTerminal";
 import { panToWorktree } from "../utils/panToWorktree";
+import { toggleClearFocus } from "../canvas/toggleClearFocus";
 import { recordRenderDiagnostic } from "../terminal/renderDiagnostics";
 import {
   getCanvasRightInset,
@@ -249,16 +249,9 @@ async function handleAddProject(t: ReturnType<typeof useT>) {
   useCanvasStore.getState().animateTo(targetX, targetY, scale);
 }
 
-interface TerminalRef {
-  projectId: string;
-  worktreeId: string;
-  terminalId: string;
-}
-
 export function useKeyboardShortcuts() {
   const shortcuts = useShortcutStore((s) => s.shortcuts);
   const t = useT();
-  const lastFocusedRef = useRef<TerminalRef | null>(null);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -319,55 +312,7 @@ export function useKeyboardShortcuts() {
 
       if (matchesShortcut(e, shortcuts.clearFocus)) {
         consumeShortcut();
-        const list = getAllTerminals();
-        const focusedIdx = getFocusedTerminalIndex(list);
-
-        if (focusedIdx !== -1) {
-          const focused = list[focusedIdx];
-          lastFocusedRef.current = {
-            projectId: focused.projectId,
-            worktreeId: focused.worktreeId,
-            terminalId: focused.terminalId,
-          };
-          if (getZoomedOutTerminalId() === focused.terminalId) {
-            zoomToTerminal(focused.terminalId);
-            setZoomedOutTerminalId(null);
-          } else {
-            zoomToFitAll();
-            setZoomedOutTerminalId(focused.terminalId);
-          }
-        } else if (lastFocusedRef.current) {
-          // Not focused, has history → restore last focused terminal
-          const restored = list.find(
-            (item) => item.terminalId === lastFocusedRef.current?.terminalId,
-          );
-          if (restored) {
-            activateTerminalInScene(
-              restored.projectId,
-              restored.worktreeId,
-              restored.terminalId,
-            );
-            zoomToTerminal(restored.terminalId);
-            setZoomedOutTerminalId(null);
-          } else {
-            lastFocusedRef.current = null;
-            setZoomedOutTerminalId(null);
-          }
-        } else if (list.length > 0) {
-          const first = list[0];
-          lastFocusedRef.current = {
-            projectId: first.projectId,
-            worktreeId: first.worktreeId,
-            terminalId: first.terminalId,
-          };
-          activateTerminalInScene(
-            first.projectId,
-            first.worktreeId,
-            first.terminalId,
-          );
-          zoomToTerminal(first.terminalId);
-          setZoomedOutTerminalId(null);
-        }
+        toggleClearFocus();
         return;
       }
 

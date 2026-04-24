@@ -16,6 +16,8 @@ interface ViewportFocusStore {
   setZoomedOutTerminalId: (terminalId: string | null) => void;
   fitAllScale: number | null;
   setFitAllScale: (scale: number) => void;
+  lastFocusedTerminalId: string | null;
+  setLastFocusedTerminalId: (terminalId: string | null) => void;
 }
 
 export const useViewportFocusStore = create<ViewportFocusStore>((set) => ({
@@ -24,4 +26,7 @@ export const useViewportFocusStore = create<ViewportFocusStore>((set) => ({
     set({ zoomedOutTerminalId: terminalId }),
   fitAllScale: null,
   setFitAllScale: (scale) => set({ fitAllScale: scale }),
+  lastFocusedTerminalId: null,
+  setLastFocusedTerminalId: (terminalId) =>
+    set({ lastFocusedTerminalId: terminalId }),
 }));

@@ -32,6 +32,7 @@ interface PreferencesStore {
   globalSearchEnabled: boolean;
   petEnabled: boolean;
   completionGlowEnabled: boolean;
+  trackpadSwipeFocusEnabled: boolean;
   summaryCli: "claude" | "codex";
   minimumContrastRatio: number;
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
@@ -60,6 +61,7 @@ interface PreferencesStore {
   setGlobalSearchEnabled: (value: boolean) => void;
   setPetEnabled: (value: boolean) => void;
   setCompletionGlowEnabled: (value: boolean) => void;
+  setTrackpadSwipeFocusEnabled: (value: boolean) => void;
   setSummaryCli: (value: "claude" | "codex") => void;
   setCli: (type: TerminalType, config: CliCommandConfig | null) => void;
   setAgentConfig: (config: AgentProviderConfig) => void;
@@ -83,6 +85,7 @@ interface SavedPrefs {
   globalSearchEnabled: boolean;
   petEnabled: boolean;
   completionGlowEnabled: boolean;
+  trackpadSwipeFocusEnabled: boolean;
   summaryCli: "claude" | "codex";
   minimumContrastRatio: number;
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
@@ -192,6 +195,9 @@ function loadPreferences(): SavedPrefs {
       let completionGlowEnabled = false;
       if (parsed.completionGlowEnabled === true) completionGlowEnabled = true;
 
+      let trackpadSwipeFocusEnabled = false;
+      if (parsed.trackpadSwipeFocusEnabled === true) trackpadSwipeFocusEnabled = true;
+
       let summaryCli: "claude" | "codex" = "claude";
       if (parsed.summaryCli === "codex") summaryCli = "codex";
 
@@ -225,6 +231,7 @@ function loadPreferences(): SavedPrefs {
         globalSearchEnabled,
         petEnabled,
         completionGlowEnabled,
+        trackpadSwipeFocusEnabled,
         summaryCli,
         minimumContrastRatio,
         cliCommands,
@@ -246,6 +253,7 @@ function loadPreferences(): SavedPrefs {
     globalSearchEnabled: false,
     petEnabled: false,
     completionGlowEnabled: false,
+    trackpadSwipeFocusEnabled: false,
     summaryCli: "claude",
     minimumContrastRatio: DEFAULT_MIN_CONTRAST,
     cliCommands: {},
@@ -347,6 +355,7 @@ function getSaveState(state: PreferencesStore): SavedPrefs {
     globalSearchEnabled: state.globalSearchEnabled,
     petEnabled: state.petEnabled,
     completionGlowEnabled: state.completionGlowEnabled,
+    trackpadSwipeFocusEnabled: state.trackpadSwipeFocusEnabled,
     summaryCli: state.summaryCli,
     minimumContrastRatio: state.minimumContrastRatio,
     cliCommands: state.cliCommands,
@@ -369,6 +378,7 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   globalSearchEnabled: initialPrefs.globalSearchEnabled,
   petEnabled: initialPrefs.petEnabled,
   completionGlowEnabled: initialPrefs.completionGlowEnabled,
+  trackpadSwipeFocusEnabled: initialPrefs.trackpadSwipeFocusEnabled,
   summaryCli: initialPrefs.summaryCli,
   minimumContrastRatio: initialPrefs.minimumContrastRatio,
   cliCommands: initialPrefs.cliCommands,
@@ -426,6 +436,10 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   setCompletionGlowEnabled: (value) => {
     set({ completionGlowEnabled: value });
     savePreferences(getSaveState({ ...get(), completionGlowEnabled: value }));
+  },
+  setTrackpadSwipeFocusEnabled: (value) => {
+    set({ trackpadSwipeFocusEnabled: value });
+    savePreferences(getSaveState({ ...get(), trackpadSwipeFocusEnabled: value }));
   },
   setSummaryCli: (value) => {
     set({ summaryCli: value });
