@@ -134,8 +134,9 @@ test("computer use MCP status includes usage guidance", async () => {
   assert.equal(status.healthy, true);
   assert.equal(status.usage_guidance.setup_tool, "setup");
   assert.equal(status.usage_guidance.instructions_tool, "get_instructions");
-  assert.deepEqual(status.usage_guidance.protocol.slice(0, 2), [
+  assert.deepEqual(status.usage_guidance.protocol.slice(0, 3), [
     "Use status first. If the helper is not healthy or permissions are missing, call setup.",
+    "If permissions remain false after the user says they already allowed them, guide the user to remove stale TermCanvas and computer-use-helper entries from both macOS permission panes, then add /Applications/TermCanvas.app and /Applications/TermCanvas.app/Contents/Resources/computer-use-helper again.",
     "Use list_apps, open_app, then get_app_state before interacting with a local Mac app.",
   ]);
 });
@@ -157,8 +158,16 @@ test("computer use MCP setup starts Computer Use through TermCanvas", async () =
   assert.equal(setup.ok, true);
   assert.deepEqual(setup.next_steps.slice(0, 2), [
     "TermCanvas opened the macOS permission flow if any required permission is missing.",
-    "If macOS shows permission prompts, the user must approve Accessibility and Screen Recording.",
+    "If macOS shows permission prompts or System Settings panes, the user must approve Accessibility and Screen Recording / Screen & System Audio Recording.",
   ]);
+  assert.match(
+    setup.next_steps.join("\n"),
+    /remove stale TermCanvas and computer-use-helper entries/,
+  );
+  assert.match(
+    setup.next_steps.join("\n"),
+    /\/Applications\/TermCanvas\.app\/Contents\/Resources\/computer-use-helper/,
+  );
 });
 
 test("computer use MCP tool descriptions teach the AX-first protocol", () => {

@@ -102,9 +102,10 @@ async function handleSetup(
     status,
     next_steps: [
       "TermCanvas opened the macOS permission flow if any required permission is missing.",
-      "If macOS shows permission prompts, the user must approve Accessibility and Screen Recording.",
-      "After approval, call status and then get_app_state for the target app before acting.",
-      "If either permission is still false, tell the user to finish the permission steps in System Settings.",
+      "If macOS shows permission prompts or System Settings panes, the user must approve Accessibility and Screen Recording / Screen & System Audio Recording.",
+      "If status remains false after the user says they already allowed permissions, ask them to remove stale TermCanvas and computer-use-helper entries from both permission panes.",
+      "Then ask the user to add and enable /Applications/TermCanvas.app and /Applications/TermCanvas.app/Contents/Resources/computer-use-helper.",
+      "After approval or repair, call status and then get_app_state for the target app before acting.",
     ],
   });
 }

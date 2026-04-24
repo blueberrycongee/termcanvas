@@ -15,10 +15,18 @@ TermCanvas provides Computer Use through MCP tools. Use it when the user asks yo
 9. After every action, call `get_app_state` again and verify the expected UI state changed. Do not say the task is complete until you observe the result.
 10. Ask the user before destructive or privacy-sensitive actions, purchases, sending messages, sharing data, changing security settings, or anything that could have real-world side effects beyond ordinary navigation/playback.
 
+## macOS Permission Repair
+
+- Treat `status` as the source of truth. Do not assume System Settings is correct if `status` still reports `accessibility_granted=false` or `screen_recording_granted=false`.
+- If `setup` opened System Settings and the user says they already allowed permissions, tell them to remove stale entries before adding them again. Do not keep retrying app-control tools while either permission is false.
+- In both Accessibility and Screen Recording / Screen & System Audio Recording, ask the user to remove existing `TermCanvas` and `computer-use-helper` entries if present.
+- Then ask the user to add and enable `/Applications/TermCanvas.app` and `/Applications/TermCanvas.app/Contents/Resources/computer-use-helper`.
+- After the user finishes, call `status` again. Continue only when the helper is healthy and both permissions are true.
+
 ## Tool Map
 
 - `status`: check helper health and macOS permissions.
-- `setup`: start Computer Use through TermCanvas, request required macOS permissions, and open System Settings when user approval is needed.
+- `setup`: start Computer Use through TermCanvas, request required macOS permissions, and open System Settings when user approval is needed. If permissions remain false after approval, follow the macOS permission repair flow above.
 - `get_instructions`: read this operating protocol from the MCP server.
 - `list_apps`: list running Mac apps with names, bundle IDs, PIDs, and frontmost state.
 - `open_app`: launch or activate an app.

@@ -14,6 +14,7 @@ export const COMPUTER_USE_STATUS_GUIDANCE = {
   instructions_resource: COMPUTER_USE_INSTRUCTIONS_URI,
   protocol: [
     "Use status first. If the helper is not healthy or permissions are missing, call setup.",
+    "If permissions remain false after the user says they already allowed them, guide the user to remove stale TermCanvas and computer-use-helper entries from both macOS permission panes, then add /Applications/TermCanvas.app and /Applications/TermCanvas.app/Contents/Resources/computer-use-helper again.",
     "Use list_apps, open_app, then get_app_state before interacting with a local Mac app.",
     "Prefer AX element indexes from get_app_state for click, set_value, scroll, drag, and perform_secondary_action.",
     "Use keyboard input when AX exposes focusable fields but not direct actions.",
@@ -27,10 +28,11 @@ const FALLBACK_INSTRUCTIONS = `# TermCanvas Computer Use
 Use this MCP server for local Mac desktop automation. Follow the AX-first protocol:
 
 1. Call status first. If the helper is not healthy or permissions are missing, call setup to start Computer Use and open the macOS permission flow.
-2. Call list_apps, open_app, then get_app_state before acting.
-3. Prefer indexed Accessibility elements from get_app_state.
-4. Use screenshots for observation and use screenshot coordinates only as the last resort.
-5. After every action, call get_app_state again and verify the result before reporting success.
+2. If permissions remain false after the user says they already allowed them, guide the user to remove stale TermCanvas and computer-use-helper entries from both macOS permission panes, then add /Applications/TermCanvas.app and /Applications/TermCanvas.app/Contents/Resources/computer-use-helper again.
+3. Call list_apps, open_app, then get_app_state before acting.
+4. Prefer indexed Accessibility elements from get_app_state.
+5. Use screenshots for observation and use screenshot coordinates only as the last resort.
+6. After every action, call get_app_state again and verify the result before reporting success.
 `;
 
 function moduleDir(): string {
