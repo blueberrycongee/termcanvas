@@ -34,6 +34,8 @@ asarUnpack:
 
 mac:
   identity: "-"
+  signIgnore:
+    - ".*\\/computer-use-helper$"
   category: public.app-category.developer-tools
   icon: build/icon.icns
   target:

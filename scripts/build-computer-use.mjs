@@ -52,4 +52,14 @@ if (process.platform === "darwin") {
     path.join(binPath, "computer-use-helper"),
     path.join(outputDir, "computer-use-helper"),
   );
+  run("codesign", [
+    "--force",
+    "--sign",
+    "-",
+    "--identifier",
+    "com.blueberrycongee.termcanvas.computer-use-helper",
+    "--options",
+    "runtime",
+    path.join(outputDir, "computer-use-helper"),
+  ]);
 }
