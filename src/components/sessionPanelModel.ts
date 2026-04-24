@@ -104,11 +104,15 @@ export function extractIntent(
   if (!raw) return null;
   let text = raw.trim();
   text = text.replace(/```[\s\S]*?```/g, "").trim();
-  text = text.replace(/\.?\/[\w./-]+/g, "").trim();
+  // Only strip things that look like real file paths (must have 2+ segments
+  // and start with . / or a known directory prefix like src/ node_modules/)
+  text = text.replace(/(?:\.\.?\/|(?:src|lib|dist|node_modules|packages)\/)\S+/g, "").trim();
   text = text
     .replace(/^(帮我|请你?|麻烦|could you|please)\s*/i, "")
     .trim();
-  const cut = text.search(/[,，.。;；!！?？\n]/);
+  // Cut at sentence-ending punctuation, Chinese comma, or newline.
+  // English comma is excluded (often enumeration, not a sentence break).
+  const cut = text.search(/[，.。;；!！?？\n]/);
   if (cut > 0) text = text.slice(0, cut).trim();
   if (text.length > maxLen) {
     text = text.slice(0, maxLen - 1).trimEnd() + "…";
@@ -142,7 +146,10 @@ function resolveTerminalTitle(
     return provider.charAt(0).toUpperCase() + provider.slice(1);
   }
 
-  return terminal.title || "Terminal";
+  if (terminal.title) {
+    return terminal.title.charAt(0).toUpperCase() + terminal.title.slice(1);
+  }
+  return "Terminal";
 }
 
 function deriveStateFromTelemetry(
