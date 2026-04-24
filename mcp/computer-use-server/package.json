@@ -1,0 +1,20 @@
+{
+  "name": "termcanvas-computer-use-mcp",
+  "version": "0.1.0",
+  "description": "MCP server exposing TermCanvas computer use tools to AI agent CLIs",
+  "type": "module",
+  "bin": {
+    "termcanvas-computer-use-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.3"
+  }
+}

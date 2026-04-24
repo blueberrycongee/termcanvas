@@ -938,6 +938,47 @@ contextBridge.exposeInMainWorld("termcanvas", {
     loadReplay: (filePath: string) =>
       ipcRenderer.invoke("sessions:load-replay", filePath),
   },
+  computerUse: {
+    status: () =>
+      ipcRenderer.invoke("computer-use:status") as Promise<{
+        enabled: boolean;
+        helperRunning: boolean;
+        accessibilityGranted: boolean;
+        screenRecordingGranted: boolean;
+      }>,
+    enable: () => ipcRenderer.invoke("computer-use:enable") as Promise<void>,
+    disable: () => ipcRenderer.invoke("computer-use:disable") as Promise<void>,
+    stop: () => ipcRenderer.invoke("computer-use:stop") as Promise<void>,
+    openPermissions: () =>
+      ipcRenderer.invoke("computer-use:open-permissions") as Promise<void>,
+    onStateChanged: (
+      callback: (state: {
+        enabled: boolean;
+        helperRunning: boolean;
+        helperPid: number | null;
+        port: number | null;
+        accessibilityGranted: boolean | null;
+        screenRecordingGranted: boolean | null;
+        error: string | null;
+      }) => void,
+    ) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        state: {
+          enabled: boolean;
+          helperRunning: boolean;
+          helperPid: number | null;
+          port: number | null;
+          accessibilityGranted: boolean | null;
+          screenRecordingGranted: boolean | null;
+          error: string | null;
+        },
+      ) => callback(state);
+      ipcRenderer.on("computer-use:state-changed", listener);
+      return () =>
+        ipcRenderer.removeListener("computer-use:state-changed", listener);
+    },
+  },
   menu: {
     onOpenFolder: (callback: (dirPath: string) => void) => {
       const listener = (_e: Electron.IpcRendererEvent, dirPath: string) =>

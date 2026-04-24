@@ -1,5 +1,6 @@
 import { execFile } from "child_process";
 import fs from "fs";
+import os from "os";
 import path from "path";
 import {
   getTermCanvasDataDir,
@@ -454,6 +455,22 @@ export async function buildLaunchSpec(
         delete shellEnv[key];
       } else {
         shellEnv[key] = value;
+      }
+    }
+  }
+
+  const agentTypes = new Set(["claude", "codex", "kimi", "gemini", "opencode", "wuu"]);
+  if (options.terminalType && agentTypes.has(options.terminalType)) {
+    const cuStateFile = path.join(os.homedir(), ".termcanvas", "computer-use", "state.json");
+    if (deps.existsSync(cuStateFile)) {
+      shellEnv.TERMCANVAS_COMPUTER_USE_ENABLED = "1";
+      shellEnv.TERMCANVAS_COMPUTER_USE_STATE_FILE = cuStateFile;
+      try {
+        const cuState = JSON.parse(fs.readFileSync(cuStateFile, "utf-8"));
+        if (cuState.port) shellEnv.TERMCANVAS_CU_PORT = String(cuState.port);
+        if (cuState.token) shellEnv.TERMCANVAS_CU_TOKEN = cuState.token;
+      } catch {
+        // State file unreadable — CU env vars omitted
       }
     }
   }

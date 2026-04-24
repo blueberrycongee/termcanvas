@@ -6,6 +6,7 @@ import type { PtyManager } from "./pty-manager";
 import type { ProjectScanner } from "./project-scanner";
 import { getApiDiff } from "./git-diff";
 import type { TelemetryService } from "./telemetry-service";
+import type { ComputerUseManager } from "./computer-use-manager";
 import { buildGitWorktreeRemoveArgs } from "../hydra/src/cleanup";
 import {
   buildGitWorktreeAddArgs,
@@ -17,6 +18,7 @@ interface ApiServerDeps {
   ptyManager: PtyManager;
   projectScanner: ProjectScanner;
   telemetryService: TelemetryService;
+  computerUseManager?: ComputerUseManager;
 }
 
 export class ApiServer {
@@ -162,6 +164,19 @@ export class ApiServer {
 
     if (method === "GET" && pathname === "/state") {
       return this.getState();
+    }
+
+    if (method === "GET" && pathname === "/api/computer-use/status") {
+      return this.computerUseStatus();
+    }
+    if (method === "POST" && pathname === "/api/computer-use/enable") {
+      return this.computerUseEnable();
+    }
+    if (method === "POST" && pathname === "/api/computer-use/disable") {
+      return this.computerUseDisable();
+    }
+    if (method === "POST" && pathname === "/api/computer-use/stop") {
+      return this.computerUseStop();
     }
 
     throw Object.assign(new Error("Not found"), { status: 404 });
@@ -545,5 +560,32 @@ export class ApiServer {
 
   private async getState() {
     return this.execRenderer(`window.__tcApi.getProjects()`);
+  }
+
+  private async computerUseStatus() {
+    const mgr = this.deps.computerUseManager;
+    if (!mgr) throw Object.assign(new Error("Computer Use not available"), { status: 501 });
+    return mgr.getStatus();
+  }
+
+  private async computerUseEnable() {
+    const mgr = this.deps.computerUseManager;
+    if (!mgr) throw Object.assign(new Error("Computer Use not available"), { status: 501 });
+    await mgr.enable();
+    return { ok: true };
+  }
+
+  private async computerUseDisable() {
+    const mgr = this.deps.computerUseManager;
+    if (!mgr) throw Object.assign(new Error("Computer Use not available"), { status: 501 });
+    await mgr.disable();
+    return { ok: true };
+  }
+
+  private async computerUseStop() {
+    const mgr = this.deps.computerUseManager;
+    if (!mgr) throw Object.assign(new Error("Computer Use not available"), { status: 501 });
+    await mgr.stop();
+    return { ok: true };
   }
 }

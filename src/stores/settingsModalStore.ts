@@ -5,7 +5,8 @@ type SettingsTab =
   | "appearance"
   | "features"
   | "agent"
-  | "shortcuts";
+  | "shortcuts"
+  | "computer-use";
 
 interface SettingsModalStore {
   open: boolean;

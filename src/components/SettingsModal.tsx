@@ -16,6 +16,7 @@ import { FONT_REGISTRY } from "../terminal/fontRegistry";
 import { loadFont } from "../terminal/fontLoader";
 import { useNotificationStore } from "../stores/notificationStore";
 import { useUpdaterStore } from "../stores/updaterStore";
+import { useComputerUseStore } from "../stores/computerUseStore";
 
 const platform = window.termcanvas?.app.platform ?? "darwin";
 const isMac = platform === "darwin";
@@ -319,6 +320,165 @@ function ProviderDropdown({ value, onChange }: { value: string; onChange: (id: s
   );
 }
 
+function ComputerUseTabContent() {
+  const t = useT();
+  const {
+    enabled,
+    helperRunning,
+    accessibilityGranted,
+    screenRecordingGranted,
+    error,
+    loading,
+    fetchStatus,
+    enable: cuEnable,
+    disable: cuDisable,
+    stop: cuStop,
+    openPermissions,
+  } = useComputerUseStore();
+
+  useEffect(() => {
+    fetchStatus();
+  }, []);
+
+  useEffect(() => {
+    if (!window.termcanvas?.computerUse?.onStateChanged) return;
+    const unsub = window.termcanvas.computerUse.onStateChanged((state) => {
+      useComputerUseStore.setState({
+        enabled: state.enabled,
+        helperRunning: state.helperRunning,
+        accessibilityGranted: state.accessibilityGranted,
+        screenRecordingGranted: state.screenRecordingGranted,
+        error: state.error,
+        loading: false,
+      });
+    });
+    return unsub;
+  }, []);
+
+  const toggleBtn =
+    "inline-flex min-w-[56px] justify-center px-3 py-1.5 rounded-md text-[13px] transition-colors duration-150";
+  const activeBtn = `${toggleBtn} bg-[var(--border)] text-[var(--text-primary)]`;
+  const inactiveBtn = `${toggleBtn} text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]`;
+
+  const statusDot = (granted: boolean | null) => {
+    if (granted === null) return "bg-[var(--text-muted)]";
+    return granted ? "bg-[var(--green,#4ade80)]" : "bg-[var(--amber,#fbbf24)]";
+  };
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[13px] text-[var(--text-secondary)]">
+            {t.computer_use_enable_label}
+          </span>
+          <span className="text-[11px] text-[var(--text-muted)]">
+            {t.computer_use_enable_desc}
+          </span>
+        </div>
+        <div className="flex gap-1">
+          <button
+            className={enabled ? activeBtn : inactiveBtn}
+            disabled={loading || enabled}
+            onClick={() => void cuEnable()}
+          >
+            {t.setting_on}
+          </button>
+          <button
+            className={!enabled ? activeBtn : inactiveBtn}
+            disabled={loading || !enabled}
+            onClick={() => void cuDisable()}
+          >
+            {t.setting_off}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <span className="text-[13px] text-[var(--text-secondary)]">
+          {t.computer_use_helper_status}
+        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-flex h-2 w-2 rounded-full ${
+              error
+                ? "bg-[var(--red,#f87171)]"
+                : helperRunning
+                  ? "bg-[var(--green,#4ade80)]"
+                  : "bg-[var(--text-muted)]"
+            }`}
+          />
+          <span className="text-[13px] text-[var(--text-primary)]">
+            {error
+              ? t.computer_use_error
+              : helperRunning
+                ? t.computer_use_running
+                : t.computer_use_stopped}
+          </span>
+        </div>
+      </div>
+
+      {error && (
+        <div className="rounded-md bg-[var(--red,#f87171)]/10 px-3 py-2 text-[12px] text-[var(--red,#f87171)]">
+          {error}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <span className="text-[13px] text-[var(--text-secondary)]">
+          {t.computer_use_accessibility}
+        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-flex h-2 w-2 rounded-full ${statusDot(accessibilityGranted)}`}
+          />
+          <span className="text-[13px] text-[var(--text-primary)]">
+            {accessibilityGranted
+              ? t.computer_use_granted
+              : t.computer_use_not_granted}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <span className="text-[13px] text-[var(--text-secondary)]">
+          {t.computer_use_screen_recording}
+        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-flex h-2 w-2 rounded-full ${statusDot(screenRecordingGranted)}`}
+          />
+          <span className="text-[13px] text-[var(--text-primary)]">
+            {screenRecordingGranted
+              ? t.computer_use_granted
+              : t.computer_use_not_granted}
+          </span>
+        </div>
+      </div>
+
+      {(!accessibilityGranted || !screenRecordingGranted) && (
+        <button
+          className="self-start text-[12px] text-[var(--accent)] hover:underline"
+          onClick={openPermissions}
+        >
+          {t.computer_use_open_settings}
+        </button>
+      )}
+
+      {enabled && (
+        <div className="border-t border-[var(--border)] pt-4">
+          <button
+            className="px-3 py-1.5 rounded-md text-[13px] bg-[var(--red,#f87171)]/10 text-[var(--red,#f87171)] hover:bg-[var(--red,#f87171)]/20 transition-colors duration-150"
+            onClick={() => void cuStop()}
+          >
+            {t.computer_use_stop_btn}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SettingsModal({ onClose }: Props) {
   const { locale, setLocale } = useLocaleStore();
   const {
@@ -551,6 +711,12 @@ export function SettingsModal({ onClose }: Props) {
             onClick={() => setTab("shortcuts")}
           >
             {t.settings_shortcuts}
+          </button>
+          <button
+            className={tabBtn(tab === "computer-use")}
+            onClick={() => setTab("computer-use")}
+          >
+            {t.settings_computer_use ?? "Computer Use"}
           </button>
         </div>
 
@@ -1173,6 +1339,8 @@ export function SettingsModal({ onClose }: Props) {
               </div>
             </div>
           )}
+
+          {tab === "computer-use" && <ComputerUseTabContent />}
         </div>
       </div>
     </div>

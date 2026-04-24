@@ -973,6 +973,29 @@ export interface TermCanvasAPI {
       }) => void,
     ) => () => void;
   };
+  computerUse: {
+    status: () => Promise<{
+      enabled: boolean;
+      helperRunning: boolean;
+      accessibilityGranted: boolean;
+      screenRecordingGranted: boolean;
+    }>;
+    enable: () => Promise<void>;
+    disable: () => Promise<void>;
+    stop: () => Promise<void>;
+    openPermissions: () => Promise<void>;
+    onStateChanged: (
+      callback: (state: {
+        enabled: boolean;
+        helperRunning: boolean;
+        helperPid: number | null;
+        port: number | null;
+        accessibilityGranted: boolean | null;
+        screenRecordingGranted: boolean | null;
+        error: string | null;
+      }) => void,
+    ) => () => void;
+  };
   sessions: {
     onListChanged: (
       callback: (

@@ -150,6 +150,7 @@ import {
   readLatestCodexSessionId,
 } from "./session-discovery";
 import { AgentService, type AgentConfig } from "./agent-service";
+import { ComputerUseManager } from "./computer-use-manager";
 import { SessionScanner } from "./session-scanner.ts";
 import { mergeAndDedupeSessions } from "./session-list.ts";
 import type { RenderDiagnosticEventInput } from "../shared/render-diagnostics";
@@ -255,11 +256,13 @@ const hookReceiver = new HookReceiver((event) => {
     });
   }
 });
+const computerUseManager = new ComputerUseManager();
 const apiServer = new ApiServer({
   getWindow: () => mainWindow,
   ptyManager,
   projectScanner,
   telemetryService,
+  computerUseManager,
 });
 
 function createWindow() {
@@ -2108,13 +2111,26 @@ app.whenReady().then(async () => {
   });
 });
 
-app.on("will-quit", () => {
+ipcMain.handle("computer-use:status", () => computerUseManager.getStatus());
+ipcMain.handle("computer-use:enable", () => computerUseManager.enable());
+ipcMain.handle("computer-use:disable", () => computerUseManager.disable());
+ipcMain.handle("computer-use:stop", () => computerUseManager.stop());
+ipcMain.handle("computer-use:open-permissions", () =>
+  computerUseManager.openPermissions(),
+);
+
+computerUseManager.onStateChange((state) => {
+  sendToWindow(mainWindow, "computer-use:state-changed", state);
+});
+
+app.on("will-quit", async () => {
   renderDiagnostics.recordMainEvent("app_will_quit", {
     platform: process.platform,
   });
   hookReceiver.stop();
   stopAutoUpdater();
   apiServer.stop();
+  await computerUseManager.shutdown();
   cleanupPortFile();
 });
 

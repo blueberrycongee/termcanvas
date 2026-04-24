@@ -3,6 +3,7 @@ packages:
   - browse
   - eval
   - hydra
+  - mcp/computer-use-server
   - website
 
 allowBuilds:

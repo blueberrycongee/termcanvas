@@ -682,12 +682,114 @@ async function main() {
       } else {
         console.log(result.diff);
       }
+    } else if (group === "computer-use") {
+      if (command === "status") {
+        const result = await request("GET", "/api/computer-use/status");
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else {
+          console.log(`Enabled: ${result.enabled}`);
+          console.log(`Helper running: ${result.helperRunning}`);
+          console.log(`Accessibility: ${result.accessibilityGranted}`);
+          console.log(`Screen Recording: ${result.screenRecordingGranted}`);
+        }
+      } else if (command === "enable") {
+        const result = await request("POST", "/api/computer-use/enable");
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log("Computer Use enabled.");
+      } else if (command === "disable") {
+        const result = await request("POST", "/api/computer-use/disable");
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log("Computer Use disabled.");
+      } else if (command === "stop") {
+        const result = await request("POST", "/api/computer-use/stop");
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log("Computer Use stopped.");
+      } else if (command === "list-apps" || command === "get-app-state" || command === "click" || command === "type" || command === "press-key") {
+        const stateFilePath = require("path").join(require("os").homedir(), ".termcanvas", "computer-use", "state.json");
+        let cuState: { port: number; token: string };
+        try {
+          cuState = JSON.parse(fs.readFileSync(stateFilePath, "utf-8"));
+        } catch {
+          console.error("Computer Use helper is not running (no state file found).");
+          process.exit(1);
+        }
+        const helperRequest = (endpoint: string, body?: unknown) => {
+          return new Promise<any>((resolve, reject) => {
+            const data = body ? JSON.stringify(body) : "{}";
+            const req = http.request(
+              {
+                hostname: "127.0.0.1",
+                port: cuState.port,
+                path: endpoint,
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "X-Token": cuState.token,
+                  "Content-Length": String(Buffer.byteLength(data)),
+                },
+                timeout: 30000,
+              },
+              (res) => {
+                let body = "";
+                res.on("data", (chunk: string) => (body += chunk));
+                res.on("end", () => {
+                  try { resolve(JSON.parse(body)); } catch { reject(new Error(body)); }
+                });
+              },
+            );
+            req.on("error", reject);
+            req.write(data);
+            req.end();
+          });
+        };
+
+        if (command === "list-apps") {
+          const result = await helperRequest("/list_apps");
+          console.log(JSON.stringify(result, null, 2));
+        } else if (command === "get-app-state") {
+          const pidIdx = rest.indexOf("--pid");
+          const pid = pidIdx >= 0 ? parseInt(rest[pidIdx + 1], 10) : undefined;
+          if (!pid) { console.error("--pid is required"); process.exit(1); }
+          const result = await helperRequest("/get_app_state", { pid });
+          console.log(JSON.stringify(result, null, 2));
+        } else if (command === "click") {
+          const elemIdx = rest.indexOf("--element");
+          const pidIdx = rest.indexOf("--pid");
+          const xIdx = rest.indexOf("--x");
+          const yIdx = rest.indexOf("--y");
+          const body: Record<string, unknown> = {};
+          if (elemIdx >= 0) {
+            body.element_id = rest[elemIdx + 1];
+            body.pid = pidIdx >= 0 ? parseInt(rest[pidIdx + 1], 10) : undefined;
+          } else if (xIdx >= 0 && yIdx >= 0) {
+            body.x = parseInt(rest[xIdx + 1], 10);
+            body.y = parseInt(rest[yIdx + 1], 10);
+            body.coordinate_space = "screen";
+          }
+          const result = await helperRequest("/click", body);
+          console.log(JSON.stringify(result, null, 2));
+        } else if (command === "type") {
+          const textIdx = rest.indexOf("--text");
+          const text = textIdx >= 0 ? rest[textIdx + 1] : undefined;
+          if (!text) { console.error("--text is required"); process.exit(1); }
+          const result = await helperRequest("/type_text", { text });
+          console.log(JSON.stringify(result, null, 2));
+        } else if (command === "press-key") {
+          const keyIdx = rest.indexOf("--key");
+          const key = keyIdx >= 0 ? rest[keyIdx + 1] : undefined;
+          if (!key) { console.error("--key is required"); process.exit(1); }
+          const result = await helperRequest("/press_key", { key });
+          console.log(JSON.stringify(result, null, 2));
+        }
+      } else {
+        console.log("Usage: termcanvas computer-use <status|enable|disable|stop|list-apps|get-app-state|click|type|press-key> [args]");
+      }
     } else if (group === "state") {
       const state = await request("GET", "/state");
       console.log(JSON.stringify(state, null, 2));
     } else {
       console.log(
-        "Usage: termcanvas <project|workflow|worktree|terminal|telemetry|diff|state> <command> [args]",
+        "Usage: termcanvas <project|workflow|worktree|terminal|telemetry|computer-use|diff|state> <command> [args]",
       );
       console.log("");
       console.log("Commands:");
