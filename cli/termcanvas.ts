@@ -16,6 +16,32 @@ interface ConnectionTarget {
   basePath: string;
 }
 
+interface ComputerUseCliStatus {
+  enabled?: boolean;
+  helperRunning?: boolean;
+  accessibilityGranted?: boolean;
+  screenRecordingGranted?: boolean;
+}
+
+function hasMissingComputerUsePermission(status: ComputerUseCliStatus): boolean {
+  return (
+    status.accessibilityGranted === false ||
+    status.screenRecordingGranted === false
+  );
+}
+
+function printComputerUsePermissionRepairHint(): void {
+  console.log("");
+  console.log("Permission repair:");
+  console.log(
+    "  If System Settings already lists TermCanvas or computer-use-helper but status is still false, remove those stale entries first.",
+  );
+  console.log(
+    "  Then add and enable /Applications/TermCanvas.app and /Applications/TermCanvas.app/Contents/Resources/computer-use-helper in both Accessibility and Screen Recording / Screen & System Audio Recording.",
+  );
+  console.log("  Run `termcanvas computer-use status` again after macOS accepts the changes.");
+}
+
 function normalizeBasePath(pathname: string): string {
   if (!pathname || pathname === "/") {
     return "";
@@ -693,6 +719,9 @@ async function main() {
           console.log(`Helper running: ${result.helperRunning}`);
           console.log(`Accessibility: ${result.accessibilityGranted}`);
           console.log(`Screen Recording: ${result.screenRecordingGranted}`);
+          if (hasMissingComputerUsePermission(result)) {
+            printComputerUsePermissionRepairHint();
+          }
         }
       } else if (command === "enable") {
         const result = await request("POST", "/api/computer-use/enable");
@@ -706,6 +735,9 @@ async function main() {
           console.log(`Helper running: ${result.helperRunning}`);
           console.log(`Accessibility: ${result.accessibilityGranted}`);
           console.log(`Screen Recording: ${result.screenRecordingGranted}`);
+          if (hasMissingComputerUsePermission(result)) {
+            printComputerUsePermissionRepairHint();
+          }
         }
       } else if (command === "disable") {
         const result = await request("POST", "/api/computer-use/disable");
