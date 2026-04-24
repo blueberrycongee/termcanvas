@@ -14,6 +14,9 @@ enum InputSimulator {
 
     static func click(x: Double, y: Double, button: String = "left") throws {
         let point = CGPoint(x: x, y: y)
+        VirtualCursor.shared.moveAndWait(to: point, animated: true)
+        VirtualCursor.shared.setPressed(true)
+        defer { VirtualCursor.shared.setPressed(false) }
 
         switch button {
         case "right":
@@ -120,6 +123,7 @@ enum InputSimulator {
 
     static func scroll(x: Double, y: Double, dx: Int32, dy: Int32) {
         let point = CGPoint(x: x, y: y)
+        VirtualCursor.shared.moveAndWait(to: point, animated: true)
 
         // Move cursor to position first
         if let moveEvent = CGEvent(
@@ -136,6 +140,7 @@ enum InputSimulator {
         ) {
             scrollEvent.post(tap: .cghidEventTap)
         }
+        VirtualCursor.shared.setPressed(false)
     }
 
     // MARK: - Drag
@@ -143,6 +148,9 @@ enum InputSimulator {
     static func drag(fromX: Double, fromY: Double, toX: Double, toY: Double) {
         let from = CGPoint(x: fromX, y: fromY)
         let to = CGPoint(x: toX, y: toY)
+        VirtualCursor.shared.moveAndWait(to: from, animated: true)
+        VirtualCursor.shared.setPressed(true)
+        defer { VirtualCursor.shared.setPressed(false) }
 
         postMouseEvent(.leftMouseDown, at: from, button: .left)
         usleep(50_000)
@@ -158,6 +166,7 @@ enum InputSimulator {
                 mouseEventSource: nil, mouseType: .leftMouseDragged,
                 mouseCursorPosition: point, mouseButton: .left
             ) {
+                VirtualCursor.shared.move(to: point, animated: false)
                 moveEvent.post(tap: .cghidEventTap)
             }
             usleep(10_000)

@@ -1,3 +1,4 @@
+import AppKit
 import ApplicationServices
 import CoreGraphics
 import Foundation
@@ -38,6 +39,11 @@ signal(SIGTERM, SIG_IGN)
 // MARK: - Server Setup
 
 do {
+    let app = NSApplication.shared
+    app.setActivationPolicy(.accessory)
+    app.finishLaunching()
+    VirtualCursor.shared.prepare()
+
     let server = try HTTPServer(port: port, token: token)
 
     server.routeHandler = { method, path, headers, body in
@@ -50,7 +56,7 @@ do {
     exit(1)
 }
 
-dispatchMain()
+NSApplication.shared.run()
 
 // MARK: - Router
 
@@ -115,6 +121,7 @@ func route(method: String, path: String, body: Data?) -> (Int, Data) {
 
         case "/stop":
             InputSimulator.stopRequested = true
+            VirtualCursor.shared.hide()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                 exit(0)
             }
