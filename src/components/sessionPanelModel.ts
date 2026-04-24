@@ -512,7 +512,7 @@ export function buildProjectTree(
       projectPath: project.path,
       statusSummary: computeStatusSummary(allTerminals, seenTerminalIds),
       worktrees: worktreeGroups,
-      flat: worktreeGroups.length === 1,
+      flat: worktreeGroups.length === 1 && worktreeGroups[0].isMain,
     });
   }
 
