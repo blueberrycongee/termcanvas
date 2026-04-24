@@ -108,6 +108,7 @@ enum InputSimulator {
     private static func modifierFlag(_ name: String) -> CGEventFlags {
         switch name.lowercased() {
         case "command", "cmd": return .maskCommand
+        case "super", "meta": return .maskCommand
         case "shift": return .maskShift
         case "option", "alt": return .maskAlternate
         case "control", "ctrl": return .maskControl
@@ -192,6 +193,10 @@ enum InputSimulator {
         "home": 0x73, "end": 0x77,
         "pageup": 0x74, "pagedown": 0x79,
         "forwarddelete": 0x75,
+        "kp_0": 0x52, "kp_1": 0x53, "kp_2": 0x54, "kp_3": 0x55,
+        "kp_4": 0x56, "kp_5": 0x57, "kp_6": 0x58, "kp_7": 0x59,
+        "kp_8": 0x5B, "kp_9": 0x5C, "kp_decimal": 0x41,
+        "kp_enter": 0x4C,
 
         "-": 0x1B, "=": 0x18, "[": 0x21, "]": 0x1E,
         "\\": 0x2A, ";": 0x29, "'": 0x27, ",": 0x2B,

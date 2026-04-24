@@ -30,24 +30,40 @@ export async function handleToolCall(
 ): Promise<CallToolResult> {
   try {
     switch (name) {
+      case "status":
       case "computer_use_status":
         return await handleStatus(client);
+      case "list_apps":
       case "computer_use_list_apps":
         return await handleListApps(client);
+      case "open_app":
       case "computer_use_open_app":
         return await handleOpenApp(args, client);
+      case "get_app_state":
       case "computer_use_get_app_state":
         return await handleGetAppState(args, client);
+      case "click":
       case "computer_use_click":
         return await handleClick(args, client);
+      case "type_text":
       case "computer_use_type_text":
         return await handleTypeText(args, client);
+      case "press_key":
       case "computer_use_press_key":
         return await handlePressKey(args, client);
+      case "scroll":
       case "computer_use_scroll":
         return await handleScroll(args, client);
+      case "drag":
       case "computer_use_drag":
         return await handleDrag(args, client);
+      case "set_value":
+      case "computer_use_set_value":
+        return await handleSetValue(args, client);
+      case "perform_secondary_action":
+      case "computer_use_perform_secondary_action":
+        return await handlePerformSecondaryAction(args, client);
+      case "stop":
       case "computer_use_stop":
         return await handleStop(client);
       default:
@@ -91,8 +107,8 @@ async function handleStatus(client: HelperClient): Promise<CallToolResult> {
 }
 
 async function handleListApps(client: HelperClient): Promise<CallToolResult> {
-  const apps = (await client.post("list_apps")) as AppInfo[];
-  return textResult(apps);
+  const result = (await client.post("list_apps")) as { apps: AppInfo[] };
+  return textResult(result.apps);
 }
 
 async function handleOpenApp(
@@ -107,15 +123,25 @@ async function handleGetAppState(
   args: Record<string, unknown>,
   client: HelperClient,
 ): Promise<CallToolResult> {
-  const state = (await client.post("get_app_state", args)) as AppState;
+  const request = {
+    include_screenshot: true,
+    ...args,
+  };
+  const state = (await client.post("get_app_state", request)) as AppState;
 
   const content: CallToolResult["content"] = [
     { type: "text", text: JSON.stringify(state, null, 2) },
   ];
 
-  if (state.screenshot_path) {
+  const screenshotPath =
+    state.screenshot_path ??
+    (typeof state.screenshot === "object" && state.screenshot !== null
+      ? (state.screenshot as { path?: string }).path
+      : undefined);
+
+  if (screenshotPath) {
     try {
-      const imageData = await fs.readFile(state.screenshot_path);
+      const imageData = await fs.readFile(screenshotPath);
       content.push({
         type: "image",
         data: imageData.toString("base64"),
@@ -124,7 +150,7 @@ async function handleGetAppState(
     } catch {
       content.push({
         type: "text",
-        text: `(screenshot at ${state.screenshot_path} could not be read)`,
+        text: `(screenshot at ${screenshotPath} could not be read)`,
       });
     }
   }
@@ -153,6 +179,25 @@ async function handlePressKey(
   client: HelperClient,
 ): Promise<CallToolResult> {
   const result = (await client.post("press_key", args)) as OkResponse;
+  return textResult(result);
+}
+
+async function handleSetValue(
+  args: Record<string, unknown>,
+  client: HelperClient,
+): Promise<CallToolResult> {
+  const result = (await client.post("set_value", args)) as OkResponse;
+  return textResult(result);
+}
+
+async function handlePerformSecondaryAction(
+  args: Record<string, unknown>,
+  client: HelperClient,
+): Promise<CallToolResult> {
+  const result = (await client.post(
+    "perform_secondary_action",
+    args,
+  )) as OkResponse;
   return textResult(result);
 }
 

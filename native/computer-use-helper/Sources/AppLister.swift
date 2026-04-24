@@ -16,6 +16,15 @@ enum AppLister {
             }
     }
 
+    static func resolvePid(appName: String) -> Int32? {
+        let query = appName.lowercased()
+        let running = NSWorkspace.shared.runningApplications.first { app in
+            app.localizedName?.lowercased() == query ||
+                app.bundleIdentifier?.lowercased() == query
+        }
+        return running?.processIdentifier
+    }
+
     static func openApp(bundleId: String?, name: String?) -> OpenAppResponse {
         let workspace = NSWorkspace.shared
 

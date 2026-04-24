@@ -16,20 +16,20 @@ const INSTRUCTIONS_URI = "termcanvas://computer-use/instructions";
 const INSTRUCTIONS = `# Computer Use — Best Practices
 
 ## Workflow
-1. Call computer_use_status to verify the helper is running and permissions are granted.
-2. Call computer_use_list_apps to discover running applications.
-3. Call computer_use_open_app to launch or activate the target app.
-4. Call computer_use_get_app_state (with the app's PID) to inspect the UI element tree and optionally capture a screenshot.
-5. Interact using computer_use_click, computer_use_type_text, computer_use_press_key, computer_use_scroll, or computer_use_drag.
-6. After each interaction, call computer_use_get_app_state again to verify the result.
+1. Call status to verify the helper is running and permissions are granted.
+2. Call list_apps to discover running applications.
+3. Call open_app to launch or activate the target app.
+4. Call get_app_state with app_name to inspect the UI element tree and screenshot.
+5. Interact using click, type_text, press_key, scroll, drag, set_value, or perform_secondary_action.
+6. After each interaction, call get_app_state again to verify the result.
 
 ## Tips
-- Prefer element_id over coordinates. Element IDs from get_app_state are stable across minor layout changes and adapt to window position.
-- Use coordinates only for elements without accessibility representations (e.g., canvas-rendered content).
+- Prefer the integer element index from get_app_state over coordinates.
+- Use coordinate_space="screenshot" for x/y coordinates read from the returned screenshot.
+- Use coordinates for elements without accessibility representations (e.g., canvas-rendered content).
 - Always verify after acting: call get_app_state after click/type/key to confirm the UI updated as expected.
-- Use include_screenshot=true in get_app_state when you need visual context to understand the layout.
 - For text input, click the target field first, then use type_text.
-- For keyboard shortcuts, use press_key with modifiers (e.g., key="c", modifiers=["command"] for Cmd+C).
+- For keyboard shortcuts, use press_key with xdotool-like syntax such as key="super+c".
 `;
 
 const client = new HelperClient();

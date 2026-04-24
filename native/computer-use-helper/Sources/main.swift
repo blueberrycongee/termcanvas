@@ -72,8 +72,11 @@ func route(method: String, path: String, body: Data?) -> (Int, Data) {
 
         case "/get_app_state":
             let req: GetAppStateRequest = try decode(body)
+            guard let pid = resolvePid(pid: req.pid, appName: req.appName) else {
+                return ok(OkResponse(ok: false, error: "Provide pid or a running app_name"))
+            }
             let state = AXTree.getAppState(
-                pid: req.pid,
+                pid: pid,
                 includeScreenshot: req.includeScreenshot ?? false,
                 maxDepth: req.maxDepth ?? 4
             )
@@ -94,6 +97,14 @@ func route(method: String, path: String, body: Data?) -> (Int, Data) {
             InputSimulator.pressKey(req.key, modifiers: req.modifiers ?? [])
             return ok(OkResponse())
 
+        case "/set_value":
+            let req: SetValueRequest = try decode(body)
+            return handleSetValue(req)
+
+        case "/perform_secondary_action":
+            let req: PerformActionRequest = try decode(body)
+            return handlePerformAction(req)
+
         case "/scroll":
             let req: ScrollRequest = try decode(body)
             return handleScroll(req)
@@ -104,6 +115,9 @@ func route(method: String, path: String, body: Data?) -> (Int, Data) {
 
         case "/stop":
             InputSimulator.stopRequested = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                exit(0)
+            }
             return ok(OkResponse())
 
         default:
@@ -126,40 +140,77 @@ func handleStatus() -> StatusResponse {
 }
 
 func handleClick(_ req: ClickRequest) -> (Int, Data) {
-    let button = req.button ?? "left"
+    let button = req.mouseButton ?? req.button ?? "left"
+    let clickCount = max(req.clickCount ?? (button == "double" ? 2 : 1), 1)
 
-    if let elementId = req.elementId, let pid = req.pid {
-        guard let element = AXTree.resolveElement(pid: pid, elementId: elementId) else {
-            return ok(OkResponse(ok: false, error: "Element not found: \(elementId)"))
-        }
-
-        if button == "left" {
-            let result = AXTree.performAction(element, action: kAXPressAction as String)
-            if result == .success {
-                return ok(OkResponse())
-            }
-        }
-
+    if let resolved = resolveElement(pid: req.pid, appName: req.appName,
+                                     elementId: req.elementId, element: req.element) {
+        let element = resolved.element
         guard let center = AXTree.getElementCenter(element) else {
+            if button == "left" {
+                let result = AXTree.performAction(element, action: kAXPressAction as String)
+                if result == .success {
+                    return ok(OkResponse())
+                }
+            }
             return ok(OkResponse(ok: false, error: "Cannot determine element position"))
         }
-        try? InputSimulator.click(x: center.x, y: center.y, button: button)
+        clickRepeated(x: center.x, y: center.y, button: button, clickCount: clickCount)
         return ok(OkResponse())
     }
 
-    if let x = req.x, let y = req.y {
-        try? InputSimulator.click(x: x, y: y, button: button)
+    if let point = resolvePoint(
+        x: req.x,
+        y: req.y,
+        coordinateSpace: req.coordinateSpace,
+        pid: req.pid,
+        appName: req.appName
+    ) {
+        clickRepeated(x: point.x, y: point.y, button: button, clickCount: clickCount)
         return ok(OkResponse())
     }
 
-    return ok(OkResponse(ok: false, error: "Provide element_id+pid or x+y coordinates"))
+    return ok(OkResponse(ok: false, error: "Provide element/element_id with pid/app_name or x+y coordinates"))
+}
+
+func handleSetValue(_ req: SetValueRequest) -> (Int, Data) {
+    guard let resolved = resolveElement(
+        pid: req.pid,
+        appName: req.appName,
+        elementId: req.elementId,
+        element: req.element
+    ) else {
+        return ok(OkResponse(ok: false, error: "Element not found"))
+    }
+
+    let result = AXTree.setValue(resolved.element, value: req.value)
+    if result == .success {
+        return ok(OkResponse())
+    }
+    return ok(OkResponse(ok: false, error: "AXSetValue failed: \(result.rawValue)"))
+}
+
+func handlePerformAction(_ req: PerformActionRequest) -> (Int, Data) {
+    guard let resolved = resolveElement(
+        pid: req.pid,
+        appName: req.appName,
+        elementId: req.elementId,
+        element: req.element
+    ) else {
+        return ok(OkResponse(ok: false, error: "Element not found"))
+    }
+
+    let result = AXTree.performAction(resolved.element, action: req.action)
+    if result == .success {
+        return ok(OkResponse())
+    }
+    return ok(OkResponse(ok: false, error: "AX action failed: \(result.rawValue)"))
 }
 
 func handleScroll(_ req: ScrollRequest) -> (Int, Data) {
-    if let elementId = req.elementId, let pid = req.pid {
-        guard let element = AXTree.resolveElement(pid: pid, elementId: elementId),
-              let center = AXTree.getElementCenter(element)
-        else {
+    if let resolved = resolveElement(pid: req.pid, appName: req.appName,
+                                     elementId: req.elementId, element: req.element) {
+        guard let center = AXTree.getElementCenter(resolved.element) else {
             return ok(OkResponse(ok: false, error: "Element not found"))
         }
 
@@ -178,9 +229,15 @@ func handleScroll(_ req: ScrollRequest) -> (Int, Data) {
         return ok(OkResponse())
     }
 
-    if let x = req.x, let y = req.y {
+    if let point = resolvePoint(
+        x: req.x,
+        y: req.y,
+        coordinateSpace: req.coordinateSpace,
+        pid: req.pid,
+        appName: req.appName
+    ) {
         InputSimulator.scroll(
-            x: x, y: y,
+            x: point.x, y: point.y,
             dx: Int32(req.dx ?? 0),
             dy: Int32(req.dy ?? 0)
         )
@@ -191,11 +248,16 @@ func handleScroll(_ req: ScrollRequest) -> (Int, Data) {
 }
 
 func handleDrag(_ req: DragRequest) -> (Int, Data) {
-    if let fromId = req.fromElementId, let toId = req.toElementId, let pid = req.pid {
-        guard let fromEl = AXTree.resolveElement(pid: pid, elementId: fromId),
-              let toEl = AXTree.resolveElement(pid: pid, elementId: toId),
-              let fromCenter = AXTree.getElementCenter(fromEl),
-              let toCenter = AXTree.getElementCenter(toEl)
+    if (req.fromElementId != nil || req.fromElement != nil) &&
+        (req.toElementId != nil || req.toElement != nil) {
+        guard let fromResolved = resolveElement(pid: req.pid, appName: req.appName,
+                                                elementId: req.fromElementId,
+                                                element: req.fromElement),
+              let toResolved = resolveElement(pid: req.pid, appName: req.appName,
+                                              elementId: req.toElementId,
+                                              element: req.toElement),
+              let fromCenter = AXTree.getElementCenter(fromResolved.element),
+              let toCenter = AXTree.getElementCenter(toResolved.element)
         else {
             return ok(OkResponse(ok: false, error: "Element(s) not found"))
         }
@@ -205,9 +267,21 @@ func handleDrag(_ req: DragRequest) -> (Int, Data) {
         return ok(OkResponse())
     }
 
-    if let fx = req.fromX, let fy = req.fromY, let tx = req.toX, let ty = req.toY {
+    let fromX = req.fromX ?? req.startX
+    let fromY = req.fromY ?? req.startY
+    let toX = req.toX ?? req.endX
+    let toY = req.toY ?? req.endY
+
+    if let fx = fromX, let fy = fromY, let tx = toX, let ty = toY {
+        let fromPoint = resolvePoint(x: fx, y: fy, coordinateSpace: req.coordinateSpace,
+                                     pid: req.pid, appName: req.appName)
+            ?? CGPoint(x: fx, y: fy)
+        let toPoint = resolvePoint(x: tx, y: ty, coordinateSpace: req.coordinateSpace,
+                                   pid: req.pid, appName: req.appName)
+            ?? CGPoint(x: tx, y: ty)
         InputSimulator.stopRequested = false
-        InputSimulator.drag(fromX: fx, fromY: fy, toX: tx, toY: ty)
+        InputSimulator.drag(fromX: fromPoint.x, fromY: fromPoint.y,
+                            toX: toPoint.x, toY: toPoint.y)
         return ok(OkResponse())
     }
 
@@ -215,6 +289,79 @@ func handleDrag(_ req: DragRequest) -> (Int, Data) {
 }
 
 // MARK: - Helpers
+
+func resolvePid(pid: Int32?, appName: String?) -> Int32? {
+    if let pid = pid {
+        return pid
+    }
+    if let appName = appName {
+        return AppLister.resolvePid(appName: appName)
+    }
+    return nil
+}
+
+func resolveElement(
+    pid: Int32?,
+    appName: String?,
+    elementId: String?,
+    element: Int?
+) -> (pid: Int32, element: AXUIElement)? {
+    guard let pid = resolvePid(pid: pid, appName: appName) else {
+        return nil
+    }
+
+    if let elementId = elementId,
+       let axElement = AXTree.resolveElement(pid: pid, elementId: elementId) {
+        return (pid, axElement)
+    }
+    if let element = element,
+       let axElement = AXTree.resolveElement(pid: pid, elementIndex: element) {
+        return (pid, axElement)
+    }
+    return nil
+}
+
+func resolvePoint(
+    x: Double?,
+    y: Double?,
+    coordinateSpace: String?,
+    pid: Int32?,
+    appName: String?
+) -> CGPoint? {
+    guard let x = x, let y = y else {
+        return nil
+    }
+
+    if coordinateSpace == "screenshot" || coordinateSpace == "window" {
+        guard let resolvedPid = resolvePid(pid: pid, appName: appName),
+              let frame = AXTree.primaryWindowFrame(pid: resolvedPid)
+        else {
+            return nil
+        }
+        let scale: Double
+        if coordinateSpace == "screenshot",
+           let screenshot = Screenshot.captureWindow(pid: resolvedPid, windowFrame: frame),
+           screenshot.scale > 0 {
+            scale = screenshot.scale
+        } else {
+            scale = 1
+        }
+        return CGPoint(x: frame.x + x / scale, y: frame.y + y / scale)
+    }
+
+    return CGPoint(x: x, y: y)
+}
+
+func clickRepeated(x: Double, y: Double, button: String, clickCount: Int) {
+    if button == "double" {
+        try? InputSimulator.click(x: x, y: y, button: "double")
+        return
+    }
+    for _ in 0..<clickCount {
+        try? InputSimulator.click(x: x, y: y, button: button)
+        usleep(50_000)
+    }
+}
 
 func decode<T: Decodable>(_ data: Data?) throws -> T {
     guard let data = data else {

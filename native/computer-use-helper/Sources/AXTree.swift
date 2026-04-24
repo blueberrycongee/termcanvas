@@ -21,6 +21,8 @@ enum AXTree {
 
         var windows: [WindowInfo] = []
         var elements: [ElementInfo] = []
+        var accessibilityTree: [AccessibilityNode] = []
+        var nextIndex = 0
 
         let axWindows = getAXArray(app, attribute: kAXWindowsAttribute)
         for (wIdx, axWindow) in axWindows.enumerated() {
@@ -34,27 +36,31 @@ enum AXTree {
                 frame: frame ?? Frame(x: 0, y: 0, width: 0, height: 0)
             ))
 
-            walkChildren(
+            accessibilityTree.append(contentsOf: walkChildren(
                 element: axWindow,
                 path: windowId,
                 depth: 1,
                 maxDepth: maxDepth,
-                elements: &elements
-            )
+                elements: &elements,
+                nextIndex: &nextIndex
+            ))
         }
 
-        elements = prioritizeElements(elements, limit: 200)
-
-        var screenshotPath: String? = nil
+        var screenshot: ScreenshotInfo? = nil
         if includeScreenshot {
-            screenshotPath = Screenshot.captureWindow(pid: pid)
+            screenshot = Screenshot.captureWindow(pid: pid, windowFrame: windows.first?.frame)
         }
 
         return AppStateResponse(
             app: summary,
             windows: windows,
             elements: elements,
-            screenshotPath: screenshotPath,
+            accessibilityTree: accessibilityTree,
+            screenshotPath: screenshot?.path,
+            screenshot: screenshot,
+            screenshotPixelSize: screenshot?.pixelSize,
+            screenshotScale: screenshot?.scale,
+            windowFrame: windows.first?.frame,
             coordinateSpace: "screen"
         )
     }
@@ -86,6 +92,32 @@ enum AXTree {
         }
 
         return current
+    }
+
+    static func resolveElement(pid: Int32, elementIndex: Int) -> AXUIElement? {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+
+        var nextIndex = 0
+        for axWindow in getAXArray(app, attribute: kAXWindowsAttribute) {
+            if let element = resolveChildByIndex(
+                element: axWindow,
+                targetIndex: elementIndex,
+                nextIndex: &nextIndex
+            ) {
+                return element
+            }
+        }
+        return nil
+    }
+
+    static func primaryWindowFrame(pid: Int32) -> Frame? {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        guard let firstWindow = getAXArray(app, attribute: kAXWindowsAttribute).first else {
+            return nil
+        }
+        return getFrame(firstWindow)
     }
 
     static func getElementPosition(_ element: AXUIElement) -> CGPoint? {
@@ -121,6 +153,10 @@ enum AXTree {
         return AXUIElementPerformAction(element, action as CFString)
     }
 
+    static func setValue(_ element: AXUIElement, value: String) -> AXError {
+        return AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, value as CFTypeRef)
+    }
+
     // MARK: - Tree Walking
 
     private static func walkChildren(
@@ -128,13 +164,17 @@ enum AXTree {
         path: String,
         depth: Int,
         maxDepth: Int,
-        elements: inout [ElementInfo]
-    ) {
-        guard depth <= maxDepth else { return }
+        elements: inout [ElementInfo],
+        nextIndex: inout Int
+    ) -> [AccessibilityNode] {
+        guard depth <= maxDepth else { return [] }
 
         let children = getAXArray(element, attribute: kAXChildrenAttribute)
+        var nodes: [AccessibilityNode] = []
         for (idx, child) in children.enumerated() {
             let childPath = "\(path)/child:\(idx)"
+            let index = nextIndex
+            nextIndex += 1
 
             let role = getStringAttribute(child, attribute: kAXRoleAttribute) ?? "AXUnknown"
             let subrole = getStringAttribute(child, attribute: kAXSubroleAttribute)
@@ -144,66 +184,82 @@ enum AXTree {
             let frame = getFrame(child)
             let enabled = getBoolAttribute(child, attribute: kAXEnabledAttribute)
             let focused = getBoolAttribute(child, attribute: kAXFocusedAttribute)
+            let selected = getBoolAttribute(child, attribute: kAXSelectedAttribute)
+            let expanded = getBoolAttribute(child, attribute: kAXExpandedAttribute)
+            let help = getStringAttribute(child, attribute: kAXHelpAttribute)
             let actions = getActionNames(child)
+            let label = title ?? desc ?? value
 
             let info = ElementInfo(
+                index: index,
                 id: childPath,
                 role: role,
                 subrole: subrole,
+                label: label,
                 title: title,
                 description: desc,
                 value: value,
                 frame: frame,
                 enabled: enabled,
                 focused: focused,
+                selected: selected,
+                expanded: expanded,
+                help: help,
                 actions: actions
             )
             elements.append(info)
 
-            walkChildren(
+            let childNodes = walkChildren(
                 element: child,
                 path: childPath,
                 depth: depth + 1,
                 maxDepth: maxDepth,
-                elements: &elements
+                elements: &elements,
+                nextIndex: &nextIndex
             )
+            nodes.append(AccessibilityNode(
+                index: index,
+                id: childPath,
+                role: role,
+                subrole: subrole,
+                label: label,
+                title: title,
+                description: desc,
+                value: value,
+                frame: frame,
+                enabled: enabled,
+                focused: focused,
+                selected: selected,
+                expanded: expanded,
+                help: help,
+                actions: actions,
+                children: childNodes
+            ))
         }
+        return nodes
     }
 
-    // MARK: - Prioritization
-
-    private static let actionableRoles: Set<String> = [
-        "AXButton", "AXTextField", "AXTextArea", "AXMenuItem",
-        "AXCheckBox", "AXRadioButton", "AXSlider", "AXPopUpButton",
-        "AXComboBox", "AXTab", "AXTabGroup", "AXLink",
-        "AXIncrementor", "AXColorWell", "AXDisclosureTriangle",
-    ]
-
-    private static func prioritizeElements(_ elements: [ElementInfo], limit: Int) -> [ElementInfo] {
-        if elements.count <= limit { return elements }
-
-        var focused: [ElementInfo] = []
-        var actionable: [ElementInfo] = []
-        var rest: [ElementInfo] = []
-
-        for el in elements {
-            if el.focused == true {
-                focused.append(el)
-            } else if actionableRoles.contains(el.role) || !el.actions.isEmpty {
-                actionable.append(el)
-            } else {
-                rest.append(el)
+    private static func resolveChildByIndex(
+        element: AXUIElement,
+        targetIndex: Int,
+        nextIndex: inout Int
+    ) -> AXUIElement? {
+        let children = getAXArray(element, attribute: kAXChildrenAttribute)
+        for child in children {
+            let currentIndex = nextIndex
+            nextIndex += 1
+            if currentIndex == targetIndex {
+                return child
+            }
+            if let found = resolveChildByIndex(
+                element: child,
+                targetIndex: targetIndex,
+                nextIndex: &nextIndex
+            ) {
+                return found
             }
         }
-
-        var result = focused + actionable
-        let remaining = limit - result.count
-        if remaining > 0 {
-            result.append(contentsOf: rest.prefix(remaining))
-        } else {
-            result = Array(result.prefix(limit))
-        }
-        return result
+        return nil
     }
 
     // MARK: - AX Helpers

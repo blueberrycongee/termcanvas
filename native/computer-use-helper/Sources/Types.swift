@@ -55,7 +55,8 @@ struct OpenAppResponse: Codable {
 // MARK: - Get App State
 
 struct GetAppStateRequest: Codable {
-    let pid: Int32
+    let pid: Int32?
+    let appName: String?
     let includeScreenshot: Bool?
     let maxDepth: Int?
 }
@@ -73,17 +74,54 @@ struct WindowInfo: Codable {
     let frame: Frame
 }
 
+struct PixelSize: Codable {
+    let width: Int
+    let height: Int
+}
+
+struct ScreenshotInfo: Codable {
+    let path: String
+    let pixelSize: PixelSize
+    let scale: Double
+    let windowFrame: Frame?
+    let coordinateSpace: String
+}
+
 struct ElementInfo: Codable {
+    let index: Int
     let id: String
     let role: String
     let subrole: String?
+    let label: String?
     let title: String?
     let description: String?
     let value: String?
     let frame: Frame?
     let enabled: Bool?
     let focused: Bool?
+    let selected: Bool?
+    let expanded: Bool?
+    let help: String?
     let actions: [String]
+}
+
+struct AccessibilityNode: Codable {
+    let index: Int
+    let id: String
+    let role: String
+    let subrole: String?
+    let label: String?
+    let title: String?
+    let description: String?
+    let value: String?
+    let frame: Frame?
+    let enabled: Bool?
+    let focused: Bool?
+    let selected: Bool?
+    let expanded: Bool?
+    let help: String?
+    let actions: [String]
+    let children: [AccessibilityNode]
 }
 
 struct AppSummary: Codable {
@@ -96,7 +134,12 @@ struct AppStateResponse: Codable {
     let app: AppSummary
     let windows: [WindowInfo]
     let elements: [ElementInfo]
+    let accessibilityTree: [AccessibilityNode]
     let screenshotPath: String?
+    let screenshot: ScreenshotInfo?
+    let screenshotPixelSize: PixelSize?
+    let screenshotScale: Double?
+    let windowFrame: Frame?
     let coordinateSpace: String
 }
 
@@ -104,11 +147,15 @@ struct AppStateResponse: Codable {
 
 struct ClickRequest: Codable {
     let elementId: String?
+    let element: Int?
     let pid: Int32?
+    let appName: String?
     let x: Double?
     let y: Double?
     let coordinateSpace: String?
     let button: String?
+    let mouseButton: String?
+    let clickCount: Int?
 }
 
 // MARK: - Type Text
@@ -124,17 +171,38 @@ struct PressKeyRequest: Codable {
     let modifiers: [String]?
 }
 
+// MARK: - Set Value / Actions
+
+struct SetValueRequest: Codable {
+    let elementId: String?
+    let element: Int?
+    let pid: Int32?
+    let appName: String?
+    let value: String
+}
+
+struct PerformActionRequest: Codable {
+    let elementId: String?
+    let element: Int?
+    let pid: Int32?
+    let appName: String?
+    let action: String
+}
+
 // MARK: - Scroll
 
 struct ScrollRequest: Codable {
     let x: Double?
     let y: Double?
-    let dx: Int?
-    let dy: Int?
+    let dx: Double?
+    let dy: Double?
     let elementId: String?
+    let element: Int?
     let pid: Int32?
+    let appName: String?
     let direction: String?
-    let amount: Int?
+    let amount: Double?
+    let coordinateSpace: String?
 }
 
 // MARK: - Drag
@@ -144,9 +212,17 @@ struct DragRequest: Codable {
     let fromY: Double?
     let toX: Double?
     let toY: Double?
+    let startX: Double?
+    let startY: Double?
+    let endX: Double?
+    let endY: Double?
     let fromElementId: String?
     let toElementId: String?
+    let fromElement: Int?
+    let toElement: Int?
     let pid: Int32?
+    let appName: String?
+    let coordinateSpace: String?
 }
 
 // MARK: - Generic

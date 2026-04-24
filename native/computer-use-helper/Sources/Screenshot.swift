@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 enum Screenshot {
     private static let outputDir = "/tmp/termcanvas-cu"
 
-    static func captureWindow(pid: Int32) -> String? {
+    static func captureWindow(pid: Int32, windowFrame: Frame?) -> ScreenshotInfo? {
         let fm = FileManager.default
         if !fm.fileExists(atPath: outputDir) {
             try? fm.createDirectory(atPath: outputDir, withIntermediateDirectories: true)
@@ -56,6 +56,20 @@ enum Screenshot {
         CGImageDestinationAddImage(dest, image, nil)
         guard CGImageDestinationFinalize(dest) else { return nil }
 
-        return path
+        let pixelSize = PixelSize(width: image.width, height: image.height)
+        let scale: Double
+        if let frame = windowFrame, frame.width > 0 {
+            scale = Double(image.width) / frame.width
+        } else {
+            scale = 1
+        }
+
+        return ScreenshotInfo(
+            path: path,
+            pixelSize: pixelSize,
+            scale: scale,
+            windowFrame: windowFrame,
+            coordinateSpace: "screenshot"
+        )
     }
 }
