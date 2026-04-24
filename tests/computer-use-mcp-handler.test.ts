@@ -123,6 +123,9 @@ test("computer use MCP exposes operating instructions as a tool", async () => {
 
   assert.equal(result.isError, undefined);
   assert.match(result.content[0].text as string, /AX-first/i);
+  assert.match(result.content[0].text as string, /Do not use browser automation, Playwright, or browser screenshots/);
+  assert.match(result.content[0].text as string, /do not guess English app names on a non-English system/);
+  assert.match(result.content[0].text as string, /Empty windows or missing screenshots can be transient/);
   assert.match(result.content[0].text as string, /After every action/);
 });
 
@@ -134,11 +137,16 @@ test("computer use MCP status includes usage guidance", async () => {
   assert.equal(status.healthy, true);
   assert.equal(status.usage_guidance.setup_tool, "setup");
   assert.equal(status.usage_guidance.instructions_tool, "get_instructions");
-  assert.deepEqual(status.usage_guidance.protocol.slice(0, 3), [
+  assert.deepEqual(status.usage_guidance.protocol.slice(0, 4), [
     "Use status first. If the helper is not healthy or permissions are missing, call setup.",
     "If permissions remain false after the user says they already allowed them, guide the user to remove stale TermCanvas and computer-use-helper entries from both macOS permission panes, then add /Applications/TermCanvas.app and /Applications/TermCanvas.app/Contents/Resources/computer-use-helper again.",
-    "Use list_apps, open_app, then get_app_state before interacting with a local Mac app.",
+    "For local macOS desktop apps, use TermCanvas Computer Use. Do not use browser automation or Playwright unless the target is a web page in a browser.",
+    "Use list_apps, then prefer the returned bundle_id or pid with open_app and get_app_state. Do not guess English app names on localized systems.",
   ]);
+  assert.match(
+    status.usage_guidance.protocol.join("\n"),
+    /coordinate_space=screenshot is valid only for coordinates read from the current get_app_state screenshot/,
+  );
 });
 
 test("computer use MCP setup starts Computer Use through TermCanvas", async () => {
@@ -175,10 +183,14 @@ test("computer use MCP tool descriptions teach the AX-first protocol", () => {
     tools.map((tool) => [tool.name, tool.description ?? ""]),
   );
 
-  assert.match(descriptions.status, /AX-first desktop control protocol/);
+  assert.match(descriptions.status, /TermCanvas desktop control protocol/);
   assert.match(descriptions.setup, /open the macOS permission panes/);
   assert.match(descriptions.get_app_state, /Observe before acting/);
+  assert.match(descriptions.get_app_state, /do not use browser or Playwright screenshots/);
+  assert.match(descriptions.list_apps, /Prefer returned bundle IDs or PIDs/);
+  assert.match(descriptions.open_app, /exact localized name returned by list_apps/);
   assert.match(descriptions.click, /coordinates are the last resort/);
+  assert.match(descriptions.click, /Do not use browser, Playwright, full-screen, or stale screenshot coordinates/);
   assert.match(descriptions.set_value, /Prefer this over keyboard typing/);
   assert.match(descriptions.type_text, /After acting, call get_app_state again/);
 });
