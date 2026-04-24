@@ -114,19 +114,19 @@ final class VirtualCursor {
         }
     }
 
-    func moveAndWait(to point: CGPoint, animated: Bool = true) {
+    func moveToInteractionThresholdAndWait(to point: CGPoint) {
         if Thread.isMainThread {
-            startMove(to: point, animated: animated, completion: {})
+            startMove(to: point, animated: true, interaction: {}, completion: {})
             return
         }
 
         let done = DispatchSemaphore(value: 0)
         DispatchQueue.main.async {
-            self.startMove(to: point, animated: animated) {
+            self.startMove(to: point, animated: true, interaction: {
                 done.signal()
-            }
+            }, completion: {})
         }
-        _ = done.wait(timeout: .now() + .milliseconds(1600))
+        _ = done.wait(timeout: .now() + .milliseconds(1200))
     }
 
     func move(to point: CGPoint, animated: Bool = false) {
@@ -156,8 +156,14 @@ final class VirtualCursor {
         }
     }
 
-    private func startMove(to point: CGPoint, animated: Bool, completion: @escaping () -> Void) {
+    private func startMove(
+        to point: CGPoint,
+        animated: Bool,
+        interaction: (() -> Void)? = nil,
+        completion: @escaping () -> Void
+    ) {
         guard let panel = ensurePanel() else {
+            interaction?()
             completion()
             return
         }
@@ -175,12 +181,14 @@ final class VirtualCursor {
         let duration = animated ? min(max(distance / 2400, 0.12), 0.7) : 0
         if duration <= 0.001 {
             positionPanel(at: point)
+            interaction?()
             completion()
             return
         }
 
         let path = CursorMotionPath.compute(from: start, to: point)
         let startedAt = Date().timeIntervalSinceReferenceDate
+        var interactionSignaled = false
         let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] timer in
             guard let self = self else {
                 timer.invalidate()
@@ -192,10 +200,19 @@ final class VirtualCursor {
             let progress = self.easeInOut(rawProgress)
             self.positionPanel(at: path.point(at: progress))
 
+            if !interactionSignaled && rawProgress >= 0.88 {
+                interactionSignaled = true
+                interaction?()
+            }
+
             if rawProgress >= 1 {
                 timer.invalidate()
                 self.animationTimer = nil
                 self.positionPanel(at: point)
+                if !interactionSignaled {
+                    interactionSignaled = true
+                    interaction?()
+                }
                 completion()
             }
         }

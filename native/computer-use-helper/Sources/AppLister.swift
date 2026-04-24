@@ -25,6 +25,18 @@ enum AppLister {
         return running?.processIdentifier
     }
 
+    static func activate(pid: Int32?) {
+        guard let pid = pid,
+              let app = NSRunningApplication(processIdentifier: pid)
+        else {
+            return
+        }
+        if !app.isActive {
+            app.activate(options: [.activateIgnoringOtherApps])
+            usleep(80_000)
+        }
+    }
+
     static func openApp(bundleId: String?, name: String?) -> OpenAppResponse {
         let workspace = NSWorkspace.shared
 
