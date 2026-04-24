@@ -432,12 +432,14 @@ function resolveMcpServerPath(
   );
   if (existsSync(devPath)) return devPath;
 
-  const prodPath = path.join(
-    process.resourcesPath,
-    "mcp-computer-use-server",
-    "index.js",
-  );
-  if (existsSync(prodPath)) return prodPath;
+  if (process.resourcesPath) {
+    const prodPath = path.join(
+      process.resourcesPath,
+      "mcp-computer-use-server",
+      "index.js",
+    );
+    if (existsSync(prodPath)) return prodPath;
+  }
 
   return null;
 }
@@ -452,12 +454,14 @@ function resolveInstructionsPath(
   );
   if (existsSync(devPath)) return devPath;
 
-  const prodPath = path.join(
-    process.resourcesPath,
-    "skills",
-    "computer-use-instructions.md",
-  );
-  if (existsSync(prodPath)) return prodPath;
+  if (process.resourcesPath) {
+    const prodPath = path.join(
+      process.resourcesPath,
+      "skills",
+      "computer-use-instructions.md",
+    );
+    if (existsSync(prodPath)) return prodPath;
+  }
 
   return null;
 }
@@ -527,29 +531,29 @@ export async function buildLaunchSpec(
       "computer-use",
       "state.json",
     );
+    const instructionsPath = resolveInstructionsPath(deps.existsSync);
+    shellEnv.TERMCANVAS_COMPUTER_USE_STATE_FILE = cuStateFile;
+    if (instructionsPath) {
+      shellEnv.TERMCANVAS_COMPUTER_USE_INSTRUCTIONS = instructionsPath;
+    }
     if (deps.existsSync(cuStateFile)) {
       shellEnv.TERMCANVAS_COMPUTER_USE_ENABLED = "1";
-      shellEnv.TERMCANVAS_COMPUTER_USE_STATE_FILE = cuStateFile;
-      const instructionsPath = resolveInstructionsPath(deps.existsSync);
-      if (instructionsPath) {
-        shellEnv.TERMCANVAS_COMPUTER_USE_INSTRUCTIONS = instructionsPath;
-      }
+    }
 
-      if (isComputerUseMcpProvider(options.terminalType)) {
-        const mcpServerPath = resolveMcpServerPath(deps.existsSync);
-        if (mcpServerPath) {
-          launchArgs = [
-            ...getComputerUseMcpConfigArgs(
-              options.terminalType,
-              {
-                mcpServerPath,
-                stateFilePath: cuStateFile,
-                instructionsFilePath: instructionsPath ?? undefined,
-              },
-            ),
-            ...launchArgs,
-          ];
-        }
+    if (isComputerUseMcpProvider(options.terminalType)) {
+      const mcpServerPath = resolveMcpServerPath(deps.existsSync);
+      if (mcpServerPath) {
+        launchArgs = [
+          ...getComputerUseMcpConfigArgs(
+            options.terminalType,
+            {
+              mcpServerPath,
+              stateFilePath: cuStateFile,
+              instructionsFilePath: instructionsPath ?? undefined,
+            },
+          ),
+          ...launchArgs,
+        ];
       }
     }
   }

@@ -13,6 +13,7 @@ import {
   COMPUTER_USE_STATUS_GUIDANCE,
   readComputerUseInstructions,
 } from "./instructions.js";
+import { TermCanvasClient } from "./termcanvas-client.js";
 
 function textResult(data: unknown): CallToolResult {
   return {
@@ -37,6 +38,7 @@ export async function handleToolCall(
   name: string,
   args: Record<string, unknown>,
   client: HelperClient,
+  termCanvasClient: TermCanvasClient = new TermCanvasClient(),
 ): Promise<CallToolResult> {
   try {
     switch (name) {
@@ -46,6 +48,9 @@ export async function handleToolCall(
       case "get_instructions":
       case "computer_use_get_instructions":
         return plainTextResult(readComputerUseInstructions());
+      case "setup":
+      case "computer_use_setup":
+        return await handleSetup(termCanvasClient);
       case "list_apps":
       case "computer_use_list_apps":
         return await handleListApps(client);
@@ -86,6 +91,22 @@ export async function handleToolCall(
     const message = err instanceof Error ? err.message : String(err);
     return errorResult(message);
   }
+}
+
+async function handleSetup(
+  termCanvasClient: TermCanvasClient,
+): Promise<CallToolResult> {
+  await termCanvasClient.post("/api/computer-use/enable");
+  const status = await termCanvasClient.get("/api/computer-use/status");
+  return textResult({
+    ok: true,
+    status,
+    next_steps: [
+      "If macOS shows permission prompts, the user must approve Accessibility and Screen Recording.",
+      "After approval, call status and then get_app_state for the target app before acting.",
+      "If either permission is still false, tell the user to finish the permission steps in System Settings.",
+    ],
+  });
 }
 
 async function handleStatus(client: HelperClient): Promise<CallToolResult> {

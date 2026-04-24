@@ -21,7 +21,7 @@ function defaultStateFilePath(): string {
 function resolveStateFilePath(): string | null {
   const configured = process.env.TERMCANVAS_COMPUTER_USE_STATE_FILE?.trim();
   const stateFilePath = configured || defaultStateFilePath();
-  return fs.existsSync(stateFilePath) ? stateFilePath : null;
+  return stateFilePath;
 }
 
 function resolveMcpServerPath(): string | null {

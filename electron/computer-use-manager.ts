@@ -114,6 +114,12 @@ export class ComputerUseManager {
 
   async enable(): Promise<void> {
     if (this.state.enabled && this.helperProcess) {
+      await this.requestPermissions();
+      const perms = await this.checkPermissions();
+      this.updateState({
+        accessibilityGranted: perms.accessibility,
+        screenRecordingGranted: perms.screenRecording,
+      });
       return;
     }
 

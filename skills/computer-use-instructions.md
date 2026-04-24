@@ -4,19 +4,21 @@ TermCanvas provides Computer Use through MCP tools. Use it when the user asks yo
 
 ## Operating Protocol
 
-1. Start with `status`. If the helper is not healthy or macOS Accessibility / Screen Recording permissions are missing, report that blocker instead of guessing.
-2. Use `list_apps` to find running apps. Use `open_app` to launch or activate the target app by display name or bundle ID.
-3. Before every desktop interaction, call `get_app_state` for the target app. Treat the returned AX tree and screenshot as the source of truth for the current UI.
-4. Prefer AX-first actions. Use the integer element indexes returned by `get_app_state` with `click`, `set_value`, `perform_secondary_action`, `scroll`, or `drag` when the target control is represented in Accessibility.
-5. Prefer direct AX operations over simulated input. Use `set_value` for writable text fields and `perform_secondary_action` for exposed actions such as `AXPress` or `AXShowMenu`.
-6. Use keyboard input as the second path when AX exposes focusable controls but not a direct action: focus the target field/control, then use `type_text` or `press_key`.
-7. Use screenshots to understand visual state. Use screenshot coordinates only as the last resort for canvas-rendered or non-AX UI. When using coordinates read from the returned screenshot, set `coordinate_space="screenshot"`.
-8. After every action, call `get_app_state` again and verify the expected UI state changed. Do not say the task is complete until you observe the result.
-9. Ask the user before destructive or privacy-sensitive actions, purchases, sending messages, sharing data, changing security settings, or anything that could have real-world side effects beyond ordinary navigation/playback.
+1. Start with `status`. If the helper is not healthy or macOS Accessibility / Screen Recording permissions are missing, call `setup` to start Computer Use and trigger the permission flow.
+2. If macOS shows permission prompts or System Settings panes, the user must approve them. After approval, call `status` again before continuing.
+3. Use `list_apps` to find running apps. Use `open_app` to launch or activate the target app by display name or bundle ID.
+4. Before every desktop interaction, call `get_app_state` for the target app. Treat the returned AX tree and screenshot as the source of truth for the current UI.
+5. Prefer AX-first actions. Use the integer element indexes returned by `get_app_state` with `click`, `set_value`, `perform_secondary_action`, `scroll`, or `drag` when the target control is represented in Accessibility.
+6. Prefer direct AX operations over simulated input. Use `set_value` for writable text fields and `perform_secondary_action` for exposed actions such as `AXPress` or `AXShowMenu`.
+7. Use keyboard input as the second path when AX exposes focusable controls but not a direct action: focus the target field/control, then use `type_text` or `press_key`.
+8. Use screenshots to understand visual state. Use screenshot coordinates only as the last resort for canvas-rendered or non-AX UI. When using coordinates read from the returned screenshot, set `coordinate_space="screenshot"`.
+9. After every action, call `get_app_state` again and verify the expected UI state changed. Do not say the task is complete until you observe the result.
+10. Ask the user before destructive or privacy-sensitive actions, purchases, sending messages, sharing data, changing security settings, or anything that could have real-world side effects beyond ordinary navigation/playback.
 
 ## Tool Map
 
 - `status`: check helper health and macOS permissions.
+- `setup`: start Computer Use through TermCanvas and request required macOS permissions.
 - `get_instructions`: read this operating protocol from the MCP server.
 - `list_apps`: list running Mac apps with names, bundle IDs, PIDs, and frontmost state.
 - `open_app`: launch or activate an app.

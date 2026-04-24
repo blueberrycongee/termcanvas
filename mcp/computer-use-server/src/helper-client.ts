@@ -69,15 +69,6 @@ export function resolveHelperConnection(
 }
 
 export class HelperClient {
-  private baseUrl: string;
-  private token: string;
-
-  constructor() {
-    const connection = resolveHelperConnection();
-    this.token = connection.token;
-    this.baseUrl = `http://127.0.0.1:${connection.port}`;
-  }
-
   async get(endpoint: string): Promise<unknown> {
     return this.request("GET", endpoint);
   }
@@ -91,12 +82,14 @@ export class HelperClient {
     endpoint: string,
     body?: unknown,
   ): Promise<unknown> {
-    const url = `${this.baseUrl}/${endpoint}`;
+    const connection = resolveHelperConnection();
+    const baseUrl = `http://127.0.0.1:${connection.port}`;
+    const url = `${baseUrl}/${endpoint}`;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
-    if (this.token) {
-      headers["X-Token"] = this.token;
+    if (connection.token) {
+      headers["X-Token"] = connection.token;
     }
 
     let response: Response;
@@ -115,8 +108,8 @@ export class HelperClient {
         msg.includes("fetch failed")
       ) {
         throw new Error(
-          `Computer Use helper is not running at ${this.baseUrl}. ` +
-            "Make sure TermCanvas is open and Computer Use is enabled in Settings.",
+          `Computer Use helper is not running at ${baseUrl}. ` +
+            "Call the setup tool to start Computer Use and request macOS permissions.",
         );
       }
       throw new Error(`Helper request failed: ${msg}`);

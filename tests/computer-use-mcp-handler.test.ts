@@ -7,9 +7,11 @@ import path from "node:path";
 import { handleToolCall } from "../mcp/computer-use-server/src/handler.ts";
 import {
   resolveHelperConnection,
+  HelperClient as RealHelperClient,
   type HelperClient,
 } from "../mcp/computer-use-server/src/helper-client.ts";
 import { readComputerUseInstructions } from "../mcp/computer-use-server/src/instructions.ts";
+import type { TermCanvasClient } from "../mcp/computer-use-server/src/termcanvas-client.ts";
 import { tools } from "../mcp/computer-use-server/src/tools.ts";
 
 class FakeHelperClient {
@@ -54,6 +56,30 @@ class FakeHelperClient {
 
 function asHelper(client: FakeHelperClient): HelperClient {
   return client as unknown as HelperClient;
+}
+
+class FakeTermCanvasClient {
+  posts: string[] = [];
+  gets: string[] = [];
+
+  async post(pathname: string): Promise<unknown> {
+    this.posts.push(pathname);
+    return { ok: true };
+  }
+
+  async get(pathname: string): Promise<unknown> {
+    this.gets.push(pathname);
+    return {
+      enabled: true,
+      helperRunning: true,
+      accessibilityGranted: false,
+      screenRecordingGranted: false,
+    };
+  }
+}
+
+function asTermCanvas(client: FakeTermCanvasClient): TermCanvasClient {
+  return client as unknown as TermCanvasClient;
 }
 
 test("computer use MCP list_apps unwraps helper response", async () => {
@@ -111,10 +137,32 @@ test("computer use MCP status includes usage guidance", async () => {
   const status = JSON.parse(result.content[0].text as string);
 
   assert.equal(status.healthy, true);
+  assert.equal(status.usage_guidance.setup_tool, "setup");
   assert.equal(status.usage_guidance.instructions_tool, "get_instructions");
   assert.deepEqual(status.usage_guidance.protocol.slice(0, 2), [
-    "Use status, list_apps, open_app, then get_app_state before interacting with a local Mac app.",
-    "Prefer AX element indexes from get_app_state for click, set_value, scroll, drag, and perform_secondary_action.",
+    "Use status first. If the helper is not healthy or permissions are missing, call setup.",
+    "Use list_apps, open_app, then get_app_state before interacting with a local Mac app.",
+  ]);
+});
+
+test("computer use MCP setup starts Computer Use through TermCanvas", async () => {
+  const helper = new FakeHelperClient();
+  const termcanvas = new FakeTermCanvasClient();
+  const result = await handleToolCall(
+    "setup",
+    {},
+    asHelper(helper),
+    asTermCanvas(termcanvas),
+  );
+  const setup = JSON.parse(result.content[0].text as string);
+
+  assert.equal(result.isError, undefined);
+  assert.deepEqual(termcanvas.posts, ["/api/computer-use/enable"]);
+  assert.deepEqual(termcanvas.gets, ["/api/computer-use/status"]);
+  assert.equal(setup.ok, true);
+  assert.deepEqual(setup.next_steps.slice(0, 2), [
+    "If macOS shows permission prompts, the user must approve Accessibility and Screen Recording.",
+    "After approval, call status and then get_app_state for the target app before acting.",
   ]);
 });
 
@@ -124,6 +172,7 @@ test("computer use MCP tool descriptions teach the AX-first protocol", () => {
   );
 
   assert.match(descriptions.status, /AX-first desktop control protocol/);
+  assert.match(descriptions.setup, /request required macOS Accessibility/);
   assert.match(descriptions.get_app_state, /Observe before acting/);
   assert.match(descriptions.click, /coordinates are the last resort/);
   assert.match(descriptions.set_value, /Prefer this over keyboard typing/);
@@ -218,4 +267,56 @@ test("computer use helper client falls back to legacy env when state file is una
     token: "env-token",
     stateFilePath: "/tmp/missing-state.json",
   });
+});
+
+test("computer use helper client reloads state file for each request", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-cu-state-"));
+  const stateFile = path.join(dir, "state.json");
+  const previousStateFile = process.env.TERMCANVAS_COMPUTER_USE_STATE_FILE;
+  const previousFetch = globalThis.fetch;
+  const requests: Array<{ url: string; token: string | null }> = [];
+
+  try {
+    process.env.TERMCANVAS_COMPUTER_USE_STATE_FILE = stateFile;
+    fs.writeFileSync(
+      stateFile,
+      JSON.stringify({ enabled: true, port: 18101, token: "token-a" }),
+    );
+    globalThis.fetch = (async (input, init) => {
+      requests.push({
+        url: String(input),
+        token:
+          init?.headers &&
+          typeof init.headers === "object" &&
+          !Array.isArray(init.headers)
+            ? ((init.headers as Record<string, string>)["X-Token"] ?? null)
+            : null,
+      });
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    const client = new RealHelperClient();
+    await client.get("health");
+    fs.writeFileSync(
+      stateFile,
+      JSON.stringify({ enabled: true, port: 18102, token: "token-b" }),
+    );
+    await client.get("health");
+
+    assert.deepEqual(requests, [
+      { url: "http://127.0.0.1:18101/health", token: "token-a" },
+      { url: "http://127.0.0.1:18102/health", token: "token-b" },
+    ]);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousStateFile === undefined) {
+      delete process.env.TERMCANVAS_COMPUTER_USE_STATE_FILE;
+    } else {
+      process.env.TERMCANVAS_COMPUTER_USE_STATE_FILE = previousStateFile;
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

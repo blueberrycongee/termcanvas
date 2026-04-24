@@ -24,9 +24,18 @@ export const tools: Tool[] = [
     },
   },
   {
+    name: "setup",
+    description:
+      "Start TermCanvas Computer Use and request required macOS Accessibility and Screen Recording permissions. Call this when status reports the helper is unhealthy, not running, or permissions are missing before attempting desktop control.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
+  {
     name: "list_apps",
     description:
-      "List running macOS applications with name, bundle ID, PID, and frontmost status.",
+      "List running macOS applications with name, bundle ID, PID, and frontmost status. Call status first and call setup if the helper is unavailable or permissions are missing.",
     inputSchema: {
       type: "object" as const,
       properties: {},
