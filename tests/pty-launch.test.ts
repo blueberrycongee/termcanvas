@@ -10,6 +10,7 @@ import {
   sanitizeLoginShellSeedEnv,
   type LaunchResolverDeps,
 } from "../electron/pty-launch.ts";
+import { getTerminalExtraPathEntries } from "../electron/agent-shims.ts";
 
 const HOME_CLI_PATH = path.posix.join("/opt/homebrew/bin", "codex");
 
@@ -378,6 +379,31 @@ test("buildLaunchSpec exposes Computer Use state file to shell terminals without
   assert.equal(launch.env.TERMCANVAS_COMPUTER_USE_STATE_FILE, stateFile);
   assert.equal("TERMCANVAS_CU_TOKEN" in launch.env, false);
   assert.deepEqual(launch.args, ["-l"]);
+});
+
+test("shell terminal extra PATH entries put agent shims after cliDir for launch prepending", () => {
+  const entries = getTerminalExtraPathEntries(
+    "/Applications/TermCanvas.app/Contents/Resources/cli",
+    "shell",
+    (file) => file.endsWith("/agent-shims"),
+  );
+
+  assert.deepEqual(entries, [
+    "/Applications/TermCanvas.app/Contents/Resources/cli",
+    "/Applications/TermCanvas.app/Contents/Resources/cli/agent-shims",
+  ]);
+});
+
+test("managed agent terminals do not receive shell agent shim PATH entries", () => {
+  const entries = getTerminalExtraPathEntries(
+    "/Applications/TermCanvas.app/Contents/Resources/cli",
+    "codex",
+    () => true,
+  );
+
+  assert.deepEqual(entries, [
+    "/Applications/TermCanvas.app/Contents/Resources/cli",
+  ]);
 });
 
 test("buildLaunchSpec does not duplicate extraPathEntries already in PATH", async () => {

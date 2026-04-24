@@ -28,6 +28,10 @@ import { sendToWindow } from "./window-events";
 import { detectCli } from "./process-detector";
 import { ensureCliLauncher } from "./cli-launchers";
 import {
+  getAgentShimDir,
+  getTerminalExtraPathEntries,
+} from "./agent-shims";
+import {
   isCliRegistered,
   registerCli,
   unregisterCli,
@@ -448,9 +452,13 @@ function setupIpc() {
       dbg(
         `terminal:create shell=${options.shell ?? "(default)"} args=${JSON.stringify(options.args)} cwd=${options.cwd}`,
       );
+      const cliDir = getCliDir();
       const ptyId = await ptyManager.create({
         ...options,
-        extraPathEntries: [getCliDir()],
+        extraPathEntries: getTerminalExtraPathEntries(
+          cliDir,
+          options.terminalType,
+        ),
         ...(hookSocketPath
           ? { envOverrides: { TERMCANVAS_SOCKET: hookSocketPath } }
           : {}),
@@ -1958,6 +1966,7 @@ function dataUrlToPngBuffer(dataUrl: string): Buffer {
 }
 
 const CLI_NAMES = ["termcanvas", "hydra", "browse"];
+const AGENT_SHIM_NAMES = ["codex", "claude"];
 
 function ensureCliLinks(): void {
   const cliDir = getCliDir();
@@ -1965,6 +1974,15 @@ function ensureCliLinks(): void {
 
   for (const name of CLI_NAMES) {
     const jsFile = path.join(cliDir, `${name}.js`);
+    try {
+      ensureCliLauncher(jsFile);
+    } catch {}
+  }
+
+  const shimDir = getAgentShimDir(cliDir);
+  if (!fs.existsSync(shimDir)) return;
+  for (const name of AGENT_SHIM_NAMES) {
+    const jsFile = path.join(shimDir, `${name}.js`);
     try {
       ensureCliLauncher(jsFile);
     } catch {}

@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import electron from "vite-plugin-electron";
 import renderer from "vite-plugin-electron-renderer";
+import fs from "fs";
 import path from "path";
 import { build as esbuild, context as esbuildCtx, type Plugin as EsbuildPlugin } from "esbuild";
 import { ensureCliLauncher } from "./electron/cli-launchers";
@@ -115,6 +116,37 @@ function buildBrowse(): Plugin {
   };
 }
 
+function buildAgentShims(): Plugin {
+  const shimNames = ["codex", "claude"] as const;
+  const buildOptions = shimNames.map((name) => {
+    const outfile = `dist-cli/agent-shims/${name}.js`;
+    return {
+      entryPoints: [`cli/agent-shims/${name}.ts`],
+      outfile,
+      format: "esm" as const,
+      platform: "node" as const,
+      bundle: true,
+      banner: { js: "#!/usr/bin/env node" },
+      plugins: [cliSymlinkPlugin(outfile)],
+    };
+  });
+
+  return {
+    name: "build-agent-shims",
+    async buildStart() {
+      fs.mkdirSync("dist-cli/agent-shims", { recursive: true });
+      if (this.meta.watchMode) {
+        for (const opts of buildOptions) {
+          const ctx = await esbuildCtx(opts);
+          await ctx.watch();
+        }
+      } else {
+        await Promise.all(buildOptions.map((opts) => esbuild(opts)));
+      }
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
     react(),
@@ -123,6 +155,7 @@ export default defineConfig({
     buildCli(),
     buildHydra(),
     buildBrowse(),
+    buildAgentShims(),
     electron([
       {
         entry: "electron/main.ts",
