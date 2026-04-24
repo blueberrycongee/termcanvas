@@ -698,6 +698,15 @@ async function main() {
         const result = await request("POST", "/api/computer-use/enable");
         if (jsonFlag) console.log(JSON.stringify(result, null, 2));
         else console.log("Computer Use enabled.");
+      } else if (command === "setup") {
+        const result = await request("POST", "/api/computer-use/setup");
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else {
+          console.log("Computer Use setup started.");
+          console.log(`Helper running: ${result.helperRunning}`);
+          console.log(`Accessibility: ${result.accessibilityGranted}`);
+          console.log(`Screen Recording: ${result.screenRecordingGranted}`);
+        }
       } else if (command === "disable") {
         const result = await request("POST", "/api/computer-use/disable");
         if (jsonFlag) console.log(JSON.stringify(result, null, 2));
@@ -925,7 +934,7 @@ async function main() {
         }
       } else {
         console.log(
-          "Usage: termcanvas computer-use <status|enable|disable|stop|list-apps|open-app|get-app-state|click|set-value|perform-secondary-action|type|type-text|press-key|scroll|drag> [args]",
+          "Usage: termcanvas computer-use <status|enable|setup|disable|stop|list-apps|open-app|get-app-state|click|set-value|perform-secondary-action|type|type-text|press-key|scroll|drag> [args]",
         );
       }
     } else if (group === "state") {

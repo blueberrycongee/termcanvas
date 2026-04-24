@@ -4,7 +4,7 @@ TermCanvas provides Computer Use through MCP tools. Use it when the user asks yo
 
 ## Operating Protocol
 
-1. Start with `status`. If the helper is not healthy or macOS Accessibility / Screen Recording permissions are missing, call `setup` to start Computer Use and trigger the permission flow.
+1. Start with `status`. If the helper is not healthy or macOS Accessibility / Screen Recording permissions are missing, call `setup` to start Computer Use and open the macOS permission flow.
 2. If macOS shows permission prompts or System Settings panes, the user must approve them. After approval, call `status` again before continuing.
 3. Use `list_apps` to find running apps. Use `open_app` to launch or activate the target app by display name or bundle ID.
 4. Before every desktop interaction, call `get_app_state` for the target app. Treat the returned AX tree and screenshot as the source of truth for the current UI.
@@ -18,7 +18,7 @@ TermCanvas provides Computer Use through MCP tools. Use it when the user asks yo
 ## Tool Map
 
 - `status`: check helper health and macOS permissions.
-- `setup`: start Computer Use through TermCanvas and request required macOS permissions.
+- `setup`: start Computer Use through TermCanvas, request required macOS permissions, and open System Settings when user approval is needed.
 - `get_instructions`: read this operating protocol from the MCP server.
 - `list_apps`: list running Mac apps with names, bundle IDs, PIDs, and frontmost state.
 - `open_app`: launch or activate an app.

@@ -26,7 +26,7 @@ export const tools: Tool[] = [
   {
     name: "setup",
     description:
-      "Start TermCanvas Computer Use and request required macOS Accessibility and Screen Recording permissions. Call this when status reports the helper is unhealthy, not running, or permissions are missing before attempting desktop control.",
+      "Start TermCanvas Computer Use, request required macOS Accessibility and Screen Recording permissions, and open the macOS permission panes when approval is still needed. Call this when status reports the helper is unhealthy, not running, or permissions are missing before attempting desktop control.",
     inputSchema: {
       type: "object" as const,
       properties: {},

@@ -216,6 +216,15 @@ export class ComputerUseManager {
     await this.disable();
   }
 
+  async setup(): Promise<ComputerUseStatus> {
+    await this.enable();
+    const status = await this.getStatus();
+    if (!status.accessibilityGranted || !status.screenRecordingGranted) {
+      this.openPermissions();
+    }
+    return status;
+  }
+
   async getStatus(): Promise<ComputerUseStatus> {
     if (!this.state.enabled || !this.port || !this.token) {
       return {

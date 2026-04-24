@@ -96,12 +96,12 @@ export async function handleToolCall(
 async function handleSetup(
   termCanvasClient: TermCanvasClient,
 ): Promise<CallToolResult> {
-  await termCanvasClient.post("/api/computer-use/enable");
-  const status = await termCanvasClient.get("/api/computer-use/status");
+  const status = await termCanvasClient.post("/api/computer-use/setup");
   return textResult({
     ok: true,
     status,
     next_steps: [
+      "TermCanvas opened the macOS permission flow if any required permission is missing.",
       "If macOS shows permission prompts, the user must approve Accessibility and Screen Recording.",
       "After approval, call status and then get_app_state for the target app before acting.",
       "If either permission is still false, tell the user to finish the permission steps in System Settings.",

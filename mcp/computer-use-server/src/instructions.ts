@@ -26,7 +26,7 @@ const FALLBACK_INSTRUCTIONS = `# TermCanvas Computer Use
 
 Use this MCP server for local Mac desktop automation. Follow the AX-first protocol:
 
-1. Call status first. If the helper is not healthy or permissions are missing, call setup.
+1. Call status first. If the helper is not healthy or permissions are missing, call setup to start Computer Use and open the macOS permission flow.
 2. Call list_apps, open_app, then get_app_state before acting.
 3. Prefer indexed Accessibility elements from get_app_state.
 4. Use screenshots for observation and use screenshot coordinates only as the last resort.

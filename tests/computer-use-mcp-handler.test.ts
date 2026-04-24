@@ -64,11 +64,6 @@ class FakeTermCanvasClient {
 
   async post(pathname: string): Promise<unknown> {
     this.posts.push(pathname);
-    return { ok: true };
-  }
-
-  async get(pathname: string): Promise<unknown> {
-    this.gets.push(pathname);
     return {
       enabled: true,
       helperRunning: true,
@@ -157,12 +152,12 @@ test("computer use MCP setup starts Computer Use through TermCanvas", async () =
   const setup = JSON.parse(result.content[0].text as string);
 
   assert.equal(result.isError, undefined);
-  assert.deepEqual(termcanvas.posts, ["/api/computer-use/enable"]);
-  assert.deepEqual(termcanvas.gets, ["/api/computer-use/status"]);
+  assert.deepEqual(termcanvas.posts, ["/api/computer-use/setup"]);
+  assert.deepEqual(termcanvas.gets, []);
   assert.equal(setup.ok, true);
   assert.deepEqual(setup.next_steps.slice(0, 2), [
+    "TermCanvas opened the macOS permission flow if any required permission is missing.",
     "If macOS shows permission prompts, the user must approve Accessibility and Screen Recording.",
-    "After approval, call status and then get_app_state for the target app before acting.",
   ]);
 });
 
@@ -172,7 +167,7 @@ test("computer use MCP tool descriptions teach the AX-first protocol", () => {
   );
 
   assert.match(descriptions.status, /AX-first desktop control protocol/);
-  assert.match(descriptions.setup, /request required macOS Accessibility/);
+  assert.match(descriptions.setup, /open the macOS permission panes/);
   assert.match(descriptions.get_app_state, /Observe before acting/);
   assert.match(descriptions.click, /coordinates are the last resort/);
   assert.match(descriptions.set_value, /Prefer this over keyboard typing/);

@@ -172,6 +172,9 @@ export class ApiServer {
     if (method === "POST" && pathname === "/api/computer-use/enable") {
       return this.computerUseEnable();
     }
+    if (method === "POST" && pathname === "/api/computer-use/setup") {
+      return this.computerUseSetup();
+    }
     if (method === "POST" && pathname === "/api/computer-use/disable") {
       return this.computerUseDisable();
     }
@@ -573,6 +576,12 @@ export class ApiServer {
     if (!mgr) throw Object.assign(new Error("Computer Use not available"), { status: 501 });
     await mgr.enable();
     return { ok: true };
+  }
+
+  private async computerUseSetup() {
+    const mgr = this.deps.computerUseManager;
+    if (!mgr) throw Object.assign(new Error("Computer Use not available"), { status: 501 });
+    return mgr.setup();
   }
 
   private async computerUseDisable() {
