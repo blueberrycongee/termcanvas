@@ -100,8 +100,9 @@ test("getTerminalLaunchOptions includes autoApprove args when resuming codex ses
   ]);
 });
 
-test("getTerminalPromptArgs defaults to a positional prompt", () => {
+test("getTerminalPromptArgs terminates Claude options before the prompt", () => {
   assert.deepEqual(getTerminalPromptArgs("claude", "Explore the repo"), [
+    "--",
     "Explore the repo",
   ]);
 });

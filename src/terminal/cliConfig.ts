@@ -84,6 +84,9 @@ export const TERMINAL_CONFIG: Record<TerminalType, TerminalAdapterConfig> = {
       resumeArgs: (id) => ["--resume", id],
       newArgs: () => [],
       autoApproveArgs: () => ["--dangerously-skip-permissions"],
+      // Claude's variadic options, such as --mcp-config, otherwise consume
+      // following positional prompts as additional option values.
+      promptArgs: (prompt) => ["--", prompt],
     },
     composer: {
       supportsComposer: true,
