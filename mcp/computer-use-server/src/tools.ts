@@ -1,10 +1,23 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { COMPUTER_USE_PROTOCOL_SUMMARY } from "./instructions.js";
+
+const ACTION_GUARDRAIL =
+  "Before acting, call get_app_state for the target app in this turn. After acting, call get_app_state again and verify the UI changed before reporting success.";
 
 export const tools: Tool[] = [
   {
     name: "status",
     description:
-      "Check whether the Computer Use helper is running and has macOS Accessibility and Screen Recording permissions.",
+      `Check whether the Computer Use helper is running and has macOS Accessibility and Screen Recording permissions. ${COMPUTER_USE_PROTOCOL_SUMMARY}`,
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
+  {
+    name: "get_instructions",
+    description:
+      "Read the TermCanvas Computer Use operating protocol. Call this before the first local desktop automation task in a session, or whenever the correct AX-first workflow is unclear.",
     inputSchema: {
       type: "object" as const,
       properties: {},
@@ -40,7 +53,7 @@ export const tools: Tool[] = [
   {
     name: "get_app_state",
     description:
-      "Start an app use session if needed, then get the state of the app's key window and return a screenshot plus accessibility tree. Call this once per assistant turn before interacting with an app.",
+      "Observe before acting: start an app use session if needed, then get the app key-window state, indexed Accessibility tree, and screenshot. Use the returned AX element indexes first; use the screenshot to understand state and as coordinate fallback only.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -66,7 +79,7 @@ export const tools: Tool[] = [
   {
     name: "click",
     description:
-      "Click an element by integer index or pixel coordinates. Prefer element from get_app_state. Use coordinate_space=screenshot for x/y from the returned screenshot.",
+      `Click an element by integer index or pixel coordinates. Prefer AX element indexes from get_app_state; coordinates are the last resort. Use coordinate_space=screenshot for x/y from the returned screenshot. ${ACTION_GUARDRAIL}`,
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -113,7 +126,8 @@ export const tools: Tool[] = [
   },
   {
     name: "perform_secondary_action",
-    description: "Invoke a secondary Accessibility action exposed by an element.",
+    description:
+      `Invoke a secondary Accessibility action exposed by an element, such as AXPress or AXShowMenu. Prefer this over coordinate clicking when the target element exposes a usable AX action. ${ACTION_GUARDRAIL}`,
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -131,7 +145,8 @@ export const tools: Tool[] = [
   },
   {
     name: "set_value",
-    description: "Set the value of a settable Accessibility element.",
+    description:
+      `Set the value of a settable Accessibility element. Prefer this over keyboard typing when get_app_state shows a writable AX element. ${ACTION_GUARDRAIL}`,
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -146,7 +161,8 @@ export const tools: Tool[] = [
   },
   {
     name: "type_text",
-    description: "Type literal text using keyboard input into the focused element.",
+    description:
+      `Type literal text using keyboard input into the focused element. Prefer set_value for writable AX elements; use type_text after focusing a field when set_value is unavailable. ${ACTION_GUARDRAIL}`,
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -158,7 +174,7 @@ export const tools: Tool[] = [
   {
     name: "press_key",
     description:
-      "Press a key or key-combination. Supports xdotool-like syntax such as Return, Tab, super+c, Up, KP_0.",
+      `Press a key or key-combination. Supports xdotool-like syntax such as Return, Tab, super+c, Up, KP_0. Use keyboard paths when AX exposes focus but not direct actions. ${ACTION_GUARDRAIL}`,
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -174,7 +190,8 @@ export const tools: Tool[] = [
   },
   {
     name: "scroll",
-    description: "Scroll an element or screen coordinate in a direction by a number of pages.",
+    description:
+      `Scroll an AX element or screen coordinate in a direction by a number of pages. Prefer element indexes; coordinate scrolling is a fallback when AX does not expose a scrollable target. ${ACTION_GUARDRAIL}`,
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -206,7 +223,8 @@ export const tools: Tool[] = [
   },
   {
     name: "drag",
-    description: "Drag from one point to another using pixel coordinates or element indexes.",
+    description:
+      `Drag from one point to another using element indexes or pixel coordinates. Prefer element indexes when available; coordinate dragging is a fallback for non-AX UI. Use coordinate_space=screenshot for screenshot-derived coordinates. ${ACTION_GUARDRAIL}`,
     inputSchema: {
       type: "object" as const,
       properties: {

@@ -287,6 +287,11 @@ test("buildLaunchSpec injects Computer Use MCP config into Codex argv", async ()
     "dist",
     "index.js",
   );
+  const instructionsFile = path.join(
+    process.cwd(),
+    "skills",
+    "computer-use-instructions.md",
+  );
 
   const launch = await buildLaunchSpec(
     {
@@ -297,7 +302,7 @@ test("buildLaunchSpec injects Computer Use MCP config into Codex argv", async ()
     },
     createDeps({
       existsSync: (file) =>
-        ["/repo", HOME_CLI_PATH, stateFile, mcpServer].includes(file),
+        ["/repo", HOME_CLI_PATH, stateFile, mcpServer, instructionsFile].includes(file),
       isExecutable: (file) => [HOME_CLI_PATH].includes(file),
     }),
   );
@@ -310,11 +315,13 @@ test("buildLaunchSpec injects Computer Use MCP config into Codex argv", async ()
     "-c",
     `mcp_servers.computer-use.env=${JSON.stringify({
       TERMCANVAS_COMPUTER_USE_STATE_FILE: stateFile,
+      TERMCANVAS_COMPUTER_USE_INSTRUCTIONS: instructionsFile,
     })}`,
   ]);
   assert.deepEqual(launch.args.slice(6), ["resume", "session-42"]);
   assert.equal(launch.env.TERMCANVAS_COMPUTER_USE_ENABLED, "1");
   assert.equal(launch.env.TERMCANVAS_COMPUTER_USE_STATE_FILE, stateFile);
+  assert.equal(launch.env.TERMCANVAS_COMPUTER_USE_INSTRUCTIONS, instructionsFile);
   assert.equal("TERMCANVAS_CU_PORT" in launch.env, false);
   assert.equal("TERMCANVAS_CU_TOKEN" in launch.env, false);
   assert.equal("CODEX_MCP_SERVERS" in launch.env, false);
@@ -329,6 +336,11 @@ test("buildLaunchSpec injects Computer Use MCP config into Claude argv", async (
     "dist",
     "index.js",
   );
+  const instructionsFile = path.join(
+    process.cwd(),
+    "skills",
+    "computer-use-instructions.md",
+  );
 
   const launch = await buildLaunchSpec(
     {
@@ -339,7 +351,13 @@ test("buildLaunchSpec injects Computer Use MCP config into Claude argv", async (
     },
     createDeps({
       existsSync: (file) =>
-        ["/repo", "/opt/homebrew/bin/claude", stateFile, mcpServer].includes(file),
+        [
+          "/repo",
+          "/opt/homebrew/bin/claude",
+          stateFile,
+          mcpServer,
+          instructionsFile,
+        ].includes(file),
       isExecutable: (file) => ["/opt/homebrew/bin/claude"].includes(file),
     }),
   );
@@ -352,17 +370,24 @@ test("buildLaunchSpec injects Computer Use MCP config into Claude argv", async (
         args: [mcpServer],
         env: {
           TERMCANVAS_COMPUTER_USE_STATE_FILE: stateFile,
+          TERMCANVAS_COMPUTER_USE_INSTRUCTIONS: instructionsFile,
         },
       },
     },
   });
   assert.deepEqual(launch.args.slice(2), ["--resume", "session-42"]);
+  assert.equal(launch.env.TERMCANVAS_COMPUTER_USE_INSTRUCTIONS, instructionsFile);
   assert.equal("CLAUDE_MCP_SERVERS" in launch.env, false);
   assert.equal("TERMCANVAS_CU_TOKEN" in launch.env, false);
 });
 
 test("buildLaunchSpec exposes Computer Use state file to shell terminals without token", async () => {
   const stateFile = "/Users/test/.termcanvas/computer-use/state.json";
+  const instructionsFile = path.join(
+    process.cwd(),
+    "skills",
+    "computer-use-instructions.md",
+  );
 
   const launch = await buildLaunchSpec(
     {
@@ -370,13 +395,15 @@ test("buildLaunchSpec exposes Computer Use state file to shell terminals without
       terminalType: "shell",
     },
     createDeps({
-      existsSync: (file) => ["/repo", "/bin/zsh", stateFile].includes(file),
+      existsSync: (file) =>
+        ["/repo", "/bin/zsh", stateFile, instructionsFile].includes(file),
       isExecutable: (file) => ["/bin/zsh"].includes(file),
     }),
   );
 
   assert.equal(launch.env.TERMCANVAS_COMPUTER_USE_ENABLED, "1");
   assert.equal(launch.env.TERMCANVAS_COMPUTER_USE_STATE_FILE, stateFile);
+  assert.equal(launch.env.TERMCANVAS_COMPUTER_USE_INSTRUCTIONS, instructionsFile);
   assert.equal("TERMCANVAS_CU_TOKEN" in launch.env, false);
   assert.deepEqual(launch.args, ["-l"]);
 });

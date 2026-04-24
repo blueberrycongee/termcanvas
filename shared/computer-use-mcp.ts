@@ -3,7 +3,13 @@ export type ComputerUseMcpProvider = "claude" | "codex";
 export interface ComputerUseMcpConfigOptions {
   mcpServerPath: string;
   stateFilePath: string;
+  instructionsFilePath?: string;
 }
+
+type ComputerUseMcpEnvOptions = Pick<
+  ComputerUseMcpConfigOptions,
+  "stateFilePath" | "instructionsFilePath"
+>;
 
 export function isComputerUseMcpProvider(
   value: string,
@@ -11,16 +17,27 @@ export function isComputerUseMcpProvider(
   return value === "claude" || value === "codex";
 }
 
+function buildComputerUseMcpServerEnv({
+  stateFilePath,
+  instructionsFilePath,
+}: ComputerUseMcpEnvOptions): Record<string, string> {
+  const env: Record<string, string> = {
+    TERMCANVAS_COMPUTER_USE_STATE_FILE: stateFilePath,
+  };
+  if (instructionsFilePath) {
+    env.TERMCANVAS_COMPUTER_USE_INSTRUCTIONS = instructionsFilePath;
+  }
+  return env;
+}
+
 function buildComputerUseMcpServerConfig({
   mcpServerPath,
-  stateFilePath,
+  ...options
 }: ComputerUseMcpConfigOptions) {
   return {
     command: "node",
     args: [mcpServerPath],
-    env: {
-      TERMCANVAS_COMPUTER_USE_STATE_FILE: stateFilePath,
-    },
+    env: buildComputerUseMcpServerEnv(options),
   };
 }
 
@@ -31,9 +48,7 @@ function getCodexMcpConfigArgs(options: ComputerUseMcpConfigOptions): string[] {
     "-c",
     `mcp_servers.computer-use.args=${JSON.stringify([options.mcpServerPath])}`,
     "-c",
-    `mcp_servers.computer-use.env=${JSON.stringify({
-      TERMCANVAS_COMPUTER_USE_STATE_FILE: options.stateFilePath,
-    })}`,
+    `mcp_servers.computer-use.env=${JSON.stringify(buildComputerUseMcpServerEnv(options))}`,
   ];
 }
 

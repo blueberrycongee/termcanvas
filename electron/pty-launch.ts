@@ -520,14 +520,6 @@ export async function buildLaunchSpec(
     "opencode",
     "wuu",
   ]);
-  const agentTypes = new Set([
-    "claude",
-    "codex",
-    "kimi",
-    "gemini",
-    "opencode",
-    "wuu",
-  ]);
   if (options.terminalType && computerUseAwareTypes.has(options.terminalType)) {
     const cuStateFile = path.join(
       deps.homeDir(),
@@ -538,6 +530,10 @@ export async function buildLaunchSpec(
     if (deps.existsSync(cuStateFile)) {
       shellEnv.TERMCANVAS_COMPUTER_USE_ENABLED = "1";
       shellEnv.TERMCANVAS_COMPUTER_USE_STATE_FILE = cuStateFile;
+      const instructionsPath = resolveInstructionsPath(deps.existsSync);
+      if (instructionsPath) {
+        shellEnv.TERMCANVAS_COMPUTER_USE_INSTRUCTIONS = instructionsPath;
+      }
 
       if (isComputerUseMcpProvider(options.terminalType)) {
         const mcpServerPath = resolveMcpServerPath(deps.existsSync);
@@ -548,15 +544,11 @@ export async function buildLaunchSpec(
               {
                 mcpServerPath,
                 stateFilePath: cuStateFile,
+                instructionsFilePath: instructionsPath ?? undefined,
               },
             ),
             ...launchArgs,
           ];
-        }
-      } else if (agentTypes.has(options.terminalType)) {
-        const instructionsPath = resolveInstructionsPath(deps.existsSync);
-        if (instructionsPath) {
-          shellEnv.TERMCANVAS_COMPUTER_USE_INSTRUCTIONS = instructionsPath;
         }
       }
     }

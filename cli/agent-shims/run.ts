@@ -37,6 +37,18 @@ function resolveMcpServerPath(): string | null {
   return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
 }
 
+function resolveInstructionsPath(): string | null {
+  const configured = process.env.TERMCANVAS_COMPUTER_USE_INSTRUCTIONS?.trim();
+  if (configured && fs.existsSync(configured)) return configured;
+
+  const dir = moduleDir();
+  const candidates = [
+    path.resolve(dir, "..", "..", "skills", "computer-use-instructions.md"),
+    path.resolve(dir, "..", "..", "..", "skills", "computer-use-instructions.md"),
+  ];
+  return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
+}
+
 function commandCandidates(command: string): string[] {
   if (process.platform !== "win32") return [command];
 
@@ -88,11 +100,16 @@ function getInjectedArgs(
   if (!stateFilePath || !mcpServerPath || !shouldInjectMcp(args)) {
     return args;
   }
+  const instructionsFilePath = resolveInstructionsPath();
+  if (instructionsFilePath) {
+    process.env.TERMCANVAS_COMPUTER_USE_INSTRUCTIONS = instructionsFilePath;
+  }
 
   return [
     ...getComputerUseMcpConfigArgs(provider, {
       mcpServerPath,
       stateFilePath,
+      instructionsFilePath: instructionsFilePath ?? undefined,
     }),
     ...args,
   ];

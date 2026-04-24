@@ -9,10 +9,20 @@ import type {
   OkResponse,
   OpenAppResponse,
 } from "./types.js";
+import {
+  COMPUTER_USE_STATUS_GUIDANCE,
+  readComputerUseInstructions,
+} from "./instructions.js";
 
 function textResult(data: unknown): CallToolResult {
   return {
     content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+  };
+}
+
+function plainTextResult(text: string): CallToolResult {
+  return {
+    content: [{ type: "text", text }],
   };
 }
 
@@ -33,6 +43,9 @@ export async function handleToolCall(
       case "status":
       case "computer_use_status":
         return await handleStatus(client);
+      case "get_instructions":
+      case "computer_use_get_instructions":
+        return plainTextResult(readComputerUseInstructions());
       case "list_apps":
       case "computer_use_list_apps":
         return await handleListApps(client);
@@ -88,6 +101,7 @@ async function handleStatus(client: HelperClient): Promise<CallToolResult> {
       healthy: false,
       accessibility_granted: false,
       screen_recording_granted: false,
+      usage_guidance: COMPUTER_USE_STATUS_GUIDANCE,
     });
   }
 
@@ -103,6 +117,7 @@ async function handleStatus(client: HelperClient): Promise<CallToolResult> {
     healthy,
     accessibility_granted: accessibilityGranted,
     screen_recording_granted: screenRecordingGranted,
+    usage_guidance: COMPUTER_USE_STATUS_GUIDANCE,
   });
 }
 
