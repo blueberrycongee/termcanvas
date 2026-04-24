@@ -32,6 +32,10 @@ function createDeps(overrides: Partial<LaunchResolverDeps> = {}): LaunchResolver
         HOME_CLI_PATH,
         "/Users/test/bin/custom",
       ].includes(file),
+    readFileSync: () => {
+      throw new Error("Unexpected readFileSync call");
+    },
+    homeDir: () => "/Users/test",
     getShellEnv: async () => ({
       HOME: "/Users/test",
       PATH: "/opt/homebrew/bin:/usr/bin:/bin",
@@ -61,6 +65,10 @@ function createWindowsDeps(
         "C:\\Users\\test\\AppData\\Local\\Microsoft\\WindowsApps\\codex.exe",
         "C:\\Users\\test\\AppData\\Roaming\\npm\\claude.cmd",
       ].includes(file),
+    readFileSync: () => {
+      throw new Error("Unexpected readFileSync call");
+    },
+    homeDir: () => "C:\\Users\\test",
     getShellEnv: async () => ({
       LOCALAPPDATA: "C:\\Users\\test\\AppData\\Local",
       APPDATA: "C:\\Users\\test\\AppData\\Roaming",
@@ -267,6 +275,94 @@ test("buildLaunchSpec injects TermCanvas instance routing into the PTY environme
       process.env.VITE_DEV_SERVER_URL = previousDevServerUrl;
     }
   }
+});
+
+test("buildLaunchSpec injects Computer Use MCP config into Codex argv", async () => {
+  const stateFile = "/Users/test/.termcanvas/computer-use/state.json";
+  const mcpServer = path.join(
+    process.cwd(),
+    "mcp",
+    "computer-use-server",
+    "dist",
+    "index.js",
+  );
+
+  const launch = await buildLaunchSpec(
+    {
+      cwd: "/repo",
+      shell: "codex",
+      args: ["resume", "session-42"],
+      terminalType: "codex",
+    },
+    createDeps({
+      existsSync: (file) =>
+        ["/repo", HOME_CLI_PATH, stateFile, mcpServer].includes(file),
+      isExecutable: (file) => [HOME_CLI_PATH].includes(file),
+      readFileSync: (file) => {
+        assert.equal(file, stateFile);
+        return JSON.stringify({ port: 17492, token: "token-42" });
+      },
+    }),
+  );
+
+  assert.deepEqual(launch.args.slice(0, 6), [
+    "-c",
+    'mcp_servers.computer-use.command="node"',
+    "-c",
+    `mcp_servers.computer-use.args=${JSON.stringify([mcpServer])}`,
+    "-c",
+    'mcp_servers.computer-use.env={"TERMCANVAS_CU_PORT":"17492","TERMCANVAS_CU_TOKEN":"token-42"}',
+  ]);
+  assert.deepEqual(launch.args.slice(6), ["resume", "session-42"]);
+  assert.equal(launch.env.TERMCANVAS_COMPUTER_USE_ENABLED, "1");
+  assert.equal(launch.env.TERMCANVAS_CU_PORT, "17492");
+  assert.equal(launch.env.TERMCANVAS_CU_TOKEN, "token-42");
+  assert.equal("CODEX_MCP_SERVERS" in launch.env, false);
+});
+
+test("buildLaunchSpec injects Computer Use MCP config into Claude argv", async () => {
+  const stateFile = "/Users/test/.termcanvas/computer-use/state.json";
+  const mcpServer = path.join(
+    process.cwd(),
+    "mcp",
+    "computer-use-server",
+    "dist",
+    "index.js",
+  );
+
+  const launch = await buildLaunchSpec(
+    {
+      cwd: "/repo",
+      shell: "claude",
+      args: ["--resume", "session-42"],
+      terminalType: "claude",
+    },
+    createDeps({
+      existsSync: (file) =>
+        ["/repo", "/opt/homebrew/bin/claude", stateFile, mcpServer].includes(file),
+      isExecutable: (file) => ["/opt/homebrew/bin/claude"].includes(file),
+      readFileSync: (file) => {
+        assert.equal(file, stateFile);
+        return JSON.stringify({ port: 17492, token: "token-42" });
+      },
+    }),
+  );
+
+  assert.equal(launch.args[0], "--mcp-config");
+  assert.deepEqual(JSON.parse(launch.args[1]), {
+    mcpServers: {
+      "computer-use": {
+        command: "node",
+        args: [mcpServer],
+        env: {
+          TERMCANVAS_CU_PORT: "17492",
+          TERMCANVAS_CU_TOKEN: "token-42",
+        },
+      },
+    },
+  });
+  assert.deepEqual(launch.args.slice(2), ["--resume", "session-42"]);
+  assert.equal("CLAUDE_MCP_SERVERS" in launch.env, false);
 });
 
 test("buildLaunchSpec does not duplicate extraPathEntries already in PATH", async () => {

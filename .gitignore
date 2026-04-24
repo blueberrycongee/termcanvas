@@ -2,9 +2,11 @@ node_modules/
 dist/
 dist-electron/
 dist-cli/
+dist-computer-use/
 out/
 .claw/
 .vite/
+native/computer-use-helper/.build/
 
 *.log
 *.tsbuildinfo

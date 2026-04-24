@@ -24,6 +24,10 @@ extraResources:
     to: skills
     filter:
       - "**/*"
+  - from: dist-computer-use
+    to: .
+    filter:
+      - "**/*"
 
 asarUnpack:
   - node_modules/node-pty/**/*
