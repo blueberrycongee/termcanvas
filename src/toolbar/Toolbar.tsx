@@ -74,6 +74,7 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
     for (const p of projects) {
       for (const wt of p.worktrees) {
         for (const t of wt.terminals) {
+          if (t.stashed) continue;
           minX = Math.min(minX, t.x);
           minY = Math.min(minY, t.y);
           maxX = Math.max(maxX, t.x + t.width);
@@ -83,14 +84,15 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
     }
     const contentW = maxX - minX;
     const contentH = maxY - minY;
+    const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
     const rightOffset = getCanvasRightInset(rightPanelCollapsed, rightPanelWidth);
-    const viewW = window.innerWidth - rightOffset - padding * 2;
+    const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
     const viewH = window.innerHeight - TOOLBAR_HEIGHT - padding * 2;
     const scale = Math.min(1, viewW / contentW, viewH / contentH);
     const x = -minX * scale + padding;
     const y = -minY * scale + padding + TOOLBAR_HEIGHT;
     setViewport({ x, y, scale });
-  }, [projects, rightPanelCollapsed, rightPanelWidth, setViewport]);
+  }, [projects, leftPanelCollapsed, leftPanelWidth, rightPanelCollapsed, rightPanelWidth, setViewport]);
 
   const applyStepZoom = useCallback(
     (direction: "in" | "out") => {
