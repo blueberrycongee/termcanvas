@@ -70,7 +70,7 @@ test("syncWorktrees no-op keeps references and does not notify subscribers", () 
   useProjectStore
     .getState()
     .syncWorktrees("/tmp/project-1", [
-      { path: "/tmp/project-1", branch: "main", isMain: true },
+      { path: "/tmp/project-1", branch: "main", isPrimary: true },
     ]);
   unsubscribe();
 
@@ -88,7 +88,7 @@ test("syncWorktrees still updates renamed branches", () => {
   useProjectStore
     .getState()
     .syncWorktrees("/tmp/project-1", [
-      { path: "/tmp/project-1", branch: "feature/new-name", isMain: true },
+      { path: "/tmp/project-1", branch: "feature/new-name", isPrimary: true },
     ]);
 
   const state = useProjectStore.getState();
@@ -102,8 +102,8 @@ test("syncWorktrees still adds and removes worktrees", () => {
   resetStore([createProject()]);
 
   useProjectStore.getState().syncWorktrees("/tmp/project-1", [
-    { path: "/tmp/project-1", branch: "main", isMain: true },
-    { path: "/tmp/project-1-feature", branch: "feature", isMain: false },
+    { path: "/tmp/project-1", branch: "main", isPrimary: true },
+    { path: "/tmp/project-1-feature", branch: "feature", isPrimary: false },
   ]);
 
   let state = useProjectStore.getState();
@@ -119,7 +119,7 @@ test("syncWorktrees still adds and removes worktrees", () => {
   useProjectStore
     .getState()
     .syncWorktrees("/tmp/project-1", [
-      { path: "/tmp/project-1-feature", branch: "feature", isMain: false },
+      { path: "/tmp/project-1-feature", branch: "feature", isPrimary: false },
     ]);
 
   state = useProjectStore.getState();
@@ -141,7 +141,7 @@ test("syncWorktrees preserves main worktree when backend omits it", () => {
   // (e.g. transient git error, path mismatch). The main worktree and its
   // terminals must survive.
   useProjectStore.getState().syncWorktrees("/tmp/project-1", [
-    { path: "/tmp/project-1-feat", branch: "feat", isMain: false },
+    { path: "/tmp/project-1-feat", branch: "feat", isPrimary: false },
   ]);
 
   const state = useProjectStore.getState();
@@ -174,7 +174,7 @@ test("syncWorktrees clears removed runtime state and normalizes focused worktree
   useProjectStore
     .getState()
     .syncWorktrees("/tmp/project-1", [
-      { path: "/tmp/project-1", branch: "main", isMain: true },
+      { path: "/tmp/project-1", branch: "main", isPrimary: true },
     ]);
 
   const state = useProjectStore.getState();

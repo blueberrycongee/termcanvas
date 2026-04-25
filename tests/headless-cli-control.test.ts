@@ -92,7 +92,7 @@ test("termcanvas workflow CLI drives a Lead-driven workflow init→dispatch→wa
   fs.mkdirSync(repoPath, { recursive: true });
   initRepo(repoPath);
 
-  const worktrees = [{ path: repoPath, branch: "main", isMain: true }];
+  const worktrees = [{ path: repoPath, branch: "main", isPrimary: true }];
 
   const harness = await startHeadlessServer({
     workspaceDir,
@@ -231,7 +231,7 @@ test("termcanvas workflow reset CLI sends a reset feedback to the headless serve
   fs.mkdirSync(repoPath, { recursive: true });
   initRepo(repoPath);
 
-  const worktrees = [{ path: repoPath, branch: "main", isMain: true }];
+  const worktrees = [{ path: repoPath, branch: "main", isPrimary: true }];
 
   const harness = await startHeadlessServer({
     workspaceDir,

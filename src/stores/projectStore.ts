@@ -44,7 +44,7 @@ interface ProjectStore {
   removeWorktree: (projectId: string, worktreeId: string) => void;
   syncWorktrees: (
     projectPath: string,
-    worktrees: { path: string; branch: string; isMain: boolean }[],
+    worktrees: { path: string; branch: string; isPrimary: boolean }[],
   ) => void;
 
   addTerminal: (
@@ -160,7 +160,7 @@ interface ProjectStore {
 interface ScannedWorktree {
   path: string;
   branch: string;
-  isMain: boolean;
+  isPrimary: boolean;
 }
 
 interface FocusLookup {
@@ -270,14 +270,14 @@ function syncProjectWorktrees(
         id: generateId(),
         name: wt.branch,
         path: wt.path,
-        isMain: wt.isMain,
+        isPrimary: wt.isPrimary,
         terminals: [],
       };
     }
-    if (existing.name === wt.branch && existing.isMain === wt.isMain) {
+    if (existing.name === wt.branch && existing.isPrimary === wt.isPrimary) {
       return existing;
     }
-    return { ...existing, name: wt.branch, isMain: wt.isMain };
+    return { ...existing, name: wt.branch, isPrimary: wt.isPrimary };
   });
 
   // Guarantee: the main worktree (path === project.path) must always be

@@ -48,7 +48,7 @@ export interface WorktreeGroup {
   worktreeId: string;
   worktreeName: string;
   worktreePath: string;
-  isMain: boolean;
+  isPrimary: boolean;
   statusSummary: StatusSummary;
   terminals: CanvasTerminalItem[];
 }
@@ -57,6 +57,7 @@ export interface ProjectGroup {
   projectId: string;
   projectName: string;
   projectPath: string;
+  branchName?: string;
   statusSummary: StatusSummary;
   worktrees: WorktreeGroup[];
   flat: boolean;
@@ -498,7 +499,7 @@ export function buildProjectTree(
         worktreeId: worktree.id,
         worktreeName: worktree.name,
         worktreePath: worktree.path,
-        isMain: worktree.isMain ?? worktree.path === project.path,
+        isPrimary: worktree.isPrimary ?? worktree.path === project.path,
         statusSummary: computeStatusSummary(terminals, seenTerminalIds),
         terminals,
       });
@@ -506,13 +507,16 @@ export function buildProjectTree(
 
     const allTerminals = worktreeGroups.flatMap((wt) => wt.terminals);
 
+    const flat = worktreeGroups.length === 1;
+
     result.push({
       projectId: project.id,
       projectName: project.name,
       projectPath: project.path,
+      branchName: flat ? worktreeGroups[0].worktreeName : undefined,
       statusSummary: computeStatusSummary(allTerminals, seenTerminalIds),
       worktrees: worktreeGroups,
-      flat: worktreeGroups.length === 1 && worktreeGroups[0].isMain,
+      flat,
     });
   }
 

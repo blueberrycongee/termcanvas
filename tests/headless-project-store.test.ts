@@ -204,8 +204,8 @@ describe("ProjectStore", () => {
       store.addProject(project);
 
       store.syncWorktrees("/repo", [
-        { path: "/repo", branch: "main", isMain: true },
-        { path: "/repo/.worktrees/new-feature", branch: "new-feature", isMain: false },
+        { path: "/repo", branch: "main", isPrimary: true },
+        { path: "/repo/.worktrees/new-feature", branch: "new-feature", isPrimary: false },
       ]);
 
       const updated = store.getProjects()[0];
@@ -233,7 +233,7 @@ describe("ProjectStore", () => {
       store.addProject(project);
 
       store.syncWorktrees("/repo", [
-        { path: "/repo", branch: "new-name", isMain: true },
+        { path: "/repo", branch: "new-name", isPrimary: true },
       ]);
 
       const updated = store.getProjects()[0];

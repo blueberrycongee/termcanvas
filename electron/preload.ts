@@ -186,7 +186,7 @@ contextBridge.exposeInMainWorld("termcanvas", {
         | {
             ok: true;
             path: string;
-            worktrees: { path: string; branch: string; isMain: boolean }[];
+            worktrees: { path: string; branch: string; isPrimary: boolean }[];
           }
         | { ok: false; error: string }
       >,
@@ -199,7 +199,7 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ) as Promise<
         | {
             ok: true;
-            worktrees: { path: string; branch: string; isMain: boolean }[];
+            worktrees: { path: string; branch: string; isPrimary: boolean }[];
           }
         | { ok: false; error: string }
       >,

@@ -4,7 +4,7 @@ import type { ProjectData } from "../types";
 interface ScannedWorktreeInfo {
   path: string;
   branch: string;
-  isMain: boolean;
+  isPrimary: boolean;
 }
 
 interface ScannedProjectInfo {

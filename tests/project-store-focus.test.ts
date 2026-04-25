@@ -283,8 +283,8 @@ test("addScannedProjectAndFocus focuses the first worktree of the created projec
     name: "Project One",
     path: "/tmp/project-one",
     worktrees: [
-      { path: "/tmp/project-one", branch: "main", isMain: true },
-      { path: "/tmp/project-one-feature", branch: "feature", isMain: false },
+      { path: "/tmp/project-one", branch: "main", isPrimary: true },
+      { path: "/tmp/project-one-feature", branch: "feature", isPrimary: false },
     ],
   });
 

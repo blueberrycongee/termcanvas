@@ -12,7 +12,7 @@ import { ensureProjectTracked } from "./project-sync.ts";
 export interface WorktreeInfo {
   path: string;
   branch: string;
-  isMain: boolean;
+  isPrimary: boolean;
 }
 
 export interface WorktreeControl {
@@ -95,7 +95,7 @@ export function createWorktreeControl(input: {
         worktrees: tracked.project.worktrees.map((worktree) => ({
           path: worktree.path,
           branch: worktree.name,
-          isMain: worktree.path === tracked.project.path,
+          isPrimary: worktree.path === tracked.project.path,
         })),
       };
     },
@@ -123,7 +123,7 @@ export function createWorktreeControl(input: {
         worktrees: tracked.project.worktrees.map((worktree) => ({
           path: worktree.path,
           branch: worktree.name,
-          isMain: worktree.path === tracked.project.path,
+          isPrimary: worktree.path === tracked.project.path,
         })),
       };
     },

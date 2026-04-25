@@ -193,7 +193,7 @@ function WorktreeRow({
   const [removeBusy, setRemoveBusy] = useState(false);
 
   const openRemoveDialog = () => {
-    if (group.isMain) return;
+    if (group.isPrimary) return;
     setRemoveStage("soft");
   };
 
@@ -321,7 +321,7 @@ function WorktreeRow({
         >
           <PlusIcon />
         </IconButton>
-        {!group.isMain && (
+        {!group.isPrimary && (
           <IconButton
             size="sm"
             tone="danger"
@@ -505,16 +505,30 @@ function ProjectRow({
         </button>
         <span className="text-[11px] font-medium truncate flex-1 min-w-0">
           {project.projectName}
+          {project.branchName && (
+            <span className="text-[var(--text-muted)] font-normal">
+              {" · "}
+              {project.branchName}
+            </span>
+          )}
         </span>
         <StatusBadges summary={project.statusSummary} />
         <IconButton
           size="sm"
           tone="neutral"
-          label={t.panel_new_terminal}
+          label={project.flat ? t.panel_new_terminal : t.panel_new_worktree}
           className="opacity-0 group-hover:opacity-100 transition-opacity"
           onClick={(e) => {
             e.stopPropagation();
-            handleNewTerminal();
+            if (project.flat) {
+              handleNewTerminal();
+            } else {
+              const store = useSessionPanelCollapseStore.getState();
+              if (store.isCollapsed(project.projectId)) {
+                store.toggle(project.projectId);
+              }
+              setCreating(true);
+            }
           }}
         >
           <PlusIcon />
