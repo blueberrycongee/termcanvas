@@ -39,6 +39,7 @@ const markdownClassName =
   "[&_code]:text-[var(--text-primary)] [&_code]:bg-[var(--surface)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[length:var(--text-xs)] [&_code]:break-words " +
   "[&_pre]:bg-[var(--surface)] [&_pre]:rounded-md [&_pre]:p-2.5 [&_pre]:text-[length:var(--text-xs)] [&_pre]:overflow-x-auto [&_pre]:min-w-0 " +
   "[&_p]:break-words [&_li]:break-words [&_h1]:break-words [&_h2]:break-words [&_h3]:break-words [&_a]:break-all " +
+  "[&_table]:block [&_table]:overflow-x-auto [&_table]:max-w-full [&_table]:min-w-0 " +
   "[&_pre_code]:bg-transparent [&_pre_code]:p-0 " +
   "[&_blockquote]:border-l-2 [&_blockquote]:border-[var(--border-hover)] [&_blockquote]:pl-3 [&_blockquote]:text-[var(--text-muted)] " +
   "[&_hr]:border-[var(--border)]";
@@ -567,7 +568,7 @@ function UserPrompt({
           type="button"
           onClick={onClick}
           data-current={isCurrent || undefined}
-          className="rounded-xl px-3 py-2 text-left cursor-pointer transition-colors"
+          className="rounded-xl px-3 py-2 text-left cursor-pointer transition-colors min-w-0 max-w-full overflow-hidden"
           style={{
             backgroundColor: "var(--bubble-bg)",
             border: `1px solid ${isCurrent ? "var(--accent)" : "transparent"}`,
