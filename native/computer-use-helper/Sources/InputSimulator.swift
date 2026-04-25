@@ -18,11 +18,18 @@ enum InputSimulator {
         y: Double,
         button: String = "left",
         pid: Int32? = nil,
-        windowId: UInt32? = nil
+        windowId: UInt32? = nil,
+        modifiers: [String] = []
     ) throws {
         let point = CGPoint(x: x, y: y)
         if let pid, shouldUsePidMousePath(pid: pid) {
-            if try clickViaPid(point: point, pid: pid, windowId: windowId, button: button) {
+            if try clickViaPid(
+                point: point,
+                pid: pid,
+                windowId: windowId,
+                button: button,
+                modifiers: modifiers
+            ) {
                 return
             }
         }
@@ -30,24 +37,30 @@ enum InputSimulator {
         VirtualCursor.shared.moveToInteractionThresholdAndWait(to: point)
         VirtualCursor.shared.setPressed(true)
         defer { VirtualCursor.shared.setPressed(false) }
+        let flags = modifierFlags(from: modifiers)
 
         switch button {
         case "right":
-            postMouseEvent(.rightMouseDown, at: point, button: .right)
+            postMouseEvent(.rightMouseDown, at: point, button: .right, flags: flags)
             usleep(50_000)
-            postMouseEvent(.rightMouseUp, at: point, button: .right)
+            postMouseEvent(.rightMouseUp, at: point, button: .right, flags: flags)
+
+        case "middle":
+            postMouseEvent(.otherMouseDown, at: point, button: .center, flags: flags)
+            usleep(50_000)
+            postMouseEvent(.otherMouseUp, at: point, button: .center, flags: flags)
 
         case "double":
-            postMouseEvent(.leftMouseDown, at: point, button: .left, clickCount: 1)
-            postMouseEvent(.leftMouseUp, at: point, button: .left, clickCount: 1)
+            postMouseEvent(.leftMouseDown, at: point, button: .left, clickCount: 1, flags: flags)
+            postMouseEvent(.leftMouseUp, at: point, button: .left, clickCount: 1, flags: flags)
             usleep(50_000)
-            postMouseEvent(.leftMouseDown, at: point, button: .left, clickCount: 2)
-            postMouseEvent(.leftMouseUp, at: point, button: .left, clickCount: 2)
+            postMouseEvent(.leftMouseDown, at: point, button: .left, clickCount: 2, flags: flags)
+            postMouseEvent(.leftMouseUp, at: point, button: .left, clickCount: 2, flags: flags)
 
         default:
-            postMouseEvent(.leftMouseDown, at: point, button: .left)
+            postMouseEvent(.leftMouseDown, at: point, button: .left, flags: flags)
             usleep(50_000)
-            postMouseEvent(.leftMouseUp, at: point, button: .left)
+            postMouseEvent(.leftMouseUp, at: point, button: .left, flags: flags)
         }
     }
 
@@ -62,7 +75,8 @@ enum InputSimulator {
         point: CGPoint,
         pid: Int32,
         windowId: UInt32?,
-        button: String
+        button: String,
+        modifiers: [String]
     ) throws -> Bool {
         let targetWindow = resolveTargetWindow(pid: pid, windowId: windowId)
         if let targetWindow {
@@ -82,7 +96,8 @@ enum InputSimulator {
                 point: point,
                 pid: pid,
                 window: targetWindow,
-                count: button == "double" ? 2 : 1
+                count: button == "double" ? 2 : 1,
+                modifiers: modifiers
             )
             return true
         }
@@ -91,7 +106,8 @@ enum InputSimulator {
             point: point,
             pid: pid,
             window: targetWindow,
-            button: button
+            button: button,
+            modifiers: modifiers
         )
         return true
     }
@@ -100,17 +116,20 @@ enum InputSimulator {
         point: CGPoint,
         pid: Int32,
         window: WindowServerWindowInfo?,
-        count: Int
+        count: Int,
+        modifiers: [String]
     ) throws {
         let windowNumber = window.map { Int($0.windowId) } ?? 0
         let windowLocalTarget = windowLocalPoint(point, window: window)
         let offscreen = CGPoint(x: -1, y: -1)
+        let nsFlags = nsModifierFlags(from: modifiers)
+        let cgFlags = modifierFlags(from: modifiers)
 
         func makeEvent(_ type: NSEvent.EventType, clickCount: Int) throws -> CGEvent {
             guard let event = NSEvent.mouseEvent(
                 with: type,
                 location: .zero,
-                modifierFlags: [],
+                modifierFlags: nsFlags,
                 timestamp: 0,
                 windowNumber: windowNumber,
                 context: nil,
@@ -130,6 +149,7 @@ enum InputSimulator {
             clickState: Int64
         ) {
             event.location = screenPoint
+            event.flags = cgFlags
             event.setIntegerValueField(.mouseEventButtonNumber, value: 0)
             event.setIntegerValueField(.mouseEventSubtype, value: 3)
             event.setIntegerValueField(.mouseEventClickState, value: clickState)
@@ -193,7 +213,8 @@ enum InputSimulator {
         point: CGPoint,
         pid: Int32,
         window: WindowServerWindowInfo?,
-        button: String
+        button: String,
+        modifiers: [String]
     ) throws {
         let (downType, upType, mouseButton, nsDown, nsUp): (
             CGEventType,
@@ -201,16 +222,27 @@ enum InputSimulator {
             CGMouseButton,
             NSEvent.EventType,
             NSEvent.EventType
-        ) = button == "right"
-            ? (.rightMouseDown, .rightMouseUp, .right, .rightMouseDown, .rightMouseUp)
-            : (.leftMouseDown, .leftMouseUp, .left, .leftMouseDown, .leftMouseUp)
+        )
+        switch button {
+        case "right":
+            (downType, upType, mouseButton, nsDown, nsUp) =
+                (.rightMouseDown, .rightMouseUp, .right, .rightMouseDown, .rightMouseUp)
+        case "middle":
+            (downType, upType, mouseButton, nsDown, nsUp) =
+                (.otherMouseDown, .otherMouseUp, .center, .otherMouseDown, .otherMouseUp)
+        default:
+            (downType, upType, mouseButton, nsDown, nsUp) =
+                (.leftMouseDown, .leftMouseUp, .left, .leftMouseDown, .leftMouseUp)
+        }
         let windowNumber = window.map { Int($0.windowId) } ?? 0
         let windowLocal = windowLocalPoint(point, window: window)
+        let nsFlags = nsModifierFlags(from: modifiers)
+        let cgFlags = modifierFlags(from: modifiers)
 
         let down = NSEvent.mouseEvent(
             with: nsDown,
             location: .zero,
-            modifierFlags: [],
+            modifierFlags: nsFlags,
             timestamp: 0,
             windowNumber: windowNumber,
             context: nil,
@@ -226,7 +258,7 @@ enum InputSimulator {
         let up = NSEvent.mouseEvent(
             with: nsUp,
             location: .zero,
-            modifierFlags: [],
+            modifierFlags: nsFlags,
             timestamp: 0,
             windowNumber: windowNumber,
             context: nil,
@@ -244,10 +276,11 @@ enum InputSimulator {
         }
         for event in [down, up] {
             event.location = point
+            event.flags = cgFlags
             event.setIntegerValueField(.mouseEventClickState, value: 1)
             event.setIntegerValueField(
                 .mouseEventButtonNumber,
-                value: button == "right" ? 1 : 0
+                value: button == "right" ? 1 : button == "middle" ? 2 : 0
             )
             if let window {
                 let windowId = Int64(window.windowId)
@@ -298,12 +331,18 @@ enum InputSimulator {
 
     private static func postMouseEvent(
         _ type: CGEventType, at point: CGPoint,
-        button: CGMouseButton, clickCount: Int64 = 1
+        button: CGMouseButton,
+        clickCount: Int64 = 1,
+        flags: CGEventFlags = []
     ) {
         guard let event = CGEvent(
             mouseEventSource: nil, mouseType: type,
             mouseCursorPosition: point, mouseButton: button
         ) else { return }
+        event.flags = flags
+        if button == .center {
+            event.setIntegerValueField(.mouseEventButtonNumber, value: 2)
+        }
         event.setIntegerValueField(.mouseEventClickState, value: clickCount)
         event.post(tap: .cghidEventTap)
     }
@@ -385,6 +424,21 @@ enum InputSimulator {
         case "control", "ctrl": return .maskControl
         default: return CGEventFlags()
         }
+    }
+
+    private static func nsModifierFlags(from names: [String]) -> NSEvent.ModifierFlags {
+        var flags = NSEvent.ModifierFlags()
+        for name in names {
+            switch name.lowercased() {
+            case "command", "cmd", "super", "meta": flags.insert(.command)
+            case "shift": flags.insert(.shift)
+            case "option", "alt": flags.insert(.option)
+            case "control", "ctrl": flags.insert(.control)
+            case "fn", "function": flags.insert(.function)
+            default: break
+            }
+        }
+        return flags
     }
 
     // MARK: - Scroll

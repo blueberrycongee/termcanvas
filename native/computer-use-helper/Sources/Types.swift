@@ -240,6 +240,8 @@ struct ClickRequest: Codable {
     let button: String?
     let mouseButton: String?
     let clickCount: Int?
+    let modifiers: [String]?
+    let modifier: [String]?
     let fromZoom: Bool?
     let debugImageOut: String?
     let maxImageDimension: Int?

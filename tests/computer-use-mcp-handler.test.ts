@@ -561,6 +561,7 @@ test("computer use MCP tool descriptions teach the AX-first protocol", () => {
   assert.match(descriptions.launch_app, /without intentionally activating/);
   assert.match(descriptions.click, /coordinates are the last resort/);
   assert.match(descriptions.click, /debug_image_out/);
+  assert.match(descriptions.middle_click, /Middle-click/);
   assert.match(descriptions.click, /Do not use browser, Playwright, full-screen, or stale screenshot coordinates/);
   assert.match(descriptions.click, /Pass capture_id from that screenshot/);
   assert.match(descriptions.get_app_state, /returned screenshot capture_id/);
@@ -600,8 +601,10 @@ test("computer use MCP supports new set_value and secondary action tools", async
   const client = new FakeHelperClient();
 
   await handleToolCall("click", { pid: 42, window_id: 7, element_index: 3 }, asHelper(client));
-  await handleToolCall("double_click", { pid: 42, x: 10, y: 20 }, asHelper(client));
-  await handleToolCall("right_click", { pid: 42, x: 10, y: 20 }, asHelper(client));
+  await handleToolCall("click", { pid: 42, x: 11, y: 22, modifiers: ["cmd"] }, asHelper(client));
+  await handleToolCall("double_click", { pid: 42, x: 10, y: 20, modifiers: ["shift"] }, asHelper(client));
+  await handleToolCall("right_click", { pid: 42, x: 10, y: 20, modifiers: ["control"] }, asHelper(client));
+  await handleToolCall("middle_click", { pid: 42, x: 10, y: 20 }, asHelper(client));
   await handleToolCall("type_text", { pid: 42, window_id: 7, element_index: 3, text: "hello" }, asHelper(client));
   await handleToolCall("type_text_chars", { pid: 42, text: "hello" }, asHelper(client));
   await handleToolCall("press_key", { pid: 42, window_id: 7, element_index: 3, key: "Return" }, asHelper(client));
@@ -620,11 +623,19 @@ test("computer use MCP supports new set_value and secondary action tools", async
     },
     {
       endpoint: "click",
-      body: { pid: 42, x: 10, y: 20, mouse_button: "double" },
+      body: { pid: 42, x: 11, y: 22, modifiers: ["cmd"] },
     },
     {
       endpoint: "click",
-      body: { pid: 42, x: 10, y: 20, mouse_button: "right" },
+      body: { pid: 42, x: 10, y: 20, modifiers: ["shift"], mouse_button: "double" },
+    },
+    {
+      endpoint: "click",
+      body: { pid: 42, x: 10, y: 20, modifiers: ["control"], mouse_button: "right" },
+    },
+    {
+      endpoint: "click",
+      body: { pid: 42, x: 10, y: 20, mouse_button: "middle" },
     },
     {
       endpoint: "type_text",

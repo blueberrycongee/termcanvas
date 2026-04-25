@@ -33,6 +33,7 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 - Use `press_key` and `type_text` when keyboard navigation is the natural app workflow or AX only exposes focus. Pass `pid` whenever available so keyboard events target the intended app instead of the user's frontmost app.
 - Use coordinate clicks, drags, or scrolls only when AX and keyboard paths are unavailable or unsuitable.
 - For coordinate actions against a background app, pass both `pid` and `window_id` when available so the helper can use its pid-targeted no-focus-steal path instead of relying on the frontmost app.
+- Use `modifiers` on coordinate clicks when the app workflow requires cmd-click, shift-click, option-click, ctrl-click, or fn-click. Use `middle_click` for UI that specifically distinguishes the middle mouse button.
 
 ## Observation Rules
 
@@ -80,6 +81,7 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 - `hotkey`: press a key combination such as `["cmd", "c"]`, preferably with `pid`.
 - `double_click`: double-click by element or coordinates.
 - `right_click`: right-click by element or coordinates; prefer `perform_secondary_action` with `AXShowMenu` when available.
+- `middle_click`: middle-click by element or coordinates when an app distinguishes middle mouse input.
 - `scroll`: scroll an AX element or coordinate target.
 - `drag`: drag between element indexes or coordinates.
 - `stop`: stop the Computer Use helper.

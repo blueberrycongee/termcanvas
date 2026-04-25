@@ -261,6 +261,7 @@ func handleScreenshot(_ req: ScreenshotRequest) -> ScreenshotInfo? {
 func handleClick(_ req: ClickRequest) -> (Int, Data) {
     let button = req.mouseButton ?? req.button ?? "left"
     let clickCount = max(req.clickCount ?? (button == "double" ? 2 : 1), 1)
+    let modifiers = req.modifiers ?? req.modifier ?? []
     if req.debugImageOut != nil && (req.x == nil || req.y == nil) {
         return ok(OkResponse(
             ok: false,
@@ -273,7 +274,7 @@ func handleClick(_ req: ClickRequest) -> (Int, Data) {
                                      element: req.element ?? req.elementIndex,
                                      windowId: req.windowId) {
         let element = resolved.element
-        if button == "left" && clickCount == 1 {
+        if button == "left" && clickCount == 1 && modifiers.isEmpty {
             let result = AXTree.performAction(element, action: kAXPressAction as String)
             if result == .success {
                 return ok(OkResponse())
@@ -288,7 +289,8 @@ func handleClick(_ req: ClickRequest) -> (Int, Data) {
             button: button,
             clickCount: clickCount,
             pid: resolved.pid,
-            windowId: req.windowId
+            windowId: req.windowId,
+            modifiers: modifiers
         )
         return ok(OkResponse())
     }
@@ -332,7 +334,8 @@ func handleClick(_ req: ClickRequest) -> (Int, Data) {
         captureId: zoomPoint.captureId ?? req.captureId,
         coordinateSpace: zoomPoint.coordinateSpace ?? req.coordinateSpace,
         pid: req.pid,
-        appName: req.appName
+        appName: req.appName,
+        windowId: req.windowId
     )
     if let error = point.error {
         return ok(OkResponse(ok: false, error: error))
@@ -344,7 +347,8 @@ func handleClick(_ req: ClickRequest) -> (Int, Data) {
             button: button,
             clickCount: clickCount,
             pid: targetPid,
-            windowId: req.windowId
+            windowId: req.windowId,
+            modifiers: modifiers
         )
         return ok(OkResponse())
     }
@@ -399,12 +403,18 @@ func handleScroll(_ req: ScrollRequest) -> (Int, Data) {
         let amount = Int32(req.amount ?? 3)
         var dx: Int32 = 0
         var dy: Int32 = 0
-        switch req.direction {
-        case "up": dy = amount
-        case "down": dy = -amount
-        case "left": dx = amount
-        case "right": dx = -amount
-        default: break
+        if req.dx != nil || req.dy != nil {
+            dx = Int32(req.dx ?? 0)
+            dy = Int32(req.dy ?? 0)
+        } else {
+            switch req.direction {
+            case "up": dy = amount
+            case "down": dy = -amount
+            case "left": dx = amount
+            case "right": dx = -amount
+            default:
+                return ok(OkResponse(ok: false, error: "Provide direction or dx/dy for scroll."))
+            }
         }
 
         InputSimulator.scroll(
@@ -425,16 +435,33 @@ func handleScroll(_ req: ScrollRequest) -> (Int, Data) {
         captureId: req.captureId,
         coordinateSpace: req.coordinateSpace,
         pid: req.pid,
-        appName: req.appName
+        appName: req.appName,
+        windowId: req.windowId
     )
     if let error = point.error {
         return ok(OkResponse(ok: false, error: error))
     }
     if let resolvedPoint = point.point {
+        let amount = Int32(req.amount ?? 3)
+        var dx: Int32 = 0
+        var dy: Int32 = 0
+        if req.dx != nil || req.dy != nil {
+            dx = Int32(req.dx ?? 0)
+            dy = Int32(req.dy ?? 0)
+        } else {
+            switch req.direction {
+            case "up": dy = amount
+            case "down": dy = -amount
+            case "left": dx = amount
+            case "right": dx = -amount
+            default:
+                return ok(OkResponse(ok: false, error: "Provide direction or dx/dy for scroll."))
+            }
+        }
         InputSimulator.scroll(
             x: resolvedPoint.x, y: resolvedPoint.y,
-            dx: Int32(req.dx ?? 0),
-            dy: Int32(req.dy ?? 0),
+            dx: dx,
+            dy: dy,
             pid: targetPid,
             windowId: req.windowId
         )
@@ -477,10 +504,12 @@ func handleDrag(_ req: DragRequest) -> (Int, Data) {
         let targetPid = resolvePid(pid: req.pid, appName: req.appName)
         let fromResolution = resolvePoint(x: fx, y: fy, captureId: req.captureId,
                                           coordinateSpace: req.coordinateSpace,
-                                          pid: req.pid, appName: req.appName)
+                                          pid: req.pid, appName: req.appName,
+                                          windowId: req.windowId)
         let toResolution = resolvePoint(x: tx, y: ty, captureId: req.captureId,
                                         coordinateSpace: req.coordinateSpace,
-                                        pid: req.pid, appName: req.appName)
+                                        pid: req.pid, appName: req.appName,
+                                        windowId: req.windowId)
         if let error = fromResolution.error ?? toResolution.error {
             return ok(OkResponse(ok: false, error: error))
         }
@@ -560,7 +589,8 @@ func resolvePoint(
     captureId: String?,
     coordinateSpace: String?,
     pid: Int32?,
-    appName: String?
+    appName: String?,
+    windowId: UInt32?
 ) -> (point: CGPoint?, error: String?) {
     guard let x = x, let y = y else {
         return (nil, nil)
@@ -573,7 +603,7 @@ func resolvePoint(
 
         let screenshot: ScreenshotInfo?
         if let captureId = captureId {
-            guard let latest = Screenshot.latestCapture(pid: resolvedPid) else {
+            guard let latest = Screenshot.latestCapture(pid: resolvedPid, windowId: windowId) else {
                 return (nil, "No current screenshot capture for target app. Call get_app_state again and retry with the returned capture_id.")
             }
             guard latest.captureId == captureId else {
@@ -581,8 +611,10 @@ func resolvePoint(
             }
             screenshot = latest
         } else {
-            screenshot = Screenshot.latestCapture(pid: resolvedPid)
-                ?? Screenshot.captureWindow(pid: resolvedPid, windowFrame: nil)
+            screenshot = Screenshot.latestCapture(pid: resolvedPid, windowId: windowId)
+                ?? windowId.map {
+                    Screenshot.captureWindow(pid: resolvedPid, windowID: CGWindowID($0), windowFrame: nil)
+                } ?? Screenshot.captureWindow(pid: resolvedPid, windowFrame: nil)
         }
 
         guard let screenshot = screenshot,
@@ -603,9 +635,13 @@ func resolvePoint(
     }
 
     if coordinateSpace == "window" {
-        guard let resolvedPid = resolvePid(pid: pid, appName: appName),
-              let frame = AXTree.primaryWindowFrame(pid: resolvedPid)
-        else {
+        guard let resolvedPid = resolvePid(pid: pid, appName: appName) else {
+            return (nil, "window coordinates require pid/app_name with an accessible window")
+        }
+        let frame = windowId.flatMap {
+            WindowEnumerator.window(windowId: $0, pid: resolvedPid)?.bounds
+        } ?? AXTree.primaryWindowFrame(pid: resolvedPid)
+        guard let frame else {
             return (nil, "window coordinates require pid/app_name with an accessible window")
         }
         return (CGPoint(x: frame.x + x, y: frame.y + y), nil)
@@ -648,14 +684,29 @@ func clickRepeated(
     button: String,
     clickCount: Int,
     pid: Int32?,
-    windowId: UInt32?
+    windowId: UInt32?,
+    modifiers: [String]
 ) {
     if button == "double" {
-        try? InputSimulator.click(x: x, y: y, button: "double", pid: pid, windowId: windowId)
+        try? InputSimulator.click(
+            x: x,
+            y: y,
+            button: "double",
+            pid: pid,
+            windowId: windowId,
+            modifiers: modifiers
+        )
         return
     }
     for _ in 0..<clickCount {
-        try? InputSimulator.click(x: x, y: y, button: button, pid: pid, windowId: windowId)
+        try? InputSimulator.click(
+            x: x,
+            y: y,
+            button: button,
+            pid: pid,
+            windowId: windowId,
+            modifiers: modifiers
+        )
         usleep(50_000)
     }
 }

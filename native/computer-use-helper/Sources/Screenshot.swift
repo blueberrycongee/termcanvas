@@ -9,6 +9,7 @@ enum Screenshot {
     private static let outputDir = "/tmp/termcanvas-cu"
     private static let lock = NSLock()
     private static var latestByPid: [Int32: ScreenshotInfo] = [:]
+    private static var latestByWindow: [String: ScreenshotInfo] = [:]
     private static var latestZoomByPid: [Int32: ZoomContext] = [:]
 
     struct ZoomContext {
@@ -20,6 +21,16 @@ enum Screenshot {
     static func latestCapture(pid: Int32) -> ScreenshotInfo? {
         lock.lock()
         defer { lock.unlock() }
+        return latestByPid[pid]
+    }
+
+    static func latestCapture(pid: Int32, windowId: UInt32?) -> ScreenshotInfo? {
+        lock.lock()
+        defer { lock.unlock() }
+        if let windowId,
+           let byWindow = latestByWindow[windowCaptureKey(pid: pid, windowId: windowId)] {
+            return byWindow
+        }
         return latestByPid[pid]
     }
 
@@ -95,6 +106,7 @@ enum Screenshot {
         )
         lock.lock()
         latestByPid[pid] = info
+        latestByWindow[windowCaptureKey(pid: pid, windowId: UInt32(windowID))] = info
         lock.unlock()
         return info
     }
@@ -247,7 +259,7 @@ enum Screenshot {
             }
             pixelPoint = CGPoint(x: x * current.scale, y: y * current.scale)
         default:
-            if let current = latestCapture(pid: pid) {
+            if let current = latestCapture(pid: pid, windowId: windowId) {
                 if let captureId, current.captureId != captureId {
                     return "Stale screenshot capture_id for debug crosshair."
                 }
@@ -359,6 +371,10 @@ enum Screenshot {
             ),
             "core_graphics"
         )
+    }
+
+    private static func windowCaptureKey(pid: Int32, windowId: UInt32) -> String {
+        return "\(pid):\(windowId)"
     }
 
     private static func captureMainDisplayImage() -> (image: CGImage?, backend: String) {

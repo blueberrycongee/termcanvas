@@ -130,6 +130,9 @@ async function dispatchToolCall(
       case "right_click":
       case "computer_use_right_click":
         return await handleClick({ ...args, mouse_button: "right" }, client);
+      case "middle_click":
+      case "computer_use_middle_click":
+        return await handleClick({ ...args, mouse_button: "middle" }, client);
       case "type_text":
       case "computer_use_type_text":
         return await handleTypeText(args, client);

@@ -338,8 +338,19 @@ export const tools: Tool[] = [
         },
         mouse_button: {
           type: "string",
-          enum: ["left", "right", "double"],
+          enum: ["left", "right", "middle", "double"],
           description: "Mouse button or click type. Defaults to left.",
+        },
+        modifiers: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Modifier keys held during pixel fallback clicks, such as cmd, shift, option, control, fn.",
+        },
+        modifier: {
+          type: "array",
+          items: { type: "string" },
+          description: "Alias for modifiers.",
         },
         debug_image_out: {
           type: "string",
@@ -367,6 +378,11 @@ export const tools: Tool[] = [
         capture_id: { type: "string", description: "Capture ID for screenshot coordinates." },
         from_zoom: { type: "boolean", description: "Map x/y from the latest zoom image back to the source screenshot." },
         debug_image_out: { type: "string", description: "Optional absolute PNG path for coordinate debug crosshair output." },
+        modifiers: {
+          type: "array",
+          items: { type: "string" },
+          description: "Modifier keys held during pixel fallback clicks.",
+        },
       },
     },
   },
@@ -388,6 +404,37 @@ export const tools: Tool[] = [
         capture_id: { type: "string", description: "Capture ID for screenshot coordinates." },
         from_zoom: { type: "boolean", description: "Map x/y from the latest zoom image back to the source screenshot." },
         debug_image_out: { type: "string", description: "Optional absolute PNG path for coordinate debug crosshair output." },
+        modifiers: {
+          type: "array",
+          items: { type: "string" },
+          description: "Modifier keys held during pixel fallback clicks.",
+        },
+      },
+    },
+  },
+  {
+    name: "middle_click",
+    description:
+      `Middle-click an element or coordinates. Coordinate middle-clicks use the same pid/window_id no-focus-steal pixel path when targeting a background app. ${COORDINATE_GUARDRAIL} ${ACTION_GUARDRAIL}`,
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        pid: { type: "number", description: "Target process ID." },
+        app_name: { type: "string", description: "Target app name or bundle ID." },
+        window_id: { type: "number", description: "CGWindowID whose get_window_state produced element_index." },
+        element_index: { type: "number", description: "Element index from get_window_state." },
+        element: { type: "number", description: "Legacy element index." },
+        x: { type: "number", description: "X coordinate." },
+        y: { type: "number", description: "Y coordinate." },
+        coordinate_space: { type: "string", enum: ["screen", "window", "screenshot"] },
+        capture_id: { type: "string", description: "Capture ID for screenshot coordinates." },
+        from_zoom: { type: "boolean", description: "Map x/y from the latest zoom image back to the source screenshot." },
+        debug_image_out: { type: "string", description: "Optional absolute PNG path for coordinate debug crosshair output." },
+        modifiers: {
+          type: "array",
+          items: { type: "string" },
+          description: "Modifier keys held during pixel fallback clicks.",
+        },
       },
     },
   },
@@ -536,7 +583,6 @@ export const tools: Tool[] = [
             "Capture ID from the current get_app_state screenshot. Use with coordinate_space=screenshot to reject stale screenshot coordinates.",
         },
       },
-      required: ["direction"],
     },
   },
   {

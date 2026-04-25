@@ -129,9 +129,11 @@ export interface ClickParams {
   y?: number;
   capture_id?: string;
   coordinate_space?: string;
-  button?: "left" | "right" | "double";
-  mouse_button?: "left" | "right" | "double";
+  button?: "left" | "right" | "middle" | "double";
+  mouse_button?: "left" | "right" | "middle" | "double";
   click_count?: number;
+  modifiers?: string[];
+  modifier?: string[];
   from_zoom?: boolean;
   debug_image_out?: string;
   max_image_dimension?: number;
