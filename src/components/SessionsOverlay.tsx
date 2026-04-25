@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { useSessionStore } from "../stores/sessionStore";
 import { useT } from "../i18n/useT";
@@ -48,6 +48,20 @@ export function SessionsOverlay() {
   const replayError = useSessionStore((s) => s.replayError);
   const t = useT();
 
+  // Only animate width/left during the brief window after the user
+  // toggles maximize/restore. Continuous geometry changes (window
+  // resize, side-panel drag) would otherwise queue a 180ms transition
+  // every frame and make the drawer chase the pointer.
+  const [animateLayout, setAnimateLayout] = useState(false);
+  const prevExpandedRef = useRef(expanded);
+  useEffect(() => {
+    if (prevExpandedRef.current === expanded) return;
+    prevExpandedRef.current = expanded;
+    setAnimateLayout(true);
+    const timer = setTimeout(() => setAnimateLayout(false), 220);
+    return () => clearTimeout(timer);
+  }, [expanded]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -93,8 +107,9 @@ export function SessionsOverlay() {
         left: leftInset,
         height: `calc(100vh - ${TOOLBAR_HEIGHT}px)`,
         width: widthStyle,
-        transition:
-          "width 180ms cubic-bezier(0.4, 0, 0.2, 1), left 180ms cubic-bezier(0.4, 0, 0.2, 1)",
+        transition: animateLayout
+          ? "width 180ms cubic-bezier(0.4, 0, 0.2, 1), left 180ms cubic-bezier(0.4, 0, 0.2, 1)"
+          : undefined,
       }}
       role="dialog"
       aria-modal="false"
