@@ -261,6 +261,12 @@ func handleScreenshot(_ req: ScreenshotRequest) -> ScreenshotInfo? {
 func handleClick(_ req: ClickRequest) -> (Int, Data) {
     let button = req.mouseButton ?? req.button ?? "left"
     let clickCount = max(req.clickCount ?? (button == "double" ? 2 : 1), 1)
+    if req.debugImageOut != nil && (req.x == nil || req.y == nil) {
+        return ok(OkResponse(
+            ok: false,
+            error: "debug_image_out only applies to pixel clicks with x and y."
+        ))
+    }
 
     if let resolved = resolveElement(pid: req.pid, appName: req.appName,
                                      elementId: req.elementId,
@@ -291,6 +297,34 @@ func handleClick(_ req: ClickRequest) -> (Int, Data) {
     let zoomPoint = resolveZoomPoint(req)
     if let error = zoomPoint.error {
         return ok(OkResponse(ok: false, error: error))
+    }
+    if let debugImageOut = req.debugImageOut {
+        guard let targetPid else {
+            return ok(OkResponse(
+                ok: false,
+                error: "debug_image_out requires pid or app_name."
+            ))
+        }
+        guard let debugX = zoomPoint.x ?? req.x,
+              let debugY = zoomPoint.y ?? req.y
+        else {
+            return ok(OkResponse(
+                ok: false,
+                error: "debug_image_out requires x and y."
+            ))
+        }
+        if let error = Screenshot.writeDebugCrosshair(
+            pid: targetPid,
+            windowId: req.windowId,
+            captureId: zoomPoint.captureId ?? req.captureId,
+            x: debugX,
+            y: debugY,
+            coordinateSpace: zoomPoint.coordinateSpace ?? req.coordinateSpace,
+            outputPath: debugImageOut,
+            maxImageDimension: req.maxImageDimension ?? 0
+        ) {
+            return ok(OkResponse(ok: false, error: error))
+        }
     }
     let point = resolvePoint(
         x: zoomPoint.x ?? req.x,

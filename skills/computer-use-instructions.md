@@ -100,6 +100,7 @@ Coordinates are allowed, but they are the fallback path:
 4. If the window moves, resizes, or focus changes, discard old coordinates and call `get_app_state` again.
 5. Pass the returned screenshot `capture_id` with coordinate actions when available. If a stale `capture_id` is rejected, call `get_app_state` again and retry with the current screenshot.
 6. Do not pass coordinates from browser screenshots, Playwright screenshots, full-screen screenshots, screenshots from other tools, or stale screenshots as `coordinate_space="screenshot"`. Use only coordinates from the current `get_app_state` screenshot, or use `coordinate_space="screen"` when you have actual screen coordinates.
+7. When debugging coordinate math, pass `debug_image_out` on a pixel `click` to write a PNG with a red crosshair at the coordinate the helper received.
 
 ## Completion Standard
 

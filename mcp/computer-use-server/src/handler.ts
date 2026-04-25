@@ -363,7 +363,11 @@ async function handleClick(
   args: Record<string, unknown>,
   client: HelperClient,
 ): Promise<CallToolResult> {
-  const result = (await client.post("click", args)) as OkResponse;
+  const request =
+    typeof args.debug_image_out === "string"
+      ? { max_image_dimension: readComputerUseConfig().max_image_dimension, ...args }
+      : args;
+  const result = (await client.post("click", request)) as OkResponse;
   return textResult(result);
 }
 

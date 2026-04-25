@@ -229,7 +229,7 @@ export const tools: Tool[] = [
   {
     name: "click",
     description:
-      `Click an element by integer index or pixel coordinates. Prefer AX element indexes from get_app_state; coordinates are the last resort. When pid/window_id are provided, pixel clicks are delivered through the target pid path to avoid activating or raising the app unless the target is already frontmost. ${COORDINATE_GUARDRAIL} ${ACTION_GUARDRAIL}`,
+      `Click an element by integer index or pixel coordinates. Prefer AX element indexes from get_app_state; coordinates are the last resort. When pid/window_id are provided, pixel clicks are delivered through the target pid path to avoid activating or raising the app unless the target is already frontmost. Use debug_image_out to write a crosshair PNG when diagnosing coordinate math. ${COORDINATE_GUARDRAIL} ${ACTION_GUARDRAIL}`,
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -288,6 +288,11 @@ export const tools: Tool[] = [
           enum: ["left", "right", "double"],
           description: "Mouse button or click type. Defaults to left.",
         },
+        debug_image_out: {
+          type: "string",
+          description:
+            "Optional absolute PNG path for pixel clicks. The helper writes the latest target screenshot with a red crosshair at the received coordinate before dispatching the click. Use with coordinate_space=screenshot or coordinate_space=window when debugging coordinate math.",
+        },
       },
     },
   },
@@ -308,6 +313,7 @@ export const tools: Tool[] = [
         coordinate_space: { type: "string", enum: ["screen", "window", "screenshot"] },
         capture_id: { type: "string", description: "Capture ID for screenshot coordinates." },
         from_zoom: { type: "boolean", description: "Map x/y from the latest zoom image back to the source screenshot." },
+        debug_image_out: { type: "string", description: "Optional absolute PNG path for coordinate debug crosshair output." },
       },
     },
   },
@@ -328,6 +334,7 @@ export const tools: Tool[] = [
         coordinate_space: { type: "string", enum: ["screen", "window", "screenshot"] },
         capture_id: { type: "string", description: "Capture ID for screenshot coordinates." },
         from_zoom: { type: "boolean", description: "Map x/y from the latest zoom image back to the source screenshot." },
+        debug_image_out: { type: "string", description: "Optional absolute PNG path for coordinate debug crosshair output." },
       },
     },
   },

@@ -283,6 +283,43 @@ test("computer use MCP rejects invalid config keys", async () => {
   });
 });
 
+test("computer use MCP forwards debug crosshair requests with configured image cap", async () => {
+  await withTempComputerUseConfig(async () => {
+    const client = new FakeHelperClient();
+    await handleToolCall(
+      "set_config",
+      { max_image_dimension: 900 },
+      asHelper(client),
+    );
+
+    await handleToolCall(
+      "click",
+      {
+        pid: 42,
+        window_id: 7,
+        x: 10,
+        y: 20,
+        coordinate_space: "screenshot",
+        debug_image_out: "/tmp/termcanvas-crosshair.png",
+      },
+      asHelper(client),
+    );
+
+    assert.deepEqual(client.posts[0], {
+      endpoint: "click",
+      body: {
+        max_image_dimension: 900,
+        pid: 42,
+        window_id: 7,
+        x: 10,
+        y: 20,
+        coordinate_space: "screenshot",
+        debug_image_out: "/tmp/termcanvas-crosshair.png",
+      },
+    });
+  });
+});
+
 test("computer use MCP get_window_state requires explicit window target", async () => {
   await withTempComputerUseConfig(async () => {
     const client = new FakeHelperClient();
@@ -466,6 +503,7 @@ test("computer use MCP tool descriptions teach the AX-first protocol", () => {
   assert.match(descriptions.open_app, /exact localized name returned by list_apps/);
   assert.match(descriptions.launch_app, /without intentionally activating/);
   assert.match(descriptions.click, /coordinates are the last resort/);
+  assert.match(descriptions.click, /debug_image_out/);
   assert.match(descriptions.click, /Do not use browser, Playwright, full-screen, or stale screenshot coordinates/);
   assert.match(descriptions.click, /Pass capture_id from that screenshot/);
   assert.match(descriptions.get_app_state, /returned screenshot capture_id/);

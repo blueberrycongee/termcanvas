@@ -204,6 +204,144 @@ enum Screenshot {
         )
     }
 
+    static func writeDebugCrosshair(
+        pid: Int32,
+        windowId: UInt32?,
+        captureId: String?,
+        x: Double,
+        y: Double,
+        coordinateSpace: String?,
+        outputPath: String,
+        maxImageDimension: Int
+    ) -> String? {
+        guard outputPath.hasPrefix("/") else {
+            return "debug_image_out must be an absolute path."
+        }
+
+        let shot: ScreenshotInfo?
+        let pixelPoint: CGPoint
+        switch coordinateSpace {
+        case "window":
+            if let windowId {
+                shot = captureWindow(
+                    pid: pid,
+                    windowID: CGWindowID(windowId),
+                    windowFrame: nil,
+                    maxImageDimension: maxImageDimension
+                )
+            } else {
+                shot = captureWindow(
+                    pid: pid,
+                    windowFrame: nil,
+                    maxImageDimension: maxImageDimension
+                )
+            }
+            guard let current = shot else {
+                return "Unable to capture target window for debug crosshair."
+            }
+            pixelPoint = CGPoint(x: x * current.scale, y: y * current.scale)
+        case "screen":
+            shot = captureMainDisplay()
+            guard let current = shot else {
+                return "Unable to capture main display for debug crosshair."
+            }
+            pixelPoint = CGPoint(x: x * current.scale, y: y * current.scale)
+        default:
+            if let current = latestCapture(pid: pid) {
+                if let captureId, current.captureId != captureId {
+                    return "Stale screenshot capture_id for debug crosshair."
+                }
+                shot = current
+            } else if let windowId {
+                shot = captureWindow(
+                    pid: pid,
+                    windowID: CGWindowID(windowId),
+                    windowFrame: nil,
+                    maxImageDimension: maxImageDimension
+                )
+            } else {
+                shot = captureWindow(
+                    pid: pid,
+                    windowFrame: nil,
+                    maxImageDimension: maxImageDimension
+                )
+            }
+            pixelPoint = CGPoint(x: x, y: y)
+        }
+
+        guard let shot else {
+            return "No screenshot available for debug crosshair."
+        }
+        guard pixelPoint.x >= 0, pixelPoint.y >= 0,
+              pixelPoint.x < Double(shot.pixelSize.width),
+              pixelPoint.y < Double(shot.pixelSize.height)
+        else {
+            return "debug crosshair coordinate is outside screenshot bounds."
+        }
+
+        guard let source = CGImageSourceCreateWithURL(
+            URL(fileURLWithPath: shot.path) as CFURL,
+            nil
+        ),
+              let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+        else {
+            return "Unable to read screenshot for debug crosshair."
+        }
+
+        guard let context = CGContext(
+            data: nil,
+            width: image.width,
+            height: image.height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue |
+                CGBitmapInfo.byteOrder32Little.rawValue
+        ) else {
+            return "Unable to create debug crosshair context."
+        }
+
+        let rect = CGRect(x: 0, y: 0, width: image.width, height: image.height)
+        context.translateBy(x: 0, y: CGFloat(image.height))
+        context.scaleBy(x: 1, y: -1)
+        context.draw(image, in: rect)
+        context.setStrokeColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+        context.setLineWidth(2)
+        let x = pixelPoint.x
+        let y = pixelPoint.y
+        context.move(to: CGPoint(x: max(0, x - 16), y: y))
+        context.addLine(to: CGPoint(x: min(Double(image.width - 1), x + 16), y: y))
+        context.move(to: CGPoint(x: x, y: max(0, y - 16)))
+        context.addLine(to: CGPoint(x: x, y: min(Double(image.height - 1), y + 16)))
+        context.strokePath()
+
+        guard let outputImage = context.makeImage() else {
+            return "Unable to render debug crosshair."
+        }
+        let outputURL = URL(fileURLWithPath: outputPath)
+        do {
+            try FileManager.default.createDirectory(
+                at: outputURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+        } catch {
+            return "Unable to create debug crosshair directory: \(error.localizedDescription)"
+        }
+        guard let destination = CGImageDestinationCreateWithURL(
+            outputURL as CFURL,
+            UTType.png.identifier as CFString,
+            1,
+            nil
+        ) else {
+            return "Unable to create debug crosshair output."
+        }
+        CGImageDestinationAddImage(destination, outputImage, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            return "Unable to write debug crosshair output."
+        }
+        return nil
+    }
+
     private static func captureWindowImage(
         windowID: CGWindowID,
         windowFrame: Frame?

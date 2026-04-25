@@ -229,6 +229,8 @@ struct ClickRequest: Codable {
     let mouseButton: String?
     let clickCount: Int?
     let fromZoom: Bool?
+    let debugImageOut: String?
+    let maxImageDimension: Int?
 }
 
 // MARK: - Type Text

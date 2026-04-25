@@ -132,6 +132,8 @@ export interface ClickParams {
   mouse_button?: "left" | "right" | "double";
   click_count?: number;
   from_zoom?: boolean;
+  debug_image_out?: string;
+  max_image_dimension?: number;
 }
 
 export interface TypeTextParams {
