@@ -776,6 +776,135 @@ function ToolGroup({
   );
 }
 
+/**
+ * Determine which assistant node is the "final answer" and which
+ * nodes form the working slice that the WorkingFold will hide by
+ * default.
+ *
+ * Rule: a turn ends with a final answer iff its last node is a
+ * user-facing terminus — `text` (the agent's reply) or `error`
+ * (which the user must always see immediately, never folded). A
+ * trailing `tool_group` / `thinking` means the turn ran out of
+ * runway without producing an answer; everything is working in
+ * that case.
+ */
+function determineFoldSplit(nodes: AssistantNode[]): {
+  working: AssistantNode[];
+  answer: AssistantNode | null;
+} {
+  if (nodes.length === 0) return { working: [], answer: null };
+  const last = nodes[nodes.length - 1];
+  if (last.type === "text" || last.type === "error") {
+    return { working: nodes.slice(0, -1), answer: last };
+  }
+  return { working: nodes, answer: null };
+}
+
+function nodeContainsIndex(node: AssistantNode, idx: number): boolean {
+  if (node.type === "tool_group") {
+    return (node.items ?? []).some(
+      (it) => it.tool.index === idx || it.result?.index === idx,
+    );
+  }
+  return node.index === idx;
+}
+
+function collectFoldToolSummary(nodes: AssistantNode[]): string {
+  const items: ToolGroupItem[] = [];
+  for (const n of nodes) {
+    if (n.type === "tool_group" && n.items) items.push(...n.items);
+  }
+  if (items.length === 0) return "";
+  return summarizeToolNames(items);
+}
+
+function formatFoldDuration(startIso: string, endIso: string): string {
+  const ms = new Date(endIso).getTime() - new Date(startIso).getTime();
+  if (!Number.isFinite(ms) || ms <= 0) return "";
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rs = s % 60;
+  if (m < 60) return rs ? `${m}m ${rs}s` : `${m}m`;
+  const h = Math.floor(m / 60);
+  const rm = m % 60;
+  return rm ? `${h}h ${rm}m` : `${h}h`;
+}
+
+/**
+ * One-line summary of a turn's intermediate working (tools / thinking
+ * / mid-turn assistant text). Default-collapsed; expanded view defers
+ * to the existing per-node components so visual treatment of those
+ * rows stays exactly as shipped in 229ddee.
+ *
+ * Step count semantics: one step per AssistantNode in the working
+ * slice. A tool_group counts as 1 step regardless of how many
+ * sub-tools it batches — counting individual tools would push the
+ * step number into the high-double-digits and turn the label into
+ * noise. The label users actually want is "the agent did 12 things",
+ * not "the agent issued 47 tool calls".
+ *
+ * No rail: when playback enters the working slice the fold auto-
+ * expands (see `effectiveExpanded` in the main render), so a
+ * collapsed fold is guaranteed to never hide the active event from
+ * the rail.
+ */
+function WorkingFold({
+  stepCount,
+  toolSummary,
+  duration,
+  expanded,
+  onToggle,
+  children,
+}: {
+  stepCount: number;
+  toolSummary: string;
+  duration: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <button
+        type="button"
+        className="flex w-full items-center gap-1.5 text-left cursor-pointer pl-9 pr-3 py-0.5"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle();
+        }}
+      >
+        <span
+          className="shrink-0"
+          style={{ fontSize: "var(--text-xs)", color: "var(--text-faint)" }}
+        >
+          {expanded ? "▾" : "▸"}
+        </span>
+        <span
+          className="truncate tc-mono"
+          style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}
+        >
+          <span className="tabular-nums">{stepCount}</span>{" "}
+          {stepCount === 1 ? "step" : "steps"}
+          {toolSummary && (
+            <>
+              <span style={{ color: "var(--text-faint)" }}> · </span>
+              {toolSummary}
+            </>
+          )}
+          {duration && (
+            <>
+              <span style={{ color: "var(--text-faint)" }}> · </span>
+              <span className="tabular-nums">{duration}</span>
+            </>
+          )}
+        </span>
+      </button>
+      {expanded && <div className="mt-0.5 space-y-1">{children}</div>}
+    </div>
+  );
+}
+
 function ErrorRow({
   event,
   isCurrent,
@@ -858,6 +987,14 @@ export function SessionReplayView() {
   // so re-renders don't clobber one when toggling the other.
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
   const [expandedTools, setExpandedTools] = useState<Set<number>>(new Set());
+  // Per-turn fold state, keyed by `turn.startIndex` (the timeline
+  // index of the turn's first event — stable across re-renders even
+  // if turns get re-grouped). Auto-expansion during playback is
+  // computed at render time as an OR with this set; we don't write
+  // playback state into the set so toggling a fold while it's
+  // auto-expanded doesn't permanently latch it open after playback
+  // moves on.
+  const [expandedFolds, setExpandedFolds] = useState<Set<number>>(new Set());
 
   const toggleGroup = useCallback((index: number) => {
     setExpandedGroups((prev) => {
@@ -873,6 +1010,15 @@ export function SessionReplayView() {
       const next = new Set(prev);
       if (next.has(index)) next.delete(index);
       else next.add(index);
+      return next;
+    });
+  }, []);
+
+  const toggleFold = useCallback((key: number) => {
+    setExpandedFolds((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }, []);
@@ -1048,91 +1194,149 @@ export function SessionReplayView() {
       >
         {turns.map((turn, turnIdx) => {
           const nodes = buildAssistantNodes(turn.assistantEvents);
+
+          // Render any single AssistantNode using its existing
+          // component. Used both inside expanded WorkingFolds and as
+          // the answer renderer at the top level — same code path,
+          // identical visual treatment, no per-context branching.
+          const renderNode = (node: AssistantNode) => {
+            if (node.type === "tool_group") {
+              const items = node.items ?? [];
+              const isCurrent = items.some(
+                (it) =>
+                  it.tool.index === currentIndex ||
+                  it.result?.index === currentIndex,
+              );
+              const attachRef = (el: HTMLElement | null) =>
+                assignCurrentRef(el, isCurrent);
+              return (
+                <div key={node.index} ref={attachRef}>
+                  <ToolGroup
+                    node={node}
+                    currentIndex={currentIndex}
+                    expanded={expandedGroups.has(node.index)}
+                    onToggle={() => toggleGroup(node.index)}
+                    expandedItems={expandedTools}
+                    onToggleItem={toggleTool}
+                    onSeek={seekTo}
+                  />
+                </div>
+              );
+            }
+            const isCurrent = node.index === currentIndex;
+            const attachRef = (el: HTMLElement | null) =>
+              assignCurrentRef(el, isCurrent);
+            if (node.type === "text") {
+              return (
+                <div key={node.index} ref={attachRef}>
+                  <AssistantTextRow
+                    event={node.primary}
+                    isCurrent={isCurrent}
+                    onClick={() => seekTo(node.index)}
+                  />
+                </div>
+              );
+            }
+            if (node.type === "thinking") {
+              if (!showThinking) return null;
+              return (
+                <div key={node.index} ref={attachRef}>
+                  <ThinkingRow
+                    event={node.primary}
+                    isCurrent={isCurrent}
+                    onClick={() => seekTo(node.index)}
+                  />
+                </div>
+              );
+            }
+            if (node.type === "error") {
+              return (
+                <div key={node.index} ref={attachRef}>
+                  <ErrorRow
+                    event={node.primary}
+                    isCurrent={isCurrent}
+                    onClick={() => seekTo(node.index)}
+                  />
+                </div>
+              );
+            }
+            return null;
+          };
+
+          // The fold only makes sense in a question→answer frame.
+          // For headless turns (system events before the first
+          // user_prompt) just render assistant nodes as-is.
+          if (!turn.userEvent) {
+            return (
+              <div
+                key={`turn-${turn.startIndex}-${turnIdx}`}
+                className="space-y-2"
+              >
+                {nodes.length > 0 && (
+                  <div className="space-y-1">{nodes.map(renderNode)}</div>
+                )}
+              </div>
+            );
+          }
+
+          const { working, answer } = determineFoldSplit(nodes);
+          const hasFold = working.length > 0;
+          const foldKey = turn.startIndex;
+          const userExpandedFold = expandedFolds.has(foldKey);
+          // Auto-expand whenever currentIndex falls inside any
+          // working node's range — otherwise the rail would be
+          // hidden inside a collapsed fold during playback. Simple
+          // OR: we don't try to remember "user collapsed while
+          // playing", on purpose. When playback exits the range,
+          // the auto-expand goes away and the fold returns to the
+          // user's preferred state.
+          const playbackInWorking =
+            hasFold && working.some((n) => nodeContainsIndex(n, currentIndex));
+          const foldExpanded = userExpandedFold || playbackInWorking;
+
+          // End-of-working timestamp for the duration label. Prefer
+          // the answer's timestamp (matches what the reader sees as
+          // "the turn ended here"); fall back to the last working
+          // node when there is no answer.
+          const endIso =
+            answer?.primary.timestamp ??
+            working[working.length - 1]?.primary.timestamp ??
+            turn.userEvent.timestamp;
+          const duration = formatFoldDuration(
+            turn.userEvent.timestamp,
+            endIso,
+          );
+
           return (
             <div
               key={`turn-${turn.startIndex}-${turnIdx}`}
               className="space-y-2"
             >
-              {turn.userEvent && (
-                <div
-                  ref={(el) =>
-                    assignCurrentRef(el, turn.userEvent!.index === currentIndex)
-                  }
-                >
-                  <UserPrompt
-                    event={turn.userEvent}
-                    isCurrent={turn.userEvent.index === currentIndex}
-                    onClick={() => seekTo(turn.userEvent!.index)}
-                  />
-                </div>
-              )}
-              {nodes.length > 0 && (
+              <div
+                ref={(el) =>
+                  assignCurrentRef(el, turn.userEvent!.index === currentIndex)
+                }
+              >
+                <UserPrompt
+                  event={turn.userEvent}
+                  isCurrent={turn.userEvent.index === currentIndex}
+                  onClick={() => seekTo(turn.userEvent!.index)}
+                />
+              </div>
+              {(hasFold || answer) && (
                 <div className="space-y-1">
-                  {nodes.map((node) => {
-                    if (node.type === "tool_group") {
-                      const items = node.items ?? [];
-                      const isCurrent = items.some(
-                        (it) =>
-                          it.tool.index === currentIndex ||
-                          it.result?.index === currentIndex,
-                      );
-                      const attachRef = (el: HTMLElement | null) =>
-                        assignCurrentRef(el, isCurrent);
-                      return (
-                        <div key={node.index} ref={attachRef}>
-                          <ToolGroup
-                            node={node}
-                            currentIndex={currentIndex}
-                            expanded={expandedGroups.has(node.index)}
-                            onToggle={() => toggleGroup(node.index)}
-                            expandedItems={expandedTools}
-                            onToggleItem={toggleTool}
-                            onSeek={seekTo}
-                          />
-                        </div>
-                      );
-                    }
-
-                    const isCurrent = node.index === currentIndex;
-                    const attachRef = (el: HTMLElement | null) =>
-                      assignCurrentRef(el, isCurrent);
-
-                    if (node.type === "text") {
-                      return (
-                        <div key={node.index} ref={attachRef}>
-                          <AssistantTextRow
-                            event={node.primary}
-                            isCurrent={isCurrent}
-                            onClick={() => seekTo(node.index)}
-                          />
-                        </div>
-                      );
-                    }
-                    if (node.type === "thinking") {
-                      if (!showThinking) return null;
-                      return (
-                        <div key={node.index} ref={attachRef}>
-                          <ThinkingRow
-                            event={node.primary}
-                            isCurrent={isCurrent}
-                            onClick={() => seekTo(node.index)}
-                          />
-                        </div>
-                      );
-                    }
-                    if (node.type === "error") {
-                      return (
-                        <div key={node.index} ref={attachRef}>
-                          <ErrorRow
-                            event={node.primary}
-                            isCurrent={isCurrent}
-                            onClick={() => seekTo(node.index)}
-                          />
-                        </div>
-                      );
-                    }
-                    return null;
-                  })}
+                  {hasFold && (
+                    <WorkingFold
+                      stepCount={working.length}
+                      toolSummary={collectFoldToolSummary(working)}
+                      duration={duration}
+                      expanded={foldExpanded}
+                      onToggle={() => toggleFold(foldKey)}
+                    >
+                      {working.map(renderNode)}
+                    </WorkingFold>
+                  )}
+                  {answer && renderNode(answer)}
                 </div>
               )}
             </div>
