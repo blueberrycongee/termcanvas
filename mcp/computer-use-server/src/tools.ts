@@ -63,6 +63,33 @@ export const tools: Tool[] = [
     },
   },
   {
+    name: "get_screen_size",
+    description:
+      "Return the main display pixel size and backing scale. Use this for screen-level reasoning only; prefer window screenshots and window_id-scoped actions for app control.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
+  {
+    name: "screenshot",
+    description:
+      "Capture a screenshot as MCP image content. With pid + window_id, captures that specific window; with pid only, captures the app's topmost layer-0 window; with no target, captures the main display.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        pid: {
+          type: "number",
+          description: "Optional process ID of the app to capture.",
+        },
+        window_id: {
+          type: "number",
+          description: "Optional CGWindowID from list_windows. Requires pid.",
+        },
+      },
+    },
+  },
+  {
     name: "open_app",
     description:
       "Launch or activate a macOS application by bundle ID or display name. Prefer bundle_id when known; otherwise use the exact localized name returned by list_apps.",
@@ -195,6 +222,44 @@ export const tools: Tool[] = [
     },
   },
   {
+    name: "double_click",
+    description:
+      `Double-click an element or coordinates. This is a convenience wrapper over click with mouse_button=double. ${COORDINATE_GUARDRAIL} ${ACTION_GUARDRAIL}`,
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        pid: { type: "number", description: "Target process ID." },
+        app_name: { type: "string", description: "Target app name or bundle ID." },
+        window_id: { type: "number", description: "CGWindowID whose get_window_state produced element_index." },
+        element_index: { type: "number", description: "Element index from get_window_state." },
+        element: { type: "number", description: "Legacy element index." },
+        x: { type: "number", description: "X coordinate." },
+        y: { type: "number", description: "Y coordinate." },
+        coordinate_space: { type: "string", enum: ["screen", "window", "screenshot"] },
+        capture_id: { type: "string", description: "Capture ID for screenshot coordinates." },
+      },
+    },
+  },
+  {
+    name: "right_click",
+    description:
+      `Right-click an element or coordinates. Prefer perform_secondary_action with AXShowMenu when AX exposes it. ${COORDINATE_GUARDRAIL} ${ACTION_GUARDRAIL}`,
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        pid: { type: "number", description: "Target process ID." },
+        app_name: { type: "string", description: "Target app name or bundle ID." },
+        window_id: { type: "number", description: "CGWindowID whose get_window_state produced element_index." },
+        element_index: { type: "number", description: "Element index from get_window_state." },
+        element: { type: "number", description: "Legacy element index." },
+        x: { type: "number", description: "X coordinate." },
+        y: { type: "number", description: "Y coordinate." },
+        coordinate_space: { type: "string", enum: ["screen", "window", "screenshot"] },
+        capture_id: { type: "string", description: "Capture ID for screenshot coordinates." },
+      },
+    },
+  },
+  {
     name: "perform_secondary_action",
     description:
       `Invoke a secondary Accessibility action exposed by an element, such as AXPress or AXShowMenu. Prefer this over coordinate clicking when the target element exposes a usable AX action. ${ACTION_GUARDRAIL}`,
@@ -249,6 +314,21 @@ export const tools: Tool[] = [
     },
   },
   {
+    name: "type_text_chars",
+    description:
+      "Type text character-by-character. This is currently the same pid-routed keyboard path as type_text; use it for Chromium/Electron fields when AX set_value is unavailable.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        text: { type: "string", description: "Text to type." },
+        pid: { type: "number", description: "Optional target process ID for pid-routed keyboard events." },
+        window_id: { type: "number", description: "CGWindowID whose get_window_state produced element_index." },
+        element_index: { type: "number", description: "Optional cached element index to focus before typing." },
+      },
+      required: ["text"],
+    },
+  },
+  {
     name: "press_key",
     description:
       `Press a key or key-combination. Supports xdotool-like syntax such as Return, Tab, super+c, Up, KP_0. Pass pid to deliver the key to a target process instead of the frontmost app; with element_index + window_id, the helper focuses the cached element first. ${ACTION_GUARDRAIL}`,
@@ -266,6 +346,25 @@ export const tools: Tool[] = [
         },
       },
       required: ["key"],
+    },
+  },
+  {
+    name: "hotkey",
+    description:
+      `Press a key combination such as ["cmd","c"] or ["cmd","shift","g"]. Pass pid to target a process instead of the frontmost app. ${ACTION_GUARDRAIL}`,
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        keys: {
+          type: "array",
+          items: { type: "string" },
+          description: "Modifier keys plus one final non-modifier key.",
+        },
+        pid: { type: "number", description: "Optional target process ID for pid-routed keyboard events." },
+        window_id: { type: "number", description: "CGWindowID whose get_window_state produced element_index." },
+        element_index: { type: "number", description: "Optional cached element index to focus before pressing the hotkey." },
+      },
+      required: ["keys"],
     },
   },
   {

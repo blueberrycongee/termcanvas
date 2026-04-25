@@ -85,6 +85,16 @@ func route(method: String, path: String, body: Data?) -> (Int, Data) {
                 onScreenOnly: req.onScreenOnly ?? false
             ))
 
+        case "/get_screen_size":
+            return ok(handleGetScreenSize())
+
+        case "/screenshot":
+            let req: ScreenshotRequest = try decodeOrDefault(body, defaultValue: ScreenshotRequest(
+                pid: nil,
+                windowId: nil
+            ))
+            return ok(handleScreenshot(req))
+
         case "/open_app":
             let req: OpenAppRequest = try decode(body)
             return ok(AppLister.openApp(bundleId: req.bundleId, name: req.name))
@@ -206,6 +216,27 @@ func handleRequestPermissions() -> StatusResponse {
     }
 
     return StatusResponse(accessibilityGranted: axTrusted, screenRecordingGranted: screenGranted)
+}
+
+func handleGetScreenSize() -> ScreenSizeResponse {
+    let screen = NSScreen.main ?? NSScreen.screens.first
+    let frame = screen?.frame ?? .zero
+    let scale = Double(screen?.backingScaleFactor ?? 1)
+    return ScreenSizeResponse(
+        width: Int(frame.width * scale),
+        height: Int(frame.height * scale),
+        scale: scale
+    )
+}
+
+func handleScreenshot(_ req: ScreenshotRequest) -> ScreenshotInfo? {
+    if let pid = req.pid, let windowId = req.windowId {
+        return Screenshot.captureWindow(pid: pid, windowID: CGWindowID(windowId), windowFrame: nil)
+    }
+    if let pid = req.pid {
+        return Screenshot.captureWindow(pid: pid, windowFrame: nil)
+    }
+    return Screenshot.captureMainDisplay()
 }
 
 func handleClick(_ req: ClickRequest) -> (Int, Data) {

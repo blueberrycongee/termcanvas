@@ -6,6 +6,8 @@ import type {
   StatusResponse,
   AppInfo,
   ListWindowsResponse,
+  ScreenSizeResponse,
+  ScreenshotInfo,
   AppState,
   OkResponse,
   OpenAppResponse,
@@ -58,6 +60,12 @@ export async function handleToolCall(
       case "list_windows":
       case "computer_use_list_windows":
         return await handleListWindows(args, client);
+      case "get_screen_size":
+      case "computer_use_get_screen_size":
+        return await handleGetScreenSize(client);
+      case "screenshot":
+      case "computer_use_screenshot":
+        return await handleScreenshot(args, client);
       case "open_app":
       case "computer_use_open_app":
         return await handleOpenApp(args, client);
@@ -70,12 +78,24 @@ export async function handleToolCall(
       case "click":
       case "computer_use_click":
         return await handleClick(args, client);
+      case "double_click":
+      case "computer_use_double_click":
+        return await handleClick({ ...args, mouse_button: "double" }, client);
+      case "right_click":
+      case "computer_use_right_click":
+        return await handleClick({ ...args, mouse_button: "right" }, client);
       case "type_text":
       case "computer_use_type_text":
+        return await handleTypeText(args, client);
+      case "type_text_chars":
+      case "computer_use_type_text_chars":
         return await handleTypeText(args, client);
       case "press_key":
       case "computer_use_press_key":
         return await handlePressKey(args, client);
+      case "hotkey":
+      case "computer_use_hotkey":
+        return await handleHotkey(args, client);
       case "scroll":
       case "computer_use_scroll":
         return await handleScroll(args, client);
@@ -161,6 +181,39 @@ async function handleListWindows(
 ): Promise<CallToolResult> {
   const result = (await client.post("list_windows", args)) as ListWindowsResponse;
   return textResult(result);
+}
+
+async function handleGetScreenSize(client: HelperClient): Promise<CallToolResult> {
+  const result = (await client.post("get_screen_size")) as ScreenSizeResponse;
+  return textResult(result);
+}
+
+async function handleScreenshot(
+  args: Record<string, unknown>,
+  client: HelperClient,
+): Promise<CallToolResult> {
+  const shot = (await client.post("screenshot", args)) as ScreenshotInfo | null;
+  if (!shot) {
+    return errorResult("Screenshot failed. Check Screen Recording permission and target window_id.");
+  }
+
+  const content: CallToolResult["content"] = [
+    { type: "text", text: JSON.stringify(shot, null, 2) },
+  ];
+  try {
+    const imageData = await fs.readFile(shot.path);
+    content.push({
+      type: "image",
+      data: imageData.toString("base64"),
+      mimeType: "image/png",
+    });
+  } catch {
+    content.push({
+      type: "text",
+      text: `(screenshot at ${shot.path} could not be read)`,
+    });
+  }
+  return { content };
 }
 
 async function handleOpenApp(
@@ -266,6 +319,22 @@ async function handlePressKey(
   client: HelperClient,
 ): Promise<CallToolResult> {
   const result = (await client.post("press_key", args)) as OkResponse;
+  return textResult(result);
+}
+
+async function handleHotkey(
+  args: Record<string, unknown>,
+  client: HelperClient,
+): Promise<CallToolResult> {
+  const keys = args.keys;
+  if (!Array.isArray(keys) || keys.some((key) => typeof key !== "string")) {
+    return errorResult("hotkey requires keys: string[].");
+  }
+  const { keys: _keys, ...rest } = args;
+  const result = (await client.post("press_key", {
+    ...rest,
+    key: keys.join("+"),
+  })) as OkResponse;
   return textResult(result);
 }
 

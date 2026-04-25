@@ -57,6 +57,18 @@ class FakeHelperClient {
         current_space_id: null,
       };
     }
+    if (endpoint === "get_screen_size") {
+      return { width: 3024, height: 1964, scale: 2 };
+    }
+    if (endpoint === "screenshot") {
+      return {
+        capture_id: "42:7:789",
+        path: this.screenshotPath,
+        pixel_size: { width: 1600, height: 1200 },
+        scale: 2,
+        coordinate_space: "screenshot",
+      };
+    }
     if (endpoint === "get_app_state") {
       return {
         app: { name: "TermCanvas", bundle_id: "com.blueberrycongee.termcanvas", pid: 42 },
@@ -191,6 +203,37 @@ test("computer use MCP get_window_state requires explicit window target", async 
   assert.equal(state.capture_id, "42:7:456");
 });
 
+test("computer use MCP exposes screenshot and screen size tools", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-cu-shot-"));
+  const screenshotPath = path.join(dir, "screenshot.png");
+  fs.writeFileSync(screenshotPath, Buffer.from("png"));
+
+  try {
+    const client = new FakeHelperClient();
+    client.screenshotPath = screenshotPath;
+
+    const sizeResult = await handleToolCall("get_screen_size", {}, asHelper(client));
+    assert.deepEqual(JSON.parse(sizeResult.content[0].text as string), {
+      width: 3024,
+      height: 1964,
+      scale: 2,
+    });
+
+    const shotResult = await handleToolCall(
+      "screenshot",
+      { pid: 42, window_id: 7 },
+      asHelper(client),
+    );
+    assert.equal(shotResult.content.some((item) => item.type === "image"), true);
+    assert.deepEqual(client.posts.slice(0, 2), [
+      { endpoint: "get_screen_size", body: undefined },
+      { endpoint: "screenshot", body: { pid: 42, window_id: 7 } },
+    ]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("computer use MCP exposes operating instructions as a tool", async () => {
   const client = new FakeHelperClient();
   const previousInstructions = process.env.TERMCANVAS_COMPUTER_USE_INSTRUCTIONS;
@@ -293,7 +336,9 @@ test("computer use MCP tool descriptions teach the AX-first protocol", () => {
   assert.match(descriptions.setup, /open the macOS permission panes/);
   assert.match(descriptions.get_app_state, /Observe before acting/);
   assert.match(descriptions.list_windows, /window_id/);
+  assert.match(descriptions.screenshot, /MCP image content/);
   assert.match(descriptions.get_window_state, /pid and window_id/);
+  assert.match(descriptions.hotkey, /key combination/);
   assert.match(descriptions.get_app_state, /do not use browser or Playwright screenshots/);
   assert.match(descriptions.list_apps, /Prefer returned bundle IDs or PIDs/);
   assert.match(descriptions.open_app, /exact localized name returned by list_apps/);
@@ -337,8 +382,12 @@ test("computer use MCP supports new set_value and secondary action tools", async
   const client = new FakeHelperClient();
 
   await handleToolCall("click", { pid: 42, window_id: 7, element_index: 3 }, asHelper(client));
+  await handleToolCall("double_click", { pid: 42, x: 10, y: 20 }, asHelper(client));
+  await handleToolCall("right_click", { pid: 42, x: 10, y: 20 }, asHelper(client));
   await handleToolCall("type_text", { pid: 42, window_id: 7, element_index: 3, text: "hello" }, asHelper(client));
+  await handleToolCall("type_text_chars", { pid: 42, text: "hello" }, asHelper(client));
   await handleToolCall("press_key", { pid: 42, window_id: 7, element_index: 3, key: "Return" }, asHelper(client));
+  await handleToolCall("hotkey", { pid: 42, keys: ["cmd", "c"] }, asHelper(client));
   await handleToolCall("set_value", { app_name: "Notes", element: 3, value: "hello" }, asHelper(client));
   await handleToolCall(
     "perform_secondary_action",
@@ -352,12 +401,28 @@ test("computer use MCP supports new set_value and secondary action tools", async
       body: { pid: 42, window_id: 7, element_index: 3 },
     },
     {
+      endpoint: "click",
+      body: { pid: 42, x: 10, y: 20, mouse_button: "double" },
+    },
+    {
+      endpoint: "click",
+      body: { pid: 42, x: 10, y: 20, mouse_button: "right" },
+    },
+    {
       endpoint: "type_text",
       body: { pid: 42, window_id: 7, element_index: 3, text: "hello" },
     },
     {
+      endpoint: "type_text",
+      body: { pid: 42, text: "hello" },
+    },
+    {
       endpoint: "press_key",
       body: { pid: 42, window_id: 7, element_index: 3, key: "Return" },
+    },
+    {
+      endpoint: "press_key",
+      body: { pid: 42, key: "cmd+c" },
     },
     {
       endpoint: "set_value",

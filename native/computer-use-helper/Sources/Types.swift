@@ -93,6 +93,19 @@ struct GetWindowStateRequest: Codable {
     let maxDepth: Int?
 }
 
+// MARK: - Screenshot / Screen
+
+struct ScreenshotRequest: Codable {
+    let pid: Int32?
+    let windowId: UInt32?
+}
+
+struct ScreenSizeResponse: Codable {
+    let width: Int
+    let height: Int
+    let scale: Double
+}
+
 struct Frame: Codable {
     let x: Double
     let y: Double

@@ -56,6 +56,8 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 - `get_instructions`: read this operating protocol from the MCP server.
 - `list_apps`: list running Mac apps with names, bundle IDs, PIDs, and frontmost state.
 - `list_windows`: list addressable top-level windows with `window_id`, owning app, title, bounds, z-order, and on-screen state.
+- `get_screen_size`: return main display pixel size and scale.
+- `screenshot`: capture the main display, an app window, or a specific `window_id` as MCP image content.
 - `open_app`: launch or activate an app.
 - `get_app_state`: return the app's current key-window AX tree and screenshot.
 - `get_window_state`: return a specific window's AX tree and screenshot by `pid` and `window_id`.
@@ -63,7 +65,11 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 - `set_value`: assign text/value directly to a writable AX element.
 - `perform_secondary_action`: invoke an AX action exposed by an element.
 - `type_text`: type literal text into the focused element.
+- `type_text_chars`: type text character-by-character; use with `pid` for Chromium/Electron fields when AX value setting is unavailable.
 - `press_key`: press a key or shortcut such as `Return`, `Tab`, `super+c`, or `Up`.
+- `hotkey`: press a key combination such as `["cmd", "c"]`, preferably with `pid`.
+- `double_click`: double-click by element or coordinates.
+- `right_click`: right-click by element or coordinates; prefer `perform_secondary_action` with `AXShowMenu` when available.
 - `scroll`: scroll an AX element or coordinate target.
 - `drag`: drag between element indexes or coordinates.
 - `stop`: stop the Computer Use helper.

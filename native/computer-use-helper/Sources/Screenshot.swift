@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import ImageIO
@@ -76,6 +77,43 @@ enum Screenshot {
         latestByPid[pid] = info
         lock.unlock()
         return info
+    }
+
+    static func captureMainDisplay() -> ScreenshotInfo? {
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: outputDir) {
+            try? fm.createDirectory(atPath: outputDir, withIntermediateDirectories: true)
+        }
+
+        guard let image = CGDisplayCreateImage(CGMainDisplayID()) else {
+            return nil
+        }
+
+        let timestamp = Int(Date().timeIntervalSince1970 * 1000)
+        let captureId = "display:\(CGMainDisplayID()):\(timestamp)"
+        let path = "\(outputDir)/display_\(timestamp).png"
+        let url = URL(fileURLWithPath: path) as CFURL
+
+        guard let dest = CGImageDestinationCreateWithURL(
+            url, UTType.png.identifier as CFString, 1, nil
+        ) else {
+            return nil
+        }
+        CGImageDestinationAddImage(dest, image, nil)
+        guard CGImageDestinationFinalize(dest) else { return nil }
+
+        let scale = Double(NSScreen.main?.backingScaleFactor ?? 1)
+        let frame = NSScreen.main?.frame
+        return ScreenshotInfo(
+            captureId: captureId,
+            path: path,
+            pixelSize: PixelSize(width: image.width, height: image.height),
+            scale: scale,
+            windowFrame: frame.map {
+                Frame(x: $0.origin.x, y: $0.origin.y, width: $0.width, height: $0.height)
+            },
+            coordinateSpace: "screen"
+        )
     }
 
     private static func firstLayerZeroWindow(pid: Int32) -> (windowID: CGWindowID, frame: Frame?)? {

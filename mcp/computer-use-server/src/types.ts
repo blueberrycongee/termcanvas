@@ -44,6 +44,21 @@ export interface ListWindowsResponse {
   current_space_id?: number | null;
 }
 
+export interface ScreenSizeResponse {
+  width: number;
+  height: number;
+  scale: number;
+}
+
+export interface ScreenshotInfo {
+  capture_id: string;
+  path: string;
+  pixel_size: Record<string, unknown>;
+  scale: number;
+  window_frame?: Record<string, unknown>;
+  coordinate_space: string;
+}
+
 export interface OpenAppParams {
   bundle_id?: string;
   name?: string;
@@ -66,6 +81,11 @@ export interface GetWindowStateParams {
   window_id: number;
   include_screenshot?: boolean;
   max_depth?: number;
+}
+
+export interface ScreenshotParams {
+  pid?: number;
+  window_id?: number;
 }
 
 export interface AppState {
