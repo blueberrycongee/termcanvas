@@ -505,30 +505,20 @@ function ProjectRow({
         </button>
         <span className="text-[11px] font-medium truncate flex-1 min-w-0">
           {project.projectName}
-          {project.branchName && (
-            <span className="text-[var(--text-muted)] font-normal">
-              {" · "}
-              {project.branchName}
-            </span>
-          )}
         </span>
         <StatusBadges summary={project.statusSummary} />
         <IconButton
           size="sm"
           tone="neutral"
-          label={project.flat ? t.panel_new_terminal : t.panel_new_worktree}
+          label={t.panel_new_worktree}
           className="opacity-0 group-hover:opacity-100 transition-opacity"
           onClick={(e) => {
             e.stopPropagation();
-            if (project.flat) {
-              handleNewTerminal();
-            } else {
-              const store = useSessionPanelCollapseStore.getState();
-              if (store.isCollapsed(project.projectId)) {
-                store.toggle(project.projectId);
-              }
-              setCreating(true);
+            const store = useSessionPanelCollapseStore.getState();
+            if (store.isCollapsed(project.projectId)) {
+              store.toggle(project.projectId);
             }
+            setCreating(true);
           }}
         >
           <PlusIcon />
@@ -542,20 +532,14 @@ function ProjectRow({
       )}
       {!collapsed && (
         <div className="flex flex-col gap-0.5">
-          {project.flat
-            ? project.worktrees[0].terminals.map((item) => (
-                <div key={item.terminalId} className="pl-4 pr-2">
-                  {renderTerminal(item)}
-                </div>
-              ))
-            : project.worktrees.map((wt) => (
-                <WorktreeRow
-                  key={wt.worktreeId}
-                  group={wt}
-                  projectPath={project.projectPath}
-                  renderTerminal={renderTerminal}
-                />
-              ))}
+          {project.worktrees.map((wt) => (
+            <WorktreeRow
+              key={wt.worktreeId}
+              group={wt}
+              projectPath={project.projectPath}
+              renderTerminal={renderTerminal}
+            />
+          ))}
         </div>
       )}
       {menu &&

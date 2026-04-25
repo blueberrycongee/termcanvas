@@ -57,10 +57,8 @@ export interface ProjectGroup {
   projectId: string;
   projectName: string;
   projectPath: string;
-  branchName?: string;
   statusSummary: StatusSummary;
   worktrees: WorktreeGroup[];
-  flat: boolean;
 }
 
 export interface StashedTerminalItem {
@@ -507,16 +505,12 @@ export function buildProjectTree(
 
     const allTerminals = worktreeGroups.flatMap((wt) => wt.terminals);
 
-    const flat = worktreeGroups.length === 1;
-
     result.push({
       projectId: project.id,
       projectName: project.name,
       projectPath: project.path,
-      branchName: flat ? worktreeGroups[0].worktreeName : undefined,
       statusSummary: computeStatusSummary(allTerminals, seenTerminalIds),
       worktrees: worktreeGroups,
-      flat,
     });
   }
 
