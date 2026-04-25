@@ -152,6 +152,7 @@ struct ScreenshotInfo: Codable {
     let scale: Double
     let windowFrame: Frame?
     let coordinateSpace: String
+    let captureBackend: String?
 }
 
 struct ElementInfo: Codable {

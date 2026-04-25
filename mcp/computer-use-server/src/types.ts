@@ -57,6 +57,7 @@ export interface ScreenshotInfo {
   scale: number;
   window_frame?: Record<string, unknown>;
   coordinate_space: string;
+  capture_backend?: string;
 }
 
 export interface OpenAppParams {

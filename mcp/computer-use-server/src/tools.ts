@@ -105,7 +105,7 @@ export const tools: Tool[] = [
   {
     name: "screenshot",
     description:
-      "Capture a screenshot as MCP image content. With pid + window_id, captures that specific window; with pid only, captures the app's topmost layer-0 window; with no target, captures the main display.",
+      "Capture a screenshot as MCP image content. ScreenCaptureKit is the primary capture path on supported macOS versions, with CoreGraphics fallback when unavailable. With pid + window_id, captures that specific window; with pid only, captures the app's topmost layer-0 window; with no target, captures the main display.",
     inputSchema: {
       type: "object" as const,
       properties: {

@@ -2,6 +2,7 @@ import AppKit
 import CoreGraphics
 import Foundation
 import ImageIO
+@preconcurrency import ScreenCaptureKit
 import UniformTypeIdentifiers
 
 enum Screenshot {
@@ -57,14 +58,8 @@ enum Screenshot {
             .window(windowId: UInt32(windowID), pid: pid)?
             .bounds ?? windowFrame
 
-        guard let capturedImage = CGWindowListCreateImage(
-            .null,
-            .optionIncludingWindow,
-            windowID,
-            [.boundsIgnoreFraming]
-        ) else {
-            return nil
-        }
+        let capture = captureWindowImage(windowID: windowID, windowFrame: targetWindowFrame)
+        guard let capturedImage = capture.image else { return nil }
         let image = resizeIfNeeded(capturedImage, maxDimension: maxImageDimension)
 
         let timestamp = Int(Date().timeIntervalSince1970 * 1000)
@@ -95,7 +90,8 @@ enum Screenshot {
             pixelSize: pixelSize,
             scale: scale,
             windowFrame: targetWindowFrame,
-            coordinateSpace: "screenshot"
+            coordinateSpace: "screenshot",
+            captureBackend: capture.backend
         )
         lock.lock()
         latestByPid[pid] = info
@@ -109,9 +105,8 @@ enum Screenshot {
             try? fm.createDirectory(atPath: outputDir, withIntermediateDirectories: true)
         }
 
-        guard let image = CGDisplayCreateImage(CGMainDisplayID()) else {
-            return nil
-        }
+        let capture = captureMainDisplayImage()
+        guard let image = capture.image else { return nil }
 
         let timestamp = Int(Date().timeIntervalSince1970 * 1000)
         let captureId = "display:\(CGMainDisplayID()):\(timestamp)"
@@ -136,7 +131,8 @@ enum Screenshot {
             windowFrame: frame.map {
                 Frame(x: $0.origin.x, y: $0.origin.y, width: $0.width, height: $0.height)
             },
-            coordinateSpace: "screen"
+            coordinateSpace: "screen",
+            captureBackend: capture.backend
         )
     }
 
@@ -203,8 +199,98 @@ enum Screenshot {
             pixelSize: PixelSize(width: cropped.width, height: cropped.height),
             scale: source.scale,
             windowFrame: source.windowFrame,
-            coordinateSpace: "zoom"
+            coordinateSpace: "zoom",
+            captureBackend: source.captureBackend
         )
+    }
+
+    private static func captureWindowImage(
+        windowID: CGWindowID,
+        windowFrame: Frame?
+    ) -> (image: CGImage?, backend: String) {
+        if #available(macOS 14.0, *),
+           let image = captureWindowWithScreenCaptureKit(windowID: windowID, windowFrame: windowFrame) {
+            return (image, "screen_capture_kit")
+        }
+        return (
+            CGWindowListCreateImage(
+                .null,
+                .optionIncludingWindow,
+                windowID,
+                [.boundsIgnoreFraming]
+            ),
+            "core_graphics"
+        )
+    }
+
+    private static func captureMainDisplayImage() -> (image: CGImage?, backend: String) {
+        if #available(macOS 14.0, *),
+           let image = captureMainDisplayWithScreenCaptureKit() {
+            return (image, "screen_capture_kit")
+        }
+        return (CGDisplayCreateImage(CGMainDisplayID()), "core_graphics")
+    }
+
+    @available(macOS 14.0, *)
+    private static func captureWindowWithScreenCaptureKit(
+        windowID: CGWindowID,
+        windowFrame: Frame?
+    ) -> CGImage? {
+        return runScreenCaptureKit {
+            let content = try await SCShareableContent.current
+            guard let window = content.windows.first(where: { $0.windowID == windowID }) else {
+                return nil
+            }
+
+            let filter = SCContentFilter(desktopIndependentWindow: window)
+            let config = SCStreamConfiguration()
+            let frame = windowFrame.map {
+                CGRect(x: $0.x, y: $0.y, width: $0.width, height: $0.height)
+            } ?? window.frame
+            let scale = displayScale(for: frame)
+            config.width = max(1, Int(frame.width * scale))
+            config.height = max(1, Int(frame.height * scale))
+            config.showsCursor = false
+            return try await SCScreenshotManager.captureImage(
+                contentFilter: filter,
+                configuration: config
+            )
+        }
+    }
+
+    @available(macOS 14.0, *)
+    private static func captureMainDisplayWithScreenCaptureKit() -> CGImage? {
+        return runScreenCaptureKit {
+            let content = try await SCShareableContent.current
+            guard let display = content.displays.first else { return nil }
+            let filter = SCContentFilter(display: display, excludingWindows: [])
+            let config = SCStreamConfiguration()
+            config.width = display.width
+            config.height = display.height
+            config.showsCursor = true
+            return try await SCScreenshotManager.captureImage(
+                contentFilter: filter,
+                configuration: config
+            )
+        }
+    }
+
+    @available(macOS 14.0, *)
+    private static func runScreenCaptureKit(
+        _ operation: @escaping () async throws -> CGImage?
+    ) -> CGImage? {
+        let semaphore = DispatchSemaphore(value: 0)
+        let resultQueue = DispatchQueue(label: "termcanvas.sck.capture.result")
+        var image: CGImage?
+
+        Task {
+            let captured = try? await operation()
+            resultQueue.sync { image = captured }
+            semaphore.signal()
+        }
+
+        semaphore.wait()
+        return resultQueue.sync { image }
     }
 
     private static func firstLayerZeroWindow(pid: Int32) -> (windowID: CGWindowID, frame: Frame?)? {
@@ -244,6 +330,21 @@ enum Screenshot {
             width: rect.width,
             height: rect.height
         )
+    }
+
+    private static func displayScale(for frame: CGRect) -> CGFloat {
+        var bestScreen: NSScreen?
+        var bestArea: CGFloat = 0
+        for screen in NSScreen.screens {
+            let intersection = screen.frame.intersection(frame)
+            guard !intersection.isNull else { continue }
+            let area = intersection.width * intersection.height
+            if area > bestArea {
+                bestArea = area
+                bestScreen = screen
+            }
+        }
+        return (bestScreen ?? NSScreen.main)?.backingScaleFactor ?? 1
     }
 
     private static func resizeIfNeeded(_ image: CGImage, maxDimension: Int) -> CGImage {
