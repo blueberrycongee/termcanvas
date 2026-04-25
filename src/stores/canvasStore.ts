@@ -129,10 +129,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   leftPanelCollapsed: true,
   leftPanelWidth: 280,
   fileEditorPath: null,
-  fileEditorExpanded: false,
+  fileEditorExpanded: true,
   usageOverlayOpen: false,
   sessionsOverlayOpen: false,
-  sessionsOverlayExpanded: false,
+  sessionsOverlayExpanded: true,
 
   registerViewportAdapter: (adapter) => {
     activeViewportAdapter = adapter;
@@ -178,6 +178,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   openFileEditor: (filePath) =>
     set({
       fileEditorPath: filePath,
+      fileEditorExpanded: true,
       usageOverlayOpen: false,
       sessionsOverlayOpen: false,
       sessionsOverlayExpanded: false,
@@ -211,6 +212,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   openSessionsOverlay: () =>
     set({
       sessionsOverlayOpen: true,
+      sessionsOverlayExpanded: true,
       fileEditorPath: null,
       fileEditorExpanded: false,
       usageOverlayOpen: false,
@@ -225,6 +227,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       }
       return {
         sessionsOverlayOpen: true,
+        sessionsOverlayExpanded: true,
         fileEditorPath: null,
         fileEditorExpanded: false,
         usageOverlayOpen: false,
