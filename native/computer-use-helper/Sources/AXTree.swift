@@ -1,20 +1,24 @@
 import AppKit
 import ApplicationServices
 import CoreGraphics
+import Darwin
 import Foundation
 
 @_silgen_name("_AXUIElementGetWindow")
 func _AXUIElementGetWindow(_ element: AXUIElement, _ windowId: UnsafeMutablePointer<CGWindowID>) -> AXError
 
+private let axObserverNoopCallback: AXObserverCallback = { _, _, _, _ in }
+
 enum AXTree {
+    private static let activationLock = NSLock()
+    private static var pumpedPids = Set<Int32>()
+    private static var accessibilityObservers: [Int32: AXObserver] = [:]
 
     // MARK: - Public API
 
     static func getAppState(pid: Int32, includeScreenshot: Bool, maxDepth: Int) -> AppStateResponse {
         let app = AXUIElementCreateApplication(pid)
-
-        // Enable AXManualAccessibility for Electron/Chromium apps
-        AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        activateAccessibilityIfNeeded(pid: pid, app: app)
 
         let runningApp = NSRunningApplication(processIdentifier: pid)
         let appName = runningApp?.localizedName ?? "Unknown"
@@ -78,7 +82,7 @@ enum AXTree {
         maxDepth: Int
     ) -> AppStateResponse {
         let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        activateAccessibilityIfNeeded(pid: pid, app: app)
 
         let runningApp = NSRunningApplication(processIdentifier: pid)
         let appName = runningApp?.localizedName ?? "Unknown"
@@ -150,7 +154,7 @@ enum AXTree {
 
     static func resolveElement(pid: Int32, elementId: String) -> AXUIElement? {
         let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        activateAccessibilityIfNeeded(pid: pid, app: app)
 
         let parts = elementId.split(separator: "/")
         guard let first = parts.first, first.hasPrefix("w"),
@@ -177,7 +181,7 @@ enum AXTree {
 
     static func resolveElement(pid: Int32, elementIndex: Int) -> AXUIElement? {
         let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        activateAccessibilityIfNeeded(pid: pid, app: app)
 
         var nextIndex = 0
         for axWindow in getAXArray(app, attribute: kAXWindowsAttribute) {
@@ -194,7 +198,7 @@ enum AXTree {
 
     static func primaryWindowFrame(pid: Int32) -> Frame? {
         let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        activateAccessibilityIfNeeded(pid: pid, app: app)
         let frames = getAXArray(app, attribute: kAXWindowsAttribute)
             .compactMap { getFrame($0) }
             .filter { $0.width > 0 && $0.height > 0 }
@@ -363,6 +367,104 @@ enum AXTree {
         else { return [] }
         return array
     }
+
+    private static func activateAccessibilityIfNeeded(pid: Int32, app: AXUIElement) {
+        let manualResult = AXUIElementSetAttributeValue(
+            app,
+            "AXManualAccessibility" as CFString,
+            kCFBooleanTrue
+        )
+        let enhancedResult = AXUIElementSetAttributeValue(
+            app,
+            "AXEnhancedUserInterface" as CFString,
+            kCFBooleanTrue
+        )
+        guard manualResult == .success || enhancedResult == .success else {
+            return
+        }
+
+        activationLock.lock()
+        let shouldPump = !pumpedPids.contains(pid)
+        if shouldPump {
+            pumpedPids.insert(pid)
+        }
+        activationLock.unlock()
+
+        guard shouldPump else { return }
+        registerAccessibilityObserver(pid: pid)
+        pumpRunLoopForActivation(duration: 0.5)
+    }
+
+    private static func registerAccessibilityObserver(pid: Int32) {
+        var observer: AXObserver?
+        let result = AXObserverCreate(pid, axObserverNoopCallback, &observer)
+        guard result == .success, let observer else { return }
+
+        let source = AXObserverGetRunLoopSource(observer)
+        CFRunLoopAddSource(
+            CFRunLoopGetMain(),
+            source,
+            CFRunLoopMode.defaultMode
+        )
+
+        let root = AXUIElementCreateApplication(pid)
+        for notification in [
+            kAXFocusedUIElementChangedNotification,
+            kAXFocusedWindowChangedNotification,
+            kAXApplicationActivatedNotification,
+            kAXApplicationDeactivatedNotification,
+            kAXWindowCreatedNotification,
+            kAXWindowMovedNotification,
+            kAXWindowResizedNotification,
+            kAXValueChangedNotification,
+            kAXTitleChangedNotification,
+            kAXSelectedChildrenChangedNotification,
+            kAXLayoutChangedNotification,
+        ] {
+            _ = addObserverNotificationPreferRemote(
+                observer: observer,
+                element: root,
+                notification: notification as CFString
+            )
+        }
+
+        activationLock.lock()
+        accessibilityObservers[pid] = observer
+        activationLock.unlock()
+    }
+
+    private static func pumpRunLoopForActivation(duration: CFTimeInterval) {
+        let endTime = CFAbsoluteTimeGetCurrent() + duration
+        while CFAbsoluteTimeGetCurrent() < endTime {
+            let remaining = endTime - CFAbsoluteTimeGetCurrent()
+            _ = CFRunLoopRunInMode(.defaultMode, remaining, false)
+        }
+    }
+
+    private static func addObserverNotificationPreferRemote(
+        observer: AXObserver,
+        element: AXUIElement,
+        notification: CFString
+    ) -> AXError {
+        if let fn = axObserverAddNotificationAndCheckRemote {
+            return fn(observer, element, notification, nil)
+        }
+        return AXObserverAddNotification(observer, element, notification, nil)
+    }
+
+    private static let axObserverAddNotificationAndCheckRemote:
+        (@convention(c) (AXObserver, AXUIElement, CFString, UnsafeMutableRawPointer?) -> AXError)? = {
+            guard let sym = dlsym(
+                UnsafeMutableRawPointer(bitPattern: -2),
+                "AXObserverAddNotificationAndCheckRemote"
+            ) else {
+                return nil
+            }
+            return unsafeBitCast(
+                sym,
+                to: (@convention(c) (AXObserver, AXUIElement, CFString, UnsafeMutableRawPointer?) -> AXError).self
+            )
+        }()
 
     private static func cgWindowId(for element: AXUIElement) -> UInt32? {
         var windowId: CGWindowID = 0
