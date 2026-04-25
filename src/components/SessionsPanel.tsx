@@ -374,15 +374,10 @@ function StashedCard({
         label={t.stash_restore}
         onClick={() => unstashTerminalInScene(item.terminalId)}
       >
-        {/* pop-out / unbox icon */}
+        {/* unarchive: arrow up out of tray */}
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-          <path
-            d="M6 1h3v3M9 1L5 5M4 1H2a1 1 0 00-1 1v6a1 1 0 001 1h6a1 1 0 001-1V6"
-            stroke="currentColor"
-            strokeWidth="1.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+          <path d="M5 6V1M5 1L3 3M5 1l2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M1 6h2v2a1 1 0 001 1h2a1 1 0 001-1V6h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </IconButton>
       <IconButton
