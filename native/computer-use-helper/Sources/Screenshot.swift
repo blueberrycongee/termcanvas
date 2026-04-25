@@ -28,16 +28,26 @@ enum Screenshot {
         return latestZoomByPid[pid]
     }
 
-    static func captureWindow(pid: Int32, windowFrame: Frame?) -> ScreenshotInfo? {
+    static func captureWindow(
+        pid: Int32,
+        windowFrame: Frame?,
+        maxImageDimension: Int = 0
+    ) -> ScreenshotInfo? {
         guard let target = firstLayerZeroWindow(pid: pid) else { return nil }
         return captureWindow(
             pid: pid,
             windowID: target.windowID,
-            windowFrame: target.frame ?? windowFrame
+            windowFrame: target.frame ?? windowFrame,
+            maxImageDimension: maxImageDimension
         )
     }
 
-    static func captureWindow(pid: Int32, windowID: CGWindowID, windowFrame: Frame?) -> ScreenshotInfo? {
+    static func captureWindow(
+        pid: Int32,
+        windowID: CGWindowID,
+        windowFrame: Frame?,
+        maxImageDimension: Int = 0
+    ) -> ScreenshotInfo? {
         let fm = FileManager.default
         if !fm.fileExists(atPath: outputDir) {
             try? fm.createDirectory(atPath: outputDir, withIntermediateDirectories: true)
@@ -47,7 +57,7 @@ enum Screenshot {
             .window(windowId: UInt32(windowID), pid: pid)?
             .bounds ?? windowFrame
 
-        guard let image = CGWindowListCreateImage(
+        guard let capturedImage = CGWindowListCreateImage(
             .null,
             .optionIncludingWindow,
             windowID,
@@ -55,6 +65,7 @@ enum Screenshot {
         ) else {
             return nil
         }
+        let image = resizeIfNeeded(capturedImage, maxDimension: maxImageDimension)
 
         let timestamp = Int(Date().timeIntervalSince1970 * 1000)
         let captureId = "\(pid):\(windowID):\(timestamp)"
@@ -233,5 +244,29 @@ enum Screenshot {
             width: rect.width,
             height: rect.height
         )
+    }
+
+    private static func resizeIfNeeded(_ image: CGImage, maxDimension: Int) -> CGImage {
+        guard maxDimension > 0, max(image.width, image.height) > maxDimension else {
+            return image
+        }
+        let scale = Double(maxDimension) / Double(max(image.width, image.height))
+        let width = max(1, Int(Double(image.width) * scale))
+        let height = max(1, Int(Double(image.height) * scale))
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue |
+                CGBitmapInfo.byteOrder32Little.rawValue
+        ) else {
+            return image
+        }
+        context.interpolationQuality = .high
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return context.makeImage() ?? image
     }
 }

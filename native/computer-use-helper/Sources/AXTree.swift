@@ -23,10 +23,13 @@ enum AXTree {
 
     // MARK: - Public API
 
-    static func getAppState(pid: Int32, includeScreenshot: Bool, maxDepth: Int) -> AppStateResponse {
-        let app = AXUIElementCreateApplication(pid)
-        activateAccessibilityIfNeeded(pid: pid, app: app)
-
+    static func getAppState(
+        pid: Int32,
+        includeScreenshot: Bool,
+        maxDepth: Int,
+        captureMode: String,
+        maxImageDimension: Int
+    ) -> AppStateResponse {
         let runningApp = NSRunningApplication(processIdentifier: pid)
         let appName = runningApp?.localizedName ?? "Unknown"
         let bundleId = runningApp?.bundleIdentifier
@@ -39,34 +42,52 @@ enum AXTree {
         var nextIndex = 0
         var elementCache: [Int: AXUIElement] = [:]
 
-        let axWindows = getAXArray(app, attribute: kAXWindowsAttribute)
-        for (wIdx, axWindow) in axWindows.enumerated() {
-            let windowId = "w\(wIdx)"
-            let cgWindowId = cgWindowId(for: axWindow)
-            let title = getStringAttribute(axWindow, attribute: kAXTitleAttribute)
-            let frame = getFrame(axWindow)
+        if captureMode == "vision" {
+            windows = WindowEnumerator.listWindows(pid: pid, onScreenOnly: false).windows.map {
+                WindowInfo(
+                    id: "\($0.windowId)",
+                    windowId: UInt32(exactly: $0.windowId),
+                    title: $0.title,
+                    frame: $0.bounds
+                )
+            }
+        } else {
+            let app = AXUIElementCreateApplication(pid)
+            activateAccessibilityIfNeeded(pid: pid, app: app)
 
-            windows.append(WindowInfo(
-                id: windowId,
-                windowId: cgWindowId,
-                title: title,
-                frame: frame ?? Frame(x: 0, y: 0, width: 0, height: 0)
-            ))
+            let axWindows = getAXArray(app, attribute: kAXWindowsAttribute)
+            for (wIdx, axWindow) in axWindows.enumerated() {
+                let windowId = "w\(wIdx)"
+                let cgWindowId = cgWindowId(for: axWindow)
+                let title = getStringAttribute(axWindow, attribute: kAXTitleAttribute)
+                let frame = getFrame(axWindow)
 
-            accessibilityTree.append(contentsOf: walkChildren(
-                element: axWindow,
-                path: windowId,
-                depth: 1,
-                maxDepth: maxDepth,
-                elements: &elements,
-                nextIndex: &nextIndex,
-                elementCache: &elementCache
-            ))
+                windows.append(WindowInfo(
+                    id: windowId,
+                    windowId: cgWindowId,
+                    title: title,
+                    frame: frame ?? Frame(x: 0, y: 0, width: 0, height: 0)
+                ))
+
+                accessibilityTree.append(contentsOf: walkChildren(
+                    element: axWindow,
+                    path: windowId,
+                    depth: 1,
+                    maxDepth: maxDepth,
+                    elements: &elements,
+                    nextIndex: &nextIndex,
+                    elementCache: &elementCache
+                ))
+            }
         }
 
         var screenshot: ScreenshotInfo? = nil
-        if includeScreenshot {
-            screenshot = Screenshot.captureWindow(pid: pid, windowFrame: windows.first?.frame)
+        if includeScreenshot && captureMode != "ax" {
+            screenshot = Screenshot.captureWindow(
+                pid: pid,
+                windowFrame: windows.first?.frame,
+                maxImageDimension: maxImageDimension
+            )
         }
 
         return AppStateResponse(
@@ -88,19 +109,16 @@ enum AXTree {
         pid: Int32,
         windowId: UInt32,
         includeScreenshot: Bool,
-        maxDepth: Int
+        maxDepth: Int,
+        captureMode: String,
+        maxImageDimension: Int
     ) -> AppStateResponse {
-        let app = AXUIElementCreateApplication(pid)
-        activateAccessibilityIfNeeded(pid: pid, app: app)
-
         let runningApp = NSRunningApplication(processIdentifier: pid)
         let appName = runningApp?.localizedName ?? "Unknown"
         let bundleId = runningApp?.bundleIdentifier
         let summary = AppSummary(name: appName, bundleId: bundleId, pid: pid)
 
         let serverWindow = WindowEnumerator.window(windowId: windowId, pid: pid)
-        let axWindows = getAXArray(app, attribute: kAXWindowsAttribute)
-        let targetWindow = axWindows.first { cgWindowId(for: $0) == windowId }
 
         var windows: [WindowInfo] = []
         var elements: [ElementInfo] = []
@@ -108,43 +126,60 @@ enum AXTree {
         var nextIndex = 0
         var elementCache: [Int: AXUIElement] = [:]
 
-        if let targetWindow {
-            let title = getStringAttribute(targetWindow, attribute: kAXTitleAttribute)
-                ?? serverWindow?.title
-            let frame = getFrame(targetWindow) ?? serverWindow?.bounds
-            windows.append(WindowInfo(
-                id: "\(windowId)",
-                windowId: windowId,
-                title: title,
-                frame: frame ?? Frame(x: 0, y: 0, width: 0, height: 0)
-            ))
+        if captureMode == "vision" {
+            if let serverWindow {
+                windows.append(WindowInfo(
+                    id: "\(windowId)",
+                    windowId: windowId,
+                    title: serverWindow.title,
+                    frame: serverWindow.bounds
+                ))
+            }
+            storeSession(pid: pid, windowId: windowId, elements: [:])
+        } else {
+            let app = AXUIElementCreateApplication(pid)
+            activateAccessibilityIfNeeded(pid: pid, app: app)
+            let axWindows = getAXArray(app, attribute: kAXWindowsAttribute)
+            let targetWindow = axWindows.first { cgWindowId(for: $0) == windowId }
 
-            accessibilityTree.append(contentsOf: walkChildren(
-                element: targetWindow,
-                path: "w:\(windowId)",
-                depth: 1,
-                maxDepth: maxDepth,
-                elements: &elements,
-                nextIndex: &nextIndex,
-                elementCache: &elementCache
-            ))
-        } else if let serverWindow {
-            windows.append(WindowInfo(
-                id: "\(windowId)",
-                windowId: windowId,
-                title: serverWindow.title,
-                frame: serverWindow.bounds
-            ))
+            if let targetWindow {
+                let title = getStringAttribute(targetWindow, attribute: kAXTitleAttribute)
+                    ?? serverWindow?.title
+                let frame = getFrame(targetWindow) ?? serverWindow?.bounds
+                windows.append(WindowInfo(
+                    id: "\(windowId)",
+                    windowId: windowId,
+                    title: title,
+                    frame: frame ?? Frame(x: 0, y: 0, width: 0, height: 0)
+                ))
+
+                accessibilityTree.append(contentsOf: walkChildren(
+                    element: targetWindow,
+                    path: "w:\(windowId)",
+                    depth: 1,
+                    maxDepth: maxDepth,
+                    elements: &elements,
+                    nextIndex: &nextIndex,
+                    elementCache: &elementCache
+                ))
+            } else if let serverWindow {
+                windows.append(WindowInfo(
+                    id: "\(windowId)",
+                    windowId: windowId,
+                    title: serverWindow.title,
+                    frame: serverWindow.bounds
+                ))
+            }
+            storeSession(pid: pid, windowId: windowId, elements: elementCache)
         }
 
-        storeSession(pid: pid, windowId: windowId, elements: elementCache)
-
         var screenshot: ScreenshotInfo? = nil
-        if includeScreenshot {
+        if includeScreenshot && captureMode != "ax" {
             screenshot = Screenshot.captureWindow(
                 pid: pid,
                 windowID: CGWindowID(windowId),
-                windowFrame: windows.first?.frame ?? serverWindow?.bounds
+                windowFrame: windows.first?.frame ?? serverWindow?.bounds,
+                maxImageDimension: maxImageDimension
             )
         }
 

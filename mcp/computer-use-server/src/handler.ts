@@ -17,6 +17,10 @@ import {
   readComputerUseInstructions,
 } from "./instructions.js";
 import { TermCanvasClient } from "./termcanvas-client.js";
+import {
+  readComputerUseConfig,
+  updateComputerUseConfig,
+} from "./config.js";
 
 function textResult(data: unknown): CallToolResult {
   return {
@@ -54,6 +58,12 @@ export async function handleToolCall(
       case "setup":
       case "computer_use_setup":
         return await handleSetup(termCanvasClient);
+      case "get_config":
+      case "computer_use_get_config":
+        return textResult(readComputerUseConfig());
+      case "set_config":
+      case "computer_use_set_config":
+        return textResult(updateComputerUseConfig(args));
       case "list_apps":
       case "computer_use_list_apps":
         return await handleListApps(client);
@@ -273,8 +283,11 @@ async function handleGetAppState(
   args: Record<string, unknown>,
   client: HelperClient,
 ): Promise<CallToolResult> {
+  const config = readComputerUseConfig();
   const request = {
     include_screenshot: true,
+    capture_mode: config.capture_mode,
+    max_image_dimension: config.max_image_dimension,
     ...args,
   };
   const state = (await client.post("get_app_state", request)) as AppState;
@@ -285,8 +298,11 @@ async function handleGetWindowState(
   args: Record<string, unknown>,
   client: HelperClient,
 ): Promise<CallToolResult> {
+  const config = readComputerUseConfig();
   const request = {
     include_screenshot: true,
+    capture_mode: config.capture_mode,
+    max_image_dimension: config.max_image_dimension,
     ...args,
   };
   const state = (await client.post("get_window_state", request)) as AppState;

@@ -84,6 +84,8 @@ struct GetAppStateRequest: Codable {
     let appName: String?
     let includeScreenshot: Bool?
     let maxDepth: Int?
+    let captureMode: String?
+    let maxImageDimension: Int?
 }
 
 struct GetWindowStateRequest: Codable {
@@ -91,6 +93,8 @@ struct GetWindowStateRequest: Codable {
     let windowId: UInt32
     let includeScreenshot: Bool?
     let maxDepth: Int?
+    let captureMode: String?
+    let maxImageDimension: Int?
 }
 
 // MARK: - Screenshot / Screen

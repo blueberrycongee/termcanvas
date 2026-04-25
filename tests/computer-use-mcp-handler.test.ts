@@ -136,6 +136,24 @@ function asTermCanvas(client: FakeTermCanvasClient): TermCanvasClient {
   return client as unknown as TermCanvasClient;
 }
 
+async function withTempComputerUseConfig<T>(
+  fn: () => Promise<T> | T,
+): Promise<T> {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-cu-config-"));
+  const previous = process.env.TERMCANVAS_COMPUTER_USE_CONFIG;
+  process.env.TERMCANVAS_COMPUTER_USE_CONFIG = path.join(dir, "config.json");
+  try {
+    return await fn();
+  } finally {
+    if (previous === undefined) {
+      delete process.env.TERMCANVAS_COMPUTER_USE_CONFIG;
+    } else {
+      process.env.TERMCANVAS_COMPUTER_USE_CONFIG = previous;
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 test("computer use MCP list_apps unwraps helper response", async () => {
   const client = new FakeHelperClient();
   const result = await handleToolCall("list_apps", {}, asHelper(client));
@@ -170,28 +188,35 @@ test("computer use MCP list_windows exposes addressable windows", async () => {
 });
 
 test("computer use MCP get_app_state defaults to screenshot and returns image content", async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-cu-test-"));
-  const screenshotPath = path.join(dir, "screenshot.png");
-  fs.writeFileSync(screenshotPath, Buffer.from("png"));
+  await withTempComputerUseConfig(async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-cu-test-"));
+    const screenshotPath = path.join(dir, "screenshot.png");
+    fs.writeFileSync(screenshotPath, Buffer.from("png"));
 
-  try {
-    const client = new FakeHelperClient();
-    client.screenshotPath = screenshotPath;
-    const result = await handleToolCall(
-      "get_app_state",
-      { app_name: "TermCanvas" },
-      asHelper(client),
-    );
+    try {
+      const client = new FakeHelperClient();
+      client.screenshotPath = screenshotPath;
+      const result = await handleToolCall(
+        "get_app_state",
+        { app_name: "TermCanvas" },
+        asHelper(client),
+      );
 
-    assert.equal(result.isError, undefined);
-    assert.deepEqual(client.posts[0], {
-      endpoint: "get_app_state",
-      body: { include_screenshot: true, app_name: "TermCanvas" },
-    });
-    assert.equal(result.content.some((item) => item.type === "image"), true);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+      assert.equal(result.isError, undefined);
+      assert.deepEqual(client.posts[0], {
+        endpoint: "get_app_state",
+        body: {
+          include_screenshot: true,
+          capture_mode: "som",
+          max_image_dimension: 1568,
+          app_name: "TermCanvas",
+        },
+      });
+      assert.equal(result.content.some((item) => item.type === "image"), true);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 test("computer use MCP launch_app uses background launch endpoint", async () => {
@@ -209,22 +234,79 @@ test("computer use MCP launch_app uses background launch endpoint", async () => 
   });
 });
 
-test("computer use MCP get_window_state requires explicit window target", async () => {
-  const client = new FakeHelperClient();
-  const result = await handleToolCall(
-    "get_window_state",
-    { pid: 42, window_id: 7 },
-    asHelper(client),
-  );
-  const state = JSON.parse(result.content[0].text as string);
+test("computer use MCP persists capture config and forwards it to observations", async () => {
+  await withTempComputerUseConfig(async () => {
+    const client = new FakeHelperClient();
 
-  assert.equal(result.isError, undefined);
-  assert.deepEqual(client.posts[0], {
-    endpoint: "get_window_state",
-    body: { include_screenshot: true, pid: 42, window_id: 7 },
+    const initial = await handleToolCall("get_config", {}, asHelper(client));
+    assert.deepEqual(JSON.parse(initial.content[0].text as string), {
+      schema_version: 1,
+      capture_mode: "som",
+      max_image_dimension: 1568,
+    });
+
+    const updated = await handleToolCall(
+      "set_config",
+      { capture_mode: "screenshot", max_image_dimension: 1024 },
+      asHelper(client),
+    );
+    assert.deepEqual(JSON.parse(updated.content[0].text as string), {
+      schema_version: 1,
+      capture_mode: "vision",
+      max_image_dimension: 1024,
+    });
+
+    await handleToolCall("get_app_state", { pid: 42 }, asHelper(client));
+    assert.deepEqual(client.posts[0], {
+      endpoint: "get_app_state",
+      body: {
+        include_screenshot: true,
+        capture_mode: "vision",
+        max_image_dimension: 1024,
+        pid: 42,
+      },
+    });
   });
-  assert.equal(state.windows[0].window_id, 7);
-  assert.equal(state.capture_id, "42:7:456");
+});
+
+test("computer use MCP rejects invalid config keys", async () => {
+  await withTempComputerUseConfig(async () => {
+    const client = new FakeHelperClient();
+    const result = await handleToolCall(
+      "set_config",
+      { capture_mode: "bad-mode" },
+      asHelper(client),
+    );
+
+    assert.equal(result.isError, true);
+    assert.match(result.content[0].text as string, /capture_mode must be one of/);
+  });
+});
+
+test("computer use MCP get_window_state requires explicit window target", async () => {
+  await withTempComputerUseConfig(async () => {
+    const client = new FakeHelperClient();
+    const result = await handleToolCall(
+      "get_window_state",
+      { pid: 42, window_id: 7 },
+      asHelper(client),
+    );
+    const state = JSON.parse(result.content[0].text as string);
+
+    assert.equal(result.isError, undefined);
+    assert.deepEqual(client.posts[0], {
+      endpoint: "get_window_state",
+      body: {
+        include_screenshot: true,
+        capture_mode: "som",
+        max_image_dimension: 1568,
+        pid: 42,
+        window_id: 7,
+      },
+    });
+    assert.equal(state.windows[0].window_id, 7);
+    assert.equal(state.capture_id, "42:7:456");
+  });
 });
 
 test("computer use MCP exposes screenshot and screen size tools", async () => {
@@ -296,6 +378,7 @@ test("computer use MCP exposes operating instructions as a tool", async () => {
   assert.match(result.content[0].text as string, /Empty windows or missing screenshots can be transient/);
   assert.match(result.content[0].text as string, /CEF\/Chromium/);
   assert.match(result.content[0].text as string, /capture_id/);
+  assert.match(result.content[0].text as string, /capture_mode/);
   assert.match(result.content[0].text as string, /After every action/);
 });
 
@@ -369,7 +452,10 @@ test("computer use MCP tool descriptions teach the AX-first protocol", () => {
 
   assert.match(descriptions.status, /TermCanvas desktop control protocol/);
   assert.match(descriptions.setup, /open the macOS permission panes/);
+  assert.match(descriptions.get_config, /capture_mode/);
+  assert.match(descriptions.set_config, /vision skips AX/);
   assert.match(descriptions.get_app_state, /Observe before acting/);
+  assert.match(descriptions.get_app_state, /capture_mode/);
   assert.match(descriptions.list_windows, /window_id/);
   assert.match(descriptions.screenshot, /MCP image content/);
   assert.match(descriptions.zoom, /from_zoom=true/);

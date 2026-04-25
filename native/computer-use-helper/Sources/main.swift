@@ -122,7 +122,9 @@ func route(method: String, path: String, body: Data?) -> (Int, Data) {
             let state = AXTree.getAppState(
                 pid: pid,
                 includeScreenshot: req.includeScreenshot ?? false,
-                maxDepth: req.maxDepth ?? 4
+                maxDepth: req.maxDepth ?? 4,
+                captureMode: normalizeCaptureMode(req.captureMode),
+                maxImageDimension: req.maxImageDimension ?? 0
             )
             return ok(state)
 
@@ -138,7 +140,9 @@ func route(method: String, path: String, body: Data?) -> (Int, Data) {
                 pid: req.pid,
                 windowId: UInt32(window.windowId),
                 includeScreenshot: req.includeScreenshot ?? false,
-                maxDepth: req.maxDepth ?? 4
+                maxDepth: req.maxDepth ?? 4,
+                captureMode: normalizeCaptureMode(req.captureMode),
+                maxImageDimension: req.maxImageDimension ?? 0
             )
             return ok(state)
 
@@ -446,6 +450,17 @@ func resolvePid(pid: Int32?, appName: String?) -> Int32? {
         return AppLister.resolvePid(appName: appName)
     }
     return nil
+}
+
+func normalizeCaptureMode(_ value: String?) -> String {
+    switch value {
+    case "vision", "screenshot":
+        return "vision"
+    case "ax":
+        return "ax"
+    default:
+        return "som"
+    }
 }
 
 func resolveElement(

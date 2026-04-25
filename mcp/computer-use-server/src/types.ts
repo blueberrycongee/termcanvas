@@ -74,6 +74,8 @@ export interface GetAppStateParams {
   app_name?: string;
   include_screenshot?: boolean;
   max_depth?: number;
+  capture_mode?: string;
+  max_image_dimension?: number;
 }
 
 export interface GetWindowStateParams {
@@ -81,6 +83,8 @@ export interface GetWindowStateParams {
   window_id: number;
   include_screenshot?: boolean;
   max_depth?: number;
+  capture_mode?: string;
+  max_image_dimension?: number;
 }
 
 export interface ScreenshotParams {

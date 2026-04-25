@@ -36,6 +36,37 @@ export const tools: Tool[] = [
     },
   },
   {
+    name: "get_config",
+    description:
+      "Read persistent TermCanvas Computer Use configuration, including capture_mode (som, vision, ax) and max_image_dimension. Use this when choosing whether observations should return AX, screenshots, or both.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
+  {
+    name: "set_config",
+    description:
+      "Persist TermCanvas Computer Use configuration. capture_mode=som returns AX plus screenshots, vision skips AX and returns screenshots only, ax skips screenshots and returns AX only. max_image_dimension caps screenshot long edge; 0 disables downscaling.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        capture_mode: {
+          type: "string",
+          enum: ["som", "vision", "ax", "screenshot"],
+          description:
+            "Observation mode. screenshot is accepted as a deprecated alias for vision.",
+        },
+        max_image_dimension: {
+          type: "number",
+          description:
+            "Maximum screenshot long edge in pixels. Set 0 to keep native resolution.",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: "list_apps",
     description:
       "List running macOS applications with localized name, bundle ID, PID, and frontmost status. Call status first and call setup if the helper is unavailable or permissions are missing. Prefer returned bundle IDs or PIDs for later calls instead of guessing app names.",
@@ -145,7 +176,7 @@ export const tools: Tool[] = [
   {
     name: "get_app_state",
     description:
-      "Observe before acting: start an app use session if needed, then get the app key-window state, indexed Accessibility tree, and returned window screenshot. Use this for local macOS apps; do not use browser or Playwright screenshots for desktop apps. Prefer bundle_id or pid from list_apps for localized or ambiguous apps. If the tree is empty or sparse, re-activate/open the app and observe again before declaring a limitation. Coordinate fallbacks should pass the returned screenshot capture_id.",
+      "Observe before acting: start an app use session if needed, then get the app key-window state according to persistent capture_mode. Default som returns indexed Accessibility tree and screenshot; vision returns screenshot only; ax returns AX only. Use this for local macOS apps; do not use browser or Playwright screenshots for desktop apps. Prefer bundle_id or pid from list_apps for localized or ambiguous apps. If the tree is empty or sparse, re-activate/open the app and observe again before declaring a limitation. Coordinate fallbacks should pass the returned screenshot capture_id.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -171,7 +202,7 @@ export const tools: Tool[] = [
   {
     name: "get_window_state",
     description:
-      "Observe a specific macOS window by pid and window_id from list_windows. This is the window-scoped successor to get_app_state: it returns the target window's AX tree and screenshot without silently choosing a different window. Call this before element-indexed or screenshot-coordinate actions.",
+      "Observe a specific macOS window by pid and window_id from list_windows. This is the window-scoped successor to get_app_state: default capture_mode=som returns the target window's AX tree and screenshot without silently choosing a different window; vision returns screenshot only; ax returns AX only. Call this before element-indexed or screenshot-coordinate actions.",
     inputSchema: {
       type: "object" as const,
       properties: {

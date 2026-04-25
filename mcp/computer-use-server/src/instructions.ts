@@ -17,6 +17,7 @@ export const COMPUTER_USE_STATUS_GUIDANCE = {
     "If permissions remain false after the user says they already allowed them, guide the user to remove stale TermCanvas and computer-use-helper entries from both macOS permission panes, then add /Applications/TermCanvas.app and /Applications/TermCanvas.app/Contents/Resources/computer-use-helper again.",
     "For local macOS desktop apps, use TermCanvas Computer Use. Do not use browser automation or Playwright unless the target is a web page in a browser.",
     "Use list_apps for app identity and list_windows for window identity. Prefer pid + window_id for window-scoped observation when available.",
+    "Use get_config to inspect capture_mode. Default som returns AX plus screenshot, vision returns screenshot only for CEF/canvas-heavy workflows, and ax returns AX only when screenshots are unnecessary.",
     "Before every desktop interaction, call get_window_state for the target pid/window_id when available, otherwise get_app_state, and treat its AX tree plus returned window screenshot as the current source of truth.",
     "If get_app_state is empty or sparse, re-activate/open the app, retry with bundle_id or pid, increase max_depth if needed, and observe again before declaring the app inaccessible.",
     "Prefer AX element indexes for perform_secondary_action, set_value, click, scroll, and drag. When using get_window_state, pass element_index with the same window_id.",
@@ -35,11 +36,12 @@ Use this MCP server for local Mac desktop automation. Follow the AX-first protoc
 2. If permissions remain false after the user says they already allowed them, guide the user to remove stale TermCanvas and computer-use-helper entries from both macOS permission panes, then add /Applications/TermCanvas.app and /Applications/TermCanvas.app/Contents/Resources/computer-use-helper again.
 3. Use these tools for local macOS apps. Do not use browser automation or Playwright unless the target is a web page in a browser.
 4. Call list_apps, then list_windows when you need to choose a concrete window. Prefer pid + window_id for get_window_state when available.
-5. Call get_window_state or get_app_state before acting. If it is empty or sparse, re-activate and observe again before declaring a limitation.
-6. Prefer indexed Accessibility elements and semantic AX actions from get_app_state.
-7. For CEF/Chromium/WebGL/media surfaces that remain sparse after one re-observe, use the returned screenshot plus keyboard shortcuts before screenshot-coordinate clicks.
-8. Use the returned screenshot for observation and use screenshot coordinates only as the last resort. Pass capture_id with screenshot-coordinate actions when available.
-9. After every action, call get_app_state again and verify the result before reporting success.
+5. Call get_config when capture behavior matters. capture_mode=som returns AX plus screenshot, vision returns screenshot only, and ax returns AX only.
+6. Call get_window_state or get_app_state before acting. If it is empty or sparse, re-activate and observe again before declaring a limitation.
+7. Prefer indexed Accessibility elements and semantic AX actions from get_app_state.
+8. For CEF/Chromium/WebGL/media surfaces that remain sparse after one re-observe, use the returned screenshot plus keyboard shortcuts before screenshot-coordinate clicks.
+9. Use the returned screenshot for observation and use screenshot coordinates only as the last resort. Pass capture_id with screenshot-coordinate actions when available.
+10. After every action, call get_app_state again and verify the result before reporting success.
 `;
 
 function moduleDir(): string {

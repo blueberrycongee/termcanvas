@@ -14,14 +14,15 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 2. After permission approval, call `status` again. Do not continue app-control attempts while either permission is false.
 3. Call `list_apps` to identify the target app. Prefer the returned `bundle_id` or `pid` for follow-up calls. Use localized display names exactly as returned by `list_apps`; do not guess English app names on a non-English system.
 4. Call `list_windows` when the target has or may have multiple windows. Prefer `pid` + `window_id` with `get_window_state` when available; use `get_app_state` only as the app-level compatibility path.
-5. Before every desktop interaction, call `get_window_state` for the target window or `get_app_state` for the target app. Treat the returned AX tree and returned window screenshot as the source of truth for current UI.
-6. If `get_app_state` returns no windows, no screenshot, or an unexpectedly sparse tree, do not immediately conclude the app is inaccessible. Re-activate with `open_app`, retry with the `bundle_id` or `pid` from `list_apps`, and observe again. Increase `max_depth` when deeper controls are needed.
-7. Choose actions in this order: direct AX action/value, AX element click/scroll/drag, keyboard navigation/input, screenshot-coordinate fallback.
-8. Prefer direct AX operations over simulated input. Use `set_value` for writable text fields and `perform_secondary_action` for exposed actions such as `AXPress`, `AXShowMenu`, or other actions listed on the element.
-9. Use keyboard input when AX exposes focusable controls but not a direct action: focus the target field/control first, then use `type_text` or `press_key`.
-10. Use screenshots to understand visual state. Use screenshot coordinates only as the last resort for canvas-rendered or non-AX UI. When using coordinates read from the returned `get_app_state` screenshot, set `coordinate_space="screenshot"` and pass the returned `capture_id` when available.
-11. After every action, call `get_app_state` again and verify the expected UI state changed. Do not say the task is complete until the latest observed state supports it.
-12. Ask the user before destructive or privacy-sensitive actions, purchases, sending messages, sharing data, changing security settings, or anything that could have real-world side effects beyond ordinary navigation/playback.
+5. Call `get_config` when capture behavior matters. `capture_mode="som"` returns AX plus screenshot, `"vision"` returns screenshot only for sparse/canvas workflows, and `"ax"` returns AX only when screenshots are unnecessary.
+6. Before every desktop interaction, call `get_window_state` for the target window or `get_app_state` for the target app. Treat the returned AX tree and returned window screenshot as the source of truth for current UI.
+7. If `get_app_state` returns no windows, no screenshot, or an unexpectedly sparse tree, do not immediately conclude the app is inaccessible. Re-activate with `open_app`, retry with the `bundle_id` or `pid` from `list_apps`, and observe again. Increase `max_depth` when deeper controls are needed.
+8. Choose actions in this order: direct AX action/value, AX element click/scroll/drag, keyboard navigation/input, screenshot-coordinate fallback.
+9. Prefer direct AX operations over simulated input. Use `set_value` for writable text fields and `perform_secondary_action` for exposed actions such as `AXPress`, `AXShowMenu`, or other actions listed on the element.
+10. Use keyboard input when AX exposes focusable controls but not a direct action: focus the target field/control first, then use `type_text` or `press_key`.
+11. Use screenshots to understand visual state. Use screenshot coordinates only as the last resort for canvas-rendered or non-AX UI. When using coordinates read from the returned `get_app_state` screenshot, set `coordinate_space="screenshot"` and pass the returned `capture_id` when available.
+12. After every action, call `get_app_state` again and verify the expected UI state changed. Do not say the task is complete until the latest observed state supports it.
+13. Ask the user before destructive or privacy-sensitive actions, purchases, sending messages, sharing data, changing security settings, or anything that could have real-world side effects beyond ordinary navigation/playback.
 
 ## Action Hierarchy
 
@@ -54,6 +55,8 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 - `status`: check helper health and macOS permissions.
 - `setup`: start Computer Use through TermCanvas, request required macOS permissions, and open System Settings when user approval is needed. If permissions remain false after approval, follow the macOS permission repair flow above.
 - `get_instructions`: read this operating protocol from the MCP server.
+- `get_config`: read persistent capture behavior such as `capture_mode` and `max_image_dimension`.
+- `set_config`: persist capture behavior. Use `capture_mode="vision"` for screenshot-only CEF/canvas workflows and `"ax"` for AX-only workflows.
 - `list_apps`: list running Mac apps with names, bundle IDs, PIDs, and frontmost state.
 - `list_windows`: list addressable top-level windows with `window_id`, owning app, title, bounds, z-order, and on-screen state.
 - `get_screen_size`: return main display pixel size and scale.
@@ -61,8 +64,8 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 - `zoom`: crop and return a zoomed region from the latest screenshot; after zooming, use `click` with `from_zoom=true` to click coordinates from the zoom image.
 - `open_app`: legacy launch-or-activate path.
 - `launch_app`: launch an app without intentionally activating it; prefer this for background Computer Use workflows.
-- `get_app_state`: return the app's current key-window AX tree and screenshot.
-- `get_window_state`: return a specific window's AX tree and screenshot by `pid` and `window_id`.
+- `get_app_state`: return the app's current key-window state according to `capture_mode`.
+- `get_window_state`: return a specific window's state by `pid` and `window_id` according to `capture_mode`.
 - `click`: click by AX element index first, or by coordinates as fallback.
 - `set_value`: assign text/value directly to a writable AX element.
 - `perform_secondary_action`: invoke an AX action exposed by an element.
