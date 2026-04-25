@@ -5,10 +5,9 @@ import { tmpdir } from 'node:os';
 
 const socket = process.env.TERMCANVAS_SOCKET;
 const terminalId = process.env.TERMCANVAS_TERMINAL_ID || '';
-if (!socket) process.exit(0);
 
 const LOG_PATH = `${tmpdir()}/termcanvas-hook-errors.log`;
-const MAX_LOG_BYTES = 1_048_576; // 1 MB
+const MAX_LOG_BYTES = 1_048_576;
 
 function logError(eventName, reason) {
   try {
@@ -23,6 +22,10 @@ function logError(eventName, reason) {
 
 function send(json) {
   return new Promise((resolve) => {
+    if (!socket) {
+      resolve(false);
+      return;
+    }
     const client = connect(socket, () => {
       client.end(JSON.stringify(json));
     });
@@ -32,32 +35,45 @@ function send(json) {
   });
 }
 
-let input = '';
-process.stdin.setEncoding('utf-8');
-process.stdin.on('data', (chunk) => { input += chunk; });
-process.stdin.on('end', async () => {
+// Consume stdin fully before any exit path to avoid breaking Codex's write_all.
+async function runHook() {
+  const input = await new Promise((resolve, reject) => {
+    let chunks = '';
+    process.stdin.setEncoding('utf-8');
+    process.stdin.on('data', (chunk) => { chunks += chunk; });
+    process.stdin.on('end', () => resolve(chunks));
+    process.stdin.on('error', (err) => reject(err));
+  });
+
   let data;
   try {
     data = JSON.parse(input);
   } catch {
-    logError(null, 'stdin_json_parse_error');
-    process.exit(0);
+    logError(null, `stdin_json_parse_error input_length=${input.length}`);
+    return;
   }
+
   data.terminal_id = terminalId;
   const eventName = data.hook_event_name || '?';
 
+  if (!socket) {
+    logError(eventName, 'TERMCANVAS_SOCKET_missing');
+    return;
+  }
+
   let ok = await send(data);
   if (!ok) {
-    // Retry once after 200ms
     await new Promise((r) => setTimeout(r, 200));
     ok = await send(data);
   }
   if (!ok) {
     logError(eventName, 'socket_connect_failed_after_retry');
   }
-  process.exit(0);
-});
-process.stdin.on('error', () => {
-  logError(null, 'stdin_error');
-  process.exit(0);
-});
+}
+
+runHook()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    logError(null, `unhandled_exception: ${err?.message || err}`);
+    process.exit(0);
+  });
