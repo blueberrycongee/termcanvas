@@ -38,13 +38,21 @@ enum AppLister {
     }
 
     static func openApp(bundleId: String?, name: String?) -> OpenAppResponse {
+        return openApp(bundleId: bundleId, name: name, activates: true)
+    }
+
+    static func launchAppBackground(bundleId: String?, name: String?) -> OpenAppResponse {
+        return openApp(bundleId: bundleId, name: name, activates: false)
+    }
+
+    private static func openApp(bundleId: String?, name: String?, activates: Bool) -> OpenAppResponse {
         let workspace = NSWorkspace.shared
 
         if let bundleId = bundleId {
             guard let appURL = workspace.urlForApplication(withBundleIdentifier: bundleId) else {
                 return OpenAppResponse(ok: false, pid: nil, error: "App not found: \(bundleId)")
             }
-            return launchApp(at: appURL)
+            return launchApp(at: appURL, activates: activates)
         }
 
         if let name = name {
@@ -52,14 +60,16 @@ enum AppLister {
                 $0.localizedName?.lowercased() == name.lowercased()
             }
             if let app = running {
-                app.activate()
+                if activates {
+                    app.activate()
+                }
                 return OpenAppResponse(ok: true, pid: app.processIdentifier, error: nil)
             }
 
             let appPath = "/Applications/\(name).app"
             let appURL = URL(fileURLWithPath: appPath)
             if FileManager.default.fileExists(atPath: appPath) {
-                return launchApp(at: appURL)
+                return launchApp(at: appURL, activates: activates)
             }
 
             return OpenAppResponse(ok: false, pid: nil, error: "App not found: \(name)")
@@ -68,13 +78,13 @@ enum AppLister {
         return OpenAppResponse(ok: false, pid: nil, error: "Provide bundle_id or name")
     }
 
-    private static func launchApp(at url: URL) -> OpenAppResponse {
+    private static func launchApp(at url: URL, activates: Bool) -> OpenAppResponse {
         let semaphore = DispatchSemaphore(value: 0)
         var resultApp: NSRunningApplication?
         var resultError: Error?
 
         let config = NSWorkspace.OpenConfiguration()
-        config.activates = true
+        config.activates = activates
 
         NSWorkspace.shared.openApplication(at: url, configuration: config) { app, error in
             resultApp = app

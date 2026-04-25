@@ -72,6 +72,9 @@ export async function handleToolCall(
       case "open_app":
       case "computer_use_open_app":
         return await handleOpenApp(args, client);
+      case "launch_app":
+      case "computer_use_launch_app":
+        return await handleLaunchApp(args, client);
       case "get_app_state":
       case "computer_use_get_app_state":
         return await handleGetAppState(args, client);
@@ -255,6 +258,14 @@ async function handleOpenApp(
   client: HelperClient,
 ): Promise<CallToolResult> {
   const result = (await client.post("open_app", args)) as OpenAppResponse;
+  return textResult(result);
+}
+
+async function handleLaunchApp(
+  args: Record<string, unknown>,
+  client: HelperClient,
+): Promise<CallToolResult> {
+  const result = (await client.post("launch_app", args)) as OpenAppResponse;
   return textResult(result);
 }
 

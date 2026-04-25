@@ -125,6 +125,24 @@ export const tools: Tool[] = [
     },
   },
   {
+    name: "launch_app",
+    description:
+      "Launch a macOS application without intentionally activating it. Prefer this over open_app for background Computer Use workflows where the user's frontmost app should not change.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        bundle_id: {
+          type: "string",
+          description: "Bundle identifier, for example com.apple.Safari.",
+        },
+        name: {
+          type: "string",
+          description: "Display name, for example Safari.",
+        },
+      },
+    },
+  },
+  {
     name: "get_app_state",
     description:
       "Observe before acting: start an app use session if needed, then get the app key-window state, indexed Accessibility tree, and returned window screenshot. Use this for local macOS apps; do not use browser or Playwright screenshots for desktop apps. Prefer bundle_id or pid from list_apps for localized or ambiguous apps. If the tree is empty or sparse, re-activate/open the app and observe again before declaring a limitation. Coordinate fallbacks should pass the returned screenshot capture_id.",

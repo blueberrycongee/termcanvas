@@ -110,6 +110,10 @@ func route(method: String, path: String, body: Data?) -> (Int, Data) {
             let req: OpenAppRequest = try decode(body)
             return ok(AppLister.openApp(bundleId: req.bundleId, name: req.name))
 
+        case "/launch_app":
+            let req: OpenAppRequest = try decode(body)
+            return ok(AppLister.launchAppBackground(bundleId: req.bundleId, name: req.name))
+
         case "/get_app_state":
             let req: GetAppStateRequest = try decode(body)
             guard let pid = resolvePid(pid: req.pid, appName: req.appName) else {

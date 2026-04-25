@@ -194,6 +194,21 @@ test("computer use MCP get_app_state defaults to screenshot and returns image co
   }
 });
 
+test("computer use MCP launch_app uses background launch endpoint", async () => {
+  const client = new FakeHelperClient();
+  const result = await handleToolCall(
+    "launch_app",
+    { bundle_id: "com.apple.TextEdit" },
+    asHelper(client),
+  );
+
+  assert.equal(result.isError, undefined);
+  assert.deepEqual(client.posts[0], {
+    endpoint: "launch_app",
+    body: { bundle_id: "com.apple.TextEdit" },
+  });
+});
+
 test("computer use MCP get_window_state requires explicit window target", async () => {
   const client = new FakeHelperClient();
   const result = await handleToolCall(
@@ -363,6 +378,7 @@ test("computer use MCP tool descriptions teach the AX-first protocol", () => {
   assert.match(descriptions.get_app_state, /do not use browser or Playwright screenshots/);
   assert.match(descriptions.list_apps, /Prefer returned bundle IDs or PIDs/);
   assert.match(descriptions.open_app, /exact localized name returned by list_apps/);
+  assert.match(descriptions.launch_app, /without intentionally activating/);
   assert.match(descriptions.click, /coordinates are the last resort/);
   assert.match(descriptions.click, /Do not use browser, Playwright, full-screen, or stale screenshot coordinates/);
   assert.match(descriptions.click, /Pass capture_id from that screenshot/);
