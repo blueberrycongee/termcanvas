@@ -255,7 +255,7 @@ export const tools: Tool[] = [
   {
     name: "get_window_state",
     description:
-      "Observe a specific macOS window by pid and window_id from list_windows. This is the window-scoped successor to get_app_state: default capture_mode=som returns the target window's AX tree and screenshot without silently choosing a different window; vision returns screenshot only; ax returns AX only. Call this before element-indexed or screenshot-coordinate actions.",
+      "Observe a specific macOS window by pid and window_id from list_windows. This is the window-scoped successor to get_app_state: default capture_mode=som returns the target window's AX tree, Space membership, and screenshot without silently choosing a different window; vision returns screenshot only; ax returns AX only. Call this before element-indexed or screenshot-coordinate actions.",
     inputSchema: {
       type: "object" as const,
       properties: {

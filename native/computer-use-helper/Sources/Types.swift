@@ -131,12 +131,23 @@ struct WindowInfo: Codable {
     let windowId: UInt32?
     let title: String?
     let frame: Frame
+    let onCurrentSpace: Bool?
+    let spaceIds: [UInt64]?
 
-    init(id: String, windowId: UInt32? = nil, title: String?, frame: Frame) {
+    init(
+        id: String,
+        windowId: UInt32? = nil,
+        title: String?,
+        frame: Frame,
+        onCurrentSpace: Bool? = nil,
+        spaceIds: [UInt64]? = nil
+    ) {
         self.id = id
         self.windowId = windowId
         self.title = title
         self.frame = frame
+        self.onCurrentSpace = onCurrentSpace
+        self.spaceIds = spaceIds
     }
 }
 
@@ -201,6 +212,7 @@ struct AppSummary: Codable {
 struct AppStateResponse: Codable {
     let app: AppSummary
     let windows: [WindowInfo]
+    let currentSpaceId: UInt64?
     let elements: [ElementInfo]
     let accessibilityTree: [AccessibilityNode]
     let screenshotPath: String?

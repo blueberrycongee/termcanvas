@@ -105,6 +105,7 @@ export interface ZoomParams {
 export interface AppState {
   app: Record<string, unknown>;
   windows: Record<string, unknown>[];
+  current_space_id?: number | null;
   elements: Record<string, unknown>[];
   accessibility_tree?: Record<string, unknown>[];
   screenshot_path?: string;

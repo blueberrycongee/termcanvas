@@ -35,6 +35,7 @@ enum AXTree {
         let bundleId = runningApp?.bundleIdentifier
 
         let summary = AppSummary(name: appName, bundleId: bundleId, pid: pid)
+        let currentSpaceId = SpaceInspector.currentSpaceId()
 
         var windows: [WindowInfo] = []
         var elements: [ElementInfo] = []
@@ -48,7 +49,9 @@ enum AXTree {
                     id: "\($0.windowId)",
                     windowId: UInt32(exactly: $0.windowId),
                     title: $0.title,
-                    frame: $0.bounds
+                    frame: $0.bounds,
+                    onCurrentSpace: $0.onCurrentSpace,
+                    spaceIds: $0.spaceIds
                 )
             }
         } else {
@@ -59,6 +62,9 @@ enum AXTree {
             for (wIdx, axWindow) in axWindows.enumerated() {
                 let windowId = "w\(wIdx)"
                 let cgWindowId = cgWindowId(for: axWindow)
+                let serverWindow = cgWindowId.flatMap {
+                    WindowEnumerator.window(windowId: $0, pid: pid)
+                }
                 let title = getStringAttribute(axWindow, attribute: kAXTitleAttribute)
                 let frame = getFrame(axWindow)
 
@@ -66,7 +72,9 @@ enum AXTree {
                     id: windowId,
                     windowId: cgWindowId,
                     title: title,
-                    frame: frame ?? Frame(x: 0, y: 0, width: 0, height: 0)
+                    frame: frame ?? Frame(x: 0, y: 0, width: 0, height: 0),
+                    onCurrentSpace: serverWindow?.onCurrentSpace,
+                    spaceIds: serverWindow?.spaceIds
                 ))
 
                 accessibilityTree.append(contentsOf: walkChildren(
@@ -93,6 +101,7 @@ enum AXTree {
         return AppStateResponse(
             app: summary,
             windows: windows,
+            currentSpaceId: currentSpaceId,
             elements: elements,
             accessibilityTree: accessibilityTree,
             screenshotPath: screenshot?.path,
@@ -117,6 +126,7 @@ enum AXTree {
         let appName = runningApp?.localizedName ?? "Unknown"
         let bundleId = runningApp?.bundleIdentifier
         let summary = AppSummary(name: appName, bundleId: bundleId, pid: pid)
+        let currentSpaceId = SpaceInspector.currentSpaceId()
 
         let serverWindow = WindowEnumerator.window(windowId: windowId, pid: pid)
 
@@ -132,7 +142,9 @@ enum AXTree {
                     id: "\(windowId)",
                     windowId: windowId,
                     title: serverWindow.title,
-                    frame: serverWindow.bounds
+                    frame: serverWindow.bounds,
+                    onCurrentSpace: serverWindow.onCurrentSpace,
+                    spaceIds: serverWindow.spaceIds
                 ))
             }
             storeSession(pid: pid, windowId: windowId, elements: [:])
@@ -150,7 +162,9 @@ enum AXTree {
                     id: "\(windowId)",
                     windowId: windowId,
                     title: title,
-                    frame: frame ?? Frame(x: 0, y: 0, width: 0, height: 0)
+                    frame: frame ?? Frame(x: 0, y: 0, width: 0, height: 0),
+                    onCurrentSpace: serverWindow?.onCurrentSpace,
+                    spaceIds: serverWindow?.spaceIds
                 ))
 
                 accessibilityTree.append(contentsOf: walkChildren(
@@ -167,7 +181,9 @@ enum AXTree {
                     id: "\(windowId)",
                     windowId: windowId,
                     title: serverWindow.title,
-                    frame: serverWindow.bounds
+                    frame: serverWindow.bounds,
+                    onCurrentSpace: serverWindow.onCurrentSpace,
+                    spaceIds: serverWindow.spaceIds
                 ))
             }
             storeSession(pid: pid, windowId: windowId, elements: elementCache)
@@ -186,6 +202,7 @@ enum AXTree {
         return AppStateResponse(
             app: summary,
             windows: windows,
+            currentSpaceId: currentSpaceId,
             elements: elements,
             accessibilityTree: accessibilityTree,
             screenshotPath: screenshot?.path,

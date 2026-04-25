@@ -42,6 +42,7 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 - CEF/Chromium apps can keep exposing only window chrome or generic groups even after `AXManualAccessibility` is enabled. After one re-observe with the same `bundle_id` or `pid`, treat that as a real sparse-tree limit instead of searching for non-existent AX controls.
 - Empty windows or missing screenshots can be transient after launch, activation, Space changes, minimized windows, full-screen transitions, or permission repair. Re-open/re-activate and re-observe before declaring a limitation.
 - If an app shows multiple windows or sheets, act on the currently relevant window and re-observe after focus changes.
+- `list_windows`, `get_app_state`, and `get_window_state` expose Space membership when macOS provides it. Prefer windows on the current Space unless the user explicitly wants an off-Space target.
 
 ## macOS Permission Repair
 
