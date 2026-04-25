@@ -474,15 +474,10 @@ function UserPrompt({
   event,
   isCurrent,
   onClick,
-  onFork,
-  forkLabel,
 }: {
   event: TimelineEvent;
   isCurrent: boolean;
   onClick: () => void;
-  /** When provided, a hover-revealed fork button appears in the gutter. */
-  onFork?: () => void;
-  forkLabel?: string;
 }) {
   // Right-aligned neutral bubble, iMessage-style. The bubble +
   // alignment ARE the speaker mark — no glyph, no eyebrow, no avatar,
@@ -507,62 +502,12 @@ function UserPrompt({
   // timestamp then sits next to where the assistant's reply begins,
   // anchoring the bottom of the turn instead of crowding the top.
   //
-  // Fork affordance: a small icon hangs in the gutter to the LEFT of
-  // the bubble. Hover-revealed via the row's `group` so the resting
-  // transcript stays clean — only appears when the reader is actually
-  // pointing at a turn they might want to branch from. Caller gates
-  // visibility per-provider by passing `onFork`.
+  // Fork affordance lives on the assistant's final answer row, not
+  // here — putting it on the user prompt was ambiguous ("before this
+  // message? after?"). Anchoring it to the answer reads unambiguously
+  // as "this exchange is complete; branch a new direction from here".
   return (
-    <div className="group flex justify-end items-start gap-2">
-      {onFork && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onFork();
-          }}
-          title={forkLabel ?? "Fork from this prompt"}
-          aria-label={forkLabel ?? "Fork from this prompt"}
-          className="opacity-0 group-hover:opacity-100 transition-opacity mt-1.5 shrink-0 cursor-pointer"
-          style={{ color: "var(--text-muted)" }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.color =
-              "var(--text-primary)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.color =
-              "var(--text-muted)";
-          }}
-        >
-          {/* Y-fork glyph: trunk splits into two branches. Drawn at
-              14px so it reads cleanly at the bubble's vertical
-              optical center. */}
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 14 14"
-            fill="none"
-            aria-hidden
-          >
-            <path
-              d="M4 12V8.5C4 7.4 4.9 6.5 6 6.5H8C9.1 6.5 10 5.6 10 4.5V2"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M4 12V2"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-            />
-            <circle cx="4" cy="13" r="0.9" fill="currentColor" />
-            <circle cx="4" cy="2" r="0.9" fill="currentColor" />
-            <circle cx="10" cy="2" r="0.9" fill="currentColor" />
-          </svg>
-        </button>
-      )}
+    <div className="flex justify-end">
       <div className="flex flex-col items-end max-w-[78%] min-w-0">
         <button
           type="button"
@@ -597,25 +542,76 @@ function AssistantTextRow({
   event,
   isCurrent,
   onClick,
+  onFork,
+  forkLabel,
 }: {
   event: TimelineEvent;
   isCurrent: boolean;
   onClick: () => void;
+  /** When provided, a hover-revealed fork button appears at the
+   *  bottom-right of the row. Caller gates visibility — only the
+   *  turn's "final answer" assistant text gets the fork affordance,
+   *  so the action reads as "fork after this exchange ended". */
+  onFork?: () => void;
+  forkLabel?: string;
 }) {
   return (
-    <button
-      className="block w-full text-left"
-      onClick={onClick}
-      data-current={isCurrent || undefined}
-    >
-      <div className="relative pl-5 pr-3 py-1 transition-colors">
-        <span aria-hidden className={ROW_RAIL_CLS} style={{ backgroundColor: railColor(isCurrent) }} />
-        <div
-          className={markdownClassName}
-          dangerouslySetInnerHTML={{ __html: renderMarkdown(event.textPreview) }}
-        />
-      </div>
-    </button>
+    <div className="group relative">
+      <button
+        type="button"
+        className="block w-full text-left"
+        onClick={onClick}
+        data-current={isCurrent || undefined}
+      >
+        <div className="relative pl-5 pr-3 py-1 transition-colors">
+          <span aria-hidden className={ROW_RAIL_CLS} style={{ backgroundColor: railColor(isCurrent) }} />
+          <div
+            className={markdownClassName}
+            dangerouslySetInnerHTML={{ __html: renderMarkdown(event.textPreview) }}
+          />
+        </div>
+      </button>
+      {onFork && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onFork();
+          }}
+          title={forkLabel ?? "Fork from here"}
+          aria-label={forkLabel ?? "Fork from here"}
+          className="absolute right-3 bottom-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-0.5"
+          style={{ color: "var(--text-muted)" }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.color =
+              "var(--text-primary)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.color =
+              "var(--text-muted)";
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+            <path
+              d="M4 12V8.5C4 7.4 4.9 6.5 6 6.5H8C9.1 6.5 10 5.6 10 4.5V2"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M4 12V2"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+            />
+            <circle cx="4" cy="13" r="0.9" fill="currentColor" />
+            <circle cx="4" cy="2" r="0.9" fill="currentColor" />
+            <circle cx="10" cy="2" r="0.9" fill="currentColor" />
+          </svg>
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -1370,7 +1366,10 @@ export function SessionReplayView() {
           // component. Used both inside expanded WorkingFolds and as
           // the answer renderer at the top level — same code path,
           // identical visual treatment, no per-context branching.
-          const renderNode = (node: AssistantNode) => {
+          const renderNode = (
+            node: AssistantNode,
+            forkProps?: { onFork: () => void; forkLabel: string },
+          ) => {
             if (node.type === "tool_group") {
               const items = node.items ?? [];
               const isCurrent = items.some(
@@ -1404,6 +1403,8 @@ export function SessionReplayView() {
                     event={node.primary}
                     isCurrent={isCurrent}
                     onClick={() => seekTo(node.index)}
+                    onFork={forkProps?.onFork}
+                    forkLabel={forkProps?.forkLabel}
                   />
                 </div>
               );
@@ -1444,7 +1445,9 @@ export function SessionReplayView() {
                 className="space-y-2"
               >
                 {nodes.length > 0 && (
-                  <div className="space-y-1">{nodes.map(renderNode)}</div>
+                  <div className="space-y-1">
+                    {nodes.map((n) => renderNode(n))}
+                  </div>
                 )}
               </div>
             );
@@ -1492,15 +1495,6 @@ export function SessionReplayView() {
                   event={turn.userEvent}
                   isCurrent={turn.userEvent.index === currentIndex}
                   onClick={() => seekTo(turn.userEvent!.index)}
-                  onFork={
-                    canFork && userPromptIndices[turnIdx] !== null
-                      ? () => requestFork(userPromptIndices[turnIdx]!)
-                      : undefined
-                  }
-                  forkLabel={
-                    (t.session_replay_fork_button as unknown as string) ??
-                    "Fork from this prompt"
-                  }
                 />
               </div>
               {(hasFold || answer) && (
@@ -1513,10 +1507,22 @@ export function SessionReplayView() {
                       expanded={foldExpanded}
                       onToggle={() => toggleFold(foldKey)}
                     >
-                      {working.map(renderNode)}
+                      {working.map((n) => renderNode(n))}
                     </WorkingFold>
                   )}
-                  {answer && renderNode(answer)}
+                  {answer &&
+                    renderNode(
+                      answer,
+                      canFork && userPromptIndices[turnIdx] !== null
+                        ? {
+                            onFork: () =>
+                              requestFork(userPromptIndices[turnIdx]!),
+                            forkLabel:
+                              (t.session_replay_fork_button as unknown as string) ??
+                              "Fork from here",
+                          }
+                        : undefined,
+                    )}
                 </div>
               )}
             </div>

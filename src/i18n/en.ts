@@ -192,7 +192,7 @@ export const en = {
   session_replay_resume_cmd_copied: "Copied resume command",
   session_replay_resume_id_tooltip: "Click to copy session ID",
   session_replay_resume_id_copied: "Copied session ID",
-  session_replay_fork_button: "Fork from this prompt",
+  session_replay_fork_button: "Fork from here",
   session_replay_fork_title: "Fork conversation?",
   session_replay_fork_body:
     "Start a new session with the conversation history up to this point. The original session won't be modified.",

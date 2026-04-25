@@ -189,7 +189,7 @@ export const zh = {
   session_replay_resume_cmd_copied: "已复制 resume 命令",
   session_replay_resume_id_tooltip: "点击复制 session ID",
   session_replay_resume_id_copied: "已复制 session ID",
-  session_replay_fork_button: "从这个提问派生新会话",
+  session_replay_fork_button: "从这里派生新会话",
   session_replay_fork_title: "派生新对话？",
   session_replay_fork_body:
     "用截至此处的对话历史启动一个新的 session。原会话不会被修改。",
