@@ -22,6 +22,7 @@ import { useCompletionSeenStore } from "../stores/completionSeenStore";
 import { promptAndAddProjectToScene } from "../canvas/sceneCommands";
 import {
   closeTerminalInScene,
+  stashTerminalInScene,
   unstashTerminalInScene,
   destroyStashedTerminalInScene,
 } from "../actions/terminalSceneActions";
@@ -185,6 +186,22 @@ export function TerminalCard({
           {subtitleParts.join(" · ")}
         </div>
       </div>
+      <IconButton
+        size="sm"
+        tone="neutral"
+        label={t.stash_terminal}
+        className="opacity-0 group-hover:opacity-100 transition-opacity"
+        onClick={(e) => {
+          e.stopPropagation();
+          stashTerminalInScene(item.projectId, item.worktreeId, item.terminalId);
+        }}
+      >
+        {/* archive: arrow down into tray */}
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M5 1v5M5 6L3 4M5 6l2-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M1 6h2v2a1 1 0 001 1h2a1 1 0 001-1V6h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </IconButton>
       <IconButton
         size="sm"
         tone="danger"
