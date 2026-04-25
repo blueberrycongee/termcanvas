@@ -2,6 +2,46 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.34.0] - 2026-04-25
+
+### Added
+- **Computer Use MCP overhaul**: full desktop-control toolkit with virtual cursor overlay, no-focus-steal input path, AX-first click strategy, keyboard scroll, cursor move action, foreground mouse hardening, and text input tuning.
+- ScreenCaptureKit preferred for screenshots with zoom coordinate mapping and stale-coordinate rejection.
+- Trajectory recording and replay with debug crosshair output.
+- Window-scoped observation, space membership exposure, and Chromium AX activation strengthening.
+- Background app launch tool and persistent capture config.
+- Agent shim injection into shell terminals with CLI agents taught AX-first workflow.
+- Global MCP registration and common CUA tool exposure with operation path capabilities.
+- macOS permission flow: guided stale permission repair, setup-time permission request, and CLI repair hints.
+- Viewport-fixed focus caret overlay for canvas navigation.
+
+### Fixed
+- Terminal link activation now requires Ctrl/Cmd modifier to avoid accidental navigation.
+- Blank terminals after visibility loss or WebGL context loss now recover automatically.
+- Focus ring in overview mode uses stronger desaturated style for clarity.
+- Focus navigation overhead reduced in the renderer.
+- Hook stdin consumed before exit to prevent Codex Broken pipe errors.
+- Computer Use fixes: AX press preferred for element clicks, screenshot coordinate mapping from captured window, helper signing identity kept stable, MCP credentials loaded from state file, Claude reserved MCP name avoided, TOML env config for Codex MCP, bundled packaged MCP server.
+
+### Added (zh-CN)
+- **Computer Use MCP 全面重构**：完整桌面控制工具集，包括虚拟光标覆盖层、无焦点窃取输入路径、AX 优先点击策略、键盘滚动、光标移动操作、前台鼠标输入加固和文本输入调优。
+- 截图优先使用 ScreenCaptureKit，支持缩放坐标映射和过期坐标拒绝。
+- 轨迹录制与回放，含调试十字线输出。
+- 窗口范围观察、空间成员关系暴露、Chromium AX 激活增强。
+- 后台应用启动工具和持久化截图配置。
+- Agent shim 注入 shell 终端，CLI agent 学习 AX 优先工作流。
+- 全局 MCP 注册和通用 CUA 工具暴露，含操作路径能力声明。
+- macOS 权限流程：引导修复过期权限、setup 时请求权限、CLI 修复提示。
+- 画布导航用的视口固定焦点光标覆盖层。
+
+### Fixed (zh-CN)
+- 终端链接激活现在需要 Ctrl/Cmd 修饰键，避免误触导航。
+- 终端在可见性丢失或 WebGL 上下文丢失后现在会自动恢复。
+- Overview 模式下的焦点环使用更强的去饱和样式以提升辨识度。
+- 渲染器中焦点导航开销降低。
+- Hook 退出前消耗 stdin，防止 Codex Broken pipe 错误。
+- Computer Use 修复：元素点击优先使用 AX press、截图坐标从捕获窗口映射、helper 签名身份保持稳定、MCP 凭据从状态文件加载、避免 Claude 保留 MCP 名称、Codex MCP 的 TOML 环境配置、打包 MCP 服务器。
+
 ## [0.33.0] - 2026-04-25
 
 ### Added
