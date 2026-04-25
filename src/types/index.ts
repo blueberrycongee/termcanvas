@@ -145,6 +145,7 @@ export interface WorktreeData {
   id: string;
   name: string;
   path: string;
+  isMain?: boolean;
   terminals: TerminalData[];
 }
 

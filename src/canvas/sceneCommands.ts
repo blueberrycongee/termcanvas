@@ -43,6 +43,7 @@ function buildProjectFromScan(
       id: generateId(),
       name: worktree.branch,
       path: worktree.path,
+      isMain: worktree.isMain,
       terminals: [],
     })),
   };

@@ -498,7 +498,7 @@ export function buildProjectTree(
         worktreeId: worktree.id,
         worktreeName: worktree.name,
         worktreePath: worktree.path,
-        isMain: worktree.path === project.path,
+        isMain: worktree.isMain ?? worktree.path === project.path,
         statusSummary: computeStatusSummary(terminals, seenTerminalIds),
         terminals,
       });

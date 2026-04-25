@@ -270,13 +270,14 @@ function syncProjectWorktrees(
         id: generateId(),
         name: wt.branch,
         path: wt.path,
+        isMain: wt.isMain,
         terminals: [],
       };
     }
-    if (existing.name === wt.branch) {
+    if (existing.name === wt.branch && existing.isMain === wt.isMain) {
       return existing;
     }
-    return { ...existing, name: wt.branch };
+    return { ...existing, name: wt.branch, isMain: wt.isMain };
   });
 
   // Guarantee: the main worktree (path === project.path) must always be
