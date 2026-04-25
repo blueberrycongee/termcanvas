@@ -26,6 +26,22 @@ import {
   destroyStashedTerminalInScene,
 } from "../actions/terminalSceneActions";
 import { IconButton } from "./ui/IconButton";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "./ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "./ui/alert-dialog";
 import { shouldRefreshHistorySection } from "./historySectionModel";
 
 /**
@@ -343,6 +359,89 @@ function Inspector({
   );
 }
 
+function StashedCard({
+  item,
+  t,
+}: {
+  item: StashedTerminalItem;
+  t: ReturnType<typeof useT>;
+}) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  return (
+    <div className="group flex items-center gap-2 rounded-md px-2 py-1.5 bg-[var(--surface)] hover:bg-[var(--sidebar-hover)] transition-colors">
+      <div className="flex-1 min-w-0">
+        <div className="text-[11px] font-medium truncate text-[var(--text-secondary)]">
+          {item.title}
+        </div>
+        <div className="text-[10px] text-[var(--text-faint)] truncate">
+          {item.originLabel}
+        </div>
+      </div>
+      <IconButton
+        size="sm"
+        tone="neutral"
+        label={t.stash_restore}
+        onClick={() => unstashTerminalInScene(item.terminalId)}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path
+            d="M8 1L4 5l4 4"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M4 5h5"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+        </svg>
+      </IconButton>
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogTrigger asChild>
+          <IconButton
+            size="sm"
+            tone="danger"
+            label={t.stash_destroy}
+            onClick={() => setConfirmOpen(true)}
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path
+                d="M2 2L8 8M8 2L2 8"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </IconButton>
+        </AlertDialogTrigger>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t.stash_destroy}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {item.title}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t.stash_close}</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() =>
+                destroyStashedTerminalInScene(item.terminalId)
+              }
+            >
+              {t.stash_destroy}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 export function StashedSection({
   items,
   t,
@@ -350,16 +449,17 @@ export function StashedSection({
   items: StashedTerminalItem[];
   t: ReturnType<typeof useT>;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(items.length > 0);
 
   if (items.length === 0) return null;
 
   return (
-    <div className="border-t border-[var(--border)]">
-      <button
-        className="flex w-full items-center gap-1.5 px-3 py-2 text-left hover:bg-[var(--sidebar-hover)]"
-        onClick={() => setExpanded((v) => !v)}
-      >
+    <Collapsible
+      open={expanded}
+      onOpenChange={setExpanded}
+      className="border-t border-[var(--border)]"
+    >
+      <CollapsibleTrigger className="flex w-full items-center gap-1.5 px-3 py-2 text-left hover:bg-[var(--sidebar-hover)]">
         <svg
           width="10"
           height="10"
@@ -382,51 +482,15 @@ export function StashedSection({
         >
           {items.length}
         </span>
-      </button>
-      {expanded && (
+      </CollapsibleTrigger>
+      <CollapsibleContent>
         <div className="pb-2 flex flex-col gap-0.5 px-2">
           {items.map((item) => (
-            <div
-              key={item.terminalId}
-              className="group flex items-center gap-2 rounded-md px-2 py-1.5 bg-[var(--surface)] hover:bg-[var(--sidebar-hover)] transition-colors"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="text-[11px] font-medium truncate text-[var(--text-secondary)]">
-                  {item.title}
-                </div>
-                <div className="text-[10px] text-[var(--text-faint)] truncate">
-                  {item.originLabel}
-                </div>
-              </div>
-              <button
-                className="shrink-0 px-1.5 py-0.5 text-[9px] rounded border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
-                onClick={() => unstashTerminalInScene(item.terminalId)}
-                title={t.stash_restore}
-              >
-                {t.stash_restore}
-              </button>
-              <IconButton
-                size="sm"
-                tone="danger"
-                label={t.stash_destroy}
-                onClick={() =>
-                  destroyStashedTerminalInScene(item.terminalId)
-                }
-              >
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                  <path
-                    d="M2 2L8 8M8 2L2 8"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </IconButton>
-            </div>
+            <StashedCard key={item.terminalId} item={item} t={t} />
           ))}
         </div>
-      )}
-    </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
