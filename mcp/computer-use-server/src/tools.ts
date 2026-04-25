@@ -502,7 +502,7 @@ export const tools: Tool[] = [
   {
     name: "type_text",
     description:
-      `Type literal text using keyboard input. Prefer set_value for writable AX elements. Pass pid to deliver keyboard events to a target process instead of the frontmost app; with element_index + window_id, the helper focuses the cached element first. ${ACTION_GUARDRAIL}`,
+      `Type literal text using Unicode keyboard events. Prefer set_value for writable AX elements. Pass pid to deliver keyboard events to a target process instead of the frontmost app; with element_index + window_id, the helper focuses the cached element first. delay_ms spaces characters for Chromium/Electron autocomplete and IME paths. ${ACTION_GUARDRAIL}`,
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -510,6 +510,10 @@ export const tools: Tool[] = [
         pid: { type: "number", description: "Optional target process ID for pid-routed keyboard events." },
         window_id: { type: "number", description: "CGWindowID whose get_window_state produced element_index." },
         element_index: { type: "number", description: "Optional cached element index to focus before typing." },
+        delay_ms: {
+          type: "number",
+          description: "Milliseconds between characters. Defaults to 30; use 0 only when the target reliably accepts fast synthetic input.",
+        },
       },
       required: ["text"],
     },
@@ -517,7 +521,7 @@ export const tools: Tool[] = [
   {
     name: "type_text_chars",
     description:
-      "Type text character-by-character. This is currently the same pid-routed keyboard path as type_text; use it for Chromium/Electron fields when AX set_value is unavailable.",
+      "Type text character-by-character through the same Unicode keyboard path as type_text. Use it for Chromium/Electron fields when AX set_value is unavailable; delay_ms defaults to 30 so autocomplete and IME handlers can keep up.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -525,6 +529,10 @@ export const tools: Tool[] = [
         pid: { type: "number", description: "Optional target process ID for pid-routed keyboard events." },
         window_id: { type: "number", description: "CGWindowID whose get_window_state produced element_index." },
         element_index: { type: "number", description: "Optional cached element index to focus before typing." },
+        delay_ms: {
+          type: "number",
+          description: "Milliseconds between characters. Defaults to 30; use 0 only when the target reliably accepts fast synthetic input.",
+        },
       },
       required: ["text"],
     },

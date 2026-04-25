@@ -388,7 +388,8 @@ enum InputSimulator {
 
     // MARK: - Type Text
 
-    static func typeText(_ text: String, pid: Int32? = nil) {
+    static func typeText(_ text: String, delayMilliseconds: Int = 30, pid: Int32? = nil) {
+        let clampedDelay = max(0, min(delayMilliseconds, 200))
         for char in text {
             if stopRequested { break }
             let utf16 = Array(String(char).utf16)
@@ -401,7 +402,9 @@ enum InputSimulator {
 
             postKeyboardEvent(downEvent, pid: pid)
             postKeyboardEvent(upEvent, pid: pid)
-            usleep(10_000)
+            if clampedDelay > 0 {
+                usleep(UInt32(clampedDelay) * 1_000)
+            }
         }
     }
 
@@ -459,8 +462,9 @@ enum InputSimulator {
         case "command", "cmd": return .maskCommand
         case "super", "meta": return .maskCommand
         case "shift": return .maskShift
-        case "option", "alt": return .maskAlternate
+        case "option", "alt", "opt": return .maskAlternate
         case "control", "ctrl": return .maskControl
+        case "fn", "function": return .maskSecondaryFn
         default: return CGEventFlags()
         }
     }
@@ -471,7 +475,7 @@ enum InputSimulator {
             switch name.lowercased() {
             case "command", "cmd", "super", "meta": flags.insert(.command)
             case "shift": flags.insert(.shift)
-            case "option", "alt": flags.insert(.option)
+            case "option", "alt", "opt": flags.insert(.option)
             case "control", "ctrl": flags.insert(.control)
             case "fn", "function": flags.insert(.function)
             default: break
@@ -658,15 +662,20 @@ enum InputSimulator {
         "space": 0x31,
         "delete": 0x33, "backspace": 0x33,
         "escape": 0x35, "esc": 0x35,
+        "del": 0x75,
 
         "f1": 0x7A, "f2": 0x78, "f3": 0x63, "f4": 0x76,
         "f5": 0x60, "f6": 0x61, "f7": 0x62, "f8": 0x64,
         "f9": 0x65, "f10": 0x6D, "f11": 0x67, "f12": 0x6F,
 
-        "up": 0x7E, "down": 0x7D, "left": 0x7B, "right": 0x7C,
+        "up": 0x7E, "uparrow": 0x7E,
+        "down": 0x7D, "downarrow": 0x7D,
+        "left": 0x7B, "leftarrow": 0x7B,
+        "right": 0x7C, "rightarrow": 0x7C,
         "home": 0x73, "end": 0x77,
-        "pageup": 0x74, "pagedown": 0x79,
-        "forwarddelete": 0x75,
+        "pageup": 0x74, "page_up": 0x74, "pgup": 0x74,
+        "pagedown": 0x79, "page_down": 0x79, "pgdn": 0x79,
+        "forwarddelete": 0x75, "forward_delete": 0x75,
         "kp_0": 0x52, "kp_1": 0x53, "kp_2": 0x54, "kp_3": 0x55,
         "kp_4": 0x56, "kp_5": 0x57, "kp_6": 0x58, "kp_7": 0x59,
         "kp_8": 0x5B, "kp_9": 0x5C, "kp_decimal": 0x41,

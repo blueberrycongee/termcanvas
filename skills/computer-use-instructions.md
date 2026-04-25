@@ -30,7 +30,7 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 - Use `set_value` when the target is a writable text field or value control.
 - Use `click` with an AX element index when the target is visible in the AX tree but has no better semantic action.
 - Use `scroll` or `drag` with AX element indexes when the scrollable or draggable target is represented in AX. For pid-targeted scroll, prefer `direction` with `by="line"` or `by="page"` so the helper sends scroll keystrokes instead of fragile wheel events.
-- Use `press_key` and `type_text` when keyboard navigation is the natural app workflow or AX only exposes focus. Pass `pid` whenever available so keyboard events target the intended app instead of the user's frontmost app.
+- Use `press_key` and `type_text` when keyboard navigation is the natural app workflow or AX only exposes focus. Pass `pid` whenever available so keyboard events target the intended app instead of the user's frontmost app. For Chromium/Electron text fields, use `type_text_chars` or `type_text` with `delay_ms` around 30 so autocomplete and IME paths keep up.
 - Use `move_cursor` for hover-revealed menus, tooltips, drag pre-positioning, and custom-rendered UI that reacts to mouse movement but should not be clicked yet.
 - Use coordinate clicks, drags, or scrolls only when AX and keyboard paths are unavailable or unsuitable.
 - For coordinate actions against a background app, pass both `pid` and `window_id` when available so the helper can use its pid-targeted no-focus-steal path instead of relying on the frontmost app.
@@ -77,8 +77,8 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 - `click`: click by AX element index first, or by coordinates as fallback.
 - `set_value`: assign text/value directly to a writable AX element.
 - `perform_secondary_action`: invoke an AX action exposed by an element.
-- `type_text`: type literal text into the focused element.
-- `type_text_chars`: type text character-by-character; use with `pid` for Chromium/Electron fields when AX value setting is unavailable.
+- `type_text`: type literal text into the focused element. Supports `delay_ms` between characters.
+- `type_text_chars`: type text character-by-character; use with `pid` and `delay_ms` for Chromium/Electron fields when AX value setting is unavailable.
 - `press_key`: press a key or shortcut such as `Return`, `Tab`, `super+c`, or `Up`.
 - `hotkey`: press a key combination such as `["cmd", "c"]`, preferably with `pid`.
 - `double_click`: double-click by element or coordinates.
@@ -94,6 +94,7 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 - If the AX tree exposes the target control, use the element index. Prefer `element_index` plus the same `window_id` returned by `get_window_state`; do not switch to coordinates just because coordinates are easier.
 - If an AX element exposes a semantic action, prefer `perform_secondary_action` over raw click.
 - If a text field is writable through AX, prefer `set_value` over click-and-type.
+- If `set_value` is unavailable on a Chromium/Electron text field, focus it and use `type_text_chars({ pid, text, delay_ms: 30 })`.
 - If the AX tree is sparse, stale, or only exposes window chrome, use the returned screenshot and keyboard shortcuts before falling back to coordinate clicks. For CEF/WebGL/media surfaces such as Spotify, screenshot-coordinate clicks may be the correct fallback once AX and keyboard paths are unavailable.
 - For CEF/Chromium scroll, prefer `scroll({ pid, window_id, element_index, direction, by: "page" })` or `scroll({ pid, direction, by: "line" })` over coordinate wheel events.
 - If UI appears only on hover, call `move_cursor` with current screenshot coordinates, re-observe, then act on the revealed AX element or screenshot target.

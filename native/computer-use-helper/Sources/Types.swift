@@ -268,6 +268,7 @@ struct TypeTextRequest: Codable {
     let pid: Int32?
     let windowId: UInt32?
     let elementIndex: Int?
+    let delayMs: Int?
 }
 
 // MARK: - Press Key

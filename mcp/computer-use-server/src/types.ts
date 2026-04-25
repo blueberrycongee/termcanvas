@@ -158,6 +158,7 @@ export interface TypeTextParams {
   pid?: number;
   window_id?: number;
   element_index?: number;
+  delay_ms?: number;
 }
 
 export interface PressKeyParams {

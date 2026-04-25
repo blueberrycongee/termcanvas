@@ -583,6 +583,8 @@ test("computer use MCP tool descriptions teach the AX-first protocol", () => {
   assert.match(descriptions.click, /Pass capture_id from that screenshot/);
   assert.match(descriptions.get_app_state, /returned screenshot capture_id/);
   assert.match(descriptions.set_value, /Prefer this over keyboard typing/);
+  assert.match(descriptions.type_text, /delay_ms/);
+  assert.match(descriptions.type_text_chars, /defaults to 30/);
   assert.match(descriptions.type_text, /After acting, call get_app_state again/);
 });
 
@@ -624,7 +626,7 @@ test("computer use MCP supports new set_value and secondary action tools", async
   await handleToolCall("middle_click", { pid: 42, x: 10, y: 20 }, asHelper(client));
   await handleToolCall("move_cursor", { pid: 42, window_id: 7, x: 10, y: 20, coordinate_space: "screenshot", capture_id: "cap" }, asHelper(client));
   await handleToolCall("type_text", { pid: 42, window_id: 7, element_index: 3, text: "hello" }, asHelper(client));
-  await handleToolCall("type_text_chars", { pid: 42, text: "hello" }, asHelper(client));
+  await handleToolCall("type_text_chars", { pid: 42, text: "hello", delay_ms: 30 }, asHelper(client));
   await handleToolCall("press_key", { pid: 42, window_id: 7, element_index: 3, key: "Return" }, asHelper(client));
   await handleToolCall("hotkey", { pid: 42, keys: ["cmd", "c"] }, asHelper(client));
   await handleToolCall("scroll", { pid: 42, window_id: 7, element_index: 3, direction: "down", by: "page", amount: 2 }, asHelper(client));
@@ -666,7 +668,7 @@ test("computer use MCP supports new set_value and secondary action tools", async
     },
     {
       endpoint: "type_text",
-      body: { pid: 42, text: "hello" },
+      body: { pid: 42, text: "hello", delay_ms: 30 },
     },
     {
       endpoint: "press_key",

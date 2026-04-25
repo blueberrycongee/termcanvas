@@ -164,7 +164,11 @@ func route(method: String, path: String, body: Data?) -> (Int, Data) {
             ) {
                 _ = AXTree.focus(element)
             }
-            InputSimulator.typeText(req.text, pid: req.pid)
+            InputSimulator.typeText(
+                req.text,
+                delayMilliseconds: req.delayMs ?? 30,
+                pid: req.pid
+            )
             return ok(OkResponse())
 
         case "/press_key":
