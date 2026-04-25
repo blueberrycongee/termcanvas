@@ -276,12 +276,18 @@ func handleClick(_ req: ClickRequest) -> (Int, Data) {
         guard let center = AXTree.getElementCenter(element) else {
             return ok(OkResponse(ok: false, error: "Cannot determine element position"))
         }
-        AppLister.activate(pid: resolved.pid)
-        clickRepeated(x: center.x, y: center.y, button: button, clickCount: clickCount)
+        clickRepeated(
+            x: center.x,
+            y: center.y,
+            button: button,
+            clickCount: clickCount,
+            pid: resolved.pid,
+            windowId: req.windowId
+        )
         return ok(OkResponse())
     }
 
-    AppLister.activate(pid: resolvePid(pid: req.pid, appName: req.appName))
+    let targetPid = resolvePid(pid: req.pid, appName: req.appName)
     let zoomPoint = resolveZoomPoint(req)
     if let error = zoomPoint.error {
         return ok(OkResponse(ok: false, error: error))
@@ -298,7 +304,14 @@ func handleClick(_ req: ClickRequest) -> (Int, Data) {
         return ok(OkResponse(ok: false, error: error))
     }
     if let resolvedPoint = point.point {
-        clickRepeated(x: resolvedPoint.x, y: resolvedPoint.y, button: button, clickCount: clickCount)
+        clickRepeated(
+            x: resolvedPoint.x,
+            y: resolvedPoint.y,
+            button: button,
+            clickCount: clickCount,
+            pid: targetPid,
+            windowId: req.windowId
+        )
         return ok(OkResponse())
     }
 
@@ -349,8 +362,6 @@ func handleScroll(_ req: ScrollRequest) -> (Int, Data) {
         guard let center = AXTree.getElementCenter(resolved.element) else {
             return ok(OkResponse(ok: false, error: "Element not found"))
         }
-        AppLister.activate(pid: resolved.pid)
-
         let amount = Int32(req.amount ?? 3)
         var dx: Int32 = 0
         var dy: Int32 = 0
@@ -362,11 +373,18 @@ func handleScroll(_ req: ScrollRequest) -> (Int, Data) {
         default: break
         }
 
-        InputSimulator.scroll(x: center.x, y: center.y, dx: dx, dy: dy)
+        InputSimulator.scroll(
+            x: center.x,
+            y: center.y,
+            dx: dx,
+            dy: dy,
+            pid: resolved.pid,
+            windowId: req.windowId
+        )
         return ok(OkResponse())
     }
 
-    AppLister.activate(pid: resolvePid(pid: req.pid, appName: req.appName))
+    let targetPid = resolvePid(pid: req.pid, appName: req.appName)
     let point = resolvePoint(
         x: req.x,
         y: req.y,
@@ -382,7 +400,9 @@ func handleScroll(_ req: ScrollRequest) -> (Int, Data) {
         InputSimulator.scroll(
             x: resolvedPoint.x, y: resolvedPoint.y,
             dx: Int32(req.dx ?? 0),
-            dy: Int32(req.dy ?? 0)
+            dy: Int32(req.dy ?? 0),
+            pid: targetPid,
+            windowId: req.windowId
         )
         return ok(OkResponse())
     }
@@ -406,10 +426,11 @@ func handleDrag(_ req: DragRequest) -> (Int, Data) {
         else {
             return ok(OkResponse(ok: false, error: "Element(s) not found"))
         }
-        AppLister.activate(pid: fromResolved.pid)
         InputSimulator.stopRequested = false
         InputSimulator.drag(fromX: fromCenter.x, fromY: fromCenter.y,
-                            toX: toCenter.x, toY: toCenter.y)
+                            toX: toCenter.x, toY: toCenter.y,
+                            pid: fromResolved.pid,
+                            windowId: req.windowId)
         return ok(OkResponse())
     }
 
@@ -419,7 +440,7 @@ func handleDrag(_ req: DragRequest) -> (Int, Data) {
     let toY = req.toY ?? req.endY
 
     if let fx = fromX, let fy = fromY, let tx = toX, let ty = toY {
-        AppLister.activate(pid: resolvePid(pid: req.pid, appName: req.appName))
+        let targetPid = resolvePid(pid: req.pid, appName: req.appName)
         let fromResolution = resolvePoint(x: fx, y: fy, captureId: req.captureId,
                                           coordinateSpace: req.coordinateSpace,
                                           pid: req.pid, appName: req.appName)
@@ -433,7 +454,9 @@ func handleDrag(_ req: DragRequest) -> (Int, Data) {
         let toPoint = toResolution.point ?? CGPoint(x: tx, y: ty)
         InputSimulator.stopRequested = false
         InputSimulator.drag(fromX: fromPoint.x, fromY: fromPoint.y,
-                            toX: toPoint.x, toY: toPoint.y)
+                            toX: toPoint.x, toY: toPoint.y,
+                            pid: targetPid,
+                            windowId: req.windowId)
         return ok(OkResponse())
     }
 
@@ -585,13 +608,20 @@ func resolveZoomPoint(_ req: ClickRequest) -> (
     )
 }
 
-func clickRepeated(x: Double, y: Double, button: String, clickCount: Int) {
+func clickRepeated(
+    x: Double,
+    y: Double,
+    button: String,
+    clickCount: Int,
+    pid: Int32?,
+    windowId: UInt32?
+) {
     if button == "double" {
-        try? InputSimulator.click(x: x, y: y, button: "double")
+        try? InputSimulator.click(x: x, y: y, button: "double", pid: pid, windowId: windowId)
         return
     }
     for _ in 0..<clickCount {
-        try? InputSimulator.click(x: x, y: y, button: button)
+        try? InputSimulator.click(x: x, y: y, button: button, pid: pid, windowId: windowId)
         usleep(50_000)
     }
 }

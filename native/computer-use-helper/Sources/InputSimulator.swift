@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 
@@ -12,8 +13,20 @@ enum InputSimulator {
 
     // MARK: - Click
 
-    static func click(x: Double, y: Double, button: String = "left") throws {
+    static func click(
+        x: Double,
+        y: Double,
+        button: String = "left",
+        pid: Int32? = nil,
+        windowId: UInt32? = nil
+    ) throws {
         let point = CGPoint(x: x, y: y)
+        if let pid, shouldUsePidMousePath(pid: pid) {
+            if try clickViaPid(point: point, pid: pid, windowId: windowId, button: button) {
+                return
+            }
+        }
+
         VirtualCursor.shared.moveToInteractionThresholdAndWait(to: point)
         VirtualCursor.shared.setPressed(true)
         defer { VirtualCursor.shared.setPressed(false) }
@@ -36,6 +49,251 @@ enum InputSimulator {
             usleep(50_000)
             postMouseEvent(.leftMouseUp, at: point, button: .left)
         }
+    }
+
+    private static func shouldUsePidMousePath(pid: Int32) -> Bool {
+        guard let app = NSRunningApplication(processIdentifier: pid) else {
+            return false
+        }
+        return !app.isActive
+    }
+
+    private static func clickViaPid(
+        point: CGPoint,
+        pid: Int32,
+        windowId: UInt32?,
+        button: String
+    ) throws -> Bool {
+        let targetWindow = resolveTargetWindow(pid: pid, windowId: windowId)
+        if let targetWindow {
+            _ = FocusWithoutRaise.activateWithoutRaise(
+                targetPid: pid,
+                targetWindowId: CGWindowID(targetWindow.windowId)
+            )
+            usleep(50_000)
+        }
+
+        VirtualCursor.shared.move(to: point, animated: false)
+        VirtualCursor.shared.setPressed(true)
+        defer { VirtualCursor.shared.setPressed(false) }
+
+        if button == "left" || button == "double" {
+            try clickLeftViaSkyLight(
+                point: point,
+                pid: pid,
+                window: targetWindow,
+                count: button == "double" ? 2 : 1
+            )
+            return true
+        }
+
+        try clickGenericViaPid(
+            point: point,
+            pid: pid,
+            window: targetWindow,
+            button: button
+        )
+        return true
+    }
+
+    private static func clickLeftViaSkyLight(
+        point: CGPoint,
+        pid: Int32,
+        window: WindowServerWindowInfo?,
+        count: Int
+    ) throws {
+        let windowNumber = window.map { Int($0.windowId) } ?? 0
+        let windowLocalTarget = windowLocalPoint(point, window: window)
+        let offscreen = CGPoint(x: -1, y: -1)
+
+        func makeEvent(_ type: NSEvent.EventType, clickCount: Int) throws -> CGEvent {
+            guard let event = NSEvent.mouseEvent(
+                with: type,
+                location: .zero,
+                modifierFlags: [],
+                timestamp: 0,
+                windowNumber: windowNumber,
+                context: nil,
+                eventNumber: 0,
+                clickCount: clickCount,
+                pressure: 1
+            )?.cgEvent else {
+                throw InputSimulatorError.eventCreationFailed
+            }
+            return event
+        }
+
+        func stamp(
+            _ event: CGEvent,
+            screenPoint: CGPoint,
+            windowLocalPoint: CGPoint,
+            clickState: Int64
+        ) {
+            event.location = screenPoint
+            event.setIntegerValueField(.mouseEventButtonNumber, value: 0)
+            event.setIntegerValueField(.mouseEventSubtype, value: 3)
+            event.setIntegerValueField(.mouseEventClickState, value: clickState)
+            if let window {
+                let windowId = Int64(window.windowId)
+                event.setIntegerValueField(.mouseEventWindowUnderMousePointer, value: windowId)
+                event.setIntegerValueField(
+                    .mouseEventWindowUnderMousePointerThatCanHandleThisEvent,
+                    value: windowId
+                )
+            }
+            _ = SkyLightEventPost.setWindowLocation(event, windowLocalPoint)
+            _ = SkyLightEventPost.setIntegerField(event, field: 40, value: Int64(pid))
+        }
+
+        let move = try makeEvent(.mouseMoved, clickCount: 0)
+        stamp(move, screenPoint: point, windowLocalPoint: windowLocalTarget, clickState: 1)
+
+        let primerDown = try makeEvent(.leftMouseDown, clickCount: 1)
+        let primerUp = try makeEvent(.leftMouseUp, clickCount: 1)
+        stamp(primerDown, screenPoint: offscreen, windowLocalPoint: offscreen, clickState: 1)
+        stamp(primerUp, screenPoint: offscreen, windowLocalPoint: offscreen, clickState: 1)
+
+        let pairs = max(1, min(2, count))
+        var targetPairs: [(down: CGEvent, up: CGEvent)] = []
+        for pairIndex in 1...pairs {
+            let down = try makeEvent(.leftMouseDown, clickCount: pairIndex)
+            let up = try makeEvent(.leftMouseUp, clickCount: pairIndex)
+            stamp(
+                down,
+                screenPoint: point,
+                windowLocalPoint: windowLocalTarget,
+                clickState: Int64(pairIndex)
+            )
+            stamp(
+                up,
+                screenPoint: point,
+                windowLocalPoint: windowLocalTarget,
+                clickState: Int64(pairIndex)
+            )
+            targetPairs.append((down, up))
+        }
+
+        postPidMouse(move, pid: pid, skyLightOnly: true)
+        usleep(15_000)
+        postPidMouse(primerDown, pid: pid, skyLightOnly: true)
+        usleep(1_000)
+        postPidMouse(primerUp, pid: pid, skyLightOnly: true)
+        usleep(100_000)
+        for (index, pair) in targetPairs.enumerated() {
+            postPidMouse(pair.down, pid: pid, skyLightOnly: true)
+            usleep(1_000)
+            postPidMouse(pair.up, pid: pid, skyLightOnly: true)
+            if index < targetPairs.count - 1 {
+                usleep(80_000)
+            }
+        }
+    }
+
+    private static func clickGenericViaPid(
+        point: CGPoint,
+        pid: Int32,
+        window: WindowServerWindowInfo?,
+        button: String
+    ) throws {
+        let (downType, upType, mouseButton, nsDown, nsUp): (
+            CGEventType,
+            CGEventType,
+            CGMouseButton,
+            NSEvent.EventType,
+            NSEvent.EventType
+        ) = button == "right"
+            ? (.rightMouseDown, .rightMouseUp, .right, .rightMouseDown, .rightMouseUp)
+            : (.leftMouseDown, .leftMouseUp, .left, .leftMouseDown, .leftMouseUp)
+        let windowNumber = window.map { Int($0.windowId) } ?? 0
+        let windowLocal = windowLocalPoint(point, window: window)
+
+        let down = NSEvent.mouseEvent(
+            with: nsDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        )?.cgEvent ?? CGEvent(
+            mouseEventSource: nil,
+            mouseType: downType,
+            mouseCursorPosition: point,
+            mouseButton: mouseButton
+        )
+        let up = NSEvent.mouseEvent(
+            with: nsUp,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        )?.cgEvent ?? CGEvent(
+            mouseEventSource: nil,
+            mouseType: upType,
+            mouseCursorPosition: point,
+            mouseButton: mouseButton
+        )
+        guard let down, let up else {
+            throw InputSimulatorError.eventCreationFailed
+        }
+        for event in [down, up] {
+            event.location = point
+            event.setIntegerValueField(.mouseEventClickState, value: 1)
+            event.setIntegerValueField(
+                .mouseEventButtonNumber,
+                value: button == "right" ? 1 : 0
+            )
+            if let window {
+                let windowId = Int64(window.windowId)
+                event.setIntegerValueField(.mouseEventWindowUnderMousePointer, value: windowId)
+                event.setIntegerValueField(
+                    .mouseEventWindowUnderMousePointerThatCanHandleThisEvent,
+                    value: windowId
+                )
+            }
+            _ = SkyLightEventPost.setWindowLocation(event, windowLocal)
+            _ = SkyLightEventPost.setIntegerField(event, field: 40, value: Int64(pid))
+        }
+        postPidMouse(down, pid: pid)
+        usleep(30_000)
+        postPidMouse(up, pid: pid)
+    }
+
+    private static func postPidMouse(_ event: CGEvent, pid: Int32, skyLightOnly: Bool = false) {
+        event.timestamp = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
+        let posted = SkyLightEventPost.postToPid(pid, event: event, attachAuthMessage: false)
+        if !skyLightOnly || !posted {
+            event.postToPid(pid)
+        }
+    }
+
+    private static func resolveTargetWindow(
+        pid: Int32,
+        windowId: UInt32?
+    ) -> WindowServerWindowInfo? {
+        if let windowId,
+           let window = WindowEnumerator.window(windowId: windowId, pid: pid) {
+            return window
+        }
+        let windows = WindowEnumerator.listWindows(pid: pid, onScreenOnly: false).windows
+        return windows.first { $0.isOnScreen && ($0.onCurrentSpace ?? true) }
+            ?? windows.first
+    }
+
+    private static func windowLocalPoint(
+        _ point: CGPoint,
+        window: WindowServerWindowInfo?
+    ) -> CGPoint {
+        guard let frame = window?.bounds else {
+            return point
+        }
+        return CGPoint(x: point.x - frame.x, y: point.y - frame.y)
     }
 
     private static func postMouseEvent(
@@ -102,7 +360,9 @@ enum InputSimulator {
 
     private static func postKeyboardEvent(_ event: CGEvent, pid: Int32?) {
         if let pid {
-            event.postToPid(pid)
+            if !SkyLightEventPost.postToPid(pid, event: event, attachAuthMessage: true) {
+                event.postToPid(pid)
+            }
         } else {
             event.post(tap: .cghidEventTap)
         }
@@ -129,8 +389,41 @@ enum InputSimulator {
 
     // MARK: - Scroll
 
-    static func scroll(x: Double, y: Double, dx: Int32, dy: Int32) {
+    static func scroll(
+        x: Double,
+        y: Double,
+        dx: Int32,
+        dy: Int32,
+        pid: Int32? = nil,
+        windowId: UInt32? = nil
+    ) {
         let point = CGPoint(x: x, y: y)
+        if let pid, shouldUsePidMousePath(pid: pid) {
+            let window = resolveTargetWindow(pid: pid, windowId: windowId)
+            if let event = CGEvent(
+                scrollWheelEvent2Source: nil,
+                units: .pixel,
+                wheelCount: 2,
+                wheel1: dy,
+                wheel2: dx,
+                wheel3: 0
+            ) {
+                event.location = point
+                if let window {
+                    _ = FocusWithoutRaise.activateWithoutRaise(
+                        targetPid: pid,
+                        targetWindowId: CGWindowID(window.windowId)
+                    )
+                    _ = SkyLightEventPost.setWindowLocation(
+                        event,
+                        windowLocalPoint(point, window: window)
+                    )
+                }
+                postPidMouse(event, pid: pid)
+                return
+            }
+        }
+
         VirtualCursor.shared.moveToInteractionThresholdAndWait(to: point)
 
         // Move cursor to position first
@@ -153,9 +446,28 @@ enum InputSimulator {
 
     // MARK: - Drag
 
-    static func drag(fromX: Double, fromY: Double, toX: Double, toY: Double) {
+    static func drag(
+        fromX: Double,
+        fromY: Double,
+        toX: Double,
+        toY: Double,
+        pid: Int32? = nil,
+        windowId: UInt32? = nil
+    ) {
         let from = CGPoint(x: fromX, y: fromY)
         let to = CGPoint(x: toX, y: toY)
+        if let pid, shouldUsePidMousePath(pid: pid) {
+            let window = resolveTargetWindow(pid: pid, windowId: windowId)
+            if let window {
+                _ = FocusWithoutRaise.activateWithoutRaise(
+                    targetPid: pid,
+                    targetWindowId: CGWindowID(window.windowId)
+                )
+            }
+            postPidDrag(from: from, to: to, pid: pid, window: window)
+            return
+        }
+
         VirtualCursor.shared.moveToInteractionThresholdAndWait(to: from)
         VirtualCursor.shared.setPressed(true)
         defer { VirtualCursor.shared.setPressed(false) }
@@ -181,6 +493,62 @@ enum InputSimulator {
         }
 
         postMouseEvent(.leftMouseUp, at: to, button: .left)
+    }
+
+    private static func postPidDrag(
+        from: CGPoint,
+        to: CGPoint,
+        pid: Int32,
+        window: WindowServerWindowInfo?
+    ) {
+        VirtualCursor.shared.move(to: from, animated: false)
+        VirtualCursor.shared.setPressed(true)
+        defer { VirtualCursor.shared.setPressed(false) }
+
+        postPidMouseEvent(.leftMouseDown, at: from, pid: pid, window: window)
+        usleep(30_000)
+        let steps = 10
+        for i in 1...steps {
+            if stopRequested { break }
+            let t = Double(i) / Double(steps)
+            let point = CGPoint(
+                x: from.x + (to.x - from.x) * t,
+                y: from.y + (to.y - from.y) * t
+            )
+            postPidMouseEvent(.leftMouseDragged, at: point, pid: pid, window: window)
+            usleep(10_000)
+        }
+        postPidMouseEvent(.leftMouseUp, at: to, pid: pid, window: window)
+    }
+
+    private static func postPidMouseEvent(
+        _ type: CGEventType,
+        at point: CGPoint,
+        pid: Int32,
+        window: WindowServerWindowInfo?
+    ) {
+        guard let event = CGEvent(
+            mouseEventSource: nil,
+            mouseType: type,
+            mouseCursorPosition: point,
+            mouseButton: .left
+        ) else { return }
+        event.location = point
+        event.setIntegerValueField(.mouseEventButtonNumber, value: 0)
+        if let window {
+            let windowId = Int64(window.windowId)
+            event.setIntegerValueField(.mouseEventWindowUnderMousePointer, value: windowId)
+            event.setIntegerValueField(
+                .mouseEventWindowUnderMousePointerThatCanHandleThisEvent,
+                value: windowId
+            )
+            _ = SkyLightEventPost.setWindowLocation(
+                event,
+                windowLocalPoint(point, window: window)
+            )
+        }
+        _ = SkyLightEventPost.setIntegerField(event, field: 40, value: Int64(pid))
+        postPidMouse(event, pid: pid)
     }
 
     // MARK: - Key Codes (macOS virtual key codes)
@@ -219,4 +587,8 @@ enum InputSimulator {
         "\\": 0x2A, ";": 0x29, "'": 0x27, ",": 0x2B,
         ".": 0x2F, "/": 0x2C, "`": 0x32,
     ]
+}
+
+enum InputSimulatorError: Error {
+    case eventCreationFailed
 }

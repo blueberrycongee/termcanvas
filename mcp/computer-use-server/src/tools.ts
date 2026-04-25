@@ -229,7 +229,7 @@ export const tools: Tool[] = [
   {
     name: "click",
     description:
-      `Click an element by integer index or pixel coordinates. Prefer AX element indexes from get_app_state; coordinates are the last resort. ${COORDINATE_GUARDRAIL} ${ACTION_GUARDRAIL}`,
+      `Click an element by integer index or pixel coordinates. Prefer AX element indexes from get_app_state; coordinates are the last resort. When pid/window_id are provided, pixel clicks are delivered through the target pid path to avoid activating or raising the app unless the target is already frontmost. ${COORDINATE_GUARDRAIL} ${ACTION_GUARDRAIL}`,
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -294,7 +294,7 @@ export const tools: Tool[] = [
   {
     name: "double_click",
     description:
-      `Double-click an element or coordinates. This is a convenience wrapper over click with mouse_button=double. ${COORDINATE_GUARDRAIL} ${ACTION_GUARDRAIL}`,
+      `Double-click an element or coordinates. This is a convenience wrapper over click with mouse_button=double and uses the same pid/window_id no-focus-steal pixel path when targeting a background app. ${COORDINATE_GUARDRAIL} ${ACTION_GUARDRAIL}`,
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -314,7 +314,7 @@ export const tools: Tool[] = [
   {
     name: "right_click",
     description:
-      `Right-click an element or coordinates. Prefer perform_secondary_action with AXShowMenu when AX exposes it. ${COORDINATE_GUARDRAIL} ${ACTION_GUARDRAIL}`,
+      `Right-click an element or coordinates. Prefer perform_secondary_action with AXShowMenu when AX exposes it. Coordinate right-clicks use the same pid/window_id no-focus-steal pixel path when targeting a background app. ${COORDINATE_GUARDRAIL} ${ACTION_GUARDRAIL}`,
     inputSchema: {
       type: "object" as const,
       properties: {
