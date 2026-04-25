@@ -13,6 +13,7 @@ import {
   validateWorktreePath,
 } from "../hydra/src/spawn";
 import { TaskStore, TaskStoreError } from "./task-store";
+import { resolveCanvasProjectRoot } from "./task-project-resolver";
 
 interface ApiServerDeps {
   getWindow: () => BrowserWindow | null;
@@ -619,16 +620,24 @@ export class ApiServer {
     return { ok: true };
   }
 
-  private taskList(url: URL) {
-    const repo = requireRepoQuery(url);
-    return { tasks: this.deps.taskStore.list(repo) };
+  private async taskList(url: URL) {
+    const inputRepo = requireRepoQuery(url);
+    const projects = await this.execRenderer(`window.__tcApi.getProjects()`);
+    const canonicalRepo = resolveCanvasProjectRoot(inputRepo, projects);
+    return { tasks: this.deps.taskStore.list(canonicalRepo) };
   }
 
-  private taskCreate(body: any) {
+  private async taskCreate(body: any) {
+    const inputRepo = body?.repo;
+    if (!inputRepo) {
+      throw Object.assign(new Error("repo is required"), { status: 400 });
+    }
+    const projects = await this.execRenderer(`window.__tcApi.getProjects()`);
+    const canonicalRepo = resolveCanvasProjectRoot(inputRepo, projects);
     try {
       const task = this.deps.taskStore.create({
         title: body?.title,
-        repo: body?.repo,
+        repo: canonicalRepo,
         body: body?.body,
         status: body?.status,
         links: body?.links,
@@ -639,10 +648,12 @@ export class ApiServer {
     }
   }
 
-  private taskGet(url: URL, id: string) {
-    const repo = requireRepoQuery(url);
+  private async taskGet(url: URL, id: string) {
+    const inputRepo = requireRepoQuery(url);
+    const projects = await this.execRenderer(`window.__tcApi.getProjects()`);
+    const canonicalRepo = resolveCanvasProjectRoot(inputRepo, projects);
     try {
-      const task = this.deps.taskStore.get(repo, id);
+      const task = this.deps.taskStore.get(canonicalRepo, id);
       if (!task) {
         throw Object.assign(new Error(`Task not found: ${id}`), { status: 404 });
       }
@@ -652,13 +663,15 @@ export class ApiServer {
     }
   }
 
-  private taskUpdate(id: string, body: any) {
-    const repo = body?.repo;
-    if (!repo) {
+  private async taskUpdate(id: string, body: any) {
+    const inputRepo = body?.repo;
+    if (!inputRepo) {
       throw Object.assign(new Error("repo is required"), { status: 400 });
     }
+    const projects = await this.execRenderer(`window.__tcApi.getProjects()`);
+    const canonicalRepo = resolveCanvasProjectRoot(inputRepo, projects);
     try {
-      const task = this.deps.taskStore.update(repo, id, {
+      const task = this.deps.taskStore.update(canonicalRepo, id, {
         title: body?.title,
         status: body?.status,
         body: body?.body,
@@ -670,10 +683,12 @@ export class ApiServer {
     }
   }
 
-  private taskRemove(url: URL, id: string) {
-    const repo = requireRepoQuery(url);
+  private async taskRemove(url: URL, id: string) {
+    const inputRepo = requireRepoQuery(url);
+    const projects = await this.execRenderer(`window.__tcApi.getProjects()`);
+    const canonicalRepo = resolveCanvasProjectRoot(inputRepo, projects);
     try {
-      this.deps.taskStore.remove(repo, id);
+      this.deps.taskStore.remove(canonicalRepo, id);
       return { ok: true };
     } catch (err) {
       throw rethrowTaskStoreError(err);

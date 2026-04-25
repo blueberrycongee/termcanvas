@@ -262,7 +262,7 @@ const hookReceiver = new HookReceiver((event) => {
   }
 });
 const computerUseManager = new ComputerUseManager();
-const taskStore = new TaskStore(path.join(app.getPath("userData"), "tasks"));
+const taskStore = new TaskStore(path.join(TERMCANVAS_DIR, "tasks"));
 const apiServer = new ApiServer({
   getWindow: () => mainWindow,
   ptyManager,
