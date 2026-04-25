@@ -51,12 +51,12 @@
      the "I want you to read this" middle tier. */
   --text-metadata: #a8a59f;
   --text-timestamp: #918e89;
-  /* Role-label colors for the replay view's user/assistant eyebrows.
-     Pinned to existing accent (blue) and amber so we don't introduce a
-     parallel palette — just two stable, distinct hues already part of
-     the system. */
-  --role-user: var(--accent);
-  --role-assistant: var(--amber);
+  /* --role-user / --role-assistant retired: the replay view used to
+     paint a "You" eyebrow in accent and an "Assistant" eyebrow in amber.
+     The amber clashed with inline `<code>` (also amber) on code-heavy
+     replies, and the eyebrows themselves were redundant once typography
+     differentiated speakers. Speaker is now expressed via prose weight
+     and an accent gutter glyph; amber is no longer used in this view. */
   --accent: #5b9ef5;
   --accent-soft: rgba(91, 158, 245, 0.14);
   --red: #e87272;
@@ -84,8 +84,8 @@
   --text-faint: #c4c0ba;
   --text-metadata: #4a4540;
   --text-timestamp: #57534e;
-  --role-user: var(--accent);
-  --role-assistant: var(--amber);
+  /* See dark-theme block above: --role-user / --role-assistant retired
+     in the replay-view rework. */
   --accent: #2563eb;
   --accent-soft: rgba(37, 99, 235, 0.12);
   --red: #dc2626;
@@ -221,17 +221,9 @@ body {
   font-variant-numeric: tabular-nums;
   color: var(--text-timestamp);
 }
-/* Role badges in the replay view. Compose `tc-role` with a role-color
-   class. Mono + tracked for the same eyebrow rhythm as section headers. */
-.tc-role {
-  font-size: var(--text-tiny);
-  font-weight: var(--weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-eyebrow);
-  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-.tc-role-user { color: var(--role-user); }
-.tc-role-assistant { color: var(--role-assistant); }
+/* .tc-role / .tc-role-user / .tc-role-assistant retired alongside the
+   --role-* tokens. The replay view now leans on a gutter glyph + prose
+   weight to mark speakers, so per-role badges have nothing to badge. */
 
 /* Color overrides — apply on top of a role to shift emphasis */
 .tc-color-primary { color: var(--text-primary); }

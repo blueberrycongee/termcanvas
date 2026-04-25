@@ -21,6 +21,13 @@ import type { TerminalType } from "../types";
 // Sizes here intentionally read from the typography scale tokens
 // (--text-base/md/sm/xs) instead of hand-rolled px values, so a future
 // scale tweak ripples through without grep-and-replace.
+//
+// Inline `<code>` was previously amber-on-bg, which clashed with the
+// (also-amber) Assistant role label in code-heavy replies and read as
+// a "highlight" rather than "this is code". Switched to text-primary
+// on a faint --surface tint — quiet, IDE-style. `<pre>` blocks gain a
+// real --surface bg too: the previous --bg matched the page background
+// and made fenced blocks invisible.
 const markdownClassName =
   "prose prose-sm prose-invert max-w-none text-[length:var(--text-md)] leading-relaxed text-[var(--text-primary)] " +
   "[&_h1]:text-[15px] [&_h1]:font-semibold [&_h1]:mt-3 [&_h1]:mb-1.5 " +
@@ -28,8 +35,8 @@ const markdownClassName =
   "[&_h3]:text-[length:var(--text-base)] [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 " +
   "[&_p]:my-1.5 [&_ul]:pl-4 [&_ol]:pl-4 [&_li]:my-0.5 " +
   "[&_a]:text-[var(--accent)] [&_a]:cursor-pointer " +
-  "[&_code]:text-[var(--amber)] [&_code]:bg-[var(--bg)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[length:var(--text-xs)] " +
-  "[&_pre]:bg-[var(--bg)] [&_pre]:rounded-md [&_pre]:p-2.5 [&_pre]:text-[length:var(--text-xs)] [&_pre]:overflow-x-auto " +
+  "[&_code]:text-[var(--text-primary)] [&_code]:bg-[var(--surface)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[length:var(--text-xs)] " +
+  "[&_pre]:bg-[var(--surface)] [&_pre]:rounded-md [&_pre]:p-2.5 [&_pre]:text-[length:var(--text-xs)] [&_pre]:overflow-x-auto " +
   "[&_pre_code]:bg-transparent [&_pre_code]:p-0 " +
   "[&_blockquote]:border-l-2 [&_blockquote]:border-[var(--border-hover)] [&_blockquote]:pl-3 [&_blockquote]:text-[var(--text-muted)] " +
   "[&_hr]:border-[var(--border)]";
@@ -41,15 +48,8 @@ function renderMarkdown(text: string): string {
 /*
  * Replay as a chat transcript.
  *
- * Old design: every event was rendered as a uniform 10 px sidebar
- * row (user prompts, assistant prose, tool calls, tool results,
- * thinking — all at the same visual weight). Reading a real
- * conversation end-to-end was miserable because the actual dialog
- * was buried in a wall of identically-sized telemetry lines.
- *
- * New design prioritizes what a human reading back a session cares
- * about most (topic → own questions → agent replies → tool noise,
- * in that order):
+ * Three layers, in order of importance to a human reading back a
+ * session: topic → dialog → playback controls.
  *
  *   Layer 1 — Topic header.
  *     First user prompt promoted to a big title; meta line beneath.
@@ -57,16 +57,16 @@ function renderMarkdown(text: string): string {
  *     about?" without any scrolling.
  *
  *   Layer 2 — Chat body.
- *     User prompts:  accent-bordered left rail, prose-sized text,
- *                    no timestamp clutter on the same line.
- *     Assistant text: plain prose, clear separation from tools.
- *     Tool calls:    single-line collapsed pills (verb + brief
- *                    subject + optional file path). Click to expand
- *                    input + output. Default COLLAPSED so they
- *                    don't chop up the prose flow.
- *     tool_result:   never a top-level row; appears only inside its
- *                    parent tool pill's expanded detail.
- *     thinking:      hidden by default behind a toggle.
+ *     One row vocabulary, one rail. Each row is rail (left, 2 px,
+ *     accent — only visible when the row is the current event) +
+ *     gutter + content. Speakers are differentiated by typography:
+ *       User prompt → "›" accent gutter glyph + prose at weight 500
+ *       Assistant   → no glyph, prose at weight 400 (same indent)
+ *       Thinking    → italic muted, deeper indent
+ *       Tool group  → muted mono label, deeper indent, click-to-expand
+ *     One timestamp per turn, on the user prompt. tool_result never
+ *     appears at the top level — only inside its parent tool's
+ *     expanded detail.
  *
  *   Layer 3 — Playback footer.
  *     Thin progress bar + compact play/pause/seek + speed + show-
@@ -75,8 +75,7 @@ function renderMarkdown(text: string): string {
  * The existing currentIndex / isPlaying / seekTo state machine is
  * preserved — this is a presentational rewrite, not a state model
  * change. currentIndex highlights whichever rendered block contains
- * it (user bubble, tool pill, assistant text block, etc.) and auto-
- * scrolls during playback.
+ * it and auto-scrolls during playback.
  */
 
 function formatTimestamp(iso: string): string {
@@ -365,7 +364,12 @@ function TopicHeader({
             see this — now how do I actually resume it?" question in
             the most literal way possible. Click anywhere on the row to
             copy; tooltip signals the interaction. Falls back to the
-            raw session id for unknown providers (wuu / future agents).
+            raw session id for unknown providers.
+
+            The previous design prefixed this with "$" / "id" labels —
+            dropped here as part of the eyebrow-density cleanup. The
+            command itself starts with the provider name ("claude
+            --resume …"), so the "$" prompt was redundant chrome.
           */}
           <button
             type="button"
@@ -377,9 +381,6 @@ function TopicHeader({
             style={{ fontFamily: '"Geist Mono", monospace' }}
             title={resumeCommand ? copyCmdTooltip : copyIdTooltip}
           >
-            <span className="shrink-0 text-[length:var(--text-xs)] text-[var(--text-faint)]">
-              {resumeCommand ? "$" : "id"}
-            </span>
             <span className="flex-1 truncate text-[length:var(--text-xs)] text-[var(--text-secondary)]">
               {resumeCommand ?? sessionId}
             </span>
@@ -430,9 +431,41 @@ function TopicHeader({
   );
 }
 
-/* ------------ Layer-2: chat content ------------------------------- */
+/* ------------ Layer-2: chat content -------------------------------
+ *
+ * Every row in this layer shares one visual contract:
+ *
+ *   [ rail ] [ gutter ] [ content                                  ]
+ *     ^         ^         ^
+ *     │         │         └── prose / label / chevron, indented per
+ *     │         │              row kind so subordination reads as
+ *     │         │              indent depth, not as container chrome
+ *     │         │
+ *     │         └── 20 px-wide column. User prompts hang an accent
+ *     │              "›" glyph here as a speaker mark, replacing the
+ *     │              old "You" / "Assistant" eyebrows.
+ *     │
+ *     └── the ONE rail in this view. 2 px wide, accent-coloured, only
+ *         visible on the current event. Replaces three different rail
+ *         widths from the previous design (3 px user, 2 px thinking,
+ *         1 px tool group), which were too similar to feel intentional
+ *         and too present to feel quiet.
+ *
+ * Speaker differentiation is now purely typographic:
+ *   - User prompt:   --text-md, weight 500, accent "›" gutter glyph
+ *   - Assistant:     --text-md, weight 400, no glyph
+ *   - Thinking:      --text-xs italic muted, deeper indent
+ *   - Tool group:    --text-xs muted mono label, deeper indent
+ *
+ * No bubbles, no per-row backgrounds, no rounded containers. */
 
-function UserBubble({
+const ROW_RAIL_CLS = "absolute left-0 top-0 bottom-0 w-[2px] transition-colors";
+
+function railColor(isCurrent: boolean): string {
+  return isCurrent ? "var(--accent)" : "transparent";
+}
+
+function UserPrompt({
   event,
   isCurrent,
   onClick,
@@ -443,29 +476,41 @@ function UserBubble({
 }) {
   return (
     <button
-      className="group w-full text-left block"
+      className="group block w-full text-left"
       onClick={onClick}
       data-current={isCurrent || undefined}
     >
-      <div
-        className="rounded-md border-l-[3px] px-3 py-2 transition-colors"
-        style={{
-          borderColor: isCurrent
-            ? "var(--role-user)"
-            : "color-mix(in srgb, var(--role-user) 40%, transparent)",
-          backgroundColor: isCurrent
-            ? "color-mix(in srgb, var(--role-user) 8%, transparent)"
-            : "color-mix(in srgb, var(--role-user) 3%, transparent)",
-        }}
-      >
-        <div className="mb-1 flex items-center gap-2">
-          <span className="tc-role tc-role-user">You</span>
-          <span className="tc-mono tc-timestamp">
-            {formatTimestamp(event.timestamp)}
-          </span>
-        </div>
+      <div className="relative pl-5 pr-12 py-1 transition-colors">
+        <span aria-hidden className={ROW_RAIL_CLS} style={{ backgroundColor: railColor(isCurrent) }} />
+        {/* Speaker mark: an accent "›" replaces the old "You" eyebrow
+            so the prompt reads as prose-with-a-prefix instead of a
+            captioned bubble. */}
+        <span
+          aria-hidden
+          className="absolute left-1.5 top-[2px] select-none"
+          style={{
+            color: "var(--accent)",
+            fontSize: "var(--text-md)",
+            fontWeight: "var(--weight-medium)",
+            lineHeight: "var(--leading-relaxed)",
+          }}
+        >
+          ›
+        </span>
+        {/* Once-per-turn timestamp parked in the right gutter. The
+            assistant and tool rows below this prompt no longer print
+            their own — a single timestamp at the moment-of-question
+            anchors the whole turn. */}
+        <span
+          className="absolute right-2 top-[6px] tc-mono tabular-nums"
+          style={{ fontSize: "var(--text-tiny)", color: "var(--text-faint)" }}
+        >
+          {formatTimestamp(event.timestamp)}
+        </span>
+        {/* User prose at weight 500 — paired with the accent glyph,
+            this is the entire speaker differentiation. */}
         <div
-          className={markdownClassName}
+          className={markdownClassName + " font-medium"}
           dangerouslySetInnerHTML={{ __html: renderMarkdown(event.textPreview) }}
         />
       </div>
@@ -484,29 +529,12 @@ function AssistantTextRow({
 }) {
   return (
     <button
-      className="w-full text-left"
+      className="block w-full text-left"
       onClick={onClick}
       data-current={isCurrent || undefined}
     >
-      <div
-        className="rounded-md px-3 py-2 transition-colors"
-        style={{
-          backgroundColor: isCurrent
-            ? "color-mix(in srgb, var(--text-muted) 10%, transparent)"
-            : "transparent",
-        }}
-      >
-        {/* The assistant role label is the new addition: previously
-            the assistant message was a bare prose block with no header,
-            making user-vs-assistant boundaries hard to scan in a long
-            transcript. The eyebrow is small and amber-toned so it
-            announces the speaker without competing with the prose. */}
-        <div className="mb-1 flex items-center gap-2">
-          <span className="tc-role tc-role-assistant">Assistant</span>
-          <span className="tc-mono tc-timestamp">
-            {formatTimestamp(event.timestamp)}
-          </span>
-        </div>
+      <div className="relative pl-5 pr-3 py-1 transition-colors">
+        <span aria-hidden className={ROW_RAIL_CLS} style={{ backgroundColor: railColor(isCurrent) }} />
         <div
           className={markdownClassName}
           dangerouslySetInnerHTML={{ __html: renderMarkdown(event.textPreview) }}
@@ -525,29 +553,17 @@ function ThinkingRow({
   isCurrent: boolean;
   onClick: () => void;
 }) {
-  // Thinking blocks live one indent level inside the assistant column
-  // and get a low-saturation rail. They're real content (not just
-  // chrome) but they're internal monologue, not the assistant's reply,
-  // so they should read as "footnote" weight: same horizontal anchor
-  // as tool calls, no fill, prose at --text-xs italic.
+  // Internal-monologue rows. Subordination is expressed with deeper
+  // indent (pl-9 vs pl-5 for prose) plus italic + dim color, not with
+  // a container or its own rail.
   return (
     <button
-      className="w-full text-left pl-3"
+      className="block w-full text-left"
       onClick={onClick}
       data-current={isCurrent || undefined}
     >
-      <div
-        className="rounded-md px-2.5 py-1 transition-colors border-l-[2px]"
-        style={{
-          borderColor: isCurrent
-            ? "color-mix(in srgb, var(--text-muted) 60%, transparent)"
-            : "color-mix(in srgb, var(--text-muted) 25%, transparent)",
-          backgroundColor: isCurrent
-            ? "color-mix(in srgb, var(--text-muted) 6%, transparent)"
-            : "transparent",
-        }}
-      >
-        <div className="mb-0.5 tc-eyebrow tc-mono">thinking</div>
+      <div className="relative pl-9 pr-3 py-0.5 transition-colors">
+        <span aria-hidden className={ROW_RAIL_CLS} style={{ backgroundColor: railColor(isCurrent) }} />
         <div
           className="italic whitespace-pre-wrap break-words"
           style={{
@@ -598,24 +614,22 @@ function ToolSubItem({
 }) {
   const verb = toolVerb(item.tool.toolName);
   const subject = toolSubjectHint(item.tool);
+  // Sub-items live inside an already-indented tool group. They get one
+  // more notch of indent (pl-3) and no fill — current-state is implied
+  // by the parent group's rail. Eyebrows survive only on input/output:
+  // those are the rare case where typography alone can't tell the
+  // reader whether they're looking at a tool's argv or its stdout.
   return (
-    <div
-      className="rounded px-2 py-0.5 transition-colors"
-      style={{
-        backgroundColor: isCurrent
-          ? "color-mix(in srgb, var(--accent) 6%, transparent)"
-          : "transparent",
-      }}
-    >
+    <div className="pl-3" data-current={isCurrent || undefined}>
       <button
-        className="flex w-full items-center gap-1.5 text-left cursor-pointer"
+        className="flex w-full items-center gap-1.5 text-left cursor-pointer py-0.5"
         onClick={(e) => {
           e.stopPropagation();
           onClick();
           onToggle();
         }}
       >
-        <span className="shrink-0 text-[length:var(--text-xs)] text-[var(--text-faint)]">
+        <span className="shrink-0" style={{ fontSize: "var(--text-xs)", color: "var(--text-faint)" }}>
           {expanded ? "▾" : "▸"}
         </span>
         <span
@@ -623,7 +637,7 @@ function ToolSubItem({
           style={{
             fontSize: "var(--text-xs)",
             fontWeight: "var(--weight-medium)",
-            color: "var(--text-secondary)",
+            color: isCurrent ? "var(--text-primary)" : "var(--text-secondary)",
           }}
         >
           {verb}
@@ -631,22 +645,19 @@ function ToolSubItem({
         {subject && (
           <span
             className="truncate tc-mono"
-            style={{
-              fontSize: "var(--text-xs)",
-              color: "var(--text-muted)",
-            }}
+            style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}
           >
             {subject}
           </span>
         )}
       </button>
       {expanded && (
-        <div className="mt-1.5 space-y-1.5 border-t border-[var(--border)] pt-1.5 pl-3">
+        <div className="mt-1 space-y-2 pl-3 pb-1">
           {item.tool.textPreview && (
             <div>
               <div className="mb-0.5 tc-eyebrow tc-mono">input</div>
               <pre
-                className="whitespace-pre-wrap break-words tc-mono"
+                className="whitespace-pre-wrap break-words tc-mono m-0"
                 style={{
                   fontSize: "var(--text-xs)",
                   lineHeight: "var(--leading-snug)",
@@ -661,7 +672,7 @@ function ToolSubItem({
             <div>
               <div className="mb-0.5 tc-eyebrow tc-mono">output</div>
               <pre
-                className="whitespace-pre-wrap break-words tc-mono"
+                className="whitespace-pre-wrap break-words tc-mono m-0"
                 style={{
                   fontSize: "var(--text-xs)",
                   lineHeight: "var(--leading-snug)",
@@ -706,41 +717,28 @@ function ToolGroup({
       }`
     : summarizeToolNames(items);
 
-  // Tool runs used to be a fully bordered card with a tinted fill,
-  // which gave them the same visual mass as the actual prose blocks
-  // and chopped up the conversation. The new treatment is intentionally
-  // borderless and rail-anchored: a thin left rail (subordinate to the
-  // user-bubble's accent rail), no fill, indented label. The reader
-  // sees a quiet "the agent did stuff here" mark rather than a card
-  // demanding equal attention. Hover/current brightens the rail and
-  // the label so the row stays discoverable.
+  // Tool runs read as subordinate via deeper indent (pl-9 vs pl-5 for
+  // prose) + smaller muted mono label. No always-on rail: only the
+  // current-event rail (shared with user/assistant rows) is visible.
   return (
     <div
-      className="group relative pl-3 transition-colors"
+      className="group relative pl-9 pr-3 transition-colors"
       data-current={isGroupCurrent || undefined}
     >
-      <span
-        aria-hidden
-        className="absolute left-0 top-1.5 bottom-1.5 w-px transition-colors"
-        style={{
-          backgroundColor: isGroupCurrent
-            ? "color-mix(in srgb, var(--accent) 65%, transparent)"
-            : "color-mix(in srgb, var(--text-muted) 30%, transparent)",
-        }}
-      />
+      <span aria-hidden className={ROW_RAIL_CLS} style={{ backgroundColor: railColor(isGroupCurrent) }} />
       <button
-        className="flex w-full items-center gap-1.5 text-left cursor-pointer rounded px-1.5 py-0.5 hover:bg-[color-mix(in_srgb,var(--text-muted)_6%,transparent)]"
+        className="flex w-full items-center gap-1.5 text-left cursor-pointer py-0.5"
         onClick={(e) => {
           e.stopPropagation();
           onSeek(node.index);
           onToggle();
         }}
       >
-        <span className="shrink-0 text-[length:var(--text-xs)] text-[var(--text-faint)] group-hover:text-[var(--text-muted)]">
+        <span className="shrink-0" style={{ fontSize: "var(--text-xs)", color: "var(--text-faint)" }}>
           {expanded ? "▾" : "▸"}
         </span>
         {count > 1 && (
-          <span className="shrink-0 tc-mono tabular-nums text-[length:var(--text-xs)] text-[var(--text-muted)]">
+          <span className="shrink-0 tc-mono tabular-nums" style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>
             {count}
           </span>
         )}
@@ -754,13 +752,9 @@ function ToolGroup({
         >
           {summary}
         </span>
-        <span className="flex-1" />
-        <span className="shrink-0 tc-mono tabular-nums text-[length:var(--text-tiny)] text-[var(--text-faint)]">
-          {formatTimestamp(node.primary.timestamp)}
-        </span>
       </button>
       {expanded && (
-        <div className="mt-1 space-y-0.5">
+        <div className="mt-0.5 mb-1 space-y-0.5">
           {items.map((item) => {
             const isItemCurrent =
               item.tool.index === currentIndex ||
@@ -791,30 +785,32 @@ function ErrorRow({
   isCurrent: boolean;
   onClick: () => void;
 }) {
+  // Errors are rare and semantically different — the row breaks the
+  // "no fills" rule on purpose. The fill itself reads "this went wrong"
+  // at a glance; no eyebrow needed (red color carries the label).
+  // The current-event rail is always-red here so the accent rail
+  // doesn't fight the error semantic.
   return (
     <button
-      className="w-full text-left"
+      className="block w-full text-left"
       onClick={onClick}
       data-current={isCurrent || undefined}
     >
       <div
-        className="rounded-md border px-2 py-1.5 transition-colors"
-        style={{
-          borderColor: "var(--red)",
-          backgroundColor: "var(--red-soft)",
-        }}
+        className="relative pl-5 pr-3 py-1.5 transition-colors rounded-sm"
+        style={{ backgroundColor: "var(--red-soft)" }}
       >
+        <span
+          aria-hidden
+          className={ROW_RAIL_CLS}
+          style={{ backgroundColor: "var(--red)" }}
+        />
         <div
-          className="mb-0.5 tc-eyebrow tc-mono"
-          style={{ color: "var(--red)" }}
-        >
-          error
-        </div>
-        <div
-          className="whitespace-pre-wrap break-words text-[var(--text-primary)]"
+          className="whitespace-pre-wrap break-words"
           style={{
             fontSize: "var(--text-xs)",
             lineHeight: "var(--leading-normal)",
+            color: "var(--text-primary)",
           }}
         >
           {event.textPreview}
@@ -1048,7 +1044,7 @@ export function SessionReplayView() {
 
       <div
         ref={scrollRef}
-        className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-4"
+        className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-6"
       >
         {turns.map((turn, turnIdx) => {
           const nodes = buildAssistantNodes(turn.assistantEvents);
@@ -1063,7 +1059,7 @@ export function SessionReplayView() {
                     assignCurrentRef(el, turn.userEvent!.index === currentIndex)
                   }
                 >
-                  <UserBubble
+                  <UserPrompt
                     event={turn.userEvent}
                     isCurrent={turn.userEvent.index === currentIndex}
                     onClick={() => seekTo(turn.userEvent!.index)}
@@ -1071,7 +1067,7 @@ export function SessionReplayView() {
                 </div>
               )}
               {nodes.length > 0 && (
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   {nodes.map((node) => {
                     if (node.type === "tool_group") {
                       const items = node.items ?? [];
