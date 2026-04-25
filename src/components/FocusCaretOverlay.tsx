@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { createPortal } from "react-dom";
+import { useInternalNode } from "@xyflow/react";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { canvasPointToScreenPoint } from "../canvas/viewportBounds";
@@ -14,7 +15,8 @@ function findFocusedTerminal(
   for (const p of projects) {
     for (const w of p.worktrees) {
       for (const t of w.terminals) {
-        if (t.focused) return { x: t.x, y: t.y, w: t.width, h: t.height };
+        if (t.focused)
+          return { id: t.id, x: t.x, y: t.y, w: t.width, h: t.height };
       }
     }
   }
@@ -28,18 +30,25 @@ export function FocusCaretOverlay() {
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
 
   const pos = useMemo(() => findFocusedTerminal(projects), [projects]);
+  // xyflow drives the tile via CSS transforms during drag and only commits
+  // back to projectStore on drop. Subscribe to the live internal node so the
+  // caret tracks each frame instead of jumping at release.
+  const liveNode = useInternalNode(pos?.id ?? "");
 
   const screenPos = useMemo(() => {
     if (!pos) return null;
+    const live = liveNode?.internals.positionAbsolute;
+    const x = live?.x ?? pos.x;
+    const y = live?.y ?? pos.y;
     const sp = canvasPointToScreenPoint(
-      pos.x + pos.w / 2,
-      pos.y,
+      x + pos.w / 2,
+      y,
       viewport,
       leftPanelCollapsed,
       leftPanelWidth,
     );
     return { x: sp.x, y: sp.y };
-  }, [pos, viewport, leftPanelCollapsed, leftPanelWidth]);
+  }, [pos, liveNode, viewport, leftPanelCollapsed, leftPanelWidth]);
 
   if (!screenPos) return null;
 

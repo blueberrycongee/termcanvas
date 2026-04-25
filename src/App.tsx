@@ -5,7 +5,6 @@ import { Toolbar } from "./toolbar/Toolbar";
 import { NotificationToast } from "./components/NotificationToast";
 import { LeftPanel } from "./components/LeftPanel";
 import { RightPanel } from "./components/RightPanel";
-import { FocusCaretOverlay } from "./components/FocusCaretOverlay";
 import { FileEditorDrawer } from "./components/FileEditorDrawer";
 import { initUpdaterListeners, useUpdaterStore } from "./stores/updaterStore";
 import { ComposerBar } from "./components/ComposerBar";
@@ -591,7 +590,6 @@ export function App() {
       <LeftPanel />
       <RightPanel />
       <CanvasRoot />
-      <FocusCaretOverlay />
       {drawingEnabled && <DrawingPanel />}
       {completionGlowEnabled && <CompletionGlow />}
       <ShortcutHints />

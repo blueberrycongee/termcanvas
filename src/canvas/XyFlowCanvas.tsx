@@ -28,6 +28,7 @@ import {
 } from "../utils/panelAnimation";
 import { useT } from "../i18n/useT";
 import { FamilyTreeOverlay } from "../components/FamilyTreeOverlay";
+import { FocusCaretOverlay } from "../components/FocusCaretOverlay";
 import { BoxSelectOverlay } from "./BoxSelectOverlay";
 import { CanvasCardLayer } from "./CanvasCardLayer";
 import { DrawingLayer } from "./DrawingLayer";
@@ -683,6 +684,7 @@ export function XyFlowCanvas() {
   return (
     <ReactFlowProvider>
       <XyFlowCanvasInner />
+      <FocusCaretOverlay />
     </ReactFlowProvider>
   );
 }
