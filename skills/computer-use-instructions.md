@@ -68,6 +68,7 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 - `list_apps`: list running Mac apps with names, bundle IDs, PIDs, and frontmost state.
 - `list_windows`: list addressable top-level windows with `window_id`, owning app, title, bounds, z-order, and on-screen state.
 - `get_screen_size`: return main display pixel size and scale.
+- `get_cursor_position`: return the current real cursor position in screen coordinates for coordinate debugging and relative follow-up actions.
 - `screenshot`: capture the main display, an app window, or a specific `window_id` as MCP image content. ScreenCaptureKit is the primary path on supported macOS versions.
 - `zoom`: crop and return a zoomed region from the latest screenshot; after zooming, use `click` with `from_zoom=true` to click coordinates from the zoom image.
 - `open_app`: legacy launch-or-activate path.

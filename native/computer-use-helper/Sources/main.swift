@@ -88,6 +88,9 @@ func route(method: String, path: String, body: Data?) -> (Int, Data) {
         case "/get_screen_size":
             return ok(handleGetScreenSize())
 
+        case "/get_cursor_position":
+            return ok(handleGetCursorPosition())
+
         case "/screenshot":
             let req: ScreenshotRequest = try decodeOrDefault(body, defaultValue: ScreenshotRequest(
                 pid: nil,
@@ -274,6 +277,15 @@ func handleGetScreenSize() -> ScreenSizeResponse {
         width: Int(frame.width * scale),
         height: Int(frame.height * scale),
         scale: scale
+    )
+}
+
+func handleGetCursorPosition() -> CursorPositionResponse {
+    let point = CGEvent(source: nil)?.location ?? .zero
+    return CursorPositionResponse(
+        x: point.x,
+        y: point.y,
+        coordinateSpace: "screen"
     )
 }
 

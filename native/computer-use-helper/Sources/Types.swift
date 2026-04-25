@@ -123,6 +123,12 @@ struct ScreenSizeResponse: Codable {
     let scale: Double
 }
 
+struct CursorPositionResponse: Codable {
+    let x: Double
+    let y: Double
+    let coordinateSpace: String
+}
+
 struct Frame: Codable {
     let x: Double
     let y: Double

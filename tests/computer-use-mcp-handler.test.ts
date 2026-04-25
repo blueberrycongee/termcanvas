@@ -67,6 +67,9 @@ class FakeHelperClient {
     if (endpoint === "get_screen_size") {
       return { width: 3024, height: 1964, scale: 2 };
     }
+    if (endpoint === "get_cursor_position") {
+      return { x: 100, y: 200, coordinate_space: "screen" };
+    }
     if (endpoint === "screenshot") {
       return {
         capture_id: "42:7:789",
@@ -422,6 +425,16 @@ test("computer use MCP exposes screenshot and screen size tools", async () => {
       height: 1964,
       scale: 2,
     });
+    const cursorResult = await handleToolCall(
+      "get_cursor_position",
+      {},
+      asHelper(client),
+    );
+    assert.deepEqual(JSON.parse(cursorResult.content[0].text as string), {
+      x: 100,
+      y: 200,
+      coordinate_space: "screen",
+    });
 
     const shotResult = await handleToolCall(
       "screenshot",
@@ -438,12 +451,13 @@ test("computer use MCP exposes screenshot and screen size tools", async () => {
     assert.match(zoomResult.content[0].text as string, /from_zoom=true/);
     assert.deepEqual(client.posts.slice(0, 3), [
       { endpoint: "get_screen_size", body: undefined },
+      { endpoint: "get_cursor_position", body: undefined },
       { endpoint: "screenshot", body: { pid: 42, window_id: 7 } },
-      {
-        endpoint: "zoom",
-        body: { pid: 42, capture_id: "42:7:789", x1: 10, y1: 20, x2: 110, y2: 80 },
-      },
     ]);
+    assert.deepEqual(client.posts[3], {
+      endpoint: "zoom",
+      body: { pid: 42, capture_id: "42:7:789", x1: 10, y1: 20, x2: 110, y2: 80 },
+    });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -562,6 +576,7 @@ test("computer use MCP tool descriptions teach the AX-first protocol", () => {
   assert.match(descriptions.set_recording, /trajectory recording/);
   assert.match(descriptions.get_recording_state, /recording is enabled/);
   assert.match(descriptions.replay_trajectory, /Replay a trajectory/);
+  assert.match(descriptions.get_cursor_position, /real mouse cursor position/);
   assert.match(descriptions.get_app_state, /Observe before acting/);
   assert.match(descriptions.get_app_state, /capture_mode/);
   assert.match(descriptions.list_windows, /window_id/);

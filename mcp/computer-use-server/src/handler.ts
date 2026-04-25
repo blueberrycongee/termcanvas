@@ -7,6 +7,7 @@ import type {
   AppInfo,
   ListWindowsResponse,
   ScreenSizeResponse,
+  CursorPositionResponse,
   ScreenshotInfo,
   AppState,
   OkResponse,
@@ -103,6 +104,9 @@ async function dispatchToolCall(
       case "get_screen_size":
       case "computer_use_get_screen_size":
         return await handleGetScreenSize(client);
+      case "get_cursor_position":
+      case "computer_use_get_cursor_position":
+        return await handleGetCursorPosition(client);
       case "screenshot":
       case "computer_use_screenshot":
         return await handleScreenshot(args, client);
@@ -261,6 +265,15 @@ async function handleListWindows(
 
 async function handleGetScreenSize(client: HelperClient): Promise<CallToolResult> {
   const result = (await client.post("get_screen_size")) as ScreenSizeResponse;
+  return textResult(result);
+}
+
+async function handleGetCursorPosition(
+  client: HelperClient,
+): Promise<CallToolResult> {
+  const result = (await client.post(
+    "get_cursor_position",
+  )) as CursorPositionResponse;
   return textResult(result);
 }
 

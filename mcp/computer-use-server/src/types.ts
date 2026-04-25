@@ -54,6 +54,12 @@ export interface ScreenSizeResponse {
   scale: number;
 }
 
+export interface CursorPositionResponse {
+  x: number;
+  y: number;
+  coordinate_space: string;
+}
+
 export interface ScreenshotInfo {
   capture_id: string;
   path: string;

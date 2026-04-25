@@ -152,6 +152,16 @@ export const tools: Tool[] = [
     },
   },
   {
+    name: "get_cursor_position",
+    description:
+      "Return the current real mouse cursor position in screen coordinates. Use this for coordinate debugging, hover verification, and relative follow-up actions; prefer screenshot/window coordinates for planned app control.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
     name: "screenshot",
     description:
       "Capture a screenshot as MCP image content. ScreenCaptureKit is the primary capture path on supported macOS versions, with CoreGraphics fallback when unavailable. With pid + window_id, captures that specific window; with pid only, captures the app's topmost layer-0 window; with no target, captures the main display.",
