@@ -121,13 +121,30 @@ test("computer use MCP get_app_state defaults to screenshot and returns image co
 
 test("computer use MCP exposes operating instructions as a tool", async () => {
   const client = new FakeHelperClient();
-  const result = await handleToolCall("get_instructions", {}, asHelper(client));
+  const previousInstructions = process.env.TERMCANVAS_COMPUTER_USE_INSTRUCTIONS;
+  let result: Awaited<ReturnType<typeof handleToolCall>> | undefined;
+  try {
+    process.env.TERMCANVAS_COMPUTER_USE_INSTRUCTIONS = path.join(
+      process.cwd(),
+      "skills",
+      "computer-use-instructions.md",
+    );
+    result = await handleToolCall("get_instructions", {}, asHelper(client));
+  } finally {
+    if (previousInstructions === undefined) {
+      delete process.env.TERMCANVAS_COMPUTER_USE_INSTRUCTIONS;
+    } else {
+      process.env.TERMCANVAS_COMPUTER_USE_INSTRUCTIONS = previousInstructions;
+    }
+  }
 
+  assert.ok(result);
   assert.equal(result.isError, undefined);
   assert.match(result.content[0].text as string, /AX-first/i);
   assert.match(result.content[0].text as string, /Do not use browser automation, Playwright, or browser screenshots/);
   assert.match(result.content[0].text as string, /do not guess English app names on a non-English system/);
   assert.match(result.content[0].text as string, /Empty windows or missing screenshots can be transient/);
+  assert.match(result.content[0].text as string, /CEF\/Chromium/);
   assert.match(result.content[0].text as string, /capture_id/);
   assert.match(result.content[0].text as string, /After every action/);
 });
@@ -150,6 +167,20 @@ test("computer use MCP status includes usage guidance", async () => {
     status.usage_guidance.protocol.join("\n"),
     /pass capture_id when available so stale coordinates can be rejected/,
   );
+  assert.match(
+    status.usage_guidance.protocol.join("\n"),
+    /CEF\/Chromium\/WebGL\/media surfaces/,
+  );
+});
+
+test("computer use MCP get_app_state exposes a top-level capture_id alias", async () => {
+  const client = new FakeHelperClient();
+  const result = await handleToolCall("get_app_state", {}, asHelper(client));
+  const state = JSON.parse(result.content[0].text as string);
+
+  assert.equal(state.screenshot_capture_id, "42:7:123");
+  assert.equal(state.screenshot.capture_id, "42:7:123");
+  assert.equal(state.capture_id, "42:7:123");
 });
 
 test("computer use MCP setup starts Computer Use through TermCanvas", async () => {

@@ -84,6 +84,12 @@ test("init updates an existing Hydra block in place and preserves adjacent conte
   assert.match(claudeMd, /termcanvas telemetry get --workbench <workbenchId> --repo \./);
   assert.match(claudeMd, /termcanvas telemetry events --terminal <terminalId> --limit 20/);
 
+  // TermCanvas runtime tools are discoverable from project instructions
+  // even though Computer Use MCP config is injected dynamically at launch.
+  assert.match(claudeMd, /TermCanvas Computer Use:/);
+  assert.match(claudeMd, /dynamically inject a Computer Use MCP server/);
+  assert.match(claudeMd, /Do not manually start `computer-use-helper`/);
+
   // Slim result contract is reflected in the rendered section.
   assert.match(claudeMd, /schema_version `hydra\/result\/v0\.1`/);
   assert.match(claudeMd, /completed\/stuck\/error/);

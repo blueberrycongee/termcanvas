@@ -37,6 +37,7 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 - Observe the target app, not the terminal or browser you are running from.
 - Prefer `bundle_id` or `pid` from `list_apps` when there is any ambiguity, localization, duplicate app name, helper process, or launcher process.
 - Sparse AX trees are common in custom-rendered apps, Electron/Chromium apps, media apps, games, and canvases. Use the screenshot to understand state, but still use AX for any controls that are exposed.
+- CEF/Chromium apps can keep exposing only window chrome or generic groups even after `AXManualAccessibility` is enabled. After one re-observe with the same `bundle_id` or `pid`, treat that as a real sparse-tree limit instead of searching for non-existent AX controls.
 - Empty windows or missing screenshots can be transient after launch, activation, Space changes, minimized windows, full-screen transitions, or permission repair. Re-open/re-activate and re-observe before declaring a limitation.
 - If an app shows multiple windows or sheets, act on the currently relevant window and re-observe after focus changes.
 
@@ -70,7 +71,7 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 - If the AX tree exposes the target control, use the element index. Do not switch to coordinates just because coordinates are easier.
 - If an AX element exposes a semantic action, prefer `perform_secondary_action` over raw click.
 - If a text field is writable through AX, prefer `set_value` over click-and-type.
-- If the AX tree is sparse, stale, or only exposes window chrome, use the returned screenshot and keyboard shortcuts before falling back to coordinate clicks.
+- If the AX tree is sparse, stale, or only exposes window chrome, use the returned screenshot and keyboard shortcuts before falling back to coordinate clicks. For CEF/WebGL/media surfaces such as Spotify, screenshot-coordinate clicks may be the correct fallback once AX and keyboard paths are unavailable.
 - If the app opens a permission dialog, modal sheet, or system confirmation, observe it with `get_app_state` and follow the user's intent; do not bypass user confirmation.
 - If an action fails or the UI does not change after verification, re-observe and choose another path. Do not repeat the same click blindly.
 - Do not use memory from previous observations after a window moved, resized, changed tabs, changed Space, or changed focus. Re-observe and recalculate the target.

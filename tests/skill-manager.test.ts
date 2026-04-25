@@ -30,6 +30,13 @@ function makeTempEnv(skillNames = ["hydra", "code-review", "qa"]) {
     "#!/bin/bash\n",
   );
   fs.writeFileSync(path.join(scriptsDir, "termcanvas-hook.mjs"), "// hook\n");
+  fs.writeFileSync(
+    path.join(sourceDir, "computer-use-instructions.md"),
+    "# Computer Use\n",
+  );
+  const mcpServer = path.join(dir, "mcp", "computer-use-server", "dist", "index.js");
+  fs.mkdirSync(path.dirname(mcpServer), { recursive: true });
+  fs.writeFileSync(mcpServer, "// mcp server\n");
 
   return { dir, home, sourceDir };
 }
@@ -49,6 +56,11 @@ function readManifest(home: string, provider: string) {
 
 function readClaudeSettings(home: string) {
   const p = path.join(home, ".claude", "settings.json");
+  return JSON.parse(fs.readFileSync(p, "utf-8"));
+}
+
+function readClaudeGlobalConfig(home: string) {
+  const p = path.join(home, ".claude.json");
   return JSON.parse(fs.readFileSync(p, "utf-8"));
 }
 
@@ -355,6 +367,92 @@ test("ensureCodexFeatureFlag preserves existing config.toml content", () => {
     "existing feature flag lost",
   );
   assert.ok(content.includes("codex_hooks = true"), "codex_hooks not added");
+});
+
+test("installSkillLinks registers Computer Use MCP globally for Claude and Codex", () => {
+  const { dir, home, sourceDir } = makeTempEnv();
+  installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+
+  const mcpServer = path.join(dir, "mcp", "computer-use-server", "dist", "index.js");
+  const instructions = path.join(sourceDir, "computer-use-instructions.md");
+  const stateFile = path.join(home, ".termcanvas", "computer-use", "state.json");
+  const portFile = path.join(home, ".termcanvas", "port");
+
+  const claude = readClaudeGlobalConfig(home);
+  assert.deepEqual(claude.mcpServers["termcanvas-computer-use"], {
+    type: "stdio",
+    command: "node",
+    args: [mcpServer],
+    env: {
+      TERMCANVAS_COMPUTER_USE_STATE_FILE: stateFile,
+      TERMCANVAS_PORT_FILE: portFile,
+      TERMCANVAS_COMPUTER_USE_INSTRUCTIONS: instructions,
+    },
+  });
+
+  const codexConfig = fs.readFileSync(
+    path.join(home, ".codex", "config.toml"),
+    "utf-8",
+  );
+  assert.match(codexConfig, /\[mcp_servers\.computer-use\]/);
+  assert.match(codexConfig, /command = "node"/);
+  assert.ok(codexConfig.includes(`args = [${JSON.stringify(mcpServer)}]`));
+  assert.match(codexConfig, /TERMCANVAS_COMPUTER_USE_STATE_FILE/);
+  assert.match(codexConfig, /TERMCANVAS_PORT_FILE/);
+  assert.match(codexConfig, /TERMCANVAS_COMPUTER_USE_INSTRUCTIONS/);
+});
+
+test("installSkillLinks preserves unrelated global MCP servers", () => {
+  const { home, sourceDir } = makeTempEnv();
+  fs.mkdirSync(home, { recursive: true });
+  fs.writeFileSync(
+    path.join(home, ".claude.json"),
+    JSON.stringify({
+      mcpServers: {
+        mempalace: { type: "stdio", command: "python3", args: ["-m", "mempalace"] },
+      },
+    }),
+    "utf-8",
+  );
+  const codexDir = path.join(home, ".codex");
+  fs.mkdirSync(codexDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(codexDir, "config.toml"),
+    [
+      "[mcp_servers.mempalace]",
+      'command = "python3"',
+      'args = ["-m", "mempalace"]',
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+
+  installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+
+  const claude = readClaudeGlobalConfig(home);
+  assert.deepEqual(claude.mcpServers.mempalace, {
+    type: "stdio",
+    command: "python3",
+    args: ["-m", "mempalace"],
+  });
+  const codexConfig = fs.readFileSync(path.join(codexDir, "config.toml"), "utf-8");
+  assert.match(codexConfig, /\[mcp_servers\.mempalace\]/);
+  assert.match(codexConfig, /\[mcp_servers\.computer-use\]/);
+});
+
+test("uninstallSkillLinks removes global Computer Use MCP registration", () => {
+  const { home, sourceDir } = makeTempEnv();
+  installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+
+  uninstallSkillLinks({ home, sourceDir });
+
+  const claude = readClaudeGlobalConfig(home);
+  assert.equal(claude.mcpServers, undefined);
+  const codexConfig = fs.readFileSync(
+    path.join(home, ".codex", "config.toml"),
+    "utf-8",
+  );
+  assert.doesNotMatch(codexConfig, /\[mcp_servers\.computer-use\]/);
 });
 
 test("installSkillLinks creates codex hooks.json with all 5 events", () => {

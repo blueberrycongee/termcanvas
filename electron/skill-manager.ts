@@ -35,7 +35,13 @@ function getClaudeSettingsFile(home: string): string {
   return path.join(home, ".claude", "settings.json");
 }
 
+function getClaudeGlobalConfigFile(home: string): string {
+  return path.join(home, ".claude.json");
+}
+
 const PLUGIN_KEY = "termcanvas@termcanvas";
+const CODEX_COMPUTER_USE_MCP_SERVER_NAME = "computer-use";
+const CLAUDE_COMPUTER_USE_MCP_SERVER_NAME = "termcanvas-computer-use";
 
 interface PluginEntry {
   scope: string;
@@ -197,6 +203,212 @@ function ensurePluginEnabled(settingsFile: string, sourceDir: string): void {
   const tmp = settingsFile + ".tmp." + process.pid;
   fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
   fs.renameSync(tmp, settingsFile);
+}
+
+interface ComputerUseMcpInstallConfig {
+  mcpServerPath: string;
+  stateFilePath: string;
+  instructionsFilePath?: string;
+  portFilePath: string;
+}
+
+function resolveComputerUseMcpConfig(
+  sourceDir: string,
+  home: string,
+): ComputerUseMcpInstallConfig | null {
+  const rootDir = path.dirname(sourceDir);
+  const candidates = [
+    path.join(rootDir, "mcp-computer-use-server", "index.js"),
+    path.join(rootDir, "mcp", "computer-use-server", "dist", "index.js"),
+    path.join(rootDir, "dist-computer-use", "mcp-computer-use-server", "index.js"),
+  ];
+  const mcpServerPath = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!mcpServerPath) return null;
+
+  const instructionsFilePath = path.join(sourceDir, "computer-use-instructions.md");
+  return {
+    mcpServerPath,
+    stateFilePath: path.join(home, ".termcanvas", "computer-use", "state.json"),
+    instructionsFilePath: fs.existsSync(instructionsFilePath)
+      ? instructionsFilePath
+      : undefined,
+    portFilePath: path.join(home, ".termcanvas", "port"),
+  };
+}
+
+function computerUseMcpEnv(
+  config: ComputerUseMcpInstallConfig,
+): Record<string, string> {
+  const env: Record<string, string> = {
+    TERMCANVAS_COMPUTER_USE_STATE_FILE: config.stateFilePath,
+    TERMCANVAS_PORT_FILE: config.portFilePath,
+  };
+  if (config.instructionsFilePath) {
+    env.TERMCANVAS_COMPUTER_USE_INSTRUCTIONS = config.instructionsFilePath;
+  }
+  return env;
+}
+
+function readJsonObject(filePath: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    try {
+      fs.accessSync(filePath);
+      return null;
+    } catch {
+      return {};
+    }
+  }
+  return null;
+}
+
+function writeJsonAtomic(filePath: string, data: Record<string, unknown>): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const tmp = filePath + ".tmp." + process.pid;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
+  fs.renameSync(tmp, filePath);
+}
+
+function ensureClaudeComputerUseMcp(
+  globalConfigFile: string,
+  config: ComputerUseMcpInstallConfig,
+): void {
+  const data = readJsonObject(globalConfigFile);
+  if (!data) {
+    console.warn(
+      "[SkillManager] .claude.json is corrupt, skipping Computer Use MCP registration",
+    );
+    return;
+  }
+
+  const existingServers =
+    typeof data.mcpServers === "object" &&
+    data.mcpServers !== null &&
+    !Array.isArray(data.mcpServers)
+      ? data.mcpServers as Record<string, unknown>
+      : {};
+  const mcpServers = { ...existingServers };
+  mcpServers[CLAUDE_COMPUTER_USE_MCP_SERVER_NAME] = {
+    type: "stdio",
+    command: "node",
+    args: [config.mcpServerPath],
+    env: computerUseMcpEnv(config),
+  };
+  data.mcpServers = mcpServers;
+
+  writeJsonAtomic(globalConfigFile, data);
+}
+
+function removeClaudeComputerUseMcp(globalConfigFile: string): void {
+  const data = readJsonObject(globalConfigFile);
+  if (!data) return;
+  if (
+    typeof data.mcpServers !== "object" ||
+    data.mcpServers === null ||
+    Array.isArray(data.mcpServers)
+  ) {
+    return;
+  }
+
+  const mcpServers = { ...(data.mcpServers as Record<string, unknown>) };
+  if (!(CLAUDE_COMPUTER_USE_MCP_SERVER_NAME in mcpServers)) return;
+  delete mcpServers[CLAUDE_COMPUTER_USE_MCP_SERVER_NAME];
+  if (Object.keys(mcpServers).length === 0) {
+    delete data.mcpServers;
+  } else {
+    data.mcpServers = mcpServers;
+  }
+  writeJsonAtomic(globalConfigFile, data);
+}
+
+function tomlString(value: string): string {
+  return JSON.stringify(value);
+}
+
+function tomlArray(values: string[]): string {
+  return `[${values.map(tomlString).join(", ")}]`;
+}
+
+function tomlInlineTable(values: Record<string, string>): string {
+  return `{ ${
+    Object.entries(values)
+      .map(([key, value]) => `${key} = ${tomlString(value)}`)
+      .join(", ")
+  } }`;
+}
+
+function removeTomlTable(content: string, tableName: string): string {
+  const escaped = tableName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const tableRegex = new RegExp(
+    `(^|\\n)\\[${escaped}\\]\\n[\\s\\S]*?(?=\\n\\[[^\\n]+\\]\\n|$)`,
+    "m",
+  );
+  return content.replace(tableRegex, (match, prefix: string) =>
+    prefix === "\n" ? "\n" : ""
+  ).replace(/\n{3,}/g, "\n\n");
+}
+
+function ensureCodexComputerUseMcp(
+  home: string,
+  config: ComputerUseMcpInstallConfig,
+): void {
+  const configFile = path.join(getCodexConfigDir(home), "config.toml");
+  fs.mkdirSync(path.dirname(configFile), { recursive: true });
+
+  let content = "";
+  try {
+    content = fs.readFileSync(configFile, "utf-8");
+  } catch {}
+
+  const tableName = `mcp_servers.${CODEX_COMPUTER_USE_MCP_SERVER_NAME}`;
+  content = removeTomlTable(content, tableName).trimEnd();
+  const table = [
+    `[${tableName}]`,
+    `command = "node"`,
+    `args = ${tomlArray([config.mcpServerPath])}`,
+    `env = ${tomlInlineTable(computerUseMcpEnv(config))}`,
+    "",
+  ].join("\n");
+
+  const nextContent = content ? `${content}\n\n${table}` : table;
+  const tmp = configFile + ".tmp." + process.pid;
+  fs.writeFileSync(tmp, nextContent, "utf-8");
+  fs.renameSync(tmp, configFile);
+}
+
+function removeCodexComputerUseMcp(home: string): void {
+  const configFile = path.join(getCodexConfigDir(home), "config.toml");
+  let content = "";
+  try {
+    content = fs.readFileSync(configFile, "utf-8");
+  } catch {
+    return;
+  }
+
+  const nextContent = removeTomlTable(
+    content,
+    `mcp_servers.${CODEX_COMPUTER_USE_MCP_SERVER_NAME}`,
+  ).trimEnd() + "\n";
+  if (nextContent === content) return;
+  const tmp = configFile + ".tmp." + process.pid;
+  fs.writeFileSync(tmp, nextContent, "utf-8");
+  fs.renameSync(tmp, configFile);
+}
+
+function ensureComputerUseMcpRegistration(sourceDir: string, home: string): void {
+  const config = resolveComputerUseMcpConfig(sourceDir, home);
+  if (!config) return;
+  ensureClaudeComputerUseMcp(getClaudeGlobalConfigFile(home), config);
+  ensureCodexComputerUseMcp(home, config);
+}
+
+function removeComputerUseMcpRegistration(home: string): void {
+  removeClaudeComputerUseMcp(getClaudeGlobalConfigFile(home));
+  removeCodexComputerUseMcp(home);
 }
 
 // Skill manifest — tracks which skills we installed and at which version
@@ -628,6 +840,7 @@ export function installSkillLinks({
       home,
     );
     ensureCodexFeatureFlag(home);
+    ensureComputerUseMcpRegistration(sourceDir, home);
     installAllSkillLinks(sourceDir, home, appVersion);
     return true;
   } catch (err) {
@@ -666,6 +879,7 @@ export function ensureSkillLinks({
       home,
     );
     ensureCodexFeatureFlag(home);
+    ensureComputerUseMcpRegistration(sourceDir, home);
     installAllSkillLinks(sourceDir, home, appVersion);
 
     return true;
@@ -686,6 +900,7 @@ export function uninstallSkillLinks({
     unregisterClaudePlugin(getClaudePluginsFile(home));
     removeLifecycleHooks(getClaudeSettingsFile(home));
     removeCodexHooks(home);
+    removeComputerUseMcpRegistration(home);
     removeAllSkillLinks(sourceDir, home);
     return true;
   } catch (err) {

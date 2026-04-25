@@ -63,6 +63,12 @@ Agent launch rule:
 - When dispatching Claude/Codex through TermCanvas CLI, start a fresh agent terminal with `termcanvas terminal create --prompt "..."`
 - Do not use `termcanvas terminal input` for task dispatch; it is not a supported automation path
 
+TermCanvas Computer Use:
+- TermCanvas may dynamically inject a Computer Use MCP server into Claude/Codex terminals; it does not have to appear in static MCP settings files.
+- For local macOS desktop apps or system UI, check for TermCanvas Computer Use before assuming only shell, browser, or Playwright tools are available.
+- If available, call `status` first, then `setup` if permissions or helper health are missing, then `get_instructions` for the current operating protocol.
+- Do not manually start `computer-use-helper`, write its state file, launch the MCP server, or hand-write JSON-RPC unless explicitly debugging Computer Use itself.
+
 Workflow control:
 - After dispatching, always call `hydra watch`. It returns at decision points.
 1. Watch until decision point: `hydra watch --workbench <workbenchId> --repo .`

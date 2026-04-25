@@ -165,15 +165,20 @@ async function handleGetAppState(
     ...args,
   };
   const state = (await client.post("get_app_state", request)) as AppState;
+  const captureId = getScreenshotCaptureId(state);
+  const normalizedState: AppState = { ...state };
+  if (captureId) {
+    normalizedState.capture_id = captureId;
+  }
 
   const content: CallToolResult["content"] = [
-    { type: "text", text: JSON.stringify(state, null, 2) },
+    { type: "text", text: JSON.stringify(normalizedState, null, 2) },
   ];
 
   const screenshotPath =
-    state.screenshot_path ??
-    (typeof state.screenshot === "object" && state.screenshot !== null
-      ? (state.screenshot as { path?: string }).path
+    normalizedState.screenshot_path ??
+    (typeof normalizedState.screenshot === "object" && normalizedState.screenshot !== null
+      ? (normalizedState.screenshot as { path?: string }).path
       : undefined);
 
   if (screenshotPath) {
@@ -193,6 +198,20 @@ async function handleGetAppState(
   }
 
   return { content };
+}
+
+function getScreenshotCaptureId(state: AppState): string | undefined {
+  if (typeof state.screenshot_capture_id === "string") {
+    return state.screenshot_capture_id;
+  }
+  if (
+    typeof state.screenshot === "object" &&
+    state.screenshot !== null &&
+    typeof state.screenshot.capture_id === "string"
+  ) {
+    return state.screenshot.capture_id;
+  }
+  return undefined;
 }
 
 async function handleClick(
