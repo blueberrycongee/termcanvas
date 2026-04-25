@@ -2,6 +2,42 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.33.0] - 2026-04-25
+
+### Added
+- Stash button on terminal cards in the sidebar: hover any terminal to reveal a tray icon that stashes it, symmetric with the restore icon in the stash section.
+- Stash section in the left sidebar with dedicated collapsible area, explicit restore/destroy buttons, and confirmation dialog for destructive actions.
+- Cmd/Ctrl+Click on URLs in the terminal now opens them in the default browser.
+- shadcn component system initialized (Radix + Nova) with alert-dialog, collapsible, button, and tooltip primitives.
+
+### Changed
+- Project tree always shows the branch row (removed flat-mode special case). Single-worktree projects display the branch name as a second level, matching multi-worktree layout.
+- Renamed `isMain` to `isPrimary` across the worktree data model to clarify it means "primary git worktree" (directory identity), not "main branch".
+- Terminal title resolution rewritten: `customTitle` stands alone (no longer concatenated with process title), `extractIntent()` extracts meaningful titles from prompts by stripping code blocks, file paths, and polite prefixes.
+- Project-level [+] button now creates a worktree (terminal creation moved to each branch row's own [+]).
+- Canvas edge resize handles restyle as Figma-style midpoint rectangles.
+
+### Fixed
+- ConfirmDialog redesigned: added close button, smooth hover transitions, and danger button now uses project color tokens (`var(--red)`) instead of raw Tailwind red.
+- Branch row was hidden for single-worktree repos on feature branches because `isMain` (git worktree identity) was conflated with "is main branch".
+
+### Added (zh-CN)
+- 侧边栏终端卡片新增暂存按钮：hover 时显示托盘图标，可将终端暂存，与暂存区的恢复图标形成对称。
+- 左侧栏新增独立暂存区，可折叠展开，包含恢复和销毁按钮，销毁前有确认弹窗。
+- 终端中 Cmd/Ctrl+点击 URL 现在会在默认浏览器中打开。
+- 初始化 shadcn 组件系统（Radix + Nova），包含 alert-dialog、collapsible、button、tooltip 原语。
+
+### Changed (zh-CN)
+- 项目树始终显示分支行（移除 flat 模式特例）。单 worktree 项目也会显示分支名作为第二层级。
+- 将 worktree 数据模型中的 `isMain` 重命名为 `isPrimary`，明确其语义为「主 worktree」而非「main 分支」。
+- 终端标题解析重写：`customTitle` 不再拼接进程标题，`extractIntent()` 通过去除代码块、文件路径和客套前缀来提取有意义的标题。
+- 项目级 [+] 按钮改为创建 worktree（终端创建移至各分支行的 [+]）。
+- 画布边缘缩放手柄改为 Figma 风格的中点矩形。
+
+### Fixed (zh-CN)
+- ConfirmDialog 重新设计：新增关闭按钮、平滑 hover 过渡，危险按钮改用项目色彩令牌（`var(--red)`）。
+- 修复单 worktree 仓库在 feature branch 上时分支行被隐藏的问题。
+
 ## [0.32.2] - 2026-04-24
 
 ### Fixed
