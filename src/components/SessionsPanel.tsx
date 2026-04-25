@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import { useSessionStore } from "../stores/sessionStore";
 import { SessionReplayView } from "./SessionReplayView";
 import { useT } from "../i18n/useT";
@@ -33,7 +40,11 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "./ui/collapsible";
-import { shouldRefreshHistorySection } from "./historySectionModel";
+import {
+  filterHiddenEntries,
+  groupHistoryByProject,
+  shouldRefreshHistorySection,
+} from "./historySectionModel";
 
 /**
  * Descriptor returned by `search:sessions:list`. Kept local to avoid
@@ -512,6 +523,33 @@ function historyProjectName(dir: string): string {
   return dir.split(/[\\/]/).filter(Boolean).pop() ?? dir;
 }
 
+const HIDDEN_HISTORY_STORAGE_KEY = "termcanvas:history:hidden:v1";
+
+function loadHiddenSessions(): Set<string> {
+  if (typeof window === "undefined" || !window.localStorage) return new Set();
+  try {
+    const raw = window.localStorage.getItem(HIDDEN_HISTORY_STORAGE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return new Set(Array.isArray(parsed) ? parsed.filter((v) => typeof v === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function persistHiddenSessions(hidden: Set<string>): void {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(
+      HIDDEN_HISTORY_STORAGE_KEY,
+      JSON.stringify(Array.from(hidden)),
+    );
+  } catch {
+    // Hidden state is a nice-to-have. Quota or privacy-mode failures
+    // shouldn't bring down the panel.
+  }
+}
+
 /**
  * History browse section.
  *
@@ -520,6 +558,19 @@ function historyProjectName(dir: string): string {
  * canvas, sorted most-recent-first. Answers the "I don't remember
  * what I'm looking for — just show me what's been happening" need
  * directly, without requiring the user to open Cmd+K and type.
+ *
+ * Visual structure: rows are grouped by project (project header →
+ * sessions sorted newest-first within the group). The flat global
+ * chronological list interleaved sessions from different projects on
+ * the canvas, which made it hard to triangulate "the conversation I
+ * had about <project>" — grouping fixes that without changing the
+ * underlying IPC.
+ *
+ * Provider (claude/codex/kimi) is no longer surfaced as a row badge.
+ * It's not actionable from the list (the row opens the same replay
+ * regardless), so it was metadata noise; the replay header still
+ * shows it for context, and the row title attribute carries it for
+ * accessibility / power users.
  *
  * Data path: shares the mtime-keyed metadata index in the main
  * process (`search:sessions:list`) with the Cmd+K palette, so
@@ -549,6 +600,28 @@ export function HistorySection({
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const [hidden, setHidden] = useState<Set<string>>(() => loadHiddenSessions());
+  const [showHidden, setShowHidden] = useState(false);
+
+  const hideSession = useCallback((sessionId: string) => {
+    setHidden((prev) => {
+      if (prev.has(sessionId)) return prev;
+      const next = new Set(prev);
+      next.add(sessionId);
+      persistHiddenSessions(next);
+      return next;
+    });
+  }, []);
+
+  const unhideSession = useCallback((sessionId: string) => {
+    setHidden((prev) => {
+      if (!prev.has(sessionId)) return prev;
+      const next = new Set(prev);
+      next.delete(sessionId);
+      persistHiddenSessions(next);
+      return next;
+    });
+  }, []);
 
   const projectDirsKey = projectDirs.join("|");
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -673,7 +746,40 @@ export function HistorySection({
   }, [expanded, entries.length, total, loadMore]);
 
   const hasMore = entries.length < total;
-  const sentinelIndex = Math.max(0, entries.length - HISTORY_PREFETCH_TRIGGER_ROWS);
+
+  // Filter then group. When "show hidden" is on, we render hidden rows
+  // inline with reduced emphasis instead of removing them — this keeps
+  // the unhide affordance discoverable without leaving the section
+  // (same pattern as Gmail's "show messages" filter inside an archive).
+  const visibleEntries = useMemo(
+    () => (showHidden ? entries : filterHiddenEntries(entries, hidden)),
+    [entries, hidden, showHidden],
+  );
+  const groups = useMemo(
+    () => groupHistoryByProject(visibleEntries),
+    [visibleEntries],
+  );
+
+  // Keep the prefetch sentinel relative to the FILTERED list — if all
+  // recently-loaded rows are hidden, we still want the next page to
+  // start fetching as the user scrolls past the visible tail.
+  const sentinelIndex = Math.max(
+    0,
+    visibleEntries.length - HISTORY_PREFETCH_TRIGGER_ROWS,
+  );
+  const sentinelSessionId = visibleEntries[sentinelIndex]?.sessionId;
+
+  const hiddenInLoadedCount = useMemo(
+    () => entries.reduce((acc, e) => (hidden.has(e.sessionId) ? acc + 1 : acc), 0),
+    [entries, hidden],
+  );
+
+  const visibleCount = showHidden ? entries.length : entries.length - hiddenInLoadedCount;
+  const countLabel = loading && entries.length === 0
+    ? "…"
+    : total > entries.length
+      ? `${visibleCount}/${total}`
+      : `${visibleCount}`;
 
   return (
     <div className="border-t border-[var(--border)]">
@@ -691,81 +797,67 @@ export function HistorySection({
         >
           <path d="M3 2l4 3-4 3V2z" fill="currentColor" />
         </svg>
-        <span
-          className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-        >
+        <span className="tc-eyebrow tc-mono">
           {(t.sessions_history_title as unknown as string) ?? "History"}
         </span>
-        <span
-          className="ml-auto text-[10px] text-[var(--text-faint)] tabular-nums"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-        >
-          {loading && entries.length === 0
-            ? "…"
-            : total > entries.length
-              ? `${entries.length}/${total}`
-              : entries.length}
+        <span className="ml-auto tc-eyebrow tc-mono tabular-nums">
+          {countLabel}
         </span>
       </button>
       {expanded && (
         <div className="pb-2">
-          {entries.length === 0 ? (
-            <div
-              className="px-4 py-3 text-center text-[10px] text-[var(--text-faint)]"
-              style={{ fontFamily: '"Geist Mono", monospace' }}
-            >
+          {visibleEntries.length === 0 ? (
+            <div className="px-4 py-3 text-center tc-meta">
               {loading
                 ? ((t.sessions_history_loading as unknown as string) ?? "Loading…")
-                : ((t.sessions_history_empty as unknown as string) ??
-                    "No past sessions in this canvas yet.")}
+                : entries.length > 0 && hiddenInLoadedCount > 0
+                  ? "All sessions on this page are hidden."
+                  : ((t.sessions_history_empty as unknown as string) ??
+                      "No past sessions in this canvas yet.")}
             </div>
           ) : (
             <div className="flex flex-col">
-              {entries.map((entry, idx) => (
-                <div
-                  key={entry.sessionId}
-                  ref={idx === sentinelIndex ? sentinelRef : undefined}
-                >
-                  <button
-                    className="group flex w-full items-start gap-2 px-3 py-1.5 text-left hover:bg-[var(--sidebar-hover)]"
-                    onClick={() => onOpen(entry.filePath)}
-                    title={entry.firstPrompt}
-                  >
+              {groups.map((group) => (
+                <div key={group.projectDir} className="mb-1.5 last:mb-0">
+                  <div className="flex items-baseline gap-2 px-3 pt-1.5 pb-1">
                     <span
-                      className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
-                      style={{
-                        backgroundColor:
-                          entry.provider === "claude" ? "#f59e0b" : "#10b981",
-                      }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[11px] text-[var(--text-primary)]">
-                        {entry.firstPrompt ||
-                          `(session ${entry.sessionId.slice(0, 8)})`}
-                      </div>
-                      <div
-                        className="mt-0.5 flex items-center gap-1.5 text-[9px] text-[var(--text-faint)]"
-                        style={{ fontFamily: '"Geist Mono", monospace' }}
-                      >
-                        <span className="truncate">
-                          {historyProjectName(entry.projectDir)}
-                        </span>
-                        <span>·</span>
-                        <span>{entry.provider}</span>
-                        <span>·</span>
-                        <span className="tabular-nums">
-                          {formatHistoryAge(entry.lastActivityAt)}
-                        </span>
-                      </div>
-                    </div>
-                  </button>
+                      className="tc-eyebrow tc-mono truncate"
+                      title={group.projectDir}
+                    >
+                      {historyProjectName(group.projectDir)}
+                    </span>
+                    <span className="ml-auto tc-eyebrow tc-mono tabular-nums">
+                      {group.entries.length}
+                    </span>
+                  </div>
+                  {group.entries.map((entry) => {
+                    const isHidden = hidden.has(entry.sessionId);
+                    // Pin the prefetch sentinel to the entry that
+                    // sits at sentinelIndex within the global ordered
+                    // visibleEntries list. Group iteration preserves
+                    // that ordering, so an O(1) id-equality check is
+                    // enough — no per-row indexOf scan.
+                    return (
+                      <HistoryRow
+                        key={entry.sessionId}
+                        entry={entry}
+                        isHidden={isHidden}
+                        sentinelRef={
+                          entry.sessionId === sentinelSessionId
+                            ? sentinelRef
+                            : null
+                        }
+                        onOpen={onOpen}
+                        onHide={hideSession}
+                        onUnhide={unhideSession}
+                      />
+                    );
+                  })}
                 </div>
               ))}
               {hasMore && (
                 <button
-                  className="px-3 py-2 text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] text-left hover:bg-[var(--sidebar-hover)] cursor-pointer disabled:cursor-default"
-                  style={{ fontFamily: '"Geist Mono", monospace' }}
+                  className="px-3 py-2 text-left tc-label tc-mono hover:text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] cursor-pointer disabled:cursor-default"
                   onClick={loadMore}
                   disabled={loadingMore}
                 >
@@ -778,8 +870,138 @@ export function HistorySection({
               )}
             </div>
           )}
+          {hidden.size > 0 && (
+            <button
+              className="mt-1 flex w-full items-center gap-1.5 px-3 py-1.5 text-left tc-label tc-mono hover:text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] cursor-pointer"
+              onClick={() => setShowHidden((v) => !v)}
+              title={
+                showHidden
+                  ? "Hide hidden sessions again"
+                  : "Show hidden sessions inline with an unhide button"
+              }
+            >
+              <span className="tabular-nums">
+                {showHidden ? "Hide" : "Show"} hidden ({hidden.size})
+              </span>
+            </button>
+          )}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * One row in the history list. Visual hierarchy:
+ *
+ *   1. The first prompt (primary, --text-primary).
+ *   2. Relative age (tc-timestamp — bumped above --text-faint so the
+ *      reader can actually parse it; this is the row's main scannable
+ *      anchor when looking for "the one I had a few hours ago").
+ *
+ * Project name is no longer in the row — it's the group header above.
+ * Provider is no longer in the row — it's metadata noise here, kept in
+ * the title attribute and surfaced inside the replay header instead.
+ *
+ * The hover hide button uses an eye-with-slash icon. We avoided "X"
+ * because hide ≠ delete; the underlying JSONL file isn't touched. A
+ * persisted localStorage set keeps this purely local — no IPC.
+ */
+function HistoryRow({
+  entry,
+  isHidden,
+  sentinelRef,
+  onOpen,
+  onHide,
+  onUnhide,
+}: {
+  entry: HistorySessionEntry;
+  isHidden: boolean;
+  sentinelRef: RefObject<HTMLDivElement | null> | null;
+  onOpen: (filePath: string) => void;
+  onHide: (sessionId: string) => void;
+  onUnhide: (sessionId: string) => void;
+}) {
+  return (
+    <div ref={sentinelRef ?? undefined} className="relative">
+      <button
+        className={`group flex w-full items-start gap-2 px-3 py-1.5 text-left transition-colors hover:bg-[var(--sidebar-hover)] ${
+          isHidden ? "opacity-50" : ""
+        }`}
+        onClick={() => onOpen(entry.filePath)}
+        title={`${entry.firstPrompt}\n${entry.provider}`}
+      >
+        <div className="min-w-0 flex-1">
+          <div
+            className="truncate"
+            style={{
+              fontSize: "var(--text-xs)",
+              fontWeight: "var(--weight-regular)",
+              color: "var(--text-primary)",
+              lineHeight: "var(--leading-snug)",
+            }}
+          >
+            {entry.firstPrompt || `(session ${entry.sessionId.slice(0, 8)})`}
+          </div>
+          <div className="mt-0.5 tc-timestamp">
+            {formatHistoryAge(entry.lastActivityAt)}
+          </div>
+        </div>
+        <span
+          className={
+            "shrink-0 self-center transition-opacity " +
+            (isHidden ? "opacity-100" : "opacity-0 group-hover:opacity-100")
+          }
+        >
+          <IconButton
+            size="sm"
+            tone="neutral"
+            label={
+              isHidden ? "Unhide from history" : "Hide from history"
+            }
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isHidden) onUnhide(entry.sessionId);
+              else onHide(entry.sessionId);
+            }}
+          >
+            {isHidden ? (
+              // Unhide: plain eye outline.
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                <path
+                  d="M1 6c1.2-2.3 3-3.5 5-3.5s3.8 1.2 5 3.5c-1.2 2.3-3 3.5-5 3.5S2.2 8.3 1 6z"
+                  stroke="currentColor"
+                  strokeWidth="1.1"
+                  strokeLinejoin="round"
+                />
+                <circle
+                  cx="6"
+                  cy="6"
+                  r="1.4"
+                  stroke="currentColor"
+                  strokeWidth="1.1"
+                />
+              </svg>
+            ) : (
+              // Hide: eye with slash through it.
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                <path
+                  d="M1 6c1.2-2.3 3-3.5 5-3.5s3.8 1.2 5 3.5c-1.2 2.3-3 3.5-5 3.5S2.2 8.3 1 6z"
+                  stroke="currentColor"
+                  strokeWidth="1.1"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M2 10L10 2"
+                  stroke="currentColor"
+                  strokeWidth="1.1"
+                  strokeLinecap="round"
+                />
+              </svg>
+            )}
+          </IconButton>
+        </span>
+      </button>
     </div>
   );
 }

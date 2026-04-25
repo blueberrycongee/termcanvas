@@ -17,15 +17,19 @@ import type { TerminalType } from "../types";
 // `marked` is already a dependency (also used by LeftPanel's preview),
 // so we reuse it for the transcript. Synchronous parse keeps the
 // render path simple — no suspense boundaries, no loading flashes.
+//
+// Sizes here intentionally read from the typography scale tokens
+// (--text-base/md/sm/xs) instead of hand-rolled px values, so a future
+// scale tweak ripples through without grep-and-replace.
 const markdownClassName =
-  "prose prose-sm prose-invert max-w-none text-[13px] leading-relaxed text-[var(--text-primary)] " +
+  "prose prose-sm prose-invert max-w-none text-[length:var(--text-md)] leading-relaxed text-[var(--text-primary)] " +
   "[&_h1]:text-[15px] [&_h1]:font-semibold [&_h1]:mt-3 [&_h1]:mb-1.5 " +
-  "[&_h2]:text-[14px] [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 " +
-  "[&_h3]:text-[13px] [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 " +
+  "[&_h2]:text-[length:var(--text-md)] [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 " +
+  "[&_h3]:text-[length:var(--text-base)] [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 " +
   "[&_p]:my-1.5 [&_ul]:pl-4 [&_ol]:pl-4 [&_li]:my-0.5 " +
   "[&_a]:text-[var(--accent)] [&_a]:cursor-pointer " +
-  "[&_code]:text-[var(--amber)] [&_code]:bg-[var(--bg)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[11px] " +
-  "[&_pre]:bg-[var(--bg)] [&_pre]:rounded-md [&_pre]:p-2.5 [&_pre]:text-[11px] [&_pre]:overflow-x-auto " +
+  "[&_code]:text-[var(--amber)] [&_code]:bg-[var(--bg)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[length:var(--text-xs)] " +
+  "[&_pre]:bg-[var(--bg)] [&_pre]:rounded-md [&_pre]:p-2.5 [&_pre]:text-[length:var(--text-xs)] [&_pre]:overflow-x-auto " +
   "[&_pre_code]:bg-transparent [&_pre_code]:p-0 " +
   "[&_blockquote]:border-l-2 [&_blockquote]:border-[var(--border-hover)] [&_blockquote]:pl-3 [&_blockquote]:text-[var(--text-muted)] " +
   "[&_hr]:border-[var(--border)]";
@@ -338,24 +342,21 @@ function TopicHeader({
             conversation is about" without needing any chrome.
           */}
           <div
-            className="text-[14px] font-medium leading-snug text-[var(--text-primary)] line-clamp-2"
+            className="text-[length:var(--text-md)] font-medium leading-snug text-[var(--text-primary)] line-clamp-2"
             title={topic}
           >
             {topic || (
               <span className="italic text-[var(--text-muted)]">(no prompt captured)</span>
             )}
           </div>
-          <div
-            className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-[var(--text-faint)]"
-            style={{ fontFamily: '"Geist Mono", monospace' }}
-          >
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 tc-meta tc-mono">
             <span>{project}</span>
-            <span>·</span>
+            <span className="text-[var(--text-faint)]">·</span>
             <span>{provider}</span>
-            <span>·</span>
+            <span className="text-[var(--text-faint)]">·</span>
             <span>{age}</span>
-            <span>·</span>
-            <span>{messageCount} msgs</span>
+            <span className="text-[var(--text-faint)]">·</span>
+            <span className="tabular-nums">{messageCount} msgs</span>
           </div>
           {/*
             Shell command the user can paste into their own terminal if
@@ -376,10 +377,10 @@ function TopicHeader({
             style={{ fontFamily: '"Geist Mono", monospace' }}
             title={resumeCommand ? copyCmdTooltip : copyIdTooltip}
           >
-            <span className="shrink-0 text-[10px] text-[var(--text-faint)]">
+            <span className="shrink-0 text-[length:var(--text-xs)] text-[var(--text-faint)]">
               {resumeCommand ? "$" : "id"}
             </span>
-            <span className="flex-1 truncate text-[11px] text-[var(--text-secondary)]">
+            <span className="flex-1 truncate text-[length:var(--text-xs)] text-[var(--text-secondary)]">
               {resumeCommand ?? sessionId}
             </span>
             <svg
@@ -408,7 +409,7 @@ function TopicHeader({
           </button>
         </div>
         <button
-          className="mt-0.5 shrink-0 inline-flex h-6 items-center gap-1 rounded-md px-2 text-[10px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-0.5 shrink-0 inline-flex h-6 items-center gap-1 rounded-md px-2 text-[length:var(--text-xs)] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
           style={{
             color: !resumeDisabled ? "var(--accent)" : "var(--text-muted)",
             backgroundColor: !resumeDisabled
@@ -449,18 +450,17 @@ function UserBubble({
       <div
         className="rounded-md border-l-[3px] px-3 py-2 transition-colors"
         style={{
-          borderColor: isCurrent ? "var(--accent)" : "color-mix(in srgb, var(--accent) 40%, transparent)",
+          borderColor: isCurrent
+            ? "var(--role-user)"
+            : "color-mix(in srgb, var(--role-user) 40%, transparent)",
           backgroundColor: isCurrent
-            ? "color-mix(in srgb, var(--accent) 8%, transparent)"
-            : "color-mix(in srgb, var(--accent) 3%, transparent)",
+            ? "color-mix(in srgb, var(--role-user) 8%, transparent)"
+            : "color-mix(in srgb, var(--role-user) 3%, transparent)",
         }}
       >
-        <div
-          className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-wider"
-          style={{ fontFamily: '"Geist Mono", monospace', color: "var(--accent)" }}
-        >
-          <span>you</span>
-          <span className="text-[var(--text-faint)] normal-case tracking-normal">
+        <div className="mb-1 flex items-center gap-2">
+          <span className="tc-role tc-role-user">You</span>
+          <span className="tc-mono tc-timestamp">
             {formatTimestamp(event.timestamp)}
           </span>
         </div>
@@ -496,6 +496,17 @@ function AssistantTextRow({
             : "transparent",
         }}
       >
+        {/* The assistant role label is the new addition: previously
+            the assistant message was a bare prose block with no header,
+            making user-vs-assistant boundaries hard to scan in a long
+            transcript. The eyebrow is small and amber-toned so it
+            announces the speaker without competing with the prose. */}
+        <div className="mb-1 flex items-center gap-2">
+          <span className="tc-role tc-role-assistant">Assistant</span>
+          <span className="tc-mono tc-timestamp">
+            {formatTimestamp(event.timestamp)}
+          </span>
+        </div>
         <div
           className={markdownClassName}
           dangerouslySetInnerHTML={{ __html: renderMarkdown(event.textPreview) }}
@@ -514,28 +525,37 @@ function ThinkingRow({
   isCurrent: boolean;
   onClick: () => void;
 }) {
+  // Thinking blocks live one indent level inside the assistant column
+  // and get a low-saturation rail. They're real content (not just
+  // chrome) but they're internal monologue, not the assistant's reply,
+  // so they should read as "footnote" weight: same horizontal anchor
+  // as tool calls, no fill, prose at --text-xs italic.
   return (
     <button
-      className="w-full text-left"
+      className="w-full text-left pl-3"
       onClick={onClick}
       data-current={isCurrent || undefined}
     >
       <div
-        className="rounded-md px-3 py-1.5 transition-colors border-l-[2px]"
+        className="rounded-md px-2.5 py-1 transition-colors border-l-[2px]"
         style={{
-          borderColor: "color-mix(in srgb, var(--text-muted) 40%, transparent)",
+          borderColor: isCurrent
+            ? "color-mix(in srgb, var(--text-muted) 60%, transparent)"
+            : "color-mix(in srgb, var(--text-muted) 25%, transparent)",
           backgroundColor: isCurrent
             ? "color-mix(in srgb, var(--text-muted) 6%, transparent)"
             : "transparent",
         }}
       >
+        <div className="mb-0.5 tc-eyebrow tc-mono">thinking</div>
         <div
-          className="mb-0.5 text-[9px] uppercase tracking-wider text-[var(--text-faint)]"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
+          className="italic whitespace-pre-wrap break-words"
+          style={{
+            fontSize: "var(--text-xs)",
+            lineHeight: "var(--leading-normal)",
+            color: "var(--text-muted)",
+          }}
         >
-          thinking
-        </div>
-        <div className="text-[12px] italic leading-relaxed text-[var(--text-muted)] whitespace-pre-wrap break-words">
           {event.textPreview}
         </div>
       </div>
@@ -580,7 +600,7 @@ function ToolSubItem({
   const subject = toolSubjectHint(item.tool);
   return (
     <div
-      className="rounded px-2 py-1 transition-colors"
+      className="rounded px-2 py-0.5 transition-colors"
       style={{
         backgroundColor: isCurrent
           ? "color-mix(in srgb, var(--accent) 6%, transparent)"
@@ -595,13 +615,14 @@ function ToolSubItem({
           onToggle();
         }}
       >
-        <span className="shrink-0 text-[9px] text-[var(--text-faint)]">
+        <span className="shrink-0 text-[length:var(--text-xs)] text-[var(--text-faint)]">
           {expanded ? "▾" : "▸"}
         </span>
         <span
-          className="shrink-0 text-[10px] font-medium"
+          className="shrink-0 tc-mono"
           style={{
-            fontFamily: '"Geist Mono", monospace',
+            fontSize: "var(--text-xs)",
+            fontWeight: "var(--weight-medium)",
             color: "var(--text-secondary)",
           }}
         >
@@ -609,8 +630,11 @@ function ToolSubItem({
         </span>
         {subject && (
           <span
-            className="truncate text-[10px] text-[var(--text-muted)]"
-            style={{ fontFamily: '"Geist Mono", monospace' }}
+            className="truncate tc-mono"
+            style={{
+              fontSize: "var(--text-xs)",
+              color: "var(--text-muted)",
+            }}
           >
             {subject}
           </span>
@@ -620,15 +644,14 @@ function ToolSubItem({
         <div className="mt-1.5 space-y-1.5 border-t border-[var(--border)] pt-1.5 pl-3">
           {item.tool.textPreview && (
             <div>
-              <div
-                className="mb-0.5 text-[9px] uppercase tracking-wider text-[var(--text-faint)]"
-                style={{ fontFamily: '"Geist Mono", monospace' }}
-              >
-                input
-              </div>
+              <div className="mb-0.5 tc-eyebrow tc-mono">input</div>
               <pre
-                className="whitespace-pre-wrap break-words text-[11px] leading-snug text-[var(--text-secondary)]"
-                style={{ fontFamily: '"Geist Mono", monospace' }}
+                className="whitespace-pre-wrap break-words tc-mono"
+                style={{
+                  fontSize: "var(--text-xs)",
+                  lineHeight: "var(--leading-snug)",
+                  color: "var(--text-secondary)",
+                }}
               >
                 {item.tool.textPreview}
               </pre>
@@ -636,15 +659,14 @@ function ToolSubItem({
           )}
           {item.result?.textPreview && (
             <div>
-              <div
-                className="mb-0.5 text-[9px] uppercase tracking-wider text-[var(--text-faint)]"
-                style={{ fontFamily: '"Geist Mono", monospace' }}
-              >
-                output
-              </div>
+              <div className="mb-0.5 tc-eyebrow tc-mono">output</div>
               <pre
-                className="whitespace-pre-wrap break-words text-[11px] leading-snug text-[var(--text-secondary)]"
-                style={{ fontFamily: '"Geist Mono", monospace' }}
+                className="whitespace-pre-wrap break-words tc-mono"
+                style={{
+                  fontSize: "var(--text-xs)",
+                  lineHeight: "var(--leading-snug)",
+                  color: "var(--text-secondary)",
+                }}
               >
                 {item.result.textPreview}
               </pre>
@@ -684,56 +706,61 @@ function ToolGroup({
       }`
     : summarizeToolNames(items);
 
+  // Tool runs used to be a fully bordered card with a tinted fill,
+  // which gave them the same visual mass as the actual prose blocks
+  // and chopped up the conversation. The new treatment is intentionally
+  // borderless and rail-anchored: a thin left rail (subordinate to the
+  // user-bubble's accent rail), no fill, indented label. The reader
+  // sees a quiet "the agent did stuff here" mark rather than a card
+  // demanding equal attention. Hover/current brightens the rail and
+  // the label so the row stays discoverable.
   return (
     <div
-      className="rounded-md border px-2 py-1.5 transition-colors"
-      style={{
-        borderColor: isGroupCurrent ? "var(--accent)" : "var(--border)",
-        backgroundColor: isGroupCurrent
-          ? "color-mix(in srgb, var(--accent) 6%, transparent)"
-          : "color-mix(in srgb, var(--text-muted) 4%, transparent)",
-      }}
+      className="group relative pl-3 transition-colors"
       data-current={isGroupCurrent || undefined}
     >
+      <span
+        aria-hidden
+        className="absolute left-0 top-1.5 bottom-1.5 w-px transition-colors"
+        style={{
+          backgroundColor: isGroupCurrent
+            ? "color-mix(in srgb, var(--accent) 65%, transparent)"
+            : "color-mix(in srgb, var(--text-muted) 30%, transparent)",
+        }}
+      />
       <button
-        className="flex w-full items-center gap-1.5 text-left cursor-pointer"
+        className="flex w-full items-center gap-1.5 text-left cursor-pointer rounded px-1.5 py-0.5 hover:bg-[color-mix(in_srgb,var(--text-muted)_6%,transparent)]"
         onClick={(e) => {
           e.stopPropagation();
           onSeek(node.index);
           onToggle();
         }}
       >
-        <span className="shrink-0 text-[10px]" style={{ color: "#f59e0b" }}>
+        <span className="shrink-0 text-[length:var(--text-xs)] text-[var(--text-faint)] group-hover:text-[var(--text-muted)]">
           {expanded ? "▾" : "▸"}
         </span>
         {count > 1 && (
-          <span
-            className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]"
-            style={{ fontFamily: '"Geist Mono", monospace' }}
-          >
-            {count} tools
+          <span className="shrink-0 tc-mono tabular-nums text-[length:var(--text-xs)] text-[var(--text-muted)]">
+            {count}
           </span>
         )}
         <span
-          className="truncate text-[11px]"
+          className="truncate tc-mono"
           style={{
-            fontFamily: '"Geist Mono", monospace',
-            color: count === 1 ? "var(--text-primary)" : "var(--text-muted)",
-            fontWeight: count === 1 ? 500 : 400,
+            fontSize: "var(--text-xs)",
+            color: "var(--text-muted)",
+            fontWeight: "var(--weight-regular)",
           }}
         >
           {summary}
         </span>
         <span className="flex-1" />
-        <span
-          className="shrink-0 text-[9px] tabular-nums text-[var(--text-faint)]"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-        >
+        <span className="shrink-0 tc-mono tabular-nums text-[length:var(--text-tiny)] text-[var(--text-faint)]">
           {formatTimestamp(node.primary.timestamp)}
         </span>
       </button>
       {expanded && (
-        <div className="mt-2 space-y-0.5 border-t border-[var(--border)] pt-2">
+        <div className="mt-1 space-y-0.5">
           {items.map((item) => {
             const isItemCurrent =
               item.tool.index === currentIndex ||
@@ -773,17 +800,23 @@ function ErrorRow({
       <div
         className="rounded-md border px-2 py-1.5 transition-colors"
         style={{
-          borderColor: "#ef4444",
-          backgroundColor: "color-mix(in srgb, #ef4444 6%, transparent)",
+          borderColor: "var(--red)",
+          backgroundColor: "var(--red-soft)",
         }}
       >
         <div
-          className="mb-0.5 text-[9px] uppercase tracking-wider"
-          style={{ fontFamily: '"Geist Mono", monospace', color: "#ef4444" }}
+          className="mb-0.5 tc-eyebrow tc-mono"
+          style={{ color: "var(--red)" }}
         >
           error
         </div>
-        <div className="text-[12px] text-[var(--text-primary)] whitespace-pre-wrap break-words">
+        <div
+          className="whitespace-pre-wrap break-words text-[var(--text-primary)]"
+          style={{
+            fontSize: "var(--text-xs)",
+            lineHeight: "var(--leading-normal)",
+          }}
+        >
           {event.textPreview}
         </div>
       </div>
@@ -935,16 +968,18 @@ export function SessionReplayView() {
       <div className="flex flex-col h-full items-center justify-center gap-2">
         {replayError ? (
           <>
-            <div className="text-[11px] text-[#ef4444]">{replayError}</div>
+            <div className="text-[length:var(--text-xs)] text-[var(--red)]">
+              {replayError}
+            </div>
             <button
-              className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+              className="tc-label hover:text-[var(--text-primary)] cursor-pointer"
               onClick={exitReplay}
             >
               {t.sessions_load_error_back}
             </button>
           </>
         ) : (
-          <div className="text-[11px] text-[var(--text-faint)]">{t.sessions_loading}</div>
+          <div className="tc-meta">{t.sessions_loading}</div>
         )}
       </div>
     );
@@ -1178,8 +1213,7 @@ export function SessionReplayView() {
           <div className="flex-1" />
 
           <button
-            className="text-[9px] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer px-1"
-            style={{ fontFamily: '"Geist Mono", monospace' }}
+            className="tc-mono tc-label hover:text-[var(--text-primary)] cursor-pointer px-1"
             onClick={() => setShowThinking((v) => !v)}
             title="Show internal reasoning (thinking blocks)"
           >
@@ -1187,8 +1221,7 @@ export function SessionReplayView() {
           </button>
 
           <button
-            className="text-[9px] tabular-nums text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer px-1"
-            style={{ fontFamily: '"Geist Mono", monospace' }}
+            className="tc-mono tc-label tabular-nums hover:text-[var(--text-primary)] cursor-pointer px-1"
             onClick={() => {
               const idx = SPEEDS.indexOf(speed);
               setSpeed(SPEEDS[(idx + 1) % SPEEDS.length]);
@@ -1198,10 +1231,7 @@ export function SessionReplayView() {
             {speed}x
           </button>
 
-          <span
-            className="text-[9px] tabular-nums text-[var(--text-faint)]"
-            style={{ fontFamily: '"Geist Mono", monospace' }}
-          >
+          <span className="tc-mono tc-caption tabular-nums">
             {currentIndex + 1}/{timeline.events.length}
           </span>
         </div>
