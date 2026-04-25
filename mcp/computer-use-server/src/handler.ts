@@ -66,6 +66,9 @@ export async function handleToolCall(
       case "screenshot":
       case "computer_use_screenshot":
         return await handleScreenshot(args, client);
+      case "zoom":
+      case "computer_use_zoom":
+        return await handleZoom(args, client);
       case "open_app":
       case "computer_use_open_app":
         return await handleOpenApp(args, client);
@@ -211,6 +214,37 @@ async function handleScreenshot(
     content.push({
       type: "text",
       text: `(screenshot at ${shot.path} could not be read)`,
+    });
+  }
+  return { content };
+}
+
+async function handleZoom(
+  args: Record<string, unknown>,
+  client: HelperClient,
+): Promise<CallToolResult> {
+  const shot = (await client.post("zoom", args)) as ScreenshotInfo | null;
+  if (!shot) {
+    return errorResult("Zoom failed. Call get_window_state or screenshot first and pass a valid region.");
+  }
+
+  const content: CallToolResult["content"] = [
+    {
+      type: "text",
+      text: `${JSON.stringify(shot, null, 2)}\n\nTo click in this zoom image, call click with from_zoom=true and x/y from the zoom image.`,
+    },
+  ];
+  try {
+    const imageData = await fs.readFile(shot.path);
+    content.push({
+      type: "image",
+      data: imageData.toString("base64"),
+      mimeType: "image/png",
+    });
+  } catch {
+    content.push({
+      type: "text",
+      text: `(zoom image at ${shot.path} could not be read)`,
     });
   }
   return { content };

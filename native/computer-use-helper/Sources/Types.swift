@@ -100,6 +100,15 @@ struct ScreenshotRequest: Codable {
     let windowId: UInt32?
 }
 
+struct ZoomRequest: Codable {
+    let pid: Int32
+    let captureId: String?
+    let x1: Double
+    let y1: Double
+    let x2: Double
+    let y2: Double
+}
+
 struct ScreenSizeResponse: Codable {
     let width: Int
     let height: Int
@@ -214,6 +223,7 @@ struct ClickRequest: Codable {
     let button: String?
     let mouseButton: String?
     let clickCount: Int?
+    let fromZoom: Bool?
 }
 
 // MARK: - Type Text

@@ -95,6 +95,17 @@ func route(method: String, path: String, body: Data?) -> (Int, Data) {
             ))
             return ok(handleScreenshot(req))
 
+        case "/zoom":
+            let req: ZoomRequest = try decode(body)
+            return ok(Screenshot.zoom(
+                pid: req.pid,
+                captureId: req.captureId,
+                x1: req.x1,
+                y1: req.y1,
+                x2: req.x2,
+                y2: req.y2
+            ))
+
         case "/open_app":
             let req: OpenAppRequest = try decode(body)
             return ok(AppLister.openApp(bundleId: req.bundleId, name: req.name))
@@ -263,11 +274,15 @@ func handleClick(_ req: ClickRequest) -> (Int, Data) {
     }
 
     AppLister.activate(pid: resolvePid(pid: req.pid, appName: req.appName))
+    let zoomPoint = resolveZoomPoint(req)
+    if let error = zoomPoint.error {
+        return ok(OkResponse(ok: false, error: error))
+    }
     let point = resolvePoint(
-        x: req.x,
-        y: req.y,
-        captureId: req.captureId,
-        coordinateSpace: req.coordinateSpace,
+        x: zoomPoint.x ?? req.x,
+        y: zoomPoint.y ?? req.y,
+        captureId: zoomPoint.captureId ?? req.captureId,
+        coordinateSpace: zoomPoint.coordinateSpace ?? req.coordinateSpace,
         pid: req.pid,
         appName: req.appName
     )
@@ -521,6 +536,34 @@ func resolvePoint(
     }
 
     return (CGPoint(x: x, y: y), nil)
+}
+
+func resolveZoomPoint(_ req: ClickRequest) -> (
+    x: Double?,
+    y: Double?,
+    captureId: String?,
+    coordinateSpace: String?,
+    error: String?
+) {
+    guard req.fromZoom == true else {
+        return (nil, nil, nil, nil, nil)
+    }
+    guard let pid = resolvePid(pid: req.pid, appName: req.appName) else {
+        return (nil, nil, nil, nil, "from_zoom requires pid or app_name")
+    }
+    guard let x = req.x, let y = req.y else {
+        return (nil, nil, nil, nil, "from_zoom requires x and y")
+    }
+    guard let zoom = Screenshot.latestZoom(pid: pid) else {
+        return (nil, nil, nil, nil, "No zoom context for target app. Call zoom first.")
+    }
+    return (
+        x + zoom.originX,
+        y + zoom.originY,
+        zoom.sourceCaptureId,
+        "screenshot",
+        nil
+    )
 }
 
 func clickRepeated(x: Double, y: Double, button: String, clickCount: Int) {

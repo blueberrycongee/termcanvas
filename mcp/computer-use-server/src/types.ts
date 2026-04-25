@@ -88,6 +88,15 @@ export interface ScreenshotParams {
   window_id?: number;
 }
 
+export interface ZoomParams {
+  pid: number;
+  capture_id?: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
 export interface AppState {
   app: Record<string, unknown>;
   windows: Record<string, unknown>[];
@@ -117,6 +126,7 @@ export interface ClickParams {
   button?: "left" | "right" | "double";
   mouse_button?: "left" | "right" | "double";
   click_count?: number;
+  from_zoom?: boolean;
 }
 
 export interface TypeTextParams {

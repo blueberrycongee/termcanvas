@@ -69,6 +69,15 @@ class FakeHelperClient {
         coordinate_space: "screenshot",
       };
     }
+    if (endpoint === "zoom") {
+      return {
+        capture_id: "42:7:789:zoom:1",
+        path: this.screenshotPath,
+        pixel_size: { width: 200, height: 120 },
+        scale: 2,
+        coordinate_space: "zoom",
+      };
+    }
     if (endpoint === "get_app_state") {
       return {
         app: { name: "TermCanvas", bundle_id: "com.blueberrycongee.termcanvas", pid: 42 },
@@ -225,9 +234,20 @@ test("computer use MCP exposes screenshot and screen size tools", async () => {
       asHelper(client),
     );
     assert.equal(shotResult.content.some((item) => item.type === "image"), true);
-    assert.deepEqual(client.posts.slice(0, 2), [
+    const zoomResult = await handleToolCall(
+      "zoom",
+      { pid: 42, capture_id: "42:7:789", x1: 10, y1: 20, x2: 110, y2: 80 },
+      asHelper(client),
+    );
+    assert.equal(zoomResult.content.some((item) => item.type === "image"), true);
+    assert.match(zoomResult.content[0].text as string, /from_zoom=true/);
+    assert.deepEqual(client.posts.slice(0, 3), [
       { endpoint: "get_screen_size", body: undefined },
       { endpoint: "screenshot", body: { pid: 42, window_id: 7 } },
+      {
+        endpoint: "zoom",
+        body: { pid: 42, capture_id: "42:7:789", x1: 10, y1: 20, x2: 110, y2: 80 },
+      },
     ]);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -337,6 +357,7 @@ test("computer use MCP tool descriptions teach the AX-first protocol", () => {
   assert.match(descriptions.get_app_state, /Observe before acting/);
   assert.match(descriptions.list_windows, /window_id/);
   assert.match(descriptions.screenshot, /MCP image content/);
+  assert.match(descriptions.zoom, /from_zoom=true/);
   assert.match(descriptions.get_window_state, /pid and window_id/);
   assert.match(descriptions.hotkey, /key combination/);
   assert.match(descriptions.get_app_state, /do not use browser or Playwright screenshots/);

@@ -90,6 +90,23 @@ export const tools: Tool[] = [
     },
   },
   {
+    name: "zoom",
+    description:
+      "Crop and return a zoomed region from the latest screenshot for a target pid. Coordinates are screenshot pixels from get_window_state or screenshot. After zoom, click with from_zoom=true using coordinates from the zoom image.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        pid: { type: "number", description: "Target process ID." },
+        capture_id: { type: "string", description: "Optional source screenshot capture_id to reject stale zoom requests." },
+        x1: { type: "number", description: "Left edge in source screenshot pixels." },
+        y1: { type: "number", description: "Top edge in source screenshot pixels." },
+        x2: { type: "number", description: "Right edge in source screenshot pixels." },
+        y2: { type: "number", description: "Bottom edge in source screenshot pixels." },
+      },
+      required: ["pid", "x1", "y1", "x2", "y2"],
+    },
+  },
+  {
     name: "open_app",
     description:
       "Launch or activate a macOS application by bundle ID or display name. Prefer bundle_id when known; otherwise use the exact localized name returned by list_apps.",
@@ -213,6 +230,10 @@ export const tools: Tool[] = [
           type: "number",
           description: "Number of clicks. Defaults to 1.",
         },
+        from_zoom: {
+          type: "boolean",
+          description: "When true, x/y are coordinates in the latest zoom image for this pid and are mapped back to the source screenshot.",
+        },
         mouse_button: {
           type: "string",
           enum: ["left", "right", "double"],
@@ -237,6 +258,7 @@ export const tools: Tool[] = [
         y: { type: "number", description: "Y coordinate." },
         coordinate_space: { type: "string", enum: ["screen", "window", "screenshot"] },
         capture_id: { type: "string", description: "Capture ID for screenshot coordinates." },
+        from_zoom: { type: "boolean", description: "Map x/y from the latest zoom image back to the source screenshot." },
       },
     },
   },
@@ -256,6 +278,7 @@ export const tools: Tool[] = [
         y: { type: "number", description: "Y coordinate." },
         coordinate_space: { type: "string", enum: ["screen", "window", "screenshot"] },
         capture_id: { type: "string", description: "Capture ID for screenshot coordinates." },
+        from_zoom: { type: "boolean", description: "Map x/y from the latest zoom image back to the source screenshot." },
       },
     },
   },

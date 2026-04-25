@@ -58,6 +58,7 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 - `list_windows`: list addressable top-level windows with `window_id`, owning app, title, bounds, z-order, and on-screen state.
 - `get_screen_size`: return main display pixel size and scale.
 - `screenshot`: capture the main display, an app window, or a specific `window_id` as MCP image content.
+- `zoom`: crop and return a zoomed region from the latest screenshot; after zooming, use `click` with `from_zoom=true` to click coordinates from the zoom image.
 - `open_app`: launch or activate an app.
 - `get_app_state`: return the app's current key-window AX tree and screenshot.
 - `get_window_state`: return a specific window's AX tree and screenshot by `pid` and `window_id`.
