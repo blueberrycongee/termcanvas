@@ -5,7 +5,7 @@ import path from "path";
 interface WorktreeInfo {
   path: string;
   branch: string;
-  isMain: boolean;
+  isPrimary: boolean;
 }
 
 interface ProjectInfo {
@@ -47,7 +47,7 @@ function parseWorktreesOutput(
         worktrees.push({
           path: current.path,
           branch: current.branch ?? "(detached)",
-          isMain: path.resolve(current.path) === resolvedRepo,
+          isPrimary: path.resolve(current.path) === resolvedRepo,
         });
       }
       current = {};
@@ -57,8 +57,8 @@ function parseWorktreesOutput(
   // If no worktree matched repoPath (e.g. symlink divergence), fall back to
   // marking the first entry as main — git always lists the primary worktree
   // first.
-  if (worktrees.length > 0 && !worktrees.some((w) => w.isMain)) {
-    worktrees[0] = { ...worktrees[0], isMain: true };
+  if (worktrees.length > 0 && !worktrees.some((w) => w.isPrimary)) {
+    worktrees[0] = { ...worktrees[0], isPrimary: true };
   }
 
   return worktrees;
@@ -114,7 +114,7 @@ export class ProjectScanner {
         {
           path: dirPath,
           branch: "main",
-          isMain: true,
+          isPrimary: true,
         },
       ];
     }
@@ -180,7 +180,7 @@ export class ProjectScanner {
         {
           path: dirPath,
           branch: this.getCurrentBranch(dirPath),
-          isMain: true,
+          isPrimary: true,
         },
       ];
     }
@@ -201,7 +201,7 @@ export class ProjectScanner {
         {
           path: dirPath,
           branch: await this.getCurrentBranchAsync(dirPath),
-          isMain: true,
+          isPrimary: true,
         },
       ];
     }

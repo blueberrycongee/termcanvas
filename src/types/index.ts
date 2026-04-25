@@ -145,6 +145,7 @@ export interface WorktreeData {
   id: string;
   name: string;
   path: string;
+  isPrimary?: boolean;
   terminals: TerminalData[];
 }
 
@@ -543,14 +544,14 @@ export interface TermCanvasAPI {
     scan: (dirPath: string) => Promise<{
       name: string;
       path: string;
-      worktrees: { path: string; branch: string; isMain: boolean }[];
+      worktrees: { path: string; branch: string; isPrimary: boolean }[];
     } | null>;
     listChildGitRepos: (
       dirPath: string,
     ) => Promise<{ name: string; path: string }[]>;
     rescanWorktrees: (
       dirPath: string,
-    ) => Promise<{ path: string; branch: string; isMain: boolean }[]>;
+    ) => Promise<{ path: string; branch: string; isPrimary: boolean }[]>;
     createWorktree: (
       repoPath: string,
       branch: string,
@@ -558,7 +559,7 @@ export interface TermCanvasAPI {
       | {
           ok: true;
           path: string;
-          worktrees: { path: string; branch: string; isMain: boolean }[];
+          worktrees: { path: string; branch: string; isPrimary: boolean }[];
         }
       | { ok: false; error: string }
     >;
@@ -569,7 +570,7 @@ export interface TermCanvasAPI {
     ) => Promise<
       | {
           ok: true;
-          worktrees: { path: string; branch: string; isMain: boolean }[];
+          worktrees: { path: string; branch: string; isPrimary: boolean }[];
         }
       | { ok: false; error: string }
     >;

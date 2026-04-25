@@ -193,7 +193,7 @@ function WorktreeRow({
   const [removeBusy, setRemoveBusy] = useState(false);
 
   const openRemoveDialog = () => {
-    if (group.isMain) return;
+    if (group.isPrimary) return;
     setRemoveStage("soft");
   };
 
@@ -321,7 +321,7 @@ function WorktreeRow({
         >
           <PlusIcon />
         </IconButton>
-        {!group.isMain && (
+        {!group.isPrimary && (
           <IconButton
             size="sm"
             tone="danger"
@@ -510,11 +510,15 @@ function ProjectRow({
         <IconButton
           size="sm"
           tone="neutral"
-          label={t.panel_new_terminal}
+          label={t.panel_new_worktree}
           className="opacity-0 group-hover:opacity-100 transition-opacity"
           onClick={(e) => {
             e.stopPropagation();
-            handleNewTerminal();
+            const store = useSessionPanelCollapseStore.getState();
+            if (store.isCollapsed(project.projectId)) {
+              store.toggle(project.projectId);
+            }
+            setCreating(true);
           }}
         >
           <PlusIcon />
@@ -528,20 +532,14 @@ function ProjectRow({
       )}
       {!collapsed && (
         <div className="flex flex-col gap-0.5">
-          {project.flat
-            ? project.worktrees[0].terminals.map((item) => (
-                <div key={item.terminalId} className="pl-4 pr-2">
-                  {renderTerminal(item)}
-                </div>
-              ))
-            : project.worktrees.map((wt) => (
-                <WorktreeRow
-                  key={wt.worktreeId}
-                  group={wt}
-                  projectPath={project.projectPath}
-                  renderTerminal={renderTerminal}
-                />
-              ))}
+          {project.worktrees.map((wt) => (
+            <WorktreeRow
+              key={wt.worktreeId}
+              group={wt}
+              projectPath={project.projectPath}
+              renderTerminal={renderTerminal}
+            />
+          ))}
         </div>
       )}
       {menu &&

@@ -263,6 +263,50 @@ body {
   padding: 0;
 }
 
+/* Edge resize handles — Figma-style small rectangles at edge midpoints */
+.tc-xyflow .react-flow__resize-control.line {
+  z-index: 20;
+  background: var(--surface);
+  border-color: var(--border-hover);
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 1px;
+}
+.tc-xyflow .react-flow__resize-control.line.top,
+.tc-xyflow .react-flow__resize-control.line.bottom {
+  width: 24px;
+  height: 6px;
+  left: 50%;
+  border-top-width: 1px;
+  border-bottom-width: 1px;
+}
+.tc-xyflow .react-flow__resize-control.line.top {
+  top: 0;
+  transform: translate(-50%, -50%);
+}
+.tc-xyflow .react-flow__resize-control.line.bottom {
+  bottom: 0;
+  top: auto;
+  transform: translate(-50%, 50%);
+}
+.tc-xyflow .react-flow__resize-control.line.left,
+.tc-xyflow .react-flow__resize-control.line.right {
+  width: 6px;
+  height: 24px;
+  top: 50%;
+  border-left-width: 1px;
+  border-right-width: 1px;
+}
+.tc-xyflow .react-flow__resize-control.line.left {
+  left: 0;
+  transform: translate(-50%, -50%);
+}
+.tc-xyflow .react-flow__resize-control.line.right {
+  right: 0;
+  left: auto;
+  transform: translate(50%, -50%);
+}
+
 .tc-xyflow .react-flow__viewport {
   will-change: transform;
 }

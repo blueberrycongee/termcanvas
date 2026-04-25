@@ -54,8 +54,8 @@ test("syncWorktrees marks the workspace dirty when the project set changes", () 
   resetStores([createProject()]);
 
   useProjectStore.getState().syncWorktrees("/tmp/project-1", [
-    { path: "/tmp/project-1", branch: "main", isMain: true },
-    { path: "/tmp/project-1-feature", branch: "feature", isMain: false },
+    { path: "/tmp/project-1", branch: "main", isPrimary: true },
+    { path: "/tmp/project-1-feature", branch: "feature", isPrimary: false },
   ]);
 
   assert.equal(useWorkspaceStore.getState().dirty, true);

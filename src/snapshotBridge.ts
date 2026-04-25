@@ -413,6 +413,9 @@ function migrateProjects(projects: Record<string, unknown>[]): ProjectData[] {
               id: worktree.id,
               name: worktree.name,
               path: worktree.path,
+              ...(typeof worktree.isPrimary === "boolean"
+                ? { isPrimary: worktree.isPrimary }
+                : {}),
               terminals,
             },
           ];

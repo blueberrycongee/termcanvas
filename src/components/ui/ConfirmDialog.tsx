@@ -92,10 +92,10 @@ export function ConfirmDialog({
   if (!open) return null;
 
   const confirmBaseClass =
-    "text-[11px] px-2 py-1 rounded disabled:opacity-40 disabled:cursor-not-allowed transition-colors";
+    "text-[11px] px-2.5 py-1 rounded disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150";
   const confirmToneClass =
     confirmTone === "danger"
-      ? "bg-red-600 text-white hover:bg-red-700"
+      ? "bg-[var(--red-soft)] text-[var(--red)] border border-[var(--red)]/25 hover:bg-[var(--red)]/20 hover:border-[var(--red)]/40"
       : "border border-[var(--accent)] text-[var(--text-primary)] hover:bg-[var(--surface-hover)]";
 
   return createPortal(
@@ -109,13 +109,31 @@ export function ConfirmDialog({
       }}
     >
       <div
-        className="w-[420px] max-w-[90vw] rounded-md border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl"
+        className="w-[420px] max-w-[90vw] rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="text-[12px] font-semibold text-[var(--text-primary)] mb-2">
-          {title}
+        <div className="flex items-start justify-between mb-2">
+          <div className="text-[12px] font-semibold text-[var(--text-primary)]">
+            {title}
+          </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onCancel}
+            className="shrink-0 p-0.5 rounded text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-150 disabled:opacity-50"
+            aria-label="Close"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path
+                d="M2 2L8 8M8 2L2 8"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
         </div>
-        <div className="text-[11px] text-[var(--text-muted)] mb-3 leading-relaxed">
+        <div className="text-[11px] text-[var(--text-muted)] mb-4 leading-relaxed">
           {body}
         </div>
         <div className="flex justify-end gap-2">
@@ -123,7 +141,7 @@ export function ConfirmDialog({
             type="button"
             disabled={busy}
             onClick={onCancel}
-            className="text-[11px] px-2 py-1 rounded border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] disabled:opacity-50"
+            className="text-[11px] px-2.5 py-1 rounded border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] transition-colors duration-150 disabled:opacity-50"
           >
             {cancelLabel ?? t.cancel}
           </button>

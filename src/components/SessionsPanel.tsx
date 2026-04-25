@@ -10,6 +10,7 @@ import {
   buildProjectTree,
   type CanvasTerminalItem,
   type CanvasTerminalState,
+  type StashedTerminalItem,
 } from "./sessionPanelModel";
 import { ProjectTree } from "./ProjectTree";
 import {
@@ -19,8 +20,19 @@ import {
 } from "./sessionInspectorModel";
 import { useCompletionSeenStore } from "../stores/completionSeenStore";
 import { promptAndAddProjectToScene } from "../canvas/sceneCommands";
-import { closeTerminalInScene } from "../actions/terminalSceneActions";
+import {
+  closeTerminalInScene,
+  stashTerminalInScene,
+  unstashTerminalInScene,
+  destroyStashedTerminalInScene,
+} from "../actions/terminalSceneActions";
 import { IconButton } from "./ui/IconButton";
+import { ConfirmDialog } from "./ui/ConfirmDialog";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "./ui/collapsible";
 import { shouldRefreshHistorySection } from "./historySectionModel";
 
 /**
@@ -176,16 +188,28 @@ export function TerminalCard({
       </div>
       <IconButton
         size="sm"
+        tone="neutral"
+        label={t.stash_terminal}
+        className="opacity-0 group-hover:opacity-100 transition-opacity"
+        onClick={(e) => {
+          e.stopPropagation();
+          stashTerminalInScene(item.projectId, item.worktreeId, item.terminalId);
+        }}
+      >
+        {/* archive: arrow down into tray */}
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M5 1v5M5 6L3 4M5 6l2-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M1 6h2v2a1 1 0 001 1h2a1 1 0 001-1V6h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </IconButton>
+      <IconButton
+        size="sm"
         tone="danger"
         label={t.panel_close_terminal}
         className="opacity-0 group-hover:opacity-100 transition-opacity"
         onClick={(e) => {
           e.stopPropagation();
-          closeTerminalInScene(
-            item.projectId,
-            item.worktreeId,
-            item.terminalId,
-          );
+          closeTerminalInScene(item.projectId, item.worktreeId, item.terminalId);
         }}
       >
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -339,6 +363,128 @@ function Inspector({
         )}
       </div>
     </div>
+  );
+}
+
+function StashedCard({
+  item,
+  t,
+}: {
+  item: StashedTerminalItem;
+  t: ReturnType<typeof useT>;
+}) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  return (
+    <div className="group flex items-center gap-2 rounded-md px-2 py-1.5 bg-[var(--surface)] hover:bg-[var(--sidebar-hover)] transition-colors">
+      <div className="flex-1 min-w-0">
+        <div className="text-[11px] font-medium truncate text-[var(--text-secondary)]">
+          {item.title}
+        </div>
+        <div className="text-[10px] text-[var(--text-faint)] truncate">
+          {item.originLabel}
+        </div>
+      </div>
+      <IconButton
+        size="sm"
+        tone="neutral"
+        label={t.stash_restore}
+        onClick={() => unstashTerminalInScene(item.terminalId)}
+      >
+        {/* unarchive: arrow up out of tray */}
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M5 6V1M5 1L3 3M5 1l2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M1 6h2v2a1 1 0 001 1h2a1 1 0 001-1V6h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </IconButton>
+      <IconButton
+        size="sm"
+        tone="danger"
+        label={t.stash_destroy}
+        onClick={() => setConfirmOpen(true)}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path
+            d="M2 2L8 8M8 2L2 8"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+        </svg>
+      </IconButton>
+      <ConfirmDialog
+        open={confirmOpen}
+        title={t.stash_destroy}
+        body={item.title}
+        confirmLabel={t.stash_destroy}
+        confirmTone="danger"
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => {
+          destroyStashedTerminalInScene(item.terminalId);
+          setConfirmOpen(false);
+        }}
+      />
+    </div>
+  );
+}
+
+export function StashedSection({
+  items,
+  t,
+}: {
+  items: StashedTerminalItem[];
+  t: ReturnType<typeof useT>;
+}) {
+  const [expanded, setExpanded] = useState(items.length > 0);
+  const prevCount = useRef(items.length);
+
+  useEffect(() => {
+    if (prevCount.current === 0 && items.length > 0) {
+      setExpanded(true);
+    }
+    prevCount.current = items.length;
+  }, [items.length]);
+
+  if (items.length === 0) return null;
+
+  return (
+    <Collapsible
+      open={expanded}
+      onOpenChange={setExpanded}
+      className="border-t border-[var(--border)]"
+    >
+      <CollapsibleTrigger className="flex w-full items-center gap-1.5 px-3 py-2 text-left hover:bg-[var(--sidebar-hover)]">
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          fill="none"
+          className={`shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`}
+          style={{ color: "var(--text-muted)" }}
+        >
+          <path d="M3 2l4 3-4 3V2z" fill="currentColor" />
+        </svg>
+        <span
+          className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          {t.stash_box}
+        </span>
+        <span
+          className="ml-auto text-[10px] text-[var(--text-faint)] tabular-nums"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          {items.length}
+        </span>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="pb-2 flex flex-col gap-0.5 px-2">
+          {items.map((item) => (
+            <StashedCard key={item.terminalId} item={item} t={t} />
+          ))}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -689,7 +835,7 @@ export function SessionsPanel({
       ),
     [projects, sessionsById, telemetryByTerminalId],
   );
-  const projectTree = useMemo(
+  const projectTreeResult = useMemo(
     () =>
       buildProjectTree(
         projects,
@@ -699,6 +845,8 @@ export function SessionsPanel({
       ),
     [projects, telemetryByTerminalId, sessionsById, seenTerminalIds],
   );
+  const projectTree = projectTreeResult.projects;
+  const stashedItems = projectTreeResult.stashed;
   const inspectedItem = useMemo(
     () => pickInspectedTerminal(sections),
     [sections],
@@ -810,7 +958,8 @@ export function SessionsPanel({
               compact
               hideLocation
               unseenDone={
-                item.state === "done" && !seenTerminalIds.has(item.terminalId)
+                item.state === "done" &&
+                !seenTerminalIds.has(item.terminalId)
               }
             />
           )}
@@ -822,13 +971,8 @@ export function SessionsPanel({
           </div>
         )}
 
-        {/*
-          Past-session browse surface. Lives below the live project
-          tree so the scroll pattern is "what's live now" → "what's
-          been before" — same reading order as a chat app's "threads"
-          list. Shares the Cmd+K session index via the
-          listSessions IPC; no extra file reads.
-        */}
+        <StashedSection items={stashedItems} t={t} />
+
         <HistorySection
           projectDirs={canvasProjectDirs}
           onOpen={loadReplay}

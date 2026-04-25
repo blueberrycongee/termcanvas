@@ -48,7 +48,7 @@ export interface WorktreeGroup {
   worktreeId: string;
   worktreeName: string;
   worktreePath: string;
-  isMain: boolean;
+  isPrimary: boolean;
   statusSummary: StatusSummary;
   terminals: CanvasTerminalItem[];
 }
@@ -59,7 +59,20 @@ export interface ProjectGroup {
   projectPath: string;
   statusSummary: StatusSummary;
   worktrees: WorktreeGroup[];
-  flat: boolean;
+}
+
+export interface StashedTerminalItem {
+  terminalId: string;
+  projectId: string;
+  worktreeId: string;
+  title: string;
+  originLabel: string;
+  stashedAt?: number;
+}
+
+export interface ProjectTreeResult {
+  projects: ProjectGroup[];
+  stashed: StashedTerminalItem[];
 }
 
 const GENERIC_TERMINAL_TITLES =
@@ -77,6 +90,36 @@ function collapseWhitespace(value: string, maxLength: number): string {
   return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
+const VAGUE_TERMS = new Set([
+  "看看", "看一下", "这个", "那个", "帮忙", "搞一下", "弄一下",
+  "改一下", "修一下", "处理一下",
+  "help", "this", "that", "hey", "hi", "ok", "yes", "no",
+]);
+
+export function extractIntent(
+  raw: string | undefined,
+  maxLen = 40,
+): string | null {
+  if (!raw) return null;
+  let text = raw.trim();
+  text = text.replace(/```[\s\S]*?```/g, "").trim();
+  // Only strip things that look like real file paths (must have 2+ segments
+  // and start with . / or a known directory prefix like src/ node_modules/)
+  text = text.replace(/(?:\.\.?\/|(?:src|lib|dist|node_modules|packages)\/)\S+/g, "").trim();
+  text = text
+    .replace(/^(帮我|请你?|麻烦|could you|please)\s*/i, "")
+    .trim();
+  // Cut at sentence-ending punctuation, Chinese comma, or newline.
+  // English comma is excluded (often enumeration, not a sentence break).
+  const cut = text.search(/[，.。;；!！?？\n]/);
+  if (cut > 0) text = text.slice(0, cut).trim();
+  if (text.length > maxLen) {
+    text = text.slice(0, maxLen - 1).trimEnd() + "…";
+  }
+  if (!text || VAGUE_TERMS.has(text)) return null;
+  return text;
+}
+
 function resolveTerminalTitle(
   terminal: Pick<TerminalData, "customTitle" | "title" | "initialPrompt">,
   worktreeName: string,
@@ -84,30 +127,28 @@ function resolveTerminalTitle(
   provider?: string,
   firstUserPrompt?: string,
 ): string {
-  const displayTitle = collapseWhitespace(
-    terminal.customTitle
-      ? `${terminal.customTitle} · ${terminal.title}`
-      : terminal.title,
-    64,
-  );
-  const initialPrompt = terminal.initialPrompt
-    ? collapseWhitespace(terminal.initialPrompt, 72)
-    : "";
-  const telemetryPrompt = firstUserPrompt
-    ? collapseWhitespace(firstUserPrompt, 72)
-    : "";
-
-  if (displayTitle && !GENERIC_TERMINAL_TITLES.test(displayTitle)) {
-    return displayTitle;
+  if (terminal.customTitle) {
+    return collapseWhitespace(terminal.customTitle, 40);
   }
 
-  if (initialPrompt) return initialPrompt;
-  if (telemetryPrompt) return telemetryPrompt;
+  if (terminal.title && !GENERIC_TERMINAL_TITLES.test(terminal.title)) {
+    return collapseWhitespace(terminal.title, 40);
+  }
+
+  const fromInit = extractIntent(terminal.initialPrompt);
+  if (fromInit) return fromInit;
+
+  const fromTelemetry = extractIntent(firstUserPrompt);
+  if (fromTelemetry) return fromTelemetry;
+
   if (provider && provider !== "unknown") {
     return provider.charAt(0).toUpperCase() + provider.slice(1);
   }
-  if (worktreeName) return worktreeName;
-  return projectName;
+
+  if (terminal.title) {
+    return terminal.title.charAt(0).toUpperCase() + terminal.title.slice(1);
+  }
+  return "Terminal";
 }
 
 function deriveStateFromTelemetry(
@@ -372,8 +413,9 @@ export function buildProjectTree(
   >,
   sessionsById: Map<string, SessionInfo>,
   seenTerminalIds?: Set<string>,
-): ProjectGroup[] {
+): ProjectTreeResult {
   const result: ProjectGroup[] = [];
+  const stashed: StashedTerminalItem[] = [];
 
   for (const project of projects) {
     const worktreeGroups: WorktreeGroup[] = [];
@@ -384,7 +426,30 @@ export function buildProjectTree(
       for (const terminal of worktree.terminals) {
         const resolvedTerminal = resolveTerminalWithRuntimeState(terminal);
 
-        if (!isCanvasTerminal(resolvedTerminal)) {
+        if (resolvedTerminal.minimized) {
+          continue;
+        }
+
+        if (resolvedTerminal.stashed) {
+          const title = resolveTerminalTitle(
+            resolvedTerminal,
+            worktree.name,
+            project.name,
+            telemetryByTerminalId.get(resolvedTerminal.id)?.provider,
+            telemetryByTerminalId.get(resolvedTerminal.id)?.first_user_prompt,
+          );
+          const originLabel =
+            worktree.name === project.name
+              ? project.name
+              : `${project.name} / ${worktree.name}`;
+          stashed.push({
+            terminalId: resolvedTerminal.id,
+            projectId: project.id,
+            worktreeId: worktree.id,
+            title,
+            originLabel,
+            stashedAt: resolvedTerminal.stashedAt,
+          });
           continue;
         }
 
@@ -432,7 +497,7 @@ export function buildProjectTree(
         worktreeId: worktree.id,
         worktreeName: worktree.name,
         worktreePath: worktree.path,
-        isMain: worktree.path === project.path,
+        isPrimary: worktree.isPrimary ?? worktree.path === project.path,
         statusSummary: computeStatusSummary(terminals, seenTerminalIds),
         terminals,
       });
@@ -446,11 +511,12 @@ export function buildProjectTree(
       projectPath: project.path,
       statusSummary: computeStatusSummary(allTerminals, seenTerminalIds),
       worktrees: worktreeGroups,
-      flat: worktreeGroups.length === 1,
     });
   }
 
-  return result;
+  stashed.sort((a, b) => (b.stashedAt ?? 0) - (a.stashedAt ?? 0));
+
+  return { projects: result, stashed };
 }
 
 export function buildCanvasTerminalSections(

@@ -140,7 +140,7 @@ test("createWorkflowControl drives a Lead-driven workflow end-to-end (in-process
   fs.mkdirSync(repoPath, { recursive: true });
   initRepo(repoPath);
 
-  const worktrees = [{ path: repoPath, branch: "main", isMain: true }];
+  const worktrees = [{ path: repoPath, branch: "main", isPrimary: true }];
   const projectStore = new ProjectStore();
   const ptyManager = new FakePtyManager();
   const telemetryService = new TelemetryService({
@@ -222,7 +222,7 @@ test("Lead-driven workflow HTTP routes init, dispatch, watch, approve, complete,
   fs.mkdirSync(repoPath, { recursive: true });
   initRepo(repoPath);
 
-  const worktrees = [{ path: repoPath, branch: "main", isMain: true }];
+  const worktrees = [{ path: repoPath, branch: "main", isPrimary: true }];
 
   const harness = await startHeadlessServer({
     workspaceDir,

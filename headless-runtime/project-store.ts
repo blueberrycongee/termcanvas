@@ -81,7 +81,7 @@ export interface EnrichedTerminal {
 interface ScannedWorktree {
   path: string;
   branch: string;
-  isMain: boolean;
+  isPrimary: boolean;
 }
 
 let idCounter = 0;

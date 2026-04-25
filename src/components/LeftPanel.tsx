@@ -15,7 +15,7 @@ import {
 import { promptAndAddProjectToScene } from "../canvas/sceneCommands";
 import { buildProjectTree } from "./sessionPanelModel";
 import { ProjectTree } from "./ProjectTree";
-import { TerminalCard, HistorySection } from "./SessionsPanel";
+import { TerminalCard, HistorySection, StashedSection } from "./SessionsPanel";
 import { IconButton } from "./ui/IconButton";
 
 /*
@@ -83,7 +83,7 @@ export function LeftPanel() {
     return map;
   }, [runtimeTerminals]);
 
-  const projectTree = useMemo(
+  const projectTreeResult = useMemo(
     () =>
       buildProjectTree(
         projects,
@@ -93,10 +93,10 @@ export function LeftPanel() {
       ),
     [projects, telemetryByTerminalId, sessionsById, seenTerminalIds],
   );
+  const projectTree = projectTreeResult.projects;
+  const stashedItems = projectTreeResult.stashed;
   const hasAnyProjects = projectTree.length > 0;
 
-  // Bug 4: trim seenTerminalIds to only currently-done terminals so
-  // a re-completed terminal shows the blue dot again.
   useEffect(() => {
     const allTerminals = projectTree.flatMap((pg) =>
       pg.worktrees.flatMap((wt) => wt.terminals),
@@ -344,6 +344,7 @@ export function LeftPanel() {
                 {t.sessions_no_canvas_items}
               </div>
             )}
+            <StashedSection items={stashedItems} t={t} />
             <HistorySection
               projectDirs={canvasProjectDirs}
               onOpen={handleOpenReplay}
