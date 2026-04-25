@@ -1009,6 +1009,10 @@ export interface TermCanvasAPI {
     loadReplay: (
       filePath: string,
     ) => Promise<import("../../shared/sessions").ReplayTimeline>;
+    forkSession: (
+      sourceFilePath: string,
+      turnIndex: number,
+    ) => Promise<{ newSessionId: string; newFilePath: string }>;
   };
   menu: {
     onOpenFolder: (callback: (dirPath: string) => void) => () => void;

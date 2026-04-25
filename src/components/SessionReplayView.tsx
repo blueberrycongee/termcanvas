@@ -10,6 +10,7 @@ import { createTerminalInScene } from "../actions/terminalSceneActions";
 import { createTerminal } from "../stores/projectStore";
 import { panToTerminal } from "../utils/panToTerminal";
 import type { TerminalType } from "../types";
+import { ConfirmDialog } from "./ui/ConfirmDialog";
 
 // Claude and Codex both emit markdown in their user-facing prose.
 // Rendering it as literal whitespace-preserved text turned headings,
@@ -471,10 +472,15 @@ function UserPrompt({
   event,
   isCurrent,
   onClick,
+  onFork,
+  forkLabel,
 }: {
   event: TimelineEvent;
   isCurrent: boolean;
   onClick: () => void;
+  /** When provided, a hover-revealed fork button appears in the gutter. */
+  onFork?: () => void;
+  forkLabel?: string;
 }) {
   // Right-aligned neutral bubble, iMessage-style. The bubble +
   // alignment ARE the speaker mark — no glyph, no eyebrow, no avatar,
@@ -498,8 +504,62 @@ function UserPrompt({
   // (not above) because the eye lands on the bubble itself first; the
   // timestamp then sits next to where the assistant's reply begins,
   // anchoring the bottom of the turn instead of crowding the top.
+  //
+  // Fork affordance (Claude only): a small icon hangs in the gutter to
+  // the LEFT of the bubble. Hover-revealed via the row's `group` so
+  // the resting transcript stays clean — only appears when the reader
+  // is actually pointing at a turn they might want to branch from.
   return (
-    <div className="flex justify-end">
+    <div className="group flex justify-end items-start gap-2">
+      {onFork && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onFork();
+          }}
+          title={forkLabel ?? "Fork from this prompt"}
+          aria-label={forkLabel ?? "Fork from this prompt"}
+          className="opacity-0 group-hover:opacity-100 transition-opacity mt-1.5 shrink-0 cursor-pointer"
+          style={{ color: "var(--text-muted)" }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.color =
+              "var(--text-primary)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.color =
+              "var(--text-muted)";
+          }}
+        >
+          {/* Y-fork glyph: trunk splits into two branches. Drawn at
+              14px so it reads cleanly at the bubble's vertical
+              optical center. */}
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            aria-hidden
+          >
+            <path
+              d="M4 12V8.5C4 7.4 4.9 6.5 6 6.5H8C9.1 6.5 10 5.6 10 4.5V2"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M4 12V2"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+            />
+            <circle cx="4" cy="13" r="0.9" fill="currentColor" />
+            <circle cx="4" cy="2" r="0.9" fill="currentColor" />
+            <circle cx="10" cy="2" r="0.9" fill="currentColor" />
+          </svg>
+        </button>
+      )}
       <div className="flex flex-col items-end max-w-[78%]">
         <button
           type="button"
@@ -1082,6 +1142,78 @@ export function SessionReplayView() {
     );
   }, [resumeTarget, exitReplay, closeSessionsOverlay, notify, t]);
 
+  // Fork affordance state. The user picks a turn (the userPromptIndex
+  // of any user_prompt bubble), confirms, and we mint a new Claude
+  // session JSONL truncated through that turn, then spawn a Claude
+  // terminal that resumes the new session id. Fork is Claude-only:
+  // for codex/kimi the bubble shows no fork button at all.
+  const forkSession = useSessionStore((s) => s.forkSession);
+  const [forkTurnIndex, setForkTurnIndex] = useState<number | null>(null);
+  const [forkBusy, setForkBusy] = useState(false);
+  const canFork = !!resumeTarget && resumeTarget.provider === "claude";
+
+  const requestFork = useCallback((turnIdx: number) => {
+    setForkTurnIndex(turnIdx);
+  }, []);
+
+  const cancelFork = useCallback(() => {
+    if (forkBusy) return;
+    setForkTurnIndex(null);
+  }, [forkBusy]);
+
+  const confirmFork = useCallback(async () => {
+    if (!resumeTarget || forkTurnIndex === null || !timeline) return;
+    if (resumeTarget.provider !== "claude") return;
+    setForkBusy(true);
+    try {
+      const { newSessionId } = await forkSession(
+        timeline.filePath,
+        forkTurnIndex,
+      );
+
+      const base = createTerminal(
+        resumeTarget.provider,
+        undefined,
+        undefined,
+        undefined,
+        "user",
+      );
+      base.sessionId = newSessionId;
+
+      const created = createTerminalInScene({
+        projectId: resumeTarget.projectId,
+        worktreeId: resumeTarget.worktreeId,
+        terminal: base,
+        origin: "user",
+      });
+
+      exitReplay();
+      closeSessionsOverlay();
+      panToTerminal(created.id);
+      notify(
+        "info",
+        (t.session_replay_fork_toast as unknown as string) ??
+          "Forked session in new Claude terminal",
+      );
+      setForkTurnIndex(null);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to fork session";
+      notify("error", message);
+    } finally {
+      setForkBusy(false);
+    }
+  }, [
+    resumeTarget,
+    forkTurnIndex,
+    timeline,
+    forkSession,
+    exitReplay,
+    closeSessionsOverlay,
+    notify,
+    t,
+  ]);
+
   // Scroll the current-highlighted element into view when it changes.
   // Applies to both click-seek and playback. Smooth scroll works well
   // for small gaps; large jumps fall back to "nearest" behaviour.
@@ -1115,6 +1247,26 @@ export function SessionReplayView() {
   );
 
   const turns = useMemo(() => (timeline ? buildTurns(timeline.events) : []), [timeline]);
+
+  // Per-turn user-prompt index, parallel to `turns`. The fork backend
+  // counts user prompts (zero-indexed) — same predicate the replay
+  // timeline uses — so a turn's position in `turns` only equals its
+  // user-prompt index when there's no headless leading turn. Compute
+  // explicitly so this stays correct regardless of session shape.
+  const userPromptIndices = useMemo(() => {
+    const indices: (number | null)[] = [];
+    let n = 0;
+    for (const turn of turns) {
+      if (turn.userEvent) {
+        indices.push(n);
+        n += 1;
+      } else {
+        indices.push(null);
+      }
+    }
+    return indices;
+  }, [turns]);
+
 
   // Loading / error panels — same shape as before.
   if (!timeline) {
@@ -1334,6 +1486,15 @@ export function SessionReplayView() {
                   event={turn.userEvent}
                   isCurrent={turn.userEvent.index === currentIndex}
                   onClick={() => seekTo(turn.userEvent!.index)}
+                  onFork={
+                    canFork && userPromptIndices[turnIdx] !== null
+                      ? () => requestFork(userPromptIndices[turnIdx]!)
+                      : undefined
+                  }
+                  forkLabel={
+                    (t.session_replay_fork_button as unknown as string) ??
+                    "Fork from this prompt"
+                  }
                 />
               </div>
               {(hasFold || answer) && (
@@ -1450,6 +1611,29 @@ export function SessionReplayView() {
           </span>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={forkTurnIndex !== null}
+        title={
+          (t.session_replay_fork_title as unknown as string) ??
+          "Fork conversation?"
+        }
+        body={
+          (t.session_replay_fork_body as unknown as string) ??
+          "Start a new Claude session with the conversation history up to this point. The original session won't be modified."
+        }
+        confirmLabel={
+          (t.session_replay_fork_confirm as unknown as string) ?? "Fork"
+        }
+        busyLabel={
+          (t.session_replay_fork_busy as unknown as string) ?? "Forking…"
+        }
+        busy={forkBusy}
+        onCancel={cancelFork}
+        onConfirm={() => {
+          void confirmFork();
+        }}
+      />
     </div>
   );
 }

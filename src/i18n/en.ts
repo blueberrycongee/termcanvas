@@ -192,6 +192,13 @@ export const en = {
   session_replay_resume_cmd_copied: "Copied resume command",
   session_replay_resume_id_tooltip: "Click to copy session ID",
   session_replay_resume_id_copied: "Copied session ID",
+  session_replay_fork_button: "Fork from this prompt",
+  session_replay_fork_title: "Fork conversation?",
+  session_replay_fork_body:
+    "Start a new Claude session with the conversation history up to this point. The original session won't be modified.",
+  session_replay_fork_confirm: "Fork",
+  session_replay_fork_busy: "Forking…",
+  session_replay_fork_toast: "Forked session in new Claude terminal",
   search_category_actions: "Actions",
   search_category_files: "Files",
   search_category_terminals: "Terminals",

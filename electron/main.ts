@@ -1291,6 +1291,14 @@ function setupIpc() {
     return sessionScanner.loadReplay(filePath);
   });
 
+  ipcMain.handle(
+    "sessions:fork",
+    async (_event, sourceFilePath: string, turnIndex: number) => {
+      const { forkClaudeSession } = await import("./session-fork.js");
+      return forkClaudeSession(sourceFilePath, turnIndex);
+    },
+  );
+
   ipcMain.handle("state:load", () => {
     return statePersistence.load();
   });

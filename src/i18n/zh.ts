@@ -189,6 +189,13 @@ export const zh = {
   session_replay_resume_cmd_copied: "已复制 resume 命令",
   session_replay_resume_id_tooltip: "点击复制 session ID",
   session_replay_resume_id_copied: "已复制 session ID",
+  session_replay_fork_button: "从这个提问派生新会话",
+  session_replay_fork_title: "派生新对话？",
+  session_replay_fork_body:
+    "用截至此处的对话历史启动一个新的 Claude session。原会话不会被修改。",
+  session_replay_fork_confirm: "派生",
+  session_replay_fork_busy: "派生中…",
+  session_replay_fork_toast: "已在新 Claude 终端中派生 session",
   search_category_actions: "操作",
   search_category_files: "文件",
   search_category_terminals: "终端",

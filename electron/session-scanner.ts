@@ -98,6 +98,83 @@ export function stripSyntheticUserBlocks(text: string): string {
   return out;
 }
 
+function getObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+/**
+ * Extract the prose a user typed for a single JSONL entry.
+ *
+ * Returns "" when the entry isn't a real user message — i.e. an
+ * assistant turn, a synthetic command/system-reminder banner, an
+ * empty Codex framework injection, or any non-prompt entry. The same
+ * predicate decides whether to emit a `user_prompt` event in the
+ * replay timeline AND whether a line is a "fork point" boundary in
+ * `session-fork.ts`. Sharing the predicate guarantees the fork UI's
+ * turnIndex always agrees with what the replay view shows.
+ */
+export function extractUserPromptText(raw: Record<string, unknown>): string {
+  if (raw.type === "user") {
+    if (raw.isMeta === true) return "";
+    const message = raw.message as Record<string, unknown> | undefined;
+    if (message) {
+      const content = message.content;
+      let rawText = "";
+      if (typeof content === "string") {
+        rawText = content;
+      } else if (Array.isArray(content)) {
+        for (const block of content) {
+          if (!block || typeof block !== "object") continue;
+          const entry = block as Record<string, unknown>;
+          if (entry.type === "text" && typeof entry.text === "string") {
+            rawText = entry.text;
+            break;
+          }
+          if (entry.type === "tool_result") continue;
+        }
+      }
+      if (rawText) {
+        const cleaned = stripSyntheticUserBlocks(rawText);
+        if (cleaned) return cleaned.slice(0, REPLAY_TEXT_MAX_CHARS);
+      }
+    }
+  }
+
+  const payload = getObject(raw.payload);
+  if (!payload) return "";
+  if (
+    raw.type === "response_item" &&
+    payload.type === "message" &&
+    payload.role === "user"
+  ) {
+    const content = payload.content;
+    if (Array.isArray(content)) {
+      for (const block of content) {
+        if (!block || typeof block !== "object") continue;
+        const entry = block as Record<string, unknown>;
+        const text =
+          typeof entry.text === "string"
+            ? entry.text
+            : typeof entry.content === "string"
+              ? entry.content
+              : "";
+        if (!text) continue;
+        const cleaned = stripSyntheticUserBlocks(text);
+        if (cleaned) return cleaned.slice(0, REPLAY_TEXT_MAX_CHARS);
+      }
+      return "";
+    }
+    if (typeof content === "string") {
+      const cleaned = stripSyntheticUserBlocks(content);
+      return cleaned ? cleaned.slice(0, REPLAY_TEXT_MAX_CHARS) : "";
+    }
+    return "";
+  }
+  return "";
+}
+
 export class SessionScanner {
   private timer: ReturnType<typeof setInterval> | null = null;
   private sessions: SessionInfo[] = [];
@@ -502,92 +579,12 @@ export class SessionScanner {
   }
 
   private extractUserPromptText(raw: Record<string, unknown>): string {
-    // Claude stores both user input AND assistant replies in the same
-    // `message.content` shape (a text block). The only thing that
-    // distinguishes them is the outer `raw.type` ("user" vs "assistant").
-    // Without that guard, every assistant text line would be mis-tagged
-    // as a user prompt *and* also come through as an assistant_text event,
-    // causing every agent reply to render twice in the replay — once
-    // incorrectly as a "you" bubble, once correctly as assistant prose.
-    // That's exactly the "I can't tell my messages from the agent's" bug.
-    if (raw.type === "user") {
-      // `isMeta: true` marks synthetic caveats / command banners that
-      // Claude Code injects (e.g. "<local-command-caveat>", the
-      // /resume/compact command headers). They aren't real user text
-      // and shouldn't become topic headers in the replay view.
-      if (raw.isMeta === true) return "";
-      const message = raw.message as Record<string, unknown> | undefined;
-      if (message) {
-        const content = message.content;
-        let rawText = "";
-        if (typeof content === "string") {
-          rawText = content;
-        } else if (Array.isArray(content)) {
-          for (const block of content) {
-            if (!block || typeof block !== "object") continue;
-            const entry = block as Record<string, unknown>;
-            if (entry.type === "text" && typeof entry.text === "string") {
-              rawText = entry.text;
-              break;
-            }
-            if (entry.type === "tool_result") continue;
-          }
-        }
-        if (rawText) {
-          const cleaned = stripSyntheticUserBlocks(rawText);
-          if (cleaned) return cleaned.slice(0, REPLAY_TEXT_MAX_CHARS);
-        }
-      }
-    }
-
-    // Codex. Same synthetic-block stripping as the Claude branch
-    // above. Codex has a more awkward shape: `response_item`
-    // messages can carry MULTIPLE `input_text` blocks in one
-    // message — the first is usually the AGENTS.md injection, a
-    // second is `<environment_context>…</environment_context>`, and
-    // only if the user actually typed something does a third
-    // non-synthetic block appear. So we iterate the content array
-    // and return the first block that survives stripping, instead
-    // of grabbing block[0] and calling it the prompt.
-    //
-    // Also note: we deliberately DO NOT handle
-    // `event_msg/user_message` here. Codex writes every user turn
-    // twice — once as the streaming `event_msg` and once as a
-    // finalized `response_item/message/role=user`. Handling both
-    // would emit two `user_prompt` events per message and is where
-    // the "everything duplicates" Codex bug came from. The
-    // response_item is the canonical record; rely on it alone.
-    const payload = this.getObject(raw.payload);
-    if (!payload) return "";
-    if (
-      raw.type === "response_item" &&
-      payload.type === "message" &&
-      payload.role === "user"
-    ) {
-      const content = payload.content;
-      if (Array.isArray(content)) {
-        for (const block of content) {
-          if (!block || typeof block !== "object") continue;
-          const entry = block as Record<string, unknown>;
-          const text =
-            typeof entry.text === "string"
-              ? entry.text
-              : typeof entry.content === "string"
-                ? entry.content
-                : "";
-          if (!text) continue;
-          const cleaned = stripSyntheticUserBlocks(text);
-          if (cleaned) return cleaned.slice(0, REPLAY_TEXT_MAX_CHARS);
-        }
-        return "";
-      }
-      if (typeof content === "string") {
-        const cleaned = stripSyntheticUserBlocks(content);
-        return cleaned ? cleaned.slice(0, REPLAY_TEXT_MAX_CHARS) : "";
-      }
-      return "";
-    }
-    return "";
+    // Implementation lives in the free `extractUserPromptText` export
+    // (top of file) so `session-fork.ts` can share the exact same
+    // predicate when locating turn boundaries to fork from. Keeping
+    // the method as a thin pass-through preserves the previous
+    // calling convention inside SessionScanner.
+    return extractUserPromptText(raw);
   }
 
   private extractToolFilePath(
