@@ -6,6 +6,10 @@ export interface HealthResponse {
 export interface StatusResponse {
   accessibility_granted: boolean;
   screen_recording_granted: boolean;
+  skylight_post_to_pid_available?: boolean;
+  focus_without_raise_available?: boolean;
+  window_location_available?: boolean;
+  screen_capture_kit_available?: boolean;
 }
 
 export interface ComputerUseStatus {

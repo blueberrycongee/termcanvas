@@ -26,7 +26,14 @@ class FakeHelperClient {
   async post(endpoint: string, body?: unknown): Promise<unknown> {
     this.posts.push({ endpoint, body });
     if (endpoint === "status") {
-      return { accessibility_granted: true, screen_recording_granted: true };
+      return {
+        accessibility_granted: true,
+        screen_recording_granted: true,
+        skylight_post_to_pid_available: true,
+        focus_without_raise_available: true,
+        window_location_available: true,
+        screen_capture_kit_available: true,
+      };
     }
     if (endpoint === "list_apps") {
       return {
@@ -479,10 +486,16 @@ test("computer use MCP status includes usage guidance", async () => {
   const status = JSON.parse(result.content[0].text as string);
 
   assert.equal(status.healthy, true);
+  assert.deepEqual(status.capabilities, {
+    skylight_post_to_pid_available: true,
+    focus_without_raise_available: true,
+    window_location_available: true,
+    screen_capture_kit_available: true,
+  });
   assert.equal(status.usage_guidance.setup_tool, "setup");
   assert.equal(status.usage_guidance.instructions_tool, "get_instructions");
   assert.deepEqual(status.usage_guidance.protocol.slice(0, 4), [
-    "Use status first. If the helper is not healthy or permissions are missing, call setup.",
+    "Use status first. If the helper is not healthy or permissions are missing, call setup. Read status.capabilities to see whether SkyLight pid posting, focus-without-raise, window-local events, and ScreenCaptureKit are available.",
     "If permissions remain false after the user says they already allowed them, guide the user to remove stale TermCanvas and computer-use-helper entries from both macOS permission panes, then add /Applications/TermCanvas.app and /Applications/TermCanvas.app/Contents/Resources/computer-use-helper again.",
     "For local macOS desktop apps, use TermCanvas Computer Use. Do not use browser automation or Playwright unless the target is a web page in a browser.",
     "Use list_apps for app identity and list_windows for window identity. Prefer pid + window_id for window-scoped observation when available.",
@@ -542,6 +555,7 @@ test("computer use MCP tool descriptions teach the AX-first protocol", () => {
   );
 
   assert.match(descriptions.status, /TermCanvas desktop control protocol/);
+  assert.match(descriptions.status, /SkyLight pid posting/);
   assert.match(descriptions.setup, /open the macOS permission panes/);
   assert.match(descriptions.get_config, /capture_mode/);
   assert.match(descriptions.set_config, /vision skips AX/);

@@ -215,7 +215,14 @@ func route(method: String, path: String, body: Data?) -> (Int, Data) {
 func handleStatus() -> StatusResponse {
     let axTrusted = AXIsProcessTrusted()
     let screenGranted = CGPreflightScreenCaptureAccess()
-    return StatusResponse(accessibilityGranted: axTrusted, screenRecordingGranted: screenGranted)
+    return StatusResponse(
+        accessibilityGranted: axTrusted,
+        screenRecordingGranted: screenGranted,
+        skylightPostToPidAvailable: SkyLightEventPost.isAvailable,
+        focusWithoutRaiseAvailable: SkyLightEventPost.isFocusWithoutRaiseAvailable,
+        windowLocationAvailable: SkyLightEventPost.isWindowLocationAvailable,
+        screenCaptureKitAvailable: isScreenCaptureKitAvailable()
+    )
 }
 
 func handleRequestPermissions() -> StatusResponse {
@@ -234,7 +241,21 @@ func handleRequestPermissions() -> StatusResponse {
         }
     }
 
-    return StatusResponse(accessibilityGranted: axTrusted, screenRecordingGranted: screenGranted)
+    return StatusResponse(
+        accessibilityGranted: axTrusted,
+        screenRecordingGranted: screenGranted,
+        skylightPostToPidAvailable: SkyLightEventPost.isAvailable,
+        focusWithoutRaiseAvailable: SkyLightEventPost.isFocusWithoutRaiseAvailable,
+        windowLocationAvailable: SkyLightEventPost.isWindowLocationAvailable,
+        screenCaptureKitAvailable: isScreenCaptureKitAvailable()
+    )
+}
+
+func isScreenCaptureKitAvailable() -> Bool {
+    if #available(macOS 14.0, *) {
+        return true
+    }
+    return false
 }
 
 func handleGetScreenSize() -> ScreenSizeResponse {

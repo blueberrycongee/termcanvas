@@ -119,6 +119,10 @@ enum SkyLightEventPost {
             postEventRecordToFn != nil
     }
 
+    static var isWindowLocationAvailable: Bool {
+        setWindowLocationFn != nil
+    }
+
     static func getFrontProcess(_ psnBuffer: UnsafeMutableRawPointer) -> Bool {
         guard let getFrontProcessFn else { return false }
         return getFrontProcessFn(psnBuffer) == 0

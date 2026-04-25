@@ -11,7 +11,7 @@ export const tools: Tool[] = [
   {
     name: "status",
     description:
-      `Check whether the Computer Use helper is running and has macOS Accessibility and Screen Recording permissions. ${COMPUTER_USE_PROTOCOL_SUMMARY}`,
+      `Check whether the Computer Use helper is running, has macOS Accessibility and Screen Recording permissions, and can use strong operation paths such as SkyLight pid posting, focus-without-raise, window-local events, and ScreenCaptureKit. ${COMPUTER_USE_PROTOCOL_SUMMARY}`,
     inputSchema: {
       type: "object" as const,
       properties: {},
@@ -80,10 +80,6 @@ export const tools: Tool[] = [
         output_dir: {
           type: "string",
           description: "Directory for session.json and turn-*/action.json files. Required when enabled=true.",
-        },
-        video_experimental: {
-          type: "boolean",
-          description: "Reserved for future video recording. Currently rejected when true.",
         },
       },
       required: ["enabled"],

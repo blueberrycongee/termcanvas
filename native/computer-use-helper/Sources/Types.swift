@@ -24,6 +24,10 @@ struct HealthResponse: Codable {
 struct StatusResponse: Codable {
     let accessibilityGranted: Bool
     let screenRecordingGranted: Bool
+    let skylightPostToPidAvailable: Bool
+    let focusWithoutRaiseAvailable: Bool
+    let windowLocationAvailable: Bool
+    let screenCaptureKitAvailable: Bool
 }
 
 // MARK: - List Apps

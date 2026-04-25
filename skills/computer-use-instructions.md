@@ -56,6 +56,7 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 ## Tool Map
 
 - `status`: check helper health and macOS permissions.
+- `status.capabilities`: inspect whether strong operation paths are available: SkyLight pid posting, focus-without-raise, window-local event stamping, and ScreenCaptureKit.
 - `setup`: start Computer Use through TermCanvas, request required macOS permissions, and open System Settings when user approval is needed. If permissions remain false after approval, follow the macOS permission repair flow above.
 - `get_instructions`: read this operating protocol from the MCP server.
 - `get_config`: read persistent capture behavior such as `capture_mode` and `max_image_dimension`.

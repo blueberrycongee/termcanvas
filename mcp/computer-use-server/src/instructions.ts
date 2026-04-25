@@ -13,7 +13,7 @@ export const COMPUTER_USE_STATUS_GUIDANCE = {
   instructions_tool: "get_instructions",
   instructions_resource: COMPUTER_USE_INSTRUCTIONS_URI,
   protocol: [
-    "Use status first. If the helper is not healthy or permissions are missing, call setup.",
+    "Use status first. If the helper is not healthy or permissions are missing, call setup. Read status.capabilities to see whether SkyLight pid posting, focus-without-raise, window-local events, and ScreenCaptureKit are available.",
     "If permissions remain false after the user says they already allowed them, guide the user to remove stale TermCanvas and computer-use-helper entries from both macOS permission panes, then add /Applications/TermCanvas.app and /Applications/TermCanvas.app/Contents/Resources/computer-use-helper again.",
     "For local macOS desktop apps, use TermCanvas Computer Use. Do not use browser automation or Playwright unless the target is a web page in a browser.",
     "Use list_apps for app identity and list_windows for window identity. Prefer pid + window_id for window-scoped observation when available.",

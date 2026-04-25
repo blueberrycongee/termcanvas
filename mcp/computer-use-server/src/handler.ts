@@ -195,6 +195,12 @@ async function handleStatus(client: HelperClient): Promise<CallToolResult> {
       healthy: false,
       accessibility_granted: false,
       screen_recording_granted: false,
+      capabilities: {
+        skylight_post_to_pid_available: false,
+        focus_without_raise_available: false,
+        window_location_available: false,
+        screen_capture_kit_available: false,
+      },
       usage_guidance: COMPUTER_USE_STATUS_GUIDANCE,
     });
   }
@@ -203,6 +209,22 @@ async function handleStatus(client: HelperClient): Promise<CallToolResult> {
     const status = (await client.post("status")) as StatusResponse;
     accessibilityGranted = status.accessibility_granted;
     screenRecordingGranted = status.screen_recording_granted;
+    const capabilities = {
+      skylight_post_to_pid_available:
+        status.skylight_post_to_pid_available === true,
+      focus_without_raise_available:
+        status.focus_without_raise_available === true,
+      window_location_available: status.window_location_available === true,
+      screen_capture_kit_available:
+        status.screen_capture_kit_available === true,
+    };
+    return textResult({
+      healthy,
+      accessibility_granted: accessibilityGranted,
+      screen_recording_granted: screenRecordingGranted,
+      capabilities,
+      usage_guidance: COMPUTER_USE_STATUS_GUIDANCE,
+    });
   } catch {
     // health passed but status failed
   }
@@ -211,6 +233,12 @@ async function handleStatus(client: HelperClient): Promise<CallToolResult> {
     healthy,
     accessibility_granted: accessibilityGranted,
     screen_recording_granted: screenRecordingGranted,
+    capabilities: {
+      skylight_post_to_pid_available: false,
+      focus_without_raise_available: false,
+      window_location_available: false,
+      screen_capture_kit_available: false,
+    },
     usage_guidance: COMPUTER_USE_STATUS_GUIDANCE,
   });
 }
