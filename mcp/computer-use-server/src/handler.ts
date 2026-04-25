@@ -5,6 +5,7 @@ import type {
   HealthResponse,
   StatusResponse,
   AppInfo,
+  ListWindowsResponse,
   AppState,
   OkResponse,
   OpenAppResponse,
@@ -54,12 +55,18 @@ export async function handleToolCall(
       case "list_apps":
       case "computer_use_list_apps":
         return await handleListApps(client);
+      case "list_windows":
+      case "computer_use_list_windows":
+        return await handleListWindows(args, client);
       case "open_app":
       case "computer_use_open_app":
         return await handleOpenApp(args, client);
       case "get_app_state":
       case "computer_use_get_app_state":
         return await handleGetAppState(args, client);
+      case "get_window_state":
+      case "computer_use_get_window_state":
+        return await handleGetWindowState(args, client);
       case "click":
       case "computer_use_click":
         return await handleClick(args, client);
@@ -148,6 +155,14 @@ async function handleListApps(client: HelperClient): Promise<CallToolResult> {
   return textResult(result.apps);
 }
 
+async function handleListWindows(
+  args: Record<string, unknown>,
+  client: HelperClient,
+): Promise<CallToolResult> {
+  const result = (await client.post("list_windows", args)) as ListWindowsResponse;
+  return textResult(result);
+}
+
 async function handleOpenApp(
   args: Record<string, unknown>,
   client: HelperClient,
@@ -165,6 +180,22 @@ async function handleGetAppState(
     ...args,
   };
   const state = (await client.post("get_app_state", request)) as AppState;
+  return await appStateResult(state);
+}
+
+async function handleGetWindowState(
+  args: Record<string, unknown>,
+  client: HelperClient,
+): Promise<CallToolResult> {
+  const request = {
+    include_screenshot: true,
+    ...args,
+  };
+  const state = (await client.post("get_window_state", request)) as AppState;
+  return await appStateResult(state);
+}
+
+async function appStateResult(state: AppState): Promise<CallToolResult> {
   const captureId = getScreenshotCaptureId(state);
   const normalizedState: AppState = { ...state };
   if (captureId) {

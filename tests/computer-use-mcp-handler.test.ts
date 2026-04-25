@@ -40,6 +40,23 @@ class FakeHelperClient {
         ],
       };
     }
+    if (endpoint === "list_windows") {
+      return {
+        windows: [
+          {
+            window_id: 7,
+            pid: 42,
+            app_name: "TermCanvas",
+            title: "Main",
+            bounds: { x: 10, y: 20, width: 800, height: 600 },
+            layer: 0,
+            z_index: 0,
+            is_on_screen: true,
+          },
+        ],
+        current_space_id: null,
+      };
+    }
     if (endpoint === "get_app_state") {
       return {
         app: { name: "TermCanvas", bundle_id: "com.blueberrycongee.termcanvas", pid: 42 },
@@ -49,6 +66,25 @@ class FakeHelperClient {
         screenshot_path: this.screenshotPath,
         screenshot_capture_id: "42:7:123",
         screenshot: { capture_id: "42:7:123" },
+        screenshot_scale: 2,
+      };
+    }
+    if (endpoint === "get_window_state") {
+      return {
+        app: { name: "TermCanvas", bundle_id: "com.blueberrycongee.termcanvas", pid: 42 },
+        windows: [
+          {
+            id: "7",
+            window_id: 7,
+            title: "Main",
+            frame: { x: 10, y: 20, width: 800, height: 600 },
+          },
+        ],
+        elements: [{ index: 0, role: "AXButton", actions: ["AXPress"] }],
+        accessibility_tree: [],
+        screenshot_path: this.screenshotPath,
+        screenshot_capture_id: "42:7:456",
+        screenshot: { capture_id: "42:7:456" },
         screenshot_scale: 2,
       };
     }
@@ -94,6 +130,24 @@ test("computer use MCP list_apps unwraps helper response", async () => {
   ]);
 });
 
+test("computer use MCP list_windows exposes addressable windows", async () => {
+  const client = new FakeHelperClient();
+  const result = await handleToolCall(
+    "list_windows",
+    { pid: 42, on_screen_only: true },
+    asHelper(client),
+  );
+
+  assert.equal(result.isError, undefined);
+  assert.deepEqual(client.posts[0], {
+    endpoint: "list_windows",
+    body: { pid: 42, on_screen_only: true },
+  });
+  const payload = JSON.parse(result.content[0].text as string);
+  assert.equal(payload.windows[0].window_id, 7);
+  assert.equal(payload.windows[0].pid, 42);
+});
+
 test("computer use MCP get_app_state defaults to screenshot and returns image content", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-cu-test-"));
   const screenshotPath = path.join(dir, "screenshot.png");
@@ -117,6 +171,24 @@ test("computer use MCP get_app_state defaults to screenshot and returns image co
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("computer use MCP get_window_state requires explicit window target", async () => {
+  const client = new FakeHelperClient();
+  const result = await handleToolCall(
+    "get_window_state",
+    { pid: 42, window_id: 7 },
+    asHelper(client),
+  );
+  const state = JSON.parse(result.content[0].text as string);
+
+  assert.equal(result.isError, undefined);
+  assert.deepEqual(client.posts[0], {
+    endpoint: "get_window_state",
+    body: { include_screenshot: true, pid: 42, window_id: 7 },
+  });
+  assert.equal(state.windows[0].window_id, 7);
+  assert.equal(state.capture_id, "42:7:456");
 });
 
 test("computer use MCP exposes operating instructions as a tool", async () => {
@@ -161,7 +233,7 @@ test("computer use MCP status includes usage guidance", async () => {
     "Use status first. If the helper is not healthy or permissions are missing, call setup.",
     "If permissions remain false after the user says they already allowed them, guide the user to remove stale TermCanvas and computer-use-helper entries from both macOS permission panes, then add /Applications/TermCanvas.app and /Applications/TermCanvas.app/Contents/Resources/computer-use-helper again.",
     "For local macOS desktop apps, use TermCanvas Computer Use. Do not use browser automation or Playwright unless the target is a web page in a browser.",
-    "Use list_apps, then prefer the returned bundle_id or pid with open_app and get_app_state. Do not guess English app names on localized systems.",
+    "Use list_apps for app identity and list_windows for window identity. Prefer pid + window_id for window-scoped observation when available.",
   ]);
   assert.match(
     status.usage_guidance.protocol.join("\n"),
@@ -220,6 +292,8 @@ test("computer use MCP tool descriptions teach the AX-first protocol", () => {
   assert.match(descriptions.status, /TermCanvas desktop control protocol/);
   assert.match(descriptions.setup, /open the macOS permission panes/);
   assert.match(descriptions.get_app_state, /Observe before acting/);
+  assert.match(descriptions.list_windows, /window_id/);
+  assert.match(descriptions.get_window_state, /pid and window_id/);
   assert.match(descriptions.get_app_state, /do not use browser or Playwright screenshots/);
   assert.match(descriptions.list_apps, /Prefer returned bundle IDs or PIDs/);
   assert.match(descriptions.open_app, /exact localized name returned by list_apps/);

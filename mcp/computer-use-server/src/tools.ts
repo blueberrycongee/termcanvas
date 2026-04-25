@@ -45,6 +45,24 @@ export const tools: Tool[] = [
     },
   },
   {
+    name: "list_windows",
+    description:
+      "List addressable top-level macOS windows with window_id, owning pid/app, title, bounds, z-order, and on-screen state. Use this before window-scoped observation or pixel actions; do not guess which window an app means when multiple windows exist.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        pid: {
+          type: "number",
+          description: "Optional process ID filter from list_apps.",
+        },
+        on_screen_only: {
+          type: "boolean",
+          description: "When true, return only windows currently on screen.",
+        },
+      },
+    },
+  },
+  {
     name: "open_app",
     description:
       "Launch or activate a macOS application by bundle ID or display name. Prefer bundle_id when known; otherwise use the exact localized name returned by list_apps.",
@@ -86,6 +104,33 @@ export const tools: Tool[] = [
           description: "Maximum accessibility tree traversal depth.",
         },
       },
+    },
+  },
+  {
+    name: "get_window_state",
+    description:
+      "Observe a specific macOS window by pid and window_id from list_windows. This is the window-scoped successor to get_app_state: it returns the target window's AX tree and screenshot without silently choosing a different window. Call this before element-indexed or screenshot-coordinate actions.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        pid: {
+          type: "number",
+          description: "Target process ID from list_apps or list_windows.",
+        },
+        window_id: {
+          type: "number",
+          description: "CGWindowID from list_windows.",
+        },
+        include_screenshot: {
+          type: "boolean",
+          description: "Whether to capture and return the target window screenshot. Defaults to true.",
+        },
+        max_depth: {
+          type: "number",
+          description: "Maximum accessibility tree traversal depth.",
+        },
+      },
+      required: ["pid", "window_id"],
     },
   },
   {

@@ -75,6 +75,16 @@ func route(method: String, path: String, body: Data?) -> (Int, Data) {
         case "/list_apps":
             return ok(ListAppsResponse(apps: AppLister.listApps()))
 
+        case "/list_windows":
+            let req: ListWindowsRequest = try decodeOrDefault(body, defaultValue: ListWindowsRequest(
+                pid: nil,
+                onScreenOnly: nil
+            ))
+            return ok(WindowEnumerator.listWindows(
+                pid: req.pid,
+                onScreenOnly: req.onScreenOnly ?? false
+            ))
+
         case "/open_app":
             let req: OpenAppRequest = try decode(body)
             return ok(AppLister.openApp(bundleId: req.bundleId, name: req.name))
@@ -86,6 +96,22 @@ func route(method: String, path: String, body: Data?) -> (Int, Data) {
             }
             let state = AXTree.getAppState(
                 pid: pid,
+                includeScreenshot: req.includeScreenshot ?? false,
+                maxDepth: req.maxDepth ?? 4
+            )
+            return ok(state)
+
+        case "/get_window_state":
+            let req: GetWindowStateRequest = try decode(body)
+            guard let window = WindowEnumerator.window(windowId: req.windowId, pid: req.pid) else {
+                return ok(OkResponse(
+                    ok: false,
+                    error: "No window_id \(req.windowId) belongs to pid \(req.pid). Call list_windows for current candidates."
+                ))
+            }
+            let state = AXTree.getWindowState(
+                pid: req.pid,
+                windowId: UInt32(window.windowId),
                 includeScreenshot: req.includeScreenshot ?? false,
                 maxDepth: req.maxDepth ?? 4
             )
@@ -447,6 +473,13 @@ func decode<T: Decodable>(_ data: Data?) throws -> T {
         throw DecodingError.dataCorrupted(
             DecodingError.Context(codingPath: [], debugDescription: "Missing request body")
         )
+    }
+    return try sharedDecoder.decode(T.self, from: data)
+}
+
+func decodeOrDefault<T: Decodable>(_ data: Data?, defaultValue: T) throws -> T {
+    guard let data = data, !data.isEmpty else {
+        return defaultValue
     }
     return try sharedDecoder.decode(T.self, from: data)
 }

@@ -3,6 +3,9 @@ import ApplicationServices
 import CoreGraphics
 import Foundation
 
+@_silgen_name("_AXUIElementGetWindow")
+func _AXUIElementGetWindow(_ element: AXUIElement, _ windowId: UnsafeMutablePointer<CGWindowID>) -> AXError
+
 enum AXTree {
 
     // MARK: - Public API
@@ -27,11 +30,13 @@ enum AXTree {
         let axWindows = getAXArray(app, attribute: kAXWindowsAttribute)
         for (wIdx, axWindow) in axWindows.enumerated() {
             let windowId = "w\(wIdx)"
+            let cgWindowId = cgWindowId(for: axWindow)
             let title = getStringAttribute(axWindow, attribute: kAXTitleAttribute)
             let frame = getFrame(axWindow)
 
             windows.append(WindowInfo(
                 id: windowId,
+                windowId: cgWindowId,
                 title: title,
                 frame: frame ?? Frame(x: 0, y: 0, width: 0, height: 0)
             ))
@@ -62,6 +67,81 @@ enum AXTree {
             screenshotPixelSize: screenshot?.pixelSize,
             screenshotScale: screenshot?.scale,
             windowFrame: screenshot?.windowFrame ?? Self.primaryFrame(from: windows),
+            coordinateSpace: "screen"
+        )
+    }
+
+    static func getWindowState(
+        pid: Int32,
+        windowId: UInt32,
+        includeScreenshot: Bool,
+        maxDepth: Int
+    ) -> AppStateResponse {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+
+        let runningApp = NSRunningApplication(processIdentifier: pid)
+        let appName = runningApp?.localizedName ?? "Unknown"
+        let bundleId = runningApp?.bundleIdentifier
+        let summary = AppSummary(name: appName, bundleId: bundleId, pid: pid)
+
+        let serverWindow = WindowEnumerator.window(windowId: windowId, pid: pid)
+        let axWindows = getAXArray(app, attribute: kAXWindowsAttribute)
+        let targetWindow = axWindows.first { cgWindowId(for: $0) == windowId }
+
+        var windows: [WindowInfo] = []
+        var elements: [ElementInfo] = []
+        var accessibilityTree: [AccessibilityNode] = []
+        var nextIndex = 0
+
+        if let targetWindow {
+            let title = getStringAttribute(targetWindow, attribute: kAXTitleAttribute)
+                ?? serverWindow?.title
+            let frame = getFrame(targetWindow) ?? serverWindow?.bounds
+            windows.append(WindowInfo(
+                id: "\(windowId)",
+                windowId: windowId,
+                title: title,
+                frame: frame ?? Frame(x: 0, y: 0, width: 0, height: 0)
+            ))
+
+            accessibilityTree.append(contentsOf: walkChildren(
+                element: targetWindow,
+                path: "w:\(windowId)",
+                depth: 1,
+                maxDepth: maxDepth,
+                elements: &elements,
+                nextIndex: &nextIndex
+            ))
+        } else if let serverWindow {
+            windows.append(WindowInfo(
+                id: "\(windowId)",
+                windowId: windowId,
+                title: serverWindow.title,
+                frame: serverWindow.bounds
+            ))
+        }
+
+        var screenshot: ScreenshotInfo? = nil
+        if includeScreenshot {
+            screenshot = Screenshot.captureWindow(
+                pid: pid,
+                windowID: CGWindowID(windowId),
+                windowFrame: windows.first?.frame ?? serverWindow?.bounds
+            )
+        }
+
+        return AppStateResponse(
+            app: summary,
+            windows: windows,
+            elements: elements,
+            accessibilityTree: accessibilityTree,
+            screenshotPath: screenshot?.path,
+            screenshot: screenshot,
+            screenshotCaptureId: screenshot?.captureId,
+            screenshotPixelSize: screenshot?.pixelSize,
+            screenshotScale: screenshot?.scale,
+            windowFrame: screenshot?.windowFrame ?? windows.first?.frame,
             coordinateSpace: "screen"
         )
     }
@@ -282,6 +362,16 @@ enum AXTree {
               let array = ref as? [AXUIElement]
         else { return [] }
         return array
+    }
+
+    private static func cgWindowId(for element: AXUIElement) -> UInt32? {
+        var windowId: CGWindowID = 0
+        guard _AXUIElementGetWindow(element, &windowId) == .success,
+              windowId != 0
+        else {
+            return nil
+        }
+        return UInt32(windowId)
     }
 
     private static func getStringAttribute(_ element: AXUIElement, attribute: String) -> String? {

@@ -12,9 +12,9 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 
 1. Call `status` first. If the helper is not healthy or macOS Accessibility / Screen Recording permissions are missing, call `setup` and wait for the user to approve the macOS permission flow.
 2. After permission approval, call `status` again. Do not continue app-control attempts while either permission is false.
-3. Call `list_apps` to identify the target. Prefer the returned `bundle_id` or `pid` for follow-up calls. Use localized display names exactly as returned by `list_apps`; do not guess English app names on a non-English system.
-4. Call `open_app` with a bundle ID when available. If only a display name is available, call `open_app` with that exact name. Then call `get_app_state`.
-5. Before every desktop interaction, call `get_app_state` for the target app. Treat the returned AX tree and returned window screenshot as the source of truth for that app's current UI.
+3. Call `list_apps` to identify the target app. Prefer the returned `bundle_id` or `pid` for follow-up calls. Use localized display names exactly as returned by `list_apps`; do not guess English app names on a non-English system.
+4. Call `list_windows` when the target has or may have multiple windows. Prefer `pid` + `window_id` with `get_window_state` when available; use `get_app_state` only as the app-level compatibility path.
+5. Before every desktop interaction, call `get_window_state` for the target window or `get_app_state` for the target app. Treat the returned AX tree and returned window screenshot as the source of truth for current UI.
 6. If `get_app_state` returns no windows, no screenshot, or an unexpectedly sparse tree, do not immediately conclude the app is inaccessible. Re-activate with `open_app`, retry with the `bundle_id` or `pid` from `list_apps`, and observe again. Increase `max_depth` when deeper controls are needed.
 7. Choose actions in this order: direct AX action/value, AX element click/scroll/drag, keyboard navigation/input, screenshot-coordinate fallback.
 8. Prefer direct AX operations over simulated input. Use `set_value` for writable text fields and `perform_secondary_action` for exposed actions such as `AXPress`, `AXShowMenu`, or other actions listed on the element.
@@ -55,8 +55,10 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 - `setup`: start Computer Use through TermCanvas, request required macOS permissions, and open System Settings when user approval is needed. If permissions remain false after approval, follow the macOS permission repair flow above.
 - `get_instructions`: read this operating protocol from the MCP server.
 - `list_apps`: list running Mac apps with names, bundle IDs, PIDs, and frontmost state.
+- `list_windows`: list addressable top-level windows with `window_id`, owning app, title, bounds, z-order, and on-screen state.
 - `open_app`: launch or activate an app.
 - `get_app_state`: return the app's current key-window AX tree and screenshot.
+- `get_window_state`: return a specific window's AX tree and screenshot by `pid` and `window_id`.
 - `click`: click by AX element index first, or by coordinates as fallback.
 - `set_value`: assign text/value directly to a writable AX element.
 - `perform_secondary_action`: invoke an AX action exposed by an element.

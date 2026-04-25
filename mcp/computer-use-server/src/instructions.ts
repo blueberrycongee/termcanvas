@@ -16,8 +16,8 @@ export const COMPUTER_USE_STATUS_GUIDANCE = {
     "Use status first. If the helper is not healthy or permissions are missing, call setup.",
     "If permissions remain false after the user says they already allowed them, guide the user to remove stale TermCanvas and computer-use-helper entries from both macOS permission panes, then add /Applications/TermCanvas.app and /Applications/TermCanvas.app/Contents/Resources/computer-use-helper again.",
     "For local macOS desktop apps, use TermCanvas Computer Use. Do not use browser automation or Playwright unless the target is a web page in a browser.",
-    "Use list_apps, then prefer the returned bundle_id or pid with open_app and get_app_state. Do not guess English app names on localized systems.",
-    "Before every desktop interaction, call get_app_state for the target app and treat its AX tree plus returned window screenshot as the current source of truth.",
+    "Use list_apps for app identity and list_windows for window identity. Prefer pid + window_id for window-scoped observation when available.",
+    "Before every desktop interaction, call get_window_state for the target pid/window_id when available, otherwise get_app_state, and treat its AX tree plus returned window screenshot as the current source of truth.",
     "If get_app_state is empty or sparse, re-activate/open the app, retry with bundle_id or pid, increase max_depth if needed, and observe again before declaring the app inaccessible.",
     "Prefer AX element indexes from get_app_state for perform_secondary_action, set_value, click, scroll, and drag.",
     "Use keyboard input when AX exposes focusable controls but not direct actions.",
@@ -34,8 +34,8 @@ Use this MCP server for local Mac desktop automation. Follow the AX-first protoc
 1. Call status first. If the helper is not healthy or permissions are missing, call setup to start Computer Use and open the macOS permission flow.
 2. If permissions remain false after the user says they already allowed them, guide the user to remove stale TermCanvas and computer-use-helper entries from both macOS permission panes, then add /Applications/TermCanvas.app and /Applications/TermCanvas.app/Contents/Resources/computer-use-helper again.
 3. Use these tools for local macOS apps. Do not use browser automation or Playwright unless the target is a web page in a browser.
-4. Call list_apps, then prefer the returned bundle_id or pid with open_app and get_app_state.
-5. Call get_app_state before acting. If it is empty or sparse, re-activate and observe again before declaring a limitation.
+4. Call list_apps, then list_windows when you need to choose a concrete window. Prefer pid + window_id for get_window_state when available.
+5. Call get_window_state or get_app_state before acting. If it is empty or sparse, re-activate and observe again before declaring a limitation.
 6. Prefer indexed Accessibility elements and semantic AX actions from get_app_state.
 7. For CEF/Chromium/WebGL/media surfaces that remain sparse after one re-observe, use the returned screenshot plus keyboard shortcuts before screenshot-coordinate clicks.
 8. Use the returned screenshot for observation and use screenshot coordinates only as the last resort. Pass capture_id with screenshot-coordinate actions when available.

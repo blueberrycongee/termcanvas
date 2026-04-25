@@ -39,6 +39,31 @@ struct ListAppsResponse: Codable {
     let apps: [AppInfo]
 }
 
+// MARK: - List Windows
+
+struct ListWindowsRequest: Codable {
+    let pid: Int32?
+    let onScreenOnly: Bool?
+}
+
+struct WindowServerWindowInfo: Codable {
+    let windowId: Int
+    let pid: Int32
+    let appName: String
+    let title: String
+    let bounds: Frame
+    let layer: Int
+    let zIndex: Int
+    let isOnScreen: Bool
+    let onCurrentSpace: Bool?
+    let spaceIds: [UInt64]?
+}
+
+struct ListWindowsResponse: Codable {
+    let windows: [WindowServerWindowInfo]
+    let currentSpaceId: UInt64?
+}
+
 // MARK: - Open App
 
 struct OpenAppRequest: Codable {
@@ -61,6 +86,13 @@ struct GetAppStateRequest: Codable {
     let maxDepth: Int?
 }
 
+struct GetWindowStateRequest: Codable {
+    let pid: Int32
+    let windowId: UInt32
+    let includeScreenshot: Bool?
+    let maxDepth: Int?
+}
+
 struct Frame: Codable {
     let x: Double
     let y: Double
@@ -70,8 +102,16 @@ struct Frame: Codable {
 
 struct WindowInfo: Codable {
     let id: String
+    let windowId: UInt32?
     let title: String?
     let frame: Frame
+
+    init(id: String, windowId: UInt32? = nil, title: String?, frame: Frame) {
+        self.id = id
+        self.windowId = windowId
+        self.title = title
+        self.frame = frame
+    }
 }
 
 struct PixelSize: Codable {

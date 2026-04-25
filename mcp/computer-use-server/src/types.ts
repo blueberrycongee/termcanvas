@@ -21,6 +21,29 @@ export interface AppInfo {
   is_frontmost: boolean;
 }
 
+export interface WindowInfo {
+  window_id: number;
+  pid: number;
+  app_name: string;
+  title: string;
+  bounds: Record<string, unknown>;
+  layer: number;
+  z_index: number;
+  is_on_screen: boolean;
+  on_current_space?: boolean;
+  space_ids?: number[];
+}
+
+export interface ListWindowsParams {
+  pid?: number;
+  on_screen_only?: boolean;
+}
+
+export interface ListWindowsResponse {
+  windows: WindowInfo[];
+  current_space_id?: number | null;
+}
+
 export interface OpenAppParams {
   bundle_id?: string;
   name?: string;
@@ -34,6 +57,13 @@ export interface OpenAppResponse {
 export interface GetAppStateParams {
   pid?: number;
   app_name?: string;
+  include_screenshot?: boolean;
+  max_depth?: number;
+}
+
+export interface GetWindowStateParams {
+  pid: number;
+  window_id: number;
   include_screenshot?: boolean;
   max_depth?: number;
 }
