@@ -21,6 +21,12 @@ import {
   readComputerUseConfig,
   updateComputerUseConfig,
 } from "./config.js";
+import {
+  getRecordingState,
+  loadRecordedActions,
+  recordToolCall,
+  setRecording,
+} from "./recording.js";
 
 function textResult(data: unknown): CallToolResult {
   return {
@@ -48,7 +54,22 @@ export async function handleToolCall(
   termCanvasClient: TermCanvasClient = new TermCanvasClient(),
 ): Promise<CallToolResult> {
   try {
-    switch (name) {
+    const result = await dispatchToolCall(name, args, client, termCanvasClient);
+    recordToolCall(name, args, result);
+    return result;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return errorResult(message);
+  }
+}
+
+async function dispatchToolCall(
+  name: string,
+  args: Record<string, unknown>,
+  client: HelperClient,
+  termCanvasClient: TermCanvasClient,
+): Promise<CallToolResult> {
+  switch (name) {
       case "status":
       case "computer_use_status":
         return await handleStatus(client);
@@ -64,6 +85,15 @@ export async function handleToolCall(
       case "set_config":
       case "computer_use_set_config":
         return textResult(updateComputerUseConfig(args));
+      case "set_recording":
+      case "computer_use_set_recording":
+        return textResult(setRecording(args));
+      case "get_recording_state":
+      case "computer_use_get_recording_state":
+        return textResult(getRecordingState());
+      case "replay_trajectory":
+      case "computer_use_replay_trajectory":
+        return await handleReplayTrajectory(args, client, termCanvasClient);
       case "list_apps":
       case "computer_use_list_apps":
         return await handleListApps(client);
@@ -129,10 +159,6 @@ export async function handleToolCall(
         return await handleStop(client);
       default:
         return errorResult(`Unknown tool: ${name}`);
-    }
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    return errorResult(message);
   }
 }
 
@@ -436,6 +462,45 @@ async function handleDrag(
 ): Promise<CallToolResult> {
   const result = (await client.post("drag", args)) as OkResponse;
   return textResult(result);
+}
+
+async function handleReplayTrajectory(
+  args: Record<string, unknown>,
+  client: HelperClient,
+  termCanvasClient: TermCanvasClient,
+): Promise<CallToolResult> {
+  if (typeof args.input_dir !== "string" || args.input_dir.trim() === "") {
+    return errorResult("replay_trajectory requires input_dir.");
+  }
+  const stopOnError = args.stop_on_error !== false;
+  const actions = loadRecordedActions(args.input_dir);
+  const reports: Array<Record<string, unknown>> = [];
+
+  for (const action of actions) {
+    const result = await handleToolCall(
+      action.tool,
+      action.arguments,
+      client,
+      termCanvasClient,
+    );
+    const firstText = result.content.find((item) => item.type === "text");
+    reports.push({
+      turn: action.turn,
+      tool: action.tool,
+      is_error: result.isError === true,
+      text: firstText?.type === "text" ? firstText.text : null,
+    });
+    if (result.isError === true && stopOnError) {
+      break;
+    }
+  }
+
+  return textResult({
+    attempted: reports.length,
+    total: actions.length,
+    stopped_on_error: reports.some((report) => report.is_error === true) && stopOnError,
+    results: reports,
+  });
 }
 
 async function handleStop(client: HelperClient): Promise<CallToolResult> {

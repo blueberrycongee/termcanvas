@@ -67,6 +67,59 @@ export const tools: Tool[] = [
     },
   },
   {
+    name: "set_recording",
+    description:
+      "Enable or disable trajectory recording for Computer Use action tools. When enabled, action calls are written as turn-000001/action.json files under output_dir. This records tool trajectories, not video.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        enabled: {
+          type: "boolean",
+          description: "True to start recording; false to stop.",
+        },
+        output_dir: {
+          type: "string",
+          description: "Directory for session.json and turn-*/action.json files. Required when enabled=true.",
+        },
+        video_experimental: {
+          type: "boolean",
+          description: "Reserved for future video recording. Currently rejected when true.",
+        },
+      },
+      required: ["enabled"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_recording_state",
+    description:
+      "Return whether Computer Use trajectory recording is enabled, its output_dir, and the next turn number.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
+  {
+    name: "replay_trajectory",
+    description:
+      "Replay a trajectory directory previously written by set_recording. The replay executes each recorded action tool in turn; set stop_on_error=false to continue after failures.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        input_dir: {
+          type: "string",
+          description: "Recording directory containing turn-*/action.json files.",
+        },
+        stop_on_error: {
+          type: "boolean",
+          description: "Stop on first tool error. Defaults to true.",
+        },
+      },
+      required: ["input_dir"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "list_apps",
     description:
       "List running macOS applications with localized name, bundle ID, PID, and frontmost status. Call status first and call setup if the helper is unavailable or permissions are missing. Prefer returned bundle IDs or PIDs for later calls instead of guessing app names.",

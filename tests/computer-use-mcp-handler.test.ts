@@ -320,6 +320,60 @@ test("computer use MCP forwards debug crosshair requests with configured image c
   });
 });
 
+test("computer use MCP records and replays action trajectories", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-cu-rec-"));
+  try {
+    const client = new FakeHelperClient();
+    const started = await handleToolCall(
+      "set_recording",
+      { enabled: true, output_dir: dir },
+      asHelper(client),
+    );
+    assert.equal(JSON.parse(started.content[0].text as string).enabled, true);
+
+    await handleToolCall("click", { pid: 42, x: 10, y: 20 }, asHelper(client));
+
+    const state = await handleToolCall("get_recording_state", {}, asHelper(client));
+    assert.equal(JSON.parse(state.content[0].text as string).next_turn, 2);
+
+    const actionFile = path.join(dir, "turn-000001", "action.json");
+    const action = JSON.parse(fs.readFileSync(actionFile, "utf-8"));
+    assert.equal(action.schema_version, "termcanvas/computer-use-action/v1");
+    assert.equal(action.tool, "click");
+    assert.deepEqual(action.arguments, { pid: 42, x: 10, y: 20 });
+
+    await handleToolCall("set_recording", { enabled: false }, asHelper(client));
+    client.posts = [];
+
+    const replay = await handleToolCall(
+      "replay_trajectory",
+      { input_dir: dir },
+      asHelper(client),
+    );
+    const replayPayload = JSON.parse(replay.content[0].text as string);
+
+    assert.equal(replayPayload.attempted, 1);
+    assert.deepEqual(client.posts, [
+      { endpoint: "click", body: { pid: 42, x: 10, y: 20 } },
+    ]);
+  } finally {
+    await handleToolCall("set_recording", { enabled: false }, asHelper(new FakeHelperClient()));
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("computer use MCP rejects unsupported video recording flag", async () => {
+  const client = new FakeHelperClient();
+  const result = await handleToolCall(
+    "set_recording",
+    { enabled: true, output_dir: "/tmp/termcanvas-cu-video", video_experimental: true },
+    asHelper(client),
+  );
+
+  assert.equal(result.isError, true);
+  assert.match(result.content[0].text as string, /video_experimental recording is not supported/);
+});
+
 test("computer use MCP get_window_state requires explicit window target", async () => {
   await withTempComputerUseConfig(async () => {
     const client = new FakeHelperClient();
@@ -491,6 +545,9 @@ test("computer use MCP tool descriptions teach the AX-first protocol", () => {
   assert.match(descriptions.setup, /open the macOS permission panes/);
   assert.match(descriptions.get_config, /capture_mode/);
   assert.match(descriptions.set_config, /vision skips AX/);
+  assert.match(descriptions.set_recording, /trajectory recording/);
+  assert.match(descriptions.get_recording_state, /recording is enabled/);
+  assert.match(descriptions.replay_trajectory, /Replay a trajectory/);
   assert.match(descriptions.get_app_state, /Observe before acting/);
   assert.match(descriptions.get_app_state, /capture_mode/);
   assert.match(descriptions.list_windows, /window_id/);

@@ -58,6 +58,9 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 - `get_instructions`: read this operating protocol from the MCP server.
 - `get_config`: read persistent capture behavior such as `capture_mode` and `max_image_dimension`.
 - `set_config`: persist capture behavior. Use `capture_mode="vision"` for screenshot-only CEF/canvas workflows and `"ax"` for AX-only workflows.
+- `set_recording`: start or stop JSON trajectory recording of action tools to `turn-*/action.json` files.
+- `get_recording_state`: inspect whether trajectory recording is enabled and where it is writing.
+- `replay_trajectory`: replay a directory previously written by `set_recording`. This replays tool actions, not video.
 - `list_apps`: list running Mac apps with names, bundle IDs, PIDs, and frontmost state.
 - `list_windows`: list addressable top-level windows with `window_id`, owning app, title, bounds, z-order, and on-screen state.
 - `get_screen_size`: return main display pixel size and scale.
