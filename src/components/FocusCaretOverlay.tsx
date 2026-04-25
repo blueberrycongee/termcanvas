@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
@@ -26,21 +26,6 @@ export function FocusCaretOverlay() {
   const viewport = useCanvasStore((s) => s.viewport);
   const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
-  const [, setTick] = useState(0);
-  const rafRef = useRef<number | null>(null);
-
-  // Re-render on every frame while viewport is animating so the caret
-  // stays pinned to the moving terminal.
-  useEffect(() => {
-    const loop = () => {
-      setTick((v) => v + 1);
-      rafRef.current = requestAnimationFrame(loop);
-    };
-    rafRef.current = requestAnimationFrame(loop);
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, []);
 
   const pos = useMemo(() => findFocusedTerminal(projects), [projects]);
 

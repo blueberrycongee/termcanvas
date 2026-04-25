@@ -1,6 +1,45 @@
 import type { RenderDiagnosticEventInput } from "../../shared/render-diagnostics";
 import { useCanvasStore } from "../stores/canvasStore";
 
+const DIAGNOSTICS_STORAGE_KEY = "termcanvas-render-diagnostics";
+
+let renderDiagnosticsEnabled: boolean | null = null;
+
+function isTruthyFlag(value: unknown): boolean {
+  return value === true || value === "1" || value === "true";
+}
+
+function isRenderDiagnosticsEnabled(): boolean {
+  if (renderDiagnosticsEnabled !== null) {
+    return renderDiagnosticsEnabled;
+  }
+
+  // Renderer diagnostics are opt-in because focus/navigation hot paths can
+  // emit several events per shortcut and route each event through IPC.
+  const env = (
+    import.meta as unknown as {
+      env?: {
+        VITE_TERMCANVAS_RENDER_DIAGNOSTICS?: string | boolean;
+      };
+    }
+  ).env;
+
+  if (isTruthyFlag(env?.VITE_TERMCANVAS_RENDER_DIAGNOSTICS)) {
+    renderDiagnosticsEnabled = true;
+    return true;
+  }
+
+  try {
+    renderDiagnosticsEnabled = isTruthyFlag(
+      window.localStorage?.getItem(DIAGNOSTICS_STORAGE_KEY),
+    );
+  } catch {
+    renderDiagnosticsEnabled = false;
+  }
+
+  return renderDiagnosticsEnabled;
+}
+
 function getBaseDiagnosticData(): Record<string, unknown> {
   const canvasState = useCanvasStore.getState();
   const viewport = canvasState.viewport;
@@ -31,7 +70,7 @@ function getBaseDiagnosticData(): Record<string, unknown> {
 export function recordRenderDiagnostic(
   input: RenderDiagnosticEventInput,
 ): void {
-  if (typeof window === "undefined") {
+  if (typeof window === "undefined" || !isRenderDiagnosticsEnabled()) {
     return;
   }
 

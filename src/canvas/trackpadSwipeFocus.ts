@@ -131,7 +131,6 @@ export function useTrackpadSwipeFocus(
 
       const triggered = detector.handleWheel(event);
       if (triggered) {
-        console.log("[trackpadSwipe] triggered, calling toggleClearFocus");
         event.preventDefault();
         event.stopPropagation();
         toggleClearFocus();

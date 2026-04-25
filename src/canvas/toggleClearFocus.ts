@@ -74,17 +74,13 @@ export function toggleClearFocus(): void {
   const focusedIdx = getFocusedTerminalIndex(list);
   const store = useViewportFocusStore.getState();
 
-  console.log("[toggleClearFocus] focusedIdx:", focusedIdx, "zoomedOut:", store.zoomedOutTerminalId, "lastFocused:", store.lastFocusedTerminalId);
-
   if (focusedIdx !== -1) {
     const focused = list[focusedIdx];
     store.setLastFocusedTerminalId(focused.terminalId);
     if (store.zoomedOutTerminalId === focused.terminalId) {
-      console.log("[toggleClearFocus] zoomed out → zoom to terminal", focused.terminalId);
       panToTerminal(focused.terminalId);
       store.setZoomedOutTerminalId(null);
     } else {
-      console.log("[toggleClearFocus] zoomed in → zoom to fit all");
       zoomToFitAll();
       store.setZoomedOutTerminalId(focused.terminalId);
     }
@@ -93,7 +89,6 @@ export function toggleClearFocus(): void {
       (item) => item.terminalId === store.lastFocusedTerminalId,
     );
     if (restored) {
-      console.log("[toggleClearFocus] no focus, restore last:", restored.terminalId);
       activateTerminalInScene(
         restored.projectId,
         restored.worktreeId,
@@ -102,14 +97,12 @@ export function toggleClearFocus(): void {
       panToTerminal(restored.terminalId);
       store.setZoomedOutTerminalId(null);
     } else {
-      console.log("[toggleClearFocus] no focus, last terminal gone");
       store.setLastFocusedTerminalId(null);
       store.setZoomedOutTerminalId(null);
     }
   } else if (list.length > 0) {
     const first = list[0];
     store.setLastFocusedTerminalId(first.terminalId);
-    console.log("[toggleClearFocus] no focus/history, focus first:", first.terminalId);
     activateTerminalInScene(
       first.projectId,
       first.worktreeId,
@@ -117,7 +110,5 @@ export function toggleClearFocus(): void {
     );
     panToTerminal(first.terminalId);
     store.setZoomedOutTerminalId(null);
-  } else {
-    console.log("[toggleClearFocus] no terminals");
   }
 }
