@@ -316,7 +316,8 @@ function TopicHeader({
 }) {
   return (
     <div className="shrink-0 border-b border-[var(--border)] px-3 py-3">
-      <div className="flex items-start gap-2">
+      <div className="mx-auto max-w-[720px]">
+        <div className="flex items-start gap-2">
         <button
           className="mt-0.5 shrink-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
           onClick={onBack}
@@ -426,6 +427,7 @@ function TopicHeader({
           </svg>
           <span>{resumeLabel}</span>
         </button>
+        </div>
       </div>
     </div>
   );
@@ -1200,8 +1202,9 @@ export function SessionReplayView() {
 
       <div
         ref={scrollRef}
-        className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-6"
+        className="flex-1 min-h-0 overflow-y-auto px-3"
       >
+        <div className="mx-auto max-w-[720px] py-4 space-y-6">
         {turns.map((turn, turnIdx) => {
           const nodes = buildAssistantNodes(turn.assistantEvents);
 
@@ -1352,6 +1355,7 @@ export function SessionReplayView() {
             </div>
           );
         })}
+        </div>
       </div>
 
       {/* ------------ Layer-3: compact footer --------------------- */}
