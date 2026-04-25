@@ -1015,7 +1015,7 @@ const URL_REGEX =
 function registerModifierAwareLinkProvider(
   xterm: XtermTerminal,
   host: HTMLElement,
-) {
+): () => void {
   let modifierHeld = false;
   const activeLinks = new Set<ILink>();
 
@@ -1030,21 +1030,23 @@ function registerModifierAwareLinkProvider(
   };
 
   const onKeyChange = (e: KeyboardEvent) => {
-    const held = e.type === "keydown" && (e.metaKey || e.ctrlKey);
+    const held = e.metaKey || e.ctrlKey;
     if (held !== modifierHeld) {
       modifierHeld = held;
       updateDecorations();
     }
   };
 
-  host.addEventListener("keydown", onKeyChange, true);
-  host.addEventListener("keyup", onKeyChange, true);
-  window.addEventListener("blur", () => {
+  const onWindowBlur = () => {
     if (modifierHeld) {
       modifierHeld = false;
       updateDecorations();
     }
-  });
+  };
+
+  host.addEventListener("keydown", onKeyChange, true);
+  host.addEventListener("keyup", onKeyChange, true);
+  window.addEventListener("blur", onWindowBlur);
 
   const provider: ILinkProvider = {
     provideLinks(bufferLineNumber, callback) {
@@ -1086,7 +1088,16 @@ function registerModifierAwareLinkProvider(
     },
   };
 
-  xterm.registerLinkProvider(provider);
+  const linkDisposable = xterm.registerLinkProvider(provider);
+
+  return () => {
+    linkDisposable.dispose();
+    host.removeEventListener("keydown", onKeyChange, true);
+    host.removeEventListener("keyup", onKeyChange, true);
+    window.removeEventListener("blur", onWindowBlur);
+    host.classList.remove("modifier-held");
+    activeLinks.clear();
+  };
 }
 
 function createTerminalRenderer(
@@ -1123,7 +1134,7 @@ function createTerminalRenderer(
     xterm.loadAddon(new ImageAddon());
   } catch {}
 
-  registerModifierAwareLinkProvider(xterm, host);
+  runtime.globalDisposers.push(registerModifierAwareLinkProvider(xterm, host));
 
   xterm.attachCustomKeyEventHandler((event) => {
     if (event.type === "keydown" && isRegisteredAppShortcutEvent(event)) {
