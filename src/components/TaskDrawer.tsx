@@ -6,9 +6,12 @@ import {
   PANEL_TRANSITION_DURATION_MS,
   PANEL_TRANSITION_EASING_CSS,
 } from "../utils/panelAnimation";
+import { ConfirmDialog } from "./ui/ConfirmDialog";
 
 const DRAWER_WIDTH = 320;
 const TOOLBAR_HEIGHT = 44;
+
+export { DRAWER_WIDTH };
 
 function StatusDot({ status }: { status: Task["status"] }) {
   if (status === "done") {
@@ -42,11 +45,10 @@ function TaskCard({
   task: Task;
   onUpdated: (updated: Task) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState(task.title);
-  const [editBody, setEditBody] = useState(task.body);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const openDetail = useTaskStore((s) => s.openDetail);
+  const removeTask = useTaskStore((s) => s.removeTask);
 
   const firstLine = task.body.split("\n")[0] ?? "";
 
@@ -57,20 +59,6 @@ function TaskCard({
     try {
       const updated = await window.termcanvas.tasks.update(task.repo, task.id, {
         status: "done",
-      });
-      onUpdated(updated);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleDrop = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (busy) return;
-    setBusy(true);
-    try {
-      const updated = await window.termcanvas.tasks.update(task.repo, task.id, {
-        status: "dropped",
       });
       onUpdated(updated);
     } finally {
@@ -92,16 +80,13 @@ function TaskCard({
     }
   };
 
-  const handleSaveEdit = async () => {
+  const handleDelete = async () => {
     if (busy) return;
     setBusy(true);
     try {
-      const updated = await window.termcanvas.tasks.update(task.repo, task.id, {
-        title: editTitle,
-        body: editBody,
-      });
-      onUpdated(updated);
-      setEditing(false);
+      await window.termcanvas.tasks.remove(task.repo, task.id);
+      removeTask(task.repo, task.id);
+      setShowDeleteConfirm(false);
     } finally {
       setBusy(false);
     }
@@ -113,146 +98,90 @@ function TaskCard({
       : "text-[var(--text-primary)]";
 
   return (
-    <div
-      className="rounded-md bg-[var(--surface)] hover:bg-[var(--sidebar-hover)] border border-transparent hover:border-[var(--border)] transition-colors cursor-pointer"
-      onClick={() => {
-        if (!editing) setExpanded((v) => !v);
-      }}
-    >
-      <div className="flex items-start gap-2 px-2.5 py-2">
-        <div className="mt-1">
-          <StatusDot status={task.status} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div
-            className={`text-[11px] font-medium truncate leading-tight ${titleClass}`}
-          >
-            {task.title}
+    <>
+      <div
+        className="group relative rounded-md bg-[var(--surface)] hover:bg-[var(--sidebar-hover)] border border-transparent hover:border-[var(--border)] transition-colors cursor-pointer"
+        onClick={() => openDetail(task.id)}
+      >
+        <div className="flex items-start gap-2 px-2.5 py-2 pr-16">
+          <div className="mt-1">
+            <StatusDot status={task.status} />
           </div>
-          {!expanded && firstLine && (
-            <div className="text-[10px] text-[var(--text-faint)] truncate mt-0.5">
-              {firstLine}
+          <div className="flex-1 min-w-0">
+            <div
+              className={`text-[11px] font-medium truncate leading-tight ${titleClass}`}
+            >
+              {task.title}
             </div>
+            {firstLine && (
+              <div className="text-[10px] text-[var(--text-faint)] truncate mt-0.5">
+                {firstLine}
+              </div>
+            )}
+            {task.links.length > 0 && (
+              <div className="mt-1">
+                <span className="text-[9px] px-1 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-muted)] border border-[var(--border)]">
+                  {task.links.length} link{task.links.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Hover-revealed quick actions */}
+        <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          {task.status === "open" ? (
+            <button
+              className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-faint)] hover:text-green-500 hover:bg-green-500/10 transition-colors text-[11px]"
+              title="Mark done"
+              disabled={busy}
+              onClick={handleMarkDone}
+            >
+              ✓
+            </button>
+          ) : (
+            <button
+              className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-faint)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors text-[11px]"
+              title="Reopen"
+              disabled={busy}
+              onClick={handleReopen}
+            >
+              ↩
+            </button>
           )}
-          {!expanded && task.links.length > 0 && (
-            <div className="mt-1">
-              <span className="text-[9px] px-1 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-muted)] border border-[var(--border)]">
-                {task.links.length} link{task.links.length !== 1 ? "s" : ""}
-              </span>
-            </div>
-          )}
+          <button
+            className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-faint)] hover:text-[var(--red,#ef4444)] hover:bg-[var(--red-soft,rgba(239,68,68,0.1))] transition-colors"
+            title="Delete"
+            disabled={busy}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowDeleteConfirm(true);
+            }}
+          >
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+              <path
+                d="M2 3h8M5 3V2h2v1M4 3v6.5a.5.5 0 00.5.5h3a.5.5 0 00.5-.5V3"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
         </div>
       </div>
 
-      {expanded && (
-        <div
-          className="px-2.5 pb-2 border-t border-[var(--border)]"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {editing ? (
-            <div className="mt-2 flex flex-col gap-1.5">
-              <input
-                className="w-full text-[11px] px-2 py-1 rounded bg-[var(--background)] border border-[var(--accent)] text-[var(--text-primary)] outline-none"
-                style={{ fontFamily: '"Geist Mono", monospace' }}
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                disabled={busy}
-              />
-              <textarea
-                className="w-full text-[10px] px-2 py-1 rounded bg-[var(--background)] border border-[var(--border)] text-[var(--text-primary)] outline-none resize-none focus:border-[var(--accent)]"
-                style={{ fontFamily: '"Geist Mono", monospace' }}
-                rows={4}
-                value={editBody}
-                onChange={(e) => setEditBody(e.target.value)}
-                disabled={busy}
-              />
-              <div className="flex gap-1.5">
-                <button
-                  className="text-[10px] px-2 py-0.5 rounded bg-[var(--accent)] text-white disabled:opacity-50"
-                  disabled={busy || !editTitle.trim()}
-                  onClick={handleSaveEdit}
-                >
-                  Save
-                </button>
-                <button
-                  className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-muted)]"
-                  onClick={() => {
-                    setEditing(false);
-                    setEditTitle(task.title);
-                    setEditBody(task.body);
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (
-            <>
-              {task.body && (
-                <p className="mt-2 text-[10px] text-[var(--text-secondary)] whitespace-pre-wrap break-words leading-relaxed">
-                  {task.body}
-                </p>
-              )}
-              {task.links.length > 0 && (
-                <div className="mt-2 flex flex-col gap-1">
-                  {task.links.map((link, i) => (
-                    <a
-                      key={i}
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-[10px] text-[var(--accent)] underline truncate"
-                    >
-                      {link.type}: {link.id ?? link.url}
-                    </a>
-                  ))}
-                </div>
-              )}
-              <div className="mt-2 flex gap-1.5">
-                {task.status === "open" && (
-                  <>
-                    <button
-                      className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:bg-green-500/20 hover:text-green-600 transition-colors disabled:opacity-50"
-                      disabled={busy}
-                      onClick={handleMarkDone}
-                    >
-                      Mark done
-                    </button>
-                    <button
-                      className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors disabled:opacity-50"
-                      disabled={busy}
-                      onClick={handleDrop}
-                    >
-                      Drop
-                    </button>
-                  </>
-                )}
-                {(task.status === "done" || task.status === "dropped") && (
-                  <button
-                    className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors disabled:opacity-50"
-                    disabled={busy}
-                    onClick={handleReopen}
-                  >
-                    Reopen
-                  </button>
-                )}
-                <button
-                  className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
-                  onClick={() => {
-                    setEditTitle(task.title);
-                    setEditBody(task.body);
-                    setEditing(true);
-                  }}
-                >
-                  Edit
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-    </div>
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete task"
+        body="This will permanently delete the task. Continue?"
+        confirmLabel="Delete"
+        confirmTone="danger"
+        busy={busy}
+        onCancel={() => setShowDeleteConfirm(false)}
+        onConfirm={() => void handleDelete()}
+      />
+    </>
   );
 }
 

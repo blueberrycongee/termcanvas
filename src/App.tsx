@@ -6,6 +6,7 @@ import { NotificationToast } from "./components/NotificationToast";
 import { LeftPanel } from "./components/LeftPanel";
 import { RightPanel } from "./components/RightPanel";
 import { FileEditorDrawer } from "./components/FileEditorDrawer";
+import { TaskDetailDrawer } from "./components/TaskDetailDrawer";
 import { initUpdaterListeners, useUpdaterStore } from "./stores/updaterStore";
 import { ComposerBar } from "./components/ComposerBar";
 import { usePreferencesStore, hydrateApiKey } from "./stores/preferencesStore";
@@ -599,6 +600,7 @@ export function App() {
       <UsageOverlay />
       <SessionsOverlay />
       <FileEditorDrawer />
+      <TaskDetailDrawer />
       {showCloseDialog && (
         <CloseDialog
           onSave={handleSave}

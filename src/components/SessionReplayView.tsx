@@ -1,5 +1,4 @@
 import { useEffect, useRef, useCallback, useMemo, useState } from "react";
-import { marked } from "marked";
 import { useSessionStore } from "../stores/sessionStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useT } from "../i18n/useT";
@@ -11,42 +10,8 @@ import { createTerminal } from "../stores/projectStore";
 import { panToTerminal } from "../utils/panToTerminal";
 import type { TerminalType } from "../types";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { markdownClassName, renderMarkdown } from "../utils/markdownClass";
 
-// Claude and Codex both emit markdown in their user-facing prose.
-// Rendering it as literal whitespace-preserved text turned headings,
-// code fences, bullet lists and inline code into wall-of-text noise.
-// `marked` is already a dependency (also used by LeftPanel's preview),
-// so we reuse it for the transcript. Synchronous parse keeps the
-// render path simple — no suspense boundaries, no loading flashes.
-//
-// Sizes here intentionally read from the typography scale tokens
-// (--text-base/md/sm/xs) instead of hand-rolled px values, so a future
-// scale tweak ripples through without grep-and-replace.
-//
-// Inline `<code>` was previously amber-on-bg, which clashed with the
-// (also-amber) Assistant role label in code-heavy replies and read as
-// a "highlight" rather than "this is code". Switched to text-primary
-// on a faint --surface tint — quiet, IDE-style. `<pre>` blocks gain a
-// real --surface bg too: the previous --bg matched the page background
-// and made fenced blocks invisible.
-const markdownClassName =
-  "prose prose-sm prose-invert max-w-none text-[length:var(--text-md)] leading-relaxed text-[var(--text-primary)] " +
-  "[&_h1]:text-[15px] [&_h1]:font-semibold [&_h1]:mt-3 [&_h1]:mb-1.5 " +
-  "[&_h2]:text-[length:var(--text-md)] [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 " +
-  "[&_h3]:text-[length:var(--text-base)] [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 " +
-  "[&_p]:my-1.5 [&_ul]:pl-4 [&_ol]:pl-4 [&_li]:my-0.5 " +
-  "[&_a]:text-[var(--accent)] [&_a]:cursor-pointer " +
-  "[&_code]:text-[var(--text-primary)] [&_code]:bg-[var(--surface)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[length:var(--text-xs)] [&_code]:break-words " +
-  "[&_pre]:bg-[var(--surface)] [&_pre]:rounded-md [&_pre]:p-2.5 [&_pre]:text-[length:var(--text-xs)] [&_pre]:overflow-x-auto [&_pre]:min-w-0 " +
-  "[&_p]:break-words [&_li]:break-words [&_h1]:break-words [&_h2]:break-words [&_h3]:break-words [&_a]:break-all " +
-  "[&_table]:block [&_table]:overflow-x-auto [&_table]:max-w-full [&_table]:min-w-0 " +
-  "[&_pre_code]:bg-transparent [&_pre_code]:p-0 " +
-  "[&_blockquote]:border-l-2 [&_blockquote]:border-[var(--border-hover)] [&_blockquote]:pl-3 [&_blockquote]:text-[var(--text-muted)] " +
-  "[&_hr]:border-[var(--border)]";
-
-function renderMarkdown(text: string): string {
-  return marked.parse(text, { async: false, breaks: true }) as string;
-}
 
 /*
  * Replay as a chat transcript.

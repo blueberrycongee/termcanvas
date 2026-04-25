@@ -4,6 +4,7 @@ import type { Task, CreateTaskInput, UpdateTaskInput } from "../types";
 interface TaskStoreState {
   tasksByProject: Record<string, Task[]>;
   openProjectPath: string | null;
+  openDetailTaskId: string | null;
 }
 
 interface TaskStoreActions {
@@ -13,12 +14,15 @@ interface TaskStoreActions {
   openDrawer: (projectPath: string) => void;
   closeDrawer: () => void;
   toggle: (projectPath: string) => void;
+  openDetail: (id: string) => void;
+  closeDetail: () => void;
 }
 
 export const useTaskStore = create<TaskStoreState & TaskStoreActions>(
   (set, get) => ({
     tasksByProject: {},
     openProjectPath: null,
+    openDetailTaskId: null,
 
     setTasks: (projectPath, tasks) =>
       set((state) => ({
@@ -52,6 +56,8 @@ export const useTaskStore = create<TaskStoreState & TaskStoreActions>(
             ...state.tasksByProject,
             [projectPath]: existing.filter((t) => t.id !== id),
           },
+          openDetailTaskId:
+            state.openDetailTaskId === id ? null : state.openDetailTaskId,
         };
       }),
 
@@ -69,7 +75,11 @@ export const useTaskStore = create<TaskStoreState & TaskStoreActions>(
       set({ openProjectPath: projectPath });
     },
 
-    closeDrawer: () => set({ openProjectPath: null }),
+    closeDrawer: () => set({ openProjectPath: null, openDetailTaskId: null }),
+
+    openDetail: (id) => set({ openDetailTaskId: id }),
+
+    closeDetail: () => set({ openDetailTaskId: null }),
 
     toggle: (projectPath) => {
       const { openProjectPath, openDrawer } = get();
