@@ -26,22 +26,12 @@ import {
   destroyStashedTerminalInScene,
 } from "../actions/terminalSceneActions";
 import { IconButton } from "./ui/IconButton";
+import { ConfirmDialog } from "./ui/ConfirmDialog";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "./ui/collapsible";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "./ui/alert-dialog";
 import { shouldRefreshHistorySection } from "./historySectionModel";
 
 /**
@@ -384,60 +374,44 @@ function StashedCard({
         label={t.stash_restore}
         onClick={() => unstashTerminalInScene(item.terminalId)}
       >
+        {/* pop-out / unbox icon */}
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
           <path
-            d="M8 1L4 5l4 4"
+            d="M6 1h3v3M9 1L5 5M4 1H2a1 1 0 00-1 1v6a1 1 0 001 1h6a1 1 0 001-1V6"
             stroke="currentColor"
-            strokeWidth="1.5"
+            strokeWidth="1.2"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
+        </svg>
+      </IconButton>
+      <IconButton
+        size="sm"
+        tone="danger"
+        label={t.stash_destroy}
+        onClick={() => setConfirmOpen(true)}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
           <path
-            d="M4 5h5"
+            d="M2 2L8 8M8 2L2 8"
             stroke="currentColor"
             strokeWidth="1.5"
             strokeLinecap="round"
           />
         </svg>
       </IconButton>
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogTrigger asChild>
-          <IconButton
-            size="sm"
-            tone="danger"
-            label={t.stash_destroy}
-            onClick={() => setConfirmOpen(true)}
-          >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path
-                d="M2 2L8 8M8 2L2 8"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </IconButton>
-        </AlertDialogTrigger>
-        <AlertDialogContent size="sm">
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t.stash_destroy}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {item.title}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t.stash_close}</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() =>
-                destroyStashedTerminalInScene(item.terminalId)
-              }
-            >
-              {t.stash_destroy}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmOpen}
+        title={t.stash_destroy}
+        body={item.title}
+        confirmLabel={t.stash_destroy}
+        confirmTone="danger"
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => {
+          destroyStashedTerminalInScene(item.terminalId);
+          setConfirmOpen(false);
+        }}
+      />
     </div>
   );
 }
@@ -450,6 +424,14 @@ export function StashedSection({
   t: ReturnType<typeof useT>;
 }) {
   const [expanded, setExpanded] = useState(items.length > 0);
+  const prevCount = useRef(items.length);
+
+  useEffect(() => {
+    if (prevCount.current === 0 && items.length > 0) {
+      setExpanded(true);
+    }
+    prevCount.current = items.length;
+  }, [items.length]);
 
   if (items.length === 0) return null;
 
