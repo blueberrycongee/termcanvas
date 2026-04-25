@@ -224,7 +224,9 @@ export function TerminalTile({
   const isSummarizing = useIsSummarizing(terminal.id);
   const sidebarDragActive = useSidebarDragStore((s) => s.active);
   const viewportScale = useCanvasStore((s) => s.viewport.scale);
-  const zoomedOutTerminalId = useViewportFocusStore((s) => s.zoomedOutTerminalId);
+  const zoomedOutTerminalId = useViewportFocusStore(
+    (s) => s.zoomedOutTerminalId,
+  );
   const fitAllScale = useViewportFocusStore((s) => s.fitAllScale);
   const isOverviewMode =
     fitAllScale !== null &&
@@ -768,11 +770,11 @@ export function TerminalTile({
         height: terminal.minimized ? "auto" : height,
         boxShadow: dragOver
           ? "0 0 0 2px var(--accent), 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent)"
-          : undefined,
-        borderColor:
-          !dragOver && terminal.focused
-            ? "color-mix(in srgb, var(--accent) 55%, var(--border))"
+          : !dragOver && terminal.focused
+            ? "inset 0 2px 0 0 color-mix(in srgb, var(--text-secondary) 25%, transparent)"
             : undefined,
+        borderColor:
+          !dragOver && terminal.focused ? "var(--border-hover)" : undefined,
         outline: "none",
       }}
       onClick={(e) => {
