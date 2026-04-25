@@ -164,6 +164,12 @@ export function acquireWebGL(terminalId: string, xterm: Terminal): boolean {
       notifyWebGLFallbackHint("context_lost");
       addon.dispose();
       entries.delete(terminalId);
+      // After addon disposal xterm creates a fallback DomRenderer, but the
+      // new renderer's canvas is empty. Force a full repaint so the buffer
+      // content is immediately visible instead of showing a blank terminal.
+      try {
+        xterm.refresh(0, xterm.rows - 1);
+      } catch { /* terminal may already be disposed */ }
     });
     xterm.loadAddon(addon);
     entries.set(terminalId, {
