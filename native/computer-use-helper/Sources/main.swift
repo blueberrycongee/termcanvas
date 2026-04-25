@@ -150,6 +150,10 @@ func route(method: String, path: String, body: Data?) -> (Int, Data) {
             let req: ClickRequest = try decode(body)
             return handleClick(req)
 
+        case "/move_cursor":
+            let req: MoveCursorRequest = try decode(body)
+            return handleMoveCursor(req)
+
         case "/type_text":
             let req: TypeTextRequest = try decode(body)
             InputSimulator.stopRequested = false
@@ -375,6 +379,33 @@ func handleClick(_ req: ClickRequest) -> (Int, Data) {
     }
 
     return ok(OkResponse(ok: false, error: "Provide element/element_id with pid/app_name or x+y coordinates"))
+}
+
+func handleMoveCursor(_ req: MoveCursorRequest) -> (Int, Data) {
+    let targetPid = resolvePid(pid: req.pid, appName: req.appName)
+    let point = resolvePoint(
+        x: req.x,
+        y: req.y,
+        captureId: req.captureId,
+        coordinateSpace: req.coordinateSpace,
+        pid: req.pid,
+        appName: req.appName,
+        windowId: req.windowId
+    )
+    if let error = point.error {
+        return ok(OkResponse(ok: false, error: error))
+    }
+    guard let resolvedPoint = point.point else {
+        return ok(OkResponse(ok: false, error: "Provide x+y coordinates"))
+    }
+
+    InputSimulator.moveCursor(
+        x: resolvedPoint.x,
+        y: resolvedPoint.y,
+        pid: targetPid,
+        windowId: req.windowId
+    )
+    return ok(OkResponse())
 }
 
 func handleSetValue(_ req: SetValueRequest) -> (Int, Data) {

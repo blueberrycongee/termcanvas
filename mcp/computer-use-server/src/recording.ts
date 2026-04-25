@@ -41,6 +41,7 @@ const RECORDABLE_TOOLS = new Set([
   "double_click",
   "right_click",
   "middle_click",
+  "move_cursor",
   "type_text",
   "type_text_chars",
   "press_key",

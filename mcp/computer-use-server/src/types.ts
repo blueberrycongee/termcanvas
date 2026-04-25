@@ -143,6 +143,16 @@ export interface ClickParams {
   max_image_dimension?: number;
 }
 
+export interface MoveCursorParams {
+  window_id?: number;
+  pid?: number;
+  app_name?: string;
+  x: number;
+  y: number;
+  capture_id?: string;
+  coordinate_space?: string;
+}
+
 export interface TypeTextParams {
   text: string;
   pid?: number;

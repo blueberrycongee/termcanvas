@@ -31,6 +31,7 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 - Use `click` with an AX element index when the target is visible in the AX tree but has no better semantic action.
 - Use `scroll` or `drag` with AX element indexes when the scrollable or draggable target is represented in AX.
 - Use `press_key` and `type_text` when keyboard navigation is the natural app workflow or AX only exposes focus. Pass `pid` whenever available so keyboard events target the intended app instead of the user's frontmost app.
+- Use `move_cursor` for hover-revealed menus, tooltips, drag pre-positioning, and custom-rendered UI that reacts to mouse movement but should not be clicked yet.
 - Use coordinate clicks, drags, or scrolls only when AX and keyboard paths are unavailable or unsuitable.
 - For coordinate actions against a background app, pass both `pid` and `window_id` when available so the helper can use its pid-targeted no-focus-steal path instead of relying on the frontmost app.
 - Use `modifiers` on coordinate clicks when the app workflow requires cmd-click, shift-click, option-click, ctrl-click, or fn-click. Use `middle_click` for UI that specifically distinguishes the middle mouse button.
@@ -83,6 +84,7 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 - `double_click`: double-click by element or coordinates.
 - `right_click`: right-click by element or coordinates; prefer `perform_secondary_action` with `AXShowMenu` when available.
 - `middle_click`: middle-click by element or coordinates when an app distinguishes middle mouse input.
+- `move_cursor`: move or hover at screen/window/screenshot coordinates without clicking.
 - `scroll`: scroll an AX element or coordinate target.
 - `drag`: drag between element indexes or coordinates.
 - `stop`: stop the Computer Use helper.
@@ -93,6 +95,7 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 - If an AX element exposes a semantic action, prefer `perform_secondary_action` over raw click.
 - If a text field is writable through AX, prefer `set_value` over click-and-type.
 - If the AX tree is sparse, stale, or only exposes window chrome, use the returned screenshot and keyboard shortcuts before falling back to coordinate clicks. For CEF/WebGL/media surfaces such as Spotify, screenshot-coordinate clicks may be the correct fallback once AX and keyboard paths are unavailable.
+- If UI appears only on hover, call `move_cursor` with current screenshot coordinates, re-observe, then act on the revealed AX element or screenshot target.
 - If the app opens a permission dialog, modal sheet, or system confirmation, observe it with `get_app_state` and follow the user's intent; do not bypass user confirmation.
 - If an action fails or the UI does not change after verification, re-observe and choose another path. Do not repeat the same click blindly.
 - Do not use memory from previous observations after a window moved, resized, changed tabs, changed Space, or changed focus. Re-observe and recalculate the target.

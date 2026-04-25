@@ -347,6 +347,33 @@ enum InputSimulator {
         event.post(tap: .cghidEventTap)
     }
 
+    // MARK: - Move Cursor
+
+    static func moveCursor(
+        x: Double,
+        y: Double,
+        pid: Int32? = nil,
+        windowId: UInt32? = nil
+    ) {
+        let point = CGPoint(x: x, y: y)
+        if let pid, shouldUsePidMousePath(pid: pid) {
+            let window = resolveTargetWindow(pid: pid, windowId: windowId)
+            if let window {
+                _ = FocusWithoutRaise.activateWithoutRaise(
+                    targetPid: pid,
+                    targetWindowId: CGWindowID(window.windowId)
+                )
+            }
+            VirtualCursor.shared.move(to: point, animated: false)
+            postPidMouseEvent(.mouseMoved, at: point, pid: pid, window: window)
+            return
+        }
+
+        VirtualCursor.shared.move(to: point, animated: false)
+        CGWarpMouseCursorPosition(point)
+        postMouseEvent(.mouseMoved, at: point, button: .left, clickCount: 0)
+    }
+
     // MARK: - Type Text
 
     static func typeText(_ text: String, pid: Int32? = nil) {

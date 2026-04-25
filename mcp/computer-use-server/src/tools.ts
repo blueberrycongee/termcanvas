@@ -383,6 +383,32 @@ export const tools: Tool[] = [
     },
   },
   {
+    name: "move_cursor",
+    description:
+      `Move or hover the cursor at pixel coordinates without clicking. Use this for hover-revealed menus, tooltips, pre-positioning before drag, and CEF/canvas UI that reacts to mouse movement. With pid/window_id, background targets use the same no-focus-steal pid path as coordinate clicks. ${COORDINATE_GUARDRAIL} ${ACTION_GUARDRAIL}`,
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        pid: { type: "number", description: "Target process ID." },
+        app_name: { type: "string", description: "Target app name or bundle ID." },
+        window_id: { type: "number", description: "CGWindowID for window-scoped coordinates and pid-targeted delivery." },
+        x: { type: "number", description: "X coordinate." },
+        y: { type: "number", description: "Y coordinate." },
+        coordinate_space: {
+          type: "string",
+          enum: ["screen", "window", "screenshot"],
+          description: "Coordinate space for x/y. Defaults to screen.",
+        },
+        capture_id: {
+          type: "string",
+          description:
+            "Capture ID from the current get_app_state screenshot. Use with coordinate_space=screenshot to reject stale screenshot coordinates.",
+        },
+      },
+      required: ["x", "y"],
+    },
+  },
+  {
     name: "right_click",
     description:
       `Right-click an element or coordinates. Prefer perform_secondary_action with AXShowMenu when AX exposes it. Coordinate right-clicks use the same pid/window_id no-focus-steal pixel path when targeting a background app. ${COORDINATE_GUARDRAIL} ${ACTION_GUARDRAIL}`,

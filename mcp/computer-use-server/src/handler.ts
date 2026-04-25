@@ -133,6 +133,9 @@ async function dispatchToolCall(
       case "middle_click":
       case "computer_use_middle_click":
         return await handleClick({ ...args, mouse_button: "middle" }, client);
+      case "move_cursor":
+      case "computer_use_move_cursor":
+        return await handleMoveCursor(args, client);
       case "type_text":
       case "computer_use_type_text":
         return await handleTypeText(args, client);
@@ -425,6 +428,14 @@ async function handleClick(
       ? { max_image_dimension: readComputerUseConfig().max_image_dimension, ...args }
       : args;
   const result = (await client.post("click", request)) as OkResponse;
+  return textResult(result);
+}
+
+async function handleMoveCursor(
+  args: Record<string, unknown>,
+  client: HelperClient,
+): Promise<CallToolResult> {
+  const result = (await client.post("move_cursor", args)) as OkResponse;
   return textResult(result);
 }
 

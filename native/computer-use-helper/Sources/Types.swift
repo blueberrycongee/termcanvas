@@ -251,6 +251,16 @@ struct ClickRequest: Codable {
     let maxImageDimension: Int?
 }
 
+struct MoveCursorRequest: Codable {
+    let pid: Int32?
+    let appName: String?
+    let windowId: UInt32?
+    let x: Double
+    let y: Double
+    let captureId: String?
+    let coordinateSpace: String?
+}
+
 // MARK: - Type Text
 
 struct TypeTextRequest: Codable {
