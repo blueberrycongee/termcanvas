@@ -1,45 +1,23 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { EventEmitter } from "node:events";
+import type {
+  Task,
+  TaskStatus,
+  TaskLink,
+  CreateTaskInput,
+  UpdateTaskInput,
+} from "../shared/task.js";
 
-export type TaskStatus = "open" | "done" | "dropped";
-
-export interface TaskLink {
-  type: string;
-  url: string;
-  id?: string;
-}
-
-export interface Task {
-  id: string;
-  title: string;
-  status: TaskStatus;
-  repo: string;
-  body: string;
-  links: TaskLink[];
-  created: string;
-  updated: string;
-}
-
-export interface CreateTaskInput {
-  title: string;
-  repo: string;
-  body?: string;
-  status?: TaskStatus;
-  links?: TaskLink[];
-}
-
-export interface UpdateTaskInput {
-  title?: string;
-  status?: TaskStatus;
-  body?: string;
-  links?: TaskLink[];
-}
+export type { Task, TaskStatus, TaskLink, CreateTaskInput, UpdateTaskInput };
 
 const VALID_STATUSES: ReadonlySet<TaskStatus> = new Set(["open", "done", "dropped"]);
 
-export class TaskStore {
-  constructor(private readonly root: string) {}
+export class TaskStore extends EventEmitter {
+  constructor(private readonly root: string) {
+    super();
+  }
 
   list(repo: string): Task[] {
     const dir = this.repoDir(repo);
@@ -85,6 +63,7 @@ export class TaskStore {
       updated: now,
     };
     this.writeFile(this.taskPath(repo, id), task);
+    this.emit("task:created", { task, repo: task.repo });
     return task;
   }
 
@@ -108,6 +87,7 @@ export class TaskStore {
       updated: new Date().toISOString(),
     };
     this.writeFile(this.taskPath(repo, id), next);
+    this.emit("task:updated", { task: next, repo: path.resolve(repo) });
     return next;
   }
 
@@ -117,6 +97,7 @@ export class TaskStore {
       throw new TaskStoreError(`Task not found: ${id}`, 404);
     }
     fs.unlinkSync(filePath);
+    this.emit("task:removed", { id, repo: path.resolve(repo) });
   }
 
   private repoDir(repo: string): string {

@@ -994,4 +994,28 @@ contextBridge.exposeInMainWorld("termcanvas", {
       return () => ipcRenderer.removeListener("menu:select-all", listener);
     },
   },
+  tasks: {
+    list: (repo: string) =>
+      ipcRenderer.invoke("task:list", repo) as Promise<import("../shared/task.js").Task[]>,
+    create: (input: import("../shared/task.js").CreateTaskInput) =>
+      ipcRenderer.invoke("task:create", input) as Promise<import("../shared/task.js").Task>,
+    update: (
+      repo: string,
+      id: string,
+      patch: import("../shared/task.js").UpdateTaskInput,
+    ) =>
+      ipcRenderer.invoke("task:update", repo, id, patch) as Promise<import("../shared/task.js").Task>,
+    remove: (repo: string, id: string) =>
+      ipcRenderer.invoke("task:remove", repo, id) as Promise<void>,
+    subscribe: (
+      handler: (event: { type: string; [key: string]: unknown }) => void,
+    ) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        payload: { type: string; [key: string]: unknown },
+      ) => handler(payload);
+      ipcRenderer.on("task:event", listener);
+      return () => ipcRenderer.removeListener("task:event", listener);
+    },
+  },
 });

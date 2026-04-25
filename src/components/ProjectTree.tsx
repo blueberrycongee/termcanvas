@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { useSessionPanelCollapseStore } from "../stores/sessionPanelCollapseStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useNotificationStore } from "../stores/notificationStore";
+import { useTaskStore } from "../stores/taskStore";
 import { ContextMenu } from "./ContextMenu";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { IconButton } from "./ui/IconButton";
@@ -360,6 +361,23 @@ function WorktreeRow({
   );
 }
 
+function ListTodoIcon() {
+  return (
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 16 16"
+      fill="none"
+      className="shrink-0"
+    >
+      <rect x="1" y="3" width="3" height="3" rx="0.5" fill="currentColor" />
+      <line x1="6" y1="4.5" x2="15" y2="4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <rect x="1" y="9" width="3" height="3" rx="0.5" fill="currentColor" />
+      <line x1="6" y1="10.5" x2="15" y2="10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function ProjectRow({
   project,
   renderTerminal,
@@ -372,6 +390,15 @@ function ProjectRow({
   const collapsed = useSessionPanelCollapseStore((s) =>
     s.isCollapsed(project.projectId),
   );
+  const taskToggle = useTaskStore((s) => s.toggle);
+  const openProjectPath = useTaskStore((s) => s.openProjectPath);
+  const tasksByProject = useTaskStore((s) => s.tasksByProject);
+
+  const isTaskDrawerOpen = openProjectPath === project.projectPath;
+  const openCount = (tasksByProject[project.projectPath] ?? []).filter(
+    (t) => t.status === "open",
+  ).length;
+
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [creating, setCreating] = useState(false);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
@@ -507,6 +534,25 @@ function ProjectRow({
           {project.projectName}
         </span>
         <StatusBadges summary={project.statusSummary} />
+        <div className="relative flex items-center">
+          <IconButton
+            size="sm"
+            tone="neutral"
+            label="Tasks"
+            className={`transition-opacity ${isTaskDrawerOpen ? "opacity-100 text-[var(--accent)]" : "opacity-0 group-hover:opacity-100"}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              taskToggle(project.projectPath);
+            }}
+          >
+            <ListTodoIcon />
+          </IconButton>
+          {openCount > 0 && !isTaskDrawerOpen && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[12px] h-3 flex items-center justify-center rounded-full bg-[var(--accent)] text-white text-[8px] font-medium px-0.5 pointer-events-none">
+              {openCount > 9 ? "9+" : openCount}
+            </span>
+          )}
+        </div>
         <IconButton
           size="sm"
           tone="neutral"

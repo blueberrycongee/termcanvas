@@ -263,6 +263,17 @@ const hookReceiver = new HookReceiver((event) => {
 });
 const computerUseManager = new ComputerUseManager();
 const taskStore = new TaskStore(path.join(TERMCANVAS_DIR, "tasks"));
+
+taskStore.on("task:created", (payload: { task: unknown; repo: string }) => {
+  sendToWindow(mainWindow, "task:event", { type: "task:created", ...payload });
+});
+taskStore.on("task:updated", (payload: { task: unknown; repo: string }) => {
+  sendToWindow(mainWindow, "task:event", { type: "task:updated", ...payload });
+});
+taskStore.on("task:removed", (payload: { id: string; repo: string }) => {
+  sendToWindow(mainWindow, "task:event", { type: "task:removed", ...payload });
+});
+
 const apiServer = new ApiServer({
   getWindow: () => mainWindow,
   ptyManager,
@@ -1959,6 +1970,25 @@ function setupIpc() {
       throw new Error("safeStorage unavailable");
     }
     return safeStorage.decryptString(Buffer.from(base64, "base64"));
+  });
+
+  ipcMain.handle("task:list", (_event, repo: string) => {
+    return taskStore.list(repo);
+  });
+
+  ipcMain.handle("task:create", (_event, input: Parameters<typeof taskStore.create>[0]) => {
+    return taskStore.create(input);
+  });
+
+  ipcMain.handle(
+    "task:update",
+    (_event, repo: string, id: string, patch: Parameters<typeof taskStore.update>[2]) => {
+      return taskStore.update(repo, id, patch);
+    },
+  );
+
+  ipcMain.handle("task:remove", (_event, repo: string, id: string) => {
+    taskStore.remove(repo, id);
   });
 }
 

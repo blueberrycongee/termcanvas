@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { TaskStore, TaskStoreError } from "../electron/task-store.ts";
+import type { Task } from "../shared/task.ts";
 
 function freshStore() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-tasks-"));
@@ -126,4 +127,42 @@ test("title with quotes / colons survives round-trip", () => {
   });
   const fetched = store.get(repo, created.id);
   assert.equal(fetched?.title, 'fix "scroll: y" in long files');
+});
+
+test("create emits task:created event with task and repo", () => {
+  const { store, repo } = freshStore();
+  let fired: { task: Task; repo: string } | null = null;
+  store.on("task:created", (payload: { task: Task; repo: string }) => {
+    fired = payload;
+  });
+  const task = store.create({ title: "test event", repo });
+  assert.ok(fired !== null, "event was not fired");
+  assert.deepEqual(fired!.task, task);
+  assert.equal(fired!.repo, task.repo);
+});
+
+test("update emits task:updated event with updated task and resolved repo", () => {
+  const { store, repo } = freshStore();
+  let fired: { task: Task; repo: string } | null = null;
+  const created = store.create({ title: "original", repo });
+  store.on("task:updated", (payload: { task: Task; repo: string }) => {
+    fired = payload;
+  });
+  const updated = store.update(repo, created.id, { status: "done" });
+  assert.ok(fired !== null, "event was not fired");
+  assert.deepEqual(fired!.task, updated);
+  assert.equal(fired!.repo, path.resolve(repo));
+});
+
+test("remove emits task:removed event with id and resolved repo", () => {
+  const { store, repo } = freshStore();
+  let fired: { id: string; repo: string } | null = null;
+  const created = store.create({ title: "to remove", repo });
+  store.on("task:removed", (payload: { id: string; repo: string }) => {
+    fired = payload;
+  });
+  store.remove(repo, created.id);
+  assert.ok(fired !== null, "event was not fired");
+  assert.equal(fired!.id, created.id);
+  assert.equal(fired!.repo, path.resolve(repo));
 });

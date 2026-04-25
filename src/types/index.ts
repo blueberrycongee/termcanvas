@@ -9,6 +9,20 @@ import type {
   RenderDiagnosticsLogInfo,
 } from "../../shared/render-diagnostics";
 import type { SessionHistoryChangedEvent } from "../../shared/sessions";
+import type {
+  Task,
+  TaskLink,
+  TaskStatus,
+  CreateTaskInput,
+  UpdateTaskInput,
+} from "../../shared/task";
+
+export type { Task, TaskLink, TaskStatus, CreateTaskInput, UpdateTaskInput };
+
+export type TaskEvent =
+  | { type: "task:created"; task: Task; repo: string }
+  | { type: "task:updated"; task: Task; repo: string }
+  | { type: "task:removed"; id: string; repo: string };
 
 export * from "./scene";
 
@@ -1017,6 +1031,13 @@ export interface TermCanvasAPI {
   menu: {
     onOpenFolder: (callback: (dirPath: string) => void) => () => void;
     onSelectAll: (callback: () => void) => () => void;
+  };
+  tasks: {
+    list: (repo: string) => Promise<Task[]>;
+    create: (input: CreateTaskInput) => Promise<Task>;
+    update: (repo: string, id: string, patch: UpdateTaskInput) => Promise<Task>;
+    remove: (repo: string, id: string) => Promise<void>;
+    subscribe: (handler: (event: TaskEvent) => void) => () => void;
   };
   updater: {
     check: () => Promise<unknown>;
