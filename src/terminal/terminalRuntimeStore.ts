@@ -1549,8 +1549,37 @@ async function spawnPty(
   }
 }
 
+let renderRecoveryInstalled = false;
+
+function installRenderRecoveryListeners() {
+  if (
+    renderRecoveryInstalled ||
+    typeof document === "undefined" ||
+    typeof document.addEventListener !== "function"
+  ) {
+    return;
+  }
+  renderRecoveryInstalled = true;
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      // WebGL canvases lose their framebuffer when the page is hidden
+      // (sleep/wake, minimize, GPU restart). xterm's IntersectionObserver
+      // only repaints if _needsFullRefresh was set during the pause, which
+      // requires terminal output while hidden. Idle terminals stay blank.
+      refreshAllTerminalRenderers("visibility_change_to_visible");
+      rebuildTerminalAtlas(undefined, "visibility_change_to_visible");
+    }
+  });
+
+  window.addEventListener("focus", () => {
+    refreshAllTerminalRenderers("window_focus");
+  });
+}
+
 function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
   installRenderDiagnosticsListeners();
+  installRenderRecoveryListeners();
 
   if (runtime.started || runtime.disposed || !window.termcanvas) {
     return;
@@ -2035,6 +2064,32 @@ export function destroyAllTerminalRuntimes() {
       caller: "destroyAllTerminalRuntimes",
       reason: "destroy_all_terminal_runtimes",
     });
+  }
+}
+
+/**
+ * Force every live terminal to repaint its full visible buffer.
+ *
+ * WebGL canvases lose their framebuffer content after the window is hidden
+ * (sleep/wake, minimize, GPU process restart) because `preserveDrawingBuffer`
+ * is not set. xterm's internal IntersectionObserver only triggers a catch-up
+ * repaint when `_needsFullRefresh` was set during the pause—which requires
+ * at least one `refreshRows` call while paused. If the terminal was idle
+ * the entire time, no repaint is queued and the canvas stays blank.
+ *
+ * Call this on `document.visibilitychange → "visible"` and after window
+ * restore/focus to guarantee every terminal repaints.
+ */
+export function refreshAllTerminalRenderers(reason = "unspecified") {
+  recordRenderDiagnostic({
+    kind: "terminal_refresh_all_renderers",
+    data: { reason, runtime_count: runtimeRegistry.size },
+  });
+  for (const runtime of runtimeRegistry.values()) {
+    if (!runtime.xterm || runtime.disposed) continue;
+    try {
+      runtime.xterm.refresh(0, runtime.xterm.rows - 1);
+    } catch { /* terminal may be mid-disposal */ }
   }
 }
 
