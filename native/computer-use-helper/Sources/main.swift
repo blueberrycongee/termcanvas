@@ -449,6 +449,13 @@ func handleScroll(_ req: ScrollRequest) -> (Int, Data) {
                                      elementId: req.elementId,
                                      element: req.element ?? req.elementIndex,
                                      windowId: req.windowId) {
+        if req.dx == nil && req.dy == nil,
+           let key = scrollKey(direction: req.direction, by: req.by) {
+            _ = AXTree.focus(resolved.element)
+            pressScrollKey(key, amount: req.amount, pid: resolved.pid)
+            return ok(OkResponse())
+        }
+
         guard let center = AXTree.getElementCenter(resolved.element) else {
             return ok(OkResponse(ok: false, error: "Element not found"))
         }
@@ -481,6 +488,13 @@ func handleScroll(_ req: ScrollRequest) -> (Int, Data) {
     }
 
     let targetPid = resolvePid(pid: req.pid, appName: req.appName)
+    if req.dx == nil && req.dy == nil,
+       let targetPid,
+       let key = scrollKey(direction: req.direction, by: req.by) {
+        pressScrollKey(key, amount: req.amount, pid: targetPid)
+        return ok(OkResponse())
+    }
+
     let point = resolvePoint(
         x: req.x,
         y: req.y,
@@ -521,6 +535,28 @@ func handleScroll(_ req: ScrollRequest) -> (Int, Data) {
     }
 
     return ok(OkResponse(ok: false, error: "Provide element_id+pid or x+y+dx+dy"))
+}
+
+func scrollKey(direction: String?, by: String?) -> String? {
+    switch (direction, by ?? "line") {
+    case ("up", "line"): return "up"
+    case ("down", "line"): return "down"
+    case ("left", "line"): return "left"
+    case ("right", "line"): return "right"
+    case ("up", "page"): return "pageup"
+    case ("down", "page"): return "pagedown"
+    case ("left", "page"): return "left"
+    case ("right", "page"): return "right"
+    default: return nil
+    }
+}
+
+func pressScrollKey(_ key: String, amount: Double?, pid: Int32) {
+    let count = max(1, min(Int(amount ?? 3), 50))
+    for _ in 0..<count {
+        InputSimulator.pressKey(key, modifiers: [], pid: pid)
+        usleep(30_000)
+    }
 }
 
 func handleDrag(_ req: DragRequest) -> (Int, Data) {

@@ -316,6 +316,7 @@ struct ScrollRequest: Codable {
     let pid: Int32?
     let appName: String?
     let direction: String?
+    let by: String?
     let amount: Double?
     let captureId: String?
     let coordinateSpace: String?

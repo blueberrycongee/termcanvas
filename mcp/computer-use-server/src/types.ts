@@ -200,6 +200,7 @@ export interface ScrollParams {
   pid?: number;
   app_name?: string;
   direction?: "up" | "down" | "left" | "right";
+  by?: "line" | "page";
   amount?: number;
   capture_id?: string;
   coordinate_space?: string;

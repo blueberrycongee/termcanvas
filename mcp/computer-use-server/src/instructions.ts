@@ -21,7 +21,7 @@ export const COMPUTER_USE_STATUS_GUIDANCE = {
     "Use set_recording/get_recording_state/replay_trajectory for JSON trajectory capture and replay when debugging or reproducing Computer Use behavior.",
     "Before every desktop interaction, call get_window_state for the target pid/window_id when available, otherwise get_app_state, and treat its AX tree plus returned window screenshot as the current source of truth.",
     "If get_app_state is empty or sparse, re-activate/open the app, retry with bundle_id or pid, increase max_depth if needed, and observe again before declaring the app inaccessible.",
-    "Prefer AX element indexes for perform_secondary_action, set_value, click, scroll, and drag. When using get_window_state, pass element_index with the same window_id.",
+    "Prefer AX element indexes for perform_secondary_action, set_value, click, scroll, and drag. When using get_window_state, pass element_index with the same window_id. For pid-targeted scroll, use direction with by=line/page so the helper can send scroll keystrokes instead of fragile wheel events.",
     "Use keyboard input when AX exposes focusable controls but not direct actions. Pass pid to type_text and press_key when available so input targets the intended app instead of the user's frontmost app.",
     "Use move_cursor for hover-revealed UI, tooltip/menu discovery, or drag pre-positioning when AX and keyboard paths are not sufficient.",
     "For CEF/Chromium/WebGL/media surfaces that still expose only sparse window chrome after one re-observe, use the current get_app_state screenshot plus keyboard shortcuts before screenshot-coordinate clicks.",
@@ -41,7 +41,7 @@ Use this MCP server for local Mac desktop automation. Follow the AX-first protoc
 5. Call get_config when capture behavior matters. capture_mode=som returns AX plus screenshot, vision returns screenshot only, and ax returns AX only.
 6. Use set_recording/get_recording_state/replay_trajectory when debugging or reproducing Computer Use behavior. This records JSON tool trajectories, not video.
 7. Call get_window_state or get_app_state before acting. If it is empty or sparse, re-activate and observe again before declaring a limitation.
-8. Prefer indexed Accessibility elements and semantic AX actions from get_app_state.
+8. Prefer indexed Accessibility elements and semantic AX actions from get_app_state. For pid-targeted scroll, use direction with by=line/page so the helper can send scroll keystrokes instead of fragile wheel events.
 9. For CEF/Chromium/WebGL/media surfaces that remain sparse after one re-observe, use the returned screenshot plus keyboard shortcuts before screenshot-coordinate clicks.
 10. Use move_cursor for hover-revealed UI, tooltip/menu discovery, or drag pre-positioning when AX and keyboard paths are not sufficient.
 11. Use the returned screenshot for observation and use screenshot coordinates only as the last resort. Pass capture_id with screenshot-coordinate actions when available.

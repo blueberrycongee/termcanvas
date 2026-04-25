@@ -571,7 +571,7 @@ export const tools: Tool[] = [
   {
     name: "scroll",
     description:
-      `Scroll an AX element or screen coordinate in a direction by a number of pages. Prefer element indexes; coordinate scrolling is a fallback when AX does not expose a scrollable target. ${COORDINATE_GUARDRAIL} ${ACTION_GUARDRAIL}`,
+      `Scroll an AX element, target pid, or screen coordinate. Prefer element indexes. With pid + direction, scroll uses pid-routed PageUp/PageDown/arrow keystrokes because Chromium/CEF often drops pid-routed wheel events; dx/dy keeps the coordinate wheel-event fallback. ${COORDINATE_GUARDRAIL} ${ACTION_GUARDRAIL}`,
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -586,9 +586,15 @@ export const tools: Tool[] = [
           enum: ["up", "down", "left", "right"],
           description: "Scroll direction.",
         },
+        by: {
+          type: "string",
+          enum: ["line", "page"],
+          description:
+            "Keyboard-scroll granularity when pid + direction are used. line maps to arrow keys; page maps to PageUp/PageDown for vertical scrolling. Defaults to line.",
+        },
         amount: {
           type: "number",
-          description: "Scroll amount in pages for element scrolling. Defaults to 1.",
+          description: "Number of scroll key repetitions or wheel delta units. Defaults to 3.",
         },
         x: { type: "number", description: "Coordinate X for coordinate scrolling." },
         y: { type: "number", description: "Coordinate Y for coordinate scrolling." },
