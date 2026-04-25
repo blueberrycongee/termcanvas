@@ -36,8 +36,9 @@ const markdownClassName =
   "[&_h3]:text-[length:var(--text-base)] [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 " +
   "[&_p]:my-1.5 [&_ul]:pl-4 [&_ol]:pl-4 [&_li]:my-0.5 " +
   "[&_a]:text-[var(--accent)] [&_a]:cursor-pointer " +
-  "[&_code]:text-[var(--text-primary)] [&_code]:bg-[var(--surface)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[length:var(--text-xs)] " +
-  "[&_pre]:bg-[var(--surface)] [&_pre]:rounded-md [&_pre]:p-2.5 [&_pre]:text-[length:var(--text-xs)] [&_pre]:overflow-x-auto " +
+  "[&_code]:text-[var(--text-primary)] [&_code]:bg-[var(--surface)] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[length:var(--text-xs)] [&_code]:break-words " +
+  "[&_pre]:bg-[var(--surface)] [&_pre]:rounded-md [&_pre]:p-2.5 [&_pre]:text-[length:var(--text-xs)] [&_pre]:overflow-x-auto [&_pre]:min-w-0 " +
+  "[&_p]:break-words [&_li]:break-words [&_h1]:break-words [&_h2]:break-words [&_h3]:break-words [&_a]:break-all " +
   "[&_pre_code]:bg-transparent [&_pre_code]:p-0 " +
   "[&_blockquote]:border-l-2 [&_blockquote]:border-[var(--border-hover)] [&_blockquote]:pl-3 [&_blockquote]:text-[var(--text-muted)] " +
   "[&_hr]:border-[var(--border)]";
@@ -561,7 +562,7 @@ function UserPrompt({
           </svg>
         </button>
       )}
-      <div className="flex flex-col items-end max-w-[78%]">
+      <div className="flex flex-col items-end max-w-[78%] min-w-0">
         <button
           type="button"
           onClick={onClick}
