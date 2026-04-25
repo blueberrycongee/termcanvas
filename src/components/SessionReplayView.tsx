@@ -505,10 +505,11 @@ function UserPrompt({
   // timestamp then sits next to where the assistant's reply begins,
   // anchoring the bottom of the turn instead of crowding the top.
   //
-  // Fork affordance (Claude only): a small icon hangs in the gutter to
-  // the LEFT of the bubble. Hover-revealed via the row's `group` so
-  // the resting transcript stays clean — only appears when the reader
-  // is actually pointing at a turn they might want to branch from.
+  // Fork affordance: a small icon hangs in the gutter to the LEFT of
+  // the bubble. Hover-revealed via the row's `group` so the resting
+  // transcript stays clean — only appears when the reader is actually
+  // pointing at a turn they might want to branch from. Caller gates
+  // visibility per-provider by passing `onFork`.
   return (
     <div className="group flex justify-end items-start gap-2">
       {onFork && (
@@ -1143,14 +1144,17 @@ export function SessionReplayView() {
   }, [resumeTarget, exitReplay, closeSessionsOverlay, notify, t]);
 
   // Fork affordance state. The user picks a turn (the userPromptIndex
-  // of any user_prompt bubble), confirms, and we mint a new Claude
-  // session JSONL truncated through that turn, then spawn a Claude
-  // terminal that resumes the new session id. Fork is Claude-only:
-  // for codex/kimi the bubble shows no fork button at all.
+  // of any user_prompt bubble), confirms, and we mint a new session
+  // JSONL truncated through that turn, then spawn a terminal of the
+  // matching provider that resumes the new session id. Enabled
+  // providers are listed explicitly: claude and codex today; kimi
+  // and any future provider stay disabled until added here.
   const forkSession = useSessionStore((s) => s.forkSession);
   const [forkTurnIndex, setForkTurnIndex] = useState<number | null>(null);
   const [forkBusy, setForkBusy] = useState(false);
-  const canFork = !!resumeTarget && resumeTarget.provider === "claude";
+  const canFork =
+    !!resumeTarget &&
+    (resumeTarget.provider === "claude" || resumeTarget.provider === "codex");
 
   const requestFork = useCallback((turnIdx: number) => {
     setForkTurnIndex(turnIdx);
@@ -1163,7 +1167,7 @@ export function SessionReplayView() {
 
   const confirmFork = useCallback(async () => {
     if (!resumeTarget || forkTurnIndex === null || !timeline) return;
-    if (resumeTarget.provider !== "claude") return;
+    if (resumeTarget.provider !== "claude" && resumeTarget.provider !== "codex") return;
     setForkBusy(true);
     try {
       const { newSessionId } = await forkSession(
@@ -1193,7 +1197,7 @@ export function SessionReplayView() {
       notify(
         "info",
         (t.session_replay_fork_toast as unknown as string) ??
-          "Forked session in new Claude terminal",
+          "Forked session in new terminal",
       );
       setForkTurnIndex(null);
     } catch (err) {
@@ -1620,7 +1624,7 @@ export function SessionReplayView() {
         }
         body={
           (t.session_replay_fork_body as unknown as string) ??
-          "Start a new Claude session with the conversation history up to this point. The original session won't be modified."
+          "Start a new session with the conversation history up to this point. The original session won't be modified."
         }
         confirmLabel={
           (t.session_replay_fork_confirm as unknown as string) ?? "Fork"

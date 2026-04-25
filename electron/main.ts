@@ -1294,8 +1294,8 @@ function setupIpc() {
   ipcMain.handle(
     "sessions:fork",
     async (_event, sourceFilePath: string, turnIndex: number) => {
-      const { forkClaudeSession } = await import("./session-fork.js");
-      return forkClaudeSession(sourceFilePath, turnIndex);
+      const { forkSession } = await import("./session-fork.js");
+      return forkSession(sourceFilePath, turnIndex);
     },
   );
 
