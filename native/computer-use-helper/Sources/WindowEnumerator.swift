@@ -3,7 +3,8 @@ import Foundation
 
 enum WindowEnumerator {
     static func listWindows(pid: Int32? = nil, onScreenOnly: Bool = false) -> ListWindowsResponse {
-        let windows = allWindows()
+        let currentSpaceId = SpaceInspector.currentSpaceId()
+        let windows = allWindows(currentSpaceId: currentSpaceId)
             .filter { $0.layer == 0 }
             .filter { info in
                 guard let pid else { return true }
@@ -12,10 +13,10 @@ enum WindowEnumerator {
             .filter { info in
                 !onScreenOnly || info.isOnScreen
             }
-        return ListWindowsResponse(windows: windows, currentSpaceId: nil)
+        return ListWindowsResponse(windows: windows, currentSpaceId: currentSpaceId)
     }
 
-    static func allWindows() -> [WindowServerWindowInfo] {
+    static func allWindows(currentSpaceId: UInt64? = SpaceInspector.currentSpaceId()) -> [WindowServerWindowInfo] {
         guard let list = CGWindowListCopyWindowInfo(
             [.optionAll, .excludeDesktopElements],
             kCGNullWindowID
@@ -38,6 +39,11 @@ enum WindowEnumerator {
             let title = window[kCGWindowName as String] as? String ?? ""
             let isOnScreen = (window[kCGWindowIsOnscreen as String] as? Bool) ?? false
 
+            let spaceIds = SpaceInspector.spaceIds(windowId: UInt32(windowId))
+            let onCurrentSpace = currentSpaceId.flatMap { current in
+                spaceIds.map { $0.contains(current) }
+            }
+
             rows.append(WindowServerWindowInfo(
                 windowId: windowId,
                 pid: ownerPid,
@@ -47,8 +53,8 @@ enum WindowEnumerator {
                 layer: layer,
                 zIndex: index,
                 isOnScreen: isOnScreen,
-                onCurrentSpace: nil,
-                spaceIds: nil
+                onCurrentSpace: onCurrentSpace,
+                spaceIds: spaceIds
             ))
         }
         return rows
