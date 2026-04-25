@@ -34,10 +34,14 @@ enum InputSimulator {
             }
         }
 
-        VirtualCursor.shared.moveToInteractionThresholdAndWait(to: point)
+        let flags = modifierFlags(from: modifiers)
+        let moveButton = cgMouseButton(for: button)
+        VirtualCursor.shared.move(to: point, animated: false)
+        postMouseEvent(.mouseMoved, at: point, button: moveButton, clickCount: 0, flags: flags)
+        usleep(30_000)
+
         VirtualCursor.shared.setPressed(true)
         defer { VirtualCursor.shared.setPressed(false) }
-        let flags = modifierFlags(from: modifiers)
 
         switch button {
         case "right":
@@ -336,7 +340,7 @@ enum InputSimulator {
         flags: CGEventFlags = []
     ) {
         guard let event = CGEvent(
-            mouseEventSource: nil, mouseType: type,
+            mouseEventSource: CGEventSource(stateID: .hidSystemState), mouseType: type,
             mouseCursorPosition: point, mouseButton: button
         ) else { return }
         event.flags = flags
@@ -345,6 +349,14 @@ enum InputSimulator {
         }
         event.setIntegerValueField(.mouseEventClickState, value: clickCount)
         event.post(tap: .cghidEventTap)
+    }
+
+    private static func cgMouseButton(for button: String) -> CGMouseButton {
+        switch button {
+        case "right": return .right
+        case "middle": return .center
+        default: return .left
+        }
     }
 
     // MARK: - Move Cursor
@@ -505,19 +517,12 @@ enum InputSimulator {
             }
         }
 
-        VirtualCursor.shared.moveToInteractionThresholdAndWait(to: point)
-
-        // Move cursor to position first
-        if let moveEvent = CGEvent(
-            mouseEventSource: nil, mouseType: .mouseMoved,
-            mouseCursorPosition: point, mouseButton: .left
-        ) {
-            moveEvent.post(tap: .cghidEventTap)
-            usleep(10_000)
-        }
+        VirtualCursor.shared.move(to: point, animated: false)
+        postMouseEvent(.mouseMoved, at: point, button: .left, clickCount: 0)
+        usleep(30_000)
 
         if let scrollEvent = CGEvent(
-            scrollWheelEvent2Source: nil, units: .pixel,
+            scrollWheelEvent2Source: CGEventSource(stateID: .hidSystemState), units: .pixel,
             wheelCount: 2, wheel1: dy, wheel2: dx, wheel3: 0
         ) {
             scrollEvent.post(tap: .cghidEventTap)
@@ -549,7 +554,9 @@ enum InputSimulator {
             return
         }
 
-        VirtualCursor.shared.moveToInteractionThresholdAndWait(to: from)
+        VirtualCursor.shared.move(to: from, animated: false)
+        postMouseEvent(.mouseMoved, at: from, button: .left, clickCount: 0)
+        usleep(30_000)
         VirtualCursor.shared.setPressed(true)
         defer { VirtualCursor.shared.setPressed(false) }
 
@@ -564,7 +571,8 @@ enum InputSimulator {
             let y = from.y + (to.y - from.y) * t
             let point = CGPoint(x: x, y: y)
             if let moveEvent = CGEvent(
-                mouseEventSource: nil, mouseType: .leftMouseDragged,
+                mouseEventSource: CGEventSource(stateID: .hidSystemState),
+                mouseType: .leftMouseDragged,
                 mouseCursorPosition: point, mouseButton: .left
             ) {
                 VirtualCursor.shared.move(to: point, animated: false)
