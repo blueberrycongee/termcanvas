@@ -24,6 +24,7 @@ import {
   type SessionType,
 } from "./session-watcher";
 import { ApiServer } from "./api-server";
+import { TaskStore } from "./task-store";
 import { sendToWindow } from "./window-events";
 import { detectCli } from "./process-detector";
 import { ensureCliLauncher } from "./cli-launchers";
@@ -261,12 +262,14 @@ const hookReceiver = new HookReceiver((event) => {
   }
 });
 const computerUseManager = new ComputerUseManager();
+const taskStore = new TaskStore(path.join(app.getPath("userData"), "tasks"));
 const apiServer = new ApiServer({
   getWindow: () => mainWindow,
   ptyManager,
   projectScanner,
   telemetryService,
   computerUseManager,
+  taskStore,
 });
 
 function createWindow() {

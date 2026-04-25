@@ -971,12 +971,131 @@ async function main() {
           "Usage: termcanvas computer-use <status|enable|setup|disable|stop|list-apps|open-app|get-app-state|click|set-value|perform-secondary-action|type|type-text|press-key|scroll|drag> [args]",
         );
       }
+    } else if (group === "task") {
+      const taskOptionalFlag = (flag: string): string | undefined => {
+        const idx = rest.indexOf(flag);
+        return idx >= 0 && idx + 1 < rest.length ? rest[idx + 1] : undefined;
+      };
+      const taskRequireFlag = (flag: string): string => {
+        const value = taskOptionalFlag(flag);
+        if (!value) {
+          console.error(`${flag} is required`);
+          process.exit(1);
+        }
+        return value;
+      };
+      const resolveRepo = (): string => {
+        const explicit = taskOptionalFlag("--repo");
+        return path.resolve(explicit ?? process.cwd());
+      };
+
+      if (command === "add") {
+        const title = taskRequireFlag("--title");
+        const taskBody = taskOptionalFlag("--body");
+        const status = taskOptionalFlag("--status");
+        const linkUrl = taskOptionalFlag("--link");
+        const linkType = taskOptionalFlag("--link-type") ?? "url";
+        const links = linkUrl ? [{ type: linkType, url: linkUrl }] : undefined;
+        const result = await request("POST", "/task/create", {
+          title,
+          repo: resolveRepo(),
+          body: taskBody,
+          status,
+          links,
+        });
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log(`${result.task.id}  ${result.task.title}`);
+      } else if (command === "list") {
+        const repo = resolveRepo();
+        const statusFilter = taskOptionalFlag("--status");
+        const result = await request(
+          "GET",
+          `/task/list?repo=${encodeURIComponent(repo)}`,
+        );
+        const tasks = statusFilter
+          ? result.tasks.filter((t: any) => t.status === statusFilter)
+          : result.tasks;
+        if (jsonFlag) {
+          console.log(JSON.stringify({ tasks }, null, 2));
+          return;
+        }
+        if (tasks.length === 0) {
+          console.log("No tasks.");
+          return;
+        }
+        for (const t of tasks) {
+          const linkSuffix = t.links?.length ? `  [${t.links.length} link]` : "";
+          console.log(`${t.id}  [${t.status}]  ${t.title}${linkSuffix}`);
+        }
+      } else if (command === "show" && rest[0]) {
+        const id = rest[0];
+        const repo = resolveRepo();
+        const result = await request(
+          "GET",
+          `/task/${encodeURIComponent(id)}?repo=${encodeURIComponent(repo)}`,
+        );
+        if (jsonFlag) {
+          console.log(JSON.stringify(result, null, 2));
+          return;
+        }
+        const t = result.task;
+        console.log(`id:      ${t.id}`);
+        console.log(`title:   ${t.title}`);
+        console.log(`status:  ${t.status}`);
+        console.log(`created: ${t.created}`);
+        console.log(`updated: ${t.updated}`);
+        if (t.links?.length) {
+          console.log(`links:`);
+          for (const l of t.links) {
+            console.log(`  - ${l.type}: ${l.url}`);
+          }
+        }
+        if (t.body) {
+          console.log("");
+          console.log(t.body);
+        }
+      } else if (command === "update" && rest[0]) {
+        const id = rest[0];
+        const repo = resolveRepo();
+        const payload: Record<string, unknown> = { repo };
+        const newTitle = taskOptionalFlag("--title");
+        if (newTitle !== undefined) payload.title = newTitle;
+        const newStatus = taskOptionalFlag("--status");
+        if (newStatus !== undefined) payload.status = newStatus;
+        const newBody = taskOptionalFlag("--body");
+        if (newBody !== undefined) payload.body = newBody;
+        const result = await request(
+          "PUT",
+          `/task/${encodeURIComponent(id)}`,
+          payload,
+        );
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log(`Updated ${result.task.id}`);
+      } else if ((command === "rm" || command === "remove") && rest[0]) {
+        const id = rest[0];
+        const repo = resolveRepo();
+        const result = await request(
+          "DELETE",
+          `/task/${encodeURIComponent(id)}?repo=${encodeURIComponent(repo)}`,
+        );
+        if (jsonFlag) console.log(JSON.stringify(result, null, 2));
+        else console.log(`Removed ${id}`);
+      } else {
+        console.log(
+          "Usage: termcanvas task <add|list|show|update|rm> [args]\n" +
+          "  task add --title <t> [--body <b>] [--status open|done|dropped] [--link <url>] [--link-type <type>] [--repo <path>]\n" +
+          "  task list [--status open|done|dropped] [--repo <path>]\n" +
+          "  task show <id> [--repo <path>]\n" +
+          "  task update <id> [--title <t>] [--status <s>] [--body <b>] [--repo <path>]\n" +
+          "  task rm <id> [--repo <path>]",
+        );
+      }
     } else if (group === "state") {
       const state = await request("GET", "/state");
       console.log(JSON.stringify(state, null, 2));
     } else {
       console.log(
-        "Usage: termcanvas <project|workflow|worktree|terminal|telemetry|computer-use|diff|state> <command> [args]",
+        "Usage: termcanvas <project|workflow|worktree|terminal|telemetry|computer-use|task|diff|state> <command> [args]",
       );
       console.log("");
       console.log("Commands:");
@@ -1073,6 +1192,21 @@ async function main() {
         "  telemetry events --terminal <id>            List terminal telemetry events",
       );
       console.log("  diff <worktree-path> [--summary]            Get git diff");
+      console.log(
+        "  task add --title <t> [--body <b>] [--link <url>]   Record a task",
+      );
+      console.log(
+        "  task list [--status open|done|dropped]              List tasks for cwd repo",
+      );
+      console.log(
+        "  task show <id>                              Show task detail",
+      );
+      console.log(
+        "  task update <id> [--title|--status|--body]  Edit a task",
+      );
+      console.log(
+        "  task rm <id>                                Delete a task",
+      );
       console.log(
         "  state                                       Full canvas state",
       );

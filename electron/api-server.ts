@@ -12,6 +12,7 @@ import {
   buildGitWorktreeAddArgs,
   validateWorktreePath,
 } from "../hydra/src/spawn";
+import { TaskStore, TaskStoreError } from "./task-store";
 
 interface ApiServerDeps {
   getWindow: () => BrowserWindow | null;
@@ -19,6 +20,7 @@ interface ApiServerDeps {
   projectScanner: ProjectScanner;
   telemetryService: TelemetryService;
   computerUseManager?: ComputerUseManager;
+  taskStore: TaskStore;
 }
 
 export class ApiServer {
@@ -180,6 +182,25 @@ export class ApiServer {
     }
     if (method === "POST" && pathname === "/api/computer-use/stop") {
       return this.computerUseStop();
+    }
+
+    if (method === "GET" && pathname === "/task/list") {
+      return this.taskList(url);
+    }
+    if (method === "POST" && pathname === "/task/create") {
+      return this.taskCreate(body);
+    }
+    if (method === "GET" && pathname.match(/^\/task\/[^/]+$/)) {
+      const id = pathname.split("/")[2];
+      return this.taskGet(url, id);
+    }
+    if (method === "PUT" && pathname.match(/^\/task\/[^/]+$/)) {
+      const id = pathname.split("/")[2];
+      return this.taskUpdate(id, body);
+    }
+    if (method === "DELETE" && pathname.match(/^\/task\/[^/]+$/)) {
+      const id = pathname.split("/")[2];
+      return this.taskRemove(url, id);
     }
 
     throw Object.assign(new Error("Not found"), { status: 404 });
@@ -597,4 +618,82 @@ export class ApiServer {
     await mgr.stop();
     return { ok: true };
   }
+
+  private taskList(url: URL) {
+    const repo = requireRepoQuery(url);
+    return { tasks: this.deps.taskStore.list(repo) };
+  }
+
+  private taskCreate(body: any) {
+    try {
+      const task = this.deps.taskStore.create({
+        title: body?.title,
+        repo: body?.repo,
+        body: body?.body,
+        status: body?.status,
+        links: body?.links,
+      });
+      return { task };
+    } catch (err) {
+      throw rethrowTaskStoreError(err);
+    }
+  }
+
+  private taskGet(url: URL, id: string) {
+    const repo = requireRepoQuery(url);
+    try {
+      const task = this.deps.taskStore.get(repo, id);
+      if (!task) {
+        throw Object.assign(new Error(`Task not found: ${id}`), { status: 404 });
+      }
+      return { task };
+    } catch (err) {
+      throw rethrowTaskStoreError(err);
+    }
+  }
+
+  private taskUpdate(id: string, body: any) {
+    const repo = body?.repo;
+    if (!repo) {
+      throw Object.assign(new Error("repo is required"), { status: 400 });
+    }
+    try {
+      const task = this.deps.taskStore.update(repo, id, {
+        title: body?.title,
+        status: body?.status,
+        body: body?.body,
+        links: body?.links,
+      });
+      return { task };
+    } catch (err) {
+      throw rethrowTaskStoreError(err);
+    }
+  }
+
+  private taskRemove(url: URL, id: string) {
+    const repo = requireRepoQuery(url);
+    try {
+      this.deps.taskStore.remove(repo, id);
+      return { ok: true };
+    } catch (err) {
+      throw rethrowTaskStoreError(err);
+    }
+  }
+}
+
+function requireRepoQuery(url: URL): string {
+  const repo = url.searchParams.get("repo");
+  if (!repo) {
+    throw Object.assign(new Error("repo query parameter is required"), {
+      status: 400,
+    });
+  }
+  return repo;
+}
+
+function rethrowTaskStoreError(err: unknown): Error {
+  if (err instanceof TaskStoreError) {
+    return Object.assign(new Error(err.message), { status: err.status });
+  }
+  return err instanceof Error ? err : new Error(String(err));
 }

@@ -8,7 +8,7 @@ import {
   enableHydraForProject,
 } from "../electron/hydra-project.ts";
 
-test("enableHydraForProject writes Hydra instructions into the project root", () => {
+test("enableHydraForProject writes Hydra and Task instructions into the project root", () => {
   const repoPath = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-hydra-enable-"));
 
   const result = enableHydraForProject(repoPath);
@@ -19,8 +19,12 @@ test("enableHydraForProject writes Hydra instructions into the project root", ()
   }
 
   assert.equal(result.changed, true);
-  assert.match(fs.readFileSync(path.join(repoPath, "CLAUDE.md"), "utf-8"), /## Hydra Orchestration Toolkit/);
-  assert.match(fs.readFileSync(path.join(repoPath, "AGENTS.md"), "utf-8"), /## Hydra Orchestration Toolkit/);
+  const claude = fs.readFileSync(path.join(repoPath, "CLAUDE.md"), "utf-8");
+  const agents = fs.readFileSync(path.join(repoPath, "AGENTS.md"), "utf-8");
+  assert.match(claude, /## Hydra Orchestration Toolkit/);
+  assert.match(agents, /## Hydra Orchestration Toolkit/);
+  assert.match(claude, /## TermCanvas Task System/);
+  assert.match(agents, /## TermCanvas Task System/);
 });
 
 test("enableHydraForProject reports unchanged when the current instructions already exist", () => {
@@ -37,7 +41,40 @@ test("enableHydraForProject reports unchanged when the current instructions alre
   }
 
   assert.equal(second.changed, false);
-  assert.deepEqual(second.files.map((file) => file.status), ["unchanged", "unchanged"]);
+  // Two sections (Hydra + Task) × two files (CLAUDE.md, AGENTS.md) = four entries.
+  assert.deepEqual(
+    second.files.map((file) => file.status),
+    ["unchanged", "unchanged", "unchanged", "unchanged"],
+  );
+});
+
+test("checkHydraProjectStatus auto-installs the Task section for projects that already opted into Hydra", () => {
+  const repoPath = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-task-autoadd-"));
+  // Project opted into Hydra before the Task section existed: install Hydra
+  // instructions cleanly, leaving no Task section anywhere.
+  const first = enableHydraForProject(repoPath);
+  assert.equal(first.ok, true);
+  for (const fileName of ["CLAUDE.md", "AGENTS.md"]) {
+    const filePath = path.join(repoPath, fileName);
+    const stripped = fs.readFileSync(filePath, "utf-8").replace(
+      /\n## TermCanvas Task System[\s\S]*$/,
+      "\n",
+    );
+    fs.writeFileSync(filePath, stripped, "utf-8");
+    assert.doesNotMatch(stripped, /## TermCanvas Task System/);
+  }
+
+  const status = checkHydraProjectStatus(repoPath);
+
+  assert.equal(status, "current");
+  assert.match(
+    fs.readFileSync(path.join(repoPath, "CLAUDE.md"), "utf-8"),
+    /## TermCanvas Task System/,
+  );
+  assert.match(
+    fs.readFileSync(path.join(repoPath, "AGENTS.md"), "utf-8"),
+    /## TermCanvas Task System/,
+  );
 });
 
 test("enableHydraForProject rejects missing project paths", () => {
