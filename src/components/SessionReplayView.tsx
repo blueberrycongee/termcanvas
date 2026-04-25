@@ -474,47 +474,57 @@ function UserPrompt({
   isCurrent: boolean;
   onClick: () => void;
 }) {
+  // Right-aligned neutral bubble, iMessage-style. The bubble +
+  // alignment ARE the speaker mark — no glyph, no eyebrow, no avatar,
+  // no "You" label. Background uses --bubble-bg (a neutral surface
+  // lift, NOT the accent color) so a turn full of user prompts reads
+  // as quiet containers instead of a stack of colored highlights.
+  //
+  // Width: max-w-[78%] on the inner column. Picked over 70/85 because
+  // 78% lets a real-world prompt (a couple of sentences) wrap at most
+  // once or twice, and short prompts hug content because the column
+  // is items-end + auto-sized in the cross axis. The bubble never
+  // pushes past the column even with very long prompts.
+  //
+  // Current event indicator: a 1px accent border on the bubble. The
+  // resting bubble carries a 1px transparent border so flipping the
+  // color doesn't shift the layout. We deliberately do NOT use a bg
+  // tint or accent-soft fill: the resting bubble is supposed to be
+  // the user-picked neutral, not a variable accent.
+  //
+  // Timestamp lives BELOW the bubble, right-aligned, muted mono. Below
+  // (not above) because the eye lands on the bubble itself first; the
+  // timestamp then sits next to where the assistant's reply begins,
+  // anchoring the bottom of the turn instead of crowding the top.
   return (
-    <button
-      className="group block w-full text-left"
-      onClick={onClick}
-      data-current={isCurrent || undefined}
-    >
-      <div className="relative pl-5 pr-12 py-1 transition-colors">
-        <span aria-hidden className={ROW_RAIL_CLS} style={{ backgroundColor: railColor(isCurrent) }} />
-        {/* Speaker mark: an accent "›" replaces the old "You" eyebrow
-            so the prompt reads as prose-with-a-prefix instead of a
-            captioned bubble. */}
-        <span
-          aria-hidden
-          className="absolute left-1.5 top-[2px] select-none"
+    <div className="flex justify-end">
+      <div className="flex flex-col items-end max-w-[78%]">
+        <button
+          type="button"
+          onClick={onClick}
+          data-current={isCurrent || undefined}
+          className="rounded-xl px-3 py-2 text-left cursor-pointer transition-colors"
           style={{
-            color: "var(--accent)",
-            fontSize: "var(--text-md)",
-            fontWeight: "var(--weight-medium)",
-            lineHeight: "var(--leading-relaxed)",
+            backgroundColor: "var(--bubble-bg)",
+            border: `1px solid ${isCurrent ? "var(--accent)" : "transparent"}`,
           }}
         >
-          ›
-        </span>
-        {/* Once-per-turn timestamp parked in the right gutter. The
-            assistant and tool rows below this prompt no longer print
-            their own — a single timestamp at the moment-of-question
-            anchors the whole turn. */}
+          <div
+            className={markdownClassName}
+            dangerouslySetInnerHTML={{ __html: renderMarkdown(event.textPreview) }}
+          />
+        </button>
         <span
-          className="absolute right-2 top-[6px] tc-mono tabular-nums"
-          style={{ fontSize: "var(--text-tiny)", color: "var(--text-faint)" }}
+          className="mt-1 tc-mono tabular-nums"
+          style={{
+            fontSize: "var(--text-tiny)",
+            color: "var(--text-faint)",
+          }}
         >
           {formatTimestamp(event.timestamp)}
         </span>
-        {/* User prose at weight 500 — paired with the accent glyph,
-            this is the entire speaker differentiation. */}
-        <div
-          className={markdownClassName + " font-medium"}
-          dangerouslySetInnerHTML={{ __html: renderMarkdown(event.textPreview) }}
-        />
       </div>
-    </button>
+    </div>
   );
 }
 

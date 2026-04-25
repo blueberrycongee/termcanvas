@@ -66,6 +66,15 @@
   --cyan-soft: rgba(108, 196, 176, 0.16);
   --green: #4ade80;
   --purple: #9b7ad8;
+  /* User-prompt bubble fill in the replay view. Reads as a soft
+     surface lift above --bg, never as a colored "you" highlight. The
+     dark value (#2a2928) matches --surface-hover by intent — same
+     "lifted neutral" semantic — but a separate token is justified
+     because the light-theme equivalent (#F3F3F4) is a hand-picked
+     value that does NOT match light --surface-hover. Keeping both
+     under one --bubble-bg name lets the component reference the
+     semantic role, not whichever neutral happens to land near it. */
+  --bubble-bg: #2a2928;
   --radius: 8px;
   color-scheme: dark;
 }
@@ -95,6 +104,11 @@
   --cyan-soft: rgba(13, 148, 136, 0.14);
   --green: #16a34a;
   --purple: #7c3aed;
+  /* See dark-theme block for rationale. The exact value (#F3F3F4) was
+     picked deliberately for the user-prompt bubble; it sits a touch
+     cooler than --surface (#f3f2ef) and reads as "soft container" on
+     the cream-paper light background. */
+  --bubble-bg: #F3F3F4;
   --radius: 8px;
   color-scheme: light;
 }
