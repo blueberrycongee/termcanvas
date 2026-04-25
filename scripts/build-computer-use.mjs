@@ -4,14 +4,17 @@ import path from "node:path";
 import process from "node:process";
 
 const root = path.resolve(import.meta.dirname, "..");
-const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+const isWin = process.platform === "win32";
+const pnpm = isWin ? "pnpm.cmd" : "pnpm";
 const outputDir = path.join(root, "dist-computer-use");
 const mcpOutputDir = path.join(outputDir, "mcp-computer-use-server");
+const shellOpt = isWin ? { shell: true } : {};
 
 function run(command, args, options = {}) {
   execFileSync(command, args, {
     cwd: root,
     stdio: "inherit",
+    ...shellOpt,
     ...options,
   });
 }
@@ -20,6 +23,7 @@ function read(command, args, options = {}) {
   return execFileSync(command, args, {
     cwd: root,
     encoding: "utf-8",
+    ...shellOpt,
     ...options,
   }).trim();
 }
