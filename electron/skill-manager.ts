@@ -220,12 +220,22 @@ function resolveComputerUseMcpConfig(
   const candidates = [
     path.join(rootDir, "mcp-computer-use-server", "index.js"),
     path.join(rootDir, "mcp", "computer-use-server", "dist", "index.js"),
-    path.join(rootDir, "dist-computer-use", "mcp-computer-use-server", "index.js"),
+    path.join(
+      rootDir,
+      "dist-computer-use",
+      "mcp-computer-use-server",
+      "index.js",
+    ),
   ];
-  const mcpServerPath = candidates.find((candidate) => fs.existsSync(candidate));
+  const mcpServerPath = candidates.find((candidate) =>
+    fs.existsSync(candidate),
+  );
   if (!mcpServerPath) return null;
 
-  const instructionsFilePath = path.join(sourceDir, "computer-use-instructions.md");
+  const instructionsFilePath = path.join(
+    sourceDir,
+    "computer-use-instructions.md",
+  );
   return {
     mcpServerPath,
     stateFilePath: path.join(home, ".termcanvas", "computer-use", "state.json"),
@@ -252,7 +262,11 @@ function computerUseMcpEnv(
 function readJsonObject(filePath: string): Record<string, unknown> | null {
   try {
     const parsed = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      !Array.isArray(parsed)
+    ) {
       return parsed as Record<string, unknown>;
     }
   } catch {
@@ -266,7 +280,10 @@ function readJsonObject(filePath: string): Record<string, unknown> | null {
   return null;
 }
 
-function writeJsonAtomic(filePath: string, data: Record<string, unknown>): void {
+function writeJsonAtomic(
+  filePath: string,
+  data: Record<string, unknown>,
+): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const tmp = filePath + ".tmp." + process.pid;
   fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
@@ -289,7 +306,7 @@ function ensureClaudeComputerUseMcp(
     typeof data.mcpServers === "object" &&
     data.mcpServers !== null &&
     !Array.isArray(data.mcpServers)
-      ? data.mcpServers as Record<string, unknown>
+      ? (data.mcpServers as Record<string, unknown>)
       : {};
   const mcpServers = { ...existingServers };
   mcpServers[CLAUDE_COMPUTER_USE_MCP_SERVER_NAME] = {
@@ -334,22 +351,28 @@ function tomlArray(values: string[]): string {
 }
 
 function tomlInlineTable(values: Record<string, string>): string {
-  return `{ ${
-    Object.entries(values)
-      .map(([key, value]) => `${key} = ${tomlString(value)}`)
-      .join(", ")
-  } }`;
+  return `{ ${Object.entries(values)
+    .map(([key, value]) => `${key} = ${tomlString(value)}`)
+    .join(", ")} }`;
 }
 
 function removeTomlTable(content: string, tableName: string): string {
   const escaped = tableName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // Remove the full table block.
   const tableRegex = new RegExp(
     `(^|\\n)\\[${escaped}\\]\\n[\\s\\S]*?(?=\\n\\[[^\\n]+\\]\\n|$)`,
     "m",
   );
-  return content.replace(tableRegex, (match, prefix: string) =>
-    prefix === "\n" ? "\n" : ""
-  ).replace(/\n{3,}/g, "\n\n");
+  let next = content.replace(tableRegex, (match, prefix: string) =>
+    prefix === "\n" ? "\n" : "",
+  );
+  // Also remove any orphaned dotted keys belonging to the same table.
+  const dottedRegex = new RegExp(
+    `^\\s*${escaped}\\.\\S+\\s*=\\s*[^\\n]*\\n?`,
+    "gm",
+  );
+  next = next.replace(dottedRegex, "");
+  return next.replace(/\n{3,}/g, "\n\n");
 }
 
 function ensureCodexComputerUseMcp(
@@ -389,17 +412,21 @@ function removeCodexComputerUseMcp(home: string): void {
     return;
   }
 
-  const nextContent = removeTomlTable(
-    content,
-    `mcp_servers.${CODEX_COMPUTER_USE_MCP_SERVER_NAME}`,
-  ).trimEnd() + "\n";
+  const nextContent =
+    removeTomlTable(
+      content,
+      `mcp_servers.${CODEX_COMPUTER_USE_MCP_SERVER_NAME}`,
+    ).trimEnd() + "\n";
   if (nextContent === content) return;
   const tmp = configFile + ".tmp." + process.pid;
   fs.writeFileSync(tmp, nextContent, "utf-8");
   fs.renameSync(tmp, configFile);
 }
 
-function ensureComputerUseMcpRegistration(sourceDir: string, home: string): void {
+function ensureComputerUseMcpRegistration(
+  sourceDir: string,
+  home: string,
+): void {
   const config = resolveComputerUseMcpConfig(sourceDir, home);
   if (!config) return;
   ensureClaudeComputerUseMcp(getClaudeGlobalConfigFile(home), config);
