@@ -86,6 +86,8 @@ export interface AppState {
 export interface ClickParams {
   element_id?: string;
   element?: number;
+  element_index?: number;
+  window_id?: number;
   pid?: number;
   app_name?: string;
   x?: number;
@@ -109,6 +111,8 @@ export interface PressKeyParams {
 export interface SetValueParams {
   element_id?: string;
   element?: number;
+  element_index?: number;
+  window_id?: number;
   pid?: number;
   app_name?: string;
   value: string;
@@ -117,6 +121,8 @@ export interface SetValueParams {
 export interface PerformSecondaryActionParams {
   element_id?: string;
   element?: number;
+  element_index?: number;
+  window_id?: number;
   pid?: number;
   app_name?: string;
   action: string;
@@ -129,6 +135,8 @@ export interface ScrollParams {
   dy?: number;
   element_id?: string;
   element?: number;
+  element_index?: number;
+  window_id?: number;
   pid?: number;
   app_name?: string;
   direction?: "up" | "down" | "left" | "right";
@@ -150,6 +158,9 @@ export interface DragParams {
   to_element_id?: string;
   from_element?: number;
   to_element?: number;
+  from_element_index?: number;
+  to_element_index?: number;
+  window_id?: number;
   pid?: number;
   app_name?: string;
   capture_id?: string;

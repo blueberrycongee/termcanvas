@@ -190,6 +190,8 @@ struct AppStateResponse: Codable {
 struct ClickRequest: Codable {
     let elementId: String?
     let element: Int?
+    let elementIndex: Int?
+    let windowId: UInt32?
     let pid: Int32?
     let appName: String?
     let x: Double?
@@ -219,6 +221,8 @@ struct PressKeyRequest: Codable {
 struct SetValueRequest: Codable {
     let elementId: String?
     let element: Int?
+    let elementIndex: Int?
+    let windowId: UInt32?
     let pid: Int32?
     let appName: String?
     let value: String
@@ -227,6 +231,8 @@ struct SetValueRequest: Codable {
 struct PerformActionRequest: Codable {
     let elementId: String?
     let element: Int?
+    let elementIndex: Int?
+    let windowId: UInt32?
     let pid: Int32?
     let appName: String?
     let action: String
@@ -241,6 +247,8 @@ struct ScrollRequest: Codable {
     let dy: Double?
     let elementId: String?
     let element: Int?
+    let elementIndex: Int?
+    let windowId: UInt32?
     let pid: Int32?
     let appName: String?
     let direction: String?
@@ -264,6 +272,9 @@ struct DragRequest: Codable {
     let toElementId: String?
     let fromElement: Int?
     let toElement: Int?
+    let fromElementIndex: Int?
+    let toElementIndex: Int?
+    let windowId: UInt32?
     let pid: Int32?
     let appName: String?
     let captureId: String?

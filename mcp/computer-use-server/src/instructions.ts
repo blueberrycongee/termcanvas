@@ -19,7 +19,7 @@ export const COMPUTER_USE_STATUS_GUIDANCE = {
     "Use list_apps for app identity and list_windows for window identity. Prefer pid + window_id for window-scoped observation when available.",
     "Before every desktop interaction, call get_window_state for the target pid/window_id when available, otherwise get_app_state, and treat its AX tree plus returned window screenshot as the current source of truth.",
     "If get_app_state is empty or sparse, re-activate/open the app, retry with bundle_id or pid, increase max_depth if needed, and observe again before declaring the app inaccessible.",
-    "Prefer AX element indexes from get_app_state for perform_secondary_action, set_value, click, scroll, and drag.",
+    "Prefer AX element indexes for perform_secondary_action, set_value, click, scroll, and drag. When using get_window_state, pass element_index with the same window_id.",
     "Use keyboard input when AX exposes focusable controls but not direct actions.",
     "For CEF/Chromium/WebGL/media surfaces that still expose only sparse window chrome after one re-observe, use the current get_app_state screenshot plus keyboard shortcuts before screenshot-coordinate clicks.",
     "Use coordinate actions only as a last resort. coordinate_space=screenshot is valid only for coordinates read from the current get_app_state screenshot; pass capture_id when available so stale coordinates can be rejected. Do not use browser, Playwright, full-screen, or stale screenshots.",

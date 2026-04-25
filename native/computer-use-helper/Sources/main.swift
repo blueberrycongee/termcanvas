@@ -199,7 +199,9 @@ func handleClick(_ req: ClickRequest) -> (Int, Data) {
     let clickCount = max(req.clickCount ?? (button == "double" ? 2 : 1), 1)
 
     if let resolved = resolveElement(pid: req.pid, appName: req.appName,
-                                     elementId: req.elementId, element: req.element) {
+                                     elementId: req.elementId,
+                                     element: req.element ?? req.elementIndex,
+                                     windowId: req.windowId) {
         let element = resolved.element
         if button == "left" && clickCount == 1 {
             let result = AXTree.performAction(element, action: kAXPressAction as String)
@@ -240,7 +242,8 @@ func handleSetValue(_ req: SetValueRequest) -> (Int, Data) {
         pid: req.pid,
         appName: req.appName,
         elementId: req.elementId,
-        element: req.element
+        element: req.element ?? req.elementIndex,
+        windowId: req.windowId
     ) else {
         return ok(OkResponse(ok: false, error: "Element not found"))
     }
@@ -257,7 +260,8 @@ func handlePerformAction(_ req: PerformActionRequest) -> (Int, Data) {
         pid: req.pid,
         appName: req.appName,
         elementId: req.elementId,
-        element: req.element
+        element: req.element ?? req.elementIndex,
+        windowId: req.windowId
     ) else {
         return ok(OkResponse(ok: false, error: "Element not found"))
     }
@@ -271,7 +275,9 @@ func handlePerformAction(_ req: PerformActionRequest) -> (Int, Data) {
 
 func handleScroll(_ req: ScrollRequest) -> (Int, Data) {
     if let resolved = resolveElement(pid: req.pid, appName: req.appName,
-                                     elementId: req.elementId, element: req.element) {
+                                     elementId: req.elementId,
+                                     element: req.element ?? req.elementIndex,
+                                     windowId: req.windowId) {
         guard let center = AXTree.getElementCenter(resolved.element) else {
             return ok(OkResponse(ok: false, error: "Element not found"))
         }
@@ -317,14 +323,16 @@ func handleScroll(_ req: ScrollRequest) -> (Int, Data) {
 }
 
 func handleDrag(_ req: DragRequest) -> (Int, Data) {
-    if (req.fromElementId != nil || req.fromElement != nil) &&
-        (req.toElementId != nil || req.toElement != nil) {
+    if (req.fromElementId != nil || req.fromElement != nil || req.fromElementIndex != nil) &&
+        (req.toElementId != nil || req.toElement != nil || req.toElementIndex != nil) {
         guard let fromResolved = resolveElement(pid: req.pid, appName: req.appName,
                                                 elementId: req.fromElementId,
-                                                element: req.fromElement),
+                                                element: req.fromElement ?? req.fromElementIndex,
+                                                windowId: req.windowId),
               let toResolved = resolveElement(pid: req.pid, appName: req.appName,
                                               elementId: req.toElementId,
-                                              element: req.toElement),
+                                              element: req.toElement ?? req.toElementIndex,
+                                              windowId: req.windowId),
               let fromCenter = AXTree.getElementCenter(fromResolved.element),
               let toCenter = AXTree.getElementCenter(toResolved.element)
         else {
@@ -380,7 +388,8 @@ func resolveElement(
     pid: Int32?,
     appName: String?,
     elementId: String?,
-    element: Int?
+    element: Int?,
+    windowId: UInt32? = nil
 ) -> (pid: Int32, element: AXUIElement)? {
     guard let pid = resolvePid(pid: pid, appName: appName) else {
         return nil
@@ -388,6 +397,11 @@ func resolveElement(
 
     if let elementId = elementId,
        let axElement = AXTree.resolveElement(pid: pid, elementId: elementId) {
+        return (pid, axElement)
+    }
+    if let element = element,
+       let windowId = windowId,
+       let axElement = AXTree.resolveElement(pid: pid, windowId: windowId, elementIndex: element) {
         return (pid, axElement)
     }
     if let element = element,

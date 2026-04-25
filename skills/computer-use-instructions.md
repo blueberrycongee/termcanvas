@@ -25,7 +25,7 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 
 ## Action Hierarchy
 
-- Use `perform_secondary_action` when the target element exposes a semantic action that matches the intent.
+- Use `perform_secondary_action` when the target element exposes a semantic action that matches the intent. When the element came from `get_window_state`, pass the same `window_id` with `element_index`.
 - Use `set_value` when the target is a writable text field or value control.
 - Use `click` with an AX element index when the target is visible in the AX tree but has no better semantic action.
 - Use `scroll` or `drag` with AX element indexes when the scrollable or draggable target is represented in AX.
@@ -70,7 +70,7 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 
 ## Decision Rules
 
-- If the AX tree exposes the target control, use the element index. Do not switch to coordinates just because coordinates are easier.
+- If the AX tree exposes the target control, use the element index. Prefer `element_index` plus the same `window_id` returned by `get_window_state`; do not switch to coordinates just because coordinates are easier.
 - If an AX element exposes a semantic action, prefer `perform_secondary_action` over raw click.
 - If a text field is writable through AX, prefer `set_value` over click-and-type.
 - If the AX tree is sparse, stale, or only exposes window chrome, use the returned screenshot and keyboard shortcuts before falling back to coordinate clicks. For CEF/WebGL/media surfaces such as Spotify, screenshot-coordinate clicks may be the correct fallback once AX and keyboard paths are unavailable.

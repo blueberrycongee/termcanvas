@@ -150,11 +150,19 @@ export const tools: Tool[] = [
         },
         element: {
           type: "number",
-          description: "Integer element index from get_app_state.",
+          description: "Integer element index from get_app_state or get_window_state.",
+        },
+        element_index: {
+          type: "number",
+          description: "Element index from get_window_state. Prefer with window_id for stable snapshot-scoped actions.",
         },
         element_id: {
           type: "string",
           description: "Legacy accessibility element ID from get_app_state.",
+        },
+        window_id: {
+          type: "number",
+          description: "CGWindowID whose get_window_state produced element_index.",
         },
         x: {
           type: "number",
@@ -196,6 +204,8 @@ export const tools: Tool[] = [
         app_name: { type: "string", description: "Target app name or bundle ID." },
         pid: { type: "number", description: "Target app process ID." },
         element: { type: "number", description: "Integer element index." },
+        element_index: { type: "number", description: "Element index from get_window_state." },
+        window_id: { type: "number", description: "CGWindowID whose get_window_state produced element_index." },
         element_id: { type: "string", description: "Legacy element ID." },
         action: {
           type: "string",
@@ -215,6 +225,8 @@ export const tools: Tool[] = [
         app_name: { type: "string", description: "Target app name or bundle ID." },
         pid: { type: "number", description: "Target app process ID." },
         element: { type: "number", description: "Integer element index." },
+        element_index: { type: "number", description: "Element index from get_window_state." },
+        window_id: { type: "number", description: "CGWindowID whose get_window_state produced element_index." },
         element_id: { type: "string", description: "Legacy element ID." },
         value: { type: "string", description: "Value to assign." },
       },
@@ -260,6 +272,8 @@ export const tools: Tool[] = [
         app_name: { type: "string", description: "Target app name or bundle ID." },
         pid: { type: "number", description: "Target app process ID." },
         element: { type: "number", description: "Integer element index." },
+        element_index: { type: "number", description: "Element index from get_window_state." },
+        window_id: { type: "number", description: "CGWindowID whose get_window_state produced element_index." },
         element_id: { type: "string", description: "Legacy element ID." },
         direction: {
           type: "string",
@@ -307,6 +321,9 @@ export const tools: Tool[] = [
         to_y: { type: "number", description: "Legacy ending Y coordinate." },
         from_element: { type: "number", description: "Starting element index." },
         to_element: { type: "number", description: "Ending element index." },
+        from_element_index: { type: "number", description: "Starting element index from get_window_state." },
+        to_element_index: { type: "number", description: "Ending element index from get_window_state." },
+        window_id: { type: "number", description: "CGWindowID whose get_window_state produced the element indexes." },
         from_element_id: { type: "string", description: "Legacy starting element ID." },
         to_element_id: { type: "string", description: "Legacy ending element ID." },
         coordinate_space: {

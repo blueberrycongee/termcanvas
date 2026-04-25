@@ -13,6 +13,13 @@ enum AXTree {
     private static let activationLock = NSLock()
     private static var pumpedPids = Set<Int32>()
     private static var accessibilityObservers: [Int32: AXObserver] = [:]
+    private static let sessionLock = NSLock()
+    private static var sessions: [SessionKey: [Int: AXUIElement]] = [:]
+
+    private struct SessionKey: Hashable {
+        let pid: Int32
+        let windowId: UInt32
+    }
 
     // MARK: - Public API
 
@@ -30,6 +37,7 @@ enum AXTree {
         var elements: [ElementInfo] = []
         var accessibilityTree: [AccessibilityNode] = []
         var nextIndex = 0
+        var elementCache: [Int: AXUIElement] = [:]
 
         let axWindows = getAXArray(app, attribute: kAXWindowsAttribute)
         for (wIdx, axWindow) in axWindows.enumerated() {
@@ -51,7 +59,8 @@ enum AXTree {
                 depth: 1,
                 maxDepth: maxDepth,
                 elements: &elements,
-                nextIndex: &nextIndex
+                nextIndex: &nextIndex,
+                elementCache: &elementCache
             ))
         }
 
@@ -97,6 +106,7 @@ enum AXTree {
         var elements: [ElementInfo] = []
         var accessibilityTree: [AccessibilityNode] = []
         var nextIndex = 0
+        var elementCache: [Int: AXUIElement] = [:]
 
         if let targetWindow {
             let title = getStringAttribute(targetWindow, attribute: kAXTitleAttribute)
@@ -115,7 +125,8 @@ enum AXTree {
                 depth: 1,
                 maxDepth: maxDepth,
                 elements: &elements,
-                nextIndex: &nextIndex
+                nextIndex: &nextIndex,
+                elementCache: &elementCache
             ))
         } else if let serverWindow {
             windows.append(WindowInfo(
@@ -125,6 +136,8 @@ enum AXTree {
                 frame: serverWindow.bounds
             ))
         }
+
+        storeSession(pid: pid, windowId: windowId, elements: elementCache)
 
         var screenshot: ScreenshotInfo? = nil
         if includeScreenshot {
@@ -196,6 +209,12 @@ enum AXTree {
         return nil
     }
 
+    static func resolveElement(pid: Int32, windowId: UInt32, elementIndex: Int) -> AXUIElement? {
+        sessionLock.lock()
+        defer { sessionLock.unlock() }
+        return sessions[SessionKey(pid: pid, windowId: windowId)]?[elementIndex]
+    }
+
     static func primaryWindowFrame(pid: Int32) -> Frame? {
         let app = AXUIElementCreateApplication(pid)
         activateAccessibilityIfNeeded(pid: pid, app: app)
@@ -252,7 +271,8 @@ enum AXTree {
         depth: Int,
         maxDepth: Int,
         elements: inout [ElementInfo],
-        nextIndex: inout Int
+        nextIndex: inout Int,
+        elementCache: inout [Int: AXUIElement]
     ) -> [AccessibilityNode] {
         guard depth <= maxDepth else { return [] }
 
@@ -262,6 +282,7 @@ enum AXTree {
             let childPath = "\(path)/child:\(idx)"
             let index = nextIndex
             nextIndex += 1
+            elementCache[index] = child
 
             let role = getStringAttribute(child, attribute: kAXRoleAttribute) ?? "AXUnknown"
             let subrole = getStringAttribute(child, attribute: kAXSubroleAttribute)
@@ -302,7 +323,8 @@ enum AXTree {
                 depth: depth + 1,
                 maxDepth: maxDepth,
                 elements: &elements,
-                nextIndex: &nextIndex
+                nextIndex: &nextIndex,
+                elementCache: &elementCache
             )
             nodes.append(AccessibilityNode(
                 index: index,
@@ -356,6 +378,16 @@ enum AXTree {
             }
         }
         return nil
+    }
+
+    private static func storeSession(
+        pid: Int32,
+        windowId: UInt32,
+        elements: [Int: AXUIElement]
+    ) {
+        sessionLock.lock()
+        sessions[SessionKey(pid: pid, windowId: windowId)] = elements
+        sessionLock.unlock()
     }
 
     // MARK: - AX Helpers

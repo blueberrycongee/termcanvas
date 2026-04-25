@@ -336,6 +336,7 @@ test("computer use instructions are not loaded from the agent working directory"
 test("computer use MCP supports new set_value and secondary action tools", async () => {
   const client = new FakeHelperClient();
 
+  await handleToolCall("click", { pid: 42, window_id: 7, element_index: 3 }, asHelper(client));
   await handleToolCall("set_value", { app_name: "Notes", element: 3, value: "hello" }, asHelper(client));
   await handleToolCall(
     "perform_secondary_action",
@@ -344,6 +345,10 @@ test("computer use MCP supports new set_value and secondary action tools", async
   );
 
   assert.deepEqual(client.posts, [
+    {
+      endpoint: "click",
+      body: { pid: 42, window_id: 7, element_index: 3 },
+    },
     {
       endpoint: "set_value",
       body: { app_name: "Notes", element: 3, value: "hello" },
