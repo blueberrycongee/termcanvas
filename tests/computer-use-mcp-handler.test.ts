@@ -337,6 +337,8 @@ test("computer use MCP supports new set_value and secondary action tools", async
   const client = new FakeHelperClient();
 
   await handleToolCall("click", { pid: 42, window_id: 7, element_index: 3 }, asHelper(client));
+  await handleToolCall("type_text", { pid: 42, window_id: 7, element_index: 3, text: "hello" }, asHelper(client));
+  await handleToolCall("press_key", { pid: 42, window_id: 7, element_index: 3, key: "Return" }, asHelper(client));
   await handleToolCall("set_value", { app_name: "Notes", element: 3, value: "hello" }, asHelper(client));
   await handleToolCall(
     "perform_secondary_action",
@@ -348,6 +350,14 @@ test("computer use MCP supports new set_value and secondary action tools", async
     {
       endpoint: "click",
       body: { pid: 42, window_id: 7, element_index: 3 },
+    },
+    {
+      endpoint: "type_text",
+      body: { pid: 42, window_id: 7, element_index: 3, text: "hello" },
+    },
+    {
+      endpoint: "press_key",
+      body: { pid: 42, window_id: 7, element_index: 3, key: "Return" },
     },
     {
       endpoint: "set_value",

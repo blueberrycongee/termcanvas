@@ -236,11 +236,14 @@ export const tools: Tool[] = [
   {
     name: "type_text",
     description:
-      `Type literal text using keyboard input into the focused element. Prefer set_value for writable AX elements; use type_text after focusing a field when set_value is unavailable. ${ACTION_GUARDRAIL}`,
+      `Type literal text using keyboard input. Prefer set_value for writable AX elements. Pass pid to deliver keyboard events to a target process instead of the frontmost app; with element_index + window_id, the helper focuses the cached element first. ${ACTION_GUARDRAIL}`,
     inputSchema: {
       type: "object" as const,
       properties: {
         text: { type: "string", description: "Text to type." },
+        pid: { type: "number", description: "Optional target process ID for pid-routed keyboard events." },
+        window_id: { type: "number", description: "CGWindowID whose get_window_state produced element_index." },
+        element_index: { type: "number", description: "Optional cached element index to focus before typing." },
       },
       required: ["text"],
     },
@@ -248,11 +251,14 @@ export const tools: Tool[] = [
   {
     name: "press_key",
     description:
-      `Press a key or key-combination. Supports xdotool-like syntax such as Return, Tab, super+c, Up, KP_0. Use keyboard paths when AX exposes focus but not direct actions. ${ACTION_GUARDRAIL}`,
+      `Press a key or key-combination. Supports xdotool-like syntax such as Return, Tab, super+c, Up, KP_0. Pass pid to deliver the key to a target process instead of the frontmost app; with element_index + window_id, the helper focuses the cached element first. ${ACTION_GUARDRAIL}`,
     inputSchema: {
       type: "object" as const,
       properties: {
         key: { type: "string", description: "Key or key-combination to press." },
+        pid: { type: "number", description: "Optional target process ID for pid-routed keyboard events." },
+        window_id: { type: "number", description: "CGWindowID whose get_window_state produced element_index." },
+        element_index: { type: "number", description: "Optional cached element index to focus before pressing the key." },
         modifiers: {
           type: "array",
           items: { type: "string" },

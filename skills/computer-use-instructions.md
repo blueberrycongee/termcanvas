@@ -29,7 +29,7 @@ TermCanvas provides AX-first Computer Use through MCP tools. Use it when the use
 - Use `set_value` when the target is a writable text field or value control.
 - Use `click` with an AX element index when the target is visible in the AX tree but has no better semantic action.
 - Use `scroll` or `drag` with AX element indexes when the scrollable or draggable target is represented in AX.
-- Use `press_key` and `type_text` when keyboard navigation is the natural app workflow or AX only exposes focus.
+- Use `press_key` and `type_text` when keyboard navigation is the natural app workflow or AX only exposes focus. Pass `pid` whenever available so keyboard events target the intended app instead of the user's frontmost app.
 - Use coordinate clicks, drags, or scrolls only when AX and keyboard paths are unavailable or unsuitable.
 
 ## Observation Rules

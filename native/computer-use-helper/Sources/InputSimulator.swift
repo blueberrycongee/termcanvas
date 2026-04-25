@@ -52,7 +52,7 @@ enum InputSimulator {
 
     // MARK: - Type Text
 
-    static func typeText(_ text: String) {
+    static func typeText(_ text: String, pid: Int32? = nil) {
         for char in text {
             if stopRequested { break }
             let utf16 = Array(String(char).utf16)
@@ -63,15 +63,15 @@ enum InputSimulator {
             downEvent.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
             upEvent.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
 
-            downEvent.post(tap: .cghidEventTap)
-            upEvent.post(tap: .cghidEventTap)
+            postKeyboardEvent(downEvent, pid: pid)
+            postKeyboardEvent(upEvent, pid: pid)
             usleep(10_000)
         }
     }
 
     // MARK: - Press Key
 
-    static func pressKey(_ key: String, modifiers: [String]) {
+    static func pressKey(_ key: String, modifiers: [String], pid: Int32? = nil) {
         let flags = modifierFlags(from: modifiers)
 
         if key.contains("+") {
@@ -81,13 +81,13 @@ enum InputSimulator {
                 combinedFlags.insert(modifierFlag(String(part)))
             }
             let actualKey = String(parts.last ?? "")
-            pressAndRelease(key: actualKey, flags: combinedFlags)
+            pressAndRelease(key: actualKey, flags: combinedFlags, pid: pid)
         } else {
-            pressAndRelease(key: key, flags: flags)
+            pressAndRelease(key: key, flags: flags, pid: pid)
         }
     }
 
-    private static func pressAndRelease(key: String, flags: CGEventFlags) {
+    private static func pressAndRelease(key: String, flags: CGEventFlags, pid: Int32?) {
         guard let keyCode = keyCodes[key.lowercased()] else { return }
 
         guard let down = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true),
@@ -96,8 +96,16 @@ enum InputSimulator {
 
         down.flags = flags
         up.flags = flags
-        down.post(tap: .cghidEventTap)
-        up.post(tap: .cghidEventTap)
+        postKeyboardEvent(down, pid: pid)
+        postKeyboardEvent(up, pid: pid)
+    }
+
+    private static func postKeyboardEvent(_ event: CGEvent, pid: Int32?) {
+        if let pid {
+            event.postToPid(pid)
+        } else {
+            event.post(tap: .cghidEventTap)
+        }
     }
 
     private static func modifierFlags(from names: [String]) -> CGEventFlags {

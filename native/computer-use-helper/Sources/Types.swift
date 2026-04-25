@@ -207,6 +207,9 @@ struct ClickRequest: Codable {
 
 struct TypeTextRequest: Codable {
     let text: String
+    let pid: Int32?
+    let windowId: UInt32?
+    let elementIndex: Int?
 }
 
 // MARK: - Press Key
@@ -214,6 +217,9 @@ struct TypeTextRequest: Codable {
 struct PressKeyRequest: Codable {
     let key: String
     let modifiers: [String]?
+    let pid: Int32?
+    let windowId: UInt32?
+    let elementIndex: Int?
 }
 
 // MARK: - Set Value / Actions

@@ -263,6 +263,10 @@ enum AXTree {
         return AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, value as CFTypeRef)
     }
 
+    static func focus(_ element: AXUIElement) -> AXError {
+        return AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+    }
+
     // MARK: - Tree Walking
 
     private static func walkChildren(

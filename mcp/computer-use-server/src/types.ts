@@ -101,11 +101,17 @@ export interface ClickParams {
 
 export interface TypeTextParams {
   text: string;
+  pid?: number;
+  window_id?: number;
+  element_index?: number;
 }
 
 export interface PressKeyParams {
   key: string;
   modifiers?: string[];
+  pid?: number;
+  window_id?: number;
+  element_index?: number;
 }
 
 export interface SetValueParams {

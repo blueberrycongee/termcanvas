@@ -124,12 +124,26 @@ func route(method: String, path: String, body: Data?) -> (Int, Data) {
         case "/type_text":
             let req: TypeTextRequest = try decode(body)
             InputSimulator.stopRequested = false
-            InputSimulator.typeText(req.text)
+            if let element = resolveCachedElement(
+                pid: req.pid,
+                windowId: req.windowId,
+                elementIndex: req.elementIndex
+            ) {
+                _ = AXTree.focus(element)
+            }
+            InputSimulator.typeText(req.text, pid: req.pid)
             return ok(OkResponse())
 
         case "/press_key":
             let req: PressKeyRequest = try decode(body)
-            InputSimulator.pressKey(req.key, modifiers: req.modifiers ?? [])
+            if let element = resolveCachedElement(
+                pid: req.pid,
+                windowId: req.windowId,
+                elementIndex: req.elementIndex
+            ) {
+                _ = AXTree.focus(element)
+            }
+            InputSimulator.pressKey(req.key, modifiers: req.modifiers ?? [], pid: req.pid)
             return ok(OkResponse())
 
         case "/set_value":
@@ -409,6 +423,13 @@ func resolveElement(
         return (pid, axElement)
     }
     return nil
+}
+
+func resolveCachedElement(pid: Int32?, windowId: UInt32?, elementIndex: Int?) -> AXUIElement? {
+    guard let pid, let windowId, let elementIndex else {
+        return nil
+    }
+    return AXTree.resolveElement(pid: pid, windowId: windowId, elementIndex: elementIndex)
 }
 
 func resolvePoint(
