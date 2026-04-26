@@ -2,6 +2,26 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.36.0] - 2026-04-26
+
+### Added
+- **Pin sessions**: pin a session to the top of the history panel; includes a two-step hide confirmation to prevent accidental dismissal.
+- **File tree**: right panel file browser replaced with `@pierre/trees` — virtualized rendering, built-in search, git status badges, and multi-select drag-to-terminal.
+
+### Changed
+- **Task → Pin**: the Task feature has been renamed to Pin throughout the codebase and UI.
+- **History panel**: sharpened visual hierarchy between prompt text and timestamp; terminal status collapsed to three states (attention / active / done).
+- Sessions panel redesigned with clearer status grouping.
+- Close-interception dialog removed; updater install-and-restart path restored.
+- Tasks are now eager-loaded on startup so badges and CLI additions are immediately visible.
+
+### Fixed
+- Space-bar pan now activates correctly in Select mode.
+- Mouse interactions with the bottom toolbar no longer swallow the next Space keypress.
+- Toolbar popover outside-click uses capture-phase `mousedown` to work with box-select.
+- Viewport pan position snapped to integer pixels to eliminate sub-pixel jitter.
+- Background grid remains stable after pan integer-snap change.
+
 ## [0.35.0] - 2026-04-26
 
 ### Added
