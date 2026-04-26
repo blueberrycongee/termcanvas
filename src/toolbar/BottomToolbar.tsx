@@ -47,7 +47,7 @@ const groupBase = "flex items-center";
 const dividerCls =
   "h-4 w-px bg-[color-mix(in_srgb,var(--border)_72%,transparent)] mx-0.5";
 const buttonBase =
-  "inline-flex h-8 items-center justify-center rounded-md text-[12px] font-medium text-[var(--text-muted)] transition-[color,background-color,transform] duration-150 hover:bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] hover:text-[var(--text-primary)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color-mix(in_srgb,var(--text-secondary)_24%,transparent)] motion-reduce:transition-none";
+  "inline-flex h-8 items-center justify-center rounded-md text-[12px] font-medium text-[var(--text-muted)] transition-[color,background-color,transform] duration-150 hover:bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] hover:text-[var(--text-primary)] active:scale-[0.97] focus-visible:outline-none motion-reduce:transition-none";
 const iconButton = `${buttonBase} w-8`;
 const zoomReadout =
   "min-w-[3.25rem] h-8 inline-flex items-center justify-center text-[11px] text-[var(--text-muted)] tabular-nums rounded-md hover:bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] hover:text-[var(--text-primary)] transition-colors";
@@ -79,23 +79,22 @@ function useCloseOnOutsideClick(
   open: boolean,
   ref: React.RefObject<HTMLElement | null>,
   close: () => void,
-  triggerRef?: React.RefObject<HTMLElement | null>,
 ): void {
   useEffect(() => {
     if (!open) return;
     const handle = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         close();
-        // Match the focus contract that Esc / item-activation already
-        // honour: outside-click should also leave focus on the trigger
-        // so a keyboard user who opened the menu and then mouse-
-        // clicked elsewhere isn't stranded on `<body>`.
-        triggerRef?.current?.focus();
+        // Don't restore focus to the trigger on mouse outside-click.
+        // Doing so would leave a toolbar button as e.target for the next
+        // keydown, causing isActivationTarget to block Space-to-pan.
+        // Keyboard close (Escape) is handled by usePopoverKeyboardNav
+        // which does return focus to the trigger there.
       }
     };
-    window.addEventListener("mousedown", handle);
-    return () => window.removeEventListener("mousedown", handle);
-  }, [open, ref, close, triggerRef]);
+    window.addEventListener("mousedown", handle, true);
+    return () => window.removeEventListener("mousedown", handle, true);
+  }, [open, ref, close]);
 }
 
 // Roving-focus keyboard nav for popover menus. Caller passes a ref to
@@ -193,18 +192,8 @@ export function BottomToolbar() {
     [],
   );
 
-  useCloseOnOutsideClick(
-    toolMenuOpen,
-    toolMenuWrapperRef,
-    closeToolMenu,
-    toolTriggerRef,
-  );
-  useCloseOnOutsideClick(
-    presetOpen,
-    presetWrapperRef,
-    closePresetMenu,
-    presetTriggerRef,
-  );
+  useCloseOnOutsideClick(toolMenuOpen, toolMenuWrapperRef, closeToolMenu);
+  useCloseOnOutsideClick(presetOpen, presetWrapperRef, closePresetMenu);
 
   const toolOptions = useMemo<
     Array<{
@@ -315,7 +304,7 @@ export function BottomToolbar() {
         <div className="relative" ref={toolMenuWrapperRef}>
           <button
             ref={toolTriggerRef}
-            className={`${buttonBase} px-2 gap-1`}
+            className={`${buttonBase} px-2 gap-1 ${toolMenuOpen ? "bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] text-[var(--text-primary)]" : ""}`}
             onClick={toggleToolMenu}
             title={`${activeTool.label} (${activeTool.shortcut})`}
             aria-haspopup="menu"
@@ -349,7 +338,6 @@ export function BottomToolbar() {
                     onClick={() => {
                       setTool(opt.id);
                       closeToolMenu();
-                      toolTriggerRef.current?.focus();
                     }}
                   >
                     <span className="inline-flex items-center justify-center w-4">
@@ -410,7 +398,6 @@ export function BottomToolbar() {
                     onClick={() => {
                       applyPreset(preset.scale);
                       closePresetMenu();
-                      presetTriggerRef.current?.focus();
                     }}
                   >
                     <span>{preset.label}</span>
@@ -428,7 +415,6 @@ export function BottomToolbar() {
                   onClick={() => {
                     useCanvasStore.getState().resetViewport();
                     closePresetMenu();
-                    presetTriggerRef.current?.focus();
                   }}
                 >
                   <span>{t.reset}</span>
