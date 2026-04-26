@@ -60,6 +60,7 @@ import {
 import { clampScale, zoomAtClientPoint } from "./viewportZoom";
 import { resolveCollisions } from "./collisionResolver";
 import { WorktreeLabelLayer } from "./WorktreeLabelLayer";
+import { ClusterLinkLayer } from "./ClusterLinkLayer";
 import { SpatialWaypointsLayer } from "./SpatialWaypointsLayer";
 import { ContextMenu } from "../components/ContextMenu";
 import { createTerminalInScene } from "../actions/terminalSceneActions";
@@ -765,6 +766,8 @@ function XyFlowCanvasInner() {
           onClose={() => setContextMenu(null)}
         />
       )}
+
+      <ClusterLinkLayer />
 
       <BoxSelectOverlay />
       <CanvasCardLayer />
