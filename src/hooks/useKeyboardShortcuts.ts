@@ -17,6 +17,12 @@ import {
   ensureTerminalCreationTarget,
 } from "../projects/projectCreation";
 import { useCanvasStore } from "../stores/canvasStore";
+import { useCanvasToolStore } from "../stores/canvasToolStore";
+import {
+  fitAllProjects,
+  setZoomToHundred,
+  stepZoomAtCenter,
+} from "../canvas/zoomActions";
 import { useNotificationStore } from "../stores/notificationStore";
 import { promptAndAddProjectToScene } from "../canvas/sceneCommands";
 import { useShortcutStore, matchesShortcut } from "../stores/shortcutStore";
@@ -297,8 +303,75 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      // Figma-style canvas zoom: Cmd+0 fit, Cmd+1 100%, Cmd+= / Cmd+-
+      // step. Allowed before shouldIgnoreShortcutTarget because the
+      // primary modifier means terminal text input never produces these.
+      if ((e.metaKey || e.ctrlKey) && !e.altKey) {
+        if (e.key === "0") {
+          consumeShortcut();
+          fitAllProjects();
+          return;
+        }
+        if (e.key === "1" && !e.shiftKey) {
+          consumeShortcut();
+          setZoomToHundred();
+          return;
+        }
+        // Browsers map Cmd++ → Cmd+= and Cmd+- to zoom; we override.
+        if (e.key === "=" || e.key === "+") {
+          consumeShortcut();
+          stepZoomAtCenter("in");
+          return;
+        }
+        if (e.key === "-" || e.key === "_") {
+          consumeShortcut();
+          stepZoomAtCenter("out");
+          return;
+        }
+      }
+
       if (shouldIgnoreShortcutTarget(e)) {
         return;
+      }
+
+      // Shift+1 → fit all (Figma "fit content"). After
+      // shouldIgnoreShortcutTarget so it can't hijack "!" in editable
+      // fields.
+      if (e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && e.key === "!") {
+        consumeShortcut();
+        fitAllProjects();
+        return;
+      }
+
+      // V / H — switch canvas tool. No modifiers; fall through if any
+      // modifier is held so things like Cmd+H (hide on macOS) survive.
+      if (
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.shiftKey &&
+        !e.repeat
+      ) {
+        const key = e.key.toLowerCase();
+        if (key === "v") {
+          consumeShortcut();
+          useCanvasToolStore.getState().setTool("select");
+          return;
+        }
+        if (key === "h") {
+          consumeShortcut();
+          useCanvasToolStore.getState().setTool("hand");
+          return;
+        }
+        // Space hold → temporary hand. Repeat events are filtered above
+        // so the keydown only fires once until release.
+        if (e.code === "Space") {
+          if (!useCanvasToolStore.getState().spaceHeld) {
+            useCanvasToolStore.getState().setSpaceHeld(true);
+          }
+          e.preventDefault();
+          return;
+        }
       }
 
       if (
@@ -614,7 +687,29 @@ export function useKeyboardShortcuts() {
       }
     };
 
+    // Release temp-pan when Space lifts. Listening on keyup directly
+    // (rather than threading through `handler`) keeps the release path
+    // independent of focus checks — if focus shifted into an editable
+    // field mid-hold, we still want the panning state to clear.
+    const releaseSpacePan = (e: KeyboardEvent) => {
+      if (e.code !== "Space") return;
+      if (useCanvasToolStore.getState().spaceHeld) {
+        useCanvasToolStore.getState().setSpaceHeld(false);
+      }
+    };
+    const releaseOnBlur = () => {
+      if (useCanvasToolStore.getState().spaceHeld) {
+        useCanvasToolStore.getState().setSpaceHeld(false);
+      }
+    };
+
     window.addEventListener("keydown", handler, true);
-    return () => window.removeEventListener("keydown", handler, true);
+    window.addEventListener("keyup", releaseSpacePan, true);
+    window.addEventListener("blur", releaseOnBlur);
+    return () => {
+      window.removeEventListener("keydown", handler, true);
+      window.removeEventListener("keyup", releaseSpacePan, true);
+      window.removeEventListener("blur", releaseOnBlur);
+    };
   }, [shortcuts, t]);
 }
