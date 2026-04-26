@@ -19,6 +19,7 @@ import {
   fitAllProjects,
   setZoomToHundred,
 } from "../../canvas/zoomActions";
+import { createBrowserCardInScene } from "../../actions/sceneCardActions";
 import {
   stashTerminalInScene,
   toggleTerminalStarredInScene,
@@ -37,6 +38,9 @@ import { useProjectStore } from "../../stores/projectStore";
 import { useSearchStore } from "../../stores/searchStore";
 import { useSettingsModalStore } from "../../stores/settingsModalStore";
 import { useThemeStore } from "../../stores/themeStore";
+import { useWelcomeStore } from "../../stores/welcomeStore";
+import { rebuildTerminalAtlas } from "../../terminal/webglContextPool";
+import { refreshRegisteredTerminalViewports } from "../../terminal/terminalRegistry";
 import {
   formatShortcut,
   useShortcutStore,
@@ -302,7 +306,39 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
           .getState()
           .setPetEnabled(!usePreferencesStore.getState().petEnabled),
     },
+    {
+      id: "show-tutorial",
+      section: "action",
+      title: "Show Welcome Tutorial",
+      keywords: ["help", "intro", "guide", "onboarding"],
+      perform: () => useWelcomeStore.getState().openTutorial(),
+    },
   ];
+
+  if (prefs.browserEnabled) {
+    list.push({
+      id: "open-browser-card",
+      section: "action",
+      title: "Add Browser to Canvas",
+      keywords: ["web", "open browser", "internet"],
+      perform: () => {
+        createBrowserCardInScene("https://google.com");
+      },
+    });
+  }
+
+  if (prefs.terminalRenderer === "webgl") {
+    list.push({
+      id: "refresh-terminal-rendering",
+      section: "action",
+      title: "Refresh Terminal Rendering",
+      keywords: ["redraw", "atlas", "glyph", "webgl"],
+      perform: () => {
+        rebuildTerminalAtlas();
+        refreshRegisteredTerminalViewports();
+      },
+    });
+  }
 
   if (focusedTerminal) {
     list.push(

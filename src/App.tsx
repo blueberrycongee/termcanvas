@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { CanvasRoot } from "./canvas/CanvasRoot";
 import { addProjectFromDirectoryPath } from "./canvas/sceneCommands";
 import { Toolbar } from "./toolbar/Toolbar";
@@ -17,6 +17,7 @@ import { DiscoveryCue } from "./components/DiscoveryCue";
 import { CompletionGlow } from "./components/CompletionGlow";
 import { initSessionStoreIPC } from "./stores/sessionStore";
 import { WelcomePopup } from "./components/WelcomePopup";
+import { useWelcomeStore } from "./stores/welcomeStore";
 import { SearchModal } from "./components/SearchModal";
 import { CommandPalette } from "./components/CommandPalette/CommandPalette";
 import { UsageOverlay } from "./components/UsageOverlay";
@@ -257,9 +258,8 @@ export function App() {
   const completionGlowEnabled = usePreferencesStore(
     (s) => s.completionGlowEnabled,
   );
-  const [showWelcome, setShowWelcome] = useState(() => {
-    return !localStorage.getItem("termcanvas-welcome-seen");
-  });
+  const showWelcome = useWelcomeStore((s) => s.open);
+  const closeWelcome = useWelcomeStore((s) => s.closeTutorial);
 
   useEffect(() => {
     if (!summaryEnabled) return;
@@ -444,7 +444,7 @@ export function App() {
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-[var(--bg)] text-[var(--text-primary)]">
-      <Toolbar onShowTutorial={() => setShowWelcome(true)} />
+      <Toolbar />
       {/* Hub (focus-level switcher) hidden until the underlying level
           cycling is reworked — it currently overlaps the new worktree
           label HUD in the canvas top-left. Re-enable when ready. */}
@@ -465,14 +465,7 @@ export function App() {
       <SessionsOverlay />
       <FileEditorDrawer />
       <PinDetailDrawer />
-      {showWelcome && (
-        <WelcomePopup
-          onClose={() => {
-            localStorage.setItem("termcanvas-welcome-seen", "1");
-            setShowWelcome(false);
-          }}
-        />
-      )}
+      {showWelcome && <WelcomePopup onClose={closeWelcome} />}
     </div>
   );
 }
