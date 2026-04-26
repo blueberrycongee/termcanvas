@@ -425,6 +425,8 @@ export const en = {
   composer_target_label: "Target",
   composer_submit: "Send",
   composer_submitting: "Sending\u2026",
+  composer_sent: "Sent",
+  composer_saved: "Saved",
   composer_empty_state: "No terminals available",
   composer_no_target_state: "No terminal selected",
   composer_rename_title_missing_target: "Focus a terminal before renaming it.",

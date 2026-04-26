@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { updateTerminalCustomTitleInScene } from "../actions/terminalSceneActions";
 import {
   findTerminalById,
@@ -169,6 +176,33 @@ export function ComposerBar() {
 
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounterRef = useRef(0);
+
+  // Submit-feedback state. `submitTick` keys the input-flash element so
+  // the keyframe replays on every successful send (a stable React node
+  // would only animate once). `sentLabel` carries the transient
+  // acknowledgement text ("Sent" for compose, "Saved" for rename) and
+  // doubles as the "show sent state" flag.
+  const [submitTick, setSubmitTick] = useState(0);
+  const [sentLabel, setSentLabel] = useState<string | null>(null);
+  const sentResetRef = useRef<number | null>(null);
+  const triggerSent = useCallback((label: string) => {
+    setSubmitTick((n) => n + 1);
+    setSentLabel(label);
+    if (sentResetRef.current !== null) {
+      window.clearTimeout(sentResetRef.current);
+    }
+    sentResetRef.current = window.setTimeout(() => {
+      setSentLabel(null);
+      sentResetRef.current = null;
+    }, 700);
+  }, []);
+  useEffect(() => {
+    return () => {
+      if (sentResetRef.current !== null) {
+        window.clearTimeout(sentResetRef.current);
+      }
+    };
+  }, []);
 
   const slashCommands = useMemo(() => {
     if (!slashMenuOpen || !targetTerminal) return [];
@@ -413,6 +447,7 @@ export function ComposerBar() {
       );
       setError(null);
       exitRenameTerminalTitleMode();
+      triggerSent(t.composer_saved);
       requestAnimationFrame(() => textareaRef.current?.focus());
       return;
     }
@@ -474,6 +509,7 @@ export function ComposerBar() {
       }
 
       clear();
+      triggerSent(t.composer_sent);
     } catch (submitError) {
       const message =
         submitError instanceof Error ? submitError.message : String(submitError);
@@ -496,6 +532,7 @@ export function ComposerBar() {
     setSubmitting,
     targetTerminal,
     t,
+    triggerSent,
     updateTerminalCustomTitleInScene,
   ]);
 
@@ -530,11 +567,50 @@ export function ComposerBar() {
   const isComposerDisabled = isRenameMode
     ? renameTarget === null || isSubmitting
     : !isTargetReady || isSubmitting;
-  const submitLabel = isRenameMode
-    ? t.composer_rename_title_submit
-    : isSubmitting
+  const hasSubmittableContent = draft.trim().length > 0 || images.length > 0;
+  type SendState = "idle" | "ready" | "submitting" | "sent";
+  const sendState: SendState = isSubmitting
+    ? "submitting"
+    : sentLabel !== null && !hasSubmittableContent
+      ? "sent"
+      : hasSubmittableContent
+        ? "ready"
+        : "idle";
+  const sendButtonLabel =
+    sendState === "submitting"
       ? t.composer_submitting
-      : t.composer_submit;
+      : sendState === "sent"
+        ? (sentLabel ?? t.composer_sent)
+        : isRenameMode
+          ? t.composer_rename_title_submit
+          : t.composer_submit;
+  const sendButtonStyle: CSSProperties = (() => {
+    const base: CSSProperties = {
+      top: "50%",
+      transform: "translateY(-50%)",
+    };
+    switch (sendState) {
+      case "ready":
+        return {
+          ...base,
+          opacity: 1,
+          boxShadow:
+            "0 2px 12px color-mix(in srgb, var(--accent) 24%, transparent)",
+        };
+      case "submitting":
+        return { ...base, opacity: 0.9, boxShadow: "none" };
+      case "sent":
+        return {
+          ...base,
+          opacity: 1,
+          boxShadow:
+            "0 0 0 2px color-mix(in srgb, var(--accent) 38%, transparent)",
+        };
+      case "idle":
+      default:
+        return { ...base, opacity: 0.55, boxShadow: "none" };
+    }
+  })();
 
   return (
     <div
@@ -628,6 +704,13 @@ export function ComposerBar() {
                 onClose={handleSlashClose}
               />
             )}
+            {submitTick > 0 && (
+              <span
+                key={submitTick}
+                aria-hidden
+                className="tc-composer-input-flash pointer-events-none absolute inset-0 rounded-lg"
+              />
+            )}
             <textarea
               ref={textareaRef}
               value={draft}
@@ -701,14 +784,63 @@ export function ComposerBar() {
               rows={2}
               placeholder={placeholder}
               disabled={isComposerDisabled}
-              className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg)] pl-3 pr-14 py-2 text-[13px] text-[var(--text-primary)] outline-none transition-colors duration-150 placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]"
+              className="relative w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg)] pl-3 pr-20 py-2 text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]"
+              style={{
+                transition:
+                  "border-color var(--duration-quick) var(--ease-out-soft)",
+              }}
             />
             <button
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md bg-[var(--accent)] px-2.5 py-1 text-[11px] font-medium text-white transition-all duration-150 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+              className={`tc-composer-send-button absolute right-2 inline-flex items-center gap-1 rounded-md bg-[var(--accent)] px-2.5 py-1 text-[11px] font-medium text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 ${
+                sendState === "sent" ? "tc-composer-send-pulse" : ""
+              }`}
+              style={sendButtonStyle}
               onClick={() => void handleSubmit()}
               disabled={isComposerDisabled}
             >
-              {submitLabel}
+              {sendState === "submitting" && (
+                <svg
+                  width="9"
+                  height="9"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  aria-hidden
+                  className="animate-spin"
+                >
+                  <circle
+                    cx="8"
+                    cy="8"
+                    r="6"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeOpacity="0.3"
+                  />
+                  <path
+                    d="M14 8a6 6 0 0 1-6 6"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              )}
+              {sendState === "sent" && (
+                <svg
+                  width="9"
+                  height="9"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  aria-hidden
+                >
+                  <path
+                    d="M3 8.5L6.5 12L13 4.5"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
+              <span>{sendButtonLabel}</span>
             </button>
           </div>
           {error && (

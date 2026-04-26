@@ -687,6 +687,47 @@ html.tc-scrolling ::-webkit-scrollbar-thumb {
 .tc-enter-pop { animation: tc-pop var(--duration-quick) var(--ease-out-snap) both; }
 .tc-enter-slide-right { animation: tc-slide-in-right var(--duration-natural) var(--ease-out-soft) both; }
 
+/* Composer submit feedback. Two coordinated cues that fire once per
+   successful send: a halo expanding off the input ("the field
+   accepted you"), and a one-beat scale on the send button
+   ("received"). The button uses --ease-out-snap deliberately — a
+   single small overshoot reads as confident acknowledgement; longer
+   springs would feel toy-like in a developer tool. */
+@keyframes tc-composer-input-flash {
+  0% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  100% {
+    opacity: 0;
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+}
+/* Animates `scale` (not `transform`) so the button's translateY(-50%)
+   stays intact while the keyframe runs. */
+@keyframes tc-composer-send-pulse {
+  0% { scale: 1; }
+  40% { scale: 1.06; }
+  100% { scale: 1; }
+}
+.tc-composer-input-flash {
+  animation: tc-composer-input-flash var(--duration-natural) var(--ease-out-soft) forwards;
+}
+.tc-composer-send-button {
+  transition:
+    background-color var(--duration-quick) var(--ease-out-soft),
+    box-shadow var(--duration-quick) var(--ease-out-soft),
+    opacity var(--duration-quick) var(--ease-out-soft),
+    scale var(--duration-quick) var(--ease-out-soft);
+}
+.tc-composer-send-button:active:not(:disabled) {
+  scale: 0.96;
+  transition: scale var(--duration-instant) var(--ease-out-snap);
+}
+.tc-composer-send-pulse {
+  animation: tc-composer-send-pulse var(--duration-quick) var(--ease-out-snap);
+}
+
 /* Stagger helper — apply tc-stagger on a container, then the children
    inherit a small delay multiplied by their position. Keeps motion
    coherent across lists without each callsite passing inline delays. */
@@ -709,6 +750,8 @@ html.tc-scrolling ::-webkit-scrollbar-thumb {
   .tc-enter-fade-down,
   .tc-enter-pop,
   .tc-enter-slide-right,
+  .tc-composer-input-flash,
+  .tc-composer-send-pulse,
   .usage-section-enter,
   .usage-overlay-enter,
   .usage-tooltip-enter,

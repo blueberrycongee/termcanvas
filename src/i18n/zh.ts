@@ -416,6 +416,8 @@ export const zh = {
   composer_target_label: "目标",
   composer_submit: "发送",
   composer_submitting: "发送中…",
+  composer_sent: "已发送",
+  composer_saved: "已保存",
   composer_empty_state: "当前没有可用终端",
   composer_no_target_state: "当前未选中终端",
   composer_rename_title_missing_target: "请先聚焦一个终端，再修改标题。",
