@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useCanvasStore } from "../stores/canvasStore";
-import { useCanvasToolStore } from "../stores/canvasToolStore";
+import {
+  useCanvasToolStore,
+  type CanvasTool,
+} from "../stores/canvasToolStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import {
   fitAllProjects,
@@ -33,9 +36,6 @@ const dividerCls =
 const buttonBase =
   "inline-flex h-8 items-center justify-center rounded-md text-[12px] font-medium text-[var(--text-muted)] transition-[color,background-color,transform] duration-150 hover:bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] hover:text-[var(--text-primary)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color-mix(in_srgb,var(--text-secondary)_24%,transparent)] motion-reduce:transition-none";
 const iconButton = `${buttonBase} w-8`;
-const segmentButton = `${buttonBase} px-2.5 gap-1.5`;
-const segmentActive =
-  "bg-[color-mix(in_srgb,var(--surface)_82%,transparent)] text-[var(--text-primary)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--border)_70%,transparent)]";
 const zoomReadout =
   "min-w-[3.25rem] h-8 inline-flex items-center justify-center text-[11px] text-[var(--text-faint)] tabular-nums rounded-md hover:bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] hover:text-[var(--text-primary)] transition-colors";
 
@@ -45,28 +45,37 @@ const ZOOM_PRESETS: Array<{ scale: number; label: string }> = [
   { scale: 2, label: "200%" },
 ];
 
+function useCloseOnOutsideClick(
+  open: boolean,
+  ref: React.RefObject<HTMLElement | null>,
+  close: () => void,
+): void {
+  useEffect(() => {
+    if (!open) return;
+    const handle = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) close();
+    };
+    window.addEventListener("mousedown", handle);
+    return () => window.removeEventListener("mousedown", handle);
+  }, [open, ref, close]);
+}
+
 export function BottomToolbar() {
   const t = useT();
   const tool = useCanvasToolStore((s) => s.tool);
   const setTool = useCanvasToolStore((s) => s.setTool);
   const viewport = useCanvasStore((s) => s.viewport);
   const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
-  const [presetOpen, setPresetOpen] = useState(false);
-  const popoverRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!presetOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(e.target as Node)
-      ) {
-        setPresetOpen(false);
-      }
-    };
-    window.addEventListener("mousedown", handleClick);
-    return () => window.removeEventListener("mousedown", handleClick);
-  }, [presetOpen]);
+  const [toolMenuOpen, setToolMenuOpen] = useState(false);
+  const [presetOpen, setPresetOpen] = useState(false);
+  const toolMenuRef = useRef<HTMLDivElement>(null);
+  const presetRef = useRef<HTMLDivElement>(null);
+
+  useCloseOnOutsideClick(toolMenuOpen, toolMenuRef, () =>
+    setToolMenuOpen(false),
+  );
+  useCloseOnOutsideClick(presetOpen, presetRef, () => setPresetOpen(false));
 
   const applyPreset = useCallback((nextScale: number) => {
     const {
@@ -97,6 +106,18 @@ export function BottomToolbar() {
 
   const zoomPercent = Math.round(viewport.scale * 100);
 
+  const toolOptions: Array<{
+    id: CanvasTool;
+    label: string;
+    shortcut: string;
+    icon: React.ReactNode;
+  }> = [
+    { id: "select", label: t.canvas_tool_select, shortcut: "V", icon: <SelectIcon /> },
+    { id: "hand", label: t.canvas_tool_hand, shortcut: "H", icon: <HandIcon /> },
+  ];
+  const activeTool =
+    toolOptions.find((opt) => opt.id === tool) ?? toolOptions[0];
+
   return (
     <div
       className="fixed left-1/2 -translate-x-1/2 z-[95] pointer-events-none"
@@ -109,27 +130,55 @@ export function BottomToolbar() {
       <div
         className={`pointer-events-auto inline-flex items-center gap-1 rounded-full px-2 py-1 ${PILL_BG} ${PILL_BORDER} ${PILL_SHADOW}`}
       >
-        <div className={groupBase} role="group" aria-label={t.canvas_tool_select}>
+        <div className="relative" ref={toolMenuRef}>
           <button
-            className={`${segmentButton} ${tool === "select" ? segmentActive : ""}`}
-            onClick={() => setTool("select")}
-            title={`${t.canvas_tool_select} (V)`}
-            aria-label={t.canvas_tool_select}
-            aria-pressed={tool === "select"}
+            className={`${buttonBase} px-2 gap-1`}
+            onClick={() => setToolMenuOpen((open) => !open)}
+            title={`${activeTool.label} (${activeTool.shortcut})`}
+            aria-haspopup="menu"
+            aria-expanded={toolMenuOpen}
+            aria-label={activeTool.label}
           >
-            <SelectIcon />
-            <span className="text-[11px] font-mono opacity-60">V</span>
+            {activeTool.icon}
+            <CaretIcon open={toolMenuOpen} />
           </button>
-          <button
-            className={`${segmentButton} ${tool === "hand" ? segmentActive : ""}`}
-            onClick={() => setTool("hand")}
-            title={`${t.canvas_tool_hand} (H)`}
-            aria-label={t.canvas_tool_hand}
-            aria-pressed={tool === "hand"}
-          >
-            <HandIcon />
-            <span className="text-[11px] font-mono opacity-60">H</span>
-          </button>
+          {toolMenuOpen && (
+            <div
+              role="menu"
+              className={`absolute bottom-full left-0 mb-2 min-w-[160px] rounded-md py-1 ${PILL_BG} ${PILL_BORDER} ${PILL_SHADOW}`}
+            >
+              {toolOptions.map((opt) => {
+                const active = opt.id === tool;
+                return (
+                  <button
+                    key={opt.id}
+                    role="menuitemradio"
+                    aria-checked={active}
+                    className={`flex w-full items-center gap-3 px-2.5 py-1.5 text-[12px] transition-colors ${
+                      active
+                        ? "text-[var(--text-primary)] bg-[color-mix(in_srgb,var(--surface)_72%,transparent)]"
+                        : "text-[var(--text-secondary)] hover:bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] hover:text-[var(--text-primary)]"
+                    }`}
+                    onClick={() => {
+                      setTool(opt.id);
+                      setToolMenuOpen(false);
+                    }}
+                  >
+                    <span className="w-4 inline-flex items-center justify-center">
+                      {active ? <CheckIcon /> : null}
+                    </span>
+                    <span className="inline-flex items-center justify-center w-4">
+                      {opt.icon}
+                    </span>
+                    <span className="flex-1 text-left">{opt.label}</span>
+                    <span className="text-[10px] font-mono text-[var(--text-faint)]">
+                      {opt.shortcut}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div aria-hidden="true" className={dividerCls} />
@@ -144,7 +193,7 @@ export function BottomToolbar() {
             <span className="text-[14px] leading-none">−</span>
           </button>
 
-          <div className="relative" ref={popoverRef}>
+          <div className="relative" ref={presetRef}>
             <button
               className={zoomReadout}
               onClick={() => setPresetOpen((open) => !open)}
@@ -166,7 +215,11 @@ export function BottomToolbar() {
                     role="menuitem"
                     className="flex w-full items-center justify-between px-3 py-1.5 text-[12px] text-[var(--text-secondary)] hover:bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] hover:text-[var(--text-primary)]"
                     onClick={() => {
-                      applyPreset(preset.scale);
+                      if (preset.scale === 1) {
+                        setZoomToHundred();
+                      } else {
+                        applyPreset(preset.scale);
+                      }
                       setPresetOpen(false);
                     }}
                   >
@@ -237,6 +290,41 @@ function HandIcon() {
         d="M4 6V2.7a.9.9 0 1 1 1.8 0V6m0 0V1.9a.9.9 0 1 1 1.8 0V6m0 0V2.4a.9.9 0 1 1 1.8 0V6m0 0V3.6a.9.9 0 1 1 1.8 0v4.6c0 2.3-1.7 3.6-3.5 3.6S2.5 10.5 2.5 8.5V6.5a.9.9 0 1 1 1.5-.5"
         stroke="currentColor"
         strokeWidth="1.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function CaretIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="8"
+      height="8"
+      viewBox="0 0 8 8"
+      fill="none"
+      className={`transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+      aria-hidden="true"
+    >
+      <path
+        d="M1.5 3l2.5 2.5L6.5 3"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true">
+      <path
+        d="M2 5.8L4.4 8.2L9 3.2"
+        stroke="currentColor"
+        strokeWidth="1.4"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
