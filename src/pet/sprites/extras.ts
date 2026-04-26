@@ -80,14 +80,3 @@ const stretchFull: (string | null)[][] = stretchBase.map((row, y) => {
   return row;
 });
 export const wakingFrames = [stretchBase, stretchFull, stretchFull, stretchBase, idleFrames[0]];
-
-// Goodbye — looking around (head leans forward and backward)
-const goodbyeForward = curiousBase;
-const goodbyeBack: (string | null)[][] = idleFrames[0].map((row, y) => {
-  if (y >= 1 && y <= 11) {
-    return [...row.slice(1), _];
-  }
-  return row;
-});
-
-export const goodbyeFrames = [goodbyeForward, idleFrames[0], goodbyeBack, idleFrames[0]];

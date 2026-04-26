@@ -779,14 +779,7 @@ contextBridge.exposeInMainWorld("termcanvas", {
   app: {
     homePath: process.env.HOME ?? process.env.USERPROFILE ?? "",
     platform: process.platform as "darwin" | "win32" | "linux",
-    onBeforeClose: (callback: () => void) => {
-      const listener = () => callback();
-      ipcRenderer.on("app:before-close", listener);
-      return () => ipcRenderer.removeListener("app:before-close", listener);
-    },
     requestClose: () => ipcRenderer.send("app:request-close"),
-    confirmClose: (options?: { installUpdate?: boolean }) =>
-      ipcRenderer.send("app:close-confirmed", options),
   },
   updater: {
     check: () => ipcRenderer.invoke("updater:check"),

@@ -960,9 +960,7 @@ export interface TermCanvasAPI {
   app: {
     homePath: string;
     platform: "darwin" | "win32" | "linux";
-    onBeforeClose: (callback: () => void) => () => void;
     requestClose: () => void;
-    confirmClose: (options?: { installUpdate?: boolean }) => void;
   };
   hooks: {
     getSocketPath: () => Promise<string | null>;

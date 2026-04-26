@@ -1,11 +1,6 @@
 export const zh = {
   cancel: "取消",
   save: "保存",
-  dont_save: "不保存",
-
-  save_workspace_title: "保存工作区？",
-  save_workspace_desc: "将项目、终端和绘图保存到文件，以便稍后恢复。",
-
   settings: "设置",
   reset: "重置",
   fit: "适合",
