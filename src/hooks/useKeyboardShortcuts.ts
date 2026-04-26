@@ -60,6 +60,7 @@ import {
   recallWaypointFromActiveProject,
   saveWaypointToActiveProject,
 } from "../actions/spatialWaypointActions";
+import { panToRecentActivity } from "../actions/recentActivityNavigationAction";
 
 function getAllTerminals() {
   const { projects } = useProjectStore.getState();
@@ -338,6 +339,26 @@ export function useKeyboardShortcuts() {
       if (matchesShortcut(e, shortcuts.toggleSessionsOverlay)) {
         consumeShortcut();
         useCanvasStore.getState().toggleSessionsOverlay();
+        return;
+      }
+
+      // Pan-to-recent-activity. Alt+` flies the camera to whichever
+      // terminal emitted PTY output most recently (within last 30s).
+      // Repeated rapid presses cycle through an LRU snapshot, Alt+Tab
+      // style. Use e.code so Option+` (which yields a dead-key on
+      // macOS layouts) still matches. Skip when focus is in an editable
+      // target so the keystroke isn't stolen from terminal text input.
+      if (
+        e.code === "Backquote" &&
+        e.altKey &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.shiftKey &&
+        !e.repeat &&
+        !isEditableTarget(e.target)
+      ) {
+        consumeShortcut();
+        panToRecentActivity();
         return;
       }
 
