@@ -42,3 +42,11 @@ git-harness-snapshot.md
 # Local-only archives
 .local-archive/
 docs/research/harness-articles-2026/
+
+# Locally-installed third-party skills (not project-managed). The
+# project's own skill plugin lives at /skills/skills and is exposed
+# under .agents/skills/termcanvas via a tracked symlink, so we ignore
+# every other entry under .agents/skills/ instead of the whole tree.
+/.agents/skills/*/
+!/.agents/skills/termcanvas
+/skills-lock.json
