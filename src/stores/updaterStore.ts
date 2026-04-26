@@ -12,27 +12,13 @@ interface UpdaterStore {
   info: UpdateEventInfo | null;
   downloadPercent: number;
   errorMessage: string | null;
-  installOnCloseRequested: boolean;
-  requestRestartOnClose: () => void;
-  cancelRestartOnClose: () => void;
-  consumeRestartOnClose: () => boolean;
 }
 
-export const useUpdaterStore = create<UpdaterStore>((set, get) => ({
+export const useUpdaterStore = create<UpdaterStore>((set) => ({
   status: "idle",
   info: null,
   downloadPercent: 0,
   errorMessage: null,
-  installOnCloseRequested: false,
-  requestRestartOnClose: () => set({ installOnCloseRequested: true }),
-  cancelRestartOnClose: () => set({ installOnCloseRequested: false }),
-  consumeRestartOnClose: () => {
-    const requested = get().installOnCloseRequested;
-    if (requested) {
-      set({ installOnCloseRequested: false });
-    }
-    return requested;
-  },
 }));
 
 export function initUpdaterListeners(): () => void {
