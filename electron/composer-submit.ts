@@ -187,7 +187,9 @@ async function submitBracketedPaste(
     if (stagedImagePaths.length > 0 || request.text.trim().length > 0) {
       await deps.delayMs(adapter.pasteDelayMs);
     }
-    writePtyData(request.ptyId, "\r", deps, "submit", "submit-key-failed");
+    if (request.submit !== false) {
+      writePtyData(request.ptyId, "\r", deps, "submit", "submit-key-failed");
+    }
 
     return { ok: true, requestId, stagedImagePaths };
   } catch (error) {
@@ -230,7 +232,9 @@ async function submitDirectText(
         "pty-write-failed",
       );
     }
-    writePtyData(request.ptyId, "\r", deps, "submit", "submit-key-failed");
+    if (request.submit !== false) {
+      writePtyData(request.ptyId, "\r", deps, "submit", "submit-key-failed");
+    }
   } catch (error) {
     return createFailure(error as ComposerSubmitIssue);
   }

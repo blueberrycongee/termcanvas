@@ -2078,6 +2078,10 @@ function setupIpc() {
         taskStore.attachmentsDir(repo, taskId),
       );
 
+      // Paste-only — fill the agent's input buffer with the title + body
+      // (and stage attachments) but leave submission to the user. They
+      // review the prompt in context, edit if needed, and hit Enter
+      // themselves.
       const request: ComposerSubmitRequest = {
         terminalId: target.terminalId,
         ptyId: target.ptyId,
@@ -2085,6 +2089,7 @@ function setupIpc() {
         worktreePath: target.worktreePath,
         text,
         images,
+        submit: false,
       };
 
       try {

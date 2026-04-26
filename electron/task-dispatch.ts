@@ -12,6 +12,7 @@ const IMAGE_MIME: Record<string, string> = {
 
 export interface TaskComposerInput {
   id: string;
+  title: string;
   body: string;
 }
 
@@ -41,13 +42,18 @@ export async function buildTaskComposerPayload(
     "g",
   );
 
+  // Prepend the task title as an h1 so the agent gets the user's framing,
+  // not just the description. Title comes first; body follows after a blank
+  // line. Empty bodies still produce a usable prompt with just the title.
+  const titlePrefix = task.title.trim() ? `# ${task.title.trim()}\n\n` : "";
+
   const matches: { full: string; alt: string; basename: string }[] = [];
   for (const m of task.body.matchAll(re)) {
     matches.push({ full: m[0], alt: m[1] ?? "", basename: m[2] ?? "" });
   }
 
   if (matches.length === 0) {
-    return { text: task.body, images: [] };
+    return { text: (titlePrefix + task.body).trimEnd(), images: [] };
   }
 
   const images: ComposerImageAttachment[] = [];
@@ -83,5 +89,6 @@ export async function buildTaskComposerPayload(
   }
 
   cleanedText = cleanedText.replace(/\n{3,}/g, "\n\n").trim();
-  return { text: cleanedText, images };
+  const text = (titlePrefix + cleanedText).trimEnd();
+  return { text, images };
 }

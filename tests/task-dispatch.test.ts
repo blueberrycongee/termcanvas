@@ -35,7 +35,10 @@ test("buildTaskComposerPayload extracts image refs and strips them from text", a
     "Compare with [the spec](https://example.com/spec.pdf).",
   ].join("\n");
 
-  const result = await buildTaskComposerPayload({ id: taskId, body }, dir);
+  const result = await buildTaskComposerPayload(
+    { id: taskId, title: "fix button alignment", body },
+    dir,
+  );
 
   assert.equal(result.images.length, 2);
   assert.equal(result.images[0].id, "abc123");
@@ -53,15 +56,42 @@ test("buildTaskComposerPayload extracts image refs and strips them from text", a
   assert.ok(result.text.includes("[the spec](https://example.com/spec.pdf)"));
 });
 
-test("buildTaskComposerPayload returns body verbatim when there are no image refs", async () => {
+test("buildTaskComposerPayload prepends the task title as h1 markdown", async () => {
   const dir = freshAttachmentsDir("plain-task-aa11");
   const body = "Just some prose.\n\nWith another paragraph.";
   const result = await buildTaskComposerPayload(
-    { id: "plain-task-aa11", body },
+    { id: "plain-task-aa11", title: "fix the layout", body },
     dir,
   );
-  assert.equal(result.text, body);
+  assert.equal(
+    result.text,
+    `# fix the layout\n\nJust some prose.\n\nWith another paragraph.`,
+  );
   assert.deepEqual(result.images, []);
+});
+
+test("buildTaskComposerPayload prepends the title even when the body has image refs", async () => {
+  const taskId = "with-image-cc33";
+  const dir = freshAttachmentsDir(taskId);
+  fs.writeFileSync(path.join(dir, "shot.png"), PNG_BYTES);
+  const body = `Look:\n\n![](./${taskId}.attachments/shot.png)`;
+  const result = await buildTaskComposerPayload(
+    { id: taskId, title: "broken button", body },
+    dir,
+  );
+  assert.ok(result.text.startsWith("# broken button\n\n"));
+  assert.ok(result.text.includes("Look:"));
+  assert.ok(!result.text.includes("shot.png"));
+  assert.equal(result.images.length, 1);
+});
+
+test("buildTaskComposerPayload omits the title prefix when the title is blank", async () => {
+  const dir = freshAttachmentsDir("untitled-dd44");
+  const result = await buildTaskComposerPayload(
+    { id: "untitled-dd44", title: "   ", body: "Just body." },
+    dir,
+  );
+  assert.equal(result.text, "Just body.");
 });
 
 test("buildTaskComposerPayload skips image refs whose file is missing", async () => {
@@ -69,7 +99,10 @@ test("buildTaskComposerPayload skips image refs whose file is missing", async ()
   const dir = freshAttachmentsDir(taskId);
   // Don't write the file.
   const body = `Here: ![missing](./${taskId}.attachments/ghost.png)`;
-  const result = await buildTaskComposerPayload({ id: taskId, body }, dir);
+  const result = await buildTaskComposerPayload(
+    { id: taskId, title: "fix button alignment", body },
+    dir,
+  );
   assert.equal(result.images.length, 0);
   // The markdown reference should remain in text since we couldn't honor it.
   assert.ok(result.text.includes("ghost.png"));

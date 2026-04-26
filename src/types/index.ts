@@ -72,6 +72,13 @@ export interface ComposerSubmitRequest {
   worktreePath: string;
   text: string;
   images: ComposerImageAttachment[];
+  /**
+   * When false, paste the text and stage any images but DO NOT send the
+   * Enter key — leaves the prompt in the agent's input buffer for the user
+   * to review/edit/submit themselves. Defaults to true to preserve the
+   * existing composer:submit behavior; task drag-and-drop opts out.
+   */
+  submit?: boolean;
 }
 
 export type ComposerSubmitIssueStage =
