@@ -155,6 +155,7 @@ export function BottomToolbar() {
   const t = useT();
   const tool = useCanvasToolStore((s) => s.tool);
   const setTool = useCanvasToolStore((s) => s.setTool);
+  const spaceHeld = useCanvasToolStore((s) => s.spaceHeld);
   const viewport = useCanvasStore((s) => s.viewport);
   const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
 
@@ -250,8 +251,15 @@ export function BottomToolbar() {
   }, []);
 
   const zoomPercent = Math.round(viewport.scale * 100);
+  // Trigger reflects the *effective* tool — when Space is held, the
+  // canvas behaves like Hand even though the persisted tool is still
+  // Move. Showing the hand glyph here gives the user the same visual
+  // confirmation Figma's cursor change provides. The dropdown's
+  // checkmark below stays on the persisted tool so the user always
+  // knows what'll be active when Space lifts.
+  const effectiveToolId: CanvasTool = spaceHeld ? "hand" : tool;
   const activeTool =
-    toolOptions.find((opt) => opt.id === tool) ?? toolOptions[0];
+    toolOptions.find((opt) => opt.id === effectiveToolId) ?? toolOptions[0];
 
   // When composer is enabled, sit just above its measured height
   // (published as `--composer-height`). The fallback covers the brief
@@ -266,7 +274,7 @@ export function BottomToolbar() {
       style={{ bottom: bottomOffset }}
     >
       <div
-        className={`pointer-events-auto inline-flex items-center gap-1 rounded-full px-2 py-1 ${PILL_BG} ${PILL_BORDER} ${PILL_SHADOW}`}
+        className={`pointer-events-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 ${PILL_BG} ${PILL_BORDER} ${PILL_SHADOW}`}
       >
         <div className="relative" ref={toolMenuWrapperRef}>
           <button
@@ -308,15 +316,15 @@ export function BottomToolbar() {
                       toolTriggerRef.current?.focus();
                     }}
                   >
-                    <span className="w-4 inline-flex items-center justify-center">
-                      {active ? <CheckIcon /> : null}
-                    </span>
                     <span className="inline-flex items-center justify-center w-4">
                       {opt.icon}
                     </span>
                     <span className="flex-1 text-left">{opt.label}</span>
                     <span className="text-[10px] font-mono text-[var(--text-faint)]">
                       {opt.shortcut}
+                    </span>
+                    <span className="w-4 inline-flex items-center justify-center text-[var(--text-primary)]">
+                      {active ? <CheckIcon /> : null}
                     </span>
                   </button>
                 );
@@ -388,9 +396,6 @@ export function BottomToolbar() {
                   }}
                 >
                   <span>{t.reset}</span>
-                  <span className="text-[10px] font-mono text-[var(--text-faint)]">
-                    0,0
-                  </span>
                 </button>
               </div>
             )}

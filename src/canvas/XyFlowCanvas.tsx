@@ -651,7 +651,11 @@ function XyFlowCanvasInner() {
         edgesFocusable={false}
         elementsSelectable={false}
         selectNodesOnDrag={false}
-        panOnDrag={[0, 1]}
+        // In Hand mode (or Space-held), left+middle both pan. In Move
+        // mode, only middle-button pans — the left button is reserved
+        // for marquee on empty canvas (handled by useBoxSelect) and
+        // node drag (handled by React Flow's nodesDraggable).
+        panOnDrag={isPanMode ? [0, 1] : [1]}
         panOnScroll
         panOnScrollMode={PanOnScrollMode.Free}
         snapToGrid
