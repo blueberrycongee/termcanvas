@@ -234,7 +234,6 @@ function emitSessionHistoryChanged(payload: SessionHistoryChangedEvent) {
 const HIDDEN_DIRS = new Set([".git"]);
 
 let mainWindow: BrowserWindow | null = null;
-let forceClose = false;
 const ptyManager = new PtyManager();
 const outputBatcher = new OutputBatcher((ptyId, data) => {
   sendToWindow(mainWindow, "terminal:output", ptyId, data);
@@ -307,7 +306,6 @@ const apiServer = new ApiServer({
 });
 
 function createWindow() {
-  forceClose = false;
   const isMac = process.platform === "darwin";
   const isWin = process.platform === "win32";
 
@@ -448,14 +446,11 @@ function createWindow() {
       console.error("[TermCanvas API] Failed to start:", err);
     }
   });
-  mainWindow.on("close", (e) => {
+  mainWindow.on("close", () => {
     renderDiagnostics.recordMainEvent("browser_window_close_requested", {
       renderer_ready: rendererReady,
       window_id: windowId,
     });
-    if (forceClose || !mainWindow || !rendererReady) return;
-    e.preventDefault();
-    sendToWindow(mainWindow, "app:before-close");
   });
 }
 
@@ -1909,26 +1904,6 @@ function setupIpc() {
     }
   });
 
-  ipcMain.on(
-    "app:close-confirmed",
-    async (_event, options?: { installUpdate?: boolean }) => {
-      outputBatcher.dispose();
-      await ptyManager.destroyAll();
-      gitWatcher.unwatchAll();
-      fileTreeWatcher.unwatchAll();
-      sessionWatcher.unwatchAll();
-      forceClose = true;
-      if (mainWindow) {
-        mainWindow.close();
-      }
-      if (options?.installUpdate) {
-        installDownloadedUpdate();
-        return;
-      }
-      app.quit();
-    },
-  );
-
   ipcMain.handle(
     "agent:send",
     async (
@@ -2350,17 +2325,29 @@ computerUseManager.onStateChange((state) => {
   sendToWindow(mainWindow, "computer-use:state-changed", state);
 });
 
-app.on("will-quit", async () => {
+let isQuitting = false;
+app.on("will-quit", (event) => {
+  if (isQuitting) return;
+  event.preventDefault();
+  isQuitting = true;
   renderDiagnostics.recordMainEvent("app_will_quit", {
     platform: process.platform,
   });
-  hookReceiver.stop();
-  stopAutoUpdater();
-  apiServer.stop();
-  await computerUseManager.shutdown();
-  cleanupPortFile();
+  void (async () => {
+    outputBatcher.dispose();
+    await ptyManager.destroyAll();
+    gitWatcher.unwatchAll();
+    fileTreeWatcher.unwatchAll();
+    sessionWatcher.unwatchAll();
+    hookReceiver.stop();
+    stopAutoUpdater();
+    apiServer.stop();
+    await computerUseManager.shutdown();
+    cleanupPortFile();
+    app.quit();
+  })();
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+  app.quit();
 });

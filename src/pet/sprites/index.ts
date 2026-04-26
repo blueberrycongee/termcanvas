@@ -12,7 +12,6 @@ import {
   confusedFrames,
   triumphFrames,
   wakingFrames,
-  goodbyeFrames,
 } from "./extras";
 
 export type SpriteFrame = (string | null)[][];
@@ -29,7 +28,6 @@ const spriteMap: Record<PetState, SpriteFrame[]> = {
   confused: confusedFrames,
   commanding: commandingFrames,
   triumph: triumphFrames,
-  goodbye: goodbyeFrames,
   walking: walkingFrames,
 };
 
@@ -46,7 +44,6 @@ const frameIntervals: Record<PetState, number> = {
   confused: 400,
   commanding: 500,
   triumph: 150,
-  goodbye: 300,
   walking: 200,
 };
 

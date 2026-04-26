@@ -1,12 +1,6 @@
 export const en = {
   cancel: "Cancel",
   save: "Save",
-  dont_save: "Don't Save",
-
-  save_workspace_title: "Save workspace?",
-  save_workspace_desc:
-    "Save your projects, terminals, and drawings to a file so you can restore them later.",
-
   settings: "Settings",
   reset: "Reset",
   fit: "Fit",

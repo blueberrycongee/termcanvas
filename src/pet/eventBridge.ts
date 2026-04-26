@@ -532,14 +532,6 @@ export function usePetEventBridge() {
     return unsub;
   }, [setMoveTarget, acknowledgeAttention, markCompletionSeen]);
 
-  // Track app close → goodbye animation
-  useEffect(() => {
-    if (!window.termcanvas?.app?.onBeforeClose) return;
-    return window.termcanvas.app.onBeforeClose(() => {
-      dispatch({ type: "APP_SHUTDOWN" });
-    });
-  }, [dispatch]);
-
   // Idle timer — drives TIMER events for sleep transitions
   useEffect(() => {
     idleTimer.current = setInterval(() => {

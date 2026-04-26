@@ -10,7 +10,6 @@ export type PetState =
   | "confused"
   | "commanding"
   | "triumph"
-  | "goodbye"
   | "walking";
 
 export type PetEvent =
@@ -28,7 +27,6 @@ export type PetEvent =
   | { type: "WORKFLOW_COMPLETED" }
   | { type: "DISPATCH_FAILED" }
   | { type: "APP_IDLE" }
-  | { type: "APP_SHUTDOWN" }
   | { type: "CLICK" }
   | { type: "TIMER"; elapsed: number };
 
@@ -48,12 +46,6 @@ const WAKING_DURATION_MS = 1500;
 export function transition(info: PetStateInfo, event: PetEvent): PetState {
   const { state } = info;
   const elapsed = event.type === "TIMER" ? event.elapsed : 0;
-
-  // GOODBYE is terminal — nothing interrupts it
-  if (state === "goodbye") return "goodbye";
-
-  // APP_SHUTDOWN overrides everything
-  if (event.type === "APP_SHUTDOWN") return "goodbye";
 
   // CLICK while idle/sleeping → waking
   if (event.type === "CLICK") {
