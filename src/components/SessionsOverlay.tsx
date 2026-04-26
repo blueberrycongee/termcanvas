@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import {
   useCanvasStore,
   COLLAPSED_TAB_WIDTH,
-  TASK_DRAWER_WIDTH,
+  PIN_DRAWER_WIDTH,
 } from "../stores/canvasStore";
-import { useTaskStore } from "../stores/taskStore";
+import { usePinStore } from "../stores/pinStore";
 import { useSessionStore } from "../stores/sessionStore";
 import {
   PANEL_TRANSITION_DURATION_MS,
@@ -53,7 +53,7 @@ export function SessionsOverlay() {
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
   const rightPanelCollapsed = useCanvasStore((s) => s.rightPanelCollapsed);
   const rightPanelWidth = useCanvasStore((s) => s.rightPanelWidth);
-  const taskDrawerOpen = useTaskStore((s) => s.openProjectPath !== null);
+  const taskDrawerOpen = usePinStore((s) => s.openProjectPath !== null);
   const replayTimeline = useSessionStore((s) => s.replayTimeline);
   const replayError = useSessionStore((s) => s.replayError);
   const t = useT();
@@ -102,7 +102,7 @@ export function SessionsOverlay() {
 
   const leftInset =
     (leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth) +
-    (taskDrawerOpen ? TASK_DRAWER_WIDTH : 0);
+    (taskDrawerOpen ? PIN_DRAWER_WIDTH : 0);
   const rightInset = rightPanelCollapsed
     ? COLLAPSED_TAB_WIDTH
     : rightPanelWidth;

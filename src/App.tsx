@@ -7,7 +7,7 @@ import { NotificationToast } from "./components/NotificationToast";
 import { LeftPanel } from "./components/LeftPanel";
 import { RightPanel } from "./components/RightPanel";
 import { FileEditorDrawer } from "./components/FileEditorDrawer";
-import { TaskDetailDrawer } from "./components/TaskDetailDrawer";
+import { PinDetailDrawer } from "./components/PinDetailDrawer";
 import { initUpdaterListeners } from "./stores/updaterStore";
 import { ComposerBar } from "./components/ComposerBar";
 import { usePreferencesStore, hydrateApiKey } from "./stores/preferencesStore";
@@ -27,7 +27,7 @@ import {
 import { useProjectStore, generateId } from "./stores/projectStore";
 import { addScannedProjectAndFocus } from "./projects/projectCreation";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
-import { useTaskPreloader } from "./hooks/useTaskPreloader";
+import { usePinPreloader } from "./hooks/usePinPreloader";
 import { useT } from "./i18n/useT";
 import { loadAllDownloadedFonts } from "./terminal/fontLoader";
 import { startAutoSummaryWatcher } from "./terminal/summaryScheduler";
@@ -242,7 +242,7 @@ function useWorkspaceOpen() {
 
 export function App() {
   useWorktreeWatcher();
-  useTaskPreloader();
+  usePinPreloader();
   useStatePersistence();
   useAutoSave();
   useWorkspaceOpen();
@@ -460,7 +460,7 @@ export function App() {
       <UsageOverlay />
       <SessionsOverlay />
       <FileEditorDrawer />
-      <TaskDetailDrawer />
+      <PinDetailDrawer />
       {showWelcome && (
         <WelcomePopup
           onClose={() => {

@@ -6,10 +6,10 @@ import {
   type InitInstructionResult,
 } from "../hydra/src/init.ts";
 import {
-  checkTaskInstructionsStatus,
-  syncTaskInstructions,
-  type TaskInstructionResult,
-} from "./task-instructions";
+  checkPinInstructionsStatus,
+  syncPinInstructions,
+  type PinInstructionResult,
+} from "./pin-instructions";
 
 // Each section installed into a project's CLAUDE.md / AGENTS.md is owned by a
 // distinct module. The UI surfaces them as a single "instructions" check and
@@ -17,7 +17,7 @@ import {
 // future Computer Use guide) plug in here without changing the UI contract.
 export type ProjectInstructionFileResult =
   | InitInstructionResult
-  | TaskInstructionResult;
+  | PinInstructionResult;
 
 export interface EnableHydraForProjectSuccess {
   ok: true;
@@ -61,14 +61,14 @@ export function checkHydraProjectStatus(repoPath: string): HydraInjectStatus {
     // and for newly-introduced sections (e.g. Task) added in later releases.
     if (hydraStatus === "missing") return "missing";
 
-    const taskStatus = checkTaskInstructionsStatus(resolvedPath);
-    if (hydraStatus === "current" && taskStatus === "current") return "current";
+    const pinStatus = checkPinInstructionsStatus(resolvedPath);
+    if (hydraStatus === "current" && pinStatus === "current") return "current";
 
     syncHydraInstructions(resolvedPath);
-    syncTaskInstructions(resolvedPath);
+    syncPinInstructions(resolvedPath);
     return worstStatus(
       checkHydraInstructionsStatus(resolvedPath),
-      checkTaskInstructionsStatus(resolvedPath),
+      checkPinInstructionsStatus(resolvedPath),
     );
   } catch {
     return "missing";
@@ -89,8 +89,8 @@ export function enableHydraForProject(
     }
 
     const hydraFiles = syncHydraInstructions(resolvedPath);
-    const taskFiles = syncTaskInstructions(resolvedPath);
-    const files: ProjectInstructionFileResult[] = [...hydraFiles, ...taskFiles];
+    const pinFiles = syncPinInstructions(resolvedPath);
+    const files: ProjectInstructionFileResult[] = [...hydraFiles, ...pinFiles];
     return {
       ok: true,
       repoPath: resolvedPath,

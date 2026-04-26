@@ -1,6 +1,6 @@
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
-import { useTaskStore } from "../stores/taskStore";
+import { usePinStore } from "../stores/pinStore";
 import { useViewportFocusStore } from "../stores/viewportFocusStore";
 import { getTerminalFocusOrder } from "../stores/projectFocus";
 import { activateTerminalInScene } from "../actions/sceneSelectionActions";
@@ -63,7 +63,7 @@ function zoomToFitAll() {
   const leftOffset = getCanvasLeftInset(
     leftPanelCollapsed,
     leftPanelWidth,
-    useTaskStore.getState().openProjectPath !== null,
+    usePinStore.getState().openProjectPath !== null,
   );
   const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
   const viewH = window.innerHeight - toolbarH - padding * 2;

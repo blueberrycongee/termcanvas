@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createBrowserCardInScene } from "../actions/sceneCardActions";
 import { useCanvasStore } from "../stores/canvasStore";
-import { useTaskStore } from "../stores/taskStore";
+import { usePinStore } from "../stores/pinStore";
 import { useThemeStore } from "../stores/themeStore";
 import { useUpdaterStore } from "../stores/updaterStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
@@ -38,7 +38,7 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
   const rightPanelCollapsed = useCanvasStore((s) => s.rightPanelCollapsed);
   const rightPanelWidth = useCanvasStore((s) => s.rightPanelWidth);
-  const taskDrawerOpen = useTaskStore((s) => s.openProjectPath !== null);
+  const taskDrawerOpen = usePinStore((s) => s.openProjectPath !== null);
   const { theme, toggleTheme } = useThemeStore();
   const browserEnabled = usePreferencesStore((s) => s.browserEnabled);
   const terminalRenderer = usePreferencesStore((s) => s.terminalRenderer);

@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useSessionPanelCollapseStore } from "../stores/sessionPanelCollapseStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useNotificationStore } from "../stores/notificationStore";
-import { useTaskStore } from "../stores/taskStore";
+import { usePinStore } from "../stores/pinStore";
 import { ContextMenu } from "./ContextMenu";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { IconButton } from "./ui/IconButton";
@@ -390,9 +390,9 @@ function ProjectRow({
   const collapsed = useSessionPanelCollapseStore((s) =>
     s.isCollapsed(project.projectId),
   );
-  const taskToggle = useTaskStore((s) => s.toggle);
-  const openProjectPath = useTaskStore((s) => s.openProjectPath);
-  const tasksByProject = useTaskStore((s) => s.tasksByProject);
+  const taskToggle = usePinStore((s) => s.toggle);
+  const openProjectPath = usePinStore((s) => s.openProjectPath);
+  const tasksByProject = usePinStore((s) => s.pinsByProject);
 
   const isTaskDrawerOpen = openProjectPath === project.projectPath;
   const openCount = (tasksByProject[project.projectPath] ?? []).filter(
@@ -538,7 +538,7 @@ function ProjectRow({
           <IconButton
             size="sm"
             tone="neutral"
-            label={t["task.triggerLabel"](project.projectName)}
+            label={t["pin.triggerLabel"](project.projectName)}
             className={`transition-opacity ${isTaskDrawerOpen ? "opacity-100 text-[var(--accent)]" : "opacity-0 group-hover:opacity-100"}`}
             onClick={(e) => {
               e.stopPropagation();

@@ -44,8 +44,8 @@ import {
   scheduleTerminalFocus,
 } from "./focusScheduler";
 import { useSidebarDragStore } from "../stores/sidebarDragStore";
-import { useTaskDragStore } from "../stores/taskDragStore";
-import { useTaskStore } from "../stores/taskStore";
+import { usePinDragStore } from "../stores/pinDragStore";
+import { usePinStore } from "../stores/pinStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { useViewportFocusStore } from "../stores/viewportFocusStore";
 import { TERMINAL_TYPE_CONFIG } from "./terminalTypeConfig";
@@ -225,9 +225,9 @@ export function TerminalTile({
   latestContainerElRef.current = containerEl;
   const isSummarizing = useIsSummarizing(terminal.id);
   const sidebarDragActive = useSidebarDragStore((s) => s.active);
-  const taskDragActive = useTaskDragStore((s) => s.active);
-  const terminalTaskAssignment = useTaskStore(
-    (s) => s.terminalTaskMap[terminal.id],
+  const taskDragActive = usePinDragStore((s) => s.active);
+  const terminalTaskAssignment = usePinStore(
+    (s) => s.terminalPinMap[terminal.id],
   );
   const [taskFlash, setTaskFlash] = useState(false);
   const taskFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -716,7 +716,7 @@ export function TerminalTile({
       if (ptyId === null) {
         useNotificationStore
           .getState()
-          .notify("warn", t["task.dispatch.terminalNotRunning"]);
+          .notify("warn", t["pin.dispatch.terminalNotRunning"]);
         return;
       }
       if (!composerAdapter) {
@@ -724,7 +724,7 @@ export function TerminalTile({
           .getState()
           .notify(
             "warn",
-            t["task.dispatch.unsupportedTerminal"](terminal.type),
+            t["pin.dispatch.unsupportedTerminal"](terminal.type),
           );
         return;
       }
@@ -732,7 +732,7 @@ export function TerminalTile({
       activateTerminalInScene(projectId, worktreeId, terminal.id);
 
       try {
-        const result = await window.termcanvas.tasks.dispatchToTerminal(
+        const result = await window.termcanvas.pins.dispatchToTerminal(
           parsed.repo,
           parsed.id,
           {
@@ -743,20 +743,20 @@ export function TerminalTile({
           },
         );
         if (result.ok) {
-          // Record the terminal ↔ task association for the badge. Look the
-          // full task up so we cache its current title; if the project
+          // Record the terminal ↔ pin association for the badge. Look the
+          // full pin up so we cache its current title; if the project
           // drawer is closed for some reason (rare race) fall back to a
           // placeholder title — the entry still resolves visually.
-          const taskState = useTaskStore.getState();
-          const fullTask = (taskState.tasksByProject[parsed.repo] ?? []).find(
+          const pinState = usePinStore.getState();
+          const fullPin = (pinState.pinsByProject[parsed.repo] ?? []).find(
             (entry) => entry.id === parsed.id,
           );
-          taskState.assignTaskToTerminal(
+          pinState.assignPinToTerminal(
             terminal.id,
-            fullTask ?? {
+            fullPin ?? {
               id: parsed.id,
               repo: parsed.repo,
-              title: t["task.untitled"],
+              title: t["pin.untitled"],
             },
           );
           flashTaskAccept();
@@ -765,7 +765,7 @@ export function TerminalTile({
             .getState()
             .notify(
               "error",
-              t["task.dispatch.failed"](
+              t["pin.dispatch.failed"](
                 result.detail ?? result.error ?? "unknown",
               ),
             );
@@ -774,7 +774,7 @@ export function TerminalTile({
         const detail = error instanceof Error ? error.message : String(error);
         useNotificationStore
           .getState()
-          .notify("error", t["task.dispatch.failed"](detail));
+          .notify("error", t["pin.dispatch.failed"](detail));
       }
     },
     [
@@ -798,7 +798,7 @@ export function TerminalTile({
     const isTaskDrag = (e: DragEvent) =>
       !!e.dataTransfer &&
       Array.from(e.dataTransfer.types).includes(
-        "application/x-termcanvas-task",
+        "application/x-termcanvas-pin",
       );
 
     const onDragOver = (e: DragEvent) => {
@@ -820,7 +820,7 @@ export function TerminalTile({
         e.preventDefault();
         e.stopPropagation();
         setDragOver(false);
-        const raw = e.dataTransfer?.getData("application/x-termcanvas-task");
+        const raw = e.dataTransfer?.getData("application/x-termcanvas-pin");
         if (raw) void handleTaskDropPayload(raw);
         return;
       }
@@ -864,7 +864,7 @@ export function TerminalTile({
   }, [projectId, terminal.id, worktreeId]);
 
   const isTaskDragEvent = (e: React.DragEvent) =>
-    Array.from(e.dataTransfer.types).includes("application/x-termcanvas-task");
+    Array.from(e.dataTransfer.types).includes("application/x-termcanvas-pin");
 
   const handleTileDragOver = useCallback(
     (e: React.DragEvent) => {
@@ -889,7 +889,7 @@ export function TerminalTile({
         e.preventDefault();
         e.stopPropagation();
         setDragOver(false);
-        const raw = e.dataTransfer.getData("application/x-termcanvas-task");
+        const raw = e.dataTransfer.getData("application/x-termcanvas-pin");
         if (raw) void handleTaskDropPayload(raw);
         return;
       }
@@ -1150,15 +1150,15 @@ export function TerminalTile({
           <button
             type="button"
             className="group/badge inline-flex items-center gap-1 max-w-[200px] px-1.5 py-0.5 rounded-sm text-[10px] leading-none cursor-pointer bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/25 hover:border-[var(--accent)]/45 transition-colors duration-150"
-            title={t["task.terminalBadge.tooltip"](
+            title={t["pin.terminalBadge.tooltip"](
               terminalTaskAssignment.title,
             )}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
-              const taskState = useTaskStore.getState();
-              taskState.openDrawer(terminalTaskAssignment.repo);
-              taskState.openDetail(terminalTaskAssignment.taskId);
+              const pinState = usePinStore.getState();
+              pinState.openDrawer(terminalTaskAssignment.repo);
+              pinState.openDetail(terminalTaskAssignment.pinId);
             }}
           >
             <span aria-hidden="true" className="shrink-0">

@@ -26,7 +26,7 @@ import {
   type SessionType,
 } from "./session-watcher";
 import { ApiServer } from "./api-server";
-import { TaskStore } from "./task-store";
+import { PinStore } from "./pin-store";
 import { sendToWindow } from "./window-events";
 import { detectCli } from "./process-detector";
 import { ensureCliLauncher } from "./cli-launchers";
@@ -87,7 +87,7 @@ import type {
   ComposerSubmitRequest,
   ComposerSupportedTerminalType,
 } from "../src/types";
-import { buildTaskComposerPayload } from "./task-dispatch";
+import { buildPinComposerPayload } from "./pin-dispatch";
 import { getProjectDiff } from "./git-diff";
 import { searchFileContents, searchSessionContents } from "./search-handlers";
 import {
@@ -284,16 +284,16 @@ const hookReceiver = new HookReceiver((event) => {
   }
 });
 const computerUseManager = new ComputerUseManager();
-const taskStore = new TaskStore(path.join(TERMCANVAS_DIR, "tasks"));
+const taskStore = new PinStore(path.join(TERMCANVAS_DIR, "pins"));
 
-taskStore.on("task:created", (payload: { task: unknown; repo: string }) => {
-  sendToWindow(mainWindow, "task:event", { type: "task:created", ...payload });
+taskStore.on("pin:created", (payload: { pin: unknown; repo: string }) => {
+  sendToWindow(mainWindow, "pin:event", { type: "pin:created", ...payload });
 });
-taskStore.on("task:updated", (payload: { task: unknown; repo: string }) => {
-  sendToWindow(mainWindow, "task:event", { type: "task:updated", ...payload });
+taskStore.on("pin:updated", (payload: { pin: unknown; repo: string }) => {
+  sendToWindow(mainWindow, "pin:event", { type: "pin:updated", ...payload });
 });
-taskStore.on("task:removed", (payload: { id: string; repo: string }) => {
-  sendToWindow(mainWindow, "task:event", { type: "task:removed", ...payload });
+taskStore.on("pin:removed", (payload: { id: string; repo: string }) => {
+  sendToWindow(mainWindow, "pin:event", { type: "pin:removed", ...payload });
 });
 
 const apiServer = new ApiServer({
@@ -1975,27 +1975,27 @@ function setupIpc() {
     return safeStorage.decryptString(Buffer.from(base64, "base64"));
   });
 
-  ipcMain.handle("task:list", (_event, repo: string) => {
+  ipcMain.handle("pin:list", (_event, repo: string) => {
     return taskStore.list(repo);
   });
 
-  ipcMain.handle("task:create", (_event, input: Parameters<typeof taskStore.create>[0]) => {
+  ipcMain.handle("pin:create", (_event, input: Parameters<typeof taskStore.create>[0]) => {
     return taskStore.create(input);
   });
 
   ipcMain.handle(
-    "task:update",
+    "pin:update",
     (_event, repo: string, id: string, patch: Parameters<typeof taskStore.update>[2]) => {
       return taskStore.update(repo, id, patch);
     },
   );
 
-  ipcMain.handle("task:remove", (_event, repo: string, id: string) => {
+  ipcMain.handle("pin:remove", (_event, repo: string, id: string) => {
     taskStore.remove(repo, id);
   });
 
   ipcMain.handle(
-    "task:save-attachment",
+    "pin:save-attachment",
     (
       _event,
       repo: string,
@@ -2015,7 +2015,7 @@ function setupIpc() {
   // dispatching the same task to multiple terminals is a supported flow, and
   // status changes stay manual.
   ipcMain.handle(
-    "task:dispatch-to-terminal",
+    "pin:dispatch-to-terminal",
     async (
       _event,
       repo: string,
@@ -2048,7 +2048,7 @@ function setupIpc() {
         };
       }
 
-      const { text, images } = await buildTaskComposerPayload(
+      const { text, images } = await buildPinComposerPayload(
         task,
         taskStore.attachmentsDir(repo, taskId),
       );
@@ -2189,7 +2189,7 @@ app.whenReady().then(async () => {
   // must stay under TERMCANVAS_DIR/tasks/. Renderer constructs URLs as
   // tc-attachment://local/<abs-path>; handler decodes pathname back to a
   // real path and streams the file via Electron's net.fetch.
-  const ATTACHMENTS_ROOT = path.join(TERMCANVAS_DIR, "tasks");
+  const ATTACHMENTS_ROOT = path.join(TERMCANVAS_DIR, "pins");
   protocol.handle("tc-attachment", async (request) => {
     try {
       const url = new URL(request.url);

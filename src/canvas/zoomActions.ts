@@ -1,6 +1,6 @@
 import { useCanvasStore } from "../stores/canvasStore";
 import { useProjectStore } from "../stores/projectStore";
-import { useTaskStore } from "../stores/taskStore";
+import { usePinStore } from "../stores/pinStore";
 import { TOOLBAR_HEIGHT } from "../toolbar/toolbarHeight";
 import {
   getCanvasLeftInset,
@@ -23,7 +23,7 @@ function getCanvasInsets() {
     rightPanelWidth,
   } = useCanvasStore.getState();
   const taskDrawerOpen =
-    useTaskStore.getState().openProjectPath !== null;
+    usePinStore.getState().openProjectPath !== null;
   return {
     leftPanelCollapsed,
     leftPanelWidth,

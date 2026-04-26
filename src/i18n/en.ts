@@ -694,23 +694,23 @@ export const en = {
 
   refresh_renderer: "Refresh terminal rendering",
 
-  // Tasks
-  "task.loading": "Loading…",
-  "task.emptyState":
-    "No tasks yet. Agents working in this project will record them here, or click + to add one.",
-  "task.newTask": "New task",
-  "task.statusOpen": "Open",
-  "task.statusDone": "Done",
-  "task.statusDropped": "Dropped",
-  "task.compose.newPill": "New",
-  "task.action.edit": "Edit",
-  "task.action.markDone": "Mark done",
-  "task.action.reopen": "Reopen",
-  "task.action.drop": "Drop",
-  "task.action.delete": "Delete",
-  "task.meta.created": (rel: string) => `Created ${rel}`,
-  "task.meta.updated": (rel: string) => `Updated ${rel}`,
-  "task.relativeTime": (deltaMs: number) => {
+  // Pins
+  "pin.loading": "Loading…",
+  "pin.emptyState":
+    "No pins yet. Agents working in this project will record them here, or click + to add one.",
+  "pin.newPin": "New pin",
+  "pin.statusOpen": "Open",
+  "pin.statusDone": "Done",
+  "pin.statusDropped": "Dropped",
+  "pin.compose.newPill": "New",
+  "pin.action.edit": "Edit",
+  "pin.action.markDone": "Mark done",
+  "pin.action.reopen": "Reopen",
+  "pin.action.drop": "Drop",
+  "pin.action.delete": "Delete",
+  "pin.meta.created": (rel: string) => `Created ${rel}`,
+  "pin.meta.updated": (rel: string) => `Updated ${rel}`,
+  "pin.relativeTime": (deltaMs: number) => {
     if (!Number.isFinite(deltaMs) || deltaMs < 0) return "";
     const mins = Math.floor(deltaMs / 60_000);
     if (mins < 1) return "just now";
@@ -723,33 +723,33 @@ export const en = {
     if (months < 12) return `${months}mo ago`;
     return `${Math.floor(months / 12)}y ago`;
   },
-  "task.linkCount": (n: number) => `${n} link${n !== 1 ? "s" : ""}`,
-  "task.emptyBody": "No description yet. Click Edit to add one.",
-  "task.create": "Create",
-  "task.keyboardHint": "⌘↵ to save · Esc to cancel",
-  "task.uploading": "uploading…",
-  "task.links": "Links",
-  "task.bodyPlaceholder":
+  "pin.linkCount": (n: number) => `${n} link${n !== 1 ? "s" : ""}`,
+  "pin.emptyBody": "No description yet. Click Edit to add one.",
+  "pin.create": "Create",
+  "pin.keyboardHint": "⌘↵ to save · Esc to cancel",
+  "pin.uploading": "uploading…",
+  "pin.links": "Links",
+  "pin.bodyPlaceholder":
     "Description (markdown supported) — paste or drop images",
-  "task.titlePlaceholder": "Task title",
-  "task.untitled": "Untitled",
-  "task.deleteConfirm.title": "Delete task",
-  "task.deleteConfirm.body":
-    "This will permanently delete the task. Continue?",
-  "task.deleteConfirm.action": "Delete",
-  "task.closeDrawer": "Close task drawer",
-  "task.closeDetail": "Close detail",
-  "task.triggerLabel": (name: string) => `Tasks for ${name}`,
-  "task.dispatch.terminalNotRunning":
+  "pin.titlePlaceholder": "Pin title",
+  "pin.untitled": "Untitled",
+  "pin.deleteConfirm.title": "Delete pin",
+  "pin.deleteConfirm.body":
+    "This will permanently delete the pin. Continue?",
+  "pin.deleteConfirm.action": "Delete",
+  "pin.closeDrawer": "Close pin drawer",
+  "pin.closeDetail": "Close detail",
+  "pin.triggerLabel": (name: string) => `Pins for ${name}`,
+  "pin.dispatch.terminalNotRunning":
     "This terminal isn't running yet — try again once it's started.",
-  "task.dispatch.unsupportedTerminal": (type: string) =>
-    `${type} terminals can't accept task drops.`,
-  "task.dispatch.failed": (detail: string) =>
-    `Couldn't send task to terminal: ${detail}`,
-  "task.terminalBadge.tooltip": (title: string) => `Linked task: ${title}`,
-  "task.filter.showAllLabel": "Show completed",
-  "task.filter.hideCompletedLabel": "Hide completed",
-  "task.emptyAfterFilter": "All tasks done. Toggle to see them.",
+  "pin.dispatch.unsupportedTerminal": (type: string) =>
+    `${type} terminals can't accept pin drops.`,
+  "pin.dispatch.failed": (detail: string) =>
+    `Couldn't send pin to terminal: ${detail}`,
+  "pin.terminalBadge.tooltip": (title: string) => `Linked pin: ${title}`,
+  "pin.filter.showAllLabel": "Show completed",
+  "pin.filter.hideCompletedLabel": "Hide completed",
+  "pin.emptyAfterFilter": "All pins done. Toggle to see them.",
 } as const;
 
 export type TranslationKey = keyof typeof en;

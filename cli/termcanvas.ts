@@ -971,13 +971,13 @@ async function main() {
           "Usage: termcanvas computer-use <status|enable|setup|disable|stop|list-apps|open-app|get-app-state|click|set-value|perform-secondary-action|type|type-text|press-key|scroll|drag> [args]",
         );
       }
-    } else if (group === "task") {
-      const taskOptionalFlag = (flag: string): string | undefined => {
+    } else if (group === "pin") {
+      const pinOptionalFlag = (flag: string): string | undefined => {
         const idx = rest.indexOf(flag);
         return idx >= 0 && idx + 1 < rest.length ? rest[idx + 1] : undefined;
       };
-      const taskRequireFlag = (flag: string): string => {
-        const value = taskOptionalFlag(flag);
+      const pinRequireFlag = (flag: string): string => {
+        const value = pinOptionalFlag(flag);
         if (!value) {
           console.error(`${flag} is required`);
           process.exit(1);
@@ -985,45 +985,45 @@ async function main() {
         return value;
       };
       const resolveRepo = (): string => {
-        const explicit = taskOptionalFlag("--repo");
+        const explicit = pinOptionalFlag("--repo");
         return path.resolve(explicit ?? process.cwd());
       };
 
       if (command === "add") {
-        const title = taskRequireFlag("--title");
-        const taskBody = taskOptionalFlag("--body");
-        const status = taskOptionalFlag("--status");
-        const linkUrl = taskOptionalFlag("--link");
-        const linkType = taskOptionalFlag("--link-type") ?? "url";
+        const title = pinRequireFlag("--title");
+        const pinBody = pinOptionalFlag("--body");
+        const status = pinOptionalFlag("--status");
+        const linkUrl = pinOptionalFlag("--link");
+        const linkType = pinOptionalFlag("--link-type") ?? "url";
         const links = linkUrl ? [{ type: linkType, url: linkUrl }] : undefined;
-        const result = await request("POST", "/task/create", {
+        const result = await request("POST", "/pin/create", {
           title,
           repo: resolveRepo(),
-          body: taskBody,
+          body: pinBody,
           status,
           links,
         });
         if (jsonFlag) console.log(JSON.stringify(result, null, 2));
-        else console.log(`${result.task.id}  ${result.task.title}`);
+        else console.log(`${result.pin.id}  ${result.pin.title}`);
       } else if (command === "list") {
         const repo = resolveRepo();
-        const statusFilter = taskOptionalFlag("--status");
+        const statusFilter = pinOptionalFlag("--status");
         const result = await request(
           "GET",
-          `/task/list?repo=${encodeURIComponent(repo)}`,
+          `/pin/list?repo=${encodeURIComponent(repo)}`,
         );
-        const tasks = statusFilter
-          ? result.tasks.filter((t: any) => t.status === statusFilter)
-          : result.tasks;
+        const pins = statusFilter
+          ? result.pins.filter((t: any) => t.status === statusFilter)
+          : result.pins;
         if (jsonFlag) {
-          console.log(JSON.stringify({ tasks }, null, 2));
+          console.log(JSON.stringify({ pins }, null, 2));
           return;
         }
-        if (tasks.length === 0) {
-          console.log("No tasks.");
+        if (pins.length === 0) {
+          console.log("No pins.");
           return;
         }
-        for (const t of tasks) {
+        for (const t of pins) {
           const linkSuffix = t.links?.length ? `  [${t.links.length} link]` : "";
           console.log(`${t.id}  [${t.status}]  ${t.title}${linkSuffix}`);
         }
@@ -1032,13 +1032,13 @@ async function main() {
         const repo = resolveRepo();
         const result = await request(
           "GET",
-          `/task/${encodeURIComponent(id)}?repo=${encodeURIComponent(repo)}`,
+          `/pin/${encodeURIComponent(id)}?repo=${encodeURIComponent(repo)}`,
         );
         if (jsonFlag) {
           console.log(JSON.stringify(result, null, 2));
           return;
         }
-        const t = result.task;
+        const t = result.pin;
         console.log(`id:      ${t.id}`);
         console.log(`title:   ${t.title}`);
         console.log(`status:  ${t.status}`);
@@ -1058,36 +1058,36 @@ async function main() {
         const id = rest[0];
         const repo = resolveRepo();
         const payload: Record<string, unknown> = { repo };
-        const newTitle = taskOptionalFlag("--title");
+        const newTitle = pinOptionalFlag("--title");
         if (newTitle !== undefined) payload.title = newTitle;
-        const newStatus = taskOptionalFlag("--status");
+        const newStatus = pinOptionalFlag("--status");
         if (newStatus !== undefined) payload.status = newStatus;
-        const newBody = taskOptionalFlag("--body");
+        const newBody = pinOptionalFlag("--body");
         if (newBody !== undefined) payload.body = newBody;
         const result = await request(
           "PUT",
-          `/task/${encodeURIComponent(id)}`,
+          `/pin/${encodeURIComponent(id)}`,
           payload,
         );
         if (jsonFlag) console.log(JSON.stringify(result, null, 2));
-        else console.log(`Updated ${result.task.id}`);
+        else console.log(`Updated ${result.pin.id}`);
       } else if ((command === "rm" || command === "remove") && rest[0]) {
         const id = rest[0];
         const repo = resolveRepo();
         const result = await request(
           "DELETE",
-          `/task/${encodeURIComponent(id)}?repo=${encodeURIComponent(repo)}`,
+          `/pin/${encodeURIComponent(id)}?repo=${encodeURIComponent(repo)}`,
         );
         if (jsonFlag) console.log(JSON.stringify(result, null, 2));
         else console.log(`Removed ${id}`);
       } else {
         console.log(
-          "Usage: termcanvas task <add|list|show|update|rm> [args]\n" +
-          "  task add --title <t> [--body <b>] [--status open|done|dropped] [--link <url>] [--link-type <type>] [--repo <path>]\n" +
-          "  task list [--status open|done|dropped] [--repo <path>]\n" +
-          "  task show <id> [--repo <path>]\n" +
-          "  task update <id> [--title <t>] [--status <s>] [--body <b>] [--repo <path>]\n" +
-          "  task rm <id> [--repo <path>]",
+          "Usage: termcanvas pin <add|list|show|update|rm> [args]\n" +
+          "  pin add --title <t> [--body <b>] [--status open|done|dropped] [--link <url>] [--link-type <type>] [--repo <path>]\n" +
+          "  pin list [--status open|done|dropped] [--repo <path>]\n" +
+          "  pin show <id> [--repo <path>]\n" +
+          "  pin update <id> [--title <t>] [--status <s>] [--body <b>] [--repo <path>]\n" +
+          "  pin rm <id> [--repo <path>]",
         );
       }
     } else if (group === "state") {
@@ -1095,7 +1095,7 @@ async function main() {
       console.log(JSON.stringify(state, null, 2));
     } else {
       console.log(
-        "Usage: termcanvas <project|workflow|worktree|terminal|telemetry|computer-use|task|diff|state> <command> [args]",
+        "Usage: termcanvas <project|workflow|worktree|terminal|telemetry|computer-use|pin|diff|state> <command> [args]",
       );
       console.log("");
       console.log("Commands:");
@@ -1193,19 +1193,19 @@ async function main() {
       );
       console.log("  diff <worktree-path> [--summary]            Get git diff");
       console.log(
-        "  task add --title <t> [--body <b>] [--link <url>]   Record a task",
+        "  pin add --title <t> [--body <b>] [--link <url>]   Record a pin",
       );
       console.log(
-        "  task list [--status open|done|dropped]              List tasks for cwd repo",
+        "  pin list [--status open|done|dropped]              List pins for cwd repo",
       );
       console.log(
-        "  task show <id>                              Show task detail",
+        "  pin show <id>                              Show pin detail",
       );
       console.log(
-        "  task update <id> [--title|--status|--body]  Edit a task",
+        "  pin update <id> [--title|--status|--body]  Edit a pin",
       );
       console.log(
-        "  task rm <id>                                Delete a task",
+        "  pin rm <id>                                Delete a pin",
       );
       console.log(
         "  state                                       Full canvas state",

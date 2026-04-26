@@ -10,19 +10,19 @@ import type {
 } from "../../shared/render-diagnostics";
 import type { SessionHistoryChangedEvent } from "../../shared/sessions";
 import type {
-  Task,
-  TaskLink,
-  TaskStatus,
-  CreateTaskInput,
-  UpdateTaskInput,
-} from "../../shared/task";
+  Pin,
+  PinLink,
+  PinStatus,
+  CreatePinInput,
+  UpdatePinInput,
+} from "../../shared/pin";
 
-export type { Task, TaskLink, TaskStatus, CreateTaskInput, UpdateTaskInput };
+export type { Pin, PinLink, PinStatus, CreatePinInput, UpdatePinInput };
 
-export type TaskEvent =
-  | { type: "task:created"; task: Task; repo: string }
-  | { type: "task:updated"; task: Task; repo: string }
-  | { type: "task:removed"; id: string; repo: string };
+export type PinEvent =
+  | { type: "pin:created"; pin: Pin; repo: string }
+  | { type: "pin:updated"; pin: Pin; repo: string }
+  | { type: "pin:removed"; id: string; repo: string };
 
 export * from "./scene";
 
@@ -76,7 +76,7 @@ export interface ComposerSubmitRequest {
    * When false, paste the text and stage any images but DO NOT send the
    * Enter key — leaves the prompt in the agent's input buffer for the user
    * to review/edit/submit themselves. Defaults to true to preserve the
-   * existing composer:submit behavior; task drag-and-drop opts out.
+   * existing composer:submit behavior; pin drag-and-drop opts out.
    */
   submit?: boolean;
 }
@@ -1038,10 +1038,10 @@ export interface TermCanvasAPI {
     onOpenFolder: (callback: (dirPath: string) => void) => () => void;
     onSelectAll: (callback: () => void) => () => void;
   };
-  tasks: {
-    list: (repo: string) => Promise<Task[]>;
-    create: (input: CreateTaskInput) => Promise<Task>;
-    update: (repo: string, id: string, patch: UpdateTaskInput) => Promise<Task>;
+  pins: {
+    list: (repo: string) => Promise<Pin[]>;
+    create: (input: CreatePinInput) => Promise<Pin>;
+    update: (repo: string, id: string, patch: UpdatePinInput) => Promise<Pin>;
     remove: (repo: string, id: string) => Promise<void>;
     saveAttachment: (
       repo: string,
@@ -1051,7 +1051,7 @@ export interface TermCanvasAPI {
     ) => Promise<{ relativePath: string; absolutePath: string }>;
     dispatchToTerminal: (
       repo: string,
-      taskId: string,
+      pinId: string,
       target: {
         terminalId: string;
         ptyId: number;
@@ -1059,7 +1059,7 @@ export interface TermCanvasAPI {
         worktreePath: string;
       },
     ) => Promise<ComposerSubmitResult>;
-    subscribe: (handler: (event: TaskEvent) => void) => () => void;
+    subscribe: (handler: (event: PinEvent) => void) => () => void;
   };
   updater: {
     check: () => Promise<unknown>;

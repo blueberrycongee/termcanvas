@@ -10,7 +10,7 @@ import {
   useCanvasStore,
   COLLAPSED_TAB_WIDTH,
 } from "../stores/canvasStore";
-import { useTaskStore } from "../stores/taskStore";
+import { usePinStore } from "../stores/pinStore";
 import { panToTerminal } from "../utils/panToTerminal";
 import { useT } from "../i18n/useT";
 import {
@@ -164,7 +164,7 @@ export function FamilyTreeOverlay() {
   const rightPanelWidth = useCanvasStore((s) => s.rightPanelWidth);
   const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
-  const taskDrawerOpen = useTaskStore((s) => s.openProjectPath !== null);
+  const taskDrawerOpen = usePinStore((s) => s.openProjectPath !== null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [visibleId, setVisibleId] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

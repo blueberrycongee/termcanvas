@@ -1,20 +1,20 @@
 import { useEffect } from "react";
 import { useProjectStore } from "../stores/projectStore";
-import { useTaskStore } from "../stores/taskStore";
+import { usePinStore } from "../stores/pinStore";
 
-export function useTaskPreloader() {
+export function usePinPreloader() {
   const projectCount = useProjectStore((s) => s.projects.length);
 
   useEffect(() => {
     if (!window.termcanvas || projectCount === 0) return;
 
     const { projects } = useProjectStore.getState();
-    const { setTasks } = useTaskStore.getState();
+    const { setPins } = usePinStore.getState();
 
     for (const project of projects) {
-      window.termcanvas.tasks
+      window.termcanvas.pins
         .list(project.path)
-        .then((tasks) => setTasks(project.path, tasks))
+        .then((pins) => setPins(project.path, pins))
         .catch(() => {});
     }
   }, [projectCount]);

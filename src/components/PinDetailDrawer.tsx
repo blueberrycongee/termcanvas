@@ -3,11 +3,11 @@ import type { ClipboardEvent, DragEvent } from "react";
 import {
   useCanvasStore,
   COLLAPSED_TAB_WIDTH,
-  TASK_DRAWER_WIDTH,
+  PIN_DRAWER_WIDTH,
 } from "../stores/canvasStore";
-import { useTaskStore } from "../stores/taskStore";
-import { useTaskDragStore } from "../stores/taskDragStore";
-import type { Task } from "../types";
+import { usePinStore } from "../stores/pinStore";
+import { usePinDragStore } from "../stores/pinDragStore";
+import type { Pin } from "../types";
 import {
   PANEL_TRANSITION_DURATION_MS,
   PANEL_TRANSITION_EASING_CSS,
@@ -21,44 +21,44 @@ import { ConfirmDialog } from "./ui/ConfirmDialog";
 
 const TOOLBAR_HEIGHT = 44;
 
-function StatusBadge({ status }: { status: Task["status"] }) {
+function StatusBadge({ status }: { status: Pin["status"] }) {
   const t = useT();
   if (status === "done") {
     return (
       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-500 border border-green-500/25 font-medium">
-        {t["task.statusDone"]}
+        {t["pin.statusDone"]}
       </span>
     );
   }
   if (status === "dropped") {
     return (
       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--surface-hover)] text-[var(--text-faint)] border border-[var(--border)] font-medium">
-        {t["task.statusDropped"]}
+        {t["pin.statusDropped"]}
       </span>
     );
   }
   return (
     <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/25 font-medium">
-      {t["task.statusOpen"]}
+      {t["pin.statusOpen"]}
     </span>
   );
 }
 
-export function TaskDetailDrawer() {
+export function PinDetailDrawer() {
   const t = useT();
   const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
   const rightPanelCollapsed = useCanvasStore((s) => s.rightPanelCollapsed);
   const rightPanelWidth = useCanvasStore((s) => s.rightPanelWidth);
-  const openDetailTaskId = useTaskStore((s) => s.openDetailTaskId);
-  const openProjectPath = useTaskStore((s) => s.openProjectPath);
-  const composingForProject = useTaskStore((s) => s.composingForProject);
-  const tasksByProject = useTaskStore((s) => s.tasksByProject);
-  const closeDetail = useTaskStore((s) => s.closeDetail);
-  const cancelCompose = useTaskStore((s) => s.cancelCompose);
-  const openDetail = useTaskStore((s) => s.openDetail);
-  const upsertTask = useTaskStore((s) => s.upsertTask);
-  const removeTask = useTaskStore((s) => s.removeTask);
+  const openDetailPinId = usePinStore((s) => s.openDetailPinId);
+  const openProjectPath = usePinStore((s) => s.openProjectPath);
+  const composingForPin = usePinStore((s) => s.composingForPin);
+  const pinsByProject = usePinStore((s) => s.pinsByProject);
+  const closeDetail = usePinStore((s) => s.closeDetail);
+  const cancelCompose = usePinStore((s) => s.cancelCompose);
+  const openDetail = usePinStore((s) => s.openDetail);
+  const upsertPin = usePinStore((s) => s.upsertPin);
+  const removePin = usePinStore((s) => s.removePin);
 
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
@@ -70,18 +70,18 @@ export function TaskDetailDrawer() {
   const titleInputRef = useRef<HTMLInputElement>(null);
   const bodyTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const task: Task | null =
-    openDetailTaskId && openProjectPath
-      ? ((tasksByProject[openProjectPath] ?? []).find(
-          (t) => t.id === openDetailTaskId,
+  const pin: Pin | null =
+    openDetailPinId && openProjectPath
+      ? ((pinsByProject[openProjectPath] ?? []).find(
+          (t) => t.id === openDetailPinId,
         ) ?? null)
       : null;
 
-  // Compose mode: drawer is open showing a blank new-task form for a project,
-  // but no task has been persisted yet. Mutually exclusive with viewing an
-  // existing task.
-  const isComposing = !task && composingForProject !== null;
-  const isOpen = task !== null || isComposing;
+  // Compose mode: drawer is open showing a blank new-pin form for a project,
+  // but no pin has been persisted yet. Mutually exclusive with viewing an
+  // existing pin.
+  const isComposing = !pin && composingForPin !== null;
+  const isOpen = pin !== null || isComposing;
   const isEditing = editing || isComposing;
 
   // Initialize blank fields when entering compose mode.
@@ -90,14 +90,14 @@ export function TaskDetailDrawer() {
       setEditTitle("");
       setEditBody("");
     }
-  }, [composingForProject, isComposing]);
+  }, [composingForPin, isComposing]);
 
-  // Reset edit state when task changes (existing task path)
+  // Reset edit state when pin changes (existing pin path)
   useEffect(() => {
-    if (!task) {
+    if (!pin) {
       setEditing(false);
     }
-  }, [task?.id]);
+  }, [pin?.id]);
 
   // Focus title input when entering edit or compose mode
   useEffect(() => {
@@ -107,11 +107,11 @@ export function TaskDetailDrawer() {
   }, [isEditing]);
 
   const handleStartEdit = useCallback(() => {
-    if (!task) return;
-    setEditTitle(task.title);
-    setEditBody(task.body);
+    if (!pin) return;
+    setEditTitle(pin.title);
+    setEditBody(pin.body);
     setEditing(true);
-  }, [task]);
+  }, [pin]);
 
   const handleCancelEdit = useCallback(() => {
     if (isComposing) {
@@ -124,16 +124,16 @@ export function TaskDetailDrawer() {
   const handleSaveEdit = useCallback(async () => {
     if (busy) return;
     if (isComposing) {
-      if (!composingForProject) return;
+      if (!composingForPin) return;
       setBusy(true);
       try {
-        const created = await window.termcanvas.tasks.create({
-          repo: composingForProject,
-          title: editTitle.trim() || t["task.untitled"],
+        const created = await window.termcanvas.pins.create({
+          repo: composingForPin,
+          title: editTitle.trim() || t["pin.untitled"],
           body: editBody,
         });
-        upsertTask(created.repo, created);
-        // openDetail also clears composingForProject in the store.
+        upsertPin(created.repo, created);
+        // openDetail also clears composingForPin in the store.
         openDetail(created.id);
         setEditing(false);
       } finally {
@@ -141,26 +141,26 @@ export function TaskDetailDrawer() {
       }
       return;
     }
-    if (!task) return;
+    if (!pin) return;
     setBusy(true);
     try {
-      const updated = await window.termcanvas.tasks.update(task.repo, task.id, {
-        title: editTitle.trim() || task.title,
+      const updated = await window.termcanvas.pins.update(pin.repo, pin.id, {
+        title: editTitle.trim() || pin.title,
         body: editBody,
       });
-      upsertTask(task.repo, updated);
+      upsertPin(pin.repo, updated);
       setEditing(false);
     } finally {
       setBusy(false);
     }
   }, [
-    task,
+    pin,
     busy,
     editTitle,
     editBody,
-    upsertTask,
+    upsertPin,
     isComposing,
-    composingForProject,
+    composingForPin,
     openDetail,
   ]);
 
@@ -173,45 +173,45 @@ export function TaskDetailDrawer() {
   }, [isComposing, cancelCompose, closeDetail]);
 
   const handleStatusChange = useCallback(
-    async (status: Task["status"]) => {
-      if (!task || busy) return;
+    async (status: Pin["status"]) => {
+      if (!pin || busy) return;
       setBusy(true);
       try {
-        const updated = await window.termcanvas.tasks.update(
-          task.repo,
-          task.id,
+        const updated = await window.termcanvas.pins.update(
+          pin.repo,
+          pin.id,
           { status },
         );
-        upsertTask(task.repo, updated);
+        upsertPin(pin.repo, updated);
       } finally {
         setBusy(false);
       }
     },
-    [task, busy, upsertTask],
+    [pin, busy, upsertPin],
   );
 
   const uploadAndInsert = useCallback(
     async (file: File) => {
       setUploading(true);
       try {
-        // Resolve a target task. In compose mode the task doesn't exist yet —
+        // Resolve a target pin. In compose mode the pin doesn't exist yet —
         // materialize it with whatever the user has typed so far so we have
         // an id to attach the image to. After this point we're effectively
-        // editing the just-created task.
+        // editing the just-created pin.
         let targetRepo: string;
         let targetId: string;
-        if (task) {
-          targetRepo = task.repo;
-          targetId = task.id;
-        } else if (isComposing && composingForProject) {
-          const created = await window.termcanvas.tasks.create({
-            repo: composingForProject,
-            title: editTitle.trim() || t["task.untitled"],
+        if (pin) {
+          targetRepo = pin.repo;
+          targetId = pin.id;
+        } else if (isComposing && composingForPin) {
+          const created = await window.termcanvas.pins.create({
+            repo: composingForPin,
+            title: editTitle.trim() || t["pin.untitled"],
             body: editBody,
           });
-          upsertTask(created.repo, created);
-          // openDetail clears composingForProject; setEditing keeps the user
-          // in edit mode of the new task so they can continue typing and
+          upsertPin(created.repo, created);
+          // openDetail clears composingForPin; setEditing keeps the user
+          // in edit mode of the new pin so they can continue typing and
           // pasting more images.
           openDetail(created.id);
           setEditing(true);
@@ -221,7 +221,7 @@ export function TaskDetailDrawer() {
           return;
         }
         const buffer = await file.arrayBuffer();
-        const result = await window.termcanvas.tasks.saveAttachment(
+        const result = await window.termcanvas.pins.saveAttachment(
           targetRepo,
           targetId,
           file.name || "image",
@@ -248,12 +248,12 @@ export function TaskDetailDrawer() {
       }
     },
     [
-      task,
+      pin,
       isComposing,
-      composingForProject,
+      composingForPin,
       editTitle,
       editBody,
-      upsertTask,
+      upsertPin,
       openDetail,
     ],
   );
@@ -301,17 +301,17 @@ export function TaskDetailDrawer() {
   );
 
   const handleDelete = useCallback(async () => {
-    if (!task || busy) return;
+    if (!pin || busy) return;
     setBusy(true);
     try {
-      await window.termcanvas.tasks.remove(task.repo, task.id);
-      removeTask(task.repo, task.id);
+      await window.termcanvas.pins.remove(pin.repo, pin.id);
+      removePin(pin.repo, pin.id);
       setShowDeleteConfirm(false);
       closeDetail();
     } finally {
       setBusy(false);
     }
-  }, [task, busy, removeTask, closeDetail]);
+  }, [pin, busy, removePin, closeDetail]);
 
   // Keyboard handlers — latest-ref pattern: the listener is mounted once per
   // open/close cycle, but reads the freshest state and callbacks via a ref so
@@ -352,16 +352,16 @@ export function TaskDetailDrawer() {
     return () => window.removeEventListener("keydown", handler, true);
   }, [isOpen]);
 
-  // The detail drawer always renders to the right of the task drawer,
+  // The detail drawer always renders to the right of the pin drawer,
   // so its left edge IS the drawer-aware left inset (left panel +
-  // TASK_DRAWER_WIDTH). composingForProject and openDetailTaskId both
-  // require openProjectPath, so by the time isOpen is true the task
+  // PIN_DRAWER_WIDTH). composingForPin and openDetailPinId both
+  // require openProjectPath, so by the time isOpen is true the pin
   // drawer is open and the +320 is folded into the inset.
-  const taskDrawerOpen =
-    openProjectPath !== null || composingForProject !== null;
+  const pinDrawerOpen =
+    openProjectPath !== null || composingForPin !== null;
   const effectiveLeftInset =
     (leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth) +
-    (taskDrawerOpen ? TASK_DRAWER_WIDTH : 0);
+    (pinDrawerOpen ? PIN_DRAWER_WIDTH : 0);
   const rightInset = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : rightPanelWidth;
 
   // Memoize markdown parse so editing-buffer re-renders or unrelated parent
@@ -369,10 +369,10 @@ export function TaskDetailDrawer() {
   // renderer instance every cycle. Only repaints on body / attachments / mode.
   const bodyHtml = useMemo(
     () =>
-      task && !isEditing && task.body
-        ? renderMarkdownWithAttachments(task.body, task.attachmentsUrl)
+      pin && !isEditing && pin.body
+        ? renderMarkdownWithAttachments(pin.body, pin.attachmentsUrl)
         : "",
-    [task?.body, task?.attachmentsUrl, isEditing, task],
+    [pin?.body, pin?.attachmentsUrl, isEditing, pin],
   );
 
   return (
@@ -392,35 +392,35 @@ export function TaskDetailDrawer() {
         aria-hidden={!isOpen}
         role="dialog"
         aria-modal="false"
-        aria-label={task?.title ?? "Task detail"}
+        aria-label={pin?.title ?? "Pin detail"}
       >
-        {/* Header strip — also a drag source for the current task.
+        {/* Header strip — also a drag source for the current pin.
             py-2.5 keeps this header's bottom border on the same Y as the
-            LeftPanel section header and the TaskDrawer header. */}
+            LeftPanel section header and the PinDrawer header. */}
         <div
           className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-[var(--border)] bg-[var(--surface)]"
-          draggable={!!task && !isEditing}
+          draggable={!!pin && !isEditing}
           onDragStart={(e) => {
-            if (!task || isEditing) return;
+            if (!pin || isEditing) return;
             e.dataTransfer.setData(
-              "application/x-termcanvas-task",
-              JSON.stringify({ repo: task.repo, id: task.id }),
+              "application/x-termcanvas-pin",
+              JSON.stringify({ repo: pin.repo, id: pin.id }),
             );
             e.dataTransfer.effectAllowed = "copy";
-            useTaskDragStore.getState().setActive(true);
-            window.dispatchEvent(new CustomEvent("termcanvas:task-drag-active"));
+            usePinDragStore.getState().setActive(true);
+            window.dispatchEvent(new CustomEvent("termcanvas:pin-drag-active"));
           }}
           onDragEnd={() => {
-            useTaskDragStore.getState().setActive(false);
-            window.dispatchEvent(new CustomEvent("termcanvas:task-drag-end"));
+            usePinDragStore.getState().setActive(false);
+            window.dispatchEvent(new CustomEvent("termcanvas:pin-drag-end"));
           }}
-          style={{ cursor: task && !isEditing ? "grab" : undefined }}
+          style={{ cursor: pin && !isEditing ? "grab" : undefined }}
         >
           <div className="flex items-center gap-2.5">
             <button
               className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors"
               onClick={handleCloseDrawer}
-              aria-label={t["task.closeDetail"]}
+              aria-label={t["pin.closeDetail"]}
             >
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                 <path
@@ -431,15 +431,15 @@ export function TaskDetailDrawer() {
                 />
               </svg>
             </button>
-            {task && <StatusBadge status={task.status} />}
+            {pin && <StatusBadge status={pin.status} />}
             {isComposing && (
               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/25 font-medium">
-                {t["task.compose.newPill"]}
+                {t["pin.compose.newPill"]}
               </span>
             )}
           </div>
 
-          {task && (
+          {pin && (
             <div className="flex items-center gap-1.5">
               {!editing && (
                 <button
@@ -447,34 +447,34 @@ export function TaskDetailDrawer() {
                   disabled={busy}
                   onClick={handleStartEdit}
                 >
-                  {t["task.action.edit"]}
+                  {t["pin.action.edit"]}
                 </button>
               )}
-              {task.status === "open" && (
+              {pin.status === "open" && (
                 <button
                   className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:bg-green-500/20 hover:text-green-600 transition-colors disabled:opacity-50"
                   disabled={busy}
                   onClick={() => void handleStatusChange("done")}
                 >
-                  {t["task.action.markDone"]}
+                  {t["pin.action.markDone"]}
                 </button>
               )}
-              {(task.status === "done" || task.status === "dropped") && (
+              {(pin.status === "done" || pin.status === "dropped") && (
                 <button
                   className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50"
                   disabled={busy}
                   onClick={() => void handleStatusChange("open")}
                 >
-                  {t["task.action.reopen"]}
+                  {t["pin.action.reopen"]}
                 </button>
               )}
-              {task.status === "open" && (
+              {pin.status === "open" && (
                 <button
                   className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors disabled:opacity-50"
                   disabled={busy}
                   onClick={() => void handleStatusChange("dropped")}
                 >
-                  {t["task.action.drop"]}
+                  {t["pin.action.drop"]}
                 </button>
               )}
               <div className="w-px h-3 bg-[var(--border)] mx-0.5" />
@@ -483,14 +483,14 @@ export function TaskDetailDrawer() {
                 disabled={busy}
                 onClick={() => setShowDeleteConfirm(true)}
               >
-                {t["task.action.delete"]}
+                {t["pin.action.delete"]}
               </button>
             </div>
           )}
         </div>
 
         {/* Reading column */}
-        {(task || isComposing) && (
+        {(pin || isComposing) && (
           <div className="flex-1 min-h-0 overflow-y-auto px-4">
             <div className="mx-auto max-w-[720px] py-6">
               {/* Topic header */}
@@ -502,37 +502,37 @@ export function TaskDetailDrawer() {
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
                     disabled={busy}
-                    placeholder={t["task.titlePlaceholder"]}
+                    placeholder={t["pin.titlePlaceholder"]}
                   />
                 ) : (
                   <h1 className="text-2xl font-semibold text-[var(--text-primary)] break-words">
-                    {task?.title}
+                    {pin?.title}
                   </h1>
                 )}
               </div>
 
-              {/* Meta line — only for existing tasks */}
-              {task && !isComposing && (
+              {/* Meta line — only for existing pins */}
+              {pin && !isComposing && (
                 <div className="text-[11px] text-[var(--text-muted)] mb-6 flex items-center gap-1.5 flex-wrap">
                   <span>
-                    {t["task.meta.created"](
-                      t["task.relativeTime"](
-                        Date.now() - new Date(task.created).getTime(),
+                    {t["pin.meta.created"](
+                      t["pin.relativeTime"](
+                        Date.now() - new Date(pin.created).getTime(),
                       ),
                     )}
                   </span>
                   <span>·</span>
                   <span>
-                    {t["task.meta.updated"](
-                      t["task.relativeTime"](
-                        Date.now() - new Date(task.updated).getTime(),
+                    {t["pin.meta.updated"](
+                      t["pin.relativeTime"](
+                        Date.now() - new Date(pin.updated).getTime(),
                       ),
                     )}
                   </span>
-                  {task.links.length > 0 && (
+                  {pin.links.length > 0 && (
                     <>
                       <span>·</span>
-                      <span>{t["task.linkCount"](task.links.length)}</span>
+                      <span>{t["pin.linkCount"](pin.links.length)}</span>
                     </>
                   )}
                 </div>
@@ -552,17 +552,17 @@ export function TaskDetailDrawer() {
                     onDragOver={handleBodyDragOver}
                     onDrop={handleBodyDrop}
                     disabled={busy}
-                    placeholder={t["task.bodyPlaceholder"]}
+                    placeholder={t["pin.bodyPlaceholder"]}
                     rows={10}
                   />
-                ) : task?.body ? (
+                ) : pin?.body ? (
                   <div
                     className={markdownClassName}
                     dangerouslySetInnerHTML={{ __html: bodyHtml }}
                   />
                 ) : (
                   <p className="text-[var(--text-faint)] italic text-[13px]">
-                    {t["task.emptyBody"]}
+                    {t["pin.emptyBody"]}
                   </p>
                 )}
               </div>
@@ -575,7 +575,7 @@ export function TaskDetailDrawer() {
                     disabled={busy || uploading || !editTitle.trim()}
                     onClick={() => void handleSaveEdit()}
                   >
-                    {isComposing ? t["task.create"] : t.save}
+                    {isComposing ? t["pin.create"] : t.save}
                   </button>
                   <button
                     className="text-[11px] px-3 py-1 rounded bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
@@ -584,27 +584,27 @@ export function TaskDetailDrawer() {
                     {t.cancel}
                   </button>
                   <span className="text-[10px] text-[var(--text-faint)] ml-1">
-                    {t["task.keyboardHint"]}
+                    {t["pin.keyboardHint"]}
                   </span>
                   {uploading && (
                     <span className="text-[10px] text-[var(--text-muted)] ml-auto">
-                      {t["task.uploading"]}
+                      {t["pin.uploading"]}
                     </span>
                   )}
                 </div>
               )}
 
               {/* Links section */}
-              {!isEditing && task && task.links.length > 0 && (
+              {!isEditing && pin && pin.links.length > 0 && (
                 <div>
                   <div
                     className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium mb-2"
                     style={{ fontFamily: '"Geist Mono", monospace' }}
                   >
-                    {t["task.links"]}
+                    {t["pin.links"]}
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    {task.links.map((link, i) => (
+                    {pin.links.map((link, i) => (
                       <a
                         key={i}
                         href={link.url}
@@ -631,9 +631,9 @@ export function TaskDetailDrawer() {
 
       <ConfirmDialog
         open={showDeleteConfirm}
-        title={t["task.deleteConfirm.title"]}
-        body={t["task.deleteConfirm.body"]}
-        confirmLabel={t["task.deleteConfirm.action"]}
+        title={t["pin.deleteConfirm.title"]}
+        body={t["pin.deleteConfirm.body"]}
+        confirmLabel={t["pin.deleteConfirm.action"]}
         confirmTone="danger"
         busy={busy}
         onCancel={() => setShowDeleteConfirm(false)}

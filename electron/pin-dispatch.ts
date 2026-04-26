@@ -10,13 +10,13 @@ const IMAGE_MIME: Record<string, string> = {
   webp: "image/webp",
 };
 
-export interface TaskComposerInput {
+export interface PinComposerInput {
   id: string;
   title: string;
   body: string;
 }
 
-export interface TaskComposerPayload {
+export interface PinComposerPayload {
   text: string;
   images: ComposerImageAttachment[];
 }
@@ -26,39 +26,39 @@ function escapeRegex(s: string): string {
 }
 
 /**
- * Strip image markdown that points into the task's attachments dir, read each
+ * Strip image markdown that points into the pin's attachments dir, read each
  * referenced file, and return the cleaned text plus a ComposerImageAttachment
  * list ready to feed to submitComposerRequest. Non-image links and image
  * references that point outside the attachments dir are left in the text.
  */
-export async function buildTaskComposerPayload(
-  task: TaskComposerInput,
+export async function buildPinComposerPayload(
+  pin: PinComposerInput,
   attachmentsDir: string,
   read: (filePath: string) => Promise<Buffer> = (p) => fs.readFile(p),
-): Promise<TaskComposerPayload> {
-  const escapedId = escapeRegex(task.id);
+): Promise<PinComposerPayload> {
+  const escapedId = escapeRegex(pin.id);
   const re = new RegExp(
     `!\\[([^\\]]*)\\]\\(\\.\\/${escapedId}\\.attachments\\/([^)\\s]+)\\)`,
     "g",
   );
 
-  // Prepend the task title as an h1 so the agent gets the user's framing,
+  // Prepend the pin title as an h1 so the agent gets the user's framing,
   // not just the description. Title comes first; body follows after a blank
   // line. Empty bodies still produce a usable prompt with just the title.
-  const titlePrefix = task.title.trim() ? `# ${task.title.trim()}\n\n` : "";
+  const titlePrefix = pin.title.trim() ? `# ${pin.title.trim()}\n\n` : "";
 
   const matches: { full: string; alt: string; basename: string }[] = [];
-  for (const m of task.body.matchAll(re)) {
+  for (const m of pin.body.matchAll(re)) {
     matches.push({ full: m[0], alt: m[1] ?? "", basename: m[2] ?? "" });
   }
 
   if (matches.length === 0) {
-    return { text: (titlePrefix + task.body).trimEnd(), images: [] };
+    return { text: (titlePrefix + pin.body).trimEnd(), images: [] };
   }
 
   const images: ComposerImageAttachment[] = [];
   const seenBasenames = new Set<string>();
-  let cleanedText = task.body;
+  let cleanedText = pin.body;
 
   for (const match of matches) {
     if (!match.basename || match.basename.includes("/") || match.basename.includes("..")) {

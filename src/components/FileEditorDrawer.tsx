@@ -2,9 +2,9 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import {
   useCanvasStore,
   COLLAPSED_TAB_WIDTH,
-  TASK_DRAWER_WIDTH,
+  PIN_DRAWER_WIDTH,
 } from "../stores/canvasStore";
-import { useTaskStore } from "../stores/taskStore";
+import { usePinStore } from "../stores/pinStore";
 import {
   PANEL_TRANSITION_DURATION_MS,
   PANEL_TRANSITION_EASING_CSS,
@@ -213,7 +213,7 @@ export function FileEditorDrawer() {
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
   const rightPanelCollapsed = useCanvasStore((s) => s.rightPanelCollapsed);
   const rightPanelWidth = useCanvasStore((s) => s.rightPanelWidth);
-  const taskDrawerOpen = useTaskStore((s) => s.openProjectPath !== null);
+  const taskDrawerOpen = usePinStore((s) => s.openProjectPath !== null);
   const theme = useThemeStore((s) => s.theme);
 
   const [content, setContent] = useState("");
@@ -353,7 +353,7 @@ export function FileEditorDrawer() {
 
   const leftInset =
     (leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth) +
-    (taskDrawerOpen ? TASK_DRAWER_WIDTH : 0);
+    (taskDrawerOpen ? PIN_DRAWER_WIDTH : 0);
   const rightInset = rightPanelCollapsed
     ? COLLAPSED_TAB_WIDTH
     : rightPanelWidth;

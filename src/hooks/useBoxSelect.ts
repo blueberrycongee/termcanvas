@@ -12,7 +12,7 @@ import {
   resolveDrawingElementForRender,
 } from "../canvas/annotationGeometry";
 import { useCanvasStore } from "../stores/canvasStore";
-import { useTaskStore } from "../stores/taskStore";
+import { usePinStore } from "../stores/pinStore";
 import { useProjectStore } from "../stores/projectStore";
 import {
   useCardLayoutStore,
@@ -70,7 +70,7 @@ function screenToCanvas(clientX: number, clientY: number) {
     viewport,
     leftPanelCollapsed,
     leftPanelWidth,
-    useTaskStore.getState().openProjectPath !== null,
+    usePinStore.getState().openProjectPath !== null,
   );
 }
 

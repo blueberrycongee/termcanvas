@@ -1,11 +1,11 @@
 import { create } from "zustand";
 
-interface TaskDragStore {
+interface PinDragStore {
   active: boolean;
   setActive: (active: boolean) => void;
 }
 
-export const useTaskDragStore = create<TaskDragStore>((set) => ({
+export const usePinDragStore = create<PinDragStore>((set) => ({
   active: false,
   setActive: (active) => set({ active }),
 }));

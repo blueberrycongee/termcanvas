@@ -4,54 +4,54 @@ import crypto from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { EventEmitter } from "node:events";
 import type {
-  Task,
-  TaskStatus,
-  TaskLink,
-  CreateTaskInput,
-  UpdateTaskInput,
-} from "../shared/task.js";
+  Pin,
+  PinStatus,
+  PinLink,
+  CreatePinInput,
+  UpdatePinInput,
+} from "../shared/pin.js";
 
-export type { Task, TaskStatus, TaskLink, CreateTaskInput, UpdateTaskInput };
+export type { Pin, PinStatus, PinLink, CreatePinInput, UpdatePinInput };
 
-const VALID_STATUSES: ReadonlySet<TaskStatus> = new Set(["open", "done", "dropped"]);
+const VALID_STATUSES: ReadonlySet<PinStatus> = new Set(["open", "done", "dropped"]);
 const ID_REGEX = /^[a-z0-9][a-z0-9-]*$/;
 
-export class TaskStore extends EventEmitter {
+export class PinStore extends EventEmitter {
   constructor(private readonly root: string) {
     super();
   }
 
-  list(repo: string): Task[] {
+  list(repo: string): Pin[] {
     const dir = this.repoDir(repo);
     if (!fs.existsSync(dir)) return [];
-    const tasks: Task[] = [];
+    const pins: Pin[] = [];
     for (const entry of fs.readdirSync(dir)) {
       if (!entry.endsWith(".md")) continue;
       const filePath = path.join(dir, entry);
-      const task = this.readFile(filePath);
-      if (task) {
-        this.populateAttachmentsUrl(task);
-        tasks.push(task);
+      const pin = this.readFile(filePath);
+      if (pin) {
+        this.populateAttachmentsUrl(pin);
+        pins.push(pin);
       }
     }
-    tasks.sort((a, b) => b.updated.localeCompare(a.updated));
-    return tasks;
+    pins.sort((a, b) => b.updated.localeCompare(a.updated));
+    return pins;
   }
 
-  get(repo: string, id: string): Task | null {
-    const filePath = this.taskPath(repo, id);
+  get(repo: string, id: string): Pin | null {
+    const filePath = this.pinPath(repo, id);
     if (!fs.existsSync(filePath)) return null;
-    const task = this.readFile(filePath);
-    if (task) this.populateAttachmentsUrl(task);
-    return task;
+    const pin = this.readFile(filePath);
+    if (pin) this.populateAttachmentsUrl(pin);
+    return pin;
   }
 
-  create(input: CreateTaskInput): Task {
+  create(input: CreatePinInput): Pin {
     if (!input.title?.trim()) {
-      throw new TaskStoreError("title is required", 400);
+      throw new PinStoreError("title is required", 400);
     }
     if (!input.repo?.trim()) {
-      throw new TaskStoreError("repo is required", 400);
+      throw new PinStoreError("repo is required", 400);
     }
     const repo = path.resolve(input.repo);
     const dir = this.repoDir(repo);
@@ -59,7 +59,7 @@ export class TaskStore extends EventEmitter {
 
     const id = this.generateId(input.title, dir);
     const now = new Date().toISOString();
-    const task: Task = {
+    const pin: Pin = {
       id,
       title: input.title.trim(),
       status: input.status ?? "open",
@@ -69,24 +69,24 @@ export class TaskStore extends EventEmitter {
       created: now,
       updated: now,
     };
-    this.writeFile(this.taskPath(repo, id), task);
-    this.populateAttachmentsUrl(task);
-    this.emit("task:created", { task, repo: task.repo });
-    return task;
+    this.writeFile(this.pinPath(repo, id), pin);
+    this.populateAttachmentsUrl(pin);
+    this.emit("pin:created", { pin, repo: pin.repo });
+    return pin;
   }
 
-  update(repo: string, id: string, patch: UpdateTaskInput): Task {
+  update(repo: string, id: string, patch: UpdatePinInput): Pin {
     const existing = this.get(repo, id);
-    if (!existing) throw new TaskStoreError(`Task not found: ${id}`, 404);
+    if (!existing) throw new PinStoreError(`Pin not found: ${id}`, 404);
 
     if (patch.status !== undefined && !VALID_STATUSES.has(patch.status)) {
-      throw new TaskStoreError(`Invalid status: ${patch.status}`, 400);
+      throw new PinStoreError(`Invalid status: ${patch.status}`, 400);
     }
     if (patch.title !== undefined && !patch.title.trim()) {
-      throw new TaskStoreError("title cannot be empty", 400);
+      throw new PinStoreError("title cannot be empty", 400);
     }
 
-    const next: Task = {
+    const next: Pin = {
       ...existing,
       title: patch.title?.trim() ?? existing.title,
       status: patch.status ?? existing.status,
@@ -94,28 +94,28 @@ export class TaskStore extends EventEmitter {
       links: patch.links ?? existing.links,
       updated: new Date().toISOString(),
     };
-    this.writeFile(this.taskPath(repo, id), next);
+    this.writeFile(this.pinPath(repo, id), next);
     this.populateAttachmentsUrl(next);
-    this.emit("task:updated", { task: next, repo: path.resolve(repo) });
+    this.emit("pin:updated", { pin: next, repo: path.resolve(repo) });
     return next;
   }
 
   remove(repo: string, id: string): void {
-    const filePath = this.taskPath(repo, id);
+    const filePath = this.pinPath(repo, id);
     if (!fs.existsSync(filePath)) {
-      throw new TaskStoreError(`Task not found: ${id}`, 404);
+      throw new PinStoreError(`Pin not found: ${id}`, 404);
     }
     fs.unlinkSync(filePath);
     const attachDir = path.join(this.repoDir(repo), `${id}.attachments`);
     if (fs.existsSync(attachDir)) {
       fs.rmSync(attachDir, { recursive: true, force: true });
     }
-    this.emit("task:removed", { id, repo: path.resolve(repo) });
+    this.emit("pin:removed", { id, repo: path.resolve(repo) });
   }
 
   attachmentsDir(repo: string, id: string): string {
     if (!ID_REGEX.test(id)) {
-      throw new TaskStoreError(`Invalid task id: ${id}`, 400);
+      throw new PinStoreError(`Invalid pin id: ${id}`, 400);
     }
     return path.join(this.repoDir(repo), `${id}.attachments`);
   }
@@ -127,9 +127,9 @@ export class TaskStore extends EventEmitter {
     fileName: string,
     data: Buffer,
   ): { relativePath: string; absolutePath: string } {
-    const taskFile = this.taskPath(repo, id);
-    if (!fs.existsSync(taskFile)) {
-      throw new TaskStoreError(`Task not found: ${id}`, 404);
+    const pinFile = this.pinPath(repo, id);
+    if (!fs.existsSync(pinFile)) {
+      throw new PinStoreError(`Pin not found: ${id}`, 404);
     }
 
     const dir = this.attachmentsDir(repo, id);
@@ -157,16 +157,16 @@ export class TaskStore extends EventEmitter {
         absolutePath,
       };
     }
-    throw new TaskStoreError("Could not allocate unique attachment basename", 500);
+    throw new PinStoreError("Could not allocate unique attachment basename", 500);
   }
 
-  private populateAttachmentsUrl(task: Task): void {
+  private populateAttachmentsUrl(pin: Pin): void {
     // Custom protocol so renderer can load these images regardless of its
     // origin (file:// in prod, http://localhost in dev — file:// images would
     // otherwise be blocked by webSecurity in dev). The handler in main.ts
-    // re-validates that the resolved disk path stays under the tasks root.
-    const fileUrl = pathToFileURL(this.attachmentsDir(task.repo, task.id));
-    task.attachmentsUrl = `tc-attachment://local${fileUrl.pathname}`;
+    // re-validates that the resolved disk path stays under the pins root.
+    const fileUrl = pathToFileURL(this.attachmentsDir(pin.repo, pin.id));
+    pin.attachmentsUrl = `tc-attachment://local${fileUrl.pathname}`;
   }
 
   private repoDir(repo: string): string {
@@ -175,9 +175,9 @@ export class TaskStore extends EventEmitter {
     return path.join(this.root, hash);
   }
 
-  private taskPath(repo: string, id: string): string {
+  private pinPath(repo: string, id: string): string {
     if (!ID_REGEX.test(id)) {
-      throw new TaskStoreError(`Invalid task id: ${id}`, 400);
+      throw new PinStoreError(`Invalid pin id: ${id}`, 400);
     }
     return path.join(this.repoDir(repo), `${id}.md`);
   }
@@ -187,23 +187,23 @@ export class TaskStore extends EventEmitter {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
-      .slice(0, 40) || "task";
+      .slice(0, 40) || "pin";
     for (let attempt = 0; attempt < 8; attempt++) {
       const suffix = crypto.randomBytes(2).toString("hex");
       const id = `${slug}-${suffix}`;
       if (!fs.existsSync(path.join(dir, `${id}.md`))) return id;
     }
-    throw new TaskStoreError("Could not allocate unique task id", 500);
+    throw new PinStoreError("Could not allocate unique pin id", 500);
   }
 
-  private readFile(filePath: string): Task | null {
+  private readFile(filePath: string): Pin | null {
     try {
       const raw = fs.readFileSync(filePath, "utf-8");
       const match = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
       if (!match) return null;
       const meta = parseFrontmatter(match[1]);
       const body = match[2].trim();
-      const status = meta.status as TaskStatus;
+      const status = meta.status as PinStatus;
       if (!VALID_STATUSES.has(status)) return null;
       return {
         id: meta.id,
@@ -220,29 +220,29 @@ export class TaskStore extends EventEmitter {
     }
   }
 
-  private writeFile(filePath: string, task: Task): void {
+  private writeFile(filePath: string, pin: Pin): void {
     const dir = path.dirname(filePath);
     fs.mkdirSync(dir, { recursive: true });
     const frontmatter = [
-      `id: ${task.id}`,
-      `title: ${escapeYamlString(task.title)}`,
-      `status: ${task.status}`,
-      `repo: ${escapeYamlString(task.repo)}`,
-      `links: ${JSON.stringify(task.links)}`,
-      `created: ${task.created}`,
-      `updated: ${task.updated}`,
+      `id: ${pin.id}`,
+      `title: ${escapeYamlString(pin.title)}`,
+      `status: ${pin.status}`,
+      `repo: ${escapeYamlString(pin.repo)}`,
+      `links: ${JSON.stringify(pin.links)}`,
+      `created: ${pin.created}`,
+      `updated: ${pin.updated}`,
     ].join("\n");
-    const content = `---\n${frontmatter}\n---\n\n${task.body}\n`;
+    const content = `---\n${frontmatter}\n---\n\n${pin.body}\n`;
     const tmpPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
     fs.writeFileSync(tmpPath, content);
     fs.renameSync(tmpPath, filePath);
   }
 }
 
-export class TaskStoreError extends Error {
+export class PinStoreError extends Error {
   constructor(message: string, public readonly status: number = 500) {
     super(message);
-    this.name = "TaskStoreError";
+    this.name = "PinStoreError";
   }
 }
 
@@ -293,13 +293,13 @@ function parseFrontmatter(text: string): Record<string, string> {
   return out;
 }
 
-function parseLinks(raw: string | undefined): TaskLink[] {
+function parseLinks(raw: string | undefined): PinLink[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(
-      (l): l is TaskLink =>
+      (l): l is PinLink =>
         l && typeof l.type === "string" && typeof l.url === "string",
     );
   } catch {

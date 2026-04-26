@@ -6,7 +6,7 @@ import {
   useState,
 } from "react";
 import { useCanvasStore } from "../stores/canvasStore";
-import { useTaskStore } from "../stores/taskStore";
+import { usePinStore } from "../stores/pinStore";
 import {
   useCanvasToolStore,
   type CanvasTool,
@@ -253,7 +253,7 @@ export function BottomToolbar() {
       viewport: current,
     } = useCanvasStore.getState();
     const taskDrawerOpen =
-      useTaskStore.getState().openProjectPath !== null;
+      usePinStore.getState().openProjectPath !== null;
     const center = getViewportCenterClientPoint({
       leftPanelCollapsed,
       leftPanelWidth,

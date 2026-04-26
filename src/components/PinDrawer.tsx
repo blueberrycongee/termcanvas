@@ -2,11 +2,11 @@ import { memo, useCallback, useEffect, useState } from "react";
 import {
   useCanvasStore,
   COLLAPSED_TAB_WIDTH,
-  TASK_DRAWER_WIDTH,
+  PIN_DRAWER_WIDTH,
 } from "../stores/canvasStore";
-import { useTaskStore } from "../stores/taskStore";
-import { useTaskDragStore } from "../stores/taskDragStore";
-import type { Task, TaskEvent } from "../types";
+import { usePinStore } from "../stores/pinStore";
+import { usePinDragStore } from "../stores/pinDragStore";
+import type { Pin, PinEvent } from "../types";
 import {
   PANEL_TRANSITION_DURATION_MS,
   PANEL_TRANSITION_EASING_CSS,
@@ -16,13 +16,13 @@ import { ConfirmDialog } from "./ui/ConfirmDialog";
 
 const TOOLBAR_HEIGHT = 44;
 
-function StatusDot({ status }: { status: Task["status"] }) {
+function StatusDot({ status }: { status: Pin["status"] }) {
   const t = useT();
   if (status === "done") {
     return (
       <span
         className="shrink-0 w-1.5 h-1.5 rounded-full bg-green-500"
-        title={t["task.statusDone"]}
+        title={t["pin.statusDone"]}
       />
     );
   }
@@ -30,43 +30,43 @@ function StatusDot({ status }: { status: Task["status"] }) {
     return (
       <span
         className="shrink-0 w-1.5 h-1.5 rounded-full bg-[var(--text-faint)]"
-        title={t["task.statusDropped"]}
+        title={t["pin.statusDropped"]}
       />
     );
   }
   return (
     <span
       className="shrink-0 w-1.5 h-1.5 rounded-full border border-[var(--text-muted)]"
-      title={t["task.statusOpen"]}
+      title={t["pin.statusOpen"]}
     />
   );
 }
 
-// Memoised so a task event that touches one row doesn't re-render every other
-// card. upsertTask preserves object identity for unchanged tasks (it only
+// Memoised so a pin event that touches one row doesn't re-render every other
+// card. upsertPin preserves object identity for unchanged pins (it only
 // substitutes the affected slot in the array), so default shallow compare
-// on `task` and `onUpdated` is enough.
-const TaskCard = memo(function TaskCard({
-  task,
+// on `pin` and `onUpdated` is enough.
+const PinCard = memo(function PinCard({
+  pin,
   onUpdated,
 }: {
-  task: Task;
-  onUpdated: (updated: Task) => void;
+  pin: Pin;
+  onUpdated: (updated: Pin) => void;
 }) {
   const t = useT();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
-  const openDetail = useTaskStore((s) => s.openDetail);
-  const removeTask = useTaskStore((s) => s.removeTask);
+  const openDetail = usePinStore((s) => s.openDetail);
+  const removePin = usePinStore((s) => s.removePin);
 
-  const firstLine = task.body.split("\n")[0] ?? "";
+  const firstLine = pin.body.split("\n")[0] ?? "";
 
   const handleMarkDone = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (busy) return;
     setBusy(true);
     try {
-      const updated = await window.termcanvas.tasks.update(task.repo, task.id, {
+      const updated = await window.termcanvas.pins.update(pin.repo, pin.id, {
         status: "done",
       });
       onUpdated(updated);
@@ -80,7 +80,7 @@ const TaskCard = memo(function TaskCard({
     if (busy) return;
     setBusy(true);
     try {
-      const updated = await window.termcanvas.tasks.update(task.repo, task.id, {
+      const updated = await window.termcanvas.pins.update(pin.repo, pin.id, {
         status: "open",
       });
       onUpdated(updated);
@@ -93,8 +93,8 @@ const TaskCard = memo(function TaskCard({
     if (busy) return;
     setBusy(true);
     try {
-      await window.termcanvas.tasks.remove(task.repo, task.id);
-      removeTask(task.repo, task.id);
+      await window.termcanvas.pins.remove(pin.repo, pin.id);
+      removePin(pin.repo, pin.id);
       setShowDeleteConfirm(false);
     } finally {
       setBusy(false);
@@ -102,23 +102,23 @@ const TaskCard = memo(function TaskCard({
   };
 
   const titleClass =
-    task.status === "dropped"
+    pin.status === "dropped"
       ? "line-through text-[var(--text-faint)]"
       : "text-[var(--text-primary)]";
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     e.dataTransfer.setData(
-      "application/x-termcanvas-task",
-      JSON.stringify({ repo: task.repo, id: task.id }),
+      "application/x-termcanvas-pin",
+      JSON.stringify({ repo: pin.repo, id: pin.id }),
     );
     e.dataTransfer.effectAllowed = "copy";
-    useTaskDragStore.getState().setActive(true);
-    window.dispatchEvent(new CustomEvent("termcanvas:task-drag-active"));
+    usePinDragStore.getState().setActive(true);
+    window.dispatchEvent(new CustomEvent("termcanvas:pin-drag-active"));
   };
 
   const handleDragEnd = () => {
-    useTaskDragStore.getState().setActive(false);
-    window.dispatchEvent(new CustomEvent("termcanvas:task-drag-end"));
+    usePinDragStore.getState().setActive(false);
+    window.dispatchEvent(new CustomEvent("termcanvas:pin-drag-end"));
   };
 
   return (
@@ -128,27 +128,27 @@ const TaskCard = memo(function TaskCard({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         className="group relative rounded-md bg-[var(--surface)] hover:bg-[var(--sidebar-hover)] border border-transparent hover:border-[var(--border)] transition-colors cursor-grab active:cursor-grabbing"
-        onClick={() => openDetail(task.id)}
+        onClick={() => openDetail(pin.id)}
       >
         <div className="flex items-start gap-2 px-2.5 py-2 pr-16">
           <div className="mt-1">
-            <StatusDot status={task.status} />
+            <StatusDot status={pin.status} />
           </div>
           <div className="flex-1 min-w-0">
             <div
               className={`text-[11px] font-medium truncate leading-tight ${titleClass}`}
             >
-              {task.title}
+              {pin.title}
             </div>
             {firstLine && (
               <div className="text-[10px] text-[var(--text-faint)] truncate mt-0.5">
                 {firstLine}
               </div>
             )}
-            {task.links.length > 0 && (
+            {pin.links.length > 0 && (
               <div className="mt-1">
                 <span className="text-[9px] px-1 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-muted)] border border-[var(--border)]">
-                  {t["task.linkCount"](task.links.length)}
+                  {t["pin.linkCount"](pin.links.length)}
                 </span>
               </div>
             )}
@@ -157,10 +157,10 @@ const TaskCard = memo(function TaskCard({
 
         {/* Hover-revealed quick actions */}
         <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          {task.status === "open" ? (
+          {pin.status === "open" ? (
             <button
               className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-faint)] hover:text-green-500 hover:bg-green-500/10 transition-colors text-[11px]"
-              title={t["task.action.markDone"]}
+              title={t["pin.action.markDone"]}
               disabled={busy}
               onClick={handleMarkDone}
             >
@@ -169,7 +169,7 @@ const TaskCard = memo(function TaskCard({
           ) : (
             <button
               className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-faint)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors text-[11px]"
-              title={t["task.action.reopen"]}
+              title={t["pin.action.reopen"]}
               disabled={busy}
               onClick={handleReopen}
             >
@@ -178,7 +178,7 @@ const TaskCard = memo(function TaskCard({
           )}
           <button
             className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-faint)] hover:text-[var(--red,#ef4444)] hover:bg-[var(--red-soft,rgba(239,68,68,0.1))] transition-colors"
-            title={t["task.action.delete"]}
+            title={t["pin.action.delete"]}
             disabled={busy}
             onClick={(e) => {
               e.stopPropagation();
@@ -200,9 +200,9 @@ const TaskCard = memo(function TaskCard({
 
       <ConfirmDialog
         open={showDeleteConfirm}
-        title={t["task.deleteConfirm.title"]}
-        body={t["task.deleteConfirm.body"]}
-        confirmLabel={t["task.deleteConfirm.action"]}
+        title={t["pin.deleteConfirm.title"]}
+        body={t["pin.deleteConfirm.body"]}
+        confirmLabel={t["pin.deleteConfirm.action"]}
         confirmTone="danger"
         busy={busy}
         onCancel={() => setShowDeleteConfirm(false)}
@@ -212,49 +212,49 @@ const TaskCard = memo(function TaskCard({
   );
 });
 
-export function TaskDrawer() {
+export function PinDrawer() {
   const t = useT();
   const collapsed = useCanvasStore((s) => s.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
-  const openProjectPath = useTaskStore((s) => s.openProjectPath);
-  const tasksByProject = useTaskStore((s) => s.tasksByProject);
-  const closeDrawer = useTaskStore((s) => s.closeDrawer);
-  const setTasks = useTaskStore((s) => s.setTasks);
-  const upsertTask = useTaskStore((s) => s.upsertTask);
-  const removeTask = useTaskStore((s) => s.removeTask);
-  const startCompose = useTaskStore((s) => s.startCompose);
-  const showCompleted = useTaskStore((s) => s.showCompleted);
-  const toggleShowCompleted = useTaskStore((s) => s.toggleShowCompleted);
+  const openProjectPath = usePinStore((s) => s.openProjectPath);
+  const pinsByProject = usePinStore((s) => s.pinsByProject);
+  const closeDrawer = usePinStore((s) => s.closeDrawer);
+  const setPins = usePinStore((s) => s.setPins);
+  const upsertPin = usePinStore((s) => s.upsertPin);
+  const removePin = usePinStore((s) => s.removePin);
+  const startCompose = usePinStore((s) => s.startCompose);
+  const showCompleted = usePinStore((s) => s.showCompleted);
+  const toggleShowCompleted = usePinStore((s) => s.toggleShowCompleted);
 
   const isOpen = openProjectPath !== null;
-  const tasks = openProjectPath ? (tasksByProject[openProjectPath] ?? null) : null;
-  const visibleTasks =
-    tasks === null
+  const pins = openProjectPath ? (pinsByProject[openProjectPath] ?? null) : null;
+  const visiblePins =
+    pins === null
       ? null
       : showCompleted
-        ? tasks
-        : tasks.filter((task) => task.status === "open");
+        ? pins
+        : pins.filter((pin) => pin.status === "open");
 
   const leftOffset = collapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
 
   useEffect(() => {
-    const unsub = window.termcanvas.tasks.subscribe((event: TaskEvent) => {
-      if (event.type === "task:created" || event.type === "task:updated") {
-        upsertTask(event.repo, event.task);
-      } else if (event.type === "task:removed") {
-        removeTask(event.repo, event.id);
+    const unsub = window.termcanvas.pins.subscribe((event: PinEvent) => {
+      if (event.type === "pin:created" || event.type === "pin:updated") {
+        upsertPin(event.repo, event.pin);
+      } else if (event.type === "pin:removed") {
+        removePin(event.repo, event.id);
       }
     });
     return unsub;
-  }, [upsertTask, removeTask]);
+  }, [upsertPin, removePin]);
 
-  const handleTaskUpdated = useCallback(
-    (updated: Task) => {
+  const handlePinUpdated = useCallback(
+    (updated: Pin) => {
       if (openProjectPath) {
-        upsertTask(openProjectPath, updated);
+        upsertPin(openProjectPath, updated);
       }
     },
-    [openProjectPath, upsertTask],
+    [openProjectPath, upsertPin],
   );
 
   const projectName = openProjectPath
@@ -269,8 +269,8 @@ export function TaskDrawer() {
         top: TOOLBAR_HEIGHT,
         left: leftOffset,
         height: `calc(100vh - ${TOOLBAR_HEIGHT}px)`,
-        width: TASK_DRAWER_WIDTH,
-        transform: isOpen ? "translateX(0)" : `translateX(-${TASK_DRAWER_WIDTH}px)`,
+        width: PIN_DRAWER_WIDTH,
+        transform: isOpen ? "translateX(0)" : `translateX(-${PIN_DRAWER_WIDTH}px)`,
         transition: `transform ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}`,
         pointerEvents: isOpen ? "auto" : "none",
       }}
@@ -296,13 +296,13 @@ export function TaskDrawer() {
             onClick={toggleShowCompleted}
             aria-label={
               showCompleted
-                ? t["task.filter.hideCompletedLabel"]
-                : t["task.filter.showAllLabel"]
+                ? t["pin.filter.hideCompletedLabel"]
+                : t["pin.filter.showAllLabel"]
             }
             title={
               showCompleted
-                ? t["task.filter.hideCompletedLabel"]
-                : t["task.filter.showAllLabel"]
+                ? t["pin.filter.hideCompletedLabel"]
+                : t["pin.filter.showAllLabel"]
             }
           >
             <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
@@ -317,7 +317,7 @@ export function TaskDrawer() {
           <button
             className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors"
             onClick={closeDrawer}
-            aria-label={t["task.closeDrawer"]}
+            aria-label={t["pin.closeDrawer"]}
           >
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
               <path
@@ -333,25 +333,25 @@ export function TaskDrawer() {
 
       {/* Body */}
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {tasks === null || visibleTasks === null ? (
+        {pins === null || visiblePins === null ? (
           <div className="px-3 py-4 text-[10px] text-[var(--text-faint)] text-center">
-            {t["task.loading"]}
+            {t["pin.loading"]}
           </div>
-        ) : tasks.length === 0 ? (
+        ) : pins.length === 0 ? (
           <div className="px-3 py-6 text-[10px] text-[var(--text-faint)] text-center leading-relaxed">
-            {t["task.emptyState"]}
+            {t["pin.emptyState"]}
           </div>
-        ) : visibleTasks.length === 0 ? (
+        ) : visiblePins.length === 0 ? (
           <div className="px-3 py-6 text-[10px] text-[var(--text-faint)] text-center leading-relaxed">
-            {t["task.emptyAfterFilter"]}
+            {t["pin.emptyAfterFilter"]}
           </div>
         ) : (
           <div className="flex flex-col gap-1 p-2">
-            {visibleTasks.map((task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                onUpdated={handleTaskUpdated}
+            {visiblePins.map((pin) => (
+              <PinCard
+                key={pin.id}
+                pin={pin}
+                onUpdated={handlePinUpdated}
               />
             ))}
           </div>
@@ -373,7 +373,7 @@ export function TaskDrawer() {
               strokeLinecap="round"
             />
           </svg>
-          {t["task.newTask"]}
+          {t["pin.newPin"]}
         </button>
       </div>
     </div>

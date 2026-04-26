@@ -12,8 +12,8 @@ import {
   buildGitWorktreeAddArgs,
   validateWorktreePath,
 } from "../hydra/src/spawn";
-import { TaskStore, TaskStoreError } from "./task-store";
-import { resolveCanvasProjectRoot } from "./task-project-resolver";
+import { PinStore, PinStoreError } from "./pin-store";
+import { resolveCanvasProjectRoot } from "./pin-project-resolver";
 
 interface ApiServerDeps {
   getWindow: () => BrowserWindow | null;
@@ -21,7 +21,7 @@ interface ApiServerDeps {
   projectScanner: ProjectScanner;
   telemetryService: TelemetryService;
   computerUseManager?: ComputerUseManager;
-  taskStore: TaskStore;
+  taskStore: PinStore;
 }
 
 export class ApiServer {
@@ -185,23 +185,23 @@ export class ApiServer {
       return this.computerUseStop();
     }
 
-    if (method === "GET" && pathname === "/task/list") {
-      return this.taskList(url);
+    if (method === "GET" && pathname === "/pin/list") {
+      return this.pinList(url);
     }
-    if (method === "POST" && pathname === "/task/create") {
-      return this.taskCreate(body);
+    if (method === "POST" && pathname === "/pin/create") {
+      return this.pinCreate(body);
     }
-    if (method === "GET" && pathname.match(/^\/task\/[^/]+$/)) {
+    if (method === "GET" && pathname.match(/^\/pin\/[^/]+$/)) {
       const id = pathname.split("/")[2];
-      return this.taskGet(url, id);
+      return this.pinGet(url, id);
     }
-    if (method === "PUT" && pathname.match(/^\/task\/[^/]+$/)) {
+    if (method === "PUT" && pathname.match(/^\/pin\/[^/]+$/)) {
       const id = pathname.split("/")[2];
-      return this.taskUpdate(id, body);
+      return this.pinUpdate(id, body);
     }
-    if (method === "DELETE" && pathname.match(/^\/task\/[^/]+$/)) {
+    if (method === "DELETE" && pathname.match(/^\/pin\/[^/]+$/)) {
       const id = pathname.split("/")[2];
-      return this.taskRemove(url, id);
+      return this.pinRemove(url, id);
     }
 
     throw Object.assign(new Error("Not found"), { status: 404 });
@@ -620,14 +620,14 @@ export class ApiServer {
     return { ok: true };
   }
 
-  private async taskList(url: URL) {
+  private async pinList(url: URL) {
     const inputRepo = requireRepoQuery(url);
     const projects = await this.execRenderer(`window.__tcApi.getProjects()`);
     const canonicalRepo = resolveCanvasProjectRoot(inputRepo, projects);
-    return { tasks: this.deps.taskStore.list(canonicalRepo) };
+    return { pins: this.deps.taskStore.list(canonicalRepo) };
   }
 
-  private async taskCreate(body: any) {
+  private async pinCreate(body: any) {
     const inputRepo = body?.repo;
     if (!inputRepo) {
       throw Object.assign(new Error("repo is required"), { status: 400 });
@@ -635,35 +635,35 @@ export class ApiServer {
     const projects = await this.execRenderer(`window.__tcApi.getProjects()`);
     const canonicalRepo = resolveCanvasProjectRoot(inputRepo, projects);
     try {
-      const task = this.deps.taskStore.create({
+      const pin = this.deps.taskStore.create({
         title: body?.title,
         repo: canonicalRepo,
         body: body?.body,
         status: body?.status,
         links: body?.links,
       });
-      return { task };
+      return { pin };
     } catch (err) {
-      throw rethrowTaskStoreError(err);
+      throw rethrowPinStoreError(err);
     }
   }
 
-  private async taskGet(url: URL, id: string) {
+  private async pinGet(url: URL, id: string) {
     const inputRepo = requireRepoQuery(url);
     const projects = await this.execRenderer(`window.__tcApi.getProjects()`);
     const canonicalRepo = resolveCanvasProjectRoot(inputRepo, projects);
     try {
-      const task = this.deps.taskStore.get(canonicalRepo, id);
-      if (!task) {
-        throw Object.assign(new Error(`Task not found: ${id}`), { status: 404 });
+      const pin = this.deps.taskStore.get(canonicalRepo, id);
+      if (!pin) {
+        throw Object.assign(new Error(`Pin not found: ${id}`), { status: 404 });
       }
-      return { task };
+      return { pin };
     } catch (err) {
-      throw rethrowTaskStoreError(err);
+      throw rethrowPinStoreError(err);
     }
   }
 
-  private async taskUpdate(id: string, body: any) {
+  private async pinUpdate(id: string, body: any) {
     const inputRepo = body?.repo;
     if (!inputRepo) {
       throw Object.assign(new Error("repo is required"), { status: 400 });
@@ -671,19 +671,19 @@ export class ApiServer {
     const projects = await this.execRenderer(`window.__tcApi.getProjects()`);
     const canonicalRepo = resolveCanvasProjectRoot(inputRepo, projects);
     try {
-      const task = this.deps.taskStore.update(canonicalRepo, id, {
+      const pin = this.deps.taskStore.update(canonicalRepo, id, {
         title: body?.title,
         status: body?.status,
         body: body?.body,
         links: body?.links,
       });
-      return { task };
+      return { pin };
     } catch (err) {
-      throw rethrowTaskStoreError(err);
+      throw rethrowPinStoreError(err);
     }
   }
 
-  private async taskRemove(url: URL, id: string) {
+  private async pinRemove(url: URL, id: string) {
     const inputRepo = requireRepoQuery(url);
     const projects = await this.execRenderer(`window.__tcApi.getProjects()`);
     const canonicalRepo = resolveCanvasProjectRoot(inputRepo, projects);
@@ -691,7 +691,7 @@ export class ApiServer {
       this.deps.taskStore.remove(canonicalRepo, id);
       return { ok: true };
     } catch (err) {
-      throw rethrowTaskStoreError(err);
+      throw rethrowPinStoreError(err);
     }
   }
 }
@@ -706,8 +706,8 @@ function requireRepoQuery(url: URL): string {
   return repo;
 }
 
-function rethrowTaskStoreError(err: unknown): Error {
-  if (err instanceof TaskStoreError) {
+function rethrowPinStoreError(err: unknown): Error {
+  if (err instanceof PinStoreError) {
     return Object.assign(new Error(err.message), { status: err.status });
   }
   return err instanceof Error ? err : new Error(String(err));

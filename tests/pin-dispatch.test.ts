@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { buildTaskComposerPayload } from "../electron/task-dispatch.ts";
+import { buildPinComposerPayload } from "../electron/pin-dispatch.ts";
 
-function freshAttachmentsDir(taskId: string) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-task-dispatch-"));
-  const dir = path.join(root, `${taskId}.attachments`);
+function freshAttachmentsDir(pinId: string) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-pin-dispatch-"));
+  const dir = path.join(root, `${pinId}.attachments`);
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -17,26 +17,26 @@ const PNG_BYTES = Buffer.from([
 ]);
 const JPG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
-test("buildTaskComposerPayload extracts image refs and strips them from text", async () => {
-  const taskId = "fix-button-aa11";
-  const dir = freshAttachmentsDir(taskId);
+test("buildPinComposerPayload extracts image refs and strips them from text", async () => {
+  const pinId = "fix-button-aa11";
+  const dir = freshAttachmentsDir(pinId);
   fs.writeFileSync(path.join(dir, "abc123.png"), PNG_BYTES);
   fs.writeFileSync(path.join(dir, "def456.jpg"), JPG_BYTES);
 
   const body = [
     "Here is the bug.",
     "",
-    `![first shot](./${taskId}.attachments/abc123.png)`,
+    `![first shot](./${pinId}.attachments/abc123.png)`,
     "",
     "Some prose between images.",
     "",
-    `![second shot](./${taskId}.attachments/def456.jpg)`,
+    `![second shot](./${pinId}.attachments/def456.jpg)`,
     "",
     "Compare with [the spec](https://example.com/spec.pdf).",
   ].join("\n");
 
-  const result = await buildTaskComposerPayload(
-    { id: taskId, title: "fix button alignment", body },
+  const result = await buildPinComposerPayload(
+    { id: pinId, title: "fix button alignment", body },
     dir,
   );
 
@@ -56,11 +56,11 @@ test("buildTaskComposerPayload extracts image refs and strips them from text", a
   assert.ok(result.text.includes("[the spec](https://example.com/spec.pdf)"));
 });
 
-test("buildTaskComposerPayload prepends the task title as h1 markdown", async () => {
-  const dir = freshAttachmentsDir("plain-task-aa11");
+test("buildPinComposerPayload prepends the pin title as h1 markdown", async () => {
+  const dir = freshAttachmentsDir("plain-pin-aa11");
   const body = "Just some prose.\n\nWith another paragraph.";
-  const result = await buildTaskComposerPayload(
-    { id: "plain-task-aa11", title: "fix the layout", body },
+  const result = await buildPinComposerPayload(
+    { id: "plain-pin-aa11", title: "fix the layout", body },
     dir,
   );
   assert.equal(
@@ -70,13 +70,13 @@ test("buildTaskComposerPayload prepends the task title as h1 markdown", async ()
   assert.deepEqual(result.images, []);
 });
 
-test("buildTaskComposerPayload prepends the title even when the body has image refs", async () => {
-  const taskId = "with-image-cc33";
-  const dir = freshAttachmentsDir(taskId);
+test("buildPinComposerPayload prepends the title even when the body has image refs", async () => {
+  const pinId = "with-image-cc33";
+  const dir = freshAttachmentsDir(pinId);
   fs.writeFileSync(path.join(dir, "shot.png"), PNG_BYTES);
-  const body = `Look:\n\n![](./${taskId}.attachments/shot.png)`;
-  const result = await buildTaskComposerPayload(
-    { id: taskId, title: "broken button", body },
+  const body = `Look:\n\n![](./${pinId}.attachments/shot.png)`;
+  const result = await buildPinComposerPayload(
+    { id: pinId, title: "broken button", body },
     dir,
   );
   assert.ok(result.text.startsWith("# broken button\n\n"));
@@ -85,22 +85,22 @@ test("buildTaskComposerPayload prepends the title even when the body has image r
   assert.equal(result.images.length, 1);
 });
 
-test("buildTaskComposerPayload omits the title prefix when the title is blank", async () => {
+test("buildPinComposerPayload omits the title prefix when the title is blank", async () => {
   const dir = freshAttachmentsDir("untitled-dd44");
-  const result = await buildTaskComposerPayload(
+  const result = await buildPinComposerPayload(
     { id: "untitled-dd44", title: "   ", body: "Just body." },
     dir,
   );
   assert.equal(result.text, "Just body.");
 });
 
-test("buildTaskComposerPayload skips image refs whose file is missing", async () => {
-  const taskId = "missing-asset-bb22";
-  const dir = freshAttachmentsDir(taskId);
+test("buildPinComposerPayload skips image refs whose file is missing", async () => {
+  const pinId = "missing-asset-bb22";
+  const dir = freshAttachmentsDir(pinId);
   // Don't write the file.
-  const body = `Here: ![missing](./${taskId}.attachments/ghost.png)`;
-  const result = await buildTaskComposerPayload(
-    { id: taskId, title: "fix button alignment", body },
+  const body = `Here: ![missing](./${pinId}.attachments/ghost.png)`;
+  const result = await buildPinComposerPayload(
+    { id: pinId, title: "fix button alignment", body },
     dir,
   );
   assert.equal(result.images.length, 0);

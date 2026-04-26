@@ -4,7 +4,7 @@ import { useReactFlow } from "@xyflow/react";
 import type { ProjectData } from "../types";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
-import { useTaskStore } from "../stores/taskStore";
+import { usePinStore } from "../stores/pinStore";
 import {
   canvasPointToScreenPoint,
   getCanvasLeftInset,
@@ -362,7 +362,7 @@ export function WorktreeLabelLayer() {
   const viewport = useCanvasStore((s) => s.viewport);
   const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
-  const taskDrawerOpen = useTaskStore((s) => s.openProjectPath !== null);
+  const taskDrawerOpen = usePinStore((s) => s.openProjectPath !== null);
   const reactFlow = useReactFlow();
   const [, setResizeTick] = useState(0);
   const [hoveredLabelKey, setHoveredLabelKey] = useState<string | null>(null);

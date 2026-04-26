@@ -996,19 +996,19 @@ contextBridge.exposeInMainWorld("termcanvas", {
       return () => ipcRenderer.removeListener("menu:select-all", listener);
     },
   },
-  tasks: {
+  pins: {
     list: (repo: string) =>
-      ipcRenderer.invoke("task:list", repo) as Promise<import("../shared/task.js").Task[]>,
-    create: (input: import("../shared/task.js").CreateTaskInput) =>
-      ipcRenderer.invoke("task:create", input) as Promise<import("../shared/task.js").Task>,
+      ipcRenderer.invoke("pin:list", repo) as Promise<import("../shared/pin.js").Pin[]>,
+    create: (input: import("../shared/pin.js").CreatePinInput) =>
+      ipcRenderer.invoke("pin:create", input) as Promise<import("../shared/pin.js").Pin>,
     update: (
       repo: string,
       id: string,
-      patch: import("../shared/task.js").UpdateTaskInput,
+      patch: import("../shared/pin.js").UpdatePinInput,
     ) =>
-      ipcRenderer.invoke("task:update", repo, id, patch) as Promise<import("../shared/task.js").Task>,
+      ipcRenderer.invoke("pin:update", repo, id, patch) as Promise<import("../shared/pin.js").Pin>,
     remove: (repo: string, id: string) =>
-      ipcRenderer.invoke("task:remove", repo, id) as Promise<void>,
+      ipcRenderer.invoke("pin:remove", repo, id) as Promise<void>,
     saveAttachment: (
       repo: string,
       id: string,
@@ -1016,7 +1016,7 @@ contextBridge.exposeInMainWorld("termcanvas", {
       data: ArrayBuffer,
     ) =>
       ipcRenderer.invoke(
-        "task:save-attachment",
+        "pin:save-attachment",
         repo,
         id,
         fileName,
@@ -1024,7 +1024,7 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ) as Promise<{ relativePath: string; absolutePath: string }>,
     dispatchToTerminal: (
       repo: string,
-      taskId: string,
+      pinId: string,
       target: {
         terminalId: string;
         ptyId: number;
@@ -1033,9 +1033,9 @@ contextBridge.exposeInMainWorld("termcanvas", {
       },
     ) =>
       ipcRenderer.invoke(
-        "task:dispatch-to-terminal",
+        "pin:dispatch-to-terminal",
         repo,
-        taskId,
+        pinId,
         target,
       ) as Promise<import("../src/types").ComposerSubmitResult>,
     subscribe: (
@@ -1045,8 +1045,8 @@ contextBridge.exposeInMainWorld("termcanvas", {
         _event: Electron.IpcRendererEvent,
         payload: { type: string; [key: string]: unknown },
       ) => handler(payload);
-      ipcRenderer.on("task:event", listener);
-      return () => ipcRenderer.removeListener("task:event", listener);
+      ipcRenderer.on("pin:event", listener);
+      return () => ipcRenderer.removeListener("pin:event", listener);
     },
   },
 });

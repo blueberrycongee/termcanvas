@@ -7,7 +7,7 @@ import {
 } from "@xyflow/react";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
-import { useTaskStore } from "../stores/taskStore";
+import { usePinStore } from "../stores/pinStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { TerminalTile } from "../terminal/TerminalTile";
 import { resolveTerminalMountMode } from "../terminal/terminalRuntimePolicy";
@@ -38,7 +38,7 @@ function TerminalNode({ data }: NodeProps<TerminalFlowNode>) {
   );
   const leftPanelWidth = useCanvasStore((state) => state.leftPanelWidth);
   const rightPanelWidth = useCanvasStore((state) => state.rightPanelWidth);
-  const taskDrawerOpen = useTaskStore(
+  const taskDrawerOpen = usePinStore(
     (state) => state.openProjectPath !== null,
   );
 

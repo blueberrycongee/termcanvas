@@ -3,13 +3,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { TaskStore, TaskStoreError } from "../electron/task-store.ts";
-import type { Task } from "../shared/task.ts";
+import { PinStore, PinStoreError } from "../electron/pin-store.ts";
+import type { Pin } from "../shared/pin.ts";
 
 function freshStore() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-tasks-"));
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-tasks-repo-"));
-  return { store: new TaskStore(root), root, repo };
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-pins-"));
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-pins-repo-"));
+  return { store: new PinStore(root), root, repo };
 }
 
 test("create + get round-trip preserves fields", () => {
@@ -33,7 +33,7 @@ test("create + get round-trip preserves fields", () => {
   assert.deepEqual(fetched, created);
 });
 
-test("list returns tasks for a repo, sorted newest first", async () => {
+test("list returns pins for a repo, sorted newest first", async () => {
   const { store, repo } = freshStore();
   const a = store.create({ title: "first", repo });
   await new Promise((r) => setTimeout(r, 5));
@@ -45,9 +45,9 @@ test("list returns tasks for a repo, sorted newest first", async () => {
   assert.equal(items[1].id, a.id);
 });
 
-test("list isolates tasks per repo", () => {
+test("list isolates pins per repo", () => {
   const { store, repo } = freshStore();
-  const otherRepo = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-tasks-repo-"));
+  const otherRepo = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-pins-repo-"));
   store.create({ title: "for repo A", repo });
   store.create({ title: "for repo B", repo: otherRepo });
   assert.equal(store.list(repo).length, 1);
@@ -76,30 +76,30 @@ test("update rejects unknown status", () => {
   const created = store.create({ title: "x", repo });
   assert.throws(
     () => store.update(repo, created.id, { status: "weird" as never }),
-    (err) => err instanceof TaskStoreError && err.status === 400,
+    (err) => err instanceof PinStoreError && err.status === 400,
   );
 });
 
-test("update on missing task throws 404", () => {
+test("update on missing pin throws 404", () => {
   const { store, repo } = freshStore();
   assert.throws(
     () => store.update(repo, "missing-abcd", { title: "x" }),
-    (err) => err instanceof TaskStoreError && err.status === 404,
+    (err) => err instanceof PinStoreError && err.status === 404,
   );
 });
 
-test("remove deletes the task file", () => {
+test("remove deletes the pin file", () => {
   const { store, repo } = freshStore();
   const created = store.create({ title: "to delete", repo });
   store.remove(repo, created.id);
   assert.equal(store.get(repo, created.id), null);
 });
 
-test("remove on missing task throws 404", () => {
+test("remove on missing pin throws 404", () => {
   const { store, repo } = freshStore();
   assert.throws(
     () => store.remove(repo, "missing-abcd"),
-    (err) => err instanceof TaskStoreError && err.status === 404,
+    (err) => err instanceof PinStoreError && err.status === 404,
   );
 });
 
@@ -107,7 +107,7 @@ test("create rejects empty title", () => {
   const { store, repo } = freshStore();
   assert.throws(
     () => store.create({ title: "   ", repo }),
-    (err) => err instanceof TaskStoreError && err.status === 400,
+    (err) => err instanceof PinStoreError && err.status === 400,
   );
 });
 
@@ -115,7 +115,7 @@ test("get with malformed id is rejected", () => {
   const { store, repo } = freshStore();
   assert.throws(
     () => store.get(repo, "../etc/passwd"),
-    (err) => err instanceof TaskStoreError && err.status === 400,
+    (err) => err instanceof PinStoreError && err.status === 400,
   );
 });
 
@@ -129,36 +129,36 @@ test("title with quotes / colons survives round-trip", () => {
   assert.equal(fetched?.title, 'fix "scroll: y" in long files');
 });
 
-test("create emits task:created event with task and repo", () => {
+test("create emits pin:created event with pin and repo", () => {
   const { store, repo } = freshStore();
-  let fired: { task: Task; repo: string } | null = null;
-  store.on("task:created", (payload: { task: Task; repo: string }) => {
+  let fired: { pin: Pin; repo: string } | null = null;
+  store.on("pin:created", (payload: { pin: Pin; repo: string }) => {
     fired = payload;
   });
-  const task = store.create({ title: "test event", repo });
+  const pin = store.create({ title: "test event", repo });
   assert.ok(fired !== null, "event was not fired");
-  assert.deepEqual(fired!.task, task);
-  assert.equal(fired!.repo, task.repo);
+  assert.deepEqual(fired!.pin, pin);
+  assert.equal(fired!.repo, pin.repo);
 });
 
-test("update emits task:updated event with updated task and resolved repo", () => {
+test("update emits pin:updated event with updated pin and resolved repo", () => {
   const { store, repo } = freshStore();
-  let fired: { task: Task; repo: string } | null = null;
+  let fired: { pin: Pin; repo: string } | null = null;
   const created = store.create({ title: "original", repo });
-  store.on("task:updated", (payload: { task: Task; repo: string }) => {
+  store.on("pin:updated", (payload: { pin: Pin; repo: string }) => {
     fired = payload;
   });
   const updated = store.update(repo, created.id, { status: "done" });
   assert.ok(fired !== null, "event was not fired");
-  assert.deepEqual(fired!.task, updated);
+  assert.deepEqual(fired!.pin, updated);
   assert.equal(fired!.repo, path.resolve(repo));
 });
 
-test("remove emits task:removed event with id and resolved repo", () => {
+test("remove emits pin:removed event with id and resolved repo", () => {
   const { store, repo } = freshStore();
   let fired: { id: string; repo: string } | null = null;
   const created = store.create({ title: "to remove", repo });
-  store.on("task:removed", (payload: { id: string; repo: string }) => {
+  store.on("pin:removed", (payload: { id: string; repo: string }) => {
     fired = payload;
   });
   store.remove(repo, created.id);
@@ -231,7 +231,7 @@ test("saveAttachment rejects unsafe filenames", () => {
   );
   assert.ok(
     result.relativePath.startsWith(`./${created.id}.attachments/`),
-    `expected relativePath ${result.relativePath} to stay under task attachments`,
+    `expected relativePath ${result.relativePath} to stay under pin attachments`,
   );
   assert.equal(result.relativePath.includes(".."), false);
   assert.equal(result.relativePath.includes("/etc/"), false);

@@ -1,7 +1,7 @@
 import { selectWorktreeInScene } from "../actions/sceneSelectionActions";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
-import { useTaskStore } from "../stores/taskStore";
+import { usePinStore } from "../stores/pinStore";
 import { useViewportFocusStore } from "../stores/viewportFocusStore";
 import {
   getCanvasRightInset,
@@ -58,7 +58,7 @@ export function panToWorktree(
   const leftOffset = getCanvasLeftInset(
     leftPanelCollapsed,
     leftPanelWidth,
-    useTaskStore.getState().openProjectPath !== null,
+    usePinStore.getState().openProjectPath !== null,
   );
   const padding = 60;
   const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;

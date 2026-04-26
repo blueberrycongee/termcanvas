@@ -19,7 +19,7 @@ import {
 import { getStashedTerminalIds } from "./sceneState";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
-import { useTaskStore } from "../stores/taskStore";
+import { usePinStore } from "../stores/pinStore";
 import { useDrawingStore } from "../stores/drawingStore";
 import { useCanvasToolStore } from "../stores/canvasToolStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
@@ -295,7 +295,7 @@ function XyFlowCanvasInner() {
   );
   const leftPanelWidth = useCanvasStore((state) => state.leftPanelWidth);
   const rightPanelWidth = useCanvasStore((state) => state.rightPanelWidth);
-  const taskDrawerOpen = useTaskStore(
+  const taskDrawerOpen = usePinStore(
     (state) => state.openProjectPath !== null,
   );
   const projects = useProjectStore((state) => state.projects);

@@ -22,7 +22,7 @@ import {
   type StrokePoint,
 } from "../stores/drawingStore";
 import { useCanvasStore } from "../stores/canvasStore";
-import { useTaskStore } from "../stores/taskStore";
+import { usePinStore } from "../stores/pinStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import {
@@ -217,7 +217,7 @@ export function DrawingLayer() {
   const leftPanelWidth = useCanvasStore((state) => state.leftPanelWidth);
   const rightPanelCollapsed = useCanvasStore((state) => state.rightPanelCollapsed);
   const rightPanelWidth = useCanvasStore((state) => state.rightPanelWidth);
-  const taskDrawerOpen = useTaskStore(
+  const taskDrawerOpen = usePinStore(
     (state) => state.openProjectPath !== null,
   );
   const sidebarDragging = useSidebarDragStore((state) => state.active);
@@ -243,7 +243,7 @@ export function DrawingLayer() {
         useCanvasStore.getState().viewport,
         useCanvasStore.getState().leftPanelCollapsed,
         useCanvasStore.getState().leftPanelWidth,
-        useTaskStore.getState().openProjectPath !== null,
+        usePinStore.getState().openProjectPath !== null,
       ),
     [],
   );

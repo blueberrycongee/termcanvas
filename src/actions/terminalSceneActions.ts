@@ -11,7 +11,7 @@ import { destroyTerminalRuntime } from "../terminal/terminalRuntimeStore";
 import { recordRenderDiagnostic } from "../terminal/renderDiagnostics";
 import { pickPlacement } from "../canvas/terminalPlacement";
 import { useCanvasStore } from "../stores/canvasStore";
-import { useTaskStore } from "../stores/taskStore";
+import { usePinStore } from "../stores/pinStore";
 import { getVisibleCanvasWorldRect } from "../canvas/viewportBounds";
 
 interface CreateTerminalInSceneOptions {
@@ -140,7 +140,7 @@ export function createTerminalInScene({
           canvasState.leftPanelCollapsed,
           canvasState.leftPanelWidth,
           canvasState.rightPanelWidth,
-          useTaskStore.getState().openProjectPath !== null,
+          usePinStore.getState().openProjectPath !== null,
         )
       : undefined;
   const placement = pickPlacement({

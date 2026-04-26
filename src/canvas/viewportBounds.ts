@@ -1,7 +1,7 @@
 import type { Viewport } from "../types";
 import {
   COLLAPSED_TAB_WIDTH,
-  TASK_DRAWER_WIDTH,
+  PIN_DRAWER_WIDTH,
 } from "../stores/canvasStore";
 
 // The right panel hosts the code-navigation tabs (Files / Diff /
@@ -20,7 +20,7 @@ export function getCanvasLeftInset(
   taskDrawerOpen: boolean,
 ) {
   const panel = leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
-  return panel + (taskDrawerOpen ? TASK_DRAWER_WIDTH : 0);
+  return panel + (taskDrawerOpen ? PIN_DRAWER_WIDTH : 0);
 }
 
 export function canvasPointToScreenPoint(

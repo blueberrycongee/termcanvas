@@ -17,7 +17,7 @@ import { buildProjectTree } from "./sessionPanelModel";
 import { ProjectTree } from "./ProjectTree";
 import { TerminalCard, HistorySection, StashedSection } from "./SessionsPanel";
 import { IconButton } from "./ui/IconButton";
-import { TaskDrawer } from "./TaskDrawer";
+import { PinDrawer } from "./PinDrawer";
 
 /*
  * Left panel — project management + session history.
@@ -218,7 +218,7 @@ export function LeftPanel() {
 
   return (
     <>
-    <TaskDrawer />
+    <PinDrawer />
     <div
       className="fixed left-0 z-40 bg-[var(--surface)] border-r border-[var(--border)] overflow-hidden"
       style={{
