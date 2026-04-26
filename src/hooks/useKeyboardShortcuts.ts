@@ -343,7 +343,7 @@ export function useKeyboardShortcuts() {
       // Shift+1 → fit all (Figma "fit content"). After
       // shouldIgnoreShortcutTarget so it can't hijack "!" in editable
       // fields.
-      if (e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && e.key === "!") {
+      if (e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && e.code === "Digit1") {
         consumeShortcut();
         fitAllProjects();
         return;
