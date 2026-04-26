@@ -579,13 +579,20 @@ function AssistantTextRow({
               <circle cx="10" cy="2" r="0.9" fill="currentColor" />
             </svg>
           </button>
-          <div
-            className="hidden group-hover/fork:flex absolute right-0 top-full mt-1 flex-col rounded-md shadow-lg overflow-hidden z-10 whitespace-nowrap"
-            style={{
-              backgroundColor: "var(--surface)",
-              border: "1px solid var(--border)",
-            }}
-          >
+          {/* Outer wrapper has pt-1 so the 4px visual gap between the
+              icon and the menu sits INSIDE the hover-tracked element.
+              Without this, the cursor crossing the gap leaves the
+              fork group's bounding box, group-hover/fork flips to
+              false, and the menu hides before the cursor reaches it
+              — the classic "hover gap" bug. */}
+          <div className="hidden group-hover/fork:block absolute right-0 top-full pt-1 z-10">
+            <div
+              className="flex flex-col rounded-md shadow-lg overflow-hidden whitespace-nowrap"
+              style={{
+                backgroundColor: "var(--surface)",
+                border: "1px solid var(--border)",
+              }}
+            >
             <button
               type="button"
               onClick={(e) => {
@@ -630,6 +637,7 @@ function AssistantTextRow({
             >
               {forkCodexLabel ?? "Continue in Codex"}
             </button>
+            </div>
           </div>
         </div>
       )}
