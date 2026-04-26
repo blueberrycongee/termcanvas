@@ -1007,6 +1007,19 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("task:update", repo, id, patch) as Promise<import("../shared/task.js").Task>,
     remove: (repo: string, id: string) =>
       ipcRenderer.invoke("task:remove", repo, id) as Promise<void>,
+    saveAttachment: (
+      repo: string,
+      id: string,
+      fileName: string,
+      data: ArrayBuffer,
+    ) =>
+      ipcRenderer.invoke(
+        "task:save-attachment",
+        repo,
+        id,
+        fileName,
+        data,
+      ) as Promise<{ relativePath: string; absolutePath: string }>,
     subscribe: (
       handler: (event: { type: string; [key: string]: unknown }) => void,
     ) => {

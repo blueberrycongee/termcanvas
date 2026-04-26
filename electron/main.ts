@@ -1990,6 +1990,22 @@ function setupIpc() {
   ipcMain.handle("task:remove", (_event, repo: string, id: string) => {
     taskStore.remove(repo, id);
   });
+
+  ipcMain.handle(
+    "task:save-attachment",
+    (
+      _event,
+      repo: string,
+      id: string,
+      fileName: string,
+      data: ArrayBuffer | Uint8Array,
+    ) => {
+      const buffer = Buffer.from(
+        data instanceof Uint8Array ? data : new Uint8Array(data),
+      );
+      return taskStore.saveAttachment(repo, id, fileName, buffer);
+    },
+  );
 }
 
 function getCliDir(): string {

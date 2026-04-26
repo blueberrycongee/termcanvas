@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { ClipboardEvent, DragEvent } from "react";
 import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { useTaskStore } from "../stores/taskStore";
 import type { Task } from "../types";
@@ -6,7 +7,10 @@ import {
   PANEL_TRANSITION_DURATION_MS,
   PANEL_TRANSITION_EASING_CSS,
 } from "../utils/panelAnimation";
-import { markdownClassName, renderMarkdown } from "../utils/markdownClass";
+import {
+  markdownClassName,
+  renderMarkdownWithAttachments,
+} from "../utils/markdownClass";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { DRAWER_WIDTH } from "./TaskDrawer";
 
@@ -65,9 +69,11 @@ export function TaskDetailDrawer() {
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const bodyTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const task: Task | null =
     openDetailTaskId && openProjectPath
@@ -136,6 +142,83 @@ export function TaskDetailDrawer() {
     [task, busy, upsertTask],
   );
 
+  const uploadAndInsert = useCallback(
+    async (file: File) => {
+      if (!task) return;
+      setUploading(true);
+      try {
+        const buffer = await file.arrayBuffer();
+        const result = await window.termcanvas.tasks.saveAttachment(
+          task.repo,
+          task.id,
+          file.name || "image",
+          buffer,
+        );
+        const altText = file.name || "image";
+        const snippet = `\n\n![${altText}](${result.relativePath})\n\n`;
+        const textarea = bodyTextareaRef.current;
+        setEditBody((prev) => {
+          const start = textarea?.selectionStart ?? prev.length;
+          const end = textarea?.selectionEnd ?? prev.length;
+          const next = prev.slice(0, start) + snippet + prev.slice(end);
+          if (textarea) {
+            const cursor = start + snippet.length;
+            requestAnimationFrame(() => {
+              textarea.focus();
+              textarea.setSelectionRange(cursor, cursor);
+            });
+          }
+          return next;
+        });
+      } finally {
+        setUploading(false);
+      }
+    },
+    [task],
+  );
+
+  const handleBodyPaste = useCallback(
+    (e: ClipboardEvent<HTMLTextAreaElement>) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === "file" && item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            void uploadAndInsert(file);
+          }
+        }
+      }
+    },
+    [uploadAndInsert],
+  );
+
+  const handleBodyDragOver = useCallback(
+    (e: DragEvent<HTMLTextAreaElement>) => {
+      e.preventDefault();
+    },
+    [],
+  );
+
+  const handleBodyDrop = useCallback(
+    (e: DragEvent<HTMLTextAreaElement>) => {
+      const files = e.dataTransfer?.files;
+      if (!files || files.length === 0) return;
+      let handled = false;
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.type.startsWith("image/")) {
+          handled = true;
+          void uploadAndInsert(file);
+        }
+      }
+      if (handled) e.preventDefault();
+    },
+    [uploadAndInsert],
+  );
+
   const handleDelete = useCallback(async () => {
     if (!task || busy) return;
     setBusy(true);
@@ -174,7 +257,10 @@ export function TaskDetailDrawer() {
   const leftInset = leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
   const rightInset = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : rightPanelWidth;
 
-  const bodyHtml = task && !editing && task.body ? renderMarkdown(task.body) : "";
+  const bodyHtml =
+    task && !editing && task.body
+      ? renderMarkdownWithAttachments(task.body, task.attachmentsUrl)
+      : "";
 
   return (
     <>
@@ -306,12 +392,16 @@ export function TaskDetailDrawer() {
               <div className="mb-6">
                 {editing ? (
                   <textarea
+                    ref={bodyTextareaRef}
                     className="w-full text-[13px] px-3 py-2 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] outline-none resize-none focus:border-[var(--accent)] leading-relaxed disabled:opacity-50 min-h-[200px]"
                     style={{ fontFamily: '"Geist Mono", monospace' }}
                     value={editBody}
                     onChange={(e) => setEditBody(e.target.value)}
+                    onPaste={handleBodyPaste}
+                    onDragOver={handleBodyDragOver}
+                    onDrop={handleBodyDrop}
                     disabled={busy}
-                    placeholder="Description (markdown supported)"
+                    placeholder="Description (markdown supported) — paste or drop images"
                     rows={10}
                   />
                 ) : task.body ? (
@@ -331,7 +421,7 @@ export function TaskDetailDrawer() {
                 <div className="flex items-center gap-2 mb-6">
                   <button
                     className="text-[11px] px-3 py-1 rounded bg-[var(--accent)] text-white disabled:opacity-50 hover:opacity-90 transition-opacity"
-                    disabled={busy || !editTitle.trim()}
+                    disabled={busy || uploading || !editTitle.trim()}
                     onClick={() => void handleSaveEdit()}
                   >
                     Save
@@ -345,6 +435,11 @@ export function TaskDetailDrawer() {
                   <span className="text-[10px] text-[var(--text-faint)] ml-1">
                     ⌘↵ to save · Esc to cancel
                   </span>
+                  {uploading && (
+                    <span className="text-[10px] text-[var(--text-muted)] ml-auto">
+                      uploading…
+                    </span>
+                  )}
                 </div>
               )}
 

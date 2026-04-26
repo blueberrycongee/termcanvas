@@ -1037,6 +1037,12 @@ export interface TermCanvasAPI {
     create: (input: CreateTaskInput) => Promise<Task>;
     update: (repo: string, id: string, patch: UpdateTaskInput) => Promise<Task>;
     remove: (repo: string, id: string) => Promise<void>;
+    saveAttachment: (
+      repo: string,
+      id: string,
+      fileName: string,
+      data: ArrayBuffer,
+    ) => Promise<{ relativePath: string; absolutePath: string }>;
     subscribe: (handler: (event: TaskEvent) => void) => () => void;
   };
   updater: {

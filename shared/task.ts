@@ -15,6 +15,12 @@ export interface Task {
   links: TaskLink[];
   created: string;
   updated: string;
+  /**
+   * Absolute file:// URL pointing to the directory containing this task's
+   * attachments. Populated only on tasks served via IPC; not part of on-disk
+   * frontmatter.
+   */
+  attachmentsUrl?: string;
 }
 
 export interface CreateTaskInput {

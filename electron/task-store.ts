@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { pathToFileURL } from "node:url";
 import { EventEmitter } from "node:events";
 import type {
   Task,
@@ -13,6 +14,7 @@ import type {
 export type { Task, TaskStatus, TaskLink, CreateTaskInput, UpdateTaskInput };
 
 const VALID_STATUSES: ReadonlySet<TaskStatus> = new Set(["open", "done", "dropped"]);
+const ID_REGEX = /^[a-z0-9][a-z0-9-]*$/;
 
 export class TaskStore extends EventEmitter {
   constructor(private readonly root: string) {
@@ -27,7 +29,10 @@ export class TaskStore extends EventEmitter {
       if (!entry.endsWith(".md")) continue;
       const filePath = path.join(dir, entry);
       const task = this.readFile(filePath);
-      if (task) tasks.push(task);
+      if (task) {
+        this.populateAttachmentsUrl(task);
+        tasks.push(task);
+      }
     }
     tasks.sort((a, b) => b.updated.localeCompare(a.updated));
     return tasks;
@@ -36,7 +41,9 @@ export class TaskStore extends EventEmitter {
   get(repo: string, id: string): Task | null {
     const filePath = this.taskPath(repo, id);
     if (!fs.existsSync(filePath)) return null;
-    return this.readFile(filePath);
+    const task = this.readFile(filePath);
+    if (task) this.populateAttachmentsUrl(task);
+    return task;
   }
 
   create(input: CreateTaskInput): Task {
@@ -63,6 +70,7 @@ export class TaskStore extends EventEmitter {
       updated: now,
     };
     this.writeFile(this.taskPath(repo, id), task);
+    this.populateAttachmentsUrl(task);
     this.emit("task:created", { task, repo: task.repo });
     return task;
   }
@@ -87,6 +95,7 @@ export class TaskStore extends EventEmitter {
       updated: new Date().toISOString(),
     };
     this.writeFile(this.taskPath(repo, id), next);
+    this.populateAttachmentsUrl(next);
     this.emit("task:updated", { task: next, repo: path.resolve(repo) });
     return next;
   }
@@ -97,7 +106,64 @@ export class TaskStore extends EventEmitter {
       throw new TaskStoreError(`Task not found: ${id}`, 404);
     }
     fs.unlinkSync(filePath);
+    const attachDir = path.join(this.repoDir(repo), `${id}.attachments`);
+    if (fs.existsSync(attachDir)) {
+      fs.rmSync(attachDir, { recursive: true, force: true });
+    }
     this.emit("task:removed", { id, repo: path.resolve(repo) });
+  }
+
+  attachmentsDir(repo: string, id: string): string {
+    if (!ID_REGEX.test(id)) {
+      throw new TaskStoreError(`Invalid task id: ${id}`, 400);
+    }
+    return path.join(this.repoDir(repo), `${id}.attachments`);
+  }
+
+  // TODO(v1.5): enforce a size cap; today a 50MB paste writes 50MB.
+  saveAttachment(
+    repo: string,
+    id: string,
+    fileName: string,
+    data: Buffer,
+  ): { relativePath: string; absolutePath: string } {
+    const taskFile = this.taskPath(repo, id);
+    if (!fs.existsSync(taskFile)) {
+      throw new TaskStoreError(`Task not found: ${id}`, 404);
+    }
+
+    const dir = this.attachmentsDir(repo, id);
+    fs.mkdirSync(dir, { recursive: true });
+
+    const ext = deriveExtension(fileName, data);
+
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const basename = `${crypto.randomBytes(3).toString("hex")}.${ext}`;
+      const absolutePath = path.join(dir, basename);
+      if (fs.existsSync(absolutePath)) continue;
+
+      const tmpPath = `${absolutePath}.tmp-${process.pid}-${Date.now()}`;
+      const fd = fs.openSync(tmpPath, "w");
+      try {
+        fs.writeSync(fd, data);
+        fs.fsyncSync(fd);
+      } finally {
+        fs.closeSync(fd);
+      }
+      fs.renameSync(tmpPath, absolutePath);
+
+      return {
+        relativePath: `./${id}.attachments/${basename}`,
+        absolutePath,
+      };
+    }
+    throw new TaskStoreError("Could not allocate unique attachment basename", 500);
+  }
+
+  private populateAttachmentsUrl(task: Task): void {
+    task.attachmentsUrl = pathToFileURL(
+      this.attachmentsDir(task.repo, task.id),
+    ).toString();
   }
 
   private repoDir(repo: string): string {
@@ -107,7 +173,7 @@ export class TaskStore extends EventEmitter {
   }
 
   private taskPath(repo: string, id: string): string {
-    if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) {
+    if (!ID_REGEX.test(id)) {
       throw new TaskStoreError(`Invalid task id: ${id}`, 400);
     }
     return path.join(this.repoDir(repo), `${id}.md`);
@@ -175,6 +241,43 @@ export class TaskStoreError extends Error {
     super(message);
     this.name = "TaskStoreError";
   }
+}
+
+function deriveExtension(fileName: string, data: Buffer): string {
+  const dotIdx = fileName.lastIndexOf(".");
+  if (dotIdx > 0 && dotIdx < fileName.length - 1) {
+    const ext = fileName.slice(dotIdx + 1).toLowerCase();
+    if (/^[a-z0-9]{1,8}$/.test(ext)) return ext;
+  }
+  return detectImageExtension(data);
+}
+
+function detectImageExtension(data: Buffer): string {
+  if (
+    data.length >= 8 &&
+    data[0] === 0x89 &&
+    data[1] === 0x50 &&
+    data[2] === 0x4e &&
+    data[3] === 0x47
+  )
+    return "png";
+  if (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff)
+    return "jpg";
+  if (
+    data.length >= 6 &&
+    data[0] === 0x47 &&
+    data[1] === 0x49 &&
+    data[2] === 0x46 &&
+    data[3] === 0x38
+  )
+    return "gif";
+  if (
+    data.length >= 12 &&
+    data.slice(0, 4).toString("ascii") === "RIFF" &&
+    data.slice(8, 12).toString("ascii") === "WEBP"
+  )
+    return "webp";
+  return "png";
 }
 
 function parseFrontmatter(text: string): Record<string, string> {

@@ -166,3 +166,73 @@ test("remove emits task:removed event with id and resolved repo", () => {
   assert.equal(fired!.id, created.id);
   assert.equal(fired!.repo, path.resolve(repo));
 });
+
+const PNG_HEADER = Buffer.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+]);
+
+test("saveAttachment writes file and returns relative + absolute paths", () => {
+  const { store, repo } = freshStore();
+  const created = store.create({ title: "with image", repo });
+
+  const result = store.saveAttachment(
+    repo,
+    created.id,
+    "screenshot.png",
+    PNG_HEADER,
+  );
+
+  assert.match(
+    result.relativePath,
+    new RegExp(`^\\./${created.id}\\.attachments/[a-f0-9]{6}\\.png$`),
+  );
+  assert.equal(path.isAbsolute(result.absolutePath), true);
+  assert.ok(fs.existsSync(result.absolutePath));
+  assert.deepEqual(fs.readFileSync(result.absolutePath), PNG_HEADER);
+
+  const dir = store.attachmentsDir(repo, created.id);
+  assert.equal(path.dirname(result.absolutePath), dir);
+});
+
+test("remove also deletes the attachments directory", () => {
+  const { store, repo } = freshStore();
+  const created = store.create({ title: "to delete with attachments", repo });
+  const result = store.saveAttachment(
+    repo,
+    created.id,
+    "shot.png",
+    PNG_HEADER,
+  );
+  const dir = store.attachmentsDir(repo, created.id);
+  assert.ok(fs.existsSync(dir));
+  assert.ok(fs.existsSync(result.absolutePath));
+
+  store.remove(repo, created.id);
+
+  assert.equal(fs.existsSync(dir), false);
+  assert.equal(fs.existsSync(result.absolutePath), false);
+});
+
+test("saveAttachment rejects unsafe filenames", () => {
+  const { store, repo } = freshStore();
+  const created = store.create({ title: "safe", repo });
+
+  const result = store.saveAttachment(
+    repo,
+    created.id,
+    "../../../etc/passwd.png",
+    PNG_HEADER,
+  );
+
+  const dir = store.attachmentsDir(repo, created.id);
+  assert.ok(
+    result.absolutePath.startsWith(dir + path.sep),
+    `expected absolutePath ${result.absolutePath} to be inside ${dir}`,
+  );
+  assert.ok(
+    result.relativePath.startsWith(`./${created.id}.attachments/`),
+    `expected relativePath ${result.relativePath} to stay under task attachments`,
+  );
+  assert.equal(result.relativePath.includes(".."), false);
+  assert.equal(result.relativePath.includes("/etc/"), false);
+});
