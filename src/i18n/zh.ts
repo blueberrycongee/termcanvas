@@ -681,4 +681,49 @@ export const zh = {
   file_editor_binary_hint: "这不是文本,也不是支持的图片格式,编辑器无法渲染。",
 
   refresh_renderer: "刷新终端渲染",
+
+  // Tasks
+  "task.loading": "加载中…",
+  "task.emptyState":
+    "还没有任务。终端里的 agent 在这个项目下记录的任务会出现在这里，或者点 + 自己加一条。",
+  "task.newTask": "新建任务",
+  "task.statusOpen": "进行中",
+  "task.statusDone": "已完成",
+  "task.statusDropped": "已搁置",
+  "task.compose.newPill": "新建",
+  "task.action.edit": "编辑",
+  "task.action.markDone": "标记完成",
+  "task.action.reopen": "重新打开",
+  "task.action.drop": "搁置",
+  "task.action.delete": "删除",
+  "task.meta.created": (rel: string) => `创建于 ${rel}`,
+  "task.meta.updated": (rel: string) => `更新于 ${rel}`,
+  "task.relativeTime": (deltaMs: number) => {
+    if (!Number.isFinite(deltaMs) || deltaMs < 0) return "";
+    const mins = Math.floor(deltaMs / 60_000);
+    if (mins < 1) return "刚刚";
+    if (mins < 60) return `${mins} 分钟前`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} 小时前`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days} 天前`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months} 个月前`;
+    return `${Math.floor(months / 12)} 年前`;
+  },
+  "task.linkCount": (n: number) => `${n} 个链接`,
+  "task.emptyBody": "还没有描述。点 Edit 添加。",
+  "task.create": "创建",
+  "task.keyboardHint": "⌘↵ 保存 · Esc 取消",
+  "task.uploading": "上传中…",
+  "task.links": "链接",
+  "task.bodyPlaceholder": "描述（支持 markdown）—— 可粘贴或拖入图片",
+  "task.titlePlaceholder": "任务标题",
+  "task.untitled": "未命名",
+  "task.deleteConfirm.title": "删除任务",
+  "task.deleteConfirm.body": "这会永久删除该任务。继续吗？",
+  "task.deleteConfirm.action": "删除",
+  "task.closeDrawer": "关闭任务面板",
+  "task.closeDetail": "关闭",
+  "task.triggerLabel": (name: string) => `${name} 的任务`,
 } as const;

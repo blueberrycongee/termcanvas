@@ -6,6 +6,7 @@ import {
   PANEL_TRANSITION_DURATION_MS,
   PANEL_TRANSITION_EASING_CSS,
 } from "../utils/panelAnimation";
+import { useT } from "../i18n/useT";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 
 const DRAWER_WIDTH = 320;
@@ -14,11 +15,12 @@ const TOOLBAR_HEIGHT = 44;
 export { DRAWER_WIDTH };
 
 function StatusDot({ status }: { status: Task["status"] }) {
+  const t = useT();
   if (status === "done") {
     return (
       <span
         className="shrink-0 w-1.5 h-1.5 rounded-full bg-green-500"
-        title="Done"
+        title={t["task.statusDone"]}
       />
     );
   }
@@ -26,14 +28,14 @@ function StatusDot({ status }: { status: Task["status"] }) {
     return (
       <span
         className="shrink-0 w-1.5 h-1.5 rounded-full bg-[var(--text-faint)]"
-        title="Dropped"
+        title={t["task.statusDropped"]}
       />
     );
   }
   return (
     <span
       className="shrink-0 w-1.5 h-1.5 rounded-full border border-[var(--text-muted)]"
-      title="Open"
+      title={t["task.statusOpen"]}
     />
   );
 }
@@ -45,6 +47,7 @@ function TaskCard({
   task: Task;
   onUpdated: (updated: Task) => void;
 }) {
+  const t = useT();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const openDetail = useTaskStore((s) => s.openDetail);
@@ -121,7 +124,7 @@ function TaskCard({
             {task.links.length > 0 && (
               <div className="mt-1">
                 <span className="text-[9px] px-1 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-muted)] border border-[var(--border)]">
-                  {task.links.length} link{task.links.length !== 1 ? "s" : ""}
+                  {t["task.linkCount"](task.links.length)}
                 </span>
               </div>
             )}
@@ -133,7 +136,7 @@ function TaskCard({
           {task.status === "open" ? (
             <button
               className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-faint)] hover:text-green-500 hover:bg-green-500/10 transition-colors text-[11px]"
-              title="Mark done"
+              title={t["task.action.markDone"]}
               disabled={busy}
               onClick={handleMarkDone}
             >
@@ -142,7 +145,7 @@ function TaskCard({
           ) : (
             <button
               className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-faint)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors text-[11px]"
-              title="Reopen"
+              title={t["task.action.reopen"]}
               disabled={busy}
               onClick={handleReopen}
             >
@@ -151,7 +154,7 @@ function TaskCard({
           )}
           <button
             className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-faint)] hover:text-[var(--red,#ef4444)] hover:bg-[var(--red-soft,rgba(239,68,68,0.1))] transition-colors"
-            title="Delete"
+            title={t["task.action.delete"]}
             disabled={busy}
             onClick={(e) => {
               e.stopPropagation();
@@ -173,9 +176,9 @@ function TaskCard({
 
       <ConfirmDialog
         open={showDeleteConfirm}
-        title="Delete task"
-        body="This will permanently delete the task. Continue?"
-        confirmLabel="Delete"
+        title={t["task.deleteConfirm.title"]}
+        body={t["task.deleteConfirm.body"]}
+        confirmLabel={t["task.deleteConfirm.action"]}
         confirmTone="danger"
         busy={busy}
         onCancel={() => setShowDeleteConfirm(false)}
@@ -186,6 +189,7 @@ function TaskCard({
 }
 
 export function TaskDrawer() {
+  const t = useT();
   const collapsed = useCanvasStore((s) => s.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
   const openProjectPath = useTaskStore((s) => s.openProjectPath);
@@ -257,7 +261,7 @@ export function TaskDrawer() {
         <button
           className="shrink-0 flex items-center justify-center w-5 h-5 rounded text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors"
           onClick={closeDrawer}
-          aria-label="Close task drawer"
+          aria-label={t["task.closeDrawer"]}
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
             <path
@@ -274,12 +278,11 @@ export function TaskDrawer() {
       <div className="flex-1 min-h-0 overflow-y-auto">
         {tasks === null ? (
           <div className="px-3 py-4 text-[10px] text-[var(--text-faint)] text-center">
-            Loading…
+            {t["task.loading"]}
           </div>
         ) : tasks.length === 0 ? (
           <div className="px-3 py-6 text-[10px] text-[var(--text-faint)] text-center leading-relaxed">
-            No tasks yet. Agents working in this project will record them here,
-            or click + to add one.
+            {t["task.emptyState"]}
           </div>
         ) : (
           <div className="flex flex-col gap-1 p-2">
@@ -309,7 +312,7 @@ export function TaskDrawer() {
               strokeLinecap="round"
             />
           </svg>
-          New task
+          {t["task.newTask"]}
         </button>
       </div>
     </div>

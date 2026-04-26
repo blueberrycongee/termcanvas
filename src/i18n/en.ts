@@ -696,6 +696,53 @@ export const en = {
     "This file isn't text or a supported image format, so the editor can't render it.",
 
   refresh_renderer: "Refresh terminal rendering",
+
+  // Tasks
+  "task.loading": "Loading…",
+  "task.emptyState":
+    "No tasks yet. Agents working in this project will record them here, or click + to add one.",
+  "task.newTask": "New task",
+  "task.statusOpen": "Open",
+  "task.statusDone": "Done",
+  "task.statusDropped": "Dropped",
+  "task.compose.newPill": "New",
+  "task.action.edit": "Edit",
+  "task.action.markDone": "Mark done",
+  "task.action.reopen": "Reopen",
+  "task.action.drop": "Drop",
+  "task.action.delete": "Delete",
+  "task.meta.created": (rel: string) => `Created ${rel}`,
+  "task.meta.updated": (rel: string) => `Updated ${rel}`,
+  "task.relativeTime": (deltaMs: number) => {
+    if (!Number.isFinite(deltaMs) || deltaMs < 0) return "";
+    const mins = Math.floor(deltaMs / 60_000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days}d ago`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months}mo ago`;
+    return `${Math.floor(months / 12)}y ago`;
+  },
+  "task.linkCount": (n: number) => `${n} link${n !== 1 ? "s" : ""}`,
+  "task.emptyBody": "No description yet. Click Edit to add one.",
+  "task.create": "Create",
+  "task.keyboardHint": "⌘↵ to save · Esc to cancel",
+  "task.uploading": "uploading…",
+  "task.links": "Links",
+  "task.bodyPlaceholder":
+    "Description (markdown supported) — paste or drop images",
+  "task.titlePlaceholder": "Task title",
+  "task.untitled": "Untitled",
+  "task.deleteConfirm.title": "Delete task",
+  "task.deleteConfirm.body":
+    "This will permanently delete the task. Continue?",
+  "task.deleteConfirm.action": "Delete",
+  "task.closeDrawer": "Close task drawer",
+  "task.closeDetail": "Close detail",
+  "task.triggerLabel": (name: string) => `Tasks for ${name}`,
 } as const;
 
 export type TranslationKey = keyof typeof en;

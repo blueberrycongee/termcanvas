@@ -11,49 +11,37 @@ import {
   markdownClassName,
   renderMarkdownWithAttachments,
 } from "../utils/markdownClass";
+import { useT } from "../i18n/useT";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { DRAWER_WIDTH } from "./TaskDrawer";
 
 const TOOLBAR_HEIGHT = 44;
 
-function formatRelativeTime(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
-  if (!Number.isFinite(ms) || ms < 0) return "";
-  const mins = Math.floor(ms / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months}mo ago`;
-  return `${Math.floor(months / 12)}y ago`;
-}
-
 function StatusBadge({ status }: { status: Task["status"] }) {
+  const t = useT();
   if (status === "done") {
     return (
       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-500 border border-green-500/25 font-medium">
-        Done
+        {t["task.statusDone"]}
       </span>
     );
   }
   if (status === "dropped") {
     return (
       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--surface-hover)] text-[var(--text-faint)] border border-[var(--border)] font-medium">
-        Dropped
+        {t["task.statusDropped"]}
       </span>
     );
   }
   return (
     <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/25 font-medium">
-      Open
+      {t["task.statusOpen"]}
     </span>
   );
 }
 
 export function TaskDetailDrawer() {
+  const t = useT();
   const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
   const rightPanelCollapsed = useCanvasStore((s) => s.rightPanelCollapsed);
@@ -137,7 +125,7 @@ export function TaskDetailDrawer() {
       try {
         const created = await window.termcanvas.tasks.create({
           repo: composingForProject,
-          title: editTitle.trim() || "Untitled",
+          title: editTitle.trim() || t["task.untitled"],
           body: editBody,
         });
         upsertTask(created.repo, created);
@@ -214,7 +202,7 @@ export function TaskDetailDrawer() {
         } else if (isComposing && composingForProject) {
           const created = await window.termcanvas.tasks.create({
             repo: composingForProject,
-            title: editTitle.trim() || "Untitled",
+            title: editTitle.trim() || t["task.untitled"],
             body: editBody,
           });
           upsertTask(created.repo, created);
@@ -376,7 +364,7 @@ export function TaskDetailDrawer() {
             <button
               className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors"
               onClick={handleCloseDrawer}
-              aria-label="Close detail"
+              aria-label={t["task.closeDetail"]}
             >
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                 <path
@@ -390,7 +378,7 @@ export function TaskDetailDrawer() {
             {task && <StatusBadge status={task.status} />}
             {isComposing && (
               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/25 font-medium">
-                New
+                {t["task.compose.newPill"]}
               </span>
             )}
           </div>
@@ -403,7 +391,7 @@ export function TaskDetailDrawer() {
                   disabled={busy}
                   onClick={handleStartEdit}
                 >
-                  Edit
+                  {t["task.action.edit"]}
                 </button>
               )}
               {task.status === "open" && (
@@ -412,7 +400,7 @@ export function TaskDetailDrawer() {
                   disabled={busy}
                   onClick={() => void handleStatusChange("done")}
                 >
-                  Mark done
+                  {t["task.action.markDone"]}
                 </button>
               )}
               {(task.status === "done" || task.status === "dropped") && (
@@ -421,7 +409,7 @@ export function TaskDetailDrawer() {
                   disabled={busy}
                   onClick={() => void handleStatusChange("open")}
                 >
-                  Reopen
+                  {t["task.action.reopen"]}
                 </button>
               )}
               {task.status === "open" && (
@@ -430,7 +418,7 @@ export function TaskDetailDrawer() {
                   disabled={busy}
                   onClick={() => void handleStatusChange("dropped")}
                 >
-                  Drop
+                  {t["task.action.drop"]}
                 </button>
               )}
               <div className="w-px h-3 bg-[var(--border)] mx-0.5" />
@@ -439,7 +427,7 @@ export function TaskDetailDrawer() {
                 disabled={busy}
                 onClick={() => setShowDeleteConfirm(true)}
               >
-                Delete
+                {t["task.action.delete"]}
               </button>
             </div>
           )}
@@ -458,7 +446,7 @@ export function TaskDetailDrawer() {
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
                     disabled={busy}
-                    placeholder="Task title"
+                    placeholder={t["task.titlePlaceholder"]}
                   />
                 ) : (
                   <h1 className="text-2xl font-semibold text-[var(--text-primary)] break-words">
@@ -470,15 +458,25 @@ export function TaskDetailDrawer() {
               {/* Meta line — only for existing tasks */}
               {task && !isComposing && (
                 <div className="text-[11px] text-[var(--text-muted)] mb-6 flex items-center gap-1.5 flex-wrap">
-                  <span>Created {formatRelativeTime(task.created)}</span>
+                  <span>
+                    {t["task.meta.created"](
+                      t["task.relativeTime"](
+                        Date.now() - new Date(task.created).getTime(),
+                      ),
+                    )}
+                  </span>
                   <span>·</span>
-                  <span>Updated {formatRelativeTime(task.updated)}</span>
+                  <span>
+                    {t["task.meta.updated"](
+                      t["task.relativeTime"](
+                        Date.now() - new Date(task.updated).getTime(),
+                      ),
+                    )}
+                  </span>
                   {task.links.length > 0 && (
                     <>
                       <span>·</span>
-                      <span>
-                        {task.links.length} link{task.links.length !== 1 ? "s" : ""}
-                      </span>
+                      <span>{t["task.linkCount"](task.links.length)}</span>
                     </>
                   )}
                 </div>
@@ -498,7 +496,7 @@ export function TaskDetailDrawer() {
                     onDragOver={handleBodyDragOver}
                     onDrop={handleBodyDrop}
                     disabled={busy}
-                    placeholder="Description (markdown supported) — paste or drop images"
+                    placeholder={t["task.bodyPlaceholder"]}
                     rows={10}
                   />
                 ) : task?.body ? (
@@ -508,7 +506,7 @@ export function TaskDetailDrawer() {
                   />
                 ) : (
                   <p className="text-[var(--text-faint)] italic text-[13px]">
-                    No description yet. Click Edit to add one.
+                    {t["task.emptyBody"]}
                   </p>
                 )}
               </div>
@@ -521,20 +519,20 @@ export function TaskDetailDrawer() {
                     disabled={busy || uploading || !editTitle.trim()}
                     onClick={() => void handleSaveEdit()}
                   >
-                    {isComposing ? "Create" : "Save"}
+                    {isComposing ? t["task.create"] : t.save}
                   </button>
                   <button
                     className="text-[11px] px-3 py-1 rounded bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
                     onClick={handleCancelEdit}
                   >
-                    Cancel
+                    {t.cancel}
                   </button>
                   <span className="text-[10px] text-[var(--text-faint)] ml-1">
-                    ⌘↵ to save · Esc to cancel
+                    {t["task.keyboardHint"]}
                   </span>
                   {uploading && (
                     <span className="text-[10px] text-[var(--text-muted)] ml-auto">
-                      uploading…
+                      {t["task.uploading"]}
                     </span>
                   )}
                 </div>
@@ -547,7 +545,7 @@ export function TaskDetailDrawer() {
                     className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium mb-2"
                     style={{ fontFamily: '"Geist Mono", monospace' }}
                   >
-                    Links
+                    {t["task.links"]}
                   </div>
                   <div className="flex flex-col gap-1.5">
                     {task.links.map((link, i) => (
@@ -577,9 +575,9 @@ export function TaskDetailDrawer() {
 
       <ConfirmDialog
         open={showDeleteConfirm}
-        title="Delete task"
-        body="This will permanently delete the task. Continue?"
-        confirmLabel="Delete"
+        title={t["task.deleteConfirm.title"]}
+        body={t["task.deleteConfirm.body"]}
+        confirmLabel={t["task.deleteConfirm.action"]}
         confirmTone="danger"
         busy={busy}
         onCancel={() => setShowDeleteConfirm(false)}

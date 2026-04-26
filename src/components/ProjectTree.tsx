@@ -538,7 +538,7 @@ function ProjectRow({
           <IconButton
             size="sm"
             tone="neutral"
-            label="Tasks"
+            label={t["task.triggerLabel"](project.projectName)}
             className={`transition-opacity ${isTaskDrawerOpen ? "opacity-100 text-[var(--accent)]" : "opacity-0 group-hover:opacity-100"}`}
             onClick={(e) => {
               e.stopPropagation();
