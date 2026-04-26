@@ -49,6 +49,14 @@ interface PreferencesStore {
   agentConfig: AgentProviderConfig;
   apiKeyReady: boolean;
 
+  /**
+   * Per-id flag bag for capability discovery cues. A cue is "seen" once
+   * the user has acted on it or dismissed it. We persist only the `true`
+   * side; absence means "not seen yet". Keeping the schema this thin
+   * lets new cue ids drop in without a migration.
+   */
+  seenHints: Record<string, true>;
+
   setAnimationBlur: (value: number) => void;
   setMinimumContrastRatio: (value: number) => void;
   setTerminalFontSize: (value: number) => void;
@@ -67,6 +75,7 @@ interface PreferencesStore {
   setAgentConfig: (config: AgentProviderConfig) => void;
   patchAgentConfig: (patch: Partial<AgentProviderConfig>) => void;
   setDefaultTerminalSize: (size: StoredTerminalSize | null) => void;
+  markHintSeen: (hintId: string) => void;
 }
 
 const STORAGE_KEY = "termcanvas-preferences";
@@ -91,6 +100,16 @@ interface SavedPrefs {
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
   defaultTerminalSize: StoredTerminalSize | null;
   agentConfig: AgentProviderConfig;
+  seenHints: Record<string, true>;
+}
+
+function sanitizeSeenHints(value: unknown): Record<string, true> {
+  if (!value || typeof value !== "object") return {};
+  const out: Record<string, true> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (v === true) out[k] = true;
+  }
+  return out;
 }
 
 // Sanity bounds for persisted default size — guards against a corrupt
@@ -218,6 +237,7 @@ function loadPreferences(): SavedPrefs {
       const defaultTerminalSize = sanitizeStoredTerminalSize(
         parsed.defaultTerminalSize,
       );
+      const seenHints = sanitizeSeenHints(parsed.seenHints);
 
       return {
         animationBlur: blur,
@@ -237,6 +257,7 @@ function loadPreferences(): SavedPrefs {
         cliCommands,
         defaultTerminalSize,
         agentConfig,
+        seenHints,
       };
     }
   } catch {
@@ -259,6 +280,7 @@ function loadPreferences(): SavedPrefs {
     cliCommands: {},
     defaultTerminalSize: null,
     agentConfig: defaultProviderConfig(),
+    seenHints: {},
   };
 }
 
@@ -361,6 +383,7 @@ function getSaveState(state: PreferencesStore): SavedPrefs {
     cliCommands: state.cliCommands,
     defaultTerminalSize: state.defaultTerminalSize,
     agentConfig: state.agentConfig,
+    seenHints: state.seenHints,
   };
 }
 
@@ -385,6 +408,7 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   defaultTerminalSize: initialPrefs.defaultTerminalSize,
   agentConfig: initialPrefs.agentConfig,
   apiKeyReady: false,
+  seenHints: initialPrefs.seenHints,
 
   setAnimationBlur: (value) => {
     const clamped = Math.round(Math.max(0, Math.min(3, value)) * 10) / 10;
@@ -471,5 +495,12 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
     savePreferences(
       getSaveState({ ...get(), defaultTerminalSize: sanitized }),
     );
+  },
+  markHintSeen: (hintId) => {
+    const current = get().seenHints;
+    if (current[hintId]) return;
+    const next = { ...current, [hintId]: true as const };
+    set({ seenHints: next });
+    savePreferences(getSaveState({ ...get(), seenHints: next }));
   },
 }));

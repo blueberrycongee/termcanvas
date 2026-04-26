@@ -755,6 +755,13 @@ export const en = {
   "pin.filter.showAllLabel": "Show completed",
   "pin.filter.hideCompletedLabel": "Hide completed",
   "pin.emptyAfterFilter": "All pins done. Toggle to see them.",
+
+  "discovery.search.message": (n: number) =>
+    `${n} terminals open — search across them.`,
+  "discovery.search.action": "Try search",
+  "discovery.pinning.message": "Pin tasks to keep them in reach.",
+  "discovery.pinning.action": "Open pins",
+  "discovery.dismiss": "Dismiss",
 } as const;
 
 export type TranslationKey = keyof typeof en;

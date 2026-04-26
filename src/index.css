@@ -742,6 +742,25 @@ html.tc-scrolling ::-webkit-scrollbar-thumb {
 .tc-stagger > *:nth-child(8) { --tc-stagger-i: 7; }
 .tc-stagger > *:nth-child(n+9) { --tc-stagger-i: 8; }
 
+/* ─────────────────────────────────────────────────────────────
+   Discovery cue — quiet capability hint chip rendered at the
+   top-center of the canvas. Default tone is muted; hover lifts
+   contrast a notch and reveals the dismiss control. Lives in
+   layout via the renderer (DiscoveryCue.tsx); only the chrome
+   lives here.
+   ───────────────────────────────────────────────────────────── */
+.tc-discovery-chip {
+  background: color-mix(in srgb, var(--surface) 65%, transparent);
+  border-color: color-mix(in srgb, var(--border) 55%, transparent);
+  transition:
+    background-color var(--duration-quick) var(--ease-out-soft),
+    border-color var(--duration-quick) var(--ease-out-soft);
+}
+.tc-discovery-chip:hover {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
 /* Respect reduced-motion: collapse all entrance animations and long
    transitions. Everything still works, just without the parallax. */
 @media (prefers-reduced-motion: reduce) {

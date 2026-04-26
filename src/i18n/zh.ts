@@ -737,4 +737,11 @@ export const zh = {
   "pin.filter.showAllLabel": "显示已完成",
   "pin.filter.hideCompletedLabel": "隐藏已完成",
   "pin.emptyAfterFilter": "全部完成了。点开关查看。",
+
+  "discovery.search.message": (n: number) =>
+    `打开了 ${n} 个终端 —— 一键全局搜索。`,
+  "discovery.search.action": "试试搜索",
+  "discovery.pinning.message": "把任务钉起来,触手可及。",
+  "discovery.pinning.action": "打开钉板",
+  "discovery.dismiss": "关闭",
 } as const;
