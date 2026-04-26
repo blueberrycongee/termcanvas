@@ -433,14 +433,18 @@ function XyFlowCanvasInner() {
 
   const handleNodeClick = useCallback<NodeMouseHandler<CanvasFlowNode>>(
     (_event, node) => {
-      // In hand-tool / space-pan mode, a click is the tail of a pan
-      // gesture (or a no-op tap). Don't activate the worktree —
-      // matches Figma where the hand tool never selects.
-      if (isPanMode) return;
+      // Space-held panning is a transient override on top of whatever
+      // tool is active — a click that lands while Space is down is the
+      // tail of a pan gesture, so suppress the activate. Persistent
+      // Hand mode is different: clicking a terminal there is the user's
+      // way of getting *into* a terminal without leaving Hand. Without
+      // this distinction the now-default Hand tool can't focus a
+      // worktree by clicking, which made the canvas feel inert.
+      if (spaceHeld) return;
       const { projectId, worktreeId } = node.data;
       useProjectStore.getState().setFocusedWorktree(projectId, worktreeId);
     },
-    [isPanMode],
+    [spaceHeld],
   );
 
   const handleNodeDragStart = useCallback<OnNodeDrag<CanvasFlowNode>>(() => {
@@ -590,13 +594,33 @@ function XyFlowCanvasInner() {
     };
   }, [isPanning]);
 
+  // isPanning takes precedence over isPanMode for the cursor: if the
+  // user holds Space, presses the mouse, then releases Space before
+  // mouseup, the gesture is still in flight and the cursor must keep
+  // saying "grabbing". Without this, the cursor snaps back to default
+  // mid-drag.
   const cursorClass = isDrawing
     ? "cursor-crosshair"
-    : isPanMode
-      ? isPanning
-        ? "cursor-grabbing"
-        : "cursor-grab"
-      : "";
+    : isPanning
+      ? "cursor-grabbing"
+      : isPanMode
+        ? "cursor-grab"
+        : "";
+
+  // Cursors set on the outer div lose to the `cursor: text !important`
+  // rule that .tc-xterm-host / .xterm enforces inside terminal tiles.
+  // Toggle body classes that the matching CSS overrides target so the
+  // pan cursor wins everywhere on the canvas, not just over empty
+  // pane.
+  useEffect(() => {
+    const body = document.body;
+    body.classList.toggle("tc-canvas-pan-mode", isPanMode || isPanning);
+    body.classList.toggle("tc-canvas-pan-grabbing", isPanning);
+    return () => {
+      body.classList.remove("tc-canvas-pan-mode");
+      body.classList.remove("tc-canvas-pan-grabbing");
+    };
+  }, [isPanMode, isPanning]);
 
   return (
     <div

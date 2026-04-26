@@ -409,6 +409,29 @@ body {
   cursor: pointer !important;
 }
 
+/* Pan mode overrides the terminal's text cursor. The above
+   `cursor: text !important` rule still wins over the canvas
+   container's Tailwind cursor whenever the pointer is inside a
+   terminal tile, so without this block the user sees a text I-beam
+   while in Hand mode (or holding Space). XyFlowCanvas toggles these
+   body classes based on (isPanMode, isPanning). The `pan-grabbing`
+   rule comes after `pan-mode` so it wins while a drag is in-flight. */
+body.tc-canvas-pan-mode .tc-xterm-host,
+body.tc-canvas-pan-mode .terminal-tile .xterm,
+body.tc-canvas-pan-mode .terminal-tile .xterm .xterm-viewport,
+body.tc-canvas-pan-mode .terminal-tile .xterm .xterm-screen,
+body.tc-canvas-pan-mode .terminal-tile .xterm .xterm-scrollable-element {
+  cursor: grab !important;
+}
+
+body.tc-canvas-pan-grabbing .tc-xterm-host,
+body.tc-canvas-pan-grabbing .terminal-tile .xterm,
+body.tc-canvas-pan-grabbing .terminal-tile .xterm .xterm-viewport,
+body.tc-canvas-pan-grabbing .terminal-tile .xterm .xterm-screen,
+body.tc-canvas-pan-grabbing .terminal-tile .xterm .xterm-scrollable-element {
+  cursor: grabbing !important;
+}
+
 /* xterm v6 scroll shadows sit at z-index 11 along the top and left edges
    of the scrollable element.  They intercept mouse events in the top-left
    area of the terminal, preventing text selection from starting there.
