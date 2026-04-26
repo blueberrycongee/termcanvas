@@ -223,9 +223,17 @@ export function TaskDrawer() {
   const upsertTask = useTaskStore((s) => s.upsertTask);
   const removeTask = useTaskStore((s) => s.removeTask);
   const startCompose = useTaskStore((s) => s.startCompose);
+  const showCompleted = useTaskStore((s) => s.showCompleted);
+  const toggleShowCompleted = useTaskStore((s) => s.toggleShowCompleted);
 
   const isOpen = openProjectPath !== null;
   const tasks = openProjectPath ? (tasksByProject[openProjectPath] ?? null) : null;
+  const visibleTasks =
+    tasks === null
+      ? null
+      : showCompleted
+        ? tasks
+        : tasks.filter((task) => task.status === "open");
 
   const leftOffset = collapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
 
@@ -283,25 +291,54 @@ export function TaskDrawer() {
         >
           {projectName}
         </span>
-        <button
-          className="shrink-0 flex items-center justify-center w-5 h-5 rounded text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors"
-          onClick={closeDrawer}
-          aria-label={t["task.closeDrawer"]}
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path
-              d="M2 2L8 8M8 2L2 8"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
+        <div className="shrink-0 flex items-center gap-0.5">
+          <button
+            className={`flex items-center justify-center w-5 h-5 rounded transition-colors ${
+              showCompleted
+                ? "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
+                : "text-[var(--accent)] hover:bg-[var(--accent)]/10"
+            }`}
+            onClick={toggleShowCompleted}
+            aria-label={
+              showCompleted
+                ? t["task.filter.hideCompletedLabel"]
+                : t["task.filter.showAllLabel"]
+            }
+            title={
+              showCompleted
+                ? t["task.filter.hideCompletedLabel"]
+                : t["task.filter.showAllLabel"]
+            }
+          >
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+              <path
+                d="M1.5 3h9M3 6h6M4.5 9h3"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+          <button
+            className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors"
+            onClick={closeDrawer}
+            aria-label={t["task.closeDrawer"]}
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path
+                d="M2 2L8 8M8 2L2 8"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Body */}
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {tasks === null ? (
+        {tasks === null || visibleTasks === null ? (
           <div className="px-3 py-4 text-[10px] text-[var(--text-faint)] text-center">
             {t["task.loading"]}
           </div>
@@ -309,9 +346,13 @@ export function TaskDrawer() {
           <div className="px-3 py-6 text-[10px] text-[var(--text-faint)] text-center leading-relaxed">
             {t["task.emptyState"]}
           </div>
+        ) : visibleTasks.length === 0 ? (
+          <div className="px-3 py-6 text-[10px] text-[var(--text-faint)] text-center leading-relaxed">
+            {t["task.emptyAfterFilter"]}
+          </div>
         ) : (
           <div className="flex flex-col gap-1 p-2">
-            {tasks.map((task) => (
+            {visibleTasks.map((task) => (
               <TaskCard
                 key={task.id}
                 task={task}

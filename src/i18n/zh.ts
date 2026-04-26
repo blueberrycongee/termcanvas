@@ -730,4 +730,8 @@ export const zh = {
   "task.dispatch.unsupportedTerminal": (type: string) =>
     `${type} 终端不支持任务拖入。`,
   "task.dispatch.failed": (detail: string) => `任务发送失败:${detail}`,
+  "task.terminalBadge.tooltip": (title: string) => `关联任务：${title}`,
+  "task.filter.showAllLabel": "显示已完成",
+  "task.filter.hideCompletedLabel": "隐藏已完成",
+  "task.emptyAfterFilter": "全部完成了。点开关查看。",
 } as const;

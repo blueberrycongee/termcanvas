@@ -1,6 +1,12 @@
 import { create } from "zustand";
 import type { Task, CreateTaskInput, UpdateTaskInput } from "../types";
 
+interface TerminalTaskAssignment {
+  taskId: string;
+  repo: string;
+  title: string;
+}
+
 interface TaskStoreState {
   tasksByProject: Record<string, Task[]>;
   openProjectPath: string | null;
@@ -9,6 +15,13 @@ interface TaskStoreState {
   // the given project. Mutually exclusive with openDetailTaskId — the drawer
   // is either showing an existing task or composing a new one.
   composingForProject: string | null;
+  // Map terminalId → the task it was last dispatched with. Renderer-only;
+  // does not persist across reloads. Single task per terminal — replacing on
+  // re-drop is the explicit contract.
+  terminalTaskMap: Record<string, TerminalTaskAssignment>;
+  // Session-scoped filter: when false, the drawer hides done/dropped tasks.
+  // Single global flag, not per-project.
+  showCompleted: boolean;
 }
 
 interface TaskStoreActions {
@@ -22,6 +35,13 @@ interface TaskStoreActions {
   closeDetail: () => void;
   startCompose: (projectPath: string) => void;
   cancelCompose: () => void;
+  assignTaskToTerminal: (
+    terminalId: string,
+    task: Pick<Task, "id" | "repo" | "title">,
+  ) => void;
+  clearTerminalAssignment: (terminalId: string) => void;
+  setShowCompleted: (v: boolean) => void;
+  toggleShowCompleted: () => void;
 }
 
 export const useTaskStore = create<TaskStoreState & TaskStoreActions>(
@@ -30,6 +50,8 @@ export const useTaskStore = create<TaskStoreState & TaskStoreActions>(
     openProjectPath: null,
     openDetailTaskId: null,
     composingForProject: null,
+    terminalTaskMap: {},
+    showCompleted: false,
 
     setTasks: (projectPath, tasks) =>
       set((state) => ({
@@ -49,8 +71,20 @@ export const useTaskStore = create<TaskStoreState & TaskStoreActions>(
                 ...existing.slice(idx + 1),
               ]
             : [task, ...existing];
+        // If any terminal is associated with this task, refresh its cached
+        // title so renames flow through to the badge without a stale label.
+        let nextTerminalMap = state.terminalTaskMap;
+        for (const [terminalId, entry] of Object.entries(state.terminalTaskMap)) {
+          if (entry.taskId === task.id && entry.title !== task.title) {
+            if (nextTerminalMap === state.terminalTaskMap) {
+              nextTerminalMap = { ...state.terminalTaskMap };
+            }
+            nextTerminalMap[terminalId] = { ...entry, title: task.title };
+          }
+        }
         return {
           tasksByProject: { ...state.tasksByProject, [projectPath]: next },
+          terminalTaskMap: nextTerminalMap,
         };
       }),
 
@@ -58,6 +92,17 @@ export const useTaskStore = create<TaskStoreState & TaskStoreActions>(
       set((state) => {
         const existing = state.tasksByProject[projectPath];
         if (!existing) return state;
+        // Drop any terminal associations pointing at this task so the badge
+        // disappears in lockstep with the task itself.
+        let nextTerminalMap = state.terminalTaskMap;
+        for (const [terminalId, entry] of Object.entries(state.terminalTaskMap)) {
+          if (entry.taskId === id) {
+            if (nextTerminalMap === state.terminalTaskMap) {
+              nextTerminalMap = { ...state.terminalTaskMap };
+            }
+            delete nextTerminalMap[terminalId];
+          }
+        }
         return {
           tasksByProject: {
             ...state.tasksByProject,
@@ -65,6 +110,7 @@ export const useTaskStore = create<TaskStoreState & TaskStoreActions>(
           },
           openDetailTaskId:
             state.openDetailTaskId === id ? null : state.openDetailTaskId,
+          terminalTaskMap: nextTerminalMap,
         };
       }),
 
@@ -107,6 +153,31 @@ export const useTaskStore = create<TaskStoreState & TaskStoreActions>(
         openDrawer(projectPath);
       }
     },
+
+    assignTaskToTerminal: (terminalId, task) =>
+      set((state) => ({
+        terminalTaskMap: {
+          ...state.terminalTaskMap,
+          [terminalId]: {
+            taskId: task.id,
+            repo: task.repo,
+            title: task.title,
+          },
+        },
+      })),
+
+    clearTerminalAssignment: (terminalId) =>
+      set((state) => {
+        if (!(terminalId in state.terminalTaskMap)) return state;
+        const next = { ...state.terminalTaskMap };
+        delete next[terminalId];
+        return { terminalTaskMap: next };
+      }),
+
+    setShowCompleted: (v) => set({ showCompleted: v }),
+
+    toggleShowCompleted: () =>
+      set((state) => ({ showCompleted: !state.showCompleted })),
   }),
 );
 

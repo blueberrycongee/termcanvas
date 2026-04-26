@@ -46,6 +46,7 @@ import {
 } from "./focusScheduler";
 import { useSidebarDragStore } from "../stores/sidebarDragStore";
 import { useTaskDragStore } from "../stores/taskDragStore";
+import { useTaskStore } from "../stores/taskStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { useViewportFocusStore } from "../stores/viewportFocusStore";
 import { TERMINAL_TYPE_CONFIG } from "./terminalTypeConfig";
@@ -226,6 +227,9 @@ export function TerminalTile({
   const isSummarizing = useIsSummarizing(terminal.id);
   const sidebarDragActive = useSidebarDragStore((s) => s.active);
   const taskDragActive = useTaskDragStore((s) => s.active);
+  const terminalTaskAssignment = useTaskStore(
+    (s) => s.terminalTaskMap[terminal.id],
+  );
   const [taskFlash, setTaskFlash] = useState(false);
   const taskFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const composerAdapter = getComposerAdapter(terminal.type);
@@ -738,6 +742,22 @@ export function TerminalTile({
           },
         );
         if (result.ok) {
+          // Record the terminal ↔ task association for the badge. Look the
+          // full task up so we cache its current title; if the project
+          // drawer is closed for some reason (rare race) fall back to a
+          // placeholder title — the entry still resolves visually.
+          const taskState = useTaskStore.getState();
+          const fullTask = (
+            taskState.tasksByProject[parsed.repo] ?? []
+          ).find((entry) => entry.id === parsed.id);
+          taskState.assignTaskToTerminal(
+            terminal.id,
+            fullTask ?? {
+              id: parsed.id,
+              repo: parsed.repo,
+              title: t["task.untitled"],
+            },
+          );
           flashTaskAccept();
         } else {
           useNotificationStore
@@ -1117,6 +1137,28 @@ export function TerminalTile({
           </button>
         </div>
       </div>
+
+      {terminalTaskAssignment && (
+        <div className="shrink-0 flex items-center px-3 pb-1.5 -mt-1">
+          <button
+            type="button"
+            className="group/badge inline-flex items-center gap-1 max-w-[200px] px-1.5 py-0.5 rounded-sm text-[10px] leading-none cursor-pointer bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/25 hover:border-[var(--accent)]/45 transition-colors duration-150"
+            title={t["task.terminalBadge.tooltip"](
+              terminalTaskAssignment.title,
+            )}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              const taskState = useTaskStore.getState();
+              taskState.openDrawer(terminalTaskAssignment.repo);
+              taskState.openDetail(terminalTaskAssignment.taskId);
+            }}
+          >
+            <span aria-hidden="true" className="shrink-0">▸</span>
+            <span className="truncate">{terminalTaskAssignment.title}</span>
+          </button>
+        </div>
+      )}
 
       {useAgentRenderer ? (
         <div

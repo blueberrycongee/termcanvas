@@ -749,6 +749,10 @@ export const en = {
     `${type} terminals can't accept task drops.`,
   "task.dispatch.failed": (detail: string) =>
     `Couldn't send task to terminal: ${detail}`,
+  "task.terminalBadge.tooltip": (title: string) => `Linked task: ${title}`,
+  "task.filter.showAllLabel": "Show completed",
+  "task.filter.hideCompletedLabel": "Hide completed",
+  "task.emptyAfterFilter": "All tasks done. Toggle to see them.",
 } as const;
 
 export type TranslationKey = keyof typeof en;
