@@ -56,6 +56,7 @@ export function zoomAtClientPoint({
   clientY,
   leftPanelCollapsed,
   leftPanelWidth,
+  taskDrawerOpen,
   nextScale,
   viewport,
 }: {
@@ -63,6 +64,7 @@ export function zoomAtClientPoint({
   clientY: number;
   leftPanelCollapsed: boolean;
   leftPanelWidth: number;
+  taskDrawerOpen: boolean;
   nextScale: number;
   viewport: Viewport;
 }): Viewport {
@@ -73,8 +75,13 @@ export function zoomAtClientPoint({
     viewport,
     leftPanelCollapsed,
     leftPanelWidth,
+    taskDrawerOpen,
   );
-  const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  const leftInset = getCanvasLeftInset(
+    leftPanelCollapsed,
+    leftPanelWidth,
+    taskDrawerOpen,
+  );
 
   return {
     x: clientX - leftInset - worldPoint.x * scale,
@@ -88,15 +95,21 @@ export function getViewportCenterClientPoint({
   leftPanelWidth,
   rightPanelCollapsed,
   rightPanelWidth,
+  taskDrawerOpen,
   topInset = 0,
 }: {
   leftPanelCollapsed: boolean;
   leftPanelWidth: number;
   rightPanelCollapsed: boolean;
   rightPanelWidth: number;
+  taskDrawerOpen: boolean;
   topInset?: number;
 }) {
-  const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  const leftInset = getCanvasLeftInset(
+    leftPanelCollapsed,
+    leftPanelWidth,
+    taskDrawerOpen,
+  );
   const rightInset = getCanvasRightInset(rightPanelCollapsed, rightPanelWidth);
   const visibleWidth = window.innerWidth - leftInset - rightInset;
   const visibleHeight = window.innerHeight - topInset;

@@ -13,6 +13,7 @@ test("screenPointToCanvasPoint accounts for the open left panel inset", () => {
     { x: 0, y: -20, scale: 2 },
     false,
     280,
+    false,
   );
 
   assert.deepEqual(point, { x: 0, y: 70 });
@@ -25,6 +26,7 @@ test("canvasPointToScreenPoint offsets screen coordinates by the left panel inse
     { x: 10, y: -20, scale: 2 },
     false,
     280,
+    false,
   );
 
   assert.deepEqual(point, { x: 338, y: 120 });
@@ -37,6 +39,7 @@ test("screen/canvas point conversion round-trips with a collapsed left panel", (
     { x: -40, y: 30, scale: 1.5 },
     true,
     280,
+    false,
   );
   const canvasPoint = screenPointToCanvasPoint(
     screenPoint.x,
@@ -44,6 +47,7 @@ test("screen/canvas point conversion round-trips with a collapsed left panel", (
     { x: -40, y: 30, scale: 1.5 },
     true,
     280,
+    false,
   );
 
   assert.deepEqual(canvasPoint, { x: 150, y: 90 });

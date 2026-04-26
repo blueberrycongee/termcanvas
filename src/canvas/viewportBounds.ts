@@ -1,5 +1,8 @@
 import type { Viewport } from "../types";
-import { COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
+import {
+  COLLAPSED_TAB_WIDTH,
+  TASK_DRAWER_WIDTH,
+} from "../stores/canvasStore";
 
 // The right panel hosts the code-navigation tabs (Files / Diff /
 // Git / Memory). Canvas placement math needs to exclude its
@@ -14,8 +17,10 @@ export function getCanvasRightInset(
 export function getCanvasLeftInset(
   leftPanelCollapsed: boolean,
   leftPanelWidth: number,
+  taskDrawerOpen: boolean,
 ) {
-  return leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
+  const panel = leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
+  return panel + (taskDrawerOpen ? TASK_DRAWER_WIDTH : 0);
 }
 
 export function canvasPointToScreenPoint(
@@ -24,8 +29,13 @@ export function canvasPointToScreenPoint(
   viewport: Viewport,
   leftPanelCollapsed: boolean,
   leftPanelWidth: number,
+  taskDrawerOpen: boolean,
 ) {
-  const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  const leftInset = getCanvasLeftInset(
+    leftPanelCollapsed,
+    leftPanelWidth,
+    taskDrawerOpen,
+  );
   return {
     x: leftInset + viewport.x + x * viewport.scale,
     y: viewport.y + y * viewport.scale,
@@ -38,8 +48,13 @@ export function screenPointToCanvasPoint(
   viewport: Viewport,
   leftPanelCollapsed: boolean,
   leftPanelWidth: number,
+  taskDrawerOpen: boolean,
 ) {
-  const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  const leftInset = getCanvasLeftInset(
+    leftPanelCollapsed,
+    leftPanelWidth,
+    taskDrawerOpen,
+  );
   return {
     x: (clientX - leftInset - viewport.x) / viewport.scale,
     y: (clientY - viewport.y) / viewport.scale,
@@ -70,8 +85,13 @@ export function getVisibleCanvasWorldRect(
   leftPanelCollapsed: boolean,
   leftPanelWidth: number,
   rightPanelWidth: number,
+  taskDrawerOpen: boolean,
 ): { x: number; y: number; w: number; h: number } {
-  const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  const leftInset = getCanvasLeftInset(
+    leftPanelCollapsed,
+    leftPanelWidth,
+    taskDrawerOpen,
+  );
   const rightInset = getCanvasRightInset(rightPanelCollapsed, rightPanelWidth);
   const screenW = Math.max(
     0,
@@ -95,9 +115,14 @@ export function rectIntersectsCanvasViewport(
   leftPanelCollapsed: boolean,
   leftPanelWidth: number,
   rightPanelWidth: number,
+  taskDrawerOpen: boolean,
   margin = 120,
 ) {
-  const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  const leftInset = getCanvasLeftInset(
+    leftPanelCollapsed,
+    leftPanelWidth,
+    taskDrawerOpen,
+  );
   const left = -viewport.x / viewport.scale - margin;
   const top = -viewport.y / viewport.scale - margin;
   const right =
@@ -126,7 +151,9 @@ const PAN_SAFE_PADDING = 40;
  * @param objectX   – world-space left edge of the object
  * @param objectW   – world-space width of the object
  * @param scale     – current zoom scale
- * @param leftInset – screen-space left panel width (px)
+ * @param leftInset – screen-space left panel width (px), already including
+ *                    the task drawer when it's open (callers compute via
+ *                    getCanvasLeftInset)
  * @param rightInset – screen-space right panel width (px)
  */
 export function clampCenterX(

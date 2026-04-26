@@ -5,6 +5,7 @@ import {
 import { focusTerminalInScene } from "../actions/terminalSceneActions";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
+import { useTaskStore } from "../stores/taskStore";
 import {
   getCanvasRightInset,
   getCanvasLeftInset,
@@ -84,7 +85,11 @@ export function panToTerminal(
     viewport,
   } = canvasState;
   const rightOffset = getCanvasRightInset(rightPanelCollapsed, rightPanelWidth);
-  const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  const leftOffset = getCanvasLeftInset(
+    leftPanelCollapsed,
+    leftPanelWidth,
+    useTaskStore.getState().openProjectPath !== null,
+  );
   const padding = 40;
   const topInset = 56;
   const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;

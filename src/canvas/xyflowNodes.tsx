@@ -7,6 +7,7 @@ import {
 } from "@xyflow/react";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
+import { useTaskStore } from "../stores/taskStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { TerminalTile } from "../terminal/TerminalTile";
 import { resolveTerminalMountMode } from "../terminal/terminalRuntimePolicy";
@@ -37,6 +38,9 @@ function TerminalNode({ data }: NodeProps<TerminalFlowNode>) {
   );
   const leftPanelWidth = useCanvasStore((state) => state.leftPanelWidth);
   const rightPanelWidth = useCanvasStore((state) => state.rightPanelWidth);
+  const taskDrawerOpen = useTaskStore(
+    (state) => state.openProjectPath !== null,
+  );
 
   const terminal = useProjectStore(
     useCallback(
@@ -80,6 +84,7 @@ function TerminalNode({ data }: NodeProps<TerminalFlowNode>) {
       leftPanelCollapsed,
       leftPanelWidth,
       rightPanelWidth,
+      taskDrawerOpen,
     );
   }, [
     terminal,
@@ -88,6 +93,7 @@ function TerminalNode({ data }: NodeProps<TerminalFlowNode>) {
     leftPanelCollapsed,
     leftPanelWidth,
     rightPanelWidth,
+    taskDrawerOpen,
   ]);
 
   const lodMode = useTerminalRuntimeStore(

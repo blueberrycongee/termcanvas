@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { usePetStore } from "./petStore";
 import type { AttentionPriority } from "./petStore";
 import { useCanvasStore } from "../stores/canvasStore";
+import { useTaskStore } from "../stores/taskStore";
 import { SpriteRenderer } from "./SpriteRenderer";
 import { getCurrentFrame, getFrameInterval } from "./sprites";
 import { stepToward } from "./petMovement";
@@ -142,6 +143,7 @@ export function PetOverlay() {
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
   const rightPanelCollapsed = useCanvasStore((s) => s.rightPanelCollapsed);
   const rightPanelWidth = useCanvasStore((s) => s.rightPanelWidth);
+  const taskDrawerOpen = useTaskStore((s) => s.openProjectPath !== null);
 
   const animFrameRef = useRef<number>(0);
   const lastFrameTimeRef = useRef(0);
@@ -388,6 +390,7 @@ export function PetOverlay() {
     const inset = getCanvasLeftInset(
       canvas.leftPanelCollapsed,
       canvas.leftPanelWidth,
+      useTaskStore.getState().openProjectPath !== null,
     );
     const sx = clientX - inset;
     const sy = clientY;
@@ -517,7 +520,11 @@ export function PetOverlay() {
   );
 
   // Transform pet world coordinates to screen coordinates
-  const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  const leftInset = getCanvasLeftInset(
+    leftPanelCollapsed,
+    leftPanelWidth,
+    taskDrawerOpen,
+  );
   const rightInset = getCanvasRightInset(rightPanelCollapsed, rightPanelWidth);
   const svgWidth = Math.max(0, window.innerWidth - leftInset - rightInset);
   const svgHeight = window.innerHeight;

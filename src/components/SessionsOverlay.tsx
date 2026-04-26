@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
+import {
+  useCanvasStore,
+  COLLAPSED_TAB_WIDTH,
+  TASK_DRAWER_WIDTH,
+} from "../stores/canvasStore";
+import { useTaskStore } from "../stores/taskStore";
 import { useSessionStore } from "../stores/sessionStore";
+import {
+  PANEL_TRANSITION_DURATION_MS,
+  PANEL_TRANSITION_EASING_CSS,
+} from "../utils/panelAnimation";
 import { useT } from "../i18n/useT";
 import { SessionReplayView } from "./SessionReplayView";
 
@@ -44,23 +53,35 @@ export function SessionsOverlay() {
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
   const rightPanelCollapsed = useCanvasStore((s) => s.rightPanelCollapsed);
   const rightPanelWidth = useCanvasStore((s) => s.rightPanelWidth);
+  const taskDrawerOpen = useTaskStore((s) => s.openProjectPath !== null);
   const replayTimeline = useSessionStore((s) => s.replayTimeline);
   const replayError = useSessionStore((s) => s.replayError);
   const t = useT();
 
   // Only animate width/left during the brief window after the user
-  // toggles maximize/restore. Continuous geometry changes (window
-  // resize, side-panel drag) would otherwise queue a 180ms transition
-  // every frame and make the drawer chase the pointer.
+  // toggles maximize/restore OR opens/closes the task drawer (which
+  // shifts the canvas-gap by 320 px). Continuous geometry changes
+  // (window resize, side-panel drag) would otherwise queue a 180ms
+  // transition every frame and make the drawer chase the pointer.
   const [animateLayout, setAnimateLayout] = useState(false);
   const prevExpandedRef = useRef(expanded);
+  const prevTaskDrawerOpenRef = useRef(taskDrawerOpen);
   useEffect(() => {
-    if (prevExpandedRef.current === expanded) return;
+    if (
+      prevExpandedRef.current === expanded &&
+      prevTaskDrawerOpenRef.current === taskDrawerOpen
+    ) {
+      return;
+    }
     prevExpandedRef.current = expanded;
+    prevTaskDrawerOpenRef.current = taskDrawerOpen;
     setAnimateLayout(true);
-    const timer = setTimeout(() => setAnimateLayout(false), 220);
+    const timer = setTimeout(
+      () => setAnimateLayout(false),
+      PANEL_TRANSITION_DURATION_MS + 40,
+    );
     return () => clearTimeout(timer);
-  }, [expanded]);
+  }, [expanded, taskDrawerOpen]);
 
   useEffect(() => {
     if (!open) return;
@@ -79,7 +100,9 @@ export function SessionsOverlay() {
 
   if (!open) return null;
 
-  const leftInset = leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
+  const leftInset =
+    (leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth) +
+    (taskDrawerOpen ? TASK_DRAWER_WIDTH : 0);
   const rightInset = rightPanelCollapsed
     ? COLLAPSED_TAB_WIDTH
     : rightPanelWidth;
@@ -108,7 +131,7 @@ export function SessionsOverlay() {
         height: `calc(100vh - ${TOOLBAR_HEIGHT}px)`,
         width: widthStyle,
         transition: animateLayout
-          ? "width 180ms cubic-bezier(0.4, 0, 0.2, 1), left 180ms cubic-bezier(0.4, 0, 0.2, 1)"
+          ? `width ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}, left ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}`
           : undefined,
       }}
       role="dialog"

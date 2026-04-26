@@ -4,6 +4,7 @@ import { useReactFlow } from "@xyflow/react";
 import type { ProjectData } from "../types";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
+import { useTaskStore } from "../stores/taskStore";
 import {
   canvasPointToScreenPoint,
   getCanvasLeftInset,
@@ -361,6 +362,7 @@ export function WorktreeLabelLayer() {
   const viewport = useCanvasStore((s) => s.viewport);
   const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
+  const taskDrawerOpen = useTaskStore((s) => s.openProjectPath !== null);
   const reactFlow = useReactFlow();
   const [, setResizeTick] = useState(0);
   const [hoveredLabelKey, setHoveredLabelKey] = useState<string | null>(null);
@@ -416,7 +418,11 @@ export function WorktreeLabelLayer() {
   const useLodMode = scale < LOD_THRESHOLD;
   const showHud = scale >= HUD_THRESHOLD && focus.worktreeId !== null;
   const hasFocus = focus.worktreeId !== null;
-  const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  const leftInset = getCanvasLeftInset(
+    leftPanelCollapsed,
+    leftPanelWidth,
+    taskDrawerOpen,
+  );
 
   const clusterEntries: ClusterEntry[] = useLodMode
     ? projectLabels.map((entry) => ({
@@ -446,6 +452,7 @@ export function WorktreeLabelLayer() {
         viewport,
         leftPanelCollapsed,
         leftPanelWidth,
+        taskDrawerOpen,
       );
       const isFocused = useLodMode
         ? entry.projectId === focus.projectId

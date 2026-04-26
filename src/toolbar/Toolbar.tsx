@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { createBrowserCardInScene } from "../actions/sceneCardActions";
 import { useCanvasStore } from "../stores/canvasStore";
+import { useTaskStore } from "../stores/taskStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useThemeStore } from "../stores/themeStore";
 import { useUpdaterStore } from "../stores/updaterStore";
@@ -51,6 +52,7 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
     leftPanelCollapsed,
     leftPanelWidth,
   } = useCanvasStore();
+  const taskDrawerOpen = useTaskStore((s) => s.openProjectPath !== null);
   const { projects } = useProjectStore();
   const { theme, toggleTheme } = useThemeStore();
   const browserEnabled = usePreferencesStore((s) => s.browserEnabled);
@@ -84,7 +86,11 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
     }
     const contentW = maxX - minX;
     const contentH = maxY - minY;
-    const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+    const leftOffset = getCanvasLeftInset(
+      leftPanelCollapsed,
+      leftPanelWidth,
+      taskDrawerOpen,
+    );
     const rightOffset = getCanvasRightInset(rightPanelCollapsed, rightPanelWidth);
     const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
     const viewH = window.innerHeight - TOOLBAR_HEIGHT - padding * 2;
@@ -92,7 +98,15 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
     const x = -minX * scale + padding;
     const y = -minY * scale + padding + TOOLBAR_HEIGHT;
     setViewport({ x, y, scale });
-  }, [projects, leftPanelCollapsed, leftPanelWidth, rightPanelCollapsed, rightPanelWidth, setViewport]);
+  }, [
+    projects,
+    leftPanelCollapsed,
+    leftPanelWidth,
+    rightPanelCollapsed,
+    rightPanelWidth,
+    taskDrawerOpen,
+    setViewport,
+  ]);
 
   const applyStepZoom = useCallback(
     (direction: "in" | "out") => {
@@ -102,6 +116,7 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
         leftPanelWidth,
         rightPanelCollapsed,
         rightPanelWidth,
+        taskDrawerOpen,
         topInset: TOOLBAR_HEIGHT,
       });
 
@@ -111,6 +126,7 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
           clientY: centerPoint.y,
           leftPanelCollapsed,
           leftPanelWidth,
+          taskDrawerOpen,
           nextScale,
           viewport,
         }),
@@ -121,6 +137,7 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
       leftPanelWidth,
       rightPanelCollapsed,
       rightPanelWidth,
+      taskDrawerOpen,
       setViewport,
       viewport,
     ],
@@ -456,9 +473,17 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
                 onClick={() => {
                   const scale = viewport.scale;
                   const canvasCenterX =
-                    getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth) +
+                    getCanvasLeftInset(
+                      leftPanelCollapsed,
+                      leftPanelWidth,
+                      taskDrawerOpen,
+                    ) +
                     (window.innerWidth -
-                      getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth) -
+                      getCanvasLeftInset(
+                        leftPanelCollapsed,
+                        leftPanelWidth,
+                        taskDrawerOpen,
+                      ) -
                       getCanvasRightInset(rightPanelCollapsed, rightPanelWidth)) /
                       2;
                   const x = (-viewport.x + canvasCenterX) / scale - 400;

@@ -43,13 +43,21 @@ test("zoomAtClientPoint preserves the world point under the cursor", () => {
   const viewport = { x: -120, y: 64, scale: 1 };
   const clientX = 620;
   const clientY = 280;
-  const before = screenPointToCanvasPoint(clientX, clientY, viewport, false, 280);
+  const before = screenPointToCanvasPoint(
+    clientX,
+    clientY,
+    viewport,
+    false,
+    280,
+    false,
+  );
 
   const nextViewport = zoomAtClientPoint({
     clientX,
     clientY,
     leftPanelCollapsed: false,
     leftPanelWidth: 280,
+    taskDrawerOpen: false,
     nextScale: 1.25,
     viewport,
   });
@@ -59,6 +67,7 @@ test("zoomAtClientPoint preserves the world point under the cursor", () => {
     nextViewport,
     false,
     280,
+    false,
   );
 
   assert.ok(Math.abs(after.x - before.x) < 0.0001);
@@ -73,8 +82,10 @@ test("getViewportCenterClientPoint centers within the visible canvas bounds", ()
     leftPanelCollapsed: false,
     leftPanelWidth: 280,
     rightPanelCollapsed: false,
+    rightPanelWidth: 360,
+    taskDrawerOpen: false,
     topInset: 44,
   });
 
-  assert.deepEqual(center, { x: 740, y: 472 });
+  assert.deepEqual(center, { x: 680, y: 472 });
 });

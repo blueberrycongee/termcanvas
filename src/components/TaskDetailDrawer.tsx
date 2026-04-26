@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClipboardEvent, DragEvent } from "react";
-import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
+import {
+  useCanvasStore,
+  COLLAPSED_TAB_WIDTH,
+  TASK_DRAWER_WIDTH,
+} from "../stores/canvasStore";
 import { useTaskStore } from "../stores/taskStore";
 import { useTaskDragStore } from "../stores/taskDragStore";
 import type { Task } from "../types";
@@ -14,7 +18,6 @@ import {
 } from "../utils/markdownClass";
 import { useT } from "../i18n/useT";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
-import { DRAWER_WIDTH } from "./TaskDrawer";
 
 const TOOLBAR_HEIGHT = 44;
 
@@ -332,7 +335,16 @@ export function TaskDetailDrawer() {
     return () => window.removeEventListener("keydown", handler, true);
   }, [isOpen, isEditing, showDeleteConfirm, handleCancelEdit, handleSaveEdit, handleCloseDrawer]);
 
-  const leftInset = leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
+  // The detail drawer always renders to the right of the task drawer,
+  // so its left edge IS the drawer-aware left inset (left panel +
+  // TASK_DRAWER_WIDTH). composingForProject and openDetailTaskId both
+  // require openProjectPath, so by the time isOpen is true the task
+  // drawer is open and the +320 is folded into the inset.
+  const taskDrawerOpen =
+    openProjectPath !== null || composingForProject !== null;
+  const effectiveLeftInset =
+    (leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth) +
+    (taskDrawerOpen ? TASK_DRAWER_WIDTH : 0);
   const rightInset = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : rightPanelWidth;
 
   const bodyHtml =
@@ -347,11 +359,11 @@ export function TaskDetailDrawer() {
         style={{
           zIndex: 45,
           top: TOOLBAR_HEIGHT,
-          left: leftInset + DRAWER_WIDTH,
+          left: effectiveLeftInset,
           height: `calc(100vh - ${TOOLBAR_HEIGHT}px)`,
-          width: `calc(100vw - ${leftInset + DRAWER_WIDTH}px - ${rightInset}px)`,
+          width: `calc(100vw - ${effectiveLeftInset}px - ${rightInset}px)`,
           opacity: isOpen ? 1 : 0,
-          transition: `opacity ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}`,
+          transition: `opacity ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}, left ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}, width ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}`,
           pointerEvents: isOpen ? "auto" : "none",
         }}
         aria-hidden={!isOpen}

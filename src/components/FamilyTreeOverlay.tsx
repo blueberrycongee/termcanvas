@@ -10,6 +10,7 @@ import {
   useCanvasStore,
   COLLAPSED_TAB_WIDTH,
 } from "../stores/canvasStore";
+import { useTaskStore } from "../stores/taskStore";
 import { panToTerminal } from "../utils/panToTerminal";
 import { useT } from "../i18n/useT";
 import {
@@ -163,6 +164,7 @@ export function FamilyTreeOverlay() {
   const rightPanelWidth = useCanvasStore((s) => s.rightPanelWidth);
   const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
+  const taskDrawerOpen = useTaskStore((s) => s.openProjectPath !== null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [visibleId, setVisibleId] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -234,7 +236,11 @@ export function FamilyTreeOverlay() {
   const panelWidth = rightPanelCollapsed
     ? COLLAPSED_TAB_WIDTH
     : rightPanelWidth;
-  const leftInset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  const leftInset = getCanvasLeftInset(
+    leftPanelCollapsed,
+    leftPanelWidth,
+    taskDrawerOpen,
+  );
   const safeLeft = leftInset + OVERLAY_MARGIN;
   const safeTop = TOOLBAR_HEIGHT + OVERLAY_MARGIN;
   const safeRight = Math.max(
@@ -249,6 +255,7 @@ export function FamilyTreeOverlay() {
     viewport,
     leftPanelCollapsed,
     leftPanelWidth,
+    taskDrawerOpen,
   );
   const anchorLeft = anchorScreenPoint.x;
   const anchorTop = anchorScreenPoint.y;

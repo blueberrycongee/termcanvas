@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
+import {
+  useCanvasStore,
+  COLLAPSED_TAB_WIDTH,
+  TASK_DRAWER_WIDTH,
+} from "../stores/canvasStore";
 import { useTaskStore } from "../stores/taskStore";
 import { useTaskDragStore } from "../stores/taskDragStore";
 import type { Task, TaskEvent } from "../types";
@@ -10,10 +14,7 @@ import {
 import { useT } from "../i18n/useT";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 
-const DRAWER_WIDTH = 320;
 const TOOLBAR_HEIGHT = 44;
-
-export { DRAWER_WIDTH };
 
 function StatusDot({ status }: { status: Task["status"] }) {
   const t = useT();
@@ -261,8 +262,8 @@ export function TaskDrawer() {
         top: TOOLBAR_HEIGHT,
         left: leftOffset,
         height: `calc(100vh - ${TOOLBAR_HEIGHT}px)`,
-        width: DRAWER_WIDTH,
-        transform: isOpen ? "translateX(0)" : `translateX(-${DRAWER_WIDTH}px)`,
+        width: TASK_DRAWER_WIDTH,
+        transform: isOpen ? "translateX(0)" : `translateX(-${TASK_DRAWER_WIDTH}px)`,
         transition: `transform ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}`,
         pointerEvents: isOpen ? "auto" : "none",
       }}

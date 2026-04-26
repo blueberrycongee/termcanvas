@@ -19,6 +19,7 @@ import {
 import { getStashedTerminalIds } from "./sceneState";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
+import { useTaskStore } from "../stores/taskStore";
 import { useDrawingStore } from "../stores/drawingStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useSidebarDragStore } from "../stores/sidebarDragStore";
@@ -111,6 +112,7 @@ function TerminalRuntimeLayer({
   rightPanelWidth,
   leftPanelCollapsed,
   leftPanelWidth,
+  taskDrawerOpen,
 }: {
   projects: ReturnType<typeof useProjectStore.getState>["projects"];
   viewport: ReturnType<typeof useCanvasStore.getState>["viewport"];
@@ -118,6 +120,7 @@ function TerminalRuntimeLayer({
   rightPanelWidth: number;
   leftPanelCollapsed: boolean;
   leftPanelWidth: number;
+  taskDrawerOpen: boolean;
 }) {
   const managedTerminalIdsRef = useRef<Set<string>>(new Set());
   const publishedTerminalIdsRef = useRef<Set<string>>(new Set());
@@ -232,6 +235,7 @@ function TerminalRuntimeLayer({
         leftPanelCollapsed,
         leftPanelWidth,
         rightPanelWidth,
+        taskDrawerOpen,
       );
       setTerminalRuntimeMode(
         entry.terminal.id,
@@ -254,6 +258,7 @@ function TerminalRuntimeLayer({
     projects,
     rightPanelCollapsed,
     rightPanelWidth,
+    taskDrawerOpen,
     terminalEntries,
     viewport,
   ]);
@@ -289,6 +294,7 @@ function XyFlowCanvasInner() {
   );
   const leftPanelWidth = useCanvasStore((state) => state.leftPanelWidth);
   const rightPanelWidth = useCanvasStore((state) => state.rightPanelWidth);
+  const taskDrawerOpen = useTaskStore((state) => state.openProjectPath !== null);
   const projects = useProjectStore((state) => state.projects);
   const drawingEnabled = usePreferencesStore((state) => state.drawingEnabled);
   const petEnabled = usePreferencesStore((state) => state.petEnabled);
@@ -296,7 +302,11 @@ function XyFlowCanvasInner() {
   const drawingTool = useDrawingStore((state) => state.tool);
   const { handleMouseDown: handleBoxSelectMouseDown } = useBoxSelect();
   const layoutKey = useMemo(() => buildLayoutKey(projects), [projects]);
-  const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  const leftOffset = getCanvasLeftInset(
+    leftPanelCollapsed,
+    leftPanelWidth,
+    taskDrawerOpen,
+  );
   const sidebarDragging = useSidebarDragStore((s) => s.active);
   const isDrawing = drawingEnabled && drawingTool !== "select";
   const previousAnimatingRef = useRef(isAnimating);
@@ -536,13 +546,14 @@ function XyFlowCanvasInner() {
         clientY: event.clientY,
         leftPanelCollapsed,
         leftPanelWidth,
+        taskDrawerOpen,
         nextScale: clampScale(viewport.scale * scaleFactor),
         viewport,
       });
 
       useCanvasStore.getState().setViewport(nextViewport);
     },
-    [leftPanelCollapsed, leftPanelWidth, viewport],
+    [leftPanelCollapsed, leftPanelWidth, taskDrawerOpen, viewport],
   );
 
   return (
@@ -567,6 +578,7 @@ function XyFlowCanvasInner() {
         rightPanelWidth={rightPanelWidth}
         leftPanelCollapsed={leftPanelCollapsed}
         leftPanelWidth={leftPanelWidth}
+        taskDrawerOpen={taskDrawerOpen}
       />
       <ReactFlow
         className="tc-xyflow"

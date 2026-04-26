@@ -30,6 +30,11 @@ export interface CanvasViewportAdapter {
 export const DEFAULT_RIGHT_PANEL_WIDTH = 360;
 export const RIGHT_PANEL_WIDTH = DEFAULT_RIGHT_PANEL_WIDTH;
 export const COLLAPSED_TAB_WIDTH = 32;
+// TaskDrawer slides out from the LeftPanel's right edge. When open,
+// every consumer of "left chrome width" (canvas tile placement, screen↔
+// canvas conversions, layered drawers) treats it as part of the left
+// inset so terminals reflow instead of getting occluded.
+export const TASK_DRAWER_WIDTH = 320;
 
 interface CanvasStore {
   viewport: Viewport;

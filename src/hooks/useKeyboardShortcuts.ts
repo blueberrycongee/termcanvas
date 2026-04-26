@@ -43,6 +43,7 @@ import {
   getCanvasRightInset,
   getCanvasLeftInset,
 } from "../canvas/viewportBounds";
+import { useTaskStore } from "../stores/taskStore";
 
 function getAllTerminals() {
   const { projects } = useProjectStore.getState();
@@ -180,7 +181,11 @@ function zoomToFitAll() {
   const contentW = maxX - minX;
   const contentH = maxY - minY;
   const rightOffset = getCanvasRightInset(rightPanelCollapsed, rightPanelWidth);
-  const leftOffset = getCanvasLeftInset(leftPanelCollapsed, leftPanelWidth);
+  const leftOffset = getCanvasLeftInset(
+    leftPanelCollapsed,
+    leftPanelWidth,
+    useTaskStore.getState().openProjectPath !== null,
+  );
   const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
   const viewH = window.innerHeight - toolbarH - padding * 2;
   const scale = Math.min(1, viewW / contentW, viewH / contentH);
