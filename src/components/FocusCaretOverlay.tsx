@@ -58,7 +58,7 @@ export function FocusCaretOverlay() {
       style={{
         left: screenPos.x - CARET_W / 2,
         top: screenPos.y - CARET_H - CARET_OFFSET,
-        zIndex: 100,
+        zIndex: 30,
       }}
     >
       <svg width={CARET_W} height={CARET_H} viewBox="0 0 10 6" fill="none">
