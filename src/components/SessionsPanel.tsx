@@ -69,12 +69,16 @@ const HISTORY_PAGE_SIZE = 20;
 const HISTORY_PREFETCH_TRIGGER_ROWS = 5;
 const HISTORY_REFRESH_DEBOUNCE_MS = 120;
 
+// Three signal levels:
+//   red  = needs your attention (real error / explicit awaiting input)
+//   green = working, no need to look
+//   gray = nothing to convey (done & viewed, or never started)
+// `unseenDone` is layered on top at render time as a blue dot.
 const STATUS_COLORS: Record<CanvasTerminalState, string> = {
   attention: "#ef4444",
-  running: "#f59e0b",
-  thinking: "#22c55e",
+  active: "#22c55e",
   done: "#6b7280",
-  idle: "#94a3b8",
+  idle: "#6b7280",
 };
 
 function formatShortAge(iso: string | undefined): string {
@@ -89,10 +93,7 @@ function formatShortAge(iso: string | undefined): string {
 }
 
 function formatItemTime(item: CanvasTerminalItem): string {
-  const isActive =
-    item.state === "running" ||
-    item.state === "thinking" ||
-    item.state === "attention";
+  const isActive = item.state === "active" || item.state === "attention";
   if (isActive && item.turnStartedAt) {
     return formatShortAge(item.turnStartedAt);
   }
@@ -130,14 +131,12 @@ function formatTerminalActivity(
       }
       return t.sessions_status_attention;
     }
-    case "running": {
+    case "active": {
       const tool = item.currentTool ? summarizeToolName(item.currentTool) : "";
       return tool
-        ? `${t.sessions_status_running} · ${tool}`
-        : t.sessions_status_running;
+        ? `${t.sessions_status_active} · ${tool}`
+        : t.sessions_status_active;
     }
-    case "thinking":
-      return t.sessions_status_generating;
     case "done":
       return t.sessions_status_turn_complete;
     default:

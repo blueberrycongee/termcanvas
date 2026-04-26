@@ -183,13 +183,17 @@ test("buildCanvasTerminalSections prioritizes focused terminal and groups remain
   assert.equal(sections.focused?.state, "done");
   assert.equal(sections.focused?.title, "review ui · codex");
 
+  // stall_candidate is no longer promoted to attention — it's a low-
+  // confidence "output went quiet" heuristic that fires on slow models.
+  // The stalled terminal stays in progress; only real errors and
+  // explicit awaiting_input get to attention.
   assert.deepEqual(
     sections.attention.map((item) => item.terminalId),
-    ["terminal-stalled"],
+    [],
   );
   assert.deepEqual(
     sections.progress.map((item) => item.terminalId),
-    ["terminal-running"],
+    ["terminal-running", "terminal-stalled"],
   );
   assert.deepEqual(
     sections.idle.map((item) => item.terminalId),
@@ -388,11 +392,14 @@ test("buildProjectTree groups terminals under project/worktree with status summa
   assert.equal(wt.terminals[0].terminalId, "terminal-focused");
   assert.equal(wt.terminals[0].state, "done");
   assert.equal(wt.terminals[1].terminalId, "terminal-running");
+  assert.equal(wt.terminals[1].state, "active");
   assert.equal(wt.terminals[2].terminalId, "terminal-stalled");
-  assert.equal(wt.terminals[2].state, "attention");
+  // Was "attention" under the old stall_candidate heuristic; now
+  // "active" because slow output alone is no longer a red signal.
+  assert.equal(wt.terminals[2].state, "active");
   assert.equal(wt.terminals[3].terminalId, "terminal-idle");
 
-  assert.equal(tree[0].statusSummary.attention, 1);
-  assert.equal(tree[0].statusSummary.running, 1);
+  assert.equal(tree[0].statusSummary.attention, 0);
+  assert.equal(tree[0].statusSummary.running, 2);
   assert.equal(tree[0].statusSummary.idle, 1);
 });

@@ -3,10 +3,14 @@ import type { TerminalTelemetrySnapshot } from "../../shared/telemetry";
 import { resolveTerminalWithRuntimeState } from "../stores/terminalRuntimeStateStore";
 import type { ProjectData, TerminalData } from "../types/index.ts";
 
+// Three real states. "active" collapses what was "running" + "thinking":
+// from the user's POV both are "agent is working, no need to look", so
+// splitting them is internal noise. "done" and "idle" are kept separate
+// in the model (so freshDone/seen tracking still works) but render the
+// same gray — both communicate "no signal needed".
 export type CanvasTerminalState =
   | "attention"
-  | "running"
-  | "thinking"
+  | "active"
   | "done"
   | "idle";
 
@@ -25,7 +29,7 @@ export interface CanvasTerminalItem {
   activityAt?: string;
   turnStartedAt?: string;
   currentTool?: string;
-  attentionReason?: "error" | "stall" | "awaiting_input";
+  attentionReason?: "error" | "awaiting_input";
 }
 
 export interface CanvasTerminalSections {
@@ -169,6 +173,12 @@ function deriveStateFromTelemetry(
     telemetry.last_input_at;
   const turnStartedAt = telemetry.turn_started_at;
 
+  // Attention is reserved for high-confidence signals only: a real
+  // process error, the agent explicitly waiting for input, or an exited
+  // PTY with a non-zero code. We deliberately do NOT promote
+  // `derived_status === "stall_candidate"` to attention — it's a
+  // heuristic ("output has been quiet for a while") that fires on slow
+  // models, which is the exact false positive we're trying to kill.
   if (
     telemetry.derived_status === "error" ||
     (!telemetry.pty_alive &&
@@ -185,19 +195,9 @@ function deriveStateFromTelemetry(
     };
   }
 
-  if (telemetry.derived_status === "stall_candidate") {
-    return {
-      state: "attention",
-      activityAt,
-      turnStartedAt,
-      currentTool: telemetry.foreground_tool,
-      sessionFilePath: telemetry.session_file,
-      attentionReason: "stall",
-    };
-  }
-
-  // Detect awaiting user interaction: main process sets turn_state
-  // to "awaiting_input" after PreToolUse has been pending for ≥5s.
+  // Main process sets turn_state to "awaiting_input" after PreToolUse
+  // has been pending for ≥5s — that gate is what makes this a confident
+  // signal rather than a flicker.
   if (telemetry.turn_state === "awaiting_input") {
     return {
       state: "attention",
@@ -211,23 +211,12 @@ function deriveStateFromTelemetry(
 
   if (
     telemetry.turn_state === "tool_running" ||
-    telemetry.turn_state === "tool_pending"
-  ) {
-    return {
-      state: "running",
-      activityAt,
-      turnStartedAt,
-      currentTool: telemetry.foreground_tool,
-      sessionFilePath: telemetry.session_file,
-    };
-  }
-
-  if (
+    telemetry.turn_state === "tool_pending" ||
     telemetry.turn_state === "thinking" ||
     telemetry.turn_state === "in_turn"
   ) {
     return {
-      state: telemetry.foreground_tool ? "running" : "thinking",
+      state: "active",
       activityAt,
       turnStartedAt,
       currentTool: telemetry.foreground_tool,
@@ -237,7 +226,7 @@ function deriveStateFromTelemetry(
 
   if (telemetry.derived_status === "awaiting_contract") {
     return {
-      state: telemetry.foreground_tool ? "running" : "thinking",
+      state: "active",
       activityAt,
       turnStartedAt,
       currentTool: telemetry.foreground_tool,
@@ -257,7 +246,7 @@ function deriveStateFromTelemetry(
 
   if (telemetry.derived_status === "progressing") {
     return {
-      state: telemetry.foreground_tool ? "running" : "thinking",
+      state: "active",
       activityAt,
       turnStartedAt,
       currentTool: telemetry.foreground_tool,
@@ -289,15 +278,9 @@ function deriveStateFromSession(
         sessionFilePath: session.filePath,
       };
     case "tool_running":
-      return {
-        state: "running",
-        activityAt: session.lastActivityAt,
-        currentTool: session.currentTool,
-        sessionFilePath: session.filePath,
-      };
     case "generating":
       return {
-        state: "thinking",
+        state: "active",
         activityAt: session.lastActivityAt,
         currentTool: session.currentTool,
         sessionFilePath: session.filePath,
@@ -331,7 +314,7 @@ function deriveStateFromTerminal(
     case "running":
     case "active":
     case "waiting":
-      return { state: "running" };
+      return { state: "active" };
     case "completed":
     case "success":
       return { state: "done" };
@@ -386,8 +369,7 @@ function computeStatusSummary(
       case "attention":
         summary.attention++;
         break;
-      case "running":
-      case "thinking":
+      case "active":
         summary.running++;
         break;
       case "done":
@@ -590,8 +572,7 @@ export function buildCanvasTerminalSections(
           case "attention":
             attention.push(item);
             break;
-          case "running":
-          case "thinking":
+          case "active":
             progress.push(item);
             break;
           case "done":
