@@ -920,6 +920,15 @@ export function TerminalTile({
   return (
     <div
       ref={tileRef}
+      data-focused={terminal.focused ? "true" : undefined}
+      data-drag-over={dragOver ? "true" : undefined}
+      data-task-flash={taskFlash ? "true" : undefined}
+      data-receptive={
+        taskDragActive && acceptsTaskDrop && !dragOver && !taskFlash
+          ? "true"
+          : undefined
+      }
+      data-overview={isOverviewMode ? "true" : undefined}
       onDragOver={handleTileDragOver}
       onDragLeave={handleTileDragLeave}
       onDrop={handleTileDrop}
@@ -927,22 +936,7 @@ export function TerminalTile({
       style={{
         width: width,
         height: terminal.minimized ? "auto" : height,
-        boxShadow:
-          dragOver || taskFlash
-            ? "0 0 0 2px var(--accent), 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent)"
-            : taskDragActive && acceptsTaskDrop
-              ? "0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent)"
-              : terminal.focused
-                ? isOverviewMode
-                  ? "0 0 0 2px color-mix(in srgb, var(--text-secondary) 45%, transparent), inset 0 2px 0 0 color-mix(in srgb, var(--text-secondary) 25%, transparent)"
-                  : "inset 0 2px 0 0 color-mix(in srgb, var(--text-secondary) 25%, transparent)"
-                : undefined,
-        borderColor:
-          !dragOver && !taskFlash && terminal.focused
-            ? "var(--border-hover)"
-            : undefined,
         outline: "none",
-        transition: "box-shadow var(--duration-quick) var(--ease-out-soft)",
       }}
       onClick={(e) => {
         e.stopPropagation();
@@ -972,7 +966,7 @@ export function TerminalTile({
       onWheel={(e) => e.stopPropagation()}
     >
       <div
-        className="relative flex items-center gap-2 px-3 py-2 select-none shrink-0"
+        className="tc-tile-header relative flex items-center gap-2 px-3 py-2 select-none shrink-0"
         onContextMenu={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -1014,7 +1008,7 @@ export function TerminalTile({
           {headerContextLabel}
         </span>
         <div
-          className={`h-6 min-w-0 flex-1 rounded-md border px-1.5 text-[11px] ${
+          className={`tc-tile-title-editable h-6 min-w-0 flex-1 rounded-md border px-1.5 text-[11px] ${
             terminal.customTitle
               ? "border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]"
               : "border-dashed border-[var(--border)] bg-[var(--bg)] text-[var(--text-faint)]"
@@ -1033,11 +1027,12 @@ export function TerminalTile({
         >
           <div className="flex h-full items-center gap-1.5 min-w-0">
             <button
-              className={`shrink-0 rounded p-0.5 transition-colors duration-150 ${
+              className={`tc-tile-action shrink-0 rounded p-0.5 ${
                 terminal.starred
                   ? "text-amber-400 hover:text-amber-300"
                   : "text-[var(--text-faint)] hover:text-amber-400"
               }`}
+              data-pinned={terminal.starred ? "true" : undefined}
               title={terminal.starred ? t.terminal_unstar : t.terminal_star}
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
@@ -1089,15 +1084,48 @@ export function TerminalTile({
                 {t.summary_in_progress}
               </span>
             ) : (
-              <span className="min-w-0 flex-1 truncate leading-[22px]">
-                {terminal.customTitle || t.terminal_custom_title_placeholder}
-              </span>
+              <>
+                <span className="min-w-0 flex-1 truncate leading-[22px]">
+                  {terminal.customTitle || t.terminal_custom_title_placeholder}
+                </span>
+                <button
+                  type="button"
+                  className="tc-tile-action shrink-0 rounded p-0.5 text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--border)]"
+                  title={t.terminal_custom_title_placeholder}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isOverviewMode) {
+                      zoomIntoTerminalFromOverview();
+                      return;
+                    }
+                    startCustomTitleEdit();
+                  }}
+                >
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 10 10"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M1.6 8.4 L7.2 2.8 L8.5 4.1 L2.9 9.7 Z"
+                      stroke="currentColor"
+                      strokeWidth="1"
+                      strokeLinejoin="round"
+                      transform="translate(-0.3 -1.2)"
+                    />
+                  </svg>
+                </button>
+              </>
             )}
           </div>
         </div>
         <div className="flex items-center gap-0.5">
           <button
-            className="text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
+            className="tc-tile-action text-[var(--text-faint)] hover:text-[var(--text-primary)] p-1 rounded-md hover:bg-[var(--border)]"
+            data-pinned={terminal.minimized ? "true" : undefined}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
@@ -1126,7 +1154,7 @@ export function TerminalTile({
             </svg>
           </button>
           <button
-            className="text-[var(--text-faint)] hover:text-[var(--red)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
+            className="tc-tile-action text-[var(--text-faint)] hover:text-[var(--red)] p-1 rounded-md hover:bg-[var(--border)]"
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();

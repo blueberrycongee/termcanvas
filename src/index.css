@@ -448,9 +448,95 @@ a.tc-kbd:active {
   padding: 2px 8px;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Terminal tile chrome
+   The tile is the most-seen surface in the product. Every chrome
+   state shares the same temporal rhythm — --duration-quick with
+   --ease-out-soft. State is driven from data attributes so the
+   React side just toggles flags; the visual treatment lives here.
+   Precedence (high → low): drag-over / task-flash > receptive >
+   focused. Higher-precedence states fully replace lower ones.
+   ───────────────────────────────────────────────────────────── */
 .terminal-tile {
-  transition: border-color var(--duration-quick) var(--ease-out-soft),
-              box-shadow var(--duration-quick) var(--ease-out-soft);
+  transition:
+    border-color var(--duration-quick) var(--ease-out-soft),
+    box-shadow var(--duration-quick) var(--ease-out-soft);
+}
+
+.terminal-tile[data-drag-over="true"],
+.terminal-tile[data-task-flash="true"] {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 12px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.terminal-tile[data-receptive="true"]:not([data-drag-over="true"], [data-task-flash="true"]) {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* Focus, normal canvas: paired 1px accent border + 1px inset accent
+   line at low opacity. Confident enough to spot from across the
+   canvas, quiet enough never to compete with the tile contents. */
+.terminal-tile[data-focused="true"]:not(
+    [data-drag-over="true"],
+    [data-task-flash="true"],
+    [data-receptive="true"],
+    [data-overview="true"]
+  ) {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+/* Focus, overview mode: a stronger ring still readable when the
+   canvas is fit-to-all and tiles are near thumbnail size. */
+.terminal-tile[data-focused="true"][data-overview="true"]:not(
+    [data-drag-over="true"],
+    [data-task-flash="true"],
+    [data-receptive="true"]
+  ) {
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--text-secondary) 45%, transparent),
+    inset 0 2px 0 0 color-mix(in srgb, var(--text-secondary) 25%, transparent);
+}
+
+/* Header. Lifts to --surface-hover when the tile owns focus — a
+   paired colour shift with the focus ring so the active tile reads
+   as grouped, not merely outlined. */
+.tc-tile-header {
+  background-color: transparent;
+  transition: background-color var(--duration-quick) var(--ease-out-soft);
+}
+.terminal-tile[data-focused="true"]:not([data-drag-over="true"], [data-task-flash="true"]) .tc-tile-header {
+  background-color: var(--surface-hover);
+}
+
+/* Hover-only action affordances (minimise, close, edit-title icon).
+   Idle = invisible; reveal on tile hover, focus, or keyboard focus.
+   data-pinned="true" keeps a control visible regardless — used for
+   state marks (a starred tile keeps its star so the mark persists
+   without hover). */
+.tc-tile-action {
+  opacity: 0;
+  transition:
+    opacity var(--duration-quick) var(--ease-out-soft),
+    color var(--duration-quick) var(--ease-out-soft),
+    background-color var(--duration-quick) var(--ease-out-soft);
+}
+.terminal-tile:hover .tc-tile-action,
+.terminal-tile[data-focused="true"] .tc-tile-action,
+.terminal-tile .tc-tile-action:focus-visible,
+.terminal-tile .tc-tile-action[data-pinned="true"] {
+  opacity: 1;
+}
+
+/* Inline edit-title cue. The cursor flips to text on hover so the
+   field reads as editable; the pencil chip (rendered as
+   .tc-tile-action) makes the affordance discoverable without
+   crowding the title. */
+.tc-tile-title-editable {
+  cursor: text;
 }
 
 /* Force text cursor inside terminal tiles.
@@ -546,8 +632,11 @@ html.tc-scrolling ::-webkit-scrollbar-thumb {
   }
 }
 
+/* 1.6s reads as a steady heartbeat — alive, not languid. The original
+   2s loop drifted closer to a "still loading" cadence; pulling it in
+   anchors it to the same temporal rhythm as the motion tokens. */
 .status-pulse {
-  animation: pulse-dot 2s ease-in-out infinite;
+  animation: pulse-dot 1.6s var(--ease-in-out-soft) infinite;
 }
 
 @keyframes usage-fade-in-up {
