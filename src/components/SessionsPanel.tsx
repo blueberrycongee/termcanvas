@@ -600,6 +600,8 @@ export function HistorySection({
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   // Groups where the user clicked "Show N more" to expand past the default limit.
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  // Groups currently fetching their full session list from the server.
+  const [loadingGroups, setLoadingGroups] = useState<Set<string>>(new Set());
 
   const toggleGroup = useCallback((projectDir: string) => {
     setCollapsedGroups((prev) => {
@@ -610,8 +612,37 @@ export function HistorySection({
     });
   }, []);
 
-  const showAllInGroup = useCallback((projectDir: string) => {
-    setExpandedGroups((prev) => new Set(prev).add(projectDir));
+  const showAllInGroup = useCallback((projectDir: string, currentGroupSize: number, serverTotal: number) => {
+    // If the loaded entries for this project might be incomplete (global
+    // fetch didn't cover all sessions for it), do a targeted per-project
+    // fetch before expanding. The heuristic: if global entries < total,
+    // some projects may have unloaded tails — fetch the full project list.
+    const maybeIncomplete = currentGroupSize >= HISTORY_GROUP_DEFAULT_LIMIT;
+    if (maybeIncomplete && serverTotal > 0 && window.termcanvas?.search?.listSessionsPage) {
+      setLoadingGroups((prev) => new Set(prev).add(projectDir));
+      void window.termcanvas.search
+        .listSessionsPage([projectDir], { limit: 2000, offset: 0 })
+        .then((page) => {
+          setEntries((prev) => {
+            const seen = new Set(prev.map((e) => e.sessionId));
+            const merged = [...prev];
+            for (const e of page.entries) {
+              if (!seen.has(e.sessionId)) merged.push(e);
+            }
+            return merged;
+          });
+        })
+        .finally(() => {
+          setLoadingGroups((prev) => {
+            const next = new Set(prev);
+            next.delete(projectDir);
+            return next;
+          });
+          setExpandedGroups((prev) => new Set(prev).add(projectDir));
+        });
+    } else {
+      setExpandedGroups((prev) => new Set(prev).add(projectDir));
+    }
   }, []);
 
   const pinSession = useCallback((sessionId: string) => {
@@ -802,16 +833,17 @@ export function HistorySection({
                         ))}
                         {hiddenCount > 0 && (
                           <button
-                            className="flex w-full items-center gap-1 px-3 py-1.5 text-left tc-timestamp hover:text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)]"
+                            className="flex w-full items-center gap-1 px-3 py-1.5 text-left tc-timestamp hover:text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] disabled:opacity-50 disabled:cursor-default"
+                            disabled={loadingGroups.has(group.projectDir)}
                             onClick={(e) => {
                               e.stopPropagation();
-                              showAllInGroup(group.projectDir);
+                              showAllInGroup(group.projectDir, group.entries.length, total);
                             }}
                           >
                             <svg width="9" height="9" viewBox="0 0 10 10" fill="none" className="shrink-0">
                               <path d="M5 2v6M2 5h6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
                             </svg>
-                            {hiddenCount} more
+                            {loadingGroups.has(group.projectDir) ? "Loading…" : `${hiddenCount} more`}
                           </button>
                         )}
                       </>
