@@ -842,10 +842,65 @@ a.tc-kbd[data-dragover="true"] {
   border-color: var(--border);
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Settings rail — vertical category nav used inside the settings
+   modal. The rail sits at modal scale (180px column), so the
+   active state needs to read from the corner of the eye while
+   the user is reading the right pane. We use a soft accent fill
+   plus a 2px accent gutter on the left edge — gutter is the
+   primary cue, fill is secondary. Hover wakes a quiet surface
+   lift; idle items sit on transparent so the rail's column
+   border carries the structure.
+   ───────────────────────────────────────────────────────────── */
+.tc-settings-rail-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 6px 12px 6px 14px;
+  border-radius: 6px;
+  font-size: var(--text-base);
+  font-weight: var(--weight-regular);
+  color: var(--text-secondary);
+  background: transparent;
+  transition:
+    background-color var(--duration-quick) var(--ease-out-soft),
+    color var(--duration-quick) var(--ease-out-soft);
+}
+.tc-settings-rail-item::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background-color var(--duration-quick) var(--ease-out-soft);
+}
+.tc-settings-rail-item:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+.tc-settings-rail-item:focus-visible {
+  outline: none;
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+.tc-settings-rail-item.is-active {
+  color: var(--text-primary);
+  background: var(--accent-soft);
+  font-weight: var(--weight-medium);
+}
+.tc-settings-rail-item.is-active::before {
+  background: var(--accent);
+}
+
 /* Respect reduced-motion: collapse all entrance animations and long
    transitions. Everything still works, just without the parallax. */
 @media (prefers-reduced-motion: reduce) {
   .tc-enter-fade,
+  .tc-enter-fade-quick,
   .tc-enter-fade-up,
   .tc-enter-fade-down,
   .tc-enter-pop,

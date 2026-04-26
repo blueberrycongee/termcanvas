@@ -281,6 +281,24 @@ export function useKeyboardShortcuts() {
         e.stopPropagation();
       };
 
+      // Settings toggle (⌘, on macOS, Ctrl+, elsewhere). Stays bound
+      // even while the modal is open so the same chord that opens it
+      // also closes it — matches the OS-level convention. Comma is not
+      // a shortcut character users type into terminals or text fields,
+      // so we don't gate this on focus target.
+      const isSettingsToggle =
+        e.key === "," &&
+        (e.metaKey || e.ctrlKey) &&
+        !e.shiftKey &&
+        !e.altKey;
+      if (isSettingsToggle) {
+        consumeShortcut();
+        const settingsStore = useSettingsModalStore.getState();
+        if (settingsStore.open) settingsStore.closeSettings();
+        else settingsStore.openSettings();
+        return;
+      }
+
       if (useSettingsModalStore.getState().open) {
         return;
       }
