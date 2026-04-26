@@ -199,6 +199,24 @@
   --ease-out-snap: cubic-bezier(0.34, 1.32, 0.64, 1);
   --ease-in-soft: cubic-bezier(0.4, 0, 0.6, 0.2);
   --ease-in-out-soft: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ── Elevation ───────────────────────────────────────────────
+     Two layered shadow primitives the floating-UI family shares.
+     Cast colour comes from --shadow-color so depth lands in the
+     same hue family as the neutrals (warm near-black in dark, warm
+     ink in light). Each token is a pair — a tight contact shadow
+     plus a softer cast — read together as one elevation rather
+     than a stack of effects.
+       --shadow-elev-1: drawers anchored to a panel edge, small
+         floating widgets, on-canvas cards. Subtle.
+       --shadow-elev-2: floating modals/widgets that sit free over
+         the canvas (toasts, modal dialogs, file editor). Deeper. */
+  --shadow-elev-1:
+    0 1px 2px color-mix(in srgb, var(--shadow-color) 14%, transparent),
+    0 6px 16px color-mix(in srgb, var(--shadow-color) 14%, transparent);
+  --shadow-elev-2:
+    0 2px 6px color-mix(in srgb, var(--shadow-color) 22%, transparent),
+    0 14px 36px color-mix(in srgb, var(--shadow-color) 26%, transparent);
 }
 
 body {

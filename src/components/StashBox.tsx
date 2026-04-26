@@ -43,39 +43,39 @@ function StashCard({ terminalId }: { terminalId: string }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 mb-1">
           <span
-            className="text-[10px] font-medium"
-            style={{ color: config.color, fontFamily: '"Geist Mono", monospace' }}
+            className="tc-eyebrow tc-mono"
+            style={{ color: config.color }}
           >
             {config.label}
           </span>
           {terminal.customTitle && (
-            <span
-              className="text-[10px] text-[var(--text-secondary)] truncate"
-              style={{ fontFamily: '"Geist Mono", monospace' }}
-            >
+            <span className="tc-caption tc-mono truncate text-[var(--text-secondary)]">
               {terminal.customTitle}
             </span>
           )}
         </div>
-        <pre
-          className="text-[10px] leading-4 text-[var(--text-faint)] truncate whitespace-pre-wrap max-h-[40px] overflow-hidden"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-        >
+        <pre className="tc-caption tc-mono truncate whitespace-pre-wrap max-h-[40px] overflow-hidden">
           {previewText}
         </pre>
       </div>
       <div className="flex flex-col gap-1 shrink-0">
         <button
-          className="px-2 py-0.5 text-[10px] rounded border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-150"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
+          className="tc-meta tc-mono px-2 py-0.5 rounded border border-[var(--border)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
+          style={{
+            transitionDuration: "var(--duration-quick)",
+            transitionTimingFunction: "var(--ease-out-soft)",
+          }}
           onClick={() => unstashTerminalInScene(terminal.id)}
           title={t.stash_restore}
         >
           {t.stash_restore}
         </button>
         <button
-          className="px-2 py-0.5 text-[10px] rounded border border-[var(--border)] text-[var(--text-faint)] hover:text-[var(--red)] hover:bg-[var(--surface-hover)] transition-colors duration-150"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
+          className="tc-meta tc-mono px-2 py-0.5 rounded border border-[var(--border)] text-[var(--text-faint)] hover:text-[var(--red)] hover:bg-[var(--surface-hover)] transition-colors"
+          style={{
+            transitionDuration: "var(--duration-quick)",
+            transitionTimingFunction: "var(--ease-out-soft)",
+          }}
           onClick={() => destroyStashedTerminalInScene(terminal.id)}
         >
           {t.stash_destroy}
@@ -159,14 +159,12 @@ export function StashBox() {
     <div ref={panelRef} className="fixed bottom-4 right-4 z-[90]" data-stash-drop-target>
       {expanded ? (
         <div
-          className="w-72 max-h-80 flex flex-col rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg"
+          className="tc-enter-fade-up w-72 max-h-80 flex flex-col rounded-lg border border-[var(--border)] bg-[var(--surface)]"
+          style={{ boxShadow: "var(--shadow-elev-2)" }}
           aria-label={t.stash_box}
         >
           <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)]">
-            <span
-              className="text-[11px] font-medium text-[var(--text-primary)]"
-              style={{ fontFamily: '"Geist Mono", monospace' }}
-            >
+            <span className="tc-eyebrow tc-mono text-[var(--text-primary)]">
               {items.length > 0
                 ? `${t.stash_box} (${items.length})`
                 : t.stash_box}
@@ -174,15 +172,22 @@ export function StashBox() {
             <div className="flex items-center gap-1">
               {items.length > 0 && (
                 <button
-                  className="text-[10px] text-[var(--text-faint)] hover:text-[var(--red)] transition-colors duration-150 px-1.5 py-0.5 rounded"
-                  style={{ fontFamily: '"Geist Mono", monospace' }}
+                  className="tc-caption tc-mono px-1.5 py-0.5 rounded hover:text-[var(--red)] transition-colors"
+                  style={{
+                    transitionDuration: "var(--duration-quick)",
+                    transitionTimingFunction: "var(--ease-out-soft)",
+                  }}
                   onClick={() => destroyAllStashedTerminalsInScene()}
                 >
                   {t.stash_clear_all}
                 </button>
               )}
               <button
-                className="text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-150 p-0.5"
+                className="text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors p-0.5"
+                style={{
+                  transitionDuration: "var(--duration-quick)",
+                  transitionTimingFunction: "var(--ease-out-soft)",
+                }}
                 onClick={() => setExpanded(false)}
               >
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -202,7 +207,7 @@ export function StashBox() {
               className="overflow-auto max-h-[calc(20rem-2.5rem)] p-2 flex flex-col gap-1.5"
             >
               {items.length === 0 ? (
-                <div className="text-center text-[11px] text-[var(--text-faint)] py-4">
+                <div className="tc-meta text-center py-4">
                   {t.stash_empty}
                 </div>
               ) : (
@@ -221,11 +226,16 @@ export function StashBox() {
         </div>
       ) : (
         <button
-          className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 shadow-lg transition-all duration-150 ${
+          className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 transition-all ${
             dragActive
               ? "border-[var(--accent)] bg-[var(--accent)]/20 scale-110"
               : "border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-hover)]"
           }`}
+          style={{
+            boxShadow: "var(--shadow-elev-1)",
+            transitionDuration: "var(--duration-quick)",
+            transitionTimingFunction: "var(--ease-out-soft)",
+          }}
           onClick={() => setExpanded(true)}
           data-stash-drop-target
           aria-label={t.stash_count(items.length)}
@@ -245,10 +255,7 @@ export function StashBox() {
               strokeLinecap="round"
             />
           </svg>
-          <span
-            className="text-[11px] font-medium text-[var(--text-secondary)]"
-            style={{ fontFamily: '"Geist Mono", monospace' }}
-          >
+          <span className="tc-meta tc-mono text-[var(--text-secondary)]">
             {buttonLabel}
           </span>
         </button>
