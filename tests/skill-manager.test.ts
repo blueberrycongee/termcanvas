@@ -455,6 +455,101 @@ test("uninstallSkillLinks removes global Computer Use MCP registration", () => {
   assert.doesNotMatch(codexConfig, /\[mcp_servers\.computer-use\]/);
 });
 
+test("installSkillLinks heals legacy orphan computer-use keys in codex config.toml", () => {
+  // Earlier versions of removeTomlTable in skill-manager only stripped the
+  // `[mcp_servers.computer-use]` header plus its first body line, leaving the
+  // `args = …` / `env = { … }` lines orphaned in whichever section they had
+  // been written under. Repeated launches accumulated duplicates and Codex
+  // refused to start with a TOML "duplicate key" error. Verify that a single
+  // install on a polluted file restores it to a clean state.
+  const { home, sourceDir } = makeTempEnv();
+  const codexDir = path.join(home, ".codex");
+  fs.mkdirSync(codexDir, { recursive: true });
+
+  const stalePath =
+    "/Applications/TermCanvas.app/Contents/Resources/mcp-computer-use-server/index.js";
+  const polluted = [
+    'model = "gpt-4"',
+    "",
+    "[features]",
+    "apply_patch = true",
+    `args = ["${stalePath}"]`,
+    'env = { TERMCANVAS_COMPUTER_USE_STATE_FILE = "/old/state.json", TERMCANVAS_PORT_FILE = "/old/port" }',
+    `args = ["${stalePath}"]`,
+    'env = { TERMCANVAS_COMPUTER_USE_STATE_FILE = "/older/state.json" }',
+    "",
+    "[mcp_servers.computer-use]",
+    'command = "node"',
+    `args = ["${stalePath}"]`,
+    'env = { TERMCANVAS_COMPUTER_USE_STATE_FILE = "/old/state.json" }',
+    "",
+  ].join("\n");
+  fs.writeFileSync(path.join(codexDir, "config.toml"), polluted);
+
+  installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+
+  const content = fs.readFileSync(path.join(codexDir, "config.toml"), "utf-8");
+
+  assert.match(content, /^model = "gpt-4"/m, "user model setting lost");
+  assert.match(content, /apply_patch = true/, "user feature flag lost");
+  assert.equal(
+    content.includes(stalePath),
+    false,
+    "stale MCP server path still present after cleanup",
+  );
+
+  const headerCount = (
+    content.match(/^\s*\[mcp_servers\.computer-use\]\s*$/gm) ?? []
+  ).length;
+  assert.equal(
+    headerCount,
+    1,
+    `expected exactly one [mcp_servers.computer-use] header, found ${headerCount}`,
+  );
+
+  const argsCount = (content.match(/^\s*args\s*=/gm) ?? []).length;
+  const envCount = (content.match(/^\s*env\s*=/gm) ?? []).length;
+  assert.equal(argsCount, 1, "orphan args lines were not stripped");
+  assert.equal(envCount, 1, "orphan env lines were not stripped");
+});
+
+test("ensureSkillLinks does not rewrite codex config.toml when already correct", () => {
+  const { home, sourceDir } = makeTempEnv();
+  installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+
+  const configFile = path.join(home, ".codex", "config.toml");
+  const before = fs.readFileSync(configFile, "utf-8");
+  const beforeMtime = fs.statSync(configFile).mtimeNs;
+
+  ensureSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+
+  const after = fs.readFileSync(configFile, "utf-8");
+  const afterMtime = fs.statSync(configFile).mtimeNs;
+  assert.equal(after, before, "config.toml content drifted on idempotent ensure");
+  assert.equal(
+    afterMtime,
+    beforeMtime,
+    "config.toml was rewritten despite content being identical",
+  );
+});
+
+test("ensureSkillLinks does not rewrite .claude.json when computer-use entry already correct", () => {
+  const { home, sourceDir } = makeTempEnv();
+  installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+
+  const claudeConfigFile = path.join(home, ".claude.json");
+  const beforeMtime = fs.statSync(claudeConfigFile).mtimeNs;
+
+  ensureSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+
+  const afterMtime = fs.statSync(claudeConfigFile).mtimeNs;
+  assert.equal(
+    afterMtime,
+    beforeMtime,
+    ".claude.json was rewritten despite mcp entry being identical",
+  );
+});
+
 test("installSkillLinks creates codex hooks.json with all 5 events", () => {
   const { home, sourceDir } = makeTempEnv();
   installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });

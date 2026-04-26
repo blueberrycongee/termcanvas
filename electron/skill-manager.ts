@@ -308,13 +308,23 @@ function ensureClaudeComputerUseMcp(
     !Array.isArray(data.mcpServers)
       ? (data.mcpServers as Record<string, unknown>)
       : {};
-  const mcpServers = { ...existingServers };
-  mcpServers[CLAUDE_COMPUTER_USE_MCP_SERVER_NAME] = {
+
+  const newEntry = {
     type: "stdio",
     command: "node",
     args: [config.mcpServerPath],
     env: computerUseMcpEnv(config),
   };
+  const existingEntry = existingServers[CLAUDE_COMPUTER_USE_MCP_SERVER_NAME];
+  if (
+    existingEntry &&
+    JSON.stringify(existingEntry) === JSON.stringify(newEntry)
+  ) {
+    return;
+  }
+
+  const mcpServers = { ...existingServers };
+  mcpServers[CLAUDE_COMPUTER_USE_MCP_SERVER_NAME] = newEntry;
   data.mcpServers = mcpServers;
 
   writeJsonAtomic(globalConfigFile, data);
@@ -356,23 +366,68 @@ function tomlInlineTable(values: Record<string, string>): string {
     .join(", ")} }`;
 }
 
+// Strip every `[tableName]` block — header through the last body line before
+// the next section header (or EOF) — plus any orphan `tableName.<key>` dotted
+// keys at the file's top level. Walks line-by-line so multi-line table bodies
+// and array-of-tables siblings cannot be partially eaten the way the previous
+// regex-based implementation did.
 function removeTomlTable(content: string, tableName: string): string {
-  const escaped = tableName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  // Remove the full table block.
-  const tableRegex = new RegExp(
-    `(^|\\n)\\[${escaped}\\]\\n[\\s\\S]*?(?=\\n\\[[^\\n]+\\]\\n|$)`,
-    "m",
+  if (!content) return content;
+  const target = `[${tableName}]`;
+  const dottedPrefix = `${tableName}.`;
+  const lines = content.split("\n");
+  const out: string[] = [];
+  let inTarget = false;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (inTarget) {
+      // Stay in the target table until any other section header appears.
+      if (trimmed.startsWith("[") && trimmed !== target) {
+        inTarget = false;
+        out.push(line);
+      }
+      // Otherwise the line belongs to the target table — drop it.
+      continue;
+    }
+    if (trimmed === target) {
+      inTarget = true;
+      continue;
+    }
+    // Drop orphan dotted keys for this exact table name.
+    if (trimmed.startsWith(dottedPrefix)) {
+      continue;
+    }
+    out.push(line);
+  }
+  return out.join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
+// Earlier versions of removeTomlTable used a regex with the `m` flag and a
+// `$` lookahead, which only consumed the table header plus the first body
+// line. The remaining `args = …` / `env = { … }` lines were left orphaned in
+// whichever section they had been written under and accumulated across runs,
+// eventually triggering TOML duplicate-key errors that prevented Codex from
+// starting. This helper repairs already-polluted config.toml files on upgrade.
+//
+// The signatures are scoped to TermCanvas computer-use entries — either the
+// MCP server path component (`mcp-computer-use-server` or
+// `mcp/computer-use-server`, including `\\`-escaped variants on Windows) or
+// the env-var prefix (`TERMCANVAS_COMPUTER_USE_*`) — so unrelated user keys
+// remain untouched.
+const LEGACY_ORPHAN_ARGS_RE =
+  /^\s*args\s*=\s*\[[^\n]*mcp[-/\\]+computer-use-server[^\n]*\]\s*$/;
+const LEGACY_ORPHAN_ENV_RE =
+  /^\s*env\s*=\s*\{[^\n]*TERMCANVAS_COMPUTER_USE_[^\n]*\}\s*$/;
+
+function removeLegacyComputerUseOrphans(content: string): string {
+  if (!content) return content;
+  const lines = content.split("\n");
+  const kept = lines.filter(
+    (line) =>
+      !LEGACY_ORPHAN_ARGS_RE.test(line) && !LEGACY_ORPHAN_ENV_RE.test(line),
   );
-  let next = content.replace(tableRegex, (match, prefix: string) =>
-    prefix === "\n" ? "\n" : "",
-  );
-  // Also remove any orphaned dotted keys belonging to the same table.
-  const dottedRegex = new RegExp(
-    `^\\s*${escaped}\\.\\S+\\s*=\\s*[^\\n]*\\n?`,
-    "gm",
-  );
-  next = next.replace(dottedRegex, "");
-  return next.replace(/\n{3,}/g, "\n\n");
+  if (kept.length === lines.length) return content;
+  return kept.join("\n").replace(/\n{3,}/g, "\n\n");
 }
 
 function ensureCodexComputerUseMcp(
@@ -380,7 +435,6 @@ function ensureCodexComputerUseMcp(
   config: ComputerUseMcpInstallConfig,
 ): void {
   const configFile = path.join(getCodexConfigDir(home), "config.toml");
-  fs.mkdirSync(path.dirname(configFile), { recursive: true });
 
   let content = "";
   try {
@@ -388,7 +442,10 @@ function ensureCodexComputerUseMcp(
   } catch {}
 
   const tableName = `mcp_servers.${CODEX_COMPUTER_USE_MCP_SERVER_NAME}`;
-  content = removeTomlTable(content, tableName).trimEnd();
+  let cleaned = removeTomlTable(content, tableName);
+  cleaned = removeLegacyComputerUseOrphans(cleaned);
+  cleaned = cleaned.trimEnd();
+
   const table = [
     `[${tableName}]`,
     `command = "node"`,
@@ -397,7 +454,14 @@ function ensureCodexComputerUseMcp(
     "",
   ].join("\n");
 
-  const nextContent = content ? `${content}\n\n${table}` : table;
+  const nextContent = cleaned ? `${cleaned}\n\n${table}` : table;
+
+  // Idempotent: skip the write when the on-disk content already matches.
+  // Without this every app launch would touch config.toml and (with the old
+  // regex bug) gradually pollute it with orphan args/env keys.
+  if (nextContent === content) return;
+
+  fs.mkdirSync(path.dirname(configFile), { recursive: true });
   const tmp = configFile + ".tmp." + process.pid;
   fs.writeFileSync(tmp, nextContent, "utf-8");
   fs.renameSync(tmp, configFile);
