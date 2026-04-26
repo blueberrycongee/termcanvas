@@ -16,6 +16,7 @@ import {
   clearSceneFocusAndSelection,
   promptAndAddProjectToScene,
 } from "./sceneCommands";
+import { CanvasEmptyState } from "../components/CanvasEmptyState";
 import { getStashedTerminalIds } from "./sceneState";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
@@ -771,21 +772,7 @@ function XyFlowCanvasInner() {
 
       <FamilyTreeOverlay />
 
-      {projects.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="text-center pointer-events-auto">
-            <div className="text-[var(--text-muted)] text-lg font-light mb-4">
-              {t.canvas_empty_title}
-            </div>
-            <button
-              onClick={handleAddProject}
-              className="px-6 py-3 bg-[var(--button-bg)] hover:bg-[var(--button-bg-hover)] text-[var(--button-text)] rounded-lg transition-colors"
-            >
-              {t.canvas_empty_action}
-            </button>
-          </div>
-        </div>
-      )}
+      {projects.length === 0 && <CanvasEmptyState />}
     </div>
   );
 }

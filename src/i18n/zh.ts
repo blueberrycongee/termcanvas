@@ -622,7 +622,11 @@ export const zh = {
   stash_terminal: "暂存",
   stash_destroy: "销毁",
 
-  canvas_empty_title: "还没有项目",
+  canvas_empty_eyebrow: "空白画布",
+  canvas_empty_line_lead: "画布空着。",
+  canvas_empty_line_call: "拖入一个项目目录开始。",
+  canvas_empty_drag_hint: "拖入文件夹",
+  canvas_empty_or: "或按",
   canvas_empty_action: "添加项目目录…",
 
   panel_new_terminal: "新建终端",

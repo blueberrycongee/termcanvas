@@ -138,6 +138,14 @@
   --text-stat-lg: 22px; /* sidebar summary */
   --text-stat-xl: 26px; /* overlay hero stat */
 
+  /* First-impression display size. Reserved for the empty-canvas /
+     pre-content moment where the product needs typographic presence
+     without leaning on a marketing hero. The jump from --text-xl (20px)
+     to --text-hero (32px) is the rhythmic step the type scale was missing
+     for this rare role; introduce more values only if a new role
+     genuinely cannot be expressed by what's here. */
+  --text-hero: 32px;
+
   /* ── Line heights ────────────────────────────────────────── */
   --leading-tight: 1.25;
   --leading-snug: 1.4;
@@ -302,6 +310,54 @@ body {
   font-feature-settings: "ss03", "zero";
   font-variant-numeric: tabular-nums;
   color: var(--text-primary);
+}
+
+/* Hero display. Pairs --text-hero with weight + tracking + leading so the
+   call-site never reinvents these values. Tighter tracking than tc-display
+   because heading text reads better with condensed letter-spacing at large
+   sizes, and a 1.15 leading keeps two-line statements compact instead of
+   floaty. Use sparingly — first-impression states only. */
+.tc-hero {
+  font-size: var(--text-hero);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--text-primary);
+}
+
+/* Inline keyboard-shortcut chip. Renders as <span> for static hints or
+   <button>/<a> for clickable affordances; styling stays identical so the
+   chip doesn't reflow on hover. Only the interactive variants light up. */
+.tc-kbd {
+  display: inline-flex;
+  align-items: center;
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  transition:
+    border-color var(--duration-quick) var(--ease-out-soft),
+    background-color var(--duration-quick) var(--ease-out-soft),
+    color var(--duration-quick) var(--ease-out-soft);
+}
+button.tc-kbd,
+a.tc-kbd {
+  cursor: pointer;
+}
+button.tc-kbd:hover,
+a.tc-kbd:hover {
+  border-color: var(--border-hover);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+button.tc-kbd:active,
+a.tc-kbd:active {
+  background: var(--surface-hover);
 }
 
 /* Treatments */

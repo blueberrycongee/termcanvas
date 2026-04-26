@@ -631,7 +631,11 @@ export const en = {
   stash_terminal: "Stash",
   stash_destroy: "Destroy",
 
-  canvas_empty_title: "No projects yet",
+  canvas_empty_eyebrow: "Empty Canvas",
+  canvas_empty_line_lead: "An empty canvas.",
+  canvas_empty_line_call: "Drop a folder to begin.",
+  canvas_empty_drag_hint: "drag a folder",
+  canvas_empty_or: "or press",
   canvas_empty_action: "Add Project Folder…",
 
   panel_new_terminal: "New Terminal",
