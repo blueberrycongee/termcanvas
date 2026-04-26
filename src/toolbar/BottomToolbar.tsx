@@ -49,7 +49,7 @@ const buttonBase =
   "inline-flex h-8 items-center justify-center rounded-md text-[12px] font-medium text-[var(--text-muted)] transition-[color,background-color,transform] duration-150 hover:bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] hover:text-[var(--text-primary)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color-mix(in_srgb,var(--text-secondary)_24%,transparent)] motion-reduce:transition-none";
 const iconButton = `${buttonBase} w-8`;
 const zoomReadout =
-  "min-w-[3.25rem] h-8 inline-flex items-center justify-center text-[11px] text-[var(--text-faint)] tabular-nums rounded-md hover:bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] hover:text-[var(--text-primary)] transition-colors";
+  "min-w-[3.25rem] h-8 inline-flex items-center justify-center text-[11px] text-[var(--text-muted)] tabular-nums rounded-md hover:bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] hover:text-[var(--text-primary)] transition-colors";
 
 const platform = window.termcanvas?.app.platform ?? "darwin";
 const isMac = platform === "darwin";
@@ -78,15 +78,23 @@ function useCloseOnOutsideClick(
   open: boolean,
   ref: React.RefObject<HTMLElement | null>,
   close: () => void,
+  triggerRef?: React.RefObject<HTMLElement | null>,
 ): void {
   useEffect(() => {
     if (!open) return;
     const handle = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) close();
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        close();
+        // Match the focus contract that Esc / item-activation already
+        // honour: outside-click should also leave focus on the trigger
+        // so a keyboard user who opened the menu and then mouse-
+        // clicked elsewhere isn't stranded on `<body>`.
+        triggerRef?.current?.focus();
+      }
     };
     window.addEventListener("mousedown", handle);
     return () => window.removeEventListener("mousedown", handle);
-  }, [open, ref, close]);
+  }, [open, ref, close, triggerRef]);
 }
 
 // Roving-focus keyboard nav for popover menus. Caller passes a ref to
@@ -159,8 +167,13 @@ export function BottomToolbar() {
   const viewport = useCanvasStore((s) => s.viewport);
   const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
 
-  const [toolMenuOpen, setToolMenuOpen] = useState(false);
-  const [presetOpen, setPresetOpen] = useState(false);
+  // Single open-menu slot so the two popovers are mutually exclusive —
+  // opening the zoom menu while the tool menu is open used to leave
+  // both visible, with both rendering their own keydown listener and
+  // ArrowDown / Esc bouncing focus between them.
+  const [openMenu, setOpenMenu] = useState<"tool" | "preset" | null>(null);
+  const toolMenuOpen = openMenu === "tool";
+  const presetOpen = openMenu === "preset";
   const toolMenuWrapperRef = useRef<HTMLDivElement>(null);
   const toolMenuPopoverRef = useRef<HTMLDivElement>(null);
   const toolTriggerRef = useRef<HTMLButtonElement>(null);
@@ -168,11 +181,29 @@ export function BottomToolbar() {
   const presetPopoverRef = useRef<HTMLDivElement>(null);
   const presetTriggerRef = useRef<HTMLButtonElement>(null);
 
-  const closeToolMenu = useCallback(() => setToolMenuOpen(false), []);
-  const closePresetMenu = useCallback(() => setPresetOpen(false), []);
+  const closeToolMenu = useCallback(() => setOpenMenu(null), []);
+  const closePresetMenu = useCallback(() => setOpenMenu(null), []);
+  const toggleToolMenu = useCallback(
+    () => setOpenMenu((prev) => (prev === "tool" ? null : "tool")),
+    [],
+  );
+  const togglePresetMenu = useCallback(
+    () => setOpenMenu((prev) => (prev === "preset" ? null : "preset")),
+    [],
+  );
 
-  useCloseOnOutsideClick(toolMenuOpen, toolMenuWrapperRef, closeToolMenu);
-  useCloseOnOutsideClick(presetOpen, presetWrapperRef, closePresetMenu);
+  useCloseOnOutsideClick(
+    toolMenuOpen,
+    toolMenuWrapperRef,
+    closeToolMenu,
+    toolTriggerRef,
+  );
+  useCloseOnOutsideClick(
+    presetOpen,
+    presetWrapperRef,
+    closePresetMenu,
+    presetTriggerRef,
+  );
 
   const toolOptions = useMemo<
     Array<{
@@ -280,7 +311,7 @@ export function BottomToolbar() {
           <button
             ref={toolTriggerRef}
             className={`${buttonBase} px-2 gap-1`}
-            onClick={() => setToolMenuOpen((open) => !open)}
+            onClick={toggleToolMenu}
             title={`${activeTool.label} (${activeTool.shortcut})`}
             aria-haspopup="menu"
             aria-expanded={toolMenuOpen}
@@ -320,7 +351,7 @@ export function BottomToolbar() {
                       {opt.icon}
                     </span>
                     <span className="flex-1 text-left">{opt.label}</span>
-                    <span className="text-[10px] font-mono text-[var(--text-faint)]">
+                    <span className="text-[10px] font-mono text-[var(--text-muted)]">
                       {opt.shortcut}
                     </span>
                     <span className="w-4 inline-flex items-center justify-center text-[var(--text-primary)]">
@@ -349,7 +380,7 @@ export function BottomToolbar() {
             <button
               ref={presetTriggerRef}
               className={zoomReadout}
-              onClick={() => setPresetOpen((open) => !open)}
+              onClick={togglePresetMenu}
               title={t.canvas_zoom_to}
               aria-haspopup="menu"
               aria-expanded={presetOpen}
@@ -378,7 +409,7 @@ export function BottomToolbar() {
                     }}
                   >
                     <span>{preset.label}</span>
-                    <span className="text-[10px] font-mono text-[var(--text-faint)]">
+                    <span className="text-[10px] font-mono text-[var(--text-muted)]">
                       {preset.hint ?? ""}
                     </span>
                   </button>
