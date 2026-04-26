@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ClipboardEvent, DragEvent } from "react";
 import {
   useCanvasStore,
@@ -313,27 +313,44 @@ export function TaskDetailDrawer() {
     }
   }, [task, busy, removeTask, closeDetail]);
 
-  // Keyboard handlers
+  // Keyboard handlers — latest-ref pattern: the listener is mounted once per
+  // open/close cycle, but reads the freshest state and callbacks via a ref so
+  // every keystroke in edit mode doesn't tear down + rebind window listeners.
+  const keyboardRef = useRef({
+    isEditing,
+    showDeleteConfirm,
+    handleCancelEdit,
+    handleSaveEdit,
+    handleCloseDrawer,
+  });
+  keyboardRef.current = {
+    isEditing,
+    showDeleteConfirm,
+    handleCancelEdit,
+    handleSaveEdit,
+    handleCloseDrawer,
+  };
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
+      const k = keyboardRef.current;
       if (e.key === "Escape") {
-        if (showDeleteConfirm) return;
-        if (isEditing) {
+        if (k.showDeleteConfirm) return;
+        if (k.isEditing) {
           e.stopPropagation();
-          handleCancelEdit();
+          k.handleCancelEdit();
         } else {
           e.stopPropagation();
-          handleCloseDrawer();
+          k.handleCloseDrawer();
         }
-      } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && isEditing) {
+      } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && k.isEditing) {
         e.preventDefault();
-        void handleSaveEdit();
+        void k.handleSaveEdit();
       }
     };
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
-  }, [isOpen, isEditing, showDeleteConfirm, handleCancelEdit, handleSaveEdit, handleCloseDrawer]);
+  }, [isOpen]);
 
   // The detail drawer always renders to the right of the task drawer,
   // so its left edge IS the drawer-aware left inset (left panel +
@@ -347,10 +364,16 @@ export function TaskDetailDrawer() {
     (taskDrawerOpen ? TASK_DRAWER_WIDTH : 0);
   const rightInset = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : rightPanelWidth;
 
-  const bodyHtml =
-    task && !isEditing && task.body
-      ? renderMarkdownWithAttachments(task.body, task.attachmentsUrl)
-      : "";
+  // Memoize markdown parse so editing-buffer re-renders or unrelated parent
+  // updates don't re-parse a multi-KB body and re-construct a Marked
+  // renderer instance every cycle. Only repaints on body / attachments / mode.
+  const bodyHtml = useMemo(
+    () =>
+      task && !isEditing && task.body
+        ? renderMarkdownWithAttachments(task.body, task.attachmentsUrl)
+        : "",
+    [task?.body, task?.attachmentsUrl, isEditing, task],
+  );
 
   return (
     <>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import {
   useCanvasStore,
   COLLAPSED_TAB_WIDTH,
@@ -42,7 +42,11 @@ function StatusDot({ status }: { status: Task["status"] }) {
   );
 }
 
-function TaskCard({
+// Memoised so a task event that touches one row doesn't re-render every other
+// card. upsertTask preserves object identity for unchanged tasks (it only
+// substitutes the affected slot in the array), so default shallow compare
+// on `task` and `onUpdated` is enough.
+const TaskCard = memo(function TaskCard({
   task,
   onUpdated,
 }: {
@@ -206,7 +210,7 @@ function TaskCard({
       />
     </>
   );
-}
+});
 
 export function TaskDrawer() {
   const t = useT();
