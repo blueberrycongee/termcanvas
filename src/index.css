@@ -289,19 +289,6 @@ body {
 
 .canvas-bg {
   background-color: var(--bg);
-  --dot-color: rgba(255, 255, 255, 0.06);
-  --dot-size: 1px;
-  --dot-gap: 20px;
-  background-image: radial-gradient(
-    circle,
-    var(--dot-color) var(--dot-size),
-    transparent var(--dot-size)
-  );
-  background-size: var(--dot-gap) var(--dot-gap);
-}
-
-[data-theme="light"] .canvas-bg {
-  --dot-color: #d4d0ca;
 }
 
 [data-theme="light"] .panel,
