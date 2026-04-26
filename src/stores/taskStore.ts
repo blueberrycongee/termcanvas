@@ -5,6 +5,10 @@ interface TaskStoreState {
   tasksByProject: Record<string, Task[]>;
   openProjectPath: string | null;
   openDetailTaskId: string | null;
+  // Set when the detail drawer should render an unsaved new-task form for
+  // the given project. Mutually exclusive with openDetailTaskId — the drawer
+  // is either showing an existing task or composing a new one.
+  composingForProject: string | null;
 }
 
 interface TaskStoreActions {
@@ -16,6 +20,8 @@ interface TaskStoreActions {
   toggle: (projectPath: string) => void;
   openDetail: (id: string) => void;
   closeDetail: () => void;
+  startCompose: (projectPath: string) => void;
+  cancelCompose: () => void;
 }
 
 export const useTaskStore = create<TaskStoreState & TaskStoreActions>(
@@ -23,6 +29,7 @@ export const useTaskStore = create<TaskStoreState & TaskStoreActions>(
     tasksByProject: {},
     openProjectPath: null,
     openDetailTaskId: null,
+    composingForProject: null,
 
     setTasks: (projectPath, tasks) =>
       set((state) => ({
@@ -75,11 +82,22 @@ export const useTaskStore = create<TaskStoreState & TaskStoreActions>(
       set({ openProjectPath: projectPath });
     },
 
-    closeDrawer: () => set({ openProjectPath: null, openDetailTaskId: null }),
+    closeDrawer: () =>
+      set({
+        openProjectPath: null,
+        openDetailTaskId: null,
+        composingForProject: null,
+      }),
 
-    openDetail: (id) => set({ openDetailTaskId: id }),
+    openDetail: (id) => set({ openDetailTaskId: id, composingForProject: null }),
 
-    closeDetail: () => set({ openDetailTaskId: null }),
+    closeDetail: () =>
+      set({ openDetailTaskId: null, composingForProject: null }),
+
+    startCompose: (projectPath) =>
+      set({ composingForProject: projectPath, openDetailTaskId: null }),
+
+    cancelCompose: () => set({ composingForProject: null }),
 
     toggle: (projectPath) => {
       const { openProjectPath, openDrawer } = get();

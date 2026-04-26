@@ -60,8 +60,11 @@ export function TaskDetailDrawer() {
   const rightPanelWidth = useCanvasStore((s) => s.rightPanelWidth);
   const openDetailTaskId = useTaskStore((s) => s.openDetailTaskId);
   const openProjectPath = useTaskStore((s) => s.openProjectPath);
+  const composingForProject = useTaskStore((s) => s.composingForProject);
   const tasksByProject = useTaskStore((s) => s.tasksByProject);
   const closeDetail = useTaskStore((s) => s.closeDetail);
+  const cancelCompose = useTaskStore((s) => s.cancelCompose);
+  const openDetail = useTaskStore((s) => s.openDetail);
   const upsertTask = useTaskStore((s) => s.upsertTask);
   const removeTask = useTaskStore((s) => s.removeTask);
 
@@ -82,21 +85,34 @@ export function TaskDetailDrawer() {
         ) ?? null)
       : null;
 
-  const isOpen = task !== null;
+  // Compose mode: drawer is open showing a blank new-task form for a project,
+  // but no task has been persisted yet. Mutually exclusive with viewing an
+  // existing task.
+  const isComposing = !task && composingForProject !== null;
+  const isOpen = task !== null || isComposing;
+  const isEditing = editing || isComposing;
 
-  // Reset edit state when task changes
+  // Initialize blank fields when entering compose mode.
+  useEffect(() => {
+    if (isComposing) {
+      setEditTitle("");
+      setEditBody("");
+    }
+  }, [composingForProject, isComposing]);
+
+  // Reset edit state when task changes (existing task path)
   useEffect(() => {
     if (!task) {
       setEditing(false);
     }
   }, [task?.id]);
 
-  // Focus title input when entering edit mode
+  // Focus title input when entering edit or compose mode
   useEffect(() => {
-    if (editing) {
+    if (isEditing) {
       titleInputRef.current?.focus();
     }
-  }, [editing]);
+  }, [isEditing]);
 
   const handleStartEdit = useCallback(() => {
     if (!task) return;
@@ -106,11 +122,34 @@ export function TaskDetailDrawer() {
   }, [task]);
 
   const handleCancelEdit = useCallback(() => {
-    setEditing(false);
-  }, []);
+    if (isComposing) {
+      cancelCompose();
+    } else {
+      setEditing(false);
+    }
+  }, [isComposing, cancelCompose]);
 
   const handleSaveEdit = useCallback(async () => {
-    if (!task || busy) return;
+    if (busy) return;
+    if (isComposing) {
+      if (!composingForProject) return;
+      setBusy(true);
+      try {
+        const created = await window.termcanvas.tasks.create({
+          repo: composingForProject,
+          title: editTitle.trim() || "Untitled",
+          body: editBody,
+        });
+        upsertTask(created.repo, created);
+        // openDetail also clears composingForProject in the store.
+        openDetail(created.id);
+        setEditing(false);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    if (!task) return;
     setBusy(true);
     try {
       const updated = await window.termcanvas.tasks.update(task.repo, task.id, {
@@ -122,7 +161,24 @@ export function TaskDetailDrawer() {
     } finally {
       setBusy(false);
     }
-  }, [task, busy, editTitle, editBody, upsertTask]);
+  }, [
+    task,
+    busy,
+    editTitle,
+    editBody,
+    upsertTask,
+    isComposing,
+    composingForProject,
+    openDetail,
+  ]);
+
+  const handleCloseDrawer = useCallback(() => {
+    if (isComposing) {
+      cancelCompose();
+    } else {
+      closeDetail();
+    }
+  }, [isComposing, cancelCompose, closeDetail]);
 
   const handleStatusChange = useCallback(
     async (status: Task["status"]) => {
@@ -238,27 +294,27 @@ export function TaskDetailDrawer() {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (showDeleteConfirm) return;
-        if (editing) {
+        if (isEditing) {
           e.stopPropagation();
           handleCancelEdit();
         } else {
           e.stopPropagation();
-          closeDetail();
+          handleCloseDrawer();
         }
-      } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && editing) {
+      } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && isEditing) {
         e.preventDefault();
         void handleSaveEdit();
       }
     };
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
-  }, [isOpen, editing, showDeleteConfirm, handleCancelEdit, handleSaveEdit, closeDetail]);
+  }, [isOpen, isEditing, showDeleteConfirm, handleCancelEdit, handleSaveEdit, handleCloseDrawer]);
 
   const leftInset = leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
   const rightInset = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : rightPanelWidth;
 
   const bodyHtml =
-    task && !editing && task.body
+    task && !isEditing && task.body
       ? renderMarkdownWithAttachments(task.body, task.attachmentsUrl)
       : "";
 
@@ -286,7 +342,7 @@ export function TaskDetailDrawer() {
           <div className="flex items-center gap-2.5">
             <button
               className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors"
-              onClick={closeDetail}
+              onClick={handleCloseDrawer}
               aria-label="Close detail"
             >
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -299,6 +355,11 @@ export function TaskDetailDrawer() {
               </svg>
             </button>
             {task && <StatusBadge status={task.status} />}
+            {isComposing && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/25 font-medium">
+                New
+              </span>
+            )}
           </div>
 
           {task && (
@@ -352,12 +413,12 @@ export function TaskDetailDrawer() {
         </div>
 
         {/* Reading column */}
-        {task && (
+        {(task || isComposing) && (
           <div className="flex-1 min-h-0 overflow-y-auto px-4">
             <div className="mx-auto max-w-[720px] py-6">
               {/* Topic header */}
               <div className="mb-1">
-                {editing ? (
+                {isEditing ? (
                   <input
                     ref={titleInputRef}
                     className="w-full text-2xl font-semibold bg-transparent border-b border-[var(--accent)] text-[var(--text-primary)] outline-none pb-1 disabled:opacity-50"
@@ -368,29 +429,32 @@ export function TaskDetailDrawer() {
                   />
                 ) : (
                   <h1 className="text-2xl font-semibold text-[var(--text-primary)] break-words">
-                    {task.title}
+                    {task?.title}
                   </h1>
                 )}
               </div>
 
-              {/* Meta line */}
-              <div className="text-[11px] text-[var(--text-muted)] mb-6 flex items-center gap-1.5 flex-wrap">
-                <span>Created {formatRelativeTime(task.created)}</span>
-                <span>·</span>
-                <span>Updated {formatRelativeTime(task.updated)}</span>
-                {task.links.length > 0 && (
-                  <>
-                    <span>·</span>
-                    <span>
-                      {task.links.length} link{task.links.length !== 1 ? "s" : ""}
-                    </span>
-                  </>
-                )}
-              </div>
+              {/* Meta line — only for existing tasks */}
+              {task && !isComposing && (
+                <div className="text-[11px] text-[var(--text-muted)] mb-6 flex items-center gap-1.5 flex-wrap">
+                  <span>Created {formatRelativeTime(task.created)}</span>
+                  <span>·</span>
+                  <span>Updated {formatRelativeTime(task.updated)}</span>
+                  {task.links.length > 0 && (
+                    <>
+                      <span>·</span>
+                      <span>
+                        {task.links.length} link{task.links.length !== 1 ? "s" : ""}
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
+              {isComposing && <div className="mb-6" />}
 
               {/* Body */}
               <div className="mb-6">
-                {editing ? (
+                {isEditing ? (
                   <textarea
                     ref={bodyTextareaRef}
                     className="w-full text-[13px] px-3 py-2 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] outline-none resize-none focus:border-[var(--accent)] leading-relaxed disabled:opacity-50 min-h-[200px]"
@@ -401,10 +465,14 @@ export function TaskDetailDrawer() {
                     onDragOver={handleBodyDragOver}
                     onDrop={handleBodyDrop}
                     disabled={busy}
-                    placeholder="Description (markdown supported) — paste or drop images"
+                    placeholder={
+                      isComposing
+                        ? "Description (markdown supported) — paste/drop images works after the first save"
+                        : "Description (markdown supported) — paste or drop images"
+                    }
                     rows={10}
                   />
-                ) : task.body ? (
+                ) : task?.body ? (
                   <div
                     className={markdownClassName}
                     dangerouslySetInnerHTML={{ __html: bodyHtml }}
@@ -416,15 +484,15 @@ export function TaskDetailDrawer() {
                 )}
               </div>
 
-              {/* Edit mode footer */}
-              {editing && (
+              {/* Edit / compose mode footer */}
+              {isEditing && (
                 <div className="flex items-center gap-2 mb-6">
                   <button
                     className="text-[11px] px-3 py-1 rounded bg-[var(--accent)] text-white disabled:opacity-50 hover:opacity-90 transition-opacity"
                     disabled={busy || uploading || !editTitle.trim()}
                     onClick={() => void handleSaveEdit()}
                   >
-                    Save
+                    {isComposing ? "Create" : "Save"}
                   </button>
                   <button
                     className="text-[11px] px-3 py-1 rounded bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
@@ -444,7 +512,7 @@ export function TaskDetailDrawer() {
               )}
 
               {/* Links section */}
-              {!editing && task.links.length > 0 && (
+              {!isEditing && task && task.links.length > 0 && (
                 <div>
                   <div
                     className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium mb-2"

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { useTaskStore } from "../stores/taskStore";
 import type { Task, TaskEvent } from "../types";
@@ -185,97 +185,6 @@ function TaskCard({
   );
 }
 
-function NewTaskForm({
-  projectPath,
-  onCreated,
-  onCancel,
-}: {
-  projectPath: string;
-  onCreated: (task: Task) => void;
-  onCancel: () => void;
-}) {
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-  const [busy, setBusy] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  const submit = async () => {
-    const trimmed = title.trim();
-    if (!trimmed || busy) {
-      if (!trimmed) onCancel();
-      return;
-    }
-    setBusy(true);
-    try {
-      const task = await window.termcanvas.tasks.create({
-        title: trimmed,
-        repo: projectPath,
-        body: body.trim(),
-      });
-      onCreated(task);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-col gap-1.5 p-2 border-t border-[var(--border)]">
-      <input
-        ref={inputRef}
-        className="w-full text-[11px] px-2 py-1 rounded bg-[var(--background)] border border-[var(--accent)] text-[var(--text-primary)] outline-none disabled:opacity-50"
-        style={{ fontFamily: '"Geist Mono", monospace' }}
-        placeholder="Task title"
-        value={title}
-        disabled={busy}
-        onChange={(e) => setTitle(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            void submit();
-          } else if (e.key === "Escape") {
-            e.preventDefault();
-            onCancel();
-          }
-        }}
-      />
-      <textarea
-        className="w-full text-[10px] px-2 py-1 rounded bg-[var(--background)] border border-[var(--border)] text-[var(--text-primary)] outline-none resize-none focus:border-[var(--accent)] disabled:opacity-50"
-        style={{ fontFamily: '"Geist Mono", monospace' }}
-        placeholder="Description (optional)"
-        rows={2}
-        value={body}
-        disabled={busy}
-        onChange={(e) => setBody(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.preventDefault();
-            onCancel();
-          }
-        }}
-      />
-      <div className="flex gap-1.5">
-        <button
-          className="text-[10px] px-2 py-0.5 rounded bg-[var(--accent)] text-white disabled:opacity-50"
-          disabled={busy || !title.trim()}
-          onClick={() => void submit()}
-        >
-          Add
-        </button>
-        <button
-          className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-muted)]"
-          onClick={onCancel}
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export function TaskDrawer() {
   const collapsed = useCanvasStore((s) => s.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
@@ -285,8 +194,7 @@ export function TaskDrawer() {
   const setTasks = useTaskStore((s) => s.setTasks);
   const upsertTask = useTaskStore((s) => s.upsertTask);
   const removeTask = useTaskStore((s) => s.removeTask);
-
-  const [showNewForm, setShowNewForm] = useState(false);
+  const startCompose = useTaskStore((s) => s.startCompose);
 
   const isOpen = openProjectPath !== null;
   const tasks = openProjectPath ? (tasksByProject[openProjectPath] ?? null) : null;
@@ -313,16 +221,6 @@ export function TaskDrawer() {
     (updated: Task) => {
       if (openProjectPath) {
         upsertTask(openProjectPath, updated);
-      }
-    },
-    [openProjectPath, upsertTask],
-  );
-
-  const handleTaskCreated = useCallback(
-    (task: Task) => {
-      if (openProjectPath) {
-        upsertTask(openProjectPath, task);
-        setShowNewForm(false);
       }
     },
     [openProjectPath, upsertTask],
@@ -378,7 +276,7 @@ export function TaskDrawer() {
           <div className="px-3 py-4 text-[10px] text-[var(--text-faint)] text-center">
             Loading…
           </div>
-        ) : tasks.length === 0 && !showNewForm ? (
+        ) : tasks.length === 0 ? (
           <div className="px-3 py-6 text-[10px] text-[var(--text-faint)] text-center leading-relaxed">
             No tasks yet. Agents working in this project will record them here,
             or click + to add one.
@@ -397,30 +295,23 @@ export function TaskDrawer() {
       </div>
 
       {/* Footer */}
-      {showNewForm && openProjectPath ? (
-        <NewTaskForm
-          projectPath={openProjectPath}
-          onCreated={handleTaskCreated}
-          onCancel={() => setShowNewForm(false)}
-        />
-      ) : (
-        <div className="shrink-0 border-t border-[var(--border)] px-2 py-1.5">
-          <button
-            className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-[10px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--sidebar-hover)] transition-colors"
-            onClick={() => setShowNewForm(true)}
-          >
-            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-              <path
-                d="M6 2V10M2 6H10"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-            New task
-          </button>
-        </div>
-      )}
+      <div className="shrink-0 border-t border-[var(--border)] px-2 py-1.5">
+        <button
+          className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-[10px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--sidebar-hover)] transition-colors disabled:opacity-50"
+          disabled={!openProjectPath}
+          onClick={() => openProjectPath && startCompose(openProjectPath)}
+        >
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+            <path
+              d="M6 2V10M2 6H10"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+          New task
+        </button>
+      </div>
     </div>
   );
 }
