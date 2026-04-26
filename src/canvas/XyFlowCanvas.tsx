@@ -62,7 +62,7 @@ import { createTerminalInScene } from "../actions/terminalSceneActions";
 import type { TerminalType } from "../types";
 
 const EMPTY_EDGES: never[] = [];
-const WHEEL_ZOOM_SENSITIVITY = 0.002;
+const WHEEL_ZOOM_SENSITIVITY = 0.005;
 const SNAP_GRID: [number, number] = [10, 10];
 
 function normalizeWheelDelta(event: React.WheelEvent): number {
