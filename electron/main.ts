@@ -208,7 +208,7 @@ function perfLog(label: string, details: Record<string, unknown>) {
 }
 
 function writePortFile(port: number) {
-  fs.writeFileSync(PORT_FILE, String(port), "utf-8");
+  fs.writeFileSync(PORT_FILE, `${port}\n${process.pid}`, "utf-8");
 }
 
 function cleanupPortFile() {

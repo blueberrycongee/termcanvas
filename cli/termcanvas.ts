@@ -93,15 +93,30 @@ function getConnection(): ConnectionTarget {
 
   const portFile = resolveTermCanvasPortFile(process.env);
   try {
-    const port = parseInt(fs.readFileSync(portFile, "utf-8").trim(), 10);
+    const [portStr, pidStr] = fs.readFileSync(portFile, "utf-8").trim().split("\n");
+    const port = parseInt(portStr, 10);
+    const pid = parseInt(pidStr, 10);
+    if (pid) {
+      try {
+        process.kill(pid, 0); // probe: throws if process is dead
+      } catch {
+        fs.unlinkSync(portFile);
+        console.error(`TermCanvas is not running (stale port file removed from ${portFile}).`);
+        process.exit(1);
+      }
+    }
     return {
       protocol: "http:",
       hostname: "127.0.0.1",
       port,
       basePath: "",
     };
-  } catch {
-    console.error(`TermCanvas is not running (no port file found at ${portFile}).`);
+  } catch (err: any) {
+    if (err.code === "ENOENT") {
+      console.error(`TermCanvas is not running (no port file found at ${portFile}).`);
+    } else {
+      throw err;
+    }
     process.exit(1);
   }
 }
