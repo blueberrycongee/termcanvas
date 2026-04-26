@@ -21,6 +21,7 @@ import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useTaskStore } from "../stores/taskStore";
 import { useDrawingStore } from "../stores/drawingStore";
+import { useCanvasToolStore } from "../stores/canvasToolStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useSidebarDragStore } from "../stores/sidebarDragStore";
 import {
@@ -300,6 +301,8 @@ function XyFlowCanvasInner() {
   const petEnabled = usePreferencesStore((state) => state.petEnabled);
   const animationBlur = usePreferencesStore((state) => state.animationBlur);
   const drawingTool = useDrawingStore((state) => state.tool);
+  const canvasTool = useCanvasToolStore((state) => state.tool);
+  const spaceHeld = useCanvasToolStore((state) => state.spaceHeld);
   const { handleMouseDown: handleBoxSelectMouseDown } = useBoxSelect();
   const layoutKey = useMemo(() => buildLayoutKey(projects), [projects]);
   const leftOffset = getCanvasLeftInset(
@@ -309,6 +312,8 @@ function XyFlowCanvasInner() {
   );
   const sidebarDragging = useSidebarDragStore((s) => s.active);
   const isDrawing = drawingEnabled && drawingTool !== "select";
+  const isPanMode = canvasTool === "hand" || spaceHeld;
+  const [isPanning, setIsPanning] = useState(false);
   const previousAnimatingRef = useRef(isAnimating);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   useTrackpadSwipeFocus(canvasContainerRef);
@@ -428,11 +433,14 @@ function XyFlowCanvasInner() {
 
   const handleNodeClick = useCallback<NodeMouseHandler<CanvasFlowNode>>(
     (_event, node) => {
-      // In flat canvas, clicking a terminal node activates its project/worktree
+      // In hand-tool / space-pan mode, a click is the tail of a pan
+      // gesture (or a no-op tap). Don't activate the worktree —
+      // matches Figma where the hand tool never selects.
+      if (isPanMode) return;
       const { projectId, worktreeId } = node.data;
       useProjectStore.getState().setFocusedWorktree(projectId, worktreeId);
     },
-    [],
+    [isPanMode],
   );
 
   const handleNodeDragStart = useCallback<OnNodeDrag<CanvasFlowNode>>(() => {
@@ -523,6 +531,11 @@ function XyFlowCanvasInner() {
 
   const handleWheelCapture = useCallback(
     (event: React.WheelEvent<HTMLDivElement>) => {
+      // Two distinct gestures land here:
+      //   1. Cmd/Ctrl + wheel — explicit zoom intent.
+      //   2. Trackpad pinch — Chromium synthesises wheel events with
+      //      ctrlKey=true even though no key is pressed. Same code path
+      //      handles both, anchored at the cursor position.
       if (!(event.ctrlKey || event.metaKey)) {
         return;
       }
@@ -556,17 +569,46 @@ function XyFlowCanvasInner() {
     [leftPanelCollapsed, leftPanelWidth, taskDrawerOpen, viewport],
   );
 
+  const handleContainerMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (isPanMode && event.button === 0) {
+        setIsPanning(true);
+      }
+      handleBoxSelectMouseDown(event);
+    },
+    [handleBoxSelectMouseDown, isPanMode],
+  );
+
+  useEffect(() => {
+    if (!isPanning) return;
+    const stop = () => setIsPanning(false);
+    window.addEventListener("mouseup", stop);
+    window.addEventListener("blur", stop);
+    return () => {
+      window.removeEventListener("mouseup", stop);
+      window.removeEventListener("blur", stop);
+    };
+  }, [isPanning]);
+
+  const cursorClass = isDrawing
+    ? "cursor-crosshair"
+    : isPanMode
+      ? isPanning
+        ? "cursor-grabbing"
+        : "cursor-grab"
+      : "";
+
   return (
     <div
       ref={canvasContainerRef}
-      className={`fixed top-0 right-0 bottom-0 overflow-hidden canvas-bg ${isDrawing ? "cursor-crosshair" : ""}`}
+      className={`fixed top-0 right-0 bottom-0 overflow-hidden canvas-bg ${cursorClass}`}
       style={{
         left: leftOffset,
         transition: sidebarDragging
           ? undefined
           : `left ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}`,
       }}
-      onMouseDownCapture={handleBoxSelectMouseDown}
+      onMouseDownCapture={handleContainerMouseDown}
       onWheelCapture={handleWheelCapture}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
@@ -604,6 +646,7 @@ function XyFlowCanvasInner() {
         onNodeDragStart={handleNodeDragStart}
         onNodeDragStop={handleNodeDragStop}
         nodesConnectable={false}
+        nodesDraggable={!isPanMode}
         nodesFocusable={false}
         edgesFocusable={false}
         elementsSelectable={false}

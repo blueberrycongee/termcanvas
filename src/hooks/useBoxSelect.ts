@@ -19,6 +19,7 @@ import {
   resolveAllCardPositions,
 } from "../stores/cardLayoutStore";
 import { useDrawingStore } from "../stores/drawingStore";
+import { useCanvasToolStore } from "../stores/canvasToolStore";
 import { type SelectedItem } from "../stores/selectionStore";
 import { screenPointToCanvasPoint } from "../canvas/viewportBounds";
 
@@ -149,6 +150,13 @@ export function useBoxSelect() {
 
     // Don't activate in drawing mode
     if (useDrawingStore.getState().tool !== "select") return;
+    // Hand tool / Space-held panning takes precedence over marquee.
+    if (
+      useCanvasToolStore.getState().tool === "hand" ||
+      useCanvasToolStore.getState().spaceHeld
+    ) {
+      return;
+    }
 
     e.preventDefault();
     e.stopPropagation();
