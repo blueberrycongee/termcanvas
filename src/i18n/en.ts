@@ -639,6 +639,7 @@ export const en = {
   canvas_empty_drag_hint: "drag a folder",
   canvas_empty_or: "or press",
   canvas_empty_action: "Add Project Folder…",
+  canvas_dragover_chip: "Drop folder to add as project",
 
   panel_new_terminal: "New Terminal",
   panel_new_terminal_shell: "New Terminal (Shell)",

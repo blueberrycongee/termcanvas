@@ -743,6 +743,69 @@ html.tc-scrolling ::-webkit-scrollbar-thumb {
 .tc-stagger > *:nth-child(n+9) { --tc-stagger-i: 8; }
 
 /* ─────────────────────────────────────────────────────────────
+   Canvas dragover affordance — fires when an OS folder is
+   dragged over the canvas. Two coordinated cues:
+     1. A 1px accent inset around the canvas viewport ("the
+        surface is receptive").
+     2. A small floating chip at top-center ("drop folder to
+        add as project") — only when folder detection succeeds.
+   Both live in pointer-events: none layers; they never
+   intercept the actual drop. Asymmetric timing: enters in
+   140ms (deliberate), exits in 80ms (gone before the user
+   tracks it leaving).
+   ───────────────────────────────────────────────────────────── */
+.tc-canvas-dragover-inset {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px var(--accent);
+  opacity: 0;
+  z-index: 25;
+  transition: opacity var(--duration-instant) var(--ease-in-soft);
+}
+.tc-canvas-dragover-inset[data-active="true"] {
+  opacity: 0.7;
+  transition: opacity var(--duration-quick) var(--ease-out-soft);
+}
+
+.tc-canvas-dragover-chip {
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    opacity var(--duration-instant) var(--ease-in-soft),
+    transform var(--duration-instant) var(--ease-in-soft);
+}
+.tc-canvas-dragover-chip[data-active="true"] {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity var(--duration-quick) var(--ease-out-soft),
+    transform var(--duration-quick) var(--ease-out-soft);
+}
+
+/* Empty-state response: the affordance the user already sees
+   (the "drag a folder" hint and the kbd shortcut chip) shifts
+   to accent while a folder is being dragged — "yes, this is
+   what's about to happen". The hint text leads the change;
+   the kbd chip follows so the alternative path is also legible. */
+.tc-canvas-empty-drag-hint {
+  transition: color var(--duration-instant) var(--ease-in-soft);
+}
+.tc-canvas-empty-drag-hint[data-dragover="true"] {
+  color: var(--accent);
+  transition: color var(--duration-quick) var(--ease-out-soft);
+}
+
+button.tc-kbd[data-dragover="true"],
+a.tc-kbd[data-dragover="true"] {
+  border-color: color-mix(in srgb, var(--accent) 65%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+
+/* ─────────────────────────────────────────────────────────────
    Discovery cue — quiet capability hint chip rendered at the
    top-center of the canvas. Default tone is muted; hover lifts
    contrast a notch and reveals the dismiss control. Lives in

@@ -13,7 +13,11 @@ const STAGGER_STYLE: CSSProperties = {
   ["--tc-stagger-step" as string]: "60ms",
 };
 
-export function CanvasEmptyState() {
+interface CanvasEmptyStateProps {
+  isDragOver?: boolean;
+}
+
+export function CanvasEmptyState({ isDragOver = false }: CanvasEmptyStateProps) {
   const t = useT();
   const shortcut = useShortcutStore((s) => s.shortcuts.addProject);
   const shortcutLabel = formatShortcut(shortcut, isMac);
@@ -56,7 +60,12 @@ export function CanvasEmptyState() {
             color: "var(--text-muted)",
           }}
         >
-          <span>{t.canvas_empty_drag_hint}</span>
+          <span
+            className="tc-canvas-empty-drag-hint"
+            data-dragover={isDragOver ? "true" : "false"}
+          >
+            {t.canvas_empty_drag_hint}
+          </span>
           <span aria-hidden style={{ color: "var(--text-faint)" }}>
             ·
           </span>
@@ -64,6 +73,7 @@ export function CanvasEmptyState() {
           <button
             type="button"
             className="tc-kbd"
+            data-dragover={isDragOver ? "true" : "false"}
             onClick={handleOpen}
             aria-label={t.canvas_empty_action}
           >

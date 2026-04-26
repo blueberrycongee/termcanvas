@@ -16,7 +16,9 @@ import {
   clearSceneFocusAndSelection,
   promptAndAddProjectToScene,
 } from "./sceneCommands";
+import { CanvasDragoverCue } from "./CanvasDragoverCue";
 import { CanvasEmptyState } from "../components/CanvasEmptyState";
+import { useCanvasDragOver } from "./useCanvasDragOver";
 import { getStashedTerminalIds } from "./sceneState";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
@@ -532,11 +534,6 @@ function XyFlowCanvasInner() {
     [],
   );
 
-  const handleDragOver = useCallback((event: React.DragEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-  }, []);
-
   const handleDrop = useCallback(
     async (event: React.DragEvent) => {
       event.preventDefault();
@@ -557,6 +554,9 @@ function XyFlowCanvasInner() {
     },
     [t],
   );
+
+  const { state: dragOverState, handlers: dragOverHandlers } =
+    useCanvasDragOver({ onDrop: handleDrop });
 
   const handleAddProject = useCallback(async () => {
     await promptAndAddProjectToScene(t);
@@ -663,8 +663,10 @@ function XyFlowCanvasInner() {
       }}
       onMouseDownCapture={handleContainerMouseDown}
       onWheelCapture={handleWheelCapture}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
+      onDragEnter={dragOverHandlers.onDragEnter}
+      onDragOver={dragOverHandlers.onDragOver}
+      onDragLeave={dragOverHandlers.onDragLeave}
+      onDrop={dragOverHandlers.onDrop}
     >
       <TerminalRuntimeLayer
         projects={projects}
@@ -775,7 +777,18 @@ function XyFlowCanvasInner() {
 
       <FamilyTreeOverlay />
 
-      {projects.length === 0 && <CanvasEmptyState />}
+      <CanvasDragoverCue
+        active={dragOverState.isDragOver}
+        showChip={
+          dragOverState.isDragOver &&
+          dragOverState.isFolderDrop &&
+          projects.length > 0
+        }
+      />
+
+      {projects.length === 0 && (
+        <CanvasEmptyState isDragOver={dragOverState.isDragOver} />
+      )}
     </div>
   );
 }

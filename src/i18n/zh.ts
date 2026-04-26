@@ -630,6 +630,7 @@ export const zh = {
   canvas_empty_drag_hint: "拖入文件夹",
   canvas_empty_or: "或按",
   canvas_empty_action: "添加项目目录…",
+  canvas_dragover_chip: "松开以添加为项目",
 
   panel_new_terminal: "新建终端",
   panel_new_terminal_shell: "新建终端(Shell)",
