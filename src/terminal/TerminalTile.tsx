@@ -14,7 +14,6 @@ import {
   findTerminalById,
   getChildTerminals,
 } from "../stores/projectStore";
-import { useSelectionStore } from "../stores/selectionStore";
 import { ContextMenu } from "../components/ContextMenu";
 import { TagManager } from "./TagManager";
 import { usePreferencesStore } from "../stores/preferencesStore";
@@ -308,12 +307,6 @@ export function TerminalTile({
       customTitleInputRef.current?.select();
     });
   }, [isEditingCustomTitle]);
-
-  const isSelected = useSelectionStore((s) =>
-    s.selectedItems.some(
-      (item) => item.type === "terminal" && item.terminalId === terminal.id,
-    ),
-  );
 
   useEffect(() => {
     // Skip the initial mount — only show the toast when the nonce actually
