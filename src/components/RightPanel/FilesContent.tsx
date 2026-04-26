@@ -273,7 +273,7 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
           label: t.ctx_copy_path,
           onClick: () => {
             context.close();
-            navigator.clipboard.writeText(item.path);
+            navigator.clipboard.writeText(item.path ? `${wtp}/${item.path}` : wtp);
           },
         },
         {
