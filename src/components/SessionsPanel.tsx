@@ -1040,15 +1040,66 @@ function HistoryRow({
     return () => clearTimeout(timer);
   }, [pendingHide]);
 
+  // Eye-slash SVG reused in both normal and armed states.
+  const eyeSlashIcon = (
+    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+      <path
+        d="M1 6c1.2-2.3 3-3.5 5-3.5s3.8 1.2 5 3.5c-1.2 2.3-3 3.5-5 3.5S2.2 8.3 1 6z"
+        stroke="currentColor"
+        strokeWidth="1.1"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M2 10L10 2"
+        stroke="currentColor"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+
   return (
     <div ref={sentinelRef ?? undefined} className="relative">
       <button
-        className={`group flex w-full items-start gap-2 px-3 py-1.5 text-left transition-colors hover:bg-[var(--sidebar-hover)] ${
+        className={`group flex w-full items-center gap-1.5 px-3 py-1.5 text-left transition-colors hover:bg-[var(--sidebar-hover)] ${
           isHidden ? "opacity-50" : ""
         }`}
         onClick={() => onOpen(entry.filePath)}
         title={`${entry.firstPrompt}\n${entry.provider}`}
       >
+        {/* Left pin slot — fixed 16px wide so content never shifts */}
+        <span
+          className={
+            "shrink-0 flex items-center justify-center w-4 transition-opacity " +
+            (isPinned ? "opacity-100" : "opacity-0 group-hover:opacity-100")
+          }
+        >
+          <IconButton
+            size="sm"
+            tone="neutral"
+            label={isPinned ? "Unpin from top" : "Pin to top"}
+            className={isPinned ? "!text-[var(--accent)]" : ""}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isPinned) onUnpin(entry.sessionId);
+              else onPin(entry.sessionId);
+            }}
+          >
+            {isPinned ? (
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+                <circle cx="7" cy="4.5" r="2.5" fill="currentColor" />
+                <line x1="5.2" y1="6.3" x2="2.5" y2="9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              </svg>
+            ) : (
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+                <circle cx="7" cy="4.5" r="2.5" stroke="currentColor" strokeWidth="1.1" />
+                <line x1="5.2" y1="6.3" x2="2.5" y2="9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              </svg>
+            )}
+          </IconButton>
+        </span>
+
+        {/* Content */}
         <div className="min-w-0 flex-1">
           <div
             className="truncate"
@@ -1066,66 +1117,10 @@ function HistoryRow({
           </div>
         </div>
 
-        {/* Pin button — always visible when pinned, hover-only otherwise */}
-        <span
-          className={
-            "shrink-0 self-center transition-opacity " +
-            (isPinned ? "opacity-100" : "opacity-0 group-hover:opacity-100")
-          }
-        >
-          <IconButton
-            size="sm"
-            tone="neutral"
-            label={isPinned ? "Unpin from top" : "Pin to top"}
-            className={isPinned ? "text-[var(--text-primary)]" : ""}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (isPinned) onUnpin(entry.sessionId);
-              else onPin(entry.sessionId);
-            }}
-          >
-            {isPinned ? (
-              // Filled thumbtack: pinned state.
-              <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                <circle cx="7" cy="4.5" r="2.5" fill="currentColor" />
-                <line
-                  x1="5.2"
-                  y1="6.3"
-                  x2="2.5"
-                  y2="9"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                  strokeLinecap="round"
-                />
-              </svg>
-            ) : (
-              // Outline thumbtack: hover affordance.
-              <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                <circle
-                  cx="7"
-                  cy="4.5"
-                  r="2.5"
-                  stroke="currentColor"
-                  strokeWidth="1.1"
-                />
-                <line
-                  x1="5.2"
-                  y1="6.3"
-                  x2="2.5"
-                  y2="9"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                  strokeLinecap="round"
-                />
-              </svg>
-            )}
-          </IconButton>
-        </span>
-
-        {/* Hide/unhide button */}
+        {/* Right hide/unhide button */}
         {isHidden ? (
           // Already hidden → single-step unhide (restoring is harmless).
-          <span className="shrink-0 self-center opacity-100">
+          <span className="shrink-0 opacity-100">
             <IconButton
               size="sm"
               tone="neutral"
@@ -1147,17 +1142,19 @@ function HistoryRow({
             </IconButton>
           </span>
         ) : (
-          // Not hidden → two-step: first click arms (red), second executes.
+          // Two-step: first click arms (button turns red), second executes.
+          // Icon stays eye-slash in both states — the red colour is the
+          // confirmation signal; switching icons would confuse the action.
           <span
             className={
-              "shrink-0 self-center transition-opacity " +
+              "shrink-0 transition-opacity " +
               (pendingHide ? "opacity-100" : "opacity-0 group-hover:opacity-100")
             }
           >
             <IconButton
               size="sm"
               tone={pendingHide ? "danger" : "neutral"}
-              label={pendingHide ? "Confirm — hide this session" : "Hide from history"}
+              label={pendingHide ? "Click again to confirm hide" : "Hide from history"}
               className={pendingHide ? "bg-red-500/15" : ""}
               onClick={(e) => {
                 e.stopPropagation();
@@ -1170,34 +1167,7 @@ function HistoryRow({
               }}
               onBlur={() => setPendingHide(false)}
             >
-              {pendingHide ? (
-                // Confirm icon: checkmark on red background.
-                <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                  <path
-                    d="M2 6.5L5 9.5L10 3"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              ) : (
-                // Eye-slash: intent to hide.
-                <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                  <path
-                    d="M1 6c1.2-2.3 3-3.5 5-3.5s3.8 1.2 5 3.5c-1.2 2.3-3 3.5-5 3.5S2.2 8.3 1 6z"
-                    stroke="currentColor"
-                    strokeWidth="1.1"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M2 10L10 2"
-                    stroke="currentColor"
-                    strokeWidth="1.1"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              )}
+              {eyeSlashIcon}
             </IconButton>
           </span>
         )}
