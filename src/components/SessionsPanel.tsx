@@ -598,9 +598,10 @@ export function HistorySection({
   const [pinned, setPinned] = useState<Set<string>>(() => loadPinnedSessions());
   // Groups folded via the chevron header click.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  // Groups where the user clicked "Show N more" to expand past the default limit.
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  // Groups currently fetching their full session list from the server.
+  // Per-group display limit. Absent = HISTORY_GROUP_DEFAULT_LIMIT. Each
+  // "show more" click increments by HISTORY_GROUP_DEFAULT_LIMIT.
+  const [groupLimits, setGroupLimits] = useState<Map<string, number>>(new Map());
+  // Groups currently fetching more sessions from the server.
   const [loadingGroups, setLoadingGroups] = useState<Set<string>>(new Set());
 
   const toggleGroup = useCallback((projectDir: string) => {
@@ -612,16 +613,13 @@ export function HistorySection({
     });
   }, []);
 
-  const showAllInGroup = useCallback((projectDir: string, currentGroupSize: number, serverTotal: number) => {
-    // If the loaded entries for this project might be incomplete (global
-    // fetch didn't cover all sessions for it), do a targeted per-project
-    // fetch before expanding. The heuristic: if global entries < total,
-    // some projects may have unloaded tails — fetch the full project list.
-    const maybeIncomplete = currentGroupSize >= HISTORY_GROUP_DEFAULT_LIMIT;
-    if (maybeIncomplete && serverTotal > 0 && window.termcanvas?.search?.listSessionsPage) {
+  const showMoreInGroup = useCallback((projectDir: string, currentLimit: number, loadedCount: number) => {
+    const nextLimit = currentLimit + HISTORY_GROUP_DEFAULT_LIMIT;
+    // If the next page would exceed what's loaded, fetch more from the server first.
+    if (nextLimit > loadedCount && window.termcanvas?.search?.listSessionsPage) {
       setLoadingGroups((prev) => new Set(prev).add(projectDir));
       void window.termcanvas.search
-        .listSessionsPage([projectDir], { limit: 2000, offset: 0 })
+        .listSessionsPage([projectDir], { limit: nextLimit, offset: 0 })
         .then((page) => {
           setEntries((prev) => {
             const seen = new Set(prev.map((e) => e.sessionId));
@@ -638,10 +636,10 @@ export function HistorySection({
             next.delete(projectDir);
             return next;
           });
-          setExpandedGroups((prev) => new Set(prev).add(projectDir));
+          setGroupLimits((prev) => new Map(prev).set(projectDir, nextLimit));
         });
     } else {
-      setExpandedGroups((prev) => new Set(prev).add(projectDir));
+      setGroupLimits((prev) => new Map(prev).set(projectDir, nextLimit));
     }
   }, []);
 
@@ -793,10 +791,8 @@ export function HistorySection({
               )}
               {groups.map((group) => {
                 const isCollapsed = collapsedGroups.has(group.projectDir);
-                const isGroupExpanded = expandedGroups.has(group.projectDir);
-                const displayEntries = isGroupExpanded
-                  ? group.entries
-                  : group.entries.slice(0, HISTORY_GROUP_DEFAULT_LIMIT);
+                const limit = groupLimits.get(group.projectDir) ?? HISTORY_GROUP_DEFAULT_LIMIT;
+                const displayEntries = group.entries.slice(0, limit);
                 const hiddenCount = group.entries.length - displayEntries.length;
                 return (
                   <div key={group.projectDir} className="mb-1.5 last:mb-0">
@@ -837,7 +833,7 @@ export function HistorySection({
                             disabled={loadingGroups.has(group.projectDir)}
                             onClick={(e) => {
                               e.stopPropagation();
-                              showAllInGroup(group.projectDir, group.entries.length, total);
+                              showMoreInGroup(group.projectDir, limit, group.entries.length);
                             }}
                           >
                             <svg width="9" height="9" viewBox="0 0 10 10" fill="none" className="shrink-0">
