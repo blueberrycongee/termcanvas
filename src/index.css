@@ -682,10 +682,28 @@ html.tc-scrolling ::-webkit-scrollbar-thumb {
 }
 
 .tc-enter-fade { animation: tc-fade-in var(--duration-natural) var(--ease-out-soft) both; }
+/* Quick opacity-only fade for in-place content swaps where the user
+   already knows where the new content will land — tab panels, segment
+   contents, anything that is conceptually a "show the other thing"
+   rather than an "arrive". Slower than tc-enter-fade and snap-free so
+   the eye doesn't track a phantom motion. */
+.tc-enter-fade-quick { animation: tc-fade-in var(--duration-quick) var(--ease-out-soft) both; }
 .tc-enter-fade-up { animation: tc-fade-up var(--duration-natural) var(--ease-out-soft) both; }
+.tc-enter-fade-up-quick { animation: tc-fade-up var(--duration-quick) var(--ease-out-soft) both; }
 .tc-enter-fade-down { animation: tc-fade-down var(--duration-natural) var(--ease-out-soft) both; }
 .tc-enter-pop { animation: tc-pop var(--duration-quick) var(--ease-out-snap) both; }
 .tc-enter-slide-right { animation: tc-slide-in-right var(--duration-natural) var(--ease-out-soft) both; }
+
+/* Command palette row. The selected-row highlight transitions with
+   --ease-out-snap so the band overshoots a hair as ↑/↓ moves between
+   rows — small spring that says "you grabbed this", consistent with
+   the affordance treatment elsewhere. Background-color only; no
+   transform shifts so the row text doesn't jiggle on selection. */
+.tc-cmd-row {
+  transition:
+    background-color var(--duration-quick) var(--ease-out-snap),
+    color var(--duration-quick) var(--ease-out-soft);
+}
 
 /* Composer submit feedback. Two coordinated cues that fire once per
    successful send: a halo expanding off the input ("the field

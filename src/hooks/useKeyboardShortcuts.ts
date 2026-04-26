@@ -30,6 +30,7 @@ import { useT } from "../i18n/useT";
 import { useComposerStore } from "../stores/composerStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useSearchStore } from "../stores/searchStore";
+import { useCommandPaletteStore } from "../stores/commandPaletteStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSettingsModalStore } from "../stores/settingsModalStore";
 import {
@@ -292,6 +293,16 @@ export function useKeyboardShortcuts() {
           if (searchStore.open) searchStore.closeSearch();
           else searchStore.openSearch();
         }
+        return;
+      }
+
+      // Command palette — Cmd/Ctrl+P, "go to / run anything". Must be
+      // before shouldIgnoreShortcutTarget so it triggers from terminal
+      // focus the same way globalSearch does. preventDefault here is
+      // also what disarms the browser/print binding on the same combo.
+      if (matchesShortcut(e, shortcuts.commandPalette)) {
+        consumeShortcut();
+        useCommandPaletteStore.getState().togglePalette();
         return;
       }
 

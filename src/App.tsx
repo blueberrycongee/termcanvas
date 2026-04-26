@@ -18,6 +18,7 @@ import { CompletionGlow } from "./components/CompletionGlow";
 import { initSessionStoreIPC } from "./stores/sessionStore";
 import { WelcomePopup } from "./components/WelcomePopup";
 import { SearchModal } from "./components/SearchModal";
+import { CommandPalette } from "./components/CommandPalette/CommandPalette";
 import { UsageOverlay } from "./components/UsageOverlay";
 import { SessionsOverlay } from "./components/SessionsOverlay";
 import {
@@ -459,6 +460,7 @@ export function App() {
       {composerEnabled && <ComposerBar />}
       <NotificationToast />
       {globalSearchEnabled && <SearchModal />}
+      <CommandPalette />
       <UsageOverlay />
       <SessionsOverlay />
       <FileEditorDrawer />
