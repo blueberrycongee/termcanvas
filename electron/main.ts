@@ -6,13 +6,15 @@ import {
   nativeImage,
   shell,
   safeStorage,
+  protocol,
+  net,
 } from "electron";
 import https from "https";
 import path from "path";
 import fs from "fs";
 import AdmZip from "adm-zip";
 import os from "os";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 import { PtyManager, OutputBatcher } from "./pty-manager";
 import { ProjectScanner } from "./project-scanner";
 import { StatePersistence, TERMCANVAS_DIR } from "./state-persistence";
@@ -167,6 +169,23 @@ const isDev = !!process.env.VITE_DEV_SERVER_URL;
 if (isDev) {
   app.setPath("userData", path.join(app.getPath("appData"), "termcanvas-dev"));
 }
+
+// Custom scheme for serving task image attachments from disk. Renderer-side
+// `<img src="tc-attachment://local/<abs-path>">` resolves through the handler
+// registered after app.whenReady. Must be declared as privileged BEFORE the
+// app is ready, otherwise Chromium treats it as opaque and blocks subresources.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "tc-attachment",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      bypassCSP: true,
+    },
+  },
+]);
 const skipLock = isDev || !!process.env.TERMCANVAS_SKIP_LOCK;
 const gotLock = skipLock || app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -2086,6 +2105,30 @@ app.whenReady().then(async () => {
     platform: process.platform,
     user_data_path: app.getPath("userData"),
   });
+
+  // Serve task attachment images. Path-traversal guard: resolved disk path
+  // must stay under TERMCANVAS_DIR/tasks/. Renderer constructs URLs as
+  // tc-attachment://local/<abs-path>; handler decodes pathname back to a
+  // real path and streams the file via Electron's net.fetch.
+  const ATTACHMENTS_ROOT = path.join(TERMCANVAS_DIR, "tasks");
+  protocol.handle("tc-attachment", async (request) => {
+    try {
+      const url = new URL(request.url);
+      const requestedPath = decodeURIComponent(url.pathname);
+      const resolved = path.resolve(requestedPath);
+      if (
+        resolved !== ATTACHMENTS_ROOT &&
+        !resolved.startsWith(ATTACHMENTS_ROOT + path.sep)
+      ) {
+        return new Response("forbidden", { status: 403 });
+      }
+      return await net.fetch(pathToFileURL(resolved).toString());
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return new Response(message, { status: 500 });
+    }
+  });
+
   app.on("web-contents-created", (_event, contents) => {
     if (contents.getType() === "webview") {
       contents.setWindowOpenHandler(({ url }) => {

@@ -161,9 +161,12 @@ export class TaskStore extends EventEmitter {
   }
 
   private populateAttachmentsUrl(task: Task): void {
-    task.attachmentsUrl = pathToFileURL(
-      this.attachmentsDir(task.repo, task.id),
-    ).toString();
+    // Custom protocol so renderer can load these images regardless of its
+    // origin (file:// in prod, http://localhost in dev — file:// images would
+    // otherwise be blocked by webSecurity in dev). The handler in main.ts
+    // re-validates that the resolved disk path stays under the tasks root.
+    const fileUrl = pathToFileURL(this.attachmentsDir(task.repo, task.id));
+    task.attachmentsUrl = `tc-attachment://local${fileUrl.pathname}`;
   }
 
   private repoDir(repo: string): string {
