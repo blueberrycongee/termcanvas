@@ -96,11 +96,11 @@ function getConnection(): ConnectionTarget {
     const [portStr, pidStr] = fs.readFileSync(portFile, "utf-8").trim().split("\n");
     const port = parseInt(portStr, 10);
     const pid = parseInt(pidStr, 10);
-    if (pid) {
+    if (!isNaN(pid)) {
       try {
         process.kill(pid, 0); // probe: throws if process is dead
       } catch {
-        fs.unlinkSync(portFile);
+        try { fs.unlinkSync(portFile); } catch {}
         console.error(`TermCanvas is not running (stale port file removed from ${portFile}).`);
         process.exit(1);
       }
@@ -111,12 +111,9 @@ function getConnection(): ConnectionTarget {
       port,
       basePath: "",
     };
-  } catch (err: any) {
-    if (err.code === "ENOENT") {
-      console.error(`TermCanvas is not running (no port file found at ${portFile}).`);
-    } else {
-      throw err;
-    }
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+    console.error(`TermCanvas is not running (no port file found at ${portFile}).`);
     process.exit(1);
   }
 }
