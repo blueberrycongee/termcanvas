@@ -23,6 +23,7 @@ import { useTaskStore } from "../stores/taskStore";
 import { useDrawingStore } from "../stores/drawingStore";
 import { useCanvasToolStore } from "../stores/canvasToolStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
+import { useSelectionStore } from "../stores/selectionStore";
 import { useSidebarDragStore } from "../stores/sidebarDragStore";
 import {
   PANEL_TRANSITION_DURATION_MS,
@@ -443,18 +444,114 @@ function XyFlowCanvasInner() {
     [isPanMode],
   );
 
-  const handleNodeDragStart = useCallback<OnNodeDrag<CanvasFlowNode>>(() => {
-    // No-op in flat canvas — no bringToFront needed
-  }, []);
+  // Multi-drag plumbing. When the user starts dragging a terminal that
+  // is part of a multi-select, we capture every selected terminal's
+  // starting position here and consult it on every drag tick to keep
+  // the rest of the group in lock-step with the dragged node. An empty
+  // map (or a map with <2 entries) means "single-drag, do nothing
+  // special" and we fall through to the existing per-node logic.
+  const multiDragStartsRef = useRef<Map<string, { x: number; y: number }>>(
+    new Map(),
+  );
+
+  const handleNodeDragStart = useCallback<OnNodeDrag<CanvasFlowNode>>(
+    (_event, node) => {
+      const selectedTerminalIds = new Set(
+        useSelectionStore
+          .getState()
+          .selectedItems.flatMap((item) =>
+            item.type === "terminal" ? [item.terminalId] : [],
+          ),
+      );
+      if (
+        selectedTerminalIds.size < 2 ||
+        !selectedTerminalIds.has(node.data.terminalId)
+      ) {
+        multiDragStartsRef.current.clear();
+        return;
+      }
+      const starts = new Map<string, { x: number; y: number }>();
+      for (const candidate of nodes) {
+        if (candidate.type !== "terminal") continue;
+        if (selectedTerminalIds.has(candidate.data.terminalId)) {
+          starts.set(candidate.data.terminalId, {
+            x: candidate.position.x,
+            y: candidate.position.y,
+          });
+        }
+      }
+      multiDragStartsRef.current = starts;
+    },
+    [nodes],
+  );
+
+  const handleNodeDrag = useCallback<OnNodeDrag<CanvasFlowNode>>(
+    (_event, node) => {
+      const starts = multiDragStartsRef.current;
+      if (starts.size < 2) return;
+      const myStart = starts.get(node.data.terminalId);
+      if (!myStart) return;
+      const dx = node.position.x - myStart.x;
+      const dy = node.position.y - myStart.y;
+      setNodes((current) =>
+        current.map((candidate) => {
+          if (candidate.type !== "terminal") return candidate;
+          if (candidate.data.terminalId === node.data.terminalId) {
+            return candidate;
+          }
+          const start = starts.get(candidate.data.terminalId);
+          if (!start) return candidate;
+          return {
+            ...candidate,
+            position: { x: start.x + dx, y: start.y + dy },
+          };
+        }),
+      );
+    },
+    [setNodes],
+  );
 
   const handleNodeDragStop = useCallback<OnNodeDrag<CanvasFlowNode>>(
     (_event, node) => {
-      // Write terminal position back to store
       const { projectId, worktreeId, terminalId } = node.data;
       const snappedX =
         Math.round(node.position.x / SNAP_GRID[0]) * SNAP_GRID[0];
       const snappedY =
         Math.round(node.position.y / SNAP_GRID[1]) * SNAP_GRID[1];
+
+      const starts = multiDragStartsRef.current;
+      if (starts.size >= 2) {
+        // Multi-drag commit. Use the dragged node's delta as the
+        // group's translation vector — every selected terminal moves
+        // by the same (snapped) offset. We deliberately skip
+        // collision resolution here: shoving the group's neighbours
+        // around mid-translation defeats the user's intent of
+        // arranging the picked set as a unit.
+        const myStart = starts.get(terminalId);
+        if (myStart) {
+          const dx = snappedX - myStart.x;
+          const dy = snappedY - myStart.y;
+          const allProjects = useProjectStore.getState().projects;
+          const updatePos = useProjectStore.getState().updateTerminalPosition;
+          for (const [movedId, start] of starts.entries()) {
+            const finalX =
+              Math.round((start.x + dx) / SNAP_GRID[0]) * SNAP_GRID[0];
+            const finalY =
+              Math.round((start.y + dy) / SNAP_GRID[1]) * SNAP_GRID[1];
+            for (const p of allProjects) {
+              for (const w of p.worktrees) {
+                if (w.terminals.some((term) => term.id === movedId)) {
+                  updatePos(p.id, w.id, movedId, finalX, finalY);
+                }
+              }
+            }
+          }
+        }
+        multiDragStartsRef.current.clear();
+        return;
+      }
+
+      // Single-drag path (unchanged behaviour).
       useProjectStore
         .getState()
         .updateTerminalPosition(
@@ -465,7 +562,6 @@ function XyFlowCanvasInner() {
           snappedY,
         );
 
-      // Resolve collisions after drag
       const allProjects = useProjectStore.getState().projects;
       const allRects = allProjects.flatMap((p) =>
         p.worktrees.flatMap((w) =>
@@ -644,6 +740,7 @@ function XyFlowCanvasInner() {
         onPaneContextMenu={handlePaneContextMenu}
         onNodeClick={handleNodeClick}
         onNodeDragStart={handleNodeDragStart}
+        onNodeDrag={handleNodeDrag}
         onNodeDragStop={handleNodeDragStop}
         nodesConnectable={false}
         nodesDraggable={!isPanMode}
