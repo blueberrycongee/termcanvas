@@ -549,6 +549,30 @@ function persistHiddenSessions(hidden: Set<string>): void {
   }
 }
 
+const PINNED_HISTORY_STORAGE_KEY = "termcanvas:history:pinned:v1";
+
+function loadPinnedSessions(): Set<string> {
+  if (typeof window === "undefined" || !window.localStorage) return new Set();
+  try {
+    const raw = window.localStorage.getItem(PINNED_HISTORY_STORAGE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return new Set(Array.isArray(parsed) ? parsed.filter((v) => typeof v === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function persistPinnedSessions(pinned: Set<string>): void {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(
+      PINNED_HISTORY_STORAGE_KEY,
+      JSON.stringify(Array.from(pinned)),
+    );
+  } catch {}
+}
+
 /**
  * History browse section.
  *
@@ -601,6 +625,7 @@ export function HistorySection({
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [hidden, setHidden] = useState<Set<string>>(() => loadHiddenSessions());
   const [showHidden, setShowHidden] = useState(false);
+  const [pinned, setPinned] = useState<Set<string>>(() => loadPinnedSessions());
 
   const hideSession = useCallback((sessionId: string) => {
     setHidden((prev) => {
@@ -608,6 +633,26 @@ export function HistorySection({
       const next = new Set(prev);
       next.add(sessionId);
       persistHiddenSessions(next);
+      return next;
+    });
+  }, []);
+
+  const pinSession = useCallback((sessionId: string) => {
+    setPinned((prev) => {
+      if (prev.has(sessionId)) return prev;
+      const next = new Set(prev);
+      next.add(sessionId);
+      persistPinnedSessions(next);
+      return next;
+    });
+  }, []);
+
+  const unpinSession = useCallback((sessionId: string) => {
+    setPinned((prev) => {
+      if (!prev.has(sessionId)) return prev;
+      const next = new Set(prev);
+      next.delete(sessionId);
+      persistPinnedSessions(next);
       return next;
     });
   }, []);
@@ -754,9 +799,27 @@ export function HistorySection({
     () => (showHidden ? entries : filterHiddenEntries(entries, hidden)),
     [entries, hidden, showHidden],
   );
+
+  const pinnedEntries = useMemo(
+    () =>
+      visibleEntries
+        .filter((e) => pinned.has(e.sessionId))
+        .sort(
+          (a, b) =>
+            new Date(b.lastActivityAt).getTime() -
+            new Date(a.lastActivityAt).getTime(),
+        ),
+    [visibleEntries, pinned],
+  );
+
+  const unpinnedEntries = useMemo(
+    () => visibleEntries.filter((e) => !pinned.has(e.sessionId)),
+    [visibleEntries, pinned],
+  );
+
   const groups = useMemo(
-    () => groupHistoryByProject(visibleEntries),
-    [visibleEntries],
+    () => groupHistoryByProject(unpinnedEntries),
+    [unpinnedEntries],
   );
 
   // Keep the prefetch sentinel relative to the FILTERED list — if all
@@ -816,6 +879,51 @@ export function HistorySection({
             </div>
           ) : (
             <div className="flex flex-col">
+              {pinnedEntries.length > 0 && (
+                <div className="mb-1.5">
+                  <div className="flex items-center gap-1.5 px-3 pt-1.5 pb-1">
+                    <svg
+                      width="9"
+                      height="9"
+                      viewBox="0 0 10 10"
+                      fill="none"
+                      className="shrink-0"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      <circle cx="6" cy="4" r="2.2" fill="currentColor" />
+                      <line
+                        x1="4.4"
+                        y1="5.6"
+                        x2="2"
+                        y2="8"
+                        stroke="currentColor"
+                        strokeWidth="1.2"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <span className="tc-eyebrow tc-mono">Pinned</span>
+                    <span className="ml-auto tc-eyebrow tc-mono tabular-nums">
+                      {pinnedEntries.length}
+                    </span>
+                  </div>
+                  {pinnedEntries.map((entry) => (
+                    <HistoryRow
+                      key={entry.sessionId}
+                      entry={entry}
+                      isHidden={hidden.has(entry.sessionId)}
+                      isPinned={true}
+                      sentinelRef={
+                        entry.sessionId === sentinelSessionId ? sentinelRef : null
+                      }
+                      onOpen={onOpen}
+                      onHide={hideSession}
+                      onUnhide={unhideSession}
+                      onPin={pinSession}
+                      onUnpin={unpinSession}
+                    />
+                  ))}
+                </div>
+              )}
               {groups.map((group) => (
                 <div key={group.projectDir} className="mb-1.5 last:mb-0">
                   <div className="flex items-baseline gap-2 px-3 pt-1.5 pb-1">
@@ -831,16 +939,12 @@ export function HistorySection({
                   </div>
                   {group.entries.map((entry) => {
                     const isHidden = hidden.has(entry.sessionId);
-                    // Pin the prefetch sentinel to the entry that
-                    // sits at sentinelIndex within the global ordered
-                    // visibleEntries list. Group iteration preserves
-                    // that ordering, so an O(1) id-equality check is
-                    // enough — no per-row indexOf scan.
                     return (
                       <HistoryRow
                         key={entry.sessionId}
                         entry={entry}
                         isHidden={isHidden}
+                        isPinned={pinned.has(entry.sessionId)}
                         sentinelRef={
                           entry.sessionId === sentinelSessionId
                             ? sentinelRef
@@ -849,6 +953,8 @@ export function HistorySection({
                         onOpen={onOpen}
                         onHide={hideSession}
                         onUnhide={unhideSession}
+                        onPin={pinSession}
+                        onUnpin={unpinSession}
                       />
                     );
                   })}
@@ -893,33 +999,47 @@ export function HistorySection({
 /**
  * One row in the history list. Visual hierarchy:
  *
- *   1. The first prompt (primary, --text-primary).
+ *   1. The first prompt (primary, --text-primary, weight-medium).
  *   2. Relative age (tc-timestamp — 10px mono at --text-muted; smaller
  *      and lighter than the prompt so hierarchy is clear at a glance).
  *
- * Project name is no longer in the row — it's the group header above.
- * Provider is no longer in the row — it's metadata noise here, kept in
- * the title attribute and surfaced inside the replay header instead.
- *
- * The hover hide button uses an eye-with-slash icon. We avoided "X"
- * because hide ≠ delete; the underlying JSONL file isn't touched. A
- * persisted localStorage set keeps this purely local — no IPC.
+ * Hover controls (right edge):
+ *   - Pin button: floats the row to a "Pinned" group at the top of the
+ *     list; always visible when pinned, hover-only otherwise.
+ *   - Hide button: two-step to prevent accidental hides. First click
+ *     arms it (red), second click executes. Auto-disarms after 3 s or
+ *     on blur. For already-hidden rows the button is a single-step
+ *     unhide (restoring is harmless).
  */
 function HistoryRow({
   entry,
   isHidden,
+  isPinned,
   sentinelRef,
   onOpen,
   onHide,
   onUnhide,
+  onPin,
+  onUnpin,
 }: {
   entry: HistorySessionEntry;
   isHidden: boolean;
+  isPinned: boolean;
   sentinelRef: RefObject<HTMLDivElement | null> | null;
   onOpen: (filePath: string) => void;
   onHide: (sessionId: string) => void;
   onUnhide: (sessionId: string) => void;
+  onPin: (sessionId: string) => void;
+  onUnpin: (sessionId: string) => void;
 }) {
+  const [pendingHide, setPendingHide] = useState(false);
+
+  useEffect(() => {
+    if (!pendingHide) return;
+    const timer = setTimeout(() => setPendingHide(false), 3000);
+    return () => clearTimeout(timer);
+  }, [pendingHide]);
+
   return (
     <div ref={sentinelRef ?? undefined} className="relative">
       <button
@@ -945,60 +1065,142 @@ function HistoryRow({
             {formatHistoryAge(entry.lastActivityAt)}
           </div>
         </div>
+
+        {/* Pin button — always visible when pinned, hover-only otherwise */}
         <span
           className={
             "shrink-0 self-center transition-opacity " +
-            (isHidden ? "opacity-100" : "opacity-0 group-hover:opacity-100")
+            (isPinned ? "opacity-100" : "opacity-0 group-hover:opacity-100")
           }
         >
           <IconButton
             size="sm"
             tone="neutral"
-            label={
-              isHidden ? "Unhide from history" : "Hide from history"
-            }
+            label={isPinned ? "Unpin from top" : "Pin to top"}
+            className={isPinned ? "text-[var(--text-primary)]" : ""}
             onClick={(e) => {
               e.stopPropagation();
-              if (isHidden) onUnhide(entry.sessionId);
-              else onHide(entry.sessionId);
+              if (isPinned) onUnpin(entry.sessionId);
+              else onPin(entry.sessionId);
             }}
           >
-            {isHidden ? (
-              // Unhide: plain eye outline.
+            {isPinned ? (
+              // Filled thumbtack: pinned state.
               <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                <path
-                  d="M1 6c1.2-2.3 3-3.5 5-3.5s3.8 1.2 5 3.5c-1.2 2.3-3 3.5-5 3.5S2.2 8.3 1 6z"
+                <circle cx="7" cy="4.5" r="2.5" fill="currentColor" />
+                <line
+                  x1="5.2"
+                  y1="6.3"
+                  x2="2.5"
+                  y2="9"
                   stroke="currentColor"
-                  strokeWidth="1.1"
-                  strokeLinejoin="round"
-                />
-                <circle
-                  cx="6"
-                  cy="6"
-                  r="1.4"
-                  stroke="currentColor"
-                  strokeWidth="1.1"
+                  strokeWidth="1.3"
+                  strokeLinecap="round"
                 />
               </svg>
             ) : (
-              // Hide: eye with slash through it.
+              // Outline thumbtack: hover affordance.
               <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                <path
-                  d="M1 6c1.2-2.3 3-3.5 5-3.5s3.8 1.2 5 3.5c-1.2 2.3-3 3.5-5 3.5S2.2 8.3 1 6z"
+                <circle
+                  cx="7"
+                  cy="4.5"
+                  r="2.5"
                   stroke="currentColor"
                   strokeWidth="1.1"
-                  strokeLinejoin="round"
                 />
-                <path
-                  d="M2 10L10 2"
+                <line
+                  x1="5.2"
+                  y1="6.3"
+                  x2="2.5"
+                  y2="9"
                   stroke="currentColor"
-                  strokeWidth="1.1"
+                  strokeWidth="1.3"
                   strokeLinecap="round"
                 />
               </svg>
             )}
           </IconButton>
         </span>
+
+        {/* Hide/unhide button */}
+        {isHidden ? (
+          // Already hidden → single-step unhide (restoring is harmless).
+          <span className="shrink-0 self-center opacity-100">
+            <IconButton
+              size="sm"
+              tone="neutral"
+              label="Unhide from history"
+              onClick={(e) => {
+                e.stopPropagation();
+                onUnhide(entry.sessionId);
+              }}
+            >
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                <path
+                  d="M1 6c1.2-2.3 3-3.5 5-3.5s3.8 1.2 5 3.5c-1.2 2.3-3 3.5-5 3.5S2.2 8.3 1 6z"
+                  stroke="currentColor"
+                  strokeWidth="1.1"
+                  strokeLinejoin="round"
+                />
+                <circle cx="6" cy="6" r="1.4" stroke="currentColor" strokeWidth="1.1" />
+              </svg>
+            </IconButton>
+          </span>
+        ) : (
+          // Not hidden → two-step: first click arms (red), second executes.
+          <span
+            className={
+              "shrink-0 self-center transition-opacity " +
+              (pendingHide ? "opacity-100" : "opacity-0 group-hover:opacity-100")
+            }
+          >
+            <IconButton
+              size="sm"
+              tone={pendingHide ? "danger" : "neutral"}
+              label={pendingHide ? "Confirm — hide this session" : "Hide from history"}
+              className={pendingHide ? "bg-red-500/15" : ""}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (pendingHide) {
+                  onHide(entry.sessionId);
+                  setPendingHide(false);
+                } else {
+                  setPendingHide(true);
+                }
+              }}
+              onBlur={() => setPendingHide(false)}
+            >
+              {pendingHide ? (
+                // Confirm icon: checkmark on red background.
+                <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                  <path
+                    d="M2 6.5L5 9.5L10 3"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              ) : (
+                // Eye-slash: intent to hide.
+                <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                  <path
+                    d="M1 6c1.2-2.3 3-3.5 5-3.5s3.8 1.2 5 3.5c-1.2 2.3-3 3.5-5 3.5S2.2 8.3 1 6z"
+                    stroke="currentColor"
+                    strokeWidth="1.1"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M2 10L10 2"
+                    stroke="currentColor"
+                    strokeWidth="1.1"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              )}
+            </IconButton>
+          </span>
+        )}
       </button>
     </div>
   );
