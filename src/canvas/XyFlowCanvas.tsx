@@ -295,7 +295,9 @@ function XyFlowCanvasInner() {
   );
   const leftPanelWidth = useCanvasStore((state) => state.leftPanelWidth);
   const rightPanelWidth = useCanvasStore((state) => state.rightPanelWidth);
-  const taskDrawerOpen = useTaskStore((state) => state.openProjectPath !== null);
+  const taskDrawerOpen = useTaskStore(
+    (state) => state.openProjectPath !== null,
+  );
   const projects = useProjectStore((state) => state.projects);
   const drawingEnabled = usePreferencesStore((state) => state.drawingEnabled);
   const petEnabled = usePreferencesStore((state) => state.petEnabled);
@@ -415,16 +417,41 @@ function XyFlowCanvasInner() {
     [],
   );
 
-  const handleMove = useCallback<OnMove>((_event, nextViewport) => {
-    useCanvasStore
-      .getState()
-      .syncViewportFromRenderer(fromFlowViewport(nextViewport));
-  }, []);
+  const handleMove = useCallback<OnMove>(
+    (_event, nextViewport) => {
+      const vp = fromFlowViewport(nextViewport);
+      const snapped = {
+        x: Math.round(vp.x),
+        y: Math.round(vp.y),
+        scale: vp.scale,
+      };
+
+      // Snap viewport translation to integer pixels during pan. When the
+      // transform has fractional coordinates, 1px borders / background dots /
+      // text edges render across sub-pixel boundaries and snap between pixel
+      // grids frame-to-frame. This produces the "stutter" and eye-strain the
+      // user describes as "low grid adhesion". Rounding forces the GPU
+      // compositor to align to physical pixels, eliminating the jitter.
+      if (snapped.x !== vp.x || snapped.y !== vp.y) {
+        reactFlow.setViewport(
+          { x: snapped.x, y: snapped.y, zoom: snapped.scale },
+          { duration: 0 },
+        );
+      }
+
+      useCanvasStore.getState().syncViewportFromRenderer(snapped);
+    },
+    [reactFlow],
+  );
 
   const handleMoveEnd = useCallback<OnMove>((_event, nextViewport) => {
-    useCanvasStore
-      .getState()
-      .commitViewportFromRenderer(fromFlowViewport(nextViewport));
+    const vp = fromFlowViewport(nextViewport);
+    const snapped = {
+      x: Math.round(vp.x),
+      y: Math.round(vp.y),
+      scale: vp.scale,
+    };
+    useCanvasStore.getState().commitViewportFromRenderer(snapped);
   }, []);
 
   const handlePaneClick = useCallback(() => {
@@ -695,7 +722,7 @@ function XyFlowCanvasInner() {
         preventScrolling
         proOptions={{ hideAttribution: true }}
       >
-        <Background gap={20} size={1} color="var(--border)" />
+        <Background gap={20} size={2} color="var(--border)" />
       </ReactFlow>
 
       {contextMenu && (

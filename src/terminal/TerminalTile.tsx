@@ -584,6 +584,14 @@ export function TerminalTile({
 
     const fix = (e: MouseEvent) => {
       if (corrected.has(e)) return;
+
+      // While the user is actively panning the canvas with the hand tool,
+      // skip all xterm mouse-event correction. The pointer is dragging the
+      // viewport, not interacting with terminal content, so the expensive
+      // getBoundingClientRect() work is wasted and forces synchronous layout
+      // on every mousemove frame — a major source of jank during pan.
+      if (document.body.classList.contains("tc-canvas-pan-grabbing")) return;
+
       if (
         isOverviewMode &&
         (e.type === "mousedown" ||
@@ -740,9 +748,9 @@ export function TerminalTile({
           // drawer is closed for some reason (rare race) fall back to a
           // placeholder title — the entry still resolves visually.
           const taskState = useTaskStore.getState();
-          const fullTask = (
-            taskState.tasksByProject[parsed.repo] ?? []
-          ).find((entry) => entry.id === parsed.id);
+          const fullTask = (taskState.tasksByProject[parsed.repo] ?? []).find(
+            (entry) => entry.id === parsed.id,
+          );
           taskState.assignTaskToTerminal(
             terminal.id,
             fullTask ?? {
@@ -900,7 +908,13 @@ export function TerminalTile({
       window.termcanvas.terminal.input(ptyId, " " + escaped);
       activateTerminalInScene(projectId, worktreeId, terminal.id);
     },
-    [acceptsTaskDrop, handleTaskDropPayload, projectId, terminal.id, worktreeId],
+    [
+      acceptsTaskDrop,
+      handleTaskDropPayload,
+      projectId,
+      terminal.id,
+      worktreeId,
+    ],
   );
 
   return (
@@ -1147,7 +1161,9 @@ export function TerminalTile({
               taskState.openDetail(terminalTaskAssignment.taskId);
             }}
           >
-            <span aria-hidden="true" className="shrink-0">▸</span>
+            <span aria-hidden="true" className="shrink-0">
+              ▸
+            </span>
             <span className="truncate">{terminalTaskAssignment.title}</span>
           </button>
         </div>
