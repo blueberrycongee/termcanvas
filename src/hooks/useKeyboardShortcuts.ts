@@ -369,21 +369,29 @@ export function useKeyboardShortcuts() {
           useCanvasToolStore.getState().setTool("hand");
           return;
         }
-        // Space hold → temporary hand. Repeat events are filtered above
-        // so the keydown only fires once until release. Skip when the
-        // focused control natively activates on Space (button, menu
-        // item, checkbox …) — preempting that breaks keyboard
-        // operation of the toolbar itself.
-        if (e.code === "Space") {
-          if (isActivationTarget(e.target)) {
-            return;
-          }
-          if (!useCanvasToolStore.getState().spaceHeld) {
-            useCanvasToolStore.getState().setSpaceHeld(true);
-          }
-          e.preventDefault();
+      }
+
+      // Space hold → temporary hand. Handled outside !e.repeat so that
+      // e.preventDefault() fires on every Space keydown (including
+      // repeats), preventing browser scroll while held. setSpaceHeld is
+      // only called once via the !spaceHeld guard. Skip when the focused
+      // control natively activates on Space (button, menu item, …) so
+      // keyboard operation of the toolbar itself is preserved.
+      if (
+        e.code === "Space" &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.shiftKey
+      ) {
+        if (isActivationTarget(e.target)) {
           return;
         }
+        if (!useCanvasToolStore.getState().spaceHeld) {
+          useCanvasToolStore.getState().setSpaceHeld(true);
+        }
+        e.preventDefault();
+        return;
       }
 
       if (
