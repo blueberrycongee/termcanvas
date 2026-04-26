@@ -38,7 +38,11 @@ import {
   getWorktreeFocusOrder,
 } from "../stores/projectFocus";
 import { pickCloseFocusTarget } from "../canvas/closeFocusTarget";
-import { shouldIgnoreShortcutTarget } from "./shortcutTarget";
+import {
+  isActivationTarget,
+  isEditableTarget,
+  shouldIgnoreShortcutTarget,
+} from "./shortcutTarget";
 import { snapshotStateWithRefresh } from "../snapshotState";
 import { updateWindowTitle } from "../titleHelper";
 import { panToTerminal } from "../utils/panToTerminal";
@@ -304,9 +308,11 @@ export function useKeyboardShortcuts() {
       }
 
       // Figma-style canvas zoom: Cmd+0 fit, Cmd+1 100%, Cmd+= / Cmd+-
-      // step. Allowed before shouldIgnoreShortcutTarget because the
-      // primary modifier means terminal text input never produces these.
-      if ((e.metaKey || e.ctrlKey) && !e.altKey) {
+      // step. Skip when focus is in an editable target so Monaco /
+      // textareas / inputs keep their own Cmd+0/=/- semantics —
+      // shouldIgnoreShortcutTarget alone doesn't gate these because
+      // the modifier flips its check off.
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !isEditableTarget(e.target)) {
         if (e.key === "0") {
           consumeShortcut();
           fitAllProjects();
@@ -364,8 +370,14 @@ export function useKeyboardShortcuts() {
           return;
         }
         // Space hold → temporary hand. Repeat events are filtered above
-        // so the keydown only fires once until release.
+        // so the keydown only fires once until release. Skip when the
+        // focused control natively activates on Space (button, menu
+        // item, checkbox …) — preempting that breaks keyboard
+        // operation of the toolbar itself.
         if (e.code === "Space") {
+          if (isActivationTarget(e.target)) {
+            return;
+          }
           if (!useCanvasToolStore.getState().spaceHeld) {
             useCanvasToolStore.getState().setSpaceHeld(true);
           }
