@@ -41,7 +41,6 @@ import {
   CollapsibleTrigger,
 } from "./ui/collapsible";
 import {
-  filterHiddenEntries,
   groupHistoryByProject,
   shouldRefreshHistorySection,
 } from "./historySectionModel";
@@ -62,11 +61,11 @@ interface HistorySessionEntry {
   fileSize: number;
 }
 
-// Size of each lazy-loaded batch. Initial render shows one page; we
-// request the next page when the user scrolls past the 5th-from-last
-// row so there's no visible loading gap during steady scrolling.
-const HISTORY_PAGE_SIZE = 20;
-const HISTORY_PREFETCH_TRIGGER_ROWS = 5;
+// Load enough entries upfront to cover most real-world canvases without
+// a second fetch. Users who want more per-project can expand inline.
+const HISTORY_PAGE_SIZE = 100;
+// Each project group shows this many sessions by default.
+const HISTORY_GROUP_DEFAULT_LIMIT = 7;
 const HISTORY_REFRESH_DEBOUNCE_MS = 120;
 
 // Three signal levels:
@@ -522,32 +521,6 @@ function historyProjectName(dir: string): string {
   return dir.split(/[\\/]/).filter(Boolean).pop() ?? dir;
 }
 
-const HIDDEN_HISTORY_STORAGE_KEY = "termcanvas:history:hidden:v1";
-
-function loadHiddenSessions(): Set<string> {
-  if (typeof window === "undefined" || !window.localStorage) return new Set();
-  try {
-    const raw = window.localStorage.getItem(HIDDEN_HISTORY_STORAGE_KEY);
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw);
-    return new Set(Array.isArray(parsed) ? parsed.filter((v) => typeof v === "string") : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function persistHiddenSessions(hidden: Set<string>): void {
-  if (typeof window === "undefined" || !window.localStorage) return;
-  try {
-    window.localStorage.setItem(
-      HIDDEN_HISTORY_STORAGE_KEY,
-      JSON.stringify(Array.from(hidden)),
-    );
-  } catch {
-    // Hidden state is a nice-to-have. Quota or privacy-mode failures
-    // shouldn't bring down the panel.
-  }
-}
 
 const PINNED_HISTORY_STORAGE_KEY = "termcanvas:history:pinned:v1";
 
@@ -621,12 +594,12 @@ export function HistorySection({
   const [entries, setEntries] = useState<HistorySessionEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
-  const [hidden, setHidden] = useState<Set<string>>(() => loadHiddenSessions());
-  const [showHidden, setShowHidden] = useState(false);
   const [pinned, setPinned] = useState<Set<string>>(() => loadPinnedSessions());
+  // Groups folded via the chevron header click.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  // Groups where the user clicked "Show N more" to expand past the default limit.
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const toggleGroup = useCallback((projectDir: string) => {
     setCollapsedGroups((prev) => {
@@ -637,14 +610,8 @@ export function HistorySection({
     });
   }, []);
 
-  const hideSession = useCallback((sessionId: string) => {
-    setHidden((prev) => {
-      if (prev.has(sessionId)) return prev;
-      const next = new Set(prev);
-      next.add(sessionId);
-      persistHiddenSessions(next);
-      return next;
-    });
+  const showAllInGroup = useCallback((projectDir: string) => {
+    setExpandedGroups((prev) => new Set(prev).add(projectDir));
   }, []);
 
   const pinSession = useCallback((sessionId: string) => {
@@ -667,24 +634,9 @@ export function HistorySection({
     });
   }, []);
 
-  const unhideSession = useCallback((sessionId: string) => {
-    setHidden((prev) => {
-      if (!prev.has(sessionId)) return prev;
-      const next = new Set(prev);
-      next.delete(sessionId);
-      persistHiddenSessions(next);
-      return next;
-    });
-  }, []);
-
   const projectDirsKey = projectDirs.join("|");
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Initial page load whenever the canvas project set changes.
-  // Only request HISTORY_PAGE_SIZE rows — the heavy JSONL parse is
-  // now scoped to what's actually about to render, not the long
-  // tail (mtime-sorted so the rows that appear first ARE the ones
-  // most likely to matter).
   useEffect(() => {
     if (!window.termcanvas?.search?.listSessionsPage) return;
     if (projectDirs.length === 0) {
@@ -709,122 +661,38 @@ export function HistorySection({
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [projectDirsKey, refreshVersion]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!window.termcanvas?.sessions?.onHistoryChanged) return;
-
     const unsubscribe = window.termcanvas.sessions.onHistoryChanged((payload) => {
-      if (
-        !shouldRefreshHistorySection(projectDirs, payload.projectDirs)
-      ) {
-        return;
-      }
-
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current);
-      }
+      if (!shouldRefreshHistorySection(projectDirs, payload.projectDirs)) return;
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = setTimeout(() => {
         refreshTimerRef.current = null;
-        setRefreshVersion((version) => version + 1);
+        setRefreshVersion((v) => v + 1);
       }, HISTORY_REFRESH_DEBOUNCE_MS);
     });
-
     return () => {
       unsubscribe();
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-      }
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     };
   }, [projectDirsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadMore = useCallback(() => {
-    if (!window.termcanvas?.search?.listSessionsPage) return;
-    if (loadingMore) return;
-    if (entries.length >= total) return;
-    setLoadingMore(true);
-    void window.termcanvas.search
-      .listSessionsPage(projectDirs, {
-        limit: HISTORY_PAGE_SIZE,
-        offset: entries.length,
-      })
-      .then((page) => {
-        // Dedupe in case the page boundary hit an mtime shift that
-        // re-exposed an already-loaded file. Keyed by sessionId.
-        setEntries((prev) => {
-          const seen = new Set(prev.map((e) => e.sessionId));
-          const merged = [...prev];
-          for (const e of page.entries) {
-            if (!seen.has(e.sessionId)) merged.push(e);
-          }
-          return merged;
-        });
-        setTotal(page.total);
-      })
-      .catch(() => {
-        // Silently swallow — the user can still click "Load more"
-        // again. A banner would be more noise than it's worth for a
-        // transient read failure.
-      })
-      .finally(() => setLoadingMore(false));
-  }, [projectDirs, entries.length, loadingMore, total]);
-
-  // Prefetch trigger: once the user scrolls such that the 5th-from-
-  // last row is in view, start fetching the next page. No explicit
-  // "Load more" click needed — the button below exists as a visible
-  // fallback and keyboard escape hatch, not as the primary action.
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!expanded) return;
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-    if (entries.length === 0) return;
-    if (entries.length >= total) return;
-    const observer = new IntersectionObserver(
-      (records) => {
-        for (const record of records) {
-          if (record.isIntersecting) {
-            loadMore();
-            break;
-          }
-        }
-      },
-      { rootMargin: "64px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [expanded, entries.length, total, loadMore]);
-
-  const hasMore = entries.length < total;
-
-  // Filter then group. When "show hidden" is on, we render hidden rows
-  // inline with reduced emphasis instead of removing them — this keeps
-  // the unhide affordance discoverable without leaving the section
-  // (same pattern as Gmail's "show messages" filter inside an archive).
-  const visibleEntries = useMemo(
-    () => (showHidden ? entries : filterHiddenEntries(entries, hidden)),
-    [entries, hidden, showHidden],
-  );
-
   const pinnedEntries = useMemo(
     () =>
-      visibleEntries
+      entries
         .filter((e) => pinned.has(e.sessionId))
-        .sort(
-          (a, b) =>
-            new Date(b.lastActivityAt).getTime() -
-            new Date(a.lastActivityAt).getTime(),
+        .sort((a, b) =>
+          new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime(),
         ),
-    [visibleEntries, pinned],
+    [entries, pinned],
   );
 
   const unpinnedEntries = useMemo(
-    () => visibleEntries.filter((e) => !pinned.has(e.sessionId)),
-    [visibleEntries, pinned],
+    () => entries.filter((e) => !pinned.has(e.sessionId)),
+    [entries, pinned],
   );
 
   const groups = useMemo(
@@ -832,26 +700,9 @@ export function HistorySection({
     [unpinnedEntries],
   );
 
-  // Keep the prefetch sentinel relative to the FILTERED list — if all
-  // recently-loaded rows are hidden, we still want the next page to
-  // start fetching as the user scrolls past the visible tail.
-  const sentinelIndex = Math.max(
-    0,
-    visibleEntries.length - HISTORY_PREFETCH_TRIGGER_ROWS,
-  );
-  const sentinelSessionId = visibleEntries[sentinelIndex]?.sessionId;
-
-  const hiddenInLoadedCount = useMemo(
-    () => entries.reduce((acc, e) => (hidden.has(e.sessionId) ? acc + 1 : acc), 0),
-    [entries, hidden],
-  );
-
-  const visibleCount = showHidden ? entries.length : entries.length - hiddenInLoadedCount;
   const countLabel = loading && entries.length === 0
     ? "…"
-    : total > entries.length
-      ? `${visibleCount}/${total}`
-      : `${visibleCount}`;
+    : `${entries.length}`;
 
   return (
     <div className="border-t border-[var(--border)]">
@@ -878,56 +729,31 @@ export function HistorySection({
       </button>
       {expanded && (
         <div className="pb-2">
-          {visibleEntries.length === 0 ? (
+          {entries.length === 0 ? (
             <div className="px-4 py-3 text-center tc-meta">
               {loading
                 ? ((t.sessions_history_loading as unknown as string) ?? "Loading…")
-                : entries.length > 0 && hiddenInLoadedCount > 0
-                  ? "All sessions on this page are hidden."
-                  : ((t.sessions_history_empty as unknown as string) ??
-                      "No past sessions in this canvas yet.")}
+                : ((t.sessions_history_empty as unknown as string) ??
+                    "No past sessions in this canvas yet.")}
             </div>
           ) : (
             <div className="flex flex-col">
               {pinnedEntries.length > 0 && (
                 <div className="mb-1.5">
                   <div className="flex items-center gap-1.5 px-3 pt-1.5 pb-1">
-                    <svg
-                      width="9"
-                      height="9"
-                      viewBox="0 0 10 10"
-                      fill="none"
-                      className="shrink-0"
-                      style={{ color: "var(--text-muted)" }}
-                    >
+                    <svg width="9" height="9" viewBox="0 0 10 10" fill="none" className="shrink-0" style={{ color: "var(--text-muted)" }}>
                       <circle cx="6" cy="4" r="2.2" fill="currentColor" />
-                      <line
-                        x1="4.4"
-                        y1="5.6"
-                        x2="2"
-                        y2="8"
-                        stroke="currentColor"
-                        strokeWidth="1.2"
-                        strokeLinecap="round"
-                      />
+                      <line x1="4.4" y1="5.6" x2="2" y2="8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
                     </svg>
                     <span className="tc-eyebrow tc-mono">Pinned</span>
-                    <span className="ml-auto tc-eyebrow tc-mono tabular-nums">
-                      {pinnedEntries.length}
-                    </span>
+                    <span className="ml-auto tc-eyebrow tc-mono tabular-nums">{pinnedEntries.length}</span>
                   </div>
                   {pinnedEntries.map((entry) => (
                     <HistoryRow
                       key={entry.sessionId}
                       entry={entry}
-                      isHidden={hidden.has(entry.sessionId)}
                       isPinned={true}
-                      sentinelRef={
-                        entry.sessionId === sentinelSessionId ? sentinelRef : null
-                      }
                       onOpen={onOpen}
-                      onHide={hideSession}
-                      onUnhide={unhideSession}
                       onPin={pinSession}
                       onUnpin={unpinSession}
                     />
@@ -936,6 +762,11 @@ export function HistorySection({
               )}
               {groups.map((group) => {
                 const isCollapsed = collapsedGroups.has(group.projectDir);
+                const isGroupExpanded = expandedGroups.has(group.projectDir);
+                const displayEntries = isGroupExpanded
+                  ? group.entries
+                  : group.entries.slice(0, HISTORY_GROUP_DEFAULT_LIMIT);
+                const hiddenCount = group.entries.length - displayEntries.length;
                 return (
                   <div key={group.projectDir} className="mb-1.5 last:mb-0">
                     <button
@@ -944,10 +775,7 @@ export function HistorySection({
                       title={group.projectDir}
                     >
                       <svg
-                        width="8"
-                        height="8"
-                        viewBox="0 0 10 10"
-                        fill="none"
+                        width="8" height="8" viewBox="0 0 10 10" fill="none"
                         className={`shrink-0 transition-transform ${isCollapsed ? "" : "rotate-90"}`}
                         style={{ color: "var(--text-muted)" }}
                       >
@@ -960,59 +788,38 @@ export function HistorySection({
                         {group.entries.length}
                       </span>
                     </button>
-                    {!isCollapsed && group.entries.map((entry) => {
-                      const isHidden = hidden.has(entry.sessionId);
-                      return (
-                        <HistoryRow
-                          key={entry.sessionId}
-                          entry={entry}
-                          isHidden={isHidden}
-                          isPinned={pinned.has(entry.sessionId)}
-                          sentinelRef={
-                            entry.sessionId === sentinelSessionId
-                              ? sentinelRef
-                              : null
-                          }
-                          onOpen={onOpen}
-                          onHide={hideSession}
-                          onUnhide={unhideSession}
-                          onPin={pinSession}
-                          onUnpin={unpinSession}
-                        />
-                      );
-                    })}
+                    {!isCollapsed && (
+                      <>
+                        {displayEntries.map((entry) => (
+                          <HistoryRow
+                            key={entry.sessionId}
+                            entry={entry}
+                            isPinned={pinned.has(entry.sessionId)}
+                            onOpen={onOpen}
+                            onPin={pinSession}
+                            onUnpin={unpinSession}
+                          />
+                        ))}
+                        {hiddenCount > 0 && (
+                          <button
+                            className="flex w-full items-center gap-1 px-3 py-1.5 text-left tc-timestamp hover:text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)]"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              showAllInGroup(group.projectDir);
+                            }}
+                          >
+                            <svg width="9" height="9" viewBox="0 0 10 10" fill="none" className="shrink-0">
+                              <path d="M5 2v6M2 5h6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                            </svg>
+                            {hiddenCount} more
+                          </button>
+                        )}
+                      </>
+                    )}
                   </div>
                 );
               })}
-              {hasMore && (
-                <button
-                  className="px-3 py-2 text-left tc-label tc-mono hover:text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] cursor-pointer disabled:cursor-default"
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                >
-                  {loadingMore
-                    ? ((t.sessions_history_loading as unknown as string) ??
-                        "Loading…")
-                    : ((t.sessions_history_load_more as unknown as string) ??
-                        `Load more (${total - entries.length} left)`)}
-                </button>
-              )}
             </div>
-          )}
-          {hidden.size > 0 && (
-            <button
-              className="mt-1 flex w-full items-center gap-1.5 px-3 py-1.5 text-left tc-label tc-mono hover:text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] cursor-pointer"
-              onClick={() => setShowHidden((v) => !v)}
-              title={
-                showHidden
-                  ? "Hide hidden sessions again"
-                  : "Show hidden sessions inline with an unhide button"
-              }
-            >
-              <span className="tabular-nums">
-                {showHidden ? "Hide" : "Show"} hidden ({hidden.size})
-              </span>
-            </button>
           )}
         </div>
       )}
@@ -1020,183 +827,74 @@ export function HistorySection({
   );
 }
 
-/**
- * One row in the history list. Visual hierarchy:
- *
- *   1. The first prompt (primary, --text-primary, weight-medium).
- *   2. Relative age (tc-timestamp — 10px mono at --text-muted; smaller
- *      and lighter than the prompt so hierarchy is clear at a glance).
- *
- * Hover controls (right edge):
- *   - Pin button: floats the row to a "Pinned" group at the top of the
- *     list; always visible when pinned, hover-only otherwise.
- *   - Hide button: two-step to prevent accidental hides. First click
- *     arms it (red), second click executes. Auto-disarms after 3 s or
- *     on blur. For already-hidden rows the button is a single-step
- *     unhide (restoring is harmless).
- */
 function HistoryRow({
   entry,
-  isHidden,
   isPinned,
-  sentinelRef,
   onOpen,
-  onHide,
-  onUnhide,
   onPin,
   onUnpin,
 }: {
   entry: HistorySessionEntry;
-  isHidden: boolean;
   isPinned: boolean;
-  sentinelRef: RefObject<HTMLDivElement | null> | null;
   onOpen: (filePath: string) => void;
-  onHide: (sessionId: string) => void;
-  onUnhide: (sessionId: string) => void;
   onPin: (sessionId: string) => void;
   onUnpin: (sessionId: string) => void;
 }) {
-  const [pendingHide, setPendingHide] = useState(false);
-
-  useEffect(() => {
-    if (!pendingHide) return;
-    const timer = setTimeout(() => setPendingHide(false), 3000);
-    return () => clearTimeout(timer);
-  }, [pendingHide]);
-
-  // Eye-slash SVG reused in both normal and armed states.
-  const eyeSlashIcon = (
-    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-      <path
-        d="M1 6c1.2-2.3 3-3.5 5-3.5s3.8 1.2 5 3.5c-1.2 2.3-3 3.5-5 3.5S2.2 8.3 1 6z"
-        stroke="currentColor"
-        strokeWidth="1.1"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M2 10L10 2"
-        stroke="currentColor"
-        strokeWidth="1.1"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-
   return (
-    <div ref={sentinelRef ?? undefined} className="relative">
-      <button
-        className={`group flex w-full items-center gap-1.5 px-3 py-1.5 text-left transition-colors hover:bg-[var(--sidebar-hover)] ${
-          isHidden ? "opacity-50" : ""
-        }`}
-        onClick={() => onOpen(entry.filePath)}
-        title={`${entry.firstPrompt}\n${entry.provider}`}
+    <button
+      className="group flex w-full items-center gap-1.5 px-3 py-1.5 text-left transition-colors hover:bg-[var(--sidebar-hover)]"
+      onClick={() => onOpen(entry.filePath)}
+      title={`${entry.firstPrompt}\n${entry.provider}`}
+    >
+      {/* Left pin slot — fixed width so content never shifts */}
+      <span
+        className={
+          "shrink-0 flex items-center justify-center w-4 transition-opacity " +
+          (isPinned ? "opacity-100" : "opacity-0 group-hover:opacity-100")
+        }
       >
-        {/* Left pin slot — fixed 16px wide so content never shifts */}
-        <span
-          className={
-            "shrink-0 flex items-center justify-center w-4 transition-opacity " +
-            (isPinned ? "opacity-100" : "opacity-0 group-hover:opacity-100")
-          }
+        <IconButton
+          size="sm"
+          tone="neutral"
+          label={isPinned ? "Unpin from top" : "Pin to top"}
+          className={isPinned ? "!text-[var(--accent)]" : ""}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (isPinned) onUnpin(entry.sessionId);
+            else onPin(entry.sessionId);
+          }}
         >
-          <IconButton
-            size="sm"
-            tone="neutral"
-            label={isPinned ? "Unpin from top" : "Pin to top"}
-            className={isPinned ? "!text-[var(--accent)]" : ""}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (isPinned) onUnpin(entry.sessionId);
-              else onPin(entry.sessionId);
-            }}
-          >
-            {isPinned ? (
-              <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
-                <circle cx="7" cy="4.5" r="2.5" fill="currentColor" />
-                <line x1="5.2" y1="6.3" x2="2.5" y2="9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-              </svg>
-            ) : (
-              <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
-                <circle cx="7" cy="4.5" r="2.5" stroke="currentColor" strokeWidth="1.1" />
-                <line x1="5.2" y1="6.3" x2="2.5" y2="9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-              </svg>
-            )}
-          </IconButton>
-        </span>
+          {isPinned ? (
+            <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+              <circle cx="7" cy="4.5" r="2.5" fill="currentColor" />
+              <line x1="5.2" y1="6.3" x2="2.5" y2="9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+          ) : (
+            <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+              <circle cx="7" cy="4.5" r="2.5" stroke="currentColor" strokeWidth="1.1" />
+              <line x1="5.2" y1="6.3" x2="2.5" y2="9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+          )}
+        </IconButton>
+      </span>
 
-        {/* Content */}
-        <div className="min-w-0 flex-1">
-          <div
-            className="truncate"
-            style={{
-              fontSize: "var(--text-xs)",
-              fontWeight: "var(--weight-medium)",
-              color: "var(--text-primary)",
-              lineHeight: "var(--leading-snug)",
-            }}
-          >
-            {entry.firstPrompt || `(session ${entry.sessionId.slice(0, 8)})`}
-          </div>
-          <div className="mt-0.5 tc-timestamp">
-            {formatHistoryAge(entry.lastActivityAt)}
-          </div>
+      <div className="min-w-0 flex-1">
+        <div
+          className="truncate"
+          style={{
+            fontSize: "var(--text-xs)",
+            fontWeight: "var(--weight-medium)",
+            color: "var(--text-primary)",
+            lineHeight: "var(--leading-snug)",
+          }}
+        >
+          {entry.firstPrompt || `(session ${entry.sessionId.slice(0, 8)})`}
         </div>
-
-        {/* Right hide/unhide button */}
-        {isHidden ? (
-          // Already hidden → single-step unhide (restoring is harmless).
-          <span className="shrink-0 opacity-100">
-            <IconButton
-              size="sm"
-              tone="neutral"
-              label="Unhide from history"
-              onClick={(e) => {
-                e.stopPropagation();
-                onUnhide(entry.sessionId);
-              }}
-            >
-              <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                <path
-                  d="M1 6c1.2-2.3 3-3.5 5-3.5s3.8 1.2 5 3.5c-1.2 2.3-3 3.5-5 3.5S2.2 8.3 1 6z"
-                  stroke="currentColor"
-                  strokeWidth="1.1"
-                  strokeLinejoin="round"
-                />
-                <circle cx="6" cy="6" r="1.4" stroke="currentColor" strokeWidth="1.1" />
-              </svg>
-            </IconButton>
-          </span>
-        ) : (
-          // Two-step: first click arms (button turns red), second executes.
-          // Icon stays eye-slash in both states — the red colour is the
-          // confirmation signal; switching icons would confuse the action.
-          <span
-            className={
-              "shrink-0 transition-opacity " +
-              (pendingHide ? "opacity-100" : "opacity-0 group-hover:opacity-100")
-            }
-          >
-            <IconButton
-              size="sm"
-              tone={pendingHide ? "danger" : "neutral"}
-              label={pendingHide ? "Click again to confirm hide" : "Hide from history"}
-              className={pendingHide ? "bg-red-500/15" : ""}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (pendingHide) {
-                  onHide(entry.sessionId);
-                  setPendingHide(false);
-                } else {
-                  setPendingHide(true);
-                }
-              }}
-              onBlur={() => setPendingHide(false)}
-            >
-              {eyeSlashIcon}
-            </IconButton>
-          </span>
-        )}
-      </button>
-    </div>
+        <div className="mt-0.5 tc-timestamp">
+          {formatHistoryAge(entry.lastActivityAt)}
+        </div>
+      </div>
+    </button>
   );
 }
 
