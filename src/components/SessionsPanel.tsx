@@ -768,14 +768,14 @@ export function HistorySection({
           ) : (
             <div className="flex flex-col">
               {pinnedEntries.length > 0 && (
-                <div className="mb-1.5">
-                  <div className="flex items-center gap-1.5 px-3 pt-1.5 pb-1">
+                <div className="mb-0.5">
+                  <div className="flex items-center gap-1.5 px-3 py-1">
                     <svg width="9" height="9" viewBox="0 0 10 10" fill="none" className="shrink-0" style={{ color: "var(--text-muted)" }}>
                       <circle cx="6" cy="4" r="2.2" fill="currentColor" />
                       <line x1="4.4" y1="5.6" x2="2" y2="8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
                     </svg>
-                    <span className="tc-eyebrow tc-mono">Pinned</span>
-                    <span className="ml-auto tc-eyebrow tc-mono tabular-nums">{pinnedEntries.length}</span>
+                    <span className="text-[11px] font-medium truncate">Pinned</span>
+                    <span className="ml-auto text-[10px] text-[var(--text-muted)] tabular-nums">{pinnedEntries.length}</span>
                   </div>
                   {pinnedEntries.map((entry) => (
                     <HistoryRow
@@ -795,23 +795,25 @@ export function HistorySection({
                 const displayEntries = group.entries.slice(0, limit);
                 const hiddenCount = group.entries.length - displayEntries.length;
                 return (
-                  <div key={group.projectDir} className="mb-1.5 last:mb-0">
+                  <div key={group.projectDir} className="mb-0.5 last:mb-0">
                     <button
-                      className="flex w-full items-center gap-1.5 px-3 pt-1.5 pb-1 text-left hover:bg-[var(--sidebar-hover)]"
+                      className="group/grp flex w-full items-center gap-1.5 px-3 py-1 text-left cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors"
                       onClick={() => toggleGroup(group.projectDir)}
                       title={group.projectDir}
                     >
-                      <svg
-                        width="8" height="8" viewBox="0 0 10 10" fill="none"
-                        className={`shrink-0 transition-transform ${isCollapsed ? "" : "rotate-90"}`}
-                        style={{ color: "var(--text-muted)" }}
-                      >
-                        <path d="M3 2l4 3-4 3V2z" fill="currentColor" />
-                      </svg>
-                      <span className="tc-eyebrow tc-mono truncate">
+                      <span className="shrink-0 flex items-center justify-center text-[var(--text-muted)]">
+                        <svg
+                          width="10" height="10" viewBox="0 0 10 10"
+                          className="shrink-0 transition-transform duration-150"
+                          style={{ transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)" }}
+                        >
+                          <path d="M3 2l4 3-4 3z" fill="currentColor" />
+                        </svg>
+                      </span>
+                      <span className="text-[11px] font-medium truncate flex-1 min-w-0">
                         {historyProjectName(group.projectDir)}
                       </span>
-                      <span className="ml-auto tc-eyebrow tc-mono tabular-nums">
+                      <span className="text-[10px] text-[var(--text-muted)] tabular-nums">
                         {group.entries.length}
                       </span>
                     </button>
@@ -829,7 +831,7 @@ export function HistorySection({
                         ))}
                         {hiddenCount > 0 && (
                           <button
-                            className="flex w-full items-center gap-1 px-3 py-1.5 text-left tc-timestamp hover:text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] disabled:opacity-50 disabled:cursor-default"
+                            className="flex w-full items-center gap-1 pl-6 pr-3 py-1 text-left tc-timestamp hover:text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] disabled:opacity-50 disabled:cursor-default"
                             disabled={loadingGroups.has(group.projectDir)}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -870,7 +872,7 @@ function HistoryRow({
 }) {
   return (
     <button
-      className="group flex w-full items-center gap-1.5 px-3 py-1.5 text-left transition-colors hover:bg-[var(--sidebar-hover)]"
+      className="group flex w-full items-center gap-1.5 pl-4 pr-1 py-1 text-left transition-colors hover:bg-[var(--sidebar-hover)]"
       onClick={() => onOpen(entry.filePath)}
       title={`${entry.firstPrompt}\n${entry.provider}`}
     >
