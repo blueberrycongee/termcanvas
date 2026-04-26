@@ -213,7 +213,7 @@ export function BottomToolbar() {
     open: presetOpen,
     popoverRef: presetPopoverRef,
     triggerRef: presetTriggerRef,
-    // +1 for the Fit row appended after the presets.
+    // +1 for the Reset row appended after the presets.
     itemCount: ZOOM_PRESETS.length + 1,
     close: closePresetMenu,
   });
@@ -286,7 +286,7 @@ export function BottomToolbar() {
               ref={toolMenuPopoverRef}
               role="menu"
               aria-label={t.canvas_tool_select}
-              className={`absolute bottom-full left-0 mb-2 min-w-[160px] rounded-md py-1 ${PILL_BG} ${PILL_BORDER} ${PILL_SHADOW}`}
+              className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 min-w-[160px] rounded-md py-1 ${PILL_BG} ${PILL_BORDER} ${PILL_SHADOW}`}
             >
               {toolOptions.map((opt) => {
                 const active = opt.id === tool;
@@ -382,14 +382,14 @@ export function BottomToolbar() {
                   tabIndex={-1}
                   className="flex w-full items-center justify-between px-3 py-1.5 text-[12px] text-[var(--text-secondary)] hover:bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] focus:bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] hover:text-[var(--text-primary)] focus:text-[var(--text-primary)] focus:outline-none"
                   onClick={() => {
-                    fitAllProjects();
+                    useCanvasStore.getState().resetViewport();
                     closePresetMenu();
                     presetTriggerRef.current?.focus();
                   }}
                 >
-                  <span>{t.fit}</span>
+                  <span>{t.reset}</span>
                   <span className="text-[10px] font-mono text-[var(--text-faint)]">
-                    {KEY_HINT.fit}
+                    0,0
                   </span>
                 </button>
               </div>
@@ -449,17 +449,17 @@ function HandIcon() {
 function CaretIcon({ open }: { open: boolean }) {
   return (
     <svg
-      width="8"
-      height="8"
-      viewBox="0 0 8 8"
+      width="10"
+      height="10"
+      viewBox="0 0 10 10"
       fill="none"
-      className={`transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+      className={`transition-transform duration-150 opacity-70 ${open ? "rotate-180" : ""}`}
       aria-hidden="true"
     >
       <path
-        d="M1.5 3l2.5 2.5L6.5 3"
+        d="M2 3.75L5 6.75L8 3.75"
         stroke="currentColor"
-        strokeWidth="1.2"
+        strokeWidth="1.4"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
