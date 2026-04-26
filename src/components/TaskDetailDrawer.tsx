@@ -200,13 +200,38 @@ export function TaskDetailDrawer() {
 
   const uploadAndInsert = useCallback(
     async (file: File) => {
-      if (!task) return;
       setUploading(true);
       try {
+        // Resolve a target task. In compose mode the task doesn't exist yet —
+        // materialize it with whatever the user has typed so far so we have
+        // an id to attach the image to. After this point we're effectively
+        // editing the just-created task.
+        let targetRepo: string;
+        let targetId: string;
+        if (task) {
+          targetRepo = task.repo;
+          targetId = task.id;
+        } else if (isComposing && composingForProject) {
+          const created = await window.termcanvas.tasks.create({
+            repo: composingForProject,
+            title: editTitle.trim() || "Untitled",
+            body: editBody,
+          });
+          upsertTask(created.repo, created);
+          // openDetail clears composingForProject; setEditing keeps the user
+          // in edit mode of the new task so they can continue typing and
+          // pasting more images.
+          openDetail(created.id);
+          setEditing(true);
+          targetRepo = created.repo;
+          targetId = created.id;
+        } else {
+          return;
+        }
         const buffer = await file.arrayBuffer();
         const result = await window.termcanvas.tasks.saveAttachment(
-          task.repo,
-          task.id,
+          targetRepo,
+          targetId,
           file.name || "image",
           buffer,
         );
@@ -230,7 +255,15 @@ export function TaskDetailDrawer() {
         setUploading(false);
       }
     },
-    [task],
+    [
+      task,
+      isComposing,
+      composingForProject,
+      editTitle,
+      editBody,
+      upsertTask,
+      openDetail,
+    ],
   );
 
   const handleBodyPaste = useCallback(
@@ -465,11 +498,7 @@ export function TaskDetailDrawer() {
                     onDragOver={handleBodyDragOver}
                     onDrop={handleBodyDrop}
                     disabled={busy}
-                    placeholder={
-                      isComposing
-                        ? "Description (markdown supported) — paste/drop images works after the first save"
-                        : "Description (markdown supported) — paste or drop images"
-                    }
+                    placeholder="Description (markdown supported) — paste or drop images"
                     rows={10}
                   />
                 ) : task?.body ? (
