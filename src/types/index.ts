@@ -1026,6 +1026,7 @@ export interface TermCanvasAPI {
     forkSession: (
       sourceFilePath: string,
       turnIndex: number,
+      targetProvider?: "claude" | "codex",
     ) => Promise<{ newSessionId: string; newFilePath: string }>;
   };
   menu: {

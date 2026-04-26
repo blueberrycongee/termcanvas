@@ -17,6 +17,7 @@ interface SessionStore {
   forkSession: (
     sourceFilePath: string,
     turnIndex: number,
+    targetProvider?: "claude" | "codex",
   ) => Promise<{ newSessionId: string; newFilePath: string }>;
   exitReplay: () => void;
   seekTo: (index: number) => void;
@@ -58,8 +59,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
   },
 
-  forkSession: (sourceFilePath, turnIndex) =>
-    window.termcanvas.sessions.forkSession(sourceFilePath, turnIndex),
+  forkSession: (sourceFilePath, turnIndex, targetProvider) =>
+    window.termcanvas.sessions.forkSession(
+      sourceFilePath,
+      turnIndex,
+      targetProvider,
+    ),
 
   exitReplay: () => set({ panelView: "list", replayTimeline: null, replayCurrentIndex: 0, replayIsPlaying: false, replayError: null }),
 

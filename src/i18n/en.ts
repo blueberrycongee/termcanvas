@@ -196,6 +196,10 @@ export const en = {
   session_replay_fork_title: "Fork conversation?",
   session_replay_fork_body:
     "Start a new session with the conversation history up to this point. The original session won't be modified.",
+  session_replay_fork_body_cross:
+    "Start a new {{target}} session with the conversation history up to this point. Tool call history won't be transferred — only user prompts and assistant text replies. The original session won't be modified.",
+  session_replay_fork_target_claude: "Continue in Claude",
+  session_replay_fork_target_codex: "Continue in Codex",
   session_replay_fork_confirm: "Fork",
   session_replay_fork_busy: "Forking…",
   session_replay_fork_toast: "Forked session in new terminal",

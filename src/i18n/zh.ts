@@ -193,6 +193,10 @@ export const zh = {
   session_replay_fork_title: "派生新对话？",
   session_replay_fork_body:
     "用截至此处的对话历史启动一个新的 session。原会话不会被修改。",
+  session_replay_fork_body_cross:
+    "用截至此处的对话历史启动一个新的 {{target}} session。工具调用历史不会被转移——只携带用户的提问和助手的文本回答。原会话不会被修改。",
+  session_replay_fork_target_claude: "在 Claude 中继续",
+  session_replay_fork_target_codex: "在 Codex 中继续",
   session_replay_fork_confirm: "派生",
   session_replay_fork_busy: "派生中…",
   session_replay_fork_toast: "已在新终端中派生 session",

@@ -937,8 +937,17 @@ contextBridge.exposeInMainWorld("termcanvas", {
     },
     loadReplay: (filePath: string) =>
       ipcRenderer.invoke("sessions:load-replay", filePath),
-    forkSession: (sourceFilePath: string, turnIndex: number) =>
-      ipcRenderer.invoke("sessions:fork", sourceFilePath, turnIndex),
+    forkSession: (
+      sourceFilePath: string,
+      turnIndex: number,
+      targetProvider?: "claude" | "codex",
+    ) =>
+      ipcRenderer.invoke(
+        "sessions:fork",
+        sourceFilePath,
+        turnIndex,
+        targetProvider,
+      ),
   },
   computerUse: {
     status: () =>

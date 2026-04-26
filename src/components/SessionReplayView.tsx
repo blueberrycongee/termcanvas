@@ -509,16 +509,22 @@ function AssistantTextRow({
   onClick,
   onFork,
   forkLabel,
+  forkClaudeLabel,
+  forkCodexLabel,
 }: {
   event: TimelineEvent;
   isCurrent: boolean;
   onClick: () => void;
   /** When provided, a hover-revealed fork button appears at the
-   *  bottom-right of the row. Caller gates visibility — only the
+   *  bottom-right of the row. Hovering the button opens a menu with
+   *  one option per supported target provider; clicking an option
+   *  fires `onFork(target)`. Caller gates visibility — only the
    *  turn's "final answer" assistant text gets the fork affordance,
    *  so the action reads as "fork after this exchange ended". */
-  onFork?: () => void;
+  onFork?: (target: "claude" | "codex") => void;
   forkLabel?: string;
+  forkClaudeLabel?: string;
+  forkCodexLabel?: string;
 }) {
   return (
     <div className="group relative">
@@ -537,44 +543,95 @@ function AssistantTextRow({
         </div>
       </button>
       {onFork && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onFork();
-          }}
-          title={forkLabel ?? "Fork from here"}
-          aria-label={forkLabel ?? "Fork from here"}
-          className="absolute right-3 bottom-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-0.5"
-          style={{ color: "var(--text-muted)" }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.color =
-              "var(--text-primary)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.color =
-              "var(--text-muted)";
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-            <path
-              d="M4 12V8.5C4 7.4 4.9 6.5 6 6.5H8C9.1 6.5 10 5.6 10 4.5V2"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M4 12V2"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-            />
-            <circle cx="4" cy="13" r="0.9" fill="currentColor" />
-            <circle cx="4" cy="2" r="0.9" fill="currentColor" />
-            <circle cx="10" cy="2" r="0.9" fill="currentColor" />
-          </svg>
-        </button>
+        <div className="group/fork absolute right-3 bottom-1">
+          <button
+            type="button"
+            onClick={(e) => e.stopPropagation()}
+            title={forkLabel ?? "Fork from here"}
+            aria-label={forkLabel ?? "Fork from here"}
+            className="opacity-0 group-hover:opacity-100 group-hover/fork:opacity-100 transition-opacity cursor-pointer p-0.5"
+            style={{ color: "var(--text-muted)" }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.color =
+                "var(--text-primary)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.color =
+                "var(--text-muted)";
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+              <path
+                d="M4 12V8.5C4 7.4 4.9 6.5 6 6.5H8C9.1 6.5 10 5.6 10 4.5V2"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M4 12V2"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+              />
+              <circle cx="4" cy="13" r="0.9" fill="currentColor" />
+              <circle cx="4" cy="2" r="0.9" fill="currentColor" />
+              <circle cx="10" cy="2" r="0.9" fill="currentColor" />
+            </svg>
+          </button>
+          <div
+            className="hidden group-hover/fork:flex absolute right-0 top-full mt-1 flex-col rounded-md shadow-lg overflow-hidden z-10 whitespace-nowrap"
+            style={{
+              backgroundColor: "var(--surface)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onFork("claude");
+              }}
+              className="px-3 py-1.5 text-left tc-mono cursor-pointer"
+              style={{
+                fontSize: "var(--text-xs)",
+                color: "var(--text-primary)",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                  "var(--surface-hover)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                  "transparent";
+              }}
+            >
+              {forkClaudeLabel ?? "Continue in Claude"}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onFork("codex");
+              }}
+              className="px-3 py-1.5 text-left tc-mono cursor-pointer"
+              style={{
+                fontSize: "var(--text-xs)",
+                color: "var(--text-primary)",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                  "var(--surface-hover)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                  "transparent";
+              }}
+            >
+              {forkCodexLabel ?? "Continue in Codex"}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1113,33 +1170,43 @@ export function SessionReplayView() {
   // providers are listed explicitly: claude and codex today; kimi
   // and any future provider stay disabled until added here.
   const forkSession = useSessionStore((s) => s.forkSession);
-  const [forkTurnIndex, setForkTurnIndex] = useState<number | null>(null);
+  const [forkRequest, setForkRequest] = useState<{
+    turnIndex: number;
+    target: "claude" | "codex";
+  } | null>(null);
   const [forkBusy, setForkBusy] = useState(false);
   const canFork =
     !!resumeTarget &&
     (resumeTarget.provider === "claude" || resumeTarget.provider === "codex");
 
-  const requestFork = useCallback((turnIdx: number) => {
-    setForkTurnIndex(turnIdx);
-  }, []);
+  const requestFork = useCallback(
+    (turnIdx: number, target: "claude" | "codex") => {
+      setForkRequest({ turnIndex: turnIdx, target });
+    },
+    [],
+  );
 
   const cancelFork = useCallback(() => {
     if (forkBusy) return;
-    setForkTurnIndex(null);
+    setForkRequest(null);
   }, [forkBusy]);
 
   const confirmFork = useCallback(async () => {
-    if (!resumeTarget || forkTurnIndex === null || !timeline) return;
-    if (resumeTarget.provider !== "claude" && resumeTarget.provider !== "codex") return;
+    if (!resumeTarget || !forkRequest || !timeline) return;
+    const target = forkRequest.target;
     setForkBusy(true);
     try {
       const { newSessionId } = await forkSession(
         timeline.filePath,
-        forkTurnIndex,
+        forkRequest.turnIndex,
+        target,
       );
 
+      // Spawn a terminal of the TARGET provider, not the source. A
+      // Claude→Codex fork must open a Codex terminal so `codex resume
+      // <new-uuid>` can attach to the freshly-translated rollout.
       const base = createTerminal(
-        resumeTarget.provider,
+        target,
         undefined,
         undefined,
         undefined,
@@ -1162,7 +1229,7 @@ export function SessionReplayView() {
         (t.session_replay_fork_toast as unknown as string) ??
           "Forked session in new terminal",
       );
-      setForkTurnIndex(null);
+      setForkRequest(null);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to fork session";
@@ -1172,7 +1239,7 @@ export function SessionReplayView() {
     }
   }, [
     resumeTarget,
-    forkTurnIndex,
+    forkRequest,
     timeline,
     forkSession,
     exitReplay,
@@ -1333,7 +1400,12 @@ export function SessionReplayView() {
           // identical visual treatment, no per-context branching.
           const renderNode = (
             node: AssistantNode,
-            forkProps?: { onFork: () => void; forkLabel: string },
+            forkProps?: {
+              onFork: (target: "claude" | "codex") => void;
+              forkLabel: string;
+              forkClaudeLabel: string;
+              forkCodexLabel: string;
+            },
           ) => {
             if (node.type === "tool_group") {
               const items = node.items ?? [];
@@ -1370,6 +1442,8 @@ export function SessionReplayView() {
                     onClick={() => seekTo(node.index)}
                     onFork={forkProps?.onFork}
                     forkLabel={forkProps?.forkLabel}
+                    forkClaudeLabel={forkProps?.forkClaudeLabel}
+                    forkCodexLabel={forkProps?.forkCodexLabel}
                   />
                 </div>
               );
@@ -1480,11 +1554,17 @@ export function SessionReplayView() {
                       answer,
                       canFork && userPromptIndices[turnIdx] !== null
                         ? {
-                            onFork: () =>
-                              requestFork(userPromptIndices[turnIdx]!),
+                            onFork: (target) =>
+                              requestFork(userPromptIndices[turnIdx]!, target),
                             forkLabel:
                               (t.session_replay_fork_button as unknown as string) ??
                               "Fork from here",
+                            forkClaudeLabel:
+                              (t.session_replay_fork_target_claude as unknown as string) ??
+                              "Continue in Claude",
+                            forkCodexLabel:
+                              (t.session_replay_fork_target_codex as unknown as string) ??
+                              "Continue in Codex",
                           }
                         : undefined,
                     )}
@@ -1590,15 +1670,26 @@ export function SessionReplayView() {
       </div>
 
       <ConfirmDialog
-        open={forkTurnIndex !== null}
+        open={forkRequest !== null}
         title={
           (t.session_replay_fork_title as unknown as string) ??
           "Fork conversation?"
         }
-        body={
-          (t.session_replay_fork_body as unknown as string) ??
-          "Start a new session with the conversation history up to this point. The original session won't be modified."
-        }
+        body={(() => {
+          const sourceProvider = providerFromFilePath(timeline.filePath);
+          const target = forkRequest?.target ?? sourceProvider;
+          const isCross = !!target && target !== sourceProvider;
+          if (isCross && target) {
+            const template =
+              (t.session_replay_fork_body_cross as unknown as string) ??
+              "Start a new {{target}} session with the conversation history up to this point. Tool call history won't be transferred — only user prompts and assistant text replies. The original session won't be modified.";
+            return template.replace("{{target}}", target);
+          }
+          return (
+            (t.session_replay_fork_body as unknown as string) ??
+            "Start a new session with the conversation history up to this point. The original session won't be modified."
+          );
+        })()}
         confirmLabel={
           (t.session_replay_fork_confirm as unknown as string) ?? "Fork"
         }
