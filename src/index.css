@@ -75,6 +75,11 @@
      under one --bubble-bg name lets the component reference the
      semantic role, not whichever neutral happens to land near it. */
   --bubble-bg: #2a2928;
+  /* Cast colour for floating-UI shadows. Warm near-black so it lands
+     in the same hue family as the dark neutrals (#1a1918 / #222120)
+     instead of looking ashy. Components compose translucency on top
+     via color-mix(); never used at full opacity. */
+  --shadow-color: #0a0908;
   --radius: 8px;
   color-scheme: dark;
 }
@@ -109,6 +114,10 @@
      cooler than --surface (#f3f2ef) and reads as "soft container" on
      the cream-paper light background. */
   --bubble-bg: #F3F3F4;
+  /* See dark-theme block. Warm dark grey (close to text-primary)
+     keeps shadows in the same hue family as the light neutrals so
+     they read as "soft depth" rather than "hard cutout". */
+  --shadow-color: #1c1917;
   --radius: 8px;
   color-scheme: light;
 }

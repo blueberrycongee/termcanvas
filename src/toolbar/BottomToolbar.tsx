@@ -24,17 +24,23 @@ import {
 import { TOOLBAR_HEIGHT } from "./toolbarHeight";
 import { useT } from "../i18n/useT";
 
-// ComposerBar sits at `bottom-4` (16 px) and is roughly 120 px tall;
-// when it's mounted we float above it with an 8 px gap so the pill is
-// never obscured. Drops back to `bottom: 20` when the composer is off.
-const BOTTOM_OFFSET_WITH_COMPOSER = 16 + 120 + 8;
+// ComposerBar sits at `bottom-4` (16 px). Its height varies — single
+// line vs multi-line vs with image attachments vs rename mode — so a
+// hard-coded estimate gets the toolbar covered the moment composer
+// content grows. ComposerBar publishes its measured height to
+// `--composer-height` and we read it here, falling back to a safe
+// default for the brief moment before measurement, and to a smaller
+// constant when composer is disabled entirely.
+const COMPOSER_GAP = 8;
+const COMPOSER_BOTTOM_INSET = 16;
+const COMPOSER_FALLBACK_HEIGHT = 120;
 const BOTTOM_OFFSET_PLAIN = 20;
 
 const PILL_BG =
   "bg-[color-mix(in_srgb,var(--surface)_92%,transparent)] backdrop-blur-md";
 const PILL_BORDER = "border border-[var(--border)]";
 const PILL_SHADOW =
-  "shadow-[0_8px_24px_-12px_color-mix(in_srgb,#000_36%,transparent),0_2px_6px_-2px_color-mix(in_srgb,#000_24%,transparent)]";
+  "shadow-[0_8px_24px_-12px_color-mix(in_srgb,var(--shadow-color)_36%,transparent),0_2px_6px_-2px_color-mix(in_srgb,var(--shadow-color)_24%,transparent)]";
 
 const groupBase = "flex items-center";
 const dividerCls =
@@ -247,14 +253,17 @@ export function BottomToolbar() {
   const activeTool =
     toolOptions.find((opt) => opt.id === tool) ?? toolOptions[0];
 
+  // When composer is enabled, sit just above its measured height
+  // (published as `--composer-height`). The fallback covers the brief
+  // moment between mount and first ResizeObserver tick.
+  const bottomOffset = composerEnabled
+    ? `calc(${COMPOSER_BOTTOM_INSET}px + var(--composer-height, ${COMPOSER_FALLBACK_HEIGHT}px) + ${COMPOSER_GAP}px)`
+    : `${BOTTOM_OFFSET_PLAIN}px`;
+
   return (
     <div
       className="fixed left-1/2 -translate-x-1/2 z-[95] pointer-events-none"
-      style={{
-        bottom: composerEnabled
-          ? BOTTOM_OFFSET_WITH_COMPOSER
-          : BOTTOM_OFFSET_PLAIN,
-      }}
+      style={{ bottom: bottomOffset }}
     >
       <div
         className={`pointer-events-auto inline-flex items-center gap-1 rounded-full px-2 py-1 ${PILL_BG} ${PILL_BORDER} ${PILL_SHADOW}`}
