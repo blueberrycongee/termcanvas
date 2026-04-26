@@ -104,8 +104,7 @@ function UpdateCheckButton() {
   }, []);
 
   const handleInstall = useCallback(() => {
-    useUpdaterStore.getState().requestRestartOnClose();
-    window.termcanvas.app.requestClose();
+    window.termcanvas.updater.install();
   }, []);
 
   if (upToDate) {
