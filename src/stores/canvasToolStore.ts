@@ -14,8 +14,13 @@ interface CanvasToolStore {
   setSpaceHeld: (held: boolean) => void;
 }
 
+// Default to Hand. Move is still reachable via the toolbar dropdown
+// (or the V shortcut) for users who want marquee box-select, but the
+// tool's payoff didn't justify making it the entry experience —
+// most canvas sessions are pan + zoom + click-into-a-terminal, which
+// Hand serves directly.
 export const useCanvasToolStore = create<CanvasToolStore>((set) => ({
-  tool: "select",
+  tool: "hand",
   spaceHeld: false,
   setTool: (tool) => set({ tool }),
   setSpaceHeld: (held) => set({ spaceHeld: held }),
