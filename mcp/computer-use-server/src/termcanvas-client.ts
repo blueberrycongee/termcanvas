@@ -38,7 +38,7 @@ function resolveBaseUrl(): string | null {
   const portFile =
     process.env.TERMCANVAS_PORT_FILE?.trim() || defaultPortFilePath();
   try {
-    const port = Number(fs.readFileSync(portFile, "utf8").trim());
+    const port = Number(fs.readFileSync(portFile, "utf8").split("\n")[0].trim());
     if (!Number.isInteger(port) || port <= 0 || port > 65535) return null;
     return `http://127.0.0.1:${port}`;
   } catch {
