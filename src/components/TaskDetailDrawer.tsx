@@ -186,8 +186,8 @@ export function TaskDetailDrawer() {
           left: leftInset + DRAWER_WIDTH,
           height: `calc(100vh - ${TOOLBAR_HEIGHT}px)`,
           width: `calc(100vw - ${leftInset + DRAWER_WIDTH}px - ${rightInset}px)`,
-          transform: isOpen ? "translateX(0)" : "translateX(100%)",
-          transition: `transform ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}`,
+          opacity: isOpen ? 1 : 0,
+          transition: `opacity ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}`,
           pointerEvents: isOpen ? "auto" : "none",
         }}
         aria-hidden={!isOpen}
