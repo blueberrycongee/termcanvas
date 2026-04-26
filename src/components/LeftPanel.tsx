@@ -231,13 +231,13 @@ export function LeftPanel() {
       {collapsed ? (
         // Collapsed strip — narrow bar with a "+" and a chevron hint.
         <div
-          className="absolute inset-y-0 left-0 flex flex-col items-center pt-3 gap-1 cursor-pointer hover:bg-[var(--sidebar-hover)]"
+          className="tc-row-hover absolute inset-y-0 left-0 flex flex-col items-center pt-3 gap-1 cursor-pointer"
           style={{ width: COLLAPSED_TAB_WIDTH }}
           onClick={() => setCollapsed(false)}
           title={t.sessions_panel_title}
         >
           <button
-            className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-150 disabled:opacity-50"
+            className="tc-row-icon flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] disabled:opacity-50"
             disabled={addingProject}
             onClick={(e) => {
               e.stopPropagation();
@@ -276,11 +276,8 @@ export function LeftPanel() {
           className="absolute inset-y-0 left-0 flex flex-col"
           style={{ width }}
         >
-          <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] shrink-0">
-            <span
-              className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium"
-              style={{ fontFamily: '"Geist Mono", monospace' }}
-            >
+          <div className="tc-row-divider flex items-center justify-between px-3 py-2 shrink-0">
+            <span className="tc-eyebrow tc-mono">
               {t.sessions_panel_title}
             </span>
             <div className="flex items-center gap-1">
@@ -307,7 +304,7 @@ export function LeftPanel() {
                 </svg>
               </IconButton>
               <button
-                className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors duration-150"
+                className="tc-row-icon flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
                 onClick={() => setCollapsed(true)}
                 title={t.right_panel_collapse}
               >
@@ -343,7 +340,7 @@ export function LeftPanel() {
               )}
             />
             {!hasAnyProjects && (
-              <div className="flex-1 px-4 py-6 text-[11px] text-[var(--text-faint)] text-center">
+              <div className="tc-label flex-1 px-4 py-6 text-center">
                 {t.sessions_no_canvas_items}
               </div>
             )}
@@ -359,7 +356,13 @@ export function LeftPanel() {
             className="absolute top-0 right-0 w-1.5 h-full cursor-ew-resize group/resize"
             onPointerDown={handleResizeStart}
           >
-            <div className="absolute right-0 top-0 w-px h-full bg-[var(--border)] group-hover/resize:bg-[var(--accent)] group-hover/resize:opacity-70 transition-colors duration-150" />
+            <div
+              className="absolute right-0 top-0 w-px h-full bg-[var(--border)] group-hover/resize:bg-[var(--accent)] group-hover/resize:opacity-70"
+              style={{
+                transition:
+                  "background-color var(--duration-quick) var(--ease-out-soft), opacity var(--duration-quick) var(--ease-out-soft)",
+              }}
+            />
           </div>
         </div>
       )}

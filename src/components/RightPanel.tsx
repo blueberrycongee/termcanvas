@@ -456,14 +456,14 @@ export function RightPanel() {
         // Collapsed strip — anchored to the right edge so its icons
         // stay visible as the panel narrows.
         <div
-          className="absolute inset-y-0 right-0 flex flex-col items-center pt-3 gap-1 cursor-pointer hover:bg-[var(--sidebar-hover)]"
+          className="tc-row-hover absolute inset-y-0 right-0 flex flex-col items-center pt-3 gap-1 cursor-pointer"
           style={{ width: COLLAPSED_TAB_WIDTH }}
           onClick={() => setCollapsed(false)}
         >
           {TAB_CONFIG.map(({ id, icon: Icon }) => (
             <button
               key={id}
-              className={`flex items-center justify-center w-6 h-6 rounded-md transition-colors duration-150 ${
+              className={`tc-row-icon flex items-center justify-center w-6 h-6 rounded-md ${
                 activeTab === id
                   ? "text-[var(--accent)]"
                   : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
@@ -480,7 +480,7 @@ export function RightPanel() {
           ))}
           <div className="mt-auto mb-3">
             <button
-              className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors duration-150"
+              className="tc-row-icon flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
               onClick={(e) => {
                 e.stopPropagation();
                 setCollapsed(false);
@@ -501,19 +501,18 @@ export function RightPanel() {
           className="absolute inset-y-0 right-0 flex flex-col"
           style={{ width }}
         >
-      <div className="shrink-0 px-2 pt-2 pb-1.5">
+      <div className="shrink-0 px-2 pt-2 pb-2">
         <div className="flex items-center gap-0.5 rounded-lg bg-[var(--bg)] p-0.5">
           {TAB_CONFIG.map(({ id, icon: Icon, labelKey }) => {
             const isActive = activeTab === id;
             return (
               <button
                 key={id}
-                className={`flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[11px] transition-all duration-200 ${
+                className={`tc-row-icon flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[11px] font-medium ${
                   isActive
-                    ? "bg-[var(--surface-hover)] text-[var(--text-primary)] shadow-sm"
+                    ? "bg-[var(--surface-hover)] text-[var(--text-primary)]"
                     : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
                 }`}
-                style={{ fontFamily: '"Geist Mono", monospace' }}
                 onClick={() => setActiveTab(id)}
               >
                 <Icon size={13} />
@@ -522,8 +521,9 @@ export function RightPanel() {
             );
           })}
           <button
-            className="flex items-center justify-center w-7 h-7 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-all duration-200 ml-0.5 shrink-0"
+            className="tc-row-icon flex items-center justify-center w-7 h-7 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] ml-0.5 shrink-0"
             onClick={() => setCollapsed(true)}
+            title={t.right_panel_collapse}
           >
             {/* Points RIGHT — clicking collapses the right panel rightward. */}
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -535,35 +535,31 @@ export function RightPanel() {
 
       <div className="flex-1 min-h-0 flex flex-col">
         {repoScopedTabs && repoContext.selectorKind !== "none" && (
-          <div className="shrink-0 px-2 pb-1.5">
+          <div className="shrink-0 px-2 pb-2">
             <div className="rounded-lg bg-[var(--bg)] px-2 py-2">
-              <div
-                className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-faint)]"
-                style={{ fontFamily: '"Geist Mono", monospace' }}
-              >
+              <div className="tc-eyebrow tc-mono">
                 {t.left_panel_repo}
               </div>
               {repoContext.selectorKind === "single" ? (
                 <div
-                  className="mt-1.5 truncate rounded-md border border-[var(--border)] px-2.5 py-1.5 text-[11px] text-[var(--text-primary)]"
-                  style={{ fontFamily: '"Geist Mono", monospace' }}
+                  className="tc-meta tc-mono mt-2 truncate rounded-md border border-[var(--border)] px-2.5 py-1.5"
+                  style={{ color: "var(--text-primary)" }}
                   title={childRepos[0]?.name}
                 >
                   {childRepos[0]?.name}
                 </div>
               ) : repoContext.selectorKind === "inline" ? (
-                <div className="mt-1.5 flex items-center gap-1 rounded-md bg-[var(--surface)] p-1">
+                <div className="mt-2 flex items-center gap-1 rounded-md bg-[var(--surface)] p-1">
                   {childRepos.map((repo) => {
                     const isActive = repo.path === repoContext.targetPath;
                     return (
                       <button
                         key={repo.path}
-                        className={`min-w-0 flex-1 rounded-md px-2.5 py-1.5 text-[11px] transition-all duration-150 ${
+                        className={`tc-row-icon tc-meta tc-mono min-w-0 flex-1 rounded-md px-2.5 py-1.5 ${
                           isActive
                             ? "bg-[var(--surface-hover)] text-[var(--text-primary)]"
                             : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
                         }`}
-                        style={{ fontFamily: '"Geist Mono", monospace' }}
                         onClick={() => handleSelectChildRepo(repo.path)}
                         title={repo.name}
                       >
@@ -573,10 +569,10 @@ export function RightPanel() {
                   })}
                 </div>
               ) : (
-                <div className="relative mt-1.5" ref={repoMenuRef}>
+                <div className="relative mt-2" ref={repoMenuRef}>
                   <button
-                    className="flex w-full items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-[11px] text-[var(--text-primary)] transition-colors duration-150 hover:border-[var(--border-hover)] hover:bg-[var(--surface-hover)]"
-                    style={{ fontFamily: '"Geist Mono", monospace' }}
+                    className="tc-row-icon tc-meta tc-mono flex w-full items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 hover:border-[var(--border-hover)] hover:bg-[var(--surface-hover)]"
+                    style={{ color: "var(--text-primary)" }}
                     onClick={() => setRepoMenuOpen((open) => !open)}
                     aria-label={t.left_panel_repo}
                     aria-haspopup="menu"
@@ -590,9 +586,13 @@ export function RightPanel() {
                       height="10"
                       viewBox="0 0 10 10"
                       fill="none"
-                      className={`shrink-0 text-[var(--text-faint)] transition-transform duration-150 ${
+                      className={`shrink-0 text-[var(--text-faint)] ${
                         repoMenuOpen ? "rotate-180" : ""
                       }`}
+                      style={{
+                        transition:
+                          "transform var(--duration-quick) var(--ease-out-soft)",
+                      }}
                     >
                       <path
                         d="M2.2 3.5L5 6.3L7.8 3.5"
@@ -610,12 +610,11 @@ export function RightPanel() {
                         return (
                           <button
                             key={repo.path}
-                            className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[11px] transition-colors duration-100 ${
+                            className={`tc-row-icon tc-meta tc-mono flex w-full items-center gap-2 px-2.5 py-1.5 text-left ${
                               isActive
                                 ? "bg-[var(--surface-hover)] text-[var(--text-primary)]"
                                 : "text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
                             }`}
-                            style={{ fontFamily: '"Geist Mono", monospace' }}
                             onClick={() => handleSelectChildRepo(repo.path)}
                             title={repo.name}
                           >
@@ -667,7 +666,13 @@ export function RightPanel() {
         className="absolute top-0 left-0 w-1.5 h-full cursor-ew-resize group/resize"
         onPointerDown={handleResizeStart}
       >
-        <div className="absolute left-0 top-0 w-px h-full bg-[var(--border)] group-hover/resize:bg-[var(--accent)] group-hover/resize:opacity-70 transition-colors duration-150" />
+        <div
+          className="absolute left-0 top-0 w-px h-full bg-[var(--border)] group-hover/resize:bg-[var(--accent)] group-hover/resize:opacity-70"
+          style={{
+            transition:
+              "background-color var(--duration-quick) var(--ease-out-soft), opacity var(--duration-quick) var(--ease-out-soft)",
+          }}
+        />
       </div>
         </div>
       )}

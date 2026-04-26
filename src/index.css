@@ -945,6 +945,50 @@ a.tc-kbd[data-dragover="true"] {
 }
 
 /* ─────────────────────────────────────────────────────────────
+   Sidebar list rows. Every row in LeftPanel / RightPanel /
+   ProjectTree / SessionsPanel / SessionsOverlay shares the same
+   hover affordance — a quiet bg lift plus a primary-text shift.
+   Motion routes through the role-based duration/easing tokens so
+   the panels rhyme with the toolbar, palette, and tile chrome.
+   The row hover-bg uses --sidebar-hover (not --surface-hover) so
+   it stays a touch quieter than tile/cards — sidebar density is
+   higher, and a stronger highlight reads as noise across many
+   adjacent rows.
+   ───────────────────────────────────────────────────────────── */
+.tc-row-hover {
+  transition:
+    background-color var(--duration-quick) var(--ease-out-soft),
+    color var(--duration-quick) var(--ease-out-soft);
+}
+.tc-row-hover:hover {
+  background-color: var(--sidebar-hover);
+}
+
+/* Quieter variant for icon-button-like targets sitting inside a
+   row: only colour shifts on hover, no surface lift (the row
+   underneath already lifts). Use on chevron toggles and resize
+   handle highlights. */
+.tc-row-icon {
+  transition:
+    color var(--duration-quick) var(--ease-out-soft),
+    background-color var(--duration-quick) var(--ease-out-soft),
+    opacity var(--duration-quick) var(--ease-out-soft);
+}
+
+/* Sidebar section header. Sits at the top of every panel surface
+   (LeftPanel, SessionsPanel list, RightPanel repo selector,
+   SessionsOverlay drawer) and carries the eyebrow label, optional
+   count, and one trailing affordance. The bottom rule is opt-in
+   via tc-row-divider; some headers (RightPanel tab strip) sit
+   above content that already has its own divider.
+
+   Padding rhythm: 12px horizontal, 8px vertical = px-3 py-2 in
+   tailwind units, lock-stepped with the 4/8/16 base scale. */
+.tc-row-divider {
+  border-bottom: 1px solid var(--border);
+}
+
+/* ─────────────────────────────────────────────────────────────
    Settings rail — vertical category nav used inside the settings
    modal. The rail sits at modal scale (180px column), so the
    active state needs to read from the corner of the eye while

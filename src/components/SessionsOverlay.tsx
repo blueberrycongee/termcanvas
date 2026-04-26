@@ -139,22 +139,14 @@ export function SessionsOverlay() {
       aria-label={t.sessions_tab}
     >
       {/* Header */}
-      <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-[var(--border)] bg-[var(--surface)]">
-        <span
-          className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-primary)] font-medium"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-        >
+      <div className="tc-row-divider shrink-0 flex items-center gap-2 px-3 py-2 bg-[var(--surface)]">
+        <span className="tc-eyebrow tc-mono tc-color-primary">
           {t.sessions_tab}
         </span>
         <div className="flex-1" />
-        <span
-          className="text-[10px] text-[var(--text-faint)]"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-        >
-          Esc
-        </span>
+        <span className="tc-caption tc-mono">Esc</span>
         <button
-          className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
+          className="tc-row-icon flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
           onClick={toggleExpanded}
           title={
             expanded
@@ -199,7 +191,7 @@ export function SessionsOverlay() {
           )}
         </button>
         <button
-          className="flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
+          className="tc-row-icon flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
           onClick={close}
           aria-label={t.right_panel_collapse}
         >
@@ -220,11 +212,11 @@ export function SessionsOverlay() {
           <SessionReplayView />
         ) : (
           <div className="h-full flex flex-col items-center justify-center gap-2 px-8 text-center">
-            <div className="text-[13px] text-[var(--text-muted)]">
+            <div className="tc-body-sm" style={{ color: "var(--text-muted)" }}>
               {(t.sessions_overlay_empty_title as unknown as string) ??
                 "Pick a session on the left"}
             </div>
-            <div className="text-[11px] text-[var(--text-faint)] max-w-sm leading-relaxed">
+            <div className="tc-label max-w-sm leading-relaxed">
               {(t.sessions_overlay_empty_hint as unknown as string) ??
                 "Browse past conversations in the left panel's History section. Click any row to replay the full transcript here."}
             </div>

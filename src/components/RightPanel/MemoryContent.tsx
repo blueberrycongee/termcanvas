@@ -607,7 +607,7 @@ export function MemoryContent({ worktreePath, onFileClick }: Props) {
 
   if (!worktreePath) {
     return (
-      <div className="flex-1 flex items-center justify-center text-[var(--text-muted)] text-xs">
+      <div className="tc-label flex-1 flex items-center justify-center">
         {t.no_worktree_selected}
       </div>
     );
@@ -615,7 +615,7 @@ export function MemoryContent({ worktreePath, onFileClick }: Props) {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center text-[var(--text-muted)] text-xs">
+      <div className="tc-label flex-1 flex items-center justify-center">
         {t.memory_loading}
       </div>
     );
@@ -623,10 +623,9 @@ export function MemoryContent({ worktreePath, onFileClick }: Props) {
 
   if (graph.nodes.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-[var(--text-muted)] text-xs px-4 text-center leading-relaxed">
-        {t.memory_empty}
-        <br />
-        {t.memory_empty_hint}
+      <div className="tc-label flex-1 flex flex-col items-center justify-center px-4 text-center leading-relaxed">
+        <span>{t.memory_empty}</span>
+        <span>{t.memory_empty_hint}</span>
       </div>
     );
   }

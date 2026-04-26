@@ -33,7 +33,7 @@ export function DiffContent({ worktreePath }: Props) {
   if (!worktreePath) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <span className="tc-label" style={{ color: "var(--text-faint)" }}>{t.no_worktree_selected}</span>
+        <span className="tc-caption">{t.no_worktree_selected}</span>
       </div>
     );
   }
@@ -41,7 +41,7 @@ export function DiffContent({ worktreePath }: Props) {
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <span className="tc-label" style={{ color: "var(--text-muted)" }}>{t.loading}</span>
+        <span className="tc-label">{t.loading}</span>
       </div>
     );
   }
@@ -49,7 +49,7 @@ export function DiffContent({ worktreePath }: Props) {
   if (fileDiffs.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <span className="tc-label" style={{ color: "var(--text-faint)" }}>{t.no_changes}</span>
+        <span className="tc-caption">{t.no_changes}</span>
       </div>
     );
   }
@@ -77,7 +77,7 @@ export function DiffContent({ worktreePath }: Props) {
         {fileDiffs.map((fd) => (
           <div key={fd.file.name}>
             <button
-              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[var(--surface-hover)] transition-colors duration-150 text-left"
+              className="tc-row-icon w-full flex items-center gap-2 px-3 py-2 hover:bg-[var(--surface-hover)] text-left"
               onClick={() => setExpandedFiles((current) => toggleExpandedFiles(current, fd.file.name))}
             >
               <svg
@@ -85,7 +85,8 @@ export function DiffContent({ worktreePath }: Props) {
                 height="8"
                 viewBox="0 0 8 8"
                 fill="none"
-                className={`shrink-0 transition-transform duration-150 ${expandedFiles.has(fd.file.name) ? "rotate-90" : ""}`}
+                className={`shrink-0 ${expandedFiles.has(fd.file.name) ? "rotate-90" : ""}`}
+                style={{ transition: "transform var(--duration-quick) var(--ease-out-soft)" }}
               >
                 <path d="M2 1L6 4L2 7" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
