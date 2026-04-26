@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClipboardEvent, DragEvent } from "react";
 import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { useTaskStore } from "../stores/taskStore";
+import { useTaskDragStore } from "../stores/taskDragStore";
 import type { Task } from "../types";
 import {
   PANEL_TRANSITION_DURATION_MS,
@@ -358,8 +359,26 @@ export function TaskDetailDrawer() {
         aria-modal="false"
         aria-label={task?.title ?? "Task detail"}
       >
-        {/* Header strip */}
-        <div className="shrink-0 flex items-center justify-between px-4 py-2 border-b border-[var(--border)] bg-[var(--surface)]">
+        {/* Header strip — also a drag source for the current task */}
+        <div
+          className="shrink-0 flex items-center justify-between px-4 py-2 border-b border-[var(--border)] bg-[var(--surface)]"
+          draggable={!!task && !isEditing}
+          onDragStart={(e) => {
+            if (!task || isEditing) return;
+            e.dataTransfer.setData(
+              "application/x-termcanvas-task",
+              JSON.stringify({ repo: task.repo, id: task.id }),
+            );
+            e.dataTransfer.effectAllowed = "copy";
+            useTaskDragStore.getState().setActive(true);
+            window.dispatchEvent(new CustomEvent("termcanvas:task-drag-active"));
+          }}
+          onDragEnd={() => {
+            useTaskDragStore.getState().setActive(false);
+            window.dispatchEvent(new CustomEvent("termcanvas:task-drag-end"));
+          }}
+          style={{ cursor: task && !isEditing ? "grab" : undefined }}
+        >
           <div className="flex items-center gap-2.5">
             <button
               className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors"

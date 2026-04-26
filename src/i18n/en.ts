@@ -743,6 +743,12 @@ export const en = {
   "task.closeDrawer": "Close task drawer",
   "task.closeDetail": "Close detail",
   "task.triggerLabel": (name: string) => `Tasks for ${name}`,
+  "task.dispatch.terminalNotRunning":
+    "This terminal isn't running yet — try again once it's started.",
+  "task.dispatch.unsupportedTerminal": (type: string) =>
+    `${type} terminals can't accept task drops.`,
+  "task.dispatch.failed": (detail: string) =>
+    `Couldn't send task to terminal: ${detail}`,
 } as const;
 
 export type TranslationKey = keyof typeof en;

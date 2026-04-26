@@ -1029,6 +1029,22 @@ contextBridge.exposeInMainWorld("termcanvas", {
         fileName,
         data,
       ) as Promise<{ relativePath: string; absolutePath: string }>,
+    dispatchToTerminal: (
+      repo: string,
+      taskId: string,
+      target: {
+        terminalId: string;
+        ptyId: number;
+        terminalType: string;
+        worktreePath: string;
+      },
+    ) =>
+      ipcRenderer.invoke(
+        "task:dispatch-to-terminal",
+        repo,
+        taskId,
+        target,
+      ) as Promise<import("../src/types").ComposerSubmitResult>,
     subscribe: (
       handler: (event: { type: string; [key: string]: unknown }) => void,
     ) => {

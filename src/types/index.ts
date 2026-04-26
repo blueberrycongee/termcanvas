@@ -1044,6 +1044,16 @@ export interface TermCanvasAPI {
       fileName: string,
       data: ArrayBuffer,
     ) => Promise<{ relativePath: string; absolutePath: string }>;
+    dispatchToTerminal: (
+      repo: string,
+      taskId: string,
+      target: {
+        terminalId: string;
+        ptyId: number;
+        terminalType: ComposerSupportedTerminalType;
+        worktreePath: string;
+      },
+    ) => Promise<ComposerSubmitResult>;
     subscribe: (handler: (event: TaskEvent) => void) => () => void;
   };
   updater: {

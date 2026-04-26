@@ -726,4 +726,8 @@ export const zh = {
   "task.closeDrawer": "关闭任务面板",
   "task.closeDetail": "关闭",
   "task.triggerLabel": (name: string) => `${name} 的任务`,
+  "task.dispatch.terminalNotRunning": "终端尚未启动,请稍后再试。",
+  "task.dispatch.unsupportedTerminal": (type: string) =>
+    `${type} 终端不支持任务拖入。`,
+  "task.dispatch.failed": (detail: string) => `任务发送失败:${detail}`,
 } as const;

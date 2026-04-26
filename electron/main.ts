@@ -83,7 +83,11 @@ import {
   flushSyncQueue,
   syncRecentRecords,
 } from "./usage-sync";
-import type { ComposerSubmitRequest } from "../src/types";
+import type {
+  ComposerSubmitRequest,
+  ComposerSupportedTerminalType,
+} from "../src/types";
+import { buildTaskComposerPayload } from "./task-dispatch";
 import { getProjectDiff } from "./git-diff";
 import { searchFileContents, searchSessionContents } from "./search-handlers";
 import {
@@ -2028,6 +2032,101 @@ function setupIpc() {
         data instanceof Uint8Array ? data : new Uint8Array(data),
       );
       return taskStore.saveAttachment(repo, id, fileName, buffer);
+    },
+  );
+
+  // Inject a task's body + image attachments into a terminal via the existing
+  // composer-submit pipeline. We deliberately do not mutate task.status here:
+  // dispatching the same task to multiple terminals is a supported flow, and
+  // status changes stay manual.
+  ipcMain.handle(
+    "task:dispatch-to-terminal",
+    async (
+      _event,
+      repo: string,
+      taskId: string,
+      target: {
+        terminalId: string;
+        ptyId: number;
+        terminalType: ComposerSupportedTerminalType;
+        worktreePath: string;
+      },
+    ) => {
+      const task = taskStore.get(repo, taskId);
+      if (!task) {
+        return {
+          ok: false,
+          code: "internal-error" as const,
+          stage: "validate" as const,
+          error: `Task not found: ${taskId}`,
+          detail: `Task not found: ${taskId}`,
+        };
+      }
+
+      if (!ptyManager.getPid(target.ptyId)) {
+        return {
+          ok: false,
+          code: "target-not-running" as const,
+          stage: "target" as const,
+          error: "Target terminal is not running.",
+          detail: "Target terminal is not running.",
+        };
+      }
+
+      const { text, images } = await buildTaskComposerPayload(
+        task,
+        taskStore.attachmentsDir(repo, taskId),
+      );
+
+      const request: ComposerSubmitRequest = {
+        terminalId: target.terminalId,
+        ptyId: target.ptyId,
+        terminalType: target.terminalType,
+        worktreePath: target.worktreePath,
+        text,
+        images,
+      };
+
+      try {
+        const result = await submitComposerRequest(
+          request,
+          createDefaultComposerSubmitDeps(
+            process.platform as "darwin" | "win32" | "linux",
+            dataUrlToPngBuffer,
+            (ptyId: number, data: string) => {
+              ptyManager.write(ptyId, data);
+            },
+          ),
+        );
+
+        if (!result.ok) {
+          console.error("[Task] Dispatch failed:", {
+            taskId,
+            terminalId: target.terminalId,
+            ptyId: target.ptyId,
+            terminalType: target.terminalType,
+            stage: result.stage,
+            code: result.code,
+            detail: result.detail ?? result.error,
+          });
+        }
+
+        return result;
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        console.error("[Task] Dispatch crashed:", {
+          taskId,
+          terminalId: target.terminalId,
+          detail,
+        });
+        return {
+          ok: false,
+          code: "internal-error" as const,
+          stage: "submit" as const,
+          error: detail,
+          detail,
+        };
+      }
     },
   );
 }

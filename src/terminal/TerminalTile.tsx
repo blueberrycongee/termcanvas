@@ -45,6 +45,8 @@ import {
   scheduleTerminalFocus,
 } from "./focusScheduler";
 import { useSidebarDragStore } from "../stores/sidebarDragStore";
+import { useTaskDragStore } from "../stores/taskDragStore";
+import { useNotificationStore } from "../stores/notificationStore";
 import { useViewportFocusStore } from "../stores/viewportFocusStore";
 import { TERMINAL_TYPE_CONFIG } from "./terminalTypeConfig";
 import { AgentRenderer } from "../components/agent/AgentRenderer";
@@ -223,6 +225,11 @@ export function TerminalTile({
   latestContainerElRef.current = containerEl;
   const isSummarizing = useIsSummarizing(terminal.id);
   const sidebarDragActive = useSidebarDragStore((s) => s.active);
+  const taskDragActive = useTaskDragStore((s) => s.active);
+  const [taskFlash, setTaskFlash] = useState(false);
+  const taskFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const composerAdapter = getComposerAdapter(terminal.type);
+  const acceptsTaskDrop = composerAdapter !== null;
   const viewportScale = useCanvasStore((s) => s.viewport.scale);
   const zoomedOutTerminalId = useViewportFocusStore(
     (s) => s.zoomedOutTerminalId,
@@ -333,6 +340,9 @@ export function TerminalTile({
       }
       if (copiedTimerRef.current) {
         clearTimeout(copiedTimerRef.current);
+      }
+      if (taskFlashTimerRef.current) {
+        clearTimeout(taskFlashTimerRef.current);
       }
     },
     [],
@@ -678,13 +688,100 @@ export function TerminalTile({
     zoomIntoTerminalFromOverview,
   ]);
 
+  const flashTaskAccept = useCallback(() => {
+    setTaskFlash(true);
+    if (taskFlashTimerRef.current) clearTimeout(taskFlashTimerRef.current);
+    taskFlashTimerRef.current = setTimeout(() => {
+      setTaskFlash(false);
+      taskFlashTimerRef.current = null;
+    }, 350);
+  }, []);
+
+  const handleTaskDropPayload = useCallback(
+    async (raw: string) => {
+      let parsed: { repo: string; id: string };
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        return;
+      }
+      if (!parsed?.repo || !parsed?.id) return;
+
+      const ptyId = getTerminalPtyId(terminal.id);
+      if (ptyId === null) {
+        useNotificationStore
+          .getState()
+          .notify("warn", t["task.dispatch.terminalNotRunning"]);
+        return;
+      }
+      if (!composerAdapter) {
+        useNotificationStore
+          .getState()
+          .notify(
+            "warn",
+            t["task.dispatch.unsupportedTerminal"](terminal.type),
+          );
+        return;
+      }
+
+      activateTerminalInScene(projectId, worktreeId, terminal.id);
+
+      try {
+        const result = await window.termcanvas.tasks.dispatchToTerminal(
+          parsed.repo,
+          parsed.id,
+          {
+            terminalId: terminal.id,
+            ptyId,
+            terminalType: terminal.type,
+            worktreePath,
+          },
+        );
+        if (result.ok) {
+          flashTaskAccept();
+        } else {
+          useNotificationStore
+            .getState()
+            .notify(
+              "error",
+              t["task.dispatch.failed"](
+                result.detail ?? result.error ?? "unknown",
+              ),
+            );
+        }
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        useNotificationStore
+          .getState()
+          .notify("error", t["task.dispatch.failed"](detail));
+      }
+    },
+    [
+      composerAdapter,
+      flashTaskAccept,
+      projectId,
+      t,
+      terminal.id,
+      terminal.type,
+      worktreeId,
+      worktreePath,
+    ],
+  );
+
   // Intercept drag events on the xterm container in the capture phase so they
   // are not swallowed by xterm's own handlers.
   useEffect(() => {
     const container = containerEl;
     if (!container || lodMode !== "live") return;
 
+    const isTaskDrag = (e: DragEvent) =>
+      !!e.dataTransfer &&
+      Array.from(e.dataTransfer.types).includes(
+        "application/x-termcanvas-task",
+      );
+
     const onDragOver = (e: DragEvent) => {
+      if (isTaskDrag(e) && !acceptsTaskDrop) return;
       e.preventDefault();
       e.stopPropagation();
       if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
@@ -697,6 +794,16 @@ export function TerminalTile({
     };
 
     const onDrop = (e: DragEvent) => {
+      if (isTaskDrag(e)) {
+        if (!acceptsTaskDrop) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setDragOver(false);
+        const raw = e.dataTransfer?.getData("application/x-termcanvas-task");
+        if (raw) void handleTaskDropPayload(raw);
+        return;
+      }
+
       e.preventDefault();
       e.stopPropagation();
       setDragOver(false);
@@ -721,18 +828,33 @@ export function TerminalTile({
       container.removeEventListener("dragleave", onDragLeave, true);
       container.removeEventListener("drop", onDrop, true);
     };
-  }, [containerEl, lodMode, projectId, terminal.id, worktreeId]);
+  }, [
+    containerEl,
+    lodMode,
+    projectId,
+    terminal.id,
+    worktreeId,
+    acceptsTaskDrop,
+    handleTaskDropPayload,
+  ]);
 
   const handleClose = useCallback(() => {
     closeTerminalInScene(projectId, worktreeId, terminal.id);
   }, [projectId, terminal.id, worktreeId]);
 
-  const handleTileDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = "copy";
-    setDragOver(true);
-  }, []);
+  const isTaskDragEvent = (e: React.DragEvent) =>
+    Array.from(e.dataTransfer.types).includes("application/x-termcanvas-task");
+
+  const handleTileDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (isTaskDragEvent(e) && !acceptsTaskDrop) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "copy";
+      setDragOver(true);
+    },
+    [acceptsTaskDrop],
+  );
 
   const handleTileDragLeave = useCallback((e: React.DragEvent) => {
     e.stopPropagation();
@@ -741,6 +863,16 @@ export function TerminalTile({
 
   const handleTileDrop = useCallback(
     (e: React.DragEvent) => {
+      if (isTaskDragEvent(e)) {
+        if (!acceptsTaskDrop) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setDragOver(false);
+        const raw = e.dataTransfer.getData("application/x-termcanvas-task");
+        if (raw) void handleTaskDropPayload(raw);
+        return;
+      }
+
       e.preventDefault();
       e.stopPropagation();
       setDragOver(false);
@@ -755,7 +887,7 @@ export function TerminalTile({
       window.termcanvas.terminal.input(ptyId, " " + escaped);
       activateTerminalInScene(projectId, worktreeId, terminal.id);
     },
-    [projectId, terminal.id, worktreeId],
+    [acceptsTaskDrop, handleTaskDropPayload, projectId, terminal.id, worktreeId],
   );
 
   return (
@@ -768,16 +900,22 @@ export function TerminalTile({
       style={{
         width: width,
         height: terminal.minimized ? "auto" : height,
-        boxShadow: dragOver
-          ? "0 0 0 2px var(--accent), 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent)"
-          : !dragOver && terminal.focused
-            ? isOverviewMode
-              ? "0 0 0 2px color-mix(in srgb, var(--text-secondary) 45%, transparent), inset 0 2px 0 0 color-mix(in srgb, var(--text-secondary) 25%, transparent)"
-              : "inset 0 2px 0 0 color-mix(in srgb, var(--text-secondary) 25%, transparent)"
-            : undefined,
+        boxShadow:
+          dragOver || taskFlash
+            ? "0 0 0 2px var(--accent), 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent)"
+            : taskDragActive && acceptsTaskDrop
+              ? "0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent)"
+              : terminal.focused
+                ? isOverviewMode
+                  ? "0 0 0 2px color-mix(in srgb, var(--text-secondary) 45%, transparent), inset 0 2px 0 0 color-mix(in srgb, var(--text-secondary) 25%, transparent)"
+                  : "inset 0 2px 0 0 color-mix(in srgb, var(--text-secondary) 25%, transparent)"
+                : undefined,
         borderColor:
-          !dragOver && terminal.focused ? "var(--border-hover)" : undefined,
+          !dragOver && !taskFlash && terminal.focused
+            ? "var(--border-hover)"
+            : undefined,
         outline: "none",
+        transition: "box-shadow 150ms ease",
       }}
       onClick={(e) => {
         e.stopPropagation();

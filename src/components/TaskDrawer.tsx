@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { useTaskStore } from "../stores/taskStore";
+import { useTaskDragStore } from "../stores/taskDragStore";
 import type { Task, TaskEvent } from "../types";
 import {
   PANEL_TRANSITION_DURATION_MS,
@@ -100,10 +101,28 @@ function TaskCard({
       ? "line-through text-[var(--text-faint)]"
       : "text-[var(--text-primary)]";
 
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    e.dataTransfer.setData(
+      "application/x-termcanvas-task",
+      JSON.stringify({ repo: task.repo, id: task.id }),
+    );
+    e.dataTransfer.effectAllowed = "copy";
+    useTaskDragStore.getState().setActive(true);
+    window.dispatchEvent(new CustomEvent("termcanvas:task-drag-active"));
+  };
+
+  const handleDragEnd = () => {
+    useTaskDragStore.getState().setActive(false);
+    window.dispatchEvent(new CustomEvent("termcanvas:task-drag-end"));
+  };
+
   return (
     <>
       <div
-        className="group relative rounded-md bg-[var(--surface)] hover:bg-[var(--sidebar-hover)] border border-transparent hover:border-[var(--border)] transition-colors cursor-pointer"
+        draggable
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        className="group relative rounded-md bg-[var(--surface)] hover:bg-[var(--sidebar-hover)] border border-transparent hover:border-[var(--border)] transition-colors cursor-grab active:cursor-grabbing"
         onClick={() => openDetail(task.id)}
       >
         <div className="flex items-start gap-2 px-2.5 py-2 pr-16">
