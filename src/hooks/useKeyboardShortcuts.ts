@@ -54,6 +54,11 @@ import {
   getCanvasLeftInset,
 } from "../canvas/viewportBounds";
 import { usePinStore } from "../stores/pinStore";
+import {
+  isWaypointSlot,
+  recallWaypointFromActiveProject,
+  saveWaypointToActiveProject,
+} from "../actions/spatialWaypointActions";
 
 function getAllTerminals() {
   const { projects } = useProjectStore.getState();
@@ -305,6 +310,42 @@ export function useKeyboardShortcuts() {
         consumeShortcut();
         useCanvasStore.getState().toggleSessionsOverlay();
         return;
+      }
+
+      // Spatial waypoints. Cmd/Ctrl+Shift+1..9 saves the current
+      // viewport to that slot; Alt+1..9 jumps to a saved waypoint
+      // with a smooth camera move. Use e.code so layout-dependent
+      // characters (Option+1 → ¡ on macOS, Shift+1 → "!") don't
+      // break the match. Skip when focus is in an editable target so
+      // terminal / textarea text input keeps the keystroke.
+      //
+      // Recall uses Alt+digit instead of the more obvious Cmd+digit
+      // because Cmd+1 is already taken by Figma-style zoom-to-100%
+      // — keeping the Cmd+0 / Cmd+1 zoom pair intact preserves the
+      // canvas mental model. Single-modifier recall is also faster
+      // than two-modifier save, which matches usage frequency
+      // (recall happens often, save rarely).
+      if (!isEditableTarget(e.target) && !e.repeat) {
+        const digitMatch = /^Digit([1-9])$/.exec(e.code);
+        if (digitMatch) {
+          const slot = digitMatch[1];
+          if (isWaypointSlot(slot)) {
+            const isSaveCombo =
+              (e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey;
+            const isRecallCombo =
+              e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey;
+            if (isSaveCombo) {
+              consumeShortcut();
+              saveWaypointToActiveProject(slot);
+              return;
+            }
+            if (isRecallCombo) {
+              consumeShortcut();
+              recallWaypointFromActiveProject(slot);
+              return;
+            }
+          }
+        }
       }
 
       // Figma-style canvas zoom: Cmd+0 fit, Cmd+1 100%, Cmd+= / Cmd+-

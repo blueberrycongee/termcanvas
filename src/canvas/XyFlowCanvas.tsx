@@ -58,6 +58,7 @@ import {
 import { clampScale, zoomAtClientPoint } from "./viewportZoom";
 import { resolveCollisions } from "./collisionResolver";
 import { WorktreeLabelLayer } from "./WorktreeLabelLayer";
+import { SpatialWaypointsLayer } from "./SpatialWaypointsLayer";
 import { ContextMenu } from "../components/ContextMenu";
 import { createTerminalInScene } from "../actions/terminalSceneActions";
 import type { TerminalType } from "../types";
@@ -769,6 +770,8 @@ function XyFlowCanvasInner() {
       {petEnabled && <PetOverlay />}
 
       <WorktreeLabelLayer />
+
+      <SpatialWaypointsLayer />
 
       <FamilyTreeOverlay />
 
