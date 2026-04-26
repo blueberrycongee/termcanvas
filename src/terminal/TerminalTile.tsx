@@ -50,6 +50,7 @@ import { useNotificationStore } from "../stores/notificationStore";
 import { useViewportFocusStore } from "../stores/viewportFocusStore";
 import { TERMINAL_TYPE_CONFIG } from "./terminalTypeConfig";
 import { AgentRenderer } from "../components/agent/AgentRenderer";
+import { ActivitySparkline } from "./ActivitySparkline";
 import { recordRenderDiagnostic } from "./renderDiagnostics";
 
 interface Props {
@@ -506,6 +507,9 @@ export function TerminalTile({
   }, [isAgent, sidebarDragActive, terminal.id, containerEl]);
 
   const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
+  const activityHeatmapEnabled = usePreferencesStore(
+    (s) => s.activityHeatmapEnabled,
+  );
   const focusLiveTerminal = useCallback(() => {
     const tile = tileRef.current;
     if (!tile || tile.getClientRects().length === 0) {
@@ -1125,6 +1129,9 @@ export function TerminalTile({
             )}
           </div>
         </div>
+        {activityHeatmapEnabled && (
+          <ActivitySparkline terminalId={terminal.id} />
+        )}
         <div className="flex items-center gap-0.5">
           <button
             className="tc-tile-action text-[var(--text-faint)] hover:text-[var(--text-primary)] p-1 rounded-md hover:bg-[var(--border)]"

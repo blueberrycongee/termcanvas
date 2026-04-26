@@ -75,6 +75,7 @@ const SHORTCUT_GROUPS: Array<{
       { key: "toggleRightPanel", labelKey: "shortcut_toggle_right_panel" },
       { key: "toggleUsageOverlay", labelKey: "shortcut_toggle_usage_overlay" },
       { key: "toggleSessionsOverlay", labelKey: "shortcut_toggle_sessions_overlay" },
+      { key: "toggleActivityHeatmap", labelKey: "shortcut_toggle_activity_heatmap" },
     ],
   },
 ];

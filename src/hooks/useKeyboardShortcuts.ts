@@ -342,6 +342,16 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      // Activity heatmap — Cmd+Shift+A flips the canvas-wide ambient
+      // indicator on. Read from terminal focus too so the user can
+      // toggle without leaving an agent tile.
+      if (matchesShortcut(e, shortcuts.toggleActivityHeatmap)) {
+        consumeShortcut();
+        const prefs = usePreferencesStore.getState();
+        prefs.setActivityHeatmapEnabled(!prefs.activityHeatmapEnabled);
+        return;
+      }
+
       // Pan-to-recent-activity. Alt+` flies the camera to whichever
       // terminal emitted PTY output most recently (within last 30s).
       // Repeated rapid presses cycle through an LRU snapshot, Alt+Tab

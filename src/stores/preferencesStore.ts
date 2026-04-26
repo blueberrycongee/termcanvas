@@ -32,6 +32,7 @@ interface PreferencesStore {
   globalSearchEnabled: boolean;
   petEnabled: boolean;
   completionGlowEnabled: boolean;
+  activityHeatmapEnabled: boolean;
   trackpadSwipeFocusEnabled: boolean;
   summaryCli: "claude" | "codex";
   minimumContrastRatio: number;
@@ -69,6 +70,7 @@ interface PreferencesStore {
   setGlobalSearchEnabled: (value: boolean) => void;
   setPetEnabled: (value: boolean) => void;
   setCompletionGlowEnabled: (value: boolean) => void;
+  setActivityHeatmapEnabled: (value: boolean) => void;
   setTrackpadSwipeFocusEnabled: (value: boolean) => void;
   setSummaryCli: (value: "claude" | "codex") => void;
   setCli: (type: TerminalType, config: CliCommandConfig | null) => void;
@@ -94,6 +96,7 @@ interface SavedPrefs {
   globalSearchEnabled: boolean;
   petEnabled: boolean;
   completionGlowEnabled: boolean;
+  activityHeatmapEnabled: boolean;
   trackpadSwipeFocusEnabled: boolean;
   summaryCli: "claude" | "codex";
   minimumContrastRatio: number;
@@ -214,6 +217,9 @@ function loadPreferences(): SavedPrefs {
       let completionGlowEnabled = false;
       if (parsed.completionGlowEnabled === true) completionGlowEnabled = true;
 
+      let activityHeatmapEnabled = false;
+      if (parsed.activityHeatmapEnabled === true) activityHeatmapEnabled = true;
+
       let trackpadSwipeFocusEnabled = false;
       if (parsed.trackpadSwipeFocusEnabled === true) trackpadSwipeFocusEnabled = true;
 
@@ -251,6 +257,7 @@ function loadPreferences(): SavedPrefs {
         globalSearchEnabled,
         petEnabled,
         completionGlowEnabled,
+        activityHeatmapEnabled,
         trackpadSwipeFocusEnabled,
         summaryCli,
         minimumContrastRatio,
@@ -274,6 +281,7 @@ function loadPreferences(): SavedPrefs {
     globalSearchEnabled: false,
     petEnabled: false,
     completionGlowEnabled: false,
+    activityHeatmapEnabled: false,
     trackpadSwipeFocusEnabled: false,
     summaryCli: "claude",
     minimumContrastRatio: DEFAULT_MIN_CONTRAST,
@@ -377,6 +385,7 @@ function getSaveState(state: PreferencesStore): SavedPrefs {
     globalSearchEnabled: state.globalSearchEnabled,
     petEnabled: state.petEnabled,
     completionGlowEnabled: state.completionGlowEnabled,
+    activityHeatmapEnabled: state.activityHeatmapEnabled,
     trackpadSwipeFocusEnabled: state.trackpadSwipeFocusEnabled,
     summaryCli: state.summaryCli,
     minimumContrastRatio: state.minimumContrastRatio,
@@ -401,6 +410,7 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   globalSearchEnabled: initialPrefs.globalSearchEnabled,
   petEnabled: initialPrefs.petEnabled,
   completionGlowEnabled: initialPrefs.completionGlowEnabled,
+  activityHeatmapEnabled: initialPrefs.activityHeatmapEnabled,
   trackpadSwipeFocusEnabled: initialPrefs.trackpadSwipeFocusEnabled,
   summaryCli: initialPrefs.summaryCli,
   minimumContrastRatio: initialPrefs.minimumContrastRatio,
@@ -460,6 +470,10 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   setCompletionGlowEnabled: (value) => {
     set({ completionGlowEnabled: value });
     savePreferences(getSaveState({ ...get(), completionGlowEnabled: value }));
+  },
+  setActivityHeatmapEnabled: (value) => {
+    set({ activityHeatmapEnabled: value });
+    savePreferences(getSaveState({ ...get(), activityHeatmapEnabled: value }));
   },
   setTrackpadSwipeFocusEnabled: (value) => {
     set({ trackpadSwipeFocusEnabled: value });

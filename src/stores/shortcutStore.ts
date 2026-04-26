@@ -18,6 +18,7 @@ export interface ShortcutMap {
   commandPalette: string;
   toggleUsageOverlay: string;
   toggleSessionsOverlay: string;
+  toggleActivityHeatmap: string;
 }
 
 const LEGACY_DEFAULT_SHORTCUTS: ShortcutMap = {
@@ -37,6 +38,7 @@ const LEGACY_DEFAULT_SHORTCUTS: ShortcutMap = {
   commandPalette: "mod+p",
   toggleUsageOverlay: "mod+shift+u",
   toggleSessionsOverlay: "mod+shift+h",
+  toggleActivityHeatmap: "mod+shift+a",
 };
 
 const ALT_DEFAULT_SHORTCUTS: ShortcutMap = {
@@ -56,6 +58,7 @@ const ALT_DEFAULT_SHORTCUTS: ShortcutMap = {
   commandPalette: "alt+p",
   toggleUsageOverlay: "alt+shift+u",
   toggleSessionsOverlay: "alt+shift+h",
+  toggleActivityHeatmap: "alt+shift+a",
 };
 
 export const DEFAULT_SHORTCUTS: ShortcutMap = { ...LEGACY_DEFAULT_SHORTCUTS };

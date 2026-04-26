@@ -1392,7 +1392,7 @@ function triggerDetection(runtime: ManagedTerminalRuntime) {
 function handleRuntimeOutput(runtime: ManagedTerminalRuntime, data: string) {
   appendPreview(runtime, data);
   runtime.xterm?.write(data);
-  recordTerminalActivity(runtime.meta.terminal.id);
+  recordTerminalActivity(runtime.meta.terminal.id, data.length);
   triggerDetection(runtime);
 
   if (!runtime.activityThrottled) {

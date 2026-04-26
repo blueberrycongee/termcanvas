@@ -552,6 +552,22 @@ a.tc-kbd:active {
   cursor: text;
 }
 
+/* Activity heatmap sparkline. Mounted only when the heatmap toggle is
+   on, but the fade is driven from the canvas-root data attribute so the
+   reveal is one canvas-wide transition rather than 50 per-tile flickers.
+   Quiet ink — --text-muted at 30% so it reads as ambient information,
+   never as an alert. */
+.tc-activity-sparkline {
+  flex-shrink: 0;
+  color: color-mix(in srgb, var(--text-muted) 30%, transparent);
+  opacity: 0;
+  transition: opacity var(--duration-natural) var(--ease-out-soft);
+  pointer-events: none;
+}
+[data-activity-heatmap="true"] .tc-activity-sparkline {
+  opacity: 1;
+}
+
 /* Force text cursor inside terminal tiles.
    xterm v6 has many internal elements that set cursor away from text:
    .enable-mouse-events → default, .xterm-cursor-pointer → pointer,

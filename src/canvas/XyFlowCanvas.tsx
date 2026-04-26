@@ -306,6 +306,9 @@ function XyFlowCanvasInner() {
   const projects = useProjectStore((state) => state.projects);
   const drawingEnabled = usePreferencesStore((state) => state.drawingEnabled);
   const petEnabled = usePreferencesStore((state) => state.petEnabled);
+  const activityHeatmapEnabled = usePreferencesStore(
+    (state) => state.activityHeatmapEnabled,
+  );
   const animationBlur = usePreferencesStore((state) => state.animationBlur);
   const drawingTool = useDrawingStore((state) => state.tool);
   const canvasTool = useCanvasToolStore((state) => state.tool);
@@ -656,6 +659,7 @@ function XyFlowCanvasInner() {
     <div
       ref={canvasContainerRef}
       className={`fixed top-0 right-0 bottom-0 overflow-hidden canvas-bg ${cursorClass}`}
+      data-activity-heatmap={activityHeatmapEnabled ? "true" : undefined}
       style={{
         left: leftOffset,
         transition: sidebarDragging

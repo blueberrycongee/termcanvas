@@ -297,6 +297,22 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
           ),
     },
     {
+      id: "toggle-activity-heatmap",
+      section: "action",
+      title: "Toggle activity heatmap",
+      subtitle: prefs.activityHeatmapEnabled
+        ? "Currently ON — output sparklines visible per tile"
+        : "Reveal a quiet 5-minute output sparkline on every tile",
+      keywords: ["sparkline", "ambient", "indicator", "busy", "idle", "output"],
+      hint: shortcutHint("toggleActivityHeatmap", isMac),
+      perform: () =>
+        usePreferencesStore
+          .getState()
+          .setActivityHeatmapEnabled(
+            !usePreferencesStore.getState().activityHeatmapEnabled,
+          ),
+    },
+    {
       id: "toggle-pet",
       section: "action",
       title: prefs.petEnabled ? "Disable Pet" : "Enable Pet",
