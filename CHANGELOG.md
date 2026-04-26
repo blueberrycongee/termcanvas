@@ -2,6 +2,23 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.37.0] - 2026-04-26
+
+### Added
+- **Pin sessions**: history rows have a left-side pin affordance — pinned sessions float to a dedicated "Pinned" group at the top, persisted in localStorage.
+- **Collapsible project groups**: each project in the history panel has a chevron header to collapse or expand its sessions.
+- **Per-project "show more"**: groups default to 7 sessions; each click reveals 7 more, fetching from the server on demand if needed.
+- **Two-step hide**: hovering a history row shows an eye-slash button; first click arms it (turns red), second click hides the session permanently with no unhide path.
+
+### Changed
+- **History panel UX**: removed global "Load more" and "Show hidden" buttons. Sessions are managed per-project with independent expand/collapse controls.
+- **Visual alignment**: history section row density, chevron animation, font weight, and indentation now match the ProjectTree for a consistent left-panel look.
+- **Timestamp hierarchy**: prompt text uses weight-medium; timestamp uses 10 px mono at `--text-muted` for clear visual separation.
+
+### Fixed
+- Port file guarded with PID check to survive crashes without leaving stale lock files.
+- Removed redundant fixed-viewport dot grid overlay on the canvas.
+
 ## [0.36.0] - 2026-04-26
 
 ### Added
