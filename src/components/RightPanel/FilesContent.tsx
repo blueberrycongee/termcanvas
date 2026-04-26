@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
 import type {
@@ -428,7 +428,30 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
       <PierreFileTree
         model={model}
         renderContextMenu={renderContextMenu}
-        style={{ flex: 1, minHeight: 0 }}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          // Map TermCanvas CSS variables into @pierre/trees shadow DOM via
+          // inherited custom properties.
+          ["--trees-theme-sidebar-bg" as string]: "var(--surface)",
+          ["--trees-theme-sidebar-fg" as string]: "var(--text-primary)",
+          ["--trees-theme-sidebar-header-fg" as string]: "var(--text-secondary)",
+          ["--trees-theme-sidebar-border" as string]: "var(--border)",
+          ["--trees-theme-list-hover-bg" as string]: "var(--surface-hover)",
+          ["--trees-theme-list-active-selection-bg" as string]: "var(--accent-soft)",
+          ["--trees-theme-list-active-selection-fg" as string]: "var(--text-primary)",
+          ["--trees-theme-focus-ring" as string]: "var(--accent)",
+          ["--trees-theme-input-bg" as string]: "var(--sidebar)",
+          ["--trees-theme-input-border" as string]: "var(--border)",
+          ["--trees-theme-input-fg" as string]: "var(--text-primary)",
+          ["--trees-theme-scrollbar-thumb" as string]: "var(--border-hover)",
+          ["--trees-theme-git-added-fg" as string]: "var(--cyan)",
+          ["--trees-theme-git-modified-fg" as string]: "var(--amber)",
+          ["--trees-theme-git-deleted-fg" as string]: "var(--red)",
+          ["--trees-theme-git-renamed-fg" as string]: "var(--amber)",
+          ["--trees-theme-git-untracked-fg" as string]: "var(--text-secondary)",
+          ["--trees-theme-git-ignored-fg" as string]: "var(--text-faint)",
+        } as React.CSSProperties}
       />
     </div>
   );
