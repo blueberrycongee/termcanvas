@@ -239,7 +239,6 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
     }
   }, []);
 
-  // Ref-based handler to survive Strict Mode double-mount
   const handleEventRef = useRef(handleEvent);
   handleEventRef.current = handleEvent;
   const sessionIdRef = useRef(sessionId);
@@ -309,11 +308,7 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
 
   const handleSend = useCallback(
     (text: string) => {
-      if (!window.termcanvas?.agent) {
-        console.log("[AgentRenderer] send failed: agent API not available");
-        return;
-      }
-      console.log("[AgentRenderer] sending:", text.slice(0, 50), "sessionId:", sessionId, "cwd:", cwd);
+      if (!window.termcanvas?.agent) return;
       setSegments((prev) => [...prev, { kind: "user", text }]);
       lastSegmentRef.current = null;
       window.termcanvas.agent.send(sessionId, text, {
@@ -371,18 +366,21 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
         className="flex-1 min-h-0 overflow-y-auto"
         onScroll={handleScroll}
       >
-        <div className="px-4 py-3 space-y-1.5">
+        <div className="mx-auto max-w-[720px] px-4 py-4">
           {segments.map((seg, i) => {
             switch (seg.kind) {
               case "user":
+                /* Right-aligned neutral bubble. --bubble-bg matches the
+                   replay-view convention (lifted neutral surface, NOT
+                   accent fill) so a turn full of prompts reads as quiet
+                   containers, not stacked accent highlights. */
                 return (
-                  <div key={i} className="flex justify-end my-2.5">
+                  <div key={i} className="my-2 flex justify-end tc-enter-fade-up-quick">
                     <div
-                      className="tc-body-sm max-w-[82%] rounded-lg px-3 py-2 whitespace-pre-wrap"
+                      className="tc-body-sm rounded-xl px-3 py-2 whitespace-pre-wrap max-w-[78%]"
                       style={{
-                        background: "var(--accent-soft)",
+                        background: "var(--bubble-bg)",
                         color: "var(--text-primary)",
-                        border: "1px solid color-mix(in srgb, var(--accent) 22%, transparent)",
                       }}
                     >
                       {seg.text}
@@ -390,22 +388,35 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
                   </div>
                 );
               case "text":
-                return <MessageBubble key={i} text={seg.text} isDark={isDark} />;
+                /* Assistant prose: pl-5 indent, no chrome. The indent is
+                   the speaker mark; no avatar, no eyebrow, no badge. */
+                return (
+                  <div key={i} className="pl-5 pr-1 py-1 tc-enter-fade-quick">
+                    <MessageBubble text={seg.text} isDark={isDark} />
+                  </div>
+                );
               case "thinking":
-                return <ThinkingBlock key={i} text={seg.text} streaming={seg.streaming} isDark={isDark} />;
+                /* Subordinate to assistant prose — deeper indent (pl-9)
+                   matches the SessionReplayView ThinkingRow vocabulary. */
+                return (
+                  <div key={i} className="pl-9 pr-1 tc-enter-fade-quick">
+                    <ThinkingBlock text={seg.text} streaming={seg.streaming} isDark={isDark} />
+                  </div>
+                );
               case "tool":
                 return (
-                  <ToolCard
-                    key={seg.id}
-                    name={seg.name}
-                    input={seg.input}
-                    result={seg.result}
-                    isError={seg.isError}
-                    approval={seg.approval ? { requestId: seg.approval.requestId, sessionId } : undefined}
-                    onApprove={handleApprove}
-                    onDeny={handleDeny}
-                    isDark={isDark}
-                  />
+                  <div key={seg.id} className="pl-9 pr-1 tc-enter-fade-quick">
+                    <ToolCard
+                      name={seg.name}
+                      input={seg.input}
+                      result={seg.result}
+                      isError={seg.isError}
+                      approval={seg.approval ? { requestId: seg.approval.requestId, sessionId } : undefined}
+                      onApprove={handleApprove}
+                      onDeny={handleDeny}
+                      isDark={isDark}
+                    />
+                  </div>
                 );
             }
           })}
@@ -420,13 +431,12 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
         </div>
       </div>
 
-      {/* Error banners */}
       {errors.length > 0 && (
         <div className="shrink-0 px-3 space-y-1 pb-1">
           {errors.map((err) => (
             <div
               key={err.id}
-              className="flex items-start gap-2 px-3 py-2 rounded-md tc-label"
+              className="flex items-start gap-2 px-3 py-2 rounded-md tc-label tc-enter-fade-up-quick"
               style={{
                 background: "var(--red-soft)",
                 border: "1px solid color-mix(in srgb, var(--red) 30%, transparent)",
@@ -435,9 +445,12 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
             >
               <span className="flex-1 min-w-0 break-words">{err.message}</span>
               <button
-                className="shrink-0 transition-opacity hover:opacity-70"
+                className="shrink-0"
                 onClick={() => dismissError(err.id)}
                 aria-label="Dismiss error"
+                style={{ transition: "opacity var(--duration-quick) var(--ease-out-soft)" }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.opacity = "0.7")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.opacity = "1")}
               >
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
                   <path d="M2 2l8 8M10 2l-8 8" />
@@ -451,16 +464,28 @@ export function AgentRenderer({ terminalId, sessionId, resumeSessionId, projectI
       {userScrolledUp && (
         <div className="relative shrink-0">
           <button
-            className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full tc-label backdrop-blur-md transition-opacity hover:opacity-90"
+            className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 h-7 rounded-full tc-label backdrop-blur-md tc-enter-fade-up-quick"
             style={{
               background: "color-mix(in srgb, var(--surface) 86%, transparent)",
               color: "var(--text-secondary)",
               border: "1px solid var(--border)",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.18)",
+              boxShadow: "0 4px 14px color-mix(in srgb, var(--shadow-color) 28%, transparent)",
+              transition:
+                "background-color var(--duration-quick) var(--ease-out-soft), color var(--duration-quick) var(--ease-out-soft)",
             }}
             onClick={scrollToBottom}
+            onMouseEnter={(e) => {
+              const el = e.currentTarget as HTMLButtonElement;
+              el.style.background = "var(--surface)";
+              el.style.color = "var(--text-primary)";
+            }}
+            onMouseLeave={(e) => {
+              const el = e.currentTarget as HTMLButtonElement;
+              el.style.background = "color-mix(in srgb, var(--surface) 86%, transparent)";
+              el.style.color = "var(--text-secondary)";
+            }}
           >
-            {hasNewMessages ? "↓ New messages" : "↓ Scroll to bottom"}
+            {hasNewMessages ? "New messages" : "Scroll to bottom"}
           </button>
         </div>
       )}

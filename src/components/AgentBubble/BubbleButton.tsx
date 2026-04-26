@@ -9,8 +9,30 @@ export function BubbleButton({ activeTaskCount, onExpand, style }: BubbleButtonP
 
   return (
     <button
-      className="fixed z-[95] flex items-center justify-center w-11 h-11 rounded-full border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-hover)] transition-colors duration-150 shadow-lg"
-      style={{ bottom: 128, right: 16, ...style }}
+      className="fixed z-[95] flex items-center justify-center w-11 h-11 rounded-full"
+      style={{
+        bottom: 128,
+        right: 16,
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        color: "var(--text-secondary)",
+        boxShadow: "0 6px 18px color-mix(in srgb, var(--shadow-color) 32%, transparent)",
+        transition:
+          "background-color var(--duration-quick) var(--ease-out-soft), border-color var(--duration-quick) var(--ease-out-soft), color var(--duration-quick) var(--ease-out-soft)",
+        ...style,
+      }}
+      onMouseEnter={(e) => {
+        const el = e.currentTarget as HTMLButtonElement;
+        el.style.background = "var(--surface-hover)";
+        el.style.borderColor = "var(--border-hover)";
+        el.style.color = "var(--text-primary)";
+      }}
+      onMouseLeave={(e) => {
+        const el = e.currentTarget as HTMLButtonElement;
+        el.style.background = "var(--surface)";
+        el.style.borderColor = "var(--border)";
+        el.style.color = "var(--text-secondary)";
+      }}
       onClick={onExpand}
       aria-label="Open agent panel"
     >
@@ -20,7 +42,14 @@ export function BubbleButton({ activeTaskCount, onExpand, style }: BubbleButtonP
       </svg>
       {hasActiveTasks && (
         <span
-          className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[16px] h-4 rounded-full bg-[var(--accent)] text-white text-[10px] font-medium px-1 status-pulse"
+          className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[16px] h-4 rounded-full status-pulse"
+          style={{
+            background: "var(--accent)",
+            color: "white",
+            fontSize: 10,
+            fontWeight: "var(--weight-medium)",
+            padding: "0 4px",
+          }}
         >
           {activeTaskCount}
         </span>

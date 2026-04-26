@@ -84,20 +84,23 @@ export function AgentInputBox({ running, slashCommands, onSend, onAbort }: Agent
       <div className="relative">
         {suggestions.length > 0 && (
           <div
-            className="absolute bottom-full left-0 right-0 mb-1.5 rounded-md overflow-hidden shadow-lg"
+            className="absolute bottom-full left-0 right-0 mb-1.5 rounded-md overflow-hidden tc-enter-fade-up-quick"
             style={{
               background: "var(--surface)",
               border: "1px solid var(--border)",
+              boxShadow: "0 4px 14px color-mix(in srgb, var(--shadow-color) 28%, transparent)",
             }}
             onMouseDown={(e) => e.preventDefault()}
           >
             {suggestions.map((cmd, i) => (
               <button
                 key={cmd}
-                className="w-full text-left px-3 py-1.5 tc-body-sm transition-colors duration-75"
+                className="w-full text-left px-3 py-1.5 tc-body-sm"
                 style={{
                   background: i === selectedIndex ? "var(--surface-hover)" : "transparent",
                   color: i === selectedIndex ? "var(--text-primary)" : "var(--text-secondary)",
+                  transition:
+                    "background-color var(--duration-instant) var(--ease-out-soft), color var(--duration-instant) var(--ease-out-soft)",
                 }}
                 onClick={() => applySuggestion(cmd)}
               >
@@ -107,11 +110,13 @@ export function AgentInputBox({ running, slashCommands, onSend, onAbort }: Agent
           </div>
         )}
         <div
-          className="rounded-md transition-all"
+          className="rounded-md"
           style={{
             background: "var(--surface)",
             border: `1px solid ${focused ? "var(--accent)" : "var(--border)"}`,
             boxShadow: focused ? "0 0 0 3px var(--accent-soft)" : "none",
+            transition:
+              "border-color var(--duration-quick) var(--ease-out-soft), box-shadow var(--duration-quick) var(--ease-out-soft)",
           }}
         >
           <textarea
@@ -130,8 +135,22 @@ export function AgentInputBox({ running, slashCommands, onSend, onAbort }: Agent
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
           {running && (
             <button
-              className="transition-colors duration-150 p-1.5 rounded-md hover:bg-[var(--surface-hover)]"
-              style={{ color: "var(--text-muted)" }}
+              className="p-1.5 rounded-md"
+              style={{
+                color: "var(--text-muted)",
+                transition:
+                  "background-color var(--duration-quick) var(--ease-out-soft), color var(--duration-quick) var(--ease-out-soft)",
+              }}
+              onMouseEnter={(e) => {
+                const el = e.currentTarget as HTMLButtonElement;
+                el.style.background = "var(--surface-hover)";
+                el.style.color = "var(--text-primary)";
+              }}
+              onMouseLeave={(e) => {
+                const el = e.currentTarget as HTMLButtonElement;
+                el.style.background = "transparent";
+                el.style.color = "var(--text-muted)";
+              }}
               onClick={onAbort}
               onMouseDown={(e) => e.stopPropagation()}
               aria-label="Stop"
@@ -143,8 +162,14 @@ export function AgentInputBox({ running, slashCommands, onSend, onAbort }: Agent
             </button>
           )}
           <button
-            className="transition-colors duration-150 p-1.5 rounded-md hover:bg-[var(--accent-soft)]"
-            style={{ color: focused ? "var(--accent)" : "var(--text-muted)" }}
+            className="p-1.5 rounded-md"
+            style={{
+              color: focused ? "var(--accent)" : "var(--text-muted)",
+              transition:
+                "background-color var(--duration-quick) var(--ease-out-soft), color var(--duration-quick) var(--ease-out-soft)",
+            }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "var(--accent-soft)")}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "transparent")}
             onClick={submit}
             onMouseDown={(e) => e.stopPropagation()}
             aria-label="Send"

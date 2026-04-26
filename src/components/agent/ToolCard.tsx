@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useCallback, useState } from "react";
 
 interface ToolCardProps {
   name: string;
@@ -14,7 +14,9 @@ interface ToolCardProps {
   onDeny?: (sessionId: string, requestId: string) => void;
 }
 
-function StatusDot({ tone }: { tone: "running" | "ok" | "error" | "pending" }) {
+type Tone = "running" | "ok" | "error" | "pending";
+
+function StatusDot({ tone }: { tone: Tone }) {
   const color =
     tone === "ok"
       ? "var(--cyan)"
@@ -22,16 +24,56 @@ function StatusDot({ tone }: { tone: "running" | "ok" | "error" | "pending" }) {
         ? "var(--red)"
         : tone === "pending"
           ? "var(--amber)"
-          : "var(--text-faint)";
+          : "var(--accent)";
   return (
     <span
-      className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
-      style={{
-        background: color,
-        boxShadow: tone === "running" ? "0 0 6px var(--accent)" : undefined,
-      }}
+      aria-hidden
+      className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${tone === "running" ? "status-pulse" : ""}`}
+      style={{ background: color }}
     />
   );
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="9"
+      height="9"
+      viewBox="0 0 10 10"
+      aria-hidden
+      className="shrink-0"
+      style={{
+        color: "var(--text-faint)",
+        transform: open ? "rotate(90deg)" : "rotate(0deg)",
+        transition: "transform var(--duration-quick) var(--ease-out-soft)",
+      }}
+    >
+      <path d="M3 1.5L7 5L3 8.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/**
+ * Pull a single user-recognisable subject out of arbitrary tool input.
+ * Read/Write/Edit → file_path. Bash → command. Grep → pattern. Otherwise
+ * the first short string value, falling back to nothing. The subject is
+ * the only thing that distinguishes one Read call from another in a
+ * stream of fifty Reads, so showing it inline keeps the row scannable
+ * without expansion.
+ */
+function inputSubject(input: Record<string, unknown> | undefined): string {
+  if (!input) return "";
+  const candidate =
+    (typeof input.file_path === "string" && input.file_path) ||
+    (typeof input.path === "string" && input.path) ||
+    (typeof input.command === "string" && input.command) ||
+    (typeof input.pattern === "string" && input.pattern) ||
+    (typeof input.url === "string" && input.url) ||
+    (typeof input.notebook_path === "string" && input.notebook_path) ||
+    "";
+  if (typeof candidate !== "string" || !candidate) return "";
+  if (candidate.length <= 80) return candidate;
+  return candidate.slice(0, 80) + "…";
 }
 
 export function ToolCard({
@@ -43,7 +85,7 @@ export function ToolCard({
   onApprove,
   onDeny,
 }: ToolCardProps) {
-  const [inputExpanded, setInputExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [resultExpanded, setResultExpanded] = useState(false);
   const [approvalState, setApprovalState] = useState<"pending" | "approved" | "denied">("pending");
 
@@ -59,7 +101,7 @@ export function ToolCard({
     onDeny?.(approval.sessionId, approval.requestId);
   }, [approval, onDeny]);
 
-  const tone: "running" | "ok" | "error" | "pending" =
+  const tone: Tone =
     approval && approvalState === "pending"
       ? "pending"
       : isError
@@ -68,115 +110,151 @@ export function ToolCard({
           ? "ok"
           : "running";
 
+  const subject = inputSubject(input);
+  const hasInputDetail = !!input && Object.keys(input).length > 0;
+  const hasOutput = result !== undefined;
+  const isExpandable = hasInputDetail || hasOutput;
   const resultLines = result?.split("\n") ?? [];
-  const resultCollapsedHeight = resultLines.length > 6;
+  const resultCollapsed = resultLines.length > 8;
 
   return (
-    <div
-      className="my-2 rounded-md overflow-hidden"
-      style={{
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-      }}
-    >
-      <div className="flex items-center gap-2 px-3 h-8">
+    <div className="my-0.5">
+      <button
+        type="button"
+        className="flex w-full items-center gap-1.5 text-left py-0.5"
+        onClick={() => isExpandable && setExpanded((v) => !v)}
+        disabled={!isExpandable}
+      >
+        {isExpandable ? <Chevron open={expanded} /> : <span className="w-[9px] shrink-0" />}
         <StatusDot tone={tone} />
-        <span className="tc-ui tc-mono truncate" style={{ color: "var(--text-primary)" }}>
+        <span
+          className="shrink-0 tc-mono"
+          style={{
+            fontSize: "var(--text-xs)",
+            fontWeight: "var(--weight-medium)",
+            color: "var(--text-secondary)",
+          }}
+        >
           {name}
         </span>
-        <span
-          className="tc-caption ml-auto shrink-0"
-          style={{ color: "var(--text-faint)" }}
-        >
-          {tone === "running" && "running"}
-          {tone === "ok" && "done"}
-          {tone === "error" && "error"}
-          {tone === "pending" && "needs approval"}
-        </span>
-      </div>
-
-      {input && Object.keys(input).length > 0 && (
-        <div style={{ borderTop: "1px solid var(--border)" }}>
-          <button
-            className="flex items-center gap-1.5 w-full px-3 h-7 tc-caption transition-colors hover:text-[var(--text-secondary)]"
-            onClick={() => setInputExpanded((v) => !v)}
-            style={{ color: "var(--text-muted)" }}
+        {subject && (
+          <span
+            className="truncate tc-mono"
+            style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}
+            title={subject}
           >
-            <svg
-              width="8"
-              height="8"
-              viewBox="0 0 10 10"
-              className={`transition-transform duration-150 ${inputExpanded ? "rotate-90" : ""}`}
-            >
-              <path d="M3 1.5L7 5L3 8.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span className="tc-eyebrow" style={{ color: "var(--text-muted)" }}>Input</span>
-          </button>
-          {inputExpanded && (
-            <pre
-              className="tc-mono px-3 pb-2 overflow-x-auto whitespace-pre-wrap"
-              style={{
-                fontSize: "11.5px",
-                lineHeight: "var(--leading-relaxed)",
-                color: "var(--text-muted)",
-              }}
-            >
-              {JSON.stringify(input, null, 2)}
-            </pre>
+            {subject}
+          </span>
+        )}
+        {tone === "pending" && (
+          <span
+            className="ml-auto tc-eyebrow shrink-0"
+            style={{ color: "var(--amber)" }}
+          >
+            Needs approval
+          </span>
+        )}
+        {tone === "error" && (
+          <span
+            className="ml-auto tc-eyebrow shrink-0"
+            style={{ color: "var(--red)" }}
+          >
+            Error
+          </span>
+        )}
+      </button>
+
+      {expanded && (
+        <div className="mt-1 mb-1 pl-[18px] space-y-2 tc-enter-fade-quick">
+          {hasInputDetail && (
+            <div>
+              <div className="mb-0.5 tc-eyebrow tc-mono">input</div>
+              <pre
+                className="whitespace-pre-wrap break-words tc-mono m-0"
+                style={{
+                  fontSize: "var(--text-xs)",
+                  lineHeight: "var(--leading-snug)",
+                  color: "var(--text-secondary)",
+                }}
+              >
+                {JSON.stringify(input, null, 2)}
+              </pre>
+            </div>
           )}
-        </div>
-      )}
-
-      {result !== undefined && (
-        <div style={{ borderTop: "1px solid var(--border)" }}>
-          <pre
-            className="tc-mono px-3 py-2 overflow-x-auto whitespace-pre-wrap"
-            style={{
-              fontSize: "11.5px",
-              lineHeight: "var(--leading-relaxed)",
-              color: isError ? "var(--red)" : "var(--text-secondary)",
-              maxHeight: resultCollapsedHeight && !resultExpanded ? 132 : undefined,
-              overflowY: resultCollapsedHeight && !resultExpanded ? "hidden" : undefined,
-              maskImage:
-                resultCollapsedHeight && !resultExpanded
-                  ? "linear-gradient(to bottom, black 70%, transparent)"
-                  : undefined,
-            }}
-          >
-            {result}
-          </pre>
-          {resultCollapsedHeight && (
-            <button
-              className="w-full text-left px-3 h-6 tc-caption hover:text-[var(--text-secondary)] transition-colors"
-              style={{ color: "var(--text-muted)" }}
-              onClick={() => setResultExpanded((v) => !v)}
-            >
-              {resultExpanded ? "Collapse" : `Show ${resultLines.length - 6} more lines`}
-            </button>
+          {hasOutput && (
+            <div>
+              <div className="mb-0.5 tc-eyebrow tc-mono">output</div>
+              <pre
+                className="whitespace-pre-wrap break-words tc-mono m-0"
+                style={{
+                  fontSize: "var(--text-xs)",
+                  lineHeight: "var(--leading-snug)",
+                  color: isError ? "var(--red)" : "var(--text-secondary)",
+                  maxHeight: resultCollapsed && !resultExpanded ? 168 : undefined,
+                  overflowY: resultCollapsed && !resultExpanded ? "hidden" : undefined,
+                  maskImage:
+                    resultCollapsed && !resultExpanded
+                      ? "linear-gradient(to bottom, black 70%, transparent)"
+                      : undefined,
+                }}
+              >
+                {result}
+              </pre>
+              {resultCollapsed && (
+                <button
+                  className="mt-1 tc-caption tc-mono"
+                  style={{
+                    color: "var(--text-muted)",
+                    transition: "color var(--duration-quick) var(--ease-out-soft)",
+                  }}
+                  onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "var(--text-secondary)")}
+                  onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "var(--text-muted)")}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setResultExpanded((v) => !v);
+                  }}
+                >
+                  {resultExpanded ? "collapse" : `show ${resultLines.length - 8} more lines`}
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}
 
       {approval && approvalState === "pending" && (
-        <div
-          className="flex items-center gap-2 px-3 py-2"
-          style={{ borderTop: "1px solid var(--border)" }}
-        >
+        <div className="mt-1 mb-1 pl-[18px] flex items-center gap-2">
           <button
-            className="px-3 py-1 tc-ui rounded-md transition-opacity hover:opacity-90"
+            className="px-2.5 h-6 tc-ui rounded-md"
             style={{
               background: "var(--accent)",
               color: "white",
+              transition: "opacity var(--duration-quick) var(--ease-out-soft)",
             }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.opacity = "0.9")}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.opacity = "1")}
             onClick={handleApprove}
           >
             Approve
           </button>
           <button
-            className="px-3 py-1 tc-ui rounded-md transition-colors"
+            className="px-2.5 h-6 tc-ui rounded-md"
             style={{
-              background: "var(--surface-hover)",
+              background: "transparent",
               color: "var(--text-secondary)",
+              border: "1px solid var(--border)",
+              transition:
+                "background-color var(--duration-quick) var(--ease-out-soft), color var(--duration-quick) var(--ease-out-soft)",
+            }}
+            onMouseEnter={(e) => {
+              const el = e.currentTarget as HTMLButtonElement;
+              el.style.background = "var(--surface-hover)";
+              el.style.color = "var(--text-primary)";
+            }}
+            onMouseLeave={(e) => {
+              const el = e.currentTarget as HTMLButtonElement;
+              el.style.background = "transparent";
+              el.style.color = "var(--text-secondary)";
             }}
             onClick={handleDeny}
           >
@@ -185,9 +263,9 @@ export function ToolCard({
         </div>
       )}
       {approval && approvalState !== "pending" && (
-        <div className="px-3 py-2" style={{ borderTop: "1px solid var(--border)" }}>
+        <div className="mt-0.5 pl-[18px]">
           <span
-            className="tc-label"
+            className="tc-eyebrow"
             style={{ color: approvalState === "approved" ? "var(--cyan)" : "var(--red)" }}
           >
             {approvalState === "approved" ? "Approved" : "Denied"}
