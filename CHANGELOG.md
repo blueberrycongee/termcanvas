@@ -2,6 +2,60 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.35.0] - 2026-04-26
+
+### Added
+- **Figma-style canvas controls**: bottom-centre floating toolbar with Move/Hand tool selector, zoom in/out, zoom percentage, zoom presets (50 / 100 / 200 %), and Fit All button.
+- **Hand tool**: persistent pan mode — left-drag pans instead of selecting; terminals remain focusable by clicking in Hand mode.
+- **Space-bar pan**: hold Space anywhere on the canvas to temporarily activate Hand mode; release to restore the previous tool.
+- Keyboard shortcuts: `V` (Move), `H` (Hand), `Shift+1` (Fit All), `Cmd/Ctrl+0` (100 %), `Cmd/Ctrl+=` (zoom in), `Cmd/Ctrl+-` (zoom out).
+- Composer height awareness: bottom toolbar lifts above the composer bar as it resizes.
+- Task terminal badge and drawer filter for completed tasks.
+- Drag a task onto a terminal to inject its title and body as a composer prompt (without auto-submitting).
+
+### Changed
+- Default canvas tool is now **Hand** (was Move/Select).
+- Move tool restricts left-drag panning to middle-button only; left-drag on empty canvas triggers marquee selection.
+- Zoom controls removed from the top toolbar; they now live in the bottom floating toolbar.
+- Update-ready indicator dot uses design token `--green` instead of Tailwind `green-500`.
+
+### Fixed
+- `Shift+1` (Fit All) now uses `e.code` instead of `e.key` so it works on non-US keyboard layouts.
+- Cursor correctly shows `grab`/`grabbing` over terminal content in Hand mode (overrides xterm's `cursor: text !important`).
+- Space-bar pan no longer intercepts button or menu-item activation.
+- `Cmd/Ctrl+0/=/−` no longer intercepts keypresses inside editable fields.
+- Zoom preset popover and tool popover can no longer both be open simultaneously.
+- `fitAllProjects` bails early when window geometry is degenerate (tiny window or zero-size content) to prevent NaN viewport.
+- Dead `isSelected` subscription removed from TerminalTile after selection ring revert.
+- `useT` memoised per locale to prevent keyboard shortcut listeners from re-attaching on every render.
+- `getCanvasLeftInset`, `getViewportCenterClientPoint`, and `zoomAtClientPoint` now receive `taskDrawerOpen` so zoom/fit math accounts for the Task drawer width.
+- TaskDrawer participates in left-chrome layout so canvas origin is correct when the drawer is open.
+
+### Added (zh-CN)
+- **Figma 风格画布控制**：底部居中悬浮工具栏，含移动/抓手工具切换、缩放加减、缩放百分比、缩放预设（50 / 100 / 200 %）和适应全部按钮。
+- **抓手工具**：持久平移模式，左键拖拽平移画布；抓手模式下仍可点击终端聚焦。
+- **空格键平移**：在画布任意处按住空格键临时激活抓手模式，松开后恢复原工具。
+- 快捷键：`V`（移动）、`H`（抓手）、`Shift+1`（适应全部）、`Cmd/Ctrl+0`（100 %）、`Cmd/Ctrl+=`（放大）、`Cmd/Ctrl+-`（缩小）。
+- 输入框高度感知：底部工具栏随输入框高度动态上移。
+- 任务终端角标与已完成任务的抽屉筛选。
+- 将任务拖拽到终端可将标题和正文注入输入框（不自动提交）。
+
+### Changed (zh-CN)
+- 画布默认工具改为**抓手**（原为移动/选择）。
+- 移动工具的左键拖拽平移限制为中键，左键拖拽空白区域触发框选。
+- 缩放控件从顶部工具栏移至底部悬浮工具栏。
+
+### Fixed (zh-CN)
+- `Shift+1`（适应全部）改用 `e.code` 检测，兼容非 US 键盘布局。
+- 抓手模式下鼠标在终端内容上正确显示 `grab`/`grabbing`。
+- 空格键平移不再拦截按钮或菜单项的激活事件。
+- `Cmd/Ctrl+0/=/−` 不再拦截可编辑字段内的按键。
+- 缩放预设弹窗与工具弹窗不再同时打开。
+- 窗口或内容尺寸退化时 `fitAllProjects` 提前退出，防止视口 NaN。
+- 移除 TerminalTile 中选中环回退后残留的死订阅。
+- `useT` 按 locale 缓存，防止键盘快捷键监听器在每次渲染时重挂。
+- 缩放/适应计算现在传入 `taskDrawerOpen`，Task 抽屉展开时画布原点正确。
+
 ## [0.34.0] - 2026-04-25
 
 ### Added
