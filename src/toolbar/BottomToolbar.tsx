@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useCanvasToolStore } from "../stores/canvasToolStore";
+import { usePreferencesStore } from "../stores/preferencesStore";
 import {
   fitAllProjects,
   setZoomToHundred,
@@ -13,6 +14,12 @@ import {
 } from "../canvas/viewportZoom";
 import { TOOLBAR_HEIGHT } from "./toolbarHeight";
 import { useT } from "../i18n/useT";
+
+// ComposerBar sits at `bottom-4` (16 px) and is roughly 120 px tall;
+// when it's mounted we float above it with an 8 px gap so the pill is
+// never obscured. Drops back to `bottom: 20` when the composer is off.
+const BOTTOM_OFFSET_WITH_COMPOSER = 16 + 120 + 8;
+const BOTTOM_OFFSET_PLAIN = 20;
 
 const PILL_BG =
   "bg-[color-mix(in_srgb,var(--surface)_92%,transparent)] backdrop-blur-md";
@@ -43,6 +50,7 @@ export function BottomToolbar() {
   const tool = useCanvasToolStore((s) => s.tool);
   const setTool = useCanvasToolStore((s) => s.setTool);
   const viewport = useCanvasStore((s) => s.viewport);
+  const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
   const [presetOpen, setPresetOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -91,8 +99,12 @@ export function BottomToolbar() {
 
   return (
     <div
-      className="fixed left-1/2 -translate-x-1/2 z-40 pointer-events-none"
-      style={{ bottom: 20 }}
+      className="fixed left-1/2 -translate-x-1/2 z-[95] pointer-events-none"
+      style={{
+        bottom: composerEnabled
+          ? BOTTOM_OFFSET_WITH_COMPOSER
+          : BOTTOM_OFFSET_PLAIN,
+      }}
     >
       <div
         className={`pointer-events-auto inline-flex items-center gap-1 rounded-full px-2 py-1 ${PILL_BG} ${PILL_BORDER} ${PILL_SHADOW}`}
