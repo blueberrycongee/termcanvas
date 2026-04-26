@@ -522,6 +522,27 @@ function historyProjectName(dir: string): string {
 }
 
 
+const HIDDEN_HISTORY_STORAGE_KEY = "termcanvas:history:hidden:v1";
+
+function loadHiddenSessions(): Set<string> {
+  if (typeof window === "undefined" || !window.localStorage) return new Set();
+  try {
+    const raw = window.localStorage.getItem(HIDDEN_HISTORY_STORAGE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return new Set(Array.isArray(parsed) ? parsed.filter((v) => typeof v === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function persistHiddenSessions(hidden: Set<string>): void {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(HIDDEN_HISTORY_STORAGE_KEY, JSON.stringify(Array.from(hidden)));
+  } catch {}
+}
+
 const PINNED_HISTORY_STORAGE_KEY = "termcanvas:history:pinned:v1";
 
 function loadPinnedSessions(): Set<string> {
@@ -595,6 +616,7 @@ export function HistorySection({
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const [hidden, setHidden] = useState<Set<string>>(() => loadHiddenSessions());
   const [pinned, setPinned] = useState<Set<string>>(() => loadPinnedSessions());
   // Groups folded via the chevron header click.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
@@ -609,6 +631,16 @@ export function HistorySection({
       const next = new Set(prev);
       if (next.has(projectDir)) next.delete(projectDir);
       else next.add(projectDir);
+      return next;
+    });
+  }, []);
+
+  const hideSession = useCallback((sessionId: string) => {
+    setHidden((prev) => {
+      if (prev.has(sessionId)) return prev;
+      const next = new Set(prev);
+      next.add(sessionId);
+      persistHiddenSessions(next);
       return next;
     });
   }, []);
@@ -709,19 +741,24 @@ export function HistorySection({
     };
   }, [projectDirsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const visibleEntries = useMemo(
+    () => entries.filter((e) => !hidden.has(e.sessionId)),
+    [entries, hidden],
+  );
+
   const pinnedEntries = useMemo(
     () =>
-      entries
+      visibleEntries
         .filter((e) => pinned.has(e.sessionId))
         .sort((a, b) =>
           new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime(),
         ),
-    [entries, pinned],
+    [visibleEntries, pinned],
   );
 
   const unpinnedEntries = useMemo(
-    () => entries.filter((e) => !pinned.has(e.sessionId)),
-    [entries, pinned],
+    () => visibleEntries.filter((e) => !pinned.has(e.sessionId)),
+    [visibleEntries, pinned],
   );
 
   const groups = useMemo(
@@ -783,6 +820,7 @@ export function HistorySection({
                       entry={entry}
                       isPinned={true}
                       onOpen={onOpen}
+                      onHide={hideSession}
                       onPin={pinSession}
                       onUnpin={unpinSession}
                     />
@@ -825,6 +863,7 @@ export function HistorySection({
                             entry={entry}
                             isPinned={pinned.has(entry.sessionId)}
                             onOpen={onOpen}
+                            onHide={hideSession}
                             onPin={pinSession}
                             onUnpin={unpinSession}
                           />
@@ -861,15 +900,25 @@ function HistoryRow({
   entry,
   isPinned,
   onOpen,
+  onHide,
   onPin,
   onUnpin,
 }: {
   entry: HistorySessionEntry;
   isPinned: boolean;
   onOpen: (filePath: string) => void;
+  onHide: (sessionId: string) => void;
   onPin: (sessionId: string) => void;
   onUnpin: (sessionId: string) => void;
 }) {
+  const [pendingHide, setPendingHide] = useState(false);
+
+  useEffect(() => {
+    if (!pendingHide) return;
+    const timer = setTimeout(() => setPendingHide(false), 3000);
+    return () => clearTimeout(timer);
+  }, [pendingHide]);
+
   return (
     <button
       className="group flex w-full items-center gap-1.5 pl-4 pr-1 py-1 text-left transition-colors hover:bg-[var(--sidebar-hover)]"
@@ -924,6 +973,36 @@ function HistoryRow({
           {formatHistoryAge(entry.lastActivityAt)}
         </div>
       </div>
+
+      {/* Two-step hide: first click arms (red), second executes permanently */}
+      <span
+        className={
+          "shrink-0 transition-opacity " +
+          (pendingHide ? "opacity-100" : "opacity-0 group-hover:opacity-100")
+        }
+      >
+        <IconButton
+          size="sm"
+          tone={pendingHide ? "danger" : "neutral"}
+          label={pendingHide ? "Click again to hide permanently" : "Hide from history"}
+          className={pendingHide ? "bg-red-500/15" : ""}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (pendingHide) {
+              onHide(entry.sessionId);
+            } else {
+              setPendingHide(true);
+            }
+          }}
+          onBlur={() => setPendingHide(false)}
+        >
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+            <path d="M1 6c1.2-2.3 3-3.5 5-3.5s3.8 1.2 5 3.5c-1.2 2.3-3 3.5-5 3.5S2.2 8.3 1 6z"
+              stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+            <path d="M2 10L10 2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+          </svg>
+        </IconButton>
+      </span>
     </button>
   );
 }
