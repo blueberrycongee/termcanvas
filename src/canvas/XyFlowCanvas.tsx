@@ -571,11 +571,6 @@ function XyFlowCanvasInner() {
         return;
       }
 
-      const target = event.target;
-      if (target instanceof Element && target.closest(".nowheel")) {
-        return;
-      }
-
       event.preventDefault();
       event.stopPropagation();
 
