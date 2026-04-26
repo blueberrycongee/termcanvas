@@ -545,6 +545,11 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("fs:list-dir", dirPath) as Promise<
         { name: string; isDirectory: boolean }[]
       >,
+    listAllFiles: (dirPath: string) =>
+      ipcRenderer.invoke("fs:list-all-files", dirPath) as Promise<{
+        type: "git" | "dir";
+        paths: string[];
+      }>,
     readFile: (filePath: string) =>
       ipcRenderer.invoke("fs:read-file", filePath) as Promise<
         { type: string; content: string } | { error: string; size?: string }

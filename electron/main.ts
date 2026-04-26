@@ -1563,6 +1563,47 @@ function setupIpc() {
     fileTreeWatcher.unwatchAll();
   });
 
+  ipcMain.handle("fs:list-all-files", async (_event, dirPath: string) => {
+    try {
+      const { execFile } = await import("child_process");
+      const output = await new Promise<string>((resolve, reject) => {
+        execFile(
+          "git",
+          ["ls-files", "--cached", "--others", "--exclude-standard"],
+          { cwd: dirPath, timeout: 10000 },
+          (err, stdout) => (err ? reject(err) : resolve(stdout)),
+        );
+      });
+      const paths = output.split("\n").filter(Boolean);
+      return { type: "git" as const, paths };
+    } catch {
+      // Non-git repo: walk the directory tree recursively
+      const paths: string[] = [];
+      const visited = new Set<string>();
+      const collect = (dir: string, prefix: string): void => {
+        try {
+          const realDir = fs.realpathSync(dir);
+          if (visited.has(realDir)) return;
+          visited.add(realDir);
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            if (HIDDEN_DIRS.has(entry.name)) continue;
+            const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+            if (entry.isDirectory()) {
+              collect(path.join(dir, entry.name), relPath);
+            } else {
+              paths.push(relPath);
+            }
+          }
+        } catch (err) {
+          console.error(`[fs:list-all-files] failed to read ${dir}:`, err);
+        }
+      };
+      collect(dirPath, "");
+      return { type: "dir" as const, paths };
+    }
+  });
+
   ipcMain.handle("cli:is-registered", () => isCliRegistered(getCliDir()));
   ipcMain.handle("cli:register", () => {
     const cliOk = registerCli(getCliDir());
