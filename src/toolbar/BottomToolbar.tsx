@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { useCanvasStore } from "../stores/canvasStore";
+import { useTaskStore } from "../stores/taskStore";
 import {
   useCanvasToolStore,
   type CanvasTool,
@@ -262,11 +263,14 @@ export function BottomToolbar() {
       rightPanelWidth,
       viewport: current,
     } = useCanvasStore.getState();
+    const taskDrawerOpen =
+      useTaskStore.getState().openProjectPath !== null;
     const center = getViewportCenterClientPoint({
       leftPanelCollapsed,
       leftPanelWidth,
       rightPanelCollapsed,
       rightPanelWidth,
+      taskDrawerOpen,
       topInset: TOOLBAR_HEIGHT,
     });
     useCanvasStore.getState().setViewport(
@@ -275,6 +279,7 @@ export function BottomToolbar() {
         clientY: center.y,
         leftPanelCollapsed,
         leftPanelWidth,
+        taskDrawerOpen,
         nextScale: clampScale(nextScale),
         viewport: current,
       }),
