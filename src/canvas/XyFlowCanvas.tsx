@@ -21,6 +21,7 @@ import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useTaskStore } from "../stores/taskStore";
 import { useDrawingStore } from "../stores/drawingStore";
+import { useCanvasToolStore } from "../stores/canvasToolStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useSidebarDragStore } from "../stores/sidebarDragStore";
 import {
@@ -300,6 +301,8 @@ function XyFlowCanvasInner() {
   const petEnabled = usePreferencesStore((state) => state.petEnabled);
   const animationBlur = usePreferencesStore((state) => state.animationBlur);
   const drawingTool = useDrawingStore((state) => state.tool);
+  const canvasTool = useCanvasToolStore((state) => state.tool);
+  const spaceHeld = useCanvasToolStore((state) => state.spaceHeld);
   const { handleMouseDown: handleBoxSelectMouseDown } = useBoxSelect();
   const layoutKey = useMemo(() => buildLayoutKey(projects), [projects]);
   const leftOffset = getCanvasLeftInset(
@@ -309,6 +312,8 @@ function XyFlowCanvasInner() {
   );
   const sidebarDragging = useSidebarDragStore((s) => s.active);
   const isDrawing = drawingEnabled && drawingTool !== "select";
+  const isPanMode = canvasTool === "hand" || spaceHeld;
+  const [isPanning, setIsPanning] = useState(false);
   const previousAnimatingRef = useRef(isAnimating);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   useTrackpadSwipeFocus(canvasContainerRef);
@@ -428,11 +433,18 @@ function XyFlowCanvasInner() {
 
   const handleNodeClick = useCallback<NodeMouseHandler<CanvasFlowNode>>(
     (_event, node) => {
-      // In flat canvas, clicking a terminal node activates its project/worktree
+      // Space-held panning is a transient override on top of whatever
+      // tool is active — a click that lands while Space is down is the
+      // tail of a pan gesture, so suppress the activate. Persistent
+      // Hand mode is different: clicking a terminal there is the user's
+      // way of getting *into* a terminal without leaving Hand. Without
+      // this distinction the now-default Hand tool can't focus a
+      // worktree by clicking, which made the canvas feel inert.
+      if (spaceHeld) return;
       const { projectId, worktreeId } = node.data;
       useProjectStore.getState().setFocusedWorktree(projectId, worktreeId);
     },
-    [],
+    [spaceHeld],
   );
 
   const handleNodeDragStart = useCallback<OnNodeDrag<CanvasFlowNode>>(() => {
@@ -523,6 +535,11 @@ function XyFlowCanvasInner() {
 
   const handleWheelCapture = useCallback(
     (event: React.WheelEvent<HTMLDivElement>) => {
+      // Two distinct gestures land here:
+      //   1. Cmd/Ctrl + wheel — explicit zoom intent.
+      //   2. Trackpad pinch — Chromium synthesises wheel events with
+      //      ctrlKey=true even though no key is pressed. Same code path
+      //      handles both, anchored at the cursor position.
       if (!(event.ctrlKey || event.metaKey)) {
         return;
       }
@@ -556,17 +573,66 @@ function XyFlowCanvasInner() {
     [leftPanelCollapsed, leftPanelWidth, taskDrawerOpen, viewport],
   );
 
+  const handleContainerMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (isPanMode && event.button === 0) {
+        setIsPanning(true);
+      }
+      handleBoxSelectMouseDown(event);
+    },
+    [handleBoxSelectMouseDown, isPanMode],
+  );
+
+  useEffect(() => {
+    if (!isPanning) return;
+    const stop = () => setIsPanning(false);
+    window.addEventListener("mouseup", stop);
+    window.addEventListener("blur", stop);
+    return () => {
+      window.removeEventListener("mouseup", stop);
+      window.removeEventListener("blur", stop);
+    };
+  }, [isPanning]);
+
+  // isPanning takes precedence over isPanMode for the cursor: if the
+  // user holds Space, presses the mouse, then releases Space before
+  // mouseup, the gesture is still in flight and the cursor must keep
+  // saying "grabbing". Without this, the cursor snaps back to default
+  // mid-drag.
+  const cursorClass = isDrawing
+    ? "cursor-crosshair"
+    : isPanning
+      ? "cursor-grabbing"
+      : isPanMode
+        ? "cursor-grab"
+        : "";
+
+  // Cursors set on the outer div lose to the `cursor: text !important`
+  // rule that .tc-xterm-host / .xterm enforces inside terminal tiles.
+  // Toggle body classes that the matching CSS overrides target so the
+  // pan cursor wins everywhere on the canvas, not just over empty
+  // pane.
+  useEffect(() => {
+    const body = document.body;
+    body.classList.toggle("tc-canvas-pan-mode", isPanMode || isPanning);
+    body.classList.toggle("tc-canvas-pan-grabbing", isPanning);
+    return () => {
+      body.classList.remove("tc-canvas-pan-mode");
+      body.classList.remove("tc-canvas-pan-grabbing");
+    };
+  }, [isPanMode, isPanning]);
+
   return (
     <div
       ref={canvasContainerRef}
-      className={`fixed top-0 right-0 bottom-0 overflow-hidden canvas-bg ${isDrawing ? "cursor-crosshair" : ""}`}
+      className={`fixed top-0 right-0 bottom-0 overflow-hidden canvas-bg ${cursorClass}`}
       style={{
         left: leftOffset,
         transition: sidebarDragging
           ? undefined
           : `left ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}`,
       }}
-      onMouseDownCapture={handleBoxSelectMouseDown}
+      onMouseDownCapture={handleContainerMouseDown}
       onWheelCapture={handleWheelCapture}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
@@ -604,11 +670,16 @@ function XyFlowCanvasInner() {
         onNodeDragStart={handleNodeDragStart}
         onNodeDragStop={handleNodeDragStop}
         nodesConnectable={false}
+        nodesDraggable={!isPanMode}
         nodesFocusable={false}
         edgesFocusable={false}
         elementsSelectable={false}
         selectNodesOnDrag={false}
-        panOnDrag={[0, 1]}
+        // In Hand mode (or Space-held), left+middle both pan. In Move
+        // mode, only middle-button pans — the left button is reserved
+        // for marquee on empty canvas (handled by useBoxSelect) and
+        // node drag (handled by React Flow's nodesDraggable).
+        panOnDrag={isPanMode ? [0, 1] : [1]}
         panOnScroll
         panOnScrollMode={PanOnScrollMode.Free}
         snapToGrid

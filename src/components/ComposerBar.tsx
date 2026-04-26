@@ -108,6 +108,7 @@ function getPassthroughSequence(
 export function ComposerBar() {
   const t = useT();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const { notify } = useNotificationStore();
   const {
     draft,
@@ -238,6 +239,27 @@ export function ComposerBar() {
     const handleFocusComposer = () => requestAnimationFrame(() => textareaRef.current?.focus());
     window.addEventListener("termcanvas:focus-composer", handleFocusComposer);
     return () => window.removeEventListener("termcanvas:focus-composer", handleFocusComposer);
+  }, []);
+
+  // Publish the composer's measured height so the floating BottomToolbar
+  // can sit just above it. Without this it ends up obscured the moment
+  // the user adds a second line, image, or rename row.
+  useEffect(() => {
+    const node = wrapperRef.current;
+    if (!node) return;
+    const root = document.documentElement;
+    const publish = (height: number) => {
+      root.style.setProperty("--composer-height", `${Math.round(height)}px`);
+    };
+    publish(node.getBoundingClientRect().height);
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) publish(entry.contentRect.height);
+    });
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty("--composer-height");
+    };
   }, []);
 
   const handleImagePaste = useCallback(
@@ -516,11 +538,12 @@ export function ComposerBar() {
 
   return (
     <div
+      ref={wrapperRef}
       className="fixed bottom-4 z-[90] pointer-events-none flex justify-center px-4"
       style={{ left: composerLeft, right: composerRight }}
     >
       <div
-        className={`pointer-events-auto w-full max-w-4xl rounded-xl border bg-[var(--surface)] shadow-[0_18px_48px_rgba(0,0,0,0.24)] transition-colors duration-150 ${
+        className={`pointer-events-auto w-full max-w-4xl rounded-xl border bg-[var(--surface)] shadow-[0_18px_48px_-12px_color-mix(in_srgb,var(--shadow-color)_36%,transparent)] transition-colors duration-150 ${
           isDragOver
             ? "border-[var(--accent)] bg-[var(--accent)]/5"
             : "border-[var(--border)]"

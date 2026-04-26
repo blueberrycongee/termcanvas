@@ -257,6 +257,9 @@ export const zh = {
   toolbar_untitled_workspace: "未命名工作区",
   zoom_out: "缩小",
   zoom_in: "放大",
+  canvas_tool_select: "移动",
+  canvas_tool_hand: "抓手",
+  canvas_zoom_to: "缩放至",
 
   shortcut_add_project: "添加项目目录…",
   shortcut_cycle_focus_level: "切换聚焦层级",

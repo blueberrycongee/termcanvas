@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { CanvasRoot } from "./canvas/CanvasRoot";
 import { addProjectFromDirectoryPath } from "./canvas/sceneCommands";
 import { Toolbar } from "./toolbar/Toolbar";
+import { BottomToolbar } from "./toolbar/BottomToolbar";
 import { NotificationToast } from "./components/NotificationToast";
 import { LeftPanel } from "./components/LeftPanel";
 import { RightPanel } from "./components/RightPanel";
@@ -591,6 +592,7 @@ export function App() {
       <LeftPanel />
       <RightPanel />
       <CanvasRoot />
+      <BottomToolbar />
       {drawingEnabled && <DrawingPanel />}
       {completionGlowEnabled && <CompletionGlow />}
       <ShortcutHints />

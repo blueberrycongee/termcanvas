@@ -19,6 +19,7 @@ import {
   resolveAllCardPositions,
 } from "../stores/cardLayoutStore";
 import { useDrawingStore } from "../stores/drawingStore";
+import { useCanvasToolStore } from "../stores/canvasToolStore";
 import { type SelectedItem } from "../stores/selectionStore";
 import { screenPointToCanvasPoint } from "../canvas/viewportBounds";
 
@@ -144,11 +145,31 @@ export function activateSingleBoxSelectionItem(item: SelectedItem): void {
 
 export function useBoxSelect() {
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0 || !e.shiftKey) return;
+    if (e.button !== 0) return;
     if (shouldIgnoreBoxSelectTarget(e.target)) return;
 
     // Don't activate in drawing mode
     if (useDrawingStore.getState().tool !== "select") return;
+    // Hand tool / Space-held panning takes precedence over marquee.
+    if (
+      useCanvasToolStore.getState().tool === "hand" ||
+      useCanvasToolStore.getState().spaceHeld
+    ) {
+      return;
+    }
+
+    // If the press starts on a node, hand the gesture to React Flow so
+    // a plain drag moves the terminal (Move-tool semantics in Figma).
+    // Shift+drag still falls through to marquee for the "add to
+    // selection" gesture.
+    const target = e.target;
+    if (
+      target instanceof Element &&
+      target.closest(".react-flow__node") &&
+      !e.shiftKey
+    ) {
+      return;
+    }
 
     e.preventDefault();
     e.stopPropagation();
