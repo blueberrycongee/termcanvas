@@ -394,9 +394,11 @@ export function TaskDetailDrawer() {
         aria-modal="false"
         aria-label={task?.title ?? "Task detail"}
       >
-        {/* Header strip — also a drag source for the current task */}
+        {/* Header strip — also a drag source for the current task.
+            py-2.5 keeps this header's bottom border on the same Y as the
+            LeftPanel section header and the TaskDrawer header. */}
         <div
-          className="shrink-0 flex items-center justify-between px-4 py-2 border-b border-[var(--border)] bg-[var(--surface)]"
+          className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-[var(--border)] bg-[var(--surface)]"
           draggable={!!task && !isEditing}
           onDragStart={(e) => {
             if (!task || isEditing) return;

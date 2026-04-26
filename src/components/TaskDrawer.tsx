@@ -273,8 +273,9 @@ export function TaskDrawer() {
       }}
       aria-hidden={!isOpen}
     >
-      {/* Header */}
-      <div className="shrink-0 flex items-center justify-between px-3 py-2 border-b border-[var(--border)]">
+      {/* Header — py-2.5 (not py-2) so this header's bottom border aligns
+          with LeftPanel's 41px section header on the same Y. */}
+      <div className="shrink-0 flex items-center justify-between px-3 py-2.5 border-b border-[var(--border)]">
         <span
           className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium truncate min-w-0"
           style={{ fontFamily: '"Geist Mono", monospace' }}
