@@ -934,19 +934,8 @@ export function TerminalTile({
           !dragOver && !taskFlash && terminal.focused
             ? "var(--border-hover)"
             : undefined,
-        // Multi-select ring. Routed through `outline` so it stacks
-        // cleanly with the existing focus / drag boxShadow chain. Sits
-        // 2 px off the tile edge so it reads as "I picked this one"
-        // rather than "this is hovered". Suppressed during the
-        // dragOver / taskFlash treatments above — those already
-        // own the perimeter with their own accent ring and a stacked
-        // selection outline next to them looks like noise.
-        outline:
-          isSelected && !dragOver && !taskFlash
-            ? "1.5px solid color-mix(in srgb, var(--accent) 65%, transparent)"
-            : "none",
-        outlineOffset: isSelected && !dragOver && !taskFlash ? 2 : 0,
-        transition: "box-shadow 150ms ease, outline-color 150ms ease",
+        outline: "none",
+        transition: "box-shadow 150ms ease",
       }}
       onClick={(e) => {
         e.stopPropagation();
