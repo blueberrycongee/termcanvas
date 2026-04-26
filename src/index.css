@@ -238,11 +238,11 @@ body {
   color: var(--text-metadata);
 }
 .tc-timestamp {
-  font-size: var(--text-xs);
+  font-size: 10px;
   font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-feature-settings: "ss03", "zero";
   font-variant-numeric: tabular-nums;
-  color: var(--text-timestamp);
+  color: var(--text-muted);
 }
 /* .tc-role / .tc-role-user / .tc-role-assistant retired alongside the
    --role-* tokens. The replay view now leans on a gutter glyph + prose

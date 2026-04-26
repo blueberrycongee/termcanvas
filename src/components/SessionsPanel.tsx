@@ -894,9 +894,8 @@ export function HistorySection({
  * One row in the history list. Visual hierarchy:
  *
  *   1. The first prompt (primary, --text-primary).
- *   2. Relative age (tc-timestamp — bumped above --text-faint so the
- *      reader can actually parse it; this is the row's main scannable
- *      anchor when looking for "the one I had a few hours ago").
+ *   2. Relative age (tc-timestamp — 10px mono at --text-muted; smaller
+ *      and lighter than the prompt so hierarchy is clear at a glance).
  *
  * Project name is no longer in the row — it's the group header above.
  * Provider is no longer in the row — it's metadata noise here, kept in
@@ -935,7 +934,7 @@ function HistoryRow({
             className="truncate"
             style={{
               fontSize: "var(--text-xs)",
-              fontWeight: "var(--weight-regular)",
+              fontWeight: "var(--weight-medium)",
               color: "var(--text-primary)",
               lineHeight: "var(--leading-snug)",
             }}
