@@ -316,7 +316,7 @@ export function CommandPalette() {
     <div
       ref={backdropRef}
       className="fixed inset-0 z-[200] flex items-start justify-center pt-[15vh]"
-      style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
+      style={{ backgroundColor: "var(--scrim)" }}
       onClick={(e) => {
         if (e.target === backdropRef.current) closePalette();
       }}

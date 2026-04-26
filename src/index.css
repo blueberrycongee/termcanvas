@@ -80,6 +80,13 @@
      instead of looking ashy. Components compose translucency on top
      via color-mix(); never used at full opacity. */
   --shadow-color: #0a0908;
+  /* Modal scrim. Used by every dialog/palette/popup that needs to
+     darken the canvas behind it. Defined as a complete colour
+     (with built-in alpha) so call-sites just reference --scrim and
+     never reach for raw rgba(). Dark theme uses a deep black at 55%
+     — same value the existing modals had hand-coded; the token just
+     makes it consistent and trackable. */
+  --scrim: rgba(0, 0, 0, 0.55);
   --radius: 8px;
   color-scheme: dark;
 }
@@ -118,6 +125,12 @@
      keeps shadows in the same hue family as the light neutrals so
      they read as "soft depth" rather than "hard cutout". */
   --shadow-color: #1c1917;
+  /* Light-theme scrim is the same warm dark as --shadow-color but at
+     a lower 42% alpha. A pure-black 55% scrim reads as a hard
+     theatre-curtain on cream paper; the warm tone keeps the modal
+     feeling lifted from the same surface family, and the lower alpha
+     stops the popup from looking like it's floating on coal. */
+  --scrim: rgba(28, 25, 23, 0.42);
   --radius: 8px;
   color-scheme: light;
 }

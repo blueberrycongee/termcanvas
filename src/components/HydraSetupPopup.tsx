@@ -26,7 +26,7 @@ export function HydraSetupPopup({ status, projectName, onEnable, onDismiss, onDi
   return (
     <div
       ref={backdropRef}
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-[var(--scrim)]"
       onClick={(e) => {
         if (e.target === backdropRef.current) onDismiss();
       }}

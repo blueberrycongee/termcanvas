@@ -982,7 +982,10 @@ export function TerminalTile({
         }}
       >
         {terminal.origin !== "agent" && (
-          <div className="w-[3px] h-3 rounded-full bg-amber-500/60 shrink-0" />
+          <div
+            className="w-[3px] h-3 rounded-full shrink-0"
+            style={{ background: "var(--amber)", opacity: 0.7 }}
+          />
         )}
         <span
           className="text-[11px] font-medium"
@@ -1029,8 +1032,8 @@ export function TerminalTile({
             <button
               className={`tc-tile-action shrink-0 rounded p-0.5 ${
                 terminal.starred
-                  ? "text-amber-400 hover:text-amber-300"
-                  : "text-[var(--text-faint)] hover:text-amber-400"
+                  ? "text-[var(--amber)] hover:brightness-110"
+                  : "text-[var(--text-faint)] hover:text-[var(--amber)]"
               }`}
               data-pinned={terminal.starred ? "true" : undefined}
               title={terminal.starred ? t.terminal_unstar : t.terminal_star}

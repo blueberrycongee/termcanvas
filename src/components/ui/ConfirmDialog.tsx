@@ -103,7 +103,7 @@ export function ConfirmDialog({
       role="dialog"
       aria-modal="true"
       aria-label={title}
-      className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60"
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-[var(--scrim)]"
       onClick={() => {
         if (!busy) onCancel();
       }}

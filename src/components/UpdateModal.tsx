@@ -59,7 +59,7 @@ export function UpdateModal({ onClose }: Props) {
   return (
     <div
       ref={backdropRef}
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[var(--scrim)]"
       onClick={handleBackdropClick}
     >
       <div className="w-[480px] max-h-[80vh] flex flex-col rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-2xl">
@@ -111,7 +111,7 @@ export function UpdateModal({ onClose }: Props) {
         {/* Error message */}
         {status === "error" && (
           <div className="px-5 py-3">
-            <p className="text-[12px] text-red-400">
+            <p className="text-[12px] text-[var(--red)]">
               {errorMessage || t.update_modal_download_failed}
             </p>
           </div>

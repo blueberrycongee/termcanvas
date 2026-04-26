@@ -950,7 +950,7 @@ export function SettingsModal({ onClose }: Props) {
   return (
     <div
       ref={backdropRef}
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/55 tc-enter-fade"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-[var(--scrim)] tc-enter-fade"
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"
