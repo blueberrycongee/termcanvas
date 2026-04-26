@@ -626,6 +626,16 @@ export function HistorySection({
   const [hidden, setHidden] = useState<Set<string>>(() => loadHiddenSessions());
   const [showHidden, setShowHidden] = useState(false);
   const [pinned, setPinned] = useState<Set<string>>(() => loadPinnedSessions());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroup = useCallback((projectDir: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(projectDir)) next.delete(projectDir);
+      else next.add(projectDir);
+      return next;
+    });
+  }, []);
 
   const hideSession = useCallback((sessionId: string) => {
     setHidden((prev) => {
@@ -924,42 +934,56 @@ export function HistorySection({
                   ))}
                 </div>
               )}
-              {groups.map((group) => (
-                <div key={group.projectDir} className="mb-1.5 last:mb-0">
-                  <div className="flex items-baseline gap-2 px-3 pt-1.5 pb-1">
-                    <span
-                      className="tc-eyebrow tc-mono truncate"
+              {groups.map((group) => {
+                const isCollapsed = collapsedGroups.has(group.projectDir);
+                return (
+                  <div key={group.projectDir} className="mb-1.5 last:mb-0">
+                    <button
+                      className="flex w-full items-center gap-1.5 px-3 pt-1.5 pb-1 text-left hover:bg-[var(--sidebar-hover)]"
+                      onClick={() => toggleGroup(group.projectDir)}
                       title={group.projectDir}
                     >
-                      {historyProjectName(group.projectDir)}
-                    </span>
-                    <span className="ml-auto tc-eyebrow tc-mono tabular-nums">
-                      {group.entries.length}
-                    </span>
+                      <svg
+                        width="8"
+                        height="8"
+                        viewBox="0 0 10 10"
+                        fill="none"
+                        className={`shrink-0 transition-transform ${isCollapsed ? "" : "rotate-90"}`}
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        <path d="M3 2l4 3-4 3V2z" fill="currentColor" />
+                      </svg>
+                      <span className="tc-eyebrow tc-mono truncate">
+                        {historyProjectName(group.projectDir)}
+                      </span>
+                      <span className="ml-auto tc-eyebrow tc-mono tabular-nums">
+                        {group.entries.length}
+                      </span>
+                    </button>
+                    {!isCollapsed && group.entries.map((entry) => {
+                      const isHidden = hidden.has(entry.sessionId);
+                      return (
+                        <HistoryRow
+                          key={entry.sessionId}
+                          entry={entry}
+                          isHidden={isHidden}
+                          isPinned={pinned.has(entry.sessionId)}
+                          sentinelRef={
+                            entry.sessionId === sentinelSessionId
+                              ? sentinelRef
+                              : null
+                          }
+                          onOpen={onOpen}
+                          onHide={hideSession}
+                          onUnhide={unhideSession}
+                          onPin={pinSession}
+                          onUnpin={unpinSession}
+                        />
+                      );
+                    })}
                   </div>
-                  {group.entries.map((entry) => {
-                    const isHidden = hidden.has(entry.sessionId);
-                    return (
-                      <HistoryRow
-                        key={entry.sessionId}
-                        entry={entry}
-                        isHidden={isHidden}
-                        isPinned={pinned.has(entry.sessionId)}
-                        sentinelRef={
-                          entry.sessionId === sentinelSessionId
-                            ? sentinelRef
-                            : null
-                        }
-                        onOpen={onOpen}
-                        onHide={hideSession}
-                        onUnhide={unhideSession}
-                        onPin={pinSession}
-                        onUnpin={unpinSession}
-                      />
-                    );
-                  })}
-                </div>
-              ))}
+                );
+              })}
               {hasMore && (
                 <button
                   className="px-3 py-2 text-left tc-label tc-mono hover:text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] cursor-pointer disabled:cursor-default"
