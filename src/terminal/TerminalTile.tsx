@@ -829,13 +829,13 @@ export function TerminalTile({
       e.stopPropagation();
       setDragOver(false);
 
-      const filePath = e.dataTransfer?.getData("text/plain");
-      if (!filePath) return;
+      const rawPath = e.dataTransfer?.getData("text/plain");
+      if (!rawPath) return;
 
       const ptyId = getTerminalPtyId(terminal.id);
       if (ptyId === null) return;
 
-      const escaped = shellEscapePath(filePath);
+      const escaped = rawPath.split("\n").filter(Boolean).map(shellEscapePath).join(" ");
       window.termcanvas.terminal.input(ptyId, " " + escaped);
       activateTerminalInScene(projectId, worktreeId, terminal.id);
     };
@@ -898,13 +898,13 @@ export function TerminalTile({
       e.stopPropagation();
       setDragOver(false);
 
-      const filePath = e.dataTransfer.getData("text/plain");
-      if (!filePath) return;
+      const rawPath = e.dataTransfer.getData("text/plain");
+      if (!rawPath) return;
 
       const ptyId = getTerminalPtyId(terminal.id);
       if (ptyId === null) return;
 
-      const escaped = shellEscapePath(filePath);
+      const escaped = rawPath.split("\n").filter(Boolean).map(shellEscapePath).join(" ");
       window.termcanvas.terminal.input(ptyId, " " + escaped);
       activateTerminalInScene(projectId, worktreeId, terminal.id);
     },

@@ -782,6 +782,9 @@ export interface TermCanvasAPI {
     listDir: (
       dirPath: string,
     ) => Promise<{ name: string; isDirectory: boolean }[]>;
+    listAllFiles: (
+      dirPath: string,
+    ) => Promise<{ type: "git" | "dir"; paths: string[] }>;
     readFile: (
       filePath: string,
     ) => Promise<

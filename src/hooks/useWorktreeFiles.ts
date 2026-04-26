@@ -1,70 +1,61 @@
-import { useState, useEffect, useCallback } from "react";
-
-export interface DirEntry {
-  name: string;
-  isDirectory: boolean;
-}
+import { useState, useEffect, useCallback, useRef } from "react";
 
 export function useWorktreeFiles(worktreePath: string | null) {
-  const [entries, setEntries] = useState<Map<string, DirEntry[]>>(new Map());
-  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
+  const [paths, setPaths] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  // Monotonic load id; bumping it invalidates any in-flight load
+  const loadIdRef = useRef(0);
+
+  const loadFiles = useCallback(async () => {
+    if (!worktreePath || !window.termcanvas) return;
+    const myId = ++loadIdRef.current;
+    try {
+      const result = await window.termcanvas.fs.listAllFiles(worktreePath);
+      if (loadIdRef.current !== myId) return;
+      setPaths(result.paths);
+    } catch {
+      if (loadIdRef.current !== myId) return;
+      setPaths([]);
+    } finally {
+      if (loadIdRef.current === myId) setLoading(false);
+    }
+  }, [worktreePath]);
 
   useEffect(() => {
     if (!worktreePath || !window.termcanvas) {
-      setEntries(new Map());
+      // Invalidate any in-flight load before resetting state
+      loadIdRef.current++;
+      setPaths([]);
       setLoading(false);
       return;
     }
 
-    window.termcanvas.fs.unwatchAllDirs();
-
     setLoading(true);
-    window.termcanvas.fs.listDir(worktreePath).then((items) => {
-      setEntries(new Map([[worktreePath, items]]));
-      setLoading(false);
+    loadFiles();
+
+    window.termcanvas.fs.watchDir(worktreePath);
+    const unsubFs = window.termcanvas.fs.onDirChanged(() => {
+      loadFiles();
+    });
+
+    // git emit may carry the worktree root or a subdirectory path; accept both
+    const unsubGit = window.termcanvas.git.onChanged((changedPath: string) => {
+      if (
+        changedPath === worktreePath ||
+        changedPath.startsWith(worktreePath + "/")
+      ) {
+        loadFiles();
+      }
     });
 
     return () => {
-      window.termcanvas.fs.unwatchAllDirs();
+      // Invalidate any in-flight load so it doesn't setState after unmount
+      loadIdRef.current++;
+      window.termcanvas.fs.unwatchDir(worktreePath);
+      unsubFs();
+      unsubGit();
     };
-  }, [worktreePath]);
+  }, [worktreePath, loadFiles]);
 
-  const refreshDir = useCallback(
-    (dirPath: string) => {
-      window.termcanvas.fs.listDir(dirPath).then((items) => {
-        setEntries((prev) => new Map(prev).set(dirPath, items));
-      });
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (!window.termcanvas) return;
-    return window.termcanvas.fs.onDirChanged(refreshDir);
-  }, [refreshDir]);
-
-  const toggleDir = useCallback(
-    (dirPath: string) => {
-      setExpandedDirs((prev) => {
-        const next = new Set(prev);
-        if (next.has(dirPath)) {
-          next.delete(dirPath);
-          window.termcanvas.fs.unwatchDir(dirPath);
-        } else {
-          next.add(dirPath);
-          window.termcanvas.fs.watchDir(dirPath);
-          if (!entries.has(dirPath)) {
-            window.termcanvas.fs.listDir(dirPath).then((items) => {
-              setEntries((prev) => new Map(prev).set(dirPath, items));
-            });
-          }
-        }
-        return next;
-      });
-    },
-    [entries]
-  );
-
-  return { entries, expandedDirs, toggleDir, refreshDir, loading };
+  return { paths, loading, refresh: loadFiles };
 }

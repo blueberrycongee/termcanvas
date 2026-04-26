@@ -17,7 +17,7 @@ export class FileTreeWatcher {
     if (this.watchers.has(dirPath)) return;
 
     try {
-      const watcher = fs.watch(dirPath, (_eventType, filename) => {
+      const watcher = fs.watch(dirPath, { recursive: true }, (_eventType, filename) => {
         if (typeof filename === "string") {
           if (this.hiddenDirs.has(filename)) return;
         }

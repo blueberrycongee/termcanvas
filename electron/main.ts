@@ -1558,6 +1558,54 @@ function setupIpc() {
     fileTreeWatcher.unwatchAll();
   });
 
+  ipcMain.handle("fs:list-all-files", async (_event, dirPath: string) => {
+    try {
+      const { execFile } = await import("child_process");
+      const output = await new Promise<string>((resolve, reject) => {
+        execFile(
+          "git",
+          ["ls-files", "--cached", "--others", "--exclude-standard"],
+          { cwd: dirPath, timeout: 10000 },
+          (err, stdout) => (err ? reject(err) : resolve(stdout)),
+        );
+      });
+      const paths = output.split("\n").filter(Boolean);
+      return { type: "git" as const, paths };
+    } catch {
+      // Non-git repo: walk the directory tree recursively
+      const paths: string[] = [];
+      const visited = new Set<string>();
+      // Returns number of file entries added from this subtree. When a
+      // directory subtree is entirely empty, emit the directory itself with a
+      // trailing "/" so @pierre/trees can still display it.
+      const collect = (dir: string, prefix: string): number => {
+        let added = 0;
+        try {
+          const realDir = fs.realpathSync(dir);
+          if (visited.has(realDir)) return 0;
+          visited.add(realDir);
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            if (HIDDEN_DIRS.has(entry.name)) continue;
+            const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+            if (entry.isDirectory()) {
+              added += collect(path.join(dir, entry.name), relPath);
+            } else {
+              paths.push(relPath);
+              added++;
+            }
+          }
+          if (added === 0 && prefix) paths.push(`${prefix}/`);
+        } catch (err) {
+          console.error(`[fs:list-all-files] failed to read ${dir}:`, err);
+        }
+        return added;
+      };
+      collect(dirPath, "");
+      return { type: "dir" as const, paths };
+    }
+  });
+
   ipcMain.handle("cli:is-registered", () => isCliRegistered(getCliDir()));
   ipcMain.handle("cli:register", () => {
     const cliOk = registerCli(getCliDir());
