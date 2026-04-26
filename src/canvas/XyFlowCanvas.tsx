@@ -62,7 +62,7 @@ import { createTerminalInScene } from "../actions/terminalSceneActions";
 import type { TerminalType } from "../types";
 
 const EMPTY_EDGES: never[] = [];
-const WHEEL_ZOOM_SENSITIVITY = 0.002;
+const WHEEL_ZOOM_SENSITIVITY = 0.005;
 const SNAP_GRID: [number, number] = [10, 10];
 
 function normalizeWheelDelta(event: React.WheelEvent): number {
@@ -560,8 +560,15 @@ function XyFlowCanvasInner() {
     await promptAndAddProjectToScene(t);
   }, [t]);
 
-  const handleWheelCapture = useCallback(
-    (event: React.WheelEvent<HTMLDivElement>) => {
+  // Native wheel listener with { passive: false, capture: true } so that
+  // preventDefault() is honoured even inside xterm.js terminal tiles.
+  // React's onWheelCapture is passive by default in Chromium and cannot
+  // reliably call preventDefault(), so we use a native listener instead.
+  useEffect(() => {
+    const container = canvasContainerRef.current;
+    if (!container) return;
+
+    const handler = (event: WheelEvent) => {
       // Two distinct gestures land here:
       //   1. Cmd/Ctrl + wheel — explicit zoom intent.
       //   2. Trackpad pinch — Chromium synthesises wheel events with
@@ -571,19 +578,21 @@ function XyFlowCanvasInner() {
         return;
       }
 
-      const target = event.target;
-      if (target instanceof Element && target.closest(".nowheel")) {
-        return;
-      }
-
       event.preventDefault();
       event.stopPropagation();
 
-      const delta = normalizeWheelDelta(event);
+      const delta =
+        event.deltaMode === WheelEvent.DOM_DELTA_LINE
+          ? event.deltaY * 16
+          : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+            ? event.deltaY * window.innerHeight
+            : event.deltaY;
+
       if (Math.abs(delta) < 0.001) {
         return;
       }
 
+      const { viewport: currentViewport } = useCanvasStore.getState();
       const scaleFactor = Math.exp(-delta * WHEEL_ZOOM_SENSITIVITY);
       const nextViewport = zoomAtClientPoint({
         clientX: event.clientX,
@@ -591,14 +600,16 @@ function XyFlowCanvasInner() {
         leftPanelCollapsed,
         leftPanelWidth,
         taskDrawerOpen,
-        nextScale: clampScale(viewport.scale * scaleFactor),
-        viewport,
+        nextScale: clampScale(currentViewport.scale * scaleFactor),
+        viewport: currentViewport,
       });
 
       useCanvasStore.getState().setViewport(nextViewport);
-    },
-    [leftPanelCollapsed, leftPanelWidth, taskDrawerOpen, viewport],
-  );
+    };
+
+    container.addEventListener("wheel", handler, { passive: false, capture: true });
+    return () => container.removeEventListener("wheel", handler, { capture: true });
+  }, [leftPanelCollapsed, leftPanelWidth, taskDrawerOpen]);
 
   const handleContainerMouseDown = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -660,7 +671,6 @@ function XyFlowCanvasInner() {
           : `left ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}`,
       }}
       onMouseDownCapture={handleContainerMouseDown}
-      onWheelCapture={handleWheelCapture}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
