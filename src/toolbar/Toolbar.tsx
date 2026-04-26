@@ -1,8 +1,7 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { createBrowserCardInScene } from "../actions/sceneCardActions";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useTaskStore } from "../stores/taskStore";
-import { useProjectStore } from "../stores/projectStore";
 import { useThemeStore } from "../stores/themeStore";
 import { useUpdaterStore } from "../stores/updaterStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
@@ -18,42 +17,28 @@ import {
   getCanvasLeftInset,
   getCanvasRightInset,
 } from "../canvas/viewportBounds";
-import {
-  getNextZoomStep,
-  getViewportCenterClientPoint,
-  zoomAtClientPoint,
-} from "../canvas/viewportZoom";
+
+export { TOOLBAR_HEIGHT } from "./toolbarHeight";
 
 const noDrag = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
 const platform = window.termcanvas?.app.platform ?? "darwin";
 const isMac = platform === "darwin";
 const isWin = platform === "win32";
-export const TOOLBAR_HEIGHT = 44;
 
 const controlRow =
   "relative z-10 flex items-center gap-2 text-[var(--text-secondary)]";
 const controlSection = "flex items-center gap-0.5";
-const controlDivider =
-  "h-4 w-px bg-[color-mix(in_srgb,var(--border)_72%,transparent)]";
 const buttonBase =
   "inline-flex h-7 items-center justify-center rounded-md text-[12px] font-medium text-[var(--text-muted)] transition-[color,background-color,transform] duration-150 hover:bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] hover:text-[var(--text-primary)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color-mix(in_srgb,var(--text-secondary)_24%,transparent)] motion-reduce:transition-none";
 const iconButton = `${buttonBase} w-7`;
-const textButton = `${buttonBase} px-2.5`;
-const zoomReadout =
-  "min-w-[3.25rem] text-center text-[11px] text-[var(--text-faint)] tabular-nums";
 
 export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
-  const {
-    viewport,
-    setViewport,
-    resetViewport,
-    rightPanelCollapsed,
-    rightPanelWidth,
-    leftPanelCollapsed,
-    leftPanelWidth,
-  } = useCanvasStore();
+  const viewport = useCanvasStore((s) => s.viewport);
+  const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
+  const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
+  const rightPanelCollapsed = useCanvasStore((s) => s.rightPanelCollapsed);
+  const rightPanelWidth = useCanvasStore((s) => s.rightPanelWidth);
   const taskDrawerOpen = useTaskStore((s) => s.openProjectPath !== null);
-  const { projects } = useProjectStore();
   const { theme, toggleTheme } = useThemeStore();
   const browserEnabled = usePreferencesStore((s) => s.browserEnabled);
   const terminalRenderer = usePreferencesStore((s) => s.terminalRenderer);
@@ -66,84 +51,6 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
   const closeSettings = useSettingsModalStore((s) => s.closeSettings);
   const [showUpdate, setShowUpdate] = useState(false);
 
-  const handleFitAll = useCallback(() => {
-    if (projects.length === 0) return;
-    const padding = 80;
-    let minX = Infinity,
-      minY = Infinity,
-      maxX = -Infinity,
-      maxY = -Infinity;
-    for (const p of projects) {
-      for (const wt of p.worktrees) {
-        for (const t of wt.terminals) {
-          if (t.stashed) continue;
-          minX = Math.min(minX, t.x);
-          minY = Math.min(minY, t.y);
-          maxX = Math.max(maxX, t.x + t.width);
-          maxY = Math.max(maxY, t.y + t.height);
-        }
-      }
-    }
-    const contentW = maxX - minX;
-    const contentH = maxY - minY;
-    const leftOffset = getCanvasLeftInset(
-      leftPanelCollapsed,
-      leftPanelWidth,
-      taskDrawerOpen,
-    );
-    const rightOffset = getCanvasRightInset(rightPanelCollapsed, rightPanelWidth);
-    const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
-    const viewH = window.innerHeight - TOOLBAR_HEIGHT - padding * 2;
-    const scale = Math.min(1, viewW / contentW, viewH / contentH);
-    const x = -minX * scale + padding;
-    const y = -minY * scale + padding + TOOLBAR_HEIGHT;
-    setViewport({ x, y, scale });
-  }, [
-    projects,
-    leftPanelCollapsed,
-    leftPanelWidth,
-    rightPanelCollapsed,
-    rightPanelWidth,
-    taskDrawerOpen,
-    setViewport,
-  ]);
-
-  const applyStepZoom = useCallback(
-    (direction: "in" | "out") => {
-      const nextScale = getNextZoomStep(viewport.scale, direction);
-      const centerPoint = getViewportCenterClientPoint({
-        leftPanelCollapsed,
-        leftPanelWidth,
-        rightPanelCollapsed,
-        rightPanelWidth,
-        taskDrawerOpen,
-        topInset: TOOLBAR_HEIGHT,
-      });
-
-      setViewport(
-        zoomAtClientPoint({
-          clientX: centerPoint.x,
-          clientY: centerPoint.y,
-          leftPanelCollapsed,
-          leftPanelWidth,
-          taskDrawerOpen,
-          nextScale,
-          viewport,
-        }),
-      );
-    },
-    [
-      leftPanelCollapsed,
-      leftPanelWidth,
-      rightPanelCollapsed,
-      rightPanelWidth,
-      taskDrawerOpen,
-      setViewport,
-      viewport,
-    ],
-  );
-
-  const zoomPercent = Math.round(viewport.scale * 100);
   const workspaceName =
     getWorkspaceBaseName(workspacePath) ?? t.toolbar_untitled_workspace;
 
@@ -407,7 +314,7 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
                         strokeLinecap="round"
                       />
                     </svg>
-                    <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-green-500" />
+                    <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-[var(--green)]" />
                   </>
                 ) : updateStatus === "error" ? (
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -510,40 +417,6 @@ export function Toolbar({ onShowTutorial }: { onShowTutorial: () => void }) {
                 </svg>
               </button>
             )}
-          </div>
-
-          <div aria-hidden="true" className={controlDivider} />
-
-          <div className={controlSection}>
-            <button
-              className={iconButton}
-              onClick={() => applyStepZoom("out")}
-              title={t.zoom_out}
-              aria-label={t.zoom_out}
-            >
-              −
-            </button>
-            <span
-              className={zoomReadout}
-              style={{ fontFamily: '"Geist Mono", monospace' }}
-            >
-              {zoomPercent}%
-            </span>
-            <button
-              className={iconButton}
-              onClick={() => applyStepZoom("in")}
-              title={t.zoom_in}
-              aria-label={t.zoom_in}
-            >
-              +
-            </button>
-            <div aria-hidden="true" className={controlDivider} />
-            <button className={textButton} onClick={resetViewport}>
-              {t.reset}
-            </button>
-            <button className={textButton} onClick={handleFitAll}>
-              {t.fit}
-            </button>
           </div>
         </div>
       </div>

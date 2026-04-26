@@ -1,5 +1,6 @@
 import { useCanvasStore } from "../stores/canvasStore";
 import { useProjectStore } from "../stores/projectStore";
+import { useTaskStore } from "../stores/taskStore";
 import { TOOLBAR_HEIGHT } from "../toolbar/toolbarHeight";
 import {
   getCanvasLeftInset,
@@ -21,11 +22,14 @@ function getCanvasInsets() {
     rightPanelCollapsed,
     rightPanelWidth,
   } = useCanvasStore.getState();
+  const taskDrawerOpen =
+    useTaskStore.getState().openProjectPath !== null;
   return {
     leftPanelCollapsed,
     leftPanelWidth,
     rightPanelCollapsed,
     rightPanelWidth,
+    taskDrawerOpen,
   };
 }
 
@@ -56,6 +60,7 @@ export function fitAllProjects(): void {
   const leftOffset = getCanvasLeftInset(
     insets.leftPanelCollapsed,
     insets.leftPanelWidth,
+    insets.taskDrawerOpen,
   );
   const rightOffset = getCanvasRightInset(
     insets.rightPanelCollapsed,
@@ -63,6 +68,14 @@ export function fitAllProjects(): void {
   );
   const viewW = window.innerWidth - leftOffset - rightOffset - FIT_PADDING * 2;
   const viewH = window.innerHeight - TOOLBAR_HEIGHT - FIT_PADDING * 2;
+  // Bail if the geometry is degenerate. With a tiny window
+  // (narrower than the padding) viewW / viewH go non-positive; with
+  // zero-sized content (a single terminal that hasn't been laid out
+  // yet) contentW / contentH do. Either case feeds NaN / -Infinity
+  // into the scale calc and lands the viewport off-screen.
+  if (contentW <= 0 || contentH <= 0 || viewW <= 0 || viewH <= 0) {
+    return;
+  }
   const scale = clampScale(Math.min(1, viewW / contentW, viewH / contentH));
   const x = -minX * scale + FIT_PADDING;
   const y = -minY * scale + FIT_PADDING + TOOLBAR_HEIGHT;
@@ -86,6 +99,7 @@ function zoomAroundCenter(nextScale: number): void {
     leftPanelWidth: insets.leftPanelWidth,
     rightPanelCollapsed: insets.rightPanelCollapsed,
     rightPanelWidth: insets.rightPanelWidth,
+    taskDrawerOpen: insets.taskDrawerOpen,
     topInset: TOOLBAR_HEIGHT,
   });
   const viewport = useCanvasStore.getState().viewport;
@@ -95,6 +109,7 @@ function zoomAroundCenter(nextScale: number): void {
       clientY: center.y,
       leftPanelCollapsed: insets.leftPanelCollapsed,
       leftPanelWidth: insets.leftPanelWidth,
+      taskDrawerOpen: insets.taskDrawerOpen,
       nextScale: clampScale(nextScale),
       viewport,
     }),

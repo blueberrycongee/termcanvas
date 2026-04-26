@@ -263,6 +263,9 @@ export const en = {
   toolbar_untitled_workspace: "Untitled Workspace",
   zoom_out: "Zoom out",
   zoom_in: "Zoom in",
+  canvas_tool_select: "Move",
+  canvas_tool_hand: "Hand",
+  canvas_zoom_to: "Zoom to",
 
   shortcut_add_project: "Add project folder…",
   shortcut_cycle_focus_level: "Cycle focus level",
