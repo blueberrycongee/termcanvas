@@ -18,7 +18,7 @@ export function NotificationToast() {
         return (
           <div
             key={n.id}
-            className="rounded-md border border-[var(--border)] px-4 py-3 bg-[var(--surface)] flex items-start gap-3 animate-[slideIn_0.2s_ease-out]"
+            className="tc-enter-slide-right rounded-md border border-[var(--border)] px-4 py-3 bg-[var(--surface)] flex items-start gap-3"
           >
             <div
               className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0"

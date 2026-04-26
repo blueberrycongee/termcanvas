@@ -942,7 +942,7 @@ export function TerminalTile({
             ? "var(--border-hover)"
             : undefined,
         outline: "none",
-        transition: "box-shadow 150ms ease",
+        transition: "box-shadow var(--duration-quick) var(--ease-out-soft)",
       }}
       onClick={(e) => {
         e.stopPropagation();
@@ -1263,7 +1263,7 @@ export function TerminalTile({
       )}
 
       {showCopiedToast && (
-        <div className="absolute left-1/2 bottom-3 -translate-x-1/2 px-3 py-1 rounded-md bg-[var(--surface)] text-[var(--text-primary)] text-xs font-medium shadow-lg border border-[var(--border)] pointer-events-none z-10 animate-[fadeIn_0.15s_ease-out]">
+        <div className="tc-enter-pop absolute left-1/2 bottom-3 -translate-x-1/2 px-3 py-1 rounded-md bg-[var(--surface)] text-[var(--text-primary)] text-xs font-medium shadow-lg border border-[var(--border)] pointer-events-none z-10">
           {t.terminal_copied}
         </div>
       )}

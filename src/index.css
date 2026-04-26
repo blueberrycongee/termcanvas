@@ -154,6 +154,30 @@
   --weight-regular: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
+
+  /* ── Motion ──────────────────────────────────────────────── */
+  /* Durations are role-based, not size-based. Use --duration-instant for
+     state hand-offs the eye should not catch (focus, hover background);
+     --duration-quick for affordance feedback (button press, chevron rotate);
+     --duration-natural for entrances/exits the user is meant to perceive;
+     --duration-deliberate for spatial moves where the user needs to track
+     where something went (panel slide, drawer open). Going longer than
+     deliberate makes the UI feel sluggish, not premium. */
+  --duration-instant: 80ms;
+  --duration-quick: 140ms;
+  --duration-natural: 220ms;
+  --duration-deliberate: 320ms;
+
+  /* Easings. --ease-out-soft is the workhorse: arrives confident, settles
+     gently — right for things appearing or moving toward rest. --ease-out-snap
+     overshoots-then-settles slightly, used sparingly for affordances we want
+     the user to *notice* (a pin engaging, a save confirming). --ease-in-soft
+     is for exits — the user shouldn't track something that's leaving.
+     --ease-in-out-soft is for in-place state shifts (a value updating). */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-snap: cubic-bezier(0.34, 1.32, 0.64, 1);
+  --ease-in-soft: cubic-bezier(0.4, 0, 0.6, 0.2);
+  --ease-in-out-soft: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 body {
@@ -369,7 +393,8 @@ body {
 }
 
 .terminal-tile {
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  transition: border-color var(--duration-quick) var(--ease-out-soft),
+              box-shadow var(--duration-quick) var(--ease-out-soft);
 }
 
 /* Force text cursor inside terminal tiles.
@@ -570,4 +595,73 @@ html.tc-scrolling ::-webkit-scrollbar-thumb {
 @keyframes demo-nudge {
   0%, 100% { transform: translateX(0); opacity: 1; }
   50% { transform: translateX(2px); opacity: 0.7; }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Motion utilities — role-based entrance/state classes built
+   on the motion tokens. Components compose these instead of
+   re-deriving keyframes + timings per surface. Each utility is
+   a single role; combine via wrapping elements when you need
+   layered behavior (e.g. fade-in container + pop child).
+   ───────────────────────────────────────────────────────────── */
+@keyframes tc-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes tc-fade-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes tc-fade-down {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes tc-pop {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes tc-slide-in-right {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.tc-enter-fade { animation: tc-fade-in var(--duration-natural) var(--ease-out-soft) both; }
+.tc-enter-fade-up { animation: tc-fade-up var(--duration-natural) var(--ease-out-soft) both; }
+.tc-enter-fade-down { animation: tc-fade-down var(--duration-natural) var(--ease-out-soft) both; }
+.tc-enter-pop { animation: tc-pop var(--duration-quick) var(--ease-out-snap) both; }
+.tc-enter-slide-right { animation: tc-slide-in-right var(--duration-natural) var(--ease-out-soft) both; }
+
+/* Stagger helper — apply tc-stagger on a container, then the children
+   inherit a small delay multiplied by their position. Keeps motion
+   coherent across lists without each callsite passing inline delays. */
+.tc-stagger > * { animation-delay: calc(var(--tc-stagger-step, 30ms) * var(--tc-stagger-i, 0)); }
+.tc-stagger > *:nth-child(1) { --tc-stagger-i: 0; }
+.tc-stagger > *:nth-child(2) { --tc-stagger-i: 1; }
+.tc-stagger > *:nth-child(3) { --tc-stagger-i: 2; }
+.tc-stagger > *:nth-child(4) { --tc-stagger-i: 3; }
+.tc-stagger > *:nth-child(5) { --tc-stagger-i: 4; }
+.tc-stagger > *:nth-child(6) { --tc-stagger-i: 5; }
+.tc-stagger > *:nth-child(7) { --tc-stagger-i: 6; }
+.tc-stagger > *:nth-child(8) { --tc-stagger-i: 7; }
+.tc-stagger > *:nth-child(n+9) { --tc-stagger-i: 8; }
+
+/* Respect reduced-motion: collapse all entrance animations and long
+   transitions. Everything still works, just without the parallax. */
+@media (prefers-reduced-motion: reduce) {
+  .tc-enter-fade,
+  .tc-enter-fade-up,
+  .tc-enter-fade-down,
+  .tc-enter-pop,
+  .tc-enter-slide-right,
+  .usage-section-enter,
+  .usage-overlay-enter,
+  .usage-tooltip-enter,
+  .usage-calendar-enter,
+  .heatmap-cell-enter {
+    animation: none !important;
+  }
+  *, *::before, *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
 }
