@@ -417,13 +417,23 @@ body {
   background: transparent;
 }
 
+/* Auto-hide scrollbars: thumb is transparent by default and only fades
+   in while the user is actively scrolling (see src/scrollFade.ts, which
+   toggles `tc-scrolling` on <html>) or while hovering the thumb itself. */
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background-color: transparent;
   border-radius: 3px;
+  transition: background-color 600ms ease;
+}
+
+html.tc-scrolling ::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  transition-duration: 120ms;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--border-hover);
+  background-color: var(--border-hover);
+  transition-duration: 120ms;
 }
 
 @keyframes pulse-dot {

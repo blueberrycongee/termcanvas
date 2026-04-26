@@ -7,6 +7,7 @@ import "./index.css";
 // Side-effect import — by the time the drawer (lazy-loaded) opens,
 // Monaco reads this env synchronously.
 import "./monacoEnvironment";
+import "./scrollFade";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
