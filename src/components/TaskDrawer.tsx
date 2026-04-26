@@ -239,15 +239,10 @@ export function TaskDrawer() {
 
   useEffect(() => {
     const unsub = window.termcanvas.tasks.subscribe((event: TaskEvent) => {
-      const { tasksByProject: current } = useTaskStore.getState();
       if (event.type === "task:created" || event.type === "task:updated") {
-        if (current[event.repo] !== undefined) {
-          upsertTask(event.repo, event.task);
-        }
+        upsertTask(event.repo, event.task);
       } else if (event.type === "task:removed") {
-        if (current[event.repo] !== undefined) {
-          removeTask(event.repo, event.id);
-        }
+        removeTask(event.repo, event.id);
       }
     });
     return unsub;

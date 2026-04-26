@@ -27,6 +27,7 @@ import {
 import { useProjectStore, generateId } from "./stores/projectStore";
 import { addScannedProjectAndFocus } from "./projects/projectCreation";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+import { useTaskPreloader } from "./hooks/useTaskPreloader";
 import { useT } from "./i18n/useT";
 import { loadAllDownloadedFonts } from "./terminal/fontLoader";
 import { startAutoSummaryWatcher } from "./terminal/summaryScheduler";
@@ -382,6 +383,7 @@ function CloseDialog({
 
 export function App() {
   useWorktreeWatcher();
+  useTaskPreloader();
   useStatePersistence();
   useAutoSave();
   useWorkspaceOpen();

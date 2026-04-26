@@ -60,8 +60,7 @@ export const useTaskStore = create<TaskStoreState & TaskStoreActions>(
 
     upsertTask: (projectPath, task) =>
       set((state) => {
-        const existing = state.tasksByProject[projectPath];
-        if (!existing) return state;
+        const existing = state.tasksByProject[projectPath] ?? [];
         const idx = existing.findIndex((t) => t.id === task.id);
         const next =
           idx >= 0
