@@ -20,6 +20,7 @@ export interface ShortcutMap {
   toggleSessionsOverlay: string;
   toggleActivityHeatmap: string;
   toggleSnapshotHistory: string;
+  toggleHub: string;
 }
 
 const LEGACY_DEFAULT_SHORTCUTS: ShortcutMap = {
@@ -41,6 +42,7 @@ const LEGACY_DEFAULT_SHORTCUTS: ShortcutMap = {
   toggleSessionsOverlay: "mod+shift+h",
   toggleActivityHeatmap: "mod+shift+a",
   toggleSnapshotHistory: "mod+shift+t",
+  toggleHub: "mod+shift+j",
 };
 
 const ALT_DEFAULT_SHORTCUTS: ShortcutMap = {
@@ -62,6 +64,7 @@ const ALT_DEFAULT_SHORTCUTS: ShortcutMap = {
   toggleSessionsOverlay: "alt+shift+h",
   toggleActivityHeatmap: "alt+shift+a",
   toggleSnapshotHistory: "alt+shift+t",
+  toggleHub: "alt+shift+j",
 };
 
 export const DEFAULT_SHORTCUTS: ShortcutMap = { ...LEGACY_DEFAULT_SHORTCUTS };

@@ -39,6 +39,7 @@ import { useSearchStore } from "../../stores/searchStore";
 import { useSettingsModalStore } from "../../stores/settingsModalStore";
 import { useSnapshotHistoryStore } from "../../stores/snapshotHistoryStore";
 import { useThemeStore } from "../../stores/themeStore";
+import { useHubStore } from "../../stores/hubStore";
 import { rebuildTerminalAtlas } from "../../terminal/webglContextPool";
 import { refreshRegisteredTerminalViewports } from "../../terminal/terminalRegistry";
 import {
@@ -100,9 +101,21 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
   const settings = useSettingsModalStore.getState();
   const canvas = useCanvasStore.getState();
   const prefs = usePreferencesStore.getState();
+  const hub = useHubStore.getState();
   const focusedTerminal = findFocusedTerminal();
 
   const list: PaletteCommand[] = [
+    {
+      id: "toggle-hub",
+      section: "action",
+      title: hub.open ? "Close command center" : "Toggle command center",
+      subtitle: hub.open
+        ? "Currently open"
+        : "Active terminals, recent activity, waypoints, pinned items",
+      keywords: ["hub", "dashboard", "summary", "feed", "overview"],
+      hint: shortcutHint("toggleHub", isMac),
+      perform: () => useHubStore.getState().toggleHub(),
+    },
     {
       id: "open-settings",
       section: "action",

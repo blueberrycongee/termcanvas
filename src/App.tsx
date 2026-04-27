@@ -47,6 +47,7 @@ import {
 import { appendSnapshotToHistory } from "./snapshotHistory";
 import { SnapshotHistoryModal } from "./components/SnapshotHistoryModal";
 import { useSnapshotHistoryStore } from "./stores/snapshotHistoryStore";
+import { Hub } from "./components/Hub";
 import { updateWindowTitle } from "./titleHelper";
 import { resolveTerminalWithRuntimeState } from "./stores/terminalRuntimeStateStore";
 import { logSlowRendererPath } from "./utils/devPerf";
@@ -453,10 +454,6 @@ export function App() {
   return (
     <div className="h-screen w-screen overflow-hidden bg-[var(--bg)] text-[var(--text-primary)]">
       <Toolbar />
-      {/* Hub (focus-level switcher) hidden until the underlying level
-          cycling is reworked — it currently overlaps the new worktree
-          label HUD in the canvas top-left. Re-enable when ready. */}
-      {/* <Hub /> */}
       <LeftPanel />
       <RightPanel />
       <CanvasRoot />
@@ -476,6 +473,7 @@ export function App() {
       <SessionsOverlay />
       <FileEditorDrawer />
       <PinDetailDrawer />
+      <Hub />
     </div>
   );
 }

@@ -63,6 +63,7 @@ import {
 } from "../actions/spatialWaypointActions";
 import { panToRecentActivity } from "../actions/recentActivityNavigationAction";
 import { useStatusDigestStore } from "../stores/statusDigestStore";
+import { useHubStore } from "../stores/hubStore";
 
 function getAllTerminals() {
   const { projects } = useProjectStore.getState();
@@ -361,6 +362,15 @@ export function useKeyboardShortcuts() {
         consumeShortcut();
         const prefs = usePreferencesStore.getState();
         prefs.setActivityHeatmapEnabled(!prefs.activityHeatmapEnabled);
+        return;
+      }
+
+      // Hub — Cmd+Shift+J slides the command-center drawer in/out.
+      // Treated like the search/palette shortcut: works from terminal
+      // focus so power-users can summon it without breaking flow.
+      if (matchesShortcut(e, shortcuts.toggleHub)) {
+        consumeShortcut();
+        useHubStore.getState().toggleHub();
         return;
       }
 

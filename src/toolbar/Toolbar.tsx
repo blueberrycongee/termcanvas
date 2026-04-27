@@ -3,10 +3,15 @@ import { useThemeStore } from "../stores/themeStore";
 import { useUpdaterStore } from "../stores/updaterStore";
 import { useSettingsModalStore } from "../stores/settingsModalStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useHubStore } from "../stores/hubStore";
 import { SettingsModal } from "../components/SettingsModal";
 import { UpdateModal } from "../components/UpdateModal";
 import { useT } from "../i18n/useT";
 import { getWorkspaceBaseName } from "../titleHelper";
+import {
+  formatShortcut,
+  useShortcutStore,
+} from "../stores/shortcutStore";
 
 export { TOOLBAR_HEIGHT } from "./toolbarHeight";
 
@@ -37,6 +42,12 @@ export function Toolbar() {
   const openSettings = useSettingsModalStore((s) => s.openSettings);
   const closeSettings = useSettingsModalStore((s) => s.closeSettings);
   const [showUpdate, setShowUpdate] = useState(false);
+
+  const hubOpen = useHubStore((s) => s.open);
+  const toggleHub = useHubStore((s) => s.toggleHub);
+  const hubShortcut = useShortcutStore((s) => s.shortcuts.toggleHub);
+  const hubChord = formatShortcut(hubShortcut, isMac);
+  const hubLabel = `Hub (${hubChord})`;
 
   const workspaceName =
     getWorkspaceBaseName(workspacePath) ?? t.toolbar_untitled_workspace;
@@ -86,6 +97,24 @@ export function Toolbar() {
               onClick={() => setShowUpdate(true)}
             />
           )}
+
+          <button
+            type="button"
+            data-hub-trigger="true"
+            data-active={hubOpen ? "true" : "false"}
+            className={iconButtonClass}
+            style={{
+              ...ICON_BUTTON_TRANSITION,
+              color: hubOpen ? "var(--text-primary)" : undefined,
+              backgroundColor: hubOpen ? "var(--surface-hover)" : undefined,
+            }}
+            onClick={toggleHub}
+            title={hubLabel}
+            aria-label={hubLabel}
+            aria-pressed={hubOpen}
+          >
+            <HubIcon />
+          </button>
 
           <button
             type="button"
@@ -176,6 +205,23 @@ function UpdateStatusButton({
         <SpinnerIcon className="motion-safe:animate-spin" />
       )}
     </button>
+  );
+}
+
+function HubIcon() {
+  // Three rows of stacked bars — a "queue / activity feed" mark, hinting
+  // that the surface aggregates many signals into one column. Stroke-only
+  // so it inherits the icon button's color tokens.
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+      <path
+        d="M2 3.5h10M2 7h7M2 10.5h10"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+      <circle cx="11" cy="7" r="1.1" fill="currentColor" />
+    </svg>
   );
 }
 
