@@ -9,6 +9,8 @@ import type {
   TerminalType,
 } from "./types";
 import type { SceneDocument } from "./types/scene";
+import type { WorkspaceCanvas, WorkspaceDocument } from "./types/workspace";
+import { DEFAULT_CANVAS_NAME } from "./types/workspace";
 import type { useProjectStore } from "./stores/projectStore";
 import type { useCanvasStore } from "./stores/canvasStore";
 import type { useDrawingStore } from "./stores/drawingStore";
@@ -35,14 +37,37 @@ export interface SceneWorkspaceSnapshot {
   scene: SceneDocument;
 }
 
+export interface MultiCanvasWorkspaceSnapshot {
+  version: 3;
+  workspace: WorkspaceDocument;
+  /**
+   * Mirror of the active canvas's scene at the top level. Lets older
+   * single-canvas-aware readers (e.g. snapshot-history diff) keep working
+   * without learning about the canvas registry.
+   */
+  scene: SceneDocument;
+}
+
 export type WorkspaceSnapshot =
   | LegacyWorkspaceSnapshot
-  | SceneWorkspaceSnapshot;
+  | SceneWorkspaceSnapshot
+  | MultiCanvasWorkspaceSnapshot;
 
 export interface RestoredWorkspaceSnapshot {
   legacy: LegacyWorkspaceSnapshot;
   scene: SceneDocument;
+  /**
+   * Multi-canvas workspace document. Test fixtures that construct a
+   * RestoredWorkspaceSnapshot literal can omit this field; the loader
+   * will wrap the active scene as a single "Default" canvas.
+   */
+  workspace?: WorkspaceDocument;
   sourceVersion: number;
+}
+
+let canvasIdCounter = 0;
+function generateCanvasId(): string {
+  return `canvas-${Date.now().toString(36)}-${++canvasIdCounter}`;
 }
 
 export interface SkipRestoreSnapshot {
@@ -617,6 +642,65 @@ function looksLikeLegacyWorkspaceSnapshot(record: Record<string, unknown>) {
   );
 }
 
+function looksLikeMultiCanvasSnapshot(record: Record<string, unknown>) {
+  return (
+    hasOwn(record, "workspace") ||
+    hasOwn(record, "canvases") ||
+    record.version === 3
+  );
+}
+
+function coerceWorkspaceCanvas(value: unknown): WorkspaceCanvas | null {
+  if (!isRecord(value)) return null;
+  const id = typeof value.id === "string" ? value.id : null;
+  const name = typeof value.name === "string" ? value.name : null;
+  const createdAt =
+    typeof value.createdAt === "number" ? value.createdAt : Date.now();
+  const scene = coerceSceneDocument(value.scene);
+  if (!id || !name || !scene) return null;
+  return { id, name, createdAt, scene };
+}
+
+function coerceWorkspaceDocument(value: unknown): WorkspaceDocument | null {
+  if (!isRecord(value)) return null;
+  const rawCanvases = Array.isArray(value.canvases) ? value.canvases : null;
+  if (!rawCanvases) return null;
+  const canvases = rawCanvases
+    .map(coerceWorkspaceCanvas)
+    .filter((c): c is WorkspaceCanvas => c !== null);
+  if (canvases.length === 0) return null;
+  const requestedActive =
+    typeof value.activeCanvasId === "string" ? value.activeCanvasId : null;
+  const activeCanvasId =
+    requestedActive && canvases.some((c) => c.id === requestedActive)
+      ? requestedActive
+      : canvases[0].id;
+  return { version: 3, activeCanvasId, canvases };
+}
+
+function wrapSceneAsWorkspace(scene: SceneDocument): WorkspaceDocument {
+  const id = generateCanvasId();
+  return {
+    version: 3,
+    activeCanvasId: id,
+    canvases: [
+      {
+        id,
+        name: DEFAULT_CANVAS_NAME,
+        createdAt: Date.now(),
+        scene,
+      },
+    ],
+  };
+}
+
+function pickActiveScene(workspace: WorkspaceDocument): SceneDocument {
+  const active = workspace.canvases.find(
+    (c) => c.id === workspace.activeCanvasId,
+  );
+  return (active ?? workspace.canvases[0]).scene;
+}
+
 function legacySnapshotFromScene(
   scene: SceneDocument,
 ): LegacyWorkspaceSnapshot {
@@ -657,6 +741,20 @@ export function readWorkspaceSnapshot(
     return { skipRestore: true };
   }
 
+  if (looksLikeMultiCanvasSnapshot(parsed)) {
+    const candidate = hasOwn(parsed, "workspace") ? parsed.workspace : parsed;
+    const workspace = coerceWorkspaceDocument(candidate);
+    if (workspace) {
+      const scene = pickActiveScene(workspace);
+      return {
+        legacy: legacySnapshotFromScene(scene),
+        scene,
+        workspace,
+        sourceVersion: 3,
+      };
+    }
+  }
+
   if (hasOwn(parsed, "scene")) {
     const scene = coerceSceneDocument(parsed.scene);
     if (!scene) {
@@ -666,6 +764,7 @@ export function readWorkspaceSnapshot(
     return {
       legacy: legacySnapshotFromScene(scene),
       scene,
+      workspace: wrapSceneAsWorkspace(scene),
       sourceVersion: 2,
     };
   }
@@ -679,15 +778,18 @@ export function readWorkspaceSnapshot(
     return {
       legacy: legacySnapshotFromScene(scene),
       scene,
+      workspace: wrapSceneAsWorkspace(scene),
       sourceVersion: 2,
     };
   }
 
   if (looksLikeLegacyWorkspaceSnapshot(parsed)) {
     const legacy = migrateLegacySnapshot(parsed);
+    const scene = buildSceneDocumentFromLegacyState(legacy);
     return {
       legacy,
-      scene: buildSceneDocumentFromLegacyState(legacy),
+      scene,
+      workspace: wrapSceneAsWorkspace(scene),
       sourceVersion: 1,
     };
   }

@@ -30,6 +30,8 @@ import { useT } from "../i18n/useT";
 import { useComposerStore } from "../stores/composerStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useSearchStore } from "../stores/searchStore";
+import { useCommandPaletteStore } from "../stores/commandPaletteStore";
+import { useSnapshotHistoryStore } from "../stores/snapshotHistoryStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSettingsModalStore } from "../stores/settingsModalStore";
 import {
@@ -54,6 +56,16 @@ import {
   getCanvasLeftInset,
 } from "../canvas/viewportBounds";
 import { usePinStore } from "../stores/pinStore";
+import {
+  isWaypointSlot,
+  recallWaypointFromActiveProject,
+  saveWaypointToActiveProject,
+} from "../actions/spatialWaypointActions";
+import { panToRecentActivity } from "../actions/recentActivityNavigationAction";
+import { useStatusDigestStore } from "../stores/statusDigestStore";
+import { useHubStore } from "../stores/hubStore";
+import { useCanvasRegistryStore } from "../stores/canvasRegistryStore";
+import { useCanvasManagerStore } from "../stores/canvasManagerStore";
 
 function getAllTerminals() {
   const { projects } = useProjectStore.getState();
@@ -275,6 +287,24 @@ export function useKeyboardShortcuts() {
         e.stopPropagation();
       };
 
+      // Settings toggle (⌘, on macOS, Ctrl+, elsewhere). Stays bound
+      // even while the modal is open so the same chord that opens it
+      // also closes it — matches the OS-level convention. Comma is not
+      // a shortcut character users type into terminals or text fields,
+      // so we don't gate this on focus target.
+      const isSettingsToggle =
+        e.key === "," &&
+        (e.metaKey || e.ctrlKey) &&
+        !e.shiftKey &&
+        !e.altKey;
+      if (isSettingsToggle) {
+        consumeShortcut();
+        const settingsStore = useSettingsModalStore.getState();
+        if (settingsStore.open) settingsStore.closeSettings();
+        else settingsStore.openSettings();
+        return;
+      }
+
       if (useSettingsModalStore.getState().open) {
         return;
       }
@@ -287,6 +317,16 @@ export function useKeyboardShortcuts() {
           if (searchStore.open) searchStore.closeSearch();
           else searchStore.openSearch();
         }
+        return;
+      }
+
+      // Command palette — Cmd/Ctrl+P, "go to / run anything". Must be
+      // before shouldIgnoreShortcutTarget so it triggers from terminal
+      // focus the same way globalSearch does. preventDefault here is
+      // also what disarms the browser/print binding on the same combo.
+      if (matchesShortcut(e, shortcuts.commandPalette)) {
+        consumeShortcut();
+        useCommandPaletteStore.getState().togglePalette();
         return;
       }
 
@@ -305,6 +345,136 @@ export function useKeyboardShortcuts() {
         consumeShortcut();
         useCanvasStore.getState().toggleSessionsOverlay();
         return;
+      }
+
+      // Snapshot history browser — Cmd+Shift+T ("time"). Sessions overlay
+      // shows agent transcripts; this surface lists canvas-state snapshots
+      // and lets the user roll the scene back. Same "works from terminal
+      // focus" treatment as the rest of this block.
+      if (matchesShortcut(e, shortcuts.toggleSnapshotHistory)) {
+        consumeShortcut();
+        useSnapshotHistoryStore.getState().toggleHistory();
+        return;
+      }
+
+      // Activity heatmap — Cmd+Shift+A flips the canvas-wide ambient
+      // indicator on. Read from terminal focus too so the user can
+      // toggle without leaving an agent tile.
+      if (matchesShortcut(e, shortcuts.toggleActivityHeatmap)) {
+        consumeShortcut();
+        const prefs = usePreferencesStore.getState();
+        prefs.setActivityHeatmapEnabled(!prefs.activityHeatmapEnabled);
+        return;
+      }
+
+      // Hub — Cmd+Shift+J slides the command-center drawer in/out.
+      // Treated like the search/palette shortcut: works from terminal
+      // focus so power-users can summon it without breaking flow.
+      if (matchesShortcut(e, shortcuts.toggleHub)) {
+        consumeShortcut();
+        useHubStore.getState().toggleHub();
+        return;
+      }
+
+      // Canvas cycle — Cmd+Shift+] / Cmd+Shift+[ moves to the next /
+      // prev named canvas. Sister to nextTerminal/prevTerminal which
+      // own the unshifted chord; the shift modifier promotes the
+      // navigation a tier (terminal → canvas) without sacrificing
+      // muscle memory. Works from terminal focus so the chord that
+      // changes "rooms" never has to wait for focus to leave the tile.
+      if (matchesShortcut(e, shortcuts.nextCanvas)) {
+        consumeShortcut();
+        useCanvasRegistryStore.getState().cycleCanvas(1);
+        return;
+      }
+      if (matchesShortcut(e, shortcuts.prevCanvas)) {
+        consumeShortcut();
+        useCanvasRegistryStore.getState().cycleCanvas(-1);
+        return;
+      }
+      if (matchesShortcut(e, shortcuts.openCanvasManager)) {
+        consumeShortcut();
+        useCanvasManagerStore.getState().openManager();
+        return;
+      }
+
+      // Status digest. Cmd/Ctrl+Shift+/ pops a quiet floating chip
+      // listing the 3–5 most relevant signals across the canvas (just-
+      // completed runs, stuck agents, busy ones, the current focus,
+      // pinned terminals). Match on e.code so layouts that map Shift+/
+      // to "?" still trigger. Skip when focus is in an editable target
+      // so terminals/text fields keep the keystroke. Chord position-
+      // wise sits next to mod+/ (toggleRightPanel) — same key, with
+      // shift adds the "summary" layer.
+      if (
+        e.code === "Slash" &&
+        (e.metaKey || e.ctrlKey) &&
+        e.shiftKey &&
+        !e.altKey &&
+        !e.repeat &&
+        !isEditableTarget(e.target)
+      ) {
+        consumeShortcut();
+        const digest = useStatusDigestStore.getState();
+        if (digest.open) digest.closeDigest();
+        else digest.openDigest();
+        return;
+      }
+
+      // Pan-to-recent-activity. Alt+` flies the camera to whichever
+      // terminal emitted PTY output most recently (within last 30s).
+      // Repeated rapid presses cycle through an LRU snapshot, Alt+Tab
+      // style. Use e.code so Option+` (which yields a dead-key on
+      // macOS layouts) still matches. Skip when focus is in an editable
+      // target so the keystroke isn't stolen from terminal text input.
+      if (
+        e.code === "Backquote" &&
+        e.altKey &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.shiftKey &&
+        !e.repeat &&
+        !isEditableTarget(e.target)
+      ) {
+        consumeShortcut();
+        panToRecentActivity();
+        return;
+      }
+
+      // Spatial waypoints. Cmd/Ctrl+Shift+1..9 saves the current
+      // viewport to that slot; Alt+1..9 jumps to a saved waypoint
+      // with a smooth camera move. Use e.code so layout-dependent
+      // characters (Option+1 → ¡ on macOS, Shift+1 → "!") don't
+      // break the match. Skip when focus is in an editable target so
+      // terminal / textarea text input keeps the keystroke.
+      //
+      // Recall uses Alt+digit instead of the more obvious Cmd+digit
+      // because Cmd+1 is already taken by Figma-style zoom-to-100%
+      // — keeping the Cmd+0 / Cmd+1 zoom pair intact preserves the
+      // canvas mental model. Single-modifier recall is also faster
+      // than two-modifier save, which matches usage frequency
+      // (recall happens often, save rarely).
+      if (!isEditableTarget(e.target) && !e.repeat) {
+        const digitMatch = /^Digit([1-9])$/.exec(e.code);
+        if (digitMatch) {
+          const slot = digitMatch[1];
+          if (isWaypointSlot(slot)) {
+            const isSaveCombo =
+              (e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey;
+            const isRecallCombo =
+              e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey;
+            if (isSaveCombo) {
+              consumeShortcut();
+              saveWaypointToActiveProject(slot);
+              return;
+            }
+            if (isRecallCombo) {
+              consumeShortcut();
+              recallWaypointFromActiveProject(slot);
+              return;
+            }
+          }
+        }
       }
 
       // Figma-style canvas zoom: Cmd+0 fit, Cmd+1 100%, Cmd+= / Cmd+-

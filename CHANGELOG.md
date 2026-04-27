@@ -2,21 +2,70 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.38.0] - 2026-04-26
+
+A coordinated visual + capability release. The design system grew a motion layer; every long-lived surface (settings, toolbar, side panels, agent bubble, search modal, drawer family, terminal tile chrome) was rebuilt against it. New capabilities round out the spatial-memory premise: named multi-canvas workspaces, spatial waypoints, a global command palette, drag-handoff of terminal output, snapshot history with diff, status digest, activity heatmap, and pan-to-recent-activity. Onboarding collapses to one canonical first-impression surface plus quiet contextual cues.
+
+### Added
+- **Motion system**: role-based duration / easing tokens (`--duration-instant|quick|natural|deliberate`, `--ease-out-soft|out-snap|in-soft|in-out-soft`) plus `.tc-enter-fade`, `.tc-enter-fade-up`, `.tc-enter-pop`, `.tc-enter-slide-right`, `.tc-stagger`. Honors `prefers-reduced-motion`.
+- **Multi-canvas workspaces**: each canvas owns its viewport / projects / waypoints. `⌘⇧]` / `⌘⇧[` cycle, `⌘⇧N` opens management modal. Existing single-canvas state migrates forward as a "Default" canvas. Hub adds a "Canvases" section.
+- **Command palette** at `⌘P`: single-file action registry with four sections (actions / terminals / projects / waypoints). Visual rhyme with SearchModal but distinct IA — sync, action-oriented.
+- **Hub** (right-anchored command center, `⌘⇧J`): active terminals + recent-activity feed with sparklines + waypoints + pinned items + capability inventory. Toolbar gains a paired pressed-state trigger.
+- **Spatial waypoints**: `⌘⇧1..9` save current viewport, `⌥1..9` fly back over `--duration-deliberate`. Per-project, up to 9 slots, dot-strip indicator at canvas bottom-center.
+- **Snapshot history** at `⌘⇧T`: browse and restore the last 20 canvas snapshots; pre-restore captures current state so a wrong restore is itself reversible. Optional diff mode (added / removed / moved / renamed terminals between two snapshots).
+- **Status digest** at `⌘⇧/`: one-keypress quiet chip listing the 3–5 most relevant terminals (just-completed, stuck, busy, focused, pinned). Click row to fly camera there.
+- **Activity heatmap** at `⌘⇧A`: each tile gains a 5-minute output-volume sparkline in its header. Quiet by default, fades in via canvas-level toggle.
+- **Pan-to-recent-activity** at `Alt+\``: flies to the terminal with most recent PTY output; LRU-cycles on rapid re-press.
+- **Drag terminal selection → another tile or composer**: select text in any xterm, drag, drop on another tile (writes to that PTY) or composer (fills draft). Cyan-tint drop ring distinguishes from folder drop.
+- **Cluster-link layer**: hairline curves between parent ↔ child agent terminals, fades in when canvas zoom < 0.6 (map mode). Hover any tile to outline its whole agent family.
+- **Quiet capability cues** (`DiscoveryCue`): contextual hints registry of 8 cues with priority order (Hydra setup, pinning, search, palette, pan-to-recent, status digest, Hub, snapshot history). One chip at a time, dismiss-on-action, never reappears once acted on.
+- **Drag-over canvas affordance**: 1px hairline accent inset + folder chip when an OS folder is dragged over the canvas. Empty-canvas hero responds in-place by lighting up its `⌘O` chip.
+- **Composer submit feedback**: 4-state Send button (idle / ready / submitting / sent), input-halo on success, press feedback. All motion-token-driven.
+- **`⌘,` settings shortcut** that toggles the modal from anywhere, including text fields.
+
+### Changed
+- **Empty canvas**: redesigned as a labeled spatial document (eyebrow + two-line `tc-hero` + drag/`⌘O` affordance), not a centered marketing popup. New `--text-hero` token + `.tc-hero` + `.tc-kbd` utility classes.
+- **Settings modal**: rail-based IA (Canvas / Workflow / Ambient / Input), `tc-enter-fade-up` entrance, focus-trap, arrow-key rail navigation. Pinned to constant height across tabs.
+- **Toolbar**: cut 5 buttons (Tutorial / Sessions / Usage / Refresh / Add-browser) — moved to the command palette where they belong. Left workspace name + dirty dot + theme + settings + Hub trigger. Reads as document chrome.
+- **Terminal tile chrome**: paired focus ring (outer hint + border + inner reinforcement), hover/focus-visible-only action chrome, edit-title pencil affordance. Pulse-dot retimed to 1.6s.
+- **AgentBubble + agent surfaces**: aligned to SessionReplayView's vocabulary — speaker via indent + alignment, not a colored eyebrow. ToolCard simplified, ThinkingBlock collapsed into a subordinate voice.
+- **SearchModal** (`⌘K`) redesigned: visual rhyme with command palette, scope chips hoisted from a Tab toggle into a visible row, source-grouped results, `--scrim` backdrop.
+- **Side panels** (LeftPanel / RightPanel / ProjectTree / SessionsPanel): system-wide token alignment. Five hand-coded eyebrow clones consolidated to `tc-eyebrow tc-mono`. New `tc-row-hover`, `tc-row-icon`, `tc-row-divider` utility classes.
+- **Drawer family** (Pin / Stash / FileEditor / Browser / NotificationToast / UpdateModal): one shared shadow, motion, type / color register.
+- **Onboarding collapsed**: WelcomePopup, DemoAnimation, welcomeStore, HydraSetupPopup deleted (−1932 LOC). HydraSetup demoted into a `DiscoveryCue` variant. Empty-canvas hero is the canonical first impression.
+- **Light-theme parity**: every redesigned surface verified against `[data-theme="light"]`; introduced `--scrim` token for modal backdrops; replaced hardcoded Tailwind `amber-*` with `--amber`.
+- **Hub** is fully internationalized (`useT()` + en/zh dictionaries cover every visible string, including the relative-time formatter).
+
+### Fixed
+- **Maximum update depth crash on terminal create**: a zustand v5 selector in `DiscoveryCue` returned a fresh object every call, tripping `useSyncExternalStore`'s tearing detection. Split into primitive selectors. Defensive: `terminalActivityTracker.advanceBuckets` no longer notifies listeners from the render-time read path.
+- **Grey screen / hydration error**: `HistoryRow` rendered `<button>` with nested `IconButton` children (illegal HTML). Outer becomes `<div role="button">` with keyboard support, mirroring `ProjectTree`'s row pattern.
+- **Terminal cursor placement under canvas zoom**: the click-correction in `TerminalTile` divided coordinates by scale on top of xterm's already-visual hit-test, introducing a per-cell offset proportional to zoom. Now only re-dispatches host/gap clicks, with raw coords.
+- **Cmd+Shift+]/[ canvas-cycle silently inert**: `e.key.toLowerCase() === "]"` never matched on US/UK keyboards (Shift+] yields `}`). `matchesShortcut` now falls back to `e.code` for shifted-punctuation chords.
+- **Canvas Manager Esc tore down whole manager**: pressing Esc to dismiss a delete-confirm dialog also closed the manager. Manager skips its closeManager branch when `confirmDeleteId` is set.
+- **Hub Esc swallowed layered modals' dismissal**: capture-phase + stopPropagation listener stole Escape from any modal stacked above the Hub. Now bubble-phase, no stopPropagation.
+- **Settings → Shortcuts missing rebind rows**: `commandPalette` / `toggleSnapshotHistory` / `toggleHub` were bound but absent from the rebind UI. Added to the Panels group with en/zh labels.
+- **snapshot-history `append()` IPC path-traversal risk**: missing the regex guard already present on `read()`. Throws on non-finite / non-positive `savedAt`.
+- **Settings modal jumped between tabs**: pinned to constant `h-[85vh]` so switching tabs doesn't grow/shrink the shell.
+- **Dev-server reloaded on hydra dispatch**: Vite's chokidar watcher wasn't ignoring `.hydra/` and `.worktrees/` despite `.gitignore`; explicit `server.watch.ignored` now covers them.
+
 ## [0.37.0] - 2026-04-26
 
 ### Added
-- **Collapsible project groups**: history panel groups sessions by project with expand/collapse chevrons.
-- **Per-project show-more**: each project defaults to 7 rows; clicking "N more" reveals one batch at a time without affecting other groups.
+- **Pin sessions**: history rows have a left-side pin affordance — pinned sessions float to a dedicated "Pinned" group at the top, persisted in localStorage.
+- **Collapsible project groups**: each project in the history panel has a chevron header to collapse or expand its sessions.
+- **Per-project "show more"**: groups default to 7 sessions; each click reveals one batch of 7 more, fetching from the server on demand.
+- **Two-step hide**: hovering a history row shows an eye-slash button; first click arms it (red background), second click hides the session permanently with no restore path.
 
 ### Changed
-- **Permanent hide**: two-step hide (eye-slash → armed red → execute) is now permanent — hidden sessions have no restore path.
+- **History panel UX**: removed global "Load more" and "Show hidden" buttons. Sessions are managed per-project with independent expand/collapse controls.
 - **Pin placement**: pin indicator moved to left side of session row for clearer semantics.
-- **History visual density**: row height, font size, indentation, and hover style aligned with the left panel project tree.
+- **Visual alignment**: history section row density, chevron animation, font weight, and indentation now match the ProjectTree for a consistent left-panel look.
+- **Timestamp hierarchy**: prompt text uses weight-medium; timestamp uses 10 px mono at `--text-muted` for clear visual separation.
 
 ### Fixed
+- Port file guarded with PID check to survive crashes without leaving stale lock files.
+- Removed redundant fixed-viewport dot grid overlay on the canvas.
 - Show-more fetches full per-project session list from server when local cache is exhausted.
-- Canvas dot grid overlay removed (was rendering a duplicate fixed layer).
-- Port file now guarded with PID to survive crashes without stale lock.
 
 ## [0.36.0] - 2026-04-26
 

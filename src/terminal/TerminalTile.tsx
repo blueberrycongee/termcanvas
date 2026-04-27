@@ -46,10 +46,15 @@ import {
 import { useSidebarDragStore } from "../stores/sidebarDragStore";
 import { usePinDragStore } from "../stores/pinDragStore";
 import { usePinStore } from "../stores/pinStore";
+import {
+  startHandoffDrag,
+  useHandoffDragStore,
+} from "../stores/handoffDragStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { useViewportFocusStore } from "../stores/viewportFocusStore";
 import { TERMINAL_TYPE_CONFIG } from "./terminalTypeConfig";
 import { AgentRenderer } from "../components/agent/AgentRenderer";
+import { ActivitySparkline } from "./ActivitySparkline";
 import { recordRenderDiagnostic } from "./renderDiagnostics";
 
 interface Props {
@@ -226,6 +231,14 @@ export function TerminalTile({
   const isSummarizing = useIsSummarizing(terminal.id);
   const sidebarDragActive = useSidebarDragStore((s) => s.active);
   const taskDragActive = usePinDragStore((s) => s.active);
+  const handoffActive = useHandoffDragStore((s) => s.active);
+  const handoffSourceId = useHandoffDragStore((s) => s.payload?.sourceTerminalId ?? null);
+  const handoffHoveredTerminalId = useHandoffDragStore(
+    (s) => s.hoveredTerminalId,
+  );
+  const isHandoffSource = handoffActive && handoffSourceId === terminal.id;
+  const isHandoffTarget =
+    handoffActive && handoffHoveredTerminalId === terminal.id;
   const terminalTaskAssignment = usePinStore(
     (s) => s.terminalPinMap[terminal.id],
   );
@@ -506,6 +519,9 @@ export function TerminalTile({
   }, [isAgent, sidebarDragActive, terminal.id, containerEl]);
 
   const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
+  const activityHeatmapEnabled = usePreferencesStore(
+    (s) => s.activityHeatmapEnabled,
+  );
   const focusLiveTerminal = useCallback(() => {
     const tile = tileRef.current;
     if (!tile || tile.getClientRects().length === 0) {
@@ -614,27 +630,32 @@ export function TerminalTile({
       // xterm computes selection coordinates from `.xterm-screen`, not the
       // outer host div. When the canvas is zoomed, even a tiny mismatch between
       // the host hitbox and xterm's actual screen area expands into a visible
-      // dead zone near the top-left. Measure against the real screen element
-      // and, if the pointer lands in a host/gap area, re-dispatch to the xterm
-      // root so selection still starts inside xterm.
+      // dead zone near the top-left where clicks land on the host but not
+      // on xterm. If the click target is the host/gap (not inside the xterm
+      // root), re-dispatch to xterm so selection still starts inside xterm.
+      // Crucially, do NOT scale the coordinates — xterm's hit-test already
+      // uses .xterm-screen.getBoundingClientRect(), which is the visually
+      // scaled rect, so its (clientX - rect.left) / cellW math is already
+      // correct under canvas zoom. A previous version divided by scale here,
+      // which introduced a column offset proportional to zoom level.
       const xtermRoot = containerEl.querySelector(".xterm");
-      const screenElement =
-        containerEl.querySelector(".xterm-screen") ?? xtermRoot ?? containerEl;
-      const rect = screenElement.getBoundingClientRect();
-      const dispatchTarget =
+      if (
         e.target instanceof Element &&
         xtermRoot instanceof Element &&
         xtermRoot.contains(e.target)
-          ? e.target
-          : (xtermRoot ?? containerEl);
+      ) {
+        // Click already lands inside xterm — leave it alone.
+        return;
+      }
+      const dispatchTarget = xtermRoot ?? containerEl;
       const adjusted = new MouseEvent(e.type, {
         altKey: e.altKey,
         bubbles: e.bubbles,
         button: e.button,
         buttons: e.buttons,
         cancelable: e.cancelable,
-        clientX: rect.left + (e.clientX - rect.left) / scale,
-        clientY: rect.top + (e.clientY - rect.top) / scale,
+        clientX: e.clientX,
+        clientY: e.clientY,
         ctrlKey: e.ctrlKey,
         detail: e.detail,
         metaKey: e.metaKey,
@@ -789,6 +810,98 @@ export function TerminalTile({
     ],
   );
 
+  // Pickup: when the user has a non-empty xterm selection and presses inside
+  // it, swallow the mousedown so xterm doesn't clear the selection, then start
+  // a synthetic handoff drag that the global controller turns into a chip-
+  // follows-cursor gesture. We can't use native HTML5 drag because xterm's
+  // selection isn't a real DOM Selection — it's painted on canvas.
+  useEffect(() => {
+    const container = containerEl;
+    if (!container || lodMode !== "live") return;
+
+    const isPointInSelection = (
+      xterm: NonNullable<ReturnType<typeof getTerminalRuntime>>["xterm"],
+      screenEl: Element,
+      clientX: number,
+      clientY: number,
+      scale: number,
+    ): boolean => {
+      if (!xterm) return false;
+      const sel = xterm.getSelectionPosition();
+      if (!sel) return false;
+      const rect = screenEl.getBoundingClientRect();
+      const cellW = rect.width / xterm.cols;
+      const cellH = rect.height / xterm.rows;
+      if (cellW <= 0 || cellH <= 0) return false;
+      const mx = (clientX - rect.left) / scale;
+      const my = (clientY - rect.top) / scale;
+      const visibleRow = Math.floor(my / cellH);
+      const col = Math.floor(mx / cellW);
+      const viewportY = xterm.buffer.active.viewportY;
+      const row = visibleRow + viewportY;
+
+      if (row < sel.start.y || row > sel.end.y) return false;
+      if (sel.start.y === sel.end.y) {
+        return col >= sel.start.x && col < sel.end.x;
+      }
+      if (row === sel.start.y) return col >= sel.start.x;
+      if (row === sel.end.y) return col < sel.end.x;
+      return true;
+    };
+
+    const onPickupPointerDown = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      // Modifier-held clicks have established meanings (extend selection,
+      // open link, etc.). Don't hijack them.
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      if (useHandoffDragStore.getState().active) return;
+
+      const xterm = getTerminalRuntime(terminal.id)?.xterm;
+      if (!xterm || !xterm.hasSelection()) return;
+
+      const screenEl = container.querySelector(".xterm-screen") ?? container;
+      const { scale } = useCanvasStore.getState().viewport;
+      if (!isPointInSelection(xterm, screenEl, e.clientX, e.clientY, scale)) {
+        return;
+      }
+
+      const text = xterm.getSelection();
+      if (!text) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      startHandoffDrag(
+        {
+          text,
+          sourceTerminalId: terminal.id,
+          sourceTitle:
+            terminal.customTitle?.trim() ||
+            terminal.title?.trim() ||
+            terminal.type,
+        },
+        { x: e.clientX, y: e.clientY },
+      );
+    };
+
+    container.addEventListener("pointerdown", onPickupPointerDown, true);
+    return () => {
+      container.removeEventListener(
+        "pointerdown",
+        onPickupPointerDown,
+        true,
+      );
+    };
+  }, [
+    containerEl,
+    lodMode,
+    terminal.customTitle,
+    terminal.id,
+    terminal.title,
+    terminal.type,
+  ]);
+
   // Intercept drag events on the xterm container in the capture phase so they
   // are not swallowed by xterm's own handlers.
   useEffect(() => {
@@ -920,6 +1033,18 @@ export function TerminalTile({
   return (
     <div
       ref={tileRef}
+      data-focused={terminal.focused ? "true" : undefined}
+      data-drag-over={dragOver ? "true" : undefined}
+      data-task-flash={taskFlash ? "true" : undefined}
+      data-receptive={
+        taskDragActive && acceptsTaskDrop && !dragOver && !taskFlash
+          ? "true"
+          : undefined
+      }
+      data-overview={isOverviewMode ? "true" : undefined}
+      data-handoff-terminal-id={terminal.id}
+      data-handoff-source={isHandoffSource ? "true" : undefined}
+      data-handoff-target={isHandoffTarget ? "true" : undefined}
       onDragOver={handleTileDragOver}
       onDragLeave={handleTileDragLeave}
       onDrop={handleTileDrop}
@@ -927,22 +1052,7 @@ export function TerminalTile({
       style={{
         width: width,
         height: terminal.minimized ? "auto" : height,
-        boxShadow:
-          dragOver || taskFlash
-            ? "0 0 0 2px var(--accent), 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent)"
-            : taskDragActive && acceptsTaskDrop
-              ? "0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent)"
-              : terminal.focused
-                ? isOverviewMode
-                  ? "0 0 0 2px color-mix(in srgb, var(--text-secondary) 45%, transparent), inset 0 2px 0 0 color-mix(in srgb, var(--text-secondary) 25%, transparent)"
-                  : "inset 0 2px 0 0 color-mix(in srgb, var(--text-secondary) 25%, transparent)"
-                : undefined,
-        borderColor:
-          !dragOver && !taskFlash && terminal.focused
-            ? "var(--border-hover)"
-            : undefined,
         outline: "none",
-        transition: "box-shadow 150ms ease",
       }}
       onClick={(e) => {
         e.stopPropagation();
@@ -972,7 +1082,7 @@ export function TerminalTile({
       onWheel={(e) => e.stopPropagation()}
     >
       <div
-        className="relative flex items-center gap-2 px-3 py-2 select-none shrink-0"
+        className="tc-tile-header relative flex items-center gap-2 px-3 py-2 select-none shrink-0"
         onContextMenu={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -988,7 +1098,10 @@ export function TerminalTile({
         }}
       >
         {terminal.origin !== "agent" && (
-          <div className="w-[3px] h-3 rounded-full bg-amber-500/60 shrink-0" />
+          <div
+            className="w-[3px] h-3 rounded-full shrink-0"
+            style={{ background: "var(--amber)", opacity: 0.7 }}
+          />
         )}
         <span
           className="text-[11px] font-medium"
@@ -1014,7 +1127,7 @@ export function TerminalTile({
           {headerContextLabel}
         </span>
         <div
-          className={`h-6 min-w-0 flex-1 rounded-md border px-1.5 text-[11px] ${
+          className={`tc-tile-title-editable h-6 min-w-0 flex-1 rounded-md border px-1.5 text-[11px] ${
             terminal.customTitle
               ? "border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]"
               : "border-dashed border-[var(--border)] bg-[var(--bg)] text-[var(--text-faint)]"
@@ -1033,11 +1146,12 @@ export function TerminalTile({
         >
           <div className="flex h-full items-center gap-1.5 min-w-0">
             <button
-              className={`shrink-0 rounded p-0.5 transition-colors duration-150 ${
+              className={`tc-tile-action shrink-0 rounded p-0.5 ${
                 terminal.starred
-                  ? "text-amber-400 hover:text-amber-300"
-                  : "text-[var(--text-faint)] hover:text-amber-400"
+                  ? "text-[var(--amber)] hover:brightness-110"
+                  : "text-[var(--text-faint)] hover:text-[var(--amber)]"
               }`}
+              data-pinned={terminal.starred ? "true" : undefined}
               title={terminal.starred ? t.terminal_unstar : t.terminal_star}
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
@@ -1089,15 +1203,51 @@ export function TerminalTile({
                 {t.summary_in_progress}
               </span>
             ) : (
-              <span className="min-w-0 flex-1 truncate leading-[22px]">
-                {terminal.customTitle || t.terminal_custom_title_placeholder}
-              </span>
+              <>
+                <span className="min-w-0 flex-1 truncate leading-[22px]">
+                  {terminal.customTitle || t.terminal_custom_title_placeholder}
+                </span>
+                <button
+                  type="button"
+                  className="tc-tile-action shrink-0 rounded p-0.5 text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--border)]"
+                  title={t.terminal_custom_title_placeholder}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isOverviewMode) {
+                      zoomIntoTerminalFromOverview();
+                      return;
+                    }
+                    startCustomTitleEdit();
+                  }}
+                >
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 10 10"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M1.6 8.4 L7.2 2.8 L8.5 4.1 L2.9 9.7 Z"
+                      stroke="currentColor"
+                      strokeWidth="1"
+                      strokeLinejoin="round"
+                      transform="translate(-0.3 -1.2)"
+                    />
+                  </svg>
+                </button>
+              </>
             )}
           </div>
         </div>
+        {activityHeatmapEnabled && (
+          <ActivitySparkline terminalId={terminal.id} />
+        )}
         <div className="flex items-center gap-0.5">
           <button
-            className="text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
+            className="tc-tile-action text-[var(--text-faint)] hover:text-[var(--text-primary)] p-1 rounded-md hover:bg-[var(--border)]"
+            data-pinned={terminal.minimized ? "true" : undefined}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
@@ -1126,7 +1276,7 @@ export function TerminalTile({
             </svg>
           </button>
           <button
-            className="text-[var(--text-faint)] hover:text-[var(--red)] transition-colors duration-150 p-1 rounded-md hover:bg-[var(--border)]"
+            className="tc-tile-action text-[var(--text-faint)] hover:text-[var(--red)] p-1 rounded-md hover:bg-[var(--border)]"
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
@@ -1263,7 +1413,7 @@ export function TerminalTile({
       )}
 
       {showCopiedToast && (
-        <div className="absolute left-1/2 bottom-3 -translate-x-1/2 px-3 py-1 rounded-md bg-[var(--surface)] text-[var(--text-primary)] text-xs font-medium shadow-lg border border-[var(--border)] pointer-events-none z-10 animate-[fadeIn_0.15s_ease-out]">
+        <div className="tc-enter-pop absolute left-1/2 bottom-3 -translate-x-1/2 px-3 py-1 rounded-md bg-[var(--surface)] text-[var(--text-primary)] text-xs font-medium shadow-lg border border-[var(--border)] pointer-events-none z-10">
           {t.terminal_copied}
         </div>
       )}

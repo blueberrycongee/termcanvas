@@ -16,6 +16,9 @@ import {
   clearSceneFocusAndSelection,
   promptAndAddProjectToScene,
 } from "./sceneCommands";
+import { CanvasDragoverCue } from "./CanvasDragoverCue";
+import { CanvasEmptyState } from "../components/CanvasEmptyState";
+import { useCanvasDragOver } from "./useCanvasDragOver";
 import { getStashedTerminalIds } from "./sceneState";
 import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
@@ -57,6 +60,8 @@ import {
 import { clampScale, zoomAtClientPoint } from "./viewportZoom";
 import { resolveCollisions } from "./collisionResolver";
 import { WorktreeLabelLayer } from "./WorktreeLabelLayer";
+import { ClusterLinkLayer } from "./ClusterLinkLayer";
+import { SpatialWaypointsLayer } from "./SpatialWaypointsLayer";
 import { ContextMenu } from "../components/ContextMenu";
 import { createTerminalInScene } from "../actions/terminalSceneActions";
 import type { TerminalType } from "../types";
@@ -301,6 +306,9 @@ function XyFlowCanvasInner() {
   const projects = useProjectStore((state) => state.projects);
   const drawingEnabled = usePreferencesStore((state) => state.drawingEnabled);
   const petEnabled = usePreferencesStore((state) => state.petEnabled);
+  const activityHeatmapEnabled = usePreferencesStore(
+    (state) => state.activityHeatmapEnabled,
+  );
   const animationBlur = usePreferencesStore((state) => state.animationBlur);
   const drawingTool = useDrawingStore((state) => state.tool);
   const canvasTool = useCanvasToolStore((state) => state.tool);
@@ -530,11 +538,6 @@ function XyFlowCanvasInner() {
     [],
   );
 
-  const handleDragOver = useCallback((event: React.DragEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-  }, []);
-
   const handleDrop = useCallback(
     async (event: React.DragEvent) => {
       event.preventDefault();
@@ -555,6 +558,9 @@ function XyFlowCanvasInner() {
     },
     [t],
   );
+
+  const { state: dragOverState, handlers: dragOverHandlers } =
+    useCanvasDragOver({ onDrop: handleDrop });
 
   const handleAddProject = useCallback(async () => {
     await promptAndAddProjectToScene(t);
@@ -653,6 +659,7 @@ function XyFlowCanvasInner() {
     <div
       ref={canvasContainerRef}
       className={`fixed top-0 right-0 bottom-0 overflow-hidden canvas-bg ${cursorClass}`}
+      data-activity-heatmap={activityHeatmapEnabled ? "true" : undefined}
       style={{
         left: leftOffset,
         transition: sidebarDragging
@@ -661,8 +668,10 @@ function XyFlowCanvasInner() {
       }}
       onMouseDownCapture={handleContainerMouseDown}
       onWheelCapture={handleWheelCapture}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
+      onDragEnter={dragOverHandlers.onDragEnter}
+      onDragOver={dragOverHandlers.onDragOver}
+      onDragLeave={dragOverHandlers.onDragLeave}
+      onDrop={dragOverHandlers.onDrop}
     >
       <TerminalRuntimeLayer
         projects={projects}
@@ -762,6 +771,8 @@ function XyFlowCanvasInner() {
         />
       )}
 
+      <ClusterLinkLayer />
+
       <BoxSelectOverlay />
       <CanvasCardLayer />
       {drawingEnabled && <DrawingLayer />}
@@ -769,22 +780,21 @@ function XyFlowCanvasInner() {
 
       <WorktreeLabelLayer />
 
+      <SpatialWaypointsLayer />
+
       <FamilyTreeOverlay />
 
+      <CanvasDragoverCue
+        active={dragOverState.isDragOver}
+        showChip={
+          dragOverState.isDragOver &&
+          dragOverState.isFolderDrop &&
+          projects.length > 0
+        }
+      />
+
       {projects.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="text-center pointer-events-auto">
-            <div className="text-[var(--text-muted)] text-lg font-light mb-4">
-              {t.canvas_empty_title}
-            </div>
-            <button
-              onClick={handleAddProject}
-              className="px-6 py-3 bg-[var(--button-bg)] hover:bg-[var(--button-bg-hover)] text-[var(--button-text)] rounded-lg transition-colors"
-            >
-              {t.canvas_empty_action}
-            </button>
-          </div>
-        </div>
+        <CanvasEmptyState isDragOver={dragOverState.isDragOver} />
       )}
     </div>
   );

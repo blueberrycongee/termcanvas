@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { CanvasRoot } from "./canvas/CanvasRoot";
 import { addProjectFromDirectoryPath } from "./canvas/sceneCommands";
 import { Toolbar } from "./toolbar/Toolbar";
@@ -10,13 +10,16 @@ import { FileEditorDrawer } from "./components/FileEditorDrawer";
 import { PinDetailDrawer } from "./components/PinDetailDrawer";
 import { initUpdaterListeners } from "./stores/updaterStore";
 import { ComposerBar } from "./components/ComposerBar";
+import { HandoffDragChip } from "./components/HandoffDragChip";
 import { usePreferencesStore, hydrateApiKey } from "./stores/preferencesStore";
 import { DrawingPanel } from "./toolbar/DrawingPanel";
 import { ShortcutHints } from "./components/ShortcutHints";
+import { DiscoveryCue } from "./components/DiscoveryCue";
+import { StatusDigest } from "./components/StatusDigest";
 import { CompletionGlow } from "./components/CompletionGlow";
 import { initSessionStoreIPC } from "./stores/sessionStore";
-import { WelcomePopup } from "./components/WelcomePopup";
 import { SearchModal } from "./components/SearchModal";
+import { CommandPalette } from "./components/CommandPalette/CommandPalette";
 import { UsageOverlay } from "./components/UsageOverlay";
 import { SessionsOverlay } from "./components/SessionsOverlay";
 import {
@@ -41,6 +44,11 @@ import {
   snapshotState,
   type SkipRestoreSnapshot,
 } from "./snapshotState";
+import { appendSnapshotToHistory } from "./snapshotHistory";
+import { SnapshotHistoryModal } from "./components/SnapshotHistoryModal";
+import { useSnapshotHistoryStore } from "./stores/snapshotHistoryStore";
+import { Hub } from "./components/Hub";
+import { CanvasManagerModal } from "./components/CanvasManagerModal";
 import { updateWindowTitle } from "./titleHelper";
 import { resolveTerminalWithRuntimeState } from "./stores/terminalRuntimeStateStore";
 import { logSlowRendererPath } from "./utils/devPerf";
@@ -167,6 +175,10 @@ function useAutoSave() {
           ...state,
           lastSavedAt: Date.now(),
         }));
+        // Throttled history capture rides on the autosave heartbeat — see
+        // MIN_HISTORY_INTERVAL_MS in snapshotHistory.ts. Awaiting the autosave
+        // first guarantees state.json and the history slot agree.
+        void appendSnapshotToHistory();
       } catch (err) {
         console.error("[useAutoSave] failed to save recovery snapshot:", err);
       } finally {
@@ -255,9 +267,6 @@ export function App() {
   const completionGlowEnabled = usePreferencesStore(
     (s) => s.completionGlowEnabled,
   );
-  const [showWelcome, setShowWelcome] = useState(() => {
-    return !localStorage.getItem("termcanvas-welcome-seen");
-  });
 
   useEffect(() => {
     if (!summaryEnabled) return;
@@ -265,6 +274,9 @@ export function App() {
   }, [summaryEnabled]);
 
   useEffect(() => initUpdaterListeners(), []);
+  useEffect(() => {
+    void useSnapshotHistoryStore.getState().refresh();
+  }, []);
   useEffect(() => {
     void hydrateApiKey();
   }, []);
@@ -442,11 +454,7 @@ export function App() {
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-[var(--bg)] text-[var(--text-primary)]">
-      <Toolbar onShowTutorial={() => setShowWelcome(true)} />
-      {/* Hub (focus-level switcher) hidden until the underlying level
-          cycling is reworked — it currently overlaps the new worktree
-          label HUD in the canvas top-left. Re-enable when ready. */}
-      {/* <Hub /> */}
+      <Toolbar />
       <LeftPanel />
       <RightPanel />
       <CanvasRoot />
@@ -454,21 +462,20 @@ export function App() {
       {drawingEnabled && <DrawingPanel />}
       {completionGlowEnabled && <CompletionGlow />}
       <ShortcutHints />
+      <DiscoveryCue />
+      <StatusDigest />
       {composerEnabled && <ComposerBar />}
+      <HandoffDragChip />
       <NotificationToast />
       {globalSearchEnabled && <SearchModal />}
+      <CommandPalette />
+      <SnapshotHistoryModal />
       <UsageOverlay />
       <SessionsOverlay />
       <FileEditorDrawer />
       <PinDetailDrawer />
-      {showWelcome && (
-        <WelcomePopup
-          onClose={() => {
-            localStorage.setItem("termcanvas-welcome-seen", "1");
-            setShowWelcome(false);
-          }}
-        />
-      )}
+      <Hub />
+      <CanvasManagerModal />
     </div>
   );
 }

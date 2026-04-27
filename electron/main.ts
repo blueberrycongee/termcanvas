@@ -18,6 +18,7 @@ import { fileURLToPath, pathToFileURL } from "url";
 import { PtyManager, OutputBatcher } from "./pty-manager";
 import { ProjectScanner } from "./project-scanner";
 import { StatePersistence, TERMCANVAS_DIR } from "./state-persistence";
+import { SnapshotHistory } from "./snapshot-history";
 import { GitFileWatcher } from "./git-watcher";
 import { FileTreeWatcher } from "./file-tree-watcher";
 import {
@@ -240,6 +241,7 @@ const outputBatcher = new OutputBatcher((ptyId, data) => {
 });
 const projectScanner = new ProjectScanner();
 const statePersistence = new StatePersistence();
+const snapshotHistory = new SnapshotHistory();
 const gitWatcher = new GitFileWatcher();
 const fileTreeWatcher = new FileTreeWatcher(HIDDEN_DIRS, (dirPath) => {
   sendToWindow(mainWindow, "fs:dir-changed", dirPath);
@@ -1343,6 +1345,30 @@ function setupIpc() {
   ipcMain.handle("state:save", (_event, state: unknown) => {
     statePersistence.save(state);
   });
+
+  ipcMain.handle("snapshots:list", () => {
+    return snapshotHistory.list();
+  });
+
+  ipcMain.handle("snapshots:read", (_event, id: string) => {
+    return snapshotHistory.read(id);
+  });
+
+  ipcMain.handle(
+    "snapshots:append",
+    (
+      _event,
+      args: {
+        savedAt: number;
+        terminalCount: number;
+        projectCount: number;
+        label?: string;
+        body: unknown;
+      },
+    ) => {
+      return snapshotHistory.append(args);
+    },
+  );
 
   ipcMain.handle("memory:scan", async (_event, worktreePath: string) => {
     const { getMemoryDirForWorktree, scanMemoryDir } =

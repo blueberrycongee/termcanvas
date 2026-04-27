@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useT } from "../../i18n/useT";
 
 interface MessageBubbleProps {
   text: string;
@@ -50,10 +51,13 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
       nodes.push(
         <code
           key={key++}
-          className="tc-mono px-1 py-0.5 rounded text-[0.86em]"
+          className="tc-mono"
           style={{
-            background: "var(--surface-hover)",
-            color: "var(--cyan)",
+            background: "var(--surface)",
+            color: "var(--text-primary)",
+            padding: "1px 5px",
+            borderRadius: 3,
+            fontSize: "0.88em",
           }}
         >
           {match[1]}
@@ -61,7 +65,7 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
       );
     } else if (match[2] !== undefined) {
       nodes.push(
-        <strong key={key++} style={{ fontWeight: 600, color: "var(--text-primary)" }}>
+        <strong key={key++} style={{ fontWeight: "var(--weight-semibold)", color: "var(--text-primary)" }}>
           {match[2]}
         </strong>,
       );
@@ -78,7 +82,7 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
           href={match[5]}
           target="_blank"
           rel="noopener noreferrer"
-          className="underline underline-offset-2 hover:opacity-80 transition-opacity"
+          className="underline underline-offset-2"
           style={{ color: "var(--accent)" }}
         >
           {match[4]}
@@ -95,6 +99,7 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
 }
 
 function CopyButton({ text }: { text: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const handleCopy = useCallback(async () => {
     await navigator.clipboard.writeText(text);
@@ -105,16 +110,14 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="tc-caption hover:opacity-100 opacity-70 transition-opacity p-1"
-      style={{ color: copied ? "var(--cyan)" : "var(--text-muted)" }}
-      title="Copy code"
+      className="tc-eyebrow tc-mono"
+      style={{
+        color: copied ? "var(--cyan)" : "var(--text-faint)",
+        transition: "color var(--duration-quick) var(--ease-out-soft)",
+      }}
+      title={t["agent.message.copyCodeTitle"]}
     >
-      {copied ? "Copied" : (
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="5" y="5" width="9" height="9" rx="1.5" />
-          <path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5" />
-        </svg>
-      )}
+      {copied ? t["agent.message.copied"] : t["agent.message.copy"]}
     </button>
   );
 }
@@ -123,24 +126,27 @@ export function MessageBubble({ text }: MessageBubbleProps) {
   const segments = parseCodeBlocks(text);
 
   return (
-    <div className="tc-body" style={{ lineHeight: "var(--leading-relaxed)" }}>
+    <div className="tc-body">
       {segments.map((seg, i) => {
         if (seg.type === "code_block") {
           return (
             <div
               key={i}
-              className="my-3 rounded-md overflow-hidden"
+              className="my-2.5 rounded-md overflow-hidden"
               style={{
                 background: "var(--bg)",
                 border: "1px solid var(--border)",
               }}
             >
               <div
-                className="flex items-center justify-between px-3 h-7"
-                style={{ borderBottom: "1px solid var(--border)" }}
+                className="flex items-center justify-between px-3 h-6"
+                style={{
+                  background: "var(--surface)",
+                  borderBottom: "1px solid var(--border)",
+                }}
               >
                 <span className="tc-eyebrow tc-mono">
-                  {seg.language || "code"}
+                  {seg.language || "text"}
                 </span>
                 <CopyButton text={seg.content} />
               </div>

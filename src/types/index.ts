@@ -174,11 +174,28 @@ export interface PersistedWorktreeData extends Omit<WorktreeData, "terminals"> {
   terminals: PersistedTerminalData[];
 }
 
+/**
+ * A named viewport position the user can jump back to. Slots 1..9
+ * are addressed by string-keyed map so the persisted JSON is stable
+ * across saves (numeric object keys round-trip as strings anyway).
+ */
+export interface SpatialWaypoint {
+  x: number;
+  y: number;
+  scale: number;
+  savedAt: number;
+}
+
+export type SpatialWaypointSlot = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
+
+export type SpatialWaypointMap = Partial<Record<SpatialWaypointSlot, SpatialWaypoint>>;
+
 export interface ProjectData {
   id: string;
   name: string;
   path: string;
   worktrees: WorktreeData[];
+  waypoints?: SpatialWaypointMap;
 }
 
 export interface PersistedProjectData extends Omit<ProjectData, "worktrees"> {
@@ -771,6 +788,31 @@ export interface TermCanvasAPI {
   state: {
     load: () => Promise<PersistedCanvasState | null>;
     save: (state: unknown) => Promise<void>;
+  };
+  snapshots: {
+    list: () => Promise<
+      Array<{
+        id: string;
+        savedAt: number;
+        terminalCount: number;
+        projectCount: number;
+        label?: string;
+      }>
+    >;
+    read: (id: string) => Promise<unknown | null>;
+    append: (args: {
+      savedAt: number;
+      terminalCount: number;
+      projectCount: number;
+      label?: string;
+      body: unknown;
+    }) => Promise<{
+      id: string;
+      savedAt: number;
+      terminalCount: number;
+      projectCount: number;
+      label?: string;
+    }>;
   };
   workspace: {
     save: (data: string) => Promise<string | null>;

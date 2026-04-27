@@ -222,12 +222,14 @@ export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProp
   return (
     <div
       ref={panelRef}
-      className="fixed z-[95] panel flex flex-col"
+      className="fixed z-[95] panel flex flex-col tc-enter-fade-up"
       style={{
         width: size.w,
         height: size.h,
         bottom: pos.bottom,
         right: pos.right,
+        boxShadow:
+          "0 12px 32px color-mix(in srgb, var(--shadow-color) 32%, transparent), 0 2px 6px color-mix(in srgb, var(--shadow-color) 18%, transparent)",
       }}
       onPointerDown={handlePanelPointerDown}
       onPointerMove={handlePanelPointerMove}
@@ -241,46 +243,80 @@ export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProp
           className="flex-1 min-w-0 flex items-center overflow-x-auto px-1.5 py-1.5 gap-0.5"
           style={{ scrollbarWidth: "none" }}
         >
-          {sessions.map((s) => (
-            <button
-              key={s.id}
-              data-active-tab={s.id === activeSessionId ? "" : undefined}
-              className={`group flex items-center gap-1 shrink-0 max-w-[140px] rounded px-2 py-1 tc-label transition-colors duration-100 ${
-                s.id === activeSessionId
-                  ? "bg-[var(--surface-hover)] text-[var(--text-primary)] font-medium"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]/50"
-              }`}
-              onClick={() => switchSession(s.id)}
-              onAuxClick={(e) => {
-                if (e.button === 1) {
-                  e.preventDefault();
-                  deleteSession(s.id);
-                }
-              }}
-              title={s.title}
-            >
-              <span className="truncate">{s.title}</span>
-              {sessions.length > 1 && (
-                <span
-                  className="shrink-0 opacity-0 group-hover:opacity-100 hover:text-[var(--text-primary)] transition-opacity duration-100 ml-0.5"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
+          {sessions.map((s) => {
+            const isActive = s.id === activeSessionId;
+            return (
+              <button
+                key={s.id}
+                data-active-tab={isActive ? "" : undefined}
+                className="group flex items-center gap-1 shrink-0 max-w-[140px] rounded px-2 py-1 tc-label"
+                style={{
+                  background: isActive ? "var(--surface-hover)" : "transparent",
+                  color: isActive ? "var(--text-primary)" : "var(--text-muted)",
+                  fontWeight: isActive ? "var(--weight-medium)" : "var(--weight-regular)",
+                  transition:
+                    "background-color var(--duration-quick) var(--ease-out-soft), color var(--duration-quick) var(--ease-out-soft)",
+                }}
+                onMouseEnter={(e) => {
+                  if (isActive) return;
+                  const el = e.currentTarget as HTMLButtonElement;
+                  el.style.background = "color-mix(in srgb, var(--surface-hover) 50%, transparent)";
+                  el.style.color = "var(--text-secondary)";
+                }}
+                onMouseLeave={(e) => {
+                  if (isActive) return;
+                  const el = e.currentTarget as HTMLButtonElement;
+                  el.style.background = "transparent";
+                  el.style.color = "var(--text-muted)";
+                }}
+                onClick={() => switchSession(s.id)}
+                onAuxClick={(e) => {
+                  if (e.button === 1) {
+                    e.preventDefault();
                     deleteSession(s.id);
-                  }}
-                >
-                  <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
-                    <path d="M2.5 2.5L7.5 7.5M7.5 2.5L2.5 7.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                  </svg>
-                </span>
-              )}
-            </button>
-          ))}
+                  }
+                }}
+                title={s.title}
+              >
+                <span className="truncate">{s.title}</span>
+                {sessions.length > 1 && (
+                  <span
+                    className="shrink-0 opacity-0 group-hover:opacity-100 ml-0.5"
+                    style={{ transition: "opacity var(--duration-quick) var(--ease-out-soft)" }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteSession(s.id);
+                    }}
+                  >
+                    <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
+                      <path d="M2.5 2.5L7.5 7.5M7.5 2.5L2.5 7.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                    </svg>
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex items-center gap-0.5 px-1.5 shrink-0">
           <button
-            className="text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded hover:bg-[var(--surface-hover)]"
+            className="p-1 rounded"
+            style={{
+              color: "var(--text-faint)",
+              transition:
+                "background-color var(--duration-quick) var(--ease-out-soft), color var(--duration-quick) var(--ease-out-soft)",
+            }}
+            onMouseEnter={(e) => {
+              const el = e.currentTarget as HTMLButtonElement;
+              el.style.background = "var(--surface-hover)";
+              el.style.color = "var(--text-primary)";
+            }}
+            onMouseLeave={(e) => {
+              const el = e.currentTarget as HTMLButtonElement;
+              el.style.background = "transparent";
+              el.style.color = "var(--text-faint)";
+            }}
             onClick={newSession}
             title="New chat"
           >
@@ -289,7 +325,22 @@ export function ChatPanel({ messages, onSendMessage, onCollapse }: ChatPanelProp
             </svg>
           </button>
           <button
-            className="text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-150 p-1 rounded hover:bg-[var(--surface-hover)]"
+            className="p-1 rounded"
+            style={{
+              color: "var(--text-faint)",
+              transition:
+                "background-color var(--duration-quick) var(--ease-out-soft), color var(--duration-quick) var(--ease-out-soft)",
+            }}
+            onMouseEnter={(e) => {
+              const el = e.currentTarget as HTMLButtonElement;
+              el.style.background = "var(--surface-hover)";
+              el.style.color = "var(--text-primary)";
+            }}
+            onMouseLeave={(e) => {
+              const el = e.currentTarget as HTMLButtonElement;
+              el.style.background = "transparent";
+              el.style.color = "var(--text-faint)";
+            }}
             onClick={onCollapse}
             title="Close"
           >

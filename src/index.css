@@ -80,6 +80,13 @@
      instead of looking ashy. Components compose translucency on top
      via color-mix(); never used at full opacity. */
   --shadow-color: #0a0908;
+  /* Modal scrim. Used by every dialog/palette/popup that needs to
+     darken the canvas behind it. Defined as a complete colour
+     (with built-in alpha) so call-sites just reference --scrim and
+     never reach for raw rgba(). Dark theme uses a deep black at 55%
+     — same value the existing modals had hand-coded; the token just
+     makes it consistent and trackable. */
+  --scrim: rgba(0, 0, 0, 0.55);
   --radius: 8px;
   color-scheme: dark;
 }
@@ -118,6 +125,12 @@
      keeps shadows in the same hue family as the light neutrals so
      they read as "soft depth" rather than "hard cutout". */
   --shadow-color: #1c1917;
+  /* Light-theme scrim is the same warm dark as --shadow-color but at
+     a lower 42% alpha. A pure-black 55% scrim reads as a hard
+     theatre-curtain on cream paper; the warm tone keeps the modal
+     feeling lifted from the same surface family, and the lower alpha
+     stops the popup from looking like it's floating on coal. */
+  --scrim: rgba(28, 25, 23, 0.42);
   --radius: 8px;
   color-scheme: light;
 }
@@ -138,6 +151,14 @@
   --text-stat-lg: 22px; /* sidebar summary */
   --text-stat-xl: 26px; /* overlay hero stat */
 
+  /* First-impression display size. Reserved for the empty-canvas /
+     pre-content moment where the product needs typographic presence
+     without leaning on a marketing hero. The jump from --text-xl (20px)
+     to --text-hero (32px) is the rhythmic step the type scale was missing
+     for this rare role; introduce more values only if a new role
+     genuinely cannot be expressed by what's here. */
+  --text-hero: 32px;
+
   /* ── Line heights ────────────────────────────────────────── */
   --leading-tight: 1.25;
   --leading-snug: 1.4;
@@ -154,6 +175,48 @@
   --weight-regular: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
+
+  /* ── Motion ──────────────────────────────────────────────── */
+  /* Durations are role-based, not size-based. Use --duration-instant for
+     state hand-offs the eye should not catch (focus, hover background);
+     --duration-quick for affordance feedback (button press, chevron rotate);
+     --duration-natural for entrances/exits the user is meant to perceive;
+     --duration-deliberate for spatial moves where the user needs to track
+     where something went (panel slide, drawer open). Going longer than
+     deliberate makes the UI feel sluggish, not premium. */
+  --duration-instant: 80ms;
+  --duration-quick: 140ms;
+  --duration-natural: 220ms;
+  --duration-deliberate: 320ms;
+
+  /* Easings. --ease-out-soft is the workhorse: arrives confident, settles
+     gently — right for things appearing or moving toward rest. --ease-out-snap
+     overshoots-then-settles slightly, used sparingly for affordances we want
+     the user to *notice* (a pin engaging, a save confirming). --ease-in-soft
+     is for exits — the user shouldn't track something that's leaving.
+     --ease-in-out-soft is for in-place state shifts (a value updating). */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-snap: cubic-bezier(0.34, 1.32, 0.64, 1);
+  --ease-in-soft: cubic-bezier(0.4, 0, 0.6, 0.2);
+  --ease-in-out-soft: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ── Elevation ───────────────────────────────────────────────
+     Two layered shadow primitives the floating-UI family shares.
+     Cast colour comes from --shadow-color so depth lands in the
+     same hue family as the neutrals (warm near-black in dark, warm
+     ink in light). Each token is a pair — a tight contact shadow
+     plus a softer cast — read together as one elevation rather
+     than a stack of effects.
+       --shadow-elev-1: drawers anchored to a panel edge, small
+         floating widgets, on-canvas cards. Subtle.
+       --shadow-elev-2: floating modals/widgets that sit free over
+         the canvas (toasts, modal dialogs, file editor). Deeper. */
+  --shadow-elev-1:
+    0 1px 2px color-mix(in srgb, var(--shadow-color) 14%, transparent),
+    0 6px 16px color-mix(in srgb, var(--shadow-color) 14%, transparent);
+  --shadow-elev-2:
+    0 2px 6px color-mix(in srgb, var(--shadow-color) 22%, transparent),
+    0 14px 36px color-mix(in srgb, var(--shadow-color) 26%, transparent);
 }
 
 body {
@@ -280,6 +343,54 @@ body {
   color: var(--text-primary);
 }
 
+/* Hero display. Pairs --text-hero with weight + tracking + leading so the
+   call-site never reinvents these values. Tighter tracking than tc-display
+   because heading text reads better with condensed letter-spacing at large
+   sizes, and a 1.15 leading keeps two-line statements compact instead of
+   floaty. Use sparingly — first-impression states only. */
+.tc-hero {
+  font-size: var(--text-hero);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--text-primary);
+}
+
+/* Inline keyboard-shortcut chip. Renders as <span> for static hints or
+   <button>/<a> for clickable affordances; styling stays identical so the
+   chip doesn't reflow on hover. Only the interactive variants light up. */
+.tc-kbd {
+  display: inline-flex;
+  align-items: center;
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  transition:
+    border-color var(--duration-quick) var(--ease-out-soft),
+    background-color var(--duration-quick) var(--ease-out-soft),
+    color var(--duration-quick) var(--ease-out-soft);
+}
+button.tc-kbd,
+a.tc-kbd {
+  cursor: pointer;
+}
+button.tc-kbd:hover,
+a.tc-kbd:hover {
+  border-color: var(--border-hover);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+button.tc-kbd:active,
+a.tc-kbd:active {
+  background: var(--surface-hover);
+}
+
 /* Treatments */
 .tc-mono {
   font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -368,8 +479,128 @@ body {
   padding: 2px 8px;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Terminal tile chrome
+   The tile is the most-seen surface in the product. Every chrome
+   state shares the same temporal rhythm — --duration-quick with
+   --ease-out-soft. State is driven from data attributes so the
+   React side just toggles flags; the visual treatment lives here.
+   Precedence (high → low): drag-over / task-flash > receptive >
+   focused. Higher-precedence states fully replace lower ones.
+   ───────────────────────────────────────────────────────────── */
 .terminal-tile {
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  transition:
+    border-color var(--duration-quick) var(--ease-out-soft),
+    box-shadow var(--duration-quick) var(--ease-out-soft);
+}
+
+.terminal-tile[data-drag-over="true"],
+.terminal-tile[data-task-flash="true"] {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 12px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.terminal-tile[data-receptive="true"]:not([data-drag-over="true"], [data-task-flash="true"]) {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* Handoff drop affordance — a different ring colour than folder/file drop
+   so the eye reads "this is a different gesture". Cyan vs accent is the
+   pairing established in the canvas tokens. */
+.terminal-tile[data-handoff-target="true"]:not([data-drag-over="true"], [data-task-flash="true"]) {
+  box-shadow:
+    0 0 0 2px var(--cyan),
+    0 0 12px color-mix(in srgb, var(--cyan) 26%, transparent);
+}
+
+/* Source tile reads as "this is what's being moved" while the chip is in
+   flight — a small dim, not an outline, so it doesn't compete with the
+   receptive-target ring on the opposite tile. */
+.terminal-tile[data-handoff-source="true"] {
+  opacity: 0.85;
+  transition: opacity var(--duration-quick) var(--ease-out-soft);
+}
+
+/* Focus, normal canvas: paired 1px accent border + 1px inset accent
+   line at low opacity. Confident enough to spot from across the
+   canvas, quiet enough never to compete with the tile contents. */
+.terminal-tile[data-focused="true"]:not(
+    [data-drag-over="true"],
+    [data-task-flash="true"],
+    [data-receptive="true"],
+    [data-overview="true"]
+  ) {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+/* Focus, overview mode: a stronger ring still readable when the
+   canvas is fit-to-all and tiles are near thumbnail size. */
+.terminal-tile[data-focused="true"][data-overview="true"]:not(
+    [data-drag-over="true"],
+    [data-task-flash="true"],
+    [data-receptive="true"]
+  ) {
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--text-secondary) 45%, transparent),
+    inset 0 2px 0 0 color-mix(in srgb, var(--text-secondary) 25%, transparent);
+}
+
+/* Header. Lifts to --surface-hover when the tile owns focus — a
+   paired colour shift with the focus ring so the active tile reads
+   as grouped, not merely outlined. */
+.tc-tile-header {
+  background-color: transparent;
+  transition: background-color var(--duration-quick) var(--ease-out-soft);
+}
+.terminal-tile[data-focused="true"]:not([data-drag-over="true"], [data-task-flash="true"]) .tc-tile-header {
+  background-color: var(--surface-hover);
+}
+
+/* Hover-only action affordances (minimise, close, edit-title icon).
+   Idle = invisible; reveal on tile hover, focus, or keyboard focus.
+   data-pinned="true" keeps a control visible regardless — used for
+   state marks (a starred tile keeps its star so the mark persists
+   without hover). */
+.tc-tile-action {
+  opacity: 0;
+  transition:
+    opacity var(--duration-quick) var(--ease-out-soft),
+    color var(--duration-quick) var(--ease-out-soft),
+    background-color var(--duration-quick) var(--ease-out-soft);
+}
+.terminal-tile:hover .tc-tile-action,
+.terminal-tile[data-focused="true"] .tc-tile-action,
+.terminal-tile .tc-tile-action:focus-visible,
+.terminal-tile .tc-tile-action[data-pinned="true"] {
+  opacity: 1;
+}
+
+/* Inline edit-title cue. The cursor flips to text on hover so the
+   field reads as editable; the pencil chip (rendered as
+   .tc-tile-action) makes the affordance discoverable without
+   crowding the title. */
+.tc-tile-title-editable {
+  cursor: text;
+}
+
+/* Activity heatmap sparkline. Mounted only when the heatmap toggle is
+   on, but the fade is driven from the canvas-root data attribute so the
+   reveal is one canvas-wide transition rather than 50 per-tile flickers.
+   Quiet ink — --text-muted at 30% so it reads as ambient information,
+   never as an alert. */
+.tc-activity-sparkline {
+  flex-shrink: 0;
+  color: color-mix(in srgb, var(--text-muted) 30%, transparent);
+  opacity: 0;
+  transition: opacity var(--duration-natural) var(--ease-out-soft);
+  pointer-events: none;
+}
+[data-activity-heatmap="true"] .tc-activity-sparkline {
+  opacity: 1;
 }
 
 /* Force text cursor inside terminal tiles.
@@ -465,8 +696,11 @@ html.tc-scrolling ::-webkit-scrollbar-thumb {
   }
 }
 
+/* 1.6s reads as a steady heartbeat — alive, not languid. The original
+   2s loop drifted closer to a "still loading" cadence; pulling it in
+   anchors it to the same temporal rhythm as the motion tokens. */
 .status-pulse {
-  animation: pulse-dot 2s ease-in-out infinite;
+  animation: pulse-dot 1.6s var(--ease-in-out-soft) infinite;
 }
 
 @keyframes usage-fade-in-up {
@@ -570,4 +804,370 @@ html.tc-scrolling ::-webkit-scrollbar-thumb {
 @keyframes demo-nudge {
   0%, 100% { transform: translateX(0); opacity: 1; }
   50% { transform: translateX(2px); opacity: 0.7; }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Motion utilities — role-based entrance/state classes built
+   on the motion tokens. Components compose these instead of
+   re-deriving keyframes + timings per surface. Each utility is
+   a single role; combine via wrapping elements when you need
+   layered behavior (e.g. fade-in container + pop child).
+   ───────────────────────────────────────────────────────────── */
+@keyframes tc-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes tc-fade-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes tc-fade-down {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes tc-pop {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes tc-slide-in-right {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.tc-enter-fade { animation: tc-fade-in var(--duration-natural) var(--ease-out-soft) both; }
+/* Quick opacity-only fade for in-place content swaps where the user
+   already knows where the new content will land — tab panels, segment
+   contents, anything that is conceptually a "show the other thing"
+   rather than an "arrive". Slower than tc-enter-fade and snap-free so
+   the eye doesn't track a phantom motion. */
+.tc-enter-fade-quick { animation: tc-fade-in var(--duration-quick) var(--ease-out-soft) both; }
+.tc-enter-fade-up { animation: tc-fade-up var(--duration-natural) var(--ease-out-soft) both; }
+.tc-enter-fade-up-quick { animation: tc-fade-up var(--duration-quick) var(--ease-out-soft) both; }
+.tc-enter-fade-down { animation: tc-fade-down var(--duration-natural) var(--ease-out-soft) both; }
+.tc-enter-pop { animation: tc-pop var(--duration-quick) var(--ease-out-snap) both; }
+.tc-enter-slide-right { animation: tc-slide-in-right var(--duration-natural) var(--ease-out-soft) both; }
+
+/* Command palette row. The selected-row highlight transitions with
+   --ease-out-snap so the band overshoots a hair as ↑/↓ moves between
+   rows — small spring that says "you grabbed this", consistent with
+   the affordance treatment elsewhere. Background-color only; no
+   transform shifts so the row text doesn't jiggle on selection. */
+.tc-cmd-row {
+  transition:
+    background-color var(--duration-quick) var(--ease-out-snap),
+    color var(--duration-quick) var(--ease-out-soft);
+}
+
+/* Composer submit feedback. Two coordinated cues that fire once per
+   successful send: a halo expanding off the input ("the field
+   accepted you"), and a one-beat scale on the send button
+   ("received"). The button uses --ease-out-snap deliberately — a
+   single small overshoot reads as confident acknowledgement; longer
+   springs would feel toy-like in a developer tool. */
+@keyframes tc-composer-input-flash {
+  0% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  100% {
+    opacity: 0;
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+}
+/* Animates `scale` (not `transform`) so the button's translateY(-50%)
+   stays intact while the keyframe runs. */
+@keyframes tc-composer-send-pulse {
+  0% { scale: 1; }
+  40% { scale: 1.06; }
+  100% { scale: 1; }
+}
+.tc-composer-input-flash {
+  animation: tc-composer-input-flash var(--duration-natural) var(--ease-out-soft) forwards;
+}
+.tc-composer-send-button {
+  transition:
+    background-color var(--duration-quick) var(--ease-out-soft),
+    box-shadow var(--duration-quick) var(--ease-out-soft),
+    opacity var(--duration-quick) var(--ease-out-soft),
+    scale var(--duration-quick) var(--ease-out-soft);
+}
+.tc-composer-send-button:active:not(:disabled) {
+  scale: 0.96;
+  transition: scale var(--duration-instant) var(--ease-out-snap);
+}
+.tc-composer-send-pulse {
+  animation: tc-composer-send-pulse var(--duration-quick) var(--ease-out-snap);
+}
+
+/* Stagger helper — apply tc-stagger on a container, then the children
+   inherit a small delay multiplied by their position. Keeps motion
+   coherent across lists without each callsite passing inline delays. */
+.tc-stagger > * { animation-delay: calc(var(--tc-stagger-step, 30ms) * var(--tc-stagger-i, 0)); }
+.tc-stagger > *:nth-child(1) { --tc-stagger-i: 0; }
+.tc-stagger > *:nth-child(2) { --tc-stagger-i: 1; }
+.tc-stagger > *:nth-child(3) { --tc-stagger-i: 2; }
+.tc-stagger > *:nth-child(4) { --tc-stagger-i: 3; }
+.tc-stagger > *:nth-child(5) { --tc-stagger-i: 4; }
+.tc-stagger > *:nth-child(6) { --tc-stagger-i: 5; }
+.tc-stagger > *:nth-child(7) { --tc-stagger-i: 6; }
+.tc-stagger > *:nth-child(8) { --tc-stagger-i: 7; }
+.tc-stagger > *:nth-child(n+9) { --tc-stagger-i: 8; }
+
+/* ─────────────────────────────────────────────────────────────
+   Canvas dragover affordance — fires when an OS folder is
+   dragged over the canvas. Two coordinated cues:
+     1. A 1px accent inset around the canvas viewport ("the
+        surface is receptive").
+     2. A small floating chip at top-center ("drop folder to
+        add as project") — only when folder detection succeeds.
+   Both live in pointer-events: none layers; they never
+   intercept the actual drop. Asymmetric timing: enters in
+   140ms (deliberate), exits in 80ms (gone before the user
+   tracks it leaving).
+   ───────────────────────────────────────────────────────────── */
+.tc-canvas-dragover-inset {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px var(--accent);
+  opacity: 0;
+  z-index: 25;
+  transition: opacity var(--duration-instant) var(--ease-in-soft);
+}
+.tc-canvas-dragover-inset[data-active="true"] {
+  opacity: 0.7;
+  transition: opacity var(--duration-quick) var(--ease-out-soft);
+}
+
+.tc-canvas-dragover-chip {
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    opacity var(--duration-instant) var(--ease-in-soft),
+    transform var(--duration-instant) var(--ease-in-soft);
+}
+.tc-canvas-dragover-chip[data-active="true"] {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity var(--duration-quick) var(--ease-out-soft),
+    transform var(--duration-quick) var(--ease-out-soft);
+}
+
+/* Handoff drag chip — floats next to the cursor while a terminal selection
+   is being dragged across the canvas. Cyan accent so it reads as the same
+   gesture as the receiving tile's ring. Lives in pointer-events: none so
+   it never blocks elementFromPoint hit tests. */
+.tc-handoff-chip {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--cyan) 45%, transparent);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  backdrop-filter: blur(6px);
+  box-shadow:
+    0 8px 22px -10px color-mix(in srgb, var(--shadow-color) 50%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--cyan) 14%, transparent);
+  font-family: "Geist Mono", monospace;
+  font-size: 10.5px;
+  line-height: 1;
+  color: var(--text-primary);
+  /* Sit slightly down-and-right of the cursor; matches OS drag-image idiom. */
+  transform: translate(12px, 12px);
+  white-space: nowrap;
+  max-width: 380px;
+}
+.tc-handoff-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--cyan);
+  flex-shrink: 0;
+}
+.tc-handoff-chip-source {
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 9px;
+  flex-shrink: 0;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tc-handoff-chip-divider {
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+.tc-handoff-chip-preview {
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Empty-state response: the affordance the user already sees
+   (the "drag a folder" hint and the kbd shortcut chip) shifts
+   to accent while a folder is being dragged — "yes, this is
+   what's about to happen". The hint text leads the change;
+   the kbd chip follows so the alternative path is also legible. */
+.tc-canvas-empty-drag-hint {
+  transition: color var(--duration-instant) var(--ease-in-soft);
+}
+.tc-canvas-empty-drag-hint[data-dragover="true"] {
+  color: var(--accent);
+  transition: color var(--duration-quick) var(--ease-out-soft);
+}
+
+button.tc-kbd[data-dragover="true"],
+a.tc-kbd[data-dragover="true"] {
+  border-color: color-mix(in srgb, var(--accent) 65%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Discovery cue — quiet capability hint chip rendered at the
+   top-center of the canvas. Default tone is muted; hover lifts
+   contrast a notch and reveals the dismiss control. Lives in
+   layout via the renderer (DiscoveryCue.tsx); only the chrome
+   lives here.
+   ───────────────────────────────────────────────────────────── */
+.tc-discovery-chip {
+  background: color-mix(in srgb, var(--surface) 65%, transparent);
+  border-color: color-mix(in srgb, var(--border) 55%, transparent);
+  transition:
+    background-color var(--duration-quick) var(--ease-out-soft),
+    border-color var(--duration-quick) var(--ease-out-soft);
+}
+.tc-discovery-chip:hover {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Sidebar list rows. Every row in LeftPanel / RightPanel /
+   ProjectTree / SessionsPanel / SessionsOverlay shares the same
+   hover affordance — a quiet bg lift plus a primary-text shift.
+   Motion routes through the role-based duration/easing tokens so
+   the panels rhyme with the toolbar, palette, and tile chrome.
+   The row hover-bg uses --sidebar-hover (not --surface-hover) so
+   it stays a touch quieter than tile/cards — sidebar density is
+   higher, and a stronger highlight reads as noise across many
+   adjacent rows.
+   ───────────────────────────────────────────────────────────── */
+.tc-row-hover {
+  transition:
+    background-color var(--duration-quick) var(--ease-out-soft),
+    color var(--duration-quick) var(--ease-out-soft);
+}
+.tc-row-hover:hover {
+  background-color: var(--sidebar-hover);
+}
+
+/* Quieter variant for icon-button-like targets sitting inside a
+   row: only colour shifts on hover, no surface lift (the row
+   underneath already lifts). Use on chevron toggles and resize
+   handle highlights. */
+.tc-row-icon {
+  transition:
+    color var(--duration-quick) var(--ease-out-soft),
+    background-color var(--duration-quick) var(--ease-out-soft),
+    opacity var(--duration-quick) var(--ease-out-soft);
+}
+
+/* Sidebar section header. Sits at the top of every panel surface
+   (LeftPanel, SessionsPanel list, RightPanel repo selector,
+   SessionsOverlay drawer) and carries the eyebrow label, optional
+   count, and one trailing affordance. The bottom rule is opt-in
+   via tc-row-divider; some headers (RightPanel tab strip) sit
+   above content that already has its own divider.
+
+   Padding rhythm: 12px horizontal, 8px vertical = px-3 py-2 in
+   tailwind units, lock-stepped with the 4/8/16 base scale. */
+.tc-row-divider {
+  border-bottom: 1px solid var(--border);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Settings rail — vertical category nav used inside the settings
+   modal. The rail sits at modal scale (180px column), so the
+   active state needs to read from the corner of the eye while
+   the user is reading the right pane. We use a soft accent fill
+   plus a 2px accent gutter on the left edge — gutter is the
+   primary cue, fill is secondary. Hover wakes a quiet surface
+   lift; idle items sit on transparent so the rail's column
+   border carries the structure.
+   ───────────────────────────────────────────────────────────── */
+.tc-settings-rail-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 6px 12px 6px 14px;
+  border-radius: 6px;
+  font-size: var(--text-base);
+  font-weight: var(--weight-regular);
+  color: var(--text-secondary);
+  background: transparent;
+  transition:
+    background-color var(--duration-quick) var(--ease-out-soft),
+    color var(--duration-quick) var(--ease-out-soft);
+}
+.tc-settings-rail-item::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background-color var(--duration-quick) var(--ease-out-soft);
+}
+.tc-settings-rail-item:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+.tc-settings-rail-item:focus-visible {
+  outline: none;
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+.tc-settings-rail-item.is-active {
+  color: var(--text-primary);
+  background: var(--accent-soft);
+  font-weight: var(--weight-medium);
+}
+.tc-settings-rail-item.is-active::before {
+  background: var(--accent);
+}
+
+/* Respect reduced-motion: collapse all entrance animations and long
+   transitions. Everything still works, just without the parallax. */
+@media (prefers-reduced-motion: reduce) {
+  .tc-enter-fade,
+  .tc-enter-fade-quick,
+  .tc-enter-fade-up,
+  .tc-enter-fade-down,
+  .tc-enter-pop,
+  .tc-enter-slide-right,
+  .tc-composer-input-flash,
+  .tc-composer-send-pulse,
+  .usage-section-enter,
+  .usage-overlay-enter,
+  .usage-tooltip-enter,
+  .usage-calendar-enter,
+  .heatmap-cell-enter {
+    animation: none !important;
+  }
+  *, *::before, *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
 }

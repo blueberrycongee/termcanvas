@@ -185,6 +185,22 @@ export default defineConfig({
     },
   },
   base: "./",
+  // Hydra writes worktrees, dispatch state, and result.json under
+  // .hydra/ + .worktrees/ at runtime. The dev server's chokidar
+  // watcher would otherwise see those writes, decide a "source file"
+  // changed, and trigger a full renderer reload (visible as a
+  // Cmd+R-style flash whenever a child Claude is dispatched). The
+  // .gitignore covers git but not Vite — explicit ignore here.
+  server: {
+    watch: {
+      ignored: [
+        "**/.hydra/**",
+        "**/.worktrees/**",
+        "**/.hydra-result-*.md",
+        "**/.hydra-task-*.md",
+      ],
+    },
+  },
   build: {
     outDir: "dist",
   },

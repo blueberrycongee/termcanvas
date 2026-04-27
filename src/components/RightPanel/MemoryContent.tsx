@@ -4,36 +4,49 @@ import { useT } from "../../i18n/useT";
 
 const themeCache = { theme: "", vars: {} as Record<string, string> };
 
+// Canvas drawing can't read `var(--token)` directly, so we resolve the
+// computed string per theme and cache it. Listed once here so a token
+// change in index.css propagates to the graph without a parallel edit.
+const READ_TOKENS = [
+  "--surface",
+  "--border",
+  "--text-primary",
+  "--text-muted",
+  "--text-faint",
+  "--accent",
+  "--cyan",
+  "--amber",
+  "--purple",
+] as const;
+
 function getCssVar(name: string): string {
   const currentTheme =
     document.documentElement.getAttribute("data-theme") || "dark";
   if (themeCache.theme !== currentTheme) {
     const style = getComputedStyle(document.documentElement);
     themeCache.theme = currentTheme;
-    themeCache.vars = {
-      "--surface": style.getPropertyValue("--surface").trim(),
-      "--border": style.getPropertyValue("--border").trim(),
-      "--text-primary": style.getPropertyValue("--text-primary").trim(),
-      "--text-muted": style.getPropertyValue("--text-muted").trim(),
-      "--text-faint": style.getPropertyValue("--text-faint").trim(),
-    };
+    const next: Record<string, string> = {};
+    for (const token of READ_TOKENS) {
+      next[token] = style.getPropertyValue(token).trim();
+    }
+    themeCache.vars = next;
   }
   return themeCache.vars[name] ?? "";
 }
 
-const TYPE_COLORS: Record<string, { dark: string; light: string }> = {
-  index: { dark: "#e4e2df", light: "#1c1917" },
-  user: { dark: "#5b9ef5", light: "#2563eb" },
-  feedback: { dark: "#6cc4b0", light: "#0d9488" },
-  project: { dark: "#d4a24e", light: "#d97706" },
-  reference: { dark: "#9b7ad8", light: "#7c3aed" },
-  unknown: { dark: "#7a7773", light: "#6b6660" },
+// Memory entry → semantic token. Mirrors the design-system role each
+// type already plays elsewhere in the app (user→accent, project→amber, …).
+const TYPE_TOKEN: Record<string, string> = {
+  index: "--text-primary",
+  user: "--accent",
+  feedback: "--cyan",
+  project: "--amber",
+  reference: "--purple",
+  unknown: "--text-muted",
 };
 
 function getTypeColor(type: string): string {
-  const scheme = document.documentElement.getAttribute("data-theme");
-  const mode = scheme === "light" ? "light" : "dark";
-  return (TYPE_COLORS[type] ?? TYPE_COLORS.unknown)[mode];
+  return getCssVar(TYPE_TOKEN[type] ?? TYPE_TOKEN.unknown);
 }
 
 interface GraphNodePos {
@@ -607,7 +620,7 @@ export function MemoryContent({ worktreePath, onFileClick }: Props) {
 
   if (!worktreePath) {
     return (
-      <div className="flex-1 flex items-center justify-center text-[var(--text-muted)] text-xs">
+      <div className="tc-label flex-1 flex items-center justify-center">
         {t.no_worktree_selected}
       </div>
     );
@@ -615,7 +628,7 @@ export function MemoryContent({ worktreePath, onFileClick }: Props) {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center text-[var(--text-muted)] text-xs">
+      <div className="tc-label flex-1 flex items-center justify-center">
         {t.memory_loading}
       </div>
     );
@@ -623,10 +636,9 @@ export function MemoryContent({ worktreePath, onFileClick }: Props) {
 
   if (graph.nodes.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-[var(--text-muted)] text-xs px-4 text-center leading-relaxed">
-        {t.memory_empty}
-        <br />
-        {t.memory_empty_hint}
+      <div className="tc-label flex-1 flex flex-col items-center justify-center px-4 text-center leading-relaxed">
+        <span>{t.memory_empty}</span>
+        <span>{t.memory_empty_hint}</span>
       </div>
     );
   }

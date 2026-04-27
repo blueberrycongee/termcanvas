@@ -6,6 +6,8 @@ import type {
   TerminalType,
   TerminalStatus,
   TerminalOrigin,
+  SpatialWaypoint,
+  SpatialWaypointSlot,
 } from "../types/index.ts";
 import {
   filterValidSelectedItems,
@@ -154,6 +156,13 @@ interface ProjectStore {
     worktreeId: string | null,
   ) => void;
   clearFocus: () => void;
+
+  setWaypoint: (
+    projectId: string,
+    slot: SpatialWaypointSlot,
+    waypoint: SpatialWaypoint,
+  ) => void;
+  clearWaypoint: (projectId: string, slot: SpatialWaypointSlot) => void;
 
   setProjects: (projects: ProjectData[]) => void;
 }
@@ -1101,6 +1110,37 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         projects,
       };
     });
+  },
+
+  setWaypoint: (projectId, slot, waypoint) => {
+    set((state) => ({
+      projects: state.projects.map((project) => {
+        if (project.id !== projectId) return project;
+        const nextWaypoints: Partial<Record<SpatialWaypointSlot, SpatialWaypoint>> = {
+          ...(project.waypoints ?? {}),
+          [slot]: waypoint,
+        };
+        return { ...project, waypoints: nextWaypoints };
+      }),
+    }));
+    markDirty();
+  },
+
+  clearWaypoint: (projectId, slot) => {
+    set((state) => ({
+      projects: state.projects.map((project) => {
+        if (project.id !== projectId) return project;
+        if (!project.waypoints || project.waypoints[slot] === undefined) {
+          return project;
+        }
+        const nextWaypoints: Partial<Record<SpatialWaypointSlot, SpatialWaypoint>> = {
+          ...project.waypoints,
+        };
+        delete nextWaypoints[slot];
+        return { ...project, waypoints: nextWaypoints };
+      }),
+    }));
+    markDirty();
   },
 
   setProjects: (projects) => {

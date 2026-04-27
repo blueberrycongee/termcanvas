@@ -21,7 +21,7 @@ function StatusDot({ status }: { status: Pin["status"] }) {
   if (status === "done") {
     return (
       <span
-        className="shrink-0 w-1.5 h-1.5 rounded-full bg-green-500"
+        className="shrink-0 w-1.5 h-1.5 rounded-full bg-[var(--green)]"
         title={t["pin.statusDone"]}
       />
     );
@@ -159,7 +159,7 @@ const PinCard = memo(function PinCard({
         <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
           {pin.status === "open" ? (
             <button
-              className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-faint)] hover:text-green-500 hover:bg-green-500/10 transition-colors text-[11px]"
+              className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-faint)] hover:text-[var(--green)] hover:bg-[color-mix(in_srgb,var(--green)_12%,transparent)] transition-colors text-[11px]"
               title={t["pin.action.markDone"]}
               disabled={busy}
               onClick={handleMarkDone}
@@ -177,7 +177,7 @@ const PinCard = memo(function PinCard({
             </button>
           )}
           <button
-            className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-faint)] hover:text-[var(--red,#ef4444)] hover:bg-[var(--red-soft,rgba(239,68,68,0.1))] transition-colors"
+            className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-faint)] hover:text-[var(--red)] hover:bg-[var(--red-soft)] transition-colors"
             title={t["pin.action.delete"]}
             disabled={busy}
             onClick={(e) => {
@@ -263,7 +263,7 @@ export function PinDrawer() {
 
   return (
     <div
-      className="fixed bg-[var(--surface)] border-r border-[var(--border)] flex flex-col overflow-hidden shadow-lg"
+      className="fixed bg-[var(--surface)] border-r border-[var(--border)] flex flex-col overflow-hidden"
       style={{
         zIndex: 39,
         top: TOOLBAR_HEIGHT,
@@ -271,7 +271,12 @@ export function PinDrawer() {
         height: `calc(100vh - ${TOOLBAR_HEIGHT}px)`,
         width: PIN_DRAWER_WIDTH,
         transform: isOpen ? "translateX(0)" : `translateX(-${PIN_DRAWER_WIDTH}px)`,
-        transition: `transform ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}`,
+        // `transform` rides the role-based motion tokens; `left` stays on
+        // PANEL_TRANSITION because it must track LeftPanel's width tween.
+        transition:
+          `transform var(--duration-natural) var(--ease-out-soft), ` +
+          `left ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}`,
+        boxShadow: "var(--shadow-elev-1)",
         pointerEvents: isOpen ? "auto" : "none",
       }}
       aria-hidden={!isOpen}
@@ -280,8 +285,7 @@ export function PinDrawer() {
           with LeftPanel's 41px section header on the same Y. */}
       <div className="shrink-0 flex items-center justify-between px-3 py-2.5 border-b border-[var(--border)]">
         <span
-          className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium truncate min-w-0"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
+          className="tc-eyebrow tc-mono truncate min-w-0"
           title={openProjectPath ?? ""}
         >
           {projectName}
@@ -334,15 +338,15 @@ export function PinDrawer() {
       {/* Body */}
       <div className="flex-1 min-h-0 overflow-y-auto">
         {pins === null || visiblePins === null ? (
-          <div className="px-3 py-4 text-[10px] text-[var(--text-faint)] text-center">
+          <div className="tc-caption px-3 py-4 text-center">
             {t["pin.loading"]}
           </div>
         ) : pins.length === 0 ? (
-          <div className="px-3 py-6 text-[10px] text-[var(--text-faint)] text-center leading-relaxed">
+          <div className="tc-caption px-3 py-6 text-center leading-relaxed">
             {t["pin.emptyState"]}
           </div>
         ) : visiblePins.length === 0 ? (
-          <div className="px-3 py-6 text-[10px] text-[var(--text-faint)] text-center leading-relaxed">
+          <div className="tc-caption px-3 py-6 text-center leading-relaxed">
             {t["pin.emptyAfterFilter"]}
           </div>
         ) : (
@@ -361,7 +365,7 @@ export function PinDrawer() {
       {/* Footer */}
       <div className="shrink-0 border-t border-[var(--border)] px-2 py-1.5">
         <button
-          className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-[10px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--sidebar-hover)] transition-colors disabled:opacity-50"
+          className="tc-meta tc-row-hover w-full flex items-center gap-1.5 px-2 py-1 rounded hover:text-[var(--text-secondary)] disabled:opacity-50"
           disabled={!openProjectPath}
           onClick={() => openProjectPath && startCompose(openProjectPath)}
         >

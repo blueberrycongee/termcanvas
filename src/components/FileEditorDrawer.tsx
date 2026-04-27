@@ -376,12 +376,13 @@ export function FileEditorDrawer() {
 
   return (
     <div
-      className="fixed z-50 bg-[var(--bg)] border-l border-r border-[var(--border)] shadow-2xl flex flex-col"
+      className="tc-enter-fade-up fixed z-50 bg-[var(--bg)] border-l border-r border-[var(--border)] flex flex-col"
       style={{
         top: TOOLBAR_HEIGHT,
         right: rightInset,
         height: `calc(100vh - ${TOOLBAR_HEIGHT}px)`,
         width: widthStyle,
+        boxShadow: "var(--shadow-elev-2)",
         transition: animateLayout
           ? `width ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}, right ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}`
           : undefined,
@@ -394,8 +395,7 @@ export function FileEditorDrawer() {
       <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-[var(--border)] bg-[var(--surface)]">
         <div className="min-w-0 flex-1 flex items-center gap-2">
           <span
-            className="text-[12px] font-medium text-[var(--text-primary)] truncate"
-            style={{ fontFamily: '"Geist Mono", monospace' }}
+            className="tc-ui tc-mono text-[var(--text-primary)] truncate"
             title={relPath}
           >
             {fileName}
@@ -407,8 +407,7 @@ export function FileEditorDrawer() {
             />
           )}
           <span
-            className="text-[10px] text-[var(--text-faint)] truncate"
-            style={{ fontFamily: '"Geist Mono", monospace' }}
+            className="tc-caption tc-mono truncate"
             title={relPath}
           >
             {relPath}
@@ -416,7 +415,7 @@ export function FileEditorDrawer() {
         </div>
 
         <button
-          className="flex items-center gap-1 px-2 h-6 rounded-md text-[10px] font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors disabled:opacity-50"
+          className="tc-meta tc-mono flex items-center gap-1 px-2 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors disabled:opacity-50"
           onClick={() => void handleSave()}
           // Save is only meaningful for text — image / binary modes
           // have no editable buffer, so we hide the button outright
@@ -424,7 +423,6 @@ export function FileEditorDrawer() {
           // "save would do something if only…".
           disabled={!dirty || saving || fileKind !== "text"}
           style={{
-            fontFamily: '"Geist Mono", monospace',
             display: fileKind === "text" ? undefined : "none",
           }}
           title={t.file_editor_save ?? "Save (⌘S)"}
@@ -501,12 +499,12 @@ export function FileEditorDrawer() {
       {/* Body */}
       <div className="flex-1 min-h-0 relative">
         {loading && (
-          <div className="absolute inset-0 flex items-center justify-center text-[11px] text-[var(--text-faint)]">
+          <div className="tc-meta absolute inset-0 flex items-center justify-center">
             {t.loading}
           </div>
         )}
         {loadError && !loading && (
-          <div className="absolute inset-0 flex items-center justify-center text-[11px] text-[var(--red)]">
+          <div className="tc-meta absolute inset-0 flex items-center justify-center text-[var(--red)]">
             {loadError}
           </div>
         )}
@@ -539,13 +537,10 @@ export function FileEditorDrawer() {
         )}
         {!loadError && !loading && fileKind === "binary" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-8 text-center">
-            <div
-              className="text-[12px] text-[var(--text-muted)]"
-              style={{ fontFamily: '"Geist Mono", monospace' }}
-            >
+            <div className="tc-ui tc-mono text-[var(--text-muted)]">
               {t.file_editor_binary_title ?? "Binary file"}
             </div>
-            <div className="text-[10px] text-[var(--text-faint)] max-w-sm leading-relaxed">
+            <div className="tc-caption max-w-sm leading-relaxed">
               {t.file_editor_binary_hint ??
                 "This file isn't text or a supported image format, so the editor can't render it."}
             </div>
@@ -554,7 +549,7 @@ export function FileEditorDrawer() {
         {!loadError && !loading && fileKind === "text" && (
           <Suspense
             fallback={
-              <div className="absolute inset-0 flex items-center justify-center text-[11px] text-[var(--text-faint)]">
+              <div className="tc-meta absolute inset-0 flex items-center justify-center">
                 {t.loading}
               </div>
             }

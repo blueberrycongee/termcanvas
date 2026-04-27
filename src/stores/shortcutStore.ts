@@ -15,8 +15,15 @@ export interface ShortcutMap {
   toggleRightPanel: string;
   toggleStarFocused: string;
   globalSearch: string;
+  commandPalette: string;
   toggleUsageOverlay: string;
   toggleSessionsOverlay: string;
+  toggleActivityHeatmap: string;
+  toggleSnapshotHistory: string;
+  toggleHub: string;
+  nextCanvas: string;
+  prevCanvas: string;
+  openCanvasManager: string;
 }
 
 const LEGACY_DEFAULT_SHORTCUTS: ShortcutMap = {
@@ -33,8 +40,15 @@ const LEGACY_DEFAULT_SHORTCUTS: ShortcutMap = {
   toggleRightPanel: "mod+/",
   toggleStarFocused: "mod+f",
   globalSearch: "mod+k",
+  commandPalette: "mod+p",
   toggleUsageOverlay: "mod+shift+u",
   toggleSessionsOverlay: "mod+shift+h",
+  toggleActivityHeatmap: "mod+shift+a",
+  toggleSnapshotHistory: "mod+shift+t",
+  toggleHub: "mod+shift+j",
+  nextCanvas: "mod+shift+]",
+  prevCanvas: "mod+shift+[",
+  openCanvasManager: "mod+shift+n",
 };
 
 const ALT_DEFAULT_SHORTCUTS: ShortcutMap = {
@@ -51,8 +65,15 @@ const ALT_DEFAULT_SHORTCUTS: ShortcutMap = {
   toggleRightPanel: "alt+/",
   toggleStarFocused: "alt+f",
   globalSearch: "alt+k",
+  commandPalette: "alt+p",
   toggleUsageOverlay: "alt+shift+u",
   toggleSessionsOverlay: "alt+shift+h",
+  toggleActivityHeatmap: "alt+shift+a",
+  toggleSnapshotHistory: "alt+shift+t",
+  toggleHub: "alt+shift+j",
+  nextCanvas: "alt+shift+]",
+  prevCanvas: "alt+shift+[",
+  openCanvasManager: "alt+shift+n",
 };
 
 export const DEFAULT_SHORTCUTS: ShortcutMap = { ...LEGACY_DEFAULT_SHORTCUTS };
@@ -188,6 +209,24 @@ export function eventToShortcut(e: KeyboardEvent): string {
   return parts.join("+");
 }
 
+// e.code (physical key) for punctuation literals so chords like
+// `mod+shift+]` don't silently break — Shift+] yields `e.key === "}"`
+// on US/UK/most European layouts, which would never match the literal.
+// Falling back to e.code keeps these chords layout-stable.
+const PUNCT_KEY_TO_CODE: Record<string, string> = {
+  "]": "BracketRight",
+  "[": "BracketLeft",
+  "/": "Slash",
+  "\\": "Backslash",
+  ";": "Semicolon",
+  "'": "Quote",
+  ",": "Comma",
+  ".": "Period",
+  "`": "Backquote",
+  "-": "Minus",
+  "=": "Equal",
+};
+
 export function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
   const platform = getShortcutPlatform();
   if (hasUnsupportedPlatformModifier(e, platform)) return false;
@@ -205,7 +244,9 @@ export function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
   if (!needsMod && hasMod) return false;
   if (needsShift !== e.shiftKey) return false;
   if (needsAlt !== e.altKey) return false;
-  return e.key.toLowerCase() === key;
+  if (e.key.toLowerCase() === key) return true;
+  const code = PUNCT_KEY_TO_CODE[key];
+  return code !== undefined && e.code === code;
 }
 
 /**

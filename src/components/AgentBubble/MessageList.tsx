@@ -7,14 +7,14 @@ interface MessageListProps {
   messages: BubbleMessage[];
 }
 
-function MessageBubble({ message }: { message: BubbleMessage }) {
+function MessageRow({ message }: { message: BubbleMessage }) {
   const isUser = message.role === "user";
   const isToolRelated = message.type === "tool_call" || message.type === "tool_result";
   const isStatus = message.type === "status";
 
   if (isStatus) {
     return (
-      <div className="flex justify-center py-1.5">
+      <div className="flex justify-center py-1">
         <span className="tc-caption" style={{ color: "var(--text-faint)" }}>
           {message.content}
         </span>
@@ -22,17 +22,36 @@ function MessageBubble({ message }: { message: BubbleMessage }) {
     );
   }
 
+  /* Tool messages: deeper indent, muted mono — same vocabulary as
+     the in-tile ToolCard so the two surfaces feel native. No
+     bordered container. */
   if (isToolRelated) {
     return (
-      <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-        <div
-          className="tc-mono max-w-[88%] rounded-md px-2.5 py-1.5"
+      <div className="pl-6 pr-1 py-0.5">
+        <span
+          className="tc-mono whitespace-pre-wrap break-words"
           style={{
-            background: "var(--surface)",
-            border: "1px solid var(--border)",
-            color: "var(--text-secondary)",
-            fontSize: "11.5px",
-            lineHeight: "var(--leading-relaxed)",
+            fontSize: "var(--text-xs)",
+            color: "var(--text-muted)",
+            lineHeight: "var(--leading-snug)",
+          }}
+        >
+          {message.content}
+        </span>
+      </div>
+    );
+  }
+
+  /* User: right-aligned neutral bubble using --bubble-bg, never the
+     accent fill — matches the SessionReplayView convention. */
+  if (isUser) {
+    return (
+      <div className="flex justify-end tc-enter-fade-up-quick">
+        <div
+          className="tc-body-sm rounded-xl px-3 py-1.5 whitespace-pre-wrap max-w-[85%]"
+          style={{
+            background: "var(--bubble-bg)",
+            color: "var(--text-primary)",
           }}
         >
           {message.content}
@@ -41,22 +60,16 @@ function MessageBubble({ message }: { message: BubbleMessage }) {
     );
   }
 
+  /* Assistant: indented prose, no chrome. The indent is the speaker
+     mark; no eyebrow, no avatar, no role badge. */
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+    <div className="pl-3 pr-1 tc-enter-fade-quick">
       <div
-        className="tc-body-sm max-w-[85%] rounded-lg px-3 py-2 whitespace-pre-wrap"
-        style={
-          isUser
-            ? {
-                background: "var(--accent)",
-                color: "white",
-              }
-            : {
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                color: "var(--text-primary)",
-              }
-        }
+        className="tc-body-sm whitespace-pre-wrap break-words"
+        style={{
+          color: "var(--text-primary)",
+          lineHeight: "var(--leading-relaxed)",
+        }}
       >
         {message.content}
       </div>
@@ -103,9 +116,9 @@ export function MessageList({ messages }: MessageListProps) {
           )}
         </div>
       ) : (
-        <div className="flex flex-col gap-2 p-3 pb-4">
+        <div className="flex flex-col gap-1.5 px-3 py-3">
           {messages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} />
+            <MessageRow key={msg.id} message={msg} />
           ))}
         </div>
       )}

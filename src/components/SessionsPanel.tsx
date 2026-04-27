@@ -72,12 +72,12 @@ const HISTORY_REFRESH_DEBOUNCE_MS = 120;
 //   red  = needs your attention (real error / explicit awaiting input)
 //   green = working, no need to look
 //   gray = nothing to convey (done & viewed, or never started)
-// `unseenDone` is layered on top at render time as a blue dot.
+// `unseenDone` is layered on top at render time using --accent.
 const STATUS_COLORS: Record<CanvasTerminalState, string> = {
-  attention: "#ef4444",
-  active: "#22c55e",
-  done: "#6b7280",
-  idle: "#6b7280",
+  attention: "var(--red)",
+  active: "var(--green)",
+  done: "var(--text-muted)",
+  idle: "var(--text-muted)",
 };
 
 function formatShortAge(iso: string | undefined): string {
@@ -168,7 +168,7 @@ export function TerminalCard({
     <div
       role="button"
       tabIndex={0}
-      className={`group w-full rounded-md flex items-center gap-2 text-left cursor-pointer transition-colors ${
+      className={`tc-row-icon group w-full rounded-md flex items-center gap-2 text-left cursor-pointer ${
         compact ? "px-2 py-1.5" : "px-2 py-2"
       } ${
         item.focused
@@ -186,12 +186,22 @@ export function TerminalCard({
       <div
         className="w-2 h-2 rounded-full shrink-0"
         style={{
-          backgroundColor: unseenDone ? "#3b82f6" : STATUS_COLORS[item.state],
+          backgroundColor: unseenDone ? "var(--accent)" : STATUS_COLORS[item.state],
         }}
       />
       <div className="flex-1 min-w-0">
-        <div className="text-[11px] font-medium truncate">{item.title}</div>
-        <div className="text-[10px] text-[var(--text-muted)] truncate">
+        <div
+          className="truncate"
+          style={{
+            fontSize: "var(--text-xs)",
+            fontWeight: "var(--weight-medium)",
+            color: "var(--text-primary)",
+            lineHeight: "var(--leading-snug)",
+          }}
+        >
+          {item.title}
+        </div>
+        <div className="tc-caption truncate" style={{ color: "var(--text-muted)" }}>
           {subtitleParts.join(" · ")}
         </div>
       </div>
@@ -237,11 +247,11 @@ export function TerminalCard({
 function traceToneClass(item: InspectorTraceItem): string {
   switch (item.tone) {
     case "success":
-      return "text-[#22c55e]";
+      return "text-[var(--green)]";
     case "warning":
-      return "text-[#f59e0b]";
+      return "text-[var(--amber)]";
     case "danger":
-      return "text-[#ef4444]";
+      return "text-[var(--red)]";
     default:
       return "text-[var(--text-muted)]";
   }
@@ -297,29 +307,34 @@ function Inspector({
 
   return (
     <div className="shrink-0 border-t border-[var(--border)] bg-[var(--sidebar)]">
-      <div className="px-3 py-2 border-b border-[var(--border)]">
-        <div
-          className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-        >
+      <div className="tc-row-divider px-3 py-2">
+        <div className="tc-eyebrow tc-mono">
           {t.sessions_inspector}
         </div>
-        <div className="mt-1 text-[11px] font-medium truncate">
+        <div
+          className="mt-1.5 truncate"
+          style={{
+            fontSize: "var(--text-xs)",
+            fontWeight: "var(--weight-medium)",
+            color: "var(--text-primary)",
+            lineHeight: "var(--leading-snug)",
+          }}
+        >
           {item.title}
         </div>
-        <div className="mt-0.5 text-[10px] text-[var(--text-muted)] truncate">
+        <div className="tc-caption mt-0.5 truncate" style={{ color: "var(--text-muted)" }}>
           {summaryParts.join(" · ")}
         </div>
         <div className="mt-2 flex items-center gap-1.5">
           <button
-            className="px-2 py-1 text-[9px] rounded border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] cursor-pointer"
+            className="tc-row-icon tc-caption px-2 py-1 rounded border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] cursor-pointer"
             onClick={() => panToTerminal(item.terminalId)}
           >
             {t.sessions_jump_to_terminal}
           </button>
           {historyPath && (
             <button
-              className="px-2 py-1 text-[9px] rounded border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] cursor-pointer"
+              className="tc-row-icon tc-caption px-2 py-1 rounded border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] cursor-pointer"
               onClick={() => onOpenHistory(historyPath)}
             >
               {t.sessions_open_history}
@@ -329,18 +344,15 @@ function Inspector({
       </div>
 
       <div className="px-3 py-2 max-h-[220px] overflow-y-auto">
-        <div
-          className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1.5"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-        >
+        <div className="tc-eyebrow tc-mono mb-2">
           {t.sessions_recent_trace}
         </div>
         {traceLoading ? (
-          <div className="text-[10px] text-[var(--text-faint)]">
+          <div className="tc-caption">
             {t.sessions_trace_loading}
           </div>
         ) : traceItems.length === 0 ? (
-          <div className="text-[10px] text-[var(--text-faint)]">
+          <div className="tc-caption">
             {t.sessions_trace_empty}
           </div>
         ) : (
@@ -359,10 +371,10 @@ function Inspector({
                   }}
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="text-[10px] truncate">
+                  <div className="tc-caption truncate" style={{ color: "var(--text-secondary)" }}>
                     {formatTraceLabel(traceItem, t)}
                   </div>
-                  <div className="text-[9px] text-[var(--text-faint)] tabular-nums">
+                  <div className="tc-timestamp" style={{ fontSize: "9px" }}>
                     {formatShortAge(traceItem.at)}
                   </div>
                 </div>
@@ -385,12 +397,20 @@ function StashedCard({
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   return (
-    <div className="group flex items-center gap-2 rounded-md px-2 py-1.5 bg-[var(--surface)] hover:bg-[var(--sidebar-hover)] transition-colors">
+    <div className="tc-row-icon group flex items-center gap-2 rounded-md px-2 py-1.5 bg-[var(--surface)] hover:bg-[var(--sidebar-hover)]">
       <div className="flex-1 min-w-0">
-        <div className="text-[11px] font-medium truncate text-[var(--text-secondary)]">
+        <div
+          className="truncate"
+          style={{
+            fontSize: "var(--text-xs)",
+            fontWeight: "var(--weight-medium)",
+            color: "var(--text-secondary)",
+            lineHeight: "var(--leading-snug)",
+          }}
+        >
           {item.title}
         </div>
-        <div className="text-[10px] text-[var(--text-faint)] truncate">
+        <div className="tc-caption truncate">
           {item.originLabel}
         </div>
       </div>
@@ -462,27 +482,24 @@ export function StashedSection({
       onOpenChange={setExpanded}
       className="border-t border-[var(--border)]"
     >
-      <CollapsibleTrigger className="flex w-full items-center gap-1.5 px-3 py-2 text-left hover:bg-[var(--sidebar-hover)]">
+      <CollapsibleTrigger className="tc-row-hover flex w-full items-center gap-1.5 px-3 py-2 text-left">
         <svg
           width="10"
           height="10"
           viewBox="0 0 10 10"
           fill="none"
-          className={`shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`}
-          style={{ color: "var(--text-muted)" }}
+          className={`shrink-0 ${expanded ? "rotate-90" : ""}`}
+          style={{
+            color: "var(--text-muted)",
+            transition: "transform var(--duration-quick) var(--ease-out-soft)",
+          }}
         >
           <path d="M3 2l4 3-4 3V2z" fill="currentColor" />
         </svg>
-        <span
-          className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-        >
+        <span className="tc-eyebrow tc-mono">
           {t.stash_box}
         </span>
-        <span
-          className="ml-auto text-[10px] text-[var(--text-faint)] tabular-nums"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-        >
+        <span className="tc-eyebrow tc-mono ml-auto tabular-nums" style={{ color: "var(--text-faint)" }}>
           {items.length}
         </span>
       </CollapsibleTrigger>
@@ -773,7 +790,7 @@ export function HistorySection({
   return (
     <div className="border-t border-[var(--border)]">
       <button
-        className="flex w-full items-center gap-1.5 px-3 py-2 text-left hover:bg-[var(--sidebar-hover)]"
+        className="tc-row-hover flex w-full items-center gap-1.5 px-3 py-2 text-left"
         onClick={() => setExpanded((v) => !v)}
       >
         <svg
@@ -781,8 +798,11 @@ export function HistorySection({
           height="10"
           viewBox="0 0 10 10"
           fill="none"
-          className={`shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`}
-          style={{ color: "var(--text-muted)" }}
+          className={`shrink-0 ${expanded ? "rotate-90" : ""}`}
+          style={{
+            color: "var(--text-muted)",
+            transition: "transform var(--duration-quick) var(--ease-out-soft)",
+          }}
         >
           <path d="M3 2l4 3-4 3V2z" fill="currentColor" />
         </svg>
@@ -796,7 +816,7 @@ export function HistorySection({
       {expanded && (
         <div className="pb-2">
           {entries.length === 0 ? (
-            <div className="px-4 py-3 text-center tc-meta">
+            <div className="tc-label px-4 py-3 text-center">
               {loading
                 ? ((t.sessions_history_loading as unknown as string) ?? "Loading…")
                 : ((t.sessions_history_empty as unknown as string) ??
@@ -811,8 +831,18 @@ export function HistorySection({
                       <circle cx="6" cy="4" r="2.2" fill="currentColor" />
                       <line x1="4.4" y1="5.6" x2="2" y2="8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
                     </svg>
-                    <span className="text-[11px] font-medium truncate">Pinned</span>
-                    <span className="ml-auto text-[10px] text-[var(--text-muted)] tabular-nums">{pinnedEntries.length}</span>
+                    <span
+                      className="truncate"
+                      style={{
+                        fontSize: "var(--text-xs)",
+                        fontWeight: "var(--weight-medium)",
+                        color: "var(--text-primary)",
+                        lineHeight: "var(--leading-snug)",
+                      }}
+                    >
+                      Pinned
+                    </span>
+                    <span className="tc-caption ml-auto tabular-nums" style={{ color: "var(--text-muted)" }}>{pinnedEntries.length}</span>
                   </div>
                   {pinnedEntries.map((entry) => (
                     <HistoryRow
@@ -835,23 +865,34 @@ export function HistorySection({
                 return (
                   <div key={group.projectDir} className="mb-0.5 last:mb-0">
                     <button
-                      className="group/grp flex w-full items-center gap-1.5 px-3 py-1 text-left cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors"
+                      className="tc-row-hover group/grp flex w-full items-center gap-1.5 px-3 py-1 text-left cursor-pointer"
                       onClick={() => toggleGroup(group.projectDir)}
                       title={group.projectDir}
                     >
                       <span className="shrink-0 flex items-center justify-center text-[var(--text-muted)]">
                         <svg
                           width="10" height="10" viewBox="0 0 10 10"
-                          className="shrink-0 transition-transform duration-150"
-                          style={{ transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)" }}
+                          className="shrink-0"
+                          style={{
+                            transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)",
+                            transition: "transform var(--duration-quick) var(--ease-out-soft)",
+                          }}
                         >
                           <path d="M3 2l4 3-4 3z" fill="currentColor" />
                         </svg>
                       </span>
-                      <span className="text-[11px] font-medium truncate flex-1 min-w-0">
+                      <span
+                        className="truncate flex-1 min-w-0"
+                        style={{
+                          fontSize: "var(--text-xs)",
+                          fontWeight: "var(--weight-medium)",
+                          color: "var(--text-primary)",
+                          lineHeight: "var(--leading-snug)",
+                        }}
+                      >
                         {historyProjectName(group.projectDir)}
                       </span>
-                      <span className="text-[10px] text-[var(--text-muted)] tabular-nums">
+                      <span className="tc-caption tabular-nums" style={{ color: "var(--text-muted)" }}>
                         {group.entries.length}
                       </span>
                     </button>
@@ -870,7 +911,7 @@ export function HistorySection({
                         ))}
                         {hiddenCount > 0 && (
                           <button
-                            className="flex w-full items-center gap-1 pl-6 pr-3 py-1 text-left tc-timestamp hover:text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] disabled:opacity-50 disabled:cursor-default"
+                            className="tc-row-icon flex w-full items-center gap-1 pl-6 pr-3 py-1 text-left tc-timestamp hover:text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] disabled:opacity-50 disabled:cursor-default"
                             disabled={loadingGroups.has(group.projectDir)}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -920,9 +961,17 @@ function HistoryRow({
   }, [pendingHide]);
 
   return (
-    <button
-      className="group flex w-full items-center gap-1.5 pl-4 pr-1 py-1 text-left transition-colors hover:bg-[var(--sidebar-hover)]"
+    <div
+      role="button"
+      tabIndex={0}
+      className="tc-row-hover group flex w-full items-center gap-1.5 pl-4 pr-1 py-1 text-left cursor-pointer"
       onClick={() => onOpen(entry.filePath)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen(entry.filePath);
+        }
+      }}
       title={`${entry.firstPrompt}\n${entry.provider}`}
     >
       {/* Left pin slot — fixed width so content never shifts */}
@@ -985,7 +1034,7 @@ function HistoryRow({
           size="sm"
           tone={pendingHide ? "danger" : "neutral"}
           label={pendingHide ? "Click again to hide permanently" : "Hide from history"}
-          className={pendingHide ? "bg-red-500/15" : ""}
+          className={pendingHide ? "bg-[var(--red-soft)]" : ""}
           onClick={(e) => {
             e.stopPropagation();
             if (pendingHide) {
@@ -1003,7 +1052,7 @@ function HistoryRow({
           </svg>
         </IconButton>
       </span>
-    </button>
+    </div>
   );
 }
 
@@ -1140,11 +1189,8 @@ export function SessionsPanel({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] shrink-0">
-        <span
-          className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
-        >
+      <div className="tc-row-divider flex items-center justify-between px-3 py-2 shrink-0">
+        <span className="tc-eyebrow tc-mono">
           {t.sessions_panel_title}
         </span>
         <IconButton
@@ -1189,7 +1235,7 @@ export function SessionsPanel({
         />
 
         {!hasAnyTerminals && (
-          <div className="flex-1 px-4 py-6 text-[11px] text-[var(--text-faint)] text-center">
+          <div className="tc-label flex-1 px-4 py-6 text-center">
             {t.sessions_no_canvas_items}
           </div>
         )}

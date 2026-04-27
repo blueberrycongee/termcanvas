@@ -165,12 +165,13 @@ export function BrowserCard({ card }: Props) {
   return (
     <div
       data-scene-box-select-block
-      className="absolute rounded-lg border border-[var(--border)] bg-[var(--surface)] flex flex-col overflow-hidden shadow-lg"
+      className="absolute rounded-lg border border-[var(--border)] bg-[var(--surface)] flex flex-col overflow-hidden"
       style={{
         left: card.x,
         top: card.y,
         width: card.w,
         height: card.h,
+        boxShadow: "var(--shadow-elev-1)",
         outline: isSelected ? "2px solid var(--accent)" : undefined,
         outlineOffset: isSelected ? -2 : undefined,
       }}
@@ -210,8 +211,7 @@ export function BrowserCard({ card }: Props) {
         </button>
 
         <input
-          className="flex-1 min-w-0 px-2 py-0.5 text-[11px] rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] outline-none focus:border-[var(--text-secondary)]"
-          style={{ fontFamily: '"Geist Mono", monospace' }}
+          className="tc-meta tc-mono flex-1 min-w-0 px-2 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] outline-none focus:border-[var(--text-secondary)]"
           value={urlInput}
           onChange={(e) => setUrlInput(e.target.value)}
           onKeyDown={(e) => {
@@ -241,10 +241,10 @@ export function BrowserCard({ card }: Props) {
         />
         {loadError && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-[var(--surface)] text-[var(--text-muted)]">
-            <p className="text-sm mb-2">Failed to load page</p>
-            <p className="text-xs opacity-60 mb-3 max-w-[300px] text-center">{loadError}</p>
+            <p className="tc-body-sm mb-2">Failed to load page</p>
+            <p className="tc-caption mb-3 max-w-[300px] text-center">{loadError}</p>
             <button
-              className="text-xs px-3 py-1 rounded border border-[var(--border)] hover:bg-[var(--bg)] transition-colors"
+              className="tc-meta px-3 py-1 rounded border border-[var(--border)] hover:bg-[var(--bg)] transition-colors"
               onClick={() => { setLoadError(null); webviewRef.current?.reload(); }}
             >
               Retry

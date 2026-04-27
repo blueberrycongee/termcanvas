@@ -56,8 +56,11 @@ function ChevronIcon({ open }: { open: boolean }) {
       width="10"
       height="10"
       viewBox="0 0 10 10"
-      className="shrink-0 transition-transform duration-150"
-      style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)" }}
+      className="shrink-0"
+      style={{
+        transform: open ? "rotate(90deg)" : "rotate(0deg)",
+        transition: "transform var(--duration-quick) var(--ease-out-soft)",
+      }}
     >
       <path d="M3 2l4 3-4 3z" fill="currentColor" />
     </svg>
@@ -137,8 +140,8 @@ function NewWorktreeInput({
         onBlur={() => {
           if (!busy) onDone();
         }}
-        className="w-full text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface)] border border-[var(--accent)] text-[var(--text-primary)] outline-none disabled:opacity-50"
-        style={{ fontFamily: '"Geist Mono", monospace' }}
+        className="tc-mono w-full px-1.5 py-0.5 rounded bg-[var(--surface)] border border-[var(--accent)] text-[var(--text-primary)] outline-none disabled:opacity-50"
+        style={{ fontSize: "var(--text-tiny)" }}
       />
     </div>
   );
@@ -269,7 +272,7 @@ function WorktreeRow({
       <div
         role="button"
         tabIndex={0}
-        className="group w-full flex items-center gap-1.5 pl-4 pr-1 py-1 text-left cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors"
+        className="tc-row-hover group w-full flex items-center gap-1.5 pl-4 pr-1 py-1 text-left cursor-pointer"
         onClick={() => {
           // Left-click on the row both activates and toggles expand/collapse
           // so users don't have to aim for the tiny chevron. Right-click is
@@ -298,7 +301,7 @@ function WorktreeRow({
           type="button"
           aria-label={collapsed ? "Expand" : "Collapse"}
           aria-expanded={!collapsed}
-          className="shrink-0 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)] rounded"
+          className="tc-row-icon shrink-0 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)] rounded"
           onClick={(e) => {
             e.stopPropagation();
             toggle(group.worktreeId);
@@ -306,7 +309,7 @@ function WorktreeRow({
         >
           <ChevronIcon open={!collapsed} />
         </button>
-        <span className="text-[10px] text-[var(--text-muted)] truncate flex-1 min-w-0">
+        <span className="tc-caption truncate flex-1 min-w-0" style={{ color: "var(--text-muted)" }}>
           {group.worktreeName}
         </span>
         {collapsed && <StatusBadges summary={group.statusSummary} />}
@@ -494,7 +497,7 @@ function ProjectRow({
       <div
         role="button"
         tabIndex={0}
-        className="group w-full flex items-center gap-1.5 px-3 py-1 text-left cursor-pointer hover:bg-[var(--sidebar-hover)] transition-colors"
+        className="tc-row-hover group w-full flex items-center gap-1.5 px-3 py-1 text-left cursor-pointer"
         onClick={() => {
           // Match worktree rows: clicking anywhere on the project row should
           // both focus it and toggle collapse, instead of forcing the user to
@@ -522,7 +525,7 @@ function ProjectRow({
           type="button"
           aria-label={collapsed ? "Expand" : "Collapse"}
           aria-expanded={!collapsed}
-          className="shrink-0 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)] rounded"
+          className="tc-row-icon shrink-0 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)] rounded"
           onClick={(e) => {
             e.stopPropagation();
             toggle(project.projectId);
@@ -530,7 +533,15 @@ function ProjectRow({
         >
           <ChevronIcon open={!collapsed} />
         </button>
-        <span className="text-[11px] font-medium truncate flex-1 min-w-0">
+        <span
+          className="truncate flex-1 min-w-0"
+          style={{
+            fontSize: "var(--text-xs)",
+            fontWeight: "var(--weight-medium)",
+            color: "var(--text-primary)",
+            lineHeight: "var(--leading-snug)",
+          }}
+        >
           {project.projectName}
         </span>
         <StatusBadges summary={project.statusSummary} />

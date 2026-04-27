@@ -395,9 +395,7 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
   if (!worktreePath) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <span className="text-[var(--text-muted)] text-[11px]">
-          {t.no_worktree_selected}
-        </span>
+        <span className="tc-label">{t.no_worktree_selected}</span>
       </div>
     );
   }
@@ -405,7 +403,7 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <span className="text-[var(--text-muted)] text-[11px]">{t.loading}</span>
+        <span className="tc-label">{t.loading}</span>
       </div>
     );
   }

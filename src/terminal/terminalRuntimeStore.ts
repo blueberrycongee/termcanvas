@@ -19,6 +19,10 @@ import {
   serializeTerminal,
   unregisterTerminal,
 } from "./terminalRegistry";
+import {
+  clearTerminalActivity,
+  recordTerminalActivity,
+} from "./terminalActivityTracker";
 import { useNotificationStore } from "../stores/notificationStore";
 import {
   usePreferencesStore,
@@ -1388,6 +1392,7 @@ function triggerDetection(runtime: ManagedTerminalRuntime) {
 function handleRuntimeOutput(runtime: ManagedTerminalRuntime, data: string) {
   appendPreview(runtime, data);
   runtime.xterm?.write(data);
+  recordTerminalActivity(runtime.meta.terminal.id, data.length);
   triggerDetection(runtime);
 
   if (!runtime.activityThrottled) {
@@ -2097,6 +2102,7 @@ export function destroyTerminalRuntime(
       },
     });
     removeRuntimeSnapshot(terminalId);
+    clearTerminalActivity(terminalId);
     return;
   }
 
@@ -2142,6 +2148,7 @@ export function destroyTerminalRuntime(
 
   runtimeRegistry.delete(terminalId);
   removeRuntimeSnapshot(terminalId);
+  clearTerminalActivity(terminalId);
 }
 
 export function destroyAllTerminalRuntimes() {

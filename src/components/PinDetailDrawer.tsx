@@ -25,7 +25,7 @@ function StatusBadge({ status }: { status: Pin["status"] }) {
   const t = useT();
   if (status === "done") {
     return (
-      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-500 border border-green-500/25 font-medium">
+      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[color-mix(in_srgb,var(--green)_15%,transparent)] text-[var(--green)] border border-[color-mix(in_srgb,var(--green)_25%,transparent)] font-medium">
         {t["pin.statusDone"]}
       </span>
     );
@@ -378,7 +378,7 @@ export function PinDetailDrawer() {
   return (
     <>
       <div
-        className="fixed bg-[var(--bg)] border-l border-[var(--border)] flex flex-col overflow-hidden shadow-xl"
+        className="fixed bg-[var(--bg)] border-l border-[var(--border)] flex flex-col overflow-hidden"
         style={{
           zIndex: 45,
           top: TOOLBAR_HEIGHT,
@@ -386,7 +386,13 @@ export function PinDetailDrawer() {
           height: `calc(100vh - ${TOOLBAR_HEIGHT}px)`,
           width: `calc(100vw - ${effectiveLeftInset}px - ${rightInset}px)`,
           opacity: isOpen ? 1 : 0,
-          transition: `opacity ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}, left ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}, width ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}`,
+          // Opacity rides the role-based motion tokens; left/width stay on
+          // PANEL_TRANSITION because they must track LeftPanel's width tween.
+          transition:
+            `opacity var(--duration-natural) var(--ease-out-soft), ` +
+            `left ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}, ` +
+            `width ${PANEL_TRANSITION_DURATION_MS}ms ${PANEL_TRANSITION_EASING_CSS}`,
+          boxShadow: "var(--shadow-elev-2)",
           pointerEvents: isOpen ? "auto" : "none",
         }}
         aria-hidden={!isOpen}
@@ -452,7 +458,7 @@ export function PinDetailDrawer() {
               )}
               {pin.status === "open" && (
                 <button
-                  className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:bg-green-500/20 hover:text-green-600 transition-colors disabled:opacity-50"
+                  className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:bg-[color-mix(in_srgb,var(--green)_20%,transparent)] hover:text-[var(--green)] transition-colors disabled:opacity-50"
                   disabled={busy}
                   onClick={() => void handleStatusChange("done")}
                 >
@@ -479,7 +485,7 @@ export function PinDetailDrawer() {
               )}
               <div className="w-px h-3 bg-[var(--border)] mx-0.5" />
               <button
-                className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--red,#ef4444)] hover:bg-[var(--red-soft,rgba(239,68,68,0.1))] transition-colors disabled:opacity-50"
+                className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--red)] hover:bg-[var(--red-soft)] transition-colors disabled:opacity-50"
                 disabled={busy}
                 onClick={() => setShowDeleteConfirm(true)}
               >
@@ -498,22 +504,20 @@ export function PinDetailDrawer() {
                 {isEditing ? (
                   <input
                     ref={titleInputRef}
-                    className="w-full text-2xl font-semibold bg-transparent border-b border-[var(--accent)] text-[var(--text-primary)] outline-none pb-1 disabled:opacity-50"
+                    className="tc-display w-full bg-transparent border-b border-[var(--accent)] outline-none pb-1 disabled:opacity-50"
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
                     disabled={busy}
                     placeholder={t["pin.titlePlaceholder"]}
                   />
                 ) : (
-                  <h1 className="text-2xl font-semibold text-[var(--text-primary)] break-words">
-                    {pin?.title}
-                  </h1>
+                  <h1 className="tc-display break-words">{pin?.title}</h1>
                 )}
               </div>
 
               {/* Meta line — only for existing pins */}
               {pin && !isComposing && (
-                <div className="text-[11px] text-[var(--text-muted)] mb-6 flex items-center gap-1.5 flex-wrap">
+                <div className="tc-meta mb-6 flex items-center gap-1.5 flex-wrap">
                   <span>
                     {t["pin.meta.created"](
                       t["pin.relativeTime"](
@@ -544,8 +548,7 @@ export function PinDetailDrawer() {
                 {isEditing ? (
                   <textarea
                     ref={bodyTextareaRef}
-                    className="w-full text-[13px] px-3 py-2 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] outline-none resize-none focus:border-[var(--accent)] leading-relaxed disabled:opacity-50 min-h-[200px]"
-                    style={{ fontFamily: '"Geist Mono", monospace' }}
+                    className="tc-body-sm tc-mono w-full px-3 py-2 rounded bg-[var(--surface)] border border-[var(--border)] outline-none resize-none focus:border-[var(--accent)] leading-relaxed disabled:opacity-50 min-h-[200px]"
                     value={editBody}
                     onChange={(e) => setEditBody(e.target.value)}
                     onPaste={handleBodyPaste}
@@ -561,7 +564,7 @@ export function PinDetailDrawer() {
                     dangerouslySetInnerHTML={{ __html: bodyHtml }}
                   />
                 ) : (
-                  <p className="text-[var(--text-faint)] italic text-[13px]">
+                  <p className="tc-body-sm italic text-[var(--text-faint)]">
                     {t["pin.emptyBody"]}
                   </p>
                 )}
@@ -571,23 +574,23 @@ export function PinDetailDrawer() {
               {isEditing && (
                 <div className="flex items-center gap-2 mb-6">
                   <button
-                    className="text-[11px] px-3 py-1 rounded bg-[var(--accent)] text-white disabled:opacity-50 hover:opacity-90 transition-opacity"
+                    className="tc-ui px-3 py-1 rounded bg-[var(--accent)] text-white disabled:opacity-50 hover:opacity-90 transition-opacity"
                     disabled={busy || uploading || !editTitle.trim()}
                     onClick={() => void handleSaveEdit()}
                   >
                     {isComposing ? t["pin.create"] : t.save}
                   </button>
                   <button
-                    className="text-[11px] px-3 py-1 rounded bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+                    className="tc-ui px-3 py-1 rounded bg-[var(--surface-hover)] hover:text-[var(--text-secondary)] transition-colors"
                     onClick={handleCancelEdit}
                   >
                     {t.cancel}
                   </button>
-                  <span className="text-[10px] text-[var(--text-faint)] ml-1">
+                  <span className="tc-caption ml-1">
                     {t["pin.keyboardHint"]}
                   </span>
                   {uploading && (
-                    <span className="text-[10px] text-[var(--text-muted)] ml-auto">
+                    <span className="tc-caption ml-auto">
                       {t["pin.uploading"]}
                     </span>
                   )}
@@ -597,10 +600,7 @@ export function PinDetailDrawer() {
               {/* Links section */}
               {!isEditing && pin && pin.links.length > 0 && (
                 <div>
-                  <div
-                    className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] font-medium mb-2"
-                    style={{ fontFamily: '"Geist Mono", monospace' }}
-                  >
+                  <div className="tc-eyebrow tc-mono mb-2">
                     {t["pin.links"]}
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -610,10 +610,10 @@ export function PinDetailDrawer() {
                         href={link.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 max-w-fit px-2 py-1 rounded bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--accent)] transition-colors text-[11px] text-[var(--text-secondary)] hover:text-[var(--accent)]"
+                        className="tc-meta inline-flex items-center gap-1.5 max-w-fit px-2 py-1 rounded bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <span className="text-[9px] px-1 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-muted)] border border-[var(--border)] font-medium uppercase tracking-wide shrink-0">
+                        <span className="tc-eyebrow tc-mono shrink-0 px-1 py-0.5 rounded bg-[var(--surface-hover)] border border-[var(--border)]">
                           {link.type}
                         </span>
                         <span className="truncate max-w-[400px]">

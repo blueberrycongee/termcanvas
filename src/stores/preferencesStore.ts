@@ -32,6 +32,7 @@ interface PreferencesStore {
   globalSearchEnabled: boolean;
   petEnabled: boolean;
   completionGlowEnabled: boolean;
+  activityHeatmapEnabled: boolean;
   trackpadSwipeFocusEnabled: boolean;
   summaryCli: "claude" | "codex";
   minimumContrastRatio: number;
@@ -49,6 +50,14 @@ interface PreferencesStore {
   agentConfig: AgentProviderConfig;
   apiKeyReady: boolean;
 
+  /**
+   * Per-id flag bag for capability discovery cues. A cue is "seen" once
+   * the user has acted on it or dismissed it. We persist only the `true`
+   * side; absence means "not seen yet". Keeping the schema this thin
+   * lets new cue ids drop in without a migration.
+   */
+  seenHints: Record<string, true>;
+
   setAnimationBlur: (value: number) => void;
   setMinimumContrastRatio: (value: number) => void;
   setTerminalFontSize: (value: number) => void;
@@ -61,12 +70,14 @@ interface PreferencesStore {
   setGlobalSearchEnabled: (value: boolean) => void;
   setPetEnabled: (value: boolean) => void;
   setCompletionGlowEnabled: (value: boolean) => void;
+  setActivityHeatmapEnabled: (value: boolean) => void;
   setTrackpadSwipeFocusEnabled: (value: boolean) => void;
   setSummaryCli: (value: "claude" | "codex") => void;
   setCli: (type: TerminalType, config: CliCommandConfig | null) => void;
   setAgentConfig: (config: AgentProviderConfig) => void;
   patchAgentConfig: (patch: Partial<AgentProviderConfig>) => void;
   setDefaultTerminalSize: (size: StoredTerminalSize | null) => void;
+  markHintSeen: (hintId: string) => void;
 }
 
 const STORAGE_KEY = "termcanvas-preferences";
@@ -85,12 +96,23 @@ interface SavedPrefs {
   globalSearchEnabled: boolean;
   petEnabled: boolean;
   completionGlowEnabled: boolean;
+  activityHeatmapEnabled: boolean;
   trackpadSwipeFocusEnabled: boolean;
   summaryCli: "claude" | "codex";
   minimumContrastRatio: number;
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
   defaultTerminalSize: StoredTerminalSize | null;
   agentConfig: AgentProviderConfig;
+  seenHints: Record<string, true>;
+}
+
+function sanitizeSeenHints(value: unknown): Record<string, true> {
+  if (!value || typeof value !== "object") return {};
+  const out: Record<string, true> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (v === true) out[k] = true;
+  }
+  return out;
 }
 
 // Sanity bounds for persisted default size — guards against a corrupt
@@ -195,6 +217,9 @@ function loadPreferences(): SavedPrefs {
       let completionGlowEnabled = false;
       if (parsed.completionGlowEnabled === true) completionGlowEnabled = true;
 
+      let activityHeatmapEnabled = false;
+      if (parsed.activityHeatmapEnabled === true) activityHeatmapEnabled = true;
+
       let trackpadSwipeFocusEnabled = false;
       if (parsed.trackpadSwipeFocusEnabled === true) trackpadSwipeFocusEnabled = true;
 
@@ -218,6 +243,7 @@ function loadPreferences(): SavedPrefs {
       const defaultTerminalSize = sanitizeStoredTerminalSize(
         parsed.defaultTerminalSize,
       );
+      const seenHints = sanitizeSeenHints(parsed.seenHints);
 
       return {
         animationBlur: blur,
@@ -231,12 +257,14 @@ function loadPreferences(): SavedPrefs {
         globalSearchEnabled,
         petEnabled,
         completionGlowEnabled,
+        activityHeatmapEnabled,
         trackpadSwipeFocusEnabled,
         summaryCli,
         minimumContrastRatio,
         cliCommands,
         defaultTerminalSize,
         agentConfig,
+        seenHints,
       };
     }
   } catch {
@@ -253,12 +281,14 @@ function loadPreferences(): SavedPrefs {
     globalSearchEnabled: false,
     petEnabled: false,
     completionGlowEnabled: false,
+    activityHeatmapEnabled: false,
     trackpadSwipeFocusEnabled: false,
     summaryCli: "claude",
     minimumContrastRatio: DEFAULT_MIN_CONTRAST,
     cliCommands: {},
     defaultTerminalSize: null,
     agentConfig: defaultProviderConfig(),
+    seenHints: {},
   };
 }
 
@@ -355,12 +385,14 @@ function getSaveState(state: PreferencesStore): SavedPrefs {
     globalSearchEnabled: state.globalSearchEnabled,
     petEnabled: state.petEnabled,
     completionGlowEnabled: state.completionGlowEnabled,
+    activityHeatmapEnabled: state.activityHeatmapEnabled,
     trackpadSwipeFocusEnabled: state.trackpadSwipeFocusEnabled,
     summaryCli: state.summaryCli,
     minimumContrastRatio: state.minimumContrastRatio,
     cliCommands: state.cliCommands,
     defaultTerminalSize: state.defaultTerminalSize,
     agentConfig: state.agentConfig,
+    seenHints: state.seenHints,
   };
 }
 
@@ -378,6 +410,7 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   globalSearchEnabled: initialPrefs.globalSearchEnabled,
   petEnabled: initialPrefs.petEnabled,
   completionGlowEnabled: initialPrefs.completionGlowEnabled,
+  activityHeatmapEnabled: initialPrefs.activityHeatmapEnabled,
   trackpadSwipeFocusEnabled: initialPrefs.trackpadSwipeFocusEnabled,
   summaryCli: initialPrefs.summaryCli,
   minimumContrastRatio: initialPrefs.minimumContrastRatio,
@@ -385,6 +418,7 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   defaultTerminalSize: initialPrefs.defaultTerminalSize,
   agentConfig: initialPrefs.agentConfig,
   apiKeyReady: false,
+  seenHints: initialPrefs.seenHints,
 
   setAnimationBlur: (value) => {
     const clamped = Math.round(Math.max(0, Math.min(3, value)) * 10) / 10;
@@ -437,6 +471,10 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
     set({ completionGlowEnabled: value });
     savePreferences(getSaveState({ ...get(), completionGlowEnabled: value }));
   },
+  setActivityHeatmapEnabled: (value) => {
+    set({ activityHeatmapEnabled: value });
+    savePreferences(getSaveState({ ...get(), activityHeatmapEnabled: value }));
+  },
   setTrackpadSwipeFocusEnabled: (value) => {
     set({ trackpadSwipeFocusEnabled: value });
     savePreferences(getSaveState({ ...get(), trackpadSwipeFocusEnabled: value }));
@@ -471,5 +509,12 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
     savePreferences(
       getSaveState({ ...get(), defaultTerminalSize: sanitized }),
     );
+  },
+  markHintSeen: (hintId) => {
+    const current = get().seenHints;
+    if (current[hintId]) return;
+    const next = { ...current, [hintId]: true as const };
+    set({ seenHints: next });
+    savePreferences(getSaveState({ ...get(), seenHints: next }));
   },
 }));

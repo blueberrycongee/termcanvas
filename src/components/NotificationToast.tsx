@@ -18,7 +18,8 @@ export function NotificationToast() {
         return (
           <div
             key={n.id}
-            className="rounded-md border border-[var(--border)] px-4 py-3 bg-[var(--surface)] flex items-start gap-3 animate-[slideIn_0.2s_ease-out]"
+            className="tc-enter-slide-right rounded-md border border-[var(--border)] px-4 py-3 bg-[var(--surface)] flex items-start gap-3"
+            style={{ boxShadow: "var(--shadow-elev-2)" }}
           >
             <div
               className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0"
@@ -26,21 +27,21 @@ export function NotificationToast() {
             />
             <div className="flex-1 min-w-0">
               <div
-                className="text-[11px] font-medium uppercase tracking-wider mb-0.5"
-                style={{
-                  color: config.color,
-                  fontFamily: '"Geist Mono", monospace',
-                  opacity: 0.7,
-                }}
+                className="tc-eyebrow tc-mono mb-0.5"
+                style={{ color: config.color, opacity: 0.7 }}
               >
                 {config.label}
               </div>
-              <span className="text-[13px] break-words text-[var(--text-primary)]">
+              <span className="tc-body-sm break-words">
                 {n.message}
               </span>
             </div>
             <button
-              className="shrink-0 text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-150 p-0.5"
+              className="shrink-0 text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors p-0.5"
+              style={{
+                transitionDuration: "var(--duration-quick)",
+                transitionTimingFunction: "var(--ease-out-soft)",
+              }}
               onClick={() => dismiss(n.id)}
             >
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
