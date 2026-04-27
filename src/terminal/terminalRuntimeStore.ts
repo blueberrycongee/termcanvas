@@ -19,10 +19,12 @@ import {
   serializeTerminal,
   unregisterTerminal,
 } from "./terminalRegistry";
+import { patchXtermMouseService } from "./xtermMouseScalePatch";
 import {
   clearTerminalActivity,
   recordTerminalActivity,
 } from "./terminalActivityTracker";
+import { useCanvasStore } from "../stores/canvasStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import {
   usePreferencesStore,
@@ -1138,6 +1140,9 @@ function createTerminalRenderer(
     xterm.loadAddon(new ImageAddon());
   } catch {}
 
+  runtime.globalDisposers.push(
+    patchXtermMouseService(xterm, () => useCanvasStore.getState().viewport.scale),
+  );
   runtime.globalDisposers.push(registerModifierAwareLinkProvider(xterm, host));
 
   xterm.attachCustomKeyEventHandler((event) => {

@@ -38,7 +38,6 @@ import {
   useTerminalRuntimeStore,
 } from "./terminalRuntimeStore";
 import type { TerminalMountMode } from "./terminalRuntimePolicy";
-import { useXtermClickZoomCorrection } from "./xtermClickZoomCorrection";
 import { shellEscapePath } from "../utils/shellEscape";
 import {
   cancelScheduledTerminalFocus,
@@ -594,8 +593,6 @@ export function TerminalTile({
       window.removeEventListener("termcanvas:focus-custom-title", handler);
   }, [startCustomTitleEdit, terminal.id]);
 
-  useXtermClickZoomCorrection(containerEl, lodMode === "live" && !isOverviewMode);
-
   useEffect(() => {
     if (!containerEl || lodMode !== "live") return;
 
@@ -615,18 +612,6 @@ export function TerminalTile({
       else if (e.type === "dblclick") zoomIntoTerminalFromOverview();
     };
 
-    // While the canvas is zoomed, route mousemove/mouseup through the tile
-    // even after the pointer leaves it — without this xterm's document-level
-    // selection listener gets uncorrected coords whenever the cursor exits
-    // and re-enters during a drag.
-    const capturePointer = (e: PointerEvent) => {
-      if (e.button !== 0) return;
-      const { scale } = useCanvasStore.getState().viewport;
-      if (scale === 1) return;
-      const target = e.target instanceof Element ? e.target : containerEl;
-      target.setPointerCapture(e.pointerId);
-    };
-
     // Stop mousedown from bubbling past containerEl so it never starts a
     // canvas pan — every click inside terminal content would otherwise
     // fight xterm's selection.
@@ -637,14 +622,12 @@ export function TerminalTile({
       containerEl.addEventListener(type, overview, true);
     }
     containerEl.addEventListener("mousedown", stopMouseDownBubble);
-    containerEl.addEventListener("pointerdown", capturePointer);
 
     return () => {
       for (const type of overviewTypes) {
         containerEl.removeEventListener(type, overview, true);
       }
       containerEl.removeEventListener("mousedown", stopMouseDownBubble);
-      containerEl.removeEventListener("pointerdown", capturePointer);
     };
   }, [
     containerEl,
