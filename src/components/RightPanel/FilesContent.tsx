@@ -288,13 +288,20 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
     (item: PierreContextMenuItem, context: PierreContextMenuOpenContext) => {
       const menuItems = buildMenuItems(item, context);
       const rect = context.anchorRect;
+      // The wrapping div carries `data-file-tree-context-menu-root` so the
+      // library's document-level mousedown-outside check (isEventInContextMenu)
+      // recognizes clicks on the portaled menu. Without it, the library closes
+      // the menu on mousedown before the button's click event can fire — the
+      // user sees the menu disappear without the action running.
       return createPortal(
-        <ContextMenu
-          x={rect.x}
-          y={rect.y + rect.height}
-          items={menuItems}
-          onClose={() => context.close()}
-        />,
+        <div data-file-tree-context-menu-root="true">
+          <ContextMenu
+            x={rect.x}
+            y={rect.y + rect.height}
+            items={menuItems}
+            onClose={() => context.close()}
+          />
+        </div>,
         document.body,
       );
     },
