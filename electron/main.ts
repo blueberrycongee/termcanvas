@@ -31,10 +31,7 @@ import { PinStore } from "./pin-store";
 import { sendToWindow } from "./window-events";
 import { detectCli } from "./process-detector";
 import { ensureCliLauncher } from "./cli-launchers";
-import {
-  getAgentShimDir,
-  getTerminalExtraPathEntries,
-} from "./agent-shims";
+import { getAgentShimDir, getTerminalExtraPathEntries } from "./agent-shims";
 import {
   isCliRegistered,
   registerCli,
@@ -175,7 +172,7 @@ if (isDev) {
   app.setPath("userData", path.join(app.getPath("appData"), "termcanvas-dev"));
 }
 
-// Custom scheme for serving task image attachments from disk. Renderer-side
+// Custom scheme for serving pin image attachments from disk. Renderer-side
 // `<img src="tc-attachment://local/<abs-path>">` resolves through the handler
 // registered after app.whenReady. Must be declared as privileged BEFORE the
 // app is ready, otherwise Chromium treats it as opaque and blocks subresources.
@@ -2053,13 +2050,21 @@ function setupIpc() {
     return taskStore.list(repo);
   });
 
-  ipcMain.handle("pin:create", (_event, input: Parameters<typeof taskStore.create>[0]) => {
-    return taskStore.create(input);
-  });
+  ipcMain.handle(
+    "pin:create",
+    (_event, input: Parameters<typeof taskStore.create>[0]) => {
+      return taskStore.create(input);
+    },
+  );
 
   ipcMain.handle(
     "pin:update",
-    (_event, repo: string, id: string, patch: Parameters<typeof taskStore.update>[2]) => {
+    (
+      _event,
+      repo: string,
+      id: string,
+      patch: Parameters<typeof taskStore.update>[2],
+    ) => {
       return taskStore.update(repo, id, patch);
     },
   );
@@ -2084,16 +2089,16 @@ function setupIpc() {
     },
   );
 
-  // Inject a task's body + image attachments into a terminal via the existing
-  // composer-submit pipeline. We deliberately do not mutate task.status here:
-  // dispatching the same task to multiple terminals is a supported flow, and
+  // Inject a pin's body + image attachments into a terminal via the existing
+  // composer-submit pipeline. We deliberately do not mutate pin.status here:
+  // dispatching the same pin to multiple terminals is a supported flow, and
   // status changes stay manual.
   ipcMain.handle(
     "pin:dispatch-to-terminal",
     async (
       _event,
       repo: string,
-      taskId: string,
+      pinId: string,
       target: {
         terminalId: string;
         ptyId: number;
@@ -2101,14 +2106,14 @@ function setupIpc() {
         worktreePath: string;
       },
     ) => {
-      const task = taskStore.get(repo, taskId);
-      if (!task) {
+      const pin = taskStore.get(repo, pinId);
+      if (!pin) {
         return {
           ok: false,
           code: "internal-error" as const,
           stage: "validate" as const,
-          error: `Task not found: ${taskId}`,
-          detail: `Task not found: ${taskId}`,
+          error: `Pin not found: ${pinId}`,
+          detail: `Pin not found: ${pinId}`,
         };
       }
 
@@ -2123,8 +2128,8 @@ function setupIpc() {
       }
 
       const { text, images } = await buildPinComposerPayload(
-        task,
-        taskStore.attachmentsDir(repo, taskId),
+        pin,
+        taskStore.attachmentsDir(repo, pinId),
       );
 
       // Paste-only — fill the agent's input buffer with the title + body
@@ -2154,8 +2159,8 @@ function setupIpc() {
         );
 
         if (!result.ok) {
-          console.error("[Task] Dispatch failed:", {
-            taskId,
+          console.error("[Pin] Dispatch failed:", {
+            pinId,
             terminalId: target.terminalId,
             ptyId: target.ptyId,
             terminalType: target.terminalType,
@@ -2168,8 +2173,8 @@ function setupIpc() {
         return result;
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
-        console.error("[Task] Dispatch crashed:", {
-          taskId,
+        console.error("[Pin] Dispatch crashed:", {
+          pinId,
           terminalId: target.terminalId,
           detail,
         });
@@ -2259,8 +2264,8 @@ app.whenReady().then(async () => {
     user_data_path: app.getPath("userData"),
   });
 
-  // Serve task attachment images. Path-traversal guard: resolved disk path
-  // must stay under TERMCANVAS_DIR/tasks/. Renderer constructs URLs as
+  // Serve pin attachment images. Path-traversal guard: resolved disk path
+  // must stay under TERMCANVAS_DIR/pins/. Renderer constructs URLs as
   // tc-attachment://local/<abs-path>; handler decodes pathname back to a
   // real path and streams the file via Electron's net.fetch.
   const ATTACHMENTS_ROOT = path.join(TERMCANVAS_DIR, "pins");
