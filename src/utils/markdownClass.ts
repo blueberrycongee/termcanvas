@@ -1,4 +1,14 @@
 import { Marked, marked } from "marked";
+import DOMPurify from "dompurify";
+
+const ALLOWED_URI_REGEXP =
+  /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|xxx|urn|tc-attachment):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
+
+function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_URI_REGEXP,
+  });
+}
 
 export const markdownClassName =
   "prose prose-sm prose-invert max-w-none text-[length:var(--text-md)] leading-relaxed text-[var(--text-primary)] " +
@@ -17,7 +27,8 @@ export const markdownClassName =
   "[&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-md [&_img]:border [&_img]:border-[var(--border)] [&_img]:my-2";
 
 export function renderMarkdown(text: string): string {
-  return marked.parse(text, { async: false, breaks: true }) as string;
+  const html = marked.parse(text, { async: false, breaks: true }) as string;
+  return sanitizeHtml(html);
 }
 
 export function renderMarkdownWithAttachments(
@@ -39,7 +50,7 @@ export function renderMarkdownWithAttachments(
       },
     },
   });
-  return m.parse(text) as string;
+  return sanitizeHtml(m.parse(text) as string);
 }
 
 function resolveImageHref(href: string, baseUrl: string | null): string {
