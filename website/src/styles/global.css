@@ -1,24 +1,40 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #fafaf9;
+  /* Warm paper-like surfaces */
+  --color-bg: #f6f3ec;
   --color-surface: #ffffff;
-  --color-surface-muted: #f4f4f3;
-  --color-border: #e5e5e2;
-  --color-border-strong: #d4d4d0;
-  --color-ink: #18181b;
-  --color-ink-muted: #52525b;
-  --color-ink-faint: #8a8a92;
-  --color-accent: #2f3aff;
-  --color-accent-hover: #1f29e6;
-  --color-accent-soft: #ebecff;
+  --color-surface-muted: #ece7d9;
+  --color-surface-sunken: #efebdf;
+  --color-border: #e0d9c5;
+  --color-border-strong: #b9b09a;
 
+  /* Warm ink with brown undertone */
+  --color-ink: #14110a;
+  --color-ink-soft: #2a261c;
+  --color-ink-muted: #56504a;
+  --color-ink-faint: #8c857a;
+
+  /* Single restrained terracotta accent */
+  --color-accent: #b4502e;
+  --color-accent-hover: #913e22;
+  --color-accent-soft: #f0d9cc;
+
+  /* Type */
   --font-sans: "Geist Sans", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", sans-serif;
   --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  --font-serif: "Iowan Old Style", "Charter", "Georgia", serif;
 
+  /* Layout */
   --container-prose: 42rem;
   --container-page: 72rem;
+
+  /* Elevation */
+  --shadow-button: 0 1px 0 rgba(255, 255, 255, 0.16) inset, 0 1px 1.5px rgba(20, 17, 10, 0.18),
+    0 2px 6px -2px rgba(20, 17, 10, 0.12);
+  --shadow-button-hover: 0 1px 0 rgba(255, 255, 255, 0.2) inset, 0 2px 4px rgba(20, 17, 10, 0.22),
+    0 8px 18px -6px rgba(20, 17, 10, 0.22);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 22px 50px -28px rgba(20, 17, 10, 0.25);
 }
 
 html {
@@ -55,30 +71,69 @@ a {
   }
 
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.05rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    border-radius: 0.5rem;
+    transition:
+      transform 0.18s ease,
+      box-shadow 0.18s ease,
+      background 0.18s ease,
+      color 0.18s ease,
+      border-color 0.18s ease;
+    will-change: transform;
   }
 
   .btn-primary {
-    background: var(--color-accent);
-    color: white;
+    background: var(--color-ink);
+    color: #f6f3ec;
+    border: 1px solid color-mix(in oklab, var(--color-ink) 80%, white 20%);
+    box-shadow: var(--shadow-button);
   }
   .btn-primary:hover {
-    background: var(--color-accent-hover);
+    background: var(--color-ink-soft);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-button-hover);
+  }
+  .btn-primary .btn-arrow {
+    transition: transform 0.2s ease;
+  }
+  .btn-primary:hover .btn-arrow {
+    transform: translateX(2px);
   }
 
   .btn-secondary {
-    background: transparent;
+    background: var(--color-surface);
     color: var(--color-ink);
     border: 1px solid var(--color-border-strong);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 1px 2px rgba(20, 17, 10, 0.04);
   }
   .btn-secondary:hover {
+    background: var(--color-surface);
+    border-color: var(--color-ink);
+    transform: translateY(-1px);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 4px 10px -4px rgba(20, 17, 10, 0.18);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--color-ink-muted);
+    border: 1px solid transparent;
+  }
+  .btn-ghost:hover {
     background: var(--color-surface-muted);
+    color: var(--color-ink);
   }
 
   .label-mono {
     font-family: var(--font-mono);
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.08em;
     font-size: 0.72rem;
     color: var(--color-ink-faint);
   }
@@ -86,8 +141,8 @@ a {
 
 .prose-article {
   font-size: 1.0625rem;
-  line-height: 1.75;
-  color: var(--color-ink);
+  line-height: 1.78;
+  color: var(--color-ink-soft);
 }
 .prose-article > * + * {
   margin-top: 1.25em;
@@ -107,7 +162,7 @@ a {
   color: var(--color-ink);
 }
 .prose-article p {
-  color: var(--color-ink);
+  color: var(--color-ink-soft);
 }
 .prose-article strong {
   font-weight: 600;
@@ -123,7 +178,7 @@ a {
   text-decoration-color: var(--color-accent);
 }
 .prose-article blockquote {
-  border-left: 3px solid var(--color-border-strong);
+  border-left: 2px solid var(--color-accent);
   padding-left: 1.25rem;
   color: var(--color-ink-muted);
   font-style: italic;
@@ -132,11 +187,12 @@ a {
   font-family: var(--font-mono);
   font-size: 0.92em;
   background: var(--color-surface-muted);
-  padding: 0.1em 0.35em;
+  padding: 0.1em 0.38em;
   border-radius: 4px;
+  color: var(--color-ink);
 }
 .prose-article pre {
-  background: var(--color-surface-muted);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 1rem 1.25rem;
