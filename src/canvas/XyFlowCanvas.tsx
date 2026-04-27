@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
-  PanOnScrollMode,
   ReactFlow,
   ReactFlowProvider,
   useNodesState,
@@ -67,7 +66,7 @@ import { createTerminalInScene } from "../actions/terminalSceneActions";
 import type { TerminalType } from "../types";
 
 const EMPTY_EDGES: never[] = [];
-const WHEEL_ZOOM_SENSITIVITY = 0.002;
+const WHEEL_ZOOM_SENSITIVITY = 0.005;
 const SNAP_GRID: [number, number] = [10, 10];
 
 function normalizeWheelDelta(event: React.WheelEvent): number {
@@ -568,40 +567,68 @@ function XyFlowCanvasInner() {
 
   const handleWheelCapture = useCallback(
     (event: React.WheelEvent<HTMLDivElement>) => {
-      // Two distinct gestures land here:
-      //   1. Cmd/Ctrl + wheel — explicit zoom intent.
-      //   2. Trackpad pinch — Chromium synthesises wheel events with
-      //      ctrlKey=true even though no key is pressed. Same code path
-      //      handles both, anchored at the cursor position.
-      if (!(event.ctrlKey || event.metaKey)) {
+      const isPinch = event.ctrlKey || event.metaKey;
+
+      // Pinch (Cmd/Ctrl + wheel, or trackpad pinch which Chromium
+      // synthesises as ctrlKey=true): always zoom canvas, regardless of
+      // cursor position. Terminal has no zoom concept.
+      if (isPinch) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const delta = normalizeWheelDelta(event);
+        if (Math.abs(delta) < 0.001) {
+          return;
+        }
+
+        const scaleFactor = Math.exp(-delta * WHEEL_ZOOM_SENSITIVITY);
+        const nextViewport = zoomAtClientPoint({
+          clientX: event.clientX,
+          clientY: event.clientY,
+          leftPanelCollapsed,
+          leftPanelWidth,
+          taskDrawerOpen,
+          nextScale: clampScale(viewport.scale * scaleFactor),
+          viewport,
+        });
+
+        useCanvasStore.getState().setViewport(nextViewport);
         return;
       }
 
+      // Non-pinch wheel: this handler now owns ALL canvas pan, since
+      // React Flow's panOnScroll is disabled. The single exception is
+      // when the cursor is over the xterm rendering area of a *focused*
+      // terminal — that's the only condition under which the terminal
+      // is "active" and gets to consume wheel events as scrollback.
+      // Unfocused terminals are passive elements on the canvas, like
+      // images in Figma; wheel over them pans the canvas.
       const target = event.target;
-      if (target instanceof Element && target.closest(".nowheel")) {
-        return;
+      if (target instanceof Element) {
+        const xtermHost = target.closest(".tc-xterm-host");
+        const tile = xtermHost?.closest("[data-handoff-terminal-id]");
+        if (tile?.getAttribute("data-focused") === "true") {
+          return;
+        }
       }
 
       event.preventDefault();
       event.stopPropagation();
 
-      const delta = normalizeWheelDelta(event);
-      if (Math.abs(delta) < 0.001) {
-        return;
-      }
-
-      const scaleFactor = Math.exp(-delta * WHEEL_ZOOM_SENSITIVITY);
-      const nextViewport = zoomAtClientPoint({
-        clientX: event.clientX,
-        clientY: event.clientY,
-        leftPanelCollapsed,
-        leftPanelWidth,
-        taskDrawerOpen,
-        nextScale: clampScale(viewport.scale * scaleFactor),
-        viewport,
+      // Read viewport fresh from the store, not from the closure.
+      // Wheel events fire 60+/s; closure-captured viewport stays stale
+      // until React re-renders, so multiple in-flight events would all
+      // base off the same old position and overwrite each other.
+      const current = useCanvasStore.getState().viewport;
+      // 0.5 matches React Flow's panOnScrollSpeed default. Keeps the
+      // pan speed consistent with what users were used to before this
+      // change, and is what handleMove's snap was tuned for.
+      const PAN_SPEED = 0.5;
+      useCanvasStore.getState().setViewport({
+        ...current,
+        x: Math.round(current.x - event.deltaX * PAN_SPEED),
+        y: Math.round(current.y - event.deltaY * PAN_SPEED),
       });
-
-      useCanvasStore.getState().setViewport(nextViewport);
     },
     [leftPanelCollapsed, leftPanelWidth, taskDrawerOpen, viewport],
   );
@@ -716,8 +743,6 @@ function XyFlowCanvasInner() {
         // for marquee on empty canvas (handled by useBoxSelect) and
         // node drag (handled by React Flow's nodesDraggable).
         panOnDrag={isPanMode ? [0, 1] : [1]}
-        panOnScroll
-        panOnScrollMode={PanOnScrollMode.Free}
         snapToGrid
         snapGrid={SNAP_GRID}
         zoomOnScroll={false}
