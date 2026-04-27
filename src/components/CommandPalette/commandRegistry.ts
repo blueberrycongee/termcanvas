@@ -263,6 +263,22 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
       perform: () => useSnapshotHistoryStore.getState().openHistory(),
     },
     {
+      id: "open-snapshot-diff",
+      section: "action",
+      title: "Snapshot diff",
+      subtitle: "Compare two recent snapshots side by side",
+      keywords: [
+        "compare",
+        "changed",
+        "delta",
+        "what changed",
+        "history",
+        "snapshot",
+      ],
+      perform: () =>
+        useSnapshotHistoryStore.getState().openHistoryInDiffMode(),
+    },
+    {
       id: "toggle-usage-overlay",
       section: "action",
       title: canvas.usageOverlayOpen ? "Close Usage" : "Open Usage",

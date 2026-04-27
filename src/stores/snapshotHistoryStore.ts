@@ -14,7 +14,15 @@ interface SnapshotHistoryStore {
   selectedIndex: number;
   loading: boolean;
   pendingRestoreId: string | null;
+  /**
+   * One-shot flag set by `openHistoryInDiffMode`. The modal consumes and
+   * clears it on mount so reopening normally afterwards doesn't re-enter
+   * diff mode.
+   */
+  pendingDiffMode: boolean;
   openHistory: () => void;
+  openHistoryInDiffMode: () => void;
+  consumePendingDiffMode: () => boolean;
   closeHistory: () => void;
   toggleHistory: () => void;
   setSelectedIndex: (index: number) => void;
@@ -34,13 +42,38 @@ export const useSnapshotHistoryStore = create<SnapshotHistoryStore>(
     selectedIndex: 0,
     loading: false,
     pendingRestoreId: null,
+    pendingDiffMode: false,
 
     openHistory: () => {
-      set({ open: true, selectedIndex: 0, pendingRestoreId: null });
+      set({
+        open: true,
+        selectedIndex: 0,
+        pendingRestoreId: null,
+        pendingDiffMode: false,
+      });
       void get().refresh();
     },
+    openHistoryInDiffMode: () => {
+      set({
+        open: true,
+        selectedIndex: 0,
+        pendingRestoreId: null,
+        pendingDiffMode: true,
+      });
+      void get().refresh();
+    },
+    consumePendingDiffMode: () => {
+      const flag = get().pendingDiffMode;
+      if (flag) set({ pendingDiffMode: false });
+      return flag;
+    },
     closeHistory: () =>
-      set({ open: false, pendingRestoreId: null, selectedIndex: 0 }),
+      set({
+        open: false,
+        pendingRestoreId: null,
+        selectedIndex: 0,
+        pendingDiffMode: false,
+      }),
     toggleHistory: () => {
       if (get().open) {
         get().closeHistory();

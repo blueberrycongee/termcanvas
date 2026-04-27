@@ -72,12 +72,12 @@ const HISTORY_REFRESH_DEBOUNCE_MS = 120;
 //   red  = needs your attention (real error / explicit awaiting input)
 //   green = working, no need to look
 //   gray = nothing to convey (done & viewed, or never started)
-// `unseenDone` is layered on top at render time as a blue dot.
+// `unseenDone` is layered on top at render time using --accent.
 const STATUS_COLORS: Record<CanvasTerminalState, string> = {
-  attention: "#ef4444",
-  active: "#22c55e",
-  done: "#6b7280",
-  idle: "#6b7280",
+  attention: "var(--red)",
+  active: "var(--green)",
+  done: "var(--text-muted)",
+  idle: "var(--text-muted)",
 };
 
 function formatShortAge(iso: string | undefined): string {
@@ -186,7 +186,7 @@ export function TerminalCard({
       <div
         className="w-2 h-2 rounded-full shrink-0"
         style={{
-          backgroundColor: unseenDone ? "#3b82f6" : STATUS_COLORS[item.state],
+          backgroundColor: unseenDone ? "var(--accent)" : STATUS_COLORS[item.state],
         }}
       />
       <div className="flex-1 min-w-0">
@@ -247,11 +247,11 @@ export function TerminalCard({
 function traceToneClass(item: InspectorTraceItem): string {
   switch (item.tone) {
     case "success":
-      return "text-[#22c55e]";
+      return "text-[var(--green)]";
     case "warning":
-      return "text-[#f59e0b]";
+      return "text-[var(--amber)]";
     case "danger":
-      return "text-[#ef4444]";
+      return "text-[var(--red)]";
     default:
       return "text-[var(--text-muted)]";
   }
@@ -1026,7 +1026,7 @@ function HistoryRow({
           size="sm"
           tone={pendingHide ? "danger" : "neutral"}
           label={pendingHide ? "Click again to hide permanently" : "Hide from history"}
-          className={pendingHide ? "bg-red-500/15" : ""}
+          className={pendingHide ? "bg-[var(--red-soft)]" : ""}
           onClick={(e) => {
             e.stopPropagation();
             if (pendingHide) {

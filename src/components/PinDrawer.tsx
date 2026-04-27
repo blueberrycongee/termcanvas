@@ -21,7 +21,7 @@ function StatusDot({ status }: { status: Pin["status"] }) {
   if (status === "done") {
     return (
       <span
-        className="shrink-0 w-1.5 h-1.5 rounded-full bg-green-500"
+        className="shrink-0 w-1.5 h-1.5 rounded-full bg-[var(--green)]"
         title={t["pin.statusDone"]}
       />
     );
@@ -159,7 +159,7 @@ const PinCard = memo(function PinCard({
         <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
           {pin.status === "open" ? (
             <button
-              className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-faint)] hover:text-green-500 hover:bg-green-500/10 transition-colors text-[11px]"
+              className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-faint)] hover:text-[var(--green)] hover:bg-[color-mix(in_srgb,var(--green)_12%,transparent)] transition-colors text-[11px]"
               title={t["pin.action.markDone"]}
               disabled={busy}
               onClick={handleMarkDone}
@@ -177,7 +177,7 @@ const PinCard = memo(function PinCard({
             </button>
           )}
           <button
-            className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-faint)] hover:text-[var(--red,#ef4444)] hover:bg-[var(--red-soft,rgba(239,68,68,0.1))] transition-colors"
+            className="flex items-center justify-center w-5 h-5 rounded text-[var(--text-faint)] hover:text-[var(--red)] hover:bg-[var(--red-soft)] transition-colors"
             title={t["pin.action.delete"]}
             disabled={busy}
             onClick={(e) => {

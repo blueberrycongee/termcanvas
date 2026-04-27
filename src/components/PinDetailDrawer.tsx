@@ -25,7 +25,7 @@ function StatusBadge({ status }: { status: Pin["status"] }) {
   const t = useT();
   if (status === "done") {
     return (
-      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-500 border border-green-500/25 font-medium">
+      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[color-mix(in_srgb,var(--green)_15%,transparent)] text-[var(--green)] border border-[color-mix(in_srgb,var(--green)_25%,transparent)] font-medium">
         {t["pin.statusDone"]}
       </span>
     );
@@ -458,7 +458,7 @@ export function PinDetailDrawer() {
               )}
               {pin.status === "open" && (
                 <button
-                  className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:bg-green-500/20 hover:text-green-600 transition-colors disabled:opacity-50"
+                  className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:bg-[color-mix(in_srgb,var(--green)_20%,transparent)] hover:text-[var(--green)] transition-colors disabled:opacity-50"
                   disabled={busy}
                   onClick={() => void handleStatusChange("done")}
                 >
@@ -485,7 +485,7 @@ export function PinDetailDrawer() {
               )}
               <div className="w-px h-3 bg-[var(--border)] mx-0.5" />
               <button
-                className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--red,#ef4444)] hover:bg-[var(--red-soft,rgba(239,68,68,0.1))] transition-colors disabled:opacity-50"
+                className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--red)] hover:bg-[var(--red-soft)] transition-colors disabled:opacity-50"
                 disabled={busy}
                 onClick={() => setShowDeleteConfirm(true)}
               >
