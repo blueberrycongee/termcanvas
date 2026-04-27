@@ -9,6 +9,11 @@ import {
   readWorkspaceSnapshot,
   restoreWorkspaceSnapshot,
 } from "../snapshotState";
+import {
+  diffSnapshotBodies,
+  summarizeDiff,
+  type DiffEntry,
+} from "../snapshotHistoryDiff";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useNotificationStore } from "../stores/notificationStore";
 
@@ -43,6 +48,28 @@ function absoluteTimeLabel(ms: number): string {
   });
 }
 
+function diffToneColor(kind: DiffEntry["kind"]): string {
+  if (kind === "project-added" || kind === "terminal-added") {
+    return "var(--green)";
+  }
+  if (kind === "project-removed" || kind === "terminal-removed") {
+    return "var(--red)";
+  }
+  return "var(--text-secondary)";
+}
+
+function diffPrefix(kind: DiffEntry["kind"]): string {
+  if (kind === "project-added" || kind === "terminal-added") return "+";
+  if (kind === "project-removed" || kind === "terminal-removed") return "−";
+  return "~";
+}
+
+function formatDelta(delta: { x: number; y: number }): string {
+  const dx = Math.round(delta.x);
+  const dy = Math.round(delta.y);
+  return `Δ ${dx >= 0 ? "+" : ""}${dx}, ${dy >= 0 ? "+" : ""}${dy}`;
+}
+
 export function SnapshotHistoryModal() {
   const open = useSnapshotHistoryStore((s) => s.open);
   const entries = useSnapshotHistoryStore((s) => s.entries);
@@ -61,6 +88,11 @@ export function SnapshotHistoryModal() {
   const listRef = useRef<HTMLDivElement>(null);
   const prevFocusRef = useRef<Element | null>(null);
   const [restoring, setRestoring] = useState(false);
+
+  const [diffMode, setDiffMode] = useState(false);
+  const [diffFromIndex, setDiffFromIndex] = useState<number | null>(null);
+  const [diffEntries, setDiffEntries] = useState<DiffEntry[] | null>(null);
+  const [diffLoading, setDiffLoading] = useState(false);
 
   // Recompute relative timestamps on a slow tick so "12 minutes ago" turns
   // into "13 minutes ago" without the user reopening the modal.
@@ -81,10 +113,41 @@ export function SnapshotHistoryModal() {
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open) {
+      setDiffMode(false);
+      setDiffFromIndex(null);
+      setDiffEntries(null);
+      return;
+    }
+    if (useSnapshotHistoryStore.getState().consumePendingDiffMode()) {
+      setDiffMode(true);
+    }
+  }, [open]);
+
   const safeSelectedIndex = Math.min(
     selectedIndex,
     Math.max(0, entries.length - 1),
   );
+
+  // "from" anchor logic. The list is newest-first, so the snapshot just
+  // *below* the modal-selected ("to") is the chronologically previous
+  // capture — that's what users intuit as "from" by default.
+  const safeFromIndex = (() => {
+    if (entries.length < 2) return null;
+    if (diffFromIndex === null) {
+      return safeSelectedIndex + 1 < entries.length
+        ? safeSelectedIndex + 1
+        : safeSelectedIndex - 1;
+    }
+    let idx = Math.min(Math.max(diffFromIndex, 0), entries.length - 1);
+    if (idx === safeSelectedIndex) {
+      idx = safeSelectedIndex + 1 < entries.length
+        ? safeSelectedIndex + 1
+        : safeSelectedIndex - 1;
+    }
+    return idx >= 0 ? idx : null;
+  })();
 
   useEffect(() => {
     const container = listRef.current;
@@ -94,6 +157,45 @@ export function SnapshotHistoryModal() {
   }, [safeSelectedIndex, entries.length]);
 
   const selectedEntry = entries[safeSelectedIndex];
+  const fromEntry = safeFromIndex != null ? entries[safeFromIndex] : null;
+
+  // Load and diff the two snapshot bodies whenever the pair changes.
+  useEffect(() => {
+    if (!open || !diffMode) {
+      setDiffEntries(null);
+      setDiffLoading(false);
+      return;
+    }
+    if (!selectedEntry || !fromEntry || !window.termcanvas?.snapshots) {
+      setDiffEntries([]);
+      setDiffLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setDiffLoading(true);
+    Promise.all([
+      window.termcanvas.snapshots.read(fromEntry.id),
+      window.termcanvas.snapshots.read(selectedEntry.id),
+    ])
+      .then(([fromBody, toBody]) => {
+        if (cancelled) return;
+        setDiffEntries(diffSnapshotBodies(fromBody, toBody));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("[SnapshotHistoryModal] diff load failed:", err);
+        setDiffEntries([]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setDiffLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, diffMode, selectedEntry, fromEntry]);
 
   const triggerRestore = useCallback((id: string | undefined) => {
     if (!id) return;
@@ -138,6 +240,27 @@ export function SnapshotHistoryModal() {
     }
   }, [pendingRestoreId, setPendingRestoreId, closeHistory]);
 
+  const moveFromIndex = useCallback(
+    (direction: 1 | -1) => {
+      if (entries.length < 2) return;
+      const start = safeFromIndex ?? safeSelectedIndex;
+      let next = start;
+      // Walk past safeSelectedIndex so "from" never collides with "to".
+      for (let attempt = 0; attempt < entries.length; attempt += 1) {
+        next = (next + direction + entries.length) % entries.length;
+        if (next !== safeSelectedIndex) {
+          setDiffFromIndex(next);
+          return;
+        }
+      }
+    },
+    [entries.length, safeFromIndex, safeSelectedIndex],
+  );
+
+  const toggleDiffMode = useCallback(() => {
+    setDiffMode((prev) => !prev);
+  }, []);
+
   // Modal has no editable input, so we cannot piggyback on the input's
   // bubbling onKeyDown like SearchModal/CommandPalette do. Window listener
   // is the simpler path; ConfirmDialog (rendered atop us during restore)
@@ -152,14 +275,29 @@ export function SnapshotHistoryModal() {
         closeHistory();
         return;
       }
+      // Diff toggle. Lowercase 'd' only when no modifier — keeps Cmd-D /
+      // Ctrl-D (browser bookmark) and Shift-D from getting eaten.
+      if ((e.key === "d" || e.key === "D") && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        toggleDiffMode();
+        return;
+      }
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        selectNext();
+        if (e.shiftKey && diffMode) {
+          moveFromIndex(1);
+        } else {
+          selectNext();
+        }
         return;
       }
       if (e.key === "ArrowUp") {
         e.preventDefault();
-        selectPrev();
+        if (e.shiftKey && diffMode) {
+          moveFromIndex(-1);
+        } else {
+          selectPrev();
+        }
         return;
       }
       if (e.key === "Enter") {
@@ -179,6 +317,9 @@ export function SnapshotHistoryModal() {
     entries,
     safeSelectedIndex,
     triggerRestore,
+    diffMode,
+    moveFromIndex,
+    toggleDiffMode,
   ]);
 
   const renderRow = useMemo(() => {
@@ -187,6 +328,7 @@ export function SnapshotHistoryModal() {
       index: number,
     ) => {
       const isSelected = index === safeSelectedIndex;
+      const isFromAnchor = diffMode && index === safeFromIndex;
       // Reading `tick` keeps relative labels (`relativeTimeLabel`) in sync
       // when the modal stays open across a minute boundary.
       void tick;
@@ -197,7 +339,11 @@ export function SnapshotHistoryModal() {
           type="button"
           className="tc-cmd-row flex w-full items-center gap-3 px-4 py-2 text-left"
           style={{
-            backgroundColor: isSelected ? "var(--accent-soft)" : undefined,
+            backgroundColor: isSelected
+              ? "var(--accent-soft)"
+              : isFromAnchor
+                ? "color-mix(in srgb, var(--text-secondary) 8%, transparent)"
+                : undefined,
           }}
           onMouseEnter={() => setSelectedIndex(index)}
           onClick={() => triggerRestore(entry.id)}
@@ -207,15 +353,21 @@ export function SnapshotHistoryModal() {
             className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[9px] font-semibold"
             style={{
               ...MONO_STYLE,
-              color: isSelected ? "var(--accent)" : "var(--text-muted)",
+              color: isSelected
+                ? "var(--accent)"
+                : isFromAnchor
+                  ? "var(--text-secondary)"
+                  : "var(--text-muted)",
               backgroundColor: isSelected
                 ? "color-mix(in srgb, var(--accent) 16%, transparent)"
-                : "color-mix(in srgb, var(--text-muted) 10%, transparent)",
+                : isFromAnchor
+                  ? "color-mix(in srgb, var(--text-secondary) 14%, transparent)"
+                  : "color-mix(in srgb, var(--text-muted) 10%, transparent)",
               transition:
                 "color var(--duration-quick) var(--ease-out-soft), background-color var(--duration-quick) var(--ease-out-soft)",
             }}
           >
-            H
+            {isFromAnchor ? "F" : "H"}
           </span>
           <div className="min-w-0 flex-1">
             <div
@@ -237,18 +389,30 @@ export function SnapshotHistoryModal() {
               {entry.projectCount === 1 ? "" : "s"}
             </div>
           </div>
-          {isSelected && (
+          {isSelected ? (
             <span
               className="shrink-0 text-[10px]"
               style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
             >
-              Restore
+              {diffMode ? "to" : "Restore"}
             </span>
-          )}
+          ) : isFromAnchor ? (
+            <span
+              className="shrink-0 text-[10px]"
+              style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
+            >
+              from
+            </span>
+          ) : null}
         </button>
       );
     };
-  }, [safeSelectedIndex, setSelectedIndex, triggerRestore, tick]);
+  }, [safeSelectedIndex, safeFromIndex, diffMode, setSelectedIndex, triggerRestore, tick]);
+
+  const summary = useMemo(
+    () => (diffEntries ? summarizeDiff(diffEntries) : null),
+    [diffEntries],
+  );
 
   if (!open) return null;
 
@@ -284,8 +448,30 @@ export function SnapshotHistoryModal() {
               className="min-w-0 flex-1 text-[13px]"
               style={{ ...MONO_STYLE, color: "var(--text-primary)" }}
             >
-              Snapshot history
+              Snapshot history{diffMode ? " · diff" : ""}
             </div>
+            <button
+              type="button"
+              onClick={toggleDiffMode}
+              disabled={entries.length < 2}
+              className="shrink-0 rounded border px-1.5 py-0.5 text-[10px]"
+              style={{
+                ...MONO_STYLE,
+                borderColor: diffMode ? "var(--accent)" : "var(--border)",
+                color: diffMode ? "var(--accent)" : "var(--text-faint)",
+                backgroundColor: diffMode
+                  ? "var(--accent-soft)"
+                  : "transparent",
+                cursor: entries.length < 2 ? "not-allowed" : "pointer",
+                opacity: entries.length < 2 ? 0.5 : 1,
+                transition:
+                  "color var(--duration-quick) var(--ease-out-soft), background-color var(--duration-quick) var(--ease-out-soft), border-color var(--duration-quick) var(--ease-out-soft)",
+              }}
+              aria-pressed={diffMode}
+              title={diffMode ? "Exit diff mode (D)" : "Compare snapshots (D)"}
+            >
+              Diff
+            </button>
             <kbd
               className="shrink-0 rounded border px-1.5 py-0.5 text-[10px]"
               style={{
@@ -299,7 +485,8 @@ export function SnapshotHistoryModal() {
           </div>
 
           {/* Selection summary — analogue of SearchModal's scope row.
-              Tells the user what they're about to restore *to*. */}
+              Tells the user what they're about to restore *to*, and in
+              diff mode also names the "from" anchor. */}
           {selectedEntry && (
             <div
               className="flex items-center gap-2 border-b px-4 py-2"
@@ -310,20 +497,27 @@ export function SnapshotHistoryModal() {
                 style={{ ...MONO_STYLE }}
                 title={absoluteTimeLabel(selectedEntry.savedAt)}
               >
-                {absoluteTimeLabel(selectedEntry.savedAt)}
+                {diffMode && fromEntry
+                  ? `${absoluteTimeLabel(fromEntry.savedAt)} → ${absoluteTimeLabel(selectedEntry.savedAt)}`
+                  : absoluteTimeLabel(selectedEntry.savedAt)}
               </span>
               <span
                 className="ml-auto truncate text-[11px]"
                 style={{ ...MONO_STYLE, color: "var(--text-metadata)" }}
               >
-                {selectedEntry.terminalCount} terminals ·{" "}
-                {selectedEntry.projectCount} projects
+                {diffMode && summary
+                  ? `+${summary.added} −${summary.removed} ~${summary.changed}`
+                  : `${selectedEntry.terminalCount} terminals · ${selectedEntry.projectCount} projects`}
               </span>
             </div>
           )}
 
           {/* List */}
-          <div ref={listRef} className="max-h-[55vh] overflow-auto">
+          <div
+            ref={listRef}
+            className="overflow-auto"
+            style={{ maxHeight: diffMode ? "30vh" : "55vh" }}
+          >
             {loading && entries.length === 0 ? (
               <div
                 className="px-4 py-10 text-center text-[12px]"
@@ -343,6 +537,82 @@ export function SnapshotHistoryModal() {
             )}
           </div>
 
+          {diffMode && entries.length >= 2 && (
+            <div
+              className="border-t"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <div
+                className="overflow-auto px-4 py-2"
+                style={{ maxHeight: "28vh" }}
+              >
+                {diffLoading ? (
+                  <div
+                    className="py-4 text-center text-[11px]"
+                    style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
+                  >
+                    Computing diff…
+                  </div>
+                ) : !diffEntries || diffEntries.length === 0 ? (
+                  <div
+                    className="py-4 text-center text-[11px]"
+                    style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
+                  >
+                    Snapshots are identical.
+                  </div>
+                ) : (
+                  <ul className="flex flex-col gap-0.5">
+                    {diffEntries.map((entry) => (
+                      <li
+                        key={entry.key}
+                        className="flex items-baseline gap-2 text-[11px] leading-snug"
+                        style={MONO_STYLE}
+                      >
+                        <span
+                          aria-hidden
+                          className="w-3 shrink-0 text-center"
+                          style={{ color: diffToneColor(entry.kind) }}
+                        >
+                          {diffPrefix(entry.kind)}
+                        </span>
+                        <span
+                          className="truncate"
+                          style={{ color: diffToneColor(entry.kind) }}
+                        >
+                          {entry.label}
+                        </span>
+                        {entry.context && (
+                          <span
+                            className="truncate"
+                            style={{ color: "var(--text-faint)" }}
+                          >
+                            ({entry.context})
+                          </span>
+                        )}
+                        {entry.rename && (
+                          <span
+                            className="truncate"
+                            style={{ color: "var(--text-secondary)" }}
+                          >
+                            {entry.rename.from} → {entry.rename.to}
+                          </span>
+                        )}
+                        {entry.delta && (
+                          <span
+                            className="shrink-0"
+                            style={{ color: "var(--text-secondary)" }}
+                          >
+                            {formatDelta(entry.delta)}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Footer */}
           <div
             className="flex items-center justify-between border-t px-3 py-2 text-[10px]"
@@ -352,7 +622,7 @@ export function SnapshotHistoryModal() {
               color: "var(--text-faint)",
             }}
           >
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <span>
                 <kbd
                   className="rounded border px-1 py-0.5"
@@ -369,8 +639,28 @@ export function SnapshotHistoryModal() {
                 >
                   ↑↓
                 </kbd>
-                <span className="ml-1">navigate</span>
+                <span className="ml-1">to</span>
               </span>
+              <span>
+                <kbd
+                  className="rounded border px-1 py-0.5"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  D
+                </kbd>
+                <span className="ml-1">{diffMode ? "exit diff" : "diff"}</span>
+              </span>
+              {diffMode && (
+                <span>
+                  <kbd
+                    className="rounded border px-1 py-0.5"
+                    style={{ borderColor: "var(--border)" }}
+                  >
+                    ⇧↑↓
+                  </kbd>
+                  <span className="ml-1">from</span>
+                </span>
+              )}
             </div>
             <span className="hidden sm:inline">
               {entries.length}{" "}
