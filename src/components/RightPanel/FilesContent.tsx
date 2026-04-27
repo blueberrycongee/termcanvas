@@ -140,19 +140,6 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
 
   const modelRef = useRef<ReturnType<typeof useFileTree>["model"] | null>(null);
 
-  const handleSelectionChange = useCallback(
-    (selectedPaths: readonly string[]) => {
-      const wtp = worktreePathRef.current;
-      if (!wtp || selectedPaths.length !== 1) return;
-      const relPath = selectedPaths[0];
-      const item = modelRef.current?.getItem(relPath);
-      if (item && !item.isDirectory()) {
-        onFileClickRef.current(`${wtp}/${relPath}`);
-      }
-    },
-    [],
-  );
-
   // Independent open-file marker driven by `fileEditorPath` (not by selection).
   // Returns a small bullet decoration on the row currently open in the file
   // editor; selection state is unaffected by clicks elsewhere in the tree.
@@ -171,7 +158,6 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
     paths: [],
     initialExpansion: "closed",
     search: true,
-    onSelectionChange: handleSelectionChange,
     renderRowDecoration,
     renaming: {
       onRename: handleRename,
@@ -217,13 +203,19 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
 
       const isRoot = !item.path || item.path === "." || item.path === "";
       const isDir = item.kind === "directory";
+      // The library uses canonical paths with a trailing slash for
+      // directories ("src/"), but file paths without ("src/foo.ts"). Strip
+      // the slash so we can build absolute paths and child relpaths without
+      // doubling up.
+      const stripSlash = (p: string) => (p.endsWith("/") ? p.slice(0, -1) : p);
+      const itemRelPath = stripSlash(item.path);
       const targetDir = isDir
-        ? item.path
-        : item.path.split("/").slice(0, -1).join("/");
+        ? itemRelPath
+        : itemRelPath.split("/").slice(0, -1).join("/");
       const name = item.name;
 
       const startCreate = (type: "file" | "folder") => {
-        context.close();
+        context.close({ restoreFocus: false });
         const tempName = `${NEW_ENTRY_PREFIX}${Date.now()}`;
         const tempRelPath = targetDir ? `${targetDir}/${tempName}` : tempName;
         pendingCreates.current.set(tempRelPath, type);
@@ -248,7 +240,7 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
           {
             label: t.ctx_rename,
             onClick: () => {
-              context.close();
+              context.close({ restoreFocus: false });
               model.startRenaming(item.path);
             },
           },
@@ -259,7 +251,7 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
               context.close();
               if (!window.confirm(t.ctx_confirm_delete(name))) return;
               window.termcanvas.fs
-                .delete(`${wtp}/${item.path}`)
+                .delete(`${wtp}/${itemRelPath}`)
                 .then(() => refreshRef.current())
                 .catch((err) => notify("error", `Delete failed: ${err}`));
             },
@@ -273,7 +265,7 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
           label: t.ctx_copy_path,
           onClick: () => {
             context.close();
-            navigator.clipboard.writeText(item.path ? `${wtp}/${item.path}` : wtp);
+            navigator.clipboard.writeText(itemRelPath ? `${wtp}/${itemRelPath}` : wtp);
           },
         },
         {
@@ -281,7 +273,7 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
           onClick: () => {
             context.close();
             window.termcanvas.fs.reveal(
-              item.path ? `${wtp}/${item.path}` : wtp,
+              itemRelPath ? `${wtp}/${itemRelPath}` : wtp,
             );
           },
         },
@@ -343,42 +335,62 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
     [worktreePath, isOsDrag, refresh, notify],
   );
 
-  // Container ref for capturing native dragstart events that bubble out of
-  // the @pierre/trees shadow DOM. The library sets `text/plain` to the row's
-  // relative path; in bubble phase we override with absolute paths and add
-  // our own `application/x-termcanvas-file` payload so terminal cards can
-  // accept the drop. When the dragged row is part of the model's selection,
-  // we serialize the entire selection (newline-separated) — matching the
-  // library's own multi-select drag semantics.
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Walks composedPath looking for the row identifier emitted by the
+  // @pierre/trees library. Events bubble out of the open shadow DOM and get
+  // retargeted to the host, so we have to consult the composed path rather
+  // than `event.target`. Returns the row's relative path and whether it is a
+  // file or folder (or null if the event did not originate from a row).
+  const findRowFromEvent = (
+    e: Event,
+  ): { path: string; type: "file" | "folder" } | null => {
+    for (const node of e.composedPath()) {
+      if (!(node instanceof HTMLElement)) continue;
+      const itemPath = node.getAttribute("data-item-path");
+      if (itemPath == null) continue;
+      const itemType = node.getAttribute("data-item-type");
+      const stripped = itemPath.endsWith("/")
+        ? itemPath.slice(0, -1)
+        : itemPath;
+      return {
+        path: stripped,
+        type: itemType === "folder" ? "folder" : "file",
+      };
+    }
+    return null;
+  };
+
+  // State-based ref so effects re-run when the container element actually
+  // mounts. A plain useRef would only fire once on the first commit (which
+  // happens during the loading-skeleton render where the container does not
+  // exist yet) and never re-attach when the file tree finally renders.
+  const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
+
+  // Capture native dragstart events that bubble out of the @pierre/trees
+  // shadow DOM. The library sets `text/plain` to the row's relative path; in
+  // bubble phase we override with absolute paths and add our own
+  // `application/x-termcanvas-file` payload so terminal cards can accept the
+  // drop. When the dragged row is part of the model's selection, we serialize
+  // the entire selection (newline-separated) — matching the library's own
+  // multi-select drag semantics.
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+    if (!containerEl) return;
     const handler = (e: DragEvent) => {
       const wtp = worktreePathRef.current;
       const m = modelRef.current;
       if (!wtp || !e.dataTransfer || !m) return;
 
-      // Find the dragged row's path from composedPath (events bubble out of
-      // the shadow DOM but their target is retargeted to the host).
-      let originPath: string | null = null;
-      for (const node of e.composedPath()) {
-        if (!(node instanceof HTMLElement)) continue;
-        const itemPath = node.getAttribute("data-item-path");
-        if (itemPath != null) {
-          originPath = itemPath;
-          break;
-        }
-      }
-      if (originPath == null) return;
+      const origin = findRowFromEvent(e);
+      if (origin == null) return;
 
-      // If the drag origin is part of the current selection, drag the whole
-      // selection set; otherwise drag just the origin row. This mirrors the
-      // library's own resolveDraggedPathsForStart logic.
-      const selected = m.getSelectedPaths();
-      const draggedRelPaths = selected.includes(originPath)
-        ? Array.from(selected)
-        : [originPath];
+      // The library populates dataTransfer with the canonical row path, which
+      // includes a trailing slash for folders. Our model selection paths use
+      // the same convention. Strip the slash so the receiving terminal sees a
+      // clean absolute path.
+      const stripSlash = (p: string) => (p.endsWith("/") ? p.slice(0, -1) : p);
+      const selected = m.getSelectedPaths().map(stripSlash);
+      const draggedRelPaths = selected.includes(origin.path)
+        ? selected
+        : [origin.path];
       const absPaths = draggedRelPaths.map((p) => `${wtp}/${p}`);
       const serialized = absPaths.join("\n");
 
@@ -388,9 +400,83 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
         e.dataTransfer.effectAllowed = "copy";
       } catch {}
     };
-    el.addEventListener("dragstart", handler);
-    return () => el.removeEventListener("dragstart", handler);
-  }, []);
+    containerEl.addEventListener("dragstart", handler);
+    return () => containerEl.removeEventListener("dragstart", handler);
+  }, [containerEl]);
+
+  // Open files on click. We listen for native click events on the container
+  // (rather than wiring `onSelectionChange`) so that selection updates from
+  // drag-start, keyboard navigation, or programmatic API calls do not
+  // accidentally open files in the editor.
+  useEffect(() => {
+    if (!containerEl) return;
+    const handler = (e: MouseEvent) => {
+      const wtp = worktreePathRef.current;
+      if (!wtp) return;
+      const origin = findRowFromEvent(e);
+      if (origin == null || origin.type !== "file") return;
+      onFileClickRef.current(`${wtp}/${origin.path}`);
+    };
+    containerEl.addEventListener("click", handler);
+    return () => containerEl.removeEventListener("click", handler);
+  }, [containerEl]);
+
+  // Right-click on the empty area of the file tree should still offer the
+  // "New File / New Folder / Reveal" menu rooted at the worktree, matching
+  // the pre-@pierre/trees behavior. Row right-clicks are handled inside the
+  // library and call `event.preventDefault()`, so we only act when the event
+  // is still default-allowed by the time it reaches us. We also leave native
+  // text inputs alone so the search box keeps its OS clipboard menu.
+  const [rootCtxMenu, setRootCtxMenu] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  useEffect(() => {
+    if (!containerEl) return;
+    const handler = (e: MouseEvent) => {
+      if (e.defaultPrevented) return;
+      for (const node of e.composedPath()) {
+        if (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement) {
+          return;
+        }
+      }
+      e.preventDefault();
+      setRootCtxMenu({ x: e.clientX, y: e.clientY });
+    };
+    containerEl.addEventListener("contextmenu", handler);
+    return () => containerEl.removeEventListener("contextmenu", handler);
+  }, [containerEl]);
+
+  const buildRootMenuItems = useCallback((): MenuItem[] => {
+    const wtp = worktreePathRef.current;
+    if (!wtp) return [];
+    const startCreate = (type: "file" | "folder") => {
+      setRootCtxMenu(null);
+      const tempName = `${NEW_ENTRY_PREFIX}${Date.now()}`;
+      pendingCreates.current.set(tempName, type);
+      model.add(tempName);
+      model.startRenaming(tempName, { removeIfCanceled: true });
+    };
+    return [
+      { label: t.ctx_new_file, onClick: () => startCreate("file") },
+      { label: t.ctx_new_folder, onClick: () => startCreate("folder") },
+      { type: "separator" },
+      {
+        label: t.ctx_copy_path,
+        onClick: () => {
+          setRootCtxMenu(null);
+          navigator.clipboard.writeText(wtp);
+        },
+      },
+      {
+        label: t.ctx_reveal(window.termcanvas?.app.platform ?? "darwin"),
+        onClick: () => {
+          setRootCtxMenu(null);
+          window.termcanvas.fs.reveal(wtp);
+        },
+      },
+    ];
+  }, [model, t]);
 
   if (!worktreePath) {
     return (
@@ -410,7 +496,7 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
 
   return (
     <div
-      ref={containerRef}
+      ref={setContainerEl}
       className={`flex-1 min-h-0 flex flex-col ${isDragOver ? "ring-1 ring-[var(--accent)]" : ""}`}
       onDragOver={(e) => {
         if (!isOsDrag(e)) return;
@@ -451,6 +537,16 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
           ["--trees-theme-git-ignored-fg" as string]: "var(--text-faint)",
         } as React.CSSProperties}
       />
+      {rootCtxMenu &&
+        createPortal(
+          <ContextMenu
+            x={rootCtxMenu.x}
+            y={rootCtxMenu.y}
+            items={buildRootMenuItems()}
+            onClose={() => setRootCtxMenu(null)}
+          />,
+          document.body,
+        )}
     </div>
   );
 }
