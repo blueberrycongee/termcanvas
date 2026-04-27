@@ -86,34 +86,29 @@ Double-click a terminal title bar to zoom-to-fit. Drag to reorder. Box-select mu
 
 First-class support for **Claude Code**, **Codex**, **Kimi**, **Gemini**, and **OpenCode**.
 
-- **Live status at a glance** — coloured status dot on every tile tells you whether an agent is thinking, awaiting input, idle, or has just finished
-- **Event-driven status** — Claude Code and Codex stream `awaiting_input`, tool activity, and turn state via lifecycle hooks, so transitions land in-frame instead of on a polling delay
-- **Session resume** — close and reopen an agent terminal without losing context
-- **Inline diff cards** — review an agent's changes without leaving the canvas
-
-### Pet
-
-A desktop capybara (opt-in) that tracks your agents via telemetry and reacts: working, waiting, stuck, stall, completed, spa. Same telemetry that drives the status dots, so the pet is as accurate as the badges. Walk dust, heart particles, ground shadow, and a handful of idle emotes for a bit of companion texture during long runs.
+- **Glance at any tile to know what it's doing** — a coloured status dot tells you whether the agent is thinking, awaiting input, idle, or done
+- **Pick up where you left off** — close and reopen an agent terminal without losing the conversation
+- **Review changes in place** — inline diff cards let you read an agent's edits without leaving the canvas
 
 ### Sessions Panel
 
-Session panel renders as a tree: projects → worktrees → agent sessions. Collapse / expand whole projects, jump to a running session's terminal, inspect session metadata, resume by click. Git status badges on worktrees reflect the live file-tree state.
+Every past Claude / Codex conversation in your projects, organised as projects → worktrees → sessions. Click any row to replay it, or jump straight to the running terminal. Worktrees show their live git status so you can tell at a glance what's clean.
 
 ### Git
 
-Built-in Git panel in the left sidebar — commit history, diff viewer, and git status at a glance without leaving the canvas.
+Commit history, diff viewer, and live git status — built into the sidebar so you never need to leave the canvas to check what changed.
 
 ### Terminals
 
-Shell, lazygit, and tmux terminals live alongside AI agents on the same canvas. Star important terminals (<kbd>⌘</kbd><kbd>F</kbd>) and cycle through just the starred set with <kbd>⌘</kbd><kbd>]</kbd> / <kbd>⌘</kbd><kbd>[</kbd> (use <kbd>⌘</kbd><kbd>G</kbd> to switch between cycling all terminals, just starred ones, or whole worktrees). Customizable titles, per-agent CLI override. New terminals pick up your sticky preferred size — the first manual resize is learned and used for every subsequent "+ Terminal" click, independent of sidebar state.
+Shell, lazygit, and tmux terminals live alongside AI agents on the same canvas. Star the ones you keep coming back to (<kbd>⌘</kbd><kbd>F</kbd>) and cycle through just those with <kbd>⌘</kbd><kbd>]</kbd> / <kbd>⌘</kbd><kbd>[</kbd> — use <kbd>⌘</kbd><kbd>G</kbd> to choose whether you're cycling all terminals, just starred, or whole worktrees. Custom titles, per-agent CLI override, and your preferred terminal size is remembered after the first manual resize.
 
 ### Usage Tracking
 
-Token usage and cost dashboard — total spend, per-project and per-model breakdown. Hourly token heatmap, 24-hour cost sparkline, cache hit/miss stats. Quota monitor for 5-hour and 7-day rate limits. Sign in to sync usage across devices.
+Track how much you're spending on Claude and Codex — across all projects, broken down by model, with quota meters for the 5-hour and 7-day rate limits. Sign in to keep usage in sync across devices.
 
 ### Settings
 
-6 downloadable monospace fonts · dark/light theme · customizable keyboard shortcuts · minimum contrast ratio for accessibility · English and Chinese (auto-detected) · auto-update with in-app changelog.
+Downloadable monospace fonts · dark / light theme · rebindable keyboard shortcuts · adjustable contrast for accessibility · English and Chinese · in-app auto-update.
 
 ---
 
