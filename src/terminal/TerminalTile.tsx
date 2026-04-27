@@ -594,12 +594,33 @@ export function TerminalTile({
   }, [startCustomTitleEdit, terminal.id]);
 
   useEffect(() => {
-    if (!containerEl || lodMode !== "live") return;
+    if (!containerEl) {
+      // eslint-disable-next-line no-console
+      console.log("[xterm-zoom-fix] skip: no containerEl");
+      return;
+    }
+    if (lodMode !== "live") {
+      // eslint-disable-next-line no-console
+      console.log("[xterm-zoom-fix] skip: lodMode =", lodMode);
+      return;
+    }
+
+    // eslint-disable-next-line no-console
+    console.log("[xterm-zoom-fix] listener attached for", terminal.id);
 
     const corrected = new WeakSet<Event>();
 
     const fix = (e: MouseEvent) => {
       if (corrected.has(e)) return;
+      if (e.type === "mousedown") {
+        // eslint-disable-next-line no-console
+        console.log("[xterm-zoom-fix] mousedown reached fix", {
+          target:
+            e.target instanceof Element
+              ? e.target.tagName.toLowerCase()
+              : null,
+        });
+      }
 
       // While the user is actively panning the canvas with the hand tool,
       // skip all xterm mouse-event correction. The pointer is dragging the
