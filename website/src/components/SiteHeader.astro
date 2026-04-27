@@ -10,8 +10,8 @@ const path = Astro.url.pathname;
 
 <header class="site-header">
   <div class="container-page flex h-14 items-center justify-between">
-    <a href="/" class="brand">
-      <span class="brand-mark">▣</span>
+    <a href="/" class="brand" aria-label="TermCanvas 首页">
+      <img class="brand-logo" src="/logo.svg" alt="" width="28" height="28" />
       <span class="brand-name">TermCanvas</span>
     </a>
     <nav class="flex items-center gap-1">
@@ -49,10 +49,10 @@ const path = Astro.url.pathname;
     align-items: center;
     gap: 0.5rem;
   }
-  .brand-mark {
-    color: var(--color-accent);
-    font-size: 1.25rem;
-    line-height: 1;
+  .brand-logo {
+    width: 1.5rem;
+    height: 1.5rem;
+    display: block;
   }
   .brand-name {
     font-weight: 600;

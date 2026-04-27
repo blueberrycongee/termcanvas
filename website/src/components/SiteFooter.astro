@@ -7,7 +7,7 @@ const year = new Date().getFullYear();
     <div class="grid gap-8 md:grid-cols-3">
       <div>
         <div class="brand-row">
-          <span class="brand-mark">▣</span>
+          <img class="brand-logo" src="/logo.svg" alt="" width="24" height="24" />
           <span class="brand-name">TermCanvas</span>
         </div>
         <p class="muted mt-2">把所有终端铺到一张无限画布上。</p>
@@ -58,9 +58,10 @@ const year = new Date().getFullYear();
     gap: 0.5rem;
     font-weight: 600;
   }
-  .brand-mark {
-    color: var(--color-accent);
-    font-size: 1.1rem;
+  .brand-logo {
+    width: 1.25rem;
+    height: 1.25rem;
+    display: block;
   }
   .muted {
     color: var(--color-ink-muted);
