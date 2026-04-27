@@ -37,8 +37,10 @@ import { markdownClassName, renderMarkdown } from "../utils/markdownClass";
  *     expanded detail.
  *
  *   Layer 3 — Playback footer.
- *     Thin progress bar + compact play/pause/seek + speed + show-
- *     details toggle. Demoted from "primary UI" to "occasional tool".
+ *     Compact play/pause/seek + speed + show-details toggle. Demoted
+ *     from "primary UI" to "occasional tool". The progress bar was
+ *     removed because the conversation is read-first; users scrub via
+ *     the highlighted row, not a slider.
  *
  * The existing currentIndex / isPlaying / seekTo state machine is
  * preserved — this is a presentational rewrite, not a state model
@@ -435,6 +437,80 @@ function railColor(isCurrent: boolean): string {
   return isCurrent ? "var(--accent)" : "transparent";
 }
 
+/** Muted copy button. Click writes `text` to the clipboard and the
+ *  icon swaps to a check for ~1.2s. Same hover-brighten treatment as
+ *  the fork affordance; never opacity-gated. Caller renders it inside
+ *  whatever flex/absolute container the row needs. */
+function CopyMessageButton({
+  text,
+  label,
+}: {
+  text: string;
+  label: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        if (!text) return;
+        void navigator.clipboard
+          .writeText(text)
+          .then(() => {
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1200);
+          })
+          .catch(() => {});
+      }}
+      title={label}
+      aria-label={label}
+      className="cursor-pointer p-0.5 transition-colors"
+      style={{ color: copied ? "var(--accent)" : "var(--text-muted)" }}
+      onMouseEnter={(e) => {
+        if (copied) return;
+        (e.currentTarget as HTMLButtonElement).style.color =
+          "var(--text-primary)";
+      }}
+      onMouseLeave={(e) => {
+        if (copied) return;
+        (e.currentTarget as HTMLButtonElement).style.color =
+          "var(--text-muted)";
+      }}
+    >
+      {copied ? (
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+          <path
+            d="M3 7.5L6 10.5L11.5 4"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      ) : (
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+          <rect
+            x="4"
+            y="4"
+            width="7"
+            height="8"
+            rx="1.2"
+            stroke="currentColor"
+            strokeWidth="1.3"
+          />
+          <path
+            d="M2.5 9.5V3.2C2.5 2.5 3 2 3.7 2H8.5"
+            stroke="currentColor"
+            strokeWidth="1.3"
+            strokeLinecap="round"
+          />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 function UserPrompt({
   event,
   isCurrent,
@@ -489,15 +565,18 @@ function UserPrompt({
             dangerouslySetInnerHTML={{ __html: renderMarkdown(event.textPreview) }}
           />
         </button>
-        <span
-          className="mt-1 tc-mono tabular-nums"
-          style={{
-            fontSize: "var(--text-tiny)",
-            color: "var(--text-faint)",
-          }}
-        >
-          {formatTimestamp(event.timestamp)}
-        </span>
+        <div className="mt-1 flex items-center gap-1.5">
+          <CopyMessageButton text={event.textPreview} label="Copy prompt" />
+          <span
+            className="tc-mono tabular-nums"
+            style={{
+              fontSize: "var(--text-tiny)",
+              color: "var(--text-faint)",
+            }}
+          >
+            {formatTimestamp(event.timestamp)}
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -542,43 +621,45 @@ function AssistantTextRow({
           />
         </div>
       </button>
-      {onFork && (
-        <div className="group/fork absolute right-3 bottom-1">
-          <button
-            type="button"
-            onClick={(e) => e.stopPropagation()}
-            title={forkLabel ?? "Fork from here"}
-            aria-label={forkLabel ?? "Fork from here"}
-            className="cursor-pointer p-0.5 transition-colors"
-            style={{ color: "var(--text-muted)" }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color =
-                "var(--text-primary)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color =
-                "var(--text-muted)";
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-              <path
-                d="M4 12V8.5C4 7.4 4.9 6.5 6 6.5H8C9.1 6.5 10 5.6 10 4.5V2"
-                stroke="currentColor"
-                strokeWidth="1.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M4 12V2"
-                stroke="currentColor"
-                strokeWidth="1.4"
-                strokeLinecap="round"
-              />
-              <circle cx="4" cy="13" r="0.9" fill="currentColor" />
-              <circle cx="4" cy="2" r="0.9" fill="currentColor" />
-              <circle cx="10" cy="2" r="0.9" fill="currentColor" />
-            </svg>
-          </button>
+      <div className="absolute right-3 bottom-1 flex items-center gap-1">
+        <CopyMessageButton text={event.textPreview} label="Copy reply" />
+        {onFork && (
+          <div className="group/fork relative">
+            <button
+              type="button"
+              onClick={(e) => e.stopPropagation()}
+              title={forkLabel ?? "Fork from here"}
+              aria-label={forkLabel ?? "Fork from here"}
+              className="cursor-pointer p-0.5 transition-colors"
+              style={{ color: "var(--text-muted)" }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.color =
+                  "var(--text-primary)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.color =
+                  "var(--text-muted)";
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+                <path
+                  d="M4 12V8.5C4 7.4 4.9 6.5 6 6.5H8C9.1 6.5 10 5.6 10 4.5V2"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M4 12V2"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                />
+                <circle cx="4" cy="13" r="0.9" fill="currentColor" />
+                <circle cx="4" cy="2" r="0.9" fill="currentColor" />
+                <circle cx="10" cy="2" r="0.9" fill="currentColor" />
+              </svg>
+            </button>
           {/* Outer wrapper has pt-1 so the 4px visual gap between the
               icon and the menu sits INSIDE the hover-tracked element.
               Without this, the cursor crossing the gap leaves the
@@ -641,6 +722,7 @@ function AssistantTextRow({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -1278,16 +1360,6 @@ export function SessionReplayView() {
     return () => clearTimeout(timer);
   }, [isPlaying, currentIndex, speed, timeline, stepForward, stopPlayback]);
 
-  const handleProgressClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!timeline) return;
-      const rect = e.currentTarget.getBoundingClientRect();
-      const fraction = (e.clientX - rect.left) / rect.width;
-      seekTo(Math.round(fraction * (timeline.events.length - 1)));
-    },
-    [timeline, seekTo],
-  );
-
   const turns = useMemo(() => (timeline ? buildTurns(timeline.events) : []), [timeline]);
 
   // Per-turn user-prompt index, parallel to `turns`. The fork backend
@@ -1338,8 +1410,6 @@ export function SessionReplayView() {
   const providerType = providerFromFilePath(timeline.filePath);
   const provider = providerType ?? "agent";
   const age = formatRelativeAge(timeline.startedAt || timeline.endedAt || "");
-  const progress =
-    timeline.events.length > 1 ? currentIndex / (timeline.events.length - 1) : 0;
   const resumeCommand = buildResumeCommand(providerType, timeline.sessionId);
 
   const handleCopyResume = () => {
@@ -1586,16 +1656,6 @@ export function SessionReplayView() {
 
       {/* ------------ Layer-3: compact footer --------------------- */}
       <div className="shrink-0 border-t border-[var(--border)] px-3 py-1.5">
-        <div
-          className="h-1 bg-[var(--border)] rounded-full mb-1.5 cursor-pointer"
-          onClick={handleProgressClick}
-        >
-          <div
-            className="h-full bg-[var(--accent)] rounded-full transition-[width] duration-75"
-            style={{ width: `${progress * 100}%` }}
-          />
-        </div>
-
         <div className="flex items-center gap-1">
           <button
             className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
