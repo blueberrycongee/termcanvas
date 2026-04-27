@@ -967,7 +967,7 @@ export function SettingsModal({ onClose }: Props) {
     >
       <div
         ref={shellRef}
-        className="tc-enter-fade-up flex max-h-[85vh] w-full max-w-3xl mx-4 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-2xl"
+        className="tc-enter-fade-up flex h-[85vh] w-full max-w-3xl mx-4 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-2xl"
         style={{ minHeight: 540 }}
       >
         {/* Header — settings title plus the discoverability cue: ⌘,
