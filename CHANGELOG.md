@@ -2,6 +2,19 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.38.3] - 2026-04-27
+
+### Fixed
+- **Right-click menu in file tree did nothing**: every menu action (Reveal in Finder, Rename, New File, New Folder, Delete, Copy Path) opened the menu but the click never ran. The `@pierre/trees` library has a document-level `mousedown` capture handler that closes the menu when the click target isn't inside the file-tree host or a container the library recognizes. Our menu portals to `document.body` for styling reasons (Tailwind doesn't reach into the shadow DOM), so the library treated every menu click as outside-the-menu — mousedown closed it, the menu unmounted, and the button's click never fired. Fixed by wrapping the portaled menu in a div carrying `data-file-tree-context-menu-root="true"`, the marker the library's `isEventInContextMenu` check looks for.
+- **Drag-from-file-tree-to-terminal**: the @pierre/trees migration left the `dragstart` listener on a `useRef`-based container that was null on the first commit (loading skeleton). The effect ran once with a null ref, bailed, and never re-attached when the tree finally mounted. Switched to a state-based ref so the effect re-runs when the container actually appears, restoring file-to-terminal drag.
+- **Clicking the file tree could open files mid-drag**: opening files via the library's `onSelectionChange` meant drag-start (which auto-selects), keyboard navigation, and programmatic API calls all triggered the editor. Replaced with a dedicated click listener on the container scoped to `data-item-type="file"`.
+- **"New File" / "New Folder" inside a directory created the wrong path**: the library uses canonical paths with a trailing slash for folders (`src/`), so the temp path was `src//__pierre_new_…` and downstream `fs.mkdir` / `fs.createFile` saw an invalid relative path. Strip the trailing slash before building child paths. Same fix flowed into Delete / Copy Path / Reveal so they no longer paste paths with a stray slash.
+- **Rename input fought the row button for focus**: `context.close()` defaults to `restoreFocus: true`, which synchronously focuses the row button right before `startRenaming` mounts the input. Pass `{ restoreFocus: false }` for the rename and create paths.
+- **Empty-area right-click had no menu**: the hand-rolled tree showed New File / Folder / Reveal / Copy Path on right-click below the rows; the library only handles row right-clicks, so the menu disappeared after the rewrite. Restored a worktree-rooted menu when contextmenu reaches the container with `defaultPrevented` still false. Skips text inputs so the search box keeps its OS clipboard menu.
+
+### Docs
+- **README hero**: swapped the single dark mock for two new screenshots — the wide multi-terminal canvas and the Hub knowledge-graph view. Same change in the Chinese README.
+
 ## [0.38.2] - 2026-04-27
 
 ### Added
