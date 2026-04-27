@@ -19,6 +19,7 @@ import {
 import { useStatusDigestStore } from "../stores/statusDigestStore";
 import { useCommandPaletteStore } from "../stores/commandPaletteStore";
 import { useTerminalRuntimeStateStore } from "../stores/terminalRuntimeStateStore";
+import { useT } from "../i18n/useT";
 import {
   ACTIVITY_WINDOW_MS,
   getActivityBuckets,
@@ -70,17 +71,21 @@ interface SummaryCounts {
   lastActivityAt: number | null;
 }
 
-function formatRelativeTime(now: number, ts: number): string {
+function formatRelativeTime(
+  t: ReturnType<typeof useT>,
+  now: number,
+  ts: number,
+): string {
   const elapsed = Math.max(0, now - ts);
-  if (elapsed < 5_000) return "just now";
+  if (elapsed < 5_000) return t["hub.time.justNow"];
   const seconds = Math.round(elapsed / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 60) return t["hub.time.secondsAgo"](seconds);
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return t["hub.time.minutesAgo"](minutes);
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t["hub.time.hoursAgo"](hours);
   const days = Math.round(hours / 24);
-  return `${days}d ago`;
+  return t["hub.time.daysAgo"](days);
 }
 
 function buildResolvedTerminalIndex(
@@ -128,17 +133,27 @@ function summarizeTerminals(
   };
 }
 
-const STATUS_TONE: Record<
-  TerminalStatus,
-  { label: string; color: string; pulse: boolean }
-> = {
-  running: { label: "Running", color: "var(--accent)", pulse: true },
-  active: { label: "Active", color: "var(--accent)", pulse: true },
-  waiting: { label: "Waiting", color: "var(--amber)", pulse: false },
-  completed: { label: "Replied", color: "var(--cyan)", pulse: false },
-  success: { label: "Done", color: "var(--green)", pulse: false },
-  error: { label: "Error", color: "var(--red)", pulse: false },
-  idle: { label: "Idle", color: "var(--text-muted)", pulse: false },
+interface StatusTone {
+  labelKey:
+    | "hub.status.running"
+    | "hub.status.active"
+    | "hub.status.waiting"
+    | "hub.status.completed"
+    | "hub.status.success"
+    | "hub.status.error"
+    | "hub.status.idle";
+  color: string;
+  pulse: boolean;
+}
+
+const STATUS_TONE: Record<TerminalStatus, StatusTone> = {
+  running: { labelKey: "hub.status.running", color: "var(--accent)", pulse: true },
+  active: { labelKey: "hub.status.active", color: "var(--accent)", pulse: true },
+  waiting: { labelKey: "hub.status.waiting", color: "var(--amber)", pulse: false },
+  completed: { labelKey: "hub.status.completed", color: "var(--cyan)", pulse: false },
+  success: { labelKey: "hub.status.success", color: "var(--green)", pulse: false },
+  error: { labelKey: "hub.status.error", color: "var(--red)", pulse: false },
+  idle: { labelKey: "hub.status.idle", color: "var(--text-muted)", pulse: false },
 };
 
 const TYPE_GLYPH_LETTER: Record<TerminalType, string> = {
@@ -205,11 +220,11 @@ interface CapabilityHint {
   isUsed: () => boolean;
 }
 
-function buildCapabilityHints(): CapabilityHint[] {
+function buildCapabilityHints(t: ReturnType<typeof useT>): CapabilityHint[] {
   return [
     {
       id: "hub.cap.activityHeatmap",
-      label: "Reveal output rhythm per tile",
+      label: t["hub.cap.activityHeatmap"],
       shortcutKey: "toggleActivityHeatmap",
       perform: () => {
         usePreferencesStore.getState().setActivityHeatmapEnabled(true);
@@ -220,7 +235,7 @@ function buildCapabilityHints(): CapabilityHint[] {
     },
     {
       id: "hub.cap.statusDigest",
-      label: "Summarise the canvas at a glance",
+      label: t["hub.cap.statusDigest"],
       shortcutLiteral: "⌘⇧/",
       perform: () => {
         useStatusDigestStore.getState().openDigest();
@@ -232,7 +247,7 @@ function buildCapabilityHints(): CapabilityHint[] {
     },
     {
       id: "hub.cap.waypoints",
-      label: "Save a viewport with a waypoint",
+      label: t["hub.cap.waypoints"],
       shortcutLiteral: "⌘⇧1…9",
       perform: () => {
         // No bound action — saving requires a viewport context the user
@@ -254,7 +269,7 @@ function buildCapabilityHints(): CapabilityHint[] {
     },
     {
       id: "hub.cap.commandPalette",
-      label: "Run anything from the palette",
+      label: t["hub.cap.commandPalette"],
       shortcutKey: "commandPalette",
       perform: () => {
         useCommandPaletteStore.getState().openPalette();
@@ -375,6 +390,7 @@ function SectionShell({
 }
 
 export function Hub() {
+  const t = useT();
   const open = useHubStore((s) => s.open);
   const closeHub = useHubStore((s) => s.closeHub);
 
@@ -522,8 +538,8 @@ export function Hub() {
     void seenHints;
     void activityHeatmapEnabled;
     void projects;
-    return buildCapabilityHints().filter((hint) => !hint.isUsed());
-  }, [seenHints, activityHeatmapEnabled, projects]);
+    return buildCapabilityHints(t).filter((hint) => !hint.isUsed());
+  }, [seenHints, activityHeatmapEnabled, projects, t]);
 
   const handleNavigateToTerminal = useCallback(
     (terminalId: string) => {
@@ -542,14 +558,14 @@ export function Hub() {
   );
 
   const lastActivityLabel = summary.lastActivityAt
-    ? formatRelativeTime(wallTick, summary.lastActivityAt)
+    ? formatRelativeTime(t, wallTick, summary.lastActivityAt)
     : null;
 
   return (
     <div
       ref={containerRef}
       role="complementary"
-      aria-label="Hub command center"
+      aria-label={`${t["hub.title"]} ${t["hub.subtitle"]}`}
       aria-hidden={!open}
       className="fixed right-0 z-[60] flex flex-col"
       style={{
@@ -578,14 +594,14 @@ export function Hub() {
               letterSpacing: "var(--tracking-title)",
             }}
           >
-            Hub
+            {t["hub.title"]}
           </span>
-          <span className="tc-eyebrow">Command Center</span>
+          <span className="tc-eyebrow">{t["hub.subtitle"]}</span>
         </div>
         <button
           type="button"
           onClick={closeHub}
-          aria-label="Close Hub"
+          aria-label={t["hub.close"]}
           className="tc-row-icon inline-flex h-6 w-6 items-center justify-center rounded text-[var(--text-faint)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)]"
         >
           <CloseIcon />
@@ -596,7 +612,7 @@ export function Hub() {
         {/* Active strip — Tier 1 of the visual hierarchy. Bold count,
             quieter context, single line. */}
         <section className="px-4 pt-4 pb-4">
-          <div className="tc-eyebrow mb-2">Active</div>
+          <div className="tc-eyebrow mb-2">{t["hub.section.active"]}</div>
           <div className="flex items-baseline gap-2">
             <span
               className="tc-stat-lg"
@@ -610,13 +626,13 @@ export function Hub() {
               {summary.running}
             </span>
             <span className="tc-ui" style={{ color: "var(--text-secondary)" }}>
-              running
+              {t["hub.active.running"]}
             </span>
             <span
               className="tc-meta ml-auto tc-mono tabular-nums"
               style={{ color: "var(--text-metadata)", letterSpacing: 0 }}
             >
-              of {summary.total} terminal{summary.total === 1 ? "" : "s"}
+              {t["hub.active.totalTerminals"](summary.total)}
             </span>
           </div>
           <div
@@ -632,8 +648,8 @@ export function Hub() {
             )}
             <span>
               {lastActivityLabel
-                ? `Last activity ${lastActivityLabel}`
-                : "Quiet — no output in the last 5 minutes"}
+                ? t["hub.active.lastActivity"](lastActivityLabel)
+                : t["hub.active.quiet"]}
             </span>
           </div>
         </section>
@@ -641,13 +657,13 @@ export function Hub() {
         <div style={{ borderTop: "1px solid var(--border)" }} />
 
         <SectionShell
-          eyebrow="Recent activity"
+          eyebrow={t["hub.section.recentActivity"]}
           trailing={
             activityRows.length > 0
-              ? `${activityRows.length} of last 5 min`
+              ? t["hub.recentActivity.trailing"](activityRows.length)
               : undefined
           }
-          empty="No PTY output in the last 5 minutes."
+          empty={t["hub.recentActivity.empty"]}
           showEmpty={activityRows.length === 0}
         >
           <ul className="-mx-1">
@@ -678,7 +694,7 @@ export function Hub() {
                           aria-hidden
                           className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${tone.pulse ? "status-pulse" : ""}`}
                           style={{ background: tone.color }}
-                          title={tone.label}
+                          title={t[tone.labelKey]}
                         />
                       </div>
                       <div
@@ -697,7 +713,7 @@ export function Hub() {
                         textAlign: "right",
                       }}
                     >
-                      {formatRelativeTime(wallTick, lastActivityAt)}
+                      {formatRelativeTime(t, wallTick, lastActivityAt)}
                     </span>
                   </button>
                 </li>
@@ -709,12 +725,12 @@ export function Hub() {
         <div style={{ borderTop: "1px solid var(--border)" }} />
 
         <SectionShell
-          eyebrow="Waypoints"
+          eyebrow={t["hub.section.waypoints"]}
           trailing={waypointSection?.projectName}
           empty={
             waypointSection
-              ? "No waypoints saved. Press ⌘⇧1…9 to save the current viewport."
-              : "Open a project to use waypoints."
+              ? t["hub.waypoints.empty"]
+              : t["hub.waypoints.noProject"]
           }
           showEmpty={!waypointSection || waypointSection.rows.length === 0}
         >
@@ -738,13 +754,15 @@ export function Hub() {
                         className="tc-ui truncate"
                         style={{ color: "var(--text-primary)" }}
                       >
-                        Waypoint {slot}
+                        {t["hub.waypoints.row"](Number(slot))}
                       </div>
                       <div
                         className="tc-meta truncate"
                         style={{ color: "var(--text-metadata)" }}
                       >
-                        Saved {formatRelativeTime(wallTick, savedAt)}
+                        {t["hub.waypoints.savedAt"](
+                          formatRelativeTime(t, wallTick, savedAt),
+                        )}
                       </div>
                     </div>
                     <kbd
@@ -767,9 +785,13 @@ export function Hub() {
         <div style={{ borderTop: "1px solid var(--border)" }} />
 
         <SectionShell
-          eyebrow="Pinned"
-          trailing={pinnedRows.length > 0 ? `${pinnedRows.length}` : undefined}
-          empty="No terminals dispatched to a pin."
+          eyebrow={t["hub.section.pinned"]}
+          trailing={
+            pinnedRows.length > 0
+              ? t["hub.pinned.count"](pinnedRows.length)
+              : undefined
+          }
+          empty={t["hub.pinned.empty"]}
           showEmpty={pinnedRows.length === 0}
         >
           <ul className="-mx-1">
@@ -804,7 +826,7 @@ export function Hub() {
                           aria-hidden
                           className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${tone.pulse ? "status-pulse" : ""}`}
                           style={{ background: tone.color }}
-                          title={tone.label}
+                          title={t[tone.labelKey]}
                         />
                       </div>
                       <div
@@ -824,7 +846,11 @@ export function Hub() {
         {capabilityRows.length > 0 && (
           <>
             <div style={{ borderTop: "1px solid var(--border)" }} />
-            <SectionShell eyebrow="Try next" empty="" showEmpty={false}>
+            <SectionShell
+              eyebrow={t["hub.section.tryNext"]}
+              empty=""
+              showEmpty={false}
+            >
               <ul className="-mx-1">
                 {capabilityRows.slice(0, 4).map((hint) => {
                   const chord = hint.shortcutKey
@@ -883,13 +909,13 @@ export function Hub() {
           {formatShortcut(shortcuts.toggleHub, isMac)}
         </span>
         <span className="tc-timestamp" style={{ color: "var(--text-faint)" }}>
-          toggle
+          {t["hub.toggle"]}
         </span>
         <span
           className="tc-timestamp ml-auto"
           style={{ color: "var(--text-faint)" }}
         >
-          Esc closes
+          {t["hub.escCloses"]}
         </span>
       </footer>
     </div>
