@@ -13,7 +13,11 @@ import type {
 
 export type { Pin, PinStatus, PinLink, CreatePinInput, UpdatePinInput };
 
-const VALID_STATUSES: ReadonlySet<PinStatus> = new Set(["open", "done", "dropped"]);
+const VALID_STATUSES: ReadonlySet<PinStatus> = new Set([
+  "open",
+  "done",
+  "dropped",
+]);
 const ID_REGEX = /^[a-z0-9][a-z0-9-]*$/;
 
 export class PinStore extends EventEmitter {
@@ -52,6 +56,9 @@ export class PinStore extends EventEmitter {
     }
     if (!input.repo?.trim()) {
       throw new PinStoreError("repo is required", 400);
+    }
+    if (input.status !== undefined && !VALID_STATUSES.has(input.status)) {
+      throw new PinStoreError(`Invalid status: ${input.status}`, 400);
     }
     const repo = path.resolve(input.repo);
     const dir = this.repoDir(repo);
@@ -157,7 +164,10 @@ export class PinStore extends EventEmitter {
         absolutePath,
       };
     }
-    throw new PinStoreError("Could not allocate unique attachment basename", 500);
+    throw new PinStoreError(
+      "Could not allocate unique attachment basename",
+      500,
+    );
   }
 
   private populateAttachmentsUrl(pin: Pin): void {
@@ -171,7 +181,11 @@ export class PinStore extends EventEmitter {
 
   private repoDir(repo: string): string {
     const resolved = path.resolve(repo);
-    const hash = crypto.createHash("sha1").update(resolved).digest("hex").slice(0, 12);
+    const hash = crypto
+      .createHash("sha1")
+      .update(resolved)
+      .digest("hex")
+      .slice(0, 12);
     return path.join(this.root, hash);
   }
 
@@ -183,11 +197,12 @@ export class PinStore extends EventEmitter {
   }
 
   private generateId(title: string, dir: string): string {
-    const slug = title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 40) || "pin";
+    const slug =
+      title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 40) || "pin";
     for (let attempt = 0; attempt < 8; attempt++) {
       const suffix = crypto.randomBytes(2).toString("hex");
       const id = `${slug}-${suffix}`;
@@ -240,7 +255,10 @@ export class PinStore extends EventEmitter {
 }
 
 export class PinStoreError extends Error {
-  constructor(message: string, public readonly status: number = 500) {
+  constructor(
+    message: string,
+    public readonly status: number = 500,
+  ) {
     super(message);
     this.name = "PinStoreError";
   }
@@ -264,7 +282,12 @@ function detectImageExtension(data: Buffer): string {
     data[3] === 0x47
   )
     return "png";
-  if (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff)
+  if (
+    data.length >= 3 &&
+    data[0] === 0xff &&
+    data[1] === 0xd8 &&
+    data[2] === 0xff
+  )
     return "jpg";
   if (
     data.length >= 6 &&

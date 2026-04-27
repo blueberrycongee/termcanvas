@@ -18,7 +18,9 @@ test("create + get round-trip preserves fields", () => {
     title: "drawer 在 resize 时抖动",
     repo,
     body: "details about the bug",
-    links: [{ type: "github_issue", url: "https://github.com/x/y/issues/1", id: "1" }],
+    links: [
+      { type: "github_issue", url: "https://github.com/x/y/issues/1", id: "1" },
+    ],
   });
 
   assert.match(created.id, /^drawer-[a-z0-9-]+$/);
@@ -47,7 +49,9 @@ test("list returns pins for a repo, sorted newest first", async () => {
 
 test("list isolates pins per repo", () => {
   const { store, repo } = freshStore();
-  const otherRepo = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-pins-repo-"));
+  const otherRepo = fs.mkdtempSync(
+    path.join(os.tmpdir(), "termcanvas-pins-repo-"),
+  );
   store.create({ title: "for repo A", repo });
   store.create({ title: "for repo B", repo: otherRepo });
   assert.equal(store.list(repo).length, 1);
@@ -76,6 +80,14 @@ test("update rejects unknown status", () => {
   const created = store.create({ title: "x", repo });
   assert.throws(
     () => store.update(repo, created.id, { status: "weird" as never }),
+    (err) => err instanceof PinStoreError && err.status === 400,
+  );
+});
+
+test("create rejects unknown status", () => {
+  const { store, repo } = freshStore();
+  assert.throws(
+    () => store.create({ title: "x", repo, status: "weird" as never }),
     (err) => err instanceof PinStoreError && err.status === 400,
   );
 });
@@ -197,12 +209,7 @@ test("saveAttachment writes file and returns relative + absolute paths", () => {
 test("remove also deletes the attachments directory", () => {
   const { store, repo } = freshStore();
   const created = store.create({ title: "to delete with attachments", repo });
-  const result = store.saveAttachment(
-    repo,
-    created.id,
-    "shot.png",
-    PNG_HEADER,
-  );
+  const result = store.saveAttachment(repo, created.id, "shot.png", PNG_HEADER);
   const dir = store.attachmentsDir(repo, created.id);
   assert.ok(fs.existsSync(dir));
   assert.ok(fs.existsSync(result.absolutePath));
