@@ -181,6 +181,11 @@ Hydra 在架构层面对此做了一个决定性的设计选择：**Terminal pro
 
 ## Hydra 的回答：Lead-driven decider 模式
 
+<figure>
+  <img src="/hydra-architecture.png" alt="Hydra 简化架构图：Lead 通过 hydra watch 获得结构化决策点，调度多个独立 worktree 中的 worker，worker 完成后通过 result.json + report.md 文件契约回到 Lead" />
+  <figcaption>Hydra 的简化结构：Lead 是 decider，worker 跑在隔离 worktree，文件契约是唯一完成证据。</figcaption>
+</figure>
+
 对比 Ralph loop，我们来看看一个经过设计的 harness 如何处理同样的问题。
 
 Hydra 不试图把整个长程任务自动化为一个无人参与的循环。它的核心抽象借自一个早就存在的工业级模式：**SWF / Temporal 的 decider 模式**。在 AWS Simple Workflow 和 Cadence / Temporal 里，长流程被切成无数个**决策点**——每当一个 worker 完成一段工作，控制权回到 decider，由 decider 根据完整历史决定下一步做什么。decider 是无状态的、确定性的、由完整事件历史驱动的。
