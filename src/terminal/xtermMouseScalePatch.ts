@@ -28,6 +28,20 @@ import type { Terminal } from "@xterm/xterm";
  * re-dispatch DOM events at all — xterm's normal listeners (mousedown on
  * `.xterm`, mousemove/mouseup on `document`) fire as usual, and the
  * correction only applies at the moment xterm asks "what column is this?".
+ *
+ * Caveats
+ * -------
+ * 1. We reach into `terminal._core._mouseService`, which is private. If a
+ *    future xterm release renames or restructures these internals the patch
+ *    becomes a no-op (defensive null-check returns the empty disposer). Bump
+ *    of `@xterm/xterm` → re-verify this path.
+ * 2. `SelectionService._getMouseEventScrollAmount` (drag-past-edge auto-scroll)
+ *    bypasses `_mouseService` and calls the lower-level `getCoordsRelativeToElement`
+ *    directly. Under zoom that threshold is computed in visual px against a
+ *    CSS-px canvas height — auto-scroll still works, just kicks in at a
+ *    slightly different drag distance. Not worth fixing unless someone reports it.
+ * 3. We add one extra `getBoundingClientRect()` per mouse event when scale ≠ 1.
+ *    Negligible; the scale === 1 shortcut keeps the common path zero-cost.
  */
 
 type MouseEventCoords = { clientX: number; clientY: number };
@@ -71,12 +85,15 @@ export function patchXtermMouseService(
   const origGetCoords = ms.getCoords.bind(ms);
   const origGetReportCoords = ms.getMouseReportCoords.bind(ms);
 
+  // getCoords drives selection: mousedown anchor, drag-extend, click/dblclick.
   ms.getCoords = (event, element, cols, rows, isSelection) => {
     const scale = getScale();
     if (scale === 1) return origGetCoords(event, element, cols, rows, isSelection);
     return origGetCoords(adjust(event, element, scale), element, cols, rows, isSelection);
   };
 
+  // getMouseReportCoords drives the escape sequences sent to mouse-aware
+  // TUIs (vim, htop, fzf). Same units mismatch, same fix.
   ms.getMouseReportCoords = (event, element) => {
     const scale = getScale();
     if (scale === 1) return origGetReportCoords(event, element);

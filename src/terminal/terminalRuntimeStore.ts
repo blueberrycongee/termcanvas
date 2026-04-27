@@ -1140,6 +1140,9 @@ function createTerminalRenderer(
     xterm.loadAddon(new ImageAddon());
   } catch {}
 
+  // Pre-scales mouse coords inside xterm's hit-test so selection/drag/mouse-
+  // report stay accurate when React Flow's viewport transform is non-identity.
+  // See xtermMouseScalePatch.ts for the why.
   runtime.globalDisposers.push(
     patchXtermMouseService(xterm, () => useCanvasStore.getState().viewport.scale),
   );
