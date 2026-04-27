@@ -168,6 +168,18 @@ contextBridge.exposeInMainWorld("termcanvas", {
         "diagnostics:get-render-log-info",
       ) as Promise<RenderDiagnosticsLogInfo>,
   },
+  lifecycle: {
+    onVisible: (
+      callback: (payload: { reason: string; timestamp: number }) => void,
+    ) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        payload: { reason: string; timestamp: number },
+      ) => callback(payload);
+      ipcRenderer.on("tc:lifecycle:visible", listener);
+      return () => ipcRenderer.removeListener("tc:lifecycle:visible", listener);
+    },
+  },
   project: {
     selectDirectory: () => ipcRenderer.invoke("project:select-directory"),
     scan: (dirPath: string) => ipcRenderer.invoke("project:scan", dirPath),

@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  crashReporter,
   ipcMain,
   dialog,
   nativeImage,
@@ -148,6 +149,7 @@ import { isSelectAllShortcutInput } from "./select-all-shortcut";
 import { isReloadShortcutInput } from "./reload-shortcut";
 import { TelemetryService } from "./telemetry-service";
 import { createRenderDiagnosticsLogger } from "./render-diagnostics";
+import { RenderThrottlingCoordinator } from "./render-throttling-coordinator";
 import { HookReceiver } from "./hook-receiver";
 import {
   findBestClaudeSession,
@@ -171,6 +173,16 @@ const isDev = !!process.env.VITE_DEV_SERVER_URL;
 if (isDev) {
   app.setPath("userData", path.join(app.getPath("appData"), "termcanvas-dev"));
 }
+
+// Capture main / renderer / GPU process crashes into local minidumps. Required
+// before any window opens so main-process crashes are still recorded. We do
+// not upload anywhere — dumps live under app.getPath('crashDumps') for users
+// (or us) to attach to bug reports manually.
+crashReporter.start({
+  productName: "TermCanvas",
+  uploadToServer: false,
+  compress: true,
+});
 
 // Custom scheme for serving pin image attachments from disk. Renderer-side
 // `<img src="tc-attachment://local/<abs-path>">` resolves through the handler
@@ -257,6 +269,7 @@ const sessionScanner = new SessionScanner();
 const renderDiagnostics = createRenderDiagnosticsLogger(
   app.getPath("userData"),
 );
+let throttlingCoordinator: RenderThrottlingCoordinator | null = null;
 let hookSocketPath: string | null = null;
 const hookReceiver = new HookReceiver((event) => {
   telemetryService.recordHookEvent(event.terminal_id, event);
@@ -389,6 +402,15 @@ function createWindow() {
     for (const dirPath of fileTreeWatcher.getWatchedDirs()) {
       sendToWindow(mainWindow, "fs:dir-changed", dirPath);
     }
+    // macOS Space switching does not reliably fire `visibilitychange` on the
+    // renderer side, so the renderer's existing recovery path can miss the
+    // return-from-Space transition entirely. Push a lifecycle ping from the
+    // main process (which is never throttled) so the renderer can repaint
+    // its terminals regardless of whether visibilitychange fired.
+    sendToWindow(mainWindow, "tc:lifecycle:visible", {
+      reason: "browser_window_focus",
+      timestamp: Date.now(),
+    });
   });
   mainWindow.on("blur", () => {
     renderDiagnostics.recordMainEvent("browser_window_blur", {
@@ -399,6 +421,10 @@ function createWindow() {
   mainWindow.on("show", () => {
     renderDiagnostics.recordMainEvent("browser_window_show", {
       window_id: windowId,
+    });
+    sendToWindow(mainWindow, "tc:lifecycle:visible", {
+      reason: "browser_window_show",
+      timestamp: Date.now(),
     });
   });
   mainWindow.on("hide", () => {
@@ -419,6 +445,25 @@ function createWindow() {
 
   createMenu(mainWindow);
   agentService.setWindow(mainWindow);
+
+  // Disable Chromium's background-occluded throttling whenever there is
+  // active work (PTY output within the last 30s). Idle stays throttled so
+  // battery isn't burned when the user genuinely switched away.
+  if (!throttlingCoordinator) {
+    throttlingCoordinator = new RenderThrottlingCoordinator({
+      target: {
+        setBackgroundThrottling: (allowed) => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.setBackgroundThrottling(allowed);
+          }
+        },
+      },
+      recordDiagnostic: (event) => {
+        renderDiagnostics.recordMainEvent(event.kind, event.data ?? {});
+      },
+    });
+    throttlingCoordinator.start();
+  }
 
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
@@ -521,6 +566,7 @@ function setupIpc() {
         ptyManager.captureOutput(ptyId, data);
         telemetryService.recordPtyOutputByPtyId(ptyId, data);
         outputBatcher.push(ptyId, data);
+        throttlingCoordinator?.markActivity("pty");
       });
       ptyManager.onExit(ptyId, (exitCode: number) => {
         dbg(

@@ -577,6 +577,11 @@ export interface TermCanvasAPI {
     recordRenderEvent: (input: RenderDiagnosticEventInput) => Promise<void>;
     getRenderLogInfo: () => Promise<RenderDiagnosticsLogInfo>;
   };
+  lifecycle: {
+    onVisible: (
+      callback: (payload: { reason: string; timestamp: number }) => void,
+    ) => () => void;
+  };
   project: {
     selectDirectory: () => Promise<string | null>;
     scan: (dirPath: string) => Promise<{

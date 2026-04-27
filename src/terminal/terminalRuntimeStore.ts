@@ -1674,6 +1674,18 @@ function installRenderRecoveryListeners() {
   window.addEventListener("focus", () => {
     refreshAllTerminalRenderers("window_focus");
   });
+
+  // macOS Space switching does not always fire `visibilitychange`, and
+  // `window.focus` only fires when the window actually gains focus. The main
+  // process pings us via IPC on `BrowserWindow.on('focus' | 'show')` as a
+  // more reliable trigger that does not depend on renderer-side throttling.
+  if (window.termcanvas?.lifecycle?.onVisible) {
+    window.termcanvas.lifecycle.onVisible((payload) => {
+      const reason = `lifecycle_ipc_${payload.reason}`;
+      refreshAllTerminalRenderers(reason);
+      rebuildTerminalAtlas(undefined, reason);
+    });
+  }
 }
 
 function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
