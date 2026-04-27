@@ -651,14 +651,42 @@ export function TerminalTile({
         xtermRoot.contains(e.target)
           ? e.target
           : (xtermRoot ?? containerEl);
+      const correctedClientX = rect.left + (e.clientX - rect.left) / scale;
+      const correctedClientY = rect.top + (e.clientY - rect.top) / scale;
+      if (e.type === "mousedown") {
+        // Diagnostic — only on mousedown to avoid spam from mousemove.
+        // Remove once the misalignment under zoom is verified fixed.
+        const xtermRect = (xtermRoot ?? screenElement).getBoundingClientRect();
+        // eslint-disable-next-line no-console
+        console.log("[xterm-zoom-fix]", {
+          scale,
+          click: { x: e.clientX, y: e.clientY },
+          screenRect: { l: rect.left, t: rect.top, w: rect.width, h: rect.height },
+          xtermRect: {
+            l: xtermRect.left,
+            t: xtermRect.top,
+            w: xtermRect.width,
+            h: xtermRect.height,
+          },
+          corrected: { x: correctedClientX, y: correctedClientY },
+          target:
+            e.target instanceof Element
+              ? `${e.target.tagName.toLowerCase()}.${e.target.className}`
+              : null,
+          dispatchTo:
+            dispatchTarget instanceof Element
+              ? `${dispatchTarget.tagName.toLowerCase()}.${dispatchTarget.className}`
+              : null,
+        });
+      }
       const adjusted = new MouseEvent(e.type, {
         altKey: e.altKey,
         bubbles: e.bubbles,
         button: e.button,
         buttons: e.buttons,
         cancelable: e.cancelable,
-        clientX: rect.left + (e.clientX - rect.left) / scale,
-        clientY: rect.top + (e.clientY - rect.top) / scale,
+        clientX: correctedClientX,
+        clientY: correctedClientY,
         ctrlKey: e.ctrlKey,
         detail: e.detail,
         metaKey: e.metaKey,
