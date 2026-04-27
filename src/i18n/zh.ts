@@ -221,18 +221,6 @@ export const zh = {
   hydra_enable_already_current: (name: string) =>
     `“${name}”的 Hydra 指令已经是最新版本。`,
   hydra_enable_failed: (message: string) => `启用 Hydra 失败：${message}`,
-  hydra_outdated: "Hydra 工具链版本过时",
-  hydra_missing: "Hydra 工具链未启用",
-  hydra_update: "更新",
-  hydra_enable_action: "启用",
-  hydra_popup_outdated:
-    "当前项目的 Hydra 工具链指令版本过时，可能无法与当前版本正常配合。",
-  hydra_popup_missing:
-    "当前项目尚未配置 Hydra 工具链指令。启用后可使用多 Agent 协作工作流。",
-  hydra_popup_desc:
-    "将在 CLAUDE.md 和 AGENTS.md 中添加或更新 Hydra 的工作流命令和遥测指令。",
-  hydra_popup_later: "稍后",
-  hydra_popup_dont_remind: "不再提醒",
 
   terminal_api_unavailable: "终端 API 不可用，未在 Electron 中运行。",
   failed_create_pty: (title: string, err: unknown) =>
@@ -759,6 +747,10 @@ export const zh = {
   "discovery.search.action": "试试搜索",
   "discovery.pinning.message": "把任务钉起来,触手可及。",
   "discovery.pinning.action": "打开钉板",
+  "discovery.hydra.missing.message": "未启用 Hydra —— 多智能体工作流不可用。",
+  "discovery.hydra.missing.action": "启用",
+  "discovery.hydra.outdated.message": "Hydra 工作流说明已过期。",
+  "discovery.hydra.outdated.action": "更新",
   "discovery.dismiss": "关闭",
 
   "digest.aria": "状态摘要",

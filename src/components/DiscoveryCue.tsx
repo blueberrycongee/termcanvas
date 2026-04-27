@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useT } from "../i18n/useT";
 import { TOOLBAR_HEIGHT } from "../toolbar/toolbarHeight";
 import {
@@ -7,6 +7,7 @@ import {
 } from "../stores/canvasStore";
 import { useProjectStore } from "../stores/projectStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
+import { useNotificationStore } from "../stores/notificationStore";
 import { usePinStore } from "../stores/pinStore";
 import { useSearchStore } from "../stores/searchStore";
 
@@ -53,6 +54,7 @@ function useFocusedProjectSnapshot():
 
 const CUE_ID_SEARCH = "discover-search";
 const CUE_ID_PINNING = "discover-pinning";
+const CUE_ID_HYDRA = "discover-hydra";
 
 const SEARCH_TRIGGER_THRESHOLD = 5;
 const PINNING_TRIGGER_THRESHOLD = 3;
@@ -115,13 +117,101 @@ function usePinningDiscoveryCue(): CueViewModel | null {
   };
 }
 
+function useHydraDiscoveryCue(): CueViewModel | null {
+  const t = useT();
+  const focused = useFocusedProjectSnapshot();
+  const seen = usePreferencesStore((s) => s.seenHints[CUE_ID_HYDRA] === true);
+  const markSeen = usePreferencesStore((s) => s.markHintSeen);
+  const notify = useNotificationStore((s) => s.notify);
+
+  const [status, setStatus] = useState<"missing" | "outdated" | null>(null);
+  const [busy, setBusy] = useState(false);
+  const projectPath = focused?.path ?? null;
+  const projectName = useProjectStore(
+    (s) => s.projects.find((p) => p.id === focused?.id)?.name ?? null,
+  );
+
+  useEffect(() => {
+    if (seen) return;
+    if (!projectPath) {
+      setStatus(null);
+      return;
+    }
+    const api = window.termcanvas?.project?.checkHydra;
+    if (!api) return;
+    let cancelled = false;
+    api(projectPath)
+      .then((next) => {
+        if (cancelled) return;
+        setStatus(next === "missing" || next === "outdated" ? next : null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setStatus(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectPath, seen]);
+
+  if (seen) return null;
+  if (!projectPath || !projectName) return null;
+  if (!status) return null;
+
+  const message =
+    status === "outdated"
+      ? t["discovery.hydra.outdated.message"]
+      : t["discovery.hydra.missing.message"];
+  const label =
+    status === "outdated"
+      ? t["discovery.hydra.outdated.action"]
+      : t["discovery.hydra.missing.action"];
+
+  return {
+    id: CUE_ID_HYDRA,
+    message,
+    action: {
+      label: busy ? "…" : label,
+      onClick: () => {
+        if (busy) return;
+        const enableApi = window.termcanvas?.project?.enableHydra;
+        if (!enableApi) return;
+        setBusy(true);
+        enableApi(projectPath)
+          .then((result) => {
+            if (!result.ok) {
+              notify("error", t.hydra_enable_failed(result.error));
+              return;
+            }
+            notify(
+              "info",
+              result.changed
+                ? t.hydra_enable_success(projectName)
+                : t.hydra_enable_already_current(projectName),
+            );
+            setStatus(null);
+            markSeen(CUE_ID_HYDRA);
+          })
+          .catch((err: unknown) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            notify("error", t.hydra_enable_failed(msg));
+          })
+          .finally(() => setBusy(false));
+      },
+    },
+  };
+}
+
 export function DiscoveryCue() {
   const t = useT();
   // Hooks run unconditionally; each returns null when its conditions
-  // aren't met. Order = priority (project-scoped before global).
+  // aren't met. Order = priority. Hydra is a tool-state nudge that
+  // appears once per install and should land before scope-driven
+  // cues (pinning, search) that compete for the same slot.
+  const hydra = useHydraDiscoveryCue();
   const pinning = usePinningDiscoveryCue();
   const search = useSearchDiscoveryCue();
-  const cue = pinning ?? search;
+  const cue = hydra ?? pinning ?? search;
 
   const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);

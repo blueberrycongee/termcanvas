@@ -7,7 +7,6 @@ import { FilesContent } from "./RightPanel/FilesContent";
 import { DiffContent } from "./RightPanel/DiffContent";
 import { GitContent } from "./RightPanel/GitContent";
 import { MemoryContent } from "./RightPanel/MemoryContent";
-import { HydraSetupPopup } from "./HydraSetupPopup";
 import { panToTerminal } from "../utils/panToTerminal";
 import {
   PANEL_TRANSITION_DURATION_MS,
@@ -93,14 +92,11 @@ export function RightPanel() {
   const focusedWorktreeId = useProjectStore((s) => s.focusedWorktreeId);
   const projects = useProjectStore((s) => s.projects);
   const [hydraEnabling, setHydraEnabling] = useState(false);
-  const [hydraStatus, setHydraStatus] = useState<"missing" | "outdated" | null>(null);
   const [directoryIsGitRepo, setDirectoryIsGitRepo] = useState(false);
   const [childRepos, setChildRepos] = useState<RepoContextOption[]>([]);
   const [selectedChildRepoPath, setSelectedChildRepoPath] = useState<string | null>(null);
   const [repoContextReadyPath, setRepoContextReadyPath] = useState<string | null>(null);
   const [repoMenuOpen, setRepoMenuOpen] = useState(false);
-  const checkedProjectRef = useRef<Set<string>>(new Set());
-  const dismissedHydraRef = useRef<Set<string>>(new Set());
   const preferredRepoPathRef = useRef<Map<string, string>>(new Map());
   const repoContextCacheRef = useRef<
     Map<
@@ -288,39 +284,6 @@ export function RightPanel() {
     }
   }, [repoContext.selectorKind]);
 
-  useEffect(() => {
-    if (!focusedProject || !window.termcanvas?.project?.checkHydra) return;
-    if (checkedProjectRef.current.has(focusedProject.path)) return;
-    if (dismissedHydraRef.current.has(focusedProject.path)) return;
-    checkedProjectRef.current.add(focusedProject.path);
-
-    window.termcanvas.project.checkHydra(focusedProject.path).then((status) => {
-      if (status === "outdated" || status === "missing") {
-        setHydraStatus(status);
-      } else {
-        setHydraStatus(null);
-      }
-    }).catch(() => {});
-  }, [focusedProject]);
-
-  const handleHydraBannerAction = useCallback(async () => {
-    if (!focusedProject || hydraEnabling) return;
-    setHydraEnabling(true);
-    try {
-      const result = await window.termcanvas.project.enableHydra(focusedProject.path);
-      setHydraStatus(null);
-      if (!result.ok) {
-        notify("error", t.hydra_enable_failed(result.error));
-        return;
-      }
-      notify("info", t.hydra_enable_success(focusedProject.name));
-    } catch (err: unknown) {
-      notify("error", t.hydra_enable_failed(err instanceof Error ? err.message : String(err)));
-    } finally {
-      setHydraEnabling(false);
-    }
-  }, [focusedProject, hydraEnabling, notify, t]);
-
   const handleResizeStart = useCallback(
     (e: React.PointerEvent) => {
       e.preventDefault();
@@ -408,19 +371,6 @@ export function RightPanel() {
     }
   }, [focusedProject, notify, t]);
 
-  const hydraPopup = hydraStatus && focusedProject ? (
-    <HydraSetupPopup
-      status={hydraStatus}
-      projectName={focusedProject.name}
-      onEnable={handleHydraBannerAction}
-      onDismiss={() => setHydraStatus(null)}
-      onDismissForever={() => {
-        if (focusedProject) dismissedHydraRef.current.add(focusedProject.path);
-        setHydraStatus(null);
-      }}
-    />
-  ) : null;
-
   const dragging = useSidebarDragStore((s) => s.active);
   // Animate the outer width on expand/collapse; pause the transition
   // while the resize handle drags so width tracks the pointer 1:1.
@@ -435,7 +385,6 @@ export function RightPanel() {
 
   return (
     <>
-    {hydraPopup}
     <div
       className="fixed right-0 z-40 bg-[var(--surface)] border-l border-[var(--border)] overflow-hidden"
       style={{

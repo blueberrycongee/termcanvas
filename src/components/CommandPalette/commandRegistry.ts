@@ -38,7 +38,6 @@ import { useProjectStore } from "../../stores/projectStore";
 import { useSearchStore } from "../../stores/searchStore";
 import { useSettingsModalStore } from "../../stores/settingsModalStore";
 import { useThemeStore } from "../../stores/themeStore";
-import { useWelcomeStore } from "../../stores/welcomeStore";
 import { rebuildTerminalAtlas } from "../../terminal/webglContextPool";
 import { refreshRegisteredTerminalViewports } from "../../terminal/terminalRegistry";
 import {
@@ -321,13 +320,6 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
         usePreferencesStore
           .getState()
           .setPetEnabled(!usePreferencesStore.getState().petEnabled),
-    },
-    {
-      id: "show-tutorial",
-      section: "action",
-      title: "Show Welcome Tutorial",
-      keywords: ["help", "intro", "guide", "onboarding"],
-      perform: () => useWelcomeStore.getState().openTutorial(),
     },
   ];
 

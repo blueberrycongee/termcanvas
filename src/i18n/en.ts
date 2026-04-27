@@ -225,18 +225,6 @@ export const en = {
     `Hydra instructions are already current for "${name}".`,
   hydra_enable_failed: (message: string) =>
     `Failed to enable Hydra: ${message}`,
-  hydra_outdated: "Hydra toolchain is outdated",
-  hydra_missing: "Hydra toolchain not set up",
-  hydra_update: "Update",
-  hydra_enable_action: "Enable",
-  hydra_popup_outdated:
-    "The Hydra toolchain instructions in this project are outdated and may not work correctly with the current version.",
-  hydra_popup_missing:
-    "This project doesn't have Hydra toolchain instructions yet. Enable Hydra to unlock multi-agent workflows.",
-  hydra_popup_desc:
-    "This will add or update the Hydra section in CLAUDE.md and AGENTS.md with the latest workflow commands and telemetry instructions.",
-  hydra_popup_later: "Later",
-  hydra_popup_dont_remind: "Don't remind",
 
   terminal_api_unavailable:
     "Terminal API not available. Not running in Electron.",
@@ -777,6 +765,10 @@ export const en = {
   "discovery.search.action": "Try search",
   "discovery.pinning.message": "Pin tasks to keep them in reach.",
   "discovery.pinning.action": "Open pins",
+  "discovery.hydra.missing.message": "Hydra not set up — multi-agent workflows are off.",
+  "discovery.hydra.missing.action": "Enable",
+  "discovery.hydra.outdated.message": "Hydra instructions are out of date.",
+  "discovery.hydra.outdated.action": "Update",
   "discovery.dismiss": "Dismiss",
 
   "digest.aria": "Status digest",

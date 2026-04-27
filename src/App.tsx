@@ -17,8 +17,6 @@ import { DiscoveryCue } from "./components/DiscoveryCue";
 import { StatusDigest } from "./components/StatusDigest";
 import { CompletionGlow } from "./components/CompletionGlow";
 import { initSessionStoreIPC } from "./stores/sessionStore";
-import { WelcomePopup } from "./components/WelcomePopup";
-import { useWelcomeStore } from "./stores/welcomeStore";
 import { SearchModal } from "./components/SearchModal";
 import { CommandPalette } from "./components/CommandPalette/CommandPalette";
 import { UsageOverlay } from "./components/UsageOverlay";
@@ -259,8 +257,6 @@ export function App() {
   const completionGlowEnabled = usePreferencesStore(
     (s) => s.completionGlowEnabled,
   );
-  const showWelcome = useWelcomeStore((s) => s.open);
-  const closeWelcome = useWelcomeStore((s) => s.closeTutorial);
 
   useEffect(() => {
     if (!summaryEnabled) return;
@@ -467,7 +463,6 @@ export function App() {
       <SessionsOverlay />
       <FileEditorDrawer />
       <PinDetailDrawer />
-      {showWelcome && <WelcomePopup onClose={closeWelcome} />}
     </div>
   );
 }
