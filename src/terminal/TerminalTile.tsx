@@ -38,6 +38,7 @@ import {
   useTerminalRuntimeStore,
 } from "./terminalRuntimeStore";
 import type { TerminalMountMode } from "./terminalRuntimePolicy";
+import { useXtermClickZoomCorrection } from "./xtermClickZoomCorrection";
 import { shellEscapePath } from "../utils/shellEscape";
 import {
   cancelScheduledTerminalFocus,
@@ -593,140 +594,31 @@ export function TerminalTile({
       window.removeEventListener("termcanvas:focus-custom-title", handler);
   }, [startCustomTitleEdit, terminal.id]);
 
+  useXtermClickZoomCorrection(containerEl, lodMode === "live" && !isOverviewMode);
+
   useEffect(() => {
-    if (!containerEl) {
-      // eslint-disable-next-line no-console
-      console.log("[xterm-zoom-fix] skip: no containerEl");
-      return;
-    }
-    if (lodMode !== "live") {
-      // eslint-disable-next-line no-console
-      console.log("[xterm-zoom-fix] skip: lodMode =", lodMode);
-      return;
-    }
+    if (!containerEl || lodMode !== "live") return;
 
-    // eslint-disable-next-line no-console
-    console.log("[xterm-zoom-fix] listener attached for", terminal.id);
-
-    const corrected = new WeakSet<Event>();
-
-    const fix = (e: MouseEvent) => {
-      if (corrected.has(e)) return;
-      if (e.type === "mousedown") {
-        // eslint-disable-next-line no-console
-        console.log("[xterm-zoom-fix] mousedown reached fix", {
-          target:
-            e.target instanceof Element
-              ? e.target.tagName.toLowerCase()
-              : null,
-        });
-      }
-
-      // While the user is actively panning the canvas with the hand tool,
-      // skip all xterm mouse-event correction. The pointer is dragging the
-      // viewport, not interacting with terminal content, so the expensive
-      // getBoundingClientRect() work is wasted and forces synchronous layout
-      // on every mousemove frame — a major source of jank during pan.
-      if (document.body.classList.contains("tc-canvas-pan-grabbing")) return;
-
+    // Overview-mode click handling: tile clicks focus, double-click zooms
+    // back into normal mode. Bypasses xterm entirely.
+    const overview = (e: MouseEvent) => {
+      if (!isOverviewMode) return;
       if (
-        isOverviewMode &&
-        (e.type === "mousedown" ||
-          e.type === "mouseup" ||
-          e.type === "click" ||
-          e.type === "dblclick")
-      ) {
-        e.stopPropagation();
-        e.preventDefault();
-        if (e.type === "click" && e.detail === 1) {
-          focusTerminalInOverview();
-        } else if (e.type === "dblclick") {
-          zoomIntoTerminalFromOverview();
-        }
-        return;
-      }
-      const { scale } = useCanvasStore.getState().viewport;
-      if (scale === 1) return;
-
-      // xterm's hit-test uses `_renderService.dimensions.css.cell` — the
-      // CSS-pixel cell size baked at terminal init — divided into the pixel
-      // offset from `.xterm-screen.getBoundingClientRect()`. Under a
-      // transform: scale parent (the React Flow canvas), the rect is the
-      // VISUALLY scaled rect but the cached cell size stays unscaled, so
-      // xterm computes col as (visualPixels / unscaledCell), which is off
-      // by factor 1/scale at every cell boundary. Compensate by feeding
-      // xterm a clientX/Y whose offset from rect.left equals the unscaled
-      // distance: rect.left + (clientX - rect.left) / scale.
-      //
-      // Re-dispatching to .xterm (rather than e.target) when the click
-      // landed on the host wrapper also closes the visible "dead zone"
-      // near the top-left of a zoomed tile where host pixels overflow the
-      // actual xterm screen.
-      const xtermRoot = containerEl.querySelector(".xterm");
-      const screenElement =
-        containerEl.querySelector(".xterm-screen") ?? xtermRoot ?? containerEl;
-      const rect = screenElement.getBoundingClientRect();
-      const dispatchTarget =
-        e.target instanceof Element &&
-        xtermRoot instanceof Element &&
-        xtermRoot.contains(e.target)
-          ? e.target
-          : (xtermRoot ?? containerEl);
-      const correctedClientX = rect.left + (e.clientX - rect.left) / scale;
-      const correctedClientY = rect.top + (e.clientY - rect.top) / scale;
-      if (e.type === "mousedown") {
-        // Diagnostic — only on mousedown to avoid spam from mousemove.
-        // Remove once the misalignment under zoom is verified fixed.
-        const xtermRect = (xtermRoot ?? screenElement).getBoundingClientRect();
-        // eslint-disable-next-line no-console
-        console.log("[xterm-zoom-fix]", {
-          scale,
-          click: { x: e.clientX, y: e.clientY },
-          screenRect: { l: rect.left, t: rect.top, w: rect.width, h: rect.height },
-          xtermRect: {
-            l: xtermRect.left,
-            t: xtermRect.top,
-            w: xtermRect.width,
-            h: xtermRect.height,
-          },
-          corrected: { x: correctedClientX, y: correctedClientY },
-          target:
-            e.target instanceof Element
-              ? `${e.target.tagName.toLowerCase()}.${e.target.className}`
-              : null,
-          dispatchTo:
-            dispatchTarget instanceof Element
-              ? `${dispatchTarget.tagName.toLowerCase()}.${dispatchTarget.className}`
-              : null,
-        });
-      }
-      const adjusted = new MouseEvent(e.type, {
-        altKey: e.altKey,
-        bubbles: e.bubbles,
-        button: e.button,
-        buttons: e.buttons,
-        cancelable: e.cancelable,
-        clientX: correctedClientX,
-        clientY: correctedClientY,
-        ctrlKey: e.ctrlKey,
-        detail: e.detail,
-        metaKey: e.metaKey,
-        screenX: e.screenX,
-        screenY: e.screenY,
-        shiftKey: e.shiftKey,
-      });
-
-      corrected.add(adjusted);
+        e.type !== "mousedown" &&
+        e.type !== "mouseup" &&
+        e.type !== "click" &&
+        e.type !== "dblclick"
+      ) return;
       e.stopPropagation();
       e.preventDefault();
-      dispatchTarget.dispatchEvent(adjusted);
+      if (e.type === "click" && e.detail === 1) focusTerminalInOverview();
+      else if (e.type === "dblclick") zoomIntoTerminalFromOverview();
     };
 
-    // When zoomed, capture pointer on mousedown so that mousemove/mouseup
-    // events route through this container even when the cursor leaves it.
-    // Without this, xterm's document-level selection listener receives
-    // uncorrected coordinates while the mouse is outside, causing the
-    // selection to jump when the mouse re-enters.
+    // While the canvas is zoomed, route mousemove/mouseup through the tile
+    // even after the pointer leaves it — without this xterm's document-level
+    // selection listener gets uncorrected coords whenever the cursor exits
+    // and re-enters during a drag.
     const capturePointer = (e: PointerEvent) => {
       if (e.button !== 0) return;
       const { scale } = useCanvasStore.getState().viewport;
@@ -735,34 +627,21 @@ export function TerminalTile({
       target.setPointerCapture(e.pointerId);
     };
 
-    // Stop mousedown from bubbling past the container so it never reaches
-    // the Canvas pan handler.  Without this, every click inside the terminal
-    // content area also starts a canvas pan, fighting xterm's selection.
-    // At scale != 1 the corrected event also needs to be caught; at scale 1
-    // the original native event needs to be caught.
-    const stopMouseDownBubble = (e: MouseEvent) => {
-      e.stopPropagation();
-    };
+    // Stop mousedown from bubbling past containerEl so it never starts a
+    // canvas pan — every click inside terminal content would otherwise
+    // fight xterm's selection.
+    const stopMouseDownBubble = (e: MouseEvent) => e.stopPropagation();
 
-    // Filter at the top of `window` capture so we see the event before any
-    // React Flow / xyflow capture-phase handler can stopPropagation. Only
-    // act on events whose target is inside this tile's containerEl.
-    const fixWindow = (e: Event) => {
-      if (!(e instanceof MouseEvent)) return;
-      if (!(e.target instanceof Node) || !containerEl.contains(e.target)) return;
-      fix(e);
-    };
-
-    const types = ["mousedown", "mousemove", "mouseup", "click", "dblclick"];
-    for (const type of types) {
-      window.addEventListener(type, fixWindow, true);
+    const overviewTypes = ["mousedown", "mouseup", "click", "dblclick"] as const;
+    for (const type of overviewTypes) {
+      containerEl.addEventListener(type, overview, true);
     }
     containerEl.addEventListener("mousedown", stopMouseDownBubble);
     containerEl.addEventListener("pointerdown", capturePointer);
 
     return () => {
-      for (const type of types) {
-        window.removeEventListener(type, fixWindow, true);
+      for (const type of overviewTypes) {
+        containerEl.removeEventListener(type, overview, true);
       }
       containerEl.removeEventListener("mousedown", stopMouseDownBubble);
       containerEl.removeEventListener("pointerdown", capturePointer);
