@@ -47,6 +47,54 @@ const MOUSE_EVENT_TYPES = [
   "dblclick",
 ] as const;
 
+// Module-level: which tile owns the currently in-flight drag (set on
+// mousedown inside a tile, cleared on mouseup). During an active drag,
+// every mousemove must be corrected against the source tile's rect even
+// when the cursor leaves the tile — otherwise xterm's document-level
+// mousemove listener gets uncorrected (visually-scaled) coordinates and
+// the selection extends to the wrong cell. At scale > 1 this presents as
+// "barely moving the mouse selects a huge area" because each visual
+// pixel of cursor travel maps to `1/scale` more uncorrected cells.
+let activeDrag: HTMLDivElement | null = null;
+
+function correctEvent(
+  e: MouseEvent,
+  containerEl: HTMLDivElement,
+  scale: number,
+  corrected: WeakSet<Event>,
+): void {
+  const xtermRoot = containerEl.querySelector(".xterm");
+  const screenElement =
+    containerEl.querySelector(".xterm-screen") ?? xtermRoot ?? containerEl;
+  const rect = screenElement.getBoundingClientRect();
+  const dispatchTarget =
+    e.target instanceof Element &&
+    xtermRoot instanceof Element &&
+    xtermRoot.contains(e.target)
+      ? e.target
+      : (xtermRoot ?? containerEl);
+
+  const adjusted = new MouseEvent(e.type, {
+    altKey: e.altKey,
+    bubbles: e.bubbles,
+    button: e.button,
+    buttons: e.buttons,
+    cancelable: e.cancelable,
+    clientX: rect.left + (e.clientX - rect.left) / scale,
+    clientY: rect.top + (e.clientY - rect.top) / scale,
+    ctrlKey: e.ctrlKey,
+    detail: e.detail,
+    metaKey: e.metaKey,
+    screenX: e.screenX,
+    screenY: e.screenY,
+    shiftKey: e.shiftKey,
+  });
+  corrected.add(adjusted);
+  e.stopPropagation();
+  e.preventDefault();
+  dispatchTarget.dispatchEvent(adjusted);
+}
+
 export function useXtermClickZoomCorrection(
   containerEl: HTMLDivElement | null,
   active: boolean,
@@ -59,44 +107,41 @@ export function useXtermClickZoomCorrection(
     const handler = (e: Event) => {
       if (!(e instanceof MouseEvent)) return;
       if (corrected.has(e)) return;
-      if (!(e.target instanceof Node) || !containerEl.contains(e.target)) {
-        return;
-      }
-      // Skip while the user is dragging to pan — xterm hit-testing isn't
-      // relevant, and the per-frame getBoundingClientRect() costs layout.
       if (document.body.classList.contains("tc-canvas-pan-grabbing")) return;
 
       const { scale } = useCanvasStore.getState().viewport;
       if (scale === 1) return;
 
-      const xtermRoot = containerEl.querySelector(".xterm");
-      const screenElement =
-        containerEl.querySelector(".xterm-screen") ?? xtermRoot ?? containerEl;
-      const rect = screenElement.getBoundingClientRect();
-      const dispatchTarget =
-        xtermRoot instanceof Element && xtermRoot.contains(e.target)
-          ? e.target
-          : (xtermRoot ?? containerEl);
+      // Two cases this listener handles:
+      //   1. mousedown / dblclick / click — the originating event must be
+      //      inside this tile's containerEl. If yes, correct it and claim
+      //      the drag for this tile.
+      //   2. mousemove / mouseup — fire correction if this tile owns the
+      //      active drag, even when the cursor has left containerEl.
+      const targetIsInside =
+        e.target instanceof Node && containerEl.contains(e.target);
+      const ownsDrag = activeDrag === containerEl;
 
-      const adjusted = new MouseEvent(e.type, {
-        altKey: e.altKey,
-        bubbles: e.bubbles,
-        button: e.button,
-        buttons: e.buttons,
-        cancelable: e.cancelable,
-        clientX: rect.left + (e.clientX - rect.left) / scale,
-        clientY: rect.top + (e.clientY - rect.top) / scale,
-        ctrlKey: e.ctrlKey,
-        detail: e.detail,
-        metaKey: e.metaKey,
-        screenX: e.screenX,
-        screenY: e.screenY,
-        shiftKey: e.shiftKey,
-      });
-      corrected.add(adjusted);
-      e.stopPropagation();
-      e.preventDefault();
-      dispatchTarget.dispatchEvent(adjusted);
+      if (e.type === "mousedown") {
+        if (!targetIsInside) return;
+        activeDrag = containerEl;
+        correctEvent(e, containerEl, scale, corrected);
+        return;
+      }
+      if (e.type === "mouseup") {
+        if (!ownsDrag && !targetIsInside) return;
+        correctEvent(e, containerEl, scale, corrected);
+        activeDrag = null;
+        return;
+      }
+      if (e.type === "mousemove") {
+        if (!ownsDrag && !targetIsInside) return;
+        correctEvent(e, containerEl, scale, corrected);
+        return;
+      }
+      // click / dblclick — only when origin was inside.
+      if (!targetIsInside) return;
+      correctEvent(e, containerEl, scale, corrected);
     };
 
     for (const type of MOUSE_EVENT_TYPES) {
@@ -106,6 +151,7 @@ export function useXtermClickZoomCorrection(
       for (const type of MOUSE_EVENT_TYPES) {
         window.removeEventListener(type, handler, true);
       }
+      if (activeDrag === containerEl) activeDrag = null;
     };
   }, [containerEl, active]);
 }
