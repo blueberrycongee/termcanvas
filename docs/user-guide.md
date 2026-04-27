@@ -121,10 +121,6 @@ In normal (zoomed-in) mode:
 
 `⌘G` cycles the focus *level* — terminal → worktree → starred. In worktree mode, `⌘]` jumps between worktrees instead of terminals.
 
-### Box-selecting multiple terminals
-
-Hold `Shift` and drag across empty canvas to draw a selection rectangle. Everything the rectangle touches becomes selected. `Backspace` / `Delete` then closes all selected tiles.
-
 ---
 
 ## Working with terminals
@@ -412,8 +408,6 @@ All shortcuts use **`⌘` on macOS** and **`Ctrl` on Linux / Windows**. Every on
 | Scroll       | Pan canvas                                     |
 | `⌘`-scroll   | Zoom toward cursor                             |
 | Double-click (overview) | Zoom in on that terminal            |
-| Shift+drag   | Box-select multiple terminals                  |
-| Backspace    | Close selected terminals                       |
 
 ### Multi-canvas
 
