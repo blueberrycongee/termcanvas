@@ -40,16 +40,26 @@ function useTotalTerminalCount(): number {
   );
 }
 
+// zustand v5 useStore has no equality argument — a selector that returns a
+// new object every call trips useSyncExternalStore's tearing detection and
+// loops until React's update-depth limit. Read each field with its own
+// primitive selector so subscribers compare by value, then assemble the
+// view-model afterwards (cheap, not subscribed).
 function useFocusedProjectSnapshot():
   | { id: string; path: string; terminalCount: number }
   | null {
-  return useProjectStore((s) => {
+  const focusedId = useProjectStore((s) => s.focusedProjectId);
+  const path = useProjectStore((s) => {
     if (!s.focusedProjectId) return null;
-    const p = s.projects.find((pr) => pr.id === s.focusedProjectId);
-    if (!p) return null;
-    const count = p.worktrees.reduce((sum, w) => sum + w.terminals.length, 0);
-    return { id: p.id, path: p.path, terminalCount: count };
+    return s.projects.find((p) => p.id === s.focusedProjectId)?.path ?? null;
   });
+  const terminalCount = useProjectStore((s) => {
+    if (!s.focusedProjectId) return 0;
+    const p = s.projects.find((pr) => pr.id === s.focusedProjectId);
+    return p?.worktrees.reduce((sum, w) => sum + w.terminals.length, 0) ?? 0;
+  });
+  if (!focusedId || !path) return null;
+  return { id: focusedId, path, terminalCount };
 }
 
 const CUE_ID_SEARCH = "discover-search";

@@ -60,10 +60,17 @@ function ensureBucketState(terminalId: string, now: number): BucketState {
   return state;
 }
 
+// `notify` MUST be false when this is called from a render-time read
+// (getActivityBuckets). Calling listeners synchronously during render
+// triggers React's `setState during render` path on subscribers and
+// blows the update-depth limit. The write path (recordTerminalActivity)
+// runs from PTY-output handlers, which are outside React's render
+// commit phase, so notification is safe there.
 function advanceBuckets(
   state: BucketState,
   terminalId: string,
   now: number,
+  notify: boolean,
 ): boolean {
   const currentBucketStart = alignBucketStart(now);
   if (currentBucketStart === state.bucketStartedAt) return false;
@@ -77,7 +84,9 @@ function advanceBuckets(
   shiftBuckets(state, n);
   state.bucketStartedAt = currentBucketStart;
   state.version += 1;
-  for (const listener of bucketListeners) listener(terminalId);
+  if (notify) {
+    for (const listener of bucketListeners) listener(terminalId);
+  }
   return true;
 }
 
@@ -88,7 +97,7 @@ export function recordTerminalActivity(
 ): void {
   lastActivityAt.set(terminalId, now);
   const state = ensureBucketState(terminalId, now);
-  advanceBuckets(state, terminalId, now);
+  advanceBuckets(state, terminalId, now, true);
   state.buckets[0] += weight;
 }
 
@@ -142,8 +151,10 @@ export function getActivityBuckets(
   if (!state) return EMPTY_BUCKETS;
   // Drop buckets that have aged out without an explicit record() call.
   // This keeps idle terminals' sparklines decaying to flat instead of
-  // freezing on the last observed profile.
-  advanceBuckets(state, terminalId, now);
+  // freezing on the last observed profile. notify=false because this is
+  // called from render bodies (Hub, ActivitySparkline) — see the
+  // comment on advanceBuckets.
+  advanceBuckets(state, terminalId, now, false);
   return state.buckets;
 }
 
