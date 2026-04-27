@@ -744,16 +744,25 @@ export function TerminalTile({
       e.stopPropagation();
     };
 
+    // Filter at the top of `window` capture so we see the event before any
+    // React Flow / xyflow capture-phase handler can stopPropagation. Only
+    // act on events whose target is inside this tile's containerEl.
+    const fixWindow = (e: Event) => {
+      if (!(e instanceof MouseEvent)) return;
+      if (!(e.target instanceof Node) || !containerEl.contains(e.target)) return;
+      fix(e);
+    };
+
     const types = ["mousedown", "mousemove", "mouseup", "click", "dblclick"];
     for (const type of types) {
-      containerEl.addEventListener(type, fix as EventListener, true);
+      window.addEventListener(type, fixWindow, true);
     }
     containerEl.addEventListener("mousedown", stopMouseDownBubble);
     containerEl.addEventListener("pointerdown", capturePointer);
 
     return () => {
       for (const type of types) {
-        containerEl.removeEventListener(type, fix as EventListener, true);
+        window.removeEventListener(type, fixWindow, true);
       }
       containerEl.removeEventListener("mousedown", stopMouseDownBubble);
       containerEl.removeEventListener("pointerdown", capturePointer);
