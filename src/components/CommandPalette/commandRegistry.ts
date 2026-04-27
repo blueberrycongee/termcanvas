@@ -37,6 +37,7 @@ import { usePreferencesStore } from "../../stores/preferencesStore";
 import { useProjectStore } from "../../stores/projectStore";
 import { useSearchStore } from "../../stores/searchStore";
 import { useSettingsModalStore } from "../../stores/settingsModalStore";
+import { useSnapshotHistoryStore } from "../../stores/snapshotHistoryStore";
 import { useThemeStore } from "../../stores/themeStore";
 import { rebuildTerminalAtlas } from "../../terminal/webglContextPool";
 import { refreshRegisteredTerminalViewports } from "../../terminal/terminalRegistry";
@@ -231,6 +232,22 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
       keywords: ["history", "replay"],
       hint: shortcutHint("toggleSessionsOverlay", isMac),
       perform: () => useCanvasStore.getState().toggleSessionsOverlay(),
+    },
+    {
+      id: "open-snapshot-history",
+      section: "action",
+      title: "Snapshot history",
+      subtitle: "Browse and restore recent canvas snapshots",
+      keywords: [
+        "time travel",
+        "undo",
+        "restore",
+        "rollback",
+        "checkpoint",
+        "version",
+      ],
+      hint: shortcutHint("toggleSnapshotHistory", isMac),
+      perform: () => useSnapshotHistoryStore.getState().openHistory(),
     },
     {
       id: "toggle-usage-overlay",

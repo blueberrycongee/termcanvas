@@ -31,6 +31,7 @@ import { useComposerStore } from "../stores/composerStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { useSearchStore } from "../stores/searchStore";
 import { useCommandPaletteStore } from "../stores/commandPaletteStore";
+import { useSnapshotHistoryStore } from "../stores/snapshotHistoryStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSettingsModalStore } from "../stores/settingsModalStore";
 import {
@@ -340,6 +341,16 @@ export function useKeyboardShortcuts() {
       if (matchesShortcut(e, shortcuts.toggleSessionsOverlay)) {
         consumeShortcut();
         useCanvasStore.getState().toggleSessionsOverlay();
+        return;
+      }
+
+      // Snapshot history browser — Cmd+Shift+T ("time"). Sessions overlay
+      // shows agent transcripts; this surface lists canvas-state snapshots
+      // and lets the user roll the scene back. Same "works from terminal
+      // focus" treatment as the rest of this block.
+      if (matchesShortcut(e, shortcuts.toggleSnapshotHistory)) {
+        consumeShortcut();
+        useSnapshotHistoryStore.getState().toggleHistory();
         return;
       }
 

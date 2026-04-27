@@ -789,6 +789,31 @@ export interface TermCanvasAPI {
     load: () => Promise<PersistedCanvasState | null>;
     save: (state: unknown) => Promise<void>;
   };
+  snapshots: {
+    list: () => Promise<
+      Array<{
+        id: string;
+        savedAt: number;
+        terminalCount: number;
+        projectCount: number;
+        label?: string;
+      }>
+    >;
+    read: (id: string) => Promise<unknown | null>;
+    append: (args: {
+      savedAt: number;
+      terminalCount: number;
+      projectCount: number;
+      label?: string;
+      body: unknown;
+    }) => Promise<{
+      id: string;
+      savedAt: number;
+      terminalCount: number;
+      projectCount: number;
+      label?: string;
+    }>;
+  };
   workspace: {
     save: (data: string) => Promise<string | null>;
     open: () => Promise<string | null>;

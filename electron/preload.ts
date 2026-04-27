@@ -527,6 +527,17 @@ contextBridge.exposeInMainWorld("termcanvas", {
     load: () => ipcRenderer.invoke("state:load"),
     save: (state: unknown) => ipcRenderer.invoke("state:save", state),
   },
+  snapshots: {
+    list: () => ipcRenderer.invoke("snapshots:list"),
+    read: (id: string) => ipcRenderer.invoke("snapshots:read", id),
+    append: (args: {
+      savedAt: number;
+      terminalCount: number;
+      projectCount: number;
+      label?: string;
+      body: unknown;
+    }) => ipcRenderer.invoke("snapshots:append", args),
+  },
   workspace: {
     save: (data: string) =>
       ipcRenderer.invoke("workspace:save", data) as Promise<string | null>,

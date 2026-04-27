@@ -44,6 +44,9 @@ import {
   snapshotState,
   type SkipRestoreSnapshot,
 } from "./snapshotState";
+import { appendSnapshotToHistory } from "./snapshotHistory";
+import { SnapshotHistoryModal } from "./components/SnapshotHistoryModal";
+import { useSnapshotHistoryStore } from "./stores/snapshotHistoryStore";
 import { updateWindowTitle } from "./titleHelper";
 import { resolveTerminalWithRuntimeState } from "./stores/terminalRuntimeStateStore";
 import { logSlowRendererPath } from "./utils/devPerf";
@@ -170,6 +173,10 @@ function useAutoSave() {
           ...state,
           lastSavedAt: Date.now(),
         }));
+        // Throttled history capture rides on the autosave heartbeat — see
+        // MIN_HISTORY_INTERVAL_MS in snapshotHistory.ts. Awaiting the autosave
+        // first guarantees state.json and the history slot agree.
+        void appendSnapshotToHistory();
       } catch (err) {
         console.error("[useAutoSave] failed to save recovery snapshot:", err);
       } finally {
@@ -265,6 +272,9 @@ export function App() {
   }, [summaryEnabled]);
 
   useEffect(() => initUpdaterListeners(), []);
+  useEffect(() => {
+    void useSnapshotHistoryStore.getState().refresh();
+  }, []);
   useEffect(() => {
     void hydrateApiKey();
   }, []);
@@ -461,6 +471,7 @@ export function App() {
       <NotificationToast />
       {globalSearchEnabled && <SearchModal />}
       <CommandPalette />
+      <SnapshotHistoryModal />
       <UsageOverlay />
       <SessionsOverlay />
       <FileEditorDrawer />
