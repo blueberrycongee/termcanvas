@@ -26,6 +26,9 @@ export function wrapSetState<T>(
       record.count = 0;
     }
     updateCounts.set(name, record);
-    return set(partial, replace);
+    // Cast: zustand's setState is two overloads (replace?: false vs replace: true);
+    // forwarding `partial` and `replace` as a single pair doesn't satisfy either,
+    // but the wrapper preserves runtime semantics so a single cast is fine.
+    return (set as (p: typeof partial, r?: typeof replace) => void)(partial, replace);
   };
 }
