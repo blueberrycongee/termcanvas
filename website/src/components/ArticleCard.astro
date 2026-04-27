@@ -33,18 +33,20 @@ const dateLabel = formatter.format(date);
     flex-direction: column;
     gap: 0.5rem;
     padding: 1.75rem;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    background: var(--color-card);
+    border: 1px solid var(--color-border-soft);
     border-radius: 12px;
     transition:
+      background 0.2s ease,
       border-color 0.2s ease,
       transform 0.2s ease,
       box-shadow 0.2s ease;
   }
   .article-card:hover {
+    background: var(--color-card-hover);
     border-color: var(--color-border-strong);
     transform: translateY(-2px);
-    box-shadow: 0 12px 30px -20px rgba(20, 20, 30, 0.18);
+    box-shadow: 0 14px 30px -22px rgba(20, 17, 10, 0.22);
   }
   .card-meta {
     display: flex;

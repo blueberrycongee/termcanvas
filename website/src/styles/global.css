@@ -6,7 +6,10 @@
   --color-surface: #ffffff;
   --color-surface-muted: #ece7d9;
   --color-surface-sunken: #efebdf;
-  --color-border: #e0d9c5;
+  --color-card: #faf7ee;
+  --color-card-hover: #fdfbf4;
+  --color-border: #d8d0bb;
+  --color-border-soft: #e4ddc9;
   --color-border-strong: #b9b09a;
 
   /* Warm ink with brown undertone */
@@ -59,84 +62,102 @@ a {
   color: var(--color-accent);
 }
 
-@layer components {
+.container-page {
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  max-width: var(--container-page);
+}
+@media (min-width: 768px) {
   .container-page {
-    @apply mx-auto w-full px-6 md:px-8;
-    max-width: var(--container-page);
+    padding-left: 2rem;
+    padding-right: 2rem;
   }
+}
 
-  .container-prose {
-    @apply mx-auto w-full px-6;
-    max-width: var(--container-prose);
-  }
+.container-prose {
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  max-width: var(--container-prose);
+}
 
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: 0.625rem 1.05rem;
-    font-size: 0.9rem;
-    font-weight: 500;
-    letter-spacing: -0.005em;
-    border-radius: 0.5rem;
-    transition:
-      transform 0.18s ease,
-      box-shadow 0.18s ease,
-      background 0.18s ease,
-      color 0.18s ease,
-      border-color 0.18s ease;
-    will-change: transform;
-  }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.05rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  border-radius: 0.5rem;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease;
+  will-change: transform;
+}
 
-  .btn-primary {
-    background: var(--color-ink);
-    color: #f6f3ec;
-    border: 1px solid color-mix(in oklab, var(--color-ink) 80%, white 20%);
-    box-shadow: var(--shadow-button);
-  }
-  .btn-primary:hover {
-    background: var(--color-ink-soft);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-button-hover);
-  }
-  .btn-primary .btn-arrow {
-    transition: transform 0.2s ease;
-  }
-  .btn-primary:hover .btn-arrow {
-    transform: translateX(2px);
-  }
+.btn-primary {
+  background: var(--color-ink);
+  color: #f6f3ec;
+  border: 1px solid color-mix(in oklab, var(--color-ink) 80%, white 20%);
+  box-shadow: var(--shadow-button);
+}
+.btn-primary:hover {
+  background: var(--color-ink-soft);
+  color: #f6f3ec;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-button-hover);
+}
+.btn-primary .btn-arrow {
+  transition: transform 0.2s ease;
+}
+.btn-primary:hover .btn-arrow {
+  transform: translateX(2px);
+}
 
-  .btn-secondary {
-    background: var(--color-surface);
-    color: var(--color-ink);
-    border: 1px solid var(--color-border-strong);
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 1px 2px rgba(20, 17, 10, 0.04);
-  }
-  .btn-secondary:hover {
-    background: var(--color-surface);
-    border-color: var(--color-ink);
-    transform: translateY(-1px);
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 4px 10px -4px rgba(20, 17, 10, 0.18);
-  }
+.btn-secondary {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  border: 1px solid var(--color-border-strong);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 1px 2px rgba(20, 17, 10, 0.04);
+}
+.btn-secondary:hover {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  border-color: var(--color-ink);
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 4px 10px -4px rgba(20, 17, 10, 0.18);
+}
 
-  .btn-ghost {
-    background: transparent;
-    color: var(--color-ink-muted);
-    border: 1px solid transparent;
-  }
-  .btn-ghost:hover {
-    background: var(--color-surface-muted);
-    color: var(--color-ink);
-  }
+.btn-ghost {
+  background: transparent;
+  color: var(--color-ink-muted);
+  border: 1px solid transparent;
+}
+.btn-ghost:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-ink);
+}
 
-  .label-mono {
-    font-family: var(--font-mono);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    font-size: 0.72rem;
-    color: var(--color-ink-faint);
-  }
+.label-mono {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+  color: var(--color-ink-faint);
 }
 
 .prose-article {

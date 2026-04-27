@@ -84,12 +84,12 @@ const features = [
     }
   }
   .feature-card {
-    background: var(--color-surface);
+    background: var(--color-card);
     padding: 2rem 1.75rem;
     transition: background 0.2s ease;
   }
   .feature-card:hover {
-    background: var(--color-surface-muted);
+    background: var(--color-card-hover);
   }
   .feature-label {
     font-family: var(--font-mono);
@@ -122,9 +122,10 @@ const features = [
   }
   .features-art-frame {
     border: 1px solid var(--color-border);
-    background: var(--color-surface);
+    background: var(--color-card);
     border-radius: 12px;
     overflow: hidden;
+    box-shadow: var(--shadow-card);
   }
   .features-art-frame img {
     display: block;
