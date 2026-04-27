@@ -47,7 +47,7 @@ export function Toolbar() {
   const toggleHub = useHubStore((s) => s.toggleHub);
   const hubShortcut = useShortcutStore((s) => s.shortcuts.toggleHub);
   const hubChord = formatShortcut(hubShortcut, isMac);
-  const hubLabel = `Hub (${hubChord})`;
+  const hubLabel = t["hub.toolbarLabel"](hubChord);
 
   const workspaceName =
     getWorkspaceBaseName(workspacePath) ?? t.toolbar_untitled_workspace;

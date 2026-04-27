@@ -6,7 +6,7 @@ import { fuzzyScore } from "../../utils/fuzzyScore";
 import {
   buildCommands,
   SECTION_GLYPH,
-  SECTION_LABEL,
+  SECTION_LABEL_KEYS,
   SECTION_ORDER,
   type CommandSection,
   type PaletteCommand,
@@ -19,6 +19,7 @@ const SECTION_BOOST: Record<CommandSection, number> = {
   // when ambiguous; concrete navigation (terminals, projects) sits in
   // the middle; waypoints below them because they're modal-state.
   action: 1.15,
+  canvas: 1.05,
   terminal: 1.1,
   project: 1.0,
   waypoint: 0.9,
@@ -305,7 +306,7 @@ export function CommandPalette() {
             className="shrink-0 text-[10px]"
             style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
           >
-            Enter
+            {t["palette.row_run_hint"]}
           </span>
         )}
       </button>
@@ -347,7 +348,7 @@ export function CommandPalette() {
             onCompositionEnd={() => {
               composingRef.current = false;
             }}
-            placeholder="Run a command, jump to a terminal…"
+            placeholder={t["palette.placeholder"]}
             className="min-w-0 flex-1 bg-transparent text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none"
             style={MONO_STYLE}
             autoComplete="off"
@@ -379,8 +380,8 @@ export function CommandPalette() {
               style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
             >
               {query.trim()
-                ? "No matching commands"
-                : "Type a command or location"}
+                ? t["palette.empty_no_match"]
+                : t["palette.empty_hint"]}
             </div>
           ) : grouped ? (
             (() => {
@@ -399,7 +400,7 @@ export function CommandPalette() {
                         letterSpacing: "var(--tracking-eyebrow)",
                       }}
                     >
-                      {SECTION_LABEL[section]}
+                      {t[SECTION_LABEL_KEYS[section]]}
                     </div>
                     {items.map((command, i) =>
                       renderRow(
@@ -437,7 +438,7 @@ export function CommandPalette() {
               >
                 ↵
               </kbd>
-              <span className="ml-1">run</span>
+              <span className="ml-1">{t["palette.footer_run"]}</span>
             </span>
             <span>
               <kbd
@@ -446,13 +447,12 @@ export function CommandPalette() {
               >
                 ↑↓
               </kbd>
-              <span className="ml-1">navigate</span>
+              <span className="ml-1">{t["palette.footer_navigate"]}</span>
             </span>
           </div>
           <div className="flex items-center gap-2">
             <span className="hidden sm:inline">
-              {flatList.length}{" "}
-              {flatList.length === 1 ? "match" : "matches"}
+              {t["palette.match_count"](flatList.length)}
             </span>
           </div>
         </div>

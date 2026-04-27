@@ -1,9 +1,17 @@
+import { en } from "./i18n/en";
+import { zh } from "./i18n/zh";
+import { useLocaleStore } from "./stores/localeStore";
 import { useProjectStore } from "./stores/projectStore";
 import { snapshotState } from "./snapshotState";
 import {
   useSnapshotHistoryStore,
   type SnapshotHistoryEntry,
 } from "./stores/snapshotHistoryStore";
+
+function dict() {
+  const locale = useLocaleStore.getState().locale;
+  return locale === "zh" ? { ...en, ...zh } : en;
+}
 
 interface CountStats {
   terminalCount: number;
@@ -34,14 +42,15 @@ function countCanvas(): CountStats {
 }
 
 function deriveLabel(prev: CountStats | null, next: CountStats): string {
-  if (!prev) return `${next.terminalCount} terminals · ${next.projectCount} projects`;
+  const t = dict();
+  if (!prev) return t["snapshot.label.summary"](next.terminalCount, next.projectCount);
   const dt = next.terminalCount - prev.terminalCount;
   const dp = next.projectCount - prev.projectCount;
-  if (dt > 0) return `After adding ${dt} terminal${dt === 1 ? "" : "s"}`;
-  if (dt < 0) return `After closing ${-dt} terminal${dt === -1 ? "" : "s"}`;
-  if (dp > 0) return `After adding ${dp} project${dp === 1 ? "" : "s"}`;
-  if (dp < 0) return `After removing ${-dp} project${dp === -1 ? "" : "s"}`;
-  return `${next.terminalCount} terminals · ${next.projectCount} projects`;
+  if (dt > 0) return t["snapshot.label.added_terminals"](dt);
+  if (dt < 0) return t["snapshot.label.closed_terminals"](-dt);
+  if (dp > 0) return t["snapshot.label.added_projects"](dp);
+  if (dp < 0) return t["snapshot.label.removed_projects"](-dp);
+  return t["snapshot.label.summary"](next.terminalCount, next.projectCount);
 }
 
 let lastStats: CountStats | null = null;
@@ -103,18 +112,19 @@ export async function appendSnapshotToHistory(
 }
 
 export function relativeTimeLabel(ms: number, now = Date.now()): string {
+  const t = dict();
   const delta = Math.max(0, now - ms);
   const seconds = Math.round(delta / 1000);
-  if (seconds < 45) return "just now";
+  if (seconds < 45) return t["snapshot.relative.justNow"];
   const minutes = Math.round(seconds / 60);
-  if (minutes < 2) return "1 minute ago";
-  if (minutes < 60) return `${minutes} minutes ago`;
+  if (minutes < 2) return t["snapshot.relative.minuteAgo"];
+  if (minutes < 60) return t["snapshot.relative.minutesAgo"](minutes);
   const hours = Math.round(minutes / 60);
-  if (hours < 2) return "1 hour ago";
-  if (hours < 24) return `${hours} hours ago`;
+  if (hours < 2) return t["snapshot.relative.hourAgo"];
+  if (hours < 24) return t["snapshot.relative.hoursAgo"](hours);
   const days = Math.round(hours / 24);
-  if (days < 2) return "yesterday";
-  if (days < 7) return `${days} days ago`;
+  if (days < 2) return t["snapshot.relative.yesterday"];
+  if (days < 7) return t["snapshot.relative.daysAgo"](days);
   const date = new Date(ms);
   return date.toLocaleDateString(undefined, {
     month: "short",

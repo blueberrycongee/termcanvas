@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useT } from "../../i18n/useT";
 
 interface MessageBubbleProps {
   text: string;
@@ -98,6 +99,7 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
 }
 
 function CopyButton({ text }: { text: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const handleCopy = useCallback(async () => {
     await navigator.clipboard.writeText(text);
@@ -113,9 +115,9 @@ function CopyButton({ text }: { text: string }) {
         color: copied ? "var(--cyan)" : "var(--text-faint)",
         transition: "color var(--duration-quick) var(--ease-out-soft)",
       }}
-      title="Copy code"
+      title={t["agent.message.copyCodeTitle"]}
     >
-      {copied ? "copied" : "copy"}
+      {copied ? t["agent.message.copied"] : t["agent.message.copy"]}
     </button>
   );
 }

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useCanvasStore } from "../stores/canvasStore";
 import { usePinStore } from "../stores/pinStore";
 import { useProjectStore } from "../stores/projectStore";
+import { useT } from "../i18n/useT";
 import { getCanvasLeftInset, getCanvasRightInset } from "./viewportBounds";
 import {
   WAYPOINT_NOOP_EVENT,
@@ -94,6 +95,7 @@ function dotState({
 }
 
 export function SpatialWaypointsLayer() {
+  const t = useT();
   const projects = useProjectStore((s) => s.projects);
   const focusedProjectId = useProjectStore((s) => s.focusedProjectId);
   const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
@@ -287,8 +289,8 @@ export function SpatialWaypointsLayer() {
             }}
           >
             {waypoints[hoveredSlot]
-              ? `Slot ${hoveredSlot} · ${RECALL_COMBO_LABEL}${hoveredSlot} to jump`
-              : `Slot ${hoveredSlot} · ${SAVE_COMBO_LABEL}${hoveredSlot} to save`}
+              ? t["waypoint.tooltip.recall"](hoveredSlot, RECALL_COMBO_LABEL)
+              : t["waypoint.tooltip.save"](hoveredSlot, SAVE_COMBO_LABEL)}
           </div>
         )}
       </div>

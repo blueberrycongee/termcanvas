@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { useT } from "../i18n/useT";
 import { useSnapshotHistoryStore } from "../stores/snapshotHistoryStore";
 import {
   appendSnapshotToHistory,
@@ -71,6 +72,7 @@ function formatDelta(delta: { x: number; y: number }): string {
 }
 
 export function SnapshotHistoryModal() {
+  const t = useT();
   const open = useSnapshotHistoryStore((s) => s.open);
   const entries = useSnapshotHistoryStore((s) => s.entries);
   const selectedIndex = useSnapshotHistoryStore((s) => s.selectedIndex);
@@ -216,29 +218,29 @@ export function SnapshotHistoryModal() {
       if (!body) {
         useNotificationStore
           .getState()
-          .notify("error", "Snapshot could not be read.");
+          .notify("error", t["snapshot.notify.read_failed"]);
         return;
       }
       const restored = readWorkspaceSnapshot(body);
       if (!restored || "skipRestore" in restored) {
         useNotificationStore
           .getState()
-          .notify("error", "Snapshot is empty or unreadable.");
+          .notify("error", t["snapshot.notify.empty_unreadable"]);
         return;
       }
       restoreWorkspaceSnapshot(restored);
       useWorkspaceStore.getState().setWorkspacePath(null);
       useWorkspaceStore.getState().markDirty();
-      useNotificationStore.getState().notify("info", "Snapshot restored.");
+      useNotificationStore.getState().notify("info", t["snapshot.notify.restored"]);
       setPendingRestoreId(null);
       closeHistory();
     } catch (err) {
       console.error("[SnapshotHistoryModal] restore failed:", err);
-      useNotificationStore.getState().notify("error", "Restore failed.");
+      useNotificationStore.getState().notify("error", t["snapshot.notify.restore_failed"]);
     } finally {
       setRestoring(false);
     }
-  }, [pendingRestoreId, setPendingRestoreId, closeHistory]);
+  }, [pendingRestoreId, setPendingRestoreId, closeHistory, t]);
 
   const moveFromIndex = useCallback(
     (direction: 1 | -1) => {
@@ -376,17 +378,14 @@ export function SnapshotHistoryModal() {
                 fontWeight: isSelected ? 500 : 400,
               }}
             >
-              {entry.label ?? "Snapshot"}
+              {entry.label ?? t["snapshot.modal.default_label"]}
             </div>
             <div
               className="tc-meta truncate"
               title={absoluteTimeLabel(entry.savedAt)}
             >
               {relativeTimeLabel(entry.savedAt)} ·{" "}
-              {entry.terminalCount} terminal
-              {entry.terminalCount === 1 ? "" : "s"} ·{" "}
-              {entry.projectCount} project
-              {entry.projectCount === 1 ? "" : "s"}
+              {t["snapshot.modal.summary"](entry.terminalCount, entry.projectCount)}
             </div>
           </div>
           {isSelected ? (
@@ -394,20 +393,20 @@ export function SnapshotHistoryModal() {
               className="shrink-0 text-[10px]"
               style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
             >
-              {diffMode ? "to" : "Restore"}
+              {diffMode ? t["snapshot.modal.row_to"] : t["snapshot.modal.row_restore"]}
             </span>
           ) : isFromAnchor ? (
             <span
               className="shrink-0 text-[10px]"
               style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
             >
-              from
+              {t["snapshot.modal.row_from"]}
             </span>
           ) : null}
         </button>
       );
     };
-  }, [safeSelectedIndex, safeFromIndex, diffMode, setSelectedIndex, triggerRestore, tick]);
+  }, [safeSelectedIndex, safeFromIndex, diffMode, setSelectedIndex, triggerRestore, tick, t]);
 
   const summary = useMemo(
     () => (diffEntries ? summarizeDiff(diffEntries) : null),
@@ -427,7 +426,7 @@ export function SnapshotHistoryModal() {
         }}
         role="dialog"
         aria-modal="true"
-        aria-label="Snapshot history"
+        aria-label={t["snapshot.modal.aria"]}
       >
         <div
           className="tc-enter-fade-up w-full max-w-xl mx-4 overflow-hidden rounded-lg border shadow-2xl"
@@ -448,7 +447,7 @@ export function SnapshotHistoryModal() {
               className="min-w-0 flex-1 text-[13px]"
               style={{ ...MONO_STYLE, color: "var(--text-primary)" }}
             >
-              Snapshot history{diffMode ? " · diff" : ""}
+              {diffMode ? t["snapshot.modal.title_diff"] : t["snapshot.modal.title"]}
             </div>
             <button
               type="button"
@@ -468,9 +467,13 @@ export function SnapshotHistoryModal() {
                   "color var(--duration-quick) var(--ease-out-soft), background-color var(--duration-quick) var(--ease-out-soft), border-color var(--duration-quick) var(--ease-out-soft)",
               }}
               aria-pressed={diffMode}
-              title={diffMode ? "Exit diff mode (D)" : "Compare snapshots (D)"}
+              title={
+                diffMode
+                  ? t["snapshot.modal.diff_exit_tooltip"]
+                  : t["snapshot.modal.diff_compare_tooltip"]
+              }
             >
-              Diff
+              {t["snapshot.modal.diff_button"]}
             </button>
             <kbd
               className="shrink-0 rounded border px-1.5 py-0.5 text-[10px]"
@@ -506,8 +509,15 @@ export function SnapshotHistoryModal() {
                 style={{ ...MONO_STYLE, color: "var(--text-metadata)" }}
               >
                 {diffMode && summary
-                  ? `+${summary.added} −${summary.removed} ~${summary.changed}`
-                  : `${selectedEntry.terminalCount} terminals · ${selectedEntry.projectCount} projects`}
+                  ? t["snapshot.modal.diff_summary"](
+                      summary.added,
+                      summary.removed,
+                      summary.changed,
+                    )
+                  : t["snapshot.modal.summary"](
+                      selectedEntry.terminalCount,
+                      selectedEntry.projectCount,
+                    )}
               </span>
             </div>
           )}
@@ -523,14 +533,14 @@ export function SnapshotHistoryModal() {
                 className="px-4 py-10 text-center text-[12px]"
                 style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
               >
-                Loading…
+                {t["snapshot.modal.list_loading"]}
               </div>
             ) : entries.length === 0 ? (
               <div
                 className="px-4 py-10 text-center text-[12px]"
                 style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
               >
-                No snapshots yet — auto-save will start capturing as you work.
+                {t["snapshot.modal.list_empty"]}
               </div>
             ) : (
               entries.map(renderRow)
@@ -551,14 +561,14 @@ export function SnapshotHistoryModal() {
                     className="py-4 text-center text-[11px]"
                     style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
                   >
-                    Computing diff…
+                    {t["snapshot.modal.diff_loading"]}
                   </div>
                 ) : !diffEntries || diffEntries.length === 0 ? (
                   <div
                     className="py-4 text-center text-[11px]"
                     style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
                   >
-                    Snapshots are identical.
+                    {t["snapshot.modal.diff_identical"]}
                   </div>
                 ) : (
                   <ul className="flex flex-col gap-0.5">
@@ -630,7 +640,7 @@ export function SnapshotHistoryModal() {
                 >
                   ↵
                 </kbd>
-                <span className="ml-1">restore</span>
+                <span className="ml-1">{t["snapshot.modal.footer_restore"]}</span>
               </span>
               <span>
                 <kbd
@@ -639,7 +649,7 @@ export function SnapshotHistoryModal() {
                 >
                   ↑↓
                 </kbd>
-                <span className="ml-1">to</span>
+                <span className="ml-1">{t["snapshot.modal.footer_to"]}</span>
               </span>
               <span>
                 <kbd
@@ -648,7 +658,11 @@ export function SnapshotHistoryModal() {
                 >
                   D
                 </kbd>
-                <span className="ml-1">{diffMode ? "exit diff" : "diff"}</span>
+                <span className="ml-1">
+                  {diffMode
+                    ? t["snapshot.modal.footer_exit_diff"]
+                    : t["snapshot.modal.footer_diff"]}
+                </span>
               </span>
               {diffMode && (
                 <span>
@@ -658,28 +672,22 @@ export function SnapshotHistoryModal() {
                   >
                     ⇧↑↓
                   </kbd>
-                  <span className="ml-1">from</span>
+                  <span className="ml-1">{t["snapshot.modal.footer_from"]}</span>
                 </span>
               )}
             </div>
             <span className="hidden sm:inline">
-              {entries.length}{" "}
-              {entries.length === 1 ? "snapshot" : "snapshots"}
+              {t["snapshot.modal.count"](entries.length)}
             </span>
           </div>
         </div>
       </div>
       <ConfirmDialog
         open={!!pendingRestoreId}
-        title="Restore snapshot?"
-        body={
-          <span>
-            Your current canvas will be replaced. A snapshot of the current
-            state is saved first, so this is reversible from the same list.
-          </span>
-        }
-        confirmLabel="Restore"
-        busyLabel="Restoring…"
+        title={t["snapshot.confirm.title"]}
+        body={<span>{t["snapshot.confirm.body"]}</span>}
+        confirmLabel={t["snapshot.confirm.confirm"]}
+        busyLabel={t["snapshot.confirm.busy"]}
         confirmTone="danger"
         busy={restoring}
         onCancel={() => {

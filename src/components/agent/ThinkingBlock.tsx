@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useT } from "../../i18n/useT";
 
 interface ThinkingBlockProps {
   text: string;
@@ -7,6 +8,7 @@ interface ThinkingBlockProps {
 }
 
 export function ThinkingBlock({ text, streaming }: ThinkingBlockProps) {
+  const t = useT();
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -39,7 +41,7 @@ export function ThinkingBlock({ text, streaming }: ThinkingBlockProps) {
             transition: "opacity var(--duration-quick) var(--ease-out-soft)",
           }}
         >
-          Thinking{streaming ? "…" : ""}
+          {streaming ? t["agent.thinking.streaming"] : t["agent.thinking.label"]}
         </span>
       </button>
       {expanded && (

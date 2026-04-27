@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useT } from "../../i18n/useT";
 
 interface ToolCardProps {
   name: string;
@@ -85,6 +86,7 @@ export function ToolCard({
   onApprove,
   onDeny,
 }: ToolCardProps) {
+  const t = useT();
   const [expanded, setExpanded] = useState(false);
   const [resultExpanded, setResultExpanded] = useState(false);
   const [approvalState, setApprovalState] = useState<"pending" | "approved" | "denied">("pending");
@@ -151,7 +153,7 @@ export function ToolCard({
             className="ml-auto tc-eyebrow shrink-0"
             style={{ color: "var(--amber)" }}
           >
-            Needs approval
+            {t["agent.tool.needsApproval"]}
           </span>
         )}
         {tone === "error" && (
@@ -159,7 +161,7 @@ export function ToolCard({
             className="ml-auto tc-eyebrow shrink-0"
             style={{ color: "var(--red)" }}
           >
-            Error
+            {t["agent.tool.error"]}
           </span>
         )}
       </button>
@@ -168,7 +170,7 @@ export function ToolCard({
         <div className="mt-1 mb-1 pl-[18px] space-y-2 tc-enter-fade-quick">
           {hasInputDetail && (
             <div>
-              <div className="mb-0.5 tc-eyebrow tc-mono">input</div>
+              <div className="mb-0.5 tc-eyebrow tc-mono">{t["agent.tool.input"]}</div>
               <pre
                 className="whitespace-pre-wrap break-words tc-mono m-0"
                 style={{
@@ -183,7 +185,7 @@ export function ToolCard({
           )}
           {hasOutput && (
             <div>
-              <div className="mb-0.5 tc-eyebrow tc-mono">output</div>
+              <div className="mb-0.5 tc-eyebrow tc-mono">{t["agent.tool.output"]}</div>
               <pre
                 className="whitespace-pre-wrap break-words tc-mono m-0"
                 style={{
@@ -214,7 +216,9 @@ export function ToolCard({
                     setResultExpanded((v) => !v);
                   }}
                 >
-                  {resultExpanded ? "collapse" : `show ${resultLines.length - 8} more lines`}
+                  {resultExpanded
+                    ? t["agent.tool.collapse"]
+                    : t["agent.tool.showMoreLines"](resultLines.length - 8)}
                 </button>
               )}
             </div>
@@ -235,7 +239,7 @@ export function ToolCard({
             onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.opacity = "1")}
             onClick={handleApprove}
           >
-            Approve
+            {t["agent.tool.approve"]}
           </button>
           <button
             className="px-2.5 h-6 tc-ui rounded-md"
@@ -258,7 +262,7 @@ export function ToolCard({
             }}
             onClick={handleDeny}
           >
-            Deny
+            {t["agent.tool.deny"]}
           </button>
         </div>
       )}
@@ -268,7 +272,9 @@ export function ToolCard({
             className="tc-eyebrow"
             style={{ color: approvalState === "approved" ? "var(--cyan)" : "var(--red)" }}
           >
-            {approvalState === "approved" ? "Approved" : "Denied"}
+            {approvalState === "approved"
+              ? t["agent.tool.approved"]
+              : t["agent.tool.denied"]}
           </span>
         </div>
       )}
