@@ -84,9 +84,8 @@ pnpm dev
 
 原生支持 **Claude Code**、**Codex**、**Kimi**、**Gemini**、**OpenCode**。
 
-- **实时状态与完成闪光** —— 一眼看到 agent 正在工作、等待还是已完成
-- **事件驱动 telemetry** —— Claude Code 和 Codex 通过 lifecycle hooks 直接推送 `awaiting_input`、工具活动、turn 状态，状态翻转即时生效，不再受轮询延迟拖累
-- **Telemetry 真相层** —— turn 状态、工具活动、卡顿检测、状态徽章、结构化快照，同时服务 UI 和 Hydra
+- **实时状态一眼可见** —— 每个 tile 上的彩色状态点告诉你 agent 现在在思考、等待输入、空闲，还是刚完成
+- **事件驱动的状态** —— Claude Code 和 Codex 通过 lifecycle hooks 直接推送 `awaiting_input`、工具活动、turn 状态，状态翻转即时生效，不再受轮询延迟拖累
 - **会话恢复** —— 关闭并重新打开 agent 终端，不丢失上下文
 - **内联 diff 卡片** —— 不离开画布就能审查 agent 的代码变更
 

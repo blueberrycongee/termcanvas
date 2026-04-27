@@ -86,15 +86,14 @@ Double-click a terminal title bar to zoom-to-fit. Drag to reorder. Box-select mu
 
 First-class support for **Claude Code**, **Codex**, **Kimi**, **Gemini**, and **OpenCode**.
 
-- **Live status & completion glow** — see at a glance whether an agent is working, waiting, or done
-- **Event-driven telemetry** — Claude Code and Codex stream `awaiting_input`, tool activity, and turn state via lifecycle hooks, so status transitions land in-frame rather than on a polling delay
-- **Telemetry truth layer** — turn state, tool activity, stall detection, advisory badges, and structured snapshots shared between the UI and Hydra
+- **Live status at a glance** — coloured status dot on every tile tells you whether an agent is thinking, awaiting input, idle, or has just finished
+- **Event-driven status** — Claude Code and Codex stream `awaiting_input`, tool activity, and turn state via lifecycle hooks, so transitions land in-frame instead of on a polling delay
 - **Session resume** — close and reopen an agent terminal without losing context
 - **Inline diff cards** — review an agent's changes without leaving the canvas
 
 ### Pet
 
-A desktop capybara (opt-in) that tracks your agents via telemetry and reacts: working, waiting, stuck, stall, completed, spa. Uses the same truth layer as the status glow, so its reactions are as accurate as the badges. Walk dust, heart particles, ground shadow, and a handful of idle emotes for a bit of companion texture during long runs.
+A desktop capybara (opt-in) that tracks your agents via telemetry and reacts: working, waiting, stuck, stall, completed, spa. Same telemetry that drives the status dots, so the pet is as accurate as the badges. Walk dust, heart particles, ground shadow, and a handful of idle emotes for a bit of companion texture during long runs.
 
 ### Sessions Panel
 
