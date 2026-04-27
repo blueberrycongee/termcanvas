@@ -1050,7 +1050,7 @@ export function TerminalTile({
           {headerContextLabel}
         </span>
         <div
-          className={`tc-tile-title-editable h-6 min-w-0 flex-1 rounded-md border px-1.5 text-[11px] ${
+          className={`tc-tile-title-editable nodrag h-6 min-w-0 flex-1 rounded-md border px-1.5 text-[11px] ${
             terminal.customTitle
               ? "border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]"
               : "border-dashed border-[var(--border)] bg-[var(--bg)] text-[var(--text-faint)]"
