@@ -568,35 +568,58 @@ function XyFlowCanvasInner() {
 
   const handleWheelCapture = useCallback(
     (event: React.WheelEvent<HTMLDivElement>) => {
-      // Two distinct gestures land here:
-      //   1. Cmd/Ctrl + wheel — explicit zoom intent.
-      //   2. Trackpad pinch — Chromium synthesises wheel events with
-      //      ctrlKey=true even though no key is pressed. Same code path
-      //      handles both, anchored at the cursor position.
-      if (!(event.ctrlKey || event.metaKey)) {
+      const isPinch = event.ctrlKey || event.metaKey;
+
+      // Pinch (Cmd/Ctrl + wheel, or trackpad pinch which Chromium
+      // synthesises as ctrlKey=true): always zoom canvas, regardless of
+      // cursor position. Terminal has no zoom concept.
+      if (isPinch) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const delta = normalizeWheelDelta(event);
+        if (Math.abs(delta) < 0.001) {
+          return;
+        }
+
+        const scaleFactor = Math.exp(-delta * WHEEL_ZOOM_SENSITIVITY);
+        const nextViewport = zoomAtClientPoint({
+          clientX: event.clientX,
+          clientY: event.clientY,
+          leftPanelCollapsed,
+          leftPanelWidth,
+          taskDrawerOpen,
+          nextScale: clampScale(viewport.scale * scaleFactor),
+          viewport,
+        });
+
+        useCanvasStore.getState().setViewport(nextViewport);
+        return;
+      }
+
+      // Horizontal-dominant wheel over a .nowheel element (terminal):
+      // pan the canvas. Terminal has no horizontal axis and React Flow's
+      // panOnScroll skips .nowheel, so without this the gesture goes
+      // nowhere. Over the open canvas, RF's panOnScroll handles pan;
+      // we leave it alone (and inherit RF's integer-pixel snapping).
+      const target = event.target;
+      if (!(target instanceof Element) || !target.closest(".nowheel")) {
+        return;
+      }
+      const absX = Math.abs(event.deltaX);
+      const absY = Math.abs(event.deltaY);
+      if (absX <= absY || absX === 0) {
         return;
       }
 
       event.preventDefault();
       event.stopPropagation();
 
-      const delta = normalizeWheelDelta(event);
-      if (Math.abs(delta) < 0.001) {
-        return;
-      }
-
-      const scaleFactor = Math.exp(-delta * WHEEL_ZOOM_SENSITIVITY);
-      const nextViewport = zoomAtClientPoint({
-        clientX: event.clientX,
-        clientY: event.clientY,
-        leftPanelCollapsed,
-        leftPanelWidth,
-        taskDrawerOpen,
-        nextScale: clampScale(viewport.scale * scaleFactor),
-        viewport,
+      useCanvasStore.getState().setViewport({
+        ...viewport,
+        x: Math.round(viewport.x - event.deltaX),
+        y: Math.round(viewport.y - event.deltaY),
       });
-
-      useCanvasStore.getState().setViewport(nextViewport);
     },
     [leftPanelCollapsed, leftPanelWidth, taskDrawerOpen, viewport],
   );
