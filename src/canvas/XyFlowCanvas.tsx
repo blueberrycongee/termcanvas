@@ -608,17 +608,25 @@ function XyFlowCanvasInner() {
       }
       const absX = Math.abs(event.deltaX);
       const absY = Math.abs(event.deltaY);
-      if (absX <= absY || absX === 0) {
+      // Require a clearly horizontal gesture (≥2× the vertical component)
+      // so diagonal swipes don't accidentally trigger canvas pan.
+      if (absX < absY * 2 || absX === 0) {
         return;
       }
 
       event.preventDefault();
       event.stopPropagation();
 
+      // Read viewport fresh from the store, not from the closure.
+      // Wheel events fire 60+/s; closure-captured viewport stays stale
+      // until React re-renders, so multiple in-flight events would all
+      // base off the same old position and overwrite each other —
+      // visually a "camera jumping back" effect.
+      const current = useCanvasStore.getState().viewport;
       useCanvasStore.getState().setViewport({
-        ...viewport,
-        x: Math.round(viewport.x - event.deltaX),
-        y: Math.round(viewport.y - event.deltaY),
+        ...current,
+        x: Math.round(current.x - event.deltaX),
+        y: Math.round(current.y - event.deltaY),
       });
     },
     [leftPanelCollapsed, leftPanelWidth, taskDrawerOpen, viewport],
