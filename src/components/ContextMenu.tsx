@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 export type MenuItem =
   | { type?: "item"; label: string; active?: boolean; danger?: boolean; onClick: () => void }
@@ -11,8 +11,29 @@ interface Props {
   onClose: () => void;
 }
 
+const VIEWPORT_MARGIN = 8;
+
 export function ContextMenu({ x, y, items, onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ x: number; y: number }>({ x, y });
+
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let nx = x;
+    let ny = y;
+    if (nx + rect.width + VIEWPORT_MARGIN > vw) {
+      nx = Math.max(VIEWPORT_MARGIN, vw - rect.width - VIEWPORT_MARGIN);
+    }
+    if (ny + rect.height + VIEWPORT_MARGIN > vh) {
+      ny = Math.max(VIEWPORT_MARGIN, vh - rect.height - VIEWPORT_MARGIN);
+    }
+    setPos({ x: nx, y: ny });
+  }, [x, y, items]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -38,7 +59,7 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
     <div
       ref={ref}
       className="fixed z-[100] py-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg min-w-[140px]"
-      style={{ left: x, top: y }}
+      style={{ left: pos.x, top: pos.y }}
     >
       {items.map((item, i) =>
         item.type === "separator" ? (
