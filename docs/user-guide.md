@@ -18,14 +18,16 @@ This guide assumes TermCanvas is already installed. For download links and `term
 6. [Reading & editing code](#reading--editing-code)
 7. [Browsing session history](#browsing-session-history)
 8. [Watching your spend (Usage)](#watching-your-spend-usage)
-9. [Global search (⌘K)](#global-search-k)
+9. [Finding things — search, palette, hub](#finding-things--search-palette-hub)
 10. [Composer & quick actions](#composer--quick-actions)
 11. [Stashing & unstashing terminals](#stashing--unstashing-terminals)
-12. [Logging in for cross-device sync](#logging-in-for-cross-device-sync)
-13. [Settings — what each toggle does](#settings--what-each-toggle-does)
-14. [Power features](#power-features)
-15. [Keyboard shortcuts cheatsheet](#keyboard-shortcuts-cheatsheet)
-16. [Troubleshooting](#troubleshooting)
+12. [Multi-canvas, waypoints, and snapshot history](#multi-canvas-waypoints-and-snapshot-history)
+13. [Pins — capturing deferred work](#pins--capturing-deferred-work)
+14. [Logging in for cross-device sync](#logging-in-for-cross-device-sync)
+15. [Settings — what each toggle does](#settings--what-each-toggle-does)
+16. [Power features](#power-features)
+17. [Keyboard shortcuts cheatsheet](#keyboard-shortcuts-cheatsheet)
+18. [Troubleshooting](#troubleshooting)
 
 On macOS this guide uses `⌘`. On Linux / Windows, substitute `Ctrl` — TermCanvas binds every shortcut against the platform modifier.
 
@@ -47,7 +49,7 @@ The surrounding UI is there so you don't have to leave the canvas for the usual 
 
 ## Your first five minutes
 
-1. **Add your first project.** The left panel starts collapsed as a 32 px strip. Click the **`+`** button at its top (or press `⌘O`). TermCanvas opens your OS's folder picker — choose a git repository. The left panel expands and shows the project with its `main` worktree.
+1. **Add your first project.** The left panel starts collapsed as a thin strip. Click the **`+`** at its top (or press `⌘O`) and pick a git repository in the folder picker. The panel expands and shows the project with its `main` worktree.
 
 2. **Spawn your first agent.** Hover the worktree row — a small `+` appears on the right. Click it to open the "New terminal" picker, or right-click on empty canvas and choose `Claude` / `Codex` / `Shell`. The new tile appears at the spot you clicked (or next to the focused terminal). The underlying PTY launches the right CLI automatically.
 
@@ -77,10 +79,10 @@ TermCanvas always has the same shape:
 
 Both panels collapse independently:
 
-- **Left panel** is `280 px` expanded, `32 px` collapsed. `⌘/` toggles the right panel; clicking the chevron at the panel's own edge toggles that one. In collapsed mode only the **`+`** button survives, so adding a project is still one click away.
-- **Right panel** is `360 px` expanded, `32 px` collapsed. Collapsed, it shows the four tab icons; click any to expand to that tab.
+- **Left panel** — click the chevron at its inner edge to collapse / expand. Collapsed, only the **`+`** button stays visible, so adding a project is still one click away.
+- **Right panel** — `⌘/` collapses / expands. Collapsed, it shows the four tab icons; clicking any icon expands the panel to that tab.
 
-**Dragging either panel's inside edge resizes it** — the canvas redraws to occupy whatever space remains, and the focused terminal re-centres automatically.
+**Drag either panel's inside edge to resize it.** The canvas redraws into whatever space remains, and the focused terminal re-centres automatically.
 
 ---
 
@@ -89,7 +91,7 @@ Both panels collapse independently:
 ### Pan & zoom
 
 - **Two-finger scroll** (trackpad) or mouse wheel: **pans** in all four directions. No modifier needed.
-- **`⌘`-scroll** (or `Ctrl`-scroll on non-Mac): **zooms** toward the cursor. Scale is clamped between `0.1×` and `2.0×`.
+- **`⌘`-scroll** (or `Ctrl`-scroll on non-Mac): **zooms** toward the cursor.
 - **Pinch**: disabled on purpose — it conflicted with macOS back-gestures in testing. Use `⌘`-scroll instead.
 
 ### Focus mode (⌘E chain)
@@ -98,7 +100,7 @@ Press `⌘E` with different state and you get different behaviour — this is th
 
 | State when you press `⌘E`           | What happens                                                 |
 | ----------------------------------- | ------------------------------------------------------------ |
-| Nothing focused                     | Focuses the first terminal and zooms to it (`1.8×`).          |
+| Nothing focused                     | Focuses the first terminal and zooms in close on it.          |
 | One terminal focused                | Zooms out to fit all terminals; remembers the focused one.  |
 | Zoomed out with a focus remembered  | Zooms back to that focused terminal.                         |
 
@@ -162,7 +164,7 @@ On **empty canvas**, right-click shows "New …" for every configured agent, pos
 
 ## Reading & editing code
 
-The right panel holds four tabs. Collapsed, the tab bar is a 32 px strip of icons; click any icon to expand to that tab.
+The right panel holds four tabs. Collapsed, the tab bar is a thin column of icons; click any icon to expand to that tab.
 
 - **Files** — a tree of the focused worktree. Click a file → a **full-canvas Monaco editor drawer** slides in from the right. It covers the canvas and the right panel but leaves the left panel visible, so you can still navigate sessions while reading.
 - **Diff** — unified diff of the focused worktree's uncommitted changes. Click any hunk to open it in Monaco at the right line. Hunks show in green / red / amber for added / removed / modified.
@@ -171,11 +173,10 @@ The right panel holds four tabs. Collapsed, the tab bar is a 32 px strip of icon
 
 ### Monaco editor drawer
 
-- **Click any file** (Files tab, global search result, diff hunk) — drawer slides in.
-- **Level-1** (default, 55 vw) — leaves the right panel + some canvas visible.
-- **Level-2** (maximise button in header, or the right panel's `⌘/` toggle) — drawer fills the area between the two side panels. Left panel is always visible so file switching never needs a close.
-- **`⌘S`** — saves the file via the same IPC path the rest of the app uses.
-- **Unsaved indicator** — a small accent-coloured dot next to the filename. Closing the drawer with unsaved changes prompts for confirmation.
+- **Click any file** (Files tab, global search result, diff hunk) — drawer slides in at default width.
+- **Maximise** (header button, or the right panel's `⌘/` toggle) — drawer fills the area between the two side panels. The left panel stays visible so file switching never needs a close.
+- **`⌘S`** — saves the file.
+- **Unsaved indicator** — a coloured dot next to the filename. Closing the drawer with unsaved changes asks first.
 - **`Esc`** — closes the drawer; if there are unsaved changes, asks first.
 
 ---
@@ -210,17 +211,21 @@ The dashboard has five rows, all real data (read from `~/.claude/projects/*/usag
 4. **Quotas** — Claude 5-hour + 7-day + Codex 5-hour meters. Green below 50%, amber between 50-80%, red above 80%. The countdown to the next reset is on the right.
 5. **Heatmap** — year-at-a-glance calendar grid. Each square is one day; colour intensity follows token count that day.
 
-The dashboard auto-hides when the canvas gap is narrower than `640 px` — if you've dragged both side panels very wide, Usage silently yields the space. Narrow a panel and it reappears.
+If you've dragged both side panels very wide and there isn't enough room left for Usage to render, the dashboard yields the space silently. Narrow a panel and it comes back.
 
 ---
 
-## Global search (⌘K)
+## Finding things — search, palette, hub
 
-`⌘K` opens the search modal. It indexes seven categories:
+Three surfaces. They overlap on purpose so the right one is always one chord away.
+
+### Global search — `⌘K`
+
+Opens the search modal. It indexes seven categories:
 
 - **Actions** — app commands (toggle panel, open settings, add project, etc.).
 - **Terminals** — every live tile by title / provider.
-- **Files** — ripgrep across the focused worktree. Kicks in after 3 characters with 300 ms debounce.
+- **Files** — full-text search across the focused worktree (powered by ripgrep). Kicks in after 3 characters.
 - **Git branches** — switcher to any local branch.
 - **Git commits** — commit message + hash fuzzy search.
 - **Sessions** — the same history from the left panel, but searchable by prompt content.
@@ -232,6 +237,25 @@ Keyboard-only interaction:
 - `Enter` — execute / open. For files, the Monaco drawer opens to that line. For sessions, the replay drawer opens and seeks to the matched event.
 - `Esc` — close. Focus returns to wherever it was before search opened.
 - **Scope toggle** — at the top of the modal, a segmented control between "All canvas" and "Current project" narrows the search to the focused worktree.
+
+### Command Palette — `⌘P`
+
+Different shape from search: instead of "find a thing", it's "run a thing". The palette lists every action TermCanvas can take — toggling panels, switching theme, dispatching a Hydra workflow, opening this guide, registering CLIs, etc. Type to filter, `Enter` to run, `Esc` to close. If you don't remember the shortcut for an action, the palette is the fastest way to find and trigger it.
+
+### Hub — `⌘⇧J`
+
+A drawer that slides in from the right edge and stays anchored. It's the canvas's command center — four lanes, all live:
+
+- **Active terminals** — the ones currently running an agent, with output sparklines.
+- **Recent activity** — chronological feed of the last things that happened (status changes, tool calls, completions). Same data the heatmap visualises spatially.
+- **Waypoints** — the 9 named viewport slots for the active project; click to recall.
+- **Pinned items** — anything you've pinned (sessions, terminals, files).
+
+Use Hub when you want a vertical-list view of activity instead of pan-zooming the canvas. Useful while a long-running agent works and you want to glance over without losing your spot.
+
+### Status Digest — `⌘⇧/`
+
+A quiet floating chip — not a drawer, not a modal. Lists the 3–5 most relevant signals across the canvas right now: just-completed runs, stuck agents, busy ones, the focus, pinned terminals. Tap and dismiss. Designed to answer "what should I look at?" in one glance.
 
 ---
 
@@ -262,6 +286,51 @@ Sometimes you want a terminal out of the way without killing it. Enter stash:
 - **Clear All** — in the stash box header, closes every stashed terminal.
 
 Stash state **persists** across workspace saves, so stashed terminals survive restarts.
+
+---
+
+## Multi-canvas, waypoints, and snapshot history
+
+Three things you reach for when one screen of canvas isn't enough.
+
+### Multiple named canvases
+
+A canvas in TermCanvas is more than just a viewport — each canvas owns its own projects, viewport, and waypoints. Switch canvases the way you'd switch desktops:
+
+- `⌘⇧]` / `⌘⇧[` — cycle to next / previous canvas.
+- `⌘⇧N` — open the Canvas Manager: rename, reorder, create, delete.
+
+Use canvases to separate concerns: one for "auth refactor", one for "exploration", one for "infra spelunking". Switching is instant; nothing reloads.
+
+### Spatial waypoints
+
+Up to 9 viewport snapshots per project. Save the current pan + zoom into a slot, recall it later with one chord:
+
+- `⌘⇧1` … `⌘⇧9` — save the current viewport into slot 1–9.
+- `⌥1` … `⌥9` — fly the camera to a saved waypoint (smooth animation).
+
+A small dot strip at the bottom-centre of the canvas shows which slots are filled. Use waypoints when you have a sprawling layout and keep returning to the same three regions — the agent cluster, the diff drawer area, the Hydra workbench tiles.
+
+### Snapshot history — `⌘⇧T`
+
+`⌘S` saves the current canvas state. The Snapshot History modal goes the other direction: it shows the last 20 snapshots TermCanvas auto-captured (every layout change of consequence), lets you preview each one, and rolls the canvas back to that exact state. Diff mode highlights what would change if you restore. Useful after a heavy reorg you wish you hadn't done.
+
+---
+
+## Pins — capturing deferred work
+
+Pins are the persistent "I'll handle this later" store. Each pin has a title, a description, and an optional link (e.g. a GitHub issue). Pins survive restarts and are scoped per repo.
+
+The CLI is `termcanvas pin` (registered alongside `termcanvas` in Settings → CLI):
+
+```bash
+termcanvas pin add --title "Fix the OAuth refresh edge case" --body "Token expires mid-request..."
+termcanvas pin add --title "Look at this issue" --link https://github.com/.../issues/42 --link-type github_issue
+termcanvas pin list
+termcanvas pin update <id> --status done
+```
+
+Inside the app, the Pin drawer surfaces the same store with one-click status toggles. Drop pins whenever you notice something but don't want to derail what you're doing right now.
 
 ---
 
@@ -313,10 +382,13 @@ Every shortcut is rebindable. Click the current binding, press a new key combina
 
 These are aimed at heavier users; skip until you're comfortable with the basics.
 
-- **Hydra orchestration** — if you want a Lead agent that dispatches sub-tasks to worker agents in parallel worktrees, enable it per-project from the worktree header's "Enable Hydra" button. This writes orchestration instructions into the project's `CLAUDE.md` / `AGENTS.md` so your agents know how to use `hydra dispatch / watch / merge`. The `hydra` CLI is separate from the app — you use it from inside an agent terminal, not from the UI.
-- **Telemetry** — every terminal emits lifecycle events (awaiting-input, tool-running, stall, completion). These drive the pet, status dots, attention queue, and Cmd+K session search. Disable from Settings → General if you want the app dead-quiet.
-- **Headless mode** — `termcanvas headless` runs the whole stack as an HTTP/SSE service, no Electron window. Useful for CI or for driving TermCanvas from another app. See `docs/headless-cloud-deployment.md`.
-- **Workspace snapshots** — `⌘S` / `⌘⇧S` saves a JSON workspace file. Re-opening it restores every project, worktree, terminal, drawing, stashed tile, and viewport. Snapshots are versioned; older formats are migrated automatically on load.
+- **Hydra orchestration** — a Lead agent that dispatches sub-tasks to worker agents across parallel worktrees. Enable per-project from the worktree header's "Enable Hydra" button: this writes orchestration instructions into `CLAUDE.md` / `AGENTS.md` so your agents know to use `hydra dispatch / watch / merge`. The `hydra` CLI is separate from the app — you use it from inside an agent terminal, not from the UI. Full design: [`docs/hydra-orchestration.md`](./hydra-orchestration.md).
+- **Activity heatmap (`⌘⇧A`)** — paints each tile with a 5-minute output-volume sparkline so a glance at the canvas tells you which agents are doing work right now. Toggle on / off.
+- **Pan-to-recent-activity (`⌥` + `` ` ``)** — fly the camera to whichever terminal had PTY output most recently. Repeat the chord to LRU-cycle through the recently-active set, Alt-Tab style.
+- **Computer Use (Claude only)** — TermCanvas can dynamically inject a Computer Use MCP server into Claude / Codex terminals so an agent can drive macOS apps. Granting the right macOS permissions is automated; the agent runs `status` → `setup` → `get_instructions` itself. See the README's CLI section for the related `termcanvas computer-use` commands.
+- **Telemetry** — every terminal emits lifecycle events (awaiting-input, tool-running, stall, completion). These drive the pet, status dots, attention queue, Hub, and `⌘K` session search. Disable from Settings → General if you want the app dead-quiet.
+- **Headless mode** — `termcanvas headless` runs the whole stack as an HTTP/SSE service, no Electron window. Useful for CI or for driving TermCanvas from another app. See [`docs/headless-cloud-deployment.md`](./headless-cloud-deployment.md).
+- **Workspace files** — `⌘S` / `⌘⇧S` save the canvas to a `.termcanvas` JSON file. Re-opening restores every project, worktree, terminal, drawing, stashed tile, and viewport. (For automatic state-history with rollback, see Snapshot History above.)
 
 ---
 
@@ -328,43 +400,58 @@ All shortcuts use **`⌘` on macOS** and **`Ctrl` on Linux / Windows**. Every on
 
 | Key          | Action                                         |
 | ------------ | ---------------------------------------------- |
-| `⌘E`         | Toggle focus — zoom into focused / out to fit |
-| `⌘]`         | Next terminal (spatial)                       |
-| `⌘[`         | Previous terminal                              |
+| `⌘E`         | Toggle focus — zoom into focused / out to fit  |
+| `⌘0` · `⌘1` · `⌘=` · `⌘-` | Zoom: fit · 100% · in · out       |
+| `⌘]` / `⌘[`  | Next / previous terminal (spatial)             |
 | `⌘G`         | Cycle focus level (terminal → worktree → starred) |
 | `⌘F`         | Star / unstar focused terminal                 |
+| `⌘⇧1`–`9`    | Save spatial waypoint to slot 1–9              |
+| `⌥1`–`9`     | Recall spatial waypoint                        |
+| `` ⌥` ``     | Pan to most-recently-active terminal           |
+| `V` · `H` · `Space` (hold) | Select tool · Hand tool · Temporary pan |
 | Scroll       | Pan canvas                                     |
 | `⌘`-scroll   | Zoom toward cursor                             |
 | Double-click (overview) | Zoom in on that terminal            |
 | Shift+drag   | Box-select multiple terminals                  |
 | Backspace    | Close selected terminals                       |
 
+### Multi-canvas
+
+| Key            | Action                              |
+| -------------- | ----------------------------------- |
+| `⌘⇧]` / `⌘⇧[`  | Next / previous canvas              |
+| `⌘⇧N`          | Open Canvas Manager                 |
+
 ### Terminals
 
 | Key    | Action                                     |
 | ------ | ------------------------------------------ |
-| `⌘T`   | New shell terminal in focused worktree     |
+| `⌘T`   | New terminal in focused worktree           |
 | `⌘D`   | Close focused terminal                     |
-| `⌘;`   | Open composer (or inline rename)            |
+| `⌘;`   | Open composer (or inline rename)           |
 
-### Panels & overlays
+### Discovery, panels, overlays
 
-| Key       | Action                        |
-| --------- | ----------------------------- |
-| `⌘/`      | Toggle right panel            |
-| `⌘⇧U`     | Toggle Usage dashboard        |
-| `⌘⇧H`     | Toggle Sessions overlay       |
-| `Esc`     | Dismiss topmost overlay       |
+| Key       | Action                                            |
+| --------- | ------------------------------------------------- |
+| `⌘K`      | Global search                                     |
+| `⌘P`      | Command Palette                                   |
+| `⌘⇧J`     | Hub                                               |
+| `⌘⇧/`     | Status digest                                     |
+| `⌘/`      | Toggle right panel (Files / Diff / Git / Memory)  |
+| `⌘⇧U`     | Usage dashboard                                   |
+| `⌘⇧H`     | Sessions overlay                                  |
+| `⌘⇧T`     | Snapshot history                                  |
+| `⌘⇧A`     | Activity heatmap                                  |
+| `Esc`     | Dismiss topmost overlay                           |
 
 ### Workspace
 
-| Key     | Action               |
-| ------- | -------------------- |
-| `⌘O`    | Add project          |
-| `⌘S`    | Save workspace       |
-| `⌘⇧S`   | Save workspace as    |
-| `⌘K`    | Global search        |
-| `⌘,`    | Settings             |
+| Key     | Action                          |
+| ------- | ------------------------------- |
+| `⌘O`    | Add project                     |
+| `⌘S` · `⌘⇧S` | Save / save-as workspace   |
+| `⌘,`    | Settings                        |
 
 ### Menu-bar (macOS-style, cross-platform)
 
@@ -386,7 +473,7 @@ All shortcuts use **`⌘` on macOS** and **`Ctrl` on Linux / Windows**. Every on
 
 **Pet doesn't show up.** It's off by default. Enable in `Settings → General → Pet`.
 
-**`⌘K` results lag when typing.** File search is 300 ms debounced; other categories are instant. If ripgrep isn't installed, file results won't appear — install via `brew install ripgrep` / `apt install ripgrep`.
+**`⌘K` file results don't show up.** File search needs ripgrep on your `$PATH`. Install with `brew install ripgrep` or `apt install ripgrep`. Other result categories work without it.
 
 ---
 

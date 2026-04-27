@@ -106,7 +106,7 @@ Built-in Git panel in the left sidebar — commit history, diff viewer, and git 
 
 ### Terminals
 
-Shell, lazygit, and tmux terminals live alongside AI agents on the same canvas. Star important terminals and cycle through them with <kbd>⌘</kbd> <kbd>J</kbd> / <kbd>K</kbd>. Four size presets, customizable titles, per-agent CLI override. New terminals pick up your sticky preferred size — the first manual resize is learned and used for every subsequent "+ Terminal" click, independent of sidebar state.
+Shell, lazygit, and tmux terminals live alongside AI agents on the same canvas. Star important terminals (<kbd>⌘</kbd><kbd>F</kbd>) and cycle through just the starred set with <kbd>⌘</kbd><kbd>]</kbd> / <kbd>⌘</kbd><kbd>[</kbd> (use <kbd>⌘</kbd><kbd>G</kbd> to switch between cycling all terminals, just starred ones, or whole worktrees). Customizable titles, per-agent CLI override. New terminals pick up your sticky preferred size — the first manual resize is learned and used for every subsequent "+ Terminal" click, independent of sidebar state.
 
 ### Usage Tracking
 
@@ -128,33 +128,32 @@ Both CLIs are bundled with the app. Register them from Settings to use in any te
 <summary>Full command reference</summary>
 
 ```
-Usage: termcanvas <project|terminal|telemetry|diff|state> <command> [args]
+Usage: termcanvas <group> <command> [args]
 
-Project commands:
-  project add <path>                          Add a project to the canvas
-  project list                                List all projects
-  project remove <id>                         Remove a project
-  project rescan <id>                         Rescan worktrees for a project
+Groups:
+  project        add | list | remove | rescan
+  worktree       list | create | remove
+  terminal       create | list | status | output | destroy | set-title
+  workflow       Lead-driven Hydra workflow over HTTP (init / dispatch / watch …)
+  telemetry      get | events
+  computer-use   status | enable | setup | disable | stop | list-apps
+                 | open-app | get-app-state | click | type | press-key | scroll | drag
+  pin            add | list | show | update | rm
+  diff           <worktree-path> [--summary]
+  state          dump full canvas state as JSON
 
-Terminal commands:
-  terminal create --worktree <path> --type <type>   Create a terminal
+Common shapes:
+  project add <path>
+  worktree create --repo <path> --branch <name> [--from <ref>]
+  terminal create --worktree <path> --type <claude|codex|shell|…>
           [--prompt <text>] [--parent-terminal <id>] [--auto-approve]
-  terminal list [--worktree <path>]            List terminals
-  terminal status <id>                         Get terminal status
-  terminal output <id> [--lines N]             Read terminal output (default 50 lines)
-  terminal destroy <id>                        Destroy a terminal
-
-Telemetry commands:
-  telemetry get --terminal <id>                Get terminal telemetry snapshot
-  telemetry get --workflow <id> [--repo <p>]   Get workflow telemetry snapshot
-  telemetry events --terminal <id>             List recent terminal telemetry events
-
-Other commands:
-  diff <worktree-path> [--summary]             View git diff for a worktree
-  state                                        Dump full canvas state as JSON
+  terminal output <id> [--lines N]              # default 50
+  telemetry get --terminal <id>
+  telemetry get --workflow <id> --repo <path>
+  pin add --title <t> [--body <b>] [--link <url>] [--link-type <type>]
 
 Flags:
-  --json    Output in JSON format
+  --json    Machine-readable output for any command
 ```
 
 </details>
@@ -299,27 +298,63 @@ Lead-driven workbenches advance through validated `result.json` evidence inside 
 
 ---
 
-## Keyboard Shortcuts
+## Find your way around
 
-All shortcuts are customizable in Settings → Shortcuts. On Windows/Linux, the default app shortcuts use <kbd>Alt</kbd>.
+A short map of where each major feature lives. Every shortcut here is rebindable in **Settings → Shortcuts** (Windows/Linux uses <kbd>Alt</kbd> in place of <kbd>⌘</kbd>).
+
+**Discovery — when you don't know where something is**
+
+| Shortcut | Surface | What it's for |
+|---|---|---|
+| <kbd>⌘</kbd><kbd>P</kbd> | Command Palette | Run any in-app action by name (toggle a panel, open settings, switch theme, etc.) |
+| <kbd>⌘</kbd><kbd>K</kbd> | Global Search | Files, terminals, sessions, git branches/commits, memory — fuzzy across the canvas |
+| <kbd>⌘</kbd><kbd>⇧</kbd><kbd>J</kbd> | Hub | Right-anchored command center: live terminals, recent activity, waypoints, pinned items |
+| <kbd>⌘</kbd><kbd>⇧</kbd><kbd>/</kbd> | Status Digest | Quiet floating chip with the 3–5 most relevant signals across the canvas |
+
+**Canvas navigation**
 
 | Shortcut | Action |
-|----------|--------|
-| <kbd>⌘</kbd> <kbd>O</kbd> | Add project |
-| <kbd>⌘</kbd> <kbd>B</kbd> | Toggle sidebar |
-| <kbd>⌘</kbd> <kbd>/</kbd> | Toggle right panel (usage) |
-| <kbd>⌘</kbd> <kbd>T</kbd> | New terminal |
-| <kbd>⌘</kbd> <kbd>D</kbd> | Close focused terminal |
-| <kbd>⌘</kbd> <kbd>;</kbd> | Rename terminal title |
-| <kbd>⌘</kbd> <kbd>]</kbd> | Next terminal |
-| <kbd>⌘</kbd> <kbd>[</kbd> | Previous terminal |
-| <kbd>⌘</kbd> <kbd>E</kbd> | Unfocus / refocus last terminal |
-| <kbd>⌘</kbd> <kbd>F</kbd> | Star / unstar focused terminal |
-| <kbd>⌘</kbd> <kbd>J</kbd> | Next starred terminal |
-| <kbd>⌘</kbd> <kbd>K</kbd> | Previous starred terminal |
-| <kbd>⌘</kbd> <kbd>S</kbd> | Save workspace |
-| <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>S</kbd> | Save workspace as |
-| <kbd>⌘</kbd> <kbd>1</kbd>–<kbd>4</kbd> | Terminal size: default / wide / tall / large |
+|---|---|
+| <kbd>⌘</kbd><kbd>E</kbd> | Toggle focus — zoom into focused terminal / out to fit |
+| <kbd>⌘</kbd><kbd>0</kbd> · <kbd>⌘</kbd><kbd>1</kbd> · <kbd>⌘</kbd><kbd>=</kbd> · <kbd>⌘</kbd><kbd>-</kbd> | Zoom: fit · 100% · in · out |
+| <kbd>⌘</kbd><kbd>]</kbd> / <kbd>⌘</kbd><kbd>[</kbd> | Next / previous terminal (or worktree / starred — see <kbd>⌘</kbd><kbd>G</kbd>) |
+| <kbd>⌘</kbd><kbd>G</kbd> | Cycle focus level (terminal → worktree → starred) |
+| <kbd>⌘</kbd><kbd>F</kbd> | Star / unstar the focused terminal |
+| <kbd>⌘</kbd><kbd>⇧</kbd><kbd>1</kbd>–<kbd>9</kbd> · <kbd>⌥</kbd><kbd>1</kbd>–<kbd>9</kbd> | Save / recall a spatial waypoint (per project, 9 slots) |
+| <kbd>⌥</kbd><kbd>\`</kbd> | Pan to whichever terminal had output most recently (cycles on rapid re-press) |
+| <kbd>V</kbd> · <kbd>H</kbd> · <kbd>Space</kbd>(hold) | Select tool · Hand tool · Temporary pan |
+
+**Multi-canvas**
+
+| Shortcut | Action |
+|---|---|
+| <kbd>⌘</kbd><kbd>⇧</kbd><kbd>]</kbd> / <kbd>⌘</kbd><kbd>⇧</kbd><kbd>[</kbd> | Next / previous canvas (each canvas owns its viewport, projects, waypoints) |
+| <kbd>⌘</kbd><kbd>⇧</kbd><kbd>N</kbd> | Open Canvas Manager (rename, reorder, switch) |
+
+**Terminals**
+
+| Shortcut | Action |
+|---|---|
+| <kbd>⌘</kbd><kbd>T</kbd> · <kbd>⌘</kbd><kbd>D</kbd> | New / close terminal in the focused worktree |
+| <kbd>⌘</kbd><kbd>;</kbd> | Open composer (or inline-rename the focused terminal title) |
+
+**Panels & overlays**
+
+| Shortcut | Action |
+|---|---|
+| <kbd>⌘</kbd><kbd>/</kbd> | Toggle right panel (Files / Diff / Git / Memory) |
+| <kbd>⌘</kbd><kbd>⇧</kbd><kbd>U</kbd> | Usage dashboard (cost & quotas) |
+| <kbd>⌘</kbd><kbd>⇧</kbd><kbd>H</kbd> | Sessions overlay |
+| <kbd>⌘</kbd><kbd>⇧</kbd><kbd>T</kbd> | Snapshot history (browse and restore canvas states, with diff) |
+| <kbd>⌘</kbd><kbd>⇧</kbd><kbd>A</kbd> | Activity heatmap on the canvas |
+
+**Workspace**
+
+| Shortcut | Action |
+|---|---|
+| <kbd>⌘</kbd><kbd>O</kbd> | Add project |
+| <kbd>⌘</kbd><kbd>S</kbd> · <kbd>⌘</kbd><kbd>⇧</kbd><kbd>S</kbd> | Save / save-as a `.termcanvas` workspace file |
+| <kbd>⌘</kbd><kbd>,</kbd> | Settings |
 
 ---
 
