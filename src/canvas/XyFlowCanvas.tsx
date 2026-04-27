@@ -623,10 +623,15 @@ function XyFlowCanvasInner() {
       // base off the same old position and overwrite each other —
       // visually a "camera jumping back" effect.
       const current = useCanvasStore.getState().viewport;
+      // Match React Flow's panOnScrollSpeed default (0.5). Without this
+      // the camera pans at 2× speed while the cursor is over a terminal,
+      // which shows up as a visible jump at the canvas/terminal boundary
+      // when a swipe crosses it.
+      const PAN_SPEED = 0.5;
       useCanvasStore.getState().setViewport({
         ...current,
-        x: Math.round(current.x - event.deltaX),
-        y: Math.round(current.y - event.deltaY),
+        x: Math.round(current.x - event.deltaX * PAN_SPEED),
+        y: Math.round(current.y - event.deltaY * PAN_SPEED),
       });
     },
     [leftPanelCollapsed, leftPanelWidth, taskDrawerOpen, viewport],
