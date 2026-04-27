@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
-  PanOnScrollMode,
   ReactFlow,
   ReactFlowProvider,
   useNodesState,
@@ -597,21 +596,20 @@ function XyFlowCanvasInner() {
         return;
       }
 
-      // Horizontal-dominant wheel over a .nowheel element (terminal):
-      // pan the canvas. Terminal has no horizontal axis and React Flow's
-      // panOnScroll skips .nowheel, so without this the gesture goes
-      // nowhere. Over the open canvas, RF's panOnScroll handles pan;
-      // we leave it alone (and inherit RF's integer-pixel snapping).
+      // Non-pinch wheel: this handler now owns ALL canvas pan, since
+      // React Flow's panOnScroll is disabled. The single exception is
+      // when the cursor is over the xterm rendering area of a *focused*
+      // terminal — that's the only condition under which the terminal
+      // is "active" and gets to consume wheel events as scrollback.
+      // Unfocused terminals are passive elements on the canvas, like
+      // images in Figma; wheel over them pans the canvas.
       const target = event.target;
-      if (!(target instanceof Element) || !target.closest(".nowheel")) {
-        return;
-      }
-      const absX = Math.abs(event.deltaX);
-      const absY = Math.abs(event.deltaY);
-      // Require a clearly horizontal gesture (≥2× the vertical component)
-      // so diagonal swipes don't accidentally trigger canvas pan.
-      if (absX < absY * 2 || absX === 0) {
-        return;
+      if (target instanceof Element) {
+        const xtermHost = target.closest(".tc-xterm-host");
+        const tile = xtermHost?.closest("[data-handoff-terminal-id]");
+        if (tile?.getAttribute("data-focused") === "true") {
+          return;
+        }
       }
 
       event.preventDefault();
@@ -620,13 +618,11 @@ function XyFlowCanvasInner() {
       // Read viewport fresh from the store, not from the closure.
       // Wheel events fire 60+/s; closure-captured viewport stays stale
       // until React re-renders, so multiple in-flight events would all
-      // base off the same old position and overwrite each other —
-      // visually a "camera jumping back" effect.
+      // base off the same old position and overwrite each other.
       const current = useCanvasStore.getState().viewport;
-      // Match React Flow's panOnScrollSpeed default (0.5). Without this
-      // the camera pans at 2× speed while the cursor is over a terminal,
-      // which shows up as a visible jump at the canvas/terminal boundary
-      // when a swipe crosses it.
+      // 0.5 matches React Flow's panOnScrollSpeed default. Keeps the
+      // pan speed consistent with what users were used to before this
+      // change, and is what handleMove's snap was tuned for.
       const PAN_SPEED = 0.5;
       useCanvasStore.getState().setViewport({
         ...current,
@@ -747,8 +743,6 @@ function XyFlowCanvasInner() {
         // for marquee on empty canvas (handled by useBoxSelect) and
         // node drag (handled by React Flow's nodesDraggable).
         panOnDrag={isPanMode ? [0, 1] : [1]}
-        panOnScroll
-        panOnScrollMode={PanOnScrollMode.Free}
         snapToGrid
         snapGrid={SNAP_GRID}
         zoomOnScroll={false}
