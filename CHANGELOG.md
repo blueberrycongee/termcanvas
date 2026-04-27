@@ -2,6 +2,28 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.38.2] - 2026-04-27
+
+### Added
+- **Markdown sanitization**: rendered markdown (session replay, agent bubbles, etc.) now passes through DOMPurify before insertion via `dangerouslySetInnerHTML`. Defense-in-depth against any future provider that ships HTML in message text.
+- **Copy buttons in session replay**: every user prompt and assistant text row gets a muted copy icon at the bottom-right (brightens on hover, swaps to ✓ for 1.2s on success). Source is `TimelineEvent.textPreview`, capped at 16 KB by the scanner — covers the 95th-percentile message.
+- **Zustand setState-loop debug middleware** (`wrapSetState`): traces high-frequency setState calls during dev so future "max update depth" regressions surface as a counter instead of a crash.
+
+### Changed
+- **Session replay footer**: removed the progress bar. The highlighted-row indicator already shows position, and the bar crowded the footer. Play/pause/seek controls stay for keyboard stepping.
+
+### Fixed
+- **Title input dragged the whole tile**: clicking-and-dragging inside the custom-title input was moving the node instead of selecting text — `onMouseDown stopPropagation` doesn't help because React Flow detects drag from `pointerdown`. The title container now carries the `nodrag` opt-out; rest of the header stays draggable.
+- **Pin drawer never reopened after a transient list failure**: `pinStore.openDrawer` cached an empty array on rejection, short-circuiting every subsequent open for that project. The cache key now stays unset on failure so the next open retries.
+- **One corrupt pin file aborted the whole list**: `PinStore.list()` threw on the first malformed `.md`, hiding every other pin in the repo. Per-file errors are now caught, logged, and skipped. `readFile` also validates required string fields and `ID_REGEX` before constructing a Pin.
+- **Invalid pin status silently accepted on create**: `PinStore.create` skipped the status validation that `update` already had, so a CLI-created pin with a bad status would write to disk and then vanish from list/get. `create` now throws `PinStoreError 400`, matching `update`'s contract.
+- **Pin dispatch errors said "Task"**: legacy "Task not found" copy and `[Task]` log prefixes leaked through `pin.dispatch.failed` toasts after the rename. Renamed to "Pin" everywhere; stale `TERMCANVAS_DIR/tasks/` comments updated to `pins/`.
+- **`pnpm test` skipped the entire Pin feature**: the script still listed deleted `task-*.test.ts` files instead of the renamed `pin-*` equivalents. Replaced.
+- **`wrapSetState` broke the release-build typecheck**: the wrapper's forwarded `(partial, replace)` didn't match either zustand setState overload. Single function-cast at the forwarded call; runtime semantics preserved.
+
+### Docs
+- **CLAUDE.md**: documented the TermCanvas Pin system — when to record a pin, the `termcanvas pin` CLI surface, and conventions for capturing user-deferred work.
+
 ## [0.38.1] - 2026-04-27
 
 ### Fixed
