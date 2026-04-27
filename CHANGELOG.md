@@ -2,6 +2,12 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.38.1] - 2026-04-27
+
+### Fixed
+- **xterm click misalignment under canvas zoom**: at any scale ≠ 100% clicks landed on the wrong cell, and at scale > 100% even a one-pixel drag selected a swathe of cells. Root cause: xterm's hit-test mixes units — `clientX − screenRect.left` is post-transform visual px while `cell.width` is pre-transform CSS layout px, so each visual pixel reads as `1/scale` of a cell. Patches `terminal._core._mouseService.getCoords` and `getMouseReportCoords` to pre-scale event coords back into CSS layout space, replacing 157 lines of window-capture event re-dispatch with a 30-line monkey-patch. Selection, drag-extend, and TUI mouse-report (vim/htop/fzf) all corrected.
+- **Session replay fork icon was hover-only**: the branch-from-here affordance on assistant final answers was gated on `opacity-0 group-hover:opacity-100`, so users couldn't tell the action existed without first hovering the row. The button is muted by default (`var(--text-muted)`) and brightens on hover via the existing color transition — the opacity gate was redundant and is removed.
+
 ## [0.38.0] - 2026-04-26
 
 A coordinated visual + capability release. The design system grew a motion layer; every long-lived surface (settings, toolbar, side panels, agent bubble, search modal, drawer family, terminal tile chrome) was rebuilt against it. New capabilities round out the spatial-memory premise: named multi-canvas workspaces, spatial waypoints, a global command palette, drag-handoff of terminal output, snapshot history with diff, status digest, activity heatmap, and pan-to-recent-activity. Onboarding collapses to one canonical first-impression surface plus quiet contextual cues.

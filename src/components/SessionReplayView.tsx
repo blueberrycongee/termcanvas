@@ -515,12 +515,12 @@ function AssistantTextRow({
   event: TimelineEvent;
   isCurrent: boolean;
   onClick: () => void;
-  /** When provided, a hover-revealed fork button appears at the
-   *  bottom-right of the row. Hovering the button opens a menu with
-   *  one option per supported target provider; clicking an option
-   *  fires `onFork(target)`. Caller gates visibility — only the
-   *  turn's "final answer" assistant text gets the fork affordance,
-   *  so the action reads as "fork after this exchange ended". */
+  /** When provided, a muted fork button sits at the bottom-right of
+   *  the row (always visible, brightens on hover). Hovering opens a
+   *  menu with one option per supported target provider; clicking an
+   *  option fires `onFork(target)`. Caller gates which rows render
+   *  the affordance — only the turn's "final answer" assistant text
+   *  gets it, so the action reads as "fork after this exchange ended". */
   onFork?: (target: "claude" | "codex") => void;
   forkLabel?: string;
   forkClaudeLabel?: string;
@@ -549,7 +549,7 @@ function AssistantTextRow({
             onClick={(e) => e.stopPropagation()}
             title={forkLabel ?? "Fork from here"}
             aria-label={forkLabel ?? "Fork from here"}
-            className="opacity-0 group-hover:opacity-100 group-hover/fork:opacity-100 transition-opacity cursor-pointer p-0.5"
+            className="cursor-pointer p-0.5 transition-colors"
             style={{ color: "var(--text-muted)" }}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLButtonElement).style.color =
