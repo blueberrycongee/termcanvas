@@ -64,16 +64,14 @@ export const usePinStore = create<PinStoreState & PinStoreActions>(
         const idx = existing.findIndex((t) => t.id === pin.id);
         const next =
           idx >= 0
-            ? [
-                ...existing.slice(0, idx),
-                pin,
-                ...existing.slice(idx + 1),
-              ]
+            ? [...existing.slice(0, idx), pin, ...existing.slice(idx + 1)]
             : [pin, ...existing];
         // If any terminal is associated with this pin, refresh its cached
         // title so renames flow through to the badge without a stale label.
         let nextTerminalMap = state.terminalPinMap;
-        for (const [terminalId, entry] of Object.entries(state.terminalPinMap)) {
+        for (const [terminalId, entry] of Object.entries(
+          state.terminalPinMap,
+        )) {
           if (entry.pinId === pin.id && entry.title !== pin.title) {
             if (nextTerminalMap === state.terminalPinMap) {
               nextTerminalMap = { ...state.terminalPinMap };
@@ -94,7 +92,9 @@ export const usePinStore = create<PinStoreState & PinStoreActions>(
         // Drop any terminal associations pointing at this pin so the badge
         // disappears in lockstep with the pin itself.
         let nextTerminalMap = state.terminalPinMap;
-        for (const [terminalId, entry] of Object.entries(state.terminalPinMap)) {
+        for (const [terminalId, entry] of Object.entries(
+          state.terminalPinMap,
+        )) {
           if (entry.pinId === id) {
             if (nextTerminalMap === state.terminalPinMap) {
               nextTerminalMap = { ...state.terminalPinMap };
@@ -120,8 +120,12 @@ export const usePinStore = create<PinStoreState & PinStoreActions>(
           .then((pins) => {
             get().setPins(projectPath, pins);
           })
-          .catch(() => {
-            get().setPins(projectPath, []);
+          .catch((err) => {
+            console.error(
+              "[pinStore] failed to load pins for",
+              projectPath,
+              err,
+            );
           });
       }
       set({ openProjectPath: projectPath });
@@ -136,8 +140,7 @@ export const usePinStore = create<PinStoreState & PinStoreActions>(
 
     openDetail: (id) => set({ openDetailPinId: id, composingForPin: null }),
 
-    closeDetail: () =>
-      set({ openDetailPinId: null, composingForPin: null }),
+    closeDetail: () => set({ openDetailPinId: null, composingForPin: null }),
 
     startCompose: (projectPath) =>
       set({ composingForPin: projectPath, openDetailPinId: null }),
