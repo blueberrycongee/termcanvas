@@ -61,6 +61,7 @@ import {
   saveWaypointToActiveProject,
 } from "../actions/spatialWaypointActions";
 import { panToRecentActivity } from "../actions/recentActivityNavigationAction";
+import { useStatusDigestStore } from "../stores/statusDigestStore";
 
 function getAllTerminals() {
   const { projects } = useProjectStore.getState();
@@ -349,6 +350,29 @@ export function useKeyboardShortcuts() {
         consumeShortcut();
         const prefs = usePreferencesStore.getState();
         prefs.setActivityHeatmapEnabled(!prefs.activityHeatmapEnabled);
+        return;
+      }
+
+      // Status digest. Cmd/Ctrl+Shift+/ pops a quiet floating chip
+      // listing the 3–5 most relevant signals across the canvas (just-
+      // completed runs, stuck agents, busy ones, the current focus,
+      // pinned terminals). Match on e.code so layouts that map Shift+/
+      // to "?" still trigger. Skip when focus is in an editable target
+      // so terminals/text fields keep the keystroke. Chord position-
+      // wise sits next to mod+/ (toggleRightPanel) — same key, with
+      // shift adds the "summary" layer.
+      if (
+        e.code === "Slash" &&
+        (e.metaKey || e.ctrlKey) &&
+        e.shiftKey &&
+        !e.altKey &&
+        !e.repeat &&
+        !isEditableTarget(e.target)
+      ) {
+        consumeShortcut();
+        const digest = useStatusDigestStore.getState();
+        if (digest.open) digest.closeDigest();
+        else digest.openDigest();
         return;
       }
 

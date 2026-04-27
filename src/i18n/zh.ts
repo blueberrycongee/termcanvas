@@ -760,4 +760,12 @@ export const zh = {
   "discovery.pinning.message": "把任务钉起来,触手可及。",
   "discovery.pinning.action": "打开钉板",
   "discovery.dismiss": "关闭",
+
+  "digest.aria": "状态摘要",
+  "digest.empty": "暂无可呈现的信号。",
+  "digest.kind.completed": "完成",
+  "digest.kind.stuck": "卡住",
+  "digest.kind.active": "繁忙",
+  "digest.kind.focused": "当前",
+  "digest.kind.pinned": "已钉",
 } as const;

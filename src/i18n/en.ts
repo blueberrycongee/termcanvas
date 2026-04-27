@@ -778,6 +778,14 @@ export const en = {
   "discovery.pinning.message": "Pin tasks to keep them in reach.",
   "discovery.pinning.action": "Open pins",
   "discovery.dismiss": "Dismiss",
+
+  "digest.aria": "Status digest",
+  "digest.empty": "Quiet — no signals to surface.",
+  "digest.kind.completed": "Done",
+  "digest.kind.stuck": "Stuck",
+  "digest.kind.active": "Busy",
+  "digest.kind.focused": "Current",
+  "digest.kind.pinned": "Pinned",
 } as const;
 
 export type TranslationKey = keyof typeof en;

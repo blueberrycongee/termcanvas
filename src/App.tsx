@@ -14,6 +14,7 @@ import { usePreferencesStore, hydrateApiKey } from "./stores/preferencesStore";
 import { DrawingPanel } from "./toolbar/DrawingPanel";
 import { ShortcutHints } from "./components/ShortcutHints";
 import { DiscoveryCue } from "./components/DiscoveryCue";
+import { StatusDigest } from "./components/StatusDigest";
 import { CompletionGlow } from "./components/CompletionGlow";
 import { initSessionStoreIPC } from "./stores/sessionStore";
 import { WelcomePopup } from "./components/WelcomePopup";
@@ -457,6 +458,7 @@ export function App() {
       {completionGlowEnabled && <CompletionGlow />}
       <ShortcutHints />
       <DiscoveryCue />
+      <StatusDigest />
       {composerEnabled && <ComposerBar />}
       <NotificationToast />
       {globalSearchEnabled && <SearchModal />}
