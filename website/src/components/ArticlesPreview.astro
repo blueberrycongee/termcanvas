@@ -1,0 +1,79 @@
+---
+import { getCollection } from "astro:content";
+import ArticleCard from "./ArticleCard.astro";
+
+const all = await getCollection("articles");
+const sorted = all.sort(
+  (a, b) => b.data.date.valueOf() - a.data.date.valueOf()
+);
+const latest = sorted.slice(0, 3);
+---
+
+<section class="articles-preview">
+  <div class="container-page">
+    <div class="head">
+      <div>
+        <span class="label-mono">文章</span>
+        <h2 class="title">设计哲学，工程实录，思考片段。</h2>
+      </div>
+      <a class="view-all" href="/articles">查看全部 →</a>
+    </div>
+    {
+      latest.length === 0 ? (
+        <p class="empty">还没有文章。</p>
+      ) : (
+        <div class="grid">
+          {latest.map((entry) => (
+            <ArticleCard
+              href={`/articles/${entry.id}`}
+              title={entry.data.title}
+              date={entry.data.date}
+              summary={entry.data.summary}
+              tag={entry.data.tag}
+            />
+          ))}
+        </div>
+      )
+    }
+  </div>
+</section>
+
+<style>
+  .articles-preview {
+    padding: 5rem 0 2rem;
+    border-top: 1px solid var(--color-border);
+  }
+  .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+  }
+  .title {
+    margin-top: 0.5rem;
+    font-size: clamp(1.6rem, 2.6vw, 2.25rem);
+    line-height: 1.2;
+    letter-spacing: -0.015em;
+    font-weight: 600;
+    max-width: 40rem;
+  }
+  .view-all {
+    color: var(--color-accent);
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+  .grid {
+    display: grid;
+    gap: 1.25rem;
+  }
+  @media (min-width: 768px) {
+    .grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .empty {
+    color: var(--color-ink-muted);
+  }
+</style>

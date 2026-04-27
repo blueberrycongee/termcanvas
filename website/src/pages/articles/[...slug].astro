@@ -1,0 +1,86 @@
+---
+import { getCollection, render } from "astro:content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+export async function getStaticPaths() {
+  const entries = await getCollection("articles", ({ data }) => data.draft !== true);
+  return entries.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+
+const formatter = new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+});
+const dateLabel = formatter.format(entry.data.date);
+---
+
+<BaseLayout
+  title={`${entry.data.title} · TermCanvas`}
+  description={entry.data.summary}
+  ogImage={entry.data.cover ?? "/hero-canvas.png"}
+>
+  <article class="article">
+    <header class="article-head container-prose">
+      <a class="back" href="/articles">← 全部文章</a>
+      <div class="meta">
+        {entry.data.tag && <span class="tag">{entry.data.tag}</span>}
+        <time datetime={entry.data.date.toISOString()}>{dateLabel}</time>
+      </div>
+      <h1 class="title">{entry.data.title}</h1>
+      <p class="summary">{entry.data.summary}</p>
+    </header>
+    <div class="article-body container-prose prose-article">
+      <Content />
+    </div>
+  </article>
+</BaseLayout>
+
+<style>
+  .article {
+    padding: 4rem 0 6rem;
+  }
+  .article-head {
+    margin-bottom: 3rem;
+  }
+  .back {
+    color: var(--color-ink-muted);
+    font-size: 0.9rem;
+  }
+  .back:hover {
+    color: var(--color-accent);
+  }
+  .meta {
+    margin-top: 1.5rem;
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--color-ink-faint);
+  }
+  .tag {
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .title {
+    margin-top: 1rem;
+    font-size: clamp(2rem, 3.6vw, 2.75rem);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
+  .summary {
+    margin-top: 1rem;
+    color: var(--color-ink-muted);
+    font-size: 1.1rem;
+    line-height: 1.6;
+  }
+</style>

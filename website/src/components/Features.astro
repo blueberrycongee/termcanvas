@@ -1,0 +1,138 @@
+---
+const features = [
+  {
+    label: "01",
+    title: "无限空间画布",
+    body: "用 pan / zoom / 拖拽组织所有终端会话。Tab 和 split pane 不再是必要——把上下文铺开，靠空间记忆而不是窗口管理来导航。",
+  },
+  {
+    label: "02",
+    title: "AI agent 第一公民",
+    body: "Claude Code、Codex、Gemini、Kimi、OpenCode 都能在同一张画布并行运行。每个 agent 有独立终端、独立 worktree、可视的状态徽标。",
+  },
+  {
+    label: "03",
+    title: "Hydra 编排系统",
+    body: "Lead-driven decider 模式：你（Lead）在结构化决策点做判断，Hydra 处理 dispatch / watch / merge 的运维。专为 LLM 决策者特化。",
+  },
+  {
+    label: "04",
+    title: "Composer 统一输入",
+    body: "一条命令栏把 prompt 发给当前 focus 的 agent，支持图片粘贴、上下文引用。再也不用在 N 个终端之间来回切焦点。",
+  },
+];
+---
+
+<section class="features">
+  <div class="container-page">
+    <div class="features-head">
+      <span class="label-mono">特性</span>
+      <h2 class="features-title">不是另一个终端，是终端的下一种形态。</h2>
+    </div>
+    <div class="features-grid">
+      {
+        features.map((f) => (
+          <article class="feature-card">
+            <span class="feature-label">{f.label}</span>
+            <h3 class="feature-title">{f.title}</h3>
+            <p class="feature-body">{f.body}</p>
+          </article>
+        ))
+      }
+    </div>
+    <div class="features-art">
+      <div class="features-art-frame">
+        <img src="/hero-hub.png" alt="TermCanvas Hub — 知识图谱视图与会话侧栏" loading="lazy" />
+      </div>
+      <div class="features-art-caption">
+        <span class="label-mono">Hub 视图</span>
+        <p>所有会话以知识图谱方式呈现，支持跨会话引用、检索、归档。长期项目的上下文不再丢失在终端历史里。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .features {
+    padding: 4rem 0;
+    border-top: 1px solid var(--color-border);
+  }
+  .features-head {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-width: 38rem;
+    margin-bottom: 3rem;
+  }
+  .features-title {
+    font-size: clamp(1.6rem, 2.6vw, 2.25rem);
+    line-height: 1.15;
+    letter-spacing: -0.015em;
+    font-weight: 600;
+  }
+  .features-grid {
+    display: grid;
+    gap: 1px;
+    background: var(--color-border);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  @media (min-width: 768px) {
+    .features-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .feature-card {
+    background: var(--color-surface);
+    padding: 2rem 1.75rem;
+    transition: background 0.2s ease;
+  }
+  .feature-card:hover {
+    background: var(--color-surface-muted);
+  }
+  .feature-label {
+    font-family: var(--font-mono);
+    color: var(--color-accent);
+    font-size: 0.78rem;
+  }
+  .feature-title {
+    margin-top: 0.4rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .feature-body {
+    margin-top: 0.75rem;
+    color: var(--color-ink-muted);
+    line-height: 1.65;
+    font-size: 0.95rem;
+  }
+  .features-art {
+    margin-top: 3.5rem;
+    display: grid;
+    gap: 2rem;
+    align-items: center;
+  }
+  @media (min-width: 1024px) {
+    .features-art {
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+      gap: 3rem;
+    }
+  }
+  .features-art-frame {
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .features-art-frame img {
+    display: block;
+    width: 100%;
+  }
+  .features-art-caption p {
+    margin-top: 0.75rem;
+    color: var(--color-ink-muted);
+    line-height: 1.65;
+  }
+</style>

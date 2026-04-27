@@ -1,0 +1,78 @@
+---
+const year = new Date().getFullYear();
+---
+
+<footer class="site-footer">
+  <div class="container-page py-10 text-sm">
+    <div class="grid gap-8 md:grid-cols-3">
+      <div>
+        <div class="brand-row">
+          <span class="brand-mark">▣</span>
+          <span class="brand-name">TermCanvas</span>
+        </div>
+        <p class="muted mt-2">把所有终端铺到一张无限画布上。</p>
+      </div>
+      <div>
+        <div class="label-mono mb-3">项目</div>
+        <ul class="space-y-1.5">
+          <li>
+            <a class="link" href="https://github.com/blueberrycongee/termcanvas">GitHub 仓库</a>
+          </li>
+          <li>
+            <a class="link" href="https://github.com/blueberrycongee/termcanvas/releases"
+              >下载与发布</a
+            >
+          </li>
+          <li>
+            <a class="link" href="https://github.com/blueberrycongee/termcanvas/issues">问题反馈</a>
+          </li>
+        </ul>
+      </div>
+      <div>
+        <div class="label-mono mb-3">阅读</div>
+        <ul class="space-y-1.5">
+          <li><a class="link" href="/articles">文章列表</a></li>
+          <li>
+            <a class="link" href="https://github.com/blueberrycongee/termcanvas/blob/main/README.md"
+              >README</a
+            >
+          </li>
+        </ul>
+      </div>
+    </div>
+    <div class="muted mt-10 pt-6 border-t copyright">
+      © {year} TermCanvas. MIT License.
+    </div>
+  </div>
+</footer>
+
+<style>
+  .site-footer {
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface);
+    margin-top: 6rem;
+  }
+  .brand-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+  }
+  .brand-mark {
+    color: var(--color-accent);
+    font-size: 1.1rem;
+  }
+  .muted {
+    color: var(--color-ink-muted);
+  }
+  .copyright {
+    border-color: var(--color-border);
+  }
+  .link {
+    color: var(--color-ink-muted);
+    transition: color 0.15s ease;
+  }
+  .link:hover {
+    color: var(--color-accent);
+  }
+</style>

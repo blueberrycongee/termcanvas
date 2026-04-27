@@ -1,19 +1,17 @@
 {
   "name": "termcanvas-website",
+  "type": "module",
   "private": true,
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "devDependencies": {
-    "vite": "^6"
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
   },
   "dependencies": {
+    "@astrojs/mdx": "^4.2.6",
+    "@astrojs/sitemap": "^3.5.1",
     "@tailwindcss/vite": "^4.2.2",
-    "@vitejs/plugin-react": "^4.7.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
+    "astro": "^5.16.0",
     "tailwindcss": "^4.2.2"
   }
 }

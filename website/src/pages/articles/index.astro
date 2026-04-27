@@ -1,0 +1,77 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import ArticleCard from "../../components/ArticleCard.astro";
+
+const all = await getCollection("articles", ({ data }) => data.draft !== true);
+const sorted = all.sort(
+  (a, b) => b.data.date.valueOf() - a.data.date.valueOf()
+);
+---
+
+<BaseLayout title="文章 · TermCanvas" description="TermCanvas 团队关于终端、AI agent、harness 设计的长文与技术报告。">
+  <section class="page">
+    <div class="container-page">
+      <header class="head">
+        <span class="label-mono">文章</span>
+        <h1>设计哲学，工程实录，思考片段。</h1>
+        <p class="lede">
+          这里收录 TermCanvas
+          团队对终端、AI agent、harness 设计的长文。我们更关心"为什么这样设计"，而不是"代码怎么写的"。
+        </p>
+      </header>
+      {
+        sorted.length === 0 ? (
+          <p class="empty">还没有文章。</p>
+        ) : (
+          <div class="grid">
+            {sorted.map((entry) => (
+              <ArticleCard
+                href={`/articles/${entry.id}`}
+                title={entry.data.title}
+                date={entry.data.date}
+                summary={entry.data.summary}
+                tag={entry.data.tag}
+              />
+            ))}
+          </div>
+        )
+      }
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .page {
+    padding: 5rem 0 4rem;
+  }
+  .head {
+    max-width: 42rem;
+    margin-bottom: 3rem;
+  }
+  .head h1 {
+    margin-top: 0.5rem;
+    font-size: clamp(2rem, 3.4vw, 2.75rem);
+    line-height: 1.15;
+    letter-spacing: -0.015em;
+    font-weight: 600;
+  }
+  .lede {
+    margin-top: 1.25rem;
+    color: var(--color-ink-muted);
+    line-height: 1.7;
+    font-size: 1.05rem;
+  }
+  .grid {
+    display: grid;
+    gap: 1.25rem;
+  }
+  @media (min-width: 768px) {
+    .grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .empty {
+    color: var(--color-ink-muted);
+  }
+</style>

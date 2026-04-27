@@ -1,0 +1,76 @@
+---
+const navItems = [
+  { href: "/articles", label: "文章" },
+  { href: "https://github.com/blueberrycongee/termcanvas/releases", label: "下载" },
+  { href: "https://github.com/blueberrycongee/termcanvas", label: "GitHub" },
+];
+
+const path = Astro.url.pathname;
+---
+
+<header class="site-header">
+  <div class="container-page flex h-14 items-center justify-between">
+    <a href="/" class="brand">
+      <span class="brand-mark">▣</span>
+      <span class="brand-name">TermCanvas</span>
+    </a>
+    <nav class="flex items-center gap-1">
+      {
+        navItems.map((item) => {
+          const isExternal = item.href.startsWith("http");
+          const isActive = !isExternal && path.startsWith(item.href);
+          return (
+            <a
+              href={item.href}
+              class:list={["nav-link", { "nav-link-active": isActive }]}
+              target={isExternal ? "_blank" : undefined}
+              rel={isExternal ? "noopener" : undefined}
+            >
+              {item.label}
+            </a>
+          );
+        })
+      }
+    </nav>
+  </div>
+</header>
+
+<style>
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: color-mix(in oklab, var(--color-bg) 85%, transparent);
+    backdrop-filter: saturate(180%) blur(8px);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .brand-mark {
+    color: var(--color-accent);
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+  .brand-name {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .nav-link {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.9rem;
+    color: var(--color-ink-muted);
+    border-radius: 999px;
+    transition: color 0.15s ease, background 0.15s ease;
+  }
+  .nav-link:hover {
+    color: var(--color-ink);
+    background: var(--color-surface-muted);
+  }
+  .nav-link-active {
+    color: var(--color-ink);
+    background: var(--color-surface-muted);
+  }
+</style>
