@@ -12,6 +12,7 @@ import {
   useProjectStore,
 } from "../stores/projectStore";
 import { useComposerStore } from "../stores/composerStore";
+import { useHandoffDragStore } from "../stores/handoffDragStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { useCanvasStore, COLLAPSED_TAB_WIDTH } from "../stores/canvasStore";
 import { useTerminalRuntimeStateStore } from "../stores/terminalRuntimeStateStore";
@@ -176,6 +177,11 @@ export function ComposerBar() {
 
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounterRef = useRef(0);
+  const handoffActive = useHandoffDragStore((s) => s.active);
+  const handoffHoveredComposer = useHandoffDragStore(
+    (s) => s.hoveredComposer,
+  );
+  const isHandoffTarget = handoffActive && handoffHoveredComposer;
 
   // Submit-feedback state. `submitTick` keys the input-flash element so
   // the keyframe replays on every successful send (a stable React node
@@ -619,10 +625,14 @@ export function ComposerBar() {
       style={{ left: composerLeft, right: composerRight }}
     >
       <div
+        data-handoff-composer="true"
+        data-handoff-target={isHandoffTarget ? "true" : undefined}
         className={`pointer-events-auto w-full max-w-4xl rounded-xl border bg-[var(--surface)] shadow-[0_18px_48px_-12px_color-mix(in_srgb,var(--shadow-color)_36%,transparent)] transition-colors duration-150 ${
           isDragOver
             ? "border-[var(--accent)] bg-[var(--accent)]/5"
-            : "border-[var(--border)]"
+            : isHandoffTarget
+              ? "border-[var(--cyan)] bg-[color-mix(in_srgb,var(--cyan)_8%,transparent)]"
+              : "border-[var(--border)]"
         }`}
         onDragEnter={(e) => {
           e.preventDefault();

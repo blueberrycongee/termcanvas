@@ -10,6 +10,7 @@ import { FileEditorDrawer } from "./components/FileEditorDrawer";
 import { PinDetailDrawer } from "./components/PinDetailDrawer";
 import { initUpdaterListeners } from "./stores/updaterStore";
 import { ComposerBar } from "./components/ComposerBar";
+import { HandoffDragChip } from "./components/HandoffDragChip";
 import { usePreferencesStore, hydrateApiKey } from "./stores/preferencesStore";
 import { DrawingPanel } from "./toolbar/DrawingPanel";
 import { ShortcutHints } from "./components/ShortcutHints";
@@ -456,6 +457,7 @@ export function App() {
       <DiscoveryCue />
       <StatusDigest />
       {composerEnabled && <ComposerBar />}
+      <HandoffDragChip />
       <NotificationToast />
       {globalSearchEnabled && <SearchModal />}
       <CommandPalette />
