@@ -32,10 +32,18 @@ export class PinStore extends EventEmitter {
     for (const entry of fs.readdirSync(dir)) {
       if (!entry.endsWith(".md")) continue;
       const filePath = path.join(dir, entry);
-      const pin = this.readFile(filePath);
-      if (pin) {
-        this.populateAttachmentsUrl(pin);
-        pins.push(pin);
+      try {
+        const pin = this.readFile(filePath);
+        if (pin) {
+          this.populateAttachmentsUrl(pin);
+          pins.push(pin);
+        }
+      } catch (err) {
+        console.error(
+          "[PinStore] skipping malformed pin file",
+          filePath,
+          err instanceof Error ? err.message : String(err),
+        );
       }
     }
     pins.sort((a, b) => b.updated.localeCompare(a.updated));
@@ -220,6 +228,16 @@ export class PinStore extends EventEmitter {
       const body = match[2].trim();
       const status = meta.status as PinStatus;
       if (!VALID_STATUSES.has(status)) return null;
+      if (
+        typeof meta.id !== "string" ||
+        !ID_REGEX.test(meta.id) ||
+        typeof meta.title !== "string" ||
+        typeof meta.repo !== "string" ||
+        typeof meta.created !== "string" ||
+        typeof meta.updated !== "string"
+      ) {
+        return null;
+      }
       return {
         id: meta.id,
         title: meta.title,

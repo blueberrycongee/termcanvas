@@ -243,3 +243,36 @@ test("saveAttachment rejects unsafe filenames", () => {
   assert.equal(result.relativePath.includes(".."), false);
   assert.equal(result.relativePath.includes("/etc/"), false);
 });
+
+test("list skips malformed pin files instead of failing the whole repo", () => {
+  const { store, repo } = freshStore();
+  const good1 = store.create({ title: "first", repo });
+  const good2 = store.create({ title: "second", repo });
+  // Directly write a malformed .md file into the repo dir
+  const repoDir = (store as any).repoDir(repo);
+  const badPath = path.join(repoDir, "bad-file.md");
+  fs.writeFileSync(
+    badPath,
+    "---\n" +
+      "id: ../escape\n" +
+      "title: bad\n" +
+      "status: open\n" +
+      "repo: /\n" +
+      "created: 2024-01-01T00:00:00.000Z\n" +
+      "updated: 2024-01-01T00:00:00.000Z\n" +
+      "links: []\n" +
+      "---\n\n" +
+      "body\n",
+  );
+
+  const items = store.list(repo);
+  assert.equal(items.length, 2);
+  assert.ok(
+    items.find((t) => t.id === good1.id),
+    "should include first good pin",
+  );
+  assert.ok(
+    items.find((t) => t.id === good2.id),
+    "should include second good pin",
+  );
+});
