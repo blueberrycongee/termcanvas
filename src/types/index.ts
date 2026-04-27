@@ -1107,7 +1107,7 @@ export interface TermCanvasAPI {
     subscribe: (handler: (event: PinEvent) => void) => () => void;
   };
   updater: {
-    check: () => Promise<unknown>;
+    check: () => Promise<import("../../shared/updater-types").UpdateCheckOutcome>;
     install: () => void;
     getVersion: () => Promise<string>;
     onUpdateAvailable: (

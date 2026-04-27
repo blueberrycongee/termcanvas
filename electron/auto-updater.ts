@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { sendToWindow } from "./window-events";
 import { MacCustomUpdater } from "./mac-updater";
+import type { UpdateCheckOutcome } from "../shared/updater-types";
 
 const CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 const IS_MAC = process.platform === "darwin";
@@ -55,9 +56,13 @@ function setupMacUpdater(window: BrowserWindow): () => void {
     installDownloadedUpdate();
   });
 
-  ipcMain.handle("updater:check", () =>
-    macUpdater?.checkForUpdates().catch(() => null) ?? null,
-  );
+  ipcMain.handle("updater:check", async (): Promise<UpdateCheckOutcome> => {
+    try {
+      return (await macUpdater?.checkForUpdates()) ?? "skipped";
+    } catch {
+      return "skipped";
+    }
+  });
 
   return () => {
     macUpdater?.checkForUpdates().catch(() => {});
@@ -102,9 +107,20 @@ function setupElectronUpdater(window: BrowserWindow): () => void {
     installDownloadedUpdate();
   });
 
-  ipcMain.handle("updater:check", () =>
-    autoUpdater.checkForUpdates().catch(() => null),
-  );
+  ipcMain.handle("updater:check", async (): Promise<UpdateCheckOutcome> => {
+    try {
+      const result = await autoUpdater.checkForUpdates();
+      // electron-updater attaches a cancellationToken only when it
+      // actually started a download, i.e. a newer version was found.
+      // Absent → confirmed up to date. Result missing entirely → unable
+      // to check (treat as skipped so handleCheck doesn't render
+      // "up to date").
+      if (!result) return "skipped";
+      return result.cancellationToken ? "newer" : "up-to-date";
+    } catch {
+      return "skipped";
+    }
+  });
 
   return () => {
     autoUpdater.checkForUpdates().catch(() => {});

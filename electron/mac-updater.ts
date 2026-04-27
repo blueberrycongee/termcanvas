@@ -21,6 +21,7 @@ import { gunzipSync } from "zlib";
 import { spawn, execFile } from "child_process";
 import type { BrowserWindow } from "electron";
 import { sendToWindow } from "./window-events";
+import type { UpdateCheckOutcome } from "../shared/updater-types";
 
 const GITHUB_OWNER = "blueberrycongee";
 const GITHUB_REPO = "termcanvas";
@@ -507,8 +508,8 @@ export class MacCustomUpdater {
     });
   }
 
-  async checkForUpdates(): Promise<void> {
-    if (this.downloading) return;
+  async checkForUpdates(): Promise<UpdateCheckOutcome> {
+    if (this.downloading) return "skipped";
 
     // Skip updates when the .app is on a read-only volume (e.g. mounted DMG)
     // or in a TCC-restricted location like ~/Downloads. Notify the UI once so
@@ -520,7 +521,7 @@ export class MacCustomUpdater {
           bundlePath: getAppBundlePath(),
         });
       }
-      return;
+      return "skipped";
     }
 
     try {
@@ -528,8 +529,8 @@ export class MacCustomUpdater {
       const yml = await fetchText(ymlUrl);
       const release = parseLatestYml(yml);
 
-      if (!release.version) return;
-      if (!isNewerVersion(release.version, app.getVersion())) return;
+      if (!release.version) return "skipped";
+      if (!isNewerVersion(release.version, app.getVersion())) return "up-to-date";
 
       // If a pending update already matches the latest, just re-notify the UI
       if (
@@ -541,7 +542,7 @@ export class MacCustomUpdater {
           releaseNotes: this.pendingUpdate.releaseNotes,
           releaseDate: this.pendingUpdate.releaseDate,
         });
-        return;
+        return "newer";
       }
 
       let releaseNotes = "";
@@ -562,6 +563,7 @@ export class MacCustomUpdater {
       });
 
       await this.downloadUpdate(release, releaseNotes);
+      return "newer";
     } catch (error) {
       // If we already have a valid pending update (e.g. offline), surface it
       // instead of showing an error so users can still install it
@@ -571,11 +573,12 @@ export class MacCustomUpdater {
           releaseNotes: this.pendingUpdate.releaseNotes,
           releaseDate: this.pendingUpdate.releaseDate,
         });
-        return;
+        return "newer";
       }
       sendToWindow(this.window, "updater:error", {
         message: error instanceof Error ? error.message : String(error),
       });
+      return "skipped";
     }
   }
 

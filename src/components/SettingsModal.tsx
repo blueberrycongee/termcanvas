@@ -300,10 +300,17 @@ function UpdateStatusLine({ appVersion }: { appVersion: string | null }) {
   const handleCheck = useCallback(async () => {
     setUpToDate(false);
     useUpdaterStore.setState({ status: "checking", errorMessage: null });
-    await window.termcanvas.updater.check();
-    const current = useUpdaterStore.getState().status;
-    if (current === "checking") {
+    const outcome = await window.termcanvas.updater.check();
+    // Reset the spinner whatever the outcome — events handle the
+    // "newer" path (downloading/ready/error). "up-to-date" is the only
+    // case that warrants the ephemeral "Up to date" feedback; "skipped"
+    // means the check itself didn't confirm anything (e.g. app running
+    // from a translocated read-only location) and the companion
+    // location-warning / error toast carries the real reason.
+    if (useUpdaterStore.getState().status === "checking") {
       useUpdaterStore.setState({ status: "idle" });
+    }
+    if (outcome === "up-to-date") {
       setUpToDate(true);
       setTimeout(() => setUpToDate(false), 3000);
     }
