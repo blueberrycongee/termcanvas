@@ -40,6 +40,8 @@ import { useSettingsModalStore } from "../../stores/settingsModalStore";
 import { useSnapshotHistoryStore } from "../../stores/snapshotHistoryStore";
 import { useThemeStore } from "../../stores/themeStore";
 import { useHubStore } from "../../stores/hubStore";
+import { useCanvasRegistryStore } from "../../stores/canvasRegistryStore";
+import { useCanvasManagerStore } from "../../stores/canvasManagerStore";
 import { rebuildTerminalAtlas } from "../../terminal/webglContextPool";
 import { refreshRegisteredTerminalViewports } from "../../terminal/terminalRegistry";
 import {
@@ -48,7 +50,12 @@ import {
 } from "../../stores/shortcutStore";
 import type { useT } from "../../i18n/useT";
 
-export type CommandSection = "action" | "terminal" | "project" | "waypoint";
+export type CommandSection =
+  | "action"
+  | "canvas"
+  | "terminal"
+  | "project"
+  | "waypoint";
 
 export interface PaletteCommand {
   id: string;
@@ -97,7 +104,7 @@ function findFocusedTerminal():
 }
 
 function actionCommands(ctx: CommandContext): PaletteCommand[] {
-  const { isMac } = ctx;
+  const { t, isMac } = ctx;
   const settings = useSettingsModalStore.getState();
   const canvas = useCanvasStore.getState();
   const prefs = usePreferencesStore.getState();
@@ -108,10 +115,12 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
     {
       id: "toggle-hub",
       section: "action",
-      title: hub.open ? "Close command center" : "Toggle command center",
+      title: hub.open
+        ? t["palette.cmd.toggle_hub.open_title"]
+        : t["palette.cmd.toggle_hub.closed_title"],
       subtitle: hub.open
-        ? "Currently open"
-        : "Active terminals, recent activity, waypoints, pinned items",
+        ? t["palette.cmd.toggle_hub.open_subtitle"]
+        : t["palette.cmd.toggle_hub.closed_subtitle"],
       keywords: ["hub", "dashboard", "summary", "feed", "overview"],
       hint: shortcutHint("toggleHub", isMac),
       perform: () => useHubStore.getState().toggleHub(),
@@ -119,21 +128,21 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
     {
       id: "open-settings",
       section: "action",
-      title: "Open Settings",
+      title: t.search_action_open_settings,
       keywords: ["preferences", "config", "options"],
       perform: () => settings.openSettings(),
     },
     {
       id: "open-shortcuts",
       section: "action",
-      title: "Keyboard Shortcuts",
+      title: t.search_action_open_shortcuts,
       keywords: ["keybindings", "hotkeys", "bindings"],
       perform: () => settings.openSettings("shortcuts"),
     },
     {
       id: "add-project",
       section: "action",
-      title: "Add Project Folder…",
+      title: t.canvas_empty_action,
       keywords: ["open", "new", "folder", "directory", "import"],
       hint: shortcutHint("addProject", isMac),
       perform: () => {
@@ -143,14 +152,14 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
     {
       id: "toggle-theme",
       section: "action",
-      title: "Toggle Theme (Light / Dark)",
+      title: t["palette.cmd.toggle_theme"],
       keywords: ["dark", "light", "appearance", "color"],
       perform: () => useThemeStore.getState().toggleTheme(),
     },
     {
       id: "fit-all",
       section: "action",
-      title: "Fit All Projects",
+      title: t["palette.cmd.fit_all"],
       keywords: ["zoom", "view", "overview"],
       hint: isMac ? "⌘ 0" : "Ctrl 0",
       perform: () => fitAllProjects(),
@@ -158,7 +167,7 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
     {
       id: "zoom-100",
       section: "action",
-      title: "Zoom 100%",
+      title: t["palette.cmd.zoom_100"],
       keywords: ["actual size", "reset zoom"],
       hint: isMac ? "⌘ 1" : "Ctrl 1",
       perform: () => setZoomToHundred(),
@@ -167,8 +176,8 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
       id: "toggle-right-panel",
       section: "action",
       title: canvas.rightPanelCollapsed
-        ? "Show Right Panel"
-        : "Hide Right Panel",
+        ? t["palette.cmd.show_right_panel"]
+        : t["palette.cmd.hide_right_panel"],
       keywords: ["sidebar", "files", "git", "diff", "memory"],
       hint: shortcutHint("toggleRightPanel", isMac),
       perform: () =>
@@ -182,8 +191,8 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
       id: "toggle-left-panel",
       section: "action",
       title: canvas.leftPanelCollapsed
-        ? "Show Left Panel"
-        : "Hide Left Panel",
+        ? t["palette.cmd.show_left_panel"]
+        : t["palette.cmd.hide_left_panel"],
       keywords: ["sidebar", "projects", "tree"],
       perform: () =>
         useCanvasStore
@@ -195,7 +204,7 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
     {
       id: "show-files-tab",
       section: "action",
-      title: "Show Files",
+      title: t.search_action_tab_files,
       keywords: ["explorer", "tree"],
       perform: () => {
         const c = useCanvasStore.getState();
@@ -206,7 +215,7 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
     {
       id: "show-git-tab",
       section: "action",
-      title: "Show Git",
+      title: t.search_action_tab_git,
       keywords: ["source control", "branches", "commits"],
       perform: () => {
         const c = useCanvasStore.getState();
@@ -217,7 +226,7 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
     {
       id: "show-diff-tab",
       section: "action",
-      title: "Show Diff",
+      title: t.search_action_tab_diff,
       keywords: ["changes", "patch"],
       perform: () => {
         const c = useCanvasStore.getState();
@@ -228,7 +237,7 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
     {
       id: "show-memory-tab",
       section: "action",
-      title: "Show Memory",
+      title: t.search_action_tab_memory,
       keywords: ["context", "claude.md"],
       perform: () => {
         const c = useCanvasStore.getState();
@@ -240,8 +249,8 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
       id: "toggle-sessions-overlay",
       section: "action",
       title: canvas.sessionsOverlayOpen
-        ? "Close Sessions"
-        : "Open Sessions",
+        ? t["palette.cmd.close_sessions"]
+        : t["palette.cmd.open_sessions"],
       keywords: ["history", "replay"],
       hint: shortcutHint("toggleSessionsOverlay", isMac),
       perform: () => useCanvasStore.getState().toggleSessionsOverlay(),
@@ -249,8 +258,8 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
     {
       id: "open-snapshot-history",
       section: "action",
-      title: "Snapshot history",
-      subtitle: "Browse and restore recent canvas snapshots",
+      title: t["palette.cmd.snapshot_history"],
+      subtitle: t["palette.cmd.snapshot_history_subtitle"],
       keywords: [
         "time travel",
         "undo",
@@ -265,8 +274,8 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
     {
       id: "open-snapshot-diff",
       section: "action",
-      title: "Snapshot diff",
-      subtitle: "Compare two recent snapshots side by side",
+      title: t["palette.cmd.snapshot_diff"],
+      subtitle: t["palette.cmd.snapshot_diff_subtitle"],
       keywords: [
         "compare",
         "changed",
@@ -281,7 +290,9 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
     {
       id: "toggle-usage-overlay",
       section: "action",
-      title: canvas.usageOverlayOpen ? "Close Usage" : "Open Usage",
+      title: canvas.usageOverlayOpen
+        ? t["palette.cmd.close_usage"]
+        : t["palette.cmd.open_usage"],
       keywords: ["cost", "tokens", "consumption"],
       hint: shortcutHint("toggleUsageOverlay", isMac),
       perform: () => useCanvasStore.getState().toggleUsageOverlay(),
@@ -290,8 +301,8 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
       id: "toggle-global-search",
       section: "action",
       title: prefs.globalSearchEnabled
-        ? "Disable Global Search"
-        : "Enable Global Search",
+        ? t["palette.cmd.disable_global_search"]
+        : t["palette.cmd.enable_global_search"],
       keywords: ["full text", "find", "ripgrep"],
       perform: () => {
         const next = !usePreferencesStore.getState().globalSearchEnabled;
@@ -304,7 +315,9 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
     {
       id: "toggle-composer",
       section: "action",
-      title: prefs.composerEnabled ? "Disable Composer" : "Enable Composer",
+      title: prefs.composerEnabled
+        ? t["palette.cmd.disable_composer"]
+        : t["palette.cmd.enable_composer"],
       keywords: ["prompt bar", "input"],
       perform: () =>
         usePreferencesStore
@@ -317,8 +330,8 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
       id: "toggle-drawing",
       section: "action",
       title: prefs.drawingEnabled
-        ? "Disable Drawing"
-        : "Enable Drawing",
+        ? t["palette.cmd.disable_drawing"]
+        : t["palette.cmd.enable_drawing"],
       keywords: ["annotate", "sketch", "pen"],
       perform: () =>
         usePreferencesStore
@@ -331,8 +344,8 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
       id: "toggle-completion-glow",
       section: "action",
       title: prefs.completionGlowEnabled
-        ? "Disable Completion Glow"
-        : "Enable Completion Glow",
+        ? t["palette.cmd.disable_completion_glow"]
+        : t["palette.cmd.enable_completion_glow"],
       keywords: ["highlight", "agent done"],
       perform: () =>
         usePreferencesStore
@@ -344,10 +357,10 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
     {
       id: "toggle-activity-heatmap",
       section: "action",
-      title: "Toggle activity heatmap",
+      title: t["palette.cmd.toggle_activity_heatmap"],
       subtitle: prefs.activityHeatmapEnabled
-        ? "Currently ON — output sparklines visible per tile"
-        : "Reveal a quiet 5-minute output sparkline on every tile",
+        ? t["palette.cmd.activity_heatmap_subtitle_on"]
+        : t["palette.cmd.activity_heatmap_subtitle_off"],
       keywords: ["sparkline", "ambient", "indicator", "busy", "idle", "output"],
       hint: shortcutHint("toggleActivityHeatmap", isMac),
       perform: () =>
@@ -360,7 +373,9 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
     {
       id: "toggle-pet",
       section: "action",
-      title: prefs.petEnabled ? "Disable Pet" : "Enable Pet",
+      title: prefs.petEnabled
+        ? t["palette.cmd.disable_pet"]
+        : t["palette.cmd.enable_pet"],
       keywords: ["companion", "fun"],
       perform: () =>
         usePreferencesStore
@@ -373,7 +388,7 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
     list.push({
       id: "open-browser-card",
       section: "action",
-      title: "Add Browser to Canvas",
+      title: t["palette.cmd.add_browser"],
       keywords: ["web", "open browser", "internet"],
       perform: () => {
         createBrowserCardInScene("https://google.com");
@@ -385,7 +400,7 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
     list.push({
       id: "refresh-terminal-rendering",
       section: "action",
-      title: "Refresh Terminal Rendering",
+      title: t["palette.cmd.refresh_terminal_rendering"],
       keywords: ["redraw", "atlas", "glyph", "webgl"],
       perform: () => {
         rebuildTerminalAtlas();
@@ -399,7 +414,7 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
       {
         id: "star-focused-terminal",
         section: "action",
-        title: "Star Focused Terminal",
+        title: t["palette.cmd.star_focused"],
         keywords: ["pin", "favorite", "bookmark"],
         hint: shortcutHint("toggleStarFocused", isMac),
         perform: () =>
@@ -412,7 +427,7 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
       {
         id: "stash-focused-terminal",
         section: "action",
-        title: "Stash Focused Terminal",
+        title: t["palette.cmd.stash_focused"],
         keywords: ["minimize", "hide", "tuck"],
         perform: () =>
           stashTerminalInScene(
@@ -422,6 +437,72 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
           ),
       },
     );
+  }
+
+  return list;
+}
+
+function canvasCommands(ctx: CommandContext): PaletteCommand[] {
+  const { isMac } = ctx;
+  const { canvases, activeCanvasId } = useCanvasRegistryStore.getState();
+  const list: PaletteCommand[] = [];
+
+  list.push({
+    id: "canvas:new",
+    section: "canvas",
+    title: ctx.t["canvas.command.new"],
+    keywords: ["canvas", "workspace", "create", "add", "new"],
+    hint: shortcutHint("openCanvasManager", isMac),
+    perform: () => {
+      useCanvasRegistryStore.getState().createCanvas();
+    },
+  });
+
+  list.push({
+    id: "canvas:manage",
+    section: "canvas",
+    title: ctx.t["canvas.command.manage"],
+    keywords: ["canvas", "workspace", "rename", "delete", "manage"],
+    hint: shortcutHint("openCanvasManager", isMac),
+    perform: () => {
+      useCanvasManagerStore.getState().openManager();
+    },
+  });
+
+  if (canvases.length > 1) {
+    list.push(
+      {
+        id: "canvas:next",
+        section: "canvas",
+        title: ctx.t["canvas.command.next"],
+        keywords: ["canvas", "workspace", "switch", "next"],
+        hint: shortcutHint("nextCanvas", isMac),
+        perform: () => useCanvasRegistryStore.getState().cycleCanvas(1),
+      },
+      {
+        id: "canvas:prev",
+        section: "canvas",
+        title: ctx.t["canvas.command.prev"],
+        keywords: ["canvas", "workspace", "switch", "previous"],
+        hint: shortcutHint("prevCanvas", isMac),
+        perform: () => useCanvasRegistryStore.getState().cycleCanvas(-1),
+      },
+    );
+  }
+
+  for (const canvas of canvases) {
+    if (canvas.id === activeCanvasId) continue;
+    list.push({
+      id: `canvas:switch:${canvas.id}`,
+      section: "canvas",
+      title: ctx.t["canvas.command.switchTo"](canvas.name),
+      subtitle: ctx.t["canvas.command.switchSubtitle"](
+        canvas.scene.projects.length,
+      ),
+      keywords: ["canvas", "switch", canvas.name],
+      perform: () =>
+        useCanvasRegistryStore.getState().switchCanvas(canvas.id),
+    });
   }
 
   return list;
@@ -470,7 +551,8 @@ function projectCommands(): PaletteCommand[] {
   });
 }
 
-function waypointCommands(): PaletteCommand[] {
+function waypointCommands(ctx: CommandContext): PaletteCommand[] {
+  const { t } = ctx;
   const projectId = getActiveWaypointProjectId();
   if (!projectId) return [];
 
@@ -486,7 +568,7 @@ function waypointCommands(): PaletteCommand[] {
       list.push({
         id: `waypoint:jump:${slot}`,
         section: "waypoint",
-        title: `Jump to Waypoint ${slot}`,
+        title: t["palette.cmd.jump_waypoint"](slot),
         subtitle: project.name,
         hint: `⌥ ${slot}`,
         keywords: ["wp", "viewport", "go to", "fly"],
@@ -498,7 +580,7 @@ function waypointCommands(): PaletteCommand[] {
     list.push({
       id: `waypoint:save:${slot}`,
       section: "waypoint",
-      title: `Save Waypoint to Slot ${slot}`,
+      title: t["palette.cmd.save_waypoint"](slot),
       subtitle: project.name,
       hint: `⇧⌘ ${slot}`,
       keywords: ["wp", "viewport", "bookmark"],
@@ -513,28 +595,39 @@ function waypointCommands(): PaletteCommand[] {
 export function buildCommands(ctx: CommandContext): PaletteCommand[] {
   return [
     ...actionCommands(ctx),
+    ...canvasCommands(ctx),
     ...terminalCommands(),
     ...projectCommands(),
-    ...waypointCommands(),
+    ...waypointCommands(ctx),
   ];
 }
 
 export const SECTION_ORDER: CommandSection[] = [
   "action",
+  "canvas",
   "terminal",
   "project",
   "waypoint",
 ];
 
-export const SECTION_LABEL: Record<CommandSection, string> = {
-  action: "Actions",
-  terminal: "Open Terminals",
-  project: "Projects",
-  waypoint: "Waypoints",
+export const SECTION_LABEL_KEYS: Record<
+  CommandSection,
+  | "palette.section.action"
+  | "palette.section.canvas"
+  | "palette.section.terminal"
+  | "palette.section.project"
+  | "palette.section.waypoint"
+> = {
+  action: "palette.section.action",
+  canvas: "palette.section.canvas",
+  terminal: "palette.section.terminal",
+  project: "palette.section.project",
+  waypoint: "palette.section.waypoint",
 };
 
 export const SECTION_GLYPH: Record<CommandSection, string> = {
   action: "A",
+  canvas: "C",
   terminal: "T",
   project: "P",
   waypoint: "W",

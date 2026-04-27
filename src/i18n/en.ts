@@ -829,6 +829,181 @@ export const en = {
   "hub.time.minutesAgo": (n: number) => `${n}m ago`,
   "hub.time.hoursAgo": (n: number) => `${n}h ago`,
   "hub.time.daysAgo": (n: number) => `${n}d ago`,
+  "hub.toolbarLabel": (chord: string) => `Hub (${chord})`,
+
+  // ── Agent message / tool / thinking blocks ────────────────────
+  "agent.message.copyCodeTitle": "Copy code",
+  "agent.message.copy": "copy",
+  "agent.message.copied": "copied",
+  "agent.tool.needsApproval": "Needs approval",
+  "agent.tool.error": "Error",
+  "agent.tool.input": "input",
+  "agent.tool.output": "output",
+  "agent.tool.collapse": "collapse",
+  "agent.tool.showMoreLines": (n: number) => `show ${n} more lines`,
+  "agent.tool.approve": "Approve",
+  "agent.tool.deny": "Deny",
+  "agent.tool.approved": "Approved",
+  "agent.tool.denied": "Denied",
+  "agent.thinking.label": "Thinking",
+  "agent.thinking.streaming": "Thinking…",
+
+  // ── Spatial waypoints strip tooltip ──────────────────────────
+  "waypoint.tooltip.recall": (slot: string, chord: string) =>
+    `Slot ${slot} · ${chord}${slot} to jump`,
+  "waypoint.tooltip.save": (slot: string, chord: string) =>
+    `Slot ${slot} · ${chord}${slot} to save`,
+
+  // ── Snapshot history modal ───────────────────────────────────
+  "snapshot.modal.aria": "Snapshot history",
+  "snapshot.modal.title": "Snapshot history",
+  "snapshot.modal.title_diff": "Snapshot history · diff",
+  "snapshot.modal.diff_button": "Diff",
+  "snapshot.modal.diff_exit_tooltip": "Exit diff mode (D)",
+  "snapshot.modal.diff_compare_tooltip": "Compare snapshots (D)",
+  "snapshot.modal.default_label": "Snapshot",
+  "snapshot.modal.summary": (terminals: number, projects: number) =>
+    `${terminals} terminal${terminals === 1 ? "" : "s"} · ${projects} project${projects === 1 ? "" : "s"}`,
+  "snapshot.modal.diff_summary": (
+    added: number,
+    removed: number,
+    changed: number,
+  ) => `+${added} −${removed} ~${changed}`,
+  "snapshot.modal.list_loading": "Loading…",
+  "snapshot.modal.list_empty":
+    "No snapshots yet — auto-save will start capturing as you work.",
+  "snapshot.modal.diff_loading": "Computing diff…",
+  "snapshot.modal.diff_identical": "Snapshots are identical.",
+  "snapshot.modal.row_to": "to",
+  "snapshot.modal.row_from": "from",
+  "snapshot.modal.row_restore": "Restore",
+  "snapshot.modal.footer_restore": "restore",
+  "snapshot.modal.footer_to": "to",
+  "snapshot.modal.footer_from": "from",
+  "snapshot.modal.footer_diff": "diff",
+  "snapshot.modal.footer_exit_diff": "exit diff",
+  "snapshot.modal.count": (n: number) =>
+    `${n} ${n === 1 ? "snapshot" : "snapshots"}`,
+  "snapshot.confirm.title": "Restore snapshot?",
+  "snapshot.confirm.body":
+    "Your current canvas will be replaced. A snapshot of the current state is saved first, so this is reversible from the same list.",
+  "snapshot.confirm.confirm": "Restore",
+  "snapshot.confirm.busy": "Restoring…",
+  "snapshot.notify.read_failed": "Snapshot could not be read.",
+  "snapshot.notify.empty_unreadable": "Snapshot is empty or unreadable.",
+  "snapshot.notify.restored": "Snapshot restored.",
+  "snapshot.notify.restore_failed": "Restore failed.",
+  // history label generation
+  "snapshot.label.summary": (terminals: number, projects: number) =>
+    `${terminals} terminals · ${projects} projects`,
+  "snapshot.label.added_terminals": (n: number) =>
+    `After adding ${n} terminal${n === 1 ? "" : "s"}`,
+  "snapshot.label.closed_terminals": (n: number) =>
+    `After closing ${n} terminal${n === 1 ? "" : "s"}`,
+  "snapshot.label.added_projects": (n: number) =>
+    `After adding ${n} project${n === 1 ? "" : "s"}`,
+  "snapshot.label.removed_projects": (n: number) =>
+    `After removing ${n} project${n === 1 ? "" : "s"}`,
+  "snapshot.relative.justNow": "just now",
+  "snapshot.relative.minuteAgo": "1 minute ago",
+  "snapshot.relative.minutesAgo": (n: number) => `${n} minutes ago`,
+  "snapshot.relative.hourAgo": "1 hour ago",
+  "snapshot.relative.hoursAgo": (n: number) => `${n} hours ago`,
+  "snapshot.relative.yesterday": "yesterday",
+  "snapshot.relative.daysAgo": (n: number) => `${n} days ago`,
+
+  // ── Command palette ──────────────────────────────────────────
+  "palette.placeholder": "Run a command, jump to a terminal…",
+  "palette.empty_no_match": "No matching commands",
+  "palette.empty_hint": "Type a command or location",
+  "palette.row_run_hint": "Enter",
+  "palette.footer_run": "run",
+  "palette.footer_navigate": "navigate",
+  "palette.match_count": (n: number) =>
+    `${n} ${n === 1 ? "match" : "matches"}`,
+  "palette.section.action": "Actions",
+  "palette.section.terminal": "Open Terminals",
+  "palette.section.project": "Projects",
+  "palette.section.waypoint": "Waypoints",
+  "palette.cmd.toggle_hub.open_title": "Close command center",
+  "palette.cmd.toggle_hub.closed_title": "Toggle command center",
+  "palette.cmd.toggle_hub.open_subtitle": "Currently open",
+  "palette.cmd.toggle_hub.closed_subtitle":
+    "Active terminals, recent activity, waypoints, pinned items",
+  "palette.cmd.toggle_theme": "Toggle Theme (Light / Dark)",
+  "palette.cmd.fit_all": "Fit All Projects",
+  "palette.cmd.zoom_100": "Zoom 100%",
+  "palette.cmd.show_right_panel": "Show Right Panel",
+  "palette.cmd.hide_right_panel": "Hide Right Panel",
+  "palette.cmd.show_left_panel": "Show Left Panel",
+  "palette.cmd.hide_left_panel": "Hide Left Panel",
+  "palette.cmd.open_sessions": "Open Sessions",
+  "palette.cmd.close_sessions": "Close Sessions",
+  "palette.cmd.snapshot_history": "Snapshot history",
+  "palette.cmd.snapshot_history_subtitle":
+    "Browse and restore recent canvas snapshots",
+  "palette.cmd.snapshot_diff": "Snapshot diff",
+  "palette.cmd.snapshot_diff_subtitle":
+    "Compare two recent snapshots side by side",
+  "palette.cmd.open_usage": "Open Usage",
+  "palette.cmd.close_usage": "Close Usage",
+  "palette.cmd.enable_global_search": "Enable Global Search",
+  "palette.cmd.disable_global_search": "Disable Global Search",
+  "palette.cmd.enable_composer": "Enable Composer",
+  "palette.cmd.disable_composer": "Disable Composer",
+  "palette.cmd.enable_drawing": "Enable Drawing",
+  "palette.cmd.disable_drawing": "Disable Drawing",
+  "palette.cmd.enable_completion_glow": "Enable Completion Glow",
+  "palette.cmd.disable_completion_glow": "Disable Completion Glow",
+  "palette.cmd.toggle_activity_heatmap": "Toggle activity heatmap",
+  "palette.cmd.activity_heatmap_subtitle_on":
+    "Currently ON — output sparklines visible per tile",
+  "palette.cmd.activity_heatmap_subtitle_off":
+    "Reveal a quiet 5-minute output sparkline on every tile",
+  "palette.cmd.enable_pet": "Enable Pet",
+  "palette.cmd.disable_pet": "Disable Pet",
+  "palette.cmd.add_browser": "Add Browser to Canvas",
+  "palette.cmd.refresh_terminal_rendering": "Refresh Terminal Rendering",
+  "palette.cmd.star_focused": "Star Focused Terminal",
+  "palette.cmd.stash_focused": "Stash Focused Terminal",
+  "palette.cmd.jump_waypoint": (slot: string) => `Jump to Waypoint ${slot}`,
+  "palette.cmd.save_waypoint": (slot: string) => `Save Waypoint to Slot ${slot}`,
+
+  // ── Canvases (multi-canvas / named workspaces) ───────────────
+  "palette.section.canvas": "Canvases",
+  "hub.section.canvases": "Canvases",
+  "hub.canvases.activeBadge": "Active",
+  "hub.canvases.empty": "Only one canvas. Press the chord to make another.",
+  "hub.canvases.projects": (n: number) =>
+    `${n} project${n === 1 ? "" : "s"}`,
+  "hub.canvases.newCanvas": "New canvas",
+  "hub.canvases.manage": "Manage canvases",
+  "canvas.manager.title": "Canvases",
+  "canvas.manager.subtitle": (n: number) =>
+    `${n} canvas${n === 1 ? "" : "es"}`,
+  "canvas.manager.switchTooltip": "Switch to this canvas",
+  "canvas.manager.rename": "Rename canvas",
+  "canvas.manager.delete": "Delete canvas",
+  "canvas.manager.deleteLastDisabled":
+    "At least one canvas must remain",
+  "canvas.manager.newCanvas": "New canvas",
+  "canvas.manager.newCanvasHint": "blank workspace",
+  "canvas.manager.cycleHint": "⌘⇧[  ⌘⇧]  to cycle",
+  "canvas.delete.title": "Delete canvas?",
+  "canvas.delete.body": (name: string) =>
+    `"${name}" and its terminals will be removed from this workspace. Files on disk are untouched. This cannot be undone.`,
+  "canvas.delete.confirm": "Delete canvas",
+  "canvas.command.new": "New canvas",
+  "canvas.command.manage": "Manage canvases…",
+  "canvas.command.next": "Switch to next canvas",
+  "canvas.command.prev": "Switch to previous canvas",
+  "canvas.command.switchTo": (name: string) => `Switch to canvas: ${name}`,
+  "canvas.command.switchSubtitle": (n: number) =>
+    `${n} project${n === 1 ? "" : "s"} on that canvas`,
+  shortcut_next_canvas: "Next canvas",
+  shortcut_prev_canvas: "Prev canvas",
+  shortcut_open_canvas_manager: "Open canvas manager",
+  settings_shortcut_group_canvases: "Canvases",
 } as const;
 
 export type TranslationKey = keyof typeof en;

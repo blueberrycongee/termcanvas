@@ -64,6 +64,8 @@ import {
 import { panToRecentActivity } from "../actions/recentActivityNavigationAction";
 import { useStatusDigestStore } from "../stores/statusDigestStore";
 import { useHubStore } from "../stores/hubStore";
+import { useCanvasRegistryStore } from "../stores/canvasRegistryStore";
+import { useCanvasManagerStore } from "../stores/canvasManagerStore";
 
 function getAllTerminals() {
   const { projects } = useProjectStore.getState();
@@ -371,6 +373,28 @@ export function useKeyboardShortcuts() {
       if (matchesShortcut(e, shortcuts.toggleHub)) {
         consumeShortcut();
         useHubStore.getState().toggleHub();
+        return;
+      }
+
+      // Canvas cycle — Cmd+Shift+] / Cmd+Shift+[ moves to the next /
+      // prev named canvas. Sister to nextTerminal/prevTerminal which
+      // own the unshifted chord; the shift modifier promotes the
+      // navigation a tier (terminal → canvas) without sacrificing
+      // muscle memory. Works from terminal focus so the chord that
+      // changes "rooms" never has to wait for focus to leave the tile.
+      if (matchesShortcut(e, shortcuts.nextCanvas)) {
+        consumeShortcut();
+        useCanvasRegistryStore.getState().cycleCanvas(1);
+        return;
+      }
+      if (matchesShortcut(e, shortcuts.prevCanvas)) {
+        consumeShortcut();
+        useCanvasRegistryStore.getState().cycleCanvas(-1);
+        return;
+      }
+      if (matchesShortcut(e, shortcuts.openCanvasManager)) {
+        consumeShortcut();
+        useCanvasManagerStore.getState().openManager();
         return;
       }
 

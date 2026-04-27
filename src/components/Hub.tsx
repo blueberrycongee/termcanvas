@@ -11,6 +11,8 @@ import { useHubStore } from "../stores/hubStore";
 import { useProjectStore } from "../stores/projectStore";
 import { usePinStore } from "../stores/pinStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
+import { useCanvasRegistryStore } from "../stores/canvasRegistryStore";
+import { useCanvasManagerStore } from "../stores/canvasManagerStore";
 import {
   formatShortcut,
   useShortcutStore,
@@ -410,6 +412,8 @@ export function Hub() {
   );
   const shortcuts = useShortcutStore((s) => s.shortcuts);
   const isMac = detectIsMac();
+  const canvases = useCanvasRegistryStore((s) => s.canvases);
+  const activeCanvasId = useCanvasRegistryStore((s) => s.activeCanvasId);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -840,6 +844,163 @@ export function Hub() {
                 </li>
               );
             })}
+          </ul>
+        </SectionShell>
+
+        <div style={{ borderTop: "1px solid var(--border)" }} />
+
+        <SectionShell
+          eyebrow={t["hub.section.canvases"]}
+          trailing={canvases.length > 1 ? String(canvases.length) : undefined}
+          empty={t["hub.canvases.empty"]}
+          showEmpty={false}
+        >
+          <ul className="-mx-1">
+            {canvases.map((canvas) => {
+              const isActive = canvas.id === activeCanvasId;
+              const projectsCount = canvas.scene.projects.length;
+              return (
+                <li key={canvas.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isActive) {
+                        useCanvasRegistryStore
+                          .getState()
+                          .switchCanvas(canvas.id);
+                      }
+                      closeHub();
+                    }}
+                    className="tc-row-hover flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left"
+                  >
+                    <span
+                      className="flex h-5 w-5 shrink-0 items-center justify-center"
+                      aria-hidden
+                    >
+                      {isActive ? (
+                        <span
+                          className="status-pulse inline-block h-1.5 w-1.5 rounded-full"
+                          style={{ background: "var(--accent)" }}
+                        />
+                      ) : (
+                        <span
+                          className="inline-block h-1 w-1 rounded-full"
+                          style={{ background: "var(--text-faint)" }}
+                        />
+                      )}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className="tc-ui truncate"
+                          style={{
+                            color: isActive
+                              ? "var(--text-primary)"
+                              : "var(--text-secondary)",
+                          }}
+                        >
+                          {canvas.name}
+                        </span>
+                        {isActive && (
+                          <span
+                            className="tc-eyebrow shrink-0"
+                            style={{ color: "var(--text-faint)" }}
+                          >
+                            {t["hub.canvases.activeBadge"]}
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        className="tc-meta truncate"
+                        style={{ color: "var(--text-metadata)" }}
+                      >
+                        {t["hub.canvases.projects"](projectsCount)}
+                      </div>
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+            <li>
+              <button
+                type="button"
+                onClick={() => {
+                  useCanvasRegistryStore.getState().createCanvas();
+                  closeHub();
+                }}
+                className="tc-row-hover flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left"
+              >
+                <span
+                  className="flex h-5 w-5 shrink-0 items-center justify-center text-[var(--text-muted)]"
+                  aria-hidden
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                  >
+                    <path d="M8 3v10M3 8h10" />
+                  </svg>
+                </span>
+                <span
+                  className="tc-ui flex-1"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  {t["hub.canvases.newCanvas"]}
+                </span>
+                <kbd
+                  className="tc-kbd shrink-0"
+                  style={{
+                    fontSize: "10px",
+                    padding: "1px 6px",
+                    letterSpacing: 0,
+                  }}
+                >
+                  {formatShortcut(shortcuts.openCanvasManager, isMac)}
+                </kbd>
+              </button>
+            </li>
+            {canvases.length > 1 && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    useCanvasManagerStore.getState().openManager();
+                    closeHub();
+                  }}
+                  className="tc-row-hover flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left"
+                >
+                  <span
+                    className="flex h-5 w-5 shrink-0 items-center justify-center text-[var(--text-faint)]"
+                    aria-hidden
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                    >
+                      <circle cx="4" cy="8" r="1" />
+                      <circle cx="8" cy="8" r="1" />
+                      <circle cx="12" cy="8" r="1" />
+                    </svg>
+                  </span>
+                  <span
+                    className="tc-meta flex-1"
+                    style={{ color: "var(--text-faint)" }}
+                  >
+                    {t["hub.canvases.manage"]}
+                  </span>
+                </button>
+              </li>
+            )}
           </ul>
         </SectionShell>
 

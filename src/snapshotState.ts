@@ -1,129 +1,44 @@
-import { clearSceneSelection } from "./actions/sceneSelectionActions";
-import { restoreBrowserCardsInScene } from "./actions/sceneCardActions";
-import { useProjectStore } from "./stores/projectStore";
-import { useCanvasStore } from "./stores/canvasStore";
-import { useDrawingStore } from "./stores/drawingStore";
-import { useBrowserCardStore } from "./stores/browserCardStore";
-import { useStashStore } from "./stores/stashStore";
-import { useTerminalRuntimeStateStore } from "./stores/terminalRuntimeStateStore";
-import {
-  destroyAllTerminalRuntimes,
-  refreshClaudeSessionStates,
-  serializeAllTerminalRuntimeBuffers,
-} from "./terminal/terminalRuntimeStore";
-import { clearTerminalGeometryRegistry } from "./terminal/terminalGeometryRegistry";
+import { useCanvasRegistryStore } from "./stores/canvasRegistryStore";
+import { applyCanvasSceneToLive } from "./canvas/canvasSceneIO";
 import { logSlowRendererPath } from "./utils/devPerf";
-import { normalizeProjectsFocus } from "./stores/projectFocus";
 import {
   readWorkspaceSnapshot,
   type RestoredWorkspaceSnapshot,
   type SkipRestoreSnapshot,
   type SceneWorkspaceSnapshot,
+  type MultiCanvasWorkspaceSnapshot,
   type WorkspaceSnapshot,
 } from "./snapshotBridge";
 import {
-  buildSceneDocument,
-  sceneDocumentToLegacyState,
-} from "./canvas/sceneProjection";
-import {
-  toPersistedProjectData,
-} from "./canvas/scenePersistence";
-import type { ProjectData, StashedTerminal } from "./types";
-
-function mergeStashedTerminalsIntoProjects(
-  projects: ProjectData[],
-  stashedTerminals: StashedTerminal[],
-): ProjectData[] {
-  if (stashedTerminals.length === 0) {
-    return projects;
-  }
-
-  const entriesByWorktree = new Map<string, StashedTerminal[]>();
-  for (const entry of stashedTerminals) {
-    const key = `${entry.projectId}:${entry.worktreeId}`;
-    const entries = entriesByWorktree.get(key) ?? [];
-    entries.push(entry);
-    entriesByWorktree.set(key, entries);
-  }
-
-  let changed = false;
-  const mergedProjects = projects.map((project) => {
-    let projectChanged = false;
-    const worktrees = project.worktrees.map((worktree) => {
-      const entries = entriesByWorktree.get(`${project.id}:${worktree.id}`);
-      if (!entries || entries.length === 0) {
-        return worktree;
-      }
-
-      const existingTerminalIds = new Set(
-        worktree.terminals.map((terminal) => terminal.id),
-      );
-      const missingTerminals = entries
-        .filter((entry) => !existingTerminalIds.has(entry.terminal.id))
-        .map((entry) => ({
-          ...entry.terminal,
-          focused: false,
-          stashed: true,
-          stashedAt: entry.stashedAt,
-        }));
-      if (missingTerminals.length === 0) {
-        return worktree;
-      }
-
-      changed = true;
-      projectChanged = true;
-      return {
-        ...worktree,
-        terminals: [...worktree.terminals, ...missingTerminals],
-      };
-    });
-
-    return projectChanged ? { ...project, worktrees } : project;
-  });
-
-  return changed ? mergedProjects : projects;
-}
-
-function deriveStashItemsFromProjects(projects: ProjectData[]): StashedTerminal[] {
-  return projects.flatMap((project) =>
-    project.worktrees.flatMap((worktree) =>
-      worktree.terminals.flatMap((terminal) =>
-        terminal.stashed
-          ? [
-              {
-                projectId: project.id,
-                worktreeId: worktree.id,
-                stashedAt: terminal.stashedAt ?? 0,
-                terminal,
-              },
-            ]
-          : [],
-      ),
-    ),
-  );
-}
+  refreshClaudeSessionStates,
+} from "./terminal/terminalRuntimeStore";
 
 export function restoreWorkspaceSnapshot(
   snapshot: RestoredWorkspaceSnapshot,
 ) {
-  const restoredState = sceneDocumentToLegacyState(snapshot.scene);
-  const restoredProjects = mergeStashedTerminalsIntoProjects(
-    restoredState.projects,
-    restoredState.stashedTerminals,
-  );
-  destroyAllTerminalRuntimes();
-  useTerminalRuntimeStateStore.getState().reset();
-  clearTerminalGeometryRegistry();
-  clearSceneSelection();
-  useCanvasStore.getState().restoreViewport(restoredState.viewport);
-  useProjectStore.setState(
-    normalizeProjectsFocus(restoredProjects),
-  );
-  useDrawingStore.setState({
-    elements: restoredState.drawings,
-  });
-  restoreBrowserCardsInScene(restoredState.browserCards);
-  useStashStore.getState().setItems(deriveStashItemsFromProjects(restoredProjects));
+  const workspace = snapshot.workspace ?? wrapSceneAsDefaultWorkspace(snapshot.scene);
+  useCanvasRegistryStore
+    .getState()
+    .hydrate(workspace.canvases, workspace.activeCanvasId);
+  applyCanvasSceneToLive(snapshot.scene);
+}
+
+function wrapSceneAsDefaultWorkspace(
+  scene: RestoredWorkspaceSnapshot["scene"],
+) {
+  const id = `canvas-default-${Date.now().toString(36)}`;
+  return {
+    version: 3 as const,
+    activeCanvasId: id,
+    canvases: [
+      {
+        id,
+        name: "Default",
+        createdAt: Date.now(),
+        scene,
+      },
+    ],
+  };
 }
 
 export {
@@ -132,48 +47,38 @@ export {
   type RestoredWorkspaceSnapshot,
   type SkipRestoreSnapshot,
   type SceneWorkspaceSnapshot,
+  type MultiCanvasWorkspaceSnapshot,
   type WorkspaceSnapshot,
 } from "./snapshotBridge";
 
-function buildSceneWorkspaceSnapshot(): SceneWorkspaceSnapshot {
+function buildMultiCanvasSnapshot(): MultiCanvasWorkspaceSnapshot {
   const startedAt = performance.now();
-  const scrollbacks = serializeAllTerminalRuntimeBuffers();
-  const projects = useProjectStore.getState().projects.map((project) =>
-    toPersistedProjectData(project, scrollbacks),
-  );
-
-  const scene = buildSceneDocument({
-    viewport: useCanvasStore.getState().viewport,
-    projects,
-    drawings: useDrawingStore.getState().elements,
-    browserCards: useBrowserCardStore.getState().cards,
-  });
+  const canvases = useCanvasRegistryStore.getState().syncActiveFromLive();
+  const { activeCanvasId } = useCanvasRegistryStore.getState();
+  const active =
+    canvases.find((c) => c.id === activeCanvasId) ?? canvases[0];
 
   logSlowRendererPath("snapshotState.build", startedAt, {
     thresholdMs: 20,
     details: {
-      projects: projects.length,
-      terminals: projects.reduce(
-        (count, project) =>
-          count +
-          project.worktrees.reduce(
-            (worktreeCount, worktree) =>
-              worktreeCount + worktree.terminals.length,
-            0,
-          ),
-        0,
-      ),
+      canvases: canvases.length,
+      activeProjects: active.scene.projects.length,
     },
   });
 
   return {
-    version: 2,
-    scene,
+    version: 3,
+    workspace: {
+      version: 3,
+      activeCanvasId: active.id,
+      canvases,
+    },
+    scene: active.scene,
   };
 }
 
-export function buildSnapshotState(): SceneWorkspaceSnapshot {
-  return buildSceneWorkspaceSnapshot();
+export function buildSnapshotState(): MultiCanvasWorkspaceSnapshot {
+  return buildMultiCanvasSnapshot();
 }
 
 export function snapshotState(): string {

@@ -48,6 +48,7 @@ import { appendSnapshotToHistory } from "./snapshotHistory";
 import { SnapshotHistoryModal } from "./components/SnapshotHistoryModal";
 import { useSnapshotHistoryStore } from "./stores/snapshotHistoryStore";
 import { Hub } from "./components/Hub";
+import { CanvasManagerModal } from "./components/CanvasManagerModal";
 import { updateWindowTitle } from "./titleHelper";
 import { resolveTerminalWithRuntimeState } from "./stores/terminalRuntimeStateStore";
 import { logSlowRendererPath } from "./utils/devPerf";
@@ -474,6 +475,7 @@ export function App() {
       <FileEditorDrawer />
       <PinDetailDrawer />
       <Hub />
+      <CanvasManagerModal />
     </div>
   );
 }

@@ -78,6 +78,14 @@ const SHORTCUT_GROUPS: Array<{
       { key: "toggleActivityHeatmap", labelKey: "shortcut_toggle_activity_heatmap" },
     ],
   },
+  {
+    eyebrowKey: "settings_shortcut_group_canvases",
+    items: [
+      { key: "nextCanvas", labelKey: "shortcut_next_canvas" },
+      { key: "prevCanvas", labelKey: "shortcut_prev_canvas" },
+      { key: "openCanvasManager", labelKey: "shortcut_open_canvas_manager" },
+    ],
+  },
 ];
 
 function Eyebrow({ children }: { children: ReactNode }) {
