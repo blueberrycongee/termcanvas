@@ -120,18 +120,23 @@ export function CanvasManagerModal() {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        e.preventDefault();
         if (editingId) {
+          e.preventDefault();
           setEditingId(null);
           setDraftName("");
           return;
         }
+        // Let an open ConfirmDialog handle Esc itself first; otherwise
+        // a single Escape would close both the dialog AND tear down the
+        // whole manager.
+        if (confirmDeleteId) return;
+        e.preventDefault();
         closeManager();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [open, editingId, closeManager]);
+  }, [open, editingId, confirmDeleteId, closeManager]);
 
   const commitRename = useCallback(() => {
     if (!editingId) return;

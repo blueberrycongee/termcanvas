@@ -961,9 +961,17 @@ function HistoryRow({
   }, [pendingHide]);
 
   return (
-    <button
-      className="tc-row-hover group flex w-full items-center gap-1.5 pl-4 pr-1 py-1 text-left"
+    <div
+      role="button"
+      tabIndex={0}
+      className="tc-row-hover group flex w-full items-center gap-1.5 pl-4 pr-1 py-1 text-left cursor-pointer"
       onClick={() => onOpen(entry.filePath)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen(entry.filePath);
+        }
+      }}
       title={`${entry.firstPrompt}\n${entry.provider}`}
     >
       {/* Left pin slot — fixed width so content never shifts */}
@@ -1044,7 +1052,7 @@ function HistoryRow({
           </svg>
         </IconButton>
       </span>
-    </button>
+    </div>
   );
 }
 

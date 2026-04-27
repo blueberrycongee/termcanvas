@@ -76,6 +76,9 @@ const SHORTCUT_GROUPS: Array<{
       { key: "toggleUsageOverlay", labelKey: "shortcut_toggle_usage_overlay" },
       { key: "toggleSessionsOverlay", labelKey: "shortcut_toggle_sessions_overlay" },
       { key: "toggleActivityHeatmap", labelKey: "shortcut_toggle_activity_heatmap" },
+      { key: "commandPalette", labelKey: "shortcut_command_palette" },
+      { key: "toggleSnapshotHistory", labelKey: "shortcut_toggle_snapshot_history" },
+      { key: "toggleHub", labelKey: "shortcut_toggle_hub" },
     ],
   },
   {

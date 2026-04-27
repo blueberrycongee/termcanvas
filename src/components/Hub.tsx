@@ -432,15 +432,17 @@ export function Hub() {
 
   useEffect(() => {
     if (!open) return;
+    // Bubble-phase listener with no stopPropagation so layered modals
+    // (CommandPalette, SearchModal, SnapshotHistoryModal, ConfirmDialog,
+    // CanvasManagerModal) get their own Esc dismissal first when stacked
+    // above the Hub. The Hub is a side drawer that legitimately sits
+    // beneath transient modals; stealing the keystroke breaks the
+    // "Esc dismisses the top thing" mental model.
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        closeHub();
-      }
+      if (e.key === "Escape") closeHub();
     };
-    window.addEventListener("keydown", handler, true);
-    return () => window.removeEventListener("keydown", handler, true);
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, [open, closeHub]);
 
   useEffect(() => {

@@ -103,6 +103,17 @@ export class SnapshotHistory {
   }
 
   append(args: AppendArgs): SnapshotHistoryEntryMeta {
+    // The TS `savedAt: number` annotation is erased at runtime; renderer-side
+    // callers reaching this IPC channel could pass a string with `..` segments
+    // that path.join would normalize to a write outside the snapshots dir.
+    // Mirror the regex guard already on read().
+    if (
+      typeof args.savedAt !== "number" ||
+      !Number.isFinite(args.savedAt) ||
+      args.savedAt <= 0
+    ) {
+      throw new Error("snapshot-history: invalid savedAt");
+    }
     ensureDir();
     const id = String(args.savedAt);
     const entry = {

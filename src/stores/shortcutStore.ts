@@ -209,6 +209,24 @@ export function eventToShortcut(e: KeyboardEvent): string {
   return parts.join("+");
 }
 
+// e.code (physical key) for punctuation literals so chords like
+// `mod+shift+]` don't silently break — Shift+] yields `e.key === "}"`
+// on US/UK/most European layouts, which would never match the literal.
+// Falling back to e.code keeps these chords layout-stable.
+const PUNCT_KEY_TO_CODE: Record<string, string> = {
+  "]": "BracketRight",
+  "[": "BracketLeft",
+  "/": "Slash",
+  "\\": "Backslash",
+  ";": "Semicolon",
+  "'": "Quote",
+  ",": "Comma",
+  ".": "Period",
+  "`": "Backquote",
+  "-": "Minus",
+  "=": "Equal",
+};
+
 export function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
   const platform = getShortcutPlatform();
   if (hasUnsupportedPlatformModifier(e, platform)) return false;
@@ -226,7 +244,9 @@ export function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
   if (!needsMod && hasMod) return false;
   if (needsShift !== e.shiftKey) return false;
   if (needsAlt !== e.altKey) return false;
-  return e.key.toLowerCase() === key;
+  if (e.key.toLowerCase() === key) return true;
+  const code = PUNCT_KEY_TO_CODE[key];
+  return code !== undefined && e.code === code;
 }
 
 /**

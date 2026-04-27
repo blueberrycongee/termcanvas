@@ -630,27 +630,32 @@ export function TerminalTile({
       // xterm computes selection coordinates from `.xterm-screen`, not the
       // outer host div. When the canvas is zoomed, even a tiny mismatch between
       // the host hitbox and xterm's actual screen area expands into a visible
-      // dead zone near the top-left. Measure against the real screen element
-      // and, if the pointer lands in a host/gap area, re-dispatch to the xterm
-      // root so selection still starts inside xterm.
+      // dead zone near the top-left where clicks land on the host but not
+      // on xterm. If the click target is the host/gap (not inside the xterm
+      // root), re-dispatch to xterm so selection still starts inside xterm.
+      // Crucially, do NOT scale the coordinates — xterm's hit-test already
+      // uses .xterm-screen.getBoundingClientRect(), which is the visually
+      // scaled rect, so its (clientX - rect.left) / cellW math is already
+      // correct under canvas zoom. A previous version divided by scale here,
+      // which introduced a column offset proportional to zoom level.
       const xtermRoot = containerEl.querySelector(".xterm");
-      const screenElement =
-        containerEl.querySelector(".xterm-screen") ?? xtermRoot ?? containerEl;
-      const rect = screenElement.getBoundingClientRect();
-      const dispatchTarget =
+      if (
         e.target instanceof Element &&
         xtermRoot instanceof Element &&
         xtermRoot.contains(e.target)
-          ? e.target
-          : (xtermRoot ?? containerEl);
+      ) {
+        // Click already lands inside xterm — leave it alone.
+        return;
+      }
+      const dispatchTarget = xtermRoot ?? containerEl;
       const adjusted = new MouseEvent(e.type, {
         altKey: e.altKey,
         bubbles: e.bubbles,
         button: e.button,
         buttons: e.buttons,
         cancelable: e.cancelable,
-        clientX: rect.left + (e.clientX - rect.left) / scale,
-        clientY: rect.top + (e.clientY - rect.top) / scale,
+        clientX: e.clientX,
+        clientY: e.clientY,
         ctrlKey: e.ctrlKey,
         detail: e.detail,
         metaKey: e.metaKey,
