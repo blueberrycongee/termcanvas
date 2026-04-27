@@ -19,7 +19,11 @@
 
 <br>
 
-<img src="docs/image.png?v=2" alt="TermCanvas demo — multiple AI agents on an infinite canvas" />
+<img src="docs/hero-canvas.png" alt="TermCanvas — multiple AI agents arranged on an infinite canvas" />
+
+<br><br>
+
+<img src="docs/hero-hub.png" alt="TermCanvas Hub — knowledge graph view with sessions sidebar" />
 
 </div>
 

@@ -17,7 +17,11 @@
 
 <br>
 
-<img src="docs/image.png" alt="TermCanvas 演示 — 多个 AI agent 在无限画布上协作" />
+<img src="docs/hero-canvas.png" alt="TermCanvas — 多个 AI agent 在无限画布上协作" />
+
+<br><br>
+
+<img src="docs/hero-hub.png" alt="TermCanvas Hub — 知识图谱视图与会话侧栏" />
 
 </div>
 
