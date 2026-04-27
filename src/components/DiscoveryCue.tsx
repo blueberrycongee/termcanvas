@@ -10,13 +10,18 @@ import { usePreferencesStore } from "../stores/preferencesStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { usePinStore } from "../stores/pinStore";
 import { useSearchStore } from "../stores/searchStore";
+import { useCommandPaletteStore } from "../stores/commandPaletteStore";
+import { useStatusDigestStore } from "../stores/statusDigestStore";
+import { useSnapshotHistoryStore } from "../stores/snapshotHistoryStore";
+import { useHubStore } from "../stores/hubStore";
+import { getRecentActivity } from "../terminal/terminalActivityTracker";
 
 /**
  * Quiet capability discovery — one chip at a time, top-center of the
  * canvas, in the negative space. Each cue declares the conditions under
- * which it should appear; the renderer picks the first active cue and
- * fades it in. Acting on the cue (or dismissing it) writes a flag to
- * `seenHints`, after which the same cue never reappears for this user.
+ * which it should appear; the renderer picks the highest-priority active
+ * cue and fades it in. Acting on the cue (or dismissing it) writes a flag
+ * to `seenHints`, after which the same cue never reappears for this user.
  *
  * Tone goals:
  *  - Default state is barely there. Hover lifts contrast a notch.
@@ -26,6 +31,10 @@ import { useSearchStore } from "../stores/searchStore";
 
 interface CueViewModel {
   id: string;
+  // Higher wins when multiple cues qualify in the same render. Numbers
+  // are spaced so new cues can slot between existing ones without a
+  // global renumber.
+  priority: number;
   message: ReactNode;
   action: { label: string; onClick: () => void };
 }
@@ -55,9 +64,38 @@ function useFocusedProjectSnapshot():
 const CUE_ID_SEARCH = "discover-search";
 const CUE_ID_PINNING = "discover-pinning";
 const CUE_ID_HYDRA = "discover-hydra";
+const CUE_ID_PALETTE = "discover-palette";
+const CUE_ID_PAN_RECENT = "discover-pan-recent";
+const CUE_ID_DIGEST = "discover-digest";
+const CUE_ID_HUB = "discover-hub";
+const CUE_ID_SNAPSHOT = "discover-snapshot-history";
 
+// Trigger thresholds. Tuned to match each capability's true sweet-spot —
+// the moment when the cue would actually save the user a step rather
+// than nag them with something they don't yet need.
 const SEARCH_TRIGGER_THRESHOLD = 5;
 const PINNING_TRIGGER_THRESHOLD = 3;
+const PALETTE_TRIGGER_THRESHOLD = 5;
+const PAN_RECENT_TRIGGER_THRESHOLD = 3;
+const PAN_RECENT_SOURCES_REQUIRED = 2;
+const PAN_RECENT_WINDOW_MS = 30_000;
+const PAN_RECENT_POLL_MS = 5_000;
+const DIGEST_TRIGGER_THRESHOLD = 5;
+const DIGEST_ACTIVITY_WINDOW_MS = 5 * 60_000;
+const DIGEST_POLL_MS = 15_000;
+const HUB_PROJECT_THRESHOLD = 2;
+const SNAPSHOT_ENTRY_THRESHOLD = 3;
+
+// Priority bands. Higher = preempts lower when both qualify. Spacing
+// leaves room to slot new cues without renumbering existing ones.
+const PRIORITY_HYDRA = 100;
+const PRIORITY_PAN_RECENT = 90;
+const PRIORITY_PINNING = 80;
+const PRIORITY_DIGEST = 70;
+const PRIORITY_HUB = 60;
+const PRIORITY_PALETTE = 50;
+const PRIORITY_SEARCH = 45;
+const PRIORITY_SNAPSHOT = 40;
 
 function useSearchDiscoveryCue(): CueViewModel | null {
   const t = useT();
@@ -73,6 +111,7 @@ function useSearchDiscoveryCue(): CueViewModel | null {
 
   return {
     id: CUE_ID_SEARCH,
+    priority: PRIORITY_SEARCH,
     message: t["discovery.search.message"](totalTerminals),
     action: {
       label: t["discovery.search.action"],
@@ -106,6 +145,7 @@ function usePinningDiscoveryCue(): CueViewModel | null {
 
   return {
     id: CUE_ID_PINNING,
+    priority: PRIORITY_PINNING,
     message: t["discovery.pinning.message"],
     action: {
       label: t["discovery.pinning.action"],
@@ -169,6 +209,7 @@ function useHydraDiscoveryCue(): CueViewModel | null {
 
   return {
     id: CUE_ID_HYDRA,
+    priority: PRIORITY_HYDRA,
     message,
     action: {
       label: busy ? "…" : label,
@@ -202,16 +243,221 @@ function useHydraDiscoveryCue(): CueViewModel | null {
   };
 }
 
+function usePaletteDiscoveryCue(): CueViewModel | null {
+  const t = useT();
+  const totalTerminals = useTotalTerminalCount();
+  const seen = usePreferencesStore((s) => s.seenHints[CUE_ID_PALETTE] === true);
+  // hasOpenedOnce is session-only; if the user has already opened the
+  // palette in this session they don't need a cue for it. After dismissal
+  // or action, seenHints persists across sessions and gates re-display.
+  const hasOpenedOnce = useCommandPaletteStore((s) => s.hasOpenedOnce);
+  const markSeen = usePreferencesStore((s) => s.markHintSeen);
+
+  if (seen) return null;
+  if (hasOpenedOnce) return null;
+  if (totalTerminals < PALETTE_TRIGGER_THRESHOLD) return null;
+
+  return {
+    id: CUE_ID_PALETTE,
+    priority: PRIORITY_PALETTE,
+    message: t["discovery.palette.message"],
+    action: {
+      label: t["discovery.palette.action"],
+      onClick: () => {
+        useCommandPaletteStore.getState().openPalette();
+        markSeen(CUE_ID_PALETTE);
+      },
+    },
+  };
+}
+
+function usePanToRecentActivityCue(): CueViewModel | null {
+  const t = useT();
+  const totalTerminals = useTotalTerminalCount();
+  const seen = usePreferencesStore(
+    (s) => s.seenHints[CUE_ID_PAN_RECENT] === true,
+  );
+  const markSeen = usePreferencesStore((s) => s.markHintSeen);
+  // terminalActivityTracker lives outside zustand on purpose (hot
+  // write path), so we sample it on a low-frequency tick. Skip the
+  // poll entirely when the cue can't fire.
+  const [hasMultipleSources, setHasMultipleSources] = useState(false);
+
+  const eligible = !seen && totalTerminals >= PAN_RECENT_TRIGGER_THRESHOLD;
+
+  useEffect(() => {
+    if (!eligible) {
+      setHasMultipleSources(false);
+      return;
+    }
+    const check = () => {
+      const recent = getRecentActivity({
+        windowMs: PAN_RECENT_WINDOW_MS,
+        now: Date.now(),
+      });
+      setHasMultipleSources(recent.length >= PAN_RECENT_SOURCES_REQUIRED);
+    };
+    check();
+    const handle = window.setInterval(check, PAN_RECENT_POLL_MS);
+    return () => window.clearInterval(handle);
+  }, [eligible]);
+
+  if (!eligible) return null;
+  if (!hasMultipleSources) return null;
+
+  return {
+    id: CUE_ID_PAN_RECENT,
+    priority: PRIORITY_PAN_RECENT,
+    message: t["discovery.panRecent.message"],
+    action: {
+      label: t["discovery.panRecent.action"],
+      onClick: () => {
+        // Lazy import to avoid a static cycle with the action layer.
+        void import("../actions/recentActivityNavigationAction").then(
+          ({ panToRecentActivity }) => {
+            panToRecentActivity();
+          },
+        );
+        markSeen(CUE_ID_PAN_RECENT);
+      },
+    },
+  };
+}
+
+function useDigestDiscoveryCue(): CueViewModel | null {
+  const t = useT();
+  const totalTerminals = useTotalTerminalCount();
+  const seen = usePreferencesStore(
+    (s) => s.seenHints[CUE_ID_DIGEST] === true,
+  );
+  const open = useStatusDigestStore((s) => s.open);
+  const markSeen = usePreferencesStore((s) => s.markHintSeen);
+
+  // Only fire when there's *something* for the digest to actually show —
+  // a quiet canvas with five idle terminals would be a hollow nudge.
+  // Activity within the last 5 min is the cheap proxy for "the digest
+  // would compute non-empty signals right now".
+  const [hasRecentActivity, setHasRecentActivity] = useState(false);
+
+  const eligible = !seen && !open && totalTerminals >= DIGEST_TRIGGER_THRESHOLD;
+
+  useEffect(() => {
+    if (!eligible) {
+      setHasRecentActivity(false);
+      return;
+    }
+    const check = () => {
+      const recent = getRecentActivity({
+        windowMs: DIGEST_ACTIVITY_WINDOW_MS,
+        now: Date.now(),
+      });
+      setHasRecentActivity(recent.length > 0);
+    };
+    check();
+    const handle = window.setInterval(check, DIGEST_POLL_MS);
+    return () => window.clearInterval(handle);
+  }, [eligible]);
+
+  if (!eligible) return null;
+  if (!hasRecentActivity) return null;
+
+  return {
+    id: CUE_ID_DIGEST,
+    priority: PRIORITY_DIGEST,
+    message: t["discovery.digest.message"],
+    action: {
+      label: t["discovery.digest.action"],
+      onClick: () => {
+        useStatusDigestStore.getState().openDigest();
+        markSeen(CUE_ID_DIGEST);
+      },
+    },
+  };
+}
+
+function useHubDiscoveryCue(): CueViewModel | null {
+  const t = useT();
+  const seen = usePreferencesStore((s) => s.seenHints[CUE_ID_HUB] === true);
+  const open = useHubStore((s) => s.open);
+  const markSeen = usePreferencesStore((s) => s.markHintSeen);
+  // Hub earns its keep once the user is juggling two or more projects on
+  // the canvas — that's the moment a cross-project view starts paying off.
+  const projectsWithTerminals = useProjectStore(
+    (s) =>
+      s.projects.filter((p) =>
+        p.worktrees.some((w) => w.terminals.length > 0),
+      ).length,
+  );
+
+  if (seen) return null;
+  if (open) return null;
+  if (projectsWithTerminals < HUB_PROJECT_THRESHOLD) return null;
+
+  return {
+    id: CUE_ID_HUB,
+    priority: PRIORITY_HUB,
+    message: t["discovery.hub.message"],
+    action: {
+      label: t["discovery.hub.action"],
+      onClick: () => {
+        useHubStore.getState().openHub();
+        markSeen(CUE_ID_HUB);
+      },
+    },
+  };
+}
+
+function useSnapshotHistoryDiscoveryCue(): CueViewModel | null {
+  const t = useT();
+  const seen = usePreferencesStore(
+    (s) => s.seenHints[CUE_ID_SNAPSHOT] === true,
+  );
+  const open = useSnapshotHistoryStore((s) => s.open);
+  const entryCount = useSnapshotHistoryStore((s) => s.entries.length);
+  const markSeen = usePreferencesStore((s) => s.markHintSeen);
+
+  if (seen) return null;
+  if (open) return null;
+  // Snapshot autosave throttles to one every 5 min while the canvas is
+  // dirty. Three entries means the user has worked through ~15 min of
+  // edits — enough that "roll back" starts being a real lever.
+  if (entryCount < SNAPSHOT_ENTRY_THRESHOLD) return null;
+
+  return {
+    id: CUE_ID_SNAPSHOT,
+    priority: PRIORITY_SNAPSHOT,
+    message: t["discovery.snapshot.message"],
+    action: {
+      label: t["discovery.snapshot.action"],
+      onClick: () => {
+        useSnapshotHistoryStore.getState().openHistory();
+        markSeen(CUE_ID_SNAPSHOT);
+      },
+    },
+  };
+}
+
 export function DiscoveryCue() {
   const t = useT();
-  // Hooks run unconditionally; each returns null when its conditions
-  // aren't met. Order = priority. Hydra is a tool-state nudge that
-  // appears once per install and should land before scope-driven
-  // cues (pinning, search) that compete for the same slot.
-  const hydra = useHydraDiscoveryCue();
-  const pinning = usePinningDiscoveryCue();
-  const search = useSearchDiscoveryCue();
-  const cue = hydra ?? pinning ?? search;
+  // Hooks run unconditionally and in stable order; each returns null
+  // when its conditions aren't met. We then pick the highest-priority
+  // active cue so two coincident cues never stack.
+  const candidates: Array<CueViewModel | null> = [
+    useHydraDiscoveryCue(),
+    usePanToRecentActivityCue(),
+    usePinningDiscoveryCue(),
+    useDigestDiscoveryCue(),
+    useHubDiscoveryCue(),
+    usePaletteDiscoveryCue(),
+    useSearchDiscoveryCue(),
+    useSnapshotHistoryDiscoveryCue(),
+  ];
+
+  let topCue: CueViewModel | null = null;
+  for (const c of candidates) {
+    if (!c) continue;
+    if (topCue === null || c.priority > topCue.priority) topCue = c;
+  }
 
   const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
@@ -219,7 +465,8 @@ export function DiscoveryCue() {
   const rightPanelWidth = useCanvasStore((s) => s.rightPanelWidth);
   const markSeen = usePreferencesStore((s) => s.markHintSeen);
 
-  if (!cue) return null;
+  if (!topCue) return null;
+  const cue = topCue;
 
   const leftInset = leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth;
   const rightInset = rightPanelCollapsed
