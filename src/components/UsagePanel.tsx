@@ -1,4 +1,10 @@
-import { useEffect, useCallback, useRef, useState, useLayoutEffect } from "react";
+import {
+  useEffect,
+  useCallback,
+  useRef,
+  useState,
+  useLayoutEffect,
+} from "react";
 import { createPortal } from "react-dom";
 import { useUsageStore } from "../stores/usageStore";
 import { useCanvasStore } from "../stores/canvasStore";
@@ -91,18 +97,30 @@ function Bar({
           width: `${w}%`,
           backgroundColor: color,
           transition: "width 0.5s cubic-bezier(0.4, 0, 0.2, 1)",
-          animation: animate ? `usage-bar-fill 0.5s ease-out ${delay}ms both` : undefined,
+          animation: animate
+            ? `usage-bar-fill 0.5s ease-out ${delay}ms both`
+            : undefined,
         }}
       />
     </div>
   );
 }
 
-function HoverDetail({ children, tooltip }: { children: React.ReactNode; tooltip: React.ReactNode }) {
+function HoverDetail({
+  children,
+  tooltip,
+}: {
+  children: React.ReactNode;
+  tooltip: React.ReactNode;
+}) {
   const [show, setShow] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ top: number; left: number; flipUp: boolean } | null>(null);
+  const [pos, setPos] = useState<{
+    top: number;
+    left: number;
+    flipUp: boolean;
+  } | null>(null);
 
   useEffect(() => {
     if (!show || !triggerRef.current) return;
@@ -135,23 +153,25 @@ function HoverDetail({ children, tooltip }: { children: React.ReactNode; tooltip
       onMouseLeave={() => setShow(false)}
     >
       {children}
-      {show && pos && createPortal(
-        <div
-          ref={tooltipRef}
-          className="fixed z-[9999] pointer-events-none usage-tooltip-enter"
-          style={{
-            top: pos.flipUp ? undefined : pos.top,
-            bottom: pos.flipUp ? window.innerHeight - pos.top + 2 : undefined,
-            left: pos.left,
-            transform: "translateX(-50%)",
-          }}
-        >
-          <div className="rounded-md px-2.5 py-1.5 border border-[var(--border)] bg-[var(--surface)] shadow-lg">
-            {tooltip}
-          </div>
-        </div>,
-        document.body,
-      )}
+      {show &&
+        pos &&
+        createPortal(
+          <div
+            ref={tooltipRef}
+            className="fixed z-[9999] pointer-events-none usage-tooltip-enter"
+            style={{
+              top: pos.flipUp ? undefined : pos.top,
+              bottom: pos.flipUp ? window.innerHeight - pos.top + 2 : undefined,
+              left: pos.left,
+              transform: "translateX(-50%)",
+            }}
+          >
+            <div className="rounded-md px-2.5 py-1.5 border border-[var(--border)] bg-[var(--surface)] shadow-lg">
+              {tooltip}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -170,7 +190,7 @@ function CollapsibleSection({
     <div className="px-3 py-2.5">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 w-full cursor-pointer"
+        className="flex items-center gap-1.5 w-full cursor-pointer rounded hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-hover)] active:scale-[0.98]"
       >
         <svg
           width="8"
@@ -180,7 +200,13 @@ function CollapsibleSection({
           className="text-[var(--text-faint)] shrink-0 transition-transform duration-150"
           style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)" }}
         >
-          <path d="M2 1L6 4L2 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M2 1L6 4L2 7"
+            stroke="currentColor"
+            strokeWidth="1.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
         <span className="tc-eyebrow">{title}</span>
       </button>
@@ -213,7 +239,9 @@ export function SummarySection({
           {summary.sessions} {t.usage_sessions}
         </span>
         <span className="text-[var(--text-faint)]">·</span>
-        <span>{fmtTokens(summary.totalOutput)} {t.usage_output}</span>
+        <span>
+          {fmtTokens(summary.totalOutput)} {t.usage_output}
+        </span>
       </div>
       {monthlyData && monthlyData.cost > 0 && (
         <div className="mt-2.5 pt-2.5 border-t border-[var(--border)] flex items-center justify-between">
@@ -250,7 +278,11 @@ export function TimelineSection({
     <div className="px-3 py-2.5">
       <span className="tc-eyebrow">{t.usage_timeline}</span>
       <div className="mt-2">
-        <SparklineChart buckets={summary.buckets} animate={animate} date={summary.date} />
+        <SparklineChart
+          buckets={summary.buckets}
+          animate={animate}
+          date={summary.date}
+        />
       </div>
     </div>
   );
@@ -272,11 +304,24 @@ export function CacheRateSection({
    */
   bare?: boolean;
 }) {
-  const clients: { label: string; input: number; cacheRead: number; cacheCreate: number }[] = [];
-  let claudeInput = 0, claudeCacheRead = 0, claudeCacheCreate = 0;
-  let codexInput = 0, codexCacheRead = 0, codexCacheCreate = 0;
-  let kimiInput = 0, kimiCacheRead = 0, kimiCacheCreate = 0;
-  let wuuInput = 0, wuuCacheRead = 0, wuuCacheCreate = 0;
+  const clients: {
+    label: string;
+    input: number;
+    cacheRead: number;
+    cacheCreate: number;
+  }[] = [];
+  let claudeInput = 0,
+    claudeCacheRead = 0,
+    claudeCacheCreate = 0;
+  let codexInput = 0,
+    codexCacheRead = 0,
+    codexCacheCreate = 0;
+  let kimiInput = 0,
+    kimiCacheRead = 0,
+    kimiCacheCreate = 0;
+  let wuuInput = 0,
+    wuuCacheRead = 0,
+    wuuCacheCreate = 0;
 
   for (const m of summary.models) {
     const cc = m.cacheCreate5m + m.cacheCreate1h;
@@ -300,28 +345,54 @@ export function CacheRateSection({
   }
 
   if (claudeInput + claudeCacheRead + claudeCacheCreate > 0) {
-    clients.push({ label: "Claude", input: claudeInput, cacheRead: claudeCacheRead, cacheCreate: claudeCacheCreate });
+    clients.push({
+      label: "Claude",
+      input: claudeInput,
+      cacheRead: claudeCacheRead,
+      cacheCreate: claudeCacheCreate,
+    });
   }
   if (codexInput + codexCacheRead + codexCacheCreate > 0) {
-    clients.push({ label: "Codex", input: codexInput, cacheRead: codexCacheRead, cacheCreate: codexCacheCreate });
+    clients.push({
+      label: "Codex",
+      input: codexInput,
+      cacheRead: codexCacheRead,
+      cacheCreate: codexCacheCreate,
+    });
   }
   if (kimiInput + kimiCacheRead + kimiCacheCreate > 0) {
-    clients.push({ label: "Kimi", input: kimiInput, cacheRead: kimiCacheRead, cacheCreate: kimiCacheCreate });
+    clients.push({
+      label: "Kimi",
+      input: kimiInput,
+      cacheRead: kimiCacheRead,
+      cacheCreate: kimiCacheCreate,
+    });
   }
   if (wuuInput + wuuCacheRead + wuuCacheCreate > 0) {
-    clients.push({ label: "Wuu", input: wuuInput, cacheRead: wuuCacheRead, cacheCreate: wuuCacheCreate });
+    clients.push({
+      label: "Wuu",
+      input: wuuInput,
+      cacheRead: wuuCacheRead,
+      cacheCreate: wuuCacheCreate,
+    });
   }
 
   const overallInput = summary.totalInput;
   const overallCacheRead = summary.totalCacheRead;
-  const overallCacheCreate = summary.totalCacheCreate5m + summary.totalCacheCreate1h;
+  const overallCacheCreate =
+    summary.totalCacheCreate5m + summary.totalCacheCreate1h;
   const overallTotal = overallInput + overallCacheRead + overallCacheCreate;
   if (overallTotal === 0) return null;
 
   const overallRate = overallCacheRead / overallTotal;
 
   const rows = [
-    { label: t.usage_cache_rate_overall, rate: overallRate, totalInput: overallTotal, cacheRead: overallCacheRead },
+    {
+      label: t.usage_cache_rate_overall,
+      rate: overallRate,
+      totalInput: overallTotal,
+      cacheRead: overallCacheRead,
+    },
     ...clients.map((c) => {
       const total = c.input + c.cacheRead + c.cacheCreate;
       return {
@@ -342,13 +413,22 @@ export function CacheRateSection({
           key={row.label}
           tooltip={
             <div className="text-[10px] text-[var(--text-secondary)] tc-mono tc-num">
-              Cache Read: {fmtTokens(row.cacheRead)} / Total: {fmtTokens(row.totalInput)}
+              Cache Read: {fmtTokens(row.cacheRead)} / Total:{" "}
+              {fmtTokens(row.totalInput)}
             </div>
           }
         >
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-[var(--text-muted)] w-12 shrink-0 truncate">{row.label}</span>
-            <Bar value={row.rate * 100} max={100} color="var(--amber)" animate={animate} delay={i * 60} />
+            <span className="text-[10px] text-[var(--text-muted)] w-12 shrink-0 truncate">
+              {row.label}
+            </span>
+            <Bar
+              value={row.rate * 100}
+              max={100}
+              color="var(--amber)"
+              animate={animate}
+              delay={i * 60}
+            />
             <span className="text-[10px] text-[var(--text-muted)] shrink-0 w-8 text-right tc-mono tc-num">
               {Math.round(row.rate * 100)}%
             </span>
@@ -389,11 +469,17 @@ export function ProjectsContent({
           key={p.path}
           tooltip={
             <div className="text-[10px] tc-mono tc-num">
-              <span className="text-[var(--text-secondary)]">{fmtCost(p.cost)}</span>
+              <span className="text-[var(--text-secondary)]">
+                {fmtCost(p.cost)}
+              </span>
               <span className="text-[var(--text-faint)] mx-1">·</span>
-              <span className="text-[var(--text-muted)]">{p.calls} {t.usage_calls}</span>
+              <span className="text-[var(--text-muted)]">
+                {p.calls} {t.usage_calls}
+              </span>
               <span className="text-[var(--text-faint)] mx-1">·</span>
-              <span className="text-[var(--text-muted)]">{pct(p.cost, totalCost)}</span>
+              <span className="text-[var(--text-muted)]">
+                {pct(p.cost, totalCost)}
+              </span>
             </div>
           }
         >
@@ -404,7 +490,13 @@ export function ProjectsContent({
             >
               {p.name}
             </span>
-            <Bar value={p.cost} max={maxCost} color="var(--accent)" animate={animate} delay={i * 60} />
+            <Bar
+              value={p.cost}
+              max={maxCost}
+              color="var(--accent)"
+              animate={animate}
+              delay={i * 60}
+            />
             <span className="text-[10px] text-[var(--text-muted)] shrink-0 w-8 text-right tc-mono tc-num">
               {pct(p.cost, totalCost)}
             </span>
@@ -466,7 +558,13 @@ export function ModelsContent({
               >
                 {shortName}
               </span>
-              <Bar value={m.cost} max={maxCost} color={color} animate={animate} delay={i * 60} />
+              <Bar
+                value={m.cost}
+                max={maxCost}
+                color={color}
+                animate={animate}
+                delay={i * 60}
+              />
               <span className="text-[10px] text-[var(--text-muted)] shrink-0 tc-mono tc-num">
                 {fmtCost(m.cost)}
               </span>
@@ -504,7 +602,9 @@ export function deriveActiveUsage({
 } {
   let activeSummary: UsageSummary | null;
   if (isLoggedIn && cloudSummary && summary) {
-    const localBucketMap = new Map(summary.buckets.map((b) => [b.hourStart, b]));
+    const localBucketMap = new Map(
+      summary.buckets.map((b) => [b.hourStart, b]),
+    );
     const mergedBuckets = cloudSummary.buckets.map((cb) => {
       const lb = localBucketMap.get(cb.hourStart);
       if (!lb || cb.cost >= lb.cost) return cb;
@@ -533,14 +633,27 @@ export function deriveActiveUsage({
   if (isLoggedIn && cloudHeatmapData && heatmapData) {
     activeHeatmap = mergeUsageHeatmaps(heatmapData, cloudHeatmapData);
   } else {
-    activeHeatmap = isLoggedIn && cloudHeatmapData ? cloudHeatmapData : heatmapData;
+    activeHeatmap =
+      isLoggedIn && cloudHeatmapData ? cloudHeatmapData : heatmapData;
   }
 
   return { activeSummary, activeHeatmap };
 }
 
 export function UsagePanel() {
-  const { summary, loading, date, cachedDates, fetch: fetchUsage, heatmapData, fetchHeatmap, cloudSummary, cloudHeatmapData, fetchCloud, fetchCloudHeatmap } = useUsageStore();
+  const {
+    summary,
+    loading,
+    date,
+    cachedDates,
+    fetch: fetchUsage,
+    heatmapData,
+    fetchHeatmap,
+    cloudSummary,
+    cloudHeatmapData,
+    fetchCloud,
+    fetchCloudHeatmap,
+  } = useUsageStore();
   const { user, deviceId } = useAuthStore();
   const t = useT();
   const quotaFetch = useQuotaStore((s) => s.fetch);
@@ -585,7 +698,14 @@ export function UsagePanel() {
       }
     }, 5 * 60_000);
     return () => clearInterval(interval);
-  }, [isLoggedIn, fetchUsage, quotaFetch, codexQuotaFetch, fetchCloud, fetchCloudHeatmap]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    isLoggedIn,
+    fetchUsage,
+    quotaFetch,
+    codexQuotaFetch,
+    fetchCloud,
+    fetchCloudHeatmap,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (summary) {
@@ -635,7 +755,9 @@ export function UsagePanel() {
         date={date}
         cachedDates={cachedDates}
         onDateChange={handleDateChange}
-        onCollapse={() => useCanvasStore.getState().setRightPanelCollapsed(true)}
+        onCollapse={() =>
+          useCanvasStore.getState().setRightPanelCollapsed(true)
+        }
       />
 
       <QuotaSection />
@@ -653,23 +775,46 @@ export function UsagePanel() {
           <div className="px-3 py-4 tc-caption">{t.loading}</div>
         ) : activeSummary ? (
           <div key={animKey} className="flex flex-col pb-3">
-            <div className="usage-section-enter" style={{ animationDelay: "0ms" }}>
-              <SummarySection t={t} summary={activeSummary} monthlyData={monthlyData} />
+            <div
+              className="usage-section-enter"
+              style={{ animationDelay: "0ms" }}
+            >
+              <SummarySection
+                t={t}
+                summary={activeSummary}
+                monthlyData={monthlyData}
+              />
             </div>
             <div className="mx-3 h-px bg-[var(--border)]" />
-            <div className="usage-section-enter" style={{ animationDelay: "40ms" }}>
+            <div
+              className="usage-section-enter"
+              style={{ animationDelay: "40ms" }}
+            >
               <TimelineSection t={t} summary={activeSummary} animate={true} />
             </div>
             <div className="mx-3 h-px bg-[var(--border)]" />
-            <div className="usage-section-enter" style={{ animationDelay: "80ms" }}>
-              {summary && <CacheRateSection t={t} summary={summary} animate={true} />}
+            <div
+              className="usage-section-enter"
+              style={{ animationDelay: "80ms" }}
+            >
+              {summary && (
+                <CacheRateSection t={t} summary={summary} animate={true} />
+              )}
             </div>
             {activeSummary.projects.length > 0 && (
               <>
                 <div className="mx-3 h-px bg-[var(--border)]" />
-                <div className="usage-section-enter" style={{ animationDelay: "120ms" }}>
+                <div
+                  className="usage-section-enter"
+                  style={{ animationDelay: "120ms" }}
+                >
                   <CollapsibleSection title={t.usage_projects}>
-                    <ProjectsContent t={t} projects={activeSummary.projects} totalCost={activeSummary.totalCost} animate={true} />
+                    <ProjectsContent
+                      t={t}
+                      projects={activeSummary.projects}
+                      totalCost={activeSummary.totalCost}
+                      animate={true}
+                    />
                   </CollapsibleSection>
                 </div>
               </>
@@ -677,9 +822,16 @@ export function UsagePanel() {
             {activeSummary.models.length > 0 && (
               <>
                 <div className="mx-3 h-px bg-[var(--border)]" />
-                <div className="usage-section-enter" style={{ animationDelay: "160ms" }}>
+                <div
+                  className="usage-section-enter"
+                  style={{ animationDelay: "160ms" }}
+                >
                   <CollapsibleSection title={t.usage_models}>
-                    <ModelsContent t={t} models={activeSummary.models} animate={true} />
+                    <ModelsContent
+                      t={t}
+                      models={activeSummary.models}
+                      animate={true}
+                    />
                   </CollapsibleSection>
                 </div>
               </>
@@ -687,9 +839,15 @@ export function UsagePanel() {
             {isLoggedIn && cloudSummary && cloudSummary.devices.length > 0 && (
               <>
                 <div className="mx-3 h-px bg-[var(--border)]" />
-                <div className="usage-section-enter" style={{ animationDelay: "200ms" }}>
+                <div
+                  className="usage-section-enter"
+                  style={{ animationDelay: "200ms" }}
+                >
                   <CollapsibleSection title={t.auth_devices}>
-                    <DeviceBreakdown devices={cloudSummary.devices} localDeviceId={deviceId} />
+                    <DeviceBreakdown
+                      devices={cloudSummary.devices}
+                      localDeviceId={deviceId}
+                    />
                   </CollapsibleSection>
                 </div>
               </>
@@ -701,7 +859,10 @@ export function UsagePanel() {
               </>
             )}
             <div className="mx-3 h-px bg-[var(--border)]" />
-            <div className="usage-section-enter" style={{ animationDelay: "240ms" }}>
+            <div
+              className="usage-section-enter"
+              style={{ animationDelay: "240ms" }}
+            >
               <TokenHeatmap
                 animate={true}
                 data={activeHeatmap ?? undefined}
