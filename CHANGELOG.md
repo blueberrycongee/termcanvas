@@ -2,6 +2,16 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.38.4] - 2026-04-28
+
+### Changed
+- **Pin capture guidance is now issue-like**: the injected agent instructions now tell agents to record high-density pins with Background, Observed / Request, Expected / Goal, Evidence / References, Next action, Why pinned, and Unknowns when the item is more than a lightweight memo. Thin context should be resolved by cheap local inspection or a concise user question before recording.
+- **Bottom toolbar no longer shows the canvas tool picker**: removed the Move / Hand dropdown from the bottom toolbar while keeping keyboard-driven canvas navigation.
+
+### Fixed
+- **Literal `\n` leaked into pin detail views**: pin bodies now normalize agent-style escaped line breaks at the store boundary while preserving single literal newline-escape mentions.
+- **Terminal cursor stayed as a grab hand in default hand mode**: the canvas still defaults to Hand, but terminal tiles opt out of the inherited pan cursor and xterm text areas keep the text-selection cursor.
+
 ## [0.38.3] - 2026-04-27
 
 ### Fixed
