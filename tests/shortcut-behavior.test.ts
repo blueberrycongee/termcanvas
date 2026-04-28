@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 
 import { shouldIgnoreShortcutTarget } from "../src/hooks/shortcutTarget.ts";
 import { navigateToTerminalWithViewport } from "../src/hooks/useKeyboardShortcuts.ts";
@@ -26,6 +27,10 @@ import {
   markTerminalSelectionPointerStarted,
   shouldAutoCopyTerminalSelection,
 } from "../src/terminal/selectionAutoCopy.ts";
+import {
+  isPanModeActive,
+  useCanvasToolStore,
+} from "../src/stores/canvasToolStore.ts";
 import type { ProjectData } from "../src/types/index.ts";
 
 function withPlatform(
@@ -214,6 +219,32 @@ test("editable targets allow command shortcuts to reach the app on macOS", () =>
       true,
     );
   });
+});
+
+test("canvas tool defaults to hand for canvas navigation", () => {
+  assert.equal(useCanvasToolStore.getState().tool, "hand");
+  assert.equal(isPanModeActive(), true);
+});
+
+test("canvas pan mode is explicit via hand tool or Space hold", () => {
+  useCanvasToolStore.setState({ tool: "hand", spaceHeld: false });
+  assert.equal(isPanModeActive(), true);
+
+  useCanvasToolStore.setState({ tool: "select", spaceHeld: true });
+  assert.equal(isPanModeActive(), true);
+
+  useCanvasToolStore.setState({ tool: "hand", spaceHeld: false });
+});
+
+test("terminal cursor CSS opts out of canvas pan cursor inheritance", () => {
+  const css = fs.readFileSync("src/index.css", "utf-8");
+
+  assert.match(css, /\.terminal-tile\s*\{[^}]*cursor:\s*default;/s);
+  assert.match(css, /\.tc-xterm-host,[\s\S]*cursor:\s*text !important;/);
+  assert.doesNotMatch(
+    css,
+    /body\.tc-canvas-pan-(?:mode|grabbing)[^{]*\{[^}]*cursor:\s*(?:grab|grabbing) !important;/s,
+  );
 });
 
 test("select-all shortcut detection only matches the platform primary modifier", () => {

@@ -14,11 +14,8 @@ interface CanvasToolStore {
   setSpaceHeld: (held: boolean) => void;
 }
 
-// Default to Hand. Move is still reachable via the toolbar dropdown
-// (or the V shortcut) for users who want marquee box-select, but the
-// tool's payoff didn't justify making it the entry experience —
-// most canvas sessions are pan + zoom + click-into-a-terminal, which
-// Hand serves directly.
+// Default to Hand for canvas navigation. Terminal tiles opt out of the inherited
+// pan cursor in CSS so the terminal surface still feels like a native terminal.
 export const useCanvasToolStore = create<CanvasToolStore>((set) => ({
   tool: "hand",
   spaceHeld: false,
