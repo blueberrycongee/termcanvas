@@ -128,24 +128,59 @@ async function createRuntime() {
 
 function createSearchHarness(selectionRef: { value: string }) {
   const calls: string[] = [];
+  const options: Array<{
+    caseSensitive?: boolean;
+    regex?: boolean;
+    wholeWord?: boolean;
+  }> = [];
+  let clearDecorationsCalls = 0;
   let listener:
     | ((event: { resultIndex: number; resultCount: number }) => void)
     | null = null;
 
   return {
     calls,
+    get clearDecorationsCalls() {
+      return clearDecorationsCalls;
+    },
+    options,
     searchAddon: {
       clearDecorations() {
+        clearDecorationsCalls += 1;
         listener?.({ resultIndex: -1, resultCount: 0 });
       },
-      findNext(query: string) {
+      findNext(
+        query: string,
+        searchOptions?: {
+          caseSensitive?: boolean;
+          regex?: boolean;
+          wholeWord?: boolean;
+        },
+      ) {
         calls.push(query);
+        options.push({
+          caseSensitive: searchOptions?.caseSensitive,
+          regex: searchOptions?.regex,
+          wholeWord: searchOptions?.wholeWord,
+        });
         selectionRef.value = query;
         listener?.({ resultIndex: 0, resultCount: 2 });
         return true;
       },
-      findPrevious(query: string) {
+      findPrevious(
+        query: string,
+        searchOptions?: {
+          caseSensitive?: boolean;
+          regex?: boolean;
+          wholeWord?: boolean;
+        },
+      ) {
         calls.push(`previous:${query}`);
+        options.push({
+          caseSensitive: searchOptions?.caseSensitive,
+          regex: searchOptions?.regex,
+          wholeWord: searchOptions?.wholeWord,
+        });
         selectionRef.value = query;
         listener?.({ resultIndex: 1, resultCount: 2 });
         return true;
@@ -232,6 +267,71 @@ test("terminal find binds result events when the search addon appears after open
     assert.equal(useTerminalFindStore.getState().query, "needle");
     assert.equal(useTerminalFindStore.getState().resultIndex, 0);
     assert.equal(useTerminalFindStore.getState().resultCount, 2);
+  } finally {
+    useTerminalFindStore.getState().close();
+    installDestroyApi();
+    destroyAllTerminalRuntimes();
+    useProjectStore.setState(previousProjectState);
+  }
+});
+
+test("terminal find toggles rerun with new options from the first match", async () => {
+  const {
+    destroyAllTerminalRuntimes,
+    previousProjectState,
+    runtime,
+    useProjectStore,
+    useTerminalFindStore,
+  } = await createRuntime();
+  const selectionRef = { value: "" };
+  const harness = createSearchHarness(selectionRef);
+  let clearSelectionCalls = 0;
+
+  try {
+    runtime.xterm = {
+      blur() {},
+      clearSelection() {
+        clearSelectionCalls += 1;
+        selectionRef.value = "";
+      },
+      dispose() {},
+      getSelection() {
+        return selectionRef.value;
+      },
+    } as typeof runtime.xterm;
+    runtime.searchAddon = harness.searchAddon as typeof runtime.searchAddon;
+
+    useTerminalFindStore.getState().openFor("terminal-1");
+    useTerminalFindStore.getState().setQuery("needle");
+    useTerminalFindStore.getState().findNext();
+    useTerminalFindStore.getState().toggleCaseSensitive();
+    useTerminalFindStore.getState().toggleWholeWord();
+    useTerminalFindStore.getState().toggleUseRegex();
+
+    assert.deepEqual(harness.calls, [
+      "needle",
+      "needle",
+      "needle",
+      "needle",
+      "needle",
+    ]);
+    assert.deepEqual(harness.options.at(-3), {
+      caseSensitive: true,
+      regex: false,
+      wholeWord: false,
+    });
+    assert.deepEqual(harness.options.at(-2), {
+      caseSensitive: true,
+      regex: false,
+      wholeWord: true,
+    });
+    assert.deepEqual(harness.options.at(-1), {
+      caseSensitive: true,
+      regex: true,
+      wholeWord: true,
+    });
+    assert.equal(harness.clearDecorationsCalls, 3);
+    assert.equal(clearSelectionCalls, 3);
   } finally {
     useTerminalFindStore.getState().close();
     installDestroyApi();

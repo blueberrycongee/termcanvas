@@ -33,10 +33,10 @@ interface FindActions {
 // in-terminal highlight, so these only show on the ruler and as a graceful
 // fallback if the CSS isn't loaded.
 const DECORATIONS = {
-  matchBackground: "#7d5e2e",
-  matchOverviewRuler: "#d4a24e",
-  activeMatchBackground: "#d4a24e",
-  activeMatchColorOverviewRuler: "#f5c56e",
+  matchBackground: "#1f6f69",
+  matchOverviewRuler: "#6cc4b0",
+  activeMatchBackground: "#2dd4bf",
+  activeMatchColorOverviewRuler: "#9be7d5",
 } as const;
 
 let detachResultsListener: (() => void) | null = null;
@@ -128,12 +128,20 @@ export const useTerminalFindStore = create<FindState & FindActions>(
       terminalId: string,
       query: string,
       direction: "next" | "previous" = "next",
+      options: { restartFromFirst?: boolean } = {},
     ) {
+      const runtime = getTerminalRuntime(terminalId);
       const search = ensureResultsListener(terminalId);
       if (!search) {
         set({ resultIndex: -1, resultCount: 0 });
         lastFindSelection = null;
         return;
+      }
+
+      if (options.restartFromFirst) {
+        search.clearDecorations();
+        runtime?.xterm?.clearSelection();
+        lastFindSelection = null;
       }
 
       const found =
@@ -143,7 +151,7 @@ export const useTerminalFindStore = create<FindState & FindActions>(
       rememberFindSelection(terminalId, found);
     }
 
-    function rerunSearch() {
+    function rerunSearch(options: { restartFromFirst?: boolean } = {}) {
       const state = get();
       if (!state.openTerminalId || !state.query) {
         if (state.openTerminalId) {
@@ -153,7 +161,7 @@ export const useTerminalFindStore = create<FindState & FindActions>(
         lastFindSelection = null;
         return;
       }
-      runSearch(state.openTerminalId, state.query);
+      runSearch(state.openTerminalId, state.query, "next", options);
     }
 
     return {
@@ -252,17 +260,17 @@ export const useTerminalFindStore = create<FindState & FindActions>(
 
       toggleCaseSensitive: () => {
         set({ caseSensitive: !get().caseSensitive });
-        rerunSearch();
+        rerunSearch({ restartFromFirst: true });
       },
 
       toggleWholeWord: () => {
         set({ wholeWord: !get().wholeWord });
-        rerunSearch();
+        rerunSearch({ restartFromFirst: true });
       },
 
       toggleUseRegex: () => {
         set({ useRegex: !get().useRegex });
-        rerunSearch();
+        rerunSearch({ restartFromFirst: true });
       },
     };
   },

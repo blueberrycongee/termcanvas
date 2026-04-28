@@ -88,13 +88,12 @@
      makes it consistent and trackable. */
   --scrim: rgba(0, 0, 0, 0.55);
   --radius: 8px;
-  /* Find-overlay match decoration colors. The dark theme needs the more
-     saturated, lower-lightness amber to retain chromatic contrast against
-     the dark surface — a low-chroma amber here just dissolves into the
-     background. */
-  --find-match-bg: rgba(217, 119, 6, 0.32);
-  --find-match-active-bg: rgba(217, 119, 6, 0.7);
-  --find-match-active-outline: rgba(245, 158, 50, 0.95);
+  /* Find-overlay match decoration colors. Cyan tracks the app's utility
+     accent family and stays distinct from xterm's native blue selection
+     without introducing a warm warning-like block into terminal output. */
+  --find-match-bg: rgba(108, 196, 176, 0.26);
+  --find-match-active-bg: rgba(45, 212, 191, 0.68);
+  --find-match-active-outline: rgba(155, 231, 213, 0.95);
   color-scheme: dark;
 }
 
@@ -139,13 +138,11 @@
      stops the popup from looking like it's floating on coal. */
   --scrim: rgba(28, 25, 23, 0.42);
   --radius: 8px;
-  /* Light-theme find decorations. Use the softer, lighter amber here —
-     #d97706 at high alpha would punch through the cream surface as a
-     hard orange block. Softer amber + moderate alpha reads as a warm
-     veil instead. */
-  --find-match-bg: rgba(212, 162, 78, 0.4);
-  --find-match-active-bg: rgba(212, 162, 78, 0.78);
-  --find-match-active-outline: rgba(180, 130, 40, 0.95);
+  /* Light-theme find decorations: the same cyan family, with lower alpha so
+     highlighted text reads as selected output rather than a solid label. */
+  --find-match-bg: rgba(13, 148, 136, 0.18);
+  --find-match-active-bg: rgba(13, 148, 136, 0.44);
+  --find-match-active-outline: rgba(15, 118, 110, 0.9);
   color-scheme: light;
 }
 
@@ -645,8 +642,8 @@ a.tc-kbd:active {
 /* Find-match decorations rendered by @xterm/addon-search. The addon
    writes inline backgroundColor + outline directly on the decoration
    element; we override both via CSS classes it stamps on, so the
-   highlight respects our theme tokens (translucent amber) instead of
-   muddy peach mixing with xterm's blue selection underneath. */
+   highlight respects our theme tokens (translucent cyan) instead of
+   muddy warm colors mixing with xterm's blue selection underneath. */
 .terminal-tile .xterm-find-result-decoration {
   background-color: var(--find-match-bg) !important;
   outline: none !important;
