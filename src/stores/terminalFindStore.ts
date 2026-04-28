@@ -27,13 +27,16 @@ interface FindActions {
   toggleUseRegex: () => void;
 }
 
+// Fallback colors for the addon's inline style + the overview-ruler marks
+// on xterm's scrollbar. CSS in index.css (`.xterm-find-result-decoration`)
+// overrides the cell decoration backgroundColor + outline for the actual
+// in-terminal highlight, so these only show on the ruler and as a graceful
+// fallback if the CSS isn't loaded.
 const DECORATIONS = {
-  matchBackground: "#FFE082",
-  matchBorder: "#FFE082",
-  matchOverviewRuler: "#FFE082",
-  activeMatchBackground: "#F2A57E",
-  activeMatchBorder: "#F2A57E",
-  activeMatchColorOverviewRuler: "#F2A57E",
+  matchBackground: "#7d5e2e",
+  matchOverviewRuler: "#d4a24e",
+  activeMatchBackground: "#d4a24e",
+  activeMatchColorOverviewRuler: "#f5c56e",
 } as const;
 
 let detachResultsListener: (() => void) | null = null;

@@ -66,19 +66,22 @@ export function TerminalFindOverlay({ terminalId }: Props) {
         : "";
 
   const toggleClass = (active: boolean) =>
-    `shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors duration-100 ${
+    `shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none transition-colors duration-100 ${
       active
-        ? "bg-[var(--accent-soft)] text-[var(--text-primary)]"
+        ? "bg-[color-mix(in_srgb,var(--amber)_28%,transparent)] text-[var(--amber)]"
         : "text-[var(--text-faint)] hover:bg-[var(--border)] hover:text-[var(--text-secondary)]"
     }`;
 
+  const navIconClass =
+    "shrink-0 rounded p-1 text-[var(--text-faint)] hover:bg-[var(--border)] hover:text-[var(--text-primary)] transition-colors duration-100";
+
   return (
     <div
-      className="absolute top-2 right-2 z-20 flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 shadow-lg"
+      className="absolute top-2 right-2 z-20 flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_94%,transparent)] px-2 py-1 shadow-lg backdrop-blur-sm"
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       onWheel={(e) => e.stopPropagation()}
-      style={{ minWidth: 240, maxWidth: "calc(100% - 16px)" }}
+      style={{ minWidth: 260, maxWidth: "calc(100% - 16px)" }}
     >
       <input
         ref={inputRef}
@@ -88,7 +91,7 @@ export function TerminalFindOverlay({ terminalId }: Props) {
         spellCheck={false}
         autoCorrect="off"
         autoCapitalize="off"
-        className="min-w-0 flex-1 bg-transparent text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-faint)]"
+        className="min-w-0 flex-1 bg-transparent py-1 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-faint)]"
         style={{ fontFamily: '"Geist Mono", monospace' }}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={(e) => {
@@ -103,78 +106,87 @@ export function TerminalFindOverlay({ terminalId }: Props) {
           }
         }}
       />
-      <button
-        type="button"
-        title={t.terminal_find_case_sensitive}
-        aria-pressed={caseSensitive}
-        className={toggleClass(caseSensitive)}
-        onClick={toggleCaseSensitive}
-        style={{ fontFamily: '"Geist Mono", monospace' }}
+      {counterText && (
+        <span
+          className="shrink-0 text-[10px] text-[var(--text-faint)] tabular-nums"
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          {counterText}
+        </span>
+      )}
+      <div
+        className="flex shrink-0 items-center gap-0.5 border-l border-[var(--border)] pl-1.5"
+        aria-label="Match options"
       >
-        Aa
-      </button>
-      <button
-        type="button"
-        title={t.terminal_find_whole_word}
-        aria-pressed={wholeWord}
-        className={toggleClass(wholeWord)}
-        onClick={toggleWholeWord}
-        style={{ fontFamily: '"Geist Mono", monospace' }}
-      >
-        W
-      </button>
-      <button
-        type="button"
-        title={t.terminal_find_regex}
-        aria-pressed={useRegex}
-        className={toggleClass(useRegex)}
-        onClick={toggleUseRegex}
-        style={{ fontFamily: '"Geist Mono", monospace' }}
-      >
-        .*
-      </button>
-      <span
-        className="shrink-0 pl-1 text-[10px] text-[var(--text-faint)] tabular-nums"
-        style={{ fontFamily: '"Geist Mono", monospace' }}
-      >
-        {counterText}
-      </span>
-      <button
-        type="button"
-        title={t.terminal_find_previous}
-        className="shrink-0 rounded p-1 text-[var(--text-faint)] hover:bg-[var(--border)] hover:text-[var(--text-primary)]"
-        onClick={findPrevious}
-      >
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
-          <path
-            d="M2.5 6.5L5 4l2.5 2.5"
-            stroke="currentColor"
-            strokeWidth="1.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </button>
-      <button
-        type="button"
-        title={t.terminal_find_next}
-        className="shrink-0 rounded p-1 text-[var(--text-faint)] hover:bg-[var(--border)] hover:text-[var(--text-primary)]"
-        onClick={findNext}
-      >
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
-          <path
-            d="M2.5 3.5L5 6l2.5-2.5"
-            stroke="currentColor"
-            strokeWidth="1.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </button>
+        <button
+          type="button"
+          title={t.terminal_find_case_sensitive}
+          aria-pressed={caseSensitive}
+          className={toggleClass(caseSensitive)}
+          onClick={toggleCaseSensitive}
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          Aa
+        </button>
+        <button
+          type="button"
+          title={t.terminal_find_whole_word}
+          aria-pressed={wholeWord}
+          className={toggleClass(wholeWord)}
+          onClick={toggleWholeWord}
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          W
+        </button>
+        <button
+          type="button"
+          title={t.terminal_find_regex}
+          aria-pressed={useRegex}
+          className={toggleClass(useRegex)}
+          onClick={toggleUseRegex}
+          style={{ fontFamily: '"Geist Mono", monospace' }}
+        >
+          .*
+        </button>
+      </div>
+      <div className="flex shrink-0 items-center gap-0.5 border-l border-[var(--border)] pl-1.5">
+        <button
+          type="button"
+          title={t.terminal_find_previous}
+          className={navIconClass}
+          onClick={findPrevious}
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
+            <path
+              d="M2.5 6.5L5 4l2.5 2.5"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+        <button
+          type="button"
+          title={t.terminal_find_next}
+          className={navIconClass}
+          onClick={findNext}
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
+            <path
+              d="M2.5 3.5L5 6l2.5-2.5"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      </div>
       <button
         type="button"
         title={t.terminal_find_close}
-        className="shrink-0 rounded p-1 text-[var(--text-faint)] hover:bg-[var(--border)] hover:text-[var(--red)]"
+        className="shrink-0 rounded p-1 text-[var(--text-faint)] transition-colors duration-100 hover:bg-[var(--border)] hover:text-[var(--red)]"
         onClick={close}
       >
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>

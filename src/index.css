@@ -88,6 +88,12 @@
      makes it consistent and trackable. */
   --scrim: rgba(0, 0, 0, 0.55);
   --radius: 8px;
+  /* Find-overlay match decoration colors. Sit on top of xterm's translucent
+     blue selection — keep the alpha low enough that a single layer reads as
+     "subtle highlight" rather than fighting the selection underneath. */
+  --find-match-bg: rgba(212, 162, 78, 0.22);
+  --find-match-active-bg: rgba(212, 162, 78, 0.7);
+  --find-match-active-outline: rgba(245, 197, 110, 0.95);
   color-scheme: dark;
 }
 
@@ -132,6 +138,13 @@
      stops the popup from looking like it's floating on coal. */
   --scrim: rgba(28, 25, 23, 0.42);
   --radius: 8px;
+  /* Light-theme find decorations: warm amber tints on cream paper. Same
+     intent as the dark variant — a soft veil for candidates, a stronger
+     hold for the active match — but pushed brighter so the highlight
+     reads against light text. */
+  --find-match-bg: rgba(217, 119, 6, 0.18);
+  --find-match-active-bg: rgba(217, 119, 6, 0.55);
+  --find-match-active-outline: rgba(217, 119, 6, 0.85);
   color-scheme: light;
 }
 
@@ -626,6 +639,22 @@ a.tc-kbd:active {
 .tc-xterm-host.modifier-held .xterm.xterm-cursor-pointer,
 .tc-xterm-host.modifier-held .xterm .xterm-cursor-pointer {
   cursor: pointer !important;
+}
+
+/* Find-match decorations rendered by @xterm/addon-search. The addon
+   writes inline backgroundColor + outline directly on the decoration
+   element; we override both via CSS classes it stamps on, so the
+   highlight respects our theme tokens (translucent amber) instead of
+   muddy peach mixing with xterm's blue selection underneath. */
+.terminal-tile .xterm-find-result-decoration {
+  background-color: var(--find-match-bg) !important;
+  outline: none !important;
+  border-radius: 2px;
+}
+.terminal-tile .xterm-find-result-decoration.xterm-find-active-result-decoration {
+  background-color: var(--find-match-active-bg) !important;
+  outline: 1px solid var(--find-match-active-outline) !important;
+  outline-offset: -1px;
 }
 
 /* xterm v6 scroll shadows sit at z-index 11 along the top and left edges
