@@ -3,7 +3,10 @@ import path from "node:path";
 import { AssignmentManager } from "../hydra/src/assignment/manager.ts";
 import type { AssignmentRecord } from "../hydra/src/assignment/types.ts";
 import { validateRunResult } from "../hydra/src/protocol.ts";
-import { loadWorkbench, type WorkbenchRecord } from "../hydra/src/workflow-store.ts";
+import {
+  loadWorkbench,
+  type WorkbenchRecord,
+} from "../hydra/src/workflow-store.ts";
 import { getProcessSnapshot } from "./process-detector.ts";
 import { parseSessionTelemetryLine } from "./session-watcher.ts";
 import type {
@@ -204,7 +207,12 @@ function shouldMarkClaudeNotificationAwaitingInput(
 function toSessionProvider(
   provider: TelemetryProvider,
 ): "claude" | "codex" | "kimi" | "wuu" | null {
-  if (provider === "claude" || provider === "codex" || provider === "kimi" || provider === "wuu") {
+  if (
+    provider === "claude" ||
+    provider === "codex" ||
+    provider === "kimi" ||
+    provider === "wuu"
+  ) {
     return provider;
   }
   return null;
@@ -569,7 +577,8 @@ export class TelemetryService {
     state.snapshot.worktree_path = input.worktreePath;
     state.snapshot.provider = input.provider ?? state.snapshot.provider;
     state.snapshot.workflow_id = input.workflowId ?? state.snapshot.workflow_id;
-    state.snapshot.assignment_id = input.assignmentId ?? state.snapshot.assignment_id;
+    state.snapshot.assignment_id =
+      input.assignmentId ?? state.snapshot.assignment_id;
     state.snapshot.repo_path = input.repoPath ?? state.snapshot.repo_path;
     if (input.ptyId !== undefined) {
       if (state.ptyId !== null && state.ptyId !== input.ptyId) {
@@ -621,7 +630,8 @@ export class TelemetryService {
       }
     }
     state.snapshot.workflow_id = input.workflowId ?? state.snapshot.workflow_id;
-    state.snapshot.assignment_id = input.assignmentId ?? state.snapshot.assignment_id;
+    state.snapshot.assignment_id =
+      input.assignmentId ?? state.snapshot.assignment_id;
     state.snapshot.repo_path = input.repoPath ?? state.snapshot.repo_path;
     if (input.ptyId !== undefined) {
       if (state.ptyId !== null && state.ptyId !== input.ptyId) {
@@ -720,6 +730,7 @@ export class TelemetryService {
       exit_code: exitCode,
     });
     this.updateDerivedStatus(state);
+    this.terminals.delete(terminalId);
   }
 
   recordPtyExitByPtyId(ptyId: number, exitCode: number, at?: string): void {
@@ -1058,7 +1069,10 @@ export class TelemetryService {
     if (hasActiveHookTool) {
       // Hook already knows the exact tool name; ps data is noisier and
       // can't improve on it. Only intervene on the stale-recovery path.
-      if (this.now() - state.pendingPreToolUseAt > PRE_TOOL_USE_STALE_RESET_MS) {
+      if (
+        this.now() - state.pendingPreToolUseAt >
+        PRE_TOOL_USE_STALE_RESET_MS
+      ) {
         console.warn(
           `[Telemetry] Resetting stale pendingPreToolUse for terminal=${terminalId} (>5min without PostToolUse)`,
         );
@@ -1165,14 +1179,17 @@ export class TelemetryService {
     if (!workflow) return null;
 
     // Find the currently dispatched node's assignment
-    const dispatchedNodeId = Object.entries(workflow.node_statuses ?? {})
-      .find(([, s]) => s === "dispatched")?.[0];
+    const dispatchedNodeId = Object.entries(workflow.node_statuses ?? {}).find(
+      ([, s]) => s === "dispatched",
+    )?.[0];
     const assignmentId = dispatchedNodeId
       ? workflow.nodes?.[dispatchedNodeId]?.assignment_id
       : workflow.assignment_ids?.[workflow.assignment_ids.length - 1];
     if (!assignmentId) return null;
 
-    const assignment = new AssignmentManager(repoPath, workflowId).load(assignmentId);
+    const assignment = new AssignmentManager(repoPath, workflowId).load(
+      assignmentId,
+    );
     if (!assignment) return null;
 
     const run = assignment.active_run_id
@@ -1188,7 +1205,8 @@ export class TelemetryService {
 
     const startedAt = run?.started_at ?? workflow.updated_at;
     const startedMs = new Date(startedAt).getTime();
-    const timeoutMinutes = assignment.timeout_minutes ?? workflow.default_timeout_minutes;
+    const timeoutMinutes =
+      assignment.timeout_minutes ?? workflow.default_timeout_minutes;
     const deadlineMs =
       Number.isFinite(startedMs) && typeof timeoutMinutes === "number"
         ? startedMs + timeoutMinutes * 60_000
@@ -1215,8 +1233,13 @@ export class TelemetryService {
       timeout_budget: {
         minutes: timeoutMinutes,
         started_at: startedAt,
-        deadline_at: deadlineMs ? new Date(deadlineMs).toISOString() : undefined,
-        remaining_ms: deadlineMs !== undefined ? Math.max(0, deadlineMs - this.now()) : undefined,
+        deadline_at: deadlineMs
+          ? new Date(deadlineMs).toISOString()
+          : undefined,
+        remaining_ms:
+          deadlineMs !== undefined
+            ? Math.max(0, deadlineMs - this.now())
+            : undefined,
       },
       advisory_status: terminal?.derived_status ?? "unavailable",
     };
@@ -1569,7 +1592,10 @@ export class TelemetryService {
     }
   }
 
-  private probeContractState(assignment: AssignmentRecord, workflowId: string): ContractState {
+  private probeContractState(
+    assignment: AssignmentRecord,
+    workflowId: string,
+  ): ContractState {
     const run = assignment.active_run_id
       ? assignment.runs.find((r) => r.id === assignment.active_run_id)
       : assignment.runs[assignment.runs.length - 1];
@@ -1602,16 +1628,24 @@ export class TelemetryService {
   }
 
   private syncContractState(state: TerminalState): void {
-    if (!state.snapshot.repo_path || !state.snapshot.assignment_id || !state.snapshot.workflow_id) {
+    if (
+      !state.snapshot.repo_path ||
+      !state.snapshot.assignment_id ||
+      !state.snapshot.workflow_id
+    ) {
       return;
     }
 
     const assignment = new AssignmentManager(
-      state.snapshot.repo_path, state.snapshot.workflow_id,
+      state.snapshot.repo_path,
+      state.snapshot.workflow_id,
     ).load(state.snapshot.assignment_id);
     if (!assignment) return;
 
-    const contract = this.probeContractState(assignment, state.snapshot.workflow_id);
+    const contract = this.probeContractState(
+      assignment,
+      state.snapshot.workflow_id,
+    );
     const contractKey = JSON.stringify(contract);
     const previousActivityAt = state.snapshot.contract_activity_at;
 
@@ -1622,20 +1656,39 @@ export class TelemetryService {
     if (contractKey !== state.lastContractKey) {
       state.lastContractKey = contractKey;
       if (contract.contractActivityAt) {
-        state.snapshot.last_meaningful_progress_at = contract.contractActivityAt;
+        state.snapshot.last_meaningful_progress_at =
+          contract.contractActivityAt;
       }
 
       if (contract.resultExists) {
-        this.appendEvent(state, contract.contractActivityAt, "contract", "result_written", {});
+        this.appendEvent(
+          state,
+          contract.contractActivityAt,
+          "contract",
+          "result_written",
+          {},
+        );
       }
       if (contract.resultValid === false) {
-        this.appendEvent(state, contract.contractActivityAt, "contract", "contract_invalid", {
-          result_valid: false,
-        });
+        this.appendEvent(
+          state,
+          contract.contractActivityAt,
+          "contract",
+          "contract_invalid",
+          {
+            result_valid: false,
+          },
+        );
       } else if (contract.resultValid) {
-        this.appendEvent(state, contract.contractActivityAt, "contract", "contract_validated", {
-          result_valid: true,
-        });
+        this.appendEvent(
+          state,
+          contract.contractActivityAt,
+          "contract",
+          "contract_validated",
+          {
+            result_valid: true,
+          },
+        );
       }
     } else if (
       contract.contractActivityAt &&
@@ -1773,10 +1826,7 @@ export class TelemetryService {
         if (!provider) continue;
         this.recordSessionTelemetry(
           state.snapshot.terminal_id,
-          parseSessionTelemetryLine(
-            line,
-            provider,
-          ),
+          parseSessionTelemetryLine(line, provider),
         );
       }
       state.sessionRemainder = trailing === "" ? "" : trailing;
@@ -1822,10 +1872,7 @@ export class TelemetryService {
         if (!provider) continue;
         this.recordSessionTelemetry(
           state.snapshot.terminal_id,
-          parseSessionTelemetryLine(
-            line,
-            provider,
-          ),
+          parseSessionTelemetryLine(line, provider),
         );
       }
 

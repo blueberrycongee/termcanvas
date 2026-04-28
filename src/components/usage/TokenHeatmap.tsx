@@ -21,9 +21,9 @@ function fmtTokens(n: number): string {
   return String(n);
 }
 
-const HEATMAP_DAYS = 91;            // ≈13 weeks, sidebar / narrow overlay
-const HEATMAP_DAYS_MEDIUM = 182;    // ≈26 weeks, mid-width overlay
-const HEATMAP_DAYS_LARGE = 364;     // ≈52 weeks, wide overlay
+const HEATMAP_DAYS = 91; // ≈13 weeks, sidebar / narrow overlay
+const HEATMAP_DAYS_MEDIUM = 182; // ≈26 weeks, mid-width overlay
+const HEATMAP_DAYS_LARGE = 364; // ≈52 weeks, wide overlay
 
 // Approximate min inline-size required to render a given span
 // without squeezing. 12px cell + 3px gap = 15px per week, plus the
@@ -32,11 +32,11 @@ const HEATMAP_WIDTH_LARGE = 820;
 const HEATMAP_WIDTH_MEDIUM = 420;
 
 const COLOR_LEVELS = [
-  "var(--border)",               // level 0: no data
-  "color-mix(in srgb, var(--accent) 20%, transparent)",  // level 1
-  "color-mix(in srgb, var(--accent) 40%, transparent)",  // level 2
-  "color-mix(in srgb, var(--accent) 65%, transparent)",  // level 3
-  "color-mix(in srgb, var(--accent) 90%, transparent)",  // level 4
+  "var(--border)", // level 0: no data
+  "color-mix(in srgb, var(--accent) 20%, transparent)", // level 1
+  "color-mix(in srgb, var(--accent) 40%, transparent)", // level 2
+  "color-mix(in srgb, var(--accent) 65%, transparent)", // level 3
+  "color-mix(in srgb, var(--accent) 90%, transparent)", // level 4
 ];
 
 interface CellData {
@@ -69,10 +69,14 @@ function buildGrid(
     startDate.setDate(startDate.getDate() - startDay);
   }
 
-  const totalDays = Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const totalDays =
+    Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) +
+    1;
   const weeks = Math.ceil(totalDays / 7);
 
-  const values = Object.values(data).map((e) => e.tokens).filter((t) => t > 0);
+  const values = Object.values(data)
+    .map((e) => e.tokens)
+    .filter((t) => t > 0);
   const maxTokens = values.length > 0 ? Math.max(...values) : 1;
 
   const grid: (CellData | null)[][] = Array.from({ length: 7 }, () =>
@@ -131,7 +135,10 @@ function buildGrid(
   return { cells: grid, weeks, monthLabels };
 }
 
-function formatHeatmapDate(dateStr: string, monthsShort: readonly string[]): string {
+function formatHeatmapDate(
+  dateStr: string,
+  monthsShort: readonly string[],
+): string {
   const [, m, d] = dateStr.split("-");
   return `${monthsShort[parseInt(m, 10) - 1]} ${parseInt(d, 10)}`;
 }
@@ -173,11 +180,17 @@ function HeatmapTooltip({ cell, triggerRect }: TooltipProps) {
       }}
     >
       <div className="rounded-md px-2.5 py-1.5 border border-[var(--border)] bg-[var(--surface)] shadow-lg whitespace-nowrap tc-mono tc-num">
-        <div className="text-[10px] text-[var(--text-secondary)] font-medium">{dateLabel}</div>
+        <div className="text-[10px] text-[var(--text-secondary)] font-medium">
+          {dateLabel}
+        </div>
         <div className="flex items-center gap-2 mt-0.5 text-[10px]">
-          <span className="text-[var(--text-primary)]">{fmtTokens(cell.entry?.tokens ?? 0)} {t.usage_tokens_label}</span>
+          <span className="text-[var(--text-primary)]">
+            {fmtTokens(cell.entry?.tokens ?? 0)} {t.usage_tokens_label}
+          </span>
           <span className="text-[var(--text-faint)]">·</span>
-          <span className="text-[var(--text-muted)]">{fmtCost(cell.entry?.cost ?? 0)}</span>
+          <span className="text-[var(--text-muted)]">
+            {fmtCost(cell.entry?.cost ?? 0)}
+          </span>
         </div>
       </div>
     </div>,
@@ -216,7 +229,12 @@ export function TokenHeatmap({
   size = "default",
 }: TokenHeatmapProps): React.ReactElement {
   const t = useT();
-  const { heatmapData, heatmapLoading, heatmapError, fetch: fetchDay } = useUsageStore();
+  const {
+    heatmapData,
+    heatmapLoading,
+    heatmapError,
+    fetch: fetchDay,
+  } = useUsageStore();
   const [hoveredCell, setHoveredCell] = useState<CellData | null>(null);
   const [hoveredRect, setHoveredRect] = useState<DOMRect | null>(null);
   const cellRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
@@ -239,12 +257,15 @@ export function TokenHeatmap({
       onVisible?.();
     };
 
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        triggerLoad();
-        observer.disconnect();
-      }
-    }, { rootMargin: "120px 0px" });
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          triggerLoad();
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "120px 0px" },
+    );
 
     observer.observe(containerRef.current);
     return () => observer.disconnect();
@@ -313,7 +334,10 @@ export function TokenHeatmap({
     return (
       <div className={outerClass}>
         {!bare && <span className="tc-eyebrow">{t.usage_heatmap}</span>}
-        <div className={`${bare ? "" : "mt-2"} text-[10px]`} style={{ color: "var(--red)" }}>
+        <div
+          className={`${bare ? "" : "mt-2"} text-[10px]`}
+          style={{ color: "var(--red)" }}
+        >
           {t.usage_heatmap_error}
         </div>
       </div>
@@ -332,72 +356,74 @@ export function TokenHeatmap({
         aligns with the grid's right edge, not the card's.
       */}
       <div className={bare ? "flex justify-center" : undefined}>
-      <div className={bare ? "inline-block" : undefined}>
-      <div className={`${bare ? "" : "mt-2 "}flex gap-[3px]`}>
-        <div className="flex flex-col gap-[3px] shrink-0 mr-0.5">
-          {Array.from({ length: 7 }, (_, row) => (
-            <div
-              key={row}
-              className="flex items-center justify-end text-[8px] text-[var(--text-faint)] tc-mono"
-              style={{
-                width: HEATMAP_LAYOUT.weekdayLabelWidth,
-                height: HEATMAP_LAYOUT.cellSize,
-              }}
-            >
-              {LABEL_ROWS.includes(row) ? WEEKDAY_LABELS[row] : ""}
-            </div>
-          ))}
-          {/* Spacer to align the weekday column with the month
+        <div className={bare ? "inline-block" : undefined}>
+          <div className={`${bare ? "" : "mt-2 "}flex gap-[3px]`}>
+            <div className="flex flex-col gap-[3px] shrink-0 mr-0.5">
+              {Array.from({ length: 7 }, (_, row) => (
+                <div
+                  key={row}
+                  className="flex items-center justify-end text-[8px] text-[var(--text-faint)] tc-mono"
+                  style={{
+                    width: HEATMAP_LAYOUT.weekdayLabelWidth,
+                    height: HEATMAP_LAYOUT.cellSize,
+                  }}
+                >
+                  {LABEL_ROWS.includes(row) ? WEEKDAY_LABELS[row] : ""}
+                </div>
+              ))}
+              {/* Spacer to align the weekday column with the month
               labels below the grid. */}
-          <div style={{ height: HEATMAP_LAYOUT.monthLabelRowHeight }} />
-        </div>
+              <div style={{ height: HEATMAP_LAYOUT.monthLabelRowHeight }} />
+            </div>
 
-        <div className="flex flex-col gap-[3px]">
-          {/*
+            <div className="flex flex-col gap-[3px]">
+              {/*
             Fixed column width (cellSize px) instead of 1fr. The
             parent row used to be flex-1 which stretched each cell
             to ~80 px on a 1100 px overlay — nothing about a
             heatmap benefits from 80 px squares, it just looked
             broken. Natural width packs the ribbon tight.
           */}
-          <div
-            className="grid"
-            style={{
-              gridTemplateColumns: `repeat(${weeks}, ${HEATMAP_LAYOUT.cellSize}px)`,
-              gridTemplateRows: `repeat(7, ${HEATMAP_LAYOUT.cellSize}px)`,
-              gap: HEATMAP_LAYOUT.gridGap,
-            }}
-          >
-            {Array.from({ length: weeks }, (_, week) =>
-              Array.from({ length: 7 }, (_, day) => {
-                const cell = cells[day][week];
-                if (!cell) {
-                  return <div key={`${week}-${day}`} />;
-                }
+              <div
+                className="grid"
+                style={{
+                  gridTemplateColumns: `repeat(${weeks}, ${HEATMAP_LAYOUT.cellSize}px)`,
+                  gridTemplateRows: `repeat(7, ${HEATMAP_LAYOUT.cellSize}px)`,
+                  gap: HEATMAP_LAYOUT.gridGap,
+                }}
+              >
+                {Array.from({ length: weeks }, (_, week) =>
+                  Array.from({ length: 7 }, (_, day) => {
+                    const cell = cells[day][week];
+                    if (!cell) {
+                      return <div key={`${week}-${day}`} />;
+                    }
 
-                return (
-                  <button
-                    key={cell.dateStr}
-                    ref={(el) => {
-                      if (el) cellRefs.current.set(cell.dateStr, el);
-                    }}
-                    className={`rounded-[2px] transition-[filter] duration-100 ${animate ? "heatmap-cell-enter" : ""}`}
-                    style={{
-                      backgroundColor: COLOR_LEVELS[cell.level],
-                      animationDelay: animate ? `${cell.index * 8}ms` : undefined,
-                      gridColumn: week + 1,
-                      gridRow: day + 1,
-                    }}
-                    onClick={() => handleCellClick(cell)}
-                    onMouseEnter={() => handleCellHover(cell, cell.dateStr)}
-                    onMouseLeave={() => handleCellHover(null)}
-                  />
-                );
-              }),
-            )}
-          </div>
+                    return (
+                      <button
+                        key={cell.dateStr}
+                        ref={(el) => {
+                          if (el) cellRefs.current.set(cell.dateStr, el);
+                        }}
+                        className={`rounded-[2px] transition-[filter] duration-100 ${animate ? "heatmap-cell-enter" : ""}`}
+                        style={{
+                          backgroundColor: COLOR_LEVELS[cell.level],
+                          animationDelay: animate
+                            ? `${cell.index * 8}ms`
+                            : undefined,
+                          gridColumn: week + 1,
+                          gridRow: day + 1,
+                        }}
+                        onClick={() => handleCellClick(cell)}
+                        onMouseEnter={() => handleCellHover(cell, cell.dateStr)}
+                        onMouseLeave={() => handleCellHover(null)}
+                      />
+                    );
+                  }),
+                )}
+              </div>
 
-          {/*
+              {/*
             Month labels moved BELOW the grid so the heatmap's time
             axis lands at the same spot every other chart puts its
             time axis (under the data). Previously the labels sat
@@ -407,51 +433,53 @@ export function TokenHeatmap({
             right under the last cell row instead of centring it in
             the row height.
           */}
-          <div
-            className="grid"
-            style={{
-              gridTemplateColumns: `repeat(${weeks}, ${HEATMAP_LAYOUT.cellSize}px)`,
-              height: HEATMAP_LAYOUT.monthLabelRowHeight,
-              gap: HEATMAP_LAYOUT.gridGap,
-              alignItems: "start",
-            }}
-          >
-            {monthLabels.map((m) => (
-              <span
-                key={`month-${m.column}`}
-                className="text-[8px] text-[var(--text-faint)] tc-mono"
+              <div
+                className="grid"
                 style={{
-                  gridColumn: m.column + 1,
-                  gridRow: 1,
-                  lineHeight: `${HEATMAP_LAYOUT.monthLabelLineHeight}px`,
+                  gridTemplateColumns: `repeat(${weeks}, ${HEATMAP_LAYOUT.cellSize}px)`,
+                  height: HEATMAP_LAYOUT.monthLabelRowHeight,
+                  gap: HEATMAP_LAYOUT.gridGap,
+                  alignItems: "start",
                 }}
               >
-                {t.usage_cal_months_short[m.month]}
-              </span>
+                {monthLabels.map((m) => (
+                  <span
+                    key={`month-${m.column}`}
+                    className="text-[8px] text-[var(--text-faint)] tc-mono"
+                    style={{
+                      gridColumn: m.column + 1,
+                      gridRow: 1,
+                      lineHeight: `${HEATMAP_LAYOUT.monthLabelLineHeight}px`,
+                    }}
+                  >
+                    {t.usage_cal_months_short[m.month]}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-1 mt-2">
+            <span className="text-[8px] text-[var(--text-faint)] tc-mono">
+              {t.usage_heatmap_less}
+            </span>
+            {COLOR_LEVELS.map((color, i) => (
+              <div
+                key={`legend-${i}`}
+                className="rounded-[2px]"
+                style={{ width: 8, height: 8, backgroundColor: color }}
+              />
             ))}
+            <span className="text-[8px] text-[var(--text-faint)] tc-mono">
+              {t.usage_heatmap_more}
+            </span>
           </div>
         </div>
       </div>
 
-      <div className="flex items-center justify-end gap-1 mt-2">
-        <span className="text-[8px] text-[var(--text-faint)] tc-mono">
-          {t.usage_heatmap_less}
-        </span>
-        {COLOR_LEVELS.map((color, i) => (
-          <div
-            key={i}
-            className="rounded-[2px]"
-            style={{ width: 8, height: 8, backgroundColor: color }}
-          />
-        ))}
-        <span className="text-[8px] text-[var(--text-faint)] tc-mono">
-          {t.usage_heatmap_more}
-        </span>
-      </div>
-      </div>
-      </div>
-
-      {hoveredCell && hoveredRect && <HeatmapTooltip cell={hoveredCell} triggerRect={hoveredRect} />}
+      {hoveredCell && hoveredRect && (
+        <HeatmapTooltip cell={hoveredCell} triggerRect={hoveredRect} />
+      )}
     </div>
   );
 }

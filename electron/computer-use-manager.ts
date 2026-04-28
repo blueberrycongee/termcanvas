@@ -86,9 +86,7 @@ async function httpRequest(
       (res) => {
         let body = "";
         res.on("data", (chunk: string) => (body += chunk));
-        res.on("end", () =>
-          resolve({ status: res.statusCode ?? 0, body }),
-        );
+        res.on("end", () => resolve({ status: res.statusCode ?? 0, body }));
       },
     );
     req.on("timeout", () => req.destroy(new Error("ETIMEDOUT")));
@@ -141,6 +139,15 @@ export class ComputerUseManager {
         },
       );
 
+      this.helperProcess.on("error", (err) => {
+        console.error("[ComputerUse] Helper spawn error:", err);
+        this.helperProcess = null;
+        this.updateState({
+          helperRunning: false,
+          helperPid: null,
+          error: err.message,
+        });
+      });
       this.helperProcess.on("exit", (code) => {
         console.log(`[ComputerUse] Helper exited with code ${code}`);
         this.helperProcess = null;
@@ -190,8 +197,21 @@ export class ComputerUseManager {
 
   async disable(): Promise<void> {
     if (this.helperProcess) {
-      this.helperProcess.kill();
+      const proc = this.helperProcess;
       this.helperProcess = null;
+      proc.kill("SIGTERM");
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(() => {
+          try {
+            proc.kill("SIGKILL");
+          } catch {}
+          resolve();
+        }, 5000);
+        proc.once("exit", () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+      });
     }
     await this.removeStateFile();
     this.updateState({
@@ -263,12 +283,7 @@ export class ComputerUseManager {
     }
 
     try {
-      const resp = await httpRequest(
-        "POST",
-        this.port,
-        "/status",
-        this.token,
-      );
+      const resp = await httpRequest("POST", this.port, "/status", this.token);
       const data = JSON.parse(resp.body);
       return {
         accessibility: data.accessibility_granted ?? false,
@@ -336,10 +351,7 @@ export class ComputerUseManager {
       );
     }
 
-    const bundledPath = path.join(
-      process.resourcesPath,
-      "computer-use-helper",
-    );
+    const bundledPath = path.join(process.resourcesPath, "computer-use-helper");
     if (fs.existsSync(bundledPath)) {
       return bundledPath;
     }

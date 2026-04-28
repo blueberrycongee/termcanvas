@@ -186,7 +186,9 @@ export function TerminalCard({
       <div
         className="w-2 h-2 rounded-full shrink-0"
         style={{
-          backgroundColor: unseenDone ? "var(--accent)" : STATUS_COLORS[item.state],
+          backgroundColor: unseenDone
+            ? "var(--accent)"
+            : STATUS_COLORS[item.state],
         }}
       />
       <div className="flex-1 min-w-0">
@@ -201,7 +203,10 @@ export function TerminalCard({
         >
           {item.title}
         </div>
-        <div className="tc-caption truncate" style={{ color: "var(--text-muted)" }}>
+        <div
+          className="tc-caption truncate"
+          style={{ color: "var(--text-muted)" }}
+        >
           {subtitleParts.join(" · ")}
         </div>
       </div>
@@ -212,13 +217,29 @@ export function TerminalCard({
         className="opacity-0 group-hover:opacity-100 transition-opacity"
         onClick={(e) => {
           e.stopPropagation();
-          stashTerminalInScene(item.projectId, item.worktreeId, item.terminalId);
+          stashTerminalInScene(
+            item.projectId,
+            item.worktreeId,
+            item.terminalId,
+          );
         }}
       >
         {/* archive: arrow down into tray */}
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-          <path d="M5 1v5M5 6L3 4M5 6l2-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M1 6h2v2a1 1 0 001 1h2a1 1 0 001-1V6h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M5 1v5M5 6L3 4M5 6l2-2"
+            stroke="currentColor"
+            strokeWidth="1.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M1 6h2v2a1 1 0 001 1h2a1 1 0 001-1V6h2"
+            stroke="currentColor"
+            strokeWidth="1.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       </IconButton>
       <IconButton
@@ -228,7 +249,11 @@ export function TerminalCard({
         className="opacity-0 group-hover:opacity-100 transition-opacity"
         onClick={(e) => {
           e.stopPropagation();
-          closeTerminalInScene(item.projectId, item.worktreeId, item.terminalId);
+          closeTerminalInScene(
+            item.projectId,
+            item.worktreeId,
+            item.terminalId,
+          );
         }}
       >
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -308,9 +333,7 @@ function Inspector({
   return (
     <div className="shrink-0 border-t border-[var(--border)] bg-[var(--sidebar)]">
       <div className="tc-row-divider px-3 py-2">
-        <div className="tc-eyebrow tc-mono">
-          {t.sessions_inspector}
-        </div>
+        <div className="tc-eyebrow tc-mono">{t.sessions_inspector}</div>
         <div
           className="mt-1.5 truncate"
           style={{
@@ -322,7 +345,10 @@ function Inspector({
         >
           {item.title}
         </div>
-        <div className="tc-caption mt-0.5 truncate" style={{ color: "var(--text-muted)" }}>
+        <div
+          className="tc-caption mt-0.5 truncate"
+          style={{ color: "var(--text-muted)" }}
+        >
           {summaryParts.join(" · ")}
         </div>
         <div className="mt-2 flex items-center gap-1.5">
@@ -344,17 +370,11 @@ function Inspector({
       </div>
 
       <div className="px-3 py-2 max-h-[220px] overflow-y-auto">
-        <div className="tc-eyebrow tc-mono mb-2">
-          {t.sessions_recent_trace}
-        </div>
+        <div className="tc-eyebrow tc-mono mb-2">{t.sessions_recent_trace}</div>
         {traceLoading ? (
-          <div className="tc-caption">
-            {t.sessions_trace_loading}
-          </div>
+          <div className="tc-caption">{t.sessions_trace_loading}</div>
         ) : traceItems.length === 0 ? (
-          <div className="tc-caption">
-            {t.sessions_trace_empty}
-          </div>
+          <div className="tc-caption">{t.sessions_trace_empty}</div>
         ) : (
           <div className="flex flex-col gap-1">
             {traceItems.map((traceItem) => (
@@ -371,7 +391,10 @@ function Inspector({
                   }}
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="tc-caption truncate" style={{ color: "var(--text-secondary)" }}>
+                  <div
+                    className="tc-caption truncate"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
                     {formatTraceLabel(traceItem, t)}
                   </div>
                   <div className="tc-timestamp" style={{ fontSize: "9px" }}>
@@ -410,9 +433,7 @@ function StashedCard({
         >
           {item.title}
         </div>
-        <div className="tc-caption truncate">
-          {item.originLabel}
-        </div>
+        <div className="tc-caption truncate">{item.originLabel}</div>
       </div>
       <IconButton
         size="sm"
@@ -422,8 +443,20 @@ function StashedCard({
       >
         {/* unarchive: arrow up out of tray */}
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-          <path d="M5 6V1M5 1L3 3M5 1l2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M1 6h2v2a1 1 0 001 1h2a1 1 0 001-1V6h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M5 6V1M5 1L3 3M5 1l2 2"
+            stroke="currentColor"
+            strokeWidth="1.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M1 6h2v2a1 1 0 001 1h2a1 1 0 001-1V6h2"
+            stroke="currentColor"
+            strokeWidth="1.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       </IconButton>
       <IconButton
@@ -496,10 +529,11 @@ export function StashedSection({
         >
           <path d="M3 2l4 3-4 3V2z" fill="currentColor" />
         </svg>
-        <span className="tc-eyebrow tc-mono">
-          {t.stash_box}
-        </span>
-        <span className="tc-eyebrow tc-mono ml-auto tabular-nums" style={{ color: "var(--text-faint)" }}>
+        <span className="tc-eyebrow tc-mono">{t.stash_box}</span>
+        <span
+          className="tc-eyebrow tc-mono ml-auto tabular-nums"
+          style={{ color: "var(--text-faint)" }}
+        >
           {items.length}
         </span>
       </CollapsibleTrigger>
@@ -538,7 +572,6 @@ function historyProjectName(dir: string): string {
   return dir.split(/[\\/]/).filter(Boolean).pop() ?? dir;
 }
 
-
 const HIDDEN_HISTORY_STORAGE_KEY = "termcanvas:history:hidden:v1";
 
 function loadHiddenSessions(): Set<string> {
@@ -547,7 +580,9 @@ function loadHiddenSessions(): Set<string> {
     const raw = window.localStorage.getItem(HIDDEN_HISTORY_STORAGE_KEY);
     if (!raw) return new Set();
     const parsed = JSON.parse(raw);
-    return new Set(Array.isArray(parsed) ? parsed.filter((v) => typeof v === "string") : []);
+    return new Set(
+      Array.isArray(parsed) ? parsed.filter((v) => typeof v === "string") : [],
+    );
   } catch {
     return new Set();
   }
@@ -556,7 +591,10 @@ function loadHiddenSessions(): Set<string> {
 function persistHiddenSessions(hidden: Set<string>): void {
   if (typeof window === "undefined" || !window.localStorage) return;
   try {
-    window.localStorage.setItem(HIDDEN_HISTORY_STORAGE_KEY, JSON.stringify(Array.from(hidden)));
+    window.localStorage.setItem(
+      HIDDEN_HISTORY_STORAGE_KEY,
+      JSON.stringify(Array.from(hidden)),
+    );
   } catch {}
 }
 
@@ -568,7 +606,9 @@ function loadPinnedSessions(): Set<string> {
     const raw = window.localStorage.getItem(PINNED_HISTORY_STORAGE_KEY);
     if (!raw) return new Set();
     const parsed = JSON.parse(raw);
-    return new Set(Array.isArray(parsed) ? parsed.filter((v) => typeof v === "string") : []);
+    return new Set(
+      Array.isArray(parsed) ? parsed.filter((v) => typeof v === "string") : [],
+    );
   } catch {
     return new Set();
   }
@@ -636,10 +676,14 @@ export function HistorySection({
   const [hidden, setHidden] = useState<Set<string>>(() => loadHiddenSessions());
   const [pinned, setPinned] = useState<Set<string>>(() => loadPinnedSessions());
   // Groups folded via the chevron header click.
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    new Set(),
+  );
   // Per-group display limit. Absent = HISTORY_GROUP_DEFAULT_LIMIT. Each
   // "show more" click increments by HISTORY_GROUP_DEFAULT_LIMIT.
-  const [groupLimits, setGroupLimits] = useState<Map<string, number>>(new Map());
+  const [groupLimits, setGroupLimits] = useState<Map<string, number>>(
+    new Map(),
+  );
   // Groups currently fetching more sessions from the server.
   const [loadingGroups, setLoadingGroups] = useState<Set<string>>(new Set());
 
@@ -662,35 +706,41 @@ export function HistorySection({
     });
   }, []);
 
-  const showMoreInGroup = useCallback((projectDir: string, currentLimit: number, loadedCount: number) => {
-    const nextLimit = currentLimit + HISTORY_GROUP_DEFAULT_LIMIT;
-    // If the next page would exceed what's loaded, fetch more from the server first.
-    if (nextLimit > loadedCount && window.termcanvas?.search?.listSessionsPage) {
-      setLoadingGroups((prev) => new Set(prev).add(projectDir));
-      void window.termcanvas.search
-        .listSessionsPage([projectDir], { limit: nextLimit, offset: 0 })
-        .then((page) => {
-          setEntries((prev) => {
-            const seen = new Set(prev.map((e) => e.sessionId));
-            const merged = [...prev];
-            for (const e of page.entries) {
-              if (!seen.has(e.sessionId)) merged.push(e);
-            }
-            return merged;
+  const showMoreInGroup = useCallback(
+    (projectDir: string, currentLimit: number, loadedCount: number) => {
+      const nextLimit = currentLimit + HISTORY_GROUP_DEFAULT_LIMIT;
+      // If the next page would exceed what's loaded, fetch more from the server first.
+      if (
+        nextLimit > loadedCount &&
+        window.termcanvas?.search?.listSessionsPage
+      ) {
+        setLoadingGroups((prev) => new Set(prev).add(projectDir));
+        void window.termcanvas.search
+          .listSessionsPage([projectDir], { limit: nextLimit, offset: 0 })
+          .then((page) => {
+            setEntries((prev) => {
+              const seen = new Set(prev.map((e) => e.sessionId));
+              const merged = [...prev];
+              for (const e of page.entries) {
+                if (!seen.has(e.sessionId)) merged.push(e);
+              }
+              return merged;
+            });
+          })
+          .finally(() => {
+            setLoadingGroups((prev) => {
+              const next = new Set(prev);
+              next.delete(projectDir);
+              return next;
+            });
+            setGroupLimits((prev) => new Map(prev).set(projectDir, nextLimit));
           });
-        })
-        .finally(() => {
-          setLoadingGroups((prev) => {
-            const next = new Set(prev);
-            next.delete(projectDir);
-            return next;
-          });
-          setGroupLimits((prev) => new Map(prev).set(projectDir, nextLimit));
-        });
-    } else {
-      setGroupLimits((prev) => new Map(prev).set(projectDir, nextLimit));
-    }
-  }, []);
+      } else {
+        setGroupLimits((prev) => new Map(prev).set(projectDir, nextLimit));
+      }
+    },
+    [],
+  );
 
   const pinSession = useCallback((sessionId: string) => {
     setPinned((prev) => {
@@ -739,19 +789,24 @@ export function HistorySection({
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [projectDirsKey, refreshVersion]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!window.termcanvas?.sessions?.onHistoryChanged) return;
-    const unsubscribe = window.termcanvas.sessions.onHistoryChanged((payload) => {
-      if (!shouldRefreshHistorySection(projectDirs, payload.projectDirs)) return;
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-      refreshTimerRef.current = setTimeout(() => {
-        refreshTimerRef.current = null;
-        setRefreshVersion((v) => v + 1);
-      }, HISTORY_REFRESH_DEBOUNCE_MS);
-    });
+    const unsubscribe = window.termcanvas.sessions.onHistoryChanged(
+      (payload) => {
+        if (!shouldRefreshHistorySection(projectDirs, payload.projectDirs))
+          return;
+        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = setTimeout(() => {
+          refreshTimerRef.current = null;
+          setRefreshVersion((v) => v + 1);
+        }, HISTORY_REFRESH_DEBOUNCE_MS);
+      },
+    );
     return () => {
       unsubscribe();
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
@@ -767,8 +822,10 @@ export function HistorySection({
     () =>
       visibleEntries
         .filter((e) => pinned.has(e.sessionId))
-        .sort((a, b) =>
-          new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime(),
+        .sort(
+          (a, b) =>
+            new Date(b.lastActivityAt).getTime() -
+            new Date(a.lastActivityAt).getTime(),
         ),
     [visibleEntries, pinned],
   );
@@ -783,9 +840,8 @@ export function HistorySection({
     [unpinnedEntries],
   );
 
-  const countLabel = loading && entries.length === 0
-    ? "…"
-    : `${entries.length}`;
+  const countLabel =
+    loading && entries.length === 0 ? "…" : `${entries.length}`;
 
   return (
     <div className="border-t border-[var(--border)]">
@@ -818,18 +874,34 @@ export function HistorySection({
           {entries.length === 0 ? (
             <div className="tc-label px-4 py-3 text-center">
               {loading
-                ? ((t.sessions_history_loading as unknown as string) ?? "Loading…")
+                ? ((t.sessions_history_loading as unknown as string) ??
+                  "Loading…")
                 : ((t.sessions_history_empty as unknown as string) ??
-                    "No past sessions in this canvas yet.")}
+                  "No past sessions in this canvas yet.")}
             </div>
           ) : (
             <div className="flex flex-col">
               {pinnedEntries.length > 0 && (
                 <div className="mb-0.5">
                   <div className="mx-2 flex min-h-[30px] items-center gap-1.5 rounded-md px-3 py-0">
-                    <svg width="9" height="9" viewBox="0 0 10 10" fill="none" className="shrink-0" style={{ color: "var(--text-muted)" }}>
+                    <svg
+                      width="9"
+                      height="9"
+                      viewBox="0 0 10 10"
+                      fill="none"
+                      className="shrink-0"
+                      style={{ color: "var(--text-muted)" }}
+                    >
                       <circle cx="6" cy="4" r="2.2" fill="currentColor" />
-                      <line x1="4.4" y1="5.6" x2="2" y2="8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                      <line
+                        x1="4.4"
+                        y1="5.6"
+                        x2="2"
+                        y2="8"
+                        stroke="currentColor"
+                        strokeWidth="1.2"
+                        strokeLinecap="round"
+                      />
                     </svg>
                     <span
                       className="truncate"
@@ -842,7 +914,12 @@ export function HistorySection({
                     >
                       Pinned
                     </span>
-                    <span className="tc-caption ml-auto tabular-nums" style={{ color: "var(--text-muted)" }}>{pinnedEntries.length}</span>
+                    <span
+                      className="tc-caption ml-auto tabular-nums"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      {pinnedEntries.length}
+                    </span>
                   </div>
                   {pinnedEntries.map((entry) => (
                     <HistoryRow
@@ -859,9 +936,12 @@ export function HistorySection({
               )}
               {groups.map((group) => {
                 const isCollapsed = collapsedGroups.has(group.projectDir);
-                const limit = groupLimits.get(group.projectDir) ?? HISTORY_GROUP_DEFAULT_LIMIT;
+                const limit =
+                  groupLimits.get(group.projectDir) ??
+                  HISTORY_GROUP_DEFAULT_LIMIT;
                 const displayEntries = group.entries.slice(0, limit);
-                const hiddenCount = group.entries.length - displayEntries.length;
+                const hiddenCount =
+                  group.entries.length - displayEntries.length;
                 return (
                   <div key={group.projectDir} className="mb-0.5 last:mb-0">
                     <button
@@ -871,11 +951,16 @@ export function HistorySection({
                     >
                       <span className="shrink-0 flex items-center justify-center text-[var(--text-muted)]">
                         <svg
-                          width="10" height="10" viewBox="0 0 10 10"
+                          width="10"
+                          height="10"
+                          viewBox="0 0 10 10"
                           className="shrink-0"
                           style={{
-                            transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)",
-                            transition: "transform var(--duration-quick) var(--ease-out-soft)",
+                            transform: isCollapsed
+                              ? "rotate(0deg)"
+                              : "rotate(90deg)",
+                            transition:
+                              "transform var(--duration-quick) var(--ease-out-soft)",
                           }}
                         >
                           <path d="M3 2l4 3-4 3z" fill="currentColor" />
@@ -892,7 +977,10 @@ export function HistorySection({
                       >
                         {historyProjectName(group.projectDir)}
                       </span>
-                      <span className="tc-caption tabular-nums" style={{ color: "var(--text-muted)" }}>
+                      <span
+                        className="tc-caption tabular-nums"
+                        style={{ color: "var(--text-muted)" }}
+                      >
                         {group.entries.length}
                       </span>
                     </button>
@@ -915,13 +1003,30 @@ export function HistorySection({
                             disabled={loadingGroups.has(group.projectDir)}
                             onClick={(e) => {
                               e.stopPropagation();
-                              showMoreInGroup(group.projectDir, limit, group.entries.length);
+                              showMoreInGroup(
+                                group.projectDir,
+                                limit,
+                                group.entries.length,
+                              );
                             }}
                           >
-                            <svg width="9" height="9" viewBox="0 0 10 10" fill="none" className="shrink-0">
-                              <path d="M5 2v6M2 5h6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                            <svg
+                              width="9"
+                              height="9"
+                              viewBox="0 0 10 10"
+                              fill="none"
+                              className="shrink-0"
+                            >
+                              <path
+                                d="M5 2v6M2 5h6"
+                                stroke="currentColor"
+                                strokeWidth="1.3"
+                                strokeLinecap="round"
+                              />
                             </svg>
-                            {loadingGroups.has(group.projectDir) ? "Loading…" : `${hiddenCount} more`}
+                            {loadingGroups.has(group.projectDir)
+                              ? "Loading…"
+                              : `${hiddenCount} more`}
                           </button>
                         )}
                       </>
@@ -995,12 +1100,34 @@ function HistoryRow({
           {isPinned ? (
             <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
               <circle cx="7" cy="4.5" r="2.5" fill="currentColor" />
-              <line x1="5.2" y1="6.3" x2="2.5" y2="9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              <line
+                x1="5.2"
+                y1="6.3"
+                x2="2.5"
+                y2="9"
+                stroke="currentColor"
+                strokeWidth="1.3"
+                strokeLinecap="round"
+              />
             </svg>
           ) : (
             <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
-              <circle cx="7" cy="4.5" r="2.5" stroke="currentColor" strokeWidth="1.1" />
-              <line x1="5.2" y1="6.3" x2="2.5" y2="9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              <circle
+                cx="7"
+                cy="4.5"
+                r="2.5"
+                stroke="currentColor"
+                strokeWidth="1.1"
+              />
+              <line
+                x1="5.2"
+                y1="6.3"
+                x2="2.5"
+                y2="9"
+                stroke="currentColor"
+                strokeWidth="1.3"
+                strokeLinecap="round"
+              />
             </svg>
           )}
         </IconButton>
@@ -1033,7 +1160,11 @@ function HistoryRow({
         <IconButton
           size="sm"
           tone={pendingHide ? "danger" : "neutral"}
-          label={pendingHide ? "Click again to hide permanently" : "Hide from history"}
+          label={
+            pendingHide
+              ? "Click again to hide permanently"
+              : "Hide from history"
+          }
           className={pendingHide ? "bg-[var(--red-soft)]" : ""}
           onClick={(e) => {
             e.stopPropagation();
@@ -1046,9 +1177,18 @@ function HistoryRow({
           onBlur={() => setPendingHide(false)}
         >
           <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-            <path d="M1 6c1.2-2.3 3-3.5 5-3.5s3.8 1.2 5 3.5c-1.2 2.3-3 3.5-5 3.5S2.2 8.3 1 6z"
-              stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
-            <path d="M2 10L10 2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+            <path
+              d="M1 6c1.2-2.3 3-3.5 5-3.5s3.8 1.2 5 3.5c-1.2 2.3-3 3.5-5 3.5S2.2 8.3 1 6z"
+              stroke="currentColor"
+              strokeWidth="1.1"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M2 10L10 2"
+              stroke="currentColor"
+              strokeWidth="1.1"
+              strokeLinecap="round"
+            />
           </svg>
         </IconButton>
       </span>
@@ -1187,12 +1327,26 @@ export function SessionsPanel({
     return <SessionReplayView />;
   }
 
+  const renderTerminal = useCallback(
+    (item: CanvasTerminalItem) => (
+      <TerminalCard
+        key={item.terminalId}
+        item={item}
+        t={t}
+        compact
+        hideLocation
+        unseenDone={
+          item.state === "done" && !seenTerminalIds.has(item.terminalId)
+        }
+      />
+    ),
+    [t, seenTerminalIds],
+  );
+
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="tc-row-divider flex items-center justify-between px-3 py-2 shrink-0">
-        <span className="tc-eyebrow tc-mono">
-          {t.sessions_panel_title}
-        </span>
+        <span className="tc-eyebrow tc-mono">{t.sessions_panel_title}</span>
         <IconButton
           size="md"
           tone="neutral"
@@ -1217,22 +1371,7 @@ export function SessionsPanel({
         </IconButton>
       </div>
       <div className="tc-sidebar-tree-font flex-1 min-h-0 overflow-y-auto">
-        <ProjectTree
-          projects={projectTree}
-          renderTerminal={(item) => (
-            <TerminalCard
-              key={item.terminalId}
-              item={item}
-              t={t}
-              compact
-              hideLocation
-              unseenDone={
-                item.state === "done" &&
-                !seenTerminalIds.has(item.terminalId)
-              }
-            />
-          )}
-        />
+        <ProjectTree projects={projectTree} renderTerminal={renderTerminal} />
 
         {!hasAnyTerminals && (
           <div className="tc-label flex-1 px-4 py-6 text-center">

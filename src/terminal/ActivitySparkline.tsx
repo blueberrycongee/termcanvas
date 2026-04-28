@@ -10,7 +10,8 @@ const BAR_GAP = 1;
 const BAR_WIDTH = 3;
 const MIN_BAR_PX = 1;
 const SVG_HEIGHT = 10;
-const SVG_WIDTH = ACTIVITY_BUCKET_COUNT * BAR_WIDTH + (ACTIVITY_BUCKET_COUNT - 1) * BAR_GAP;
+const SVG_WIDTH =
+  ACTIVITY_BUCKET_COUNT * BAR_WIDTH + (ACTIVITY_BUCKET_COUNT - 1) * BAR_GAP;
 
 interface Props {
   terminalId: string;
@@ -58,7 +59,7 @@ export function ActivitySparkline({ terminalId }: Props) {
         const y = SVG_HEIGHT - height;
         return (
           <rect
-            key={i}
+            key={xIndex}
             x={x}
             y={y}
             width={BAR_WIDTH}

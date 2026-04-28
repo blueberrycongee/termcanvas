@@ -142,6 +142,7 @@ export class PtyManager {
         }
       }
       this.instances.delete(id);
+      this.outputBuffers.delete(id);
     }
   }
 
@@ -155,8 +156,7 @@ export class PtyManager {
 
     try {
       process.kill(pid, "SIGWINCH");
-    } catch {
-    }
+    } catch {}
   }
 
   onData(id: number, callback: (data: string) => void) {

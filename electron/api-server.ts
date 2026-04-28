@@ -225,7 +225,14 @@ export class ApiServer {
   private readBody(req: http.IncomingMessage): Promise<any> {
     return new Promise((resolve, reject) => {
       let data = "";
-      req.on("data", (chunk: string) => (data += chunk));
+      req.on("data", (chunk: string) => {
+        data += chunk;
+        if (Buffer.byteLength(data, "utf8") > 1024 * 1024) {
+          reject(
+            Object.assign(new Error("Request body too large"), { status: 413 }),
+          );
+        }
+      });
       req.on("end", () => {
         try {
           resolve(data ? JSON.parse(data) : {});
@@ -589,33 +596,48 @@ export class ApiServer {
 
   private async computerUseStatus() {
     const mgr = this.deps.computerUseManager;
-    if (!mgr) throw Object.assign(new Error("Computer Use not available"), { status: 501 });
+    if (!mgr)
+      throw Object.assign(new Error("Computer Use not available"), {
+        status: 501,
+      });
     return mgr.getStatus();
   }
 
   private async computerUseEnable() {
     const mgr = this.deps.computerUseManager;
-    if (!mgr) throw Object.assign(new Error("Computer Use not available"), { status: 501 });
+    if (!mgr)
+      throw Object.assign(new Error("Computer Use not available"), {
+        status: 501,
+      });
     await mgr.enable();
     return { ok: true };
   }
 
   private async computerUseSetup() {
     const mgr = this.deps.computerUseManager;
-    if (!mgr) throw Object.assign(new Error("Computer Use not available"), { status: 501 });
+    if (!mgr)
+      throw Object.assign(new Error("Computer Use not available"), {
+        status: 501,
+      });
     return mgr.setup();
   }
 
   private async computerUseDisable() {
     const mgr = this.deps.computerUseManager;
-    if (!mgr) throw Object.assign(new Error("Computer Use not available"), { status: 501 });
+    if (!mgr)
+      throw Object.assign(new Error("Computer Use not available"), {
+        status: 501,
+      });
     await mgr.disable();
     return { ok: true };
   }
 
   private async computerUseStop() {
     const mgr = this.deps.computerUseManager;
-    if (!mgr) throw Object.assign(new Error("Computer Use not available"), { status: 501 });
+    if (!mgr)
+      throw Object.assign(new Error("Computer Use not available"), {
+        status: 501,
+      });
     await mgr.stop();
     return { ok: true };
   }

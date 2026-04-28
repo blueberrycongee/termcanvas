@@ -149,13 +149,37 @@ interface StatusTone {
 }
 
 const STATUS_TONE: Record<TerminalStatus, StatusTone> = {
-  running: { labelKey: "hub.status.running", color: "var(--accent)", pulse: true },
-  active: { labelKey: "hub.status.active", color: "var(--accent)", pulse: true },
-  waiting: { labelKey: "hub.status.waiting", color: "var(--amber)", pulse: false },
-  completed: { labelKey: "hub.status.completed", color: "var(--cyan)", pulse: false },
-  success: { labelKey: "hub.status.success", color: "var(--green)", pulse: false },
+  running: {
+    labelKey: "hub.status.running",
+    color: "var(--accent)",
+    pulse: true,
+  },
+  active: {
+    labelKey: "hub.status.active",
+    color: "var(--accent)",
+    pulse: true,
+  },
+  waiting: {
+    labelKey: "hub.status.waiting",
+    color: "var(--amber)",
+    pulse: false,
+  },
+  completed: {
+    labelKey: "hub.status.completed",
+    color: "var(--cyan)",
+    pulse: false,
+  },
+  success: {
+    labelKey: "hub.status.success",
+    color: "var(--green)",
+    pulse: false,
+  },
   error: { labelKey: "hub.status.error", color: "var(--red)", pulse: false },
-  idle: { labelKey: "hub.status.idle", color: "var(--text-muted)", pulse: false },
+  idle: {
+    labelKey: "hub.status.idle",
+    color: "var(--text-muted)",
+    pulse: false,
+  },
 };
 
 const TYPE_GLYPH_LETTER: Record<TerminalType, string> = {
@@ -198,7 +222,7 @@ function Sparkline({ buckets }: SparklineProps) {
         const x = i * (barWidth + gap);
         return (
           <rect
-            key={i}
+            key={x}
             x={x}
             y={height - h}
             width={barWidth}

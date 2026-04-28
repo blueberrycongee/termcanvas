@@ -39,9 +39,9 @@ export const SpriteRenderer = memo(function SpriteRenderer({
 
   return (
     <g transform={transform} opacity={opacity}>
-      {rects.map(({ rx, ry, color }, i) => (
+      {rects.map(({ rx, ry, color }) => (
         <rect
-          key={i}
+          key={`${rx}-${ry}`}
           x={rx * PIXEL_SIZE}
           y={ry * PIXEL_SIZE}
           width={PIXEL_SIZE}
