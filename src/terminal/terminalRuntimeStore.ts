@@ -1119,6 +1119,9 @@ function createTerminalRenderer(
   const theme = useThemeStore.getState().theme;
   const preferences = usePreferencesStore.getState();
   const xterm = new XtermTerminalConstructor({
+    // addon-search uses registerDecoration for match counts/highlights, and
+    // xterm exposes that API behind the proposed API gate.
+    allowProposedApi: true,
     allowTransparency: false,
     cursorBlink: true,
     cursorStyle: "bar",

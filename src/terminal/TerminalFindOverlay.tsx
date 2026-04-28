@@ -24,6 +24,7 @@ export function TerminalFindOverlay({ terminalId }: Props) {
   const toggleUseRegex = useTerminalFindStore((s) => s.toggleUseRegex);
 
   const focusNonce = useTerminalFindStore((s) => s.focusNonce);
+  const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const isOpen = openTerminalId === terminalId;
 
@@ -40,14 +41,25 @@ export function TerminalFindOverlay({ terminalId }: Props) {
     return () => cancelAnimationFrame(id);
   }, [isOpen, focusNonce]);
 
-  // Window-level Esc capture so the overlay closes regardless of which
-  // element currently owns focus. Without this, Esc only worked when the
-  // input itself had focus — and after the user clicked into xterm to
-  // re-anchor a selection, Esc would silently fall through.
+  // Capture Esc from the find widget or this terminal only. Other focused
+  // app surfaces should keep their own Escape behavior even while find is
+  // open on a terminal in the background.
   useEffect(() => {
     if (!isOpen) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      const target = e.target as Node | null;
+      const root = rootRef.current;
+      const terminalShell = root?.parentElement;
+      if (
+        target &&
+        root &&
+        !root.contains(target) &&
+        terminalShell &&
+        !terminalShell.contains(target)
+      ) {
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       close();
@@ -77,6 +89,7 @@ export function TerminalFindOverlay({ terminalId }: Props) {
 
   return (
     <div
+      ref={rootRef}
       className="absolute top-2 right-2 z-20 flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_94%,transparent)] px-2 py-1 shadow-lg backdrop-blur-sm"
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}

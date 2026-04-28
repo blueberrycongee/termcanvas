@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ISearchOptions } from "@xterm/addon-search";
+import type { ISearchOptions, SearchAddon } from "@xterm/addon-search";
 import { getTerminalRuntime } from "../terminal/terminalRuntimeStore";
 
 interface FindState {
@@ -40,10 +40,17 @@ const DECORATIONS = {
 } as const;
 
 let detachResultsListener: (() => void) | null = null;
+let resultsListenerTarget:
+  | { terminalId: string; searchAddon: SearchAddon }
+  | null = null;
+let lastFindSelection:
+  | { terminalId: string; text: string }
+  | null = null;
 
 function teardownListener() {
   detachResultsListener?.();
   detachResultsListener = null;
+  resultsListenerTarget = null;
 }
 
 function clearForTerminal(terminalId: string | null) {
@@ -63,8 +70,79 @@ function buildSearchOptions(
   };
 }
 
+function normalizeSelection(selection: string): string {
+  return selection.includes("\n") || selection.trim() === "" ? "" : selection;
+}
+
+function selectionMatchesQuery(
+  selection: string,
+  query: string,
+  state: Pick<FindState, "caseSensitive" | "useRegex">,
+): boolean {
+  if (!selection || !query || state.useRegex) return false;
+  return state.caseSensitive
+    ? selection === query
+    : selection.toLocaleLowerCase() === query.toLocaleLowerCase();
+}
+
 export const useTerminalFindStore = create<FindState & FindActions>(
   (set, get) => {
+    function ensureResultsListener(terminalId: string): SearchAddon | null {
+      const search = getTerminalRuntime(terminalId)?.searchAddon ?? null;
+      if (!search) {
+        if (resultsListenerTarget?.terminalId === terminalId) {
+          teardownListener();
+        }
+        return null;
+      }
+
+      if (
+        resultsListenerTarget?.terminalId === terminalId &&
+        resultsListenerTarget.searchAddon === search
+      ) {
+        return search;
+      }
+
+      teardownListener();
+      const disp = search.onDidChangeResults(
+        ({ resultIndex, resultCount }) => {
+          if (get().openTerminalId !== terminalId) return;
+          set({ resultIndex, resultCount });
+        },
+      );
+      detachResultsListener = () => disp.dispose();
+      resultsListenerTarget = { terminalId, searchAddon: search };
+      return search;
+    }
+
+    function rememberFindSelection(terminalId: string, found: boolean) {
+      if (!found) {
+        lastFindSelection = null;
+        return;
+      }
+      const text = getTerminalRuntime(terminalId)?.xterm?.getSelection() ?? "";
+      lastFindSelection = text ? { terminalId, text } : null;
+    }
+
+    function runSearch(
+      terminalId: string,
+      query: string,
+      direction: "next" | "previous" = "next",
+    ) {
+      const search = ensureResultsListener(terminalId);
+      if (!search) {
+        set({ resultIndex: -1, resultCount: 0 });
+        lastFindSelection = null;
+        return;
+      }
+
+      const found =
+        direction === "previous"
+          ? search.findPrevious(query, buildSearchOptions(get()))
+          : search.findNext(query, buildSearchOptions(get()));
+      rememberFindSelection(terminalId, found);
+    }
+
     function rerunSearch() {
       const state = get();
       if (!state.openTerminalId || !state.query) {
@@ -72,10 +150,10 @@ export const useTerminalFindStore = create<FindState & FindActions>(
           clearForTerminal(state.openTerminalId);
           set({ resultIndex: -1, resultCount: 0 });
         }
+        lastFindSelection = null;
         return;
       }
-      const search = getTerminalRuntime(state.openTerminalId)?.searchAddon;
-      search?.findNext(state.query, buildSearchOptions(state));
+      runSearch(state.openTerminalId, state.query);
     }
 
     return {
@@ -89,30 +167,44 @@ export const useTerminalFindStore = create<FindState & FindActions>(
       focusNonce: 0,
 
       openFor: (terminalId, prefill) => {
-        const { openTerminalId: prev, focusNonce } = get();
+        const state = get();
+        const { openTerminalId: prev, focusNonce } = state;
+        const runtime = getTerminalRuntime(terminalId);
+        const initialQuery = normalizeSelection(
+          prefill ?? runtime?.xterm?.getSelection() ?? "",
+        );
+
         // Re-press on the same terminal: keep query/results, just nudge the
-        // overlay to re-focus + select the input.
+        // overlay to re-focus + select the input. If the user has selected a
+        // different xterm range while find is open, adopt that selection like
+        // VS Code/Ghostty do.
         if (prev === terminalId) {
           set({ focusNonce: focusNonce + 1 });
+          if (
+            initialQuery &&
+            !selectionMatchesQuery(initialQuery, state.query, state) &&
+            !(
+              lastFindSelection?.terminalId === terminalId &&
+              lastFindSelection.text === initialQuery
+            )
+          ) {
+            set({
+              query: initialQuery,
+              resultIndex: -1,
+              resultCount: 0,
+            });
+            runSearch(terminalId, initialQuery);
+          }
           return;
         }
 
         teardownListener();
         if (prev) clearForTerminal(prev);
 
-        const runtime = getTerminalRuntime(terminalId);
-        const search = runtime?.searchAddon;
         // Pre-fill from caller-supplied selection (the click-button path
         // captures it before activation), falling back to a fresh read of
         // xterm's current selection (the Cmd+F path). Single-line only —
         // multi-line selections aren't useful as search needles.
-        const rawSelection =
-          prefill ?? runtime?.xterm?.getSelection() ?? "";
-        const initialQuery =
-          rawSelection.includes("\n") || rawSelection.trim() === ""
-            ? ""
-            : rawSelection;
-
         set({
           openTerminalId: terminalId,
           query: initialQuery,
@@ -121,17 +213,10 @@ export const useTerminalFindStore = create<FindState & FindActions>(
           focusNonce: focusNonce + 1,
         });
 
-        if (!search) return;
-
-        const disp = search.onDidChangeResults(
-          ({ resultIndex, resultCount }) => {
-            set({ resultIndex, resultCount });
-          },
-        );
-        detachResultsListener = () => disp.dispose();
-
         if (initialQuery) {
-          search.findNext(initialQuery, buildSearchOptions(get()));
+          runSearch(terminalId, initialQuery);
+        } else {
+          ensureResultsListener(terminalId);
         }
       },
 
@@ -145,6 +230,7 @@ export const useTerminalFindStore = create<FindState & FindActions>(
           resultIndex: -1,
           resultCount: 0,
         });
+        lastFindSelection = null;
       },
 
       setQuery: (query) => {
@@ -155,15 +241,13 @@ export const useTerminalFindStore = create<FindState & FindActions>(
       findNext: () => {
         const { openTerminalId, query } = get();
         if (!openTerminalId || !query) return;
-        const search = getTerminalRuntime(openTerminalId)?.searchAddon;
-        search?.findNext(query, buildSearchOptions(get()));
+        runSearch(openTerminalId, query);
       },
 
       findPrevious: () => {
         const { openTerminalId, query } = get();
         if (!openTerminalId || !query) return;
-        const search = getTerminalRuntime(openTerminalId)?.searchAddon;
-        search?.findPrevious(query, buildSearchOptions(get()));
+        runSearch(openTerminalId, query, "previous");
       },
 
       toggleCaseSensitive: () => {
