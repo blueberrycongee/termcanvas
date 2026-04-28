@@ -88,12 +88,13 @@
      makes it consistent and trackable. */
   --scrim: rgba(0, 0, 0, 0.55);
   --radius: 8px;
-  /* Find-overlay match decoration colors. Sit on top of xterm's translucent
-     blue selection — keep the alpha low enough that a single layer reads as
-     "subtle highlight" rather than fighting the selection underneath. */
-  --find-match-bg: rgba(212, 162, 78, 0.22);
-  --find-match-active-bg: rgba(212, 162, 78, 0.7);
-  --find-match-active-outline: rgba(245, 197, 110, 0.95);
+  /* Find-overlay match decoration colors. The dark theme needs the more
+     saturated, lower-lightness amber to retain chromatic contrast against
+     the dark surface — a low-chroma amber here just dissolves into the
+     background. */
+  --find-match-bg: rgba(217, 119, 6, 0.32);
+  --find-match-active-bg: rgba(217, 119, 6, 0.7);
+  --find-match-active-outline: rgba(245, 158, 50, 0.95);
   color-scheme: dark;
 }
 
@@ -138,13 +139,13 @@
      stops the popup from looking like it's floating on coal. */
   --scrim: rgba(28, 25, 23, 0.42);
   --radius: 8px;
-  /* Light-theme find decorations: warm amber tints on cream paper. Same
-     intent as the dark variant — a soft veil for candidates, a stronger
-     hold for the active match — but pushed brighter so the highlight
-     reads against light text. */
-  --find-match-bg: rgba(217, 119, 6, 0.18);
-  --find-match-active-bg: rgba(217, 119, 6, 0.55);
-  --find-match-active-outline: rgba(217, 119, 6, 0.85);
+  /* Light-theme find decorations. Use the softer, lighter amber here —
+     #d97706 at high alpha would punch through the cream surface as a
+     hard orange block. Softer amber + moderate alpha reads as a warm
+     veil instead. */
+  --find-match-bg: rgba(212, 162, 78, 0.4);
+  --find-match-active-bg: rgba(212, 162, 78, 0.78);
+  --find-match-active-outline: rgba(180, 130, 40, 0.95);
   color-scheme: light;
 }
 
