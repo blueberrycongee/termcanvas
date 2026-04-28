@@ -7,10 +7,7 @@ import {
   type CSSProperties,
 } from "react";
 import { updateTerminalCustomTitleInScene } from "../actions/terminalSceneActions";
-import {
-  findTerminalById,
-  useProjectStore,
-} from "../stores/projectStore";
+import { findTerminalById, useProjectStore } from "../stores/projectStore";
 import { useComposerStore } from "../stores/composerStore";
 import { useHandoffDragStore } from "../stores/handoffDragStore";
 import { useNotificationStore } from "../stores/notificationStore";
@@ -38,7 +35,8 @@ function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error ?? new Error("Failed to read image."));
+    reader.onerror = () =>
+      reject(reader.error ?? new Error("Failed to read image."));
     reader.readAsDataURL(file);
   });
 }
@@ -74,9 +72,7 @@ function formatComposerFailure(
     ? getComposerStageLabel(t, result.stage)
     : t.composer_stage_submit;
   const baseDetail = result.detail ?? result.error ?? "Unknown error";
-  const detail = result.code
-    ? `${baseDetail} [${result.code}]`
-    : baseDetail;
+  const detail = result.code ? `${baseDetail} [${result.code}]` : baseDetail;
   return t.composer_submit_failed_with_context(targetTitle, stage, detail);
 }
 
@@ -100,7 +96,12 @@ function getPassthroughSequence(
       return "\x03";
     }
   }
-  if (event.key === "Enter" && !event.shiftKey && draft.trim().length === 0 && !hasImages) {
+  if (
+    event.key === "Enter" &&
+    !event.shiftKey &&
+    draft.trim().length === 0 &&
+    !hasImages
+  ) {
     return "\r";
   }
   if (event.key === "Backspace" && draft.length === 0 && !hasImages) {
@@ -134,7 +135,9 @@ export function ComposerBar() {
     exitRenameTerminalTitleMode,
   } = useComposerStore();
   const projects = useProjectStore((s) => s.projects);
-  const terminalRuntimeStates = useTerminalRuntimeStateStore((s) => s.terminals);
+  const terminalRuntimeStates = useTerminalRuntimeStateStore(
+    (s) => s.terminals,
+  );
   const composerLeft = 0;
   const composerRight = useCanvasStore((s) =>
     s.rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : s.rightPanelWidth,
@@ -161,9 +164,7 @@ export function ComposerBar() {
   const isTargetReady = targetState === "ready";
   const renameTarget = useMemo(
     () =>
-      renameTerminalId
-        ? findTerminalById(projects, renameTerminalId)
-        : null,
+      renameTerminalId ? findTerminalById(projects, renameTerminalId) : null,
     [projects, renameTerminalId],
   );
 
@@ -178,9 +179,7 @@ export function ComposerBar() {
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounterRef = useRef(0);
   const handoffActive = useHandoffDragStore((s) => s.active);
-  const handoffHoveredComposer = useHandoffDragStore(
-    (s) => s.hoveredComposer,
-  );
+  const handoffHoveredComposer = useHandoffDragStore((s) => s.hoveredComposer);
   const isHandoffTarget = handoffActive && handoffHoveredComposer;
 
   // Submit-feedback state. `submitTick` keys the input-flash element so
@@ -230,10 +229,7 @@ export function ComposerBar() {
     if (draft.startsWith("/") && targetTerminal) {
       if (slashDismissedRef.current) return;
 
-      const commands = filterSlashCommands(
-        targetTerminal.type,
-        draft.slice(1),
-      );
+      const commands = filterSlashCommands(targetTerminal.type, draft.slice(1));
       if (commands.length > 0) {
         setSlashMenuOpen((wasOpen) => {
           if (!wasOpen) {
@@ -276,9 +272,14 @@ export function ComposerBar() {
   }, [targetTerminalId, isTargetReady]);
 
   useEffect(() => {
-    const handleFocusComposer = () => requestAnimationFrame(() => textareaRef.current?.focus());
+    const handleFocusComposer = () =>
+      requestAnimationFrame(() => textareaRef.current?.focus());
     window.addEventListener("termcanvas:focus-composer", handleFocusComposer);
-    return () => window.removeEventListener("termcanvas:focus-composer", handleFocusComposer);
+    return () =>
+      window.removeEventListener(
+        "termcanvas:focus-composer",
+        handleFocusComposer,
+      );
   }, []);
 
   // Publish the composer's measured height so the floating BottomToolbar
@@ -349,7 +350,15 @@ export function ComposerBar() {
         notify("error", message);
       }
     },
-    [addImages, isRenameMode, notify, setError, t, targetAdapter, targetTerminal],
+    [
+      addImages,
+      isRenameMode,
+      notify,
+      setError,
+      t,
+      targetAdapter,
+      targetTerminal,
+    ],
   );
 
   const handleDrop = useCallback(
@@ -414,7 +423,9 @@ export function ComposerBar() {
 
       if (nonImagePaths.length > 0) {
         const pathText = nonImagePaths
-          .map((p) => (/[\s"'\\$`!#&|;()<>]/.test(p) ? `"${p.replace(/"/g, '\\"')}"` : p))
+          .map((p) =>
+            /[\s"'\\$`!#&|;()<>]/.test(p) ? `"${p.replace(/"/g, '\\"')}"` : p,
+          )
           .join(" ");
         const textarea = textareaRef.current;
         if (textarea) {
@@ -422,17 +433,32 @@ export function ComposerBar() {
           const currentDraft = useComposerStore.getState().draft;
           const before = currentDraft.slice(0, selectionStart);
           const after = currentDraft.slice(selectionEnd);
-          const needsLeadingSpace = before.length > 0 && !before.endsWith(" ") && !before.endsWith("\n");
+          const needsLeadingSpace =
+            before.length > 0 &&
+            !before.endsWith(" ") &&
+            !before.endsWith("\n");
           const insertion = (needsLeadingSpace ? " " : "") + pathText;
           setDraft(before + insertion + after);
         } else {
           const currentDraft = useComposerStore.getState().draft;
-          const needsSpace = currentDraft.length > 0 && !currentDraft.endsWith(" ") && !currentDraft.endsWith("\n");
+          const needsSpace =
+            currentDraft.length > 0 &&
+            !currentDraft.endsWith(" ") &&
+            !currentDraft.endsWith("\n");
           setDraft(currentDraft + (needsSpace ? " " : "") + pathText);
         }
       }
     },
-    [addImages, isRenameMode, notify, setDraft, setError, t, targetAdapter, targetTerminal],
+    [
+      addImages,
+      isRenameMode,
+      notify,
+      setDraft,
+      setError,
+      t,
+      targetAdapter,
+      targetTerminal,
+    ],
   );
 
   const handleSubmit = useCallback(async () => {
@@ -518,7 +544,9 @@ export function ComposerBar() {
       triggerSent(t.composer_sent);
     } catch (submitError) {
       const message =
-        submitError instanceof Error ? submitError.message : String(submitError);
+        submitError instanceof Error
+          ? submitError.message
+          : String(submitError);
       setError(message);
       notify("error", t.composer_submit_failed(message));
     } finally {
@@ -767,7 +795,9 @@ export function ComposerBar() {
                     (event.key === "Enter" && slashNavigatedRef.current)
                   ) {
                     event.preventDefault();
-                    handleSlashSelect(slashCommands[slashSelectedIndex].command);
+                    handleSlashSelect(
+                      slashCommands[slashSelectedIndex].command,
+                    );
                     return;
                   }
                   if (event.key === "Escape") {
@@ -778,7 +808,11 @@ export function ComposerBar() {
                 }
 
                 if (targetTerminal) {
-                  const seq = getPassthroughSequence(event, draft, images.length > 0);
+                  const seq = getPassthroughSequence(
+                    event,
+                    draft,
+                    images.length > 0,
+                  );
                   if (seq !== null) {
                     event.preventDefault();
                     window.termcanvas.terminal.input(targetTerminal.ptyId, seq);
@@ -801,7 +835,7 @@ export function ComposerBar() {
               }}
             />
             <button
-              className={`tc-composer-send-button absolute right-2 inline-flex items-center gap-1 rounded-md bg-[var(--accent)] px-2.5 py-1 text-[11px] font-medium text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 ${
+              className={`tc-composer-send-button absolute right-2 inline-flex items-center gap-1 rounded-md bg-[var(--accent)] px-2.5 py-1 text-[11px] font-medium text-[var(--accent-foreground)] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 ${
                 sendState === "sent" ? "tc-composer-send-pulse" : ""
               }`}
               style={sendButtonStyle}
@@ -854,7 +888,9 @@ export function ComposerBar() {
             </button>
           </div>
           {error && (
-            <div className="mt-1 text-[11px] text-[var(--red)] px-1">{error}</div>
+            <div className="mt-1 text-[11px] text-[var(--red)] px-1">
+              {error}
+            </div>
           )}
           {!error && (
             <div className="mt-1 px-1 text-[11px] text-[var(--text-muted)]">

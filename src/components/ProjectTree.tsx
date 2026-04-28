@@ -382,9 +382,25 @@ function ListTodoIcon() {
       className="shrink-0"
     >
       <rect x="1" y="3" width="3" height="3" rx="0.5" fill="currentColor" />
-      <line x1="6" y1="4.5" x2="15" y2="4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <line
+        x1="6"
+        y1="4.5"
+        x2="15"
+        y2="4.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
       <rect x="1" y="9" width="3" height="3" rx="0.5" fill="currentColor" />
-      <line x1="6" y1="10.5" x2="15" y2="10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <line
+        x1="6"
+        y1="10.5"
+        x2="15"
+        y2="10.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -567,7 +583,7 @@ function ProjectRow({
             <ListTodoIcon />
           </IconButton>
           {openCount > 0 && !isTaskDrawerOpen && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[12px] h-3 flex items-center justify-center rounded-full bg-[var(--accent)] text-white text-[8px] font-medium px-0.5 pointer-events-none">
+            <span className="absolute -top-0.5 -right-0.5 min-w-[12px] h-3 flex items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-foreground)] text-[8px] font-medium px-0.5 pointer-events-none">
               {openCount > 9 ? "9+" : openCount}
             </span>
           )}
@@ -665,10 +681,7 @@ function ProjectRow({
               disabled={deleting}
               onChange={(e) => setDeleteInput(e.target.value)}
               onKeyDown={(e) => {
-                if (
-                  e.key === "Enter" &&
-                  deleteInput === project.projectName
-                ) {
+                if (e.key === "Enter" && deleteInput === project.projectName) {
                   e.preventDefault();
                   void performDeleteFromDisk();
                 }

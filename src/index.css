@@ -59,6 +59,7 @@
      and an accent gutter glyph; amber is no longer used in this view. */
   --accent: #5b9ef5;
   --accent-soft: rgba(91, 158, 245, 0.14);
+  --accent-foreground: #ffffff;
   --red: #e87272;
   --red-soft: rgba(232, 114, 114, 0.16);
   --amber: #d4a24e;
@@ -128,7 +129,7 @@
      picked deliberately for the user-prompt bubble; it sits a touch
      cooler than --surface (#f3f2ef) and reads as "soft container" on
      the cream-paper light background. */
-  --bubble-bg: #F3F3F4;
+  --bubble-bg: #f3f3f4;
   /* See dark-theme block. Warm dark grey (close to text-primary)
      keeps shadows in the same hue family as the light neutrals so
      they read as "soft depth" rather than "hard cutout". */
@@ -153,13 +154,13 @@
 
 :root {
   /* ── Type scale ─────────────────────────────────────────── */
-  --text-tiny: 10px;   /* eyebrow / micro caption */
-  --text-xs: 11px;     /* tertiary metadata, status */
-  --text-sm: 12px;     /* secondary UI controls */
-  --text-base: 13px;   /* default body */
-  --text-md: 14px;     /* primary reading content */
-  --text-lg: 16px;     /* section title */
-  --text-xl: 20px;     /* display */
+  --text-tiny: 10px; /* eyebrow / micro caption */
+  --text-xs: 11px; /* tertiary metadata, status */
+  --text-sm: 12px; /* secondary UI controls */
+  --text-base: 13px; /* default body */
+  --text-md: 14px; /* primary reading content */
+  --text-lg: 16px; /* section title */
+  --text-xl: 20px; /* display */
 
   /* Numeric-display sizes, used for the big cost/stat figures. They
      carry their own sizes rather than reusing --text-* because mono
@@ -328,11 +329,21 @@ body {
    weight to mark speakers, so per-role badges have nothing to badge. */
 
 /* Color overrides — apply on top of a role to shift emphasis */
-.tc-color-primary { color: var(--text-primary); }
-.tc-color-secondary { color: var(--text-secondary); }
-.tc-color-muted { color: var(--text-muted); }
-.tc-color-faint { color: var(--text-faint); }
-.tc-color-accent { color: var(--accent); }
+.tc-color-primary {
+  color: var(--text-primary);
+}
+.tc-color-secondary {
+  color: var(--text-secondary);
+}
+.tc-color-muted {
+  color: var(--text-muted);
+}
+.tc-color-faint {
+  color: var(--text-faint);
+}
+.tc-color-accent {
+  color: var(--accent);
+}
 
 /* Numeric-display roles. Self-contained: already mono + tabular-nums
    + tight tracking. Use these for the large cost/stat figures so
@@ -412,7 +423,9 @@ a.tc-kbd:active {
   font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-feature-settings: "ss03", "zero";
 }
-.tc-num { font-variant-numeric: tabular-nums; }
+.tc-num {
+  font-variant-numeric: tabular-nums;
+}
 
 .canvas-bg {
   background-color: var(--bg);
@@ -518,14 +531,20 @@ a.tc-kbd:active {
     0 0 12px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
-.terminal-tile[data-receptive="true"]:not([data-drag-over="true"], [data-task-flash="true"]) {
+.terminal-tile[data-receptive="true"]:not(
+    [data-drag-over="true"],
+    [data-task-flash="true"]
+  ) {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 /* Handoff drop affordance — a different ring colour than folder/file drop
    so the eye reads "this is a different gesture". Cyan vs accent is the
    pairing established in the canvas tokens. */
-.terminal-tile[data-handoff-target="true"]:not([data-drag-over="true"], [data-task-flash="true"]) {
+.terminal-tile[data-handoff-target="true"]:not(
+    [data-drag-over="true"],
+    [data-task-flash="true"]
+  ) {
   box-shadow:
     0 0 0 2px var(--cyan),
     0 0 12px color-mix(in srgb, var(--cyan) 26%, transparent);
@@ -573,7 +592,11 @@ a.tc-kbd:active {
   background-color: transparent;
   transition: background-color var(--duration-quick) var(--ease-out-soft);
 }
-.terminal-tile[data-focused="true"]:not([data-drag-over="true"], [data-task-flash="true"]) .tc-tile-header {
+.terminal-tile[data-focused="true"]:not(
+    [data-drag-over="true"],
+    [data-task-flash="true"]
+  )
+  .tc-tile-header {
   background-color: var(--surface-hover);
 }
 
@@ -806,18 +829,37 @@ html.tc-scrolling ::-webkit-scrollbar-thumb {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes slideIn {
-  from { opacity: 0; transform: translateX(16px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 @keyframes demo-nudge {
-  0%, 100% { transform: translateX(0); opacity: 1; }
-  50% { transform: translateX(2px); opacity: 0.7; }
+  0%,
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  50% {
+    transform: translateX(2px);
+    opacity: 0.7;
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -828,38 +870,80 @@ html.tc-scrolling ::-webkit-scrollbar-thumb {
    layered behavior (e.g. fade-in container + pop child).
    ───────────────────────────────────────────────────────────── */
 @keyframes tc-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 @keyframes tc-fade-up {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 @keyframes tc-fade-down {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 @keyframes tc-pop {
-  from { opacity: 0; transform: scale(0.96); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 @keyframes tc-slide-in-right {
-  from { opacity: 0; transform: translateX(8px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
-.tc-enter-fade { animation: tc-fade-in var(--duration-natural) var(--ease-out-soft) both; }
+.tc-enter-fade {
+  animation: tc-fade-in var(--duration-natural) var(--ease-out-soft) both;
+}
 /* Quick opacity-only fade for in-place content swaps where the user
    already knows where the new content will land — tab panels, segment
    contents, anything that is conceptually a "show the other thing"
    rather than an "arrive". Slower than tc-enter-fade and snap-free so
    the eye doesn't track a phantom motion. */
-.tc-enter-fade-quick { animation: tc-fade-in var(--duration-quick) var(--ease-out-soft) both; }
-.tc-enter-fade-up { animation: tc-fade-up var(--duration-natural) var(--ease-out-soft) both; }
-.tc-enter-fade-up-quick { animation: tc-fade-up var(--duration-quick) var(--ease-out-soft) both; }
-.tc-enter-fade-down { animation: tc-fade-down var(--duration-natural) var(--ease-out-soft) both; }
-.tc-enter-pop { animation: tc-pop var(--duration-quick) var(--ease-out-snap) both; }
-.tc-enter-slide-right { animation: tc-slide-in-right var(--duration-natural) var(--ease-out-soft) both; }
+.tc-enter-fade-quick {
+  animation: tc-fade-in var(--duration-quick) var(--ease-out-soft) both;
+}
+.tc-enter-fade-up {
+  animation: tc-fade-up var(--duration-natural) var(--ease-out-soft) both;
+}
+.tc-enter-fade-up-quick {
+  animation: tc-fade-up var(--duration-quick) var(--ease-out-soft) both;
+}
+.tc-enter-fade-down {
+  animation: tc-fade-down var(--duration-natural) var(--ease-out-soft) both;
+}
+.tc-enter-pop {
+  animation: tc-pop var(--duration-quick) var(--ease-out-snap) both;
+}
+.tc-enter-slide-right {
+  animation: tc-slide-in-right var(--duration-natural) var(--ease-out-soft) both;
+}
 
 /* Command palette row. The selected-row highlight transitions with
    --ease-out-snap so the band overshoots a hair as ↑/↓ moves between
@@ -891,12 +975,19 @@ html.tc-scrolling ::-webkit-scrollbar-thumb {
 /* Animates `scale` (not `transform`) so the button's translateY(-50%)
    stays intact while the keyframe runs. */
 @keyframes tc-composer-send-pulse {
-  0% { scale: 1; }
-  40% { scale: 1.06; }
-  100% { scale: 1; }
+  0% {
+    scale: 1;
+  }
+  40% {
+    scale: 1.06;
+  }
+  100% {
+    scale: 1;
+  }
 }
 .tc-composer-input-flash {
-  animation: tc-composer-input-flash var(--duration-natural) var(--ease-out-soft) forwards;
+  animation: tc-composer-input-flash var(--duration-natural)
+    var(--ease-out-soft) forwards;
 }
 .tc-composer-send-button {
   transition:
@@ -916,16 +1007,36 @@ html.tc-scrolling ::-webkit-scrollbar-thumb {
 /* Stagger helper — apply tc-stagger on a container, then the children
    inherit a small delay multiplied by their position. Keeps motion
    coherent across lists without each callsite passing inline delays. */
-.tc-stagger > * { animation-delay: calc(var(--tc-stagger-step, 30ms) * var(--tc-stagger-i, 0)); }
-.tc-stagger > *:nth-child(1) { --tc-stagger-i: 0; }
-.tc-stagger > *:nth-child(2) { --tc-stagger-i: 1; }
-.tc-stagger > *:nth-child(3) { --tc-stagger-i: 2; }
-.tc-stagger > *:nth-child(4) { --tc-stagger-i: 3; }
-.tc-stagger > *:nth-child(5) { --tc-stagger-i: 4; }
-.tc-stagger > *:nth-child(6) { --tc-stagger-i: 5; }
-.tc-stagger > *:nth-child(7) { --tc-stagger-i: 6; }
-.tc-stagger > *:nth-child(8) { --tc-stagger-i: 7; }
-.tc-stagger > *:nth-child(n+9) { --tc-stagger-i: 8; }
+.tc-stagger > * {
+  animation-delay: calc(var(--tc-stagger-step, 30ms) * var(--tc-stagger-i, 0));
+}
+.tc-stagger > *:nth-child(1) {
+  --tc-stagger-i: 0;
+}
+.tc-stagger > *:nth-child(2) {
+  --tc-stagger-i: 1;
+}
+.tc-stagger > *:nth-child(3) {
+  --tc-stagger-i: 2;
+}
+.tc-stagger > *:nth-child(4) {
+  --tc-stagger-i: 3;
+}
+.tc-stagger > *:nth-child(5) {
+  --tc-stagger-i: 4;
+}
+.tc-stagger > *:nth-child(6) {
+  --tc-stagger-i: 5;
+}
+.tc-stagger > *:nth-child(7) {
+  --tc-stagger-i: 6;
+}
+.tc-stagger > *:nth-child(8) {
+  --tc-stagger-i: 7;
+}
+.tc-stagger > *:nth-child(n + 9) {
+  --tc-stagger-i: 8;
+}
 
 /* ─────────────────────────────────────────────────────────────
    Canvas dragover affordance — fires when an OS folder is
@@ -1186,7 +1297,9 @@ a.tc-kbd[data-dragover="true"] {
   .heatmap-cell-enter {
     animation: none !important;
   }
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     transition-duration: 1ms !important;
     animation-duration: 1ms !important;
   }

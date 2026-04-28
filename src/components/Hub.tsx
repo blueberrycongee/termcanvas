@@ -632,7 +632,7 @@ export function Hub() {
           type="button"
           onClick={closeHub}
           aria-label={t["hub.close"]}
-          className="tc-row-icon inline-flex h-6 w-6 items-center justify-center rounded text-[var(--text-faint)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)]"
+          className="tc-row-icon inline-flex h-6 w-6 items-center justify-center rounded text-[var(--text-faint)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)]"
         >
           <CloseIcon />
         </button>
@@ -709,7 +709,7 @@ export function Hub() {
                   <button
                     type="button"
                     onClick={() => handleNavigateToTerminal(slot.terminal.id)}
-                    className="tc-row-hover flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left"
+                    className="tc-row-hover flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)]"
                   >
                     <TerminalTypeBadge type={slot.terminal.type} />
                     <div className="min-w-0 flex-1">
@@ -771,7 +771,7 @@ export function Hub() {
                   <button
                     type="button"
                     onClick={() => handleRecallWaypoint(slot)}
-                    className="tc-row-hover flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left"
+                    className="tc-row-hover flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)]"
                   >
                     <span
                       className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[var(--text-muted)]"
@@ -836,7 +836,7 @@ export function Hub() {
                   <button
                     type="button"
                     onClick={() => handleNavigateToTerminal(slot.terminal.id)}
-                    className="tc-row-hover flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left"
+                    className="tc-row-hover flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)]"
                   >
                     <span
                       className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[var(--text-muted)]"
@@ -897,7 +897,7 @@ export function Hub() {
                       }
                       closeHub();
                     }}
-                    className="tc-row-hover flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left"
+                    className="tc-row-hover flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)]"
                   >
                     <span
                       className="flex h-5 w-5 shrink-0 items-center justify-center"
@@ -954,7 +954,7 @@ export function Hub() {
                   useCanvasRegistryStore.getState().createCanvas();
                   closeHub();
                 }}
-                className="tc-row-hover flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left"
+                className="tc-row-hover flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)]"
               >
                 <span
                   className="flex h-5 w-5 shrink-0 items-center justify-center text-[var(--text-muted)]"
@@ -998,7 +998,7 @@ export function Hub() {
                     useCanvasManagerStore.getState().openManager();
                     closeHub();
                   }}
-                  className="tc-row-hover flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left"
+                  className="tc-row-hover flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)]"
                 >
                   <span
                     className="flex h-5 w-5 shrink-0 items-center justify-center text-[var(--text-faint)]"
@@ -1048,7 +1048,7 @@ export function Hub() {
                       <button
                         type="button"
                         onClick={hint.perform}
-                        className="tc-row-hover flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left"
+                        className="tc-row-hover flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)]"
                       >
                         <span
                           aria-hidden

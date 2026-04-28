@@ -177,11 +177,9 @@ export function PinDetailDrawer() {
       if (!pin || busy) return;
       setBusy(true);
       try {
-        const updated = await window.termcanvas.pins.update(
-          pin.repo,
-          pin.id,
-          { status },
-        );
+        const updated = await window.termcanvas.pins.update(pin.repo, pin.id, {
+          status,
+        });
         upsertPin(pin.repo, updated);
       } finally {
         setBusy(false);
@@ -357,12 +355,13 @@ export function PinDetailDrawer() {
   // PIN_DRAWER_WIDTH). composingForPin and openDetailPinId both
   // require openProjectPath, so by the time isOpen is true the pin
   // drawer is open and the +320 is folded into the inset.
-  const pinDrawerOpen =
-    openProjectPath !== null || composingForPin !== null;
+  const pinDrawerOpen = openProjectPath !== null || composingForPin !== null;
   const effectiveLeftInset =
     (leftPanelCollapsed ? COLLAPSED_TAB_WIDTH : leftPanelWidth) +
     (pinDrawerOpen ? PIN_DRAWER_WIDTH : 0);
-  const rightInset = rightPanelCollapsed ? COLLAPSED_TAB_WIDTH : rightPanelWidth;
+  const rightInset = rightPanelCollapsed
+    ? COLLAPSED_TAB_WIDTH
+    : rightPanelWidth;
 
   // Memoize markdown parse so editing-buffer re-renders or unrelated parent
   // updates don't re-parse a multi-KB body and re-construct a Marked
@@ -574,7 +573,7 @@ export function PinDetailDrawer() {
               {isEditing && (
                 <div className="flex items-center gap-2 mb-6">
                   <button
-                    className="tc-ui px-3 py-1 rounded bg-[var(--accent)] text-white disabled:opacity-50 hover:opacity-90 transition-opacity"
+                    className="tc-ui px-3 py-1 rounded bg-[var(--accent)] text-[var(--accent-foreground)] disabled:opacity-50 hover:opacity-90 transition-opacity"
                     disabled={busy || uploading || !editTitle.trim()}
                     onClick={() => void handleSaveEdit()}
                   >

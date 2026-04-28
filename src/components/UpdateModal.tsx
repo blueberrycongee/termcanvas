@@ -50,7 +50,8 @@ export function UpdateModal({ onClose }: Props) {
     [],
   );
 
-  const rawNotes = typeof info?.releaseNotes === "string" ? info.releaseNotes : "";
+  const rawNotes =
+    typeof info?.releaseNotes === "string" ? info.releaseNotes : "";
   const notes = extractLocalizedNotes(rawNotes, locale);
   const changelogHtml = notes
     ? (marked.parse(notes, { async: false }) as string)
@@ -69,11 +70,11 @@ export function UpdateModal({ onClose }: Props) {
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
           <div>
             <h2 className="tc-title">
-              {status === "ready" ? t.update_modal_title_ready : t.update_modal_title}
+              {status === "ready"
+                ? t.update_modal_title_ready
+                : t.update_modal_title}
             </h2>
-            {info && (
-              <p className="tc-meta mt-0.5">v{info.version}</p>
-            )}
+            {info && <p className="tc-meta mt-0.5">v{info.version}</p>}
           </div>
           <button
             onClick={onClose}
@@ -84,7 +85,12 @@ export function UpdateModal({ onClose }: Props) {
             }}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              <path
+                d="M4 4L12 12M12 4L4 12"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
             </svg>
           </button>
         </div>
@@ -136,7 +142,7 @@ export function UpdateModal({ onClose }: Props) {
           {status === "error" && (
             <button
               onClick={handleRetry}
-              className="tc-ui px-4 py-1.5 text-white bg-[var(--accent)] rounded-lg hover:brightness-110 transition-all"
+              className="tc-ui px-4 py-1.5 text-[var(--accent-foreground)] bg-[var(--accent)] rounded-lg hover:brightness-110 transition-all"
             >
               {t.update_modal_retry}
             </button>
@@ -144,7 +150,7 @@ export function UpdateModal({ onClose }: Props) {
           {status === "ready" && (
             <button
               onClick={handleInstall}
-              className="tc-ui px-4 py-1.5 text-white bg-[var(--accent)] rounded-lg hover:brightness-110 transition-all"
+              className="tc-ui px-4 py-1.5 text-[var(--accent-foreground)] bg-[var(--accent)] rounded-lg hover:brightness-110 transition-all"
             >
               {t.update_modal_restart}
             </button>

@@ -34,7 +34,12 @@ interface MiniCalendarProps {
   onClose: () => void;
 }
 
-function MiniCalendar({ selectedDate, cachedDates, onSelect, onClose }: MiniCalendarProps) {
+function MiniCalendar({
+  selectedDate,
+  cachedDates,
+  onSelect,
+  onClose,
+}: MiniCalendarProps) {
   const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   const selected = parseDateStr(selectedDate);
@@ -103,23 +108,40 @@ function MiniCalendar({ selectedDate, cachedDates, onSelect, onClose }: MiniCale
           className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] transition-colors"
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M6.5 2L3.5 5L6.5 8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+              d="M6.5 2L3.5 5L6.5 8"
+              stroke="currentColor"
+              strokeWidth="1.3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         </button>
-        <span className="text-[11px] font-medium text-[var(--text-primary)]">{monthLabel}</span>
+        <span className="text-[11px] font-medium text-[var(--text-primary)]">
+          {monthLabel}
+        </span>
         <button
           onClick={nextMonth}
           className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] transition-colors"
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M3.5 2L6.5 5L3.5 8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+              d="M3.5 2L6.5 5L3.5 8"
+              stroke="currentColor"
+              strokeWidth="1.3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         </button>
       </div>
 
       <div className="grid grid-cols-7 px-1.5">
         {t.usage_cal_weekdays.map((day) => (
-          <div key={day} className="text-center text-[9px] text-[var(--text-faint)] py-0.5 font-medium">
+          <div
+            key={day}
+            className="text-center text-[9px] text-[var(--text-faint)] py-0.5 font-medium"
+          >
             {day}
           </div>
         ))}
@@ -146,7 +168,7 @@ function MiniCalendar({ selectedDate, cachedDates, onSelect, onClose }: MiniCale
               className={`
                 relative flex flex-col items-center justify-center h-6 rounded text-[10px] transition-all duration-100
                 ${isFuture ? "text-[var(--text-faint)] cursor-default opacity-40" : "cursor-pointer hover:bg-[var(--surface-hover)]"}
-                ${isSelected ? "bg-[var(--accent)] text-white hover:bg-[var(--accent)]" : ""}
+                ${isSelected ? "bg-[var(--accent)] text-[var(--accent-foreground)] hover:bg-[var(--accent)]" : ""}
                 ${isToday && !isSelected ? "text-[var(--accent)] font-bold" : ""}
                 ${!isSelected && !isToday && !isFuture ? "text-[var(--text-secondary)]" : ""}
               `}
@@ -182,7 +204,13 @@ interface DateNavigatorProps {
   bare?: boolean;
 }
 
-export function DateNavigator({ date, cachedDates, onDateChange, onCollapse, bare = false }: DateNavigatorProps) {
+export function DateNavigator({
+  date,
+  cachedDates,
+  onDateChange,
+  onCollapse,
+  bare = false,
+}: DateNavigatorProps) {
   const t = useT();
   const [calendarOpen, setCalendarOpen] = useState(false);
   const today = todayStr();
@@ -201,10 +229,40 @@ export function DateNavigator({ date, cachedDates, onDateChange, onCollapse, bar
       <div className="flex items-center gap-1">
         {!bare && (
           <>
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" className="text-[var(--text-muted)] shrink-0">
-              <rect x="1.5" y="3" width="3" height="8" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
-              <rect x="5.5" y="5" width="3" height="6" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
-              <rect x="9.5" y="1" width="3" height="10" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 14 14"
+              fill="none"
+              className="text-[var(--text-muted)] shrink-0"
+            >
+              <rect
+                x="1.5"
+                y="3"
+                width="3"
+                height="8"
+                rx="0.5"
+                stroke="currentColor"
+                strokeWidth="1.2"
+              />
+              <rect
+                x="5.5"
+                y="5"
+                width="3"
+                height="6"
+                rx="0.5"
+                stroke="currentColor"
+                strokeWidth="1.2"
+              />
+              <rect
+                x="9.5"
+                y="1"
+                width="3"
+                height="10"
+                rx="0.5"
+                stroke="currentColor"
+                strokeWidth="1.2"
+              />
             </svg>
             <span className="tc-eyebrow tc-mono mr-auto">{t.usage_title}</span>
           </>
@@ -215,7 +273,13 @@ export function DateNavigator({ date, cachedDates, onDateChange, onCollapse, bar
           className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
         >
           <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-            <path d="M5 1.5L2.5 4L5 6.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+              d="M5 1.5L2.5 4L5 6.5"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         </button>
 
@@ -237,7 +301,13 @@ export function DateNavigator({ date, cachedDates, onDateChange, onCollapse, bar
           }`}
         >
           <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-            <path d="M3 1.5L5.5 4L3 6.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+              d="M3 1.5L5.5 4L3 6.5"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         </button>
 
@@ -256,7 +326,13 @@ export function DateNavigator({ date, cachedDates, onDateChange, onCollapse, bar
             className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors shrink-0"
           >
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path d="M3.5 2L6.5 5L3.5 8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+              <path
+                d="M3.5 2L6.5 5L3.5 8"
+                stroke="currentColor"
+                strokeWidth="1.3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
           </button>
         )}
